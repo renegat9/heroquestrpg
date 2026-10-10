@@ -442,6 +442,9 @@ export function conditionsVersBadges(conditions) {
             ic: info.ic,
             d: objet ? (c.duree ?? null) : null,
             origine,
+            // Ce que la condition FAIT (catalogue serveur, `conditions.description`) :
+            // la fiche le montre sous les pastilles, sans table côté client.
+            desc: objet && typeof c.description === 'string' && c.description.trim() ? c.description.trim() : null,
         };
     });
 }
@@ -792,51 +795,16 @@ export const TYPES_SORT = {
 };
 
 /**
- * Descriptions FR lisibles pour la feuille d'information d'un sort
- * (correctif D — SpellInfoSheet). Le contrat « Sorts des héros » (GET
- * /api/moi) ne transmet PAS `effet` au client : [{sort_id, nom, element,
- * type, disponible}] seulement. Ces textes reprennent donc, à la main,
- * l'effet réel des 12 sorts du catalogue (database/seeders/SortSeeder.php)
- * — clé = nom du sort en minuscules. Si l'API venait un jour à exposer
- * `effet`, on le préfère (texte libre ou JSON {description|texte|libelle}).
+ * Description FR d'un sort, DÉCIDÉE par le catalogue serveur (`sorts.description`,
+ * publiée par /api/moi et par chaque entrée de menu). Le client ne tient plus de
+ * table de textes : l'ancienne recopiait l'effet des sorts à la main, et elle avait
+ * dérivé (Voile de Brume y était encore « Caché, inattaquable » — verdict Morcar § 5).
+ * Sans description (serveur plus ancien), on le dit plutôt que d'inventer un effet.
  */
-const DESCRIPTIONS_SORT = {
-    'boule de feu': 'Frappe une cible à distance : 2 dés de dégâts, défense possible.',
-    'courage': "Renforce un héros : +2 dés d'attaque à sa prochaine attaque (condition Renforcé).",
-    'trait de feu': 'Un trait ardent frappe une cible à distance : 1 dé de dégâts, défense possible.',
-    'sommeil': "Endort un monstre (résistance : jet de Mind) — il reste Endormi jusqu'à son réveil ou une attaque subie.",
-    'voile de brume': 'Rend un héros Caché — inattaquable jusqu\'à son prochain tour.',
-    'eau de guérison': 'Soigne 4 points de vie Body à un héros.',
-    'soin du corps': 'Soigne 4 points de vie Body à un héros, ou à soi-même.',
-    'traverser la pierre': 'Permet de franchir un mur — consomme tout le déplacement du tour.',
-    'peau de pierre': "Renforce la défense d'un héros de +2 dés jusqu'à la fin du combat (condition Renforcé).",
-    'génie': 'Invoque une puissance destructrice à distance : 5 dés de dégâts, défense possible.',
-    'vent véloce': "Double le déplacement d'un héros ce tour.",
-    'tempête': "Empêche les monstres visés d'attaquer à leur prochain tour (résistance : jet de Mind).",
-};
-
-/** Repli par type si le nom du sort est inconnu (extension future du catalogue). */
-const DESCRIPTIONS_TYPE_REPLI = {
-    degats: 'Inflige des dégâts à une cible ennemie, à distance.',
-    mental: "Agit sur l'esprit d'une cible — une résistance (jet de Mind) est possible.",
-    utilitaire: 'Effet de soutien : soin, protection ou déplacement.',
-};
-
-/** sort ({sort_id, nom, element, type, disponible[, effet]}) → description FR
- *  affichée par SpellInfoSheet. Préfère `effet` s'il est un jour exposé par
- *  l'API, sinon dérive du NOM (le contrat actuel ne porte que ça), sinon
- *  repli générique par type. */
 export function descriptionSort(sort) {
-    const effet = sort?.effet;
-    if (typeof effet === 'string' && effet.trim()) return effet.trim();
-    if (effet && typeof effet === 'object' && !Array.isArray(effet)) {
-        const texte = effet.description ?? effet.texte ?? effet.libelle;
-        if (typeof texte === 'string' && texte.trim()) return texte.trim();
-    }
-    const cle = (sort?.nom ?? '').trim().toLowerCase();
-    return DESCRIPTIONS_SORT[cle]
-        ?? DESCRIPTIONS_TYPE_REPLI[(sort?.type ?? '').toLowerCase()]
-        ?? 'Effet à découvrir en jeu.';
+    const texte = sort?.description;
+
+    return typeof texte === 'string' && texte.trim() ? texte.trim() : 'Effet non décrit par le catalogue.';
 }
 
 /** sorts de /moi ([{sort_id, nom, element, type, disponible}]) → groupes

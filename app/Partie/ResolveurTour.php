@@ -357,6 +357,7 @@ final class ResolveurTour
         $this->annonces->vider();
         app(TamponCharges::class)->vider();
         app(TamponFaveurs::class)->vider();
+        app(TamponAnnonces::class)->vider();
         $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
 
         if ($quete === null || $quete->etat !== 'en_cours') {
@@ -730,6 +731,15 @@ final class ResolveurTour
             $resultat['faveurs_declenchees'] = $faveurs;
         }
 
+        // Effets automatiques qu'aucune action ne retourne (objet volé perdu de
+        // vue, détection d'un piège ou d'un passage en chemin) : le tampon
+        // GÉNÉRIQUE, rendu par `JournalCombat::depuisResultat()` comme une action.
+        $annoncesAuto = app(TamponAnnonces::class)->vider();
+
+        if ($annoncesAuto !== []) {
+            $resultat['annonces_automatiques'] = $annoncesAuto;
+        }
+
         // Toute mutation d'état → journal (fait au fil de l'eau) puis broadcast.
         // Animation case-par-case (table, E4) : les trajets de figurines partent
         // DANS le message d'état — un seul message, donc un ordre garanti, là où
@@ -887,11 +897,11 @@ final class ResolveurTour
      * aussi pourquoi il ne rejoue NI les troncatures NI `controlerChemin()` :
      * un trajet écourté à l'écran dirait « il y a quelque chose ici ».
      *
-     * @return array{atteignable: bool, raison: ?string, chemin: list<array{x: int, y: int}>, cout: int, restant: int, restant_apres: int, pieges: list<array{x: int, y: int, nom: string, etat: string}>}
+     * @return array{atteignable: bool, raison: ?string, chemin: list<array{x: int, y: int}>, cout: int, restant: int, restant_apres: int, pieges: list<array{x: int, y: int, nom: string, etat: string}>, traverse_roche: bool}
      */
     public function apercuDeplacement(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, int $x, int $y): array
     {
-        $vide = ['chemin' => [], 'cout' => 0, 'pieges' => []];
+        $vide = ['chemin' => [], 'cout' => 0, 'pieges' => [], 'traverse_roche' => false];
 
         $base = (int) $personnage->deplacement_base + $this->equipement->bonusDeplacementActif($personnage, $quete);
         $totalTour = $etat->deplacement_tour ?? $base;
@@ -938,6 +948,13 @@ final class ResolveurTour
             'restant' => $restant,
             'restant_apres' => $trop ? $restant : max(0, $restant - $cout),
             'pieges' => $this->piegesConnusSur($quete, $chemin),
+            // TRAVERSER LA PIERRE (décision de René, 2026-10-09) : le trajet
+            // franchit-il de la ROCHE ? Décidé ici, sur la grille même que la
+            // résolution — la manette prévient avant le second tap, elle ne le
+            // devine pas. Sans intangible, aucune case de roche n'est sur le chemin.
+            'traverse_roche' => collect($chemin)->contains(
+                fn (array $c) => $grille->estRoche((int) $c['x'], (int) $c['y']),
+            ),
         ];
     }
 
@@ -4320,6 +4337,16 @@ final class ResolveurTour
         if (in_array($option['id'], self::OPTIONS_FOUILLE_ZONE, true)) {
             $payload['a_trouve'] = ($payload['pieges_reveles'] ?? []) !== []
                 || ($payload['portes_revelees'] ?? []) !== [];
+
+            // ISSUE sans ambiguïté (Morcar, 2026-10-09) : un jet RÉUSSI qui ne trouve
+            // rien ne doit pas porter `issue: reussite`, que l'on lit comme une
+            // découverte. Pour une fouille de zone, `issue` dit ce qui s'est passé à
+            // la RECHERCHE : `reussite` = quelque chose a été trouvé (`a_trouve`),
+            // `rien` = la recherche a réussi sans rien trouver, `echec` = le jet a
+            // raté (inchangé). `succes` reste le résultat brut du dé.
+            if (! $payload['a_trouve'] && $payload['issue'] !== 'echec') {
+                $payload['issue'] = 'rien';
+            }
         }
 
         Journal::ajouter($groupe, 'jet', $payload, $acteur);
@@ -6025,6 +6052,17 @@ final class ResolveurTour
 
                     $payload['rupture_immediate'] = $rupture['rompu'];
                     $payload['des_rupture'] = $rupture['faces'];
+
+                    // ⚠ LA VÉRITÉ (verdict 2026-10-09 §2) : `effet_applique` dit si la
+                    // condition est EN VIGUEUR une fois le sort lancé. Rompue sur-le-champ,
+                    // le monstre n'est pas endormi — afficher `effet_applique: true` +
+                    // `condition: "Endormi"` à côté d'un `rupture_immediate: true`
+                    // faisait croire le contraire. `condition` reste la condition VISÉE
+                    // par le sort (même convention que les sorts de Dread), et le fil
+                    // dit « endormi… puis réveillé aussitôt ».
+                    if ($rupture['rompu']) {
+                        $payload['effet_applique'] = false;
+                    }
                 }
             }
             if ((bool) data_get($sort->effet, 'saute_tour', false)) {
@@ -6116,11 +6154,13 @@ final class ResolveurTour
 
             $heros->update(['pv_body' => $apres]);
 
-            if ($apres > 0 && $cible->tombe) {
+            $releve = $apres > 0 && $cible->tombe;
+
+            if ($releve) {
                 $cible->update(['tombe' => false]);
             }
 
-            $soignes[] = ['personnage_id' => $heros->id, 'nom' => $heros->nom, 'soin' => $apres - $avant];
+            $soignes[] = ['personnage_id' => $heros->id, 'nom' => $heros->nom, 'soin' => $apres - $avant, 'releve' => $releve];
         }
 
         return ['zone' => true, 'soignes' => $soignes];
@@ -6206,7 +6246,9 @@ final class ResolveurTour
             $heros->update(['pv_body' => $apres]);
 
             // Un héros tombé soigné au-dessus de 0 PV est relevé (C4).
-            if ($apres > 0 && $cible['etat']->tombe) {
+            $releve = $apres > 0 && $cible['etat']->tombe;
+
+            if ($releve) {
                 $cible['etat']->update(['tombe' => false]);
             }
 
@@ -6214,6 +6256,8 @@ final class ResolveurTour
                 'cible' => ['type' => 'heros', 'personnage_id' => $heros->id, 'nom' => $heros->nom],
                 'soin' => $apres - $avant,
                 'pv_body_apres' => $apres,
+                // La décision publiée : le soin relève un héros à terre (le fil le dit).
+                'releve' => $releve,
             ];
         }
 
@@ -6245,6 +6289,9 @@ final class ResolveurTour
             'cible' => ['type' => 'heros', 'personnage_id' => $cibleBuff->id, 'nom' => $cibleBuff->nom],
             'condition' => $condition->nom,
             'source' => MoteurSorts::PREFIXE_SOURCE.$sort->nom,
+            // QUAND le buff prend fin — décidé par `DureeEffet::libelle()`, jamais
+            // redérivé du mot-clé par un client ou par le fil.
+            'duree_texte' => DureeEffet::libelle(data_get($sort->effet, 'duree')),
         ];
     }
 
@@ -6861,8 +6908,11 @@ final class ResolveurTour
 
     /**
      * Relever un allié TOMBÉ adjacent (doc 03 §48 : relevable par un allié) :
-     * le héros sacrifie son tour, l'allié se remet debout à 1 PV de Body et
-     * libère sa case. Empêche le blocage d'un couloir par une figure tombée.
+     * le héros dépense son ACTION (créneau d'action depuis le 2026-10-09 — il
+     * peut encore se déplacer avant ou après ; s'il a entamé son mouvement, le
+     * reliquat est confisqué, voir `marquerCreneau()`), l'allié se remet debout à
+     * 1 PV de Body et libère sa case. Empêche le blocage d'un couloir par une
+     * figure tombée.
      *
      * @param  array<string, mixed>  $option
      * @param  array<string, mixed>  $acteur
@@ -8408,6 +8458,14 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Aucun levier adjacent à cette position.']);
         }
 
+        // Un levier DÉJÀ FORCÉ (sa porte est ouverte) n'est plus une action : le
+        // menu ne la propose pas (`MenuMoteur`), et le résolveur la refuse au même
+        // prédicat — sinon un geste sans effet serait accepté, avec `force: true`
+        // et aucune porte à nommer.
+        if (! $levier['actionnable']) {
+            throw ValidationException::withMessages(['option_id' => 'Ce levier a déjà été actionné : la porte qu\'il commande est ouverte.']);
+        }
+
         // JET DE BODY depuis le 2026-08-24 (décision de René) : un levier ne
         // s'abaisse plus d'une pichenette. C'est le principal emploi de
         // `attribut_body` — un levier est toujours là, quand un piège détecté au
@@ -8454,19 +8512,37 @@ final class ResolveurTour
             return $payload;
         }
 
-        $ouvertes = [];
-        $portesOuvertes = [];
+        // Les portes que CE geste ouvre : celles du levier, ET les jumelles de leur
+        // seuil que `MoteurPortes::ouvrir()` entraîne avec elles (un seuil large
+        // s'ouvre d'un coup). Le payload les NOMME toutes, décidées par la
+        // comparaison à l'état d'avant : une liste lue seulement pendant la boucle
+        // oubliait la jumelle, et une réussite sans porte nommée se lisait comme un
+        // levier sans effet (Morcar, 2026-10-09).
+        $fermeesAvant = [];
         foreach ($this->portes->portes($quete->carte) as $index => $porte) {
-            if (($porte['etat'] ?? null) === MoteurPortes::ETAT_OUVERTE) {
-                continue;
+            if (($porte['etat'] ?? null) !== MoteurPortes::ETAT_OUVERTE) {
+                $fermeesAvant[$index] = $porte;
             }
+        }
+
+        foreach ($fermeesAvant as $index => $porte) {
             if (($porte['verrou']['type'] ?? null) === 'levier'
                 && (string) ($porte['verrou']['levier_id'] ?? '') === (string) $levier['levier_id']) {
                 $this->portes->ouvrir($groupe, $quete->carte, $index, 'levier', $acteur);
-                $ouvertes[] = ['x' => (int) $porte['x'], 'y' => (int) $porte['y']];
+            }
+        }
+
+        $portesOuvertes = [];
+        foreach ($fermeesAvant as $index => $porte) {
+            if (($this->portes->portes($quete->carte)[$index]['etat'] ?? null) === MoteurPortes::ETAT_OUVERTE) {
                 $portesOuvertes[] = $porte;
             }
         }
+
+        $ouvertes = array_map(
+            static fn (array $porte) => ['x' => (int) $porte['x'], 'y' => (int) $porte['y']],
+            $portesOuvertes,
+        );
 
         // Un levier ouvre une porte : la salle derrière se révèle, comme si un
         // héros l'avait poussée lui-même.
@@ -10442,6 +10518,8 @@ final class ResolveurTour
         // Sommeil (doc 02 §7) : le monstre endormi NE JOUE PAS tant qu'il
         // n'est pas attaqué — une attaque le réveille (resoudreAttaque /
         // sortDegats retirent la condition).
+        $reveil = null;
+
         if ($this->sorts->monstreA($instance, MoteurSorts::MONSTRE_ENDORMI)) {
             // « or on a future turn by a monster rolling 1 red die for each of
             // its Mind Points. If a 6 is rolled, the spell is broken. » La
@@ -10460,11 +10538,39 @@ final class ResolveurTour
                 return $payload;
             }
 
-            Journal::ajouter($groupe, 'action', [
+            $reveil = [
                 'type' => 'monstre_reveille', 'monstre' => $nomMonstre,
                 'des_rupture' => $rupture['faces'],
-            ], $acteur);
+            ];
+            Journal::ajouter($groupe, 'action', $reveil, $acteur);
         }
+
+        $action = $this->jouerMonstreEveille($groupe, $quete, $instance, $cibles, $nomMonstre, $acteur);
+
+        // ⚠ Le réveil était JOURNALISÉ MAIS JAMAIS RETOURNÉ : le dormeur rouvrait les
+        // yeux, jouait son tour, et le fil ne disait que le tour. Le réveil précède
+        // son action dans le MÊME résultat (`actions_composites`, étalé par
+        // `phaseMonstres()`), donc il se lit dans l'ordre où il s'est produit.
+        if ($reveil === null) {
+            return $action;
+        }
+
+        return [
+            'type' => 'actions_composites',
+            'monstre' => $nomMonstre,
+            'actions' => [$reveil, ...(($action['type'] ?? null) === 'actions_composites' ? (array) $action['actions'] : [$action])],
+        ];
+    }
+
+    /**
+     * Le tour d'un monstre ÉVEILLÉ — tout ce qui suit le contrôle du Sommeil.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function jouerMonstreEveille(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Collection $cibles, string $nomMonstre, array $acteur): array
+    {
 
         // Tempête : « un monstre choisi PASSE SON PROCHAIN TOUR » (Kellar's Keep
         // p. 15). Le tour entier saute — ni déplacement ni attaque —, et la
@@ -11605,9 +11711,11 @@ final class ResolveurTour
     /**
      * Créneau de tour consommé par un type d'option (doc 03 §28) :
      *  - `mouvement` : se déplacer, franchir une fosse ;
-     *  - `tour` : actions qui sacrifient le tour entier (concentration, relever,
-     *    terminer le tour) ;
-     *  - `action` : tout le reste (attaque, jet/fouille, sort, parchemin, désamorçage).
+     *  - `tour` : actions qui sacrifient le tour entier (concentration, libérer
+     *    un captif, terminer le tour) ;
+     *  - `action` : tout le reste (attaque, jet/fouille, sort, parchemin,
+     *    désamorçage, relever un compagnon — « une action, pas tout le tour »,
+     *    René 2026-10-09).
      *
      * PUBLIC et STATIQUE depuis le 2026-09-18 (contrat « creneau » — chaque
      * option dit ce qu'elle coûte) : `MenuMoteur` l'appelle pour publier
@@ -11664,13 +11772,46 @@ final class ResolveurTour
             // `s_ecarter_du_bloc` REJOINT cette liste le 2026-09-24 : le seul
             // choix qu'un héros debout sur un bloc de pierre tombé peut encore
             // faire, et le livret dit que ce choix FERME son tour (p. 14) —
-            // exactement comme relever un compagnon ou se concentrer.
+            // exactement comme se concentrer.
             // `liberer_captif` REJOINT cette liste (chantier 3b, 2026-10-04) :
-            // libérer un captif n'est pas un geste qu'on fait en passant, même
-            // traitement que relever un compagnon tombé.
-            'concentration', 'relever', 'attente', 's_ecarter_du_bloc', 'liberer_captif' => 'tour',
+            // libérer un captif n'est pas un geste qu'on fait en passant. ⚠ Il
+            // garde le créneau `tour` alors que RELEVER l'a quitté (2026-10-09) :
+            // le même traitement était voulu pour les deux, René n'a tranché que
+            // relever. À reprendre séparément, pas par alignement silencieux.
+            // `relever` QUITTE cette liste le 2026-10-09 (décision de René,
+            // verdict Morcar) : relever un compagnon consomme le créneau
+            // d'ACTION. Le héros peut encore se déplacer avant ou après ; s'il a
+            // entamé son mouvement, l'action lui confisque le reste
+            // (`marquerCreneau()`, annoncé par `perd_deplacement`). Avant, il
+            // sacrifiait le tour entier pour une seule relève.
+            'concentration', 'attente', 's_ecarter_du_bloc', 'liberer_captif' => 'tour',
             default => 'action',
         };
+    }
+
+    /**
+     * Cases de déplacement que PERD un héros qui agit maintenant — la règle du
+     * plateau (« on se déplace PUIS on agit, ou on agit PUIS on se déplace, jamais
+     * les trois », 2026-08-07), que René garde le 2026-10-09 « mais l'annonce ».
+     *
+     * Fonction pure de deux valeurs LUES sur l'état : `$restant`
+     * (`deplacement_restant`, NULL tant qu'aucun pas n'a été résolu) et le drapeau
+     * de Vague montante. `marquerCreneau()` l'APPLIQUE ; `MenuMoteur` la PUBLIE sur
+     * chaque option d'action (`perd_deplacement`). Un seul calcul, deux lecteurs :
+     * « entamé » ne se recopie pas.
+     *
+     * ⚠ « Entamé » se lit sur le reliquat lui-même, PAS sur une comparaison au total
+     * du jet (`deplacement_tour`) : le tour s'ouvre avec `total × multiplicateur +
+     * bonus` (Vent Véloce, Potion de dextérité), et cette comparaison ratait le
+     * héros doublé qui avait fait un pas.
+     */
+    public static function casesPerduesParAction(?int $restant, bool $deplacementScinde): int
+    {
+        if ($restant === null || $deplacementScinde) {
+            return 0;
+        }
+
+        return max(0, $restant);
     }
 
     /**
@@ -11679,7 +11820,8 @@ final class ResolveurTour
      *
      * Déplacement FRACTIONNÉ (E1) : le créneau « mouvement » est géré par
      * resoudreDeplacement (a_deplace/deplacement_restant selon les points laissés).
-     * Une ACTION hors mouvement FORFAIT le déplacement restant (a_deplace + 0).
+     * Une ACTION jouée APRÈS un déplacement entamé CONFISQUE le reliquat
+     * (`casesPerduesParAction()`) ; avant tout pas, elle ne touche pas au déplacement.
      * Une INTERACTION libre (porte, levier) ne consomme aucun créneau.
      */
     private function marquerCreneau(EtatPersonnageQuete $etat, string $creneau, bool $bonusReserveArcanique = false, bool $bonusHeroisme = false): void
@@ -11709,7 +11851,7 @@ final class ResolveurTour
                 return;
             }
 
-            // Fin de tour EXPLICITE (« Terminer le tour », relever, concentration).
+            // Fin de tour EXPLICITE (« Terminer le tour », concentration, libérer un captif).
             $etat->a_joue = true;
 
             // « Remove the tile from the board if a creature ends their turn on
@@ -11760,16 +11902,19 @@ final class ResolveurTour
                 //
                 // ⚠ La condition porte sur « avoir déjà bougé », pas sur
                 // `a_deplace` (posé seulement quand l'allonce est ÉPUISÉE) :
-                // c'est `deplacement_restant`, non nul et inférieur au total du
-                // tour, qui signale un mouvement entamé. Agir sans avoir bougé
-                // laisse au contraire le déplacement entier.
+                // c'est `deplacement_restant`, posé par le premier pas résolu,
+                // qui signale un mouvement entamé. Agir sans avoir bougé laisse
+                // au contraire le déplacement entier. Même formule que celle que
+                // le menu publie (`perd_deplacement`) : `casesPerduesParAction()`.
                 // VAGUE MONTANTE (Moine, Style de l'Eau) — « split your total
                 // movement roll before and after your action » : la technique
                 // lève exactement cette confiscation, et rien d'autre.
-                if ($etat->deplacement_restant !== null
-                    && ! $this->styles->estActiveCeTour($etat, 'deplacement_scinde')
-                    && (int) $etat->deplacement_restant > 0
-                    && (int) $etat->deplacement_restant < (int) ($etat->deplacement_tour ?? 0)) {
+                $perdues = self::casesPerduesParAction(
+                    $etat->deplacement_restant,
+                    $this->styles->estActiveCeTour($etat, 'deplacement_scinde'),
+                );
+
+                if ($perdues > 0) {
                     $etat->deplacement_restant = 0;
                     $etat->a_deplace = true;
                 }
@@ -12742,41 +12887,21 @@ final class ResolveurTour
             throw ValidationException::withMessages(['parametres.cle' => 'Destination illégale.']);
         }
 
+        // ⚠ MÊME calcul que le menu (`MenuMoteur::genererMenuAllie()`) : une
+        // destination qui n'aboutit pas est refusée ici aussi — le menu n'est
+        // qu'une proposition, le résolveur reste seul juge (`ApprocheAllie`).
         $grille = $this->grille($quete, exceptMercenaireId: $allie->id, franchitAllies: true);
-        $ax = (int) $allie->position_x;
-        $ay = (int) $allie->position_y;
         $e = $cible->monstre->emprise();
+        $trajet = app(ApprocheAllie::class)->trajet(
+            $grille, (int) $allie->position_x, (int) $allie->position_y, (int) $allie->mercenaire->deplacement,
+            (int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h'],
+        );
 
-        $meilleur = null;
-        foreach ($grille->cellulesEmprise((int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h']) as $cell) {
-            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
-                $chemin = $grille->chemin($ax, $ay, $cell['x'] + $dx, $cell['y'] + $dy);
-
-                if ($chemin !== null && ($meilleur === null || count($chemin) < count($meilleur))) {
-                    $meilleur = $chemin;
-                }
-            }
-        }
-
-        if ($meilleur === null) {
+        if ($trajet === null) {
             throw ValidationException::withMessages(['parametres.cle' => 'Destination illégale.']);
         }
 
-        $pas = $grille->pasAffordables($meilleur, (int) $allie->mercenaire->deplacement);
-
-        // Traverser n'est pas s'arrêter (comme hier, pilotage moteur) : on
-        // recule jusqu'à la dernière case LIBRE du trajet payable.
-        // (Et une Mare ou un Brasier : `arretInterdit()` pose les deux questions.)
-        while ($pas > 0 && $grille->arretInterdit((int) $meilleur[$pas - 1]['x'], (int) $meilleur[$pas - 1]['y'])) {
-            $pas--;
-        }
-
-        $arrivee = ['x' => $ax, 'y' => $ay];
-
-        if ($pas > 0) {
-            $arrivee = $meilleur[$pas - 1];
-            $arrivee = ['x' => (int) $arrivee['x'], 'y' => (int) $arrivee['y']];
-        }
+        $arrivee = $trajet['arrivee'];
 
         $allie->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y'], 'a_deplace' => true]);
 

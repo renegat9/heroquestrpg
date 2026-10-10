@@ -337,6 +337,52 @@ final class MoteurDread
         InstanceMonstre $instance,
         Collection $cibles,
     ): ?array {
+        $action = $this->jouerTourDreadBrut($groupe, $quete, $instance, $cibles);
+
+        return $action === null ? null : $this->signerLanceur($action, $instance);
+    }
+
+    /**
+     * Pose le LANCEUR sur chaque sort de Dread que ce tour a rendu.
+     *
+     * ⚠ Point de passage UNIQUE de l'en-tête (2026-10-09) : les dix-neuf payloads
+     * `sort_dread` ne portaient pas le nom du sorcier, et le fil de combat y
+     * suppléait par le nom de l'ACTEUR — le héros qui venait de jouer en direct,
+     * le sorcier à la reconnexion. D'où « Maître des orages — » devant
+     * Foudroiement mais pas devant Tremblement de terre, et « Aldric — Foudroiement »
+     * en direct. Le serveur publie la décision : `lanceur`, une fois, ici.
+     *
+     * @param  array<string, mixed>  $action
+     * @return array<string, mixed>
+     */
+    private function signerLanceur(array $action, InstanceMonstre $instance): array
+    {
+        if (($action['type'] ?? null) === 'actions_composites') {
+            $action['actions'] = array_map(
+                fn ($a) => is_array($a) ? $this->signerLanceur($a, $instance) : $a,
+                (array) ($action['actions'] ?? []),
+            );
+
+            return $action;
+        }
+
+        if (in_array($action['type'] ?? null, ['sort_dread', 'sort_dread_annule'], true) && ! isset($action['lanceur'])) {
+            $action['lanceur'] = ['instance_id' => (int) $instance->id, 'nom' => $instance->nomAffiche()];
+        }
+
+        return $action;
+    }
+
+    /**
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @return array<string, mixed>|null
+     */
+    private function jouerTourDreadBrut(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        Collection $cibles,
+    ): ?array {
         $nomMonstre = $instance->nomAffiche();
         $acteur = ['type' => 'monstre', 'id' => $instance->id, 'nom' => $nomMonstre];
 
@@ -3089,6 +3135,7 @@ final class MoteurDread
         $payload = [
             'type' => 'capacite_dread',
             'capacite' => 'invocation',
+            'monstre' => $instance->nomAffiche(),
             'invoques' => $invoques,
         ];
         Journal::ajouter($groupe, 'action', $payload, $acteur);
@@ -3365,13 +3412,23 @@ final class MoteurDread
             unset($habillage['vol_objet']);
             $instance->update(['habillage' => $habillage]);
 
-            Journal::ajouter($groupe, 'action', [
+            $perdu = [
                 'type' => 'objet_perdu',
                 'monstre' => $nomMonstre,
                 'objet' => $enCours['objet_nom'] ?? null,
-            ], $acteur);
+                'cible' => [
+                    'personnage_id' => $enCours['personnage_id'] ?? null,
+                    'nom' => Personnage::find((int) ($enCours['personnage_id'] ?? 0))?->nom,
+                ],
+            ];
+            Journal::ajouter($groupe, 'action', $perdu, $acteur);
 
-            return null; // ce n'est pas une action : le tour se joue normalement ensuite
+            // ce n'est pas une action (le tour se joue normalement ensuite), donc rien
+            // ne la RETOURNE : le tampon générique la porte dans le résultat — sans
+            // lui, l'objet disparaissait pour toujours sans une ligne au fil.
+            app(TamponAnnonces::class)->ajouter($perdu);
+
+            return null;
         }
 
         $porteur = $cibles->first(fn (EtatPersonnageQuete $c) => abs((int) $c->position_x - (int) $instance->position_x)

@@ -1522,6 +1522,7 @@ const navItems = computed(() => (scene.value === 'marche'
                         :franchit-figures="monEntite?.franchit_figures === true"
                         :ignore-terrain-entravant="monEntite?.ignore_terrain_entravant === true"
                         :franchit-mobilier="monEntite?.franchit_mobilier === true"
+                        :traverse-roche="monEntite?.traverse_roche === true"
                         :groupe="groupe"
                         :cases-ecart="feuilleOption.option.type === 's_ecarter_du_bloc'
                             ? (feuilleOption.option.parametres?.cases ?? [])

@@ -308,3 +308,9 @@ qui était noté ici est clos).
 **Hold the Line** est la seule exception nommée à « aucune attaque d'opportunité » : un monstre qui s'éloigne des huit cases du porteur subit un dé de combat, 1 PV fixe sur un crâne.
 
 ⚠ **Une faveur qui agit sans rien dire est injouable.** Peacekeeper et Hold the Line sont rendus au **fil de combat**, en direct (`faveurs_declenchees` dans le résultat de l'action, via `TamponFaveurs`) et à la reconnexion (journal `combat`). La fiche du héros porte chaque faveur avec son **nom et son effet** : en quête, dans la table (`EtatGroupe.entites[].faveurs`) ; au hub, sur la manette (`/moi`). Les deux viennent de `FaveursHopekins::publier()`, relu à chaque publication, jamais figé dans le journal.
+
+## Levier déjà forcé ; fouille de zone : l'issue dit la recherche (Morcar, 2026-10-09)
+
+- **Un levier dont la porte est ouverte n'est plus une action.** Il reste visible sur la carte ; le menu ne le propose plus, et le résolveur refuse le geste. Le prédicat est un seul : `MoteurPortes::levierAOuvrir()` (il existe au moins une porte `verrou: levier` avec ce `levier_id` qui n'est pas ouverte). Un levier n'a pas d'état propre : sa porte dit tout.
+- **Une réussite nomme toutes les portes qu'elle ouvre**, jumelles de seuil comprises (`MoteurPortes::ouvrir()` ouvre un seuil large d'un coup). `portes_ouvertes` est décidé par la comparaison à l'état d'avant, jamais par la seule boucle sur la porte du levier.
+- **Une fouille de zone (`fouiller`, `fouiller_pierre`) dit ce que la RECHERCHE a donné** : `issue: reussite` = quelque chose trouvé (`a_trouve: true`) ; `issue: rien` = le jet réussit et ne trouve rien (`succes: true`, `a_trouve: false`) ; `issue: echec` = le jet a raté. `succes` reste le résultat brut du dé. Le temps fort du narrateur suit : `rien` → `fouille_rien`. Avant, un jet réussi sans trouvaille portait `issue: reussite`, lu comme une découverte.

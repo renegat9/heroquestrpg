@@ -519,7 +519,8 @@ it('mode ESCORTÉ : si le porteur tombe, le captif est REPRIS — jamais un éch
 
     // Albrecht fragile (1 PV), un monstre robuste posté à SON contact —
     // adjacent dès que son tour se terminera (libérer un captif sacrifie le
-    // tour, exactement comme relever un compagnon).
+    // tour — créneau `tour`. Relever un compagnon, lui, est une ACTION depuis le
+    // 2026-10-09 : ne plus le prendre pour modèle ici).
     $heros->update(['pv_body' => 1]);
     $instance = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
     $quete->instancesMonstres()->whereKeyNot($instance->id)->update(['etat' => 'vaincu']);

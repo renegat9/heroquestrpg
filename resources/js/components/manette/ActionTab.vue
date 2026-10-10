@@ -3,7 +3,7 @@
 // Le menu contextuel reçu par .menu.propose ({contexte, options: [{id,
 // libelle, type, parametres}]}) — chaque tap émet 'choose' avec l'option ;
 // `pending` gèle les boutons jusqu'au prochain .groupe.etat.
-import { nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import MSym from '../ui/MSym.vue';
 import ChoiceCard from './ChoiceCard.vue';
 import InitMini from './InitMini.vue';
@@ -35,6 +35,13 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['choose']);
+
+/** PERTE DU RELIQUAT (décision de René, 2026-10-09 : « garder la règle, mais
+ *  l'annoncer »). Le SERVEUR publie, sur chaque option d'action, `perd_deplacement` :
+ *  le nombre de cases que CET acte confisquerait (`ResolveurTour::casesPerduesParAction()`).
+ *  On LIT ce nombre — on ne le recalcule jamais à partir d'un reliquat ni d'un type.
+ *  0 = rien à perdre ; un menu sans le champ n'annonce rien. */
+const pertesDeplacement = computed(() => props.menu?.options?.find((o) => (o.perd_deplacement ?? 0) > 0)?.perd_deplacement ?? 0);
 
 /** Icône par type d'option du contrat (+ pièges doc 10 : désamorcer /
  *  sauter un piège détecté (fosse, chute de blocs) — des jets de Body proposés en menu ;
@@ -211,7 +218,7 @@ function creneauConsomme(option) {
             case 'mouvement':
                 return !!moi.a_deplace;
             // Interaction LIBRE (porte, retraite, style, objet_libre, jeter…)
-            // et action TERMINANTE (concentration, relever, attente) : aucune
+            // et action TERMINANTE (concentration, attente) : aucune
             // des deux ne grise avant `a_joue`, déjà tranché plus haut.
             case 'interaction':
             case 'tour':
@@ -246,7 +253,6 @@ function creneauConsomme(option) {
         case 'style':
         case 'jeter':
         case 'concentration':
-        case 'relever':
         case 'attente':
             return false;
         default:
@@ -314,6 +320,14 @@ const ICONE_JOURNAL = {
              le silence se lit comme une panne. -->
         <p v-if="menu.situation" class="menu-situation">
             <MSym n="info" :size="15" fill /> {{ menu.situation }}
+        </p>
+        <!-- PERTE DU RELIQUAT : le serveur sait ce qu'une action confisquerait
+             (`perd_deplacement`) — on le dit AVANT le geste, jamais après. -->
+        <p v-if="pertesDeplacement > 1" class="menu-perte">
+            <MSym n="warning" :size="15" fill /> Tu perdras tes {{ pertesDeplacement }} cases restantes si tu agis maintenant.
+        </p>
+        <p v-else-if="pertesDeplacement === 1" class="menu-perte">
+            <MSym n="warning" :size="15" fill /> Tu perdras ta dernière case restante si tu agis maintenant.
         </p>
         <div class="choices">
             <ChoiceCard
@@ -403,4 +417,10 @@ const ICONE_JOURNAL = {
 /* Talent qui s'active tout seul (2026-09-25) — même jeton doré que le popup
    (TalentPopup.vue) : un talent n'est ni un dégât ni un gain, sa propre teinte. */
 .cbt-line.t-talent { color: var(--gold, #c9a24a); font-weight: 700; }
+
+/* Perte du reliquat de déplacement (2026-10-09) : même teinte « torche » que les
+   pièges du trajet — un avertissement, pas une erreur. */
+.menu-perte { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 1.35;
+  color: var(--torch, #d9a441); margin: 0 0 8px; }
+.menu-perte .msym { flex: none; color: var(--torch, #d9a441); }
 </style>

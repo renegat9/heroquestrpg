@@ -248,17 +248,25 @@ final class EtatGroupe
      */
     private function journalCombat(Groupe $groupe, Quete $quete): array
     {
+        // ⚠ TOUS les types d'événement qui portent une action de jeu, pas seulement
+        // `combat` (verdict Morcar 2026-10-09 §1) : un sort de soin, un levier, une
+        // fouille ou le déplacement d'un monstre sont journalisés `action`/`jet`, et le
+        // rejeu ne les voyait pas — les autres joueurs ne savaient pas ce qui arrivait
+        // à leurs compagnons. `JournalCombat::TYPES_EVENEMENT` est la liste ; le
+        // formateur décide (un type muet rend zéro ligne).
+        // Fenêtre de 100 événements (et non 40) : la plupart des événements d'un
+        // round (déplacements, attentes) ne rendent aucune ligne, et ils ne doivent
+        // pas pousser hors de la fenêtre ceux qui en rendent.
         $evenements = Evenement::query()
             ->where('groupe_id', $groupe->id)
             ->where('quete_id', $quete->id)
-            ->where('type', 'combat')
+            ->whereIn('type', JournalCombat::TYPES_EVENEMENT)
             ->orderByDesc('sequence')
-            ->limit(40)
+            ->limit(100)
             ->get(['payload', 'acteur'])
             ->reverse();
 
-        $formateur = app(JournalCombat::class);
-        $lignes = [];
+        $entrees = [];
 
         foreach ($evenements as $evenement) {
             $payload = $evenement->payload;
@@ -274,12 +282,10 @@ final class EtatGroupe
                 $acteur = json_decode($acteur, true);
             }
 
-            foreach ($formateur->depuisResultat($payload, (string) (data_get($acteur, 'nom') ?: 'Un héros')) as $ligne) {
-                $lignes[] = $ligne;
-            }
+            $entrees[] = [$payload, (string) (data_get($acteur, 'nom') ?: 'Un héros')];
         }
 
-        return array_slice($lignes, -24);
+        return array_slice(app(JournalCombat::class)->depuisEvenements($entrees), -24);
     }
 
     /**
@@ -1205,6 +1211,14 @@ final class EtatGroupe
                     // Même patron, même raison — la manette ne devine ni une pièce
                     // portée ni un buff de potion (`MoteurSorts::mobilierFranchi()`).
                     'franchit_mobilier' => $this->sorts->mobilierFranchi($p),
+                    // TRAVERSER LA PIERRE (décision de René, 2026-10-09) : CE héros
+                    // traverse-t-il la ROCHE ce tour ? Décision serveur
+                    // (`MoteurSorts::traverseRoche()`, la même méthode que le
+                    // résolveur). La manette s'en sert pour ouvrir à la visée les cases
+                    // de roche et de sol connu, et attend l'aperçu pour savoir si le
+                    // trajet en traverse (`traverse_roche`). Sans ce drapeau, la roche
+                    // n'était jamais touchable à l'écran.
+                    'traverse_roche' => $this->sorts->traverseRoche($p),
                     // RÉSERVE ARCANIQUE (talent du magicien) et Baguette de
                     // Rappel : un SECOND sort au-delà du créneau d'action, le
                     // pendant exact de la seconde attaque ci-dessus. Même
@@ -1319,7 +1333,7 @@ final class EtatGroupe
     /**
      * Conditions actives d'un héros (pivot personnage_conditions).
      *
-     * @return list<array{nom: string, duree: int}>
+     * @return list<array{nom: string, duree: int, description: string|null, source: string}>
      */
     private function conditionsHeros(Personnage $personnage): array
     {
@@ -1328,6 +1342,11 @@ final class EtatGroupe
             ->map(fn (Condition $c) => [
                 'nom' => $c->nom,
                 'duree' => (int) $c->pivot->duree,
+                // CE QU'ELLE FAIT, en clair (catalogue `conditions.description`) :
+                // « Vaporeux » et « Intangible » se posaient sans rien dire
+                // (verdict Morcar, 2026-10-09 § 5). Le texte vient du catalogue,
+                // jamais d'une table écrite côté client.
+                'description' => $c->description,
                 // D'OÙ elle vient (`sort:Courage`, `potion:Potion de rage`…).
                 // ⚠ Sans elle, deux buffs très différents s'affichaient sous le
                 // même nom : *Courage* (+2 dés d'attaque) et *Peau de Pierre*

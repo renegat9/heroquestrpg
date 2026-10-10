@@ -1890,11 +1890,22 @@ final class MoteurPieges
         }
 
         if ($reveles !== []) {
-            Journal::ajouter($groupe, 'action', [
+            $payload = [
                 'type' => 'pieges_detectes',
                 'methode' => $methode,
                 'pieges' => $reveles,
-            ], ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom]);
+                'personnage' => $personnage->nom,
+            ];
+
+            Journal::ajouter($groupe, 'action', $payload, ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom]);
+
+            // La fouille (ligne du `jet`) et l'Œil du mineur (popup du talent) se
+            // disent déjà ; la Potion de vision, elle, balaie la ligne de vue à
+            // chaque action SANS que rien d'autre ne le raconte — le tampon générique
+            // porte l'annonce dans le résultat (`TamponAnnonces`).
+            if ($methode === 'clairvoyance') {
+                app(TamponAnnonces::class)->ajouter($payload);
+            }
         }
 
         return $reveles;

@@ -6,6 +6,16 @@
 set -eu
 D="$(cd "$(dirname "$0")" && pwd)"
 
+# GARDE — même règle que preparer.sh (verdict Morcar, 2026-10-09, §6) : ce script lance LUI AUSSI
+# un battement dans le MÊME jar-table.txt et le MÊME battement.pid. C'est lui qui a laissé le
+# battement oublié du 2026-10-05. Un battement vivant, on refuse avant toute écriture.
+pids_battement=$(pgrep -f "$D/battement.sh" | paste -sd' ' - || true)
+if [ -n "$pids_battement" ]; then
+  echo "✗ Un battement de table tourne déjà (PID $pids_battement)." >&2
+  echo "  → ./nettoyer.sh arrête le battement de la campagne précédente, puis relance." >&2
+  exit 1
+fi
+
 NOM="$1"; THEME="$2"; shift 2
 SUF=$(date +%H%M%S)
 

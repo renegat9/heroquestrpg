@@ -6,6 +6,7 @@ namespace App\Partie;
 
 use App\Engine\Des\DeRouge;
 use App\Engine\ReactionEffet;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Formateur MÉCANIQUE du journal de combat (aucun LLM).
@@ -36,6 +37,86 @@ use App\Engine\ReactionEffet;
  */
 final class JournalCombat
 {
+    use LignesEffetsAutomatiques;
+
+    /**
+     * LE REGISTRE des types d'action que le moteur peut rendre (`'type' => …`
+     * d'un payload journalisé ou retourné par le résolveur).
+     *
+     * `true` : `ligneType()` a une phrase pour ce type. Une CHAÎNE : le type est
+     * muet **par choix écrit**, et la chaîne en donne la raison — jamais par
+     * omission. C'est la cause racine du verdict Morcar 2026-10-09 §1 : le
+     * `match` de `ligneType()` finissait par `default => []`, donc tout type
+     * ajouté sans arm était MUET sans que rien ne l'écrive nulle part (un
+     * « Charge » de boss, un monstre qui avance, un soin, un levier forcé…).
+     * Désormais un type absent du registre est rendu par une ligne de repli ET
+     * journalisé en avertissement, et `AnnoncesEffetsAutomatiquesTest` parcourt
+     * les sources : tout `'type' => '…'` de `app/Partie` doit y figurer, et tout
+     * type déclaré doit exister (un registre se teste DANS LES DEUX SENS).
+     *
+     * @var array<string, true|string>
+     */
+    public const TYPES = [
+        // ---- Le héros agit
+        'attaque' => true, 'attaque_balayee' => true, 'style' => true, 'rayon' => true,
+        'degat_differe' => true, 'braise' => true, 'deplacement' => true, 'jet' => true,
+        'desamorcage' => true, 'franchissement' => true, 'sort' => true, 'parchemin' => true,
+        'concentration' => true, 'sacrifice_sort' => true, 'soin_allie' => true,
+        'liberer_entraves' => true, 'relever' => true, 'regain_corps' => true,
+        'equiper' => true, 'desequiper' => true, 'usage_objet' => true, 'echanger' => true,
+        'jeter' => true, 'attaque_mobilier' => true, 'fouille_tresor' => true,
+        'fouille_mobilier' => true, 'boire_mare' => true, 'detruire_par_action' => true,
+        'actionner_levier' => true, 'forcer_porte_pierre' => true, 'ouvrir_porte' => true,
+        'oracle_salle' => true, 'poussee' => true, 'briser_glace' => true,
+        'detacher_rejetons' => true, 's_ecarter_du_bloc' => true, 'retraite' => true,
+        'sortie' => true, 'jet_en_attente' => true, 'reaction' => true, 'objet_detruit' => true,
+        // ---- Les pièges
+        'piege_declenche' => true, 'piege_ignore' => true, 'piege_esquive' => true,
+        'piege_amorce' => true, 'piege_explosion' => true, 'piege_teleporte' => true,
+        'piege_bourrasque' => true, 'piege_desarme_embrasement' => true,
+        'pieges_detectes' => true, 'portes_secretes_revelees' => true,
+        // ---- Les alliés et les captifs
+        'attaque_allie' => true, 'deplacement_allie' => true, 'attente_allie' => true,
+        'captif_libere' => true, 'captif_repris' => true, 'sbire_controle' => true,
+        // ---- Les monstres
+        'attaque_monstre' => true, 'deplacement_monstre' => true, 'repli_tireur' => true,
+        'terrain_monstre' => true, 'monstre_saute_tour' => true, 'monstre_paralyse' => true,
+        'monstre_endormi' => true, 'monstre_reveille' => true, 'monstre_enfume' => true,
+        'monstre_enchaine' => true, 'monstre_dans_l_ombre' => true, 'etreinte_maintenue' => true,
+        'vol_draconique' => true, 'frappe_de_zone' => true, 'charge' => true,
+        'capacite_dread' => true, 'spawn' => true, 'rejeton_accroche' => true,
+        'regeneration' => true, 'vol_objet' => true, 'objet_perdu' => true, 'embuscade' => true,
+        'actions_composites' => true,
+        // ---- Le MJ et ses sorts
+        'sort_dread' => true, 'sort_dread_annule' => true, 'rupture_sort_dread' => true,
+        'effet_dread' => true, 'effet_global_quete' => true, 'conditions_levees' => true,
+        'tour_perdu' => true, 'heros_endormi' => true, 'possession_deplacement' => true,
+        'commandement_sans_effet' => true, 'commandement_sans_cible' => true,
+        'commandement_deplacement' => true, 'commandement_attaque' => true,
+        'ombre_decompte' => true, 'glace_dissipee' => true,
+        // ---- Les faveurs
+        'faveur_hold_the_line' => true, 'faveur_peacekeeper' => true,
+        // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
+        'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
+        'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
+        'reddition' => 'Dite par `reddition_monstre` de l\'action qui a achevé le monstre — la redire la doublerait à la reconnexion.',
+        'porte_ouverte' => 'Écriture de journal seule : l\'action qui ouvre la porte (ouvrir_porte, levier, sort) la dit déjà.',
+        'peacekeeper_quete' => 'Annoncé au hub par `EtatGroupe::annonceDeQuete()`, hors du fil de la quête.',
+        'faveur_hopekins' => 'Annoncé au hub par `EtatGroupe::annonceDeQuete()`, hors du fil de la quête.',
+        'mercenaire_entretien' => 'Annoncé au hub par `EtatGroupe::annonceDeQuete()`, hors du fil de la quête.',
+    ];
+
+    /**
+     * Les types d'événement du journal que le REJEU (`journal_combat` de
+     * `EtatGroupe`) relit. Il ne relisait que `combat` : or un sort de soin,
+     * un levier, une fouille, un déplacement de monstre ou un sort de contrôle
+     * du MJ sont journalisés `action` (ou `jet`) — un rafraîchissement du
+     * téléphone ou une manette arrivée en retard ne voyait donc JAMAIS ces
+     * lignes, et celles qu'il voyait portaient le mauvais acteur. Le formateur
+     * est l'arbitre (`TYPES`) : un événement muet y rend simplement zéro ligne.
+     */
+    public const TYPES_EVENEMENT = ['combat', 'action', 'jet'];
+
     /**
      * Les phases qu'un résultat de tour peut contenir, dans l'ordre où elles se
      * jouent.
@@ -46,7 +127,16 @@ final class JournalCombat
      * avec `pieges_declenches` (au pluriel), couvert d'un seul côté : un héros
      * tombait dans une fosse, perdait ses PV et n'avait pas une ligne.
      */
-    public const PHASES = ['tour_allies', 'tour_monstres'];
+    public const PHASES = ['tour_allies', 'tour_monstres', 'tour_sbires'];
+
+    /**
+     * Les listes PLATES d'actions qu'un résultat porte à côté des phases :
+     * les captifs repris, les coups de corne du Minotaure (un héros qui finit
+     * son tour à son contact) et les annonces du tampon générique
+     * (`TamponAnnonces`). Trois listes que personne ne lisait — leurs effets
+     * étaient publiés, journalisés, et affichés NULLE PART.
+     */
+    public const LISTES_PLATES = ['captifs_repris', 'coups_de_corne', 'annonces_automatiques'];
 
     /** Les deux clés sous lesquelles un piège peut être IMBRIQUÉ dans une action. */
     public const CLES_PIEGE = ['declenchement', 'pieges_declenches'];
@@ -78,13 +168,58 @@ final class JournalCombat
         // lisait : une rupture de sort, un captif repris ou un héros relevé par la
         // Story étaient muets dans tout round où le groupe n'avait plus de monstre
         // (« un effet automatique que rien n'annonce est injouable »).
-        foreach ($resultat['captifs_repris'] ?? [] as $action) {
-            if (is_array($action)) {
-                $actions[] = $action;
+        foreach (self::LISTES_PLATES as $cle) {
+            foreach ((array) ($resultat[$cle] ?? []) as $action) {
+                if (is_array($action)) {
+                    $actions[] = $action;
+                }
             }
         }
 
         return $actions;
+    }
+
+    /**
+     * Le REJEU : les lignes de fil de plusieurs événements du journal, dans l'ordre.
+     *
+     * Point de passage unique de `EtatGroupe::journalCombat()` (reconnexion, joueur
+     * arrivé en retard). Chaque élément est `[payload, nom de l'acteur]`.
+     *
+     * ⚠ DÉDOUBLONNAGE par contenu : un payload journalisé à part ET imbriqué dans
+     * celui de son parent (le piège d'un déplacement, le coffre d'une fouille,
+     * l'action jouée par l'embusqué) ne doit pas se dire deux fois. Un événement
+     * dont le JSON figure tel quel dans celui d'un AUTRE événement de la fenêtre
+     * est écarté — le parent le porte. Pas de liste de types à tenir à jour : la
+     * règle s'applique à tout payload imbriqué présent comme à venir.
+     *
+     * @param  list<array{0: array<string, mixed>, 1: string}>  $evenements
+     * @return list<array{texte: string, ton: string}>
+     */
+    public function depuisEvenements(array $evenements): array
+    {
+        $json = array_map(fn (array $e) => json_encode($e[0], JSON_UNESCAPED_UNICODE) ?: '', $evenements);
+        $lignes = [];
+
+        foreach ($evenements as $i => [$payload, $acteurNom]) {
+            $imbrique = false;
+
+            foreach ($json as $j => $autre) {
+                if ($j !== $i && $json[$i] !== '' && strlen($autre) > strlen($json[$i]) && str_contains($autre, $json[$i])) {
+                    $imbrique = true;
+                    break;
+                }
+            }
+
+            if ($imbrique) {
+                continue;
+            }
+
+            foreach ($this->depuisResultat($payload, $acteurNom) as $ligne) {
+                $lignes[] = $ligne;
+            }
+        }
+
+        return $lignes;
     }
 
     /**
@@ -221,6 +356,17 @@ final class JournalCombat
             }
         }
 
+        // ACTIONS IMBRIQUÉES : l'action que l'embusqué joue tout de suite (`action`),
+        // les embuscades d'un déplacement (`embuscades`) et les actions d'un monstre
+        // qui en a joué plusieurs (`actions_composites`). `ligneType()` ne dit que
+        // l'action elle-même — sans cet étalement, le bond du Dreadshifter était
+        // annoncé et son coup ne l'était jamais.
+        foreach ($this->actionsImbriquees($a) as $imbriquee) {
+            foreach ($this->ligneAction($imbriquee, $acteurNom) as $ligne) {
+                $lignes[] = $ligne;
+            }
+        }
+
         // SLY STORAGE (FL-Q p. 7, First Light) : une armoire dans la salle
         // fait tirer une SECONDE carte au premier fouilleur, résolue dans
         // l'ordre — `carte_armoire` la porte, de la MÊME forme qu'une action
@@ -277,6 +423,37 @@ final class JournalCombat
         }
 
         return $lignes;
+    }
+
+    /**
+     * Les actions que ce payload porte EN LUI : sa propre ligne ne les dit pas.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array<string, mixed>>
+     */
+    private function actionsImbriquees(array $a): array
+    {
+        $liste = [];
+
+        if (is_array($a['action'] ?? null) && isset($a['action']['type'])) {
+            $liste[] = $a['action'];
+        }
+
+        foreach ((array) ($a['embuscades'] ?? []) as $embuscade) {
+            if (is_array($embuscade)) {
+                $liste[] = $embuscade;
+            }
+        }
+
+        if (($a['type'] ?? null) === 'actions_composites') {
+            foreach ((array) ($a['actions'] ?? []) as $sous) {
+                if (is_array($sous)) {
+                    $liste[] = $sous;
+                }
+            }
+        }
+
+        return $liste;
     }
 
     /**
@@ -368,6 +545,15 @@ final class JournalCombat
         $desRouges = array_values((array) ($a['des_resistance'] ?? $a['des_rouges'] ?? []));
 
         if ($desRouges !== []) {
+            // ⚠ Le verbe dit ce qui s'est PASSÉ, pas ce que la cible tentait :
+            // « résiste » affiché à côté d'une Boule de Feu qui infligeait 1 PV
+            // (verdict Morcar 2026-10-09 §2). Les dégâts QUI PASSENT décident —
+            // rien ne passe : « résiste » ; une partie : « résiste en partie » ;
+            // tout passe : « ne résiste pas ». `degats_annules` vient du même
+            // jet (`reduireParDesRouges`), jamais redéduit des faces ici.
+            $annules = (int) ($a['degats_annules'] ?? count(array_filter($desRouges, fn ($f) => DeRouge::reussit((int) $f))));
+            $passes = isset($a['degats']) ? (int) $a['degats'] : null;
+
             return $this->avecModificateurs([
                 'atk' => [],
                 'def' => $desRouges,
@@ -377,7 +563,11 @@ final class JournalCombat
                 'defenseur' => $nomCible,
                 'touches' => null,
                 'boucliers' => isset($a['degats_annules']) ? (int) $a['degats_annules'] : null,
-                'libelle_def' => 'résiste',
+                'libelle_def' => match (true) {
+                    $passes === null || $passes === 0 => 'résiste',
+                    $annules > 0 => 'résiste en partie',
+                    default => 'ne résiste pas',
+                },
             ], $a);
         }
 
@@ -400,7 +590,9 @@ final class JournalCombat
                 'defenseur' => $nomCible,
                 'touches' => null,
                 'boucliers' => isset($a['succes']) ? (int) $a['succes'] : null,
-                'libelle_def' => 'résiste',
+                // Le jet de Mind a SA vérité (`issue`, décidée par `Engine\SortMental`) :
+                // la cible a résisté, ou le sort a pris. Un sort qui prend ne « résiste » pas.
+                'libelle_def' => ($a['issue'] ?? null) === 'subit_effet' ? 'ne résiste pas' : 'résiste',
             ], $a);
         }
 
@@ -748,8 +940,74 @@ final class JournalCombat
             // un calcul muet, exactement le défaut que la Boule de Flammes du
             // MJ a cessé d'être.
             'vol_draconique' => $this->volDraconique($a),
-            default => [],
+            // ---- Les effets AUTOMATIQUES qui n'avaient aucune phrase (verdict Morcar
+            // 2026-10-09 §1) : `default => []` les rendait muets sans que rien ne
+            // l'écrive. Les phrases vivent dans `LignesEffetsAutomatiques`.
+            'soin_allie' => $this->soinAllie($a, $acteurNom),
+            'concentration', 'sacrifice_sort' => $this->sortRecupere($a, $acteurNom),
+            's_ecarter_du_bloc' => $this->ecartDuBloc($a, $acteurNom),
+            'retraite' => $this->vote($a, $acteurNom, 'propose de battre en retraite'),
+            'sortie' => $this->vote($a, $acteurNom, 'propose de quitter le donjon'),
+            'poussee' => $this->poussee($a, $acteurNom),
+            'ouvrir_porte' => $this->ouvrirPorte($a, $acteurNom),
+            'oracle_salle' => $this->oracleSalle($a, $acteurNom),
+            'detacher_rejetons' => $this->detacherRejetons($a, $acteurNom),
+            'briser_glace' => $this->briserGlace($a),
+            'deplacement_allie' => $this->allie($a, 'se déplace'),
+            'attente_allie' => $this->allie($a, 'attend'),
+            'sbire_controle' => $this->sbireControle($a),
+            'captif_libere' => $this->captifLibere($a),
+            'captif_repris' => $this->captifRepris($a),
+            'commandement_sans_effet', 'commandement_sans_cible', 'commandement_deplacement', 'commandement_attaque' => $this->commandement($a),
+            'deplacement_monstre' => $this->deplacementMonstre($a),
+            'repli_tireur' => $this->repliTireur($a),
+            'monstre_reveille' => $this->monstreReveille($a),
+            'monstre_enfume' => [$this->info(($a['monstre'] ?? 'Le monstre').' tousse dans la fumée — il passe son tour')],
+            'monstre_enchaine' => [$this->info(($a['monstre'] ?? 'Le monstre').' est enchaîné — il ne bouge ni n\'attaque ce tour')],
+            'etreinte_maintenue' => $this->etreinteMaintenue($a),
+            'frappe_de_zone' => $this->frappeDeZone($a),
+            'charge' => $this->attaqueMonstre($a, charge: true),
+            'capacite_dread' => $this->capaciteDread($a),
+            'spawn' => $this->spawn($a),
+            'rejeton_accroche' => $this->rejetonAccroche($a),
+            'regeneration' => $this->regeneration($a),
+            'vol_objet' => $this->volObjet($a),
+            'objet_perdu' => $this->objetPerdu($a),
+            'pieges_detectes', 'portes_secretes_revelees' => $this->detectionEnVue($a),
+            'piege_ignore' => $this->piegeDeclenche($a, $acteurNom),
+            // Ses sous-actions sont étalées par `ligneAction()` (`actionsImbriquees`).
+            'actions_composites' => [],
+            default => $this->typeNonAnnonce($a),
         };
+    }
+
+    /**
+     * Un type qu'AUCUN arm ne connaît : jamais le silence.
+     *
+     * Un type déclaré muet dans {@see self::TYPES} (chaîne = la raison écrite) ou
+     * absent de tout payload (`type` null : un résultat sans action) rend zéro
+     * ligne. Tout autre type est un effet que personne n'a décidé de taire : le
+     * fil dit qu'il s'est produit, et le journal d'application le consigne pour
+     * qu'un test le rattrape.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function typeNonAnnonce(array $a): array
+    {
+        $type = $a['type'] ?? null;
+
+        if (! is_string($type) || (isset(self::TYPES[$type]) && self::TYPES[$type] !== true)) {
+            return [];
+        }
+
+        try {
+            Log::warning('JournalCombat : type d\'action sans phrase', ['type' => $type]);
+        } catch (\Throwable) {
+            // Hors application (test unitaire pur) : la ligne de repli suffit.
+        }
+
+        return [$this->info("Un effet automatique vient de se produire ({$type})")];
     }
 
     /**
@@ -833,6 +1091,19 @@ final class JournalCombat
     {
         $nom = $a['sort'] ?? 'un sort';
         $lignes = [];
+
+        // LE LANCEUR, pas l'acteur du fil : en direct `$acteurNom` est le HÉROS qui vient
+        // de jouer, à la reconnexion c'est le sorcier — d'où « Maître des orages — »
+        // devant Foudroiement et rien devant Tremblement de terre (verdict Morcar
+        // 2026-10-09 §2). `MoteurDread::signerLanceur()` publie le nom une fois ;
+        // à défaut (événement ancien), l'acteur de l'événement fait foi.
+        $acteurNom = (string) ($a['lanceur']['nom'] ?? $acteurNom);
+
+        // L'EN-TÊTE, identique pour TOUS les sorts de Dread qui frappent des héros :
+        // une ligne « <Lanceur> — <Sort> » (+ « : N héros pris dans le sort » quand ils
+        // sont plusieurs), puis une ligne par victime. Une victime unique n'y échappe
+        // pas : « Foudroiement frappe Thora » ne dit pas QUI frappe.
+        $entete = fn (int $n): array => $this->info("{$acteurNom} — {$nom}".($n > 1 ? " : {$n} héros pris dans le sort" : ''));
 
         // SORCIERS DE MORCAR (vague 2A) — chaque effet automatique se DIT.
         // Mur magique : une POSE, comme le Mur de Glace, mais sur le mobilier.
@@ -995,9 +1266,14 @@ final class JournalCombat
         // Elle doit se lire comme telle — un joueur qui verrait « −1 dé » sans
         // savoir pourquoi chercherait la panne pendant trois tours.
         if (isset($resultats[0]['objet_detruit'])) {
-            return [[
-                'texte' => "{$nom} ronge ".($resultats[0]['cible']['nom'] ?? 'un héros')
-                    .' : '.$resultats[0]['objet_detruit'].' tombe en poussière — définitivement',
+            $victime = $resultats[0]['cible']['nom'] ?? 'un héros';
+
+            return [$entete(1), [
+                // Le Vent voleur ARRACHE (`arrache`) une pièce tirée au hasard ; la
+                // Rouille ronge la meilleure. Même perte définitive, deux gestes.
+                'texte' => ! empty($resultats[0]['arrache'])
+                    ? "{$nom} arrache à {$victime} : {$resultats[0]['objet_detruit']} est perdu — définitivement"
+                    : "{$nom} ronge {$victime} : {$resultats[0]['objet_detruit']} tombe en poussière — définitivement",
                 'ton' => 'mort',
             ]];
         }
@@ -1015,19 +1291,19 @@ final class JournalCombat
             // reste debout, juste réduit à 1 dé d'attaque / 2 de défense /
             // sans d6 de mouvement tant que l'esprit reste vide.
             if (! empty($r['entre_en_choc'])) {
-                return [['texte' => "{$nom} vide l'esprit de {$cible} — il entre en état de choc !", 'ton' => 'chute']];
+                return [$entete(1), ['texte' => "{$nom} vide l'esprit de {$cible} — il entre en état de choc !", 'ton' => 'chute']];
             }
 
-            return [[
+            return [$entete(1), [
                 'texte' => "{$nom} fige l'esprit de {$cible} (Mind {$r['pv_mind_avant']} → {$r['pv_mind_apres']})",
                 'ton' => 'subit',
             ]];
         }
 
-        // ⚠ La ligne d'annonce n'apparaît qu'à partir de DEUX victimes : sur une
-        // seule, elle doublerait la ligne suivante sans rien ajouter.
-        if (count($resultats) > 1) {
-            $lignes[] = $this->info("{$acteurNom} — {$nom} : ".count($resultats).' héros pris dans le sort');
+        // L'en-tête vaut POUR TOUS (une seule victime comprise) : la ligne de dégâts
+        // ne nomme que le sort, jamais qui le lance.
+        if ($resultats !== [] || ! empty($a['monstres_touches'])) {
+            $lignes[] = $entete(count($resultats));
         }
 
         foreach ($resultats as $r) {
@@ -1059,9 +1335,18 @@ final class JournalCombat
 
             // Sort de CONTRÔLE : il pose une condition, il ne blesse pas.
             if (array_key_exists('effet_applique', $r) && ! isset($r['degats'])) {
-                $ligne = empty($r['effet_applique'])
-                    ? ['texte' => "{$cible} résiste à {$nom}", 'ton' => 'pare']
-                    : ['texte' => "{$cible} subit {$nom} — ".($a['condition'] ?? 'affecté'), 'ton' => 'subit'];
+                $condition = (string) ($r['condition'] ?? $a['condition'] ?? 'affecté');
+                $rupture = is_array($r['rupture_immediate'] ?? null) ? $r['rupture_immediate'] : null;
+                $desRupture = empty($rupture['faces']) ? '' : ' · dés de rupture '.implode(', ', (array) $rupture['faces']);
+
+                // ⚠ « Résiste » ne dit pas la vérité d'un sort qui a PRIS puis cédé : la
+                // victime s'est endormie… et s'est libérée aussitôt (rupture immédiate,
+                // un 6). Le dire autrement donnait un héros indemne sans explication.
+                $ligne = match (true) {
+                    ! empty($r['effet_applique']) => ['texte' => "{$cible} subit {$nom} — {$condition}{$desRupture}", 'ton' => 'subit'],
+                    ! empty($rupture['rompu']) => ['texte' => "{$cible} subit {$nom} ({$condition})… puis s'en libère aussitôt{$desRupture}", 'ton' => 'pare'],
+                    default => ['texte' => "{$cible} résiste à {$nom}", 'ton' => 'pare'],
+                };
 
                 // ⚠ LE JET DE MIND QUI DÉCIDE DE CETTE LIGNE N'ÉTAIT DESSINÉ
                 // NULLE PART (René, 2026-09-24) : `ruptureSortDread()` lisait
@@ -1270,7 +1555,7 @@ final class JournalCombat
      * @param  array<string, mixed>  $a
      * @return list<array{texte: string, ton: string}>
      */
-    private function attaqueMonstre(array $a): array
+    private function attaqueMonstre(array $a, bool $charge = false): array
     {
         $monstre = $a['monstre'] ?? 'Le monstre';
         $cible = $a['cible']['nom'] ?? 'un héros';
@@ -1282,11 +1567,15 @@ final class JournalCombat
             // Même distinction côté monstre : un héros lisait « je pare »
             // quand la créature l'avait simplement manqué.
             return (int) ($a['touches'] ?? 0) === 0
-                ? [['texte' => "{$monstre} manque {$cible}{$des}{$oracle}", 'ton' => 'echec']]
-                : [['texte' => "{$cible} pare l'assaut de {$monstre}{$des}{$oracle}", 'ton' => 'pare']];
+                ? [['texte' => $charge
+                    ? "{$monstre} charge {$cible} — et le manque{$des}{$oracle}"
+                    : "{$monstre} manque {$cible}{$des}{$oracle}", 'ton' => 'echec']]
+                : [['texte' => $charge
+                    ? "{$cible} encaisse la charge de {$monstre} sans dommage{$des}{$oracle}"
+                    : "{$cible} pare l'assaut de {$monstre}{$des}{$oracle}", 'ton' => 'pare']];
         }
 
-        $lignes = [['texte' => "{$monstre} touche {$cible} (−{$degats} PV){$des}{$oracle}", 'ton' => 'subit']];
+        $lignes = [['texte' => ($charge ? "{$monstre} charge {$cible}" : "{$monstre} touche {$cible}")." (−{$degats} PV){$des}{$oracle}", 'ton' => 'subit']];
         if (! empty($a['cible_tombee'])) {
             $lignes[] = ['texte' => "{$cible} s'effondre !", 'ton' => 'chute'];
         }
@@ -1539,6 +1828,15 @@ final class JournalCombat
             return [['texte' => "{$acteurNom} lance {$nom} sur {$cible} (−{$degats} PV){$des}", 'ton' => 'degats']];
         }
 
+        // SORTS SANS DÉGÂT (verdict Morcar 2026-10-09 §1) : soins, soutiens,
+        // contrôle, murs. Ils retombaient sur « X lance Y sur Z » — qui ne dit pas
+        // CE QUI a changé, donc indiscernable d'un sort sans effet.
+        $effet = $this->effetDeSortSansDegat($a, $acteurNom, (string) $nom, $cible);
+
+        if ($effet !== null) {
+            return $effet;
+        }
+
         // Un sort de DÉGÂTS qui n'en fait aucun a été PARÉ : il faut le dire, et
         // montrer les dés. La ligne se contentait de « Aldric lance Trait de Feu
         // sur X » — indiscernable d'un sort utilitaire, et le joueur ne pouvait
@@ -1553,6 +1851,131 @@ final class JournalCombat
         $suffixe = $cible !== null ? " sur {$cible}" : '';
 
         return [['texte' => "{$acteurNom} lance {$nom}{$suffixe}{$des}", 'ton' => 'info']];
+    }
+
+    /**
+     * L'EFFET d'un sort qui ne blesse pas, dit pour ce qu'il a RÉELLEMENT produit.
+     *
+     * `null` quand le payload ne porte aucune des formes connues : l'appelant
+     * retombe alors sur « X lance Y ».
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>|null
+     */
+    private function effetDeSortSansDegat(array $a, string $acteurNom, string $nom, ?string $cible): ?array
+    {
+        $mode = $a['mode'] ?? null;
+
+        // Murs et portes : une POSE, pas une victime.
+        if ($mode === 'pose_mur_magique') {
+            return [$this->info("{$acteurNom} lance {$nom} — ".mb_strtolower((string) ($a['mobilier']['nom'] ?? 'un mur magique')).' se dresse sur deux cases')];
+        }
+
+        if ($mode === 'ouvre_porte') {
+            return [$this->info("{$acteurNom} lance {$nom} — une porte s'ouvre à distance")];
+        }
+
+        // Soin de ZONE (Chant de guérison) : une ligne par héros réellement soigné.
+        if (isset($a['soignes'])) {
+            $soignes = (array) $a['soignes'];
+
+            if ($soignes === []) {
+                return [$this->info("{$acteurNom} lance {$nom} — personne n'avait de blessure à soigner")];
+            }
+
+            $lignes = [['texte' => "{$acteurNom} lance {$nom} : ".count($soignes).' héros soigné'.(count($soignes) > 1 ? 's' : ''), 'ton' => 'succes']];
+
+            foreach ($soignes as $s) {
+                $lignes[] = ['texte' => ((string) ($s['nom'] ?? 'Un héros')).' récupère '.(int) ($s['soin'] ?? 0).' PV de Body'
+                    .(! empty($s['releve']) ? ' et se relève' : ''), 'ton' => 'succes'];
+            }
+
+            return $lignes;
+        }
+
+        // Soin du Corps (Eau de Guérison…).
+        if (array_key_exists('soin', $a) && $cible !== null) {
+            $rendus = (int) $a['soin'];
+
+            return [[
+                'texte' => $rendus > 0
+                    ? "{$acteurNom} lance {$nom} sur {$cible} : +{$rendus} PV de Body".(isset($a['pv_body_apres']) ? ' ('.(int) $a['pv_body_apres'].' PV)' : '').(! empty($a['releve']) ? ' — il se relève' : '')
+                    : "{$acteurNom} lance {$nom} sur {$cible} — déjà en pleine forme, rien à soigner",
+                'ton' => $rendus > 0 ? 'succes' : 'info',
+            ]];
+        }
+
+        // Récupération psychique : le Mind remonte.
+        if (array_key_exists('soin_pv_mind', $a) && $cible !== null) {
+            return [['texte' => "{$acteurNom} lance {$nom} sur {$cible} : +".(int) $a['soin_pv_mind'].' point(s) de Mind', 'ton' => 'succes']];
+        }
+
+        if (! empty($a['tour_supplementaire']) && $cible !== null) {
+            return [['texte' => "{$acteurNom} lance {$nom} : {$cible} jouera un tour supplémentaire", 'ton' => 'succes']];
+        }
+
+        // Sort mental (Sommeil, Terreur, Tempête…) : ce que la cible a VRAIMENT subi.
+        if ($cible !== null && (array_key_exists('mind_cible', $a) || array_key_exists('effet_applique', $a))) {
+            return [$this->effetMental($a, $acteurNom, $nom, $cible)];
+        }
+
+        // Sort mental de ZONE (Flamme hypnotique) : une liste de figures prises.
+        if (! empty($a['zone']) && is_array($a['touches'] ?? null)) {
+            $noms = array_map(fn ($t) => (string) ($t['nom'] ?? 'une figure'), $a['touches']);
+
+            return [$noms === []
+                ? $this->info("{$acteurNom} lance {$nom} — personne n'est affecté")
+                : ['texte' => "{$acteurNom} lance {$nom} : ".implode(', ', $noms).' '.(count($noms) > 1 ? 'sont pris' : 'est pris').' dans le sort', 'ton' => 'succes']];
+        }
+
+        // Soutien (Courage, Voile de Brume, Traverser la Pierre…) : la condition posée.
+        if (isset($a['condition'], $a['source']) && $cible !== null) {
+            $duree = ($a['duree_texte'] ?? null) !== null ? ', '.$a['duree_texte'] : '';
+
+            return [['texte' => $cible === $acteurNom
+                ? "{$acteurNom} lance {$nom} — {$a['condition']}{$duree}"
+                : "{$acteurNom} lance {$nom} sur {$cible} — {$a['condition']}{$duree}", 'ton' => 'succes']];
+        }
+
+        return null;
+    }
+
+    /**
+     * Un sort MENTAL de héros sur sa cible, dit pour ce qu'il a produit — pas pour
+     * ce que le sort cherchait à produire.
+     *
+     * ⚠ Sommeil : « effet_applique: true + condition: Endormi + rupture_immediate:
+     * true » (verdict Morcar 2026-10-09 §2) racontait un monstre endormi qui ne
+     * l'était pas. Le payload dit maintenant `effet_applique: false` quand la
+     * rupture a eu lieu sur-le-champ, et cette phrase le raconte : endormi… puis
+     * réveillé aussitôt.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array{texte: string, ton: string}
+     */
+    private function effetMental(array $a, string $acteurNom, string $nom, string $cible): array
+    {
+        $condition = (string) ($a['condition'] ?? 'affecté');
+        $des = empty($a['des_rupture']) ? '' : ' · dés de rupture '.implode(', ', (array) $a['des_rupture']);
+
+        if (($a['issue'] ?? null) === 'immunise') {
+            return ['texte' => "{$cible} est immunisé contre {$nom} (aucun esprit à atteindre)", 'ton' => 'pare'];
+        }
+
+        if (empty($a['effet_applique'])) {
+            // Rompu à l'instant : le sort a PRIS, puis cédé.
+            if (! empty($a['rupture_immediate'])) {
+                return ['texte' => "{$cible} subit {$nom} ({$condition})… puis s'en libère aussitôt{$des}", 'ton' => 'echec'];
+            }
+
+            return ['texte' => ! empty($a['sans_jet'])
+                ? "{$nom} ne peut rien contre {$cible} (Mind hors de portée du sort)"
+                : "{$cible} résiste à {$nom}", 'ton' => 'pare'];
+        }
+
+        return ['texte' => $condition === 'Endormi'
+            ? "{$cible} s'endort sous {$nom}{$des}"
+            : "{$cible} subit {$nom} — {$condition}{$des}", 'ton' => 'succes'];
     }
 
     /**
@@ -1741,7 +2164,7 @@ final class JournalCombat
                 'texte' => "{$acteurNom} force le levier sans succès ("
                     .(int) ($jet['succes'] ?? 0).'/'.(int) ($jet['difficulte'] ?? 0)
                     .') — on peut réessayer',
-                'ton' => 'rate',
+                'ton' => 'echec',
             ]];
         }
 

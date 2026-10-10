@@ -11,11 +11,15 @@ le moteur, initiative, réactions hors tour. Un pot de cookies par joueur.
 4. le fondateur : `POST /api/groupes {nom, theme, longueur, personnage_id}`
    les autres : `POST /api/groupes/{code}/joueurs {personnage_id}`
 5. table : `POST /api/table {code}` **puis un battement toutes les ~12 s**
-   (`POST /api/table/ping`) — voir le piège 1.
+   (`POST /api/table/ping`) — voir le piège 1. **Un seul battement à la fois** :
+   `preparer.sh` et `preparer-livret.sh` REFUSENT de démarrer si un `battement.sh`
+   tourne déjà, en nommant son PID (depuis le 2026-10-09). `nettoyer.sh` arrête le
+   battement de la campagne et relit qu'il est mort.
 6. tous : `POST /api/groupes/{code}/pret {personnage_id, pret:true}`
 
 ## Outils donnés aux agents
-- `vue.py <slot>` — situation du héros : PV, alliés, monstres visibles,
+- `vue.py <slot>` — situation du héros : PV, alliés (**héros ET mercenaires**,
+  avec leur position et leur distance — depuis le 2026-10-09), monstres visibles,
   conditions (avec leur SOURCE), **leviers visibles et portes verrouillées**,
   **terrain proche** (thème glace), destinations atteignables (en **points**,
   pas en cases — voir plus bas), menu **avec ses sous-choix dépliés**, et pour
@@ -110,6 +114,24 @@ et ont dû être relancés à la main (2026-08-13).
    propose des destinations que le serveur refuse.
 5. Les sessions expirent : prévoir `POST /api/connexion {identifiant}` pour
    reprendre la main sur une partie longue.
+6. **Un battement oublié écrit dans le même `jar-table.txt`** que celui qu'on
+   lance : la table passe alors « narrateur inactif » en pleine partie (verdict
+   Morcar, 2026-10-09 : un battement lancé le 2026-10-05, nommé `livret-*` — très
+   probablement par `preparer-livret.sh`. Chaque lancement RÉÉCRIT `battement.pid`,
+   donc l'ancien PID se perd : c'est ce qui l'a rendu introuvable). D'où la garde des
+   deux préparateurs et l'arrêt vérifié de `nettoyer.sh`.
+7. **« À PORTÉE » d'une porte fermée = distance à sa CASE D'EMBRASURE** (publiée
+   `embrasure` par `EtatGroupe::portes()`), pas à la porte : le menu n'offre
+   `ouvrir_porte` qu'à distance 1 de cette case. `vue.py` s'y aligne depuis le
+   2026-10-09 et n'exclut de ses destinations que l'embrasure des portes non ouvertes.
+8. **Relever est une ACTION** depuis le 2026-10-09 (décision de René) : le héros
+   qui vient de relever peut encore se déplacer. Mais une action jouée APRÈS un
+   pas **fait perdre le reliquat** de déplacement : le menu l'annonce
+   (`perd_deplacement` sur chaque option d'action), `vue.py` ne le calcule pas.
+9. **Traverser la Pierre** (intangible) : une fois le déplacement fini, plus aucun
+   pas dans la roche ce tour ; tant qu'il reste des points, la roche reste
+   franchissable. L'aperçu de trajet (`deplacement/apercu`) publie `traverse_roche`.
+   `vue.py` ne montre pas encore la roche comme destination.
 
 ## Ce qu'il faut PRÉPARER pour éprouver un rôle
 

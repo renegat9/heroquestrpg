@@ -11,6 +11,20 @@
 set -eu
 D="$(cd "$(dirname "$0")" && pwd)"
 
+# GARDE — UN SEUL BATTEMENT DE TABLE À LA FOIS (verdict Morcar, 2026-10-09, §6). Un battement
+# encore vivant écrit dans le MÊME jar-table.txt que celui qu'on lance : la table passe alors à
+# « narrateur inactif » pendant la partie (c'est ce qui s'est produit vers 20:05, un battement
+# oublié depuis le 2026-10-05 ; son PID avait été perdu, `battement.pid` ayant été réécrit).
+# On REFUSE donc ici, AVANT toute écriture (ni compte, ni table, ni sauvegarde), en nommant le PID.
+pids_battement=$(pgrep -f "$D/battement.sh" | paste -sd' ' - || true)
+if [ -n "$pids_battement" ]; then
+  echo "✗ Un battement de table tourne déjà (PID $pids_battement)." >&2
+  echo "  Il écrit dans jar-table.txt : la table passerait « narrateur inactif »." >&2
+  echo "  → ./nettoyer.sh arrête le battement de la campagne précédente, puis relance preparer.sh." >&2
+  echo "  → Ou tue ce PID toi-même (kill $(echo "$pids_battement" | head -1)) si tu sais ce qu'il fait." >&2
+  exit 1
+fi
+
 # ⚠ SAUVEGARDE D'ABORD (René, 2026-09-12). Ce script écrit dans la VRAIE base :
 # c'est exactement le moment où l'on veut un filet. Une campagne de harnais mal
 # nettoyée est un ennui ; une campagne réelle perdue est irrattrapable.

@@ -19,6 +19,7 @@ use App\Models\Personnage;
 use App\Models\Quete;
 use App\Partie\ExecutionChoix;
 use App\Partie\JournalCombat;
+use App\Partie\MenuCourant;
 use App\Partie\Narration\BibliothequeNarration;
 use App\Partie\OrdreDuTour;
 use App\Partie\ResolveurTour;
@@ -121,15 +122,16 @@ class ChoixController extends Controller
             'parametres.transferts.*.quantite' => ['sometimes', 'integer', 'min:1'],
         ]);
 
-        // Le moteur fait autorité : seule une option du dernier menu proposé
-        // à CE joueur est légale.
+        // Le moteur fait autorité : seule une option du menu que CE joueur peut
+        // jouer à l'instant est légale. `MenuCourant` le rend — et le recalcule
+        // sur place si c'est son tour et que le menu a été consommé par la
+        // résolution précédente : sans cela, un choix légal envoyé pendant la
+        // régénération (1-2 s) était refusé à tort (Morcar, 2026-10-09).
         $cleMenu = GenererMenu::cleMenu($groupe->id, (int) $joueur->id);
-        $dernierMenu = Cache::get($cleMenu);
+        $dernierMenu = app(MenuCourant::class)->pour($groupe, (int) $joueur->id);
 
-        if (! is_array($dernierMenu)) {
-            throw ValidationException::withMessages([
-                'option_id' => 'Aucun menu en attente pour ce joueur — attendez la proposition du MJ.',
-            ]);
+        if ($dernierMenu === null) {
+            throw $this->refusSansMenu($groupe, (int) $joueur->id);
         }
 
         $option = collect($dernierMenu['menu']['options'] ?? [])
@@ -260,70 +262,40 @@ class ChoixController extends Controller
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
         $joueur = Auth::guard('joueur')->user();
 
-        $cle = GenererMenu::cleMenu($groupe->id, (int) $joueur->id);
-        $cache = Cache::get($cle);
+        // Le rattrapage passe par `MenuCourant` — le même point de passage que
+        // `POST /choix` : le menu rendu ici est exactement celui que le choix
+        // acceptera. Ce point refuse un menu périmé (héros tombé, initiative passée,
+        // menu d'un autre acteur) et régénère sur place quand c'est le tour du
+        // héros et que son menu manque. Les deux gardes historiques y vivent.
+        $menu = app(MenuCourant::class)->pour($groupe, (int) $joueur->id);
 
-        if ($groupe->phase === 'quete' && $groupe->quete_courante_id !== null) {
-            $hero = $groupe->personnages()
-                ->wherePivot('actif', true)
-                ->where('joueur_id', $joueur->id)
-                ->first();
-
-            // ⚠ ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) :
-            // `OrdreDuTour::acteurActif()` dit QUI a la main, héros OU
-            // l'allié qu'il contrôle — les DEUX cas rendent ce rattrapage
-            // légitime pour CE héros (c'est le même `personnage_id` dans les
-            // deux cas, `GenererMenu` publiant le tour de l'allié sous la clé
-            // du héros qui le contrôle). Avant ce chantier, ce test ne
-            // couvrait que le premier cas (`estSonTour()` seul) : un héros qui
-            // venait de finir son tour alors que son allié devait encore jouer
-            // voyait son menu d'allié EFFACÉ au moindre rechargement du
-            // téléphone — exactement l'anti-patron que ce rattrapage existe
-            // pour chasser ailleurs.
-            $acteur = $hero === null ? null : app(OrdreDuTour::class)->acteurActif($groupe);
-            $peutAgir = $acteur !== null && (int) $acteur['personnage_id'] === (int) $hero->id;
-
-            // ⚠ La garde vaut aussi pour le menu DÉJÀ EN CACHE, et c'est ce que
-            // la première version ratait : un menu mis en cache avant que le
-            // héros ne tombe restait servi tant qu'il n'était pas CONSOMMÉ — et
-            // un héros à terre ne consomme rien. Une joueuse est ainsi restée
-            // trois tours avec un menu « Attaquer » pleinement cliquable, qui
-            // répondait « Ce héros est tombé » à chaque fois (partie du
-            // 2026-08-14). Périmé, le menu s'efface.
-            if (! $peutAgir) {
-                Cache::forget($cle);
-
-                return response()->json(['menu' => null]);
-            }
-
-            // ⚠ L'ORDRE D'INITIATIVE, pas seulement « n'a pas encore joué ».
-            // Sans cette garde (constatée en partie réelle le 2026-08-13 par
-            // TROIS joueurs indépendamment), ce rattrapage servait un menu
-            // complet et cliquable à un héros dont ce n'était pas le tour :
-            // chaque action repartait en 422 « Ce n'est pas le tour de ce
-            // héros ». La manette appelle ce point d'entrée au montage et à
-            // chaque reconnexion — un joueur qui rechargeait son téléphone
-            // pendant le tour d'un autre héritait donc d'un menu mort.
-            //
-            // C'est l'anti-patron que le projet traque partout ailleurs : le
-            // menu ne doit jamais proposer ce que le résolveur refusera.
-            if (! is_array($cache)) {
-                GenererMenu::dispatchSync($groupe->id, (int) $joueur->id, (int) $hero->id);
-                $cache = Cache::get($cle);
-            }
-        }
-
-        return is_array($cache)
+        return $menu !== null
             ? response()->json([
-                'menu' => $cache['menu'],
-                'personnage_id' => $cache['personnage_id'],
+                'menu' => $menu['menu'],
+                'personnage_id' => $menu['personnage_id'],
                 // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a) : non-null quand ce
                 // rattrapage sert le tour de l'allié contrôlé par ce héros —
                 // absent des menus plus anciens déjà en cache, donc le client
                 // doit tolérer sa non-présence (contrat).
-                'allie_id' => $cache['allie_id'] ?? null,
+                'allie_id' => $menu['allie_id'] ?? null,
             ])
             : response()->json(['menu' => null]);
+    }
+
+    /**
+     * Le refus d'un choix (ou d'un aperçu) faute de menu jouable — DEUX messages,
+     * parce que deux situations. C'est le tour du joueur et son menu manque : la
+     * régénération a échoué ou le menu n'est pas encore là, le joueur doit
+     * simplement réessayer (« le menu se met à jour »). Ce n'est pas son tour :
+     * rien ne viendra, il attend la proposition du MJ.
+     */
+    private function refusSansMenu(Groupe $groupe, int $joueurId): ValidationException
+    {
+        $message = app(MenuCourant::class)->aLaMain($groupe, $joueurId)
+            ? 'Le menu se met à jour — réessaie dans un instant.'
+            : 'Aucun menu en attente pour ce joueur — attendez la proposition du MJ.';
+
+        return ValidationException::withMessages(['option_id' => $message]);
     }
 
 
@@ -358,12 +330,12 @@ class ChoixController extends Controller
             'y' => ['required', 'integer', 'min:0'],
         ]);
 
-        $dernierMenu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $joueur->id));
+        // Même point de passage que `choisir()` (`MenuCourant`) : un aperçu fait
+        // pendant la régénération du menu ne doit pas échouer là où le choix réussit.
+        $dernierMenu = app(MenuCourant::class)->pour($groupe, (int) $joueur->id);
 
-        if (! is_array($dernierMenu)) {
-            throw ValidationException::withMessages([
-                'option_id' => 'Aucun menu en attente pour ce joueur — attendez la proposition du MJ.',
-            ]);
+        if ($dernierMenu === null) {
+            throw $this->refusSansMenu($groupe, (int) $joueur->id);
         }
 
         $personnage = $this->personnageLegal($groupe, (int) $joueur->id, (int) $dernierMenu['personnage_id']);

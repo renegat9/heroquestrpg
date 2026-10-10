@@ -54,6 +54,13 @@ const props = defineProps({
     // déduite ici d'une pièce portée ou d'un buff. Ne lève QUE les meubles : murs
     // de glace, blocs de pierre et terrain bloquant restent des obstacles.
     franchitMobilier: { type: Boolean, default: false },
+    // TRAVERSER LA PIERRE (décision de René, 2026-10-09) : CE héros traverse-t-il la
+    // ROCHE ce tour ? DÉCISION serveur (`entites[].traverse_roche`, la même méthode que
+    // le résolveur). Le BFS ci-dessous ne développe pas la roche : avec ce drapeau, une
+    // case de roche ou de sol CONNU devient touchable, et c'est `POST deplacement/apercu`
+    // qui dit si le trajet est possible et s'il traverse la roche (`traverse_roche`).
+    // Jamais une case inconnue : l'aperçu ne doit pas révéler de sol.
+    traverseRoche: { type: Boolean, default: false },
     /** Code du groupe — sert UNIQUEMENT à demander l'aperçu de trajet au
      *  serveur (`POST deplacement/apercu`). */
     groupe: { type: String, default: '' },
@@ -443,8 +450,17 @@ function viseeSur(x, y) {
     return apercu.value !== null && apercu.value.x === x && apercu.value.y === y;
 }
 
+/** Case visable hors du BFS, par la seule voie de l'aperçu serveur : un héros qui
+ *  traverse la roche (décision serveur), pour une case CONNUE (le brouillard ne
+ *  doit rien révéler), hors visée de chute de blocs (liste blanche décidée). */
+function visableParLaRoche(x, y) {
+    if (! props.traverseRoche || props.casesEcart) return false;
+
+    return (props.carte.cases?.[y]?.[x] ?? 'b') !== 'b';
+}
+
 async function toucher(x, y) {
-    if (! accessibles.value.has(cle(x, y))) return;
+    if (! accessibles.value.has(cle(x, y)) && ! visableParLaRoche(x, y)) return;
 
     // Second tap sur la MÊME case : c'est la confirmation.
     if (viseeSur(x, y)) {
@@ -614,9 +630,11 @@ onMounted(async () => {
                 <MSym n="warning" :size="14" /> Avancer peut t'isoler du reste du groupe — reculer te ramène à ta case de départ.
             </p>
 
-            <p v-if="accessibles.size && ! apercu" class="dep-hint">
+            <!-- Un héros qui traverse la roche peut viser une case que le BFS local ne
+                 développe pas : « éclairée » ne dit plus rien à lui seul. -->
+            <p v-if="(accessibles.size || traverseRoche) && ! apercu" class="dep-hint">
                 <MSym n="touch_app" :size="14" />
-                {{ casesEcart ? 'Touche une case éclairée pour t\'écarter' : 'Touche une case éclairée pour voir le trajet' }}
+                {{ casesEcart ? 'Touche une case éclairée pour t\'écarter' : (accessibles.size ? 'Touche une case éclairée pour voir le trajet' : 'Touche une case connue (la roche se traverse ce tour) pour voir le trajet') }}
             </p>
 
             <!-- APERÇU : le trajet EXACT rendu par le serveur, à confirmer. Les
@@ -634,6 +652,12 @@ onMounted(async () => {
                 <p v-for="p in trajetPieges" :key="`${p.x}-${p.y}`" class="dep-hint dep-hint-piege">
                     <MSym n="warning" :size="14" /> Le trajet passe sur : {{ p.nom }} ({{ p.libelle }})
                 </p>
+                <!-- TRAVERSER LA PIERRE : décision de l'aperçu (`traverse_roche`), annoncée
+                     AVANT le second tap. Le moteur tient exactement ceci : l'intangible vit
+                     pendant le déplacement ; une fois celui-ci fini, plus de roche ce tour. -->
+                <p v-if="apercu.traverse_roche && apercu.atteignable !== false" class="dep-hint dep-hint-piege">
+                    <MSym n="warning" :size="14" /> Ce trajet traverse la roche : une fois ton déplacement fini, tu ne pourras plus y revenir. Et tu tombes si ton tour finit dans la roche.
+                </p>
                 <button
                     v-if="apercu.atteignable !== false"
                     class="dep-aller"
@@ -641,7 +665,7 @@ onMounted(async () => {
                     @click="confirmer"
                 ><MSym n="directions_walk" :size="16" fill /> {{ casesEcart ? "S'écarter" : 'Y aller' }}</button>
             </div>
-            <p v-else class="dep-hint dep-hint-bloque"><MSym n="block" :size="14" /> Aucune case accessible — tu es bloqué. Ferme et termine ton tour.</p>
+            <p v-else-if="! traverseRoche" class="dep-hint dep-hint-bloque"><MSym n="block" :size="14" /> Aucune case accessible — tu es bloqué. Ferme et termine ton tour.</p>
 
             <div class="dep-carte">
                 <div ref="grilleRef" class="dep-scroll" @scroll.passive="mesurer">

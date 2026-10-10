@@ -422,6 +422,9 @@ class AuthController extends Controller
                                 'nom' => $s->nom,
                                 'element' => $s->element,
                                 'type' => $s->type,
+                                // Ce que le sort FAIT (catalogue `sorts.description`) — la
+                                // fiche le montre sans rien deviner (verdict Morcar § 5).
+                                'description' => $s->description,
                                 'disponible' => (bool) $s->pivot->disponible,
                                 'image_url' => app(BibliothequeImages::class)->urlSort($s->id, $s->nom),
                             ])

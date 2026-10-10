@@ -62,6 +62,10 @@ class AppServiceProvider extends ServiceProvider
         // Peacekeeper) : même patron, même raison de ne pas être `scoped`.
         $this->app->singleton(\App\Partie\TamponFaveurs::class);
 
+        // Effets automatiques qu'aucune action ne retourne (App\Partie\TamponAnnonces) :
+        // le tampon GÉNÉRIQUE, même patron, même raison de ne pas être `scoped`.
+        $this->app->singleton(\App\Partie\TamponAnnonces::class);
+
         // Télémétrie de consommation LLM (App\Agent\TraceurConsommation) :
         // SINGLETON, pas bind() — l'état (contexte annoncé par pourGroupe(),
         // compteur de tentative) doit survivre entre l'annonce du contexte et

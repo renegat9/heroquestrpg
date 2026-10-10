@@ -345,15 +345,32 @@ final class ExecutionChoix
                 : (($resultat['degats'] ?? 0) > 0
                     ? (($resultat['cible_vaincue'] ?? false) ? 'attaque_mort' : 'attaque_touche')
                     : 'attaque_pare'),
-            default => ($resultat['quete']['etat'] ?? null) === 'terminee'
-                ? 'victoire_quete'
-                : match ($resultat['issue'] ?? null) {
-                    'reussite' => 'reussite',
-                    'reussite_mixte' => 'reussite_mixte',
-                    'echec' => 'echec',
-                    default => 'progression',
-                },
+            // Fouille de ZONE (jet de Mind) qui réussit sans rien trouver : son issue
+            // dit `rien` (`ResolveurTour::resoudreJet()`) — « rien trouvé », pas une
+            // « progression » qui raconterait une salle de plus.
+            'jet' => ($resultat['issue'] ?? null) === 'rien' && in_array($resultat['option_id'] ?? null, ['fouiller', 'fouiller_pierre'], true)
+                ? 'fouille_rien'
+                : $this->cleIssue($resultat),
+            default => $this->cleIssue($resultat),
         };
+    }
+
+    /**
+     * Temps fort tiré de l'issue d'un résultat sans type propre — partagé par le
+     * jet et le reste, pour qu'il n'existe qu'une seule correspondance issue → clé.
+     *
+     * @param  array<string, mixed>  $resultat
+     */
+    private function cleIssue(array $resultat): string
+    {
+        return ($resultat['quete']['etat'] ?? null) === 'terminee'
+            ? 'victoire_quete'
+            : match ($resultat['issue'] ?? null) {
+                'reussite' => 'reussite',
+                'reussite_mixte' => 'reussite_mixte',
+                'echec' => 'echec',
+                default => 'progression',
+            };
     }
 
     /**

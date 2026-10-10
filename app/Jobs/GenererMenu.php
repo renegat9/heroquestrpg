@@ -220,21 +220,32 @@ class GenererMenu implements ShouldQueue
     }
 
     /**
-     * Une entrée de liste dont les cibles portent `immunise` si le sort est
-     * mental. Rendue telle quelle sinon.
+     * Une entrée de liste de sort ou de parchemin, annotée de sa `description`
+     * (catalogue) et, si le sort est mental, de `immunise` sur chacune de ses cibles.
+     * Rendue telle quelle quand elle n'a pas de sort connu.
      *
      * @param  array<string, mixed>  $entree
      * @return array<string, mixed>
      */
     private function entreeAnnotee(array $entree): array
     {
-        if (! is_array($entree['cibles'] ?? null) || ! isset($entree['sort_id'])) {
+        if (! isset($entree['sort_id'])) {
             return $entree;
         }
 
         $sort = Sort::find($entree['sort_id']);
 
-        if ($sort === null || $sort->type !== 'mental') {
+        if ($sort === null) {
+            return $entree;
+        }
+
+        // CE QUE FAIT LE SORT, en clair (catalogue `sorts.description`) : toute
+        // entrée de sort ou de parchemin la porte, pour que la manette la montre
+        // sans rien deviner (verdict Morcar, 2026-10-09 § 5 : le menu ne disait pas ce
+        // que fait Voile de Brume). Décidé ici, au seul point de publication des menus.
+        $entree['description'] = $sort->description;
+
+        if (! is_array($entree['cibles'] ?? null) || $sort->type !== 'mental') {
             return $entree;
         }
 

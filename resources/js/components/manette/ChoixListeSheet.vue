@@ -134,6 +134,11 @@ function meta(entree) {
         return `${entree.des_attaque} dé${entree.des_attaque > 1 ? 's' : ''} d'attaque`;
     }
 
+    // SORT ou PARCHEMIN (parametres.sorts[] / parametres.parchemins[]) : ce que le
+    // sort FAIT, dit par le catalogue (`description`, décidé par le serveur). Cette
+    // liste se consulte EN PLEIN TOUR : c'est là qu'il faut le lire (verdict Morcar § 5).
+    if (entree.sort_id !== undefined && entree.description) return entree.description;
+
     return entree.detail ?? TYPES_SORT[entree.sort_type]?.l ?? '';
 }
 

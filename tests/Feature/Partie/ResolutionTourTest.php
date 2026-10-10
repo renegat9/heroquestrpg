@@ -179,14 +179,26 @@ it('impose l\'ordre d\'initiative figé (C1) et la validation du menu proposé',
 it('résout un jet de compétence (fouiller, jet de Mind) via le moteur', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
-    creerHeros($alice, $groupe, 'Albrecht', 1); // attribut_mind = 2 → 2 dés
+    $albrecht = creerHeros($alice, $groupe, 'Albrecht', 1); // attribut_mind = 2 → 2 dés
 
     $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
     creerHeros($bob, $groupe, 'Brunhilde', 2);
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
 
-    figerDes([1, 4]); // crâne + bouclier blanc → 1 succès, difficulté 1 = réussite
+    // La carte est tirée au hasard : on vide la zone (ni piège, ni porte secrète) pour que
+    // la recherche ne trouve RIEN de façon certaine. Contrat (docs/contrat-api.md, fouille de
+    // zone) : `issue` dit ce que la recherche a donné — `rien` quand le jet réussit sans
+    // trouvaille ; `succes` reste le résultat brut du dé.
+    $quete = \App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $grille = $quete->carte->grille;
+    $grille['pieges'] = [];
+    $grille['portes'] = [];
+    $quete->carte->update(['grille' => $grille]);
+    $quete->load('carte');
+    \App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $albrecht->id);
+
+    figerDes([1, 4]); // crâne + bouclier blanc → 1 succès, difficulté 1 = réussite du jet
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])
         ->assertStatus(202)
@@ -194,7 +206,8 @@ it('résout un jet de compétence (fouiller, jet de Mind) via le moteur', functi
         ->assertJsonPath('resultat.attribut', 'mind')
         ->assertJsonPath('resultat.des_lances', 2)
         ->assertJsonPath('resultat.succes', 1)
-        ->assertJsonPath('resultat.issue', 'reussite');
+        ->assertJsonPath('resultat.a_trouve', false)
+        ->assertJsonPath('resultat.issue', 'rien');
 
     expect($groupe->evenements()->where('type', 'jet')->exists())->toBeTrue();
 });

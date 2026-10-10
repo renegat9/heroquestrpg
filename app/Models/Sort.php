@@ -15,6 +15,7 @@ class Sort extends Model
         'type',
         'difficulte_parchemin',
         'effet',
+        'description',
     ];
 
     protected function casts(): array

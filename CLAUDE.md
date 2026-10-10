@@ -65,6 +65,10 @@ reason, and the two must never drift.
   rewire the parameter believing it fixes a bug. → `docs/regles/exploration-et-fouille.md`
 - **An automatic effect that nothing announces is unplayable.** Journal it, publish it in
   the payload, render it on a screen — a mute payload is the same defect as no payload.
+  Every action `type` the engine can return is declared in `JournalCombat::TYPES` (a
+  phrase, or a written reason to stay silent) and a test scans the sources both ways;
+  the live feed is built on the RESULT, never on the events journaled beside it — use
+  `TamponAnnonces`, not a fifth buffer. → `docs/regles/combat-et-tour.md`
 - **The game must stay playable with NO API key**: engine menus, scripted narration,
   catalogue names, SVG emblems. A supported way to play, not a degraded mode.
 - **Contract first** — change `docs/contrat-api.md` before the payload.

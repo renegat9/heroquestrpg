@@ -64,6 +64,7 @@ final class MenuMoteur
         private readonly OrdreDuTour $ordreDuTour,
         private readonly SceneDeTable $scenes,
         private readonly FaveursHopekins $faveurs,
+        private readonly ApprocheAllie $approche,
     ) {}
 
     /**
@@ -1212,15 +1213,24 @@ final class MenuMoteur
      * propre copie de cette règle). Les quatre points de sortie de `generer()`
      * passent tous par ici avant de rendre leurs options.
      *
+     * Et `perd_deplacement` (2026-10-09) sur chaque option d'ACTION, avec la même
+     * valeur pour tout le menu : le reliquat que l'action confisquerait, décidé
+     * par `ResolveurTour::casesPerduesParAction()` (`$perteDeplacement`, calculé
+     * une fois par `genererBrut()`). Toujours présent sur une action, `0` compris,
+     * pour que la manette n'ait qu'un champ à lire.
+     *
      * @param  list<array<string, mixed>>  $options
      * @return list<array<string, mixed>>
      */
-    private function avecCreneaux(array $options): array
+    private function avecCreneaux(array $options, int $perteDeplacement = 0): array
     {
         return array_map(
-            static fn (array $option) => $option + [
-                'creneau' => ResolveurTour::creneauOption((string) ($option['type'] ?? '')),
-            ],
+            static function (array $option) use ($perteDeplacement) {
+                $creneau = ResolveurTour::creneauOption((string) ($option['type'] ?? ''));
+
+                return $option + ['creneau' => $creneau]
+                    + ($creneau === 'action' ? ['perd_deplacement' => $perteDeplacement] : []);
+            },
             $options,
         );
     }
@@ -1300,7 +1310,7 @@ final class MenuMoteur
 
         // Tour = deux créneaux (doc 03 §28) : un DÉPLACEMENT + une ACTION. On
         // n'offre que les créneaux ENCORE LIBRES, plus « Terminer le tour ».
-        // Une action TERMINANTE (relever, concentration, « Terminer le tour »)
+        // Une action TERMINANTE (concentration, « Terminer le tour »)
         // pose a_joue sans consommer les deux créneaux : on la traite comme si
         // les DEUX étaient pris, sinon le menu proposait encore des actions
         // fantômes alors que le tour est fini.
@@ -1361,6 +1371,17 @@ final class MenuMoteur
         $aDeplace = $aJoue || (bool) ($etat?->a_deplace ?? false);
         $aAgi = $aJoue || (bool) ($etat?->a_agi ?? false);
         $options = [];
+
+        // PERTE DU RELIQUAT (décision de René, 2026-10-09 : « garder la règle,
+        // mais l'annoncer ») : ce qu'une ACTION ferait perdre maintenant. Nul
+        // quand l'action est déjà jouée (`$aAgi` : un bonus d'attaque ne
+        // confisque rien). Même formule que `marquerCreneau()` — un seul calcul.
+        $perteDeplacement = $etat !== null && ! $aAgi
+            ? ResolveurTour::casesPerduesParAction(
+                $etat->deplacement_restant,
+                $this->styles->estActiveCeTour($etat, 'deplacement_scinde'),
+            )
+            : 0;
 
         // ── Créneau DÉPLACEMENT (base + 1d6 lancé une fois/tour et mémorisé) ──
         // On masque « Se déplacer » quand le héros est TOTALEMENT bloqué (aucune
@@ -1848,7 +1869,7 @@ final class MenuMoteur
 
                 return [
                     'situation' => 'Une attaque supplémentaire vous est offerte ce tour.',
-                    'options' => $this->avecCreneaux($options),
+                    'options' => $this->avecCreneaux($options, $perteDeplacement),
                 ];
             }
 
@@ -1983,7 +2004,10 @@ final class MenuMoteur
                 }
             }
 
-            // Relever un allié TOMBÉ adjacent (doc 03 §48) : sacrifie le tour.
+            // Relever un allié TOMBÉ adjacent (doc 03 §48) : une ACTION (créneau
+            // d'action depuis le 2026-10-09, décision de René) — le héros peut
+            // encore se déplacer avant ou après, et `perd_deplacement` annonce ce
+            // que l'action lui confisque s'il a entamé son mouvement.
             $allies = $quete->etatsPersonnages()
                 ->where('tombe', true)
                 ->where('personnage_id', '!=', $personnage->id)
@@ -2020,8 +2044,10 @@ final class MenuMoteur
             // un héros au contact d'un captif NON ENCORE libéré peut le libérer
             // — il devient un allié contrôlé par CE héros pour le reste de la
             // quête (chantier 3a, `ResolveurTour::resoudreLibererCaptif()`).
-            // Sacrifie le tour, comme relever un compagnon tombé : libérer
-            // quelqu'un n'est pas un geste qu'on fait en passant.
+            // Sacrifie le tour (créneau `tour`) : libérer quelqu'un n'est pas un
+            // geste qu'on fait en passant. ⚠ Relever un compagnon, lui, ne le fait
+            // plus depuis le 2026-10-09 (décision de René : une action) — libérer
+            // garde son créneau tant que René ne l'a pas tranché.
             $captifs = GroupeMercenaire::where('groupe_id', $groupe->id)
                 ->where('etat', 'captif')
                 ->whereNotNull('position_x')
@@ -2394,6 +2420,13 @@ final class MenuMoteur
                 // sans jamais se sceller. Le prix est l'action dépensée, tour
                 // après tour.
                 foreach ($this->portes->leviersAdjacents($quete->carte, $px, $py) as $levier) {
+                    // Un levier DÉJÀ FORCÉ (sa porte est ouverte) reste sur la carte,
+                    // mais n'est plus une action : le menu ne l'offre pas, et le
+                    // résolveur refuse le geste (`MoteurPortes::levierAOuvrir()`).
+                    if (! $levier['actionnable']) {
+                        continue;
+                    }
+
                     $difficulte = DifficulteBody::plafonnee($quete, (int) ($levier['difficulte'] ?? 2));
 
                     // ⚠ Le TYPE d'option reste `actionner_levier` : un jet de
@@ -2737,7 +2770,7 @@ final class MenuMoteur
 
         return [
             'situation' => $aJoue ? 'Tour terminé — au tour des autres héros.' : 'Vous progressez dans le donjon.',
-            'options' => $this->avecCreneaux($options),
+            'options' => $this->avecCreneaux($options, $perteDeplacement),
         ];
     }
 
@@ -2818,20 +2851,18 @@ final class MenuMoteur
                         continue; // déjà attaquable sans bouger
                     }
 
+                    // ⚠ Offerte SEULEMENT si l'approche ABOUTIT : une case au contact
+                    // où l'allié peut S'ARRÊTER, atteignable, et un pas réellement
+                    // fait (`ApprocheAllie`, le même calcul que le résolveur). Le
+                    // simple « un chemin existe » promettait aussi la case du
+                    // contact déjà prise par un héros : l'allié s'arrêtait court.
                     $e = $m->monstre->emprise();
-                    $meilleur = null;
+                    $trajet = $this->approche->trajet(
+                        $grilleMvt, $ax, $ay, (int) $merc->deplacement,
+                        (int) $m->position_x, (int) $m->position_y, $e['l'], $e['h'],
+                    );
 
-                    foreach ($grille->cellulesEmprise((int) $m->position_x, (int) $m->position_y, $e['l'], $e['h']) as $cell) {
-                        foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
-                            $chemin = $grilleMvt->chemin($ax, $ay, $cell['x'] + $dx, $cell['y'] + $dy);
-
-                            if ($chemin !== null && ($meilleur === null || count($chemin) < count($meilleur))) {
-                                $meilleur = $chemin;
-                            }
-                        }
-                    }
-
-                    if ($meilleur !== null) {
+                    if ($trajet !== null) {
                         $destinations[] = ['cle' => "vers:{$m->id}", 'nom' => 'Approcher '.$m->nomAffiche()];
                     }
                 }

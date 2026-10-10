@@ -12,6 +12,62 @@ use Illuminate\Database\Seeder;
  */
 class SortSeeder extends Seeder
 {
+    /**
+     * CE QUE FAIT CHAQUE SORT, en clair — publié par `/moi` et par les entrées de
+     * menu (`GenererMenu`), jamais écrit dans une vue (verdict Morcar, 2026-10-09 § 5 :
+     * Voile de Brume et Eau de Guérison n'étaient décrits nulle part).
+     *
+     * Sources : les cartes TRANSCRITES — `reference/16_armurerie.md` §3bis (cartes
+     * des sorts, texte intégral), `reference/18_extensions.md` §3 (répertoires barde,
+     * druide, warlock, elfique), et les commentaires de chaque entrée ci-dessous.
+     * Un sort sans description fait échouer le seeder : le catalogue ne se remplit
+     * pas à moitié (`CatalogueDescriptionsTest` le vérifie aussi, sur le catalogue entier).
+     *
+     * @var array<string, string>
+     */
+    private const DESCRIPTIONS = [
+        'Boule de Feu' => "Inflige 2 points de Body à un monstre choisi, à distance. Le monstre lance 2 dés rouges : chaque 5 ou 6 réduit les dégâts d'un point.",
+        'Courage' => "Au prochain coup qu'il porte, le héros lance 2 dés de combat de plus. Le sort se rompt dès qu'aucun monstre n'est plus dans sa ligne de vue.",
+        'Trait de Feu' => "Inflige 1 point de Body à un monstre choisi, à distance, sauf si le monstre obtient un 5 ou un 6 avec un dé rouge.",
+        'Sommeil' => "Endort un monstre : il ne peut plus se déplacer, attaquer ni défendre. Pour se réveiller, il lance un dé rouge par point de Mind et le sort se rompt sur un 6 ; une attaque le réveille aussi. Sans effet sur les momies, zombies et squelettes (Mind 0).",
+        'Voile de Brume' => "Sur son prochain déplacement, le héros traverse les cases occupées par les monstres sans jamais s'y arrêter. Ce n'est pas de l'invisibilité : il reste visible et attaquable. Il est Vaporeux jusqu'à la fin de son tour. Lancé sur n'importe quel héros, lanceur compris.",
+        'Eau de Guérison' => "Rend jusqu'à 4 points de Body perdus à un héros, lanceur compris, sans jamais dépasser son maximum.",
+        'Soin du Corps' => "Rend jusqu'à 4 points de Body perdus à un héros, lanceur compris, sans jamais dépasser son maximum.",
+        'Traverser la Pierre' => "Sur tout son prochain déplacement, le héros traverse murs et roche, portes closes comprises. S'il termine son mouvement dans la roche, il tombe. Il est Intangible jusqu'à la fin de son tour. Lancé sur un héros en vue, lanceur compris.",
+        'Peau de Pierre' => "Le héros lance 1 dé de défense de plus, jusqu'à ce qu'il subisse son premier point de Body de dégâts.",
+        'Génie' => "Au choix : ouvrir n'importe quelle porte du plateau, en révélant ce qu'il y a derrière, ou attaquer un monstre dans sa ligne de vue avec 5 dés de combat.",
+        'Vent Véloce' => "Au prochain déplacement du héros, il lance deux fois plus de dés rouges que d'habitude.",
+        'Tempête' => "Un monstre de son choix passe son prochain tour entier. Le monstre n'a droit à aucun jet pour y échapper.",
+        'Conte inspirant' => "Un autre héros que le barde gagne 1 dé de combat pour sa prochaine attaque. Le sort se régénère quand un autre héros que le barde voit obtient deux boucliers blancs en défense.",
+        'Berceuse' => "Endort un monstre : il ne peut plus se déplacer, attaquer ni défendre. Il lance un dé rouge par point de Mind pour rompre le sort, qui se rompt sur un 6 ; une attaque le réveille aussi. Sans effet sur les momies, zombies et squelettes.",
+        'Chant de guérison' => "Le barde et chaque héros qu'il voit regagnent jusqu'à 2 points de Body, sans dépasser leur maximum.",
+        'Métamorphose' => "Le druide lance 1 dé de défense de plus, et 1 dé d'attaque de plus contre un monstre à son contact. Le bonus se rompt au premier point de Body perdu, et le sort se regagne quand le Body du druide revient à son maximum.",
+        'Luciole' => "Rend jusqu'à 2 points de Body à un héros, sans jamais dépasser son maximum.",
+        'Force vitale' => "Rend jusqu'à 4 points de Body à un héros, sans jamais dépasser son maximum.",
+        'Ailes sombres' => "Lancé pendant le tour d'un monstre, après que le lanceur a subi des dégâts, ce sort ramène ces dégâts à zéro.",
+        'Forme démoniaque' => "Le lanceur ignore les fosses et lance 1 dé de combat de plus à l'attaque, jusqu'à ce qu'il subisse 1 point de dégâts. Le sort se regagne quand il réduit un monstre à 0 point de Body.",
+        'Terreur' => "Un monstre ne lance plus qu'un dé de combat pour attaquer, jusqu'à ce qu'il réussisse un jet de Mind. Si la cible est un héros (tir ami), elle reçoit la condition Apeuré : elle ne lance plus qu'un dé d'attaque.",
+        'Ralentissement' => "Réduit le déplacement d'un monstre à 1 case par tour, et lui retire 1 dé de combat en attaque comme en défense (jamais moins de 1 dé). Le monstre peut y résister par un jet de Mind.",
+        'Sommeil profond' => "Endort immédiatement un monstre qui a de 1 à 3 points de Mind. Il n'y a aucun jet : un monstre à Mind 0 n'est pas touché.",
+        'Image double' => "Quand une attaque réussit contre le héros, il lance un dé rouge : sur un 1, 2 ou 3, c'est son image qui est touchée et il ne subit aucun dégât. Le sort dure jusqu'à la fin du combat.",
+        'Arrêt du temps' => "Le temps s'arrête pour tous les autres : le héros joue un tour supplémentaire, immédiatement après son tour en cours.",
+        'Flamme hypnotique' => "Chaque figure de la salle ou du couloir du lanceur, alliés compris et lanceur exclu, lance un dé rouge : si le résultat dépasse son Mind, elle est Paralysée 3 tours — elle ne peut ni se déplacer, ni attaquer, ni défendre.",
+        'Évanescence' => "Le héros ne peut plus que se déplacer et ouvrir les portes : ni attaque, ni fouille, ni désamorçage, ni sort, et ni les attaques ni les sorts ne l'atteignent. Il peut annuler le sort ; sinon il se dissipe à un jet de déplacement de 5 ou plus.",
+        'Trésor sans Péril' => "Le lecteur pioche dans le paquet de trésor en ignorant les monstres errants et les dangers, jusqu'à tomber sur de l'or, une potion ou des gemmes.",
+        'Récupération Psychique' => "Rend au lanceur, ou à un héros de son choix, tous ses points de Mind perdus.",
+        'Éclair' => "Un trait de foudre en ligne droite — horizontale, verticale ou diagonale — qui s'arrête au mur ou à une porte fermée : 2 points de Body à chaque héros et à chaque monstre sur son passage.",
+        'Chaleur' => "Rend jusqu'à 3 points de Body au lanceur, ou à un héros de son choix, sans jamais dépasser son maximum.",
+        'Mur de Pierre' => "Un mur de pierre couvre 2 cases libres de figures : il a 1 point de Body et 6 dés de défense, et disparaît quand il est détruit.",
+        'Invisibilité' => "Le lanceur devient invisible jusqu'au début de son prochain tour : il ne peut plus attaquer, mais personne ne peut l'attaquer et aucun sort ne l'atteint.",
+        'Désapprentissage' => "Un lanceur de Dread en vue perd un sort tiré au hasard, pour toute la quête : ce sort est retiré du jeu jusqu'à la fin de la quête.",
+        'Trésor convoité' => "Au lieu de piocher une carte trésor, le lanceur en pioche trois : les cartes qui rapportent sont appliquées, les dangers et les « rien » retournent sous le paquet.",
+        'Clairvoyance' => "Montre le contenu d'une salle non découverte, où qu'elle soit sur le plateau : monstres (par nom) et nombre de pièges. Le brouillard ne bouge pas. Une salle vide consomme le sort comme une pleine.",
+        'Vision du futur' => "Se lance à tout moment, sans action : après un jet de déplacement, d'attaque ou de défense du héros qui le connaît ou porte son parchemin, il relance tous les dés de ce jet. Le sort est défaussé après usage.",
+        'Chaînes des Ténèbres' => "Un monstre visible ne peut plus se déplacer ni attaquer jusqu'au début du prochain tour du lanceur ; il peut encore défendre et lancer des sorts. Aucun jet ne le libère.",
+        "Voile d'ombre" => "Pose une zone d'ombre de 3 × 2 cases : héros et monstres qui s'y trouvent ne peuvent ni attaquer ni être attaqués, et la vue ne la traverse pas. Elle s'efface après trois débuts de tour du lanceur.",
+        'Flèches de la Nuit' => "Lance 2 dés d'attaque contre un monstre visible, à distance. Le monstre se défend avec autant de dés qu'il a de points de Mind, et n'a aucune défense s'il en a 0.",
+    ];
+
     public function run(): void
     {
         $sorts = [
@@ -540,7 +596,11 @@ class SortSeeder extends Seeder
         ];
 
         foreach ($sorts as $sort) {
-            Sort::updateOrCreate(['nom' => $sort['nom']], $sort);
+            // Un sort sans description ne s'écrit pas : le catalogue n'a pas de trou.
+            $description = self::DESCRIPTIONS[$sort['nom']]
+                ?? throw new \LogicException("Sort « {$sort['nom']} » sans description (SortSeeder::DESCRIPTIONS).");
+
+            Sort::updateOrCreate(['nom' => $sort['nom']], $sort + ['description' => $description]);
         }
     }
 }

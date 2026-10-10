@@ -46,6 +46,13 @@ for e in ent:
     if e.get("type") == "heros" and e.get("id") != moi_id:
         print(f"  allié {e['nom']} ({e['x']},{e['y']}) {e.get('pv_body')}pv"
               + (" [À TERRE]" if e.get("tombe") else ""))
+# MERCENAIRES de la quête (`type: "allie"`, `EtatGroupe::allies()`, chantier 3a) : des
+# figures de l'équipe, jouées par leur joueur. Elles OCCUPENT une case — sans elles
+# affichées, l'agent visait des cases que le serveur refusait (verdict Morcar, 2026-10-09).
+for e in ent:
+    if e.get("type") == "allie":
+        d = abs(e["x"] - moi["x"]) + abs(e["y"] - moi["y"])
+        print(f"  ALLIÉ {e['nom']} ({e['x']},{e['y']}) {e.get('pv_body')}pv — distance {d}")
 # ⚠ PAS de filtre `revele` : ce champ N'EXISTE PAS dans le payload. `EtatGroupe`
 # n'envoie que les monstres déjà révélés (le brouillard est appliqué côté
 # serveur), donc être présent VAUT révélé. Le filtre fantôme a rendu trois
@@ -82,18 +89,34 @@ if leviers:
 # porte — il le découvre en l'actionnant (retentable sans limite). On liste
 # les CANDIDATS plutôt que d'inventer un identifiant que l'API ne donne pas.
 portes_carte = carte.get("portes") or []
+
+# PORTE « À PORTÉE » = la case d'EMBRASURE, pas la porte (2026-10-09, verdict Morcar).
+# `EtatGroupe::portes()` publie `embrasure` (`Grille::caseEmbrasure()`) : le menu
+# n'offre `ouvrir_porte` qu'à distance 1 de CETTE case (`MoteurPortes::porteFermeeAdjacente()`),
+# jamais de la porte elle-même — une porte annoncée « à portée » à distance 1 de sa
+# seule arête ne l'était pas. Une porte sans `embrasure` publiée est SIGNALÉE, pas devinée.
+def distance_embrasure(p):
+    e = p.get("embrasure")
+    if e is None:
+        return None
+    return abs(e["x"] - moi["x"]) + abs(e["y"] - moi["y"])
+
+def texte_embrasure(p):
+    e = p.get("embrasure")
+    return f"embrasure ({e['x']},{e['y']})" if e else "⚠ embrasure NON publiée"
+
 verrouillees = [p for p in portes_carte if p.get("etat") == "verrouillee"]
 if verrouillees:
     print("PORTES VERROUILLÉES :")
     for p in verrouillees:
-        d = abs(p["x"] - moi["x"]) + abs(p["y"] - moi["y"])
+        d = distance_embrasure(p)
         verrou = p.get("verrou")
         piste = ""
         if verrou == "levier" and leviers:
             piste = "  → candidat(s) : " + ", ".join(f"({l['x']},{l['y']})" for l in leviers)
         elif verrou == "levier":
             piste = "  → AUCUN levier visible pour l'instant"
-        print(f"  ({p['x']},{p['y']}) verrou={verrou} — distance {d}{piste}")
+        print(f"  ({p['x']},{p['y']}) verrou={verrou} — {texte_embrasure(p)} à distance {d}{piste}")
 
 # --- PORTES FERMÉES (ouvrables à la main, sans clé) : depuis l'arbitrage du
 # 2026-09-10, une fouille réussie ne fait plus qu'AFFICHER un passage secret
@@ -110,9 +133,9 @@ fermees = [p for p in portes_carte if p.get("etat") == "fermee"]
 if fermees:
     print("PORTES FERMÉES (ouvrables, sans clé) :")
     for p in fermees:
-        d = abs(p["x"] - moi["x"]) + abs(p["y"] - moi["y"])
-        contact = "  → À PORTÉE (ouvrir_porte au menu)" if d <= 1 else ""
-        print(f"  ({p['x']},{p['y']}) côté {p.get('cote')} — distance {d}{contact}")
+        d = distance_embrasure(p)
+        contact = "  → À PORTÉE (ouvrir_porte au menu)" if d == 1 else ""
+        print(f"  ({p['x']},{p['y']}) côté {p.get('cote')} — {texte_embrasure(p)} à distance {d}{contact}")
 
 # --- TERRAIN (doc 18 §4, thème horreur_des_glaces UNIQUEMENT) : cases proches
 # avec leur coût et leur effet. L'API ne publie PAS `effet` (seulement `nom`,
@@ -209,6 +232,12 @@ def case_brute(x, y):
 def sol(x, y):
     return case_brute(x, y) in ("s", "p")
 
+# EMBRASURE d'une porte NON ouverte : inoccupable, des DEUX côtés (René, 2026-09-11) —
+# MIROIR de `embrasuresFermees` dans `DeplacementSheet.vue` et de `Grille::estTraversable()`.
+# Sans elle, la destination proposée était une case que le serveur refuse (tour perdu).
+embrasures_fermees = {(p["embrasure"]["x"], p["embrasure"]["y"]) for p in portes_carte
+                      if p.get("etat") != "ouverte" and p.get("embrasure")}
+
 portee = 0
 menu = json.loads(subprocess.run(
     ["curl", "-s", "-b", f"{S}/jar-{slot}.txt", f"http://localhost/api/groupes/{code}/menu",
@@ -236,6 +265,8 @@ if portee:
         for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             n = (c[0] + dx, c[1] + dy)
             if porte_fermee_entre(c, n):
+                continue
+            if n in embrasures_fermees:
                 continue
             case_connue = sol(*n)
             # Filet de sécurité (§2.16) : une case VOISINE IMMÉDIATE reste

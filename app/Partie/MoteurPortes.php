@@ -178,17 +178,49 @@ final class MoteurPortes
         return null;
     }
 
-    /** Leviers orthogonalement adjacents à (x, y). @return list<array{x: int, y: int, levier_id: string}> */
+    /**
+     * Le levier `$levierId` a-t-il encore une porte à ouvrir ?
+     *
+     * LE SEUL prédicat de « déjà forcé » : le menu (`MenuMoteur`) ne propose que
+     * les leviers pour lesquels il est vrai, et le résolveur le relit pour refuser
+     * le geste. Un levier forcé n'a pas d'état propre — sa porte, elle, est
+     * ouverte, et c'est elle qui dit tout. Une seconde copie de cette règle aurait
+     * laissé un levier déjà forcé proposé de nouveau (Morcar, 2026-10-09 : un
+     * geste qui ne fait plus rien, offert par le menu).
+     */
+    public function levierAOuvrir(Carte $carte, string $levierId): bool
+    {
+        foreach ($this->portes($carte) as $porte) {
+            if (($porte['verrou']['type'] ?? null) === 'levier'
+                && (string) ($porte['verrou']['levier_id'] ?? '') === $levierId
+                && ($porte['etat'] ?? null) !== self::ETAT_OUVERTE) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Leviers orthogonalement adjacents à (x, y). `actionnable` : le levier a
+     * encore une porte à ouvrir ({@see levierAOuvrir()}) — un levier déjà forcé
+     * reste visible sur la carte, mais n'est plus une action proposée.
+     *
+     * @return list<array{x: int, y: int, levier_id: string, actionnable: bool}>
+     */
     public function leviersAdjacents(Carte $carte, int $x, int $y): array
     {
         $adjacents = [];
 
         foreach ((array) ($carte->grille['leviers'] ?? []) as $levier) {
             if (abs((int) $levier['x'] - $x) + abs((int) $levier['y'] - $y) === 1) {
+                $levierId = (string) ($levier['levier_id'] ?? '');
+
                 $adjacents[] = [
                     'x' => (int) $levier['x'],
                     'y' => (int) $levier['y'],
-                    'levier_id' => (string) ($levier['levier_id'] ?? ''),
+                    'levier_id' => $levierId,
+                    'actionnable' => $this->levierAOuvrir($carte, $levierId),
                 ];
             }
         }
@@ -219,6 +251,7 @@ final class MoteurPortes
         return $this->revelerSecretes(
             $groupe, $carte, $personnage,
             fn (array $porte) => $zone->contientPorte($porte),
+            'fouille',
         );
     }
 
@@ -247,6 +280,7 @@ final class MoteurPortes
         $reveles = $this->revelerSecretes(
             $groupe, $carte, $personnage,
             fn (array $porte) => abs((int) $porte['x'] - $x) + abs((int) $porte['y'] - $y) === 1,
+            'talent',
         );
 
         // Un talent qui s'active tout seul se VOIT (2026-09-25).
@@ -272,6 +306,7 @@ final class MoteurPortes
         return $this->revelerSecretes(
             $groupe, $carte, $personnage,
             fn (array $porte) => $grille->ligneDeVue($x, $y, (int) $porte['x'], (int) $porte['y']),
+            'clairvoyance',
         );
     }
 
@@ -282,7 +317,7 @@ final class MoteurPortes
      *
      * @return list<array{x: int, y: int}>
      */
-    private function revelerSecretes(Groupe $groupe, Carte $carte, Personnage $personnage, callable $filtre): array
+    private function revelerSecretes(Groupe $groupe, Carte $carte, Personnage $personnage, callable $filtre, string $methode): array
     {
         $reveles = [];
 
@@ -308,10 +343,20 @@ final class MoteurPortes
         }
 
         if ($reveles !== []) {
-            Journal::ajouter($groupe, 'action', [
+            $payload = [
                 'type' => 'portes_secretes_revelees',
+                'methode' => $methode,
                 'portes' => $reveles,
-            ], ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom]);
+                'personnage' => $personnage->nom,
+            ];
+
+            Journal::ajouter($groupe, 'action', $payload, ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom]);
+
+            // Même raison que `MoteurPieges::reveler()` : la Potion de vision est la
+            // seule détection que rien d'autre ne raconte.
+            if ($methode === 'clairvoyance') {
+                app(TamponAnnonces::class)->ajouter($payload);
+            }
         }
 
         return $reveles;

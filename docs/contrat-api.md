@@ -24,8 +24,20 @@ Routes protégées par middleware `auth` sauf connexion.
 | POST | /api/groupes/{identifiant}/quetes | — | {quete} — démarre la quête suivante (assemble carte, spawn monstres, initiative) |
 | PUT | /api/groupes/{identifiant}/ordre | {ordre:[personnage_id,…]} | réordonne l'ordre du tour (ordre_initiative) — **HUB seulement**, permutation exacte des héros actifs, **membre OU table** ; rediffuse `.prets.maj` réordonné |
 | POST | /api/groupes/{identifiant}/choix | {option_id, parametres?} | 202 — le moteur résout, l'état et la narration arrivent par Reverb |
-| POST | /api/groupes/{identifiant}/deplacement/apercu | {x, y} | {atteignable, raison?, chemin: [{x,y}], cout, restant, restant_apres, pieges: [{x,y,nom,etat}]} — **le trajet EXACT** que le héros parcourrait, AVANT de valider (voir §Aperçu du trajet) |
-| GET | /api/groupes/{identifiant}/menu | — | {menu, personnage_id, allie_id} \| {menu: null} — rattrapage du menu courant (régénéré si c'est le tour du héros, OU de l'allié qu'il contrôle — chantier 3a, `allie_id` alors non-null) |
+| POST | /api/groupes/{identifiant}/deplacement/apercu | {x, y} | {atteignable, raison?, chemin: [{x,y}], cout, restant, restant_apres, pieges: [{x,y,nom,etat}], traverse_roche} — **le trajet EXACT** que le héros parcourrait, AVANT de valider (voir §Aperçu du trajet) |
+| GET | /api/groupes/{identifiant}/menu | — | {menu, personnage_id, allie_id} \| {menu: null} — rattrapage du menu courant (régénéré si c'est le tour du héros, OU de l'allié qu'il contrôle — chantier 3a, `allie_id` alors non-null). **Même point de passage que `POST choix` et `POST deplacement/apercu`** (`App\Partie\MenuCourant`, 2026-10-09) : le menu rendu ici est exactement celui que le choix acceptera. |
+
+**Fenêtre de régénération (2026-10-09).** Après une résolution, le menu consommé
+n'est plus en cache le temps que le job `GenererMenu` le recalcule (une à deux
+secondes sur la file `temps-reel`). Pendant cette fenêtre, `choix` et
+`deplacement/apercu` ne refusent PLUS un choix légal : si c'est le tour du héros (ou
+de l'allié qu'il contrôle) et que son menu manque, le serveur le recalcule sur place
+depuis l'état déjà committé, puis valide le choix contre CE menu. Un menu en cache
+qui ne désigne pas l'acteur qui a la main est jeté — jamais servi, jamais accepté.
+Refus faute de menu jouable, deux messages (422, `option_id`) : « Le menu se met à
+jour — réessaie dans un instant. » quand c'est le tour du joueur et que la
+régénération n'a rien rendu ; « Aucun menu en attente pour ce joueur — attendez la
+proposition du MJ. » quand ce n'est pas son tour.
 
 ## EtatGroupe (GET etat + broadcast `.groupe.etat`)
 
@@ -225,12 +237,13 @@ avant celle du coup fatal qui a provoqué le TPK).
 | `joueur.{id}` (private) | `.menu.propose` | {menu: {contexte, options: [{id, libelle, type: "action|dialogue|jet|attaque|deplacement", parametres}]}, groupe_id, personnage_id, allie_id} | manette du joueur — `allie_id` non-null (chantier 3a) : c'est le tour de l'allié contrôlé par ce héros, pas le sien |
 
 Un tour de héros = **deux créneaux** (doc 03 §28) : un **déplacement** et une
-**action**, jouables **dans n'importe quel ordre et entrelacés** — agir n'annule
-plus le déplacement restant (on peut agir PUIS se déplacer, ou fractionner son
-déplacement autour de l'action). Le menu offre les créneaux encore libres (le
-déplacement à la portée **restante**), plus « Terminer le tour » (`attendre`). Le
-tour ne passe au héros suivant / aux monstres **que sur décision du joueur**
-(`attendre`, ou une action terminante : concentration, relever) — plus de fin
+**action**. Agir AVANT de bouger laisse le déplacement entier, et l'on peut se
+déplacer après l'action. Agir APRÈS avoir entamé son déplacement **confisque le
+reste** (règle du plateau, 2026-08-07, maintenue par René le 2026-10-09 : elle est
+annoncée par `perd_deplacement`, voir §`creneau`). Le menu offre les créneaux encore
+libres (le déplacement à la portée **restante**), plus « Terminer le tour »
+(`attendre`). Le tour ne passe au héros suivant / aux monstres **que sur décision du
+joueur** (`attendre`, ou une action terminante : concentration) — plus de fin
 automatique quand les deux créneaux sont pris. **Boire une potion** est une action
 gratuite jouable **à tout moment** (onglet Sac, `POST /potions`), même après avoir
 déplacé ET agi ; elle ne consomme aucun créneau et ne termine pas le tour.
@@ -375,6 +388,20 @@ les publier ferait de l'aperçu un détecteur de pièges gratuit.
 ⚠ C'est un **aperçu**, pas une réservation : le résolveur recalcule tout au moment
 du choix (une réaction hors tour a pu déplacer une figurine entre les deux).
 
+⚠ **`traverse_roche`** (2026-10-09, décision de René sur le verdict Morcar) : le trajet
+traverse-t-il de la ROCHE (Traverser la Pierre, `franchit_mur`) ? `ResolveurTour::apercuDeplacement()`
+le décide sur la grille même de la résolution : `true` dès qu'une case du chemin est de la
+roche. La manette ne le devine pas : elle lit ce booléen et prévient AVANT le second tap :
+« une fois ton déplacement fini, tu ne pourras plus revenir dans la roche — et tu tombes si ton
+tour finit dans la roche » (`verifierRocheMortelle()`, appelée à la fin du tour).
+Ce que le moteur tient, et que l'annonce dit exactement : l'intangible vit pendant le créneau de
+déplacement (sort `ce_tour`, lu par `MoteurSorts::traverseRoche()`). Un héros qui s'arrête dans
+le couloir avec des points restants peut encore y rentrer ; une fois le déplacement fini
+(reliquat à zéro, ou action jouée qui le confisque), plus aucun pas dans la roche ce tour : le menu
+n'offre plus `se_deplacer`, et `POST choix` refuse en 422 (« Option illégale : elle ne figure pas
+dans le dernier menu proposé. »). ⚠ Le verdict parlait d'une consommation « à la fin du
+déplacement » ; c'est le même effet en pratique, pas un mécanisme distinct.
+
 ### Une action, puis un sous-choix (2026-09-01)
 
 Le menu ne porte plus **une option par sort** : il porte **une option qui porte
@@ -385,8 +412,8 @@ options claires » (doc 13 §3.1). C'est la leçon du ciblage, un cran plus haut
 
 | option | liste | entrée |
 |---|---|---|
-| `lancer_sort` (`type: sort`) | `parametres.sorts[]` | `{cle, sort_id, nom, element, sort_type, disponible, cibles?, mode?, porte?, case?}` |
-| `lire_parchemin` (`type: parchemin`) | `parametres.parchemins[]` | idem + `inventaire_id` ; un parchemin de sort à emplacement (mur, Clairvoyance, voile) porte les MÊMES entrées que le sort connu, `mode` et `cases`/`salle` compris (2026-10-08) |
+| `lancer_sort` (`type: sort`) | `parametres.sorts[]` | `{cle, sort_id, nom, element, sort_type, disponible, description, cibles?, mode?, porte?, case?}` — **`description`** (2026-10-09) : ce que le sort FAIT, tiré du catalogue (`sorts.description`) et décidé par le serveur, sur CHAQUE entrée — la manette l'affiche sans rien recomposer (verdict Morcar § 5 : Voile de Brume n'était décrit nulle part) |
+| `lire_parchemin` (`type: parchemin`) | `parametres.parchemins[]` | idem + `inventaire_id` (et `description`, idem) ; un parchemin de sort à emplacement (mur, Clairvoyance, voile) porte les MÊMES entrées que le sort connu, `mode` et `cases`/`salle` compris (2026-10-08) |
 | `utiliser_objet` (`type: objet_libre`) | `parametres.objets[]` | `{cle, inventaire_id, nom, detail, cout: gratuit\|action, quantite, cibles?}` |
 | `se_concentrer` · `sacrifier_pour_sort` | `parametres.sorts[]` | `{cle, sort_id, nom, …}` |
 
@@ -685,6 +712,29 @@ Rappel). Elles restent publiées à part dans `entites[]`, parce qu'une même
 option d'attaque est tantôt permise tantôt refusée selon qui la regarde. Le
 `creneau` dit le prix ; ces drapeaux disent qui a déjà payé.
 
+**`relever` est une ACTION, plus un tour** (décision de René, 2026-10-09, verdict Morcar) :
+relever un compagnon tombé consomme le créneau d'**action**, comme une attaque. Le héros
+peut encore se déplacer avant ou après. `creneauOption('relever')` rend donc `action` ; le
+menu ne le propose plus une fois l'action jouée (`a_agi`) ; si une relève périmée arrive
+quand même, le résolveur la refuse (« Tu as déjà agi ce tour. ») — la route répond 422 avant
+cela, « Option illégale », tant que l'option n'est plus au menu. ⚠ `liberer_captif` garde `tour` pour l'instant :
+même traitement que relever avant cette décision. Pas tranché, à reprendre séparément.
+
+**`perd_deplacement`** (2026-10-09, décision de René : « garder la règle, mais l'annoncer ») :
+toute option `creneau: "action"` porte `perd_deplacement: N`, le nombre de cases que CET
+acte fera perdre. `N` est DÉCIDÉ par `ResolveurTour::casesPerduesParAction()`, la formule même
+de `marquerCreneau()` : le reliquat `deplacement_restant` si le déplacement est entamé, `0`
+sinon (rien entamé, Vague montante — `deplacement_scinde` — active, ou action déjà jouée :
+un bonus d'attaque ne confisque rien). Le même chiffre vaut pour toutes les options d'action
+d'un menu. La manette affiche « Tu perdras tes N cases restantes si tu agis maintenant » AVANT
+le geste ; elle ne recalcule jamais `N`.
+
+⚠ **Correction du même jour.** La condition « déplacement entamé » comparait le reliquat au
+total du jet (`deplacement_tour`). Or le tour s'ouvre avec `total × multiplicateur + bonus`
+(Vent Véloce ×2, Potion de dextérité +5) : un héros ainsi doublé qui avait fait UN pas
+(reliquat 11, total 6) ne perdait jamais son reliquat en agissant. « Entamé » se lit désormais
+sur `deplacement_restant` lui-même, posé par la résolution de chaque pas.
+
 ⚠ `parametres.cibles` **est la liste blanche** : l'identifiant d'option ne
 porte plus la légalité de la cible, donc la valider contre le menu ne la valide
 plus. Le résolveur vérifie l'appartenance et répond 422 sinon — sans quoi un
@@ -868,7 +918,12 @@ décidées par le serveur, jamais recalculées côté client :
   = `[{cle: "vers:{instance_id}", nom: "Approcher <monstre>"}]`, une entrée
   par monstre que l'allié peut rejoindre — pas une case libre, un ADVERSAIRE à
   approcher (même esprit que son ancien pilotage automatique, mais choisi
-  par le joueur). `POST /choix {option_id: "se_deplacer_allie", parametres:
+  par le joueur). ⚠ **Offerte seulement si l'approche ABOUTIT** (2026-10-09,
+  `App\Partie\ApprocheAllie`, lu aussi par le résolveur) : une case au CONTACT du
+  monstre où l'allié peut S'ARRÊTER (ni figure, ni terrain qui l'interdit — une case
+  prise par un héros ne compte pas), atteignable, et où il avance réellement. Un
+  monstre dont tout le contact est pris n'apparaît pas ; une destination forgée
+  est refusée (422, « Destination illégale »). `POST /choix {option_id: "se_deplacer_allie", parametres:
   {cle}}`.
 - `type: "attaque"` (id `attaquer_allie`) : `parametres.cibles` = la même
   forme qu'une cible de héros (`{id, type: "monstre", nom, nom_base,
@@ -1097,6 +1152,87 @@ résistance, jet de Mind, dés d'un piège), déjà mis en forme par
 `JournalCombat::desJetUnilateral()` — exactement la forme `des` du fil, faces
 gagnantes décidées. `null` quand l'action n'en a pas. Sans elle, la manette
 restait muette sur la Boule de Feu que le joueur venait de lancer lui-même.
+
+### Le fil de combat annonce TOUT effet automatique (2026-10-09, verdict Morcar §1-2)
+
+Règle dure : **un effet automatique que rien n'annonce est injouable**. Le fil
+(`.combat.journal` en direct, `journal_combat` au rejeu) est dérivé du résultat
+de l'action par `JournalCombat` ; deux portes silencieuses le rendaient muet, et
+toutes deux sont fermées.
+
+- **Le registre `JournalCombat::TYPES`** liste chaque `type` d'action que le
+  moteur peut rendre : `true` (une phrase existe dans `ligneType()`) ou une
+  CHAÎNE (muet par choix écrit — la chaîne est la raison). Un type absent n'est
+  plus le silence : le fil rend « Un effet automatique vient de se produire
+  (type) » et le journal d'application consigne un avertissement.
+  `AnnoncesEffetsAutomatiquesTest` parcourt les sources : tout `'type' => '…'` de
+  `app/Partie` doit figurer au registre, tout type déclaré doit exister (les deux
+  sens), et chaque type annoncé rend une vraie ligne.
+- **Les listes d'actions du résultat** sont toutes parcourues
+  (`JournalCombat::PHASES` : `tour_monstres`, `tour_allies`, `tour_sbires` ;
+  `JournalCombat::LISTES_PLATES` : `captifs_repris`, `coups_de_corne`,
+  `annonces_automatiques`) et les actions IMBRIQUÉES aussi : `action` (l'embusqué
+  joue tout de suite), `embuscades` (d'un déplacement), `actions_composites`.
+  `resultat.annonces_automatiques` est neuf : le tampon générique
+  (`TamponAnnonces`) pour les effets qu'aucune action ne retourne (objet volé
+  perdu de vue, détection de la Potion de vision).
+- **Le rejeu relit `combat`, `action` ET `jet`** (`JournalCombat::TYPES_EVENEMENT`),
+  fenêtre de 100 événements, 24 lignes rendues. Il ne relisait que `combat` : un
+  sort de soin, un buff, un levier, une fouille, un déplacement de monstre ou un
+  sort de contrôle du MJ sont journalisés `action`/`jet` et n'apparaissaient donc
+  JAMAIS à un joueur qui rafraîchissait ou arrivait en retard. Un payload
+  journalisé à part ET imbriqué dans celui de son parent n'est dit qu'une fois
+  (dédoublonnage par contenu).
+- **Nouveaux payloads rendus** (tous dans `tour_monstres.actions` sauf mention) :
+  `deplacement_monstre` (« avance de N cases »), `repli_tireur`, `monstre_reveille`
+  (**retourné** désormais, devant l'action du réveillé, via `actions_composites` ;
+  il n'était que journalisé), `monstre_enfume`, `monstre_enchaine`,
+  `etreinte_maintenue`, `frappe_de_zone`, `charge`, `capacite_dread` (porte
+  `monstre`), `spawn`, `rejeton_accroche`, `regeneration`, `vol_objet`,
+  `objet_perdu` (via `annonces_automatiques`), `sbire_controle`
+  (`tour_sbires`), `captif_libere`, `captif_repris`, `commandement_*`,
+  `soin_allie`, `concentration`, `sacrifice_sort`, `s_ecarter_du_bloc`, `retraite`,
+  `sortie`, `poussee`, `ouvrir_porte`, `oracle_salle`, `detacher_rejetons`,
+  `briser_glace`, `deplacement_allie`, `attente_allie`, `pieges_detectes` /
+  `portes_secretes_revelees` (`methode: "clairvoyance"` seule : la fouille et
+  l'Œil du mineur se disent déjà).
+- **Sorts de héros sans dégât** : le fil dit l'EFFET, plus « X lance Y » —
+  soin (`+N PV de Body`, `releve`), soin de zone (`soignes[].releve`), Mind
+  restauré, tour supplémentaire, mur posé, porte ouverte à distance, sort mental
+  (voir ci-dessous) et soutien. Un soutien (Courage, Voile de Brume, Traverser la
+  Pierre) publie `condition`, `source` et **`duree_texte`** (« jusqu'à sa
+  prochaine attaque », « pendant 2 tours »), phrase décidée par
+  `DureeEffet::libelle()` — un client ne la redérive pas.
+- **En-tête des sorts de Dread** : chaque payload `sort_dread` / `sort_dread_annule`
+  d'un tour de boss porte **`lanceur: {instance_id, nom}`** (posé une fois par
+  `MoteurDread::signerLanceur()`). Le fil dit toujours une ligne
+  « `<lanceur> — <sort>` » (+ « : N héros pris dans le sort » à partir de deux),
+  puis une ligne par victime. En direct, l'acteur du fil est le HÉROS qui vient
+  de jouer : il ne nomme plus jamais le sorcier, ce qui donnait « Maître des
+  orages — » devant Foudroiement au rejeu et rien devant Tremblement de terre.
+
+**Résultats contradictoires corrigés** :
+
+- **Sommeil** (héros → monstre) : `effet_applique` dit si la condition est EN
+  VIGUEUR après le lancer. Rompue sur-le-champ (`rupture_immediate: true`, un 6),
+  il vaut **`false`** ; `condition` reste la condition VISÉE (même convention que
+  les sorts de Dread, `resultats[].effet_applique: false` + `rupture_immediate.rompu`).
+  Le fil dit « X subit Sommeil (Endormi)… puis s'en libère aussitôt · dés de rupture 2, 6 ».
+- **« Résiste »** : `des.libelle_def` d'un jet de dés rouges dit ce qui s'est
+  passé — « résiste » (rien ne passe), « résiste en partie » (des PV passent
+  malgré des 5-6), « ne résiste pas » (tout passe). Un jet de Mind lit `issue`
+  (`resiste` → « résiste », `subit_effet` → « ne résiste pas »).
+- **Un seul jeu de dés** : `resultat.des_resistance` (la volée brute du moteur) et
+  `des.def` sont **le même jet**, octet pour octet (test épinglé). `des.defensive`
+  n'est PAS un jet : c'est l'ensemble des faces qui COMPTENT (`[5, 6]` pour le dé
+  rouge, `FaceDeCombat` pour un jet de combat). La manette ne lit que `des`.
+- **Fouille de zone** : `issue` ne dit plus « réussite » quand rien n'est trouvé —
+  voir la décision du même jour plus bas (`reussite` = trouvé, `rien` = recherche
+  réussie sans rien trouver, `echec` = jet raté ; `a_trouve` et `succes` inchangés).
+  Le fil dit « rien de suspect ».
+- **Levier** : un levier dont toutes les portes sont déjà ouvertes n'est plus
+  proposé (`MoteurPortes::levierAOuvrir()`) ; le fil du forçage réussi sans porte
+  dit « le passage est déjà ouvert ».
 
 ## Réactions hors tour
 
@@ -1849,7 +1985,15 @@ achète *Colosse*, il descend quand le costaud s'en va.
   Body** (difficulté du levier, 1-3) et **coûte le créneau d'ACTION** : ce n'est
   plus une interaction gratuite. ⚠ **Retentable sans limite**, contrairement aux
   épreuves — c'est ce qui autorise une salle à ne tenir qu'à ce levier sans jamais
-  se sceller.
+  se sceller. ⚠ **Retentable tant qu'il reste une porte à ouvrir** (2026-10-09) : un
+  levier **déjà forcé** (toutes ses portes ouvertes) reste visible sur la carte mais
+  n'est plus offert par le menu, et un `POST choix` sur lui est refusé (422, « Ce
+  levier a déjà été actionné : la porte qu'il commande est ouverte. »). Décidé par
+  `MoteurPortes::levierAOuvrir()`, le même prédicat pour le menu et le résolveur.
+  ⚠ **`portes_ouvertes`** (payload `actionner_levier`, `force: true`) NOMME toutes les
+  portes que le geste ouvre — celles du levier ET leurs jumelles de seuil, que
+  `MoteurPortes::ouvrir()` entraîne avec elles — jamais une liste vide sur une
+  réussite.
 
 - **EtatGroupe.carte** gagne `mobilier: [{x, y, l, h, nom, bloque_mouvement,
   bloque_vue, pv_body, defense_dice, pv_restants}]` — l'ancre `(x, y)` est le
@@ -1969,6 +2113,13 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
   cases filtré par la vue). Une porte en fait partie si l'une de ses deux cases y
   tombe. `App\Partie\ZoneFouille` est le point de passage unique. Echo :
   `pieges_reveles`, `portes_revelees` (forme inchangée).
+  ⚠ **`issue` sans ambiguïté** (2026-10-09, verdict Morcar § 2) — pour les fouilles de
+  zone (`fouiller`, `fouiller_pierre`), `issue` dit ce que la RECHERCHE a donné :
+  `reussite` = quelque chose a été trouvé (`a_trouve: true`) ; `rien` = le jet a réussi
+  et ne trouve rien (`succes: true`, `a_trouve: false`) — avant, ce cas portait
+  `issue: reussite` et se lisait comme une découverte ; `echec` = le jet a raté (rien
+  trouvé, `succes: false`). `succes` reste le résultat brut du dé. Le temps fort du
+  narrateur suit : `rien` → `fouille_rien`.
 - **Verrous** (doc 14 §3.3) :
   - `cle` : option `ouvrir_porte` (id `ouvrir_porte_{x}_{y}`) au contact d'une porte
     verrouillée, offerte si le héros possède l'objet-clé → la porte s'ouvre (persistant) ;
@@ -2490,8 +2641,11 @@ réussite auto ; non-lanceur : jet de Mind à la difficulté du sort (1-3) ;
 **consommé dans tous les cas**, échec = gaspillé.
 
 `GET /api/moi` : chaque personnage expose `sorts: [{sort_id, nom, element,
-type, disponible}]` (et l'onglet Sorts de la manette s'en nourrit ; rafraîchi
-aussi via `.groupe.etat` → re-GET).
+type, disponible, description, image_url}]` (et l'onglet Sorts de la manette s'en nourrit ; rafraîchi
+aussi via `.groupe.etat` → re-GET). **`description`** (2026-10-09) : ce que le sort
+FAIT, tiré du catalogue (`sorts.description`, seedé par `SortSeeder`) — la feuille
+d'information de la manette l'affiche telle quelle (`descriptionSort()` ne lit plus
+aucune table côté client, et une description absente s'affiche comme absente).
 
 **Répertoires à changer — décision publiée (Wizards of Morcar, 2026-10-06).**
 Chaque personnage expose aussi `repertoires: {remplacables: [element], offerts:
@@ -2833,7 +2987,11 @@ monstre. Il ne RECULE jamais pour tirer : le recul est le trait de l'archer
 tranche, jamais l'IA.
 
 **EtatGroupe** : `entites` (héros ET monstres) gagnent
-`conditions: [{nom, duree}]` — la table et la manette affichent les états ;
+`conditions: [{nom, duree}]` — la table et la manette affichent les états.
+⚠ **Depuis le 2026-10-09**, une condition de HÉROS porte aussi `description` : ce
+que la condition FAIT, tiré du catalogue (`conditions.description`, un texte par
+condition, seedé — « Vaporeux » et « Intangible » n'en avaient aucune, verdict
+Morcar § 5). La fiche la montre sous les pastilles, sans table côté client ;
 un héros `endormi`/`commande` voit son menu remplacé par un message d'état.
 ⚠ Quatre conditions de plus depuis les cartes officielles : *Esprit brisé*
 (Choc Mental — ne bouge ni ne frappe, défend à **1 dé**), *Désigné* (Feux de
@@ -3275,6 +3433,13 @@ déplacement refuse de finir sur un meuble (« On traverse un meuble… », auss
 ou du terrain gênant par une pièce/un buff porte `payload.franchit: ["mobilier", "terrain gênant"]`.
 Fosse révélée ignorée (Élixir) : `pieges_declenches[].type === "piege_ignore"`.
 
+**`entites[].traverse_roche`** (héros, 2026-10-09) : CE héros traverse-t-il la ROCHE ce tour
+(Traverser la Pierre, `franchit_mur` — `MoteurSorts::traverseRoche()`) ? Décision serveur, comme
+`franchit_mobilier`. La manette s'en sert pour deux choses seulement : laisser toucher une case
+de roche ou de sol déjà connu, que le BFS d'accessibilité ne développe pas (il ne traverse pas la
+roche), et attendre l'aperçu, qui dit `traverse_roche` trajet par trajet. Une case non connue
+(brouillard) reste intouchable : l'aperçu ne doit pas révéler de sol inconnu.
+
 **Brassard du Garde-Crocs** (« Utiliser un objet », option « Appeler l'allié », créneau d'action,
 une fois par quête) : crée un allié *Raptor apprivoisé* (fiche existante) à la case libre la plus
 proche, `groupe_mercenaires.recruteur_personnage_id` = le héros, `invoque_par_objet_id` = l'objet ;
@@ -3356,7 +3521,8 @@ recalcule pas. Les monstres **Agile** l'ignorent côté moteur (`Grille::autoris
   porte, on l'ouvre et on **poursuit** son mouvement s'il reste des points.
 - **Déplacement fractionné** : le déplacement du tour se dépense en plusieurs
   fois (`deplacement_restant`) ; l'option « Continuer à se déplacer » porte la
-  portée restante. Toute **action hors mouvement forfait** le déplacement restant.
+  portée restante. Une **action** jouée APRÈS un déplacement entamé forfait le reliquat
+  (`perd_deplacement`, voir §`creneau`) ; avant tout pas, elle ne coûte rien au déplacement.
   Sauter une fosse coûte 2 points et laisse continuer.
 - **Sort offensif = ligne de vue** : un sort `degats`/`mental` ne vise qu'une
   cible VISIBLE du lanceur — un mur, une porte fermée **ou une figure interposée**

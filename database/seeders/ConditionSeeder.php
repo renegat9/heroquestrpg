@@ -12,6 +12,53 @@ use Illuminate\Database\Seeder;
  */
 class ConditionSeeder extends Seeder
 {
+    /**
+     * CE QU'EST CHAQUE CONDITION, en clair — ce que la fiche du héros (`EtatGroupe`)
+     * publie avec son nom. « Vaporeux » et « Intangible » n'en avaient aucune
+     * (verdict Morcar, 2026-10-09 § 5) : une condition qui se pose sans dire ce
+     * qu'elle fait se lit comme un effet ignoré.
+     *
+     * Sources : les cartes transcrites (`reference/16_armurerie.md` §3bis pour les
+     * sorts, `reference/18_extensions.md` §3 pour les répertoires de boîtes), les
+     * livrets pour les objets et les monstres (`reference/18_extensions.md`), et les
+     * commentaires de chaque entrée ci-dessous. Une condition sans description fait
+     * échouer le seeder ; `CatalogueDescriptionsTest` le vérifie sur le catalogue.
+     *
+     * @var array<string, string>
+     */
+    private const DESCRIPTIONS = [
+        'Empoisonné' => "Perd 1 point de Body à chaque tour, pendant 3 tours. Le Sang robuste (nain) permet d'y résister.",
+        'Étourdi' => "Perd son prochain tour : le héros ne joue pas, et la condition est consommée à ce tour.",
+        'Apeuré' => "Ne lance plus qu'un dé d'attaque au maximum, jusqu'à la rupture du sort.",
+        'Endormi' => "Il saute son tour et ne peut ni se déplacer ni agir. Une attaque subie le réveille.",
+        'Commandé' => "Un Sorcier de Dread le contrôle : il joue son tour à sa place, jusqu'à la rupture du sort.",
+        'Ralenti' => "Son déplacement est réduit de 2 cases, pendant 3 tours.",
+        'Immobilisé' => "Il ne peut plus se déplacer. Le héros lui-même, ou un compagnon adjacent, peut dépenser une action pour détruire l'étreinte.",
+        'Esprit brisé' => "Choc mental : il ne peut ni se déplacer ni attaquer, et ne défend qu'avec 1 dé de combat, jusqu'à la rupture du sort.",
+        'Désigné' => "Tout monstre qui l'attaque lance un dé d'attaque de plus. Il n'est ni entravé ni affaibli.",
+        'Caché' => "Invisible jusqu'au début de son prochain tour : il ne peut pas attaquer, mais personne ne peut l'attaquer et aucun sort ne l'atteint.",
+        'Enchaîné' => "Il ne peut ni se déplacer ni attaquer jusqu'au début de son prochain tour. Il peut encore défendre et lancer des sorts.",
+        'Vaporeux' => "Lors de son prochain déplacement, il traverse les cases occupées par les monstres sans jamais s'y arrêter. Ce n'est pas de l'invisibilité : il reste visible et attaquable. La condition dure jusqu'à la fin de son tour.",
+        'Perce-armure' => "Sa prochaine attaque ignore la défense de la cible.",
+        'Main sûre' => "Sa prochaine attaque lui permet de relancer ses dés d'attaque.",
+        'Clairvoyance' => "Il voit les pièges et les portes secrètes dans sa ligne de vue, jusqu'à ce qu'il subisse au moins 1 point de Body de dégâts.",
+        'Renforcé' => "Bonus d'attaque : il lance des dés de combat supplémentaires, jusqu'à la fin de l'effet qui l'a donné.",
+        'Protégé' => "Bonus de défense : il lance des dés de défense supplémentaires, jusqu'à la fin de l'effet qui l'a donné.",
+        'Intangible' => "Lors de son déplacement, il traverse murs et roche, portes closes comprises. S'il termine son mouvement dans la roche, il tombe. La condition dure jusqu'à la fin de son tour.",
+        'Tombé' => "À terre (0 point de Body) : il ne peut plus agir, mais il n'est jamais mort. Un allié peut le relever.",
+        'Envenimé' => "Paralysé par le venin : il ne peut pas se déplacer, jusqu'à la fin du tour suivant.",
+        'Agrippé' => "Étreint par une créature : il perd 2 points de Body automatiquement à chaque tour, et ne peut ni se déplacer ni agir, jusqu'à la mort de l'un des deux.",
+        'Paralysé' => "Paralysé pendant 3 tours : il ne peut ni se déplacer, ni attaquer, ni défendre.",
+        'Évanescent' => "Il ne peut que se déplacer et ouvrir les portes : ni attaque, ni fouille, ni désamorçage, ni sort. Il ne déclenche pas les pièges, et ni attaques ni sorts ne l'atteignent.",
+        'Insensible au feu' => "La prochaine attaque de feu magique (sort, piège ou monstre) n'a aucun effet sur lui (Potion de résistance au feu).",
+        'Résistance arcanique' => "Le prochain sort qui lui infligerait des dégâts est sans effet (Potion de résistance à la magie).",
+        'Esprit vif' => "Il peut lancer deux sorts pendant ce tour (Potion de prédisposition magique).",
+        "Pas d'araignée" => "Il traverse sans gêne les cases à mobilier, le terrain entravant, les figures et les fosses révélées, jusqu'au premier point de dégâts subi.",
+        'Grésil aveuglant' => "Aveuglé par le grésil : il ne peut ni se déplacer, ni lancer de sorts, ni tirer à distance, et n'attaque que ce qui est à son contact, jusqu'au prochain tour du MJ.",
+        'Ligoté' => "Pris dans des liens magiques : il ne peut ni se déplacer ni attaquer avant d'avoir tranché les liens (1 point de Body, 4 dés de défense). Il pare encore les autres coups.",
+        'Possédé' => "Un monstre le prend en main : au prochain tour, le MJ joue ce héros à sa place. Il ne peut ni attaquer ni lancer de sorts.",
+    ];
+
     public function run(): void
     {
         $conditions = [
@@ -253,7 +300,11 @@ class ConditionSeeder extends Seeder
         ];
 
         foreach ($conditions as $condition) {
-            Condition::updateOrCreate(['nom' => $condition['nom']], $condition);
+            // Une condition sans description ne s'écrit pas : le catalogue n'a pas de trou.
+            $description = self::DESCRIPTIONS[$condition['nom']]
+                ?? throw new \LogicException("Condition « {$condition['nom']} » sans description (ConditionSeeder::DESCRIPTIONS).");
+
+            Condition::updateOrCreate(['nom' => $condition['nom']], $condition + ['description' => $description]);
         }
     }
 }

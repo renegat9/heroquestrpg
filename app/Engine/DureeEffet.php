@@ -166,6 +166,44 @@ final class DureeEffet
     }
 
     /**
+     * La durée EN FRANÇAIS, pour le fil de combat : « jusqu'à sa prochaine
+     * attaque », « pendant 2 tours ». `null` quand rien n'est déclaré.
+     *
+     * ⚠ Point de passage UNIQUE (2026-10-09) : un buff posé (Courage, Voile de
+     * Brume, Traverser la Pierre…) ne se disait que par le NOM de sa condition —
+     * « Renforcé », « Vaporeux » — et le joueur ignorait quand il cessait. Le
+     * texte est décidé ICI, à côté du vocabulaire, et publié par le serveur
+     * (`duree_texte`) : un client qui le redériverait dériverait avec lui. Un
+     * test épingle qu'AUCUN mot-clé de `toutes()` ne reste sans phrase.
+     */
+    public static function libelle(mixed $duree): ?string
+    {
+        if (is_array($duree)) {
+            $termes = array_values(array_filter(array_map(fn ($d) => self::libelle($d), $duree)));
+
+            return $termes === [] ? null : implode(' ou ', $termes);
+        }
+
+        $tours = self::tours($duree);
+
+        if ($tours > 0) {
+            return "pendant {$tours} tour".($tours > 1 ? 's' : '');
+        }
+
+        return match ($duree) {
+            self::PROCHAINE_ATTAQUE => 'jusqu\'à sa prochaine attaque',
+            self::PROCHAINE_DEFENSE => 'jusqu\'à sa prochaine défense',
+            self::PREMIER_DEGAT_SUBI => 'jusqu\'au premier dégât subi',
+            self::CE_TOUR => 'jusqu\'à la fin de son tour',
+            self::PROCHAIN_TOUR => 'jusqu\'au début de son prochain tour',
+            self::PROCHAIN_DEPLACEMENT => 'jusqu\'à son prochain déplacement',
+            self::FIN_DU_COMBAT => 'jusqu\'à la fin du combat',
+            self::PLUS_DE_MONSTRE_EN_VUE => 'tant qu\'un monstre est en vue',
+            default => null,
+        };
+    }
+
+    /**
      * Décompte en tours porté par la valeur, ou 0 si c'est un mot-clé (ou rien).
      * 0 = « pas de compteur » : l'expiration passe par un déclencheur.
      */

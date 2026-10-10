@@ -61,7 +61,10 @@ it('propose et résout « relever » un allié tombé adjacent (sacrifie le tour
     $eK = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $khazra->id)->firstOrFail();
     expect((bool) $eK->tombe)->toBeFalse()                 // debout
         ->and((int) $khazra->fresh()->pv_body)->toBe(1)   // 1 point, pas une fraction des PV max
-        ->and((bool) $eG->fresh()->a_joue)->toBeTrue();    // Grimnar a sacrifié son tour
+        // « une action, pas tout le tour » (René, 2026-10-09) : Grimnar a dépensé
+        // son ACTION, il n'a pas fini son tour — il peut encore se déplacer.
+        ->and((bool) $eG->fresh()->a_agi)->toBeTrue()
+        ->and((bool) $eG->fresh()->a_joue)->toBeFalse();
 });
 
 it('« relever » soigne le BODY seulement — le Mind/l\'état de choc ne tombe plus, et ce geste ne le lève pas (René, 2026-10-01)', function () {

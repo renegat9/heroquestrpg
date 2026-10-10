@@ -87,16 +87,19 @@ describe('JournalCombat — restitution mécanique (aucun LLM)', function () {
             'tour_monstres' => ['actions' => [
                 ['type' => 'attaque_monstre', 'monstre' => 'Gargouille', 'degats' => 2,
                     'cible' => ['nom' => 'Borin'], 'cible_tombee' => true],
-                ['type' => 'deplacement_monstre', 'monstre' => 'Gobelin'], // ignoré (bruit)
+                ['type' => 'deplacement_monstre', 'monstre' => 'Gobelin', 'chemin' => [['x' => 1, 'y' => 1], ['x' => 2, 'y' => 1]]],
             ]],
         ];
         $l = lignes($resultat);
-        // 1 ligne héros + 2 lignes monstre (touche + chute) ; le déplacement est muet.
-        expect($l)->toHaveCount(3)
+        // 1 ligne héros + 2 lignes monstre (touche + chute) + le déplacement du Gobelin :
+        // il n'est PLUS muet (verdict Morcar 2026-10-09 §1 — « les autres joueurs ne
+        // voient pas ce qui arrive »), une ligne le dit.
+        expect($l)->toHaveCount(4)
             ->and($l[1]['ton'])->toBe('subit')
             ->and($l[1]['texte'])->toBe('Gargouille touche Borin (−2 PV)')
             ->and($l[2]['ton'])->toBe('chute')
-            ->and($l[2]['texte'])->toBe("Borin s'effondre !");
+            ->and($l[2]['texte'])->toBe("Borin s'effondre !")
+            ->and($l[3]['texte'])->toBe('Gobelin avance de 2 cases');
     });
 
     it('restitue une fouille de zone réussie (auparavant muette)', function () {
@@ -345,11 +348,14 @@ it('dessine le jet de Mind du sort du MJ contre un héros, AU MOMENT où il frap
         ]],
     ], 'Le Gardien');
 
-    expect($l)->toHaveCount(1)
-        ->and($l[0]['texte'])->toBe('Borin subit Sommeil — Endormi')
-        ->and($l[0]['des']['def'])->toBe(['bouclier_blanc', 'bouclier_noir'])
-        ->and($l[0]['des']['defensive'])->toBe('crane')
-        ->and($l[0]['des']['defenseur'])->toBe('Borin');
+    // Un EN-TÊTE (le lanceur, une seule fois) puis la ligne de la victime — qui porte le jet.
+    expect($l)->toHaveCount(2)
+        ->and($l[0]['texte'])->toBe('Le Gardien — Sommeil')
+        ->and($l[1]['texte'])->toBe('Borin subit Sommeil — Endormi')
+        ->and($l[1]['des']['def'])->toBe(['bouclier_blanc', 'bouclier_noir'])
+        ->and($l[1]['des']['defensive'])->toBe('crane')
+        ->and($l[1]['des']['defenseur'])->toBe('Borin')
+        ->and($l[1]['des']['libelle_def'])->toBe('ne résiste pas');
 });
 
 it('dessine aussi le jet de Mind quand le héros RÉSISTE au sort du MJ', function () {
@@ -363,8 +369,9 @@ it('dessine aussi le jet de Mind quand le héros RÉSISTE au sort du MJ', functi
         ]],
     ], 'Le Gardien');
 
-    expect($l[0]['texte'])->toBe('Grom résiste à Terreur')
-        ->and($l[0]['des']['boucliers'])->toBe(2);
+    expect($l[1]['texte'])->toBe('Grom résiste à Terreur')
+        ->and($l[1]['des']['boucliers'])->toBe(2)
+        ->and($l[1]['des']['libelle_def'])->toBe('résiste');
 });
 
 it('dessine les dés rouges d\'une Boule de Flammes lancée par le MJ (`des_rouges`)', function () {
@@ -377,9 +384,12 @@ it('dessine les dés rouges d\'une Boule de Flammes lancée par le MJ (`des_roug
         ]],
     ], 'Le Gardien');
 
-    expect($l[0]['texte'])->toBe('Boule de Flammes frappe Thora (−1 PV)')
-        ->and($l[0]['des']['def'])->toBe([1, 5, 3])
-        ->and($l[0]['des']['defensive'])->toBe([5, 6]);
+    expect($l[0]['texte'])->toBe('Le Gardien — Boule de Flammes')
+        ->and($l[1]['texte'])->toBe('Boule de Flammes frappe Thora (−1 PV)')
+        ->and($l[1]['des']['def'])->toBe([1, 5, 3])
+        ->and($l[1]['des']['defensive'])->toBe([5, 6])
+        // Un 5 a annulé 1 dégât mais 1 PV passe : « résiste en partie », jamais « résiste ».
+        ->and($l[1]['des']['libelle_def'])->toBe('résiste en partie');
 });
 
 it('dessine le(s) dé(s) d\'un piège de sol — payload FABRIQUÉ, contrat § « Les trois pièges de sol »', function () {

@@ -21,8 +21,41 @@ D="$(cd "$(dirname "$0")" && pwd)"
 GARDER=0
 [ "${1:-}" = "--garder-comptes" ] && GARDER=1
 
-pkill -f "$D/battement.sh" 2>/dev/null || true
-rm -f "$D/battement.pid"
+# BATTEMENT DE CŒUR (verdict Morcar, 2026-10-09, §6) : on arrête LE battement que cette
+# campagne a lancé (son PID est dans battement.pid), on VÉRIFIE qu'il est mort, et on signale
+# tout reste du même script. Un battement vivant écrit dans jar-table.txt : la table passe
+# « narrateur inactif ». Pas de « on tue et on espère » — le résultat est relu.
+arreter_battements() {
+  local pid_fichier="$D/battement.pid" pid restants="" i
+  if [ -f "$pid_fichier" ]; then
+    pid=$(cat "$pid_fichier" 2>/dev/null || true)
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null \
+       && tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q "battement.sh"; then
+      kill "$pid" 2>/dev/null || true
+      echo "  battement de table PID $pid : arrêt demandé" >&2
+    else
+      echo "  battement de table PID ${pid:-?} : déjà absent (rien à arrêter)" >&2
+    fi
+  fi
+  rm -f "$pid_fichier"
+  # Restes du même script (lancés par un autre passage, p. ex. preparer-livret.sh).
+  for pid in $(pgrep -f "$D/battement.sh" || true); do
+    kill "$pid" 2>/dev/null || true
+    echo "  reste du battement PID $pid : arrêt demandé" >&2
+  done
+  # Relecture : aucun battement de ce dossier ne doit survivre, cinq secondes au plus.
+  for i in 1 2 3 4 5; do
+    restants=$(pgrep -f "$D/battement.sh" || true)
+    [ -z "$restants" ] && break
+    sleep 1
+  done
+  if [ -n "$restants" ]; then
+    echo "  ⚠ battement(s) TOUJOURS VIVANT(S) : $restants — kill -9 à la main" >&2
+  else
+    echo "  ✓ aucun battement de table ne tourne" >&2
+  fi
+}
+arreter_battements
 
 CODE="$(cat "$D/groupe.txt" 2>/dev/null || true)"
 

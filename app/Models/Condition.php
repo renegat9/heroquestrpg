@@ -14,6 +14,7 @@ class Condition extends Model
         'type',
         'effet',
         'duree_defaut',
+        'description',
     ];
 
     protected function casts(): array

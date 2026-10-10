@@ -111,6 +111,11 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
             </span>
         </div>
         <div v-else class="empty-note" style="padding: 12px">Aucune condition active.</div>
+        <!-- Ce que chaque condition FAIT, dit par le catalogue (`conditions.description`) :
+             « Vaporeux » et « Intangible » ne se lisaient à rien d'autre (verdict Morcar § 5). -->
+        <ul v-if="hero.conds.some((c) => c.desc)" class="ft-cond-descs">
+            <li v-for="(c, i) in hero.conds.filter((c) => c.desc)" :key="i"><b>{{ c.l }}</b> — {{ c.desc }}</li>
+        </ul>
 
         <div class="sect-title" style="margin-top: 18px"><MSym n="hub" :size="16" /> Talents acquis</div>
         <div v-if="competences.length" class="talent-list">
@@ -155,6 +160,10 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
 </template>
 
 <style scoped>
+/* Descriptions des conditions actives (catalogue serveur) — une ligne par condition. */
+.ft-cond-descs { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px;
+  font-size: 13px; line-height: 1.4; color: var(--ink-300, inherit); }
+.ft-cond-descs b { color: var(--parch-100, inherit); font-weight: 700; }
 /* Talents acquis (fiche) : nom + description lisible (doc 01 §6). */
 .talent-list { display: flex; flex-direction: column; gap: 8px; }
 .talent-item { display: flex; align-items: flex-start; gap: 11px; padding: 11px 13px; border-radius: var(--r-md, 10px);
