@@ -601,3 +601,59 @@ it('un captif LIBÉRÉ est un allié temporaire : la quête gagnée le retire, s
     expect(GroupeMercenaire::find($captif->id))->toBeNull()
         ->and($resultat['mercenaires_entretien'])->toBeNull();
 });
+
+it('SORTIE et EXTRACTION sont deux vérifications DISTINCTES : héros dans la salle de départ, captif hors escalier → pas de sortie ; captif sur l\'escalier → sortie', function () {
+    // ⚠ DÉCISION DE RENÉ (2026-10-10), à ne pas « corriger » : les HÉROS n'ont qu'à être
+    // tous dans la SALLE DE DÉPART (divergence acceptée avec le livret, où chacun monte sur
+    // l'escalier) ; la personne à SAUVER doit, elle, être menée SUR une case de l'escalier.
+    // Ne pas assouplir l'extraction en « salle de départ », ne pas durcir la sortie des héros.
+    [$groupe, $quete, $heros, $captif, $alice] = queteAvecCaptif();
+
+    $quete->refresh();
+    expect($quete->instancesMonstres()->where('etat', 'actif')->exists())->toBeTrue(
+        'scénario invalide : sans monstre actif, le filet « donjon vidé » ouvrirait la sortie sans le captif.',
+    );
+
+    $etatHeros = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->firstOrFail();
+    $escalier = $quete->carte->casesEscalier();
+    $casesEscalier = collect($escalier)->map(fn (array $c) => "{$c['x']},{$c['y']}")->all();
+
+    // Une case de la salle de départ HORS escalier, pour le héros ET pour le captif.
+    $salle = $quete->carte->grille['salles'][$quete->carte->salleDepart()];
+    $libres = [];
+    for ($y = (int) $salle['y'] + 1; $y < (int) $salle['y'] + (int) $salle['hauteur'] - 1; $y++) {
+        for ($x = (int) $salle['x'] + 1; $x < (int) $salle['x'] + (int) $salle['largeur'] - 1; $x++) {
+            if (! in_array("{$x},{$y}", $casesEscalier, true)) {
+                $libres[] = ['x' => $x, 'y' => $y];
+            }
+        }
+    }
+    expect(count($libres))->toBeGreaterThanOrEqual(2);
+
+    $etatHeros->update(['position_x' => $libres[0]['x'], 'position_y' => $libres[0]['y']]);
+    $captif->update(['etat' => 'actif', 'recruteur_personnage_id' => $heros->id, 'position_x' => $libres[1]['x'], 'position_y' => $libres[1]['y']]);
+
+    $quete = $quete->fresh();
+    expect($quete->rassemblementDepart()['rassemble'])->toBeTrue()   // les héros sont tous dans la salle
+        ->and($quete->objectifAccompli())->toBeFalse()               // le captif n'est pas SUR l'escalier
+        ->and($quete->sortieDisponible())->toBeFalse()
+        ->and($quete->consigneExtraction())->toContain('escalier');
+
+    \App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+    $menu = \Illuminate\Support\Facades\Cache::get(\App\Jobs\GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
+    expect(collect($menu['options'])->pluck('id'))->not->toContain('quitter_donjon')
+        ->and($menu['situation'])->toContain('escalier');
+
+    $sortie = test()->getJson('/api/groupes/table-1/etat')->assertOk()->json('quete.sortie');
+    expect($sortie['ouverte'])->toBeFalse()->and($sortie['consigne_extraction'])->toContain('escalier');
+
+    // Le captif atteint une case de l'escalier : la sortie s'ouvre pour des héros restés dans la salle.
+    $captif->update(['position_x' => $escalier[0]['x'], 'position_y' => $escalier[0]['y']]);
+
+    $quete = $quete->fresh();
+    expect($quete->objectifAccompli())->toBeTrue()->and($quete->consigneExtraction())->toBeNull();
+
+    \App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+    $menu = \Illuminate\Support\Facades\Cache::get(\App\Jobs\GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
+    expect(collect($menu['options'])->pluck('id'))->toContain('quitter_donjon');
+});

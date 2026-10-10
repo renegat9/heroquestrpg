@@ -14,6 +14,7 @@ use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
 use App\Partie\JournalCombat;
+use App\Partie\MoteurEpreuves;
 use App\Partie\Marche\CapaciteSac;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\ConditionSeeder;
@@ -456,7 +457,9 @@ it('LA PREUVE DU CHANTIER — Érudition (magicien) ajoute un dé de Mind sur un
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $albrecht->id);
     // + 1 : le dé de DÉPLACEMENT de Brunhilde, lancé quand son tour commence
     // (depuis le 2026-09-16 ; il partait avant au début du round, dés réels).
-    desFiges([1, 1, 4]); // 2 dés (attribut_mind = 2), AUCUN bonus.
+    // Échec voulu (aucun crâne) : une RÉUSSITE sur un butin ferme l'épreuve pour tous
+    // (`MoteurEpreuves::estEpuisee()`), et Brunhilde doit pouvoir la tenter ensuite.
+    desFiges([4, 4, 4]); // 2 dés (attribut_mind = 2), AUCUN bonus.
 
     $sansTalent = test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'epreuve_0'])
         ->assertStatus(202)->json('resultat');
@@ -669,4 +672,33 @@ it('ne propose plus l\'Autel fêlé quand la salle n\'a plus un seul piège arm�
     $options = collect(test()->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu.options'))->pluck('id');
 
     expect($options)->toContain('epreuve_0');
+});
+
+// =====================================================================
+// BUTIN UNIQUE — verdict Jungle 2026-10-10 §2 : « Dalle descellée » reproposée
+// après sa bourse. Une réussite qui RAMASSE quelque chose ferme l'épreuve pour
+// tous ; un échec, lui, ne ferme rien aux compagnons (testé plus haut).
+// =====================================================================
+
+it('une Dalle descellée RÉUSSIE n\'est plus proposée à personne (butin pris une fois pour toutes)', function () {
+    $ctx = demarrerAvecEpreuve('Dalle descellée', ['attribut_body' => 4]);
+    $ctx['etatBob']->update(['position_x' => $ctx['etat']->position_x, 'position_y' => $ctx['etat']->position_y]);
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['hero']->id);
+    desFiges([1, 1, 1, 4]);
+    $orAvant = (int) $ctx['groupe']->fresh()->or;
+
+    test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'epreuve_0'])
+        ->assertStatus(202)->assertJsonPath('resultat.or', 100);
+
+    expect((int) $ctx['groupe']->fresh()->or)->toBe($orAvant + 100);
+
+    // Ni Albrecht ni Brunhilde ne la revoient.
+    foreach ([[$ctx['alice'], $ctx['hero']], [$ctx['bob'], $ctx['heroBob']]] as [$joueur, $heros]) {
+        GenererMenu::dispatchSync($ctx['groupe']->id, (int) $joueur->id, (int) $heros->id);
+        $ids = collect(Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $joueur->id))['menu']['options'])->pluck('id');
+        expect($ids->contains('epreuve_0'))->toBeFalse();
+    }
+
+    expect(MoteurEpreuves::estEpuisee($ctx['quete']->fresh()->carte->grille['epreuves'][0]))->toBeTrue();
 });

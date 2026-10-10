@@ -99,3 +99,23 @@ it('une recherche qui TROUVE une porte secrète porte `issue: reussite` et `a_tr
         ->assertJsonPath('resultat.a_trouve', true)
         ->assertJsonPath('resultat.issue', 'reussite');
 });
+
+it('le fil distingue l\'ÉCHEC (rien n\'est établi) de la réussite sans trouvaille (zone sûre), et `des.boucliers` compte les crânes', function () {
+    [, , $hero] = demarrerFouilleIssue();
+
+    desFiges([1, 4]); // un crâne : réussite, rien trouvé
+    $reussi = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])->assertStatus(202)->json('resultat');
+    $fil = app(\App\Partie\JournalCombat::class)->depuisResultat($reussi, $hero->nom);
+
+    expect(collect($fil)->pluck('texte')->implode(' | '))->toContain('aucun piège ni passage secret');
+
+    // Le bloc de dés : `boucliers` = nombre de crânes lancés (1), jamais un drapeau sans face derrière.
+    $des = collect($fil)->pluck('des')->filter()->first();
+    if ($des !== null) {
+        expect($des['boucliers'])->toBe(count(array_filter($des['def'], fn ($f) => $f === 'crane')));
+    }
+
+    $echec = ['option_id' => 'fouiller', 'type' => 'jet', 'succes' => 0, 'issue' => 'echec', 'libelle' => 'Fouiller la zone'];
+    $texte = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($echec, $hero->nom))->pluck('texte')->implode(' | ');
+    expect($texte)->toContain('jet raté')->and($texte)->not->toContain('aucun piège');
+});

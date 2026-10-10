@@ -1448,6 +1448,35 @@ final class MoteurSorts
             ));
         }
 
+        // SOIN À CIBLE UNIQUE : un héros qui n'a RIEN À RÉCUPÉRER n'est pas une cible
+        // (verdict Jungle 2026-10-10 §2 : Force vitale proposée sur un héros à PV
+        // max). La carte dit « restore UP TO 4 lost Body Points » — sans point perdu,
+        // le sort se jetterait dans le vide et brûlerait son emplacement. Si plus
+        // personne ne manque de PV, la liste est vide et `sansCiblesVides()` retire le
+        // sort du menu (comme Conte inspirant d'un Barde seul). Le Mind (Récupération
+        // psychique) suit la même règle sur ses propres PV. Un héros TOMBÉ est à 0 PV,
+        // donc toujours soignable : les soins qui relèvent restent offerts.
+        $soinBody = (int) data_get($sort->effet, 'soin_pv_body', 0) > 0;
+        $soinMind = ! empty(data_get($sort->effet, 'restaure_pv_mind'));
+
+        if ($soinBody || $soinMind) {
+            $cibles = array_values(array_filter($cibles, function ($c) use ($soinBody) {
+                if (($c['type'] ?? null) !== 'heros') {
+                    return true;
+                }
+
+                $personnage = Personnage::find($c['id'] ?? 0);
+
+                if ($personnage === null) {
+                    return true;
+                }
+
+                return $soinBody
+                    ? (int) $personnage->pv_body < (int) $personnage->pv_body_max
+                    : (int) $personnage->pv_mind < (int) $personnage->pv_mind_max;
+            }));
+        }
+
         // IMMUNITÉ AUX SORTS (Invisibilité — « immune to all spells »,
         // 2026-10-06) : une cible protégée disparaît de la liste, qu'elle
         // soit l'adversaire visé par un sort de dégâts OU le compagnon qu'on
@@ -1864,7 +1893,7 @@ final class MoteurSorts
             $source = (string) $condition->pivot->source;
 
             if (array_key_exists($cle, $this->effetSortSource($source))) {
-                $this->retirerBuff($personnage, (int) $condition->id, $source);
+                $this->retirerBuff($personnage, $condition, $source, 'est consommé');
             }
         }
     }
@@ -1883,7 +1912,7 @@ final class MoteurSorts
             $source = (string) $condition->pivot->source;
 
             if (DureeEffet::correspond($this->effetSortSource($source)['duree'] ?? null, $declencheur)) {
-                $this->retirerBuff($personnage, (int) $condition->id, $source);
+                $this->retirerBuff($personnage, $condition, $source, DureeEffet::libelleFin($declencheur) ?? 'prend fin');
             }
         }
     }
@@ -1926,9 +1955,35 @@ final class MoteurSorts
                 ->update(['disponible' => true]);
 
             $rendus++;
+            $this->annoncerSortRegagne($personnage, $sort, $evenement);
         }
 
         return $rendus;
+    }
+
+    /**
+     * Un sort revient dans la main du lanceur : c'est un effet automatique (le Body
+     * remonte au maximum, un monstre tombe…) que rien ne disait — la Métamorphose
+     * « se terminait » sans un mot (verdict Jungle 2026-10-10 §1).
+     */
+    private function annoncerSortRegagne(Personnage $personnage, Sort $sort, string $evenement): void
+    {
+        $groupe = $personnage->groupeActif;
+
+        if ($groupe === null || $groupe->quete_courante_id === null) {
+            return;
+        }
+
+        $pourquoi = RegainEffet::libelle($evenement) ?? 'son regain est atteint';
+
+        app(TamponAnnonces::class)->annoncer($groupe, [
+            'type' => 'sort_regagne',
+            'personnage_id' => (int) $personnage->id,
+            'personnage' => $personnage->nom,
+            'sort' => $sort->nom,
+            'regain' => $evenement,
+            'texte' => "{$personnage->nom} retrouve « {$sort->nom} » : {$pourquoi}",
+        ], ['type' => 'personnage', 'id' => (int) $personnage->id, 'nom' => $personnage->nom]);
     }
 
     /**
@@ -1990,13 +2045,63 @@ final class MoteurSorts
         }
     }
 
-    private function retirerBuff(Personnage $personnage, int $conditionId, string $source): void
+    /**
+     * LE point de passage où un buff de sort ou de potion CESSE (déclencheur de
+     * `DureeEffet` ou consommation) — et donc le seul endroit qui doit le DIRE :
+     * « Renforcé (Métamorphose) rompu : premier dégât subi ». Il tombait en
+     * silence, et le joueur ne savait plus s'il combattait encore avec le bonus
+     * (verdict Jungle 2026-10-10 §1).
+     *
+     * @param  string  $pourquoi  la fin en clair (`DureeEffet::libelleFin()`)
+     */
+    private function retirerBuff(Personnage $personnage, Condition $condition, string $source, string $pourquoi): void
     {
-        DB::table('personnage_conditions')
+        $supprimees = DB::table('personnage_conditions')
             ->where('personnage_id', $personnage->id)
-            ->where('condition_id', $conditionId)
+            ->where('condition_id', $condition->id)
             ->where('source', $source)
             ->delete();
+
+        if ($supprimees > 0) {
+            $this->annoncerFinCondition($personnage, (string) $condition->nom, self::origineDeSource($source), $pourquoi);
+        }
+    }
+
+    /** Le nom lisible de ce qui a posé un buff (`sort:Courage` → « Courage », `potion:Potion de force#12` → « Potion de force »). */
+    private static function origineDeSource(string $source): ?string
+    {
+        if (str_starts_with($source, self::PREFIXE_SOURCE_POTION)) {
+            return self::nomDeSourceObjet($source);
+        }
+
+        if (str_starts_with($source, self::PREFIXE_SOURCE)) {
+            return substr($source, strlen(self::PREFIXE_SOURCE));
+        }
+
+        return null;
+    }
+
+    /**
+     * Annonce la fin d'une condition d'un HÉROS : journal (rejeu) + fil en direct,
+     * par {@see TamponAnnonces}. Sans groupe en quête (le hub), rien à dire.
+     */
+    public function annoncerFinCondition(Personnage $personnage, string $condition, ?string $origine, string $pourquoi): void
+    {
+        $groupe = $personnage->groupeActif;
+
+        if ($groupe === null || $groupe->quete_courante_id === null) {
+            return;
+        }
+
+        app(TamponAnnonces::class)->annoncer($groupe, [
+            'type' => 'condition_terminee',
+            'personnage_id' => (int) $personnage->id,
+            'personnage' => $personnage->nom,
+            'condition' => $condition,
+            'origine' => $origine,
+            'pourquoi' => $pourquoi,
+            'texte' => "{$personnage->nom} : {$condition}".($origine !== null ? " ({$origine})" : '')." {$pourquoi}",
+        ], ['type' => 'personnage', 'id' => (int) $personnage->id, 'nom' => $personnage->nom]);
     }
 
     /**
@@ -2413,14 +2518,36 @@ final class MoteurSorts
         $expirees = DB::table('personnage_conditions')
             ->whereIn('personnage_id', $ids)
             ->where('duree', 1)
-            ->pluck('id');
+            ->get(['id', 'personnage_id', 'condition_id', 'source']);
 
         DB::table('personnage_conditions')
             ->whereIn('personnage_id', $ids)
             ->where('duree', '>', 0)
             ->decrement('duree');
 
-        DB::table('personnage_conditions')->whereIn('id', $expirees)->delete();
+        DB::table('personnage_conditions')->whereIn('id', $expirees->pluck('id'))->delete();
+
+        // Une durée qui s'écoule jusqu'au bout est un effet automatique : il se DIT
+        // (verdict Jungle 2026-10-10 §1 — la fin du poison tombait sans une ligne).
+        if ($expirees->isEmpty()) {
+            return;
+        }
+
+        $noms = Condition::query()->whereIn('id', $expirees->pluck('condition_id'))->pluck('nom', 'id');
+        $persos = Personnage::query()->whereIn('id', $expirees->pluck('personnage_id'))->get()->keyBy('id');
+
+        foreach ($expirees as $ligne) {
+            $personnage = $persos[$ligne->personnage_id] ?? null;
+
+            if ($personnage !== null) {
+                $this->annoncerFinCondition(
+                    $personnage,
+                    (string) ($noms[$ligne->condition_id] ?? 'Une condition'),
+                    self::origineDeSource((string) $ligne->source),
+                    'prend fin : la durée est écoulée',
+                );
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -2537,6 +2664,7 @@ final class MoteurSorts
             }
 
             $modifie = false;
+            $tombees = [];
 
             foreach ($conditions as $cle => $valeur) {
                 if ($valeur === true) {
@@ -2550,6 +2678,7 @@ final class MoteurSorts
                     $conditions[$cle] = $restant;
                 } else {
                     unset($conditions[$cle]); // durée écoulée : la condition tombe
+                    $tombees[] = $cle;
                 }
             }
 
@@ -2558,7 +2687,41 @@ final class MoteurSorts
                 $habillage['conditions'] = $conditions;
                 $instance->update(['habillage' => $habillage]);
             }
+
+            // …et la fin se DIT, comme pour un héros (`annoncerFinCondition()`).
+            foreach ($tombees as $cle) {
+                $this->annoncerFinConditionMonstre($quete, $instance, (string) $cle);
+            }
         }
+    }
+
+    /** Les clés de `habillage.conditions` d'un monstre, en français pour le fil. */
+    private const LIBELLES_CONDITION_MONSTRE = [
+        self::MONSTRE_TERRIFIE => 'terrifié',
+        self::MONSTRE_RALENTI => 'ralenti',
+        self::MONSTRE_PARALYSE => 'paralysé',
+    ];
+
+    /** La condition à durée d'un MONSTRE vient de tomber : le fil le dit. */
+    private function annoncerFinConditionMonstre(Quete $quete, InstanceMonstre $instance, string $cle): void
+    {
+        $groupe = $quete->groupe;
+
+        if ($groupe === null) {
+            return;
+        }
+
+        $etat = self::LIBELLES_CONDITION_MONSTRE[$cle] ?? str_replace('_', ' ', $cle);
+        $nom = $instance->nomAffiche();
+
+        app(TamponAnnonces::class)->annoncer($groupe, [
+            'type' => 'condition_terminee',
+            'monstre' => $nom,
+            'instance_id' => (int) $instance->id,
+            'condition' => $etat,
+            'pourquoi' => 'la durée est écoulée',
+            'texte' => "{$nom} n'est plus {$etat} : la durée est écoulée",
+        ]);
     }
 
     // ------------------------------------------------------------------
@@ -3066,6 +3229,34 @@ final class MoteurSorts
             ->filter(fn (Condition $c) => str_starts_with((string) $c->pivot->source, self::PREFIXE_SOURCE)
                 || str_starts_with((string) $c->pivot->source, self::PREFIXE_SOURCE_POTION))
             ->values();
+    }
+
+    /**
+     * Ce que fait VRAIMENT un buff, dit par sa SOURCE (`sort:Courage`,
+     * `potion:Potion de rage#12`) — en phrases lisibles, relues sur l'effet du
+     * sort ou de l'objet et jamais recopiées (verdict Jungle 2026-10-10 §3).
+     *
+     * La condition « Renforcé » est le défaut de TOUS les buffs (attaque, défense,
+     * relance, déplacement doublé…) : sa description ne peut être que générique, et
+     * deux lignes « Renforcé » restaient indiscernables. Cette phrase est publiée
+     * à côté de `source` (`EtatGroupe::conditionsHeros()`). Les clés de plomberie
+     * (cible, durée brute, nom de la condition) sont écartées. `null` quand la
+     * source n'est ni un sort ni un objet connu, ou ne se traduit pas.
+     */
+    public function effetLisibleDeSource(string $source): ?string
+    {
+        if (! str_starts_with($source, self::PREFIXE_SOURCE) && ! str_starts_with($source, self::PREFIXE_SOURCE_POTION)) {
+            return null;
+        }
+
+        $effet = array_diff_key(
+            $this->effetSortSource($source),
+            array_flip(['cible', 'duree', 'condition_appliquee', 'regain']),
+        );
+
+        $lignes = \App\Engine\MotsClesEquipement::avantages($effet);
+
+        return $lignes === [] ? null : implode(' ; ', $lignes);
     }
 
     /**

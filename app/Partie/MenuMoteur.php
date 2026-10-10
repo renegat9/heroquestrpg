@@ -65,6 +65,7 @@ final class MenuMoteur
         private readonly SceneDeTable $scenes,
         private readonly FaveursHopekins $faveurs,
         private readonly ApprocheAllie $approche,
+        private readonly DeplacementHeros $deplacement,
     ) {}
 
     /**
@@ -1140,65 +1141,30 @@ final class MenuMoteur
     }
 
     /**
-     * Le héros a-t-il au moins une case d'ARRIVÉE légale (donc un déplacement
-     * réel possible) ? Sans carte/position, on suppose le déplacement possible
-     * (ne jamais masquer à tort).
+     * Les cases où ce héros peut FINIR son déplacement, avec leur coût — la liste
+     * que porte `se_deplacer.parametres.destinations` (2026-10-10), et dont la
+     * VACUITÉ retire « Se déplacer » du menu (ce que faisait `peutSeDeplacer()`).
+     * `null` = on ne peut pas trancher (pas de carte, pas de position, héros à
+     * terre) : l'option reste offerte, sans liste — ne jamais masquer à tort.
      *
-     * ⚠ Reconstruisait jusqu'ici sa PROPRE boucle d'occupation — une copie de
-     * `FabriqueGrille::pour()`, le point de passage unique de cette question
-     * (doc CLAUDE.md « une règle, un point de passage ») — et traitait tout
-     * héros ou mercenaire DEBOUT comme un mur. Or depuis le 2026-09-04 « on
-     * peut traverser la case d'un allié, pas s'y arrêter » (LR p. 12, doc 16
-     * §5) : le menu retirait donc « Se déplacer » à un héros encerclé
-     * d'ALLIÉS que le résolveur, lui, aurait laissé passer (signalé en partie
-     * réelle, 2026-09-11). `FabriqueGrille::pour(…, franchitAllies: true)` est
-     * exactement l'appel que fait `ResolveurTour::resoudreDeplacer()`.
+     * ⚠ UN SEUL point de passage : `DeplacementHeros`, qui est aussi le code de la
+     * RÉSOLUTION. Ce corps reconstruisait jusqu'ici sa PROPRE grille (une copie de
+     * `FabriqueGrille::pour()` + les levées de talents, dont `terrainEntravantIgnore`
+     * qu'il oubliait) et la manette, elle, refaisait tout le parcours en JS :
+     * deux copies de la règle, chacune ayant déjà fait mentir le menu en partie
+     * réelle — héros encerclé d'ALLIÉS privé de « Se déplacer » (2026-09-11),
+     * Rogue encerclé de monstres, bloc tombé enjambé à l'écran (verdict Jungle,
+     * 2026-10-10 : 6 points annoncés, 8 payés).
      *
-     * ⚠ Ni un simple voisin : un héros dont les 4 cases adjacentes sont toutes
-     * occupées (par des alliés, ou par des monstres pour un Rogue) peut
-     * pourtant avoir une case libre à 2 pas, atteignable en les traversant.
-     * `casesAtteignables()` (même parcours pondéré que le résolveur) explore
-     * à travers les figures traversables tout en excluant leur case des
-     * destinations — un simple test des 4 voisins sous-estimait la portée
-     * réelle du résolveur.
-     *
-     * ⚠ MOBILITÉ DE COMBAT (Rogue) / Voile de Brume et Traverser la Pierre
-     * sont relus ICI pour la même raison qu'un Rogue ne peut pas CLIQUER
-     * au-delà d'un monstre sans le même calcul côté `EtatGroupe` : un talent
-     * ou un buff qui lève les figures ou la roche pour le résolveur doit
-     * lever le même mur pour le menu, sans quoi « Se déplacer » disparaît
-     * derrière un obstacle que le clic suivant aurait pourtant accepté.
+     * @return list<array{x: int, y: int, cout: int}>|null
      */
-    private function peutSeDeplacer(Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat): bool
+    private function destinationsDuTour(Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat, int $portee): ?array
     {
         if ($etat === null || $etat->position_x === null || $etat->tombe || $quete->carte === null) {
-            return true;
+            return null;
         }
 
-        $grille = FabriqueGrille::pour(
-            $quete,
-            exceptPersonnageId: $personnage->id,
-            traverseRoche: $this->sorts->traverseRoche($personnage),
-            franchitAllies: true,
-        );
-
-        // Les figures seules, jamais le mobilier : même appel que
-        // `ResolveurTour::resoudreDeplacement()`, sans quoi le menu offrirait
-        // « Se déplacer » vers une case que seul un meuble traversé atteint.
-        if ($this->sorts->mobiliteCombatDisponible($personnage)) {
-            $grille->autoriserFranchissementFigures();
-        }
-
-        // Bracers of the Wild / Spiderstep Elixir : un héros encerclé de meubles
-        // les traverse — même levée que `ResolveurTour::grilleDeplacement()`.
-        if ($this->sorts->mobilierFranchi($personnage)) {
-            $grille->franchirMobilier();
-        }
-
-        $pas = $this->pointsRestants($personnage, $etat);
-
-        return $pas >= 1
-            && $grille->casesAtteignables((int) $etat->position_x, (int) $etat->position_y, $pas) !== [];
+        return $this->deplacement->destinations($quete, $personnage, $etat, $portee);
     }
 
     /**
@@ -1392,8 +1358,10 @@ final class MenuMoteur
         // catalogue des conditions sans AUCUN lecteur — un héros « immobilisé »
         // se déplaçait comme si de rien n'était. Câblée le 2026-08-10, en même
         // temps que le venin des créatures de Jungles of Delthrak.
-        if (! $aDeplace && ! $this->sorts->deplacementInterdit($personnage)
-            && $this->peutSeDeplacer($quete, $personnage, $etat)) {
+        $offreDeplacement = false;
+        $destinations = null;
+
+        if (! $aDeplace && ! $this->sorts->deplacementInterdit($personnage)) {
             $portee = $this->deplacementDuTour($personnage, $etat);
 
             // Déplacement FRACTIONNÉ (E1) : si le héros a DÉJÀ entamé son
@@ -1407,6 +1375,14 @@ final class MenuMoteur
                 ? (int) $etat->deplacement_restant
                 : $this->porteeDuTour($personnage, $portee['total'])['portee'];
 
+            // LES CASES ATTEIGNABLES, décidées ICI (2026-10-10) : la manette éclaire
+            // exactement cette liste et ne recalcule plus aucun parcours. Vide =
+            // totalement bloqué (murs, portes closes, figures) : pas de bouton mort.
+            $destinations = $this->destinationsDuTour($quete, $personnage, $etat, $porteeEffective);
+            $offreDeplacement = $destinations === null || $destinations !== [];
+        }
+
+        if ($offreDeplacement) {
             $options[] = [
                 'id' => 'se_deplacer',
                 'libelle' => $etat?->deplacement_restant !== null ? 'Continuer à se déplacer' : 'Se déplacer',
@@ -1431,6 +1407,11 @@ final class MenuMoteur
                     // client ne la recalcule jamais (règle du projet).
                     'sans_menace' => $portee['sans_menace'],
                     'portee' => $porteeEffective,    // cases restantes ce tour
+                    // LISTE BLANCHE (contrat §« destinations ») : `[{x, y, cout}]`, les
+                    // seules cases où `POST choix` accepte de finir le déplacement.
+                    // `[]` seulement quand le serveur ne peut pas trancher (pas de
+                    // carte, pas de position, héros à terre) — jamais `null`.
+                    'destinations' => $destinations ?? [],
                 ],
             ];
         }
@@ -2683,31 +2664,19 @@ final class MenuMoteur
         // Gratuit comme une interaction : le combat est fini, il n'y a plus rien
         // à faire de son action — exiger un créneau libre n'ajouterait qu'un
         // tour d'attente. Seul un tour TERMINÉ ferme l'option.
-        $peutSortir = $quete->objectifAccompli()
-            // REPLI anti-blocage : un donjon entièrement vidé libère la sortie
-            // même si l'objectif reste hors d'atteinte (coffre inaccessible,
-            // boss disparu d'une carte malformée). Mieux vaut rentrer bredouille
-            // qu'être enfermé à vie.
-            // — SAUF objectif « détruire un élément » : seule la chute de
-            // l'élément gagne (`Quete::donjonVideOuvreLaSortie()`).
-            || ($quete->donjonVideOuvreLaSortie()
-                && ! $quete->instancesMonstres()->where('etat', 'actif')->exists());
+        $peutSortir = $quete->sortieDisponible();
 
-        // ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05, René : « on
-        // ne quitte le donjon QUE par l'escalier »). `quitter_donjon` n'est
-        // plus offert n'importe où : il faut que CE héros se tienne sur une
-        // case de l'escalier — le repère du plateau d'origine, posé par
-        // `AssembleurCarte` dans la salle 0. Décision publiée côté serveur
-        // (l'option est présente ou non) : le client n'a rien à recalculer.
-        //
-        // ⚠ REPLI (décision 5 du plan) : une carte assemblée AVANT ce chantier
-        // (campagne EN COURS dans la vraie base) ne porte pas la couche
-        // `escalier` — `casesEscalier()` rend alors `[]`, et on retombe sur le
-        // comportement d'avant plutôt que de rendre une quête en cours
-        // impossible à terminer.
-        $escalier = $quete->carte?->casesEscalier() ?? [];
-        $surEscalier = $escalier === []
-            || ($quete->carte?->surEscalier($etat?->position_x, $etat?->position_y) ?? false);
+        // SALLE DE DÉPART (René, 2026-10-10 : « tous dans la salle de départ »,
+        // remplace « sur l'escalier » du 2026-10-05). `quitter_donjon` n'est
+        // offert que si TOUS les héros debout (les tombés ne comptent pas) sont
+        // dans la salle qui contient l'escalier d'entrée. Décision publiée par le
+        // serveur — l'option est présente ou non, et `quete.sortie` dit qui
+        // manque (`EtatGroupe`) : le client ne recalcule rien.
+        // ⚠ REPLI (décision 5 du plan escalier) : une carte SANS escalier
+        // (campagne en cours) n'exige aucune position. La retraite n'est
+        // JAMAIS concernée.
+        $rassemblement = $quete->rassemblementDepart();
+        $surEscalier = $rassemblement['rassemble'];
 
         // ⚠ Ni l'une ni l'autre tant qu'un VOTE est ouvert : les deux en
         // ouvrent un, et le résolveur refuse le second par un 422 « Un vote est
@@ -2769,9 +2738,30 @@ final class MenuMoteur
         }
 
         return [
-            'situation' => $aJoue ? 'Tour terminé — au tour des autres héros.' : 'Vous progressez dans le donjon.',
+            'situation' => $aJoue
+                ? 'Tour terminé — au tour des autres héros.'
+                : 'Vous progressez dans le donjon.'.$this->consigneRassemblement($quete, $peutSortir, $rassemblement),
             'options' => $this->avecCreneaux($options, $perteDeplacement),
         ];
+    }
+
+    /**
+     * Consigne de rassemblement ajoutée à la situation : la sortie est ouverte
+     * mais des héros debout ne sont pas dans la salle de départ. Même phrase que
+     * `quete.sortie.consigne` ({@see Quete::consigneRassemblement()}).
+     *
+     * @param  array{actif: bool, rassemble: bool, absents: list<array{personnage_id: int, nom: string}>}  $rassemblement
+     */
+    private function consigneRassemblement(Quete $quete, bool $peutSortir, array $rassemblement): string
+    {
+        // Extraction : la personne à sauver doit être menée SUR l'escalier (distinct du
+        // rassemblement des héros — René, 2026-10-10).
+        $consignes = array_filter([
+            $quete->consigneExtraction(),
+            $peutSortir ? $quete->consigneRassemblement($rassemblement) : null,
+        ]);
+
+        return $consignes === [] ? '' : ' '.implode(' ', $consignes);
     }
 
     /**

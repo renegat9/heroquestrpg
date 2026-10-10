@@ -113,8 +113,8 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
         <div v-else class="empty-note" style="padding: 12px">Aucune condition active.</div>
         <!-- Ce que chaque condition FAIT, dit par le catalogue (`conditions.description`) :
              « Vaporeux » et « Intangible » ne se lisaient à rien d'autre (verdict Morcar § 5). -->
-        <ul v-if="hero.conds.some((c) => c.desc)" class="ft-cond-descs">
-            <li v-for="(c, i) in hero.conds.filter((c) => c.desc)" :key="i"><b>{{ c.l }}</b> — {{ c.desc }}</li>
+        <ul v-if="hero.conds.some((c) => c.desc || c.precis)" class="ft-cond-descs">
+            <li v-for="(c, i) in hero.conds.filter((c) => c.desc || c.precis)" :key="i"><b>{{ c.l }}</b> — {{ c.precis ?? c.desc }}</li>
         </ul>
 
         <div class="sect-title" style="margin-top: 18px"><MSym n="hub" :size="16" /> Talents acquis</div>

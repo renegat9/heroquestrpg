@@ -60,6 +60,21 @@ final class RegainEffet
      */
     public const ALLIE_DEUX_BOUCLIERS_BLANCS = 'allie_deux_boucliers_blancs';
 
+    /**
+     * Pourquoi un sort vient d'être REGAGNÉ, en français, pour le fil de combat.
+     * Point de passage unique, comme `DureeEffet::libelleFin()` : un test épingle
+     * qu'AUCUN événement de `tous()` ne reste sans phrase.
+     */
+    public static function libelle(string $evenement): ?string
+    {
+        return match ($evenement) {
+            self::BODY_AU_MAX => 'son Body est revenu à son maximum',
+            self::MONSTRE_VAINCU => 'un monstre vient de tomber',
+            self::ALLIE_DEUX_BOUCLIERS_BLANCS => 'un compagnon pare avec deux boucliers blancs',
+            default => null,
+        };
+    }
+
     /** @return list<string> */
     public static function tous(): array
     {

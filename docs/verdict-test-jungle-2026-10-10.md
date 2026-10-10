@@ -87,3 +87,12 @@ Le registre `JournalCombat::TYPES` couvre les **types d'action** ; ce qui suit p
 
 ## Non testé
 Leviers, relèvement, Repousser, établi, Gretzl, mission « secourir », TPK en mode Story.
+
+## Décision de René (2026-10-10, après le verdict)
+
+| Sujet | Décision |
+|---|---|
+| Sortie du donjon | **Tous dans la salle de départ** (précisé par René dans la foulée, au lieu de « tous sur l'escalier ») : la sortie ne s'offre que si TOUS les héros debout sont dans la salle de l'escalier d'entrée ; le **captif** d'une extraction, lui, doit toujours être amené **sur l'escalier** (précision de René, même jour). **C'est la décision de René, qui accepte qu'elle diffère des règles officielles** (dans le livret, chaque héros quitte le donjon en marchant sur l'escalier) : une divergence délibérée, à ne pas « corriger » vers le livret. |
+| Sixième sens (explorateur) | **Piège seulement** : une carte « monstre errant » tirée reste tirée (fidèle à la description de la compétence ; les livrets distinguent « hazard » et « wandering monster »). |
+| Sens du piège | Les cases pressenties sont montrées à **tout le groupe** (comme à une vraie table). |
+| Changement de forme d'un boss | Le fil annonce le **nom ET les nouvelles stats**, au prix du mystère voulu par le livret. |

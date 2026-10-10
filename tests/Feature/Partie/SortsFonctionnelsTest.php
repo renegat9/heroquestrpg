@@ -319,6 +319,11 @@ it('exige une ligne de vue pour TOUT sort, et laisse toujours le lanceur se cibl
     }
     $etatC->update(['position_x' => $roche['x'], 'position_y' => $roche['y']]);
 
+    // Blessés APRÈS le départ de quête (qui rend les PV au maximum) : un soin n'est offert que
+    // sur un héros qui a des PV à récupérer (verdict Jungle 2026-10-10 §2).
+    $lanceur->update(['pv_body' => max(1, (int) $lanceur->pv_body_max - 1)]);
+    $compagnon->update(['pv_body' => max(1, (int) $compagnon->pv_body_max - 1)]);
+
     $soin = Sort::where('nom', 'Soin du Corps')->firstOrFail();
     $cibles = collect(collect(app(MoteurSorts::class)->options($groupe->fresh(), $quete->fresh(), $lanceur->fresh()))
         ->firstWhere('id', 'lancer_sort')['parametres']['sorts'] ?? [])

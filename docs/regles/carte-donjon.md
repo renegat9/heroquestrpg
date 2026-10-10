@@ -500,6 +500,8 @@ jamais encercler un héros par ses compagnons au tour 1) ne vaut plus pour ces
 quatre premiers, et c'est sans danger : un héros traverse la case d'un autre
 (`franchitAllies`), il ne lui faut qu'une case d'arrivée libre.
 
+**La sortie ne passe plus par les marches** (René, 2026-10-10, divergence délibérée avec le livret, acceptée) : la salle qui contient l'escalier est la « salle de départ » (`Carte::salleDepart()`), et le groupe peut voter la sortie dès que tous les héros debout y sont → `docs/regles/exploration-et-fouille.md`.
+
 ⚠ **Repli pour les cartes assemblées AVANT ce chantier** (campagnes EN COURS
 dans la vraie base) : `grille['escalier']` y est absente, `casesEscalier()`
 rend `[]`, et chaque lecteur retombe sur le comportement d'avant plutôt que de

@@ -1,8 +1,20 @@
 #!/usr/bin/env python3
 """Vue de jeu d'UN héros : ce qu'il voit, où il peut aller, ce qu'il peut viser.
 
-Les agents décident ; la géométrie (BFS sur la grille, portes, cases libres)
-est faite ici — sinon ils passeraient leur tour à calculer des chemins.
+Les agents décident ; le SERVEUR décide tout le reste, et ce script se contente
+de lire ce qu'il publie — sinon les agents passeraient leur tour à deviner.
+
+⚠ DESTINATIONS (2026-10-10) : le serveur PUBLIE les cases atteignables —
+`se_deplacer.parametres.destinations = [{x, y, cout}]`, calculées avec le code
+même de la résolution (`DeplacementHeros`, app/Partie) : terrain pondéré, mobilier,
+bloc tombé, passage par un allié, monstres franchis, embrasure, roche d'un héros
+intangible, reliquat. Ce script les LIT et les affiche ; il ne recalcule rien et
+n'interroge plus `deplacement/apercu` case par case (c'était juste mais lourd :
+une requête par case candidate). `apercu` reste le bon outil pour le TRAJET exact
+et les pièges connus d'UNE case choisie — pas pour savoir où aller. La liste est la
+liste blanche du résolveur : une case qui n'y figure pas est refusée en 422.
+Elle ne révèle rien de caché (piège non détecté, passage secret, salle non
+révélée, monstre caché) — c'est testé (`DestinationsDeplacementTest`).
 
 ⚠ Depuis le 2026-09-06, un LEVIER est posé dans TOUTE quête (avant, aucun ne
 l'avait jamais été) et, sous le thème `horreur_des_glaces`, la carte porte du
@@ -12,10 +24,14 @@ ouvre une salle scellée, ni le coût réel d'une case de rivière — exactemen
 sort qu'ont connu les sept verbes manquants du README jusqu'au 2026-08-17.
 
 ⚠ Le DÉPLACEMENT SE COMPTE EN POINTS, PAS EN CASES depuis la Rivière gelée
-(coût 2 pour ENTRER dans la case, doc 18 §4) : la BFS « cases atteignables »
-ci-dessous est un Dijkstra PONDÉRÉ, MIROIR de `Grille::casesAtteignables()`
-côté serveur et de `DeplacementSheet.vue` côté manette — une BFS à coût
-uniforme surbrillancerait des destinations que le serveur refuse ensuite.
+(coût 2 pour ENTRER dans la case, doc 18 §4) : le coût affiché est celui que le
+serveur annonce (`cout`), jamais une distance.
+
+⚠ ESCALIER ET SORTIE (2026-10-05, puis 2026-10-10) : on quitte le donjon par
+l'escalier d'entrée, et `quitter_donjon` exige que TOUS les héros debout soient
+dans la SALLE DE DÉPART — la salle de l'escalier, pas forcément sur ses cases.
+Le serveur publie `quete.sortie` (`absents` = héros debout hors de la salle) :
+ce script le lit, il ne compare aucune position de salle.
 """
 import json, subprocess, sys, os
 
@@ -41,6 +57,37 @@ print(f"MOI {moi['nom']} en ({moi['x']},{moi['y']}) — {moi.get('pv_body')} PV 
       f"tombé={moi.get('tombe')}")
 if moi.get("reaction_en_attente"):
     print("⚠ RÉACTION EN ATTENTE :", json.dumps(moi["reaction_en_attente"], ensure_ascii=False)[:300])
+
+# --- ESCALIER ET SORTIE (2026-10-05, puis 2026-10-10) : décisions publiées par le
+# serveur, lues telles quelles. `carte.escalier` : position et taille (2×2).
+# `quete.sortie` : `ouverte`, `salle_depart_requise`, `absents` (noms des héros
+# DEBOUT hors de la salle de départ) et `consigne` prête à afficher. Aucune
+# position de salle n'est comparée ici : la décision est déjà prise côté serveur.
+sortie = (etat.get("quete") or {}).get("sortie") or {}
+esc = carte.get("escalier")
+if esc:
+    ex, ey, el, eh = esc["x"], esc["y"], esc["l"], esc["h"]
+    d_esc = min(abs(cx - moi["x"]) + abs(cy - moi["y"])
+                for cx in range(ex, ex + el) for cy in range(ey, ey + eh))
+    print(f"ESCALIER (sortie du donjon) en ({ex},{ey}), taille {el}×{eh} — "
+          f"distance du héros : {d_esc}" + (" — TU ES SUR L'ESCALIER" if d_esc == 0 else ""))
+else:
+    print("ESCALIER : aucun sur cette carte (pas de salle de départ exigée)")
+if sortie:
+    absents = sortie.get("absents") or []
+    requise = bool(sortie.get("salle_depart_requise"))
+    print("SORTIE : " + ("OUVERTE" if sortie.get("ouverte") else "fermée")
+          + ("" if requise else " (salle de départ non exigée)"))
+    if requise:
+        if moi.get("tombe"):
+            toi = "à terre (la sortie ne compte que les héros debout)"
+        elif moi["nom"] in absents:
+            toi = "HORS de la salle de départ"
+        else:
+            toi = "dans la salle de départ"
+        print(f"  toi : {toi}" + (f" — absents : {', '.join(absents)}" if absents else ""))
+    if sortie.get("consigne"):
+        print(f"  consigne : {sortie['consigne']}")
 
 for e in ent:
     if e.get("type") == "heros" and e.get("id") != moi_id:
@@ -164,130 +211,31 @@ if terrain_proche:
         print(f"  ({t['x']},{t['y']}) {t.get('nom')} — coût {t.get('cout_deplacement')} pt(s) pour ENTRER"
               f" — distance {d}{paire}" + (f" — {effet}" if effet else ""))
 
-# --- cases atteignables : Dijkstra pondéré sur le sol connu, portes closes bloquantes
-cases = (carte.get("grille") or {}).get("cases") or carte.get("cases") or []
-portes = (carte.get("grille") or {}).get("portes") or carte.get("portes") or []
-occupe = {(e["x"], e["y"]) for e in ent if e.get("x") is not None and not e.get("tombe")}
-
-# Le MOBILIER barre le passage (doc 17, `bloque_mouvement`) : sans lui, le BFS
-# proposait des cases que le serveur refusait — deux tentatives perdues par
-# Borin, une par Krogar.
-# ⚠ Bug corrigé au passage (2026-09-10) : `EtatGroupe::mobilier()` publie `l`/
-# `h` en clés PLATES, PAS nichées sous `emprise` — cette boucle lisait
-# `m.get("emprise")` (toujours absent) et retombait donc silencieusement sur
-# 1×1 pour CHAQUE meuble, même un meuble 2×2 qui n'en bloquait alors qu'un
-# quart. Jamais remarqué en partie réelle (juste des destinations en plus
-# tentées et refusées, absorbées par la boucle d'essai de `pilote.py`), mais
-# faux depuis l'origine de ce fichier.
-for m in ((carte.get("grille") or {}).get("mobilier") or carte.get("mobilier") or []):
-    if not m.get("bloque_mouvement", True):
-        continue
-    mx, my = int(m.get("x", -1)), int(m.get("y", -1))
-    l, h = int(m.get("l", 1)), int(m.get("h", 1))
-    for dy in range(h):
-        for dx in range(l):
-            occupe.add((mx + dx, my + dy))
-
-# Coût de déplacement du TERRAIN (doc 18 §4 — Rivière gelée : 2 points pour
-# ENTRER dans la case, au lieu de 1) — MIROIR de `Terrain::cout_deplacement`
-# et de `coutParCase`/`coutDe()` dans `DeplacementSheet.vue`.
-cout_case = {}
-for t in terrain_carte:
-    cout_case[(t["x"], t["y"])] = max(1, int(t.get("cout_deplacement", 1)))
-
-def cout_de(x, y):
-    return cout_case.get((x, y), 1)
-
-# Portes indexées par ARÊTE (MIROIR de `portesParArete` dans
-# `DeplacementSheet.vue`) : une porte non-ouverte bloque le pas, une porte
-# OUVERTE garantit du sol juste derrière même si le brouillard n'a pas encore
-# révélé la case (on continue son mouvement à travers une porte qu'on vient
-# d'ouvrir, comme le permet le moteur serveur).
-def arete_cle(a, b):
-    return (a, b) if a <= b else (b, a)
-
-portes_par_arete = {}
-for p in portes:
-    x, y = p.get("x"), p.get("y")
-    a = (x, y)
-    b = (x, y + 1) if p.get("cote") == "s" else (x + 1, y)
-    portes_par_arete[arete_cle(a, b)] = p
-
-def porte_fermee_entre(a, b):
-    p = portes_par_arete.get(arete_cle(a, b))
-    return p is not None and p.get("etat") != "ouverte"
-
-def porte_ouverte_entre(a, b):
-    p = portes_par_arete.get(arete_cle(a, b))
-    return p is not None and p.get("etat") == "ouverte"
-
-def case_brute(x, y):
-    if x < 0 or y < 0:
-        return "b"
-    try:
-        return cases[y][x]
-    except (IndexError, TypeError):
-        return "b"
-
-def sol(x, y):
-    return case_brute(x, y) in ("s", "p")
-
-# EMBRASURE d'une porte NON ouverte : inoccupable, des DEUX côtés (René, 2026-09-11) —
-# MIROIR de `embrasuresFermees` dans `DeplacementSheet.vue` et de `Grille::estTraversable()`.
-# Sans elle, la destination proposée était une case que le serveur refuse (tour perdu).
-embrasures_fermees = {(p["embrasure"]["x"], p["embrasure"]["y"]) for p in portes_carte
-                      if p.get("etat") != "ouverte" and p.get("embrasure")}
-
-portee = 0
+# --- MENU (lu d'abord : c'est lui qui porte la portée du déplacement) ------------
 menu = json.loads(subprocess.run(
     ["curl", "-s", "-b", f"{S}/jar-{slot}.txt", f"http://localhost/api/groupes/{code}/menu",
      "-H", "Accept: application/json"], capture_output=True, text=True).stdout or "{}")
 opts = (menu.get("menu") or {}).get("options") or []
+portee = 0
+destinations_serveur = None
 for o in opts:
     if o.get("id") == "se_deplacer":
-        portee = int((o.get("parametres") or {}).get("portee") or 0)
+        params_dep = o.get("parametres") or {}
+        portee = int(params_dep.get("portee") or 0)
+        destinations_serveur = params_dep.get("destinations")
 
-if portee:
-    # Dijkstra pondéré à la main (scan linéaire — MIROIR de
-    # `DeplacementSheet.vue` : la zone qu'un déplacement de héros peut
-    # explorer tient en quelques dizaines de cases, pas besoin d'un tas pour
-    # rester instantané). Chaque pas coûte `cout_de()` de la case d'ARRIVÉE,
-    # PAS 1 uniformément — c'est ce qui rend la Rivière gelée possible et ce
-    # que `Grille::casesAtteignables()` fait déjà côté serveur.
-    depart = (moi["x"], moi["y"])
-    dist = {depart: 0}
-    frontiere = [(0, depart)]
-    while frontiere:
-        frontiere.sort(key=lambda p: p[0])
-        d, c = frontiere.pop(0)
-        if d > dist.get(c, float("inf")):
-            continue  # entrée dépassée (suppression paresseuse)
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            n = (c[0] + dx, c[1] + dy)
-            if porte_fermee_entre(c, n):
-                continue
-            if n in embrasures_fermees:
-                continue
-            case_connue = sol(*n)
-            # Filet de sécurité (§2.16) : une case VOISINE IMMÉDIATE reste
-            # proposée même si la carte connue est incomplète, sauf mur
-            # explicite — sans lui, une carte partielle peut rendre la liste
-            # de destinations VIDE et figer le héros.
-            voisin_immediat = d == 0 and case_brute(*n) != "m"
-            if not case_connue and not porte_ouverte_entre(c, n) and not voisin_immediat:
-                continue
-            if n in occupe:
-                continue
-            nd = d + cout_de(*n)
-            if nd > portee:
-                continue  # hors budget : jamais une destination possible
-            if nd < dist.get(n, float("inf")):
-                dist[n] = nd
-                if case_connue:
-                    frontiere.append((nd, n))
-    dest = sorted(((v, k) for k, v in dist.items() if k != depart), reverse=True)[:14]
-    print(f"DÉPLACEMENT possible ({portee} POINTS, pas cases) — quelques destinations :")
-    print("  " + " ".join(f"({x},{y})/{d}" for d, (x, y) in dest))
+# --- DESTINATIONS : la décision du SERVEUR, lue telle quelle (2026-10-10) --------
+# `parametres.destinations` = [{x, y, cout}] (cout en POINTS). Aucun calcul ici.
+if destinations_serveur is not None:
+    ok = {(d["x"], d["y"]): d["cout"] for d in destinations_serveur}
+    print(f"DÉPLACEMENT possible ({portee} POINTS restants, pas cases) — décidé par le serveur :")
+    if ok:
+        tri = sorted(((cout, c) for c, cout in ok.items()), reverse=True)[:14]
+        print("  " + " ".join(f"({x},{y})/{cout}" for cout, (x, y) in tri))
+        if len(ok) > len(tri):
+            print(f"  … {len(ok)} cases en tout (les plus lointaines ci-dessus)")
+    else:
+        print("  (aucune case atteignable d'après le serveur)")
 
 # Fiche des sorts du héros (dés, durée) : sans elle, impossible de savoir si un
 # sort à usage unique suffira à tuer une cible — reproché par le magicien.

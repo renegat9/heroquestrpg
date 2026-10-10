@@ -50,9 +50,11 @@ const NON_ACTIONS_ANNONCES = [
     'levier', 'competence', 'potion', 'potion_aide', 'artefact', 'objet_use', 'objet_libre',
     // Questions de VOTE (VoteGroupe) : l'écran de vote les rend, pas le fil.
     'retrait_joueur', 'choix_groupe',
-    // Sous-payloads de SCÈNE (`MoteurDegats::infligerAMonstre()`), dits par leurs CLÉS dans
-    // `ligneAction()` (`changement_phase`, `reaction_monstre`) — jamais comme une action.
-    'changement_phase', 'reaction_monstre',
+    // ⚠ `changement_phase` et `reaction_monstre` figuraient ICI jusqu'au verdict Jungle
+    // (2026-10-10 §1) : « sous-payloads de scène, dits par leurs clés ». C'était FAUX pour
+    // l'événement que `MoteurDegats` journalise À PART sous le même `type` — il tombait sur
+    // la ligne de repli « Un effet automatique… (changement_phase) », et l'exclusion cachait
+    // exactement ce trou au registre. Un type journalisé est une action : il est au registre.
 ];
 
 /** Types qui n'apparaissent pas en littéral : les options narratives que `resoudreNarratif()` recopie, et `equiper`/`desequiper` (ternaire). */
@@ -212,6 +214,15 @@ function fixturesDesTypesAnnonces(): array
         'glace_dissipee' => ['monstre' => 'Gobelin', 'cases' => [['x' => 1, 'y' => 1]]],
         'faveur_hold_the_line' => ['personnage' => 'Grom', 'monstre' => 'Gobelin', 'touche' => true],
         'faveur_peacekeeper' => ['personnage' => 'Grom', 'monstre' => 'Gobelin'],
+        'condition_terminee' => ['texte' => 'Grom : Empoisonné prend fin : la durée est écoulée'],
+        'saignement' => ['personnage' => 'Grom', 'degats' => 1, 'texte' => 'Grom : Empoisonné — −1 PV (3/8)'],
+        'sort_regagne' => ['personnage' => 'Grom', 'texte' => 'Grom retrouve « Métamorphose »'],
+        'changement_phase' => ['phase' => ['avant' => 'Gruulob', 'apres' => 'Gruulob Démon', 'stats' => [
+            'avant' => ['attaque' => 3, 'defense' => 4], 'apres' => ['attaque' => 4, 'defense' => 5, 'pv_body' => 2, 'pv_body_max' => 2],
+        ]]],
+        'reaction_monstre' => ['nom' => 'Gruzbella', 'mecanique' => 'ignore_degats_attaque'],
+        'monstres_reveles' => ['boss' => ['Gruulob'], 'texte' => 'Gruulob apparaît !'],
+        'vote_resolu' => ['vote' => 'retraite', 'option_id' => 'continuer', 'applique' => false, 'texte' => 'Vote de retraite : on continue'],
     ];
 }
 

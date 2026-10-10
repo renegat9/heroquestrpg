@@ -115,6 +115,10 @@ it('un sort visant un monstre le propose avec ce monstre en vue', function () {
 it('aucune entrée de sort ou de parchemin ne porte une liste de cibles vide, pour TOUS les sorts (un seul point de passage)', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
 
+    // Le héros est BLESSÉ : un soin n'a de cible que s'il y a des PV à rendre
+    // (verdict Jungle 2026-10-10 §2) ; sans cela le test ne verrait plus de soin.
+    $ctx['heros']->update(['pv_body' => max(1, (int) $ctx['heros']->pv_body_max - 2)]);
+
     // Le héros connaît TOUS les sorts et possède le parchemin de chacun.
     foreach (Sort::query()->distinct()->pluck('element') as $element) {
         app(MoteurSorts::class)->attacherElement($ctx['heros'], (string) $element);
@@ -221,4 +225,26 @@ it('Conte inspirant : avec un allié au contact, il ne vise QUE cet allié', fun
 
     expect($entree)->not->toBeNull()
         ->and(collect($entree['cibles'])->pluck('id')->all())->toBe([$allie->id]);
+});
+
+it('un soin n\'est PAS proposé sur un héros à PV max (Force vitale, Eau de Guérison), et l\'est dès qu\'il manque des PV', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
+    foreach (Sort::query()->distinct()->pluck('element') as $element) {
+        app(MoteurSorts::class)->attacherElement($ctx['heros'], (string) $element);
+    }
+
+    $soins = ['Force vitale', 'Luciole', 'Eau de Guérison'];
+
+    // PV au maximum : plus aucun sort de soin à cible unique, ni grisé ni vide.
+    $ctx['heros']->update(['pv_body' => (int) $ctx['heros']->pv_body_max]);
+    $noms = collect(sansCibleListe(sansCibleMenu($ctx), 'lancer_sort', 'sorts'))->pluck('nom')->all();
+    foreach ($soins as $soin) {
+        expect($noms)->not->toContain($soin);
+    }
+
+    // Un PV perdu suffit : « restore UP TO 4 lost Body Points ».
+    $ctx['heros']->update(['pv_body' => (int) $ctx['heros']->pv_body_max - 1]);
+    $entrees = collect(sansCibleListe(sansCibleMenu($ctx), 'lancer_sort', 'sorts'));
+    expect($entrees->firstWhere('nom', 'Eau de Guérison'))->not->toBeNull();
+    expect(collect($entrees->firstWhere('nom', 'Eau de Guérison')['cibles'])->pluck('id')->all())->toContain($ctx['heros']->id);
 });

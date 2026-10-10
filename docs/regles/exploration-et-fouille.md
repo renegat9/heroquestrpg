@@ -252,22 +252,38 @@ où l'allié temporaire doit être retourné à l'entrée pour finir »).
 `AssembleurCarte` pose désormais un escalier 2×2 traversable dans la salle de
 départ de chaque quête (→ `docs/regles/carte-donjon.md`). Deux conséquences :
 
-1. `quitter_donjon` (`MenuMoteur`, `VoteGroupe::TYPE_SORTIE`) n'est plus
-   offert n'importe où dans le donjon : il faut que **ce héros** se tienne
-   sur une case de l'escalier, **en plus** des conditions déjà en vigueur
-   (objectif accompli ou donjon vidé, pas de vote déjà ouvert). Le vote lui-même
-   ne change pas — majorité simple, le groupe sort ensemble quand il passe,
-   quelle que soit la position des AUTRES membres au moment du vote.
-   `ResolveurTour::resoudreQuitterDonjon()` re-valide la même garde (422 « Il
-   faut se tenir sur l'escalier pour quitter le donjon. ») — le menu ne doit
-   jamais être le seul rempart.
+1. **Tous réunis dans la SALLE DE DÉPART** (René, 2026-10-10, après le verdict
+   Jungle — remplace « un seul héros sur l'escalier », qui faisait sortir tout le
+   groupe y compris des héros à dix cases de l'escalier, et « tous sur
+   l'escalier », abandonné le jour même). `quitter_donjon` (`MenuMoteur`,
+   `VoteGroupe::TYPE_SORTIE`) n'est offert que si **tous les héros debout** sont
+   dans la salle qui contient l'escalier d'entrée, **en plus** des conditions
+   déjà en vigueur (objectif accompli ou donjon vidé, pas de vote ouvert). Les
+   héros **tombés** (mode Story) ne bloquent pas. Point de passage UNIQUE :
+   `Quete::rassemblementDepart()` (salle via `Carte::salleDepart()` →
+   `Salles::indexDe()`), lu par le menu, par `ResolveurTour::resoudreQuitterDonjon()`
+   (422) et par `EtatGroupe` (`quete.sortie`). Et **annoncé** : une fois la sortie
+   ouverte, la bannière d'objectif (table + manette) et la `situation` du menu
+   disent « Rejoignez la salle de départ pour quitter le donjon — il manque : X, Y »
+   — phrase décidée par le serveur, jamais recalculée en JS.
+   ⚠ **DIVERGENCE DÉLIBÉRÉE avec les règles officielles, décision de René du
+   2026-10-10, qu'il ACCEPTE** : dans le livret, chaque héros quitte le donjon en
+   marchant sur l'escalier ; chez nous, il suffit que tous les héros debout soient
+   dans la salle de départ, puis le groupe vote la sortie. Ne pas « corriger » vers
+   la règle du livret (test qui l'épingle : `EscalierTest.php`, « quitter le donjon
+   est offert quand TOUS les héros debout… pas forcément sur l'escalier »).
    ⚠ **`battre_en_retraite` reste SANS AUCUNE condition** (René, 2026-08-21,
-   rappelé explicitement le 2026-10-05) : l'escalier ne s'applique QU'À
+   rappelé explicitement le 2026-10-05) : la salle de départ ne s'applique QU'À
    `quitter_donjon`, jamais à la retraite — décrocher doit rester possible au
    pire moment, loin de l'escalier, sans quoi ce n'est plus une retraite.
 2. `Quete::captifLibereEtVivant()` — et donc `objectifAccompli('secourir')` —
-   exige désormais que le captif libéré et vivant se tienne **sur
-   l'escalier**, pas seulement qu'il ait été libéré. C'est le choix du livret
+   exige désormais que le captif libéré et vivant (ou son porteur, en mode
+   escorté) se tienne **sur une case de l'escalier**, pas seulement qu'il ait été
+   libéré. ⚠ **Décision de René, 2026-10-10 : l'extraction n'est PAS assouplie en
+   « salle de départ »** — seuls les HÉROS bénéficient de la règle ci-dessus ; les
+   deux vérifications restent distinctes (`rassemblementDepart()` /
+   `captifLibereEtVivant()`), et la bannière dit « Amenez X sur l'escalier d'entrée »
+   (`quete.sortie.consigne_extraction`). C'est le choix du livret
    qu'on avait écarté le 2026-10-04 faute d'escalier à viser (« la sortie
    elle-même suit le vote ordinaire ») : Gothar doit être **escorté** (Frozen
    Horror p. 19), et l'escalier est désormais le point d'arrivée concret de
@@ -278,7 +294,7 @@ départ de chaque quête (→ `docs/regles/carte-donjon.md`). Deux conséquences
 (campagnes EN COURS dans la vraie base, `tests/Feature/Partie/EscalierTest.php`) :
 `Carte::casesEscalier()` rend `[]` quand la couche est absente, et les DEUX
 lecteurs ci-dessus retombent alors sur le comportement d'avant — sortie
-possible n'importe où, mission accomplie dès la seule libération. Jamais une
+possible n'importe où (aucune exigence de salle), mission accomplie dès la seule libération. Jamais une
 migration rétroactive sur une carte déjà générée ; jamais une quête en cours
 rendue impossible à terminer.
 

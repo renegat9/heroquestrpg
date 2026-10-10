@@ -523,6 +523,9 @@ final class MoteurDegats
         if ($prochaine !== null) {
             $nomAvant = $instance->monstre->nom_base;
             $nouveauMax = $this->pvMaxPhaseSuivante($instance, $prochaine);
+            // Les dés de la forme qui s'efface, lus AVANT le changement (effets de quête et
+            // sorts compris) : le fil dit « attaque 3 → 4 », pas seulement le nouveau nom.
+            $desAvant = ['attaque' => $instance->attaqueEffective(), 'defense' => $instance->defenseEffective()];
 
             $instance->update([
                 'monstre_id' => $prochaine->id,
@@ -537,7 +540,24 @@ final class MoteurDegats
             // les dés de l'ANCIENNE phase.
             $instance->setRelation('monstre', $prochaine);
 
-            $this->journaliserChangementPhase($instance, $nomAvant, $prochaine->nom_base);
+            // « Zargon, do not reveal the second set of statistics » (Ogre Horde p. 6) est une
+            // règle de TABLE PHYSIQUE : ici les dés se montrent à chaque jet, et le verdict
+            // Jungle (2026-10-10 §1) a trouvé muet que l'attaque de Gruulob passe de 3 à 4.
+            $changement = [
+                'avant' => $nomAvant,
+                'apres' => $prochaine->nom_base,
+                'stats' => [
+                    'avant' => $desAvant,
+                    'apres' => [
+                        'attaque' => $instance->attaqueEffective(),
+                        'defense' => $instance->defenseEffective(),
+                        'pv_body' => $nouveauMax,
+                        'pv_body_max' => $nouveauMax,
+                    ],
+                ],
+            ];
+
+            $this->journaliserChangementPhase($instance, $changement);
 
             return [
                 'degats' => $avant,
@@ -545,7 +565,7 @@ final class MoteurDegats
                 'pv_body_max' => $nouveauMax,
                 'etat' => 'actif',
                 'vaincu' => false,
-                'changement_phase' => ['avant' => $nomAvant, 'apres' => $prochaine->nom_base],
+                'changement_phase' => $changement,
                 'reaction' => null,
                 'survie_increvable' => false,
                 'reddition' => false,
@@ -653,11 +673,18 @@ final class MoteurDegats
     /**
      * Annonce un CHANGEMENT DE PHASE — journal dédié, garanti même si
      * l'appelant oublie de relayer `changement_phase` dans son propre
-     * payload. « Zargon, do not reveal the second set of statistics » (Ogre
-     * Horde p. 6) : le texte nomme la créature et sa nouvelle forme, jamais
-     * ses dés.
+     * payload (piège, terrain, faveur ne le relaient pas).
+     *
+     * ⚠ La forme est sous la clé `phase`, PAS `changement_phase` : cette clé est celle
+     * qu'une ACTION porte pour son coup, et `JournalCombat::ligneAction()` la rend
+     * partout où elle la voit — l'événement autonome la portait aussi, et le fil lisait
+     * la même transformation deux fois (verdict Jungle 2026-10-10 §1). L'annonce autonome
+     * a son propre arm de `ligneType()`, et le rejeu écarte l'un des deux quand le coup
+     * qui l'a provoquée la porte déjà (`JournalCombat::signatureDeDoublon()`).
+     *
+     * @param  array<string, mixed>  $changement  `{avant, apres, stats}`
      */
-    private function journaliserChangementPhase(InstanceMonstre $instance, string $nomAvant, string $nomApres): void
+    private function journaliserChangementPhase(InstanceMonstre $instance, array $changement): void
     {
         $groupe = $instance->quete?->groupe;
 
@@ -665,12 +692,16 @@ final class MoteurDegats
             return;
         }
 
-        Journal::ajouter($groupe, 'combat', [
+        $payload = [
             'type' => 'changement_phase',
             'instance_id' => (int) $instance->id,
             'nom' => $instance->nomAffiche(),
-            'changement_phase' => ['avant' => $nomAvant, 'apres' => $nomApres],
-        ]);
+            'phase' => $changement,
+        ];
+
+        // Le tampon générique : la reconnexion lit le journal, le fil EN DIRECT lit le résultat —
+        // `JournalCombat` écarte le doublon quand l'action qui a frappé porte déjà la clé.
+        app(TamponAnnonces::class)->annoncer($groupe, $payload);
     }
 
     /**

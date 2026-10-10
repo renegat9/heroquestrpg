@@ -17,13 +17,19 @@ defineProps({
     peacekeeper: { type: Object, default: null },
     /** `groupe.objets_reveilles` : {objets: [{objet, personnage}]} ou null (Fangwarden Armlet). */
     reveil: { type: Object, default: null },
+    /** `groupe.vote_sortie` : {texte, decompte, applique} ou null — la résolution du vote de sortie qui a ramené le groupe. */
+    vote: { type: Object, default: null },
 });
 
 const noms = (liste) => (liste ?? []).map((m) => m.nom).join(', ');
 </script>
 
 <template>
-    <div v-if="entretien || faveur || peacekeeper || reveil" class="annonce-hub">
+    <div v-if="entretien || faveur || peacekeeper || reveil || vote" class="annonce-hub">
+        <div v-if="vote" class="annonce-hub-ligne">
+            <MSym n="how_to_vote" fill :size="16" />
+            <div class="annonce-hub-texte">{{ vote.texte }}</div>
+        </div>
         <div v-if="entretien" class="annonce-hub-ligne">
             <MSym n="paid" fill :size="16" />
             <div class="annonce-hub-texte">

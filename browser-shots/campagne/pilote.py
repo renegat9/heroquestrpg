@@ -29,11 +29,10 @@ troisième argument suffit donc, exactement comme pour une porte — pas de form
 « à plat » façon `lancer_sort` à reproduire ici.
 
 ⚠ Sous le thème `horreur_des_glaces`, le déplacement se compte en POINTS, pas
-en cases, depuis la Rivière gelée (coût 2/case) : `destinations()` reste un
-simple parseur du texte de `vue.py`, qui fait maintenant lui-même un Dijkstra
-pondéré — ce pilote ne recalcule JAMAIS de distance en cases, il se contente
-des destinations que `vue.py` (miroir du serveur) a déjà validées comme
-atteignables dans le budget du tour.
+en cases, depuis la Rivière gelée (coût 2/case) : `destinations()` lit la liste
+que le SERVEUR publie (`se_deplacer.parametres.destinations`, 2026-10-10) — ce
+pilote ne recalcule JAMAIS de distance, il se contente des cases que le
+résolveur accepte (c'est sa liste blanche).
 """
 import json, subprocess, sys, re, random
 
@@ -105,10 +104,13 @@ def jouer_liste(slot, oid, opt):
     return (f"{oid.upper()} {entree.get('nom', '?')}", choix(slot, oid, params))
 
 
-def destinations(slot):
-    r = subprocess.run(["python3", f"{D}/vue.py", str(slot)], capture_output=True, text=True, timeout=60)
-    m = re.findall(r"\((\d+),(\d+)\)/(\d+)", r.stdout)
-    return sorted(((int(x), int(y), int(c)) for x, y, c in m), key=lambda t: -t[2])
+def destinations(option):
+    """Les cases que le SERVEUR publie pour `se_deplacer` (`parametres.destinations`,
+    [{x, y, cout}]) — la liste blanche du résolveur, lue telle quelle (2026-10-10).
+    Plus de sous-processus `vue.py` ni de regex sur sa sortie : la liste complète,
+    pas les 14 plus lointaines, triée de la plus chère à la moins chère."""
+    liste = ((option or {}).get("parametres") or {}).get("destinations") or []
+    return sorted(((int(d["x"]), int(d["y"]), int(d["cout"])) for d in liste), key=lambda t: -t[2])
 
 def jouer(slot):
     px = py = 0
@@ -190,7 +192,7 @@ def jouer(slot):
         return ("FOUILLE TRESOR", choix(slot, "fouiller_tresor"))
 
     if "se_deplacer" in opts:
-        dests = destinations(slot)
+        dests = destinations(opts["se_deplacer"])
         etat = hq(slot, "etat") or {}
         carte = etat.get("carte") or {}
         portes = carte.get("portes") or []
@@ -222,9 +224,10 @@ def jouer(slot):
         else:
             random.shuffle(dests)
 
-        # ⚠ Le BFS de vue.py ignore le mobilier : il propose des cases que le
-        # serveur refuse (piège n°4 du README). On ESSAIE, et on passe à la
-        # suivante — sinon le pilote se bloque sur la même case pour toujours.
+        # La liste vient du serveur et EST la liste blanche du résolveur : le premier
+        # essai passe. On garde pourtant la boucle de repli — un état qui change
+        # entre la lecture du menu et le choix (autre joueur, relance) refuserait la
+        # case, et le pilote ne doit pas se bloquer sur elle pour toujours.
         for x, y, _ in dests[:8]:
             rep = choix(slot, "se_deplacer", {"x": x, "y": y})
             if not (rep or {}).get("message"):

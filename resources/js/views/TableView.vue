@@ -561,10 +561,15 @@ const themeBoiteLibelle = computed(() => etat.value?.groupe?.theme_bestiaire_lib
 const objectif = computed(() => {
     const quete = etat.value?.quete;
 
-    if (auHub.value || !quete?.objectif_libelle) return null;
+    /* `quete.sortie.consigne` : « Rejoignez la salle de départ — il manque : … », DÉCIDÉE par le
+       serveur (la sortie est ouverte mais des héros debout n'y sont pas). Rendue telle quelle. */
+    const consigne = [quete?.sortie?.consigne_extraction, quete?.sortie?.consigne].filter(Boolean).join(' ') || null;
+
+    if (auHub.value || !quete || (!quete.objectif_libelle && !consigne)) return null;
 
     return {
-        libelle: quete.objectif_libelle,
+        libelle: quete.objectif_libelle ?? '',
+        consigne,
         accompli: quete.objectif_accompli === true,
         majeur: quete.objectif_majeur === true,
     };
@@ -873,6 +878,7 @@ watch(() => store.state.clotureTerminee, (t) => {
                     <div v-if="objectif" class="obj" :class="{ fait: objectif.accompli }">
                         <MSym :n="objectif.accompli ? 'task_alt' : 'my_location'" fill :size="15" />
                         <span class="obj-txt">{{ objectif.libelle }}</span>
+                        <span v-if="objectif.consigne" class="obj-txt obj-consigne">{{ objectif.consigne }}</span>
                         <span v-if="objectif.accompli" class="obj-tag">Atteint</span>
                         <span v-else-if="objectif.majeur" class="obj-tag obj-tag-niv">Un niveau à la clé</span>
                     </div>
@@ -958,6 +964,7 @@ watch(() => store.state.clotureTerminee, (t) => {
                             :faveur="etat?.groupe?.faveur_hopekins ?? null"
                             :peacekeeper="etat?.groupe?.peacekeeper ?? null"
                             :reveil="etat?.groupe?.objets_reveilles ?? null"
+                            :vote="etat?.groupe?.vote_sortie ?? null"
                         />
                         <div style="display: flex; gap: 10px">
                             <button class="btn torch" :disabled="lancementEnCours" @click="lancerQuete">

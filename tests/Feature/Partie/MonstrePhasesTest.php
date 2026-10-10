@@ -73,7 +73,7 @@ it('fait adopter à Gruzbella sa forme suivante à 0 Body, sans jamais la tuer a
     $r2 = $degats->infligerAMonstre($instance->fresh()->load('monstre'), 99, MoteurDegats::SOURCE_ATTAQUE_HEROS);
     expect($r2['vaincu'])->toBeFalse()
         ->and($r2['reaction'])->toBeNull()
-        ->and($r2['changement_phase'])->toBe(['avant' => 'Gruzbella Hammerhand', 'apres' => 'Gruzbella Déterminée'])
+        ->and($r2['changement_phase'])->toMatchArray(['avant' => 'Gruzbella Hammerhand', 'apres' => 'Gruzbella Déterminée'])
         ->and($r2['pv_body'])->toBe(5);
 
     $instance->refresh()->load('monstre');
@@ -83,7 +83,7 @@ it('fait adopter à Gruzbella sa forme suivante à 0 Body, sans jamais la tuer a
 
     // Troisième coup fatal : sa dernière phase.
     $r3 = $degats->infligerAMonstre($instance, 99, MoteurDegats::SOURCE_ATTAQUE_HEROS);
-    expect($r3['changement_phase'])->toBe(['avant' => 'Gruzbella Déterminée', 'apres' => 'Gruzbella Imprudente'])
+    expect($r3['changement_phase'])->toMatchArray(['avant' => 'Gruzbella Déterminée', 'apres' => 'Gruzbella Imprudente'])
         ->and($r3['vaincu'])->toBeFalse();
 
     $instance->refresh()->load('monstre');
@@ -111,7 +111,7 @@ it('fait adopter à Spawn of the Pit sa forme déchaînée, sans capacité réac
 
     $r1 = $degats->infligerAMonstre($instance, 99, MoteurDegats::SOURCE_ATTAQUE_HEROS);
     expect($r1['reaction'])->toBeNull() // aucune réaction sourcée pour ce monstre
-        ->and($r1['changement_phase'])->toBe(['avant' => 'Spawn of the Pit', 'apres' => 'Spawn of the Pit déchaîné'])
+        ->and($r1['changement_phase'])->toMatchArray(['avant' => 'Spawn of the Pit', 'apres' => 'Spawn of the Pit déchaîné'])
         ->and($r1['vaincu'])->toBeFalse()
         ->and($r1['pv_body'])->toBe(6); // Body de sa forme Enraged
 
@@ -217,7 +217,7 @@ it('passe par le même point de passage depuis le sort de ZONE du Dread (MoteurD
     $blesser = new ReflectionMethod(MoteurDread::class, 'blesserMonstre');
     $resultat = $blesser->invoke(app(MoteurDread::class), $instance, 99, null);
 
-    expect($resultat['changement_phase'])->toBe(['avant' => 'Spawn of the Pit', 'apres' => 'Spawn of the Pit déchaîné'])
+    expect($resultat['changement_phase'])->toMatchArray(['avant' => 'Spawn of the Pit', 'apres' => 'Spawn of the Pit déchaîné'])
         ->and($resultat['vaincu'])->toBeFalse();
 });
 
@@ -241,7 +241,7 @@ it('fait traverser le VRAI chemin de combat (ResolveurTour::frapper) par le poin
         acteur: ['type' => 'personnage', 'id' => $ctx['heros']->id, 'nom' => $ctx['heros']->nom],
     );
 
-    expect($payload['changement_phase'])->toBe(['avant' => 'Gruzbella Hammerhand', 'apres' => 'Gruzbella Déterminée'])
+    expect($payload['changement_phase'])->toMatchArray(['avant' => 'Gruzbella Hammerhand', 'apres' => 'Gruzbella Déterminée'])
         ->and($payload['cible_vaincue'])->toBeFalse();
 
     $instance->refresh()->load('monstre');

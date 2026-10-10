@@ -96,6 +96,13 @@ final class JournalCombat
         'ombre_decompte' => true, 'glace_dissipee' => true,
         // ---- Les faveurs
         'faveur_hold_the_line' => true, 'faveur_peacekeeper' => true,
+        // ---- Ce qui S'ÉCOULE, S'ÉTEINT ou APPARAÎT sans qu'une action le retourne
+        // (verdict Jungle 2026-10-10 §1) : fin d'une condition à durée ou d'un buff,
+        // tic de poison/étreinte/rejeton/terrain, sort regagné, changement de forme
+        // d'un boss, défense à usage unique d'un monstre, salle dévoilée, vote clos.
+        'condition_terminee' => true, 'saignement' => true, 'sort_regagne' => true,
+        'changement_phase' => true, 'reaction_monstre' => true, 'monstres_reveles' => true,
+        'vote_resolu' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -210,6 +217,18 @@ final class JournalCombat
                 }
             }
 
+            // Une annonce AUTONOME (changement de forme, défense à usage unique) que l'action
+            // qui l'a provoquée porte DÉJÀ sous sa propre clé : le parent la dit, à sa place
+            // dans le coup — la dire aussi ici la ferait lire deux fois, souvent avant le coup.
+            if (! $imbrique && ($signature = $this->signatureDeDoublon($payload)) !== null) {
+                foreach ($json as $j => $autre) {
+                    if ($j !== $i && str_contains($autre, $signature)) {
+                        $imbrique = true;
+                        break;
+                    }
+                }
+            }
+
             if ($imbrique) {
                 continue;
             }
@@ -229,6 +248,19 @@ final class JournalCombat
     public function depuisResultat(array $resultat, string $acteurNom): array
     {
         $lignes = [];
+
+        // Les annonces du tampon générique (`TamponAnnonces`) que l'action du résultat porte
+        // déjà sous sa propre clé (le changement de forme d'un boss) ne se disent pas deux fois.
+        if (is_array($resultat['annonces_automatiques'] ?? null)) {
+            $sans = $resultat;
+            unset($sans['annonces_automatiques']);
+            $reste = (string) json_encode($sans, JSON_UNESCAPED_UNICODE);
+
+            $resultat['annonces_automatiques'] = array_values(array_filter(
+                $resultat['annonces_automatiques'],
+                fn ($x) => ! is_array($x) || ($signature = $this->signatureDeDoublon($x)) === null || ! str_contains($reste, $signature),
+            ));
+        }
 
         // Action du héros, puis tour des alliés scriptés (3.5), puis celui des
         // monstres (C2) — étalés. Le parcours est partagé avec SceneDeTable.
@@ -390,10 +422,12 @@ final class JournalCombat
         // au-dessus de TOUS les types d'action, exactement comme les pièges
         // imbriqués plus haut — un effet automatique que rien n'annonce est
         // injouable (même règle, trois lignes plus bas dans ce fichier).
-        if (is_array($a['changement_phase'] ?? null)) {
-            $avant = (string) ($a['changement_phase']['avant'] ?? 'La créature');
-            $apres = (string) ($a['changement_phase']['apres'] ?? 'une autre forme');
-            $lignes[] = $this->info("{$avant} vacille — et se relève sous une autre forme : {$apres} !");
+        // ⚠ Pas pour l'annonce AUTONOME du même nom (`type: changement_phase`, journalisée
+        // à part par `MoteurDegats`) : `ligneType()` vient de la dire — la clé la redirait.
+        if (is_array($a['changement_phase'] ?? null) && ($a['type'] ?? null) !== 'changement_phase') {
+            foreach ($this->lignePhase($a['changement_phase']) as $ligne) {
+                $lignes[] = $ligne;
+            }
         }
 
         if (is_string($a['reaction_monstre'] ?? null)) {
@@ -640,7 +674,11 @@ final class JournalCombat
                 'attaquant' => null,
                 'defenseur' => $nomCible,
                 'touches' => null,
-                'boucliers' => ! empty($a['succes']) ? 1 : 0,
+                // Le COMPTE des faces gagnantes (les crânes du jet de Mind), pas un drapeau
+                // 0/1 : le bloc `des` publiait `boucliers: 1` sur un jet sans un seul
+                // bouclier (verdict Jungle 2026-10-10 §3). La clé garde son nom historique ;
+                // `defensive` ('crane') dit de quelle face il s'agit.
+                'boucliers' => count(array_filter($faces, fn ($f) => $f === 'crane')),
                 'libelle_def' => 'tente',
             ], $a);
         }
@@ -788,7 +826,7 @@ final class JournalCombat
             // annoncée deux fois, nommait le talent nulle part.
             // ⚠ Seuls les jets de TERRAIN se disent (Brasier, Rivière gelée) :
             // un dé lancé en marchant est un effet automatique.
-            'deplacement' => $this->jetsDeTerrain($a, $acteurNom),
+            'deplacement' => [...$this->jetsDeTerrain($a, $acteurNom), ...$this->piegesPressentis($a, $acteurNom)],
             'terrain_monstre' => $this->terrainMonstre($a),
             // MARE (Jungles of Delthrak p. 4) : la fouille de trésor qui rend 1 PV
             // au lieu d'une carte — sans cette ligne, le soin serait muet.
@@ -943,6 +981,13 @@ final class JournalCombat
             // ---- Les effets AUTOMATIQUES qui n'avaient aucune phrase (verdict Morcar
             // 2026-10-09 §1) : `default => []` les rendait muets sans que rien ne
             // l'écrive. Les phrases vivent dans `LignesEffetsAutomatiques`.
+            'condition_terminee' => $this->conditionTerminee($a),
+            'saignement' => $this->saignement($a),
+            'sort_regagne' => $this->sortRegagne($a),
+            'changement_phase' => $this->changementPhaseJournalise($a),
+            'reaction_monstre' => $this->reactionMonstreJournalisee($a),
+            'monstres_reveles' => $this->monstresReveles($a),
+            'vote_resolu' => $this->voteResolu($a),
             'soin_allie' => $this->soinAllie($a, $acteurNom),
             'concentration', 'sacrifice_sort' => $this->sortRecupere($a, $acteurNom),
             's_ecarter_du_bloc' => $this->ecartDuBloc($a, $acteurNom),
@@ -1695,6 +1740,13 @@ final class JournalCombat
             ]];
         }
 
+        // Toute AUTRE potion : qui la boit, et ce qu'elle a fait (PV rendus, bonus de dés,
+        // seconde attaque…). « X utilise Fiole de soin » sans cible ni PV rendus était un
+        // effet muet (verdict Jungle 2026-10-10 §1).
+        if (isset($a['potion']) && ($phrase = $this->potionBue($a['potion'], $acteurNom, $nom)) !== null) {
+            return [$phrase];
+        }
+
         if (! empty($a['tuee'])) {
             return [[
                 'texte' => "{$acteurNom} verse {$nom} sur ".($a['cible']['nom'] ?? 'la créature').' — elle se dissout',
@@ -1711,6 +1763,80 @@ final class JournalCombat
         }
 
         return [['texte' => "{$acteurNom} utilise {$nom}", 'ton' => 'info']];
+    }
+
+    /**
+     * Une potion bue : le buveur (qui n'est pas toujours le porteur) et chaque effet
+     * que `MoteurPotions::boire()` a RÉELLEMENT produit. `null` si le moteur n'en a
+     * publié aucun (l'appelant retombe alors sur « utilise »).
+     *
+     * @param  array<string, mixed>  $potion  résultat de `MoteurPotions::boire()`
+     * @return array{texte: string, ton: string}|null
+     */
+    private function potionBue(array $potion, string $acteurNom, string $nom): ?array
+    {
+        $e = (array) ($potion['effets'] ?? []);
+        $buveur = (string) ($potion['buveur'] ?? $acteurNom);
+        $effets = [];
+
+        if (isset($e['soin_pv_body'])) {
+            $soin = (int) $e['soin_pv_body'];
+            $effets[] = ($soin > 0 ? "+{$soin} PV de Body" : 'aucun PV de Body à rendre')
+                .(isset($e['de']) ? ' (dé '.(int) $e['de'].')' : '');
+        }
+
+        if (isset($e['soin_pv_mind'])) {
+            $effets[] = (int) $e['soin_pv_mind'] > 0 ? '+'.(int) $e['soin_pv_mind'].' PV de Mind' : 'aucun PV de Mind à rendre';
+        }
+
+        if (! empty($e['choc_leve'])) {
+            $effets[] = 'le choc se lève';
+        }
+
+        if (isset($e['soin_source'])) {
+            $effets[] = (int) ($e['soin_source']['rendus'] ?? 0) > 0
+                ? '+'.(int) $e['soin_source']['rendus'].' PV de Body rendus'
+                : 'rien à rendre';
+        }
+
+        if (isset($e['buff'])) {
+            // La fiche d'objet dit aussi qui peut la recevoir et quelle condition elle pose : ici le
+            // joueur vient de le faire, seul ce que le buff APPORTE (dés, durée) a sa place.
+            $detail = array_values(array_filter(
+                (array) ($e['buff_texte'] ?? []),
+                fn ($l) => is_string($l) && ! str_starts_with($l, 'Cible') && ! str_starts_with($l, 'Applique'),
+            ));
+            $effets[] = "« {$e['buff']} »".($detail !== [] ? ' : '.implode(', ', $detail) : '');
+        }
+
+        if (! empty($e['attaque_supplementaire']) && ! isset($e['buff'])) {
+            $effets[] = 'une seconde attaque ce tour';
+        }
+
+        if (isset($e['deplacement_restant'])) {
+            $effets[] = 'déplacement porté à '.(int) $e['deplacement_restant'].' cases';
+        }
+
+        if (isset($e['sorts_restaures'])) {
+            $n = count((array) $e['sorts_restaures']);
+            $effets[] = $n > 0 ? "{$n} sort".($n > 1 ? 's' : '').' de nouveau disponible'.($n > 1 ? 's' : '') : 'aucun sort à rendre';
+        }
+
+        if (isset($e['rabais_recrutement'])) {
+            $effets[] = 'recrutements à −'.(int) $e['rabais_recrutement']['po'].' po ('.(int) $e['rabais_recrutement']['restants'].' restants)';
+        }
+
+        if ($effets === []) {
+            return null;
+        }
+
+        $porteur = (string) ($potion['porteur'] ?? $acteurNom);
+        $debut = $buveur !== $porteur ? "{$porteur} tend {$nom} à {$buveur}" : "{$buveur} boit {$nom}";
+        $pv = isset($e['soin_pv_body'], $potion['pv_body'], $potion['pv_body_max'])
+            ? ' — '.$buveur.' est à '.(int) $potion['pv_body'].'/'.(int) $potion['pv_body_max'].' PV'
+            : '';
+
+        return ['texte' => "{$debut} : ".implode(' ; ', $effets).$pv, 'ton' => 'succes'];
     }
 
     /**
@@ -2009,8 +2135,12 @@ final class JournalCombat
     {
         // Fouille de zone : restitue ce qui a été révélé (auparavant muet).
         if (($a['option_id'] ?? null) === 'fouiller') {
+            // ÉCHEC : le jet a raté, donc RIEN n'est établi — la zone peut encore cacher des
+            // pièges ou des passages. ≠ réussite sans trouvaille (ci-dessous), qui dit que la
+            // zone est SÛRE (verdict Jungle 2026-10-10 §3 : « rien » / « rien de suspect »
+            // se lisaient pareil alors que leur sens est opposé).
             if (empty($a['succes'])) {
-                return [['texte' => "{$acteurNom} fouille la zone : rien", 'ton' => 'echec']];
+                return [['texte' => "{$acteurNom} fouille la zone : jet raté — rien n'est révélé (la zone peut encore cacher des pièges ou des passages)", 'ton' => 'echec']];
             }
             $pieges = count($a['pieges_reveles'] ?? []);
             $portes = count($a['portes_revelees'] ?? []);
@@ -2021,7 +2151,7 @@ final class JournalCombat
 
             return [[
                 'texte' => $trouve === []
-                    ? "{$acteurNom} fouille la zone : rien de suspect"
+                    ? "{$acteurNom} fouille la zone : bien cherché — aucun piège ni passage secret ici"
                     : "{$acteurNom} fouille : ".implode(' et ', $trouve).' !',
                 'ton' => 'succes',
             ]];
@@ -2208,8 +2338,10 @@ final class JournalCombat
                 'texte' => "{$acteurNom} trouve ".($a['objet']['nom'] ?? 'un objet'),
                 'ton' => 'tresor',
             ]],
+            // Le FOUILLEUR est nommé : sans lui, « Gobelin surgit du coffre ! » ne dit pas
+            // sur qui il tombe (verdict Jungle 2026-10-10 §1).
             'errant' => [[
-                'texte' => ($a['monstre']['nom'] ?? 'Un monstre').' surgit du coffre !',
+                'texte' => ($a['monstre']['nom'] ?? 'Un monstre')." surgit du coffre que fouille {$acteurNom} !",
                 'ton' => 'subit',
             ]],
             // CAISSE DE RAVITAILLEMENT (Against the Ogre Horde p. 5) : butin
@@ -2234,6 +2366,20 @@ final class JournalCombat
                 default => "{$acteurNom} fouille en vain",
             })],
         };
+
+        // SIXIÈME SENS (Explorateur) : la carte de piège remise sous le paquet. Elle ne se
+        // disait que dans la réponse HTTP (`carte_ecartee`) — ni au fil, ni au rejeu.
+        // ⚠ La branche « errant » ne naît plus : un monstre errant tiré reste tiré
+        // (décision de René, 2026-10-10). Elle reste pour le REJEU — `journal_combat`
+        // relit les `evenements` déjà stockés, qui peuvent porter un
+        // `carte_ecartee = 'errant'` d'avant cette date. La supprimer rebaptiserait
+        // en « carte de piège » un événement qui était bien un errant.
+        if (! empty($a['carte_ecartee'])) {
+            array_unshift($lignes, $this->info(
+                "Sixième sens : {$acteurNom} remet ".($a['carte_ecartee'] === 'errant' ? 'la carte de monstre errant' : 'la carte de piège')
+                .' sous le paquet et en tire une autre',
+            ));
+        }
 
         if (! empty($a['sac_deborde'])) {
             $lignes[] = $this->info('Sac plein : '.($a['objet']['nom'] ?? 'l\'objet').' déborde — à équiper ou à écouler au marché');

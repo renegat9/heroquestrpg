@@ -372,6 +372,9 @@ it('Invisibilité interdit d\'attaquer et rend immunisé à TOUT sort, ami compr
     // la soigner : elle disparaît des cibles légales d'un sort utilitaire.
     $barde = creerHeros($ctx['alice'], $ctx['groupe'], 'Sylvaine', 2, ['classe' => 'elfe']);
     app(MoteurSorts::class)->attacherElement($barde, 'eau'); // Eau de Guérison
+    // Blessés : un soin ne vise que des héros qui ont des PV à récupérer (verdict Jungle 2026-10-10 §2).
+    $barde->update(['pv_body' => max(1, (int) $barde->pv_body_max - 1)]);
+    $heros->update(['pv_body' => max(1, (int) $heros->pv_body_max - 1)]);
     EtatPersonnageQuete::create([
         'quete_id' => $ctx['quete']->id, 'personnage_id' => $barde->id,
         'position_x' => 4, 'position_y' => 3,

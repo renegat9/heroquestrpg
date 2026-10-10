@@ -65,6 +65,9 @@ proposition du MJ. » quand ce n'est pas son tour.
             "objectif_libelle": "phrase sans vocabulaire de jeu | null",
             "objectif_accompli": true,
             "objectif_majeur": false,
+            "sortie": {"ouverte": true, "salle_depart_requise": true, "rassemble": false,
+                       "absents": ["Oriane", "Tamsin"],
+                       "consigne": "Rejoignez la salle de départ pour quitter le donjon — il manque : Oriane, Tamsin.|null"},
             "effets_globaux": [{"source": "Gruulob, Sorcier Gobelin Corrompu", "titre": "Les gobelins de Gruulob",
                                 "texte": "Effet en jeu — Les gobelins de Gruulob : tous les gobelins de cette quête lancent 1 dé d'attaque de plus."}],
             "image_url": "/img/.../....webp|null"} ,
@@ -265,6 +268,63 @@ tour, **lancée une seule fois par tour et mémorisée** (doc 03 §3 : base + 1d
 manette affiche le dé puis une mini-carte tappable des cases accessibles ; le
 choix part en `POST choix {option_id: "se_deplacer", parametres: {x, y}}`, que le
 moteur revalide contre `portee` (réservé re-lancé en repli si absent).
+
+#### `se_deplacer.parametres.destinations` — le serveur publie les cases atteignables (René, 2026-10-10)
+
+`parametres.destinations: [{x, y, cout}]` — **toutes les cases où ce héros peut FINIR son
+déplacement ce tour**, avec ce que chacune lui coûte en POINTS (`cout`, pas un nombre de pas :
+Rivière gelée, sable, toile, jungle). Calculée **une fois par le serveur**, à la génération
+du menu, par `App\Partie\DeplacementHeros::destinations()` — le **même code que la
+résolution** (`FabriqueGrille::pour()` → `Grille::casesAtteignables()` / `parcoursPondere()`,
+le même trajet que l'aperçu, les mêmes refus d'arrêt). Elle remplace le parcours pondéré que
+`DeplacementSheet.vue` refaisait en JS (six dérives de miroir en un mois ; verdict Jungle
+2026-10-10 : un bloc tombé enjambé à l'écran, « 6 points annoncés, 8 payés »). La manette
+**éclaire exactement cette liste** et n'en recalcule rien ; le harnais (`vue.py`) la lit au
+lieu d'interroger `apercu` case par case.
+
+- **Couvre** : terrain pondéré (`cout_deplacement`, levé par `ignore_terrain_entravant`),
+  mobilier et **bloc tombé** (obstacle permanent, `FabriqueGrille`), mur de glace, passage
+  par un **allié** (traversé, jamais but), monstres (barrent, sauf mobilité de combat /
+  Voile de Brume : traversés, jamais but), meuble franchi (Bracers, Spiderstep : traversé,
+  jamais but), mare et brasier (traversés, jamais but), monstre enfumé (idem), portes closes
+  et **embrasure** d'une porte non ouverte, **Traverser la Pierre** (cases de roche CONNUES
+  de la carte, à portée), **reliquat** après un déplacement partiel (la liste se recalcule
+  sur `portee` = points restants à chaque régénération du menu), **détour autour d'un piège
+  CONNU** (le `cout` est celui du trajet que le héros prendra, pas du plus court : même
+  `DeplacementHeros::chemin()` que l'aperçu). Le **Tunnel de glace** publie sa case d'ENTRÉE
+  (la téléportation se joue à l'arrivée, `rep.teleportation`).
+- **C'est la LISTE BLANCHE.** `POST choix {option_id: "se_deplacer", parametres: {x, y}}`
+  est relu par le résolveur contre `DeplacementHeros::destinations()` recalculée sur l'état
+  présent (pas contre le menu en cache) : toute case hors liste est refusée en 422 (« Destination
+  illégale »), sans rien dépenser. `POST deplacement/apercu` **reste** pour le trajet exact et
+  les pièges connus de la case touchée ; il ne décide plus quelles cases éclairer. Il refuse
+  désormais aussi, comme le résolveur, une case occupée par un allié (`atteignable: false`).
+- **Option vide = option absente.** Si la liste est vide (héros encerclé, tout est mur), le
+  menu n'offre pas `se_deplacer` — pas de bouton mort. `destinations` vaut `[]` (jamais
+  `null`) quand le serveur ne peut pas trancher (pas de carte, pas de position, héros à terre).
+- **Ordre** : par ligne puis par colonne, indépendant du parcours.
+- **Taille mesurée** (2026-10-10) : une entrée ≈ 25 octets JSON ; 8 points en grande salle
+  dégagée = 144 cases = 3 583 octets (menu entier : 4,5 Ko).
+- **Cas particulier inchangé** : `s_ecarter_du_bloc` porte déjà sa propre liste blanche
+  (`parametres.cases`, au plus deux), et `se_deplacer_allie` ses `destinations` d'approche
+  (forme différente : `{cle, nom}`, un ADVERSAIRE à approcher et non une case).
+
+⛔ **AUCUNE FUITE D'INFORMATION CACHÉE** (exigence de René, 2026-10-10). La liste ne dit rien
+que le joueur ne sache déjà ; ce qui est caché n'est **ni présent, ni absent, ni plus cher** :
+- un **piège caché** est une case ORDINAIRE — publiée si atteignable, au coût normal, sans
+  champ ni marqueur, et le trajet ne le contourne pas (la forme de la route le trahirait).
+  Seuls les pièges CONNUS (`detecte`, `fosse_ouverte`, `desarme`, `declenche`, `retient` —
+  ceux de `EtatGroupe.carte.pieges`) infléchissent le chemin ;
+- un **passage secret non découvert** est un mur (porte non ouverte, embrasure close — la
+  carte la peint en roche) ;
+- le **brouillard** est un obstacle : toute case que `EtatGroupe::casesConnues()` rend `b`
+  (salle non révélée, couloir derrière une porte close) n'est ni destination, ni passage, ni
+  raccourci de coût. Un monstre caché (non révélé) dans une zone inconnue ne retire donc
+  aucune case et n'en renchérit aucune ;
+- un **faux coffre de Dreadshifter** (monstre caché SOUS un meuble) se refuse comme n'importe
+  quel meuble : `DeplacementHeros::refusArret()` teste le meuble AVANT la figure.
+`DestinationsDeplacementTest` pin ces quatre cas par des cartes jumelles (avec / sans le
+secret : listes **strictement identiques**, et chemin d'`apercu` vers une case au-delà).
 
 #### Unthreatened Movement — sans menace, le dé compte 4 (FL-Q p. 7, First Light, 2026-09-30)
 
@@ -1090,20 +1150,34 @@ départ).
   sur une carte assemblée AVANT ce chantier (campagne EN COURS dans la vraie
   base), ou en repli défensif si la salle de départ ne contenait aucun bloc
   2×2 valide (jamais atteint avec le plancher actuel des tuiles, 2×3 minimum).
-- **On ne quitte le donjon QUE par l'escalier** : `quitter_donjon` n'est
-  offert qu'à un héros **sur une case de l'escalier**, en plus des conditions
-  déjà en vigueur (objectif accompli ou donjon vidé, pas de vote ouvert). Le
-  vote reste celui d'aujourd'hui (majorité simple) ; le groupe sort ensemble
-  dès qu'il passe, quelle que soit la position des autres membres. Décision
-  publiée côté serveur — l'option est présente ou non, le client ne
-  recalcule rien — et re-validée par `ResolveurTour::resoudreQuitterDonjon()`
-  (422 « Il faut se tenir sur l'escalier pour quitter le donjon. »).
+- **On ne quitte le donjon QUE tous réunis dans la SALLE DE DÉPART** (la salle
+  qui contient l'escalier ; décision de René du 2026-10-10 après le verdict
+  Jungle, qui remplace « tous sur l'escalier » du même jour et « un seul sur
+  l'escalier » du 2026-10-05) : `quitter_donjon` n'est offert que lorsque
+  **tous les héros debout** sont dans cette salle, en plus des conditions déjà
+  en vigueur (objectif accompli ou donjon vidé, pas de vote déjà ouvert). Les
+  héros **tombés** (mode Story) ne bloquent pas. Un seul point de passage
+  (`Quete::rassemblementDepart()`, salle trouvée par `Salles::indexDe()`), lu par
+  le menu, par `ResolveurTour::resoudreQuitterDonjon()` (422 « Rejoignez la salle
+  de départ pour quitter le donjon — il manque : … ») et par le payload.
+- **`quete.sortie`** (publié par le serveur, jamais recalculé par le client) :
+  `ouverte` (objectif accompli, ou donjon vidé quand cela suffit),
+  `salle_depart_requise` (`false` sur une carte sans escalier : repli),
+  `rassemble` (tous les héros debout y sont), `absents` (noms des héros debout
+  hors de la salle), `consigne` (phrase prête à afficher, **non nulle seulement
+  si la sortie est ouverte ET que quelqu'un manque** ; la même est ajoutée à la
+  `situation` du menu), `consigne_extraction` (mission « secourir » : « Amenez Gothar sur
+  l'escalier d'entrée. » tant que le captif libéré n'est pas sur l'escalier ; en mode escorté, c'est
+  son porteur). La bannière d'objectif (table ET manette) affiche les deux.
+  ⚠ **Deux vérifications DISTINCTES** (René, 2026-10-10) : les HÉROS n'ont qu'à être tous dans la salle
+  de départ ; la personne à sauver doit, elle, être menée **SUR une case de l'escalier**
+  (`captifLibereEtVivant()` — inchangé).
 - **`battre_en_retraite` reste SANS AUCUNE condition** (René, 2026-08-21,
   inchangé) : décrocher doit rester possible au pire moment, loin de
   l'escalier.
 - **Mission « secourir » = extraction, pas seulement libération**
   (§ ci-dessus) : `Quete::captifLibereEtVivant()` exige désormais que le
-  captif libéré et vivant se tienne **sur l'escalier** — généralise
+  captif libéré et vivant se tienne **sur l'escalier** (inchangé ; René a confirmé le 2026-10-10 de ne PAS l'assouplir en « salle de départ ») — généralise
   « escort » (Frozen Horror p. 19) à une vraie extraction plutôt qu'à la
   seule libération. `objectif_libelle` dit « … et le ramener vivant à
   l'escalier. ». **Mode escorté** (§ ci-dessus) : c'est la position DU
@@ -1183,6 +1257,53 @@ toutes deux sont fermées.
   JAMAIS à un joueur qui rafraîchissait ou arrivait en retard. Un payload
   journalisé à part ET imbriqué dans celui de son parent n'est dit qu'une fois
   (dédoublonnage par contenu).
+- **Ce qui s'ÉCOULE, s'ÉTEINT ou APPARAÎT sans qu'aucune action le retourne** (verdict
+  Jungle 2026-10-10 §1). Le registre couvrait les TYPES d'action, pas les effets de
+  DURÉE : le tic du poison, sa fin, la rupture de « Renforcé » au premier dégât, le
+  sort qui revient, la nouvelle forme d'un boss, son apparition, la clôture d'un vote
+  tombaient sans une ligne. Ils passent désormais par UNE porte,
+  `TamponAnnonces::annoncer($groupe, $payload, $acteur)` : écrit au journal (type
+  d'événement `action`, rejoué par `journal_combat`) ET rendu au fil en direct — rangé
+  dans `resultat.annonces_automatiques` pendant une résolution (`resoudre()` ouvre la
+  fenêtre), diffusé tout de suite (`.combat.journal`) sinon (ouverture de menu, vote,
+  réaction). Chaque payload porte sa phrase DÉCIDÉE par le moteur (`texte`) ; le client
+  ne la recompose pas. Types ajoutés au registre :
+  - `condition_terminee` `{personnage_id, personnage, condition, origine, pourquoi, texte}`
+    (ou `{monstre, instance_id, condition, pourquoi, texte}` pour un monstre) — fin d'un
+    buff (`DureeEffet::libelleFin()` : « rompu : premier dégât subi », « dépensé par son
+    attaque »…) ou d'une condition à durée entière (« prend fin : la durée est écoulée »).
+    Point de passage : `MoteurSorts::retirerBuff()` / `decrementerDurees()` /
+    `decrementerDureesMonstres()`.
+  - `saignement` `{personnage_id, personnage, cause, degats, pv_body_apres, tombe, reste, texte}`
+    — poison, étreinte, rejetons, Chambre forte de glace, en fin de tour
+    (« Tamsin : Empoisonné — −1 PV (5/8, encore 1 tour) »). `degats` = ce que le moteur a
+    RETENU (réductions et réactions comprises).
+  - `sort_regagne` `{personnage_id, personnage, sort, regain, texte}` — `RegainEffet::libelle()`
+    (la Métamorphose revient quand le Body repasse au maximum).
+  - `changement_phase` `{instance_id, nom, phase: {avant, apres, stats}, texte?}` — l'annonce
+    AUTONOME d'un changement de forme (écrite par `MoteurDegats`, pour les appelants qui ne
+    relaient pas `changement_phase`) ; le rejeu l'écarte quand le coup qui l'a provoquée la
+    porte déjà (`JournalCombat::signatureDeDoublon()`).
+  - `reaction_monstre` `{instance_id, nom, mecanique}` — la défense à usage unique, avec le
+    NOM de la créature.
+  - `monstres_reveles` `{boss: [nom], monstres: [nom], texte}` — la salle qui se dévoile
+    (« Gruulob apparaît, entouré de 2 Gobelins ! »).
+  - `vote_resolu` `{vote, option_id, applique, decompte, texte}` — voir §Votes.
+  Le `changement_phase` d'une action porte désormais **`stats`** :
+  `{avant: {attaque, defense}, apres: {attaque, defense, pv_body, pv_body_max}}` (dés
+  EFFECTIFS, effets de quête et sorts compris) ; la ligne devient « X vacille — et se
+  relève sous une autre forme : Y ! (Attaque 3 → 4 dés, défense 4 → 5 dés, Body 3/3) ».
+- **Potions bues** : `resultat.potion` porte `buveur` et `porteur` (noms) et, quand un buff
+  est posé, `effets.buff_texte` (la liste `MotsClesEquipement::avantages()`). Le fil dit
+  « Albrecht boit Fiole de soin : +4 PV de Body (dé 4) — Albrecht est à 6/8 PV »,
+  « …Potion de défense : « Renforcé » : +2 dés de défense, Durée : prochaine défense »,
+  « …Potion d'héroïsme : une seconde attaque ce tour ».
+- **Fouille** : un monstre errant nomme le fouilleur (« Gobelin surgit du coffre que fouille
+  Tamsin ! ») ; `carte_ecartee` (*Sixième sens*) se dit au fil : « Sixième sens : Tamsin remet
+  la carte de piège sous le paquet et en tire une autre ». Seul un **piège** s'écarte (décision
+  de René, 2026-10-10) : un monstre errant tiré reste tiré, sans dépenser la capacité.
+  Un `deplacement` qui porte `pieges_pressentis` (*Sens du piège*) se dit : « Tamsin pressent un piège caché tout près —
+  (x, y) (Sens du piège ; il reste caché) » ; le piège reste `cache` sur la carte.
 - **Nouveaux payloads rendus** (tous dans `tour_monstres.actions` sauf mention) :
   `deplacement_monstre` (« avance de N cases »), `repli_tireur`, `monstre_reveille`
   (**retourné** désormais, devant l'action du réveillé, via `actions_composites` ;
@@ -1229,7 +1350,7 @@ toutes deux sont fermées.
 - **Fouille de zone** : `issue` ne dit plus « réussite » quand rien n'est trouvé —
   voir la décision du même jour plus bas (`reussite` = trouvé, `rien` = recherche
   réussie sans rien trouver, `echec` = jet raté ; `a_trouve` et `succes` inchangés).
-  Le fil dit « rien de suspect ».
+  Le fil dit « bien cherché — aucun piège ni passage secret ici » (réussite sans trouvaille) ou « jet raté — rien n'est révélé (la zone peut encore cacher… ) » (échec) — deux phrases de sens opposé (2026-10-10). Dans `des`, `boucliers` d'un jet de Mind de compétence est désormais le COMPTE des faces gagnantes (crânes), plus un drapeau 0/1.
 - **Levier** : un levier dont toutes les portes sont déjà ouvertes n'est plus
   proposé (`MoteurPortes::levierAOuvrir()`) ; le fil du forçage réussi sans porte
   dit « le passage est déjà ouvert ».
@@ -1450,8 +1571,19 @@ Hors quête, pas de vote : `POST /groupes/{identifiant}/depart` (part du pot
 commun ÷ membres présents).
 
 Broadcasts canal `groupe.{identifiant}` : `.vote.lance` ({vote}), `.vote.maj`
-({decompte, exprimes, attendus}), `.vote.resultat` ({option_id, applique}) puis
+({decompte, exprimes, attendus}), `.vote.resultat` ({option_id, applique, **texte**}) puis
 `.groupe.etat` si l'état a changé.
+
+**Résolution d'un vote — une LIGNE, et elle survit au retour au hub** (verdict Jungle
+2026-10-10 §1). `resultat.texte` est la phrase décidée par `VoteGroupe::annoncerResolution()`
+(« Vote de retraite (0 recommencer, 0 arreter, 3 continuer) : on continue — rien ne change, la
+quête se poursuit » ; « Vote de sortie (3 oui, 0 non) : le groupe quitte le donjon et rentre au
+hub »). Elle est journalisée (`action`, payload `vote_resolu`) et diffusée au fil
+(`.combat.journal`) AVANT d'agir — un « continuer » ne change rien sur le plateau, c'est
+pourquoi il faut le dire. Pour le vote de SORTIE appliqué, le fil de la quête n'est plus lu une
+fois au hub : l'état du hub porte `groupe.vote_sortie` = `{quete_id, texte, decompte, applique}`
+(`null` sinon), borné à la dernière quête achevée comme les autres annonces de fin de quête,
+rendu par `AnnonceHub`.
 
 ## Pièges (doc 10 — tout passe par les menus, pas de nouvel endpoint)
 
@@ -2248,7 +2380,7 @@ nb de nœuds acquis` (dérivé, toujours juste).
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
 | POST | /groupes/{identifiant}/competences | {personnage_id, competence_id} | acquiert une case de la grille (422 : pas son héros, classe différente, prérequis manquant, aucun point) |
-| GET | /api/moi | — | personnages enrichis : `niveau, points_competence, competences: [{id, statut, libelle, raison, cadence}]` (voir ci-dessous) |
+| GET | /api/moi | — | personnages enrichis : `niveau, points_competence, competences: [{id, nom, description, statut, libelle, raison, cadence}]` (voir ci-dessous ; `nom`/`description` ajoutés le 2026-10-10 : une entrée « Disponible » se lit seule) |
 | GET | /api/competences | — | catalogue des grilles : `[{id, classe, nom, description, type, innee, categorie, categorie_icone, colonne, rang, effet, avantage, avantage_icone, prerequis_id}]` |
 
 **La GRILLE de talents** (René, 2026-08-23) — chaque classe a **3 colonnes ×
@@ -2988,6 +3120,12 @@ tranche, jamais l'IA.
 
 **EtatGroupe** : `entites` (héros ET monstres) gagnent
 `conditions: [{nom, duree}]` — la table et la manette affichent les états.
+⚠ **Depuis le 2026-10-10**, une condition de HÉROS porte aussi **`effet_source`** (`string|null`) :
+l'effet PRÉCIS de sa `source` (`sort:Courage`, `potion:…`), relu sur le sort ou l'objet et traduit par
+le serveur (`MoteurSorts::effetLisibleDeSource()` → `MotsClesEquipement::avantages()`, ex. « +2 dé(s)
+d'attaque »). « Renforcé » est la condition par défaut de TOUS les buffs (attaque, défense, relance,
+déplacement doublé) : sa `description` est générique et c'est ce champ qui distingue deux lignes
+« Renforcé ». La fiche l'affiche à côté de `source`.
 ⚠ **Depuis le 2026-10-09**, une condition de HÉROS porte aussi `description` : ce
 que la condition FAIT, tiré du catalogue (`conditions.description`, un texte par
 condition, seedé — « Vaporeux » et « Intangible » n'en avaient aucune, verdict
@@ -3373,11 +3511,14 @@ champs s'ajoutent au payload de **toute** action qui blesse un monstre
 `frapper_entre_monstres`…), toujours présents (même `null`/`false`), comme
 `cible_vaincue` à côté d'eux :
 
-- **`changement_phase`** : `null`, ou `{avant, apres}` — les deux `nom_base`
-  de catalogue (celui de la phase qui vient de finir, celui qu'elle adopte).
-  ⚠ Jamais publié en avance : le client ne connaît la forme suivante qu'au
-  moment où elle vient de jouer (secret de Zargon — « ne pas révéler le
-  second jeu de statistiques »). Rendu : une ligne de journal (`ton: "info"`)
+- **`changement_phase`** : `null`, ou `{avant, apres, stats}` — les deux `nom_base`
+  de catalogue (celui de la phase qui vient de finir, celui qu'elle adopte) et, depuis
+  le 2026-10-10, **`stats`** `{avant: {attaque, defense}, apres: {attaque, defense,
+  pv_body, pv_body_max}}`. ⚠ Jamais publié en avance : le client ne connaît la forme
+  suivante qu'au moment où elle vient de jouer. La règle de table « Zargon ne révèle pas
+  le second jeu de statistiques » (Ogre Horde p. 6) ne tient plus ici : les dés se
+  montrent à chaque jet, et le verdict Jungle a trouvé muet que l'attaque de Gruulob passe
+  de 3 à 4 dés (la scène de table, elle, ne dit toujours que la nouvelle forme). Rendu : une ligne de journal (`ton: "info"`)
   et une scène de table dédiée (`genre: "transformation"`), au-dessus de
   n'importe quel type d'action — jamais une spécificité par type, le même
   patron que les pièges imbriqués (`declenchement`/`pieges_declenches`).
@@ -3470,6 +3611,10 @@ booléennes publiées par le serveur : `entravant` (terrain gênant : sable, toi
 jungle — 2 points de déplacement, `cout_deplacement` vaut déjà 2) et `interdit_arret`
 (Mare, Brasier : on les traverse, on n'y finit pas son mouvement). Le client ne les
 déduit ni du nom ni du coût (la Rivière gelée coûte 2 sans être « gênante »).
+**`carte.terrain[].avantages`** (`string[]`, 2026-10-10) : ce que FAIT la case, en phrases décidées par le
+serveur (`MotsClesTerrain::avantages()`, même traducteur que `/guide`) — « coûte 2 points pour y entrer »,
+« terrain gênant : coûte plus cher à traverser ». La légende l'affiche telle quelle ; le tableau de textes
+local n'est plus qu'un repli. Jamais vide (une case sans effet dit « sans effet à ce jour »).
 
 **`entites[].ignore_terrain_entravant`** (héros, comme `franchit_figures`) : CE héros
 traverse-t-il le terrain gênant sans payer ? Décidé par

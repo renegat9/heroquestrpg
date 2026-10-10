@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\MotsClesTerrain;
 use App\Events\EtapePreparation;
 use App\Http\Controllers\Api\TableController;
 use App\Models\Carte;
@@ -149,6 +150,10 @@ final class EtatGroupe
             $preambuleGroupe['peacekeeper'] = $this->annonceDeQuete($groupe, 'peacekeeper_quete', $derniereQuete);
             // Brassards éveillés par la quête qui vient de finir (Fangwarden Armlet).
             $preambuleGroupe['objets_reveilles'] = $this->annonceDeQuete($groupe, 'objets_reveilles', $derniereQuete);
+            // Le vote de SORTIE qui vient de ramener le groupe au hub : le fil de la quête est
+            // vidé dès le retour, la résolution du vote doit rester lisible ici.
+            $voteSortie = $this->annonceDeQuete($groupe, 'vote_sortie_resolu', $derniereQuete);
+            $preambuleGroupe['vote_sortie'] = ($voteSortie['applique'] ?? false) ? $voteSortie : null;
 
             // Prologue de campagne (prémisse + menace) : exposé au hub pour que
             // l'écran de table l'affiche/le relise — `auto` (true tant qu'aucune
@@ -200,6 +205,12 @@ final class EtatGroupe
                 // rien ne le laissait deviner — un jalon, lui, s'annonce par
                 // son boss.
                 'objectif_majeur' => (bool) $quete->objectif_majeur,
+                // SORTIE — qui manque à l'appel (René, 2026-10-10 : le vote de sortie ne
+                // s'ouvre que si TOUS les héros debout sont dans la salle de départ).
+                // Décision DÉJÀ prise par le serveur (`Quete::rassemblementDepart()`, la
+                // même que celle du menu et du résolveur) : le client affiche `consigne`
+                // et `absents`, il ne compare aucune position.
+                'sortie' => $this->sortie($quete),
                 // EFFETS GLOBAUX de la quête (Gruulob : « All Goblins in this quest… »),
                 // figés au démarrage et publiés DÉCIDÉS (`texte` = la phrase affichée).
                 // Tiennent jusqu'à la fin de la quête, même quand leur source tombe.
@@ -233,6 +244,30 @@ final class EtatGroupe
             // c'était un désagrément ; depuis qu'il porte l'HISTORIQUE DES JETS,
             // c'était perdre la seule trace consultable des dés.
             'journal_combat' => $quete === null ? [] : $this->journalCombat($groupe, $quete),
+        ];
+    }
+
+    /**
+     * Bloc `quete.sortie` : `{ouverte, salle_depart_requise, rassemble, absents[], consigne}`.
+     * `consigne` n'est renseignée que lorsque la sortie est OUVERTE et que des
+     * héros debout n'ont pas rejoint la salle de départ.
+     *
+     * @return array{ouverte: bool, salle_depart_requise: bool, rassemble: bool, absents: list<string>, consigne: string|null, consigne_extraction: string|null}
+     */
+    private function sortie(Quete $quete): array
+    {
+        $ouverte = $quete->sortieDisponible();
+        $r = $quete->rassemblementDepart();
+
+        return [
+            'ouverte' => $ouverte,
+            'salle_depart_requise' => $r['actif'],
+            'rassemble' => $r['rassemble'],
+            'absents' => array_column($r['absents'], 'nom'),
+            'consigne' => $ouverte ? $quete->consigneRassemblement($r) : null,
+            // Mission « secourir » : le captif doit être mené SUR l'escalier (pas seulement
+            // dans la salle de départ — décision de René, 2026-10-10).
+            'consigne_extraction' => $quete->consigneExtraction(),
         ];
     }
 
@@ -361,45 +396,12 @@ final class EtatGroupe
         // passage secret comme un couloir ordinaire. Mesuré sur cinq donjons :
         // 12 à 16 cases inatteignables devenaient visibles — le couloir d'en
         // face, et la salle au bout.
-        $aretes = (array) ($carte->grille['portes'] ?? []);
-        $salles = (array) ($carte->grille['salles'] ?? []);
         $portes = $this->portes($carte);
-        // Une porte vit sur une ARÊTE (x,y,cote) — aucune case 'p' à poser —
-        // mais bloque désormais AUSSI sa case d'EMBRASURE (René, 2026-09-11).
-        $cases = $carte->grille['cases'] ?? [];
-
-        // Passage secret NON TROUVÉ : sa case d'embrasure (`Grille::caseEmbrasure()`,
-        // même règle que le moteur et que `portes()` ci-dessus) se peint en
-        // ROCHE — AVANT le brouillard, pour qu'elle en suive exactement les
-        // mêmes règles d'affichage (silhouette d'un mur qui borde une case
-        // visible, mur qu'un héros touche…). C'est ce qui remplace le
-        // déguisement `etat: 'mur'` posé le 2026-09-10 : la case fait le
-        // travail, `portes()` n'a plus rien à publier pour ce cas (filtré
-        // au-dessus).
-        foreach ($aretes as $arete) {
-            $etatArete = (string) ($arete['etat'] ?? 'ouverte');
-            if ($etatArete === MoteurPortes::ETAT_SECRETE && ! ($arete['revele'] ?? false)) {
-                $embrasure = Grille::caseEmbrasure($arete, $salles);
-                $cases[$embrasure['y']][$embrasure['x']] = 'm';
-            }
-        }
-
-        // Brouillard de guerre (chantier 2) : on ne dévoile que les salles
-        // découvertes et ce qu'on atteint depuis elles par des portes OUVERTES.
-        // Lu EN BASE (§2.16) : la salle 0 (départ) est toujours incluse. Cet
-        // avancement pilote le brouillard, donc les cases que la manette juge
-        // accessibles — le perdre immobilisait tout le groupe.
+        // Les cases CONNUES du groupe (brouillard + passage secret peint en roche) :
+        // `casesConnues()`, point de passage unique — le déplacement du héros
+        // la relit pour ne rien publier qui dépasse ce que cette carte montre.
+        $cases = $this->casesConnues($quete);
         $decouvertes = $quete->sallesDecouvertes();
-        // Positions des héros : un héros VOIT les murs qui le touchent. Sans
-        // ça, un mur non adjacent à une zone déjà visible était renvoyé en `b`,
-        // indiscernable d'un sol inconnu — la manette le proposait comme
-        // destination et le serveur le refusait ensuite (tours perdus).
-        $positionsHeros = $quete->etatsPersonnages()
-            ->whereNotNull('position_x')
-            ->get(['position_x', 'position_y'])
-            ->map(fn ($e) => ['x' => (int) $e->position_x, 'y' => (int) $e->position_y])
-            ->all();
-        $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $aretes, $positionsHeros);
 
         // Ne pas trahir par-dessus le brouillard une porte totalement masquée :
         // on ne garde que celles dont AU MOINS une des deux cases reste visible
@@ -474,6 +476,67 @@ final class EtatGroupe
             'escalier' => $this->escalier($carte, $cases),
             'portes' => $portes,
         ];
+    }
+
+    /**
+     * Les cases de la carte telles que le GROUPE les connaît : la grille réelle,
+     * son passage secret non trouvé peint en roche, puis le brouillard de guerre
+     * (`b` = inconnu). C'est EXACTEMENT ce que `carte()` publie sous `cases` —
+     * extrait pour qu'une seconde lecture (les destinations de déplacement du
+     * héros, `DeplacementHeros`) ne puisse jamais connaître une case que la carte
+     * ne montre pas, ni en ignorer une qu'elle montre : « le serveur publie la
+     * décision » ne doit pas devenir « le serveur publie plus que la carte ».
+     *
+     * @return list<list<string>>
+     */
+    public function casesConnues(Quete $quete): array
+    {
+        $carte = $quete->carte;
+
+        if ($carte === null) {
+            return [];
+        }
+
+        $aretes = (array) ($carte->grille['portes'] ?? []);
+        $salles = (array) ($carte->grille['salles'] ?? []);
+        // Une porte vit sur une ARÊTE (x,y,cote) — aucune case 'p' à poser —
+        // mais bloque désormais AUSSI sa case d'EMBRASURE (René, 2026-09-11).
+        $cases = $carte->grille['cases'] ?? [];
+
+        // Passage secret NON TROUVÉ : sa case d'embrasure (`Grille::caseEmbrasure()`,
+        // même règle que le moteur et que `portes()` ci-dessus) se peint en
+        // ROCHE — AVANT le brouillard, pour qu'elle en suive exactement les
+        // mêmes règles d'affichage (silhouette d'un mur qui borde une case
+        // visible, mur qu'un héros touche…). C'est ce qui remplace le
+        // déguisement `etat: 'mur'` posé le 2026-09-10 : la case fait le
+        // travail, `portes()` n'a plus rien à publier pour ce cas (filtré
+        // au-dessus).
+        foreach ($aretes as $arete) {
+            $etatArete = (string) ($arete['etat'] ?? 'ouverte');
+            if ($etatArete === MoteurPortes::ETAT_SECRETE && ! ($arete['revele'] ?? false)) {
+                $embrasure = Grille::caseEmbrasure($arete, $salles);
+                $cases[$embrasure['y']][$embrasure['x']] = 'm';
+            }
+        }
+
+        // Brouillard de guerre (chantier 2) : on ne dévoile que les salles
+        // découvertes et ce qu'on atteint depuis elles par des portes OUVERTES.
+        // Lu EN BASE (§2.16) : la salle 0 (départ) est toujours incluse. Cet
+        // avancement pilote le brouillard, donc les cases que la manette juge
+        // accessibles — le perdre immobilisait tout le groupe.
+        $decouvertes = $quete->sallesDecouvertes();
+        // Positions des héros : un héros VOIT les murs qui le touchent. Sans
+        // ça, un mur non adjacent à une zone déjà visible était renvoyé en `b`,
+        // indiscernable d'un sol inconnu — la manette le proposait comme
+        // destination et le serveur le refusait ensuite (tours perdus).
+        $positionsHeros = $quete->etatsPersonnages()
+            ->whereNotNull('position_x')
+            ->get(['position_x', 'position_y'])
+            ->map(fn ($e) => ['x' => (int) $e->position_x, 'y' => (int) $e->position_y])
+            ->all();
+        $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $aretes, $positionsHeros);
+
+        return $cases;
     }
 
     /**
@@ -944,6 +1007,10 @@ final class EtatGroupe
                     // Mare ou un Brasier se traverse sans qu'on puisse s'y arrêter.
                     'entravant' => ! empty($type?->effet['entravant']),
                     'interdit_arret' => ! empty($type?->effet['interdit_arret']),
+                    // CE QUE FAIT la case, en phrases (verdict Jungle 2026-10-10 §3 : le terrain
+                    // « entravant » n'avait aucun texte joueur). Même traducteur que `/guide`
+                    // (`MotsClesTerrain::avantages()`) : la légende le lit, elle ne l'écrit plus.
+                    'avantages' => MotsClesTerrain::avantages((array) ($type?->effet ?? []), (int) ($type?->cout_deplacement ?? 1)),
                     'image_url' => app(BibliothequeImages::class)->urlTerrain($type?->id, $type?->nom),
                 ];
             })
@@ -1333,7 +1400,7 @@ final class EtatGroupe
     /**
      * Conditions actives d'un héros (pivot personnage_conditions).
      *
-     * @return list<array{nom: string, duree: int, description: string|null, source: string}>
+     * @return list<array{nom: string, duree: int, description: string|null, source: string, effet_source: string|null}>
      */
     private function conditionsHeros(Personnage $personnage): array
     {
@@ -1361,6 +1428,11 @@ final class EtatGroupe
                 // lisait « Cape des Ombres#221 » sur sa fiche. La sauvegarde, elle,
                 // garde la source ENTIÈRE — c'est elle qui doit pouvoir restaurer.
                 'source' => explode('#', (string) $c->pivot->source, 2)[0],
+                // L'EFFET PRÉCIS de cette source, relu sur le sort ou l'objet (verdict
+                // Jungle 2026-10-10 §3) : « Renforcé » est la condition par défaut de
+                // tous les buffs, sa description reste générique et c'est ce champ qui
+                // dit « +2 dés d'attaque » ou « +2 dés de défense ». `null` si rien à dire.
+                'effet_source' => app(MoteurSorts::class)->effetLisibleDeSource((string) $c->pivot->source),
             ])
             ->values()
             ->all();

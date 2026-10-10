@@ -81,7 +81,7 @@ final class MoteurEpreuves
         foreach ($entrees as $index => $entree) {
             $type = $catalogue[$entree['epreuve_id'] ?? 0] ?? null;
 
-            if ($type === null || self::dejaTentee($entree, $personnageId)) {
+            if ($type === null || self::estEpuisee($entree) || self::dejaTentee($entree, $personnageId)) {
                 continue;
             }
 
@@ -170,6 +170,42 @@ final class MoteurEpreuves
         $description = $carte === null ? null : ($carte->grille['salles'] ?? [])[$salle] ?? null;
 
         return $description !== null && $this->pieges->salleGardeUnPiege($carte, $description);
+    }
+
+    /**
+     * Mécaniques dont la réussite RAMASSE quelque chose de physique, une fois pour
+     * toutes : la bourse sous la dalle, le contenu du compartiment dérobé. Les
+     * autres (soin du groupe, dissipation, désamorçage, Oracle) agissent sur un
+     * ÉTAT, que chaque héros peut avoir à son tour.
+     */
+    public const MECANIQUES_BUTIN_UNIQUE = ['or', 'objet', 'parchemin'];
+
+    /**
+     * Le butin de cette épreuve a-t-il déjà été pris ? (verdict Jungle 2026-10-10 §2 :
+     * « Dalle descellée » reproposée APRÈS sa bourse, le jet réussi disant « rien ne
+     * vient ».) Une dalle descellée ne livre sa bourse qu'à UN héros : la tentative
+     * reste par héros (un ÉCHEC ne ferme rien aux compagnons), mais une RÉUSSITE sur
+     * une mécanique de butin ferme l'épreuve pour tout le monde.
+     *
+     * @param  array<string, mixed>  $entree
+     */
+    public static function estEpuisee(array $entree): bool
+    {
+        return ! empty($entree['epuisee']);
+    }
+
+    /** Ferme l'épreuve pour tous : son butin est pris (état durable, dans la grille de la carte). */
+    public function epuiser(Carte $carte, int $index): void
+    {
+        $grille = $carte->grille;
+
+        if (! isset($grille['epreuves'][$index])) {
+            return;
+        }
+
+        $grille['epreuves'][$index]['epuisee'] = true;
+
+        $carte->update(['grille' => $grille]);
     }
 
     /**

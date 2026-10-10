@@ -3,7 +3,16 @@
 // côté serveur : base + 1d6) et une mini-carte tappable. Le TERRAIN (cases /
 // portes / pièges) est rendu par le socle PARTAGÉ DungeonGrid — le MÊME que
 // l'écran table — pour un rendu identique ; cette feuille n'ajoute que la
-// surbrillance des cases accessibles (BFS) et le tap de destination.
+// surbrillance des cases accessibles et le tap de destination.
+//
+// ⚠ Les cases accessibles ne sont PLUS calculées ici (René, 2026-10-10 : « ça
+// serait plus efficace ainsi »). Cette feuille refaisait en JS un parcours pondéré
+// — mobilier, bloc tombé, alliés traversés, monstres franchis, terrain, embrasures,
+// roche — et a dérivé six fois en un mois (verdict Jungle : un bloc tombé enjambé à
+// l'écran, « 6 points annoncés, 8 payés »). Le serveur publie la DÉCISION :
+// `option.parametres.destinations` = [{x, y, cout}], calculée avec le code même de la
+// résolution, et qui EST la liste blanche que le résolveur re-valide. Ici : on
+// éclaire exactement cette liste, rien d'autre. Aucun parcours, aucun miroir.
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useApi } from '../../composables/useApi';
 import DungeonGrid from '../carte/DungeonGrid.vue';
@@ -33,34 +42,14 @@ const props = defineProps({
     // d'être lancé. Ce composant ne recalcule rien, il affiche ce que le
     // serveur a déjà décidé — même règle que `deAnnule` juste au-dessus.
     sansMenace: { type: Boolean, default: false },
-    // MOBILITÉ DE COMBAT (Rogue) / Voile de Brume : publié par `EtatGroupe`
-    // (`entites[].franchit_figures`, calculé par
-    // `MoteurSorts::mobiliteCombatDisponible()`) — la DÉCISION serveur, pas
-    // un talent/buff que ce composant pourrait deviner lui-même. René,
-    // 2026-09-11 : « la mobilité de combat du Rogue ne permet pas de se
-    // déplacer à travers les ennemis » — le moteur l'autorisait déjà,
-    // c'était CE miroir qui traitait tout monstre comme un mur pour tout le
-    // monde.
-    franchitFigures: { type: Boolean, default: false },
-    // TERRAIN GÊNANT (Jungles of Delthrak p. 4) : CE héros le traverse-t-il sans
-    // payer ses 2 cases ? DÉCISION serveur (`entites[].ignore_terrain_entravant`,
-    // `MoteurSorts::terrainEntravantIgnore()`) — la manette ne devine ni un
-    // talent ni les Bracers of the Wild. Elle ne lève que les cases que le
-    // serveur publie `entravant` : la Rivière gelée garde son coût.
-    ignoreTerrainEntravant: { type: Boolean, default: false },
-    // MOBILIER (Bracers of the Wild, Spiderstep Elixir) : CE héros traverse-t-il les
-    // meubles bloquants, sans s'y arrêter ? DÉCISION serveur
-    // (`entites[].franchit_mobilier`, `MoteurSorts::mobilierFranchi()`) — jamais
-    // déduite ici d'une pièce portée ou d'un buff. Ne lève QUE les meubles : murs
-    // de glace, blocs de pierre et terrain bloquant restent des obstacles.
-    franchitMobilier: { type: Boolean, default: false },
-    // TRAVERSER LA PIERRE (décision de René, 2026-10-09) : CE héros traverse-t-il la
-    // ROCHE ce tour ? DÉCISION serveur (`entites[].traverse_roche`, la même méthode que
-    // le résolveur). Le BFS ci-dessous ne développe pas la roche : avec ce drapeau, une
-    // case de roche ou de sol CONNU devient touchable, et c'est `POST deplacement/apercu`
-    // qui dit si le trajet est possible et s'il traverse la roche (`traverse_roche`).
-    // Jamais une case inconnue : l'aperçu ne doit pas révéler de sol.
-    traverseRoche: { type: Boolean, default: false },
+    /**
+     * LES CASES ATTEIGNABLES, DÉJÀ DÉCIDÉES par le serveur (`option.parametres.destinations`
+     * de `se_deplacer`) — [{x, y, cout}], `cout` en POINTS. C'est la liste blanche : la
+     * manette éclaire ces cases-là et aucune autre (terrain pondéré, bloc tombé, alliés,
+     * monstres, roche d'un héros intangible, reliquat… tout y est déjà). Ne jamais
+     * la compléter ni la filtrer ici.
+     */
+    destinations: { type: Array, default: () => [] },
     /** Code du groupe — sert UNIQUEMENT à demander l'aperçu de trajet au
      *  serveur (`POST deplacement/apercu`). */
     groupe: { type: String, default: '' },
@@ -68,10 +57,10 @@ const props = defineProps({
      * CHUTE DE BLOCS (livret p. 14, 2026-09-24) : liste blanche DÉJÀ DÉCIDÉE
      * par le serveur, `option.parametres.cases` de `s_ecarter_du_bloc` —
      * [{x, y, sens: 'avancer'|'reculer'}], au plus deux entrées. `null` =
-     * mode déplacement ORDINAIRE (allonce + BFS, comportement inchangé).
+     * mode déplacement ORDINAIRE (allonce + `destinations` publiées).
      *
      * ⚠ Non `null` change TROIS choses, jamais plus : les cases proposées
-     * (`accessibles` ci-dessous saute le BFS), l'en-tête (pas de dé à
+     * (`accessibles` lit cette liste plutôt que `destinations`), l'en-tête (pas de dé à
      * annoncer, il n'y en a pas eu) et le bouton de confirmation ne demande
      * plus d'aperçu au serveur — un pas unique déjà validé n'a pas de trajet
      * à prévisualiser. Tout le reste (la mini-carte, le tap, le second tap
@@ -86,276 +75,23 @@ const emit = defineEmits(['deplacer', 'close']);
 const grilleRef = ref(null);
 const cle = (x, y) => `${x},${y}`;
 
-// Portes = CLOISONS (arêtes) : indexées par arête canonique pour bloquer le pas
-// à travers une porte FERMÉE (le rendu du battant est géré par DungeonGrid).
-const cleArete = (x1, y1, x2, y2) => {
-    const a = cle(x1, y1); const b = cle(x2, y2);
-    return a <= b ? `${a}|${b}` : `${b}|${a}`;
-};
-const casesPorte = (p) => (p.cote === 's'
-    ? [{ x: p.x, y: p.y }, { x: p.x, y: p.y + 1 }]
-    : [{ x: p.x, y: p.y }, { x: p.x + 1, y: p.y }]);
-const portesParArete = computed(() => {
-    const m = new Map();
-    for (const p of props.carte.portes ?? []) {
-        const [a, b] = casesPorte(p);
-        m.set(cleArete(a.x, a.y, b.x, b.y), p);
-    }
-    return m;
-});
-const porteFermeeEntre = (x1, y1, x2, y2) => {
-    const p = portesParArete.value.get(cleArete(x1, y1, x2, y2));
-    return !!p && p.etat !== 'ouverte'; // fermee / verrouillee / secrete
-};
-
-// Case d'EMBRASURE d'une porte NON ouverte (René, 2026-09-11 : « la porte
-// doit être centrale à sa case, bloquant l'entrée dans sa case tant qu'elle
-// n'est pas ouverte ») — MIROIR de `Grille::estTraversable()`/`ligneDeVue()`
-// côté serveur, en PLUS de l'arête ci-dessus (`porteFermeeEntre`), pas à sa
-// place : avant ce miroir, le BFS client ne gardait que le pas venu du
-// couloir bloqué, jamais celui venu de l'INTÉRIEUR de la salle — il aurait
-// donc continué à surbrillancer une case que le serveur refuse désormais des
-// deux côtés, un refus sans explication que « le menu ne propose jamais ce
-// que le résolveur refusera » interdit. `p.embrasure` est publiée toute
-// faite par `EtatGroupe::portes()` (`Grille::caseEmbrasure()`) : la dériver
-// une seconde fois ici serait une deuxième copie de cette règle géométrique.
-const embrasuresFermees = computed(() => {
-    const s = new Set();
-    for (const p of props.carte.portes ?? []) {
-        if (p.etat !== 'ouverte' && p.embrasure) s.add(cle(p.embrasure.x, p.embrasure.y));
-    }
-    return s;
-});
-
-// Cases occupées par une AUTRE figurine BLOQUANTE — MÊME règle que le moteur
-// (FabriqueGrille) pour ne jamais bloquer une case que le serveur laisse libre :
-//  - le héros sur sa propre case de départ ne se bloque pas ;
-//  - un héros TOMBÉ s'enjambe (ne bloque pas) ;
-//  - un monstre non-actif (vaincu) a déjà quitté le plateau — filtre défensif.
-// ⚠ DEUX ensembles, et il en faut deux — c'est la règle du plateau : « on peut
-// traverser la case d'un autre héros (pas s'y arrêter), on ne peut jamais
-// partager une case » (LR p. 12, doc 16 §5). Le serveur la tient depuis le
-// 2026-09-04 avec son quatrième jeu de cases (`Grille::$alliees`, opt-in
-// `franchitAllies`) ; ce miroir, lui, fondait tout dans `occupees` et
-// traitait un compagnon comme un mur. Résultat signalé par René en jouant :
-// deux héros dans un couloir se bloquaient encore À L'ÉCRAN alors que le
-// moteur, lui, les laissait passer depuis une semaine.
-//
-// ⚠ C'est la TROISIÈME fois qu'un miroir client dérive d'une règle serveur
-// (après le coût de déplacement pondéré et le calcul des cases atteignables).
-// Tout miroir est une seconde copie de la règle : il ne dérive pas le jour où
-// on l'écrit, il dérive le jour où la règle bouge sans lui.
-//
-// ⚠ QUATRIÈME dérive (René, 2026-09-11 : « la mobilité de combat du Rogue ne
-// permet pas de se déplacer à travers les ennemis »). Un monstre était
-// bloquant SANS CONDITION, alors que le résolveur lève cette barrière pour un
-// héros qui porte le talent `franchit_figures` (Rogue) ou le buff Voile de
-// Brume (`ResolveurTour::resoudreDeplacer()`,
-// `MoteurSorts::mobiliteCombatDisponible()`). Le talent existait côté moteur
-// et restait injouable côté écran : le joueur ne pouvait même pas TAPER la
-// case au-delà d'un monstre. `props.franchitFigures` porte la DÉCISION
-// publiée par `EtatGroupe` — ce composant ne peut pas deviner tout seul si CE
-// héros porte le talent ou le buff.
-const BLOQUANTE = (e) => e.type === 'monstre' && ! props.franchitFigures;
-
-/** Cases où l'on ne peut ni passer ni s'arrêter : les MONSTRES — sauf pour un
- *  héros qui les franchit ce tour-ci (`franchitFigures`), auquel cas ils
- *  rejoignent `alliees` ci-dessous : traversables, jamais une destination. */
-const occupees = computed(() => {
-    const s = new Set();
-    for (const e of props.entites) {
-        if (e.x === props.depart.x && e.y === props.depart.y) continue;
-        if (! BLOQUANTE(e)) continue;
-        if ((e.etat ?? 'actif') !== 'actif' || (e.pv_body ?? 1) <= 0) continue;
-        s.add(cle(e.x, e.y));
-    }
-    return s;
-});
-
-/** Cases TRAVERSABLES mais où l'on ne peut pas S'ARRÊTER : héros, alliés,
- *  mercenaires — tout ce qui n'est pas un monstre BLOQUANT (voir `BLOQUANTE`
- *  ci-dessus : un monstre y tombe aussi quand `franchitFigures` est vrai).
- *  Un héros à terre ne compte pas : il n'occupe plus sa case comme obstacle. */
-const alliees = computed(() => {
-    const s = new Set();
-    for (const e of props.entites) {
-        if (e.x === props.depart.x && e.y === props.depart.y) continue;
-        if (BLOQUANTE(e)) continue;
-        if (e.type === 'heros' && e.tombe) continue;
-        if (e.type === 'monstre' && ((e.etat ?? 'actif') !== 'actif' || (e.pv_body ?? 1) <= 0)) continue;
-        s.add(cle(e.x, e.y));
-    }
-    return s;
-});
-
-// Mobilier bloquant le MOUVEMENT (doc 17) : même occupation que côté serveur
-// (FabriqueGrille::pour(), seule source de vérité — ceci n'en est qu'un
-// MIROIR côté client, le serveur revalide toujours le déplacement choisi).
-// Cases distinctes de `occupees` (pas une figurine) : DungeonGrid dessine déjà
-// le meuble lui-même, cette liste ne sert qu'à couper le BFS d'accessibilité.
-// `bloque_vue` (une bibliothèque coupe la vue mais une table non) n'entre PAS
-// dans ce calcul : la ligne de vue n'est pas ce que le BFS de déplacement mesure.
-// ⚠ QUATRE sources pour UN seul jeu de cases, exactement comme `$obstacles`
-// côté serveur (`FabriqueGrille::pour()`) : le mobilier bloquant, le terrain
-// bloquant, les MURS DE GLACE posés en cours de quête par le sort du boss
-// (`carte.glace`, doc 18 §4), et depuis le 2026-09-24 le BLOC PERMANENT d'une
-// Chute de blocs déclenchée (`carte.pieges[].etat === 'bloc'`, livret p. 14).
-// Le mur de glace manquait ici — et n'était dessiné nulle part — alors qu'il
-// barre bel et bien la case côté moteur : la manette proposait une
-// destination derrière un mur invisible, que le serveur refusait ensuite
-// (René, 2026-09-17). Le bloc de pierre aurait répété EXACTEMENT ce défaut :
-// `DungeonGrid` le dessine bien (le piège est publié, l'icône est distincte),
-// mais sans cette entrée le BFS d'accessibilité l'aurait ignoré et aurait
-// surbrillancé — et laissé taper — une case que `FabriqueGrille::pour()`
-// bloque désormais. Le terrain bloquant est ajouté par prévention : aucun
-// terrain du catalogue ne bloque à ce jour, mais le drapeau est publié et le
-// moteur le lit — le miroir ne doit pas attendre le premier qui bloquera.
-const meublesBloquants = computed(() => {
-    const s = new Set();
-    for (const m of props.carte.mobilier ?? []) {
-        if (m.bloque_mouvement === false) continue;
-        for (let dy = 0; dy < Math.max(1, m.h ?? 1); dy++) {
-            for (let dx = 0; dx < Math.max(1, m.l ?? 1); dx++) {
-                s.add(cle(m.x + dx, m.y + dy));
-            }
-        }
-    }
-    return s;
-});
-
-const mobilierOccupe = computed(() => {
-    const s = new Set();
-    // Un meuble traversé (`franchitMobilier`) n'est PAS un obstacle ici : il passe
-    // dans `meublesTraverses` (passage sans arrêt), comme côté serveur
-    // (`Grille::franchirMobilier()`).
-    if (! props.franchitMobilier) {
-        for (const k of meublesBloquants.value) s.add(k);
-    }
-    for (const t of props.carte.terrain ?? []) {
-        if (t.bloque_mouvement) s.add(cle(t.x, t.y));
-    }
-    for (const g of props.carte.glace ?? []) {
-        s.add(cle(g.x, g.y));
-    }
-    for (const p of props.carte.pieges ?? []) {
-        if (p.etat === 'bloc') s.add(cle(p.x, p.y));
-    }
-    return s;
-});
-
-// Coût de déplacement du TERRAIN (doc 18 §4 — Rivière gelée : 2 points pour
-// ENTRER dans la case, au lieu de 1) — MIROIR de `Terrain::cout_deplacement`,
-// déjà publié par `EtatGroupe::terrain()` mais jusqu'ici jamais lu ici : le
-// BFS d'accessibilité comptait chaque case pour 1, quel que soit son coût
-// réel, et pouvait donc surbrillancer une case que le serveur refusait
-// ensuite — exactement l'« effet que rien n'annonce » que CLAUDE.md proscrit.
-const coutParCase = computed(() => {
-    const m = {};
-    for (const t of props.carte.terrain ?? []) {
-        // Terrain gênant ignoré par CE héros : décision serveur, appliquée telle quelle.
-        m[cle(t.x, t.y)] = t.entravant && props.ignoreTerrainEntravant ? 1 : Math.max(1, t.cout_deplacement ?? 1);
-    }
-    return m;
-});
-
-// MARE, BRASIER (`interdit_arret`, publié par le serveur) : traversables, jamais
-// une DESTINATION — comme la case d'un allié (`alliees`), sans en être une figure.
-const sansArret = computed(() => {
-    const s = new Set();
-    for (const t of props.carte.terrain ?? []) {
-        if (t.interdit_arret) s.add(cle(t.x, t.y));
-    }
-    // Meubles traversés : on passe, on ne finit pas dessus.
-    if (props.franchitMobilier) {
-        for (const k of meublesBloquants.value) s.add(k);
-    }
-    return s;
-});
-const coutDe = (x, y) => coutParCase.value[cle(x, y)] ?? 1;
-
-// Cases accessibles dans le budget de points `portee` — parcours PONDÉRÉ
-// (Dijkstra), MIROIR de `Grille::casesAtteignables()` (doc 18 §4, plan glace
-// §2) : chaque pas coûte `coutDe()` de la case d'ARRIVÉE, pas 1 uniformément.
-// ⚠ Sert UNIQUEMENT à choisir une DESTINATION (surbrillance + tap) — le
-// serveur revalide de toute façon chaque déplacement, coût compris.
-//
-// CHUTE DE BLOCS (`casesEcart`) : AUCUN BFS ici — la liste blanche vient déjà
-// DÉCIDÉE par le serveur (`option.parametres.cases`), et la reconstruire par
-// un second calcul serait exactement la « seconde copie d'une règle serveur »
-// que ce fichier dénonce déjà trois fois plus haut pour l'occupation, le
-// coût de terrain et la mobilité de combat.
+// CASES ÉCLAIRÉES = exactement la liste publiée par le serveur. `casesEcart`
+// (chute de blocs) est l'autre liste blanche déjà décidée, de même nature :
+// au plus deux cases `{x, y, sens}`. Aucune des deux n'est recalculée ici.
 const accessibles = computed(() => {
     if (props.casesEcart) {
         return new Set(props.casesEcart.map((c) => cle(c.x, c.y)));
     }
 
-    const { largeur: w, hauteur: h, cases } = props.carte;
-    const dist = { [cle(props.depart.x, props.depart.y)]: 0 };
-    const out = new Set();
-    // File de priorité par scan linéaire : la zone qu'un déplacement de héros
-    // peut explorer tient en quelques dizaines de cases (bornée par `portee`
-    // ET par le brouillard) — pas besoin d'un tas pour rester instantané.
-    let frontiere = [{ x: props.depart.x, y: props.depart.y, d: 0 }];
-    while (frontiere.length) {
-        let iMin = 0;
-        for (let i = 1; i < frontiere.length; i++) {
-            if (frontiere[i].d < frontiere[iMin].d) iMin = i;
-        }
-        const { x, y, d } = frontiere.splice(iMin, 1)[0];
-        if (d > (dist[cle(x, y)] ?? Infinity)) continue; // entrée dépassée (suppression paresseuse)
-        for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
-            const nx = x + dx; const ny = y + dy;
-            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-            const k = cle(nx, ny);
-            if (porteFermeeEntre(x, y, nx, ny)) continue;  // on ne traverse pas une porte fermée
-            const porteOuverteIci = portesParArete.value.get(cleArete(x, y, nx, ny))?.etat === 'ouverte';
-            const caseConnue = cases?.[ny]?.[nx] === 's';
-            // Sol déjà connu, OU porte OUVERTE sur l'arête franchie : le brouillard
-            // masque l'intérieur d'une salle tant qu'on n'y est pas entré, mais une
-            // porte ouverte GARANTIT du sol juste derrière (une porte ne sépare
-            // jamais que deux cases de sol) — on peut donc continuer son
-            // mouvement à travers une porte qu'on vient d'ouvrir, comme le
-            // permet le moteur serveur (docs/contrat-api.md : « on l'ouvre et on
-            // poursuit son mouvement s'il reste des points »).
-            // Filet de sécurité (§2.16) : une case VOISINE IMMÉDIATE du héros
-            // reste proposée même si la carte connue est incomplète. Sans lui,
-            // une carte partielle rendait `accessibles` VIDE et le héros ne
-            // pouvait plus bouger du tout — constaté en partie réelle, tout le
-            // groupe figé sur place avec un message parlant d'un blocage
-            // tactique. La cause serveur est corrigée par ailleurs, mais le
-            // client ne doit pas être un point de défaillance unique : le
-            // moteur revalide de toute façon chaque déplacement.
-            const voisinImmediat = d === 0 && (cases?.[ny]?.[nx] ?? 'b') !== 'm';
-            if (!caseConnue && !porteOuverteIci && !voisinImmediat) continue;
-            if (occupees.value.has(k) || mobilierOccupe.value.has(k)) continue;
-            if (embrasuresFermees.value.has(k)) continue; // case d'embrasure close : inoccupable
-
-            const nd = d + coutDe(nx, ny);
-            if (nd > props.portee) continue; // hors budget : jamais une destination possible
-            if (nd < (dist[k] ?? Infinity)) {
-                dist[k] = nd;
-                // ⚠ Une case d'ALLIÉ se TRAVERSE mais n'est jamais une
-                // DESTINATION (LR p. 12 : « pas s'y arrêter », et « on ne peut
-                // jamais partager une case »). On l'ajoute donc à la frontière
-                // — sinon tout ce qui est derrière un compagnon reste
-                // inatteignable à l'écran — mais PAS à `out`, sinon le joueur
-                // taperait une case que le serveur refusera.
-                if (! alliees.value.has(k) && ! sansArret.value.has(k)) out.add(k);
-                // Ne PAS étendre au-delà d'une case encore dans le brouillard :
-                // on ignore ce qu'il y a plus loin tant que le serveur n'a pas
-                // révélé la salle (prochain état, après ce déplacement).
-                if (caseConnue) frontiere.push({ x: nx, y: ny, d: nd });
-            }
-        }
-    }
-    return out;
+    return new Set(props.destinations.map((d) => cle(d.x, d.y)));
 });
 
 /** Rendu d'une figure présente sur une case : 'monstre' (icône dédiée) sauf
  *  pour un allié — hérité, mercenaire, ou monstre enrôlé par la Baguette d'Os
  *  (`controle_par`), qui n'est plus un ennemi ce tour-ci et se peint comme sur
- *  la table — ou pour un monstre devenu traversable (`franchitFigures`) : il
- *  reste un MONSTRE à l'écran, seule sa capacité à bloquer a changé. */
+ *  la table. Un monstre que ce héros peut franchir (mobilité de combat) reste un
+ *  MONSTRE à l'écran : seule sa capacité à bloquer a changé, et le serveur l'a déjà
+ *  tranchée dans `destinations`. */
 function silhouetteDe(x, y) {
     const ent = occupantDe(x, y);
     return (ent?.type === 'monstre' && ! ent?.controle_par) ? 'monstre' : 'allie';
@@ -363,26 +99,17 @@ function silhouetteDe(x, y) {
 
 // Surcouche par case (au-dessus du terrain rendu par DungeonGrid) : départ,
 // occupant (monstre/allié) ou case accessible ; null = terrain nu.
+// Les occupants ne servent qu'au DESSIN : qui bloque, qui se traverse, se décide
+// côté serveur et se lit dans `destinations` (une case occupée n'y figure jamais).
 function surcouche(x, y) {
     if (x === props.depart.x && y === props.depart.y) return 'depart';
-    const k = cle(x, y);
-    if (occupees.value.has(k)) return silhouetteDe(x, y);
-    // ⚠ Les ALLIÉS ont leur propre ensemble depuis qu'on peut les traverser
-    // (2026-09-11) — et un monstre qu'un Rogue/Voile de Brume franchit y
-    // tombe aussi désormais (`BLOQUANTE`, plus haut) : ne tester que
-    // `occupees` les rendait INVISIBLES sur la carte (ni couleur, ni glyphe,
-    // une figure devenue sol nu), et un test qui rendait tout `alliees`
-    // comme 'allie' sans condition aurait peint un monstre traversable en
-    // pastille de compagnon — silhouette FAUSSE pour une figure qui reste un
-    // ennemi. Ils ne sont pas non plus dans `accessibles` — on les traverse,
-    // on ne s'y arrête pas — donc sans ce test ils ne retombent sur rien.
-    if (alliees.value.has(k)) return silhouetteDe(x, y);
+    if (occupantDe(x, y)) return silhouetteDe(x, y);
     // Trajet prévu : la case VISÉE d'abord (elle est aussi dans le chemin), puis
     // les cases traversées — elles restent accessibles, on ne fait que dire
     // « le héros passera par là ».
     if (viseeSur(x, y)) return 'visee';
-    if (casesTrajet.value.has(k)) return 'trajet';
-    return accessibles.value.has(k) ? 'accessible' : null;
+    if (casesTrajet.value.has(cle(x, y))) return 'trajet';
+    return accessibles.value.has(cle(x, y)) ? 'accessible' : null;
 }
 
 /** L'entité debout sur cette case, s'il y en a une. */
@@ -450,17 +177,8 @@ function viseeSur(x, y) {
     return apercu.value !== null && apercu.value.x === x && apercu.value.y === y;
 }
 
-/** Case visable hors du BFS, par la seule voie de l'aperçu serveur : un héros qui
- *  traverse la roche (décision serveur), pour une case CONNUE (le brouillard ne
- *  doit rien révéler), hors visée de chute de blocs (liste blanche décidée). */
-function visableParLaRoche(x, y) {
-    if (! props.traverseRoche || props.casesEcart) return false;
-
-    return (props.carte.cases?.[y]?.[x] ?? 'b') !== 'b';
-}
-
 async function toucher(x, y) {
-    if (! accessibles.value.has(cle(x, y)) && ! visableParLaRoche(x, y)) return;
+    if (! accessibles.value.has(cle(x, y))) return;
 
     // Second tap sur la MÊME case : c'est la confirmation.
     if (viseeSur(x, y)) {
@@ -630,11 +348,9 @@ onMounted(async () => {
                 <MSym n="warning" :size="14" /> Avancer peut t'isoler du reste du groupe — reculer te ramène à ta case de départ.
             </p>
 
-            <!-- Un héros qui traverse la roche peut viser une case que le BFS local ne
-                 développe pas : « éclairée » ne dit plus rien à lui seul. -->
-            <p v-if="(accessibles.size || traverseRoche) && ! apercu" class="dep-hint">
+            <p v-if="accessibles.size && ! apercu" class="dep-hint">
                 <MSym n="touch_app" :size="14" />
-                {{ casesEcart ? 'Touche une case éclairée pour t\'écarter' : (accessibles.size ? 'Touche une case éclairée pour voir le trajet' : 'Touche une case connue (la roche se traverse ce tour) pour voir le trajet') }}
+                {{ casesEcart ? 'Touche une case éclairée pour t\'écarter' : 'Touche une case éclairée pour voir le trajet' }}
             </p>
 
             <!-- APERÇU : le trajet EXACT rendu par le serveur, à confirmer. Les
@@ -665,7 +381,7 @@ onMounted(async () => {
                     @click="confirmer"
                 ><MSym n="directions_walk" :size="16" fill /> {{ casesEcart ? "S'écarter" : 'Y aller' }}</button>
             </div>
-            <p v-else-if="! traverseRoche" class="dep-hint dep-hint-bloque"><MSym n="block" :size="14" /> Aucune case accessible — tu es bloqué. Ferme et termine ton tour.</p>
+            <p v-else class="dep-hint dep-hint-bloque"><MSym n="block" :size="14" /> Aucune case accessible — tu es bloqué. Ferme et termine ton tour.</p>
 
             <div class="dep-carte">
                 <div ref="grilleRef" class="dep-scroll" @scroll.passive="mesurer">

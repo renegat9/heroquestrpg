@@ -8,6 +8,7 @@ use App\Models\GabaritQuete;
 use App\Models\Quete;
 use App\Partie\AssembleurCarte;
 use App\Partie\Grille;
+use App\Partie\Salles;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\PiegeSeeder;
@@ -144,7 +145,45 @@ it('EtatGroupe publie carte.escalier — mêmes cases que Carte::casesEscalier()
     expect($cases)->toEqualCanonicalizing($attendu);
 });
 
-it('« quitter le donjon » n\'est offert qu\'à un héros SUR une case de l\'escalier', function () {
+/**
+ * Une case hors de la salle de départ (centre d'une autre salle) — calculée
+ * depuis les rectangles, jamais supposée.
+ *
+ * @return array{x: int, y: int}
+ */
+function caseHorsSalleDepart(Quete $quete): array
+{
+    $depart = $quete->carte->salleDepart();
+
+    foreach ($quete->carte->grille['salles'] as $i => $salle) {
+        if ($i !== $depart) {
+            return ['x' => (int) $salle['x'] + intdiv((int) $salle['largeur'], 2), 'y' => (int) $salle['y'] + intdiv((int) $salle['hauteur'], 2)];
+        }
+    }
+
+    throw new RuntimeException('Carte à une seule salle — scénario de test invalide.');
+}
+
+it('la salle de départ est celle qui contient l\'escalier (Salles::indexDe)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $carte = Quete::findOrFail($groupe->fresh()->quete_courante_id)->carte;
+
+    $e = $carte->casesEscalier()[0];
+    expect($carte->salleDepart())->toBe(Salles::indexDe($carte->grille['salles'], $e['x'], $e['y']))
+        ->and($carte->dansSalleDepart($e['x'], $e['y']))->toBeTrue()
+        ->and($carte->dansSalleDepart(null, null))->toBeFalse();
+});
+
+it('« quitter le donjon » est offert quand TOUS les héros debout sont dans la salle de départ — pas forcément sur l\'escalier', function () {
+    // ⚠ DIVERGENCE DÉLIBÉRÉE avec les règles officielles — décision de René du
+    // 2026-10-10, qu'il ACCEPTE : dans le livret, chaque héros quitte le donjon en
+    // marchant sur l'escalier ; chez nous, tous les héros debout dans la SALLE DE
+    // DÉPART suffisent (hors escalier compris), puis le groupe vote. Ce test épingle
+    // cette divergence : ne pas le « corriger » vers la règle du livret.
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
@@ -153,24 +192,37 @@ it('« quitter le donjon » n\'est offert qu\'à un héros SUR une case de l\'es
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
 
     // Donjon vidé : le filet anti-blocage suffit à satisfaire l'objectif —
-    // seule la garde de l'escalier reste à observer.
+    // seule la garde de la salle de départ reste à observer.
     $quete->instancesMonstres()->update(['etat' => 'vaincu']);
 
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
 
-    $horsEscalier = caseSalle0HorsEscalier($quete);
-    $etat->update(['position_x' => $horsEscalier['x'], 'position_y' => $horsEscalier['y']]);
+    // Hors de la salle de départ : l'option disparaît et la situation dit où aller.
+    $loin = caseHorsSalleDepart($quete);
+    $etat->update(['position_x' => $loin['x'], 'position_y' => $loin['y']]);
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
-    $ids = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])->pluck('id');
-    expect($ids)->not->toContain('quitter_donjon');
+    $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
+    expect(collect($menu['options'])->pluck('id'))->not->toContain('quitter_donjon')
+        ->and($menu['situation'])->toContain('Rejoignez la salle de départ')->toContain('Albrecht');
 
-    $escalier = $quete->carte->casesEscalier()[0];
-    $etat->update(['position_x' => $escalier['x'], 'position_y' => $escalier['y']]);
+    $sortie = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('quete.sortie');
+    expect($sortie['ouverte'])->toBeTrue()
+        ->and($sortie['rassemble'])->toBeFalse()
+        ->and($sortie['absents'])->toBe(['Albrecht'])
+        ->and($sortie['consigne'])->toContain('Rejoignez la salle de départ');
+
+    // Dans la salle de départ, HORS escalier : suffisant.
+    $dedans = caseSalle0HorsEscalier($quete);
+    $etat->update(['position_x' => $dedans['x'], 'position_y' => $dedans['y']]);
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
-    $ids = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])->pluck('id');
-    expect($ids)->toContain('quitter_donjon');
+    $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
+    expect(collect($menu['options'])->pluck('id'))->toContain('quitter_donjon')
+        ->and($menu['situation'])->not->toContain('Rejoignez');
+
+    $sortie = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('quete.sortie');
+    expect($sortie['rassemble'])->toBeTrue()->and($sortie['absents'])->toBe([])->and($sortie['consigne'])->toBeNull();
 
     // Et il s'y résout normalement : ouvre le vote de sortie.
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'quitter_donjon'])
@@ -178,7 +230,33 @@ it('« quitter le donjon » n\'est offert qu\'à un héros SUR une case de l\'es
         ->assertJsonPath('resultat.type', 'sortie');
 });
 
-it('le résolveur refuse « quitter le donjon » si le héros n\'est plus sur l\'escalier — menu périmé', function () {
+it('un héros TOMBÉ ne bloque pas la sortie, un héros debout hors de la salle de départ la bloque', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $h1 = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $h2 = creerHeros($alice, $groupe, 'Brunhild', 2);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $dedans = caseSalle0HorsEscalier($quete);
+    $loin = caseHorsSalleDepart($quete);
+
+    $e1 = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $h1->id)->firstOrFail();
+    $e2 = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $h2->id)->firstOrFail();
+    $e1->update(['position_x' => $dedans['x'], 'position_y' => $dedans['y'], 'tombe' => false]);
+    $e2->update(['position_x' => $loin['x'], 'position_y' => $loin['y'], 'tombe' => false]);
+
+    $r = $quete->fresh()->rassemblementDepart();
+    expect($r['actif'])->toBeTrue()->and($r['rassemble'])->toBeFalse()
+        ->and(array_column($r['absents'], 'nom'))->toBe(['Brunhild']);
+
+    // Tombé (mode Story) : il ne compte plus.
+    $e2->update(['tombe' => true]);
+    $r = $quete->fresh()->rassemblementDepart();
+    expect($r['rassemble'])->toBeTrue()->and($r['absents'])->toBe([]);
+});
+
+it('le résolveur refuse « quitter le donjon » si un héros debout n\'est pas dans la salle de départ — menu périmé', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
@@ -189,18 +267,16 @@ it('le résolveur refuse « quitter le donjon » si le héros n\'est plus sur l\
 
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
 
-    // Sur l'escalier au moment où le menu est construit — l'option y figure.
-    $escalier = $quete->carte->casesEscalier()[0];
-    $etat->update(['position_x' => $escalier['x'], 'position_y' => $escalier['y']]);
+    // Dans la salle de départ au moment où le menu est construit — l'option y figure.
+    $dedans = caseSalle0HorsEscalier($quete);
+    $etat->update(['position_x' => $dedans['x'], 'position_y' => $dedans['y']]);
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
     $ids = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])->pluck('id');
     expect($ids)->toContain('quitter_donjon');
 
-    // Il s'éloigne ENTRE-TEMPS (le menu en cache, lui, n'est pas régénéré —
-    // exactement le scénario que « refuse de libérer un captif hors de
-    // contact » couvre déjà pour la mission « secourir »).
-    $horsEscalier = caseSalle0HorsEscalier($quete);
-    $etat->update(['position_x' => $horsEscalier['x'], 'position_y' => $horsEscalier['y']]);
+    // Il s'éloigne ENTRE-TEMPS (le menu en cache, lui, n'est pas régénéré).
+    $loin = caseHorsSalleDepart($quete);
+    $etat->update(['position_x' => $loin['x'], 'position_y' => $loin['y']]);
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'quitter_donjon'])
         ->assertStatus(422);

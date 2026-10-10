@@ -15,6 +15,7 @@ use App\Partie\ClotureCampagne;
 use App\Partie\EtatGroupe;
 use App\Partie\ResolveurTour;
 use App\Partie\Sauvegarde;
+use App\Partie\TamponAnnonces;
 use App\Support\Journal;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -430,6 +431,8 @@ final class VoteGroupe
 
             $part = $applique ? $this->retirerJoueur($groupe, (int) $vote['cible_joueur_id']) : null;
 
+            $resultat['texte'] = $this->annoncerResolution($groupe, $vote, $resultat, $decompte);
+
             Journal::ajouter($groupe->fresh(), 'systeme', [
                 'action' => 'vote_resultat',
                 'type' => $vote['type'],
@@ -471,6 +474,10 @@ final class VoteGroupe
             }
 
             $resultat = ['option_id' => $choix, 'applique' => $choix !== 'continuer'];
+
+            // La résolution a une LIGNE au fil, que le vote soit appliqué ou non — « on continue »
+            // ne change rien sur le plateau, et c'est justement pour cela qu'il faut le dire.
+            $resultat['texte'] = $this->annoncerResolution($groupe, $vote, $resultat, $decompte);
 
             // ⚠ TOUT SE DIT AVANT D'AGIR, et l'ordre n'est pas cosmétique :
             // `redemarrerQuete()` restaure un snapshot et
@@ -521,6 +528,20 @@ final class VoteGroupe
             $resultat = ['option_id' => $applique ? 'oui' : 'non', 'applique' => $applique];
 
             $quete = $groupe->queteCourante;
+
+            // Dite AVANT `terminerQuete()` : après lui il n'y a plus de quête courante, le fil
+            // de la quête n'est plus lu (retour au hub) et la ligne se perdrait. Le hub la relit
+            // par `groupe.vote_sortie` (`EtatGroupe`), bornée à la dernière quête achevée.
+            $queteId = $quete?->id;
+            $resultat['texte'] = $this->annoncerResolution($groupe, $vote, $resultat, $decompte);
+            Journal::ajouter($groupe, 'systeme', [
+                'action' => 'vote_sortie_resolu',
+                'quete_id' => $queteId,
+                'texte' => $resultat['texte'],
+                'decompte' => $decompte,
+                'applique' => $applique,
+            ]);
+
             if ($applique && $quete !== null) {
                 $resultat['quete'] = app(ResolveurTour::class)->terminerQuete($groupe, $quete);
             }
@@ -547,6 +568,7 @@ final class VoteGroupe
         $gagnante = (string) array_search($max, $decompte, true);
 
         $resultat = ['option_id' => $gagnante, 'applique' => true];
+        $resultat['texte'] = $this->annoncerResolution($groupe, $vote, $resultat, $decompte);
 
         Journal::ajouter($groupe, 'systeme', [
             'action' => 'vote_resultat',
@@ -559,6 +581,53 @@ final class VoteGroupe
         broadcast(new VoteResultat($groupe, $resultat));
 
         return $resultat;
+    }
+
+    /**
+     * LA PHRASE d'une résolution de vote — décidée ICI, jamais re-dérivée par un client —
+     * et sa diffusion : journal (rejeu) + fil en direct (`TamponAnnonces::annoncer()`).
+     *
+     * Aucune des quatre issues n'avait de ligne : un « continuer » qui ne change rien, une
+     * sortie votée, un joueur retiré passaient sans un mot (verdict Jungle 2026-10-10 §1).
+     *
+     * @param  array<string, mixed>  $vote
+     * @param  array<string, mixed>  $resultat  `{option_id, applique}`
+     * @param  array<string, int>  $decompte
+     */
+    private function annoncerResolution(Groupe $groupe, array $vote, array $resultat, array $decompte): string
+    {
+        $detail = implode(', ', array_map(
+            fn (string $id, int $n) => "{$n} {$id}",
+            array_keys($decompte), array_values($decompte),
+        ));
+        $libelle = (string) (collect($vote['options'] ?? [])->firstWhere('id', $resultat['option_id'])['libelle'] ?? $resultat['option_id']);
+        $applique = (bool) $resultat['applique'];
+
+        $texte = match ($vote['type']) {
+            self::TYPE_RETRAITE => match ($resultat['option_id']) {
+                'recommencer' => "Vote de retraite ({$detail}) : le groupe recommence la quête depuis le début",
+                'arreter' => "Vote de retraite ({$detail}) : le groupe arrête la campagne ici",
+                default => "Vote de retraite ({$detail}) : on continue — rien ne change, la quête se poursuit",
+            },
+            self::TYPE_SORTIE => $applique
+                ? "Vote de sortie ({$detail}) : le groupe quitte le donjon et rentre au hub"
+                : "Vote de sortie ({$detail}) : on reste au donjon — la quête se poursuit",
+            'retrait_joueur' => $applique
+                ? "Vote de retrait ({$detail}) : le joueur est retiré du groupe"
+                : "Vote de retrait ({$detail}) : le joueur reste dans le groupe",
+            default => 'Vote « '.($vote['question'] ?? 'du groupe')." » ({$detail}) : {$libelle}",
+        };
+
+        app(TamponAnnonces::class)->annoncer($groupe, [
+            'type' => 'vote_resolu',
+            'vote' => $vote['type'],
+            'option_id' => $resultat['option_id'],
+            'applique' => $applique,
+            'decompte' => $decompte,
+            'texte' => $texte,
+        ]);
+
+        return $texte;
     }
 
     /**

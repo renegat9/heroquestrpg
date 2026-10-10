@@ -289,6 +289,8 @@ commune », Cotte de mailles 500 « rare » et Brassards 550 non. Seuls les
   (« remets-la sous le paquet et tire-en une autre »), pas du deck ; sur une
   table pondérée, repiocher c'est la relancer. Ne pas le rebrancher l'aurait
   raboté en silence au moment même où les meubles devenaient dangereux.
+  Il ne vise que le **piège** (décision de René, 2026-10-10 : un monstre errant
+  n'est pas un « hazard »), comme sur la fouille de salle.
 
 ### Piège de meuble : un cas à part de la fouille
 

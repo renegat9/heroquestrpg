@@ -321,6 +321,9 @@ class MoteurPotions
         // est un effet qui dure.
         if (isset($effet['duree'])) {
             $applique['buff'] = $this->sorts->appliquerBuffPotion($buveur, $objet)->nom;
+            // Ce que le buff FAIT, en clair (`MotsClesEquipement::avantages()`, le vocabulaire
+            // de la fiche) : « Renforcé » seul ne dit ni les dés ni la durée.
+            $applique['buff_texte'] = MotsClesEquipement::avantages($effet);
         }
 
         // Potion de vitesse bue APRÈS avoir entamé son mouvement.
@@ -366,6 +369,9 @@ class MoteurPotions
             // plutôt que la confondre avec un soin sur soi. Absent partout
             // ailleurs — pas de changement de forme pour le cas `soi`.
             'porteur_id' => (int) $personnage->id === (int) $buveur->id ? null : $personnage->id,
+            // Les NOMS pour le fil de combat : le buveur n'est pas toujours celui qui agit.
+            'buveur' => $buveur->nom,
+            'porteur' => $personnage->nom,
             'effets' => $applique,
             'pv_body' => (int) $buveur->pv_body,
             'pv_body_max' => (int) $buveur->pv_body_max,

@@ -102,6 +102,9 @@ const terrains = computed(() => parNom(props.carte?.terrain).map((t) => ({
     nom: t.nom,
     categorie: icone(TERRAIN_TEINTES, t.nom, TERRAIN_TEINTE_DEFAUT),
     img: t.image_url ?? null,
+    // Le texte DÉCIDÉ par le serveur (`carte.terrain[].avantages`) prime ; le tableau local
+    // ne sert plus que de repli à un serveur plus ancien.
+    avantages: Array.isArray(t.avantages) && t.avantages.length ? t.avantages.join(' · ') : null,
 })));
 
 // États de piège réellement présents : « désamorcé » n'a rien à faire dans la
@@ -236,7 +239,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
                 <div v-for="t in terrains" :key="t.nom" class="lg-ligne">
                     <span class="lg-chip lg-terrain" :class="`cat-${t.categorie}`" />
                     <Vignette class="lg-img" :src="t.img" icon="ac_unit" fill />
-                    <span>{{ t.nom }} <em>— {{ TERRAIN_DETAILS[t.categorie] }}</em></span>
+                    <span>{{ t.nom }} <em>— {{ t.avantages ?? TERRAIN_DETAILS[t.categorie] }}</em></span>
                 </div>
             </section>
 

@@ -191,6 +191,7 @@ final class ResolveurTour
         private readonly AnnoncesTalents $annonces,
         private readonly MoteurOracle $oracle,
         private readonly FaveursHopekins $faveurs,
+        private readonly DeplacementHeros $deplacement,
     ) {}
 
     /**
@@ -457,6 +458,10 @@ final class ResolveurTour
             throw ValidationException::withMessages(['personnage_id' => 'Tu as déjà agi ce tour.']);
         }
 
+        // Fenêtre des annonces automatiques OUVERTE : `TamponAnnonces::annoncer()` range
+        // désormais dans le résultat (rendu par le fil en direct) au lieu de diffuser seul.
+        app(TamponAnnonces::class)->ouvrir();
+
         try {
         $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique, $bonusHeroisme) {
             $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
@@ -698,7 +703,15 @@ final class ResolveurTour
             // mort, aucun butin n'a été écrit. On dépose l'offre avec l'action à
             // rejouer, et on rend une réponse « suspendue » que `ExecutionChoix`
             // n'accompagne d'aucune narration ni d'aucun menu.
+            app(TamponAnnonces::class)->vider();
+
             return $this->suspendreAction($groupe, $personnage, $option, $parametres, $attente);
+        } catch (\Throwable $e) {
+            // Une résolution refusée ne laisse pas la fenêtre ouverte : les annonces
+            // d'un menu qui s'ouvre plus tard se perdraient dans un tampon que personne ne vide.
+            app(TamponAnnonces::class)->vider();
+
+            throw $e;
         }
 
         // Un talent qui s'active tout seul se VOIT (2026-09-25) : point de
@@ -806,74 +819,9 @@ final class ResolveurTour
      */
     public function grilleDeplacement(Quete $quete, Personnage $personnage): Grille
     {
-        $grille = $this->grille(
-            $quete,
-            exceptPersonnageId: $personnage->id,
-            traverseRoche: $this->sorts->traverseRoche($personnage),
-            franchitAllies: true,
-        );
-
-        if ($this->sorts->mobiliteCombatDisponible($personnage)) {
-            $grille->autoriserFranchissementFigures();
-        }
-
-        // TERRAIN GÊNANT (Jungles of Delthrak p. 4) : le porteur du talent
-        // `ignore_terrain_entravant` (et, demain, des Bracers of the Wild)
-        // traverse le sable, la toile et la jungle sans payer leurs 2 cases.
-        // `MoteurSorts::terrainEntravantIgnore()` est LE point de passage de la
-        // question ; la levée, elle, est UNE méthode de la grille.
-        if ($this->sorts->terrainEntravantIgnore($personnage)) {
-            $grille->ignorerTerrainEntravant();
-        }
-
-        // MOBILIER (Bracers of the Wild, Spiderstep Elixir) : on le traverse, on
-        // ne s'y arrête pas. Les murs de glace et les blocs, eux, tiennent.
-        // `MoteurSorts::mobilierFranchi()` est LE point de passage de la question.
-        if ($this->sorts->mobilierFranchi($personnage)) {
-            $grille->franchirMobilier();
-        }
-
-        return $grille;
-    }
-
-    /**
-     * Le trajet qu'un héros EMPRUNTE vers une destination — point de passage
-     * UNIQUE de l'aperçu et de la résolution, pour que l'un montre exactement
-     * ce que l'autre parcourra.
-     *
-     * ⚠ Un piège DÉTECTÉ se déclenche désormais quand on le foule (René,
-     * 2026-09-27). Le joueur ne désigne qu'une destination : laisser Dijkstra
-     * choisir, à coût égal ou non, une route qui marche sur un piège connu
-     * l'aurait fait sauter sur un piège qu'il voyait. On cherche donc d'abord
-     * une route qui ÉVITE les pièges détectés, et on la retient si elle est
-     * payable ; sinon la route directe, qui les traverse — l'aperçu les
-     * signale alors (`piegesConnusSur()`). La destination elle-même n'est
-     * jamais évitée : viser la case d'un piège, c'est choisir d'y marcher.
-     *
-     * @return list<array{x: int, y: int}>|null
-     */
-    private function cheminDuHeros(Quete $quete, Personnage $personnage, Grille $grille, int $departX, int $departY, int $x, int $y, int $restant): ?array
-    {
-        $chemin = $grille->chemin($departX, $departY, $x, $y);
-
-        $connus = collect($quete->carte?->grille['pieges'] ?? [])
-            ->filter(fn (array $p) => in_array($p['etat'] ?? null, MoteurPieges::ETATS_CONNUS_ARMES, true)
-                && ! ((int) $p['x'] === $x && (int) $p['y'] === $y))
-            ->map(fn (array $p) => ['x' => (int) $p['x'], 'y' => (int) $p['y']])
-            ->values()
-            ->all();
-
-        if ($chemin === null || $chemin === [] || $this->piegesConnusSur($quete, $chemin) === []) {
-            return $chemin;
-        }
-
-        $evitement = $this->grilleDeplacement($quete, $personnage);
-        $evitement->obstruer($connus);
-        $detour = $evitement->chemin($departX, $departY, $x, $y);
-
-        return ($detour !== null && $detour !== [] && $evitement->coutChemin($detour) <= $restant)
-            ? $detour
-            : $chemin;
+        // Déplacé dans `DeplacementHeros` (2026-10-10) : le menu publie désormais
+        // les cases atteignables, et il doit les calculer avec CETTE grille-ci.
+        return $this->deplacement->grille($quete, $personnage);
     }
 
     /**
@@ -913,24 +861,21 @@ final class ResolveurTour
         }
 
         $grille = $this->grilleDeplacement($quete, $personnage);
-        $chemin = $this->cheminDuHeros($quete, $personnage, $grille, (int) $etat->position_x, (int) $etat->position_y, $x, $y, $restant);
+        $chemin = $this->deplacement->chemin($quete, $personnage, $grille, (int) $etat->position_x, (int) $etat->position_y, $x, $y, $restant);
 
         if ($chemin === null || $chemin === []) {
             return [...$vide, 'atteignable' => false, 'raison' => 'Destination inaccessible (mur, case occupée ou sur place).',
                 'restant' => $restant, 'restant_apres' => $restant];
         }
 
-        // Mare, Brasier : on les traverse, on ne s'y arrête pas — l'aperçu le
-        // dit avant que le joueur ne valide, sinon il verrait un trajet que le
-        // résolveur refuserait ensuite.
-        if ($grille->arretInterditParTerrain($x, $y)) {
-            // Un meuble traversé (Bracers, Spiderstep) partage le jeu des cases
-            // interdites à l'arrêt : on le dit avec ses propres mots.
-            $raison = $grille->estMobilier($x, $y)
-                ? 'On traverse un meuble, on ne s\'arrête pas dessus.'
-                : 'On traverse une mare ou un brasier, on ne s\'y arrête pas.';
+        // Figure, meuble, mare, brasier, fumée : on les traverse, on ne s'y arrête
+        // pas — l'aperçu le dit avant que le joueur ne valide, sinon il verrait un
+        // trajet que le résolveur refuserait ensuite. `refusArret()` est LE point
+        // de passage de la question (aperçu, résolution et destinations publiées).
+        $refus = $this->deplacement->refusArret($quete, $this->deplacement->grilleReelle($quete, $personnage), $x, $y);
 
-            return [...$vide, 'atteignable' => false, 'raison' => $raison,
+        if ($refus !== null) {
+            return [...$vide, 'atteignable' => false, 'raison' => $refus,
                 'restant' => $restant, 'restant_apres' => $restant];
         }
 
@@ -947,7 +892,7 @@ final class ResolveurTour
             'cout' => $cout,
             'restant' => $restant,
             'restant_apres' => $trop ? $restant : max(0, $restant - $cout),
-            'pieges' => $this->piegesConnusSur($quete, $chemin),
+            'pieges' => $this->deplacement->piegesConnusSur($quete, $chemin),
             // TRAVERSER LA PIERRE (décision de René, 2026-10-09) : le trajet
             // franchit-il de la ROCHE ? Décidé ici, sur la grille même que la
             // résolution — la manette prévient avant le second tap, elle ne le
@@ -956,45 +901,6 @@ final class ResolveurTour
                 fn (array $c) => $grille->estRoche((int) $c['x'], (int) $c['y']),
             ),
         ];
-    }
-
-    /**
-     * Les pièges DÉJÀ CONNUS du groupe que ce trajet traverse — mêmes états que
-     * ceux publiés par `EtatGroupe::pieges()` (détecté, désarmé, déclenché), et
-     * pas un de plus : le joueur revoit sur son chemin ce que la carte lui
-     * montre déjà, il n'apprend rien de neuf.
-     *
-     * @param  list<array{x: int, y: int}>  $chemin
-     * @return list<array{x: int, y: int, nom: string, etat: string}>
-     */
-    private function piegesConnusSur(Quete $quete, array $chemin): array
-    {
-        $surLeChemin = [];
-        foreach ($chemin as $case) {
-            $surLeChemin["{$case['x']},{$case['y']}"] = true;
-        }
-
-        $connus = collect($quete->carte?->grille['pieges'] ?? [])
-            ->filter(fn (array $p) => isset($surLeChemin[((int) $p['x']).','.((int) $p['y'])])
-                && in_array($p['etat'] ?? null, [
-                    MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_FOSSE_OUVERTE,
-                    MoteurPieges::ETAT_DESARME, MoteurPieges::ETAT_DECLENCHE,
-                    MoteurPieges::ETAT_RETIENT,
-                ], true));
-
-        $noms = Piege::query()
-            ->whereIn('id', $connus->pluck('piege_id')->filter()->unique())
-            ->pluck('nom', 'id');
-
-        return $connus
-            ->map(fn (array $p) => [
-                'x' => (int) $p['x'],
-                'y' => (int) $p['y'],
-                'nom' => $noms[$p['piege_id']] ?? 'Piège',
-                'etat' => (string) $p['etat'],
-            ])
-            ->values()
-            ->all();
     }
 
     /**
@@ -1051,72 +957,37 @@ final class ResolveurTour
         // Déplacement FRACTIONNÉ (E1) : on dépense sur les points RESTANTS du tour.
         ['restant' => $restant, 'multiplicateur' => $multiplicateur] = $this->pointsDeplacement($personnage, $etat, $totalTour);
 
-        // Traverser la Pierre : tant que le buff tient (ce tour), la roche et
-        // les portes closes ne barrent plus le chemin de CE héros.
         if ($this->sorts->deplacementInterdit($personnage)) {
             throw ValidationException::withMessages([
                 'parametres' => 'Impossible de bouger : tu es immobilisé.',
             ]);
         }
 
-        $traverseRoche = $this->sorts->traverseRoche($personnage);
-
+        // Traverser la Pierre : tant que le buff tient (ce tour), la roche et
+        // les portes closes ne barrent plus le chemin de CE héros — c'est
+        // `DeplacementHeros::grille()` qui le sait.
         $grille = $this->grilleDeplacement($quete, $personnage);
-        $chemin = $this->cheminDuHeros($quete, $personnage, $grille, (int) $etat->position_x, (int) $etat->position_y, $x, $y, $restant);
+        $chemin = $this->deplacement->chemin($quete, $personnage, $grille, (int) $etat->position_x, (int) $etat->position_y, $x, $y, $restant);
 
         if ($chemin === null || $chemin === []) {
             throw ValidationException::withMessages(['parametres' => 'Destination inaccessible (mur, case occupée ou sur place).']);
         }
 
-        // ⚠ TRAVERSER N'EST PAS S'ARRÊTER — le même interdit que la bombe
-        // fumigène juste en dessous, et il MANQUAIT à ce chemin-ci : avec les
-        // figures effacées de la grille, le BFS acceptait volontiers une case
-        // occupée pour destination, et deux figurines finissaient empilées.
-        // Défaut préexistant du talent du Rogue, trouvé en portant Voile de
-        // Brume dessus. On rejuge sur la grille RÉELLE, celle qui sait encore
-        // ce qui est occupé.
-        //
-        // ⚠ Depuis le 2026-09-04 l'interdit vaut AUSSI sans le moindre pouvoir :
-        // un héros traverse désormais la case d'un compagnon par la règle
-        // ordinaire (« on peut traverser la case d'un autre héros, pas s'y
-        // arrêter » — LR p. 12, doc 16 §5). La question à poser n'est donc plus
-        // « la case est-elle traversable ? » — elle l'est — mais « une figure
-        // s'y tient-elle ? ».
-        $reelle = $this->grille($quete, exceptPersonnageId: $personnage->id, traverseRoche: $traverseRoche);
+        // ⚠ TRAVERSER N'EST PAS S'ARRÊTER : avec les figures effacées de la grille
+        // (Rogue, Voile de Brume) ou un compagnon traversable (« on peut traverser
+        // la case d'un autre héros, pas s'y arrêter » — LR p. 12, doc 16 §5), le
+        // parcours accepterait volontiers une case occupée pour destination, et
+        // deux figurines finiraient empilées. Idem le meuble franchi (Bracers,
+        // Spiderstep), la mare, le brasier (Jungles of Delthrak p. 4) et le monstre
+        // noyé dans la fumée (bombe fumigène). `DeplacementHeros::refusArret()` est
+        // LE point de passage de ces quatre interdits — le même qui écarte la case
+        // des `destinations` du menu : la grille RÉELLE sait encore ce qui est
+        // occupé, pas celle du parcours.
+        $reelle = $this->deplacement->grilleReelle($quete, $personnage);
+        $refus = $this->deplacement->refusArret($quete, $reelle, $x, $y);
 
-        if ($reelle->estOccupeeParFigure($x, $y)) {
-            throw ValidationException::withMessages([
-                'parametres' => 'On traverse une figure, on ne s\'arrête pas dessus : cette case est occupée.',
-            ]);
-        }
-
-        // MEUBLE traversé (Bracers of the Wild, Spiderstep Elixir) : on passe
-        // dessus, on ne finit pas dedans. La grille RÉELLE, elle, a gardé le
-        // meuble comme obstacle — c'est elle qui sait qu'il y en a un ici.
-        if ($reelle->estMobilier($x, $y)) {
-            throw ValidationException::withMessages([
-                'parametres' => 'On traverse un meuble, on ne s\'arrête pas dessus : choisis une autre case.',
-            ]);
-        }
-
-        // MARE, BRASIER (Jungles of Delthrak p. 4) : « Creatures may move through
-        // […] but may not end their turn occupying the same space. » Le menu ne
-        // l'offre pas (`Grille::casesAtteignables()`), la manette ne la propose
-        // pas — le résolveur refuse quand même, comme pour une figure.
-        if ($reelle->arretInterditParTerrain($x, $y)) {
-            throw ValidationException::withMessages([
-                'parametres' => 'On traverse une mare ou un brasier, on ne s\'y arrête pas : choisis une autre case.',
-            ]);
-        }
-
-        // BOMBE FUMIGÈNE : « move unseen THROUGH the monster's space ».
-        // Traverser n'est pas s'arrêter dessus. Le monstre enfumé étant sorti
-        // de `$occupees`, le BFS le laisserait volontiers pour destination — et
-        // deux figurines se retrouveraient empilées sur la même case.
-        if ($this->monstreEnfumeSur($quete, $x, $y)) {
-            throw ValidationException::withMessages([
-                'parametres' => 'On traverse la fumée, on ne s\'y arrête pas : cette case est occupée.',
-            ]);
+        if ($refus !== null) {
+            throw ValidationException::withMessages(['parametres' => $refus]);
         }
 
         // ⚠ COÛT, pas nombre de cases (doc 18 §4, Rivière Gelée) : `chemin()`
@@ -1128,6 +999,18 @@ final class ResolveurTour
         if ($distance > $restant) {
             throw ValidationException::withMessages([
                 'parametres' => "Destination hors de portée : {$distance} points de déplacement pour {$restant} restants.",
+            ]);
+        }
+
+        // LA LISTE BLANCHE (2026-10-10) : `se_deplacer.parametres.destinations` est
+        // calculée par `DeplacementHeros::destinations()` — la même grille, le même
+        // parcours, les mêmes refus d'arrêt que ce qui précède — et ce résolveur la
+        // RELIT plutôt que de faire confiance à la case que le client lui renvoie.
+        // Tout ce qu'elle ne publie pas est refusé : une case que la carte du
+        // groupe ne montre pas (brouillard), en particulier, n'est jamais un but.
+        if (! DeplacementHeros::figureParmi($this->deplacement->destinations($quete, $personnage, $etat, $restant), $x, $y)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Destination illégale : cette case ne figure pas parmi les cases proposées.',
             ]);
         }
 
@@ -3177,9 +3060,16 @@ final class ResolveurTour
                 }
             }
 
-            $this->degats->infligerAHeros(
+            $subis = $this->degats->infligerAHeros(
                 $personnage, $parTour, $source,
                 ['condition' => $condition->nom],
+            );
+
+            $duree = (int) ($condition->pivot->duree ?? 0);
+            $this->annoncerSaignement(
+                $personnage, $subis, (string) $condition->nom,
+                // `duree` = les tics qui restent, celui-ci compris : le dernier vaut 1.
+                $duree > 2 ? 'encore '.($duree - 1).' tours' : ($duree === 2 ? 'encore 1 tour' : ($duree === 1 ? 'dernier tour' : null)),
             );
 
             if ((int) $personnage->fresh()->pv_body === 0) {
@@ -3203,9 +3093,11 @@ final class ResolveurTour
             return;
         }
 
-        $this->degats->infligerAHeros(
+        $subis = $this->degats->infligerAHeros(
             $personnage, $jetons, MoteurDegats::SOURCE_REJETON, ['jetons' => $jetons],
         );
+
+        $this->annoncerSaignement($personnage, $subis, $jetons > 1 ? "{$jetons} rejetons accrochés" : 'un rejeton accroché');
 
         if ((int) $personnage->fresh()->pv_body === 0) {
             $etat->update(['tombe' => true]); // C4 : il occupe sa case, relevable
@@ -3740,9 +3632,51 @@ final class ResolveurTour
             $personnage, $montant, self::SOURCE_DEGATS_TERRAIN, ['terrain' => $entree['nom']],
         );
 
+        $this->annoncerSaignement($personnage, $retenus, (string) $entree['nom']);
+
         if ($retenus > 0 && (int) $personnage->fresh()->pv_body === 0) {
             $etat->update(['tombe' => true]); // C4, symétrique de saignerParConditions()/rongerParRejetons()
         }
+    }
+
+    /**
+     * LE point de passage des dégâts qui mordent SANS qu'aucune action ne les
+     * retourne, en fin de tour : poison, étreinte, rejetons, terrain (Chambre forte).
+     * Jusqu'au verdict Jungle (2026-10-10 §1) ils n'étaient que dans les PV : le
+     * joueur voyait sa jauge baisser sans qu'une ligne dise pourquoi.
+     *
+     * ⚠ Dit ce que le moteur a RETENU (`$subis`, après réductions et réactions), pas
+     * ce qu'il avait prévu : un poison réduit à zéro par un talent se dit aussi.
+     *
+     * @param  string|null  $reste  ce qu'il reste à subir (« encore 2 tours »), si le moteur le sait
+     */
+    private function annoncerSaignement(Personnage $personnage, int $subis, string $cause, ?string $reste = null): void
+    {
+        $groupe = $personnage->groupeActif;
+
+        if ($groupe === null) {
+            return;
+        }
+
+        $pv = (int) $personnage->fresh()->pv_body;
+        $max = (int) $personnage->pv_body_max;
+
+        $texte = $subis > 0
+            ? "{$personnage->nom} : {$cause} — −{$subis} PV ({$pv}/{$max}".($reste !== null ? ", {$reste}" : '').')'
+                .($pv === 0 ? ' — il tombe' : '')
+            : "{$personnage->nom} : {$cause} — aucun dégât".($reste !== null ? " ({$reste})" : '');
+
+        app(TamponAnnonces::class)->annoncer($groupe, [
+            'type' => 'saignement',
+            'personnage_id' => (int) $personnage->id,
+            'personnage' => $personnage->nom,
+            'cause' => $cause,
+            'degats' => $subis,
+            'pv_body_apres' => $pv,
+            'tombe' => $pv === 0,
+            'reste' => $reste,
+            'texte' => $texte,
+        ], ['type' => 'personnage', 'id' => (int) $personnage->id, 'nom' => $personnage->nom]);
     }
 
     /**
@@ -3970,17 +3904,6 @@ final class ResolveurTour
 
         $this->pieges->revelerEnVue($groupe, $quete->carte, $personnage, $grille, $x, $y);
         $this->portes->revelerSecretesEnVue($groupe, $quete->carte->refresh(), $personnage, $grille, $x, $y);
-    }
-
-    /**
-     * Un monstre ENFUMÉ se tient-il sur cette case ? Il n'occupe plus la grille
-     * — c'est tout l'effet de la bombe —, mais il est toujours là.
-     */
-    private function monstreEnfumeSur(Quete $quete, int $x, int $y): bool
-    {
-        return $quete->instancesMonstres()->where('etat', 'actif')
-            ->where('position_x', $x)->where('position_y', $y)->get()
-            ->contains(fn (InstanceMonstre $i) => $this->sorts->monstreA($i, MoteurSorts::MONSTRE_ENFUME));
     }
 
     /** Tuiles de chausse-trappes posées sur cette carte. @return list<array{x: int, y: int}> */
@@ -4306,13 +4229,20 @@ final class ResolveurTour
         // que de garder l'appel entier derrière `estReussi()`.
         if (isset($option['parametres']['epreuve']) && $quete->carte !== null) {
             $index = (int) $option['parametres']['epreuve'];
+
+            // Menu PÉRIMÉ (butin déjà pris par un compagnon, ou épreuve déjà tentée
+            // par ce héros) : le jet est lancé, mais RIEN n'est versé une seconde fois —
+            // le fil dit « rien ne vient » (`JournalCombat::epreuve()`), jamais un 422.
+            $avant = ($quete->carte->grille['epreuves'] ?? [])[$index] ?? [];
+            $inerte = MoteurEpreuves::estEpuisee($avant) || MoteurEpreuves::dejaTentee($avant, (int) $personnage->id);
+
             $this->epreuves->marquerTentee($quete->carte, $index, (int) $personnage->id);
 
             $payload['epreuve'] = $option['parametres']['nom'] ?? null;
 
-            $payload = [...$payload, ...$this->resoudreEpreuve(
+            $payload = [...$payload, ...($inerte ? [] : $this->resoudreEpreuve(
                 $groupe, $quete->fresh()->load('carte'), $personnage, $etat, $index, $resultat->estReussi(),
-            )];
+            ))];
         }
 
         // MOBILIER FRACASSÉ : même règle de tentative, et la pièce cesse de
@@ -8964,8 +8894,11 @@ final class ResolveurTour
      * from the treasure deck, you may return that card to the bottom of the
      * deck and draw a new card. »
      *
-     * Les cartes de danger de notre deck sont les deux qui mordent : le piège
-     * et le monstre errant. Remettre la carte sous le paquet ne demande rien —
+     * « Hazard » = le PIÈGE, et lui seul. Décision de René (2026-10-10) : le
+     * monstre errant est un « wandering monster », une autre catégorie de la
+     * table (les livrets les distinguent). Un errant tiré reste tiré : il ne se
+     * repioche pas, et la capacité n'est pas dépensée. Remettre la carte sous le
+     * paquet ne demande rien —
      * `Quete::piocherCarte()` le fait déjà pour TOUTES les cartes, le deck
      * cyclant au lieu de s'épuiser ; repiocher suffit donc.
      *
@@ -8979,9 +8912,9 @@ final class ResolveurTour
     private function piocherAvecSixiemeSens(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): array
     {
         $carte = $this->deck->piocher($quete);
-        $danger = in_array((string) ($carte['issue'] ?? ''), ['piege', 'errant'], true);
+        $piege = (string) ($carte['issue'] ?? '') === 'piege';
 
-        if (! $danger || ! $this->capacites->disponible($personnage, $etat, 'repiocher_carte_piege')) {
+        if (! $piege || ! $this->capacites->disponible($personnage, $etat, 'repiocher_carte_piege')) {
             return [$carte, null];
         }
 
@@ -9365,6 +9298,11 @@ final class ResolveurTour
 
         if (! $succes) {
             return [];
+        }
+
+        // Butin physique pris : l'épreuve se ferme POUR TOUS (`MoteurEpreuves::estEpuisee()`).
+        if (in_array($mecanique, MoteurEpreuves::MECANIQUES_BUTIN_UNIQUE, true)) {
+            $this->epreuves->epuiser($quete->carte, $index);
         }
 
         return match ($mecanique) {
@@ -12066,26 +12004,22 @@ final class ResolveurTour
 
     private function resoudreQuitterDonjon(Groupe $groupe, Quete $quete, ?EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
-        $vide = $quete->donjonVideOuvreLaSortie()
-            && ! $quete->instancesMonstres()->where('etat', 'actif')->exists();
-
-        if (! $quete->objectifAccompli() && ! $vide) {
+        if (! $quete->sortieDisponible()) {
             throw ValidationException::withMessages([
                 'option_id' => 'Vous n\'avez pas encore accompli ce pourquoi vous êtes venus.',
             ]);
         }
 
-        // ESCALIER D'ENTRÉE (2026-10-05) : re-validation serveur, miroir de la
-        // garde posée dans `MenuMoteur` — « le menu ne propose jamais ce que
-        // le résolveur refusera », mais l'inverse tient aussi : le résolveur
-        // ne doit jamais faire confiance au seul fait que le menu l'ait
-        // affiché. Repli IDENTIQUE sur une carte sans la couche `escalier`
-        // (campagne EN COURS) : aucune exigence de position.
-        $escalier = $quete->carte?->casesEscalier() ?? [];
+        // SALLE DE DÉPART (René, 2026-10-10) : re-validation serveur, miroir de la
+        // garde posée dans `MenuMoteur` — même point de passage
+        // (`Quete::rassemblementDepart()`). Repli identique sur une carte sans
+        // escalier : aucune exigence de position.
+        $rassemblement = $quete->rassemblementDepart();
 
-        if ($escalier !== [] && ! ($quete->carte?->surEscalier($etat?->position_x, $etat?->position_y) ?? false)) {
+        if (! $rassemblement['rassemble']) {
             throw ValidationException::withMessages([
-                'option_id' => 'Il faut se tenir sur l\'escalier pour quitter le donjon.',
+                'option_id' => $quete->consigneRassemblement($rassemblement)
+                    ?? 'Tous les héros debout doivent être dans la salle de départ pour quitter le donjon.',
             ]);
         }
 
@@ -12197,6 +12131,10 @@ final class ResolveurTour
 
         Journal::ajouter($groupe, 'systeme', ['action' => 'salle_decouverte', 'salle' => $salle, 'monstres_reveles' => $reveles]);
 
+        // Ce que la porte vient de DÉVOILER se dit au fil — le boss surtout : Gruulob entrait
+        // en scène sans une ligne (verdict Jungle 2026-10-10 §1).
+        $this->annoncerMonstresReveles($groupe, $aReveler, $decouvreur);
+
         // SCÈNE de salle révélée pour l'écran de table (.table.scene) : la bande
         // illustrée de ce que la porte vient de découvrir — créatures et
         // mobilier. Elle est émise ICI et non depuis le résolveur de tour parce
@@ -12248,6 +12186,37 @@ final class ResolveurTour
             ?? $this->narration->pourQuete($quete, 'salle_decouverte', $remplacements);
 
         $this->diffuserRecit($groupe, $recit);
+    }
+
+    /**
+     * L'apparition des créatures d'une salle qui vient de se dévoiler. Le texte est
+     * DÉCIDÉ ici (le boss nommé en tête, « apparaît »), le fil le rend tel quel.
+     *
+     * @param  Collection<int, InstanceMonstre>  $reveles
+     */
+    private function annoncerMonstresReveles(Groupe $groupe, Collection $reveles, ?Personnage $decouvreur): void
+    {
+        if ($reveles->isEmpty()) {
+            return;
+        }
+
+        $boss = $reveles->filter(fn (InstanceMonstre $i) => in_array($i->monstre?->tier, ['boss', 'sous_boss'], true))
+            ->map(fn (InstanceMonstre $i) => $i->nomAffiche())->values()->all();
+
+        $autres = $reveles->reject(fn (InstanceMonstre $i) => in_array($i->monstre?->tier, ['boss', 'sous_boss'], true))
+            ->map(fn (InstanceMonstre $i) => $i->nomAffiche())->countBy()
+            ->map(fn (int $n, string $nom) => $n > 1 ? "{$n} {$nom}" : $nom)->values()->all();
+
+        $texte = $boss !== []
+            ? implode(' et ', $boss).' apparaît'.(count($boss) > 1 ? 'ent' : '').($autres !== [] ? ', entouré de '.implode(', ', $autres) : '').' !'
+            : ($decouvreur !== null ? "{$decouvreur->nom} découvre " : 'La salle recèle ').implode(', ', $autres);
+
+        app(TamponAnnonces::class)->annoncer($groupe, [
+            'type' => 'monstres_reveles',
+            'boss' => $boss,
+            'monstres' => $reveles->map(fn (InstanceMonstre $i) => $i->nomAffiche())->values()->all(),
+            'texte' => $texte,
+        ], $decouvreur === null ? null : ['type' => 'personnage', 'id' => (int) $decouvreur->id, 'nom' => $decouvreur->nom]);
     }
 
     /**

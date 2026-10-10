@@ -42,7 +42,7 @@ class ConditionSeeder extends Seeder
         'Perce-armure' => "Sa prochaine attaque ignore la défense de la cible.",
         'Main sûre' => "Sa prochaine attaque lui permet de relancer ses dés d'attaque.",
         'Clairvoyance' => "Il voit les pièges et les portes secrètes dans sa ligne de vue, jusqu'à ce qu'il subisse au moins 1 point de Body de dégâts.",
-        'Renforcé' => "Bonus d'attaque : il lance des dés de combat supplémentaires, jusqu'à la fin de l'effet qui l'a donné.",
+        'Renforcé' => "Renforcé par un sort ou un objet : un bonus temporaire (dés d'attaque ou de défense en plus, relance, déplacement doublé…) qui dure jusqu'à la fin de l'effet qui l'a donné. Le détail exact de CE bonus est indiqué à côté, selon sa source.",
         'Protégé' => "Bonus de défense : il lance des dés de défense supplémentaires, jusqu'à la fin de l'effet qui l'a donné.",
         'Intangible' => "Lors de son déplacement, il traverse murs et roche, portes closes comprises. S'il termine son mouvement dans la roche, il tombe. La condition dure jusqu'à la fin de son tour.",
         'Tombé' => "À terre (0 point de Body) : il ne peut plus agir, mais il n'est jamais mort. Un allié peut le relever.",

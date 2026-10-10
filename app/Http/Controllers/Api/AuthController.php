@@ -239,7 +239,12 @@ class AuthController extends Controller
                         // `Talents::fiche()` est le même point de passage que
                         // le `disponible()` du moteur.
                         'competences' => $p->competences
-                            ->map(fn ($c) => ['id' => $c->id] + app(Talents::class)->fiche($p, $etatQuete, $c))
+                            // `nom` + `description` (verdict Jungle 2026-10-10 §3) : une entrée « Disponible »
+                            // sans nom ni description ne disait pas QUOI était disponible. Le front
+                            // les joignait au catalogue ; un autre client (ou un catalogue pas encore
+                            // chargé) lisait un statut orphelin. Le serveur publie l'entrée complète.
+                            ->map(fn ($c) => ['id' => $c->id, 'nom' => $c->nom, 'description' => $c->description]
+                                + app(Talents::class)->fiche($p, $etatQuete, $c))
                             ->values()
                             ->all(),
                         // Équipement réel (fiche/sac) : arme(s) + armure nommées,

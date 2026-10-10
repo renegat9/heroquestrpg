@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Partie\Salles;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -81,5 +82,43 @@ class Carte extends Model
         }
 
         return false;
+    }
+
+    /**
+     * Index de la SALLE DE DÉPART — celle qui contient l'escalier d'entrée —
+     * ou `null` sur une carte sans escalier (campagne assemblée avant le
+     * chantier : le repli « pas d'exigence de position » s'applique alors).
+     *
+     * Décision de René (2026-10-10, verdict Jungle) : on ne sort pas « sur
+     * l'escalier » mais « tous réunis dans la salle de départ ». La salle est
+     * trouvée par `Salles::indexDe()` — point de passage unique de « quelle
+     * salle contient cette case ? » —, jamais supposée être l'index 0.
+     */
+    public function salleDepart(): ?int
+    {
+        $escalier = $this->casesEscalier();
+
+        if ($escalier === []) {
+            return null;
+        }
+
+        return Salles::indexDe((array) ($this->grille['salles'] ?? []), $escalier[0]['x'], $escalier[0]['y']);
+    }
+
+    /**
+     * Cette case est-elle dans la salle de départ ? Faux hors salle (couloir,
+     * position inconnue) et faux sur une carte sans salle de départ — c'est à
+     * l'appelant de tester `salleDepart() !== null` avant d'exiger quoi que ce
+     * soit (voir `Quete::rassemblementDepart()`).
+     */
+    public function dansSalleDepart(?int $x, ?int $y): bool
+    {
+        $depart = $this->salleDepart();
+
+        if ($depart === null || $x === null || $y === null) {
+            return false;
+        }
+
+        return Salles::indexDe((array) ($this->grille['salles'] ?? []), $x, $y) === $depart;
     }
 }

@@ -61,10 +61,8 @@ it('fait adopter à Gruulob sa forme démoniaque à 0 Body, sans le tuer, et gar
     // Premier coup fatal : pas de défense réactive, pas d'« increvable » — la phase suivante.
     $r1 = $degats->infligerAMonstre($instance, 4, MoteurDegats::SOURCE_ATTAQUE_HEROS);
 
-    expect($r1['changement_phase'])->toBe([
-        'avant' => 'Gruulob, Sorcier Gobelin Corrompu',
-        'apres' => 'Gruulob, Forme Démoniaque',
-    ])
+    expect($r1['changement_phase'])->toMatchArray(['avant' => 'Gruulob, Sorcier Gobelin Corrompu',
+        'apres' => 'Gruulob, Forme Démoniaque'])
         ->and($r1['vaincu'])->toBeFalse()
         // Body PLEIN de la nouvelle forme (3), Mind de la nouvelle forme (4).
         ->and((int) $instance->fresh()->pv_body)->toBe(3)

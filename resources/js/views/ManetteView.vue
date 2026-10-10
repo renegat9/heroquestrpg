@@ -402,10 +402,15 @@ const conn = computed(() => store.state.connexion); // 'ok' | 'warn'
 const objectif = computed(() => {
     const quete = store.state.etat?.quete;
 
-    if (auHub.value || !quete?.objectif_libelle) return null;
+    /* `quete.sortie.consigne` : « Rejoignez la salle de départ — il manque : … », DÉCIDÉE par le
+       serveur (la sortie est ouverte mais des héros debout n'y sont pas). Rendue telle quelle. */
+    const consigne = [quete?.sortie?.consigne_extraction, quete?.sortie?.consigne].filter(Boolean).join(' ') || null;
+
+    if (auHub.value || !quete || (!quete.objectif_libelle && !consigne)) return null;
 
     return {
-        libelle: quete.objectif_libelle,
+        libelle: quete.objectif_libelle ?? '',
+        consigne,
         accompli: quete.objectif_accompli === true,
         majeur: quete.objectif_majeur === true,
     };
@@ -1003,6 +1008,7 @@ const entretienHub = computed(() => store.state.etat?.groupe?.mercenaires_entret
 const faveurHub = computed(() => store.state.etat?.groupe?.faveur_hopekins ?? null);
 const peacekeeperHub = computed(() => store.state.etat?.groupe?.peacekeeper ?? null);
 const reveilHub = computed(() => store.state.etat?.groupe?.objets_reveilles ?? null);
+const voteSortieHub = computed(() => store.state.etat?.groupe?.vote_sortie ?? null);
 async function chargerMercenaires() {
     if (catalogueMercs.value.length) return;
     try {
@@ -1268,7 +1274,8 @@ const navItems = computed(() => (scene.value === 'marche'
                                 <span v-if="objectif.accompli" class="obj-tag">Atteint</span>
                                 <span v-else-if="objectif.majeur" class="obj-tag obj-tag-niv">Niveau en jeu</span>
                             </div>
-                            <p>{{ objectif.libelle }}</p>
+                            <p v-if="objectif.libelle">{{ objectif.libelle }}</p>
+                            <p v-if="objectif.consigne" class="obj-consigne">{{ objectif.consigne }}</p>
                         </div>
                     </div>
                     <!-- EFFETS GLOBAUX de la quête (Gruulob) : la phrase DÉCIDÉE par le serveur,
@@ -1355,8 +1362,8 @@ const navItems = computed(() => (scene.value === 'marche'
 
                             <!-- ---- annonces d'arrivée au hub : entretien des mercenaires, faveur
                                  de Hopekins Rest (décidées par le serveur, bornées à la dernière quête) ---- -->
-                            <div v-if="auHub && (entretienHub || faveurHub || peacekeeperHub || reveilHub)" class="manette-annonces-hub">
-                                <AnnonceHub :entretien="entretienHub" :faveur="faveurHub" :peacekeeper="peacekeeperHub" :reveil="reveilHub" />
+                            <div v-if="auHub && (entretienHub || faveurHub || peacekeeperHub || reveilHub || voteSortieHub)" class="manette-annonces-hub">
+                                <AnnonceHub :entretien="entretienHub" :faveur="faveurHub" :peacekeeper="peacekeeperHub" :reveil="reveilHub" :vote="voteSortieHub" />
                             </div>
 
                             <!-- ---- bouton Prêt (phase hub, mode connecté) ---- -->
@@ -1519,10 +1526,7 @@ const navItems = computed(() => (scene.value === 'marche'
                         :de-annule="feuilleOption.option.parametres?.de_annule ?? false"
                         :de-annule-par="feuilleOption.option.parametres?.de_annule_par ?? null"
                         :sans-menace="feuilleOption.option.parametres?.sans_menace ?? false"
-                        :franchit-figures="monEntite?.franchit_figures === true"
-                        :ignore-terrain-entravant="monEntite?.ignore_terrain_entravant === true"
-                        :franchit-mobilier="monEntite?.franchit_mobilier === true"
-                        :traverse-roche="monEntite?.traverse_roche === true"
+                        :destinations="feuilleOption.option.parametres?.destinations ?? []"
                         :groupe="groupe"
                         :cases-ecart="feuilleOption.option.type === 's_ecarter_du_bloc'
                             ? (feuilleOption.option.parametres?.cases ?? [])

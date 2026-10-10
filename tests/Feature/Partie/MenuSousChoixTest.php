@@ -46,7 +46,9 @@ beforeEach(function () {
 /** Un magicien réellement armé : la classe seule n'attache aucun sort. */
 function magicienArme(): array
 {
+    // Blessé : un soin n'est offert que s'il y a des PV à rendre (verdict Jungle 2026-10-10 §2).
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
+    $ctx['heros']->update(['pv_body' => max(1, (int) $ctx['heros']->pv_body_max - 1)]);
 
     foreach (['feu', 'eau', 'terre'] as $element) {
         app(App\Partie\MoteurSorts::class)->attacherElement($ctx['heros'], $element);

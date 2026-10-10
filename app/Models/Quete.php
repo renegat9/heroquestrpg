@@ -413,6 +413,11 @@ class Quete extends Model
             return true;
         }
 
+        // ⚠ EXTRACTION : le captif — ou son porteur — doit être SUR UNE CASE de
+        // l'escalier. Décision de René (2026-10-10) : NE PAS l'assouplir en « salle
+        // de départ ». Seule la sortie des HÉROS (`rassemblementDepart()`) bénéficie
+        // de la règle « tous dans la salle de départ » ; les deux vérifications
+        // restent DISTINCTES.
         if ($captif->etat === 'porte') {
             $porteur = $this->etatsPersonnages()
                 ->where('personnage_id', $captif->recruteur_personnage_id)
@@ -423,6 +428,112 @@ class Quete extends Model
         }
 
         return $this->carte?->surEscalier($captif->position_x, $captif->position_y) ?? false;
+    }
+
+    /**
+     * La sortie du donjon est-elle OUVERTE (objectif accompli, ou donjon vidé
+     * quand cela suffit) ? Point de passage UNIQUE : le menu (`quitter_donjon`),
+     * le résolveur et le rassemblement publié lisaient chacun leur copie.
+     */
+    public function sortieDisponible(): bool
+    {
+        return $this->objectifAccompli()
+            // REPLI anti-blocage : un donjon entièrement vidé libère la sortie
+            // même si l'objectif reste hors d'atteinte. SAUF « détruire un
+            // élément » (`donjonVideOuvreLaSortie()`).
+            || ($this->donjonVideOuvreLaSortie()
+                && ! $this->instancesMonstres()->where('etat', 'actif')->exists());
+    }
+
+    /**
+     * ⚠ DIVERGENCE DÉLIBÉRÉE avec les règles officielles (décision de René,
+     * 2026-10-10, qu'il ACCEPTE) : dans le livret, chaque héros quitte le donjon
+     * en MARCHANT SUR L'ESCALIER ; chez nous, il suffit que tous les héros debout
+     * soient dans la SALLE DE DÉPART, puis le groupe vote. Ne pas « corriger » vers
+     * la règle du livret. Voir `docs/regles/exploration-et-fouille.md`.
+     *
+     * ⚠ Cette règle ne vaut QUE pour les HÉROS. La personne à sauver (mission
+     * « secourir ») doit toujours être menée SUR une case de l'escalier
+     * (`captifLibereEtVivant()`, `Carte::surEscalier()`) — René, 2026-10-10 : deux
+     * vérifications distinctes, ne pas les fusionner.
+     *
+     * RASSEMBLEMENT DANS LA SALLE DE DÉPART (René, 2026-10-10, verdict Jungle
+     * §5 : « tous dans la salle de départ » ; remplace « sur l'escalier »,
+     * abandonné le même jour). Le vote de sortie ne s'ouvre que si TOUS les
+     * héros DEBOUT sont dans la salle qui contient l'escalier d'entrée ; les
+     * héros tombés (mode Story) ne bloquent pas. Point de passage UNIQUE :
+     * lu par le menu, le résolveur ET le payload de la bannière — le client
+     * ne recalcule rien.
+     *
+     * ⚠ REPLI : une carte sans escalier (campagne assemblée avant le chantier)
+     * n'exige aucune position — `actif: false`, `rassemble: true`.
+     * `battre_en_retraite` n'est JAMAIS soumis à cette règle.
+     *
+     * @return array{actif: bool, rassemble: bool, absents: list<array{personnage_id: int, nom: string}>}
+     */
+    public function rassemblementDepart(): array
+    {
+        $carte = $this->carte;
+
+        if ($carte === null || $carte->salleDepart() === null) {
+            return ['actif' => false, 'rassemble' => true, 'absents' => []];
+        }
+
+        $absents = [];
+
+        foreach ($this->etatsPersonnages()->with('personnage')->where('tombe', false)->orderBy('id')->get() as $etat) {
+            if (! $carte->dansSalleDepart($etat->position_x, $etat->position_y)) {
+                $absents[] = [
+                    'personnage_id' => (int) $etat->personnage_id,
+                    'nom' => (string) ($etat->personnage?->nom ?? 'Un héros'),
+                ];
+            }
+        }
+
+        return ['actif' => true, 'rassemble' => $absents === [], 'absents' => $absents];
+    }
+
+    /**
+     * La consigne dite AUX JOUEURS quand la sortie est ouverte mais que des
+     * héros debout ne sont pas dans la salle de départ : « Rejoignez la salle de
+     * départ — il manque : X, Y. ». `null` si rien à dire (repli sans escalier,
+     * ou tous réunis). Une seule phrase pour le menu, le 422 et la bannière.
+     *
+     * @param  array{actif: bool, rassemble: bool, absents: list<array{personnage_id: int, nom: string}>}|null  $rassemblement
+     */
+    public function consigneRassemblement(?array $rassemblement = null): ?string
+    {
+        $rassemblement ??= $this->rassemblementDepart();
+
+        if (! $rassemblement['actif'] || $rassemblement['rassemble']) {
+            return null;
+        }
+
+        $noms = implode(', ', array_column($rassemblement['absents'], 'nom'));
+
+        return "Rejoignez la salle de départ pour quitter le donjon — il manque : {$noms}.";
+    }
+
+    /**
+     * Consigne d'EXTRACTION (mission « secourir ») : le captif est libéré et vivant
+     * mais n'est pas encore sur l'escalier — « Amenez X sur l'escalier. » En mode
+     * escorté, c'est son porteur qu'il faut y mener. `null` sinon. Décidée par le
+     * serveur à côté de `captifLibereEtVivant()` (même lecteur, jamais recalculée
+     * côté client).
+     */
+    public function consigneExtraction(): ?string
+    {
+        $captif = $this->captif;
+
+        if ($captif === null || ! in_array($captif->etat, ['actif', 'porte'], true) || $this->captifLibereEtVivant()) {
+            return null;
+        }
+
+        $nom = $captif->mercenaire?->nom ?? 'le captif';
+
+        return $captif->etat === 'porte'
+            ? "Menez le porteur de {$nom} sur l'escalier d'entrée."
+            : "Amenez {$nom} sur l'escalier d'entrée.";
     }
 
     /**

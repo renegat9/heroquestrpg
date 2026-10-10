@@ -445,6 +445,9 @@ export function conditionsVersBadges(conditions) {
             // Ce que la condition FAIT (catalogue serveur, `conditions.description`) :
             // la fiche le montre sous les pastilles, sans table côté client.
             desc: objet && typeof c.description === 'string' && c.description.trim() ? c.description.trim() : null,
+            // L'effet PRÉCIS de la source (`effet_source`, traduit par le serveur) : la description
+            // de « Renforcé » est générique, c'est cette phrase qui dit « +2 dé(s) d'attaque ».
+            precis: objet && typeof c.effet_source === 'string' && c.effet_source.trim() ? c.effet_source.trim() : null,
         };
     });
 }

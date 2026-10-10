@@ -354,4 +354,176 @@ trait LignesEffetsAutomatiques
 
         return [['texte' => "{$qui} voit ".implode(' et ', $trouve).' (Potion de vision)', 'ton' => 'succes']];
     }
+
+    // ------------------------------------------------------------------
+    // Verdict Jungle 2026-10-10 §1 — les effets qui S'ÉCOULENT, S'ÉTEIGNENT ou
+    // APPARAISSENT sans qu'aucune action ne les retourne.
+    // ------------------------------------------------------------------
+
+    /**
+     * Une phrase DÉCIDÉE par le moteur (`texte`), rendue telle quelle : fin d'une
+     * condition à durée, buff rompu. Jamais re-dérivée ici.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function conditionTerminee(array $a): array
+    {
+        return [$this->info((string) ($a['texte'] ?? 'Un effet prend fin'))];
+    }
+
+    /** @return list<array{texte: string, ton: string}> */
+    private function saignement(array $a): array
+    {
+        return [[
+            'texte' => (string) ($a['texte'] ?? ((string) ($a['personnage'] ?? 'Un héros')).' saigne'),
+            'ton' => ! empty($a['tombe']) ? 'chute' : ((int) ($a['degats'] ?? 0) > 0 ? 'subit' : 'info'),
+        ]];
+    }
+
+    /** @return list<array{texte: string, ton: string}> */
+    private function sortRegagne(array $a): array
+    {
+        return [[
+            'texte' => (string) ($a['texte'] ?? ((string) ($a['personnage'] ?? 'Un héros')).' retrouve un sort'),
+            'ton' => 'succes',
+        ]];
+    }
+
+    /**
+     * La nouvelle forme d'un monstre à phases : le NOM, puis ses statistiques
+     * (« Attaque 3 → 4 dés, défense 4 → 5 dés, Body 2/2 ») quand le moteur les a
+     * publiées. Sans elles, on ne sait pas pourquoi les dés de Gruulob ont changé.
+     *
+     * @param  array<string, mixed>  $p  `{avant, apres, stats?}`
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function lignePhase(array $p): array
+    {
+        $avant = (string) ($p['avant'] ?? 'La créature');
+        $apres = (string) ($p['apres'] ?? 'une autre forme');
+        $texte = "{$avant} vacille — et se relève sous une autre forme : {$apres} !";
+
+        $stats = (array) ($p['stats'] ?? []);
+
+        if ($stats !== []) {
+            $a0 = (array) ($stats['avant'] ?? []);
+            $a1 = (array) ($stats['apres'] ?? []);
+            $morceaux = [];
+
+            foreach (['attaque' => 'attaque', 'defense' => 'défense'] as $cle => $mot) {
+                if (isset($a1[$cle])) {
+                    $morceaux[] = isset($a0[$cle]) && (int) $a0[$cle] !== (int) $a1[$cle]
+                        ? "{$mot} ".(int) $a0[$cle].' → '.(int) $a1[$cle].' dés'
+                        : "{$mot} ".(int) $a1[$cle].' dés';
+                }
+            }
+
+            if (isset($a1['pv_body'])) {
+                $morceaux[] = 'Body '.(int) $a1['pv_body'].'/'.(int) ($a1['pv_body_max'] ?? $a1['pv_body']);
+            }
+
+            if ($morceaux !== []) {
+                $texte .= ' ('.ucfirst(implode(', ', $morceaux)).')';
+            }
+        }
+
+        return [$this->info($texte)];
+    }
+
+    /**
+     * Le type `changement_phase` journalisé À PART par `MoteurDegats` : la même
+     * annonce que la clé `changement_phase` d'une action, pour les appelants qui ne
+     * la relaient pas (piège, terrain, faveur) et pour la reconnexion.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function changementPhaseJournalise(array $a): array
+    {
+        return $this->lignePhase((array) ($a['phase'] ?? $a['changement_phase'] ?? []));
+    }
+
+    /**
+     * Une défense à usage unique d'un monstre, journalisée à part (le monstre y est
+     * NOMMÉ, là où la clé `reaction_monstre` d'une action dit « la créature »).
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function reactionMonstreJournalisee(array $a): array
+    {
+        $nom = (string) ($a['nom'] ?? 'La créature');
+
+        return [$this->info(match ($a['mecanique'] ?? null) {
+            'ignore_degats_attaque' => "{$nom} ignore intégralement le coup — une défense à usage unique vient de jouer",
+            'increvable_une_fois' => "{$nom} s'effondre… et tient debout à 1 PV, une seule fois",
+            'jeton_ombre' => "Le coup est absorbé par un jeton d'ombre — {$nom} ne perd rien",
+            default => "{$nom} active une défense à usage unique",
+        })];
+    }
+
+    /**
+     * La signature d'un doublon : ce que le PARENT d'une annonce autonome porte déjà
+     * dans son propre JSON. `null` = ce type n'a pas de parent possible.
+     *
+     * @param  array<string, mixed>  $a
+     */
+    private function signatureDeDoublon(array $a): ?string
+    {
+        return match ($a['type'] ?? null) {
+            'changement_phase' => '"avant":'.json_encode((string) ($a['phase']['avant'] ?? $a['changement_phase']['avant'] ?? ''), JSON_UNESCAPED_UNICODE)
+                .',"apres":'.json_encode((string) ($a['phase']['apres'] ?? $a['changement_phase']['apres'] ?? ''), JSON_UNESCAPED_UNICODE),
+            'reaction_monstre' => '"reaction_monstre":'.json_encode((string) ($a['mecanique'] ?? ''), JSON_UNESCAPED_UNICODE),
+            default => null,
+        };
+    }
+
+    /**
+     * Les créatures d'une salle qui vient de se dévoiler — et le BOSS, qu'on ne peut
+     * pas laisser entrer sans un mot.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function monstresReveles(array $a): array
+    {
+        return [[
+            'texte' => (string) ($a['texte'] ?? 'Des créatures se dévoilent'),
+            'ton' => ! empty($a['boss']) ? 'degats' : 'info',
+        ]];
+    }
+
+    /**
+     * La résolution d'un VOTE : le résultat et ce qu'il a fait (ou NON fait). Le
+     * texte est décidé par `VoteGroupe`.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function voteResolu(array $a): array
+    {
+        return [[
+            'texte' => (string) ($a['texte'] ?? 'Le vote est clos'),
+            'ton' => ! empty($a['applique']) ? 'succes' : 'info',
+        ]];
+    }
+
+    /**
+     * *Sens du piège* : l'explorateur est AVERTI (le piège reste caché).
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function piegesPressentis(array $a, string $acteurNom): array
+    {
+        $pieges = array_values(array_filter((array) ($a['pieges_pressentis'] ?? []), 'is_array'));
+
+        if ($pieges === []) {
+            return [];
+        }
+
+        $cases = implode(' ; ', array_map(
+            fn (array $p) => '('.(int) ($p['x'] ?? 0).', '.(int) ($p['y'] ?? 0).')',
+            $pieges,
+        ));
+
+        return [$this->info(count($pieges) > 1
+            ? "{$acteurNom} pressent ".count($pieges)." pièges cachés tout près — {$cases} (Sens du piège ; ils restent cachés)"
+            : "{$acteurNom} pressent un piège caché tout près — {$cases} (Sens du piège ; il reste caché)")];
+    }
 }

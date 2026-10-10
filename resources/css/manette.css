@@ -346,3 +346,4 @@ body:has(.overlay) .scene-ctrl { display: none; }
 .pret-btn:disabled { opacity: 0.45; cursor: not-allowed; background: var(--stone-800); color: var(--ink-600); border: var(--line); }
 .pret-err { font-size: 12px; font-weight: 600; color: var(--danger, #c33); margin: 0;
   display: flex; align-items: center; gap: 5px; }
+.obj-consigne { color: var(--torch); font-weight: 700; }

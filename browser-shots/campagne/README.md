@@ -20,10 +20,12 @@ le moteur, initiative, réactions hors tour. Un pot de cookies par joueur.
 ## Outils donnés aux agents
 - `vue.py <slot>` — situation du héros : PV, alliés (**héros ET mercenaires**,
   avec leur position et leur distance — depuis le 2026-10-09), monstres visibles,
-  conditions (avec leur SOURCE), **leviers visibles et portes verrouillées**,
-  **terrain proche** (thème glace), destinations atteignables (en **points**,
-  pas en cases — voir plus bas), menu **avec ses sous-choix dépliés**, et pour
-  un sort ses dés/soin/durée.
+  conditions (avec leur SOURCE), **escalier** (position, taille, distance) et
+  **toi dans la salle de départ** (la sortie, depuis le 2026-10-10),
+  **leviers visibles et portes verrouillées**, **terrain proche** (thème glace),
+  destinations atteignables (en **points**, pas en cases, **décidées par le
+  serveur** — voir plus bas), menu **avec ses sous-choix dépliés**, et pour un
+  sort ses dés/soin/durée.
 - `hq.sh <slot> etat|menu|moi|pret|choix|reaction`
 - **au hub** : `hq.sh <slot> marche|panier <json>|confirmer|equiper <inv>|donner <inv> <perso>`
 - **vote** : `hq.sh <slot> votes|vote <option_id>`
@@ -80,12 +82,20 @@ ne la paye :
   connue — le levier visible le plus proche. Il faut plusieurs tours pour
   l'atteindre (l'option n'apparaît qu'au contact), c'est attendu.
 - **Le déplacement se compte en POINTS, pas en cases**, depuis la Rivière
-  gelée (coût 2 pour ENTRER dans une case de rivière). `vue.py` calcule
-  désormais ses destinations par un Dijkstra pondéré, MIROIR de
-  `Grille::casesAtteignables()` côté serveur et de `DeplacementSheet.vue` côté
-  manette, au lieu d'une BFS à coût uniforme qui surbrillançait des cases que
-  le serveur refusait ensuite. `pilote.py` ne recalcule rien lui-même : il se
-  fie aux destinations que `vue.py` propose.
+  gelée (coût 2 pour ENTRER dans une case de rivière). `vue.py` ne calcule RIEN
+  (depuis le 2026-10-10) : il LIT `se_deplacer.parametres.destinations`
+  (`[{x, y, cout}]`), que le serveur calcule avec le code même de la résolution
+  (`App\Partie\DeplacementHeros`) — mobilier, bloc tombé, terrain, embrasure,
+  passage par un allié, monstres franchis, roche d'un héros intangible, reliquat.
+  Cette liste est la **liste blanche** du résolveur : une case absente est
+  refusée (422). Elle remplace la version « un `apercu` par case candidate »
+  du même jour (juste, mais une requête par case) et l'ancien Dijkstra local
+  (le bloc tombé de Jungles of Delthrak : `vue.py` annonçait 6 points, le
+  serveur en comptait 8). Elle ne révèle rien de caché (piège non détecté,
+  passage secret, salle non révélée, monstre caché) : testé par
+  `DestinationsDeplacementTest`. `POST deplacement/apercu {x, y}` reste le bon
+  outil pour le TRAJET exact et les pièges connus d'UNE case choisie.
+  `pilote.py` lit la même liste directement dans le menu et ne recalcule rien.
 - Un **Tunnel de glace** téléporte : la case d'arrivée (`rep.vers`) peut
   différer de la case demandée — `pilote.py` l'annonce (`[TUNNEL DE GLACE]`)
   au lieu d'y voir une anomalie. Une **Glace glissante**/**Glissière de
@@ -111,7 +121,8 @@ et ont dû être relancés à la main (2026-08-13).
    n'envoie que les monstres déjà révélés. Filtrer dessus rend l'agent aveugle
    (coûté plusieurs tours à trois joueurs).
 4. Le **mobilier** bloque le mouvement : un BFS qui ne lit que les cases `s`/`p`
-   propose des destinations que le serveur refuse.
+   propose des destinations que le serveur refuse. Ne jamais en refaire un :
+   lire `destinations`.
 5. Les sessions expirent : prévoir `POST /api/connexion {identifiant}` pour
    reprendre la main sur une partie longue.
 6. **Un battement oublié écrit dans le même `jar-table.txt`** que celui qu'on
@@ -123,15 +134,17 @@ et ont dû être relancés à la main (2026-08-13).
 7. **« À PORTÉE » d'une porte fermée = distance à sa CASE D'EMBRASURE** (publiée
    `embrasure` par `EtatGroupe::portes()`), pas à la porte : le menu n'offre
    `ouvrir_porte` qu'à distance 1 de cette case. `vue.py` s'y aligne depuis le
-   2026-10-09 et n'exclut de ses destinations que l'embrasure des portes non ouvertes.
+   2026-10-09 ; pour les destinations, c'est la liste publiée par le serveur qui décide,
+   embrasure comprise (depuis le 2026-10-10).
 8. **Relever est une ACTION** depuis le 2026-10-09 (décision de René) : le héros
    qui vient de relever peut encore se déplacer. Mais une action jouée APRÈS un
    pas **fait perdre le reliquat** de déplacement : le menu l'annonce
    (`perd_deplacement` sur chaque option d'action), `vue.py` ne le calcule pas.
 9. **Traverser la Pierre** (intangible) : une fois le déplacement fini, plus aucun
    pas dans la roche ce tour ; tant qu'il reste des points, la roche reste
-   franchissable. L'aperçu de trajet (`deplacement/apercu`) publie `traverse_roche`.
-   `vue.py` ne montre pas encore la roche comme destination.
+   franchissable. L'aperçu de trajet (`deplacement/apercu`) publie `traverse_roche`,
+   et `destinations` contient les cases de roche CONNUES à portée (jamais une case
+   inconnue : elle révélerait le plan).
 
 ## Ce qu'il faut PRÉPARER pour éprouver un rôle
 
@@ -162,7 +175,7 @@ Les agents ont des durées de vie différentes : quand l'un s'arrête, son héro
 joue plus et le tour du groupe se fige sur lui, sans que les autres puissent le
 savoir. Prévoir de le relancer, ou faire jouer plusieurs héros au même agent.
 
-## Le vote de sortie : deux gestes, pas un
+## Les votes de groupe : sortie et retraite
 
 **Proposer n'est pas voter.** « Quitter le donjon » ouvre un `VoteGroupe` dont
 les bulletins partent VIDES — le proposeur doit déposer le sien comme tout le
@@ -174,12 +187,29 @@ mais ça pardonne mal en test.
 ⚠ `hq.sh` n'a eu de verbe de vote qu'à partir du **2026-08-15**, et son absence a
 coûté une campagne entière : le barbare avait lancé le vote et ne pouvait
 matériellement pas le conclure, le groupe a tourné vingt minutes dans un donjon
-vide. Les deux verbes :
+vide. Les verbes :
 
 ```bash
-./hq.sh 1 votes        # question, options, décompte (exprimés / attendus)
-./hq.sh 1 vote oui     # déposer son bulletin
+./hq.sh 1 votes                 # question, options, décompte (exprimés / attendus)
+./hq.sh 1 vote oui              # vote de SORTIE (sortie_donjon) : oui / non
+./hq.sh 1 vote recommencer      # vote de RETRAITE (retraite) : recommencer / arreter / continuer
 ```
+
+⚠ **« vote oui » ne suffit pas : une retraite n'a PAS d'option `oui`.** Les deux
+votes n'ont ni les mêmes options ni les mêmes effets :
+
+- **Sortie** (`sortie_donjon`, ouvert par `quitter_donjon`) : `oui` (« Oui, on
+  rentre ») ou `non`. Majorité STRICTE : à égalité, on ne sort pas. La sortie se
+  fait par l'escalier d'entrée, et **`quitter_donjon` n'est offert que lorsque
+  TOUS les héros debout sont dans la SALLE DE DÉPART** — la salle de l'escalier,
+  **pas forcément sur ses cases** (René, 2026-10-10). Le serveur publie
+  `quete.sortie` (`absents`, `consigne`) ; `vue.py` le montre. Les héros à terre
+  ne comptent pas.
+- **Retraite** (proposée par `battre_en_retraite`) : `recommencer` / `arreter` /
+  `continuer`. ⛔ **`arreter` clôt TOUTE la campagne**, pour tout le groupe.
+  ⛔ **`recommencer` efface la progression de la quête** (retour au snapshot de
+  départ). `continuer` ne change rien. L'option la plus votée l'emporte ; toute
+  égalité fait continuer.
 
 ⚠ Le vote n'apparaît **ni dans `/etat` ni dans `/moi`** : il a sa propre route
 (`GET /groupes/{id}/votes`). La manette réelle la rattrape au montage, donc un

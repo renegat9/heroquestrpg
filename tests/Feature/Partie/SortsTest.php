@@ -96,6 +96,11 @@ function demarrerQueteSorts(bool $avecSecond = false): array
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
     $quete->instancesMonstres()->update(['revele' => true]);
 
+    // Légèrement BLESSÉ (APRÈS le départ de quête, qui rend les PV au maximum) : un soin n'est
+    // offert que s'il y a des PV à rendre (verdict Jungle 2026-10-10 §2) ; ces scénarios
+    // comptent sur Eau de Guérison au menu.
+    $mage->update(['pv_body' => max(1, (int) $mage->pv_body_max - 2)]);
+
     return [$alice, $groupe, $mage, $quete, $bob, $brunhilde];
 }
 
@@ -449,7 +454,7 @@ it("endort un monstre (Sommeil raté au jet de Mind) : il ne joue pas, et l'atta
         ->assertJsonPath('resultat.degats', 0);
 
     expect($moteur->monstreA($proie->fresh(), MoteurSorts::MONSTRE_ENDORMI))->toBeFalse()
-        ->and($mage->fresh()->pv_body)->toBe(8); // le monstre réveillé n'a sorti aucun crâne
+        ->and($mage->fresh()->pv_body)->toBe(6); // inchangé (le mage démarre blessé de 2) : le monstre réveillé n'a sorti aucun crâne
 });
 
 it('soigne +4 PV Body plafonnés au maximum (Eau de Guérison)', function () {

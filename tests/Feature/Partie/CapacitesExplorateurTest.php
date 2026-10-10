@@ -90,7 +90,7 @@ it('ne donne le bonus d\'or à personne d\'autre', function () {
 });
 
 it('SIXIÈME SENS écarte la carte de danger et en tire une autre — une fois par tour', function () {
-    [, $hero, $quete, $etat] = demarrerAvecClasse('explorateur');
+    [$groupe, $hero, $quete, $etat] = demarrerAvecClasse('explorateur');
 
     // Un piège au sommet, un trésor juste dessous : la capacité doit faire
     // passer le premier et rendre le second.
@@ -102,6 +102,12 @@ it('SIXIÈME SENS écarte la carte de danger et en tire une autre — une fois p
 
     expect($resultat['issue'])->toBe('tresor')
         ->and($resultat['carte_ecartee'])->toBe('piege');
+
+    // Elle se DIT au fil (verdict Jungle 2026-10-10 §1 : seule la réponse HTTP la portait),
+    // en direct comme à la reconnexion.
+    $dit = 'Sixième sens : Albrecht remet la carte de piège sous le paquet et en tire une autre';
+    expect(array_column(app(App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'), 'texte'))->toContain($dit)
+        ->and(array_column(app(App\Partie\EtatGroupe::class)->payload($groupe->fresh())['journal_combat'], 'texte'))->toContain($dit);
 
     // Dépensée pour le TOUR : la seconde fouille du même tour subit le piège.
     expect(app(App\Partie\CapacitesInnees::class)
@@ -115,8 +121,11 @@ it('SIXIÈME SENS écarte la carte de danger et en tire une autre — une fois p
         ->disponible($hero->fresh(), $etat->fresh(), 'repiocher_carte_piege'))->toBeTrue();
 });
 
-it('SIXIÈME SENS écarte aussi le monstre errant, l\'autre carte qui mord', function () {
-    [, , $quete] = demarrerAvecClasse('explorateur');
+// Décision de René (2026-10-10) : le Sixième sens ne repioche QUE sur une carte de
+// PIÈGE (« hazard »). Un monstre errant (« wandering monster ») tiré reste tiré :
+// il n'est ni écarté, ni annoncé comme écarté au fil, et la capacité n'est pas dépensée.
+it('SIXIÈME SENS ne repioche PAS le monstre errant : un errant tiré reste tiré (décision de René 2026-10-10)', function () {
+    [, $hero, $quete, $etat] = demarrerAvecClasse('explorateur');
 
     empilerCarteFouille($quete, ['issue' => 'tresor', 'or' => 15]);
     empilerCarteFouille($quete, ['issue' => 'errant']);
@@ -124,8 +133,17 @@ it('SIXIÈME SENS écarte aussi le monstre errant, l\'autre carte qui mord', fun
     $resultat = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
         ->assertStatus(202)->json('resultat');
 
-    expect($resultat['carte_ecartee'])->toBe('errant')
-        ->and($resultat['issue'])->toBe('tresor');
+    // L'errant du sommet est bien TIRÉ : pas de repioche, donc pas de trésor…
+    expect($resultat['issue'])->toBe('errant')
+        ->and($resultat)->not->toHaveKey('carte_ecartee');
+
+    // …la capacité n'est pas dépensée pour autant : elle attend le prochain piège…
+    expect(app(App\Partie\CapacitesInnees::class)
+        ->disponible($hero->fresh(), $etat->fresh(), 'repiocher_carte_piege'))->toBeTrue();
+
+    // …et le fil ne prétend pas avoir écarté quoi que ce soit.
+    $lignes = array_column(app(App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'), 'texte');
+    expect(array_filter($lignes, fn (string $texte) => str_contains($texte, 'Sixième sens')))->toBe([]);
 });
 
 it('laisse passer le piège pour les autres classes', function () {
@@ -178,6 +196,12 @@ it('SENS DU PIÈGE avertit sans RIEN révéler, et arrête la course', function 
 
     expect($resultat['pieges_pressentis'])->toHaveCount(1)
         ->and($resultat['pieges_pressentis'][0]['x'])->toBe($voisin['x']);
+
+    // L'alerte se DIT au fil (case comprise : un avertissement sans case ne sert à rien), et elle
+    // est dans le journal — sinon un joueur arrivé après ne sait pas pourquoi Albrecht s'est arrêté.
+    $alerte = "Albrecht pressent un piège caché tout près — ({$voisin['x']}, {$voisin['y']}) (Sens du piège ; il reste caché)";
+    expect(array_column(app(App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'), 'texte'))->toContain($alerte)
+        ->and(array_column(app(App\Partie\EtatGroupe::class)->payload($groupe->fresh())['journal_combat'], 'texte'))->toContain($alerte);
 
     // ⚠ Toujours CACHÉ : « Zargon does not place trap tiles on the board. The
     // traps are still considered concealed. » Rien n'est révélé aux autres.

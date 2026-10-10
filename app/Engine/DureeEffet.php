@@ -204,6 +204,29 @@ final class DureeEffet
     }
 
     /**
+     * Pourquoi un buff vient de TOMBER, en français, pour le fil de combat : le
+     * pendant de {@see self::libelle()} (qui dit quand il tombera) au moment où
+     * il tombe — « premier dégât subi », « sa prochaine attaque ».
+     *
+     * Point de passage unique, comme `libelle()` : un test épingle qu'AUCUN mot-clé
+     * de `toutes()` ne reste sans phrase de fin. `null` pour un déclencheur inconnu.
+     */
+    public static function libelleFin(string $declencheur): ?string
+    {
+        return match ($declencheur) {
+            self::PROCHAINE_ATTAQUE => 'dépensé par son attaque',
+            self::PROCHAINE_DEFENSE => 'dépensé par sa défense',
+            self::PREMIER_DEGAT_SUBI => 'rompu : premier dégât subi',
+            self::CE_TOUR => 'prend fin avec son tour',
+            self::PROCHAIN_TOUR => 'prend fin : son prochain tour commence',
+            self::PROCHAIN_DEPLACEMENT => 'dépensé par son déplacement',
+            self::FIN_DU_COMBAT => 'prend fin : le combat est terminé',
+            self::PLUS_DE_MONSTRE_EN_VUE => 'retombe : plus aucun monstre en vue',
+            default => null,
+        };
+    }
+
+    /**
      * Décompte en tours porté par la valeur, ou 0 si c'est un mot-clé (ou rien).
      * 0 = « pas de compteur » : l'expiration passe par un déclencheur.
      */
