@@ -85,3 +85,12 @@ conditions « Vaporeux » et « Intangible » n'ont aucune description.
 Victoire par destruction du Haut Autel (jamais atteint), sortie par l'escalier, relèvement du
 mode Story (des monstres restaient actifs), pièges magiques posés, trésors propres à Morcar,
 Muraille de glace, Grésil aveuglant.
+
+## Décisions de René sur les règles signalées (2026-10-09, après le verdict)
+
+| Sujet | Décision |
+|---|---|
+| Déplacement partiel puis action | **Garder** la règle (on ne coupe pas son déplacement en deux), **mais l'annoncer** : avant d'agir, la manette prévient « tu perdras tes N cases restantes ». |
+| Relever un compagnon | **Une action, pas tout le tour** : le héros peut encore se déplacer avant ou après. |
+| Vision du futur | **Proposée après chaque jet** (inchangé) : le joueur juge lui-même. |
+| Intangible (Traverser la Pierre) | **Garder** un seul passage, **mais l'annoncer** avant de valider le déplacement (« tu ne pourras pas revenir »). |
