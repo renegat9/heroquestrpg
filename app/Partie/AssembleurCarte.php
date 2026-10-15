@@ -2736,6 +2736,36 @@ final class AssembleurCarte
             $interdites["{$epreuve['x']},{$epreuve['y']}"] = true;
         }
 
+        // PARVIS : les cases orthogonalement voisines d'une porte, d'un levier ou
+        // d'une épreuve — celles d'où l'on AGIT sur eux (ouvrir, tirer, tenter :
+        // tout se fait au contact). Une Mare ou un Brasier (`interdit_arret`) n'y
+        // coupe aucune connexité — on le traverse —, mais personne ne peut s'y
+        // ARRÊTER : posé sur la seule case devant une porte, il la rend
+        // inouvrable. Vu en partie le 2026-10-10 : la porte (21,31) n'avait que
+        // le Brasier (21,30) pour parvis, le menu ne l'a jamais offerte. « Connexe
+        // n'est pas jouable » (§2.12 ter). Les deux cases de la porte comptent
+        // (sur-ensemble des voisines de l'embrasure, prudent et sans dépendre des
+        // salles). Seules les poses SANS ARRÊT y sont refusées : un terrain
+        // gênant se franchit et se tient, un terrain bloquant passe déjà par la
+        // BFS de connexité.
+        $parvis = [];
+        $voisines = static function (int $x, int $y) use (&$parvis): void {
+            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                $parvis[($x + $dx).','.($y + $dy)] = true;
+            }
+        };
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $voisines((int) $case['x'], (int) $case['y']);
+            }
+        }
+        foreach ($leviers as $levier) {
+            $voisines((int) $levier['x'], (int) $levier['y']);
+        }
+        foreach ($epreuves as $epreuve) {
+            $voisines((int) $epreuve['x'], (int) $epreuve['y']);
+        }
+
         // Par salle (jamais la 0) : l'INTÉRIEUR COMPLET (pour la BFS de
         // connexité, comme `placerMobilier()`), les cases LIBRES (candidates
         // réelles, interdictions retirées) et les SEUILS (départs de BFS).
@@ -2836,7 +2866,11 @@ final class AssembleurCarte
                 // et terrains sans arrêt déjà posés retirés), jamais sur un
                 // plafond de nombre ; on abandonne la pose plutôt que de la forcer.
                 if (! empty($type->effet['interdit_arret'])) {
-                    $prises = count($bloquantesParSalle[$i] ?? []) + ($sansArretParSalle[$i] ?? 0);
+                    if (isset($parvis[$cle])) {
+                        continue; // devant une porte, un levier ou une épreuve : on n'y agirait plus
+                    }
+
+                    $prises =count($bloquantesParSalle[$i] ?? []) + ($sansArretParSalle[$i] ?? 0);
 
                     if (count($parSalle[$i]['interieur']) - $prises - 1 < self::CASES_JOUABLES_MINIMUM) {
                         continue;

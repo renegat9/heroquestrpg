@@ -457,12 +457,24 @@ it('distingue un levier forcé d\'un levier qui résiste', function () {
     $echec = collect(lignes([
         'type' => 'actionner_levier',
         'jet' => ['issue' => 'echec', 'succes' => 0, 'difficulte' => 2],
+        'force' => false,
+        'portes_ouvertes' => [],
+    ], 'Krogar'))->pluck('texte')->join(' | ');
+
+    // RÉUSSITE MIXTE (partie du 2026-10-10) : le résolveur ne force rien — seule
+    // `reussite` ouvre —, le fil disait pourtant « le passage est déjà ouvert »
+    // en ne testant que `echec`. C'est `force`, la décision, qui fait foi.
+    $mixte = collect(lignes([
+        'type' => 'actionner_levier',
+        'jet' => ['issue' => 'reussite_mixte', 'succes' => 1, 'difficulte' => 2],
+        'force' => false,
         'portes_ouvertes' => [],
     ], 'Krogar'))->pluck('texte')->join(' | ');
 
     $reussite = collect(lignes([
         'type' => 'actionner_levier',
         'jet' => ['issue' => 'reussite', 'succes' => 2, 'difficulte' => 2],
+        'force' => true,
         'portes_ouvertes' => [['x' => 36, 'y' => 30]],
     ], 'Krogar'))->pluck('texte')->join(' | ');
 
@@ -470,6 +482,9 @@ it('distingue un levier forcé d\'un levier qui résiste', function () {
     // sans limite, et sans cette mention le groupe lit un cul-de-sac.
     expect($echec)->toContain('sans succès')
         ->and($echec)->toContain('réessayer')
+        ->and($mixte)->toContain('sans succès')
+        ->and($mixte)->toContain('réessayer')
+        ->and($mixte)->not->toContain('déjà ouvert')
         ->and($reussite)->toContain("porte s'ouvre")
         ->and($reussite)->not->toContain('réessayer');
 });

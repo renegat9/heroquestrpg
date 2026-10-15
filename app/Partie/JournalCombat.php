@@ -2289,7 +2289,13 @@ final class JournalCombat
         $jet = (array) ($a['jet'] ?? []);
         $ouvertes = (array) ($a['portes_ouvertes'] ?? []);
 
-        if (($jet['issue'] ?? null) === 'echec') {
+        // Le levier a-t-il CÉDÉ ? C'est `force` qui le dit — la décision du
+        // résolveur —, jamais l'issue du jet relue ici : une « réussite mixte »
+        // n'ouvre rien (`ResultatJet::estReussi()` ne vaut que pour `reussite`),
+        // et ce formateur, qui ne testait que `echec`, l'annonçait « le passage
+        // est déjà ouvert » alors que la porte restait close (partie du
+        // 2026-10-10, levier (29,18)). Même lecture que `SceneDeTable`.
+        if (empty($a['force'])) {
             return [[
                 'texte' => "{$acteurNom} force le levier sans succès ("
                     .(int) ($jet['succes'] ?? 0).'/'.(int) ($jet['difficulte'] ?? 0)

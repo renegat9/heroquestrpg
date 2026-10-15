@@ -330,7 +330,10 @@ final class ExecutionChoix
             // déclenché et s'éloignait. La porte, elle, est souvent hors de vue
             // (levier de couloir, porte de la salle suivante) : la narration est
             // alors la SEULE chose qui dise ce qui s'est passé.
-            'actionner_levier' => (($resultat['jet']['issue'] ?? null) === 'echec')
+            // ⚠ Et c'est `force` (la décision du résolveur) qui dit si le levier a
+            // cédé, pas `issue === 'echec'` : une « réussite mixte » n'ouvre rien,
+            // et se racontait « actionné » (partie du 2026-10-10).
+            'actionner_levier' => empty($resultat['force'])
                 ? 'levier_echoue'
                 : 'levier_actionne',
             'reprise' => 'reprise',

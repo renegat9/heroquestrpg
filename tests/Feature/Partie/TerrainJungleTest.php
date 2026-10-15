@@ -677,3 +677,41 @@ it('ne pose jamais de terrain de la jungle dans la salle de départ', function (
         }
     }
 });
+
+it('ne pose jamais une Mare ni un Brasier DEVANT une porte, un levier ou une épreuve — on y agit au contact (partie du 2026-10-10)', function () {
+    // Vu en partie : la seule case d'accès à une porte était un Brasier (on le traverse,
+    // on ne s'y arrête pas) — la porte n'a jamais pu être ouverte. Connexe, pas jouable.
+    $idsSansArret = Terrain::whereIn('nom', ['Mare', 'Brasier'])->pluck('id')->all();
+    $poses = 0;
+
+    foreach (range(1, 60) as $graine) {
+        $carte = assemblerJungle($graine);
+
+        $cibles = [];
+        foreach ($carte['portes'] as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $cibles[] = [(int) $case['x'], (int) $case['y'], 'porte'];
+            }
+        }
+        foreach ($carte['leviers'] ?? [] as $l) {
+            $cibles[] = [(int) $l['x'], (int) $l['y'], 'levier'];
+        }
+        foreach ($carte['epreuves'] ?? [] as $e) {
+            $cibles[] = [(int) $e['x'], (int) $e['y'], 'épreuve'];
+        }
+
+        foreach ($carte['terrain'] as $t) {
+            if (! in_array($t['terrain_id'], $idsSansArret, true)) {
+                continue;
+            }
+            $poses++;
+
+            foreach ($cibles as [$x, $y, $quoi]) {
+                expect(abs($t['x'] - $x) + abs($t['y'] - $y))
+                    ->not->toBe(1, "graine {$graine} : Mare/Brasier en ({$t['x']},{$t['y']}) devant un(e) {$quoi} ({$x},{$y})");
+            }
+        }
+    }
+
+    expect($poses)->toBeGreaterThan(0, 'le test ne prouve rien si aucune Mare/Brasier n\'a jamais été posé');
+});

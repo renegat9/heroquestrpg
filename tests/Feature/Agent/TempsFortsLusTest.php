@@ -39,7 +39,7 @@ it('route un résultat moteur vers CHAQUE temps fort que la pré-génération pr
         ['type' => 'reprise'],
         ['type' => 'deplacement'],
         ['type' => 'ouvrir_porte'],
-        ['type' => 'actionner_levier'],
+        ['type' => 'actionner_levier', 'force' => true],
         // ⚠ Le levier qui RÉSISTE est un temps fort à part (2026-09-11) : le
         // dispatch ne regardait pas le jet et racontait « la pierre gronde au
         // loin » même sur un échec. Un levier de couloir ouvre une porte hors
@@ -154,4 +154,10 @@ it('ne réclame aucune clé que personne ne sait produire', function () {
     ] as $resultat) {
         expect($jouables)->toContain(cleTempsFortPour($resultat));
     }
+});
+
+it('raconte un levier selon sa DÉCISION (`force`), jamais selon l\'issue du jet — une réussite mixte n\'ouvre rien (2026-10-10)', function () {
+    expect(cleTempsFortPour(['type' => 'actionner_levier', 'jet' => ['issue' => 'reussite_mixte'], 'force' => false]))->toBe('levier_echoue')
+        ->and(cleTempsFortPour(['type' => 'actionner_levier', 'jet' => ['issue' => 'echec'], 'force' => false]))->toBe('levier_echoue')
+        ->and(cleTempsFortPour(['type' => 'actionner_levier', 'jet' => ['issue' => 'reussite'], 'force' => true]))->toBe('levier_actionne');
 });
