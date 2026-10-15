@@ -101,16 +101,18 @@ it('sans intangible, la roche bloque : l\'aperçu le dit, et ne publie aucun fra
         ->and($bloque['traverse_roche'])->toBeFalse();
 });
 
-it('l\'état publie entites[].traverse_roche = la décision du moteur, pour CE héros', function () {
+// `entites[].traverse_roche` est retiré (2026-10-15) : la manette ne lit que le `traverse_roche` de
+// l'APERÇU (`DeplacementSheet.vue`), et les cases de roche à portée sont dans `destinations`. Le
+// MOTEUR, lui, sait toujours si CE héros traverse la roche (`MoteurSorts::traverseRoche()`).
+it('l\'état ne publie plus entites[].traverse_roche — le moteur, lui, le sait toujours', function () {
     ['heros' => $heros, 'groupe' => $groupe] = scenarioPierre();
-
-    $sans = collect(app(EtatGroupe::class)->payload($groupe->fresh())['entites'])->where('type', 'heros')->first();
-    expect($sans['traverse_roche'])->toBeFalse();
 
     app(MoteurSorts::class)->appliquerBuff($heros, Sort::where('nom', 'Traverser la Pierre')->firstOrFail());
 
-    $avec = collect(app(EtatGroupe::class)->payload($groupe->fresh())['entites'])->where('type', 'heros')->first();
-    expect($avec['traverse_roche'])->toBeTrue();
+    $entite = collect(app(EtatGroupe::class)->payload($groupe->fresh())['entites'])->where('type', 'heros')->first();
+
+    expect($entite)->not->toBeNull()->and($entite)->not->toHaveKey('traverse_roche')
+        ->and(app(MoteurSorts::class)->traverseRoche($heros->fresh()))->toBeTrue();
 });
 
 it('une fois le déplacement FINI, plus aucun pas dans la roche ce tour — ce que l\'annonce dit', function () {

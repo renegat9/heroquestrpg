@@ -161,6 +161,14 @@ final class MoteurDread
     /** Condition posée par une créature venimeuse (Jungles of Delthrak). */
     public const CONDITION_ENVENIME = 'Envenimé';
 
+    /**
+     * La `source` du pivot d'un venin. Les conditions de ce genre — posées par la phase des
+     * monstres, comptées en TOURS DE LA VICTIME — se reconnaissent à elle : la pose
+     * (`dureeAPoserSurHeros()`) et la fin (`expirerALaFinDuTourDeLaVictime()`)
+     * la lisent toutes deux.
+     */
+    public const SOURCE_VENIN = 'venin';
+
     /** Condition posée par l'étreinte du Yéti (The Frozen Horror). */
     public const CONDITION_AGRIPPE = 'Agrippé';
 
@@ -3585,8 +3593,8 @@ final class MoteurDread
 
         $personnage->conditions()->syncWithoutDetaching([
             $condition->id => [
-                'duree' => $this->dureeAPoserEnPhaseDesMonstres(max(1, (int) $condition->duree_defaut)),
-                'source' => 'venin',
+                'duree' => $this->dureeAPoserSurHeros(max(1, (int) $condition->duree_defaut), $personnage),
+                'source' => self::SOURCE_VENIN,
             ],
         ]);
 
@@ -3594,29 +3602,104 @@ final class MoteurDread
     }
 
     /**
-     * La durée à ÉCRIRE sur une condition à COMPTEUR que la phase des monstres pose sur un héros.
+     * La durée à ÉCRIRE sur une condition à COMPTEUR qu'une créature pose sur un héros.
      *
      * « The effect ends at the end of their next turn » (*Jungles of Delthrak*, F9907 p. 48,
      * « Venomous ») : le venin couvre le prochain tour de la VICTIME. Or `decrementerDurees()`
-     * tourne en fin de round, juste APRÈS la phase des monstres : une condition posée par cette
-     * phase y perdait un tour avant que le héros n'ait joué — posée à 1, elle tombait dans la
-     * résolution même du coup (« Envenimé prend fin » aussitôt) et ne paralysait jamais personne.
-     * Le compteur d'une condition est en TOURS DE LA VICTIME ; le tic qui clôt la phase où elle
-     * est posée n'en est pas un. Une condition posée pendant un tour de héros n'a pas ce
-     * problème (poison de piège, sort ami) : son premier tic est bien le premier tour qui compte.
+     * tourne en fin de round, APRÈS les tours de tous les héros et la phase des monstres. Le
+     * compteur d'une condition est en TOURS DE LA VICTIME, et le tic de fin de round n'en est un
+     * que si la victime a déjà joué CE round-là :
+     *
+     *  - la victime a encore son tour à jouer ce round (un voisin frappé pendant le tour d'un
+     *    autre : Défi du chevalier, errant qui surgit) → son prochain tour est CELUI-CI, le tic de
+     *    fin de round viendra après lui : `$tours` tel quel ;
+     *  - sinon — phase des monstres (personne n'a plus de tour), victime déjà passée, ou
+     *    victime EN PLEIN tour (le tour en cours n'est pas le « prochain ») → son prochain tour
+     *    est celui du round suivant, et le tic qui clôt ce round-ci ne compte pas : `$tours + 1`.
+     *    Posée à `$tours` seulement, la condition tombait dans la résolution même du coup
+     *    (« Envenimé prend fin » aussitôt) et ne paralysait jamais personne.
+     *
+     * « A encore son tour » est lu par {@see OrdreDuTour} (les créneaux `a_joue`, l'acteur
+     * actif) : la règle n'a PAS de seconde copie ici.
      *
      * `0` reste `0` : « pas de compteur », l'expiration vient d'un déclencheur
      * (cf. `docs/regles/vocabulaires-effets.md`).
      *
      * ⚠ Seul le VENIN passe par ici aujourd'hui, et c'est volontaire : c'est la seule condition
-     * à compteur que la phase des monstres pose (les sorts de Dread de contrôle sont tous à
-     * rupture ou à déclencheur, `duree_defaut: 0`). `poserConditionHeros()` ne l'appelle pas — rien
-     * ne lui fournit encore de compteur : le jour où un sort de Dread posera « N tours » sur un
-     * héros, il devra passer par ici, sans quoi il durera N − 1 tours.
+     * à compteur qu'une créature pose (les sorts de Dread de contrôle sont tous à rupture ou à
+     * déclencheur, `duree_defaut: 0`). `poserConditionHeros()` ne l'appelle pas — rien ne lui
+     * fournit encore de compteur : le jour où un sort de Dread posera « N tours » sur un héros,
+     * il devra passer par ici, sans quoi il durera N − 1 tours. Une condition posée par un PIÈGE
+     * ou un sort AMI pendant le tour de la victime (poison) garde le décompte simple : son
+     * premier tic est bien le premier tour qui compte.
      */
-    public function dureeAPoserEnPhaseDesMonstres(int $tours): int
+    public function dureeAPoserSurHeros(int $tours, Personnage $victime): int
     {
-        return $tours > 0 ? $tours + 1 : 0;
+        if ($tours <= 0) {
+            return 0;
+        }
+
+        return $this->aEncoreSonTourCeRound($victime) ? $tours : $tours + 1;
+    }
+
+    /**
+     * La victime jouera-t-elle ENCORE ce round — hors le tour qu'elle est peut-être en train de
+     * jouer ? Debout, `a_joue` faux, et pas l'acteur actif (`OrdreDuTour`). Faux en phase des
+     * monstres (tous ont joué, aucun acteur) et hors quête.
+     */
+    private function aEncoreSonTourCeRound(Personnage $victime): bool
+    {
+        $groupe = $victime->groupeActif;
+        $etats = $groupe?->queteCourante?->etatsPersonnages()->get();
+        $etat = $etats?->firstWhere('personnage_id', $victime->id);
+
+        if ($etat === null || $etat->tombe || $etat->a_joue) {
+            return false;
+        }
+
+        return ! app(OrdreDuTour::class)->estSonTour($groupe, (int) $victime->id, $etats);
+    }
+
+    /**
+     * Le pendant de {@see self::dureeAPoserSurHeros()} : la FIN, à la fin du tour du
+     * héros que la condition couvrait.
+     *
+     * « The effect ends at the end of their next turn » : le venin n'a plus d'effet dès que
+     * la victime a fini ce tour-là. Or le compteur ne se décompte qu'en fin de ROUND
+     * (`decrementerDurees()`), après les tours de tous les héros ET la phase des monstres — le
+     * venin restait donc AFFICHÉ sur un héros dont le tour couvert était passé, pendant que
+     * ses compagnons jouaient puis que les monstres agissaient (et la fin n'était dite qu'après).
+     *
+     * Une ligne ne tombe qu'au dernier tour qu'elle compte : `duree` vaut alors 1 — soit le tic
+     * de fin de round qu'on avait ajouté à la pose, soit le tour à venir d'une victime qui n'avait
+     * pas encore joué (voir `dureeAPoserSurHeros()`, qui décide de l'un ou de l'autre). Un venin
+     * posé pendant le PROPRE tour du héros (`duree` 2) n'a pas encore couvert le prochain : il reste.
+     *
+     * Le décompte de fin de round demeure le filet : un tour clos autrement qu'à la demande du
+     * joueur (piège, sommeil, commandement) laisse la ligne jusque-là, et elle tombe alors.
+     */
+    public function expirerALaFinDuTourDeLaVictime(Personnage $personnage): void
+    {
+        $lignes = DB::table('personnage_conditions')
+            ->where('personnage_id', $personnage->id)
+            ->where('source', self::SOURCE_VENIN)
+            ->where('duree', 1)
+            ->get(['id', 'condition_id']);
+
+        if ($lignes->isEmpty()) {
+            return;
+        }
+
+        DB::table('personnage_conditions')->whereIn('id', $lignes->pluck('id'))->delete();
+
+        $noms = Condition::query()->whereIn('id', $lignes->pluck('condition_id'))->pluck('nom', 'id');
+
+        foreach ($lignes as $ligne) {
+            $this->sorts->annoncerFinCondition(
+                $personnage, (string) ($noms[$ligne->condition_id] ?? self::CONDITION_ENVENIME), null,
+                'prend fin : la durée est écoulée',
+            );
+        }
     }
 
     /**

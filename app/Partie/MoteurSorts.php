@@ -506,7 +506,7 @@ final class MoteurSorts
      * Appelée sur un jet de déplacement trop élevé (MenuMoteur). Sans effet si
      * le héros n'est pas évanescent — c'est le cas ordinaire.
      */
-    public function rompreEvanescence(Personnage $personnage): void
+    public function rompreEvanescence(Personnage $personnage, ?int $de = null): void
     {
         $condition = Condition::where('nom', 'Évanescent')->first();
 
@@ -514,10 +514,23 @@ final class MoteurSorts
             return;
         }
 
-        DB::table('personnage_conditions')
+        $lignes = DB::table('personnage_conditions')
             ->where('personnage_id', $personnage->id)
-            ->where('condition_id', $condition->id)
-            ->delete();
+            ->where('condition_id', $condition->id);
+
+        $sources = (clone $lignes)->pluck('source');
+
+        if ($lignes->delete() === 0) {
+            return;
+        }
+
+        // Le héros redevient visible, attaquable, et peut de nouveau agir : la fin se DIT
+        // (elle tombait sans une ligne — le joueur découvrait son menu rouvert). Le jet est
+        // celui du TOUR, publié tel quel, jamais redéduit.
+        $this->annoncerFinCondition(
+            $personnage, (string) $condition->nom, self::origineDeSource((string) ($sources->first() ?? '')),
+            $de === null ? 'se dissipe' : "se dissipe : jet de déplacement de {$de}",
+        );
     }
 
     /**
@@ -811,7 +824,12 @@ final class MoteurSorts
             $effet = $this->effetSortSource((string) $condition->pivot->source);
 
             if (($effet['immunite_degat'] ?? null) === $typeDegat) {
-                $personnage->conditions()->detach($condition->id);
+                // Usage unique : la protection est dépensée par ce coup — elle se dit, sans quoi
+                // le joueur ne saurait pas qu'il n'est plus à l'abri du prochain feu.
+                $this->retirerBuff(
+                    $personnage, $condition, (string) $condition->pivot->source,
+                    "est consommé : le coup de {$typeDegat} est absorbé",
+                );
 
                 return true;
             }
@@ -839,7 +857,10 @@ final class MoteurSorts
             $effet = $this->effetSortSource((string) $condition->pivot->source);
 
             if (! empty($effet['annule_prochain_sort_degats'])) {
-                $personnage->conditions()->detach($condition->id);
+                $this->retirerBuff(
+                    $personnage, $condition, (string) $condition->pivot->source,
+                    'est consommé : le sort est annulé',
+                );
 
                 return true;
             }
@@ -2335,6 +2356,14 @@ final class MoteurSorts
                 ->where('personnage_id', $personnage->id)
                 ->where('condition_id', $condition->id)
                 ->delete();
+
+            // Le tour perdu est DIT par l'appelant (`tour_perdu`) ; la FIN de la condition,
+            // elle, tombait en silence — le joueur voyait l'Étourdi disparaître de sa fiche
+            // sans savoir qu'il était consommé. Même porte que toute fin de condition.
+            $this->annoncerFinCondition(
+                $personnage, (string) $condition->nom, self::origineDeSource((string) $condition->pivot->source),
+                'prend fin : le tour perdu l\'a consommé',
+            );
         }
 
         return $perdu;
@@ -2368,15 +2397,14 @@ final class MoteurSorts
      * (`$this->capacites->a($personnage, 'franchit_figures') ||
      * $this->sorts->franchitFigures($personnage)`).
      *
-     * ⚠ `EtatGroupe` et `MenuMoteur::peutSeDeplacer()` en ont besoin pour la
-     * MÊME raison que `sort_bonus_disponible` : un client ne peut pas deviner
-     * si CE héros porte le talent du Rogue ou le buff de Voile de Brume, donc
-     * le serveur publie la DÉCISION plutôt que de la laisser se re-dériver —
-     * un cinquième miroir aurait dérivé comme les quatre précédents
-     * (`docs/regles/front-manette-et-table.md`). Sans elle, la manette
-     * traitait tout monstre comme un mur MÊME pour un héros qui les
-     * traverse : le talent existait côté moteur et restait injouable côté
-     * écran (signalé en partie réelle, 2026-09-11).
+     * ⚠ Un client ne peut pas deviner si CE héros porte le talent du Rogue ou
+     * le buff de Voile de Brume : le serveur tranche, et publie le RÉSULTAT —
+     * les cases atteignables (`se_deplacer.parametres.destinations`,
+     * `DeplacementHeros`, qui appelle cette méthode), plus un drapeau
+     * `entites[].franchit_figures` (publié du 2026-09-11 au 2026-10-15, retiré :
+     * plus aucun lecteur une fois les destinations publiées). Lue par le seul
+     * `DeplacementHeros::grille()` — résolveur, aperçu, menu et destinations
+     * passent tous par lui (`docs/regles/front-manette-et-table.md`).
      */
     public function mobiliteCombatDisponible(Personnage $personnage): bool
     {
@@ -2392,11 +2420,13 @@ final class MoteurSorts
      * Demain, les *Bracers of the Wild* (« you move unaffected through squares
      * containing furniture and hindering terrain », p. 50) s'ajoutent ICI, et
      * nulle part ailleurs : c'est le SEUL endroit qui répond à la question, relu
-     * par `ResolveurTour::grilleDeplacement()` (le déplacement et l'aperçu de
-     * trajet) et par `EtatGroupe` (qui publie la DÉCISION à la manette —
-     * `entites[].ignore_terrain_entravant` —, jamais les ingrédients : un
-     * miroir client qui re-déduirait « talent OU bracers » dériverait le jour
-     * où une troisième source apparaîtrait).
+     * par `DeplacementHeros::grille()` (le déplacement, l'aperçu de trajet et les
+     * destinations publiées) et par `ResolveurTour` (la fin de course sur les
+     * ronces). Le client ne reçoit jamais les ingrédients : un miroir qui
+     * re-déduirait « talent OU bracers OU buff » dériverait le jour où une
+     * quatrième source apparaîtrait — il reçoit les `destinations` déjà décidées.
+     * (Un drapeau `entites[].ignore_terrain_entravant` a existé jusqu'au
+     * 2026-10-15 ; sans lecteur, il a été retiré.)
      */
     public function terrainEntravantIgnore(Personnage $personnage): bool
     {
@@ -2414,9 +2444,12 @@ final class MoteurSorts
      * through squares containing furniture » (Jungles of Delthrak, p. 2 et 50).
      *
      * Jumeau de {@see self::terrainEntravantIgnore()} : MÊME structure, MÊME
-     * raison d'être — le serveur décide, le menu (`peutSeDeplacer()`), le
-     * résolveur (`grilleDeplacement()`) et la manette (`entites[].franchit_mobilier`)
-     * lisent CETTE réponse. On traverse, on ne s'arrête pas sur le meuble.
+     * raison d'être — le serveur décide, le résolveur (`ResolveurTour`) et la
+     * grille de déplacement (`DeplacementHeros::grille()`, d'où viennent l'aperçu
+     * et les `destinations` publiées) lisent CETTE réponse ; la manette reçoit
+     * les cases déjà décidées, plus de drapeau `entites[].franchit_mobilier`
+     * (retiré le 2026-10-15, sans lecteur). On traverse, on ne s'arrête pas
+     * sur le meuble.
      */
     public function mobilierFranchi(Personnage $personnage): bool
     {

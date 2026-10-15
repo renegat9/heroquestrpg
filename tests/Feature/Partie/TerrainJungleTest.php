@@ -224,20 +224,31 @@ it('AGILE ignore le terrain gênant, mais pas la Rivière gelée — la levée e
         ->and($grille->coutDeplacement(3, 0))->toBe(2, 'la rivière gelée, elle, coûte toujours');
 });
 
-it('le talent ignore_terrain_entravant traverse le terrain gênant sans payer — et le serveur publie la DÉCISION', function () {
+it('le talent ignore_terrain_entravant traverse le terrain gênant sans payer — et les destinations publiées en portent la DÉCISION', function () {
     $terrain = [
         ['x' => 2, 'y' => 0, 'terrain_id' => idTerrain('Sable entravant')],
         ['x' => 3, 'y' => 0, 'terrain_id' => idTerrain('Toile entravante')],
     ];
 
+    // Le COÛT de la case (4,0) dans la liste que la manette éclaire : c'est elle, et non plus un
+    // drapeau `entites[].ignore_terrain_entravant` (retiré le 2026-10-15, sans lecteur), qui porte
+    // la décision du serveur — 1 + 2 + 2 + 1 sans le talent, 1 + 1 + 1 + 1 avec.
+    $coutPublie = function (array $scene): ?int {
+        $se = collect(optionsJungle($scene))->firstWhere('id', 'se_deplacer');
+
+        return collect($se['parametres']['destinations'] ?? [])->first(fn (array $d) => $d['x'] === 4 && $d['y'] === 0)['cout'] ?? null;
+    };
+
     desFiges(array_fill(0, 40, 4));
     $sans = sceneJungle(6, 1, ['x' => 0, 'y' => 0], $terrain);
+    $coutSans = $coutPublie($sans);
     deplacerJungle($sans, 4, 0);
     $restantSans = (int) $sans['etatHeros']->fresh()->deplacement_restant;
 
     desFiges(array_fill(0, 40, 4));
     $avec = sceneJungle(6, 1, ['x' => 0, 'y' => 0], $terrain, herosAttrs: ['classe' => 'druide']);
     donnerTalent($avec['heros'], 'Ronces complices');
+    $coutAvec = $coutPublie($avec);
 
     expect(app(EtatGroupe::class)->payload($avec['groupe']->fresh())['entites'] ?? null)->not->toBeNull();
 
@@ -248,9 +259,12 @@ it('le talent ignore_terrain_entravant traverse le terrain gênant sans payer �
     expect($restantAvec - $restantSans)->toBe(2)
         ->and($resultat['distance'])->toBe(4);
 
+    expect($coutSans)->toBe(6)
+        ->and($coutAvec)->toBe(4);
+
+    // Le drapeau n'existe plus : la décision est dans `destinations`.
     $entites = collect(app(EtatGroupe::class)->payload($avec['groupe']->fresh())['entites']);
-    $heros = $entites->firstWhere('nom', 'Testeur');
-    expect($heros['ignore_terrain_entravant'] ?? null)->toBeTrue();
+    expect($entites->firstWhere('nom', 'Testeur'))->not->toHaveKey('ignore_terrain_entravant');
 
     $publie = collect(app(EtatGroupe::class)->payload($avec['groupe']->fresh())['carte']['terrain']);
     expect($publie->every(fn (array $t) => $t['entravant'] === true && $t['interdit_arret'] === false))->toBeTrue();

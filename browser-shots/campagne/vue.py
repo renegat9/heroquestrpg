@@ -226,14 +226,19 @@ for o in opts:
 
 # --- DESTINATIONS : la décision du SERVEUR, lue telle quelle (2026-10-10) --------
 # `parametres.destinations` = [{x, y, cout}] (cout en POINTS). Aucun calcul ici.
+# TOUTES les cases sont affichées : un [:14] tronquait la liste (14 cases vues sur
+# ~42). Regroupées par ligne y pour rester lisibles ; `(x,y)/cout` = le coût en
+# POINTS pour ENTRER dans la case.
 if destinations_serveur is not None:
     ok = {(d["x"], d["y"]): d["cout"] for d in destinations_serveur}
-    print(f"DÉPLACEMENT possible ({portee} POINTS restants, pas cases) — décidé par le serveur :")
+    print(f"DÉPLACEMENT possible ({portee} POINTS restants, pas cases) — "
+          f"{len(ok)} case(s) décidée(s) par le serveur :")
     if ok:
-        tri = sorted(((cout, c) for c, cout in ok.items()), reverse=True)[:14]
-        print("  " + " ".join(f"({x},{y})/{cout}" for cout, (x, y) in tri))
-        if len(ok) > len(tri):
-            print(f"  … {len(ok)} cases en tout (les plus lointaines ci-dessus)")
+        lignes = {}
+        for (x, y), cout in ok.items():
+            lignes.setdefault(y, []).append((x, cout))
+        for y in sorted(lignes):
+            print(f"  y={y} : " + " ".join(f"({x},{y})/{cout}" for x, cout in sorted(lignes[y])))
     else:
         print("  (aucune case atteignable d'après le serveur)")
 

@@ -8637,8 +8637,6 @@ final class ResolveurTour
         // personne ici ne pourra boire (décision de René, 2026-08-17).
         $tagsAccessibles = $this->equipement->tagsAccessiblesAux($herosEngages);
 
-        $carte = $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles);
-
         // SIXIÈME SENS (Explorateur) — « quand tu tires une carte de piège,
         // remets-la sous le paquet et tire-en une autre ».
         //
@@ -8647,43 +8645,18 @@ final class ResolveurTour
         // rabotée en silence, alors que sa formulation ne parle pas du deck mais
         // du geste — on repioche. Sur une table pondérée, « repiocher » c'est la
         // relancer, et c'est le port le plus fidèle qu'elle permette.
-        $ecartee = null;
-
-        if (($carte['issue'] ?? '') === 'piege'
-            && $this->capacites->disponible($personnage, $etat, 'repiocher_carte_piege')) {
-            $noeudSixiemeSens = $this->capacites->noeud($personnage, 'repiocher_carte_piege');
-            $this->capacites->consommer($personnage, $etat, 'repiocher_carte_piege');
-            $ecartee = 'piege';
-
-            // Un talent qui s'active tout seul se VOIT (2026-09-25).
-            if ($noeudSixiemeSens !== null) {
-                $this->annonces->annoncer($personnage, $noeudSixiemeSens, 'repioche une carte de piège');
-            }
-            // Niveau MOYEN du groupe : c'est lui qui incline les chances de rareté
-            // (`RareteButin`). Moyenne des héros ENGAGÉS dans la quête, arrondie au
-            // plus proche — un compagnon resté au hub ne pèse pas sur ce que le
-            // donjon rend à ceux qui y sont.
-            $herosEngages = $quete->etatsPersonnages()->with('personnage')->get()
-                ->map(fn ($e) => $e->personnage)->filter();
-
-            $niveauMoyen = (int) round($herosEngages->map(fn ($p) => (int) $p->niveau)->avg() ?: 1);
-
-            // `rarete_butin_amelioree` (Œil du prix, explorateur) : le FOUILLEUR
-            // décale la table d'un cran. Exprimé en niveaux plutôt qu'en poids —
-            // `RareteButin` n'a qu'une seule courbe et il vaut mieux avancer dessus
-            // que lui en inventer une seconde, qui divergerait au prochain
-            // rééquilibrage. ⚠ La courbe SATURE à la dernière tranche (doc 01 §5 :
-            // pas de plafond de niveau), donc le talent finit par ne plus rien
-            // ajouter à très haut niveau — c'est cohérent, pas un oubli.
-            $niveauMoyen += $this->talents->valeur($personnage, 'rarete_butin_amelioree');
-        $this->annoncerOeilDuPrix($personnage);
-
-            // Maîtrises du groupe PRÉSENT : un meuble ne rend pas une potion que
-            // personne ici ne pourra boire (décision de René, 2026-08-17).
-            $tagsAccessibles = $this->equipement->tagsAccessiblesAux($herosEngages);
-
-            $carte = $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles);
-        }
+        //
+        // ⚠ UN SEUL POINT DE PASSAGE : `piocherAvecSixiemeSens()`, le même que la
+        // fouille de salle — il ne reçoit que le GESTE de tirer. Ce chemin en a
+        // porté sa propre copie (condition, dépense, annonce) ; deux copies d'une
+        // règle trop simple pour qu'on en voie une dériver, c'est le défaut le
+        // plus répété du projet. Niveau et maîtrises ne changent pas entre les
+        // deux tirages : la relance rejoue donc la même table, sans recalculer
+        // (ni ré-annoncer l'Œil du prix).
+        [$carte, $ecartee] = $this->piocherAvecSixiemeSens(
+            $personnage, $etat,
+            fn (): array => $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles),
+        );
 
         if ($ecartee !== null) {
             $entete['carte_ecartee'] = $ecartee;
@@ -8755,7 +8728,7 @@ final class ResolveurTour
             $carte = $this->deck->carteCoffre($quete, $salle);
             $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
         } else {
-            [$carte, $ecartee] = $this->piocherAvecSixiemeSens($quete, $personnage, $etat);
+            [$carte, $ecartee] = $this->piocherAvecSixiemeSens($personnage, $etat, fn (): array => $this->deck->piocher($quete));
 
             if ($ecartee !== null) {
                 $entete['carte_ecartee'] = $ecartee;
@@ -8786,7 +8759,7 @@ final class ResolveurTour
             // monstre errant, la seconde se tire quand même. Rien ne la
             // conditionne à l'issue de la première : c'est l'armoire qui rend
             // deux cartes, pas le héros qui agit deux fois.
-            [$carteArmoire, $ecarteeArmoire] = $this->piocherAvecSixiemeSens($quete, $personnage, $etat);
+            [$carteArmoire, $ecarteeArmoire] = $this->piocherAvecSixiemeSens($personnage, $etat, fn (): array => $this->deck->piocher($quete));
 
             // ⚠ PAS `'armoire' => true` ici : ce drapeau dit « cette carte a
             // DÉCLENCHÉ le bonus » (lu par `SceneDeTable::fouille()` pour le
@@ -8907,11 +8880,19 @@ final class ResolveurTour
      * rationnelle. Demander au joueur coûterait un aller-retour HTTP au milieu
      * de la résolution d'une action pour un choix qui n'en est pas un.
      *
+     * UN SEUL POINT DE PASSAGE pour la fouille de SALLE (deck de la quête) et la
+     * fouille de MOBILIER (table propre au meuble) : l'appelant ne fournit que le
+     * geste de tirer (`$tirer`, appelé une fois, deux si la carte est un piège
+     * ET que la capacité est disponible) ; la condition, la dépense du compteur
+     * et l'annonce vivent ICI et nulle part ailleurs
+     * (`CapacitesExplorateurTest` le scelle, comportement ET sources).
+     *
+     * @param  \Closure(): array<string, mixed>  $tirer
      * @return array{0: array<string, mixed>, 1: string|null} carte retenue, issue écartée
      */
-    private function piocherAvecSixiemeSens(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): array
+    private function piocherAvecSixiemeSens(Personnage $personnage, EtatPersonnageQuete $etat, \Closure $tirer): array
     {
-        $carte = $this->deck->piocher($quete);
+        $carte = $tirer();
         $piege = (string) ($carte['issue'] ?? '') === 'piege';
 
         if (! $piege || ! $this->capacites->disponible($personnage, $etat, 'repiocher_carte_piege')) {
@@ -8926,7 +8907,7 @@ final class ResolveurTour
             $this->annonces->annoncer($personnage, $noeud, 'repioche une carte de piège');
         }
 
-        return [$this->deck->piocher($quete), (string) $carte['issue']];
+        return [$tirer(), (string) $carte['issue']];
     }
 
     /**
@@ -11819,6 +11800,10 @@ final class ResolveurTour
             // phase des monstres — c'est ce qui le distingue de `prochain_tour`.
             if ($etat->personnage !== null) {
                 $this->sorts->expirerBuffs($etat->personnage, DureeEffet::CE_TOUR);
+
+                // Le venin couvrait CE tour (« ends at the end of their next turn ») : il
+                // tombe maintenant, pas après la phase des monstres.
+                $this->dread->expirerALaFinDuTourDeLaVictime($etat->personnage);
             }
 
             // Rejetons accrochés : « 1 Body Point automatique et indéfendable à

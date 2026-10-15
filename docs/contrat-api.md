@@ -234,7 +234,7 @@ avant celle du coup fatal qui a provoqué le TPK).
 | `groupe.{identifiant}` | `.bark.diffuse` | {profil, evenement: "attaque\|touche\|rate\|mort", nom, texte?, url?} | table (joue `url` si présente, sinon lit `texte` en TTS) |
 | `joueur.{id}` (privé) | `.reaction.proposee` | {groupe, reaction: {personnage_id, sort, description, source, degats, expire_dans}} | **manette du joueur concerné** — réaction HORS TOUR (Dark Wings, Twisting Torrent) proposée pendant la phase des monstres. Voir §Réactions hors tour |
 | `groupe.{identifiant}` | `.combat.journal` | {lignes: [{texte, ton, des?}], sequence} | **manettes** — fil mécanique du tour (attaques, dégâts, chutes, tour des monstres/alliés, résultat de fouille) dérivé du résultat moteur, **aucun LLM** : comble le « combat instantané » où seule la table avait un retour (barks). `ton` ∈ `degats\|mort\|subit\|chute\|pare\|succes\|echec\|info\|talent` (`talent` : voir §« Un talent qui s'active tout seul se VOIT ») ; `sequence` (max `Evenement.sequence`) sert de garde-fou anti-rediffusion ; lot ignoré si `sequence` ≤ au dernier appliqué. **`des`** (optionnel) porte le JET qui a produit la ligne — `{atk[], def[], touchante, defensive, attaquant, defenseur, touches, boucliers}` — et sert d'HISTORIQUE : le fil garde ses jets, y compris **ceux des monstres** (l'overlay de la manette ne révélait que sa propre action, 3 s). ⚠ `touchante`/`defensive` sont la **face gagnante de chaque volée**, publiée par le moteur et jamais redéduite côté client : un bouclier blanc pare pour un héros et **rien** pour un monstre, un crâne touche **sauf** contre un éthéré (`bouclier_noir`). Absent quand aucun dé n'a été lancé (dégâts fixes). ⚠ **Depuis le 2026-09-24, un jet peut être UNILATÉRAL** — un dé rouge de résistance, un jet de Mind, un piège de sol : SEULE la cible (ou le piège) lance, `atk`/`def` ne porte alors qu'UNE volée. `touchante`/`defensive` valent soit une face unique (`'crane'` — Mind, piège), soit un **ENSEMBLE** de faces gagnantes (`[5, 6]` — dé rouge, chaque 5 OU 6 compte) : le client compare une face à cet ensemble, il ne choisit jamais lequel gagne. Deux champs optionnels, `libelle_atk`/`libelle_def` (défaut `attaque`/`défend`), renomment le verbe de la ligne quand ce n'est pas une attaque (`résiste`) — décidés par le même formateur, jamais par le composant de dés. Point de passage unique des trois formes : `JournalCombat::desJetUnilateral()`, lu aussi par `SceneDeTable` pour `.table.scene` |
-| `groupe.{identifiant}` | `.table.scene` | {sequence, genre, titre, sous_titre?, acteurs: [{role, nom, image_url, pv?}], jet?, deplacement?, figure?, objets: [{nom, image_url, detail?}], issue: {ton, libelle}} | **écran de table SEUL** — la SCÈNE illustrée de l'événement qui vient d'être résolu : portraits de l'attaquant et du défendeur, volée de dés, objet trouvé, piège déclenché, contenu d'une salle révélée. Émise en synchrone par le résolveur depuis le **même résultat moteur** que `.combat.journal`, sans LLM. ⚠ Le journal APLATIT ce résultat en texte : les identités y meurent, donc aucune image ne peut plus y être résolue — d'où un événement PARALLÈLE plutôt qu'une ligne enrichie (une ligne de journal est un résumé destiné à défiler, lu aussi par les manettes). `genre` ∈ `attaque\|jet\|piege\|fouille\|salle\|sort\|chute\|objet\|deplacement\|reaction` (`SceneDeTable::GENRES`, testé dans les deux sens). **`deplacement`** (2026-09-16) annonce le **début du tour d'un héros** : son portrait et le jet de déplacement **du tour**, `deplacement: {des: [int], calcul, de_annule, de_annule_par, sans_menace}` — `des` les faces réellement tombées (deux avec les Bottes elfiques), `calcul` la phrase DÉCIDÉE par le serveur (« 5 + 4 = 9 cases », dé annulé par l'armure, Raquettes, Vent Véloce et potion compris), identique à la `portee` de l'option `se_deplacer`. `de_annule`/`de_annule_par` (2026-09-24, voir §« L'Armure de plates FAIT PERDRE LE DÉ » plus bas) sont ce qui laisse la table barrer le dé d'un ✕ — `de_annule_par` vaut `null` dès que le dé compte. `sans_menace` (2026-09-30, voir §« Unthreatened Movement » plus bas) dit que le dé **comptait 4 sans être lancé**, faute de monstre actif révélé sur le plateau. ⚠ Cette phrase a porté `malus`/`malus_source` quelques heures, le temps que René tranche que la plate retire le dé entier plutôt que deux cases : si un lecteur les cherche encore, il cherche une forme abandonnée. `deplacement` vaut `null` sur tous les autres genres, comme `jet` hors d'un coup. ⚠ Le dé est lancé **au tour du héros**, plus au début du round pour tous : c'est ce qui fait partir la scène au bon moment, et une fois seulement — la garde est la colonne `deplacement_tour`, pas un cache. ⚠ **Toutes les `image_url` sont RÉSOLUES CÔTÉ SERVEUR** (`BibliothequeImages`, repli jusqu'à l'emblème SVG) : jamais un identifiant que le client devrait joindre, jamais un cadre vide — les scènes marchent sans clé d'IA. `jet` reprend exactement la forme de `des` ci-dessus. `sequence` est **le même compteur que le journal** (anti-inversion) ; ⚠ elle ne passe PAS par le garde de `.narration.diffusee`, qui choisit un texte de bandeau et n'a pas à décider si une image s'affiche. **`figure`** (`heros:{id}`\|`monstre:{id}`, même clé que les `mouvements` de l'état, sinon `null`) veut dire **« cette figurine vient de marcher : attends la fin de son trajet »** — publiée SEULEMENT si elle a marché dans la même résolution (`ResolveurTour::figuresEnMarche()`). La table n'affiche la scène qu'une fois ce trajet joué, et garde l'ordre d'arrivée (la tête de file bloque les suivantes) : le coup d'un monstre ne s'affiche plus pendant qu'il marche encore vers sa cible. ⚠ Elle attend le trajet **même s'il n'est pas encore arrivé** (3 s au plus) : la scène, petit message, précède couramment l'état qui porte les trajets, gros message publié par l'autre worker — mesuré, 756 ms d'avance. **`reaction`** (2026-09-17) : la réaction hors tour ACCEPTÉE depuis une manette (`POST reaction`), souvent pendant le tour d'un monstre, qui ne s'arrête pas pendant que le joueur réfléchit — portraits de celui qui réagit et de celui qu'il protège, l'artefact et son dé de perte le cas échéant ; une riposte (*Représailles*) réutilise la scène d'`attaque`, nom de la réaction en sous-titre. ⚠ La scène ne retarde JAMAIS l'offre de réaction : celle-ci part sur `joueur.{id}` à l'instant de l'attaque, avec son compte à rebours. ⚠ L'écran de table les **enchaîne dans l'ordre d'arrivée** (une file, et non plus une seule place d'attente qui écrasait la précédente : une chute suivie d'un début de tour perdait la chute), et une scène arrivée pendant la carte d'ouverture ou le prologue **attend** qu'ils se ferment au lieu de s'écouler dessous. **La DURÉE n'est pas dans le payload** : le retour à la carte se fait au clic sur l'écran du narrateur, ou après un délai réglé dans ses paramètres (défaut 5 s, préférence d'APPAREIL comme le volume, persistée en `localStorage`) |
+| `groupe.{identifiant}` | `.table.scene` | {sequence, genre, titre, sous_titre?, acteurs: [{role, nom, image_url, pv?}], jet?, deplacement?, figure?, objets: [{nom, image_url, detail?}], issue: {ton, libelle}} | **écran de table SEUL** — la SCÈNE illustrée de l'événement qui vient d'être résolu : portraits de l'attaquant et du défendeur, volée de dés, objet trouvé, piège déclenché, contenu d'une salle révélée. Émise en synchrone par le résolveur depuis le **même résultat moteur** que `.combat.journal`, sans LLM. ⚠ Le journal APLATIT ce résultat en texte : les identités y meurent, donc aucune image ne peut plus y être résolue — d'où un événement PARALLÈLE plutôt qu'une ligne enrichie (une ligne de journal est un résumé destiné à défiler, lu aussi par les manettes). `genre` ∈ `attaque\|jet\|piege\|fouille\|salle\|sort\|chute\|objet\|deplacement\|reaction` (`SceneDeTable::GENRES`, testé dans les deux sens). Le genre `piege` couvre aussi l'**ESQUIVE** d'un piège (lianes esquivées sur un bouclier, `piege_esquive` — 2026-10-15) : titre « {piège} esquivé », le dé du piège sur `jet`, `issue: {ton: "succes", libelle: "{héros} esquive — aucun dégât"}` ; aucun champ ni genre neuf. `issue.ton` ∈ `degats\|mort\|tresor\|echec\|info\|succes`. Elle part pour `pieges_esquives[]` d'un déplacement, pour un `declenchement` esquivé (désamorçage, franchissement raté) et pour une action `piege_esquive` seule — les mêmes clés que le fil (`JournalCombat::piegesCroises()`). **`deplacement`** (2026-09-16) annonce le **début du tour d'un héros** : son portrait et le jet de déplacement **du tour**, `deplacement: {des: [int], calcul, de_annule, de_annule_par, sans_menace}` — `des` les faces réellement tombées (deux avec les Bottes elfiques), `calcul` la phrase DÉCIDÉE par le serveur (« 5 + 4 = 9 cases », dé annulé par l'armure, Raquettes, Vent Véloce et potion compris), identique à la `portee` de l'option `se_deplacer`. `de_annule`/`de_annule_par` (2026-09-24, voir §« L'Armure de plates FAIT PERDRE LE DÉ » plus bas) sont ce qui laisse la table barrer le dé d'un ✕ — `de_annule_par` vaut `null` dès que le dé compte. `sans_menace` (2026-09-30, voir §« Unthreatened Movement » plus bas) dit que le dé **comptait 4 sans être lancé**, faute de monstre actif révélé sur le plateau. ⚠ Cette phrase a porté `malus`/`malus_source` quelques heures, le temps que René tranche que la plate retire le dé entier plutôt que deux cases : si un lecteur les cherche encore, il cherche une forme abandonnée. `deplacement` vaut `null` sur tous les autres genres, comme `jet` hors d'un coup. ⚠ Le dé est lancé **au tour du héros**, plus au début du round pour tous : c'est ce qui fait partir la scène au bon moment, et une fois seulement — la garde est la colonne `deplacement_tour`, pas un cache. ⚠ **Toutes les `image_url` sont RÉSOLUES CÔTÉ SERVEUR** (`BibliothequeImages`, repli jusqu'à l'emblème SVG) : jamais un identifiant que le client devrait joindre, jamais un cadre vide — les scènes marchent sans clé d'IA. `jet` reprend exactement la forme de `des` ci-dessus. `sequence` est **le même compteur que le journal** (anti-inversion) ; ⚠ elle ne passe PAS par le garde de `.narration.diffusee`, qui choisit un texte de bandeau et n'a pas à décider si une image s'affiche. **`figure`** (`heros:{id}`\|`monstre:{id}`, même clé que les `mouvements` de l'état, sinon `null`) veut dire **« cette figurine vient de marcher : attends la fin de son trajet »** — publiée SEULEMENT si elle a marché dans la même résolution (`ResolveurTour::figuresEnMarche()`). La table n'affiche la scène qu'une fois ce trajet joué, et garde l'ordre d'arrivée (la tête de file bloque les suivantes) : le coup d'un monstre ne s'affiche plus pendant qu'il marche encore vers sa cible. ⚠ Elle attend le trajet **même s'il n'est pas encore arrivé** (3 s au plus) : la scène, petit message, précède couramment l'état qui porte les trajets, gros message publié par l'autre worker — mesuré, 756 ms d'avance. **`reaction`** (2026-09-17) : la réaction hors tour ACCEPTÉE depuis une manette (`POST reaction`), souvent pendant le tour d'un monstre, qui ne s'arrête pas pendant que le joueur réfléchit — portraits de celui qui réagit et de celui qu'il protège, l'artefact et son dé de perte le cas échéant ; une riposte (*Représailles*) réutilise la scène d'`attaque`, nom de la réaction en sous-titre. ⚠ La scène ne retarde JAMAIS l'offre de réaction : celle-ci part sur `joueur.{id}` à l'instant de l'attaque, avec son compte à rebours. ⚠ L'écran de table les **enchaîne dans l'ordre d'arrivée** (une file, et non plus une seule place d'attente qui écrasait la précédente : une chute suivie d'un début de tour perdait la chute), et une scène arrivée pendant la carte d'ouverture ou le prologue **attend** qu'ils se ferment au lieu de s'écouler dessous. **La DURÉE n'est pas dans le payload** : le retour à la carte se fait au clic sur l'écran du narrateur, ou après un délai réglé dans ses paramètres (défaut 5 s, préférence d'APPAREIL comme le volume, persistée en `localStorage`) |
 | `groupe.{identifiant}` | `.groupe.etat` | EtatGroupe + `mouvements?` | table + manettes. **`mouvements`** (diffusion seule, jamais dans `GET /etat`) : `[{type: heros\|monstre, id, depart: {x, y}, chemin: [{x, y}]}]`, les trajets de la résolution qui a produit cet état, que la table rejoue case par case AVANT de poser les positions finales. ⚠ **Dans le même message que l'état** depuis le 2026-09-17 : ils partaient dans un `.mouvement.anime` séparé « juste avant », mais la file `temps-reel` a DEUX workers et l'ordre de publication n'était pas garanti. ⚠ La table **tient toutes les figurines du lot sur leur case de départ dès réception**, puis les fait marcher une à une : tenue une seule à la fois, la suivante sautait à l'arrivée pendant que la première marchait, puis revenait au départ pour refaire le trajet (mesuré, deux gobelins). La caméra ne suit pas le héros actif tant que des monstres marchent |
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |
 | `joueur.{id}` (private) | `.menu.propose` | {menu: {contexte, options: [{id, libelle, type: "action|dialogue|jet|attaque|deplacement", parametres}]}, groupe_id, personnage_id, allie_id} | manette du joueur — `allie_id` non-null (chantier 3a) : c'est le tour de l'allié contrôlé par ce héros, pas le sien |
@@ -293,6 +293,14 @@ lieu d'interroger `apercu` case par case.
   CONNU** (le `cout` est celui du trajet que le héros prendra, pas du plus court : même
   `DeplacementHeros::chemin()` que l'aperçu). Le **Tunnel de glace** publie sa case d'ENTRÉE
   (la téléportation se joue à l'arrivée, `rep.teleportation`).
+- **Elle remplace les drapeaux de mouvement d'`entites[]`** (2026-10-15) : `franchit_figures`,
+  `ignore_terrain_entravant`, `franchit_mobilier` et `traverse_roche` (celui de l'aperçu de trajet
+  reste) — des décisions qui ne voyageaient que pour que la manette cesse de les re-déduire — ne sont plus publiés, plus aucun écran ne les lisant
+  depuis cette liste (le moteur, lui, lit toujours le talent, la pièce ou le buff à la source,
+  dans `DeplacementHeros::grille()`). `MobiliteCombatRogueTest` (la case derrière un monstre figure
+  pour un Rogue, pas pour un barbare) et `TerrainJungleTest` (le `cout` publié d'un héros aux Ronces
+  complices) épinglent la décision DANS la liste ; deux tests scellent l'absence des quatre clés
+  (`MobiliteCombatRogueTest`, `TraverserLaPierreAnnonceTest`).
 - **C'est la LISTE BLANCHE.** `POST choix {option_id: "se_deplacer", parametres: {x, y}}`
   est relu par le résolveur contre `DeplacementHeros::destinations()` recalculée sur l'état
   présent (pas contre le menu en cache) : toute case hors liste est refusée en 422 (« Destination
@@ -1302,6 +1310,9 @@ toutes deux sont fermées.
   Tamsin ! ») ; `carte_ecartee` (*Sixième sens*) se dit au fil : « Sixième sens : Tamsin remet
   la carte de piège sous le paquet et en tire une autre ». Seul un **piège** s'écarte (décision
   de René, 2026-10-10) : un monstre errant tiré reste tiré, sans dépenser la capacité.
+  La règle a UN seul point de passage (`ResolveurTour::piocherAvecSixiemeSens()`), commun à la fouille de
+  salle (`fouille_tresor`) et à celle d'un meuble (`fouille_mobilier`) : `carte_ecartee` se publie et se
+  dit pareil dans les deux cas.
   Un `deplacement` qui porte `pieges_pressentis` (*Sens du piège*) se dit : « Tamsin pressent un piège caché tout près —
   (x, y) (Sens du piège ; il reste caché) » ; le piège reste `cache` sur la carte.
 - **Un coup de monstre dit ce qu'il POSE et COMMENT il frappe** (partie du 2026-10-10).
@@ -1646,7 +1657,8 @@ eu lieu et le piège est devenu connu de tous) et `pieges_reveles[]`/`pieges_pre
 (détection). Le fil rend `pieges_esquives` PUIS `pieges_declenches`, chaque entrée par
 sa phrase de type (`piege_esquive`, `piege_teleporte`, `piege_ignore`…, jamais toutes par
 celle de la fosse) — « Piège de lianes jaillit — Tamsin esquive les lianes et poursuit sa
-route ». Même règle pour un déplacement FORCÉ : `sort_dread.repousse.declenchements[]`
+route ». La scène de table (`.table.scene`, genre `piege`) lit les MÊMES clés dans le même ordre
+(`JournalCombat::piegesCroises()`) : l'esquive y a sa scène (« Piège de lianes esquivé »). Même règle pour un déplacement FORCÉ : `sort_dread.repousse.declenchements[]`
 (Ouragan) et `possession_deplacement.pieges_declenches[]` (nouveau) portent aussi les
 fosses ignorées et les lianes esquivées croisées sur la route.
 
@@ -3186,22 +3198,17 @@ souffre du même défaut — ni publiée par `EtatGroupe`, ni lue par
 `creneauConsomme()`, qui grise donc « Lancer un sort » après un premier sort
 alors que le résolveur accepterait le second.
 
-⚠ **`entites[].franchit_figures`** (héros seulement, 2026-09-11) — signalé en
-partie réelle : « la mobilité de combat du Rogue ne permet pas de se déplacer
-à travers les ennemis ». Le moteur avait raison depuis toujours
-(`ResolveurTour::resoudreDeplacer()` lève les figures pour un héros qui porte
-le talent `franchit_figures` ou le buff *Voile de Brume*), mais
-`DeplacementSheet.vue` refait son PROPRE parcours de surbrillance et traitait
-tout monstre comme un mur inconditionnellement — un client ne peut pas deviner
-qu'un héros précis porte ce talent ou ce buff, donc il ne pouvait matériellement
-pas savoir qu'il devait cesser de bloquer. `EtatGroupe` publie la DÉCISION,
-calculée par `MoteurSorts::mobiliteCombatDisponible()` — désormais le seul
-point de passage de cette expression, relu par `ResolveurTour` et par
-`MenuMoteur::peutSeDeplacer()` (qui en avait besoin pour la même raison : ne
-pas retirer « Se déplacer » à un héros qui franchirait un monstre bloquant ses
-4 voisins). `DeplacementSheet.vue` traite un monstre comme une case ALLIÉE
-(traversable, jamais une destination) quand `franchit_figures` vaut vrai pour
-CE héros, au lieu de toujours l'exclure du parcours.
+⚠ **`entites[].franchit_figures` N'EXISTE PLUS** (publié du 2026-09-11 au 2026-10-15). Signalé en
+partie réelle : « la mobilité de combat du Rogue ne permet pas de se déplacer à travers les
+ennemis » — `DeplacementSheet.vue` traitait tout monstre comme un mur, faute de savoir que CE héros
+porte le talent `franchit_figures` ou le buff *Voile de Brume*. Le drapeau y avait répondu ; la
+vraie réponse est venue ensuite : le serveur publie la LISTE des cases atteignables
+(`se_deplacer.parametres.destinations`, voir §`se_deplacer.parametres.destinations` — la case derrière un monstre y
+figure pour un Rogue, pas pour un barbare), calculée par le code même de la résolution
+(`DeplacementHeros::grille()`, qui lit `MoteurSorts::mobiliteCombatDisponible()`, seul point de
+passage de l'expression). Plus aucun écran ne lisait le drapeau ; une clé sans lecteur est une règle
+promise et jamais tenue, elle est retirée. Le moteur, lui, lit toujours le talent et le buff à la
+source. La republier exige d'abord un lecteur ET un test en jeu qui l'épingle.
 
 ⚠ **`entites[].benediction_oracle` / `malediction_oracle`** (héros seulement,
 First Light FL-Q p. 6, lot C 2026-09-30) — mêmes champs sur `GET /api/moi`
@@ -3598,21 +3605,25 @@ et `paniers[].ventes[].prix_revente`), sinon 50 %.
 `bonus_deplacement_inconditionnel`, `des_attaque_au_contact`, `appelle_allie`
 (`{mercenaire, dormance_quetes}`), `valeur_marchande`, `recupere_sort_ou_competence`, `une_par_quete`.
 
-**`entites[].franchit_mobilier`** (héros, jumeau d'`ignore_terrain_entravant`) : CE héros traverse
-les meubles bloquants sans s'y arrêter (Brassards du Sauvage portés, ou buff de l'Élixir). Décidé par
-`MoteurSorts::mobilierFranchi()` ; la manette applique, ne recalcule pas. Seuls les MEUBLES sont levés
+**`entites[].franchit_mobilier` N'EXISTE PLUS** (retiré le 2026-10-15, sans lecteur ; il était le
+jumeau d'`ignore_terrain_entravant`). CE héros traverse les meubles bloquants sans s'y arrêter
+(Brassards du Sauvage portés, ou buff de l'Élixir) : décidé par `MoteurSorts::mobilierFranchi()`,
+lu par `DeplacementHeros::grille()` et `ResolveurTour`, et la manette reçoit la conséquence dans
+`se_deplacer.parametres.destinations`, jamais l'ingrédient. Seuls les MEUBLES sont levés
 (`Grille::franchirMobilier()`) : mur de glace, bloc de pierre et terrain bloquant tiennent. Le
 déplacement refuse de finir sur un meuble (« On traverse un meuble… », aussi dans
 `POST deplacement/apercu` → `atteignable: false`). Un déplacement qui a vraiment franchi du mobilier
 ou du terrain gênant par une pièce/un buff porte `payload.franchit: ["mobilier", "terrain gênant"]`.
 Fosse révélée ignorée (Élixir) : `pieges_declenches[].type === "piege_ignore"`.
 
-**`entites[].traverse_roche`** (héros, 2026-10-09) : CE héros traverse-t-il la ROCHE ce tour
-(Traverser la Pierre, `franchit_mur` — `MoteurSorts::traverseRoche()`) ? Décision serveur, comme
-`franchit_mobilier`. La manette s'en sert pour deux choses seulement : laisser toucher une case
-de roche ou de sol déjà connu, que le BFS d'accessibilité ne développe pas (il ne traverse pas la
-roche), et attendre l'aperçu, qui dit `traverse_roche` trajet par trajet. Une case non connue
-(brouillard) reste intouchable : l'aperçu ne doit pas révéler de sol inconnu.
+**`entites[].traverse_roche` N'EXISTE PLUS** (publié du 2026-10-09 au 2026-10-15, retiré comme
+`franchit_mobilier` & co, sans lecteur). CE héros traverse-t-il la ROCHE ce tour (Traverser la
+Pierre, `franchit_mur`) ? Décidé par `MoteurSorts::traverseRoche()`, lu par `DeplacementHeros` ; la
+manette reçoit la conséquence — les cases de roche CONNUES à portée figurent dans
+`se_deplacer.parametres.destinations` — et le booléen `traverse_roche` de **`POST
+deplacement/apercu`** (trajet par trajet, seul `traverse_roche` encore publié) pour prévenir avant
+le second tap. Une case non connue (brouillard) reste intouchable : rien ne doit révéler de sol
+inconnu.
 
 **Brassard du Garde-Crocs** (« Utiliser un objet », option « Appeler l'allié », créneau d'action,
 une fois par quête) : crée un allié *Raptor apprivoisé* (fiche existante) à la case libre la plus
@@ -3649,11 +3660,13 @@ serveur (`MotsClesTerrain::avantages()`, même traducteur que `/guide`) — « c
 « terrain gênant : coûte plus cher à traverser ». La légende l'affiche telle quelle ; le tableau de textes
 local n'est plus qu'un repli. Jamais vide (une case sans effet dit « sans effet à ce jour »).
 
-**`entites[].ignore_terrain_entravant`** (héros, comme `franchit_figures`) : CE héros
-traverse-t-il le terrain gênant sans payer ? Décidé par
-`MoteurSorts::terrainEntravantIgnore()` (talent `ignore_terrain_entravant` ; les Bracers
-of the Wild s'y ajouteront, au même endroit). La manette applique la décision, elle ne la
-recalcule pas. Les monstres **Agile** l'ignorent côté moteur (`Grille::autoriserFranchissement()`).
+**`entites[].ignore_terrain_entravant` N'EXISTE PLUS** (retiré le 2026-10-15, sans lecteur). CE
+héros traverse-t-il le terrain gênant sans payer ? Décidé par `MoteurSorts::terrainEntravantIgnore()`
+(talent `ignore_terrain_entravant`, Bracers of the Wild, Spiderstep Elixir), lu par
+`DeplacementHeros::grille()` et `ResolveurTour` ; la manette reçoit le RÉSULTAT — le `cout` de chaque
+case dans `se_deplacer.parametres.destinations` (1 + 1 + 1 + 1 au lieu de 1 + 2 + 2 + 1 pour un
+druide aux Ronces complices), jamais l'ingrédient. Les monstres **Agile** l'ignorent côté moteur
+(`Grille::autoriserFranchissement()`).
 
 - **Mare** (*Pool of Water*) : passage sans arrêt ; à la fouille de trésor d'une salle qui en
   contient une, option **`boire_mare`** (`type: boire_mare`, créneau d'action,

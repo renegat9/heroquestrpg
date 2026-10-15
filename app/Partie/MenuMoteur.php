@@ -1051,7 +1051,7 @@ final class MenuMoteur
         // effectif : le sort tient ou tombe avant que le héros n'ait fait
         // un pas.
         if ($jet->de >= self::RUPTURE_EVANESCENCE) {
-            $this->sorts->rompreEvanescence($personnage);
+            $this->sorts->rompreEvanescence($personnage, $jet->de);
         }
     }
 

@@ -135,7 +135,8 @@ et ont dû être relancés à la main (2026-08-13).
    `embrasure` par `EtatGroupe::portes()`), pas à la porte : le menu n'offre
    `ouvrir_porte` qu'à distance 1 de cette case. `vue.py` s'y aligne depuis le
    2026-10-09 ; pour les destinations, c'est la liste publiée par le serveur qui décide,
-   embrasure comprise (depuis le 2026-10-10).
+   l'embrasure d'une porte close n'y figure pas (ce n'est pas une case d'arrêt) : on
+   ouvre une porte close depuis une case adjacente à son embrasure (depuis le 2026-10-10).
 8. **Relever est une ACTION** depuis le 2026-10-09 (décision de René) : le héros
    qui vient de relever peut encore se déplacer. Mais une action jouée APRÈS un
    pas **fait perdre le reliquat** de déplacement : le menu l'annonce

@@ -1254,38 +1254,19 @@ final class EtatGroupe
                     // journal annonçait la seconde frappe, le bouton la
                     // refusait quand même (signalé en partie réelle, 2026-09-11).
                     'attaque_supplementaire' => (bool) ($etat?->attaque_supplementaire ?? false),
-                    // MOBILITÉ DE COMBAT (Rogue) / Voile de Brume : « on peut
-                    // traverser une case occupée par un monstre, pas s'y
-                    // arrêter ». Le moteur le sait (`ResolveurTour`,
-                    // `MoteurSorts::mobiliteCombatDisponible()`), le client
-                    // ne le peut pas — un talent de classe et un buff de sort
-                    // ne se devinent pas depuis la manette. Sans ce drapeau,
-                    // `DeplacementSheet.vue` traitait tout monstre comme un
-                    // mur pour TOUT héros, Rogue compris : le talent existait
-                    // côté moteur et restait injouable côté écran (signalé en
-                    // partie réelle, 2026-09-11). On publie la DÉCISION,
-                    // calculée par la MÊME méthode que le résolveur — pas un
-                    // cinquième miroir qui la re-déduirait.
-                    'franchit_figures' => $this->sorts->mobiliteCombatDisponible($p),
-                    // TERRAIN GÊNANT (Jungles of Delthrak p. 4) : CE héros le
-                    // traverse-t-il sans payer ses 2 cases ? DÉCISION serveur
-                    // (`MoteurSorts::terrainEntravantIgnore()`, la même méthode
-                    // que le résolveur) — la manette ne devine ni un talent ni,
-                    // demain, les Bracers of the Wild.
-                    'ignore_terrain_entravant' => $this->sorts->terrainEntravantIgnore($p),
-                    // MOBILIER (Bracers of the Wild, Spiderstep Elixir) : CE héros
-                    // traverse-t-il les meubles bloquants, sans s'y arrêter ?
-                    // Même patron, même raison — la manette ne devine ni une pièce
-                    // portée ni un buff de potion (`MoteurSorts::mobilierFranchi()`).
-                    'franchit_mobilier' => $this->sorts->mobilierFranchi($p),
-                    // TRAVERSER LA PIERRE (décision de René, 2026-10-09) : CE héros
-                    // traverse-t-il la ROCHE ce tour ? Décision serveur
-                    // (`MoteurSorts::traverseRoche()`, la même méthode que le
-                    // résolveur). La manette s'en sert pour ouvrir à la visée les cases
-                    // de roche et de sol connu, et attend l'aperçu pour savoir si le
-                    // trajet en traverse (`traverse_roche`). Sans ce drapeau, la roche
-                    // n'était jamais touchable à l'écran.
-                    'traverse_roche' => $this->sorts->traverseRoche($p),
+                    // ⚠ Ni `franchit_figures`, ni `ignore_terrain_entravant`, ni
+                    // `franchit_mobilier`, ni `traverse_roche` : ces décisions de MOUVEMENT
+                    // ne sont plus publiées sur l'entité (2026-10-15). Elles l'étaient pour
+                    // que la manette cesse de re-déduire un talent, une pièce portée, un
+                    // buff ou un sort ; depuis le 2026-10-10 le serveur publie la LISTE des
+                    // cases atteignables (`se_deplacer.parametres.destinations`,
+                    // `DeplacementHeros`), qui les contient déjà, et aucun écran ne lisait
+                    // plus les drapeaux — une clé sans lecteur est une règle promise et
+                    // jamais tenue. Le MOTEUR les lit toujours, à la source
+                    // (`MoteurSorts::mobiliteCombatDisponible()`, `terrainEntravantIgnore()`,
+                    // `mobilierFranchi()`, `traverseRoche()`), et le `traverse_roche` de
+                    // l'APERÇU de trajet (`ResolveurTour::apercuDeplacement()`) reste publié.
+                    // Les republier exige d'abord un lecteur ET un test en jeu qui l'épingle.
                     // RÉSERVE ARCANIQUE (talent du magicien) et Baguette de
                     // Rappel : un SECOND sort au-delà du créneau d'action, le
                     // pendant exact de la seconde attaque ci-dessus. Même

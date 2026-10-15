@@ -51,8 +51,12 @@ reason, and the two must never drift.
 - **The server publishes the DECISION, not the ingredients.** A client that re-derives a
   server rule in JS drifts the day the rule moves — **five occurrences in one week**
   (2026-09-11/12), all in `DeplacementSheet.vue` / `ActionTab.vue`. `attaque_supplementaire`,
-  `sort_bonus_disponible`, `franchit_figures` and `embrasure` are therefore computed
-  server-side and sent **already decided**. → `docs/regles/front-manette-et-table.md`
+  `sort_bonus_disponible`, `embrasure` and, for movement, the whole list of reachable cells
+  (`se_deplacer.parametres.destinations`, `DeplacementHeros`) are therefore computed
+  server-side and sent **already decided**. A published flag nobody reads is the same
+  defect turned around: `franchit_figures`, `ignore_terrain_entravant` and `franchit_mobilier`
+  were dropped from the payload once `destinations` carried their consequence.
+  → `docs/regles/front-manette-et-table.md`
 - **Connected is not playable.** A procedural placement that only re-checks *connectivity*
   accepts a one-cell corridor four heroes cannot stand in — `salleResteConnexe()` was
   satisfied while half the party stood on the threshold, unable to act (real game,

@@ -29,6 +29,12 @@
         <!-- Fournisseur LLM forcé pour des tests déterministes (les skills
              fakent Anthropic) : indépendant du LLM_PROVIDER du .env de dev. -->
         <env name="LLM_PROVIDER" value="anthropic"/>
+        <!-- Journal de test : les WARNING attendus des replis LLM (sans clé API) partaient
+             dans storage/logs/laravel.log, le journal que lit la production. `null` est lu
+             comme la valeur PHP null par env() ; LogManager retombe alors sur le canal
+             `null`, mais seulement en APP_ENV=testing : hors tests, il n'y a pas de repli,
+             ne jamais reprendre cette valeur dans le .env. -->
+        <env name="LOG_CHANNEL" value="null"/>
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>

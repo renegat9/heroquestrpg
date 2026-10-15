@@ -181,7 +181,7 @@ it('compte le venin en TOURS DE LA VICTIME : le tic qui clôt la phase des monst
 it('le venin est la SEULE condition à compteur que la phase des monstres pose sur un héros — Étourdi et Endormi n\'ont pas ce défaut', function () {
     // Même lecture que `MoteurDread::poserConditionHeros()` : une rupture ne porte pas de compteur,
     // sinon la durée du sort, sinon celle du catalogue. Un sort de Dread qui poserait « N tours »
-    // devrait passer par `dureeAPoserEnPhaseDesMonstres()` — ce test le dit au premier qui l'ajoute.
+    // devrait passer par `dureeAPoserSurHeros()` — ce test le dit au premier qui l'ajoute.
     $comptees = SortDread::query()->get()
         ->filter(fn (SortDread $sort) => is_string(data_get($sort->effet, 'condition_appliquee')))
         ->filter(function (SortDread $sort) {
@@ -197,9 +197,112 @@ it('le venin est la SEULE condition à compteur que la phase des monstres pose s
         ->map(fn (SortDread $sort) => $sort->nom.' → '.data_get($sort->effet, 'condition_appliquee'))
         ->values()->all();
 
-    expect($comptees)->toBe([], 'un sort de Dread pose un compteur de tours : il perdrait un tour (cf. dureeAPoserEnPhaseDesMonstres)');
+    expect($comptees)->toBe([], 'un sort de Dread pose un compteur de tours : il perdrait un tour (cf. dureeAPoserSurHeros)');
 
     // Et les deux conditions qu'on soupçonnait n'ont pas de compteur du tout : leur sortie est un déclencheur.
     expect((int) Condition::where('nom', 'Étourdi')->value('duree_defaut'))->toBe(0)
         ->and((int) Condition::where('nom', 'Endormi')->value('duree_defaut'))->toBe(0);
+});
+
+// =====================================================================
+// La durée posée dépend de la VICTIME, pas de la phase (2026-10-15)
+// =====================================================================
+
+/**
+ * Albrecht (qui a la main) + Brokk, qui n'a PAS encore joué ce round, au contact d'un Gobelin venimeux.
+ * Les dés sont à régler par l'appelant : le Gobelin ne touche personne tant qu'ils valent 6.
+ */
+function veninDeuxHeros(): array
+{
+    $ctx = sceneVenimeuse();
+    $bob = connecterJoueur('bob');
+    $brokk = creerHeros($bob, $ctx['groupe'], 'Brokk', 2);
+    App\Models\EtatPersonnageQuete::create([
+        'quete_id' => $ctx['quete']->id, 'personnage_id' => $brokk->id,
+        'position_x' => (int) $ctx['etatHeros']->position_x, 'position_y' => (int) $ctx['etatHeros']->position_y,
+        'tombe' => false, 'a_joue' => false,
+    ]);
+    test()->actingAs($ctx['alice'], 'joueur');
+
+    return $ctx + ['brokk' => $brokk, 'bob' => $bob];
+}
+
+/** La durée écrite sur le pivot d'« Envenimé », ou null. */
+function dureeDuVenin(App\Models\Personnage $heros): ?int
+{
+    $pivot = $heros->fresh()->conditions()->where('nom', 'Envenimé')->first()?->pivot;
+
+    return $pivot === null ? null : (int) $pivot->duree;
+}
+
+it('la durée posée se lit sur la VICTIME : voisin qui a encore son tour → telle quelle ; sinon un tic de plus', function () {
+    $ctx = veninDeuxHeros();
+    $dread = app(MoteurDread::class);
+    $etatBrokk = fn () => App\Models\EtatPersonnageQuete::where('personnage_id', $ctx['brokk']->id);
+
+    // Albrecht a la main, Brokk attend son tour.
+    expect($dread->dureeAPoserSurHeros(1, $ctx['brokk']->fresh()))->toBe(1, 'le tour à venir de Brokk est son « prochain tour »')
+        ->and($dread->dureeAPoserSurHeros(1, $ctx['heros']->fresh()))->toBe(2, 'Albrecht est EN PLEIN tour : le prochain est celui du round suivant')
+        ->and($dread->dureeAPoserSurHeros(3, $ctx['brokk']->fresh()))->toBe(3)
+        ->and($dread->dureeAPoserSurHeros(0, $ctx['brokk']->fresh()))->toBe(0, '0 reste 0 : pas de compteur');
+
+    // Brokk a déjà joué : son prochain tour est celui du round suivant.
+    $etatBrokk()->update(['a_joue' => true]);
+    expect($dread->dureeAPoserSurHeros(1, $ctx['brokk']->fresh()))->toBe(2);
+
+    // Tombé : il n'a plus de tour à jouer ce round.
+    $etatBrokk()->update(['a_joue' => false, 'tombe' => true]);
+    expect($dread->dureeAPoserSurHeros(1, $ctx['brokk']->fresh()))->toBe(2);
+
+    // Phase des monstres : plus personne n'a de tour.
+    $etatBrokk()->update(['a_joue' => true, 'tombe' => false]);
+    App\Models\EtatPersonnageQuete::where('personnage_id', $ctx['heros']->id)->update(['a_joue' => true]);
+    expect($dread->dureeAPoserSurHeros(1, $ctx['heros']->fresh()))->toBe(2)
+        ->and($dread->dureeAPoserSurHeros(1, $ctx['brokk']->fresh()))->toBe(2);
+});
+
+it('EN JEU — un voisin envenimé pendant le tour d\'un AUTRE héros est paralysé CE tour-là, pas le suivant', function () {
+    // Défi du chevalier, errant qui surgit : le coup tombe pendant le tour d'Albrecht, Brokk n'a pas joué.
+    $ctx = veninDeuxHeros();
+    $brokk = $ctx['brokk'];
+
+    desFiges([1]); // < 5 : le jet de résistance échoue
+    expect(app(MoteurDread::class)->appliquerVenin($ctx['instance'], $brokk))->toBeTrue()
+        ->and(dureeDuVenin($brokk))->toBe(1, 'posé à 2, le venin couvrirait un tour de trop');
+
+    // Albrecht finit son tour ; Brokk joue SON tour, paralysé.
+    desFiges(array_fill(0, 60, 6));
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    expect(dureeDuVenin($brokk))->toBe(1)
+        ->and(array_column(app(MenuMoteur::class)->generer($ctx['groupe']->fresh(), $brokk->fresh())['options'], 'id'))
+        ->not->toContain('se_deplacer');
+
+    $this->actingAs($ctx['bob'], 'joueur');
+    desFiges(array_fill(0, 60, 6));
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    // Son tour couvert est passé : le venin est parti, et le round suivant le trouve libre.
+    expect(dureeDuVenin($brokk))->toBeNull('le venin dure un tour de trop')
+        ->and(array_column(app(MenuMoteur::class)->generer($ctx['groupe']->fresh(), $brokk->fresh())['options'], 'id'))
+        ->toContain('se_deplacer');
+});
+
+it('EN JEU — un héros envenimé pendant son PROPRE tour est paralysé au tour SUIVANT, et seulement lui', function () {
+    // Le fouilleur ouvre un coffre, l'errant surgit et le frappe : son tour en cours n'est pas son « next turn ».
+    $ctx = sceneVenimeuse();
+
+    desFiges([1]);
+    expect(app(MoteurDread::class)->appliquerVenin($ctx['instance'], $ctx['heros']))->toBeTrue()
+        ->and(dureeDuVenin($ctx['heros']))->toBe(2);
+
+    // Il finit ce tour-là : le venin ne l'a PAS couvert, il reste pour le prochain.
+    terminerLeTour($ctx, array_fill(0, 30, 6));
+    expect(dureeDuVenin($ctx['heros']))->toBe(1)
+        ->and(optionsDuHeros($ctx))->not->toContain('se_deplacer');
+
+    // Le tour suivant est le couvert : il tombe à sa fin, pas un tour plus tard.
+    terminerLeTour($ctx, array_fill(0, 30, 6));
+    expect(dureeDuVenin($ctx['heros']))->toBeNull()
+        ->and(optionsDuHeros($ctx))->toContain('se_deplacer');
 });

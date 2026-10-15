@@ -146,6 +146,119 @@ it('SIXIÈME SENS ne repioche PAS le monstre errant : un errant tiré reste tir�
     expect(array_filter($lignes, fn (string $texte) => str_contains($texte, 'Sixième sens')))->toBe([]);
 });
 
+/**
+ * Pose un meuble fouillable AU CONTACT du héros (dans la salle de départ, déjà
+ * découverte), force sa table de butin, regénère le menu et le fouille.
+ *
+ * La table est écrite en BASE de test (sqlite jetable) plutôt que de simuler le
+ * tirage : c'est la VRAIE fouille de mobilier qui tourne, `tirerButin()` compris.
+ *
+ * @param  list<array<string, mixed>>  $table
+ * @return array<string, mixed>
+ */
+function fouillerUnMeubleDontLaTableEst(string $classe, array $table): array
+{
+    [$groupe, $hero, $quete, $etat] = demarrerAvecClasse($classe);
+
+    $type = App\Models\Mobilier::where('nom', 'Tombeau')->firstOrFail();
+    $type->update(['effet' => [...(array) $type->effet, 'fouille' => $table]]);
+
+    $axe = placerHerosSurAxeDegage($quete, $etat, 2);
+    $etat->refresh();
+
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+    $grille['mobilier'] = [[
+        'mobilier_id' => (int) $type->id,
+        'x' => (int) $etat->position_x + $axe['dx'],
+        'y' => (int) $etat->position_y + $axe['dy'],
+        'l' => 1, 'h' => 1,
+        'salle' => 0,
+    ]];
+    $carte->update(['grille' => $grille]);
+
+    $etat->update(['a_joue' => false, 'a_agi' => false, 'a_deplace' => false]);
+
+    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $hero->joueur_id, (int) $hero->id);
+
+    return test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_mobilier_0'])
+        ->assertStatus(202)->json('resultat');
+}
+
+// Décision de René (2026-10-10), côté MOBILIER : la fouille d'un meuble passe par le
+// MÊME point que la fouille de salle (`ResolveurTour::piocherAvecSixiemeSens()`). Un
+// meuble dont la table ne rend QUE des pièges (cas limite délibéré : la relance retombe
+// forcément dessus) prouve que la capacité a bien été déclenchée et dépensée.
+it('SIXIÈME SENS vaut aussi à la fouille d\'un MEUBLE : le piège est remis, la capacité dépensée, le fil le dit', function () {
+    $resultat = fouillerUnMeubleDontLaTableEst('explorateur', [
+        ['issue' => 'piege', 'piege' => 'Aiguille empoisonnée', 'poids' => 1],
+    ]);
+
+    expect($resultat['type'])->toBe('fouille_mobilier')
+        ->and($resultat['carte_ecartee'])->toBe('piege');
+
+    $lignes = array_column(app(App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'), 'texte');
+    expect($lignes)->toContain('Sixième sens : Albrecht remet la carte de piège sous le paquet et en tire une autre');
+
+    $hero = App\Models\Personnage::where('nom', 'Albrecht')->firstOrFail();
+    $etat = EtatPersonnageQuete::where('personnage_id', $hero->id)->firstOrFail();
+
+    expect(app(App\Partie\CapacitesInnees::class)->disponible($hero, $etat, 'repiocher_carte_piege'))->toBeFalse();
+});
+
+it('SIXIÈME SENS ne se déclenche pas à la fouille d\'un meuble qui ne rend pas de piège — et n\'est pas dépensé', function () {
+    $resultat = fouillerUnMeubleDontLaTableEst('explorateur', [
+        ['issue' => 'tresor', 'or' => [10, 10], 'poids' => 1],
+    ]);
+
+    expect($resultat['issue'])->toBe('tresor')
+        ->and($resultat)->not->toHaveKey('carte_ecartee');
+
+    $hero = App\Models\Personnage::where('nom', 'Albrecht')->firstOrFail();
+    $etat = EtatPersonnageQuete::where('personnage_id', $hero->id)->firstOrFail();
+
+    expect(app(App\Partie\CapacitesInnees::class)->disponible($hero, $etat, 'repiocher_carte_piege'))->toBeTrue();
+});
+
+it('SIXIÈME SENS est réservé à l\'Explorateur aussi sur un meuble : un barbare subit le piège', function () {
+    $resultat = fouillerUnMeubleDontLaTableEst('barbare', [
+        ['issue' => 'piege', 'piege' => 'Aiguille empoisonnée', 'poids' => 1],
+    ]);
+
+    expect($resultat['issue'])->toBe('piege')
+        ->and($resultat)->not->toHaveKey('carte_ecartee');
+});
+
+// UN SEUL POINT DE PASSAGE (CLAUDE.md : « Two copies of a rule too simple to notice drifting
+// is this project's most repeated defect »). La fouille de meuble en a porté sa propre copie :
+// condition « piège », dépense du compteur, annonce. Le test de comportement ci-dessus
+// attraperait une divergence de RÉSULTAT ; celui-ci attrape la RÉAPPARITION de la copie,
+// avant même qu'elle diverge — la dépense du compteur `repiocher_carte_piege` ne s'écrit
+// qu'à UN endroit de `app/`, et c'est `piocherAvecSixiemeSens()`.
+it('la dépense du Sixième sens n\'existe qu\'à UN endroit des sources : piocherAvecSixiemeSens()', function () {
+    $fichiers = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(base_path('app'), FilesystemIterator::SKIP_DOTS));
+    $depenses = [];
+
+    foreach ($fichiers as $fichier) {
+        if ($fichier->getExtension() !== 'php') {
+            continue;
+        }
+
+        $source = (string) file_get_contents($fichier->getPathname());
+
+        // Toute dépense du compteur : `->consommer($x, $etat, 'repiocher_carte_piege')`.
+        if (preg_match_all("/consommer\([^;]*'repiocher_carte_piege'/", $source, $m, PREG_OFFSET_CAPTURE)) {
+            foreach ($m[0] as [, $offset]) {
+                // Le nom de la dernière méthode déclarée AVANT la dépense.
+                preg_match_all('/function\s+(\w+)\s*\(/', substr($source, 0, $offset), $fonctions);
+                $depenses[] = basename($fichier->getPathname()).'::'.(end($fonctions[1]) ?: '?');
+            }
+        }
+    }
+
+    expect($depenses)->toBe(['ResolveurTour.php::piocherAvecSixiemeSens']);
+});
+
 it('laisse passer le piège pour les autres classes', function () {
     [, , $quete] = demarrerAvecClasse('barbare');
 

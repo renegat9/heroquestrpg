@@ -955,8 +955,8 @@ final class MotsClesEquipement
      * restent des murs (`Grille::franchirMobilier()` ne lève que les cases que
      * `FabriqueGrille` a marquées comme mobilier).
      * Lecteur : `MoteurSorts::mobilierFranchi()` — porté OU bu (buff de potion),
-     * relu par `ResolveurTour::grilleDeplacement()`, `MenuMoteur::peutSeDeplacer()`
-     * et publié à la manette (`entites[].franchit_mobilier`, la DÉCISION).
+     * relu par `DeplacementHeros::grille()` (le déplacement, l'aperçu et les
+     * `destinations` publiées à la manette, la DÉCISION) et par `ResolveurTour`.
      */
     public const FRANCHIT_MOBILIER = 'franchit_mobilier';
 

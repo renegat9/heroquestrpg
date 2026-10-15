@@ -282,6 +282,9 @@ const depAriaLabel = computed(() => {
 .scn-issue.t-degats { color: var(--body-bright); }
 .scn-issue.t-mort { color: var(--danger); }
 .scn-issue.t-tresor { color: var(--gold); }
+/* Une esquive, une explosion qui ne vient pas : le même vert que le fil de combat
+   (`.t-succes` de TableView / ActionTab). Le ton est décidé par le serveur. */
+.scn-issue.t-succes { color: oklch(0.8 0.13 150); }
 .scn-issue.t-echec { color: var(--ink-500); }
 .scn-issue.t-info { color: var(--ink-300); }
 </style>

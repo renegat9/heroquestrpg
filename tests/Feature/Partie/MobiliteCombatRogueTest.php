@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Auth\JoueurAuthentifiable;
+use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Mobilier;
 use App\Models\Monstre;
@@ -15,6 +16,7 @@ use Database\Seeders\MobilierSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 /*
@@ -25,10 +27,10 @@ use Illuminate\Support\Facades\Http;
  * miroir client (`DeplacementSheet.vue`) qui traitait tout monstre comme un mur
  * SANS CONDITION, faute d'un moyen de savoir si CE héros porte le talent.
  *
- * `MoteurSorts::mobiliteCombatDisponible()` est désormais le seul point de
- * passage de cette question (`ResolveurTour`, `EtatGroupe`,
- * `MenuMoteur::peutSeDeplacer()`) — ces tests le verrouillent EN JEU, sur une
- * quête réelle, jamais au catalogue.
+ * `MoteurSorts::mobiliteCombatDisponible()` est le seul point de passage de
+ * cette question (lu par `DeplacementHeros::grille()`, d'où viennent le
+ * résolveur, l'aperçu et les `destinations` publiées) — ces tests le
+ * verrouillent EN JEU, sur une quête réelle, jamais au catalogue.
  */
 
 beforeEach(function () {
@@ -141,23 +143,54 @@ it('un héros SANS le talent ne peut pas franchir le même monstre pour l\'attei
     expect([(int) $etat->fresh()->position_x, (int) $etat->fresh()->position_y])->toBe([$hx, $hy]);
 });
 
-it('EtatGroupe publie franchit_figures : vrai pour un Rogue, faux pour un héros sans le talent', function () {
+// La DÉCISION « je franchis les figures » ne voyage plus en drapeau (`entites[].franchit_figures`,
+// retiré le 2026-10-15 : aucun écran ne le lisait depuis les destinations publiées) — elle
+// voyage dans la LISTE des cases atteignables, `se_deplacer.parametres.destinations`, calculée
+// par le code même de la résolution (`DeplacementHeros`). C'est CETTE liste que la manette
+// éclaire : si elle n'offre pas la case derrière le monstre au Rogue, le talent redevient
+// injouable à l'écran (le défaut du 2026-09-11) ; si elle l'offre au barbare, le résolveur le
+// refusera.
+it('les DESTINATIONS publiées portent la décision : la case derrière un monstre figure pour un Rogue, pas pour un barbare', function (string $classe, bool $franchit) {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => $classe]);
+    ['alice' => $alice, 'groupe' => $groupe, 'quete' => $quete, 'instance' => $gobelin, 'etatHeros' => $etat] = $ctx;
+
+    ['m' => $m, 'b' => $b] = forcerCouloirVersMonstre($quete, (int) $etat->position_x, (int) $etat->position_y);
+
+    $gobelin->update(['position_x' => $m['x'], 'position_y' => $m['y'], 'revele' => true]);
+    $etat->update(['deplacement_tour' => 6, 'deplacement_restant' => null, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+    Cache::forget(GenererMenu::cleMenu($groupe->id, $alice->id));
+
+    $menu = $this->actingAs($alice, 'joueur')->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu.options');
+    $destinations = collect(collect($menu)->firstWhere('id', 'se_deplacer')['parametres']['destinations'] ?? [])
+        ->map(fn (array $d) => $d['x'].','.$d['y']);
+
+    expect($destinations->contains($b['x'].','.$b['y']))->toBe($franchit)
+        // Jamais la case du monstre lui-même : on le traverse, on ne s'y arrête pas.
+        ->and($destinations->contains($m['x'].','.$m['y']))->toBeFalse();
+})->with([['rogue', true], ['barbare', false]]);
+
+// Les trois drapeaux de mouvement (`franchit_figures`, `ignore_terrain_entravant`,
+// `franchit_mobilier`) n'avaient plus aucun lecteur — ni PHP, ni JS, ni test en jeu — une fois
+// les destinations publiées (René, 2026-10-10 ; retirés le 2026-10-15). Une clé sans lecteur est
+// une règle promise et jamais tenue : la republier demande d'abord un lecteur, et ce test à
+// réécrire AVEC lui. Le MOTEUR, lui, les lit toujours à la source (`MoteurSorts`).
+it('EtatGroupe ne publie plus les drapeaux de mouvement sans lecteur : les destinations les remplacent', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $rogue = creerHeros($alice, $groupe, 'Voleuse', 1, ['classe' => 'rogue']);
 
-    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
-    $barbare = creerHeros($bob, $groupe, 'Grondin', 2);
-
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
 
-    $entites = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('entites');
+    $entRogue = collect($this->getJson('/api/groupes/table-1/etat')->assertOk()->json('entites'))
+        ->firstWhere('id', $rogue->id);
 
-    $entRogue = collect($entites)->firstWhere('id', $rogue->id);
-    $entBarbare = collect($entites)->firstWhere('id', $barbare->id);
+    expect($entRogue)->not->toBeNull()
+        ->and($entRogue)->not->toHaveKey('franchit_figures')
+        ->and($entRogue)->not->toHaveKey('ignore_terrain_entravant')
+        ->and($entRogue)->not->toHaveKey('franchit_mobilier');
 
-    expect($entRogue)->not->toBeNull()->and($entRogue['franchit_figures'])->toBeTrue()
-        ->and($entBarbare)->not->toBeNull()->and($entBarbare['franchit_figures'])->toBeFalse();
+    // …et le moteur, lui, sait toujours que ce héros franchit les figures.
+    expect(app(App\Partie\MoteurSorts::class)->mobiliteCombatDisponible($rogue->fresh()))->toBeTrue();
 });
 
 it('MenuMoteur::peutSeDeplacer garde « Se déplacer » pour un Rogue encerclé de MONSTRES', function () {

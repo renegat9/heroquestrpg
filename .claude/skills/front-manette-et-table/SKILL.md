@@ -72,8 +72,9 @@ description: >-
 - `EtatGroupe` est le payload de la table ; `/moi` celui du joueur. Une décision
   prise côté serveur s'y **publie** plutôt que de se re-dériver côté client
   (`slots_utiles`, `remplace`, `objectif_accompli`, `jetons_rejeton`, et depuis le
-  2026-09-11 : `attaque_supplementaire`, `sort_bonus_disponible`, `franchit_figures`,
-  `embrasure`).
+  2026-09-11 : `attaque_supplementaire`, `sort_bonus_disponible`, `embrasure`, et pour
+  le mouvement `se_deplacer.parametres.destinations` — les anciens drapeaux
+  `franchit_figures` & co ont été retirés le 2026-10-15, plus aucun lecteur).
 - ⚠ **C'est LA classe de défaut du projet côté front — cinq occurrences en une semaine**
   (2026-09-11/12), toutes dans `DeplacementSheet.vue` et `ActionTab.vue`. Le schéma est
   toujours le même : le client recopie une règle serveur en JS, puis la règle bouge d'un

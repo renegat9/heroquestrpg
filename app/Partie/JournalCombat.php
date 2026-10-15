@@ -145,8 +145,48 @@ final class JournalCombat
      */
     public const LISTES_PLATES = ['captifs_repris', 'coups_de_corne', 'annonces_automatiques'];
 
-    /** Les deux clés sous lesquelles un piège peut être IMBRIQUÉ dans une action. */
-    public const CLES_PIEGE = ['declenchement', 'pieges_declenches'];
+    /**
+     * Les clés sous lesquelles un piège peut être IMBRIQUÉ dans une action : `declenchement`
+     * (UN piège : coffre, désamorçage raté, franchissement raté) et deux LISTES de pièges
+     * croisés en chemin — `pieges_esquives` (lianes esquivées) puis `pieges_declenches`.
+     * Lues par {@see self::piegesCroises()}, jamais à la main : le fil et la scène de table
+     * en avaient chacun leur liste, et l'esquive n'était que dans celle du fil.
+     */
+    public const CLES_PIEGE = ['declenchement', 'pieges_esquives', 'pieges_declenches'];
+
+    /**
+     * Les pièges imbriqués d'une action, à plat et dans l'ordre : le déclenchement unique,
+     * puis les esquives, puis les déclenchements du chemin. UNIQUE point de passage de
+     * cette lecture — le fil ({@see self::ligneAction()}) et l'écran de table
+     * (`SceneDeTable::depuisAction()`) la partagent.
+     *
+     * Les esquives passent AVANT les déclenchements : elles n'arrêtent pas la course, un
+     * piège qui blesse ou qui retient la clôt, il est donc toujours le dernier de son chemin.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array<string, mixed>>
+     */
+    public static function piegesCroises(array $a): array
+    {
+        $entrees = [];
+
+        foreach (self::CLES_PIEGE as $cle) {
+            $brut = $a[$cle] ?? null;
+
+            if (! is_array($brut)) {
+                continue;
+            }
+
+            // Un tableau ASSOCIATIF est UN piège ; une liste en porte plusieurs.
+            foreach (array_is_list($brut) ? $brut : [$brut] as $piege) {
+                if (is_array($piege)) {
+                    $entrees[] = $piege;
+                }
+            }
+        }
+
+        return $entrees;
+    }
 
 
     /**
@@ -362,38 +402,21 @@ final class JournalCombat
     {
         $lignes = $this->ligneType($a, $acteurNom);
 
-        // Piège IMBRIQUÉ (`declenchement`) : coffre piégé, désamorçage raté,
-        // franchissement raté. Aucun de ces payloads n'affichait quoi que ce
-        // soit — le héros perdait des PV sans la moindre ligne.
-        if (is_array($a['declenchement'] ?? null)) {
-            foreach ($this->lignesPiegeCroise($a['declenchement'], $acteurNom) as $ligne) {
+        // Pièges IMBRIQUÉS — `declenchement` (coffre piégé, désamorçage raté, franchissement
+        // raté : aucun de ces payloads n'affichait quoi que ce soit, le héros perdait des PV
+        // sans la moindre ligne), puis ceux marchés PENDANT un déplacement, qui arrivent sous
+        // des clés DIFFÉRENTES et au PLURIEL (un chemin pouvant en croiser plusieurs : un héros
+        // tombait dans une fosse, perdait ses PV et se retrouvait immobilisé sans une seule
+        // ligne au fil — test de jeu 2026-08-05, Krogar, Fosse en 25,42, −1 PV muet).
+        // ⚠ Les ESQUIVES (`pieges_esquives`, lianes sur un bouclier) viennent avant les
+        // déclenchements : elles vivaient dans une liste que RIEN ne lisait — le héros
+        // esquivait, le piège devenait connu de tous, et le fil ne disait pas un mot (partie
+        // du 2026-10-10). Le test d'esquive appelait `depuisResultat()` sur l'entrée SEULE et
+        // passait ; c'est le déplacement entier qu'il fallait lui donner.
+        // L'ordre et les clés viennent de `piegesCroises()`, partagé avec la scène de table.
+        foreach (self::piegesCroises($a) as $piege) {
+            foreach ($this->lignesPiegeCroise($piege, $acteurNom) as $ligne) {
                 $lignes[] = $ligne;
-            }
-        }
-
-        // …et les pièges marchés PENDANT un déplacement, qui arrivent sous une
-        // clé DIFFÉRENTE et au PLURIEL (`pieges_declenches`, un chemin pouvant
-        // en croiser plusieurs). Le correctif précédent n'avait couvert que le
-        // singulier : un héros tombait dans une fosse, perdait ses PV et se
-        // retrouvait immobilisé sans une seule ligne au fil du combat, alors
-        // que le coffre piégé de son compagnon, lui, était bien journalisé
-        // (test de jeu 2026-08-05 — Krogar, Fosse en 25,42, −1 PV muet).
-        // ⚠ Les ESQUIVES (`pieges_esquives`, lianes sur un bouclier) viennent en
-        // premier : elles n'arrêtent pas la course, un piège qui blesse ou qui
-        // retient, lui, la clôt — il est toujours le dernier de son chemin. Elles
-        // vivaient dans une liste que RIEN ne lisait : le héros esquivait, le piège
-        // devenait connu de tous, et le fil ne disait pas un mot (partie du
-        // 2026-10-10). Le test d'esquive appelait `depuisResultat()` sur l'entrée
-        // SEULE et passait ; c'est le déplacement entier qu'il fallait lui donner.
-        foreach (['pieges_esquives', 'pieges_declenches'] as $cle) {
-            foreach ((array) ($a[$cle] ?? []) as $piege) {
-                if (! is_array($piege)) {
-                    continue;
-                }
-
-                foreach ($this->lignesPiegeCroise($piege, $acteurNom) as $ligne) {
-                    $lignes[] = $ligne;
-                }
             }
         }
 
@@ -1522,8 +1545,15 @@ final class JournalCombat
         $forge = $this->suffixeForge($a);
         $oracle = $this->suffixeOracle($a);
 
+        // Un TIR se dit, quel que soit l'archer : héros (arc, arbalète, arme jetée), allié,
+        // mercenaire. Le serveur publie `portee`, le même champ que celui de l'attaque d'un
+        // monstre — UN seul prédicat (`estUnTir()`), pas une seconde lecture de la clé.
+        $tire = self::estUnTir($a);
+
         if (! empty($a['cible_vaincue'])) {
-            return [['texte' => "{$attaquant} terrasse {$cible} !{$des}{$forge}{$oracle}", 'ton' => 'mort']];
+            return [['texte' => $tire
+                ? "{$attaquant} terrasse {$cible} d'un tir !{$des}{$forge}{$oracle}"
+                : "{$attaquant} terrasse {$cible} !{$des}{$forge}{$oracle}", 'ton' => 'mort']];
         }
 
         // ⚠ `degats` est ce que les DÉS ont produit ; une défense à usage unique du
@@ -1533,11 +1563,13 @@ final class JournalCombat
         // contradictoires, les PV n'ayant pas bougé (partie du 2026-10-10). La
         // touche reste dite (les dés l'ont faite), les PV jamais.
         if ($degats > 0 && in_array($a['reaction_monstre'] ?? null, ['ignore_degats_attaque', 'jeton_ombre'], true)) {
-            return [['texte' => "{$attaquant} touche {$cible}, mais le coup ne passe pas{$des}{$forge}{$oracle}", 'ton' => 'pare']];
+            return [['texte' => $tire
+                ? "{$attaquant} tire sur {$cible}, mais le tir ne passe pas{$des}{$forge}{$oracle}"
+                : "{$attaquant} touche {$cible}, mais le coup ne passe pas{$des}{$forge}{$oracle}", 'ton' => 'pare']];
         }
 
         if ($degats > 0) {
-            return [['texte' => "{$attaquant} touche {$cible} (−{$degats} PV){$des}{$forge}{$oracle}", 'ton' => 'degats']];
+            return [['texte' => ($tire ? "{$attaquant} tire sur {$cible}" : "{$attaquant} touche {$cible}")." (−{$degats} PV){$des}{$forge}{$oracle}", 'ton' => 'degats']];
         }
 
         // ⚠ MANQUÉ ≠ PARÉ. Le repli disait « pare » dans les deux cas, et un
@@ -1545,8 +1577,27 @@ final class JournalCombat
         // c'étaient ses propres dés qui échouaient (constaté en partie réelle
         // le 2026-08-13 : « Gobelin pare l'assaut de Borin · 0 crâne »).
         return (int) ($a['touches'] ?? 0) === 0
-            ? [['texte' => "{$attaquant} manque {$cible}{$des}{$forge}{$oracle}", 'ton' => 'echec']]
-            : [['texte' => "{$cible} pare l'assaut de {$attaquant}{$des}{$forge}{$oracle}", 'ton' => 'pare']];
+            ? [['texte' => $tire
+                ? "{$attaquant} tire sur {$cible} — et le manque{$des}{$forge}{$oracle}"
+                : "{$attaquant} manque {$cible}{$des}{$forge}{$oracle}", 'ton' => 'echec']]
+            : [['texte' => $tire
+                ? "{$cible} pare le tir de {$attaquant}{$des}{$forge}{$oracle}"
+                : "{$cible} pare l'assaut de {$attaquant}{$des}{$forge}{$oracle}", 'ton' => 'pare']];
+    }
+
+    /**
+     * Cette attaque est-elle un TIR ? L'UNIQUE lecture de `portee` pour le fil : héros
+     * (arc, arbalète, arme jetée), allié et monstre la partagent. Le serveur décide
+     * (`ResolveurTour::frapper()`, `resoudreAttaqueAllie()`, l'attaque de monstre) ; le
+     * fil ne devine ni l'arme ni la distance.
+     *
+     * ⚠ La CHARGE n'est jamais un tir — l'appelant qui la traite l'écarte avant.
+     *
+     * @param  array<string, mixed>  $a
+     */
+    public static function estUnTir(array $a): bool
+    {
+        return ($a['portee'] ?? null) === 'distance';
     }
 
     /**
@@ -1632,7 +1683,7 @@ final class JournalCombat
         // la créature TIRAIT (partie du 2026-10-10) — or c'est toute la différence pour
         // l'archer, et pour le héros qui se demande pourquoi rien ne le protège. Le serveur
         // publie `portee` ; la charge, elle, n'est jamais un tir.
-        $tire = ! $charge && ($a['portee'] ?? null) === 'distance';
+        $tire = ! $charge && self::estUnTir($a);
 
         if ($degats <= 0) {
             // Même distinction côté monstre : un héros lisait « je pare »

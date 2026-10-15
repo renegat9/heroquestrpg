@@ -180,16 +180,17 @@ final class SceneDeTable
             $scenes[] = $principale;
         }
 
-        // Les deux clés d'imbrication (coffre piégé, désamorçage raté, fosse
-        // marchée en chemin) — voir JournalCombat::CLES_PIEGE.
-        foreach (JournalCombat::CLES_PIEGE as $cle) {
-            $brut = $a[$cle] ?? null;
-            $liste = isset($brut['type']) ? [$brut] : (array) $brut;
+        // Les pièges IMBRIQUÉS (coffre piégé, désamorçage raté, fosse marchée en chemin,
+        // lianes ESQUIVÉES) — mêmes clés et même ordre que le fil de combat :
+        // JournalCombat::piegesCroises() est leur unique lecture. Les esquives en étaient
+        // absentes ici : le héros esquivait sous les yeux de la table, qui ne montrait rien.
+        foreach (JournalCombat::piegesCroises($a) as $declenchement) {
+            $scene = ($declenchement['type'] ?? null) === 'piege_esquive'
+                ? $this->piegeEsquive($declenchement, $acteur)
+                : $this->piege($declenchement, $acteur);
 
-            foreach ($liste as $declenchement) {
-                if (is_array($declenchement) && ($scene = $this->piege($declenchement, $acteur)) !== null) {
-                    $scenes[] = $scene;
-                }
+            if ($scene !== null) {
+                $scenes[] = $scene;
             }
         }
 
@@ -282,6 +283,9 @@ final class SceneDeTable
             'attaque_balayee' => $this->attaqueBalayee($a, $acteur),
             'attaque_monstre' => $this->attaqueDuMonstre($a),
             'piege_declenche' => $this->piege($a, $acteur),
+            // LIANES ESQUIVÉES (Jungles of Delthrak p. 4) : le piège a jailli, le héros
+            // poursuit sa route. Aucun dégât, aucun état — la scène est la SEULE annonce.
+            'piege_esquive' => $this->piegeEsquive($a, $acteur),
             // PIÈGES MAGIQUES (Wizards of Morcar, lot 1b) : cinq scènes, une par
             // événement — voir `pieceMagique()`.
             'piege_amorce', 'piege_explosion', 'piege_teleporte', 'piege_bourrasque',
@@ -555,6 +559,43 @@ final class SceneDeTable
                     ? $victime->nom.' tombe'
                     : ($degats > 0 ? "−{$degats} PV" : 'aucun dégât'),
             ],
+        ];
+    }
+
+    /**
+     * Piège ESQUIVÉ — les lianes agrippantes jaillissent, le héros les évite sur un bouclier
+     * et poursuit sa course (Jungles of Delthrak p. 4). Même genre `piege` que le piège
+     * déclenché : c'est le même objet à l'écran, seule l'issue change.
+     *
+     * ⚠ Une esquive n'a ni dégât ni arrêt : sans cette scène la table ne montrait RIEN
+     * d'un jet pourtant lancé, d'un piège pourtant devenu connu de tous.
+     *
+     * @param  array<string, mixed>  $a  `piege_esquive` (MoteurPieges::declencherSurCase())
+     * @return array<string, mixed>
+     */
+    private function piegeEsquive(array $a, Personnage $acteur): array
+    {
+        $nomPiege = (string) ($a['piege']['nom'] ?? 'Piège');
+        $victimeId = (int) ($a['personnage']['id'] ?? 0);
+        $victime = $victimeId > 0 ? Personnage::find($victimeId) : null;
+        $victime ??= $acteur;
+
+        return [
+            'genre' => 'piege',
+            'titre' => "{$nomPiege} esquivé",
+            'sous_titre' => $victime->nom.' évite le piège et poursuit sa route',
+            'acteurs' => [$this->acteurHeros($victime, 'acteur')],
+            // Le dé de combat lancé : un bouclier sauve, un crâne aurait blessé. Même détection
+            // que le fil (JournalCombat::desJetUnilateral()), `null` sans `faces`.
+            'jet' => app(JournalCombat::class)->desJetUnilateral($a, $victime->nom),
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [[
+                'nom' => $nomPiege,
+                'image_url' => $this->imagePiege($nomPiege),
+                'detail' => 'reste armé, désormais connu de tous',
+            ]],
+            'issue' => ['ton' => 'succes', 'libelle' => $victime->nom.' esquive — aucun dégât'],
         ];
     }
 
@@ -1722,7 +1763,7 @@ final class SceneDeTable
      */
     private function porteeLisible(array $a): ?string
     {
-        return ($a['portee'] ?? null) === 'distance' ? 'À distance' : null;
+        return JournalCombat::estUnTir($a) ? 'À distance' : null;
     }
 
     /**
