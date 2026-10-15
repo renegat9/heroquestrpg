@@ -164,9 +164,18 @@ class GenererMenu implements ShouldQueue
     {
         $menu = $this->avecImmuniteMentale($menu);
 
+        // `au_tour` : ce menu a-t-il été calculé PENDANT le tour de ce héros (ou de
+        // son allié) ? Un menu calculé avant ne porte pas le dé de déplacement du
+        // tour (lancé seulement au tour du héros, `MenuMoteur::deplacementDuTour()`)
+        // et publie donc des destinations à la seule portée de base — vu en partie
+        // de vérification le 2026-10-10 : ~12 s de liste tronquée au début du tour.
+        // `MenuCourant::pour()` le jette et le recalcule.
+        $acteur = app(OrdreDuTour::class)->acteurActif($groupe);
+
         Cache::put(self::cleMenu($groupe->id, $this->joueurId), [
             'personnage_id' => $personnage->id,
             'allie_id' => $allieId,
+            'au_tour' => $acteur !== null && (int) $acteur['personnage_id'] === (int) $personnage->id,
             'menu' => $menu,
         ], now()->addMinutes(self::TTL_MENU_MINUTES));
 

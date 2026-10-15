@@ -80,7 +80,12 @@ final class MenuCourant
 
         $cache = Cache::get($cle);
 
-        if (is_array($cache) && ! $this->designeLActeur($cache, $acteur)) {
+        // Un menu calculé AVANT le tour du héros (`au_tour` à false, posé par
+        // `GenererMenu::publier()`) n'a pas lancé le dé de déplacement : ses
+        // destinations s'arrêtent à la portée de base. On le recalcule maintenant que
+        // c'est son tour (2026-10-10). Une entrée SANS la clé (antérieure au
+        // correctif) est gardée : elle désigne déjà l'acteur, et elle expire vite.
+        if (is_array($cache) && (! $this->designeLActeur($cache, $acteur) || ($cache['au_tour'] ?? true) === false)) {
             Cache::forget($cle);
             $cache = null;
         }

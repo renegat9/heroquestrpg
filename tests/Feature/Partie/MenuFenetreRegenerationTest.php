@@ -132,3 +132,34 @@ it('l\'aperçu de trajet ne tombe pas dans la fenêtre de régénération', func
         'y' => (int) $etat->position_y,
     ])->assertOk();
 });
+
+it('recalcule un menu calculé AVANT le tour du héros : sinon ses destinations ignorent le dé de déplacement (2026-10-10)', function () {
+    [$alice, $groupe, $albrecht] = fenetreDeuxHeros();
+
+    // Un menu d'Albrecht calculé quand ce n'était pas encore son tour : le dé du tour
+    // n'était pas lancé, les destinations s'arrêtaient à la portée de base.
+    Cache::put(GenererMenu::cleMenu($groupe->id, (int) $alice->id), [
+        'personnage_id' => $albrecht->id,
+        'allie_id' => null,
+        'au_tour' => false,
+        'menu' => ['situation' => 'Avant son tour', 'options' => [['id' => 'attendre', 'libelle' => 'Avant son tour', 'type' => 'attente']]],
+    ], now()->addMinutes(5));
+
+    $menu = app(MenuCourant::class)->pour($groupe, (int) $alice->id);
+
+    expect($menu['au_tour'])->toBeTrue()
+        ->and($menu['menu']['situation'])->not->toBe('Avant son tour');
+});
+
+it('garde un menu calculé PENDANT le tour du héros (pas de recalcul inutile)', function () {
+    [$alice, $groupe, $albrecht] = fenetreDeuxHeros();
+
+    Cache::put(GenererMenu::cleMenu($groupe->id, (int) $alice->id), [
+        'personnage_id' => $albrecht->id,
+        'allie_id' => null,
+        'au_tour' => true,
+        'menu' => ['situation' => 'À son tour', 'options' => [['id' => 'attendre', 'libelle' => 'À son tour', 'type' => 'attente']]],
+    ], now()->addMinutes(5));
+
+    expect(app(MenuCourant::class)->pour($groupe, (int) $alice->id)['menu']['situation'])->toBe('À son tour');
+});

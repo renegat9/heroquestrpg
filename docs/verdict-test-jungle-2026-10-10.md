@@ -96,3 +96,31 @@ Leviers, relèvement, Repousser, établi, Gretzl, mission « secourir », TPK en
 | Sixième sens (explorateur) | **Piège seulement** : une carte « monstre errant » tirée reste tirée (fidèle à la description de la compétence ; les livrets distinguent « hazard » et « wandering monster »). |
 | Sens du piège | Les cases pressenties sont montrées à **tout le groupe** (comme à une vraie table). |
 | Changement de forme d'un boss | Le fil annonce le **nom ET les nouvelles stats**, au prix du mystère voulu par le livret. |
+
+## Partie de vérification ciblée (2026-10-10, 11:07 → 11:53)
+
+Deux agents Haiku (Tamsin explorateur, Brokk nain), `BOITES=jungles_delthrak`, une quête courte,
+**échouée** (les deux héros à terre face à Gretzl). Coût API mesuré : 3 appels Sonnet, ~0,09 $ US.
+Nettoyée ; comptes réels inchangés (3/9/4).
+
+**Déplacement publié par le serveur : conforme.** ~45 trajets, aucun 422 sur une case listée, coût
+débité = coût annoncé, reliquat juste, brouillard jamais franchi ; la manette éclaire exactement les
+33 cases publiées (capture Playwright). Un défaut, **corrigé** dans la foulée : un menu calculé avant
+le tour du héros (dé de déplacement pas encore lancé) restait servi ~12 s avec des destinations à la
+seule portée de base → `GenererMenu` marque `au_tour`, `MenuCourant::pour()` recalcule.
+
+**Trouvé, non corrigé :**
+- **Porte inatteignable** : la seule case d'accès à la porte (21,31) était un **Brasier** (on le
+  traverse, on ne s'y arrête pas — Jungles p. 4) → aucune case d'où l'ouvrir. Défaut de **placement du
+  terrain** (« Connected is not playable »), antérieur au chantier destinations.
+- **Fil** : « touche Brokk (−2 PV) » puis « ignore intégralement le coup » (dégâts annoncés avant la
+  réaction qui les annule) ; esquive d'un Piège de lianes pendant un déplacement sans ligne ; pose du
+  venin sans ligne (seule la fin est dite) ; tir à distance de Gretzl (`tir_au_choix`) à 12 cases sans
+  dire « tire » ; le fil nomme le monstre par son nom de catalogue (« Gretzl la Porte-Fléau »,
+  « Demonspider ») quand l'écran montre son nom d'habillage (« Le Cœur-Liane Éveillé »).
+- **Levier** (29,18) : « le passage est déjà ouvert » alors que la porte verrouillée (21,26) reste
+  close, et le levier reste proposé.
+- Harnais : `vue.py` n'affiche que 14 destinations sur 42 ; le README dit « embrasure comprise » pour
+  les portes fermées (faux : l'embrasure d'une porte close n'est pas une case d'arrêt).
+
+**Non vérifié** (objectif jamais atteint) : la sortie depuis la salle de départ et son vote.
