@@ -38,6 +38,9 @@ it('route un résultat moteur vers CHAQUE temps fort que la pré-génération pr
         ['type' => 'piege_declenche'],
         ['type' => 'reprise'],
         ['type' => 'deplacement'],
+        // La proposition de sortie ouvre un VOTE : ni issue de jet, ni fin de
+        // quête. Elle tombait sur « progression » (constaté le 2026-10-15).
+        ['type' => 'sortie', 'option_id' => 'quitter_donjon'],
         ['type' => 'ouvrir_porte'],
         ['type' => 'actionner_levier', 'force' => true],
         // ⚠ Le levier qui RÉSISTE est un temps fort à part (2026-09-11) : le
@@ -160,4 +163,14 @@ it('raconte un levier selon sa DÉCISION (`force`), jamais selon l\'issue du jet
     expect(cleTempsFortPour(['type' => 'actionner_levier', 'jet' => ['issue' => 'reussite_mixte'], 'force' => false]))->toBe('levier_echoue')
         ->and(cleTempsFortPour(['type' => 'actionner_levier', 'jet' => ['issue' => 'echec'], 'force' => false]))->toBe('levier_echoue')
         ->and(cleTempsFortPour(['type' => 'actionner_levier', 'jet' => ['issue' => 'reussite'], 'force' => true]))->toBe('levier_actionne');
+});
+
+it('raconte la proposition de sortie par `sortie_proposee`, jamais par « progression » (2026-10-15)', function () {
+    // Forme du résultat de `ResolveurTour::resoudreQuitterDonjon()` : un type
+    // `sortie`, sans `quete` ni `issue` — rien que `cleIssue()` puisse lire.
+    $resultat = ['type' => 'sortie', 'option_id' => 'quitter_donjon', 'libelle' => 'Quitter le donjon — proposer au groupe'];
+
+    expect(cleTempsFortPour($resultat))->toBe('sortie_proposee')
+        ->and(TempsFort::variablesDe('sortie_proposee'))->toBe([])
+        ->and(config('narration.repli.sortie_proposee.variantes'))->not->toBeEmpty();
 });

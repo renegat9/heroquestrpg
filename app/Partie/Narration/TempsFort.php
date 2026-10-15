@@ -62,6 +62,11 @@ final class TempsFort
         // collective prise par vote.
         'retraite' => [],
         'campagne_abandonnee' => [],
+        // Proposition de sortie (2026-10-15) : un vote ouvert pour remonter par
+        // l'escalier. Sans variable — le proposant n'est pas nommé, c'est une
+        // décision de groupe, comme la retraite. Ce n'est pas une fin : la sortie
+        // ne passe qu'à la majorité stricte, le texte ne doit pas l'annoncer acquise.
+        'sortie_proposee' => [],
         'attaque_mort' => [],
         // Mort d'un boss ou d'un sous-boss. Clé DISTINCTE d'`attaque_mort`, et
         // pour une raison précise : celle-ci ne porte aucune variable, parce

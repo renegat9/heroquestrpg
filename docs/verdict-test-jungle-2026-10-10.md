@@ -123,4 +123,20 @@ seule portée de base → `GenererMenu` marque `au_tour`, `MenuCourant::pour()` 
 - Harnais : `vue.py` n'affiche que 14 destinations sur 42 ; le README dit « embrasure comprise » pour
   les portes fermées (faux : l'embrasure d'une porte close n'est pas une case d'arrêt).
 
-**Non vérifié** (objectif jamais atteint) : la sortie depuis la salle de départ et son vote.
+**Non vérifié** (objectif jamais atteint) : la sortie depuis la salle de départ et son vote. → vérifiée le 2026-10-15, voir plus bas.
+
+## Partie de vérification de la sortie (2026-10-15)
+
+Un agent Sonnet pilote deux héros (Brakka barbare, Durin nain) sur les routes réelles, dans une quête `vaincre_boss_final`. L'objectif a été **mis en scène** : boss passé `vaincu` par tinker, sur le seul groupe du harnais (même écriture que `MoteurDegats`). Coût API : 3 appels claude-sonnet-4-6 (9 114 jetons en entrée, 3 442 en sortie). Nettoyée par `nettoyer.sh` ; comptes réels inchangés (3/9/4).
+
+**Conforme :**
+- Un héros hors de la salle de départ : `quitter_donjon` absent des deux menus ; `quete.sortie` = `{ouverte: true, rassemble: false, absents: ["Brakka"], consigne: « Rejoignez la salle de départ pour quitter le donjon — il manque : Brakka. »}`, consigne visible dans `vue.py`.
+- Les deux héros dans la salle de départ, aucun sur les cases d'escalier : `quitter_donjon` offert, vote 2 oui / 0 non, quête `terminee`, 300 or, niveau 2, phase `hub`. Aucun 422, aucun menu partiel.
+- Vérifié par le code seulement (transaction annulée) : un héros à terre hors de la salle ne bloque pas (`rassemble: true, absents: []`).
+- Extraction (captif sur l'escalier) : non applicable, pas de captif.
+
+**Trouvé, corrigé :** la narration de repli qui suivait la proposition de sortie disait « Les héros avancent… » (temps fort `progression`). Corrigé : temps fort `sortie_proposee`.
+
+**Observé, laissé tel quel :** une case de PORTE ouverte de la salle de départ compte comme « dans la salle » (`Salles::indexDe()` englobe la couronne de murs), cohérent avec « la porte occupe sa case ».
+
+**Non vérifié faute de combat :** les lignes « tire » des attaques à distance des héros (couvertes par `tests/Feature/Partie/FilEtTableTirEsquiveFinsTest.php`).

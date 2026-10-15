@@ -267,6 +267,22 @@ return [
                 'Le fil de la campagne se rompt : le groupe rentre chez lui pour de bon.',
             ],
         ],
+
+        // ── Proposition de sortie ───────────────────────────────────────
+        // Le groupe envisage de remonter par l'escalier : c'est un VOTE ouvert,
+        // pas une fin. Aucune variante ne doit présenter la sortie comme décidée.
+        'sortie_proposee' => [
+            'ambiance' => 'tension',
+            'variantes' => [
+                'Le groupe envisage de remonter par l\'escalier. Avant de partir, chacun doit voter.',
+                'Remonter par l\'escalier ? Le groupe y pense, et chacun doit se prononcer.',
+                'Les héros jettent un œil vers l\'escalier : remonter est envisagé, et chacun doit voter.',
+                'Et si l\'on remontait par l\'escalier ? Le groupe y songe : à chacun de voter.',
+                'L\'escalier d\'entrée est là, à quelques pas. Le groupe envisage de remonter, mais rien n\'est décidé : chacun doit voter.',
+                'Le groupe pense à rentrer par l\'escalier. Chacun doit voter, et rien n\'est acquis d\'ici là.',
+            ],
+        ],
+
         'reprise' => [
             'ambiance' => 'mystere',
             'variantes' => [

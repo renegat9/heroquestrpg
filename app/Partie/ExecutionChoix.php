@@ -338,6 +338,11 @@ final class ExecutionChoix
                 : 'levier_actionne',
             'reprise' => 'reprise',
             'deplacement' => 'deplacement',
+            // Proposition de sortie : c'est un VOTE qui s'ouvre, pas une fin de
+            // quête. Le résultat ne porte ni `quete` ni `issue`, donc `cleIssue()`
+            // retombait sur « progression » (« les héros avancent »), constaté le
+            // 2026-10-15 en partie de vérification.
+            'sortie' => 'sortie_proposee',
             // Inatteignable en pratique via ce contrôleur (une attaque cible
             // toujours un monstre actif+révélé, donc $enCombat est vrai et
             // narrer() n'est jamais appelé) — conservé pour fidélité au
