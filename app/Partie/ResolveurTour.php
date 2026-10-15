@@ -1473,6 +1473,17 @@ final class ResolveurTour
                 throw ValidationException::withMessages(['option_id' => 'Cible hors de portée : l\'attaque exige une case adjacente.']);
             }
 
+            // Une arme JETABLE visée hors contact PART : seule l'option `lancer`
+            // la supprime (`consommerArmeLancee()`). Le menu ne l'offre plus sous
+            // `attaquer` ; ce garde-fou refuse un menu périmé ou un choix forgé —
+            // sinon la Dague de jet magique (`portee: distance` ET `jetable`)
+            // tirerait sans fin sans jamais quitter la main.
+            if (! $lancer && (bool) ($armePrincipale?->effet['jetable'] ?? false)) {
+                throw ValidationException::withMessages([
+                    'option_id' => "« {$armePrincipale->nom} » se lance à distance (elle est alors perdue) : choisissez « Lancer ».",
+                ]);
+            }
+
             $grille = $this->grille($quete, exceptPersonnageId: $personnage->id);
             // FAVEUR « Deadeye » (Hopekins Rest) : revalidée ici comme au menu.
             if (! $grille->ligneDeVue(
@@ -1482,7 +1493,7 @@ final class ResolveurTour
             )) {
                 throw ValidationException::withMessages(['option_id' => 'Cible hors de vue : aucune ligne de tir dégagée.']);
             }
-        } elseif ($armeADistance && (bool) ($armePrincipale?->effet['inutilisable_adjacent'] ?? false)) {
+        } elseif ($armePrincipale?->interditAuContact($lancer) ?? false) {
             throw ValidationException::withMessages([
                 'option_id' => "« {$armePrincipale->nom} » ne peut pas être utilisée au corps-à-corps.",
             ]);

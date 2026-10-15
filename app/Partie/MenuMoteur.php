@@ -242,6 +242,14 @@ final class MenuMoteur
             && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $diagonale));
         $idsAdjacents = $adjacents->pluck('id')->all();
 
+        // `inutilisable_adjacent` (Arbalète, arcs, Fronde, Dague de jet magique) :
+        // « cannot be used on an adjacent target ». Les cibles AU CONTACT sortent
+        // de la liste blanche — le résolveur les refuse (`Objet::interditAuContact()`,
+        // le même prédicat), et le menu n'offre jamais ce que le résolveur refuse.
+        // ⚠ On garde `$idsAdjacents` entier : un monstre au contact n'est pas pour
+        // autant une cible « à distance ».
+        $visablesAuContact = ($arme?->interditAuContact() ?? false) ? collect() : $adjacents;
+
         // Tir à distance (Arbalète, Tir précis) : monstres HORS contact mais en
         // ligne de vue dégagée, si l'arme porte.
         $aDistance = collect();
@@ -265,9 +273,14 @@ final class MenuMoteur
         $idsADistance = $aDistance->pluck('id')->all();
         $cibles = ['attaquer' => [], 'lancer' => []];
 
-        foreach ($adjacents->concat($aDistance) as $instance) {
+        foreach ($visablesAuContact->concat($aDistance) as $instance) {
             $aPortee = in_array($instance->id, $idsADistance, true);
-            $lance = $jetable && ! $aDistanceArme && $aPortee;
+            // Une arme JETABLE visée HORS contact part TOUJOURS par `lancer` — et
+            // se perd — qu'elle soit aussi une arme de tir (`portee: distance`,
+            // la Dague de jet magique) ou non (Dague, Hachette). Elle passait
+            // sous `attaquer` dès qu'elle portait les deux clés : le résolveur
+            // ne la supprimait jamais, et on la relançait sans fin.
+            $lance = $jetable && $aPortee;
 
             $cibles[$lance ? 'lancer' : 'attaquer'][] = [
                 'id' => $instance->id,

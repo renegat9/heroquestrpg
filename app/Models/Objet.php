@@ -39,6 +39,25 @@ class Objet extends Model
         ];
     }
 
+    /**
+     * Cette pièce refuse-t-elle une cible AU CONTACT ? — « cannot be used on an
+     * adjacent target » (Arbalète, arcs, Fronde, Dague de jet magique).
+     *
+     * LE point de passage de la clé `inutilisable_adjacent` : `MenuMoteur`
+     * retire les cibles au contact de la liste blanche qu'il publie,
+     * `ResolveurTour::resoudreAttaque()` refuse le choix forgé — deux sites, une
+     * seule règle, sans quoi le menu offrait ce que le résolveur refusait.
+     *
+     * La clé ne vaut que pour une arme qui TIRE : `portee: distance`, ou une
+     * arme jetable le temps de son vol (`$lancee`). Une arme qui n'a pas la
+     * clé n'est jamais touchée.
+     */
+    public function interditAuContact(bool $lancee = false): bool
+    {
+        return ($lancee || ($this->effet['portee'] ?? null) === 'distance')
+            && (bool) ($this->effet['inutilisable_adjacent'] ?? false);
+    }
+
     public function lignesInventaire(): HasMany
     {
         return $this->hasMany(Inventaire::class, 'objet_id');

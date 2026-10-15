@@ -162,7 +162,7 @@ it('la Dague de jet magique inflige 1 PV sans lancer le moindre dé', function (
     armerDe($ctx['heros'], 'Dague de jet magique');
 
     // « It cannot be used on an adjacent target » : on éloigne la cible, sinon
-    // le moteur refuse (à raison) l'attaque au contact.
+    // le menu ne l'offre pas (et le moteur refuse, à raison, l'attaque au contact).
     eloignerCible($ctx['quete'], $ctx['instance'],
         (int) $ctx['etatHeros']->position_x, (int) $ctx['etatHeros']->position_y);
 
@@ -173,13 +173,16 @@ it('la Dague de jet magique inflige 1 PV sans lancer le moindre dé', function (
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
     desFiges([]);
 
+    // Visée HORS contact, la dague part par `lancer` (et se perd) : voir
+    // `DagueDeJetMagiqueTest`. Les dégâts fixes valent sur ce chemin aussi.
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
+        'option_id' => 'lancer', 'parametres' => ['cible_id' => $ctx['instance']->id],
     ])->assertStatus(202);
 
     $reponse->assertJsonPath('resultat.degats', 1)
         ->assertJsonPath('resultat.faces_attaque', [])
-        ->assertJsonPath('resultat.faces_defense', []);
+        ->assertJsonPath('resultat.faces_defense', [])
+        ->assertJsonPath('resultat.lancer.perdue', true);
 
     expect((int) $ctx['instance']->fresh()->pv_body)->toBe($pvAvant - 1);
 });

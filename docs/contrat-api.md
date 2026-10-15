@@ -753,6 +753,12 @@ jeter son arme n'est pas frapper avec: la pièce est **détruite**, et son libel
 porte ce fait mécanique qu'une paraphrase effacerait. Elle porte néanmoins la
 même liste quand plusieurs armes sont jetables.
 
+⚠ **Les `cibles` d'une arme excluent le contact quand la carte l'interdit** (2026-10-15) :
+une arme `inutilisable_adjacent` (Arbalète, arcs, Fronde, Dague de jet magique) ne publie
+JAMAIS un monstre au contact, ni sous `attaquer` ni sous `lancer` ; et une arme jetable
+visée hors contact ne figure que sous `lancer` (libellé « Lancer X (perdue) »). La forme
+du payload n'a pas changé — seule la liste blanche est plus juste.
+
 ### `creneau` — chaque option dit ce qu'elle coûte
 
 Depuis 2026-09-18, **toute option de menu porte son `creneau`** :
