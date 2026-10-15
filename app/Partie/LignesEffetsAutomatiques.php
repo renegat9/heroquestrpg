@@ -275,6 +275,37 @@ trait LignesEffetsAutomatiques
             } else {
                 $lignes[] = ['texte' => "{$cible} pare le coup", 'ton' => 'pare'];
             }
+
+            foreach ($this->lignesConditionsPosees($r, $cible) as $ligne) {
+                $lignes[] = $ligne;
+            }
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * Les conditions qu'un COUP de monstre a posées sur son héros (`conditions_posees`,
+     * décidées par le serveur : voir `MoteurDread::conditionPosee()`) — « Brokk est
+     * Envenimé — paralysé par le venin : … ». Le nom et la description viennent du
+     * catalogue ; ici on ne fait que les rendre.
+     *
+     * @param  array<string, mixed>  $a  l'attaque (ou le résultat d'une cible de zone)
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function lignesConditionsPosees(array $a, string $cible): array
+    {
+        $lignes = [];
+
+        foreach ((array) ($a['conditions_posees'] ?? []) as $condition) {
+            if (! is_array($condition) || ($condition['nom'] ?? '') === '') {
+                continue;
+            }
+
+            $description = trim((string) ($condition['description'] ?? ''), " \t\n\r.");
+            $description = $description === '' ? '' : ' — '.mb_strtolower(mb_substr($description, 0, 1)).mb_substr($description, 1);
+
+            $lignes[] = ['texte' => "{$cible} est {$condition['nom']}{$description}", 'ton' => 'subit'];
         }
 
         return $lignes;

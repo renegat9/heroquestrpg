@@ -386,6 +386,11 @@ final class MoteurPieges
         EtatPersonnageQuete $etat,
         array $chemin,
     ): array {
+        // Ce que le chemin a croisé SANS s'arrêter (fosse ignorée, lianes esquivées) :
+        // gardé dans la liste rendue, devant le piège qui clôt la course s'il y en a un.
+        // Elles étaient jetées d'un `continue` — un jet de dé que le fil ne montrait pas.
+        $croises = [];
+
         foreach ($chemin as $case) {
             $x = (int) $case['x'];
             $y = (int) $case['y'];
@@ -401,6 +406,8 @@ final class MoteurPieges
             // Les lianes esquivées non plus : le jet a été favorable, le héros
             // poursuit sa course forcée.
             if (in_array($payload['type'] ?? null, ['piege_ignore', 'piege_esquive'], true)) {
+                $croises[] = $payload;
+
                 continue;
             }
 
@@ -408,10 +415,10 @@ final class MoteurPieges
                 ? ($payload['destination'] ?? ['x' => $x, 'y' => $y])
                 : ['x' => $x, 'y' => $y];
 
-            return ['arret' => $arret, 'declenchements' => [$payload]];
+            return ['arret' => $arret, 'declenchements' => [...$croises, $payload]];
         }
 
-        return ['arret' => null, 'declenchements' => []];
+        return ['arret' => null, 'declenchements' => $croises];
     }
 
     /**
@@ -1310,11 +1317,15 @@ final class MoteurPieges
                     pvBodyDefenseur: (int) $instance->pv_body,
                 );
 
+                // Le nom que l'ÉCRAN montre (habillage compris), lu AVANT le coup : une
+                // phase qui change en route ne rebaptise pas la cible qu'on vient de viser.
+                $nomCible = $instance->nomAffiche();
+
                 $issue = $this->degats->infligerAMonstre($instance, $resultat->degats, MoteurDegats::SOURCE_PIEGE, ['piege' => $piege?->nom]);
 
                 $cibles[] = [
                     'type' => 'monstre', 'instance_id' => $instance->id,
-                    'nom' => $instance->monstre?->nom_base ?? 'Monstre',
+                    'nom' => $nomCible,
                     'degats' => $issue['degats'], 'vaincu' => $issue['vaincu'],
                 ];
             }

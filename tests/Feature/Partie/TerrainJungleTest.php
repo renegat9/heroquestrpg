@@ -501,8 +501,34 @@ it('esquive les lianes sur un bouclier : aucun dégât, le héros CONTINUE, le p
         ->and($etat->a_joue)->toBeFalse('une esquive ne ferme pas le tour')
         ->and($scene['quete']->fresh()->carte->grille['pieges'][0]['etat'])->toBe('detecte');
 
-    $lignes = collect(app(JournalCombat::class)->depuisResultat($payload['pieges_esquives'][0], 'Testeur'));
-    expect($lignes->pluck('texte')->implode(' '))->toContain('esquive');
+    // ⚠ Le fil se lit sur le RÉSULTAT ENTIER du déplacement, comme le fait la route : donner
+    // l'esquive SEULE à `depuisResultat()` passait pendant que le déplacement la jetait en
+    // silence (partie du 2026-10-10 : esquive sans une ligne).
+    $lignes = collect(app(JournalCombat::class)->depuisResultat($payload, 'Testeur'));
+    expect($lignes->pluck('texte')->implode(' '))->toContain('esquive les lianes');
+});
+
+it('un déplacement FORCÉ qui croise des lianes esquivées publie l\'esquive — le fil de l\'ouragan la dit', function () {
+    // Les lianes esquivées étaient jetées d'un `continue` dans `repousserFigure()` : le jet avait
+    // lieu (journalisé à part) mais le résultat ne le portait pas, donc le fil en direct non plus.
+    desFiges([4, 4, 4, 4, 4, 4]);
+    $scene = lianesPosees();
+
+    $resultat = app(MoteurPieges::class)->repousserFigure(
+        $scene['groupe']->fresh(), $scene['quete']->carte, $scene['heros'], $scene['etatHeros'],
+        [['x' => 1, 'y' => 0], ['x' => 2, 'y' => 0], ['x' => 3, 'y' => 0]],
+    );
+
+    expect($resultat['arret'])->toBeNull('une esquive ne retient pas la course forcée')
+        ->and($resultat['declenchements'])->toHaveCount(1)
+        ->and($resultat['declenchements'][0]['type'])->toBe('piege_esquive');
+
+    $fil = collect(app(JournalCombat::class)->depuisResultat([
+        'type' => 'sort_dread', 'sort' => 'Ouragan', 'lanceur' => ['nom' => 'Maître des orages'],
+        'repousse' => ['nom' => 'Testeur', 'cases' => 3, 'declenchements' => $resultat['declenchements']],
+    ], 'Testeur'));
+
+    expect($fil->pluck('texte')->implode(' '))->toContain('Testeur esquive les lianes');
 });
 
 it('un crâne : 1 PV, le héros est TENU (Immobilisé), son tour se ferme, les lianes restent affichées', function () {

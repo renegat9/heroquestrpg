@@ -521,7 +521,11 @@ final class MoteurDegats
         $prochaine = $instance->monstre->monstrePhaseSuivante();
 
         if ($prochaine !== null) {
-            $nomAvant = $instance->monstre->nom_base;
+            // ⚠ Le nom que l'ÉCRAN montre (`nomAffiche()`), jamais celui du catalogue :
+            // le fil disait « Gretzl la Porte-Fléau … Demonspider » quand la table
+            // montrait « Le Cœur-Liane Éveillé » (partie du 2026-10-10).
+            $nomAvant = $instance->nomAffiche();
+            $habille = ($instance->habillage['nom'] ?? null) !== null;
             $nouveauMax = $this->pvMaxPhaseSuivante($instance, $prochaine);
             // Les dés de la forme qui s'efface, lus AVANT le changement (effets de quête et
             // sorts compris) : le fil dit « attaque 3 → 4 », pas seulement le nouveau nom.
@@ -543,9 +547,16 @@ final class MoteurDegats
             // « Zargon, do not reveal the second set of statistics » (Ogre Horde p. 6) est une
             // règle de TABLE PHYSIQUE : ici les dés se montrent à chaque jet, et le verdict
             // Jungle (2026-10-10 §1) a trouvé muet que l'attaque de Gruulob passe de 3 à 4.
+            // `apres` : un monstre HABILLÉ garde son nom d'habillage d'une forme à l'autre
+            // (l'habillage vit sur l'instance, pas sur la ligne du catalogue) — le répéter
+            // ne dirait rien (« Le Cœur-Liane Éveillé se relève sous une autre forme : Le
+            // Cœur-Liane Éveillé »). Il prend donc le nom de la NOUVELLE FORME du catalogue,
+            // qui est ce qui change vraiment : « Le Cœur-Liane Éveillé … : Demonspider ».
+            // Sans habillage, le nom affiché EST celui de la nouvelle forme (★ d'élite compris).
+            $nomApres = $habille ? $prochaine->nom_base : $instance->nomAffiche();
             $changement = [
                 'avant' => $nomAvant,
-                'apres' => $prochaine->nom_base,
+                'apres' => $nomApres,
                 'stats' => [
                     'avant' => $desAvant,
                     'apres' => [

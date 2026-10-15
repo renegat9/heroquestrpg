@@ -161,6 +161,9 @@ final class MoteurDread
     /** Condition posée par une créature venimeuse (Jungles of Delthrak). */
     public const CONDITION_ENVENIME = 'Envenimé';
 
+    /** Condition posée par l'étreinte du Yéti (The Frozen Horror). */
+    public const CONDITION_AGRIPPE = 'Agrippé';
+
     /** Nombre de sbires invoqués par sort/capacité d'invocation. */
     public const NB_SBIRES_INVOQUES = 2;
 
@@ -793,7 +796,8 @@ final class MoteurDread
             );
             $this->sorts->reveillerHeros($personnage);
 
-            // Venimeux : le venin ne passe QUE si le coup a porté.
+            // Venimeux : le venin ne passe QUE si le coup a porté. Il était posé ici sans
+            // être PUBLIÉ : le résultat de la cible ne disait rien de la paralysie.
             $venin = $resultat->degats > 0 && $this->appliquerVenin($instance, $personnage);
 
             $tombe = (int) $personnage->pv_body === 0 && $subis > 0;
@@ -809,6 +813,8 @@ final class MoteurDread
                 'degats' => $subis,
                 'pv_body_apres' => (int) $personnage->pv_body,
                 'cible_tombee' => $tombe,
+                'venin' => $venin,
+                'conditions_posees' => $venin ? [$this->conditionPosee(self::CONDITION_ENVENIME)] : [],
             ];
         }
 
@@ -3209,7 +3215,7 @@ final class MoteurDread
         $payload = [
             'type' => 'spawn',
             'monstre' => $instance->nomAffiche(),
-            'engendre' => ['instance_id' => $rejeton->id, 'nom' => $catalogue->nom_base,
+            'engendre' => ['instance_id' => $rejeton->id, 'nom' => $rejeton->setRelation('monstre', $catalogue)->nomAffiche(),
                 'x' => $libre['x'], 'y' => $libre['y']],
         ];
 
@@ -3278,7 +3284,7 @@ final class MoteurDread
      */
     public function etablirEtreinte(InstanceMonstre $instance, Personnage $personnage): void
     {
-        $condition = Condition::where('nom', 'Agrippé')->first();
+        $condition = Condition::where('nom', self::CONDITION_AGRIPPE)->first();
 
         if ($condition === null) {
             return; // catalogue non semé : on n'invente pas de condition
@@ -3301,7 +3307,7 @@ final class MoteurDread
             return null;
         }
 
-        $condition = Condition::where('nom', 'Agrippé')->first();
+        $condition = Condition::where('nom', self::CONDITION_AGRIPPE)->first();
 
         if ($condition === null) {
             return null;
@@ -3331,7 +3337,7 @@ final class MoteurDread
      */
     public function libererEtreintesOrphelines(Quete $quete): void
     {
-        $condition = Condition::where('nom', 'Agrippé')->first();
+        $condition = Condition::where('nom', self::CONDITION_AGRIPPE)->first();
 
         if ($condition === null) {
             return;
@@ -3582,6 +3588,30 @@ final class MoteurDread
         ]);
 
         return true;
+    }
+
+    /**
+     * Une condition qu'un COUP de monstre vient de poser sur un héros, décrite pour
+     * le payload de ce coup (`conditions_posees`).
+     *
+     * Le venin et l'étreinte posaient leur condition sans un mot : l'attaque
+     * publiait `venin: true` (que rien ne lisait) et `etreinte_etablie` (idem), et
+     * seule la FIN de « Envenimé » était dite — un héros se découvrait paralysé sans
+     * que le fil ait annoncé pourquoi (partie du 2026-10-10). Le fil rend ce que le
+     * serveur a décidé : le nom du catalogue et SA description, jamais une phrase
+     * recomposée côté lecteur.
+     *
+     * ⚠ À appeler pour TOUTE condition qu'un coup de monstre pose, à côté de
+     * l'endroit où elle est posée — c'est ce qui la fait dire.
+     *
+     * @return array{nom: string, description: string|null}
+     */
+    public function conditionPosee(string $nomCondition): array
+    {
+        return [
+            'nom' => $nomCondition,
+            'description' => Condition::where('nom', $nomCondition)->value('description'),
+        ];
     }
 
     /**
@@ -4026,10 +4056,12 @@ final class MoteurDread
         }
 
         $arrivee = $depart;
+        $piegesCroises = [];
 
         if ($chemin !== [] && $quete->carte !== null) {
             $piege = app(MoteurPieges::class)->repousserFigure($groupe, $quete->carte, $personnage, $etat, $chemin);
             $arrivee = $piege['arret'] ?? end($chemin);
+            $piegesCroises = $piege['declenchements'];
             $etat->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
         }
 
@@ -4039,6 +4071,9 @@ final class MoteurDread
             'de' => $depart,
             'vers' => ['x' => (int) $arrivee['x'], 'y' => (int) $arrivee['y']],
             'vers_monstre' => $monstre?->nomAffiche(),
+            // Les pièges que cette marche forcée a croisés : ils n'étaient que journalisés
+            // à part, donc absents du fil en direct (bâti sur le RÉSULTAT).
+            'pieges_declenches' => $piegesCroises,
         ];
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
@@ -4429,7 +4464,7 @@ final class MoteurDread
                 ]);
                 $this->reinitialiserUsagesInstance($sbire->setRelation('monstre', $catalogue), $quete);
 
-                $invoques[] = ['monstre' => $catalogue->nom_base, 'x' => $case['x'], 'y' => $case['y'], 'instance_id' => (int) $sbire->id];
+                $invoques[] = ['monstre' => $sbire->nomAffiche(), 'x' => $case['x'], 'y' => $case['y'], 'instance_id' => (int) $sbire->id];
             }
         }
 
@@ -5228,7 +5263,7 @@ final class MoteurDread
                     ]);
                     $this->reinitialiserUsagesInstance($nouveau->setRelation('monstre', $catalogue), $quete);
                     $invoques[] = [
-                        'monstre' => $catalogue->nom_base,
+                        'monstre' => $nouveau->nomAffiche(),
                         'x' => (int) $sorcier->position_x,
                         'y' => (int) $sorcier->position_y,
                         'instance_id' => (int) $nouveau->id,

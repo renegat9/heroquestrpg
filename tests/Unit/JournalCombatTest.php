@@ -488,3 +488,14 @@ it('distingue un levier forcé d\'un levier qui résiste', function () {
         ->and($reussite)->toContain("porte s'ouvre")
         ->and($reussite)->not->toContain('réessayer');
 });
+
+it('ne dit jamais « −N PV » pour un coup qu\'une défense à usage unique annule (partie du 2026-10-10)', function () {
+    $texte = collect(lignes([
+        'type' => 'attaque', 'degats' => 2, 'touches' => 2, 'boucliers' => 0,
+        'cible' => ['nom' => 'Gretzl'], 'reaction_monstre' => 'ignore_degats_attaque',
+    ], 'Brokk'))->pluck('texte')->join(' | ');
+
+    expect($texte)->toContain('ne passe pas')
+        ->and($texte)->not->toContain('−2 PV')
+        ->and($texte)->toContain('ignore intégralement le coup');
+});

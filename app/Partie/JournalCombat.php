@@ -366,7 +366,7 @@ final class JournalCombat
         // franchissement raté. Aucun de ces payloads n'affichait quoi que ce
         // soit — le héros perdait des PV sans la moindre ligne.
         if (is_array($a['declenchement'] ?? null)) {
-            foreach ($this->piegeDeclenche($a['declenchement'], $acteurNom) as $ligne) {
+            foreach ($this->lignesPiegeCroise($a['declenchement'], $acteurNom) as $ligne) {
                 $lignes[] = $ligne;
             }
         }
@@ -378,13 +378,22 @@ final class JournalCombat
         // retrouvait immobilisé sans une seule ligne au fil du combat, alors
         // que le coffre piégé de son compagnon, lui, était bien journalisé
         // (test de jeu 2026-08-05 — Krogar, Fosse en 25,42, −1 PV muet).
-        foreach ((array) ($a['pieges_declenches'] ?? []) as $declenchement) {
-            if (! is_array($declenchement)) {
-                continue;
-            }
+        // ⚠ Les ESQUIVES (`pieges_esquives`, lianes sur un bouclier) viennent en
+        // premier : elles n'arrêtent pas la course, un piège qui blesse ou qui
+        // retient, lui, la clôt — il est toujours le dernier de son chemin. Elles
+        // vivaient dans une liste que RIEN ne lisait : le héros esquivait, le piège
+        // devenait connu de tous, et le fil ne disait pas un mot (partie du
+        // 2026-10-10). Le test d'esquive appelait `depuisResultat()` sur l'entrée
+        // SEULE et passait ; c'est le déplacement entier qu'il fallait lui donner.
+        foreach (['pieges_esquives', 'pieges_declenches'] as $cle) {
+            foreach ((array) ($a[$cle] ?? []) as $piege) {
+                if (! is_array($piege)) {
+                    continue;
+                }
 
-            foreach ($this->piegeDeclenche($declenchement, $acteurNom) as $ligne) {
-                $lignes[] = $ligne;
+                foreach ($this->lignesPiegeCroise($piege, $acteurNom) as $ligne) {
+                    $lignes[] = $ligne;
+                }
             }
         }
 
@@ -1516,6 +1525,17 @@ final class JournalCombat
         if (! empty($a['cible_vaincue'])) {
             return [['texte' => "{$attaquant} terrasse {$cible} !{$des}{$forge}{$oracle}", 'ton' => 'mort']];
         }
+
+        // ⚠ `degats` est ce que les DÉS ont produit ; une défense à usage unique du
+        // monstre (`reaction_monstre`, lue par `MoteurDegats::infligerAMonstre()`)
+        // peut l'annuler en entier. Le fil disait alors « touche Gretzl (−2 PV) »
+        // puis « la créature ignore intégralement le coup » — deux phrases
+        // contradictoires, les PV n'ayant pas bougé (partie du 2026-10-10). La
+        // touche reste dite (les dés l'ont faite), les PV jamais.
+        if ($degats > 0 && in_array($a['reaction_monstre'] ?? null, ['ignore_degats_attaque', 'jeton_ombre'], true)) {
+            return [['texte' => "{$attaquant} touche {$cible}, mais le coup ne passe pas{$des}{$forge}{$oracle}", 'ton' => 'pare']];
+        }
+
         if ($degats > 0) {
             return [['texte' => "{$attaquant} touche {$cible} (−{$degats} PV){$des}{$forge}{$oracle}", 'ton' => 'degats']];
         }
@@ -1608,19 +1628,37 @@ final class JournalCombat
         $des = $this->detailDes($a);
         $oracle = $this->suffixeOracle($a);
 
+        // Un TIR se dit : « Gretzl » touchait Brokk à 12 cases sans que le fil dise que
+        // la créature TIRAIT (partie du 2026-10-10) — or c'est toute la différence pour
+        // l'archer, et pour le héros qui se demande pourquoi rien ne le protège. Le serveur
+        // publie `portee` ; la charge, elle, n'est jamais un tir.
+        $tire = ! $charge && ($a['portee'] ?? null) === 'distance';
+
         if ($degats <= 0) {
             // Même distinction côté monstre : un héros lisait « je pare »
             // quand la créature l'avait simplement manqué.
             return (int) ($a['touches'] ?? 0) === 0
                 ? [['texte' => $charge
                     ? "{$monstre} charge {$cible} — et le manque{$des}{$oracle}"
-                    : "{$monstre} manque {$cible}{$des}{$oracle}", 'ton' => 'echec']]
+                    : ($tire
+                        ? "{$monstre} tire sur {$cible} — et le manque{$des}{$oracle}"
+                        : "{$monstre} manque {$cible}{$des}{$oracle}"), 'ton' => 'echec']]
                 : [['texte' => $charge
                     ? "{$cible} encaisse la charge de {$monstre} sans dommage{$des}{$oracle}"
-                    : "{$cible} pare l'assaut de {$monstre}{$des}{$oracle}", 'ton' => 'pare']];
+                    : ($tire
+                        ? "{$cible} pare le tir de {$monstre}{$des}{$oracle}"
+                        : "{$cible} pare l'assaut de {$monstre}{$des}{$oracle}"), 'ton' => 'pare']];
         }
 
-        $lignes = [['texte' => ($charge ? "{$monstre} charge {$cible}" : "{$monstre} touche {$cible}")." (−{$degats} PV){$des}{$oracle}", 'ton' => 'subit']];
+        $verbe = $charge ? "{$monstre} charge {$cible}" : ($tire ? "{$monstre} tire sur {$cible}" : "{$monstre} touche {$cible}");
+        $lignes = [['texte' => "{$verbe} (−{$degats} PV){$des}{$oracle}", 'ton' => 'subit']];
+
+        // Ce que le coup a POSÉ sur le héros (venin, étreinte…) : dit dans l'ordre où
+        // les choses arrivent, avant que le héros ne s'effondre le cas échéant.
+        foreach ($this->lignesConditionsPosees($a, (string) $cible) as $ligne) {
+            $lignes[] = $ligne;
+        }
+
         if (! empty($a['cible_tombee'])) {
             $lignes[] = ['texte' => "{$cible} s'effondre !", 'ton' => 'chute'];
         }
@@ -2498,6 +2536,29 @@ final class JournalCombat
         }
 
         return $lignes;
+    }
+
+    /**
+     * Un piège IMBRIQUÉ dans une autre action (`declenchement`, `pieges_declenches`,
+     * `pieges_esquives`), dit PAR SON TYPE.
+     *
+     * Les entrées passaient toutes par `piegeDeclenche()` — la phrase de la Fosse et
+     * des pièges de sol. Or une entrée de déplacement peut aussi être une esquive, une
+     * téléportation, un ouragan, un jeton d'embrasement : chacune a sa phrase dans
+     * `ligneType()`, que le piège marché en chemin n'atteignait jamais (une
+     * téléportation s'y lisait « se déclenche… s'en tire sans une égratignure »).
+     * Une entrée SANS type (les payloads anciens) garde la phrase du piège de sol.
+     *
+     * @param  array<string, mixed>  $piege
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function lignesPiegeCroise(array $piege, string $acteurNom): array
+    {
+        if (! isset($piege['type'])) {
+            return $this->piegeDeclenche($piege, $acteurNom);
+        }
+
+        return $this->ligneType($piege, (string) ($piege['personnage']['nom'] ?? $acteurNom));
     }
 
     private function piegeDeclenche(array $a, string $acteurNom): array

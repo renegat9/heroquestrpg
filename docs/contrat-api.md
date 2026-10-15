@@ -1304,6 +1304,26 @@ toutes deux sont fermées.
   de René, 2026-10-10) : un monstre errant tiré reste tiré, sans dépenser la capacité.
   Un `deplacement` qui porte `pieges_pressentis` (*Sens du piège*) se dit : « Tamsin pressent un piège caché tout près —
   (x, y) (Sens du piège ; il reste caché) » ; le piège reste `cache` sur la carte.
+- **Un coup de monstre dit ce qu'il POSE et COMMENT il frappe** (partie du 2026-10-10).
+  `attaque_monstre` (et chaque entrée de `frappe_de_zone.resultats[]`) publie
+  **`conditions_posees`** : `[{nom, description}]`, la liste des conditions que CE coup vient
+  de poser sur le héros (`nom` et `description` du catalogue `conditions`) — le venin
+  (`Envenimé`, `venin: true`) et l'étreinte du Yéti (`Agrippé`, `etreinte_etablie: true`) à
+  ce jour ; vide quand rien n'a été posé (coup manqué, venin résisté). Le fil la dit à la
+  suite du coup, avant « s'effondre » : « Brokk est Envenimé — paralysé par le venin : il ne
+  peut pas se déplacer, jusqu'à la fin du tour suivant ». ⚠ Toute condition qu'un coup de
+  monstre pose s'ajoute à cette liste, à l'endroit où elle est posée
+  (`MoteurDread::conditionPosee()`). **`portee`** (`"distance"` | `"corps_a_corps"`) est lue
+  par le fil : à distance, « Gretzl tire sur Brokk (−2 PV) » / « …— et le manque » / « Brokk
+  pare le tir de Gretzl » ; une `charge` n'est jamais un tir.
+- **Le NOM d'un monstre, partout, est celui de l'ÉCRAN** (`InstanceMonstre::nomAffiche()` :
+  habillage IA, ★ d'élite) — jamais `monstres.nom_base`. Valable pour toute étiquette d'un
+  payload lu par le fil ou la table (`monstre`, `cible.nom`, `engendre.nom`, `invoques[].monstre`,
+  `piege_explosion.cibles[].nom`, `changement_phase.avant`). Un test balaie les sources.
+  Pour `changement_phase`, l'habillage vit sur l'INSTANCE : il survit au changement de
+  forme. `avant` est donc le nom affiché, et `apres` le nom de la NOUVELLE FORME du
+  catalogue quand l'instance est habillée (« Le Cœur-Liane Éveillé vacille — et se relève
+  sous une autre forme : Demonspider ! »), sinon le nom affiché de la nouvelle forme.
 - **Nouveaux payloads rendus** (tous dans `tour_monstres.actions` sauf mention) :
   `deplacement_monstre` (« avance de N cases »), `repli_tireur`, `monstre_reveille`
   (**retourné** désormais, devant l'action du réveillé, via `actions_composites` ;
@@ -1618,6 +1638,17 @@ Le payload d'un déclenchement (`declenchement`, `pieges_declenches[]`) porte le
 faces du jet quand il y en a un : `faces: [str]` (faces de dé de combat) et
 `touches` (crânes comptés). ⚠ C'est ce qui permet au fil et à la scène de table
 de DESSINER les dés du piège, comme ceux d'une attaque.
+
+**Les pièges croisés en chemin se DISENT tous, par leur type** (partie du 2026-10-10).
+Un `deplacement` porte `pieges_declenches[]` (ce qui a blessé, retenu, téléporté…),
+`pieges_esquives[]` (les lianes esquivées sur un bouclier : le héros CONTINUE, le jet a
+eu lieu et le piège est devenu connu de tous) et `pieges_reveles[]`/`pieges_pressentis[]`
+(détection). Le fil rend `pieges_esquives` PUIS `pieges_declenches`, chaque entrée par
+sa phrase de type (`piege_esquive`, `piege_teleporte`, `piege_ignore`…, jamais toutes par
+celle de la fosse) — « Piège de lianes jaillit — Tamsin esquive les lianes et poursuit sa
+route ». Même règle pour un déplacement FORCÉ : `sort_dread.repousse.declenchements[]`
+(Ouragan) et `possession_deplacement.pieges_declenches[]` (nouveau) portent aussi les
+fosses ignorées et les lianes esquivées croisées sur la route.
 
 **Le bloc tombé** (René, 2026-09-24) :
 - il bloque le **passage** (sourcé : « *the trap space is now a permanent block
@@ -3049,8 +3080,8 @@ Tous les payloads restent `{type: "sort_dread", sort, ...}` ; formes ajoutées :
   `reaction_dread` dans le payload de l'attaque qui a tué (`attaque_monstre`).
 - *Invocation de momie* / *Appel des squelettes* : `invoques` sans `de` (renfort fixe).
 Payloads de tour ajoutés : `{type: "possession_deplacement", personnage, de, vers,
-vers_monstre}` (le héros *Possédé* est déplacé par le moteur, résultat de son
-action) et `{type: "conditions_levees", levees: [{personnage_id, nom, condition}]}`
+vers_monstre, pieges_declenches}` (le héros *Possédé* est déplacé par le moteur, résultat
+de son action ; `pieges_declenches` porte les pièges croisés, vide sinon) et `{type: "conditions_levees", levees: [{personnage_id, nom, condition}]}`
 (grésil retombé en tête de la phase des monstres, dans `tour_monstres.actions`).
 Nouveau type d'option de menu : `attaquer_liens` (*Liens magiques*, créneau action),
 `parametres.cibles: [{id, nom, soi}]` = liste blanche ; payload `attaque_mobilier`
@@ -3511,8 +3542,10 @@ champs s'ajoutent au payload de **toute** action qui blesse un monstre
 `frapper_entre_monstres`…), toujours présents (même `null`/`false`), comme
 `cible_vaincue` à côté d'eux :
 
-- **`changement_phase`** : `null`, ou `{avant, apres, stats}` — les deux `nom_base`
-  de catalogue (celui de la phase qui vient de finir, celui qu'elle adopte) et, depuis
+- **`changement_phase`** : `null`, ou `{avant, apres, stats}` — `avant` : le nom que
+  l'ÉCRAN montrait (`nomAffiche()`, habillage compris) ; `apres` : le `nom_base` de la
+  forme adoptée si l'instance est habillée (son nom d'habillage ne change pas), sinon son
+  nom affiché (le nom de catalogue de la nouvelle forme, ★ compris). Depuis
   le 2026-10-10, **`stats`** `{avant: {attaque, defense}, apres: {attaque, defense,
   pv_body, pv_body_max}}`. ⚠ Jamais publié en avance : le client ne connaît la forme
   suivante qu'au moment où elle vient de jouer. La règle de table « Zargon ne révèle pas

@@ -7263,7 +7263,7 @@ final class ResolveurTour
             ->with('monstre')
             ->get()
             ->filter(fn (InstanceMonstre $m) => Salles::indexDe($salles, (int) $m->position_x, (int) $m->position_y) === $index)
-            ->map(fn (InstanceMonstre $m) => (string) ($m->monstre?->nom_base ?? 'monstre'))
+            ->map(fn (InstanceMonstre $m) => $m->nomAffiche())
             ->values()
             ->all();
 
@@ -11132,6 +11132,15 @@ final class ResolveurTour
             $this->dread->etablirEtreinte($instance, $personnage);
         }
 
+        // Les conditions que CE coup vient de poser sur le héros, décidées ICI et
+        // publiées avec lui : le fil les dit à la suite du coup (`conditions_posees`).
+        // Chaque condition posée par un coup de monstre s'ajoute à cette liste, à
+        // l'endroit où elle est posée — sinon le héros subit un état que rien n'annonce.
+        $conditionsPosees = array_values(array_filter([
+            $venin ? $this->dread->conditionPosee(MoteurDread::CONDITION_ENVENIME) : null,
+            $etreinteEtablie ? $this->dread->conditionPosee(MoteurDread::CONDITION_AGRIPPE) : null,
+        ]));
+
         // Tacticien : « peut bouger AVANT *et* APRÈS son action ». Le second
         // mouvement est une PERMISSION, pas une obligation — c'est donc à nous
         // de décider ce qu'il en fait. Choix retenu : le décrochage. Il se
@@ -11164,6 +11173,7 @@ final class ResolveurTour
             'bonus_garde_tenace' => $bonusGardeTenace,
             'bonus_flanc' => $bonusFlanc,
             'venin' => $venin,
+            'conditions_posees' => $conditionsPosees,
             'repli' => $repli,
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,

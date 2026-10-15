@@ -259,6 +259,10 @@ it('tire à distance dans sa première forme, en ligne de vue, sans s\'approcher
     expect($attaque['portee'] ?? null)->toBe('distance')
         ->and(count($attaque['faces_attaque'] ?? []))->toBe(3);
 
+    // Le fil DIT qu'il tire (partie du 2026-10-10 : un héros touché à 12 cases sans un mot sur le tir).
+    expect(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($attaque, 'Albrecht'))->pluck('texte')->implode(' '))
+        ->toContain('tire sur')->not->toContain(' touche ');
+
     // « may choose to fire at range » : il tire d'où il est, il ne referme pas la distance.
     $gruulob->refresh();
     expect([(int) $gruulob->position_x, (int) $gruulob->position_y])->toBe([$depart['x'], $depart['y']]);
@@ -295,6 +299,9 @@ it('frappe au contact plutôt que de tirer : une figure collée ne lui laisse pa
 
     expect($attaque['portee'] ?? null)->toBe('corps_a_corps')
         ->and(count($attaque['faces_attaque'] ?? []))->toBe(3);
+
+    expect(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($attaque, 'Albrecht'))->pluck('texte')->implode(' '))
+        ->not->toContain('tire sur');
 });
 
 it('donne 1 dé d\'attaque de plus à tout gobelin de la quête, archer compris, et ni à Gruulob ni à l\'orque', function () {

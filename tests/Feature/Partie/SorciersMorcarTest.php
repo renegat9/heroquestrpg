@@ -456,7 +456,9 @@ it('Possession : le moteur déplace le héros à sa place, sans attaque, et la c
         ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
         ->assertStatus(202);
 
+    // Les pièges que la marche forcée croise sont PORTÉS par le résultat (le fil en direct est bâti dessus).
     expect($reponse->json('resultat.type'))->toBe('possession_deplacement')
+        ->and($reponse->json('resultat'))->toHaveKey('pieges_declenches')
         ->and($ctx['heros']->fresh()->conditions()->where('nom', 'Possédé')->exists())->toBeFalse('un tour, pas plus');
 });
 
