@@ -193,7 +193,7 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
   node:20-alpine sh -c "npm install && npm run build"
 ```
 
-Tests are **Pest** (`./vendor/bin/pest`; engine suite under `tests/Unit/Engine`, run a single file by path). `composer.json` pins `platform.php` to 8.3 (the runtime image) — keep it when resolving deps.
+Tests are **Pest** (`./vendor/bin/pest`; engine suite under `tests/Unit/Engine`, run a single file by path). While working, run **only the touched domain's files**; the **full suite runs once, right before a pushed commit, in parallel** (`--parallel --processes=8 tests` — one path only; ~5 min instead of ~20; exact command in skill `outillage-dev-et-tests`). `composer.json` pins `platform.php` to 8.3 (the runtime image) — keep it when resolving deps.
 
 **Visual/browser testing** (no Chrome on host — use the official Playwright image, which bundles Chromium + all system libs). With the stack up (`http://localhost`), screenshot key pages and inspect the PNGs:
 

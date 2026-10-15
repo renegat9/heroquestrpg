@@ -41,6 +41,25 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -v /tmp:/db -w 
 #   … ./vendor/bin/pest --filter="nom du test"
 ```
 
+**La suite COMPLÈTE se lance EN PARALLÈLE** (2026-10-15) : en série elle prend
+~20 min (2127 tests), sur 8 processus 5 min 20, même compte, tout vert. Base
+sqlite **en mémoire** : chaque processus a la sienne, rien n'est partagé.
+
+```bash
+docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
+  -e DB_CONNECTION=sqlite -e DB_DATABASE=:memory: -e APP_ENV=testing \
+  -e APP_KEY=base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY= composer:2 \
+  sh -c "php -d memory_limit=2G ./vendor/bin/pest --parallel --processes=8 --passthru-php='-d memory_limit=2G' tests"
+```
+
+- ⚠ `--parallel` n'accepte **qu'UN chemin** (« Too many arguments ») : `tests`
+  entier, ou un seul dossier/fichier — jamais une liste de dossiers.
+- **Quand la lancer** (René, 2026-10-15 : « le test complet est vraiment long ») :
+  pendant un correctif, **seulement les fichiers du domaine touché** ; la suite
+  complète **une fois, juste avant le commit poussé**, sur le lot de correctifs —
+  pas après chacun. Un changement transversal (menu, déplacement, résolution du
+  tour) la mérite toujours : c'est là qu'elle trouve ce que les tests ciblés ratent.
+
 - ⚠ **Ne pas lancer les tests d'API dans le conteneur `app`** : ils rendent des
   **419** (CSRF/APP_KEY). Conteneur jetable, avec la clé de test passée en
   variable : `-e APP_KEY=base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=`.
