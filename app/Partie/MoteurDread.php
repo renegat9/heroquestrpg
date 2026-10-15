@@ -3584,10 +3584,39 @@ final class MoteurDread
         }
 
         $personnage->conditions()->syncWithoutDetaching([
-            $condition->id => ['duree' => max(1, (int) $condition->duree_defaut), 'source' => 'venin'],
+            $condition->id => [
+                'duree' => $this->dureeAPoserEnPhaseDesMonstres(max(1, (int) $condition->duree_defaut)),
+                'source' => 'venin',
+            ],
         ]);
 
         return true;
+    }
+
+    /**
+     * La durée à ÉCRIRE sur une condition à COMPTEUR que la phase des monstres pose sur un héros.
+     *
+     * « The effect ends at the end of their next turn » (*Jungles of Delthrak*, F9907 p. 48,
+     * « Venomous ») : le venin couvre le prochain tour de la VICTIME. Or `decrementerDurees()`
+     * tourne en fin de round, juste APRÈS la phase des monstres : une condition posée par cette
+     * phase y perdait un tour avant que le héros n'ait joué — posée à 1, elle tombait dans la
+     * résolution même du coup (« Envenimé prend fin » aussitôt) et ne paralysait jamais personne.
+     * Le compteur d'une condition est en TOURS DE LA VICTIME ; le tic qui clôt la phase où elle
+     * est posée n'en est pas un. Une condition posée pendant un tour de héros n'a pas ce
+     * problème (poison de piège, sort ami) : son premier tic est bien le premier tour qui compte.
+     *
+     * `0` reste `0` : « pas de compteur », l'expiration vient d'un déclencheur
+     * (cf. `docs/regles/vocabulaires-effets.md`).
+     *
+     * ⚠ Seul le VENIN passe par ici aujourd'hui, et c'est volontaire : c'est la seule condition
+     * à compteur que la phase des monstres pose (les sorts de Dread de contrôle sont tous à
+     * rupture ou à déclencheur, `duree_defaut: 0`). `poserConditionHeros()` ne l'appelle pas — rien
+     * ne lui fournit encore de compteur : le jour où un sort de Dread posera « N tours » sur un
+     * héros, il devra passer par ici, sans quoi il durera N − 1 tours.
+     */
+    public function dureeAPoserEnPhaseDesMonstres(int $tours): int
+    {
+        return $tours > 0 ? $tours + 1 : 0;
     }
 
     /**

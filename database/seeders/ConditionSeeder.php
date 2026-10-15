@@ -191,6 +191,10 @@ class ConditionSeeder extends Seeder
             // 2026-08-10 — MenuMoteur retire « Se déplacer », ResolveurTour
             // refuse le mouvement —, ce qui rend du même coup `Immobilisé`
             // réellement immobilisant.
+            // `duree_defaut: 1` = 1 tour DE LA VICTIME (« the effect ends at the end of their
+            // next turn », F9907 p. 48). Posé en phase des monstres, le venin reçoit +1 à la pose
+            // (`MoteurDread::dureeAPoserEnPhaseDesMonstres()`) : le tic de fin de round qui clôt
+            // cette phase ne compte pas — c'est lui qui le faisait tomber avant le tour du héros.
             ['nom' => 'Envenimé', 'type' => 'physique', 'duree_defaut' => 1,
                 'effet' => ['deplacement_interdit' => true, 'fin' => 'prochain_tour']],
 

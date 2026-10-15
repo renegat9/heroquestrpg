@@ -564,9 +564,14 @@ final class MoteurSorts
     /**
      * Les conditions qu'une ACTION de « Détruire les entraves » peut lever : celles
      * qui interdisent le déplacement ET dont la sortie n'est ni un tour du MJ
-     * (`debut_tour_mj`, le grésil) ni la destruction des liens eux-mêmes
+     * (`debut_tour_mj`, le grésil), ni la destruction des liens eux-mêmes
      * (`liens_detruits`, *Strands of Binding* : des liens à 1 PV et 4 dés de
-     * défense, qu'on ATTAQUE). POINT DE PASSAGE UNIQUE du menu et du résolveur.
+     * défense, qu'on ATTAQUE), ni l'écoulement du temps (`prochain_tour` : le VENIN
+     * — « the effect ends at the end of their next turn » — qui n'a d'autre issue
+     * que le temps ou la Potion de sang de serpent, aucune action dans le livret).
+     * ⚠ Le venin n'est devenu atteignable qu'avec sa durée corrigée : tombé dans la
+     * résolution même du coup, aucun menu ne l'avait jamais croisé.
+     * POINT DE PASSAGE UNIQUE du menu et du résolveur.
      *
      * @return \Illuminate\Support\Collection<int, Condition>
      */
@@ -574,7 +579,7 @@ final class MoteurSorts
     {
         return $personnage->conditions()->get()
             ->filter(fn (Condition $c) => (bool) data_get($c->effet, 'deplacement_interdit', false)
-                && ! in_array(data_get($c->effet, 'fin'), ['debut_tour_mj', 'liens_detruits'], true))
+                && ! in_array(data_get($c->effet, 'fin'), ['debut_tour_mj', 'liens_detruits', 'prochain_tour'], true))
             ->values();
     }
 

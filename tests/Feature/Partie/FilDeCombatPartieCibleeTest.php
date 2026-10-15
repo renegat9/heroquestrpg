@@ -149,10 +149,8 @@ it('dit le venin posé : « Albrecht est Envenimé — … » dans le résultat 
     $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
     $attaque = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('type', 'attaque_monstre');
 
-    // ⚠ On ne vérifie PAS que la condition est encore sur le héros : `decrementerDurees()` tourne en
-    // fin de round, APRÈS la phase des monstres, et l'Envenimé (`duree_defaut` 1) posé pendant cette
-    // phase tombe dans la MÊME résolution — défaut distinct, noté au rapport du chantier. Ce test est
-    // celui du FIL : la pose se dit, quoi qu'il advienne ensuite de la condition.
+    // Ce test est celui du FIL : la pose se dit. Que la condition SURVIVE jusqu'au tour du héros est
+    // épinglé à part (`VeninDureeTest`) — elle tombait dans cette même résolution avant le 2026-10-15.
     expect($attaque['venin'])->toBeTrue()
         ->and($attaque['conditions_posees'])->toHaveCount(1)
         ->and($attaque['conditions_posees'][0]['nom'])->toBe('Envenimé');
