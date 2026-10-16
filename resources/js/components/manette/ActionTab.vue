@@ -52,6 +52,9 @@ const ICONE_TYPE = {
     // Fouiller un meuble (coffre, tombeau, armoire — doc 17) : icône distincte
     // de la fouille de salle, ce n'est pas la même action ni le même créneau.
     fouille_mobilier: 'inventory_2',
+    // Cheminée (First Light, Healing Hearth) : le soin au foyer REMPLACE la fouille
+    // de la salle — l'âtre, pas le feu de `degat_differe` (un dégât).
+    soin_cheminee: 'fireplace',
     jet: 'casino',
     attaque: 'swords',
     // Mobilier attaquable (PV + défense, 2026-10-04) : même glyphe que

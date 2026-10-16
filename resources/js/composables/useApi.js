@@ -431,6 +431,14 @@ export function useApi() {
         refuserCompagnonOffert: (identifiant, personnageId = null) =>
             request('DELETE', `/groupes/${identifiant}/compagnon-offert`, personnageId ? { personnage_id: personnageId } : undefined),
 
+        /** PUT /groupes/{id}/faveurs/lieu {personnage_id, lieu} — au hub, chaque joueur choisit le lieu de
+         *  Hopekins Rest de SON héros (une clé de `visite_hopekins.lieux`, la liste blanche du serveur), ou
+         *  `lieu: null` pour n'en visiter aucun (René, 2026-10-16). Définitif pour ce tour. */
+        choisirLieuHopekins: (identifiant, personnageId, lieu) =>
+            request('PUT', `/groupes/${identifiant}/faveurs/lieu`, {
+                personnage_id: personnageId, lieu,
+            }),
+
         /** PUT /groupes/{id}/faveurs/weapon-expert {personnage_id, objet_id} — le joueur choisit le type
          *  d'arme de sa faveur Weapon Expert (HUB uniquement, définitif). La liste vient de `/moi`
          *  (`faveurs[].choix`, la liste blanche du serveur). */

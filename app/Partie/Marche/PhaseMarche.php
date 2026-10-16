@@ -55,6 +55,12 @@ final class PhaseMarche
     /** Refus de revente d'une carte de trésor sans prix (`effet.hors_marche`, René 2026-10-16). */
     public const REFUS_VENTE_HORS_MARCHE = 'Une carte de trésor sans prix imprimé ne se revend pas.';
 
+    /** Refus de revente d'un parchemin (René 2026-10-16 : on le TROUVE au mobilier, on ne l'achète ni ne le revend). */
+    public const REFUS_VENTE_PARCHEMIN = 'Un parchemin ne se revend pas : on n\'en trouve qu\'en fouillant le mobilier.';
+
+    /** Catégorie d'un parchemin (`ObjetSeeder`, un par sort) — hors marché, comme la carte sans prix. */
+    public const CATEGORIE_PARCHEMIN = 'parchemin';
+
     public function __construct(private readonly EtatGroupe $etatGroupe) {}
 
     /** Clé du cache de la phase marché d'un groupe. */
@@ -137,6 +143,9 @@ final class PhaseMarche
         // « On ne peut pas vendre les potions qu'on trouve dans les trésors »).
         // Son prix est un chiffre de projet, pas une carte : la laisser en rayon
         // revenait à vendre une valeur inventée. Elle reste trouvable en fouille.
+        // ⚠ Un PARCHEMIN n'entre pas non plus (René, 2026-10-16) : on le trouve au
+        // mobilier (bibliothèque, établi), on ne l'achète plus. Même prédicat,
+        // `estHorsMarche()`, lu au reject ci-dessous.
         $inventaire = Objet::query()
             ->whereIn('rarete', $config['raretes'])
             ->where('rarete', '!=', 'unique')
@@ -525,14 +534,26 @@ final class PhaseMarche
     }
 
     /**
-     * Carte de trésor SANS PRIX (`effet.hors_marche`, René 2026-10-16) : ni à
-     * l'étal, ni revendable. LE point de passage de la règle : l'étal
-     * (`ouvrir()`), la liste vendable (`inventaireVendable()`) et les gardes de
-     * la revente (`motifRefusVente()`) passent tous par cette fonction, jamais
-     * par un second test.
+     * Objet HORS MARCHÉ : ni à l'étal, ni achetable, ni revendable. Deux causes, UN
+     * seul prédicat : une carte de trésor SANS PRIX (`effet.hors_marche`, René
+     * 2026-10-16), ou un PARCHEMIN (catégorie, René 2026-10-16 : on les trouve en
+     * fouillant le mobilier, on ne les achète plus).
+     *
+     * Pourquoi la catégorie et non un drapeau posé ligne à ligne : un parchemin
+     * créé demain par un seeder ne peut pas oublier le drapeau et se retrouver à
+     * l'étal. Une seule copie de la règle, qui ne peut pas dériver.
+     *
+     * LE point de passage : l'étal (`ouvrir()`), la liste vendable
+     * (`inventaireVendable()`), les gardes de la revente (`motifRefusVente()`) et
+     * l'application d'un achat venu d'une phase ouverte avant (`appliquer()`)
+     * passent tous par cette fonction, jamais par un second test.
      */
     public static function estHorsMarche(Objet $objet): bool
     {
+        if ($objet->categorie === self::CATEGORIE_PARCHEMIN) {
+            return true;
+        }
+
         $effet = (array) $objet->effet;
 
         return (bool) ($effet[MotsClesEquipement::HORS_MARCHE] ?? false);
@@ -540,9 +561,9 @@ final class PhaseMarche
 
     /**
      * Motif qui REFUSE la revente de cet objet, ou `null` si elle est permise.
-     * Un artefact (`unique`) et une carte de trésor sans prix ne se revendent
-     * pas : le même 422 pour les deux gardes (préview et application). Un
-     * objet absent n'est pas refusé ici, comme avant (`?->` d'origine).
+     * Un artefact (`unique`), un parchemin et une carte de trésor sans prix ne se
+     * revendent pas : le même 422 pour les deux gardes (préview et application).
+     * Un objet absent n'est pas refusé ici, comme avant (`?->` d'origine).
      */
     public static function motifRefusVente(?Objet $objet): ?string
     {
@@ -552,6 +573,10 @@ final class PhaseMarche
 
         if ($objet->rarete === 'unique') {
             return self::REFUS_VENTE_UNIQUE;
+        }
+
+        if ($objet->categorie === self::CATEGORIE_PARCHEMIN) {
+            return self::REFUS_VENTE_PARCHEMIN;
         }
 
         return self::estHorsMarche($objet) ? self::REFUS_VENTE_HORS_MARCHE : null;
@@ -637,14 +662,14 @@ final class PhaseMarche
                 }
             }
             foreach ($parObjet as $objetId => $quantite) {
-                // Une carte de trésor sans prix ne s'achète jamais. Une phase ouverte
-                // AVANT son retrait de l'étal garde l'objet dans son cache : on le
-                // refuse ici, sur l'état réel, comme les autres garde-fous.
+                // Un objet hors marché (carte de trésor sans prix, parchemin) ne s'achète
+                // jamais. Une phase ouverte AVANT son retrait de l'étal garde l'objet dans
+                // son cache : on le refuse ici, sur l'état réel, comme les autres garde-fous.
                 $achete = Objet::find($objetId);
 
                 if ($achete !== null && self::estHorsMarche($achete)) {
                     throw ValidationException::withMessages([
-                        'achats' => "« {$achete->nom} » n'est plus à l'étal : une carte de trésor sans prix ne s'achète pas.",
+                        'achats' => "« {$achete->nom} » n'est plus à l'étal : cet objet ne s'achète pas au marché.",
                     ]);
                 }
 

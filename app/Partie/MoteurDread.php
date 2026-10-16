@@ -395,6 +395,24 @@ final class MoteurDread
         return $action === null ? null : $this->signerLanceur($action, $instance);
     }
 
+    /** Les types d'action d'un SORT DE DREAD LANCÉ (un sort « sans effet » reste un sort lancé). */
+    public const TYPES_SORT_LANCE = ['sort_dread', 'sort_dread_annule'];
+
+    /**
+     * Le tour joué contient-il un sort de Dread LANCÉ, seul ou après la régénération ? Lu par le pas que le
+     * Sorcier peut faire après son sort (`ResolveurTour::avancerApresSortDread()`).
+     *
+     * @param  array<string, mixed>  $action
+     */
+    public static function contientUnSortLance(array $action): bool
+    {
+        if (($action['type'] ?? null) === 'actions_composites') {
+            return array_filter((array) ($action['actions'] ?? []), fn ($a) => is_array($a) && self::contientUnSortLance($a)) !== [];
+        }
+
+        return in_array($action['type'] ?? null, self::TYPES_SORT_LANCE, true);
+    }
+
     /**
      * Pose le LANCEUR sur chaque sort de Dread que ce tour a rendu.
      *
@@ -419,7 +437,7 @@ final class MoteurDread
             return $action;
         }
 
-        if (in_array($action['type'] ?? null, ['sort_dread', 'sort_dread_annule'], true) && ! isset($action['lanceur'])) {
+        if (in_array($action['type'] ?? null, self::TYPES_SORT_LANCE, true) && ! isset($action['lanceur'])) {
             $action['lanceur'] = ['instance_id' => (int) $instance->id, 'nom' => $instance->nomAffiche()];
         }
 

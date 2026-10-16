@@ -16,6 +16,7 @@ import SacTab from '../components/manette/SacTab.vue';
 import RecrutementHub from '../components/manette/RecrutementHub.vue';
 import CompagnonOffert from '../components/manette/CompagnonOffert.vue';
 import ChoixArmeFaveur from '../components/manette/ChoixArmeFaveur.vue';
+import ChoixLieuHopekins from '../components/manette/ChoixLieuHopekins.vue';
 import ChoixRepertoireFaveur from '../components/manette/ChoixRepertoireFaveur.vue';
 import AnnonceHub from '../components/ui/AnnonceHub.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
@@ -1015,6 +1016,8 @@ const recrutementOffres = computed(() => store.state.etat?.groupe?.recrutement?.
 // à la dernière quête achevée) — rendue telle quelle par `AnnonceHub`.
 const entretienHub = computed(() => store.state.etat?.groupe?.mercenaires_entretien ?? null);
 const faveurHub = computed(() => store.state.etat?.groupe?.faveur_hopekins ?? null);
+// HOPEKINS REST, tour de hub (René, 2026-10-16) : le lieu que chaque héros a choisi, et qui doit encore choisir.
+const hopekinsHub = computed(() => store.state.etat?.groupe?.hopekins ?? null);
 const peacekeeperHub = computed(() => store.state.etat?.groupe?.peacekeeper ?? null);
 const reveilHub = computed(() => store.state.etat?.groupe?.objets_reveilles ?? null);
 const voteSortieHub = computed(() => store.state.etat?.groupe?.vote_sortie ?? null);
@@ -1047,6 +1050,26 @@ async function refuserCompagnon() {
         store.setNarration(e.message);
     } finally {
         compagnonEnCours.value = false;
+    }
+}
+
+// HOPEKINS REST — LE LIEU (René, 2026-10-16) : au hub, chaque joueur choisit le lieu de SON héros, ou aucun.
+// `/moi` publie `visite_hopekins` (le tour, et TOUS les lieux avec `disponible` et `motif`) tant que ce choix
+// reste à faire ; le client ne décide ni de la liste ni de la phase, il rend ce que le serveur publie.
+const visiteHopekins = computed(() => monPerso.value?.visite_hopekins ?? null);
+const choixLieuEnCours = ref(false);
+async function choisirLieuHopekins(lieu) {
+    if (choixLieuEnCours.value || !monPersonnageId.value) return;
+    choixLieuEnCours.value = true;
+    try {
+        await api.choisirLieuHopekins(props.groupe, monPersonnageId.value, lieu);
+        // `/moi` porte la faveur reçue et la visite close : relu tout de suite, sans attendre `.groupe.etat`.
+        const { joueur: moi, personnages: persos } = await api.moi();
+        store.setJoueur(moi, persos ?? []);
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        choixLieuEnCours.value = false;
     }
 }
 
@@ -1441,8 +1464,8 @@ const navItems = computed(() => (scene.value === 'marche'
 
                             <!-- ---- annonces d'arrivée au hub : entretien des mercenaires, faveur
                                  de Hopekins Rest (décidées par le serveur, bornées à la dernière quête) ---- -->
-                            <div v-if="auHub && (entretienHub || faveurHub || peacekeeperHub || reveilHub || voteSortieHub)" class="manette-annonces-hub">
-                                <AnnonceHub :entretien="entretienHub" :faveur="faveurHub" :peacekeeper="peacekeeperHub" :reveil="reveilHub" :vote="voteSortieHub" />
+                            <div v-if="auHub && (entretienHub || faveurHub || hopekinsHub || peacekeeperHub || reveilHub || voteSortieHub)" class="manette-annonces-hub">
+                                <AnnonceHub :entretien="entretienHub" :faveur="faveurHub" :hopekins="hopekinsHub" :peacekeeper="peacekeeperHub" :reveil="reveilHub" :vote="voteSortieHub" />
                             </div>
 
                             <!-- ---- choix à faire AVANT de partir : le serveur les publie tant qu'ils restent
@@ -1453,6 +1476,12 @@ const navItems = computed(() => (scene.value === 'marche'
                                 :en-cours="compagnonEnCours"
                                 @prendre="prendreCompagnon"
                                 @refuser="refuserCompagnon"
+                            />
+                            <ChoixLieuHopekins
+                                v-if="auHub && visiteHopekins"
+                                :visite="visiteHopekins"
+                                :en-cours="choixLieuEnCours"
+                                @choisir="choisirLieuHopekins"
                             />
                             <ChoixArmeFaveur
                                 v-if="auHub && faveurAChoisir"

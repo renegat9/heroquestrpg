@@ -6,11 +6,18 @@ use App\Models\Mobilier;
 use Illuminate\Database\Seeder;
 
 /**
- * Les 8 types de mobilier dont l'emprise a été MESURÉE (comptage direct de
- * cases sur les cartes de quête imprimées, doc 17 §1) — pas les 3 marqués
- * « ⚠ non établi par le livret » (table du sorcier, portant, cheminée), qui
- * n'ont aucune mesure indépendante et resteraient une invention si on les
- * codait.
+ * Les types de mobilier du catalogue. Les EMPRISES ci-dessous ne sont pas des
+ * mesures mais des DÉCISIONS DE RENÉ (2026-10-16), prises sur des dessins
+ * mesurés à l'échelle ≈ 0,9 (la bibliothèque, mesurée 2,7 cases, en fait 3) :
+ *   - 1×3 (3 cases) : bibliothèque, armoire, râtelier d'armes, cheminée
+ *     (« 3-Space Furniture (1x3 Grid) ») ;
+ *   - 3×2 (6 cases) : table, tombeau (couché, comme dessiné), établi
+ *     d'alchimiste. Cette décision REMPLACE le 1×3 de l'établi.
+ * Les emprises d'origine (table 2×1, tombeau 1×2) ne sont plus au catalogue.
+ *
+ * La TABLE DU SORCIER et le PORTANT n'entrent pas au catalogue, même si René a
+ * décidé 3 cases pour la table du sorcier : son drapeau de vue et sa table de
+ * fouille ne sont sourcés nulle part — une ligne les inventerait.
  *
  * `bloque_mouvement` = true partout (inchangé), et SOURCÉ depuis le
  * 2026-10-01 : Hasbro a confirmé officiellement que le mobilier est
@@ -25,8 +32,9 @@ use Illuminate\Database\Seeder;
  * 2026-10-01 en connaissance des deux (errata 2021 C2) : un meuble HAUT (à
  * hauteur d'yeux ou plus) coupe la vue comme un mur ; un meuble BAS (hauteur
  * de table) laisse voir par-dessus.
- *   - true  : Bibliothèque, Râtelier d'armes, Armoire — mobilier vertical,
- *     dressé contre un mur, qui dépasse largement la taille d'un héros.
+ *   - true  : Bibliothèque, Râtelier d'armes, Armoire, Cheminée — mobilier
+ *     vertical, dressé contre un mur, qui dépasse largement la taille d'un
+ *     héros (la cheminée suit la famille bibliothèque, décision du 2026-10-16).
  *   - false : Table, Coffre, Trône, Établi d'alchimiste, Tombeau — mobilier
  *     bas, à hauteur de ceinture ou moins.
  * Ne pas prétendre que cette répartition est sourcée : c'est une convention
@@ -74,7 +82,9 @@ class MobilierSeeder extends Seeder
         $mobiliers = [
             // Habillage de la fouille de SALLE (RB p. 14) : aucune note de quête
             // consultée n'accroche un trésor propre à une table — fouillable = false.
-            ['nom' => 'Table', 'nom_anglais' => 'Table', 'largeur' => 2, 'hauteur' => 1, 'difficulte_destruction' => 1, 'fouillable' => false, 'bloque_vue' => false],
+            // 3×2 : décision de René (2026-10-16) — mesurée ≈ 2,5 × 1,5 sur un dessin à
+            // l'échelle ≈ 0,9, soit ≈ 2,8 × 1,7 réelles. Remplace le 2×1 de la mesure d'origine.
+            ['nom' => 'Table', 'nom_anglais' => 'Table', 'largeur' => 3, 'hauteur' => 2, 'difficulte_destruction' => 1, 'fouillable' => false, 'bloque_vue' => false],
 
             // Le coffre est le contenant à butin par excellence : c'est celui qui
             // paie le plus souvent, et le seul à pouvoir rendre un objet rare.
@@ -94,11 +104,17 @@ class MobilierSeeder extends Seeder
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
 
-            // L'établi de l'alchimiste ne rend QUE des fioles — c'est le meuble
-            // le plus spécialisé du lot, et le plus généreux dans sa spécialité.
-            ['nom' => 'Établi d\'alchimiste', 'nom_anglais' => 'Alchemist\'s bench', 'largeur' => 1, 'hauteur' => 2, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => false,
+            // L'établi de l'alchimiste rend surtout des FIOLES — c'est le meuble le plus
+            // spécialisé du lot. Depuis le 2026-10-16 (René : « on trouve les parchemins au
+            // mobilier, d'abord la bibliothèque et l'établi »), il rend aussi, une fois sur six,
+            // un PARCHEMIN : une chance de plus, pas une spécialité nouvelle. Parchemin tiré
+            // par `MoteurMobilier` comme tout objet de table : rareté d'abord (difficulté du
+            // sort), puis le sort uniformément dans cette rareté.
+            // 3×2 : décision de René (2026-10-16), qui REMPLACE le 1×3 de la décision précédente.
+            ['nom' => 'Établi d\'alchimiste', 'nom_anglais' => 'Alchemist\'s bench', 'largeur' => 3, 'hauteur' => 2, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => false,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 5, 'categories' => ['consommable']],
+                    ['issue' => 'objet', 'poids' => 2, 'categories' => ['parchemin']],
                     // Fouiller un établi d'alchimiste, c'est déranger des fioles :
                     // l'une se brise (piège, décision de René 2026-08-17).
                     ['issue' => 'piege', 'poids' => 2, 'piege' => 'Fiole de poison'],
@@ -107,7 +123,8 @@ class MobilierSeeder extends Seeder
 
             // Le mobilier funéraire : de l'or déposé avec le mort, parfois une
             // arme de sa main, souvent la poussière seule.
-            ['nom' => 'Tombeau', 'nom_anglais' => 'Tomb', 'largeur' => 1, 'hauteur' => 2, 'difficulte_destruction' => null, 'fouillable' => true, 'bloque_vue' => false,
+            // 3×2 COUCHÉ : décision de René (2026-10-16), comme dessiné (Q14, p. 31 imprimée).
+            ['nom' => 'Tombeau', 'nom_anglais' => 'Tomb', 'largeur' => 3, 'hauteur' => 2, 'difficulte_destruction' => null, 'fouillable' => true, 'bloque_vue' => false,
                 'effet' => ['fouille' => [
                     ['issue' => 'tresor', 'poids' => 3, 'or' => [30, 70]],
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['arme', 'armure']],
@@ -117,9 +134,12 @@ class MobilierSeeder extends Seeder
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
 
-            // Une bibliothèque contient des ÉCRITS : c'est le seul meuble à
-            // rendre des parchemins, ce qui en fait la pièce du lanceur de sorts.
-            ['nom' => 'Bibliothèque', 'nom_anglais' => 'Bookcase', 'largeur' => 2, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
+            // Une bibliothèque contient des ÉCRITS : c'est le meuble qui rend le plus
+            // souvent des parchemins, ce qui en fait la pièce du lanceur de sorts. Avec
+            // l'établi d'alchimiste (2026-10-16), c'est l'une des DEUX sources de parchemins
+            // au mobilier — le marché n'en vend plus (`PhaseMarche::estHorsMarche()`).
+            // 3×1 (1×3 en longueur) : décision de René (2026-10-16), voir l'en-tête.
+            ['nom' => 'Bibliothèque', 'nom_anglais' => 'Bookcase', 'largeur' => 3, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 3, 'categories' => ['parchemin']],
                     ['issue' => 'tresor', 'poids' => 1, 'or' => [10, 25]],
@@ -128,20 +148,39 @@ class MobilierSeeder extends Seeder
 
             // Le râtelier d'armes : armes et armures, l'exemple donné par René.
             // Aucune chance d'or — on n'y range pas sa bourse.
-            ['nom' => 'Râtelier d\'armes', 'nom_anglais' => 'Weapons rack', 'largeur' => 1, 'hauteur' => 2, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
+            // 1×3 : décision de René (2026-10-16), mesuré ≈ 2,7-2,8 cases sur F2847.
+            ['nom' => 'Râtelier d\'armes', 'nom_anglais' => 'Weapons rack', 'largeur' => 1, 'hauteur' => 3, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 4, 'categories' => ['arme', 'armure']],
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
 
             // L'armoire est le meuble à tout faire : un peu de tout, souvent rien.
-            ['nom' => 'Armoire', 'nom_anglais' => 'Cupboard', 'largeur' => 2, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
+            // 3×1 (1×3 en longueur) : décision de René (2026-10-16), voir l'en-tête.
+            ['nom' => 'Armoire', 'nom_anglais' => 'Cupboard', 'largeur' => 3, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['consommable']],
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['outil']],
                     ['issue' => 'tresor', 'poids' => 2, 'or' => [15, 40]],
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
+
+            // CHEMINÉE (« Fireplace ») — MEUBLE DU JEU DE BASE : l'inventaire de la boîte de base
+            // (RB p. 4) compte « fireplace » parmi ses 15 pièces, et la légende de F2847 p. 33 la
+            // dessine. Aucune boîte : elle entre dans tous les donjons, comme la bibliothèque.
+            // C'est la RÈGLE qui est propre à First Light : *Healing Hearth* (FL-Q p. 7, « When a hero
+            // would draw a treasure card in a room containing a fireplace, they may instead heal 1 Body
+            // point. »), lue par `MoteurCheminee` et scopée au groupe qui joue `first_light`.
+            // ⚠ EMPRISE 1×3 : décision de René (2026-10-16). Mesurée ≈ 2,6 cases (extensions F4193 et
+            // G1798 : horizontale 2,6 × 0,9 ; verticale 0,96 × 2,6) — l'arrondi à 3 est la décision.
+            // ⚠ `bloque_vue` et `adosse_au_mur` : convention de la famille BIBLIOTHÈQUE (meuble haut,
+            // dressé contre un mur), décidée le 2026-10-16 — pas une donnée sourcée.
+            // ⚠ `difficulte_destruction` absente (donc `null`, indestructible) : AUCUNE source ne dit
+            // comment on fracasse une cheminée ; on n'en invente pas une.
+            // ⚠ Pas fouillable : la règle vise la SALLE (« a room containing a fireplace »), le livret ne
+            // fait jamais d'un meuble une cible de fouille.
+            ['nom' => 'Cheminée', 'nom_anglais' => 'Fireplace', 'largeur' => 3, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => true, 'adosse_au_mur' => true],
 
             // ===== Against the Ogre Horde (livret F9528 p. 5, lot B) =====
             // CAISSE DE RAVITAILLEMENT (« Supply Crate ») : « The first hero

@@ -190,6 +190,9 @@ Route::middleware('auth:joueur')->group(function () {
     Route::post('/groupes/{identifiant}/compagnon-offert', [CompagnonOffertController::class, 'prendre']);
     Route::delete('/groupes/{identifiant}/compagnon-offert', [CompagnonOffertController::class, 'refuser']);
 
+    // Hopekins Rest (Wizards of Morcar) : CHAQUE joueur choisit le lieu de SON héros au hub, entre
+    // deux quêtes, ou aucun (`lieu: null`) — René, 2026-10-16. HUB uniquement.
+    Route::put('/groupes/{identifiant}/faveurs/lieu', [FaveurController::class, 'choisirLieu']);
     // Faveur Weapon Expert (Wizards of Morcar, Hopekins Rest) : le JOUEUR choisit son type
     // d'arme au hub, en la recevant (René, 2026-10-15) — HUB uniquement.
     Route::put('/groupes/{identifiant}/faveurs/weapon-expert', [FaveurController::class, 'choisirArme']);

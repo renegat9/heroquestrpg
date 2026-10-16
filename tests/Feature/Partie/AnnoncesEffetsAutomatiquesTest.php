@@ -143,6 +143,7 @@ function fixturesDesTypesAnnonces(): array
         'fouille_tresor' => ['issue' => 'tresor', 'or' => 20],
         'fouille_mobilier' => ['issue' => 'errant', 'monstre' => ['nom' => 'Gobelin']],
         'boire_mare' => ['soin' => 1],
+        'soin_cheminee' => ['soin' => 1],
         'detruire_par_action' => ['mobilier' => 'Cocon'],
         'actionner_levier' => ['jet' => ['issue' => 'echec', 'succes' => 0, 'difficulte' => 2]],
         'forcer_porte_pierre' => ['reussi' => true, 'cranes' => 2],

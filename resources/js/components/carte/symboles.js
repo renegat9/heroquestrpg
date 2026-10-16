@@ -117,6 +117,9 @@ export const MOBILIER_ICONES = {
     // détruit d'UNE action sans jet — l'œuf dit « enveloppe », distinct des
     // blocs ci-dessus.
     'Cocon': 'egg',
+    // First Light (FL-Q p. 7, Healing Hearth) : l'âtre, un bloc dressé contre le
+    // mur — la silhouette du meuble haut, pas une icône de pièce ni de feu de camp.
+    'Cheminée': 'fireplace',
 };
 export const MOBILIER_ICONE_DEFAUT = 'category';
 

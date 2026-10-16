@@ -11,6 +11,7 @@ use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Monstre;
+use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Sort;
@@ -36,13 +37,20 @@ use Illuminate\Validation\ValidationException;
  *     héros en vue : le sort EST l'action (le héros ne s'approche pas pour le lancer) ;
  *  2. sinon il AVANCE vers sa cible (le monstre le plus proche, ou l'autre héros le plus proche) de la
  *     distance que le profil dit, les pièges de la route se déclenchant (mouvement forcé,
- *     `MoteurPieges::repousserFigure()`) ;
- *  3. au contact d'un autre héros, et si le profil l'autorise, il le FRAPPE à l'arme.
+ *     `MoteurPieges::repousserFigure()`). Un TIREUR (`ControleMj::$tir`, arme qui tire) s'arrête sur la
+ *     PREMIÈRE case du trajet d'où il voit sa cible hors contact, et tire de là ;
+ *  3. au contact d'un autre héros, et si le profil l'autorise, il le FRAPPE à l'arme — à MAINS NUES si
+ *     l'arme refuse le contact (`Objet::interditAuContact()`) ; à distance, s'il tire et n'est pas au contact.
  *
- * ⚠ Ce que Zargon ne fait PAS avec un héros dominé, écrit plutôt que tu : il ne tire pas à distance
- * (arme de jet, arc), il ne se sert d'aucun objet ni d'aucune capacité de classe, et le coup à l'arme
- * est celui de `personnage.des_attaque` — la colonne de l'équipement, plafonnée par l'état de choc et
- * par les conditions (`Apeuré`) —, sans les talents ni les tags de maîtrise de `ResolveurTour::frapper()`.
+ * ⚠ Le tir et le coup au contact lisent les MÊMES prédicats que le héros lui-même : `Objet::interditAuContact()`,
+ * `portee: distance`, la Faveur « Deadeye » (`FaveursHopekins::figuresBloquentPour()`). Une arme `jetable` n'est
+ * JAMAIS lancée par Zargon : c'est un choix du joueur, qui la perd ; elle ne tire donc pas.
+ *
+ * ⚠ Ce que Zargon ne fait PAS avec un héros dominé, écrit plutôt que tu : il ne se sert d'aucun objet ni
+ * d'aucune capacité de classe, et le coup est celui de `personnage.des_attaque` — la colonne de l'équipement,
+ * plafonnée par l'état de choc et par les conditions (`Apeuré`) — sans les talents ni les tags de maîtrise de
+ * `ResolveurTour::frapper()`. `frapper()` ne prend qu'un MONSTRE : le coup entre héros garde son point de
+ * passage ici (`frapperUnHeros()`), qui lit les mêmes prédicats, jamais une copie de son corps.
  * « Perform any other action » n'a ici aucun lecteur : un MJ qui choisirait entre vingt options sans
  * que personne ne le lui demande est la décision que ce projet refuse de confier à autre chose
  * qu'une politique écrite.
@@ -58,6 +66,8 @@ final class HerosJoueParLeMj
         private readonly MoteurSorts $sorts,
         private readonly MoteurDegats $degats,
         private readonly MoteurDread $dread,
+        private readonly Equipement $equipement,
+        private readonly FaveursHopekins $faveurs,
     ) {}
 
     /**
@@ -100,9 +110,22 @@ final class HerosJoueParLeMj
         $grille = FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id);
         $chemin = [];
 
-        if ($but !== null) {
+        // Un TIREUR : un profil qui en a le droit (`ControleMj::$tir`), une arme qui tire (`tire()`), et pas de
+        // forme sans arme (le loup-garou mord, il ne tire pas).
+        $tireur = $controle->tir && $forme === null && $this->tire($this->armeEnMain($personnage));
+
+        // Déjà AU CONTACT de sa cible : il ne marche pas. Sans cette garde, `cheminVersCaseAdjacente()` le faisait
+        // CONTOURNER la cible jusqu'à une autre case voisine — un tireur au contact s'éloignait de deux pas pour
+        // tirer de loin, alors que son arme refuse le contact (`inutilisable_adjacent`).
+        if ($but !== null && ! $this->auContact($controle, $etat, $victimes, $but)) {
             $complet = $this->dread->cheminVersCaseAdjacente($grille, $depart['x'], $depart['y'], $but['x'], $but['y']) ?? [];
             $chemin = array_slice($complet, 0, $this->pas($controle, $personnage, $etat, $forme));
+
+            // Le tireur s'arrête sur la PREMIÈRE case du trajet d'où il voit sa cible hors contact : il tire de là,
+            // il ne marche pas jusqu'au corps à corps.
+            if ($tireur) {
+                $chemin = $this->jusquAuTir($controle, $grille, $personnage, $victimes, $depart, $chemin);
+            }
         }
 
         $arrivee = $depart;
@@ -132,19 +155,18 @@ final class HerosJoueParLeMj
             // à part, donc absents du fil en direct (bâti sur le RÉSULTAT).
             'pieges_declenches' => $piegesCroises,
         ];
-        $actions = [$deplacement];
 
-        // 3. Le coup, au contact d'un autre héros. Contact orthogonal, sauf pour un profil qui attaque en
-        // diagonale (le loup-garou) : `Tchebychev` — la même distinction que `ResolveurTour::heroAuContact()`.
+        // 3. Le coup. Au contact d'un autre héros — contact orthogonal, sauf pour un profil qui attaque en
+        // diagonale (le loup-garou) : `Tchebychev`, la même distinction que `ResolveurTour::heroAuContact()` —,
+        // ou, pour un TIREUR qui n'est pas au contact, à distance.
         $etat->refresh();
+        $coup = null;
 
         if ($controle->attaque && ! $etat->tombe) {
             $adjacent = $victimes
                 ->map(fn (EtatPersonnageQuete $v) => $v->fresh())
                 ->filter(fn (?EtatPersonnageQuete $v) => $v !== null && ! $v->tombe && $v->position_x !== null
-                    && ($controle->diagonales
-                        ? max(abs((int) $etat->position_x - (int) $v->position_x), abs((int) $etat->position_y - (int) $v->position_y)) === 1
-                        : abs((int) $etat->position_x - (int) $v->position_x) + abs((int) $etat->position_y - (int) $v->position_y) === 1))
+                    && $this->enContact($controle, (int) $etat->position_x, (int) $etat->position_y, (int) $v->position_x, (int) $v->position_y))
                 ->sortBy(fn (EtatPersonnageQuete $v) => (int) $v->personnage->pv_body)
                 ->first();
 
@@ -153,11 +175,121 @@ final class HerosJoueParLeMj
                     ...$this->enTete($controle, 'attaque'),
                     ...$this->frapperUnHeros($personnage, $adjacent->personnage, $adjacent, ['controle' => $controle->nom], $forme),
                 ];
-                $actions[] = $coup;
+            } elseif ($tireur) {
+                $tir = $this->cibleDeTir(
+                    $controle,
+                    FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id),
+                    $personnage,
+                    ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y],
+                    $victimes,
+                );
+
+                if ($tir !== null) {
+                    $coup = [
+                        ...$this->enTete($controle, 'attaque'),
+                        ...$this->frapperUnHeros($personnage, $tir->personnage, $tir, ['controle' => $controle->nom], null, tirADistance: true),
+                    ];
+                }
             }
         }
 
-        return $actions;
+        // Un TIR sans marche n'a pas de trajet à raconter : le fil et la table ne disent que le tir. Dans
+        // tous les autres cas — marche, coup au contact, rien du tout — le déplacement est publié, comme avant.
+        $sansMarche = (int) $arrivee['x'] === $depart['x'] && (int) $arrivee['y'] === $depart['y'];
+        $tireSansMarche = $coup !== null && ($coup['portee'] ?? null) === 'distance' && $sansMarche;
+
+        return [...($tireSansMarche ? [] : [$deplacement]), ...($coup !== null ? [$coup] : [])];
+    }
+
+    /**
+     * Le héros est-il DÉJÀ au contact de sa cible ? Pour un héros dominé, la cible est un des autres héros debout ;
+     * pour une Possession, le monstre le plus proche (`$but`).
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $victimes
+     * @param  array{x: int, y: int}  $but
+     */
+    private function auContact(ControleMj $controle, EtatPersonnageQuete $etat, Collection $victimes, array $but): bool
+    {
+        $ax = (int) $etat->position_x;
+        $ay = (int) $etat->position_y;
+
+        if ($controle->cible === ControleMj::CIBLE_MONSTRE) {
+            return $this->enContact($controle, $ax, $ay, $but['x'], $but['y']);
+        }
+
+        return $victimes->contains(fn (EtatPersonnageQuete $v) => $v->position_x !== null
+            && $this->enContact($controle, $ax, $ay, (int) $v->position_x, (int) $v->position_y));
+    }
+
+    /**
+     * Le contact d'un profil entre deux cases : orthogonal, sauf le loup-garou (« as a giant wolf », `diagonales`). La
+     * même distinction que `ResolveurTour::heroAuContact()` — UN seul prédicat pour la garde de marche, le coup au
+     * contact et le choix de la cible de tir.
+     */
+    private function enContact(ControleMj $controle, int $ax, int $ay, int $bx, int $by): bool
+    {
+        $dx = abs($ax - $bx);
+        $dy = abs($ay - $by);
+
+        return $controle->diagonales ? max($dx, $dy) === 1 : $dx + $dy === 1;
+    }
+
+    /** L'arme que le héros tient dans la main droite (la seule qu'un coup de MJ emploie), ou `null` = mains nues. */
+    private function armeEnMain(Personnage $personnage): ?Objet
+    {
+        return $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
+    }
+
+    /**
+     * Une arme TIRE si elle porte à distance ET n'est pas jetable. Une arme `jetable` se lance, et Zargon ne lance
+     * jamais : c'est le joueur qui la lance, et qui la perd. La Dague de jet magique (`portee: distance` ET `jetable`)
+     * ne tire donc pas non plus, sous la main de Zargon.
+     */
+    private function tire(?Objet $arme): bool
+    {
+        return $arme !== null
+            && ($arme->effet['portee'] ?? null) === 'distance'
+            && ! (bool) ($arme->effet['jetable'] ?? false);
+    }
+
+    /**
+     * La cible qu'un tir partant de `$case` atteint : hors contact (un voisin orthogonal se frappe, il ne se vise
+     * pas) et en ligne de vue — figures comprises, sauf la Faveur « Deadeye » (`figuresBloquentPour()`, le point
+     * unique que lit aussi le tir du héros). La plus faible de Body d'abord, comme le coup au contact.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $victimes
+     * @param  array{x: int, y: int}  $case
+     */
+    private function cibleDeTir(ControleMj $controle, Grille $grille, Personnage $personnage, array $case, Collection $victimes): ?EtatPersonnageQuete
+    {
+        $figuresBloquent = $this->faveurs->figuresBloquentPour($personnage);
+
+        return $victimes
+            ->filter(fn (EtatPersonnageQuete $v) => ! $this->enContact($controle, $case['x'], $case['y'], (int) $v->position_x, (int) $v->position_y)
+                && $grille->ligneDeVue($case['x'], $case['y'], (int) $v->position_x, (int) $v->position_y, figuresBloquent: $figuresBloquent))
+            ->sortBy(fn (EtatPersonnageQuete $v) => (int) $v->personnage->pv_body)
+            ->first();
+    }
+
+    /**
+     * La marche d'un TIREUR s'arrête sur la première case du trajet (le départ compris) d'où une cible se tire.
+     * Sans cible en vue en chemin, le trajet reste entier : il s'approche jusqu'au contact, et frappe alors à
+     * mains nues si son arme refuse le contact (`Objet::interditAuContact()`) — il ne recule pas pour tirer.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $victimes
+     * @param  array{x: int, y: int}  $depart
+     * @param  list<array{x: int, y: int}>  $chemin
+     * @return list<array{x: int, y: int}>
+     */
+    private function jusquAuTir(ControleMj $controle, Grille $grille, Personnage $personnage, Collection $victimes, array $depart, array $chemin): array
+    {
+        foreach ([$depart, ...$chemin] as $rang => $case) {
+            if ($this->cibleDeTir($controle, $grille, $personnage, $case, $victimes) !== null) {
+                return array_slice($chemin, 0, $rang);
+            }
+        }
+
+        return $chemin;
     }
 
     /**
@@ -169,6 +301,10 @@ final class HerosJoueParLeMj
      * l'ÉTAT DE CHOC et plafonnés par les conditions (`Apeuré` : « may ONLY USE 1 Attack die ») —
      * deux lectures que `ResolveurTour::frapper()` fait aussi, au moment du jet. Le défenseur lance
      * sa défense ordinaire (`desDefenseHeros()`, choc et plafonds compris) ; être attaqué réveille.
+     *
+     * `$tirADistance` : le coup est un TIR (arme `portee: distance`, cible hors contact en ligne de vue — le
+     * caller a déjà décidé, `HerosJoueParLeMj::jouer()`). Le payload porte alors `portee: "distance"`. Hors tir,
+     * un coup au contact d'une arme qui refuse le contact se donne à mains nues (voir plus haut).
      *
      * Rend le corps du payload SANS `type` : chaque appelant pose le sien, en littéral.
      *
@@ -185,12 +321,20 @@ final class HerosJoueParLeMj
         EtatPersonnageQuete $etatVictime,
         array $contexte = [],
         ?Monstre $forme = null,
+        bool $tirADistance = false,
     ): array {
         if ($forme !== null) {
             // « Désigné » (*Dreadlights*) : toute créature en gagne un contre le héros qui le porte.
             $des = max(0, (int) $forme->attaque + $this->dread->bonusAttaqueContre($victime));
         } else {
-            $des = $agresseur->estEnChoc() ? 1 : max(0, (int) $agresseur->des_attaque);
+            // À MAINS NUES au contact d'une arme qui refuse le contact (`inutilisable_adjacent`) : le profil
+            // « mains nues » de `Equipement::desAttaqueAvec($p, null)`, celui que le héros lui-même prend — la
+            // même décision que `ResolveurTour::frapper()`, lue sur le même prédicat, `Objet::interditAuContact()`.
+            // Un tir garde son arme : `des_attaque` est alors le dé de l'arme tenue.
+            $mainsNues = ! $tirADistance && ($this->armeEnMain($agresseur)?->interditAuContact() ?? false);
+            $des = $agresseur->estEnChoc()
+                ? 1
+                : max(0, $mainsNues ? $this->equipement->desAttaqueAvec($agresseur, null) : (int) $agresseur->des_attaque);
             $plafond = $this->dread->plafondDesAttaque($agresseur);
 
             if ($plafond !== null) {
@@ -225,6 +369,8 @@ final class HerosJoueParLeMj
             'degats' => $subis,
             'pv_body_apres' => (int) $victime->pv_body,
             'cible_tombee' => (int) $victime->pv_body === 0 && $subis > 0,
+            // Un tir se lit comme celui d'un héros (`JournalCombat::estUnTir()`) : le fil dit « tire sur ».
+            ...($tirADistance ? ['portee' => 'distance'] : []),
             ...$resultat->pourJournal(),
         ];
     }

@@ -23,6 +23,15 @@ le moteur, initiative, réactions hors tour. Un pot de cookies par joueur.
    `COMPAGNON=refuser` pour une campagne sans animal). Même chose pour la faveur *Weapon
    Expert* : son porteur choisit son type d'arme au hub (`hq.sh <slot> arme-faveur <objet_id>`,
    la liste est dans `moi` → `faveurs[].choix`) avant de pouvoir se déclarer prêt.
+   ⚠ **Depuis le 2026-10-16**, une campagne qui JOUE Wizards of Morcar (bestiaire `wizards_of_morcar`,
+   automatique ou coché) ouvre, au hub suivant une quête GAGNÉE une fois Gardien (2 quêtes achevées),
+   le **choix de Hopekins Rest** : CHAQUE héros choisit le lieu de sa faveur, ou renonce. `/pret`
+   répond alors 422 « peut visiter un lieu de Hopekins Rest » TANT QUE ce héros n'a pas tranché.
+   Le harnais joue la vraie route : `hq.sh <slot> visite <lieu>` (`dewdrop_inn`, `mercenary_guild`,
+   `deadeye`, `weapon_expert`… — les clés de `moi` → `visite_hopekins.lieux`, celles dont
+   `disponible` est vrai) ou `hq.sh <slot> visite aucun`. Puis `/pret` passe (un Weapon Expert
+   ou une Arcane Library demande encore son sous-choix, comme plus haut). Une campagne SANS Morcar
+   n'a rien à faire à ce hub : `moi` publie `visite_hopekins: null`.
 
 ## Outils donnés aux agents
 - `vue.py <slot>` — situation du héros : PV, alliés (**héros ET mercenaires**,
@@ -37,6 +46,7 @@ le moteur, initiative, réactions hors tour. Un pot de cookies par joueur.
 - **au hub** : `hq.sh <slot> marche|panier <json>|confirmer|equiper <inv>|donner <inv> <perso>`
 - **vote** : `hq.sh <slot> votes|vote <option_id>`
 - **compagnon animal offert / type d'arme de Weapon Expert** : `hq.sh <slot> compagnon <mercenaire_id>|compagnon refuser`, `hq.sh <slot> arme-faveur <objet_id>`
+- **lieu de Hopekins Rest (Morcar, au hub)** : `hq.sh <slot> visite <lieu>|aucun`
 
 ⚠ **Une option peut PORTER une liste** depuis le 2026-09-01 (doc 13 §3.1, « 2
 à 5 options claires ») : `lancer_sort`, `lire_parchemin` et `utiliser_objet`

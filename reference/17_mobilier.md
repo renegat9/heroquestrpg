@@ -59,23 +59,21 @@ table / Alchemist's bench / Throne / Fireplace / Cupboard / Tomb / Rack / Weapon
 rack » — reproduites à l'identique dans le texte extrait de `quetes_base.txt`
 (lignes 701-713).
 
-Sur les cartes de quête réellement imprimées, chaque type mesuré directement occupe
-un **rectangle plein de 1×1 ou de 1×2 cases** (jamais de forme en L, jamais plus de 2
-cases) ; aucun ne dépasse ces deux gabarits sur les instances mesurées.
+Sur les cartes de quête réellement imprimées, chaque type mesuré directement occupe un **rectangle plein** (jamais de forme en L). Les mesures de 2026-09-27 le plaçaient entre 1×1 et 1×2 ; **depuis le 2026-10-16, des pièces de 3 cases** (bibliothèque, armoire, râtelier, cheminée) **et de 6 cases** (3×2 : table, tombeau, établi) sont adoptées sur décision de René — voir la mise à jour datée plus bas. Les dessins mesurés ne dépassent pas 3 cases de long (échelle ≈ 0,9).
 
 | Nom anglais (RB/LQ) | Nom français proposé | Emprise mesurée | Bloque le déplacement | Fouillable | Effet de jeu / confiance |
 |---|---|---|---|---|---|
-| Table | Table | **2 cases (2×1)** | ⚠ non écrit noir sur blanc (voir §3) | Via la fouille de la **salle** (RB p. 14), pas un objet séparé | Mesuré LQ p. 13 (Quête 5, salle D) sur l'icône à hachures de bois, unique dans tout le jeu de symboles — identification par la **forme**, aucune note de quête n'y accroche ce nom |
+| Table | Table | **6 cases (3×2)** — décision de René, 2026-10-16 (ancienne mesure 2×1 ; dessin ≈ 2,5 × 1,5 à l'échelle ≈ 0,9) | ⚠ non écrit noir sur blanc (voir §3) | Via la fouille de la **salle** (RB p. 14), pas un objet séparé | Mesuré LQ p. 13 (Quête 5, salle D) sur l'icône à hachures de bois, unique dans tout le jeu de symboles — identification par la **forme**, aucune note de quête n'y accroche ce nom |
 | Coffre au trésor (« Chest ») | Coffre | **1 case (1×1)** | ⚠ idem | Oui — cible narrative privilégiée des notes de quête | Mesuré LQ p. 13 (Quête 5, note C : « *this chest is filled with poisonous gas — it is a trap!* ») ; peut porter un piège coffre/meuble (§2, §3) |
 | Trône | Trône | **1 case (1×1)** | ⚠ idem | Oui | Mesuré LQ p. 13 (Quête 5, note E) ; peut être un déclencheur scénarisé — « *the throne slides sideways, revealing a secret door* » (LQ p. 13) |
-| Établi d'alchimiste | Établi d'alchimiste | **2 cases (1×2)** | ⚠ idem | Oui | Mesuré LQ p. 13 (Quête 5, note A : « *a half-filled flask sitting on the alchemist's bench* ») |
-| Tombeau | Tombeau | **2 cases (1×2)** | ⚠ idem | Oui | Icône identifiée par une note (LQ p. 27, Quête 12, note D : « *this is the tomb of the Witch Lord* ») ; emprise mesurée proprement sur 2 occurrences distinctes de la même icône (LQ p. 25 et p. 27), toujours 1×2 — une 3ᵉ occurrence aperçue (LQ p. 27) n'a pas pu être mesurée, hors cadre du recadrage |
-| Table du sorcier | Table du sorcier | ⚠ non établi par le livret | ⚠ | Probable (meuble comme les autres) | Icône repérée (rectangle orné, motif de gemmes/fermoir) mais jamais isolée assez proprement dans les cartes examinées pour un comptage de cases fiable |
-| Bibliothèque | Bibliothèque | **2 cases (2×1)** | ⚠ idem | Oui | Icône identifiée par une note (LQ p. 27, Quête 12, note E : « *a magical staff hidden behind the bookcase* ») ; mesure propre sur cette même occurrence |
+| Établi d'alchimiste | Établi d'alchimiste | **6 cases (3×2)** — décision de René, 2026-10-16, qui remplace le 1×3 de la veille (ancienne mesure 1×2) | ⚠ idem | Oui | Mesuré LQ p. 13 (Quête 5, note A : « *a half-filled flask sitting on the alchemist's bench* ») |
+| Tombeau | Tombeau | **6 cases (3×2, couché)** — décision de René, 2026-10-16, comme dessiné (Q14, p. 31 imprimée ; ancienne mesure 1×2 debout) | ⚠ idem | Oui | Icône identifiée par une note (LQ p. 27, Quête 12, note D : « *this is the tomb of the Witch Lord* ») ; emprise mesurée proprement sur 2 occurrences distinctes de la même icône (LQ p. 25 et p. 27), toujours 1×2 — une 3ᵉ occurrence aperçue (LQ p. 27) n'a pas pu être mesurée, hors cadre du recadrage |
+| Table du sorcier | Table du sorcier | **3 cases (1×3)** — décision de René, 2026-10-16 ; ⚠ HORS CATALOGUE (drapeaux et table de fouille non sourcés, donc pas de ligne) | ⚠ | Probable (meuble comme les autres) | Icône repérée (rectangle orné, motif de gemmes/fermoir) mais jamais isolée assez proprement dans les cartes examinées pour un comptage de cases fiable |
+| Bibliothèque | Bibliothèque | **3 cases (3×1)** — décision de René, 2026-10-16 (ancienne mesure 2 cases ; mesure du jour ≈ 2,7 × 0,85 sur Q12) | ⚠ idem | Oui | Icône identifiée par une note (LQ p. 27, Quête 12, note E : « *a magical staff hidden behind the bookcase* ») ; mesure propre sur cette même occurrence |
 | « Rack » (générique) | Portant | ⚠ non établi par le livret | ⚠ | Probable | Aucune occurrence isolée trouvée sur les cartes examinées ; la légende LQ p. 33 le distingue explicitement du « Weapons rack » (deux icônes différentes) — nature exacte non décrite en texte |
-| Cheminée | Cheminée / âtre | ⚠ non établi par le livret | ⚠ | Probable | Aucune occurrence trouvée sur les cartes examinées. **Règle sourcée (FL-Q p. 7, *Healing Hearth*)** : dans une salle avec une cheminée, un héros qui devrait tirer une carte trésor peut, à la place, récupérer 1 Body Point. L'emprise reste ⚠ non établie (le symbole FL-Q p. 20 est un rectangle allongé, sans grille) |
-| Râtelier d'armes | Râtelier d'armes | **2 cases (1×2)** | ⚠ idem | Oui | Mesuré **exactement à la position** que désigne LQ p. 5 (Quête 1, note A : « *the weapons on this weapons rack are chipped, rusted, and broken* ») — la mesure la mieux corroborée du tableau (texte + position + grille alignée) |
-| Armoire | Armoire | **2 cases (2×1)** | ⚠ idem | Oui | Icône identifiée par sa forme (rectangle uni, sans motif — correspond à la légende LQ p. 33) sur LQ p. 13 (Quête 5, salle D, deux exemplaires côte à côte) ; aucune note de quête n'y accroche ce nom dans cette instance. **Règle sourcée (FL-Q p. 7, *Sly Storage*)** : dans une salle avec une armoire, le premier héros à tirer une carte trésor en tire deux, résolues dans l'ordre. ⚠ Elle parle du tirage **de salle** ; notre armoire a sa table propre, un tirage par héros (§3) — la réconciliation reste à trancher |
+| Cheminée | Cheminée / âtre | **3 cases (1×3)** — décision de René, 2026-10-16 ; mesurée ≈ 2,6 × 0,9 (G1798, horizontale) et ≈ 0,96 × 2,6 (F4193, verticale) | ⚠ convention (famille bibliothèque) | Non — la règle vise la salle | Trouvée sur deux cartes d'extensions (*Witch Lord*, *Crypt*) : « aucune occurrence » était faux. Elle est au jeu de base (RB p. 4) ; seule sa RÈGLE est First Light. **Règle sourcée (FL-Q p. 7, *Healing Hearth*)** : dans une salle avec une cheminée, un héros qui devrait tirer une carte trésor peut, à la place, récupérer 1 Body Point. L'emprise reste ⚠ non établie (le symbole FL-Q p. 20 est un rectangle allongé, sans grille) |
+| Râtelier d'armes | Râtelier d'armes | **3 cases (1×3)** — décision de René, 2026-10-16 (ancienne mesure 2 cases ; mesure du jour ≈ 1,0 × 2,7 vertical sur Q1) | ⚠ idem | Oui | Mesuré **exactement à la position** que désigne LQ p. 5 (Quête 1, note A : « *the weapons on this weapons rack are chipped, rusted, and broken* ») — la mesure la mieux corroborée du tableau (texte + position + grille alignée) |
+| Armoire | Armoire | **3 cases (3×1)** — décision de René, 2026-10-16 (ancienne mesure 2 cases ; mesure du jour ≈ 2,5 × 0,85) | ⚠ idem | Oui | Icône identifiée par sa forme (rectangle uni, sans motif — correspond à la légende LQ p. 33) sur LQ p. 13 (Quête 5, salle D, deux exemplaires côte à côte) ; aucune note de quête n'y accroche ce nom dans cette instance. **Règle sourcée (FL-Q p. 7, *Sly Storage*)** : dans une salle avec une armoire, le premier héros à tirer une carte trésor en tire deux, résolues dans l'ordre. ⚠ Elle parle du tirage **de salle** ; notre armoire a sa table propre, un tirage par héros (§3) — la réconciliation reste à trancher |
 
 **Lecture du tableau.** Huit des onze types (table, coffre, trône, établi
 d'alchimiste, tombeau, bibliothèque, râtelier d'armes, armoire) ont été mesurés
@@ -90,6 +88,50 @@ comme acquises.
 **Colonne « bloque le déplacement ».** Marquée ⚠ pour les onze types : voir §3, aucun
 passage du livret de règles ne dit en toutes lettres qu'un héros ne peut pas entrer
 sur la case d'un meuble.
+
+**Mise à jour du 2026-10-16 — « 3-Space Furniture (1x3 Grid) », trois pièces en 3×2, et la cheminée.**
+Décisions de René, prises sur des dessins mesurés à l'échelle ≈ 0,9 (la bibliothèque, mesurée 2,7 cases,
+en fait 3) :
+
+- **1×3 (3 cases)** : bibliothèque, armoire, râtelier d'armes (« all occupy exactly 3 squares on the
+  board ») ; la cheminée, validée à 1×3 ;
+- **3×2 (6 cases)** : table, tombeau (couché, comme dessiné), établi d'alchimiste. Cette décision
+  REMPLACE le 1×3 que l'établi avait reçu la veille ;
+- **table du sorcier** : décidée à 3 cases, mais **NON ajoutée au catalogue** (ses drapeaux de vue et sa
+  table de fouille ne sont sourcés nulle part).
+
+Ce sont des **décisions**, pas des mesures. Le catalogue (`MobilierSeeder`, et la migration
+`2026_10_16_130000_mobilier_trois_cases`, qui n'avait pas encore été jouée et porte donc l'ensemble des
+changements) suit.
+
+Mesures visuelles relevées le même jour (règle graduée sur recadrage agrandi, ±0,2 case au dessin) —
+**rapportées**. Le facteur d'échelle ≈ 0,9 les ramène au réel :
+
+| Pièce | Carte | Dessin mesuré (cases) | Décision |
+|---|---|---|---|
+| Bibliothèque | recadrage `q12-biblio` | ≈ 2,7 × 0,85 | 3×1 |
+| Armoire | recadrage `q6-cupboard` | ≈ 2,5 × 0,85 | 3×1 |
+| Râtelier d'armes | recadrage `q1-rack` | ≈ 1,0 × 2,7 | 1×3 |
+| Cheminée | G1798 (salle E), F4193 (salle D) | ≈ 2,6 × 0,9 ; ≈ 0,96 × 2,6 | 1×3 |
+| Trône | G1798 (salle E) | ≈ 1,0 × 1,0 | 1×1, inchangé |
+| Table | recadrage `q11-table` | ≈ 2,5 × 1,5 | 3×2 |
+| Établi d'alchimiste | recadrage `q11-alch` | ≈ 2,6 × 1,5 | 3×2 |
+| Tombeau | Quête 14 (p. 31 imprimée, rendu p16) | ≈ 2,4 × 1,5, couché | 3×2 |
+
+Lecture : les pièces longues et plates (bibliothèque, armoire, cheminée, râtelier) mesurent ≈ 2,5-2,7 cases
+pour 0,85-1,0 de large, et tiennent dans 3 cases. Les trois pièces trapues (table, tombeau, établi) font
+≈ 2,4-2,6 × 1,5, et tiennent dans 3×2. La mesure ne donne que des gabarits approchés ; c'est la décision de
+René qui fixe les emprises.
+
+Le **portant** reste ⚠ non établi (aucune occurrence isolée).
+
+**Décision de conception (2026-10-16) — la cheminée se lit dans la SALLE.** Healing Hearth passe par
+`MoteurCheminee`, jamais par la case : le meuble ne se fouille pas. Aucune emprise ne lit le catalogue à
+l'exécution : chaque entrée de `cartes.grille.mobilier[]` porte son `l`×`h` posé. Une quête EN COURS garde
+donc ses meubles à leur ancienne emprise ; seule la prochaine carte assemblée pose les nouvelles
+(`MobilierTroisCasesTest`).
+
+---
 
 ## 2. Autres éléments spéciaux du plateau
 
@@ -222,7 +264,7 @@ une salle, et non plus une fois pour tout le groupe.
 |---|---|---|---|---|
 | Coffre | 40 % · 25-70 po | 20 % consommable · 10 % arme/armure | — | 30 % |
 | Trône | 50 % · 35-75 po | — | — | 50 % |
-| Établi d'alchimiste | — | 50 % consommable | 20 % *Fiole de poison* | 30 % |
+| Établi d'alchimiste | — | 42 % consommable · 17 % **parchemin** (2026-10-16) | 17 % *Fiole de poison* | 25 % |
 | Tombeau | 27 % · 30-70 po | 18 % arme/armure | 18 % *Aiguille empoisonnée* | 36 % |
 | Bibliothèque | 12,5 % · 10-25 po | 37,5 % **parchemin** | — | 50 % |
 | Râtelier d'armes | — | 50 % arme/armure | — | 50 % |
@@ -231,10 +273,19 @@ une salle, et non plus une fois pour tout le groupe.
 La **Table** reste non fouillable (§1) : aucune note de quête consultée n'y
 accroche de trésor.
 
+⚠ **Les livrets ne mettent PAS de parchemins sur l'établi ni sur les étagères.** Les
+notes de quête posent des POTIONS : « two random potions sitting on the Alchemist's
+Bench » (*Rise of the Dread Moon*, F6646 p. 12 et 17) et « the bookcase holds one
+random potion » (F6646 p. 14) ; « 100 gold coins hidden in the bookshelf »
+(*Spirit Queen's Torment*, G0053 p. 5). Les parchemins de la bibliothèque (depuis le
+2026-08-17) et de l'établi (depuis le 2026-10-16) sont donc une **décision de René**,
+pas une lecture des livrets. Ils ne sont pas sourcés, et le disent. Le tirage suit
+la courbe de rareté du butin (`RareteButin`), et la difficulté du sort donne la rareté.
+
 **Ce qui a guidé les tables**, faute de source : ce que la pièce contient
-plausiblement. Le râtelier ne rend que des armes, l'établi que des fioles, la
-bibliothèque est le **seul** meuble à donner des parchemins — ce qui en fait la
-pièce du lanceur de sorts, et une raison pour l'elfe d'aller fouiller là où le
+plausiblement. Le râtelier ne rend que des armes, l'établi surtout des fioles, la
+bibliothèque le plus souvent des parchemins — ce qui en fait la pièce du lanceur
+de sorts, et une raison pour l'elfe d'aller fouiller là où le
 barbare n'a rien à gagner. Le coffre est le seul généraliste, donc le plus
 généreux.
 

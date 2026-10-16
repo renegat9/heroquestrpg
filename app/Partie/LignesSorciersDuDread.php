@@ -211,7 +211,8 @@ trait LignesSorciersDuDread
     }
 
     /**
-     * Le coup à l'arme qu'un héros dominé porte à un compagnon.
+     * Le coup qu'un héros dominé porte à un compagnon — à l'arme au corps à corps, ou un TIR à distance. Le fil
+     * se fie au même prédicat que pour un héros (`JournalCombat::estUnTir()`), jamais à une seconde lecture de `portee`.
      *
      * @param  array<string, mixed>  $a
      * @return list<array<string, mixed>>
@@ -221,10 +222,13 @@ trait LignesSorciersDuDread
         $nom = (string) ($a['personnage'] ?? 'Un héros');
         $cible = (string) ($a['cible']['nom'] ?? 'un compagnon');
         $degats = (int) ($a['degats'] ?? 0);
+        $tire = JournalCombat::estUnTir($a);
 
         $ligne = match (true) {
             ! empty($a['cible_tombee']) => ['texte' => "{$nom}, dominé, terrasse {$cible} ! (−{$degats} PV)", 'ton' => 'chute'],
+            $degats > 0 && $tire => ['texte' => "{$nom}, dominé, tire sur {$cible} (−{$degats} PV)", 'ton' => 'subit'],
             $degats > 0 => ['texte' => "{$nom}, dominé, frappe {$cible} (−{$degats} PV)", 'ton' => 'subit'],
+            $tire => ['texte' => "{$nom}, dominé, tire sur {$cible} — le tir est paré", 'ton' => 'pare'],
             default => ['texte' => "{$nom}, dominé, frappe {$cible} — le coup est paré", 'ton' => 'pare'],
         };
 

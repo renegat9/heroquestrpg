@@ -30,7 +30,13 @@ use Illuminate\Database\Seeder;
  *
  * Choix faits où les docs sont muets :
  * - prix des potions (« variable » dans le doc) : valeurs de départ à équilibrer ;
- * - parchemins : rareté/prix dérivés de la difficulté du sort (1 → commun/100, 2 → peu_commun/200, 3 → rare/350) ;
+ * - parchemins : rareté dérivée de la difficulté du sort (1 → commun, 2 → peu_commun, 3 → rare) ;
+ *   HORS MARCHÉ depuis le 2026-10-16 (René) : on ne les achète ni ne les revend, on les
+ *   trouve au mobilier (bibliothèque, établi d'alchimiste) ou en épreuve. C'est la
+ *   CATÉGORIE `parchemin` qui les retire de l'étal (`PhaseMarche::estHorsMarche()`),
+ *   donc aucun drapeau à poser ligne à ligne. Leur `prix_base` ne sert plus à aucune
+ *   transaction : il n'est pas sourcé (100/200/350 = barème de projet, non trouvé dans
+ *   les livrets) et reste seulement parce que le guide l'affiche ; la colonne reste.
  * - la trousse à outils ne vient pas de ce paquet (il n'a que des armes et des
  *   armures) mais du livret officiel, LR p. 19.
  */
@@ -921,15 +927,16 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Trousse à outils', 'categorie' => 'outil', 'prix_base' => 250, 'emplacement' => 'sac',
                 'effet' => ['permet_desamorcage' => true]],
 
-            // ----- Potion de soin (vendue, prix NON SOURCÉ) -----
+            // ----- Potion de soin (HORS ÉTAL, prix NON SOURCÉ) -----
             // ⚠ Ce n'est PAS la fiole du deck de trésor : le deck donne la Fiole
-            // de soin (1d6, `unique`). Cette potion à montant fixe (4 PV) est une
-            // potion d'ÉTAL, voulue telle par `exploration-et-fouille.md` (« la
-            // Potion de soin achetée au marché ») — mais son prix de 100 po est
-            // ⚠ non trouvé (reference/16 §10). Laissée à l'étal le 2026-10-16 :
-            // la décision de la retirer, comme la force et la défense, reste à René.
+            // de soin (1d6, `unique`). Cette potion à montant fixe (4 PV) n'a pas
+            // de prix sourcé : son 100 po est ⚠ non trouvé (reference/16 §10).
+            // `hors_marche` : ni à l'étal, ni revendable — « prix non sourcé ; la
+            // Potion de guérison sourcée, 500 po, reste en vente — René 2026-10-16 ».
+            // Elle reste utilisable si on la possède, et la migration
+            // `2026_10_16_120000` pose la même clé sur la ligne existante.
             ['nom' => 'Potion de soin', 'categorie' => 'consommable', 'prix_base' => 100, 'emplacement' => 'consommable',
-                'effet' => ['soin_pv_body' => 4, 'cible' => 'heros_adjacent']],
+                'effet' => ['soin_pv_body' => 4, 'cible' => 'heros_adjacent', 'hors_marche' => true]],
 
             // ----- Les 15 potions officielles (`potions.pdf`, doc 16 §2.1bis) -----
             //
@@ -1102,7 +1109,10 @@ class ObjetSeeder extends Seeder
             Objet::updateOrCreate(['nom' => $objet['nom']], $objet);
         }
 
-        // ----- Parchemins : un par sort, rareté/prix selon la difficulté (doc 02 §6-7) -----
+        // ----- Parchemins : un par sort, rareté selon la difficulté (doc 02 §6-7) -----
+        // ⚠ Le `prix_base` ci-dessous n'est plus une transaction (hors marché, 2026-10-16) :
+        // il n'alimente plus l'étal, ni la revente, ni le butin (la rareté est déclarée ici,
+        // pas déduite du prix). Il reste pour l'affichage du guide, en attendant une décision.
         $bareme = [
             1 => ['rarete' => 'commun', 'prix_base' => 100],
             2 => ['rarete' => 'peu_commun', 'prix_base' => 200],

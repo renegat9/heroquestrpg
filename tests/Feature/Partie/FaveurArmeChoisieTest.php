@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\Http;
 /*
  * WEAPON EXPERT — le JOUEUR choisit son type d'arme au moment où il obtient la faveur
  * (René, 2026-10-15 ; livret G1504 p. 22-23 : « Select a type of weapon […] when you acquire
- * this Boon »). La faveur et son porteur restent tirés au hasard ; le choix se fait AU HUB,
+ * this Boon »). Le lieu de la faveur se choisit au hub par son héros (René, 2026-10-16) ; le type d'arme aussi, AU HUB,
  * par les vraies routes : `/moi` publie la liste blanche (lue dans le catalogue), `PUT
  * /groupes/{id}/faveurs/weapon-expert` la revalide et écrit le choix en base, `POST /pret`
  * refuse au porteur de partir sans avoir choisi, et le bonus lit ce choix. Une faveur sans

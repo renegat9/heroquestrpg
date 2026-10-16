@@ -69,7 +69,7 @@ final class JournalCombat
         'liberer_entraves' => true, 'relever' => true, 'regain_corps' => true,
         'equiper' => true, 'desequiper' => true, 'usage_objet' => true, 'echanger' => true,
         'jeter' => true, 'attaque_mobilier' => true, 'fouille_tresor' => true,
-        'fouille_mobilier' => true, 'boire_mare' => true, 'detruire_par_action' => true,
+        'fouille_mobilier' => true, 'boire_mare' => true, 'soin_cheminee' => true, 'detruire_par_action' => true,
         'actionner_levier' => true, 'forcer_porte_pierre' => true, 'ouvrir_porte' => true,
         'oracle_salle' => true, 'poussee' => true, 'briser_glace' => true,
         'detacher_rejetons' => true, 's_ecarter_du_bloc' => true, 'retraite' => true,
@@ -129,7 +129,10 @@ final class JournalCombat
         'reddition' => 'Dite par `reddition_monstre` de l\'action qui a achevé le monstre — la redire la doublerait à la reconnexion.',
         'porte_ouverte' => 'Écriture de journal seule : l\'action qui ouvre la porte (ouvrir_porte, levier, sort) la dit déjà.',
         'peacekeeper_quete' => 'Annoncé au hub par `EtatGroupe::annonceDeQuete()`, hors du fil de la quête.',
-        'faveur_hopekins' => 'Annoncé au hub par `EtatGroupe::annonceDeQuete()`, hors du fil de la quête.',
+        // `faveur_hopekins` (tirage au hasard) n'est plus produit depuis le 2026-10-16 : le
+        // joueur choisit son lieu au hub (entrée de journal `systeme`, action `visite_hopekins`,
+        // rendue par la feuille de choix et la fiche). `EtatGroupe` lit encore les anciennes
+        // lignes `faveur_hopekins` des groupes réels, mais aucun code n'en écrit.
         'mercenaire_entretien' => 'Annoncé au hub par `EtatGroupe::annonceDeQuete()`, hors du fil de la quête.',
     ];
 
@@ -942,6 +945,12 @@ final class JournalCombat
                 'texte' => "{$acteurNom} boit à la mare : +".(int) ($a['soin'] ?? 0).' PV de Body',
                 'ton' => 'succes',
             ]],
+            // CHEMINÉE (First Light, FL-Q p. 7) : le même soin qu'à la Mare, rendu
+            // par le foyer — sans cette ligne, le choix de ne pas piocher serait muet.
+            'soin_cheminee' => [[
+                'texte' => "{$acteurNom} se réchauffe à la cheminée : +".(int) ($a['soin'] ?? 0).' PV de Body, sans carte de trésor',
+                'ton' => 'succes',
+            ]],
             // COCON (Jungles of Delthrak p. 4) : une action, aucun jet, l'obstacle
             // disparaît du plateau.
             'detruire_par_action' => [$this->info("{$acteurNom} détruit : ".($a['mobilier'] ?? 'un obstacle'))],
@@ -1043,8 +1052,12 @@ final class JournalCombat
             ]],
             // POSSESSION (*Possess*, High Mage) : le MJ déplace le héros à sa place.
             'possession_deplacement' => [[
-                'texte' => ($a['personnage'] ?? 'Un héros').' est possédé : il avance de force'
-                    .(! empty($a['vers_monstre']) ? ' vers '.$a['vers_monstre'] : '').' — sans attaquer',
+                // Déjà au contact : la possession ne marche pas, elle le dit (`HerosJoueParLeMj::auContact()`).
+                'texte' => ($a['personnage'] ?? 'Un héros').' est possédé : '
+                    .(($a['de'] ?? null) === ($a['vers'] ?? null)
+                        ? 'il reste au contact'.(! empty($a['vers_monstre']) ? ' de '.$a['vers_monstre'] : '')
+                        : 'il avance de force'.(! empty($a['vers_monstre']) ? ' vers '.$a['vers_monstre'] : ''))
+                    .' — sans attaquer',
                 'ton' => 'subit',
             ]],
             // AGAINST THE OGRE HORDE (F9528 p. 10-11) — voir `LignesSorciersDuDread`.

@@ -382,13 +382,51 @@ reproche de comportement. Les quatre sont portées avec un lecteur réel et des 
 d'un monstre et versé à la fin d'une quête gagnée, *Healing Hands* par la réaction « Passing Items » à 0 PV.
 **Restent des choix de règle, non tranchés ici** :
 1. **Système à part (retenu depuis le 2026-10-06) ou arbre de talents** — ⚠ toujours « à confirmer » par René.
-2. **Faveur acquise une fois pour toutes (tirée au hasard) ou choisie à chaque quête.** Le livret fait choisir un
-   lieu par héros au début de chaque quête (« A hero may only benefit from one boon at a time ») ; chez nous une
-   faveur tirée reste et un héros en cumule plusieurs. Cela touche les neuf, et ôte son sens à « This Mercenary
-   returns to the guild if you ever choose another boon ».
+2. ~~**Faveur acquise une fois pour toutes (tirée au hasard) ou choisie à chaque quête.**~~ **TRANCHÉ le 2026-10-16**
+   (décision de René, « Choisissons la faveur au hub si les extensions qui les utilisent sont utilisées ») : le choix
+   au hub, par chaque héros, à chaque tour — voir « Exécution (2026-10-16) — le choix au hub » ci-dessous.
 3. **Granularité de *Hold the Line*** : « each time a monster moves away » est lu une fois par tour de monstre
    (position de départ comparée à celle d'arrivée), non pas à chaque pas — un monstre qui s'écarte puis revient au contact
    dans le même tour n'est pas visé.
 4. **L'entretien du mercenaire offert** : dû (« cost » = le prix d'engagement de la carte) ; une ligne dans
    `reglerEntretien()` l'en exempterait si René le veut.
 5. **Le répertoire *elfique* n'est pas offert** comme « set » supplémentaire de la bibliothèque.
+
+## Exécution (2026-10-16) — le choix au hub
+
+Décision de René (2026-10-16) : « Choisissons la faveur au hub si les extensions qui les utilisent sont
+utilisées. » Le livret (G1504 p. 21 : « each player may select a Boon of Heroism for their hero » ; p. 23 :
+« At the start of each quest, a hero may select one location to visit and receive its Boon of Heroism (if
+available). A hero may only benefit from one boon at a time. ») fait donc CHOISIR chaque joueur ; le tirage au
+hasard de fin de quête est **retiré**.
+
+| Élément | Décision | Où c'est écrit |
+|---|---|---|
+| **Quelles campagnes** | Seulement celles qui JOUENT Wizards of Morcar (bestiaire automatique ou boîtes cochées). Sans Morcar : aucune faveur nouvelle, rien d'affiché. Seule boîte qui porte Hopekins Rest / « Boon » dans les textes extraits des livrets officiels (`~/heroquest-livrets/texte/*`, grep : G1504 seul). | `FaveursHopekins::campagneAvecMorcar()`, `BestiaireGroupe::contient()` |
+| **Quel tour** | Le hub qui suit une quête GAGNÉE, une fois Gardien. Il se ferme au départ de la quête suivante. Un tour = un choix par héros. | `FaveursHopekins::tourDeHub()` |
+| **Qui** | Chaque héros ACTIF, pour SON héros, ou renonce (« may »). `POST /pret` bloque le héros qui n'a pas tranché, comme le type d'arme ; la table peut lancer sans `/pret`. | `FaveursHopekins::refusDeDepart()`, `GroupeController::pret()` |
+| **La liste** | Publiée par le serveur : les neuf lieux, `disponible` et `motif` (« Tenue par Brynn. », « Vous la tenez déjà. », « Réservée aux lanceurs… »). La liste blanche est revalidée à la route. | `FaveursHopekins::lieuxPour()`, `/moi` → `visite_hopekins` |
+| **Un lieu** | EST la faveur : il remplace celle que le héros tient (« one boon at a time »), dans la même opération. *Witch's Hut* ne relâche rien (instantanée). | `FaveursHopekins::choisirLieu()` → `remettre()` |
+| **Les sous-choix** | *Weapon Expert* (type d'arme) et *Arcane Library* (répertoire) gardent leur choix, après le lieu, au hub. | inchangés (`PUT …/faveurs/weapon-expert`, `…/arcane-library`) |
+| **État** | EN BASE : `personnage_visites_hopekins` (héros × quête → `lieu`, `null` = renonce). Aucun cache. | migration `2026_10_16_150000_visites_hopekins_tour_de_hub` |
+| **Repli (campagnes en cours)** | `groupes.hopekins_quete_tranchee_id` ferme, pour chaque groupe, le tour déjà pourvu par l'ancien tirage : le choix s'ouvre au **hub suivant**. Les faveurs déjà tenues restent tenues. | même migration (pose la colonne et la valeur) |
+| **Annonce** | `groupe.hopekins` (`visites` du tour, `en_attente`), rendu par `AnnonceHub` sur la table ET la manette. | `EtatGroupe::hopekinsHub()` |
+
+**Écarts NOMMÉS, non portés** :
+- **La double quête 7-8** (« may not visit the Alchemist's Shop or Hopekins Rest between quests », p. 17) : pas de
+  quête numérotée dans le modèle (procédural ; la double quête est écartée, `docs/regles/bestiaire-et-rencontres.md`).
+  Le hub reste ouvert entre toutes les quêtes.
+- **La récompense de conclusion** (p. 21 : « When visiting the outpost, heroes may visit 2 locations and have a
+  maximum of 2 Boons of Heroism each on all future quests ») : elle change la règle « une faveur à la fois » après la
+  victoire finale. **Non portée — décision de René à prendre.**
+- **Les faveurs d'une campagne sans Morcar, déjà tirées** : gardées (aucun retrait rétroactif).
+
+**Tests** : `tests/Feature/Partie/FaveurHubChoixTest.php` (route réelle : hors Morcar, avec Morcar, liste blanche,
+un choix par tour, remplacement, renoncement, prêt, Weapon Expert, cache vidée, repli, annonce, aucun tirage) ;
+`FaveursHopekins{,Mecaniques,Duree}Test` rejouent chaque faveur par `PUT …/faveurs/lieu`.
+
+**Harnais** : `browser-shots/campagne/hq.sh <slot> visite <lieu>|aucun` ; `/pret` répond 422 « peut visiter un
+lieu de Hopekins Rest » tant que le héros n'a pas tranché (README §pret).
+
+**À jouer en prod** : la migration `2026_10_16_150000` (colonne + table + repli) après `image-tools/sauvegarder.sh`,
+puis `docker compose restart queue queue-jeu`.

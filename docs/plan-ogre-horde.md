@@ -374,3 +374,5 @@ p. 31, 35, 37). Ce que le plan prévoyait et ce qui a été fait :
 - **Non porté, écrit** : la marche d'un Sorcier APRÈS un sort (« may take their movement » est un *peut*), le dé de mouvement d'un monstre en choc, les armes de jet / objets d'un héros dominé, la règle de quête de la Fosse du Dread (q. 8).
 
 > **Réalisé le 2026-10-15 (René)** — le *Guardian Effigy* est semé (« Effigie gardienne », sous-boss `horde_ogre`, `cout` 8) sur le patron TOURELLE : immobile (`deplacement: 0`), fait feu chaque tour sur un héros en ligne de vue aux mêmes 3 dés, immunité TOTALE aux sorts (menu, zone, rayon, Dread), placée en SALLE seulement, hors parvis, plancher de cases jouables tenu. `docs/regles/bestiaire-et-rencontres.md`, `docs/regles/carte-donjon.md` §2.12 quater. Ajoutée au pool `rencontre_finale.creatures` du gabarit « Antre du sous-boss ».
+
+> **Addendum (René, 2026-10-16)** — *Mind Burst* : écart de crânes **bruts**, sans boucliers, comme le livret. La question laissée ouverte ci-dessus est tranchée.

@@ -55,7 +55,7 @@ La magie reste **fidèle à HeroQuest** : sorts regroupés par **éléments**, *
 ## 6. Les parchemins (consommables)
 
 - **Usage unique** : consommé à l'activation, qu'elle réussisse ou échoue.
-- **Source** : butin de quête ou achat au market (voir doc Market).
+- **Source** : butin uniquement — le **mobilier** (bibliothèque, établi d'alchimiste : `docs/regles/exploration-et-fouille.md`) ou une **épreuve** réussie (*Grimoire à demi calciné*). **Plus d'achat ni de vente au marché** (décision de René, 2026-10-16) : un parchemin n'est pas une marchandise, il se trouve.
 - **Donne accès** à un sort, y compris hors du répertoire du personnage.
 - **Activation** :
   - **Lanceur de sorts** (Magicien / Elfe) → **réussite automatique**.
@@ -174,7 +174,7 @@ dès la première divergence.
 
 - **Personnages** : utilise attribut Mind (jets de parchemin, résistance), Points de Body/Mind (cibles), nœuds d'arbre (*Première magie*, *Écoles*, *Concentration*, *Second élément*).
 - **Combat** : dégâts et défense suivent les règles de combat de base, inchangées.
-- **Market** : parchemins comme marchandise, prix/disponibilité selon le profil de lieu (chiffres au moteur, jamais à l'IA).
+- **Market** : ~~parchemins comme marchandise~~ — **retirés du marché le 2026-10-16** (décision de René) : ni à l'étal, ni achetables, ni revendables. Prix et disponibilité des autres objets restent selon le profil de lieu (chiffres au moteur, jamais à l'IA).
 
 ---
 
@@ -191,6 +191,6 @@ dès la première divergence.
 2. **Sorts mentaux (S2)** : **effet binaire** — la cible résiste (jet de Mind) ou subit l'effet. Pas de dégâts de PV de Mind au MVP.
 3. **Ciblage (S3)** : **tir ami possible** — un sort mal placé peut toucher un allié.
    - *Précisé le 2026-10-09 (décision de René) : le tir ami vaut pour les sorts de zone ; un sort à cible unique vise ce que dit sa carte.* Une Boule de Feu (« any one monster ») ne vise donc que des monstres, jamais le lanceur ni un allié ; Flamme hypnotique (zone) et Éclair (rayon) gardent le tir ami.
-4. **Fabrication (S4)** : **jamais** — les parchemins ne s'obtiennent que par butin ou achat.
+4. **Fabrication (S4)** : **jamais** — les parchemins ne s'obtiennent que par butin (mobilier, épreuve), jamais par achat au marché depuis le 2026-10-16.
 5. **Repos (S5)** : **aucun repos en cours de quête** ; récupération entre quêtes uniquement.
 6. **Concentration (S6)** : le Magicien peut, **une fois par quête, sacrifier son tour** pour récupérer un sort épuisé.

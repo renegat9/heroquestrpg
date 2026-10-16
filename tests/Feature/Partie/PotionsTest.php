@@ -123,12 +123,13 @@ it('applique le buff de la Potion de force (bonus de dés d\'attaque)', function
 
 it('boit une carte de trésor retirée de l\'étal : `hors_marche` ne touche jamais à la boisson', function () {
     // René, 2026-10-16 : on ne vend plus ces potions, on les BOIT toujours. La
-    // clé ne vit que dans le marché (`PhaseMarche::estHorsMarche()`).
+    // clé ne vit que dans le marché (`PhaseMarche::estHorsMarche()`). La Potion de
+    // soin, retirée de l'étal pour prix non sourcé, se boit comme les autres.
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
 
-    foreach (['Potion de force', 'Potion de défense'] as $nom) {
+    foreach (['Potion de force', 'Potion de défense', 'Potion de soin'] as $nom) {
         $ligne = donnerConsommable($heros, $nom);
 
         $resultat = app(MoteurPotions::class)->boire($heros, $ligne);

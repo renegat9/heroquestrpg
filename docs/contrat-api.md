@@ -61,6 +61,13 @@ proposition du MJ. » quand ce n'est pas son tour.
                                  "faveur_libelle": "Deadeye", "faveur_effet": "Les figures ne bloquent pas votre ligne de vue…",
                                  "detail": "null pour une compétence ; sinon ce que la faveur a fait ou ce qui reste à faire",
                                  "personnage_id": 1, "personnage": "Albrecht", "sequence": 102} ,
+             "hopekins": {"quete_id": 7,
+                          "visites": [{"personnage_id": 1, "personnage": "Albrecht", "lieu": "dewdrop_inn",
+                                       "libelle": "Dewdrop Inn", "effet": "+2 PV de Body maximum…",
+                                       "detail": "Albrecht passe à 10 PV de Body maximum."},
+                                      {"personnage_id": 2, "personnage": "Brynn", "lieu": null,
+                                       "libelle": null, "effet": null, "detail": "Brynn ne visite aucun lieu."}],
+                          "en_attente": [{"personnage_id": 3, "personnage": "Cara"}]} ,
              "prologue": {"texte": "prémisse...", "url": "/audio/.../...wav|null",
                           "menace": {"nom": "...", "description": "..."}, "auto": true}},
   "quete": {"id": 1, "titre": "...", "type_jalon": "normale", "etat": "en_cours",
@@ -859,10 +866,15 @@ avec le prix de revente M1 déjà calculé. Prix d'achat = prix_base × multipli
 du profil (doc 04 §3) ; revente = 50 % du prix marchand courant (M1) ; rareté
 `unique` jamais en stock. ⚠ **Une carte de trésor SANS PRIX** (`effet.hors_marche`,
 décision de René du 2026-10-16 : « On ne peut pas vendre les potions qu'on trouve
-dans les trésors » — *Potion d'héroïsme*, *Potion de force*, *Potion de défense*) n'est
-ni à l'étal, ni dans l'`inventaire` vendable du panier : son achat répond 422 (« n'est
+dans les trésors » — *Potion d'héroïsme*, *Potion de force*, *Potion de défense*) — et la **Potion de soin**
+(100 po, prix NON SOURCÉ, même drapeau, « la Potion de guérison sourcée, 500 po, reste en vente » — René
+2026-10-16) — n'est ni à l'étal, ni dans l'`inventaire` vendable du panier : son achat répond 422 (« n'est
 pas proposé par ce marchand »), sa revente 422 (« ne se revend pas »), comme un
-artefact. Elle reste trouvable en fouille et se boit. Garde-fous à l'application : total ≥ 0, stock, objets
+artefact. Elle reste trouvable en fouille et se boit. ⚠ **Un PARCHEMIN** (catégorie `parchemin`, René 2026-10-16 :
+« on les trouve en fouillant le mobilier ») n'est jamais à l'étal ni dans l'`inventaire` vendable : son achat répond 422
+(« n'est pas proposé par ce marchand »), sa revente 422 (« Un parchemin ne se revend pas : on n'en trouve qu'en fouillant
+le mobilier. »). Un achat venu d'une phase ouverte AVANT ce changement est refusé à la confirmation (422, « n'est plus à
+l'étal : cet objet ne s'achète pas au marché »). Garde-fous à l'application : total ≥ 0, stock, objets
 vendus réellement possédés, **capacité de sac** (PV Body max ÷ 2 arrondi
 inférieur + bonus_sac de classe — doc 01) respectée pour chaque personnage.
 
@@ -991,9 +1003,8 @@ seulement le thème `wizards_of_morcar` :
 
 ### Faveurs de Hopekins Rest (même chantier, livret p. 22-23)
 
-Récompense de quête **séparée, HORS arbre de talents** — un don PONCTUEL et
-durable sur la FICHE DU HÉROS (`EtatGroupe.entites[].faveurs` en quête,
-`groupe.faveur_hopekins` pour la dernière attribuée au hub), jamais recalculé
+Récompense de quête **séparée, HORS arbre de talents** — une faveur **TENUE** (durée : voir « DURÉE » plus bas ; le choix : « Choix au hub » plus bas) sur la FICHE DU HÉROS (`EtatGroupe.entites[].faveurs` en quête,
+`groupe.hopekins` pour le tour de hub en cours), jamais recalculé
 depuis autre chose que `personnage_faveurs` (et, pour les faveurs instantanées, le sac). Les CINQ compétences portées :
 *Deadeye* (les figures ne bloquent plus la ligne de vue de ce héros pour
 tirer/lancer un sort), *Weapon Expert* (+1 dé d'attaque avec le **type d'arme choisi par le
@@ -1015,30 +1026,75 @@ relu à chaque publication). Publiée sur `EtatGroupe.entites[].faveurs` (en
 quête, table) **et** sur `GET /api/moi` → `joueur.personnages[].faveurs` (la
 fiche de la manette, au hub comme en quête).
 
-**Attribution** (décision d'interprétation de ce chantier — le livret ne
-tranche que « un héros visite un lieu, hors ligne ») : à la fin d'une quête
-**réussie**, une fois Gardien, le groupe reçoit **une faveur tirée au
-hasard**, remise à un héros actif **lui aussi tiré au hasard** — ni choix de la faveur ni de son
-porteur (les seuls choix du joueur sont le TYPE D'ARME de *Weapon Expert* et le RÉPERTOIRE d'*Arcane Library*,
-ci-dessous). Le tirage est **au dé injecté** (`OubliSorts::indiceAleatoire()`) : la partie reste rejouable.
-Qui peut recevoir quoi est décidé en UN point, `FaveursHopekins::candidatsDeTirage()` :
-les cinq compétences portent « (1 available) » — aucune si un héros actif du groupe la détient ;
-*Mercenary Guild*, *Dewdrop Inn*, *Arcane Library* sont **par héros** (la bibliothèque seulement pour un lanceur
-à qui il reste un répertoire à prendre) ; *Witch's Hut* est **cumulable** (« Can be gained multiple times ») et
-n'écrit aucune ligne : le tirage n'est donc plus jamais épuisé. Journal `systeme`
-`{action: 'faveur_hopekins', quete_id, faveur, faveur_libelle, personnage_id,
-personnage, detail}` — `detail` : ce que la faveur a **fait** (« Albrecht passe à 10 PV de Body maximum. »,
-« Albrecht reçoit une Potion de guérison. ») ou ce qui **reste à faire** (« … choisira un répertoire de sorts
-supplémentaire au hub »), `null` pour une compétence —, republiée au hub sous `groupe.faveur_hopekins` avec en plus
-`faveur_effet`, **seulement si** `quete_id` est la dernière quête achevée —
-même garde que l'entretien.
+**Choix au hub** (René, 2026-10-16 : « Choisissons la faveur au hub si les extensions qui les utilisent sont utilisées » ;
+G1504 p. 21 : « each player may select a Boon of Heroism for their hero » ; p. 23 : « At the start of each quest, a hero may
+select one location to visit and receive its Boon of Heroism (if available). »). **Le tirage au hasard de fin de quête est
+retiré** (décisions du 2026-10-06 et du 2026-10-15) : il n'existe plus.
+
+- **Quelle campagne** : `FaveursHopekins::campagneAvecMorcar()`, le seul prédicat — `BestiaireGroupe::contient('wizards_of_morcar')`
+  (bestiaire automatique ou boîtes cochées). Une campagne sans Morcar ne reçoit AUCUNE faveur nouvelle et rien n'est affiché ;
+  une faveur déjà TENUE reste tenue (aucun retrait rétroactif).
+- **Quel tour** : `FaveursHopekins::tourDeHub()` — le hub (`phase: hub`) qui suit la quête ACHEVÉE la plus récente, une fois
+  Gardien (deux quêtes achevées). Le tour se ferme au départ de la quête suivante.
+- **Qui** : CHAQUE héros actif choisit pour SON héros, UNE fois par tour, ou renonce (« may »). La décision est écrite EN BASE
+  (`personnage_visites_hopekins` : `quete_id`, `lieu` — `null` = renonce). Rien de ce tour n'est gardé en cache.
+- **Liste blanche** : `/moi` → `visite_hopekins: {quete_id, lieux: [{cle, libelle, effet, disponible, motif}]}`. Les neuf lieux,
+  dans l'ordre de `FaveursHopekins::TOUTES` ; `disponible` et, quand il ne l'est pas, le `motif` écrit par le serveur (« Tenue par
+  Brynn. », « Vous la tenez déjà. », « Réservée aux lanceurs de sorts, à qui il reste un répertoire à prendre. », « La Potion de
+  guérison n'est pas au catalogue. »). `visite_hopekins` est `null` quand il n'y a rien à décider (tour fermé, décision prise,
+  campagne sans Morcar, héros inactif, aucun lieu ouvert).
+- **Un lieu EST la faveur** : il remplace celle que le héros tient (DURÉE, plus bas) — relâche et pose dans la même opération.
+  *Witch's Hut* est instantanée (une potion dans le sac, ne relâche rien).
+
+| Méthode | URL | Corps | Effet |
+|---|---|---|---|
+| PUT | /groupes/{identifiant}/faveurs/lieu | {personnage_id, lieu: string\|null} | le héros visite `lieu` (une clé de `FaveursHopekins::TOUTES`, revalidée contre la liste blanche) ou, avec `lieu: null`, renonce. **Hub uniquement, un seul choix par tour.** 200 `{personnage_id, lieu, detail, faveurs, visite_hopekins}` (`visite_hopekins` relu : `null` après la décision). 422 : hors hub ou tour fermé (`phase`), héros qui n'est pas à ce joueur (`personnage_id`), décision déjà prise (`lieu`), lieu hors de la liste blanche (`lieu`, avec le motif en message). Diffuse `.groupe.etat`. Journal `systeme` `visite_hopekins` `{quete_id, personnage_id, personnage, lieu, detail}` — `detail` : ce qui a pris fin et ce que la faveur fait ; `lieu: null` → « … ne visite aucun lieu. ». |
+
+- **Annonce** : `groupe.hopekins` (au hub seulement, `null` hors tour) = `{quete_id, visites: [{personnage_id, personnage, lieu,
+  libelle, effet, detail}], en_attente: [{personnage_id, personnage}]}`. `visites` relit le journal `visite_hopekins` de CE tour
+  (un lieu, ou `lieu: null` pour un refus) ; `en_attente` liste les héros qui doivent encore choisir. Rendu par `AnnonceHub` sur la
+  table et sur la manette. `groupe.faveur_hopekins` (plus bas) ne relit plus que l'historique du journal `faveur_hopekins`.
+- **`POST /pret`** : 422 `pret` — « … peut visiter un lieu de Hopekins Rest avant de partir… » — pour CE héros tant que sa visite
+  est à faire. La table peut toujours lancer la quête sans passer par `/pret` (comme pour le type d'arme) : le tour se ferme alors
+  sans décision pour ce héros.
+- **Sous-choix** : *Weapon Expert* et *Arcane Library* gardent leur sous-choix (type d'arme, répertoire, plus bas) ; `/pret`
+  reste refusé tant qu'il n'est pas tranché.
+- **Repli — campagnes en cours** : la migration `2026_10_16_150000_visites_hopekins_tour_de_hub` pose
+  `groupes.hopekins_quete_tranchee_id` sur la quête achevée la plus récente de chaque groupe (son tour est déjà tranché par l'ancien
+  tirage) : le choix s'ouvre au hub SUIVANT, jamais en plus d'une faveur déjà tirée. Une faveur tirée avant ce changement reste TENUE.
+- **Écarts nommés** : la double quête 7-8 du livret (« may not visit… between quests 7 and 8 ») n'existe pas dans le modèle (une
+  quête = une carte, `docs/regles/bestiaire-et-rencontres.md`) : le hub reste ouvert entre toutes les quêtes. La récompense de
+  conclusion (G1504 p. 21 : « heroes may visit 2 locations and have a maximum of 2 Boons of Heroism each on all future quests »)
+  n'est pas portée : décision de René à prendre.
+
+**DURÉE — le livret** (G1504 p. 22-23 : « At the start of each quest, a hero may select one location to
+visit and receive its Boon of Heroism (if available). A hero may only benefit from one boon at a time. » ;
+*Mercenary Guild* : « This Mercenary returns to the guild if you ever choose another boon. ») : une faveur est
+**TENUE** jusqu'à ce que son porteur en reçoive une **autre**. Recevoir une faveur **relâche** celles qu'il tient
+(`FaveursHopekins::relacherFaveursTenues()`, dans la même opération) : leur effet cesse (le mercenaire offert
+retourne à la guilde, le +2 PV de *Dewdrop Inn* tombe et le plafond se réconcilie, le répertoire d'*Arcane
+Library* sort du livre de sorts). Une compétence relâchée revient au tas : « (1 available) » se lit sur les
+faveurs **tenues** par les héros actifs. La durée n'est **pas** « une quête » : le livret ne la donne pas.
+*Witch's Hut* est **instantanée** (« Gain 1 Potion… ») : elle ne se tient pas et ne relâche rien. Les lignes
+héritées d'avant ce changement (plusieurs par héros) restent en vigueur jusqu'à la prochaine réception, qui les
+relâche toutes. Journal `faveur_hopekins` : son `detail` annonce ce qui a pris fin (« Albrecht perd Deadeye. »,
+« Albrecht perd Dewdrop Inn. Albrecht revient à 8 PV de Body maximum. ») avant ce que la nouvelle faveur fait.
+Aucune clé de payload ajoutée : le hub lit déjà `detail` (`AnnonceHub.vue`).
+Qui peut choisir quoi est décidé en UN point, `FaveursHopekins::lieuxPour()` (voir « Choix au hub ») :
+les cinq compétences portent « (1 available) » — indisponibles tant qu'un héros actif du groupe la tient ;
+*Mercenary Guild*, *Dewdrop Inn*, *Arcane Library* sont **par héros** (la bibliothèque seulement pour un lanceur à qui il
+reste un répertoire à prendre) ; *Witch's Hut* est **cumulable** (« Can be gained multiple times ») et n'écrit aucune ligne
+de faveur. Le journal des décisions est `visite_hopekins` (voir « Choix au hub »). L'ancien journal `faveur_hopekins`
+(`{action, quete_id, faveur, faveur_libelle, personnage_id, personnage, detail}`) ne vient plus que de l'historique ; sa
+republication `groupe.faveur_hopekins` ne vaut que pour la DERNIÈRE quête achevée — même garde que l'entretien.
 
 **Les quatre faveurs mécaniques** (René, 2026-10-15 ; livret G1504 p. 23, texte de la carte cité) :
 
 - *Dewdrop Inn* — « Raise your hero's max Body Points by 2 ». `personnage_faveurs` (ligne unique par héros) + le
   plafond passe par `Equipement::apresChangementDeJauges()` / `bonusJauges()`, le point de passage des PV max hors
   montée de niveau : +2 au maximum **et** au courant, la capacité du sac (PV max ÷ 2) suit d'office, le +2 survit
-  à un talisman posé puis retiré.
+  à un talisman posé puis retiré. **Tenue** : tant qu'elle est la faveur du héros ; la recevoir relâche la ligne,
+  le plafond redescend et les PV courants s'écrêtent (même point de passage).
 - *Witch's Hut* — « Gain 1 Potion of Healing ». Une **Potion de guérison** (la carte officielle, `Potion of Healing`
   du registre) entre dans le sac (`RangementObjet::ranger()`, hors capacité). **Instantanée** : aucune ligne de
   faveur ; la potion est l'état durable, boissons et Healing Hands la lisent comme toute potion.
@@ -1047,8 +1103,10 @@ même garde que l'entretien.
   (0, `offert_par_faveur: true` dans `groupe.recrutement.offres[].decisions[]` et `recrue.offert_par_faveur` dans la
   réponse), pour un mercenaire (**pas** un compagnon animal), un seul à la fois. La faveur retient l'allié engagé
   (`personnage_faveurs.parametre` = `groupe_mercenaires.id`) : tant qu'il sert ce héros le droit est consommé ; mort
-  ou parti, il se rouvre. La Potion de charme n'est pas consommée par un recrutement offert. **L'entretien de 10 po
-  reste dû** (« cost » = le prix d'engagement de la carte) : l'allié n'est pas `groupe_mercenaires.offert`, drapeau du
+  ou parti, il se rouvre. **Tenue** : la réception d'une AUTRE faveur renvoie le mercenaire à la guilde (sa ligne
+  `groupe_mercenaires` part — « This Mercenary returns to the guild if you ever choose another boon »). La Potion de charme n'est pas consommée par un recrutement offert. **L'entretien de 10 po
+  reste dû** (« cost » = le prix d'engagement de la carte ; **décision de René, 2026-10-16** : il reste dû, y compris
+  pour l'allié offert par la guilde) : l'allié n'est pas `groupe_mercenaires.offert`, drapeau du
   compagnon animal « at no cost ». La fiche publie `recrutement_offert: bool` sur cette faveur.
 - *Arcane Library* — « an additional set of spells that you are eligible to cast ; only for spellcasting heroes ».
   Choix du joueur, au hub, comme Weapon Expert : `faveurs[]` porte `repertoire` (l'élément pris, `null` tant qu'aucun)
@@ -1056,8 +1114,11 @@ même garde que l'entretien.
   qu'il reste à choisir. La liste est `MoteurSorts::repertoiresSupplementaires()` : pour un lanceur, les trois
   répertoires optionnels (`protection`, `detection`, `tenebres`) ; pour le Magicien et l'Elfe, en plus les écoles
   élémentaires qu'ils ne connaissent pas ; jamais un répertoire déjà connu. Le répertoire pris est ensuite un
-  répertoire comme un autre (remplaçable au hub, `PUT …/sorts-repertoire`). Écart nommé : le répertoire *elfique*
-  (3 sorts parmi 8) n'est pas offert.
+  répertoire comme un autre (remplaçable au hub, `PUT …/sorts-repertoire`) TANT QUE la faveur est tenue ; une
+  AUTRE faveur reçue le retire du livre de sorts. Écart nommé et CONSIGNÉ (René, 2026-10-16) : le répertoire
+  *elfique* (3 sorts parmi 8) n'est pas offert — la carte ne le nomme pas (« an additional set of spells that you
+  are eligible to cast »), et les trois répertoires nommés par le livret (Protection, Detection, Darkness, p. 10)
+  sont ceux qu'elle ouvre aux lanceurs.
 
 | Méthode | URL | Corps | Effet |
 |---|---|---|---|
@@ -2523,7 +2584,11 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
     **adjacente OU DIAGONALE** du fouilleur (les huit voisines, `caseLibreProche()`) et **frappe
     tout de suite** (`frappe_errant`, payload d'`attaque_monstre`) ; le fouilleur **continue son
     tour** (rien ne l'arrête). Si toutes les voisines sont occupées, il est posé « as close as
-    possible » (repli, LR p. 15) et **ne frappe pas** : il joue au tour des monstres. ⚠ **Défi du
+    possible » (repli, LR p. 15) et **ne frappe pas** : il joue au tour des monstres. **Décision de René
+    (2026-10-16)** : le monstre errant est un monstre comme les autres pour la suite du round — s'il est
+    ENCORE au contact du fouilleur à la phase des monstres du même round (le tour de Zargon), il frappe **à
+    nouveau**, comme tout monstre. (Lecture du code : aucune exclusion de l'errant à cette phase ; pas encore
+    vérifié en partie.) ⚠ **Défi du
     chevalier** : quand un Chevalier de la salle accepte la proposition, la frappe immédiate
     **attend sa réponse** — `defi_en_attente: true` sur le payload, et le monstre ne joue pas au
     tour des monstres tant que le défi est ouvert. Accepté : il frappe le Chevalier. Refusé,
@@ -3535,7 +3600,7 @@ C'est la condition pour qu'une partie soit jouable/reprenable.
 |---|---|---|---|
 | POST | /api/inscription | {pseudo, identifiant} | crée le compte et connecte ; 422 si identifiant pris (sans mot de passe) |
 | POST | /api/connexion | {identifiant} | (existant) — nom seul |
-| GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` ; `faveurs: [{cle, libelle, effet}]` (faveurs de Hopekins Rest, 2026-10-08 — `FaveursHopekins::publier()` ; *Weapon Expert* y ajoute `specialite` et, au hub tant que le type n'est pas choisi, `choix` ; *Arcane Library* `repertoire` et `choix` ; *Mercenary Guild* `recrutement_offert` — 2026-10-15) ; `attribut_body/attribut_mind/des_attaque/des_defense` (fiche perso, invariants hors quête) ; `equipement: {armes: [{inventaire_id, nom, emplacement, bouclier}…], casque, armure, talisman: {inventaire_id, nom}\|null, sac: [{inventaire_id, nom, categorie, rarete, quantite, equipable}], capacite, occupation, maitrises: [tag…]}` (chaque pièce équipée porte son `inventaire_id` pour déséquiper ; `equipable` = objet du sac montable dans un slot — voir §Équipement) |
+| GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` ; `visite_hopekins: {quete_id, lieux: [{cle, libelle, effet, disponible, motif}]}\|null` (le choix de lieu de Hopekins Rest à ce tour — 2026-10-16, voir §Faveurs, « Choix au hub ») ; `faveurs: [{cle, libelle, effet}]` (faveurs de Hopekins Rest, 2026-10-08 — `FaveursHopekins::publier()` ; *Weapon Expert* y ajoute `specialite` et, au hub tant que le type n'est pas choisi, `choix` ; *Arcane Library* `repertoire` et `choix` ; *Mercenary Guild* `recrutement_offert` — 2026-10-15) ; `attribut_body/attribut_mind/des_attaque/des_defense` (fiche perso, invariants hors quête) ; `equipement: {armes: [{inventaire_id, nom, emplacement, bouclier}…], casque, armure, talisman: {inventaire_id, nom}\|null, sac: [{inventaire_id, nom, categorie, rarete, quantite, equipable}], capacite, occupation, maitrises: [tag…]}` (chaque pièce équipée porte son `inventaire_id` pour déséquiper ; `equipable` = objet du sac montable dans un slot — voir §Équipement) |
 | POST | /api/personnages | {nom, classe, elements?} | crée un perso du roster (libre) |
 | POST | /api/groupes | {nom, theme, longueur, ton?, personnage_id, bestiaire_boites?} | crée un groupe DEPUIS un perso LIBRE du joueur (le perso le rejoint comme fondateur) ; 422 si perso déjà engagé ; `bestiaire_boites` absent/`null` = automatique, liste (vide comprise) = manuel — voir §Bestiaire automatique ou manuel |
 | POST | /api/groupes/{identifiant}/joueurs | {personnage_id} | rejoint par code avec un perso libre (existant, + accepte {nom,classe}) |
@@ -4000,6 +4065,15 @@ druide aux Ronces complices), jamais l'ingrédient. Les monstres **Agile** l'ign
   `fouiller_tresor`, **seulement si le héros a perdu au moins 1 Body**. Elle dépense la fouille
   du héros dans la salle, rend `soin` PV, ne tire aucune carte. Payload
   `{type: "boire_mare", salle, terrain, personnage, soin, pv_body_apres}`.
+- **Cheminée** (*Healing Hearth*, First Light p. 7 — « a room containing a fireplace » : la règle
+  vise la SALLE) : à la fouille de trésor d'une salle qui contient une `Cheminée`, pour un groupe
+  qui joue la boîte `first_light`, option **`soin_cheminee`** (`type: soin_cheminee`, créneau
+  d'action, `parametres: {soin: 1}`), offerte au même endroit et sous les mêmes conditions que
+  `fouiller_tresor`, **seulement si le héros a perdu au moins 1 Body**. Même geste que la Mare : elle
+  dépense la fouille du héros dans la salle, rend 1 PV, ne tire aucune carte. Décidée par
+  `MoteurCheminee` (lue par le menu ET le résolveur, jamais recopiée). Payload
+  `{type: "soin_cheminee", salle, personnage, soin, pv_body_apres}`, annoncé au journal, sans scène
+  de table (comme la Mare).
 - **Brasier** (*Bonfire*) : passage sans arrêt ; **toute créature** qui le traverse lance 1 dé de
   combat, un crâne = −1 Body (nature `feu`). Héros : `payload.terrain_jets[]`
   (`{terrain, x, y, face, degats}`, un par jet, dégâts nuls compris) et, s'il y a eu dégât,
@@ -4163,8 +4237,19 @@ Types d'action ajoutés (tous déclarés dans `JournalCombat::TYPES`, une phrase
   spell immediately end ». Publié par le tampon générique (`annonces_automatiques`) du coup qui l'a tué.
 - `{type: "domination_deplacement", personnage_id, personnage, de, vers, vers_heros, pieges_declenches[]}`,
   `{type: "domination_attaque", personnage_id, personnage, cible: {personnage_id, nom}, touches, boucliers, degats, pv_body_apres,
-  cible_tombee, faces_attaque, faces_defense, face_touchante, face_defensive}`,
+  cible_tombee, faces_attaque, faces_defense, face_touchante, face_defensive, portee?: "distance"}`,
   `{type: "domination_sort", personnage_id, personnage, sort, cible, resultat: <payload `sort` du sort lancé>}`.
+  **Le héros dominé joue son arme ÉQUIPÉE** (*Against the Ogre Horde* p. 10 : « move, fight, cast spells, and perform any other action »).
+  `portee: "distance"` ⇔ il TIRE : arme `portee: distance` non `jetable` (arbalète, arc, fronde), cible en ligne de vue hors contact.
+  Il s'arrête sur la première case d'où il voit sa cible et tire sans marcher : `domination_deplacement` n'est alors PAS publié (rien à
+  raconter). Déjà au contact de sa cible, il ne marche pas du tout (il frappe de sa case). Sans `portee`, c'est un coup au corps à corps — à MAINS NUES au contact d'une arme qui refuse le contact (`inutilisable_adjacent`,
+  prédicat `Objet::interditAuContact()`). Une arme `jetable` n'est JAMAIS lancée par Zargon : il frappe au contact. Un sort, un objet et une
+  capacité de classe restent hors du profil (écrit, pas oublié).
+- **Le Sorcier qui vient de lancer peut encore marcher, jamais frapper** (*Against the Ogre Horde* p. 10, capacité `mouvement_apres_sort` :
+  Nexrael, Xenloth, Festral). Le `sort_dread` du tour est suivi, dans la MÊME action composée (`actions_composites`), d'un
+  `deplacement_monstre` ordinaire — `{type, id, monstre, depart, chemin[], vers}`, sans `vol` ni `jambe` — animé comme toute marche de monstre
+  (`mouvements`). Il avance vers le héros ou l'allié le plus proche, et n'attaque pas. Aucun déplacement si son sort l'a déjà déplacé (*Fuite*),
+  s'il vole déjà (`vol_draconique`), s'il est enchaîné ou immobile.
 
 **Plusieurs rounds dans une même réponse.** Quand un gel de *Mind Lock* prend leur tour à tous les héros debout à l'ouverture du round, plus
 personne ne peut déclencher la phase suivante : le moteur la rejoue d'elle-même (`tour_monstres.actions` porte alors les actions de plusieurs

@@ -23,6 +23,7 @@ use App\Models\Terrain;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\Narration\BibliothequeNarration;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Collection;
 
 /**
  * Construit le payload « EtatGroupe » du contrat (docs/contrat-api.md) —
@@ -156,6 +157,10 @@ final class EtatGroupe
             $derniereQuete = $groupe->quetes()->where('etat', 'terminee')->orderByDesc('id')->value('id');
             $preambuleGroupe['mercenaires_entretien'] = $this->annonceDeQuete($groupe, 'mercenaire_entretien', $derniereQuete);
             $preambuleGroupe['faveur_hopekins'] = $this->annonceDeQuete($groupe, 'faveur_hopekins', $derniereQuete);
+            // FAVEURS DE HOPEKINS REST, tour de hub (Wizards of Morcar, René 2026-10-16) : ce que chaque
+            // héros a choisi à ce tour (lieu, ou aucun, avec ce que la faveur a fait) et qui doit encore
+            // choisir. Décidé ici, jamais recalculé par la table ni la manette. `null` hors tour.
+            $preambuleGroupe['hopekins'] = $this->hopekinsHub($groupe);
             $preambuleGroupe['peacekeeper'] = $this->annonceDeQuete($groupe, 'peacekeeper_quete', $derniereQuete);
             // Brassards éveillés par la quête qui vient de finir (Fangwarden Armlet).
             $preambuleGroupe['objets_reveilles'] = $this->annonceDeQuete($groupe, 'objets_reveilles', $derniereQuete);
@@ -1593,6 +1598,72 @@ final class EtatGroupe
         }
 
         return $annonce;
+    }
+
+    /**
+     * Le TOUR de Hopekins Rest du hub (Wizards of Morcar, René 2026-10-16), décidé par le serveur, ou `null`
+     * hors tour (`FaveursHopekins::tourDeHub()`). `visites` : ce que chaque héros a décidé à CE tour (journal
+     * `visite_hopekins` : un lieu, ou `lieu: null` pour un refus, et ce que la faveur a fait) ; `en_attente` :
+     * les héros actifs qui doivent encore choisir. Lu par la table et la manette (`AnnonceHub`).
+     *
+     * @return array{quete_id: int, visites: list<array<string, mixed>>, en_attente: list<array{personnage_id: int, personnage: string}>}|null
+     */
+    private function hopekinsHub(Groupe $groupe): ?array
+    {
+        $tour = FaveursHopekins::tourDeHub($groupe);
+
+        if ($tour === null) {
+            return null;
+        }
+
+        $visites = $this->evenementsSysteme($groupe, 'visite_hopekins', (int) $tour->id)
+            ->map(fn (array $v) => [
+                'personnage_id' => (int) $v['personnage_id'],
+                'personnage' => (string) $v['personnage'],
+                'lieu' => $v['lieu'] ?? null,
+                'libelle' => isset($v['lieu']) ? FaveursHopekins::LIBELLES[$v['lieu']] : null,
+                'effet' => isset($v['lieu']) ? FaveursHopekins::effet((string) $v['lieu']) : null,
+                'detail' => $v['detail'] ?? null,
+            ])
+            ->values()
+            ->all();
+
+        // Les héros ENTIERS (et non une projection) : `visiteOuverte()` lit leur classe pour le répertoire.
+        $enAttente = $groupe->personnages()
+            ->wherePivot('actif', true)
+            ->orderBy('groupe_personnages.ordre_initiative')
+            ->get()
+            ->filter(fn (Personnage $p) => FaveursHopekins::visiteOuverte($groupe, $p) !== null)
+            ->map(fn (Personnage $p) => ['personnage_id' => (int) $p->id, 'personnage' => (string) $p->nom])
+            ->values()
+            ->all();
+
+        return ['quete_id' => (int) $tour->id, 'visites' => $visites, 'en_attente' => $enAttente];
+    }
+
+    /**
+     * Tous les événements `systeme` de ce groupe dont `payload.action === $action` ET `payload.quete_id ===
+     * $queteId`, dans l'ordre du journal — le pendant de `dernierEvenementSysteme()` pour une annonce qui
+     * vaut pour plusieurs héros d'un même tour.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function evenementsSysteme(Groupe $groupe, string $action, int $queteId): Collection
+    {
+        return Evenement::query()
+            ->where('groupe_id', $groupe->id)
+            ->where('type', 'systeme')
+            ->orderBy('sequence')
+            ->get(['payload'])
+            ->map(function (Evenement $e) {
+                $payload = $e->payload;
+
+                return is_string($payload) ? json_decode($payload, true) : $payload;
+            })
+            ->filter(fn ($payload) => is_array($payload)
+                && ($payload['action'] ?? null) === $action
+                && (int) ($payload['quete_id'] ?? 0) === $queteId)
+            ->values();
     }
 
     /**

@@ -581,6 +581,8 @@ class GroupeController extends Controller
         // que celui qui se déclare prêt, et UN geste le lève.
         //  - le COMPAGNON ANIMAL OFFERT (Against the Ogre Horde p. 8-9) : proposé une seule
         //    fois, il se prend ou se refuse AVANT la première quête, par n'importe quel joueur ;
+        //  - le LIEU de Hopekins Rest du tour de hub (René, 2026-10-16) : chaque héros choisit
+        //    le sien, ou renonce, avant de repartir ;
         //  - le TYPE D'ARME de la faveur Weapon Expert (René, 2026-10-15) : « when you acquire
         //    this Boon », donc avant de repartir, et par SON porteur ;
         //  - le RÉPERTOIRE de la faveur Arcane Library (même décision, même patron) :
@@ -589,7 +591,7 @@ class GroupeController extends Controller
         // outre, et la proposition expire avec le premier lancement.
         if ((bool) $donnees['pret'] && $groupe->phase === 'hub') {
             $refus = app(CompagnonOffert::class)->refusDeDepart($groupe)
-                ?? FaveursHopekins::refusDeDepart($personnage);
+                ?? FaveursHopekins::refusDeDepart($groupe, $personnage);
 
             if ($refus !== null) {
                 throw ValidationException::withMessages(['pret' => $refus]);

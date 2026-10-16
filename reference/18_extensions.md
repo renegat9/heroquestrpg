@@ -2150,8 +2150,10 @@ règle, aucune emprise chiffrée** :
 
 Ce que la page 20-21 **ne dit pas** et qui reste ⚠ non trouvé : l'effet d'**Eye
 of Mentor** (peut-être lié à « A Message from Mentor », p. 8 — hypothèse non
-vérifiée) et de **Dungeon grate**, ainsi que l'emprise de la **Fireplace**, du
-**Rack** et de la **Sorcerer's table**. Mark of Zargon et Skull sont des
+vérifiée) et de **Dungeon grate**, ainsi que l'emprise du **Rack**. L'emprise de la
+**Fireplace** et de la **Sorcerer's table** est **décidée 1×3** par René (2026-10-16, voir
+`17_mobilier.md` §1) : la cheminée est mesurée ≈ 2,6 cases, pas la table du sorcier, qui
+reste HORS catalogue faute de drapeaux sourcés. Mark of Zargon et Skull sont des
 **jetons**, pas des tuiles de carte (§6.1).
 
 ---
@@ -2947,8 +2949,10 @@ Les cinq lieux de compétence portent « (1 available) » ; **ces quatre-là non
 | **Witch's Hut** | « Gain 1 Potion of Healing. » / « ** Can be gained multiple times. » | Faveur `witchs_hut`, instantanée : une *Potion de guérison* (`Potion of Healing` du registre des cartes) dans le sac. |
 | **The Arcane Library** | « Mentor expands your knowledge of arcane mysteries. After heroes have selected spells, you may take an additional set of spells that you are eligible to cast. This boon is only for spellcasting heroes. » | Faveur `arcane_library` : un répertoire de plus, choisi par le joueur au hub parmi `MoteurSorts::repertoiresSupplementaires()`. |
 
-⚠ Le livret fait **choisir un lieu à chaque quête** (« A hero may only benefit from one boon at a time ») ;
-notre système tire une faveur au hasard (décision de René) qui reste acquise — écart nommé, non tranché.
+Le livret fait **choisir un lieu à chaque quête** (« A hero may only benefit from one boon at a time ») : porté
+le **2026-10-16** (décision de René, « Choisissons la faveur au hub si les extensions qui les utilisent sont utilisées ») —
+chaque héros choisit le lieu de sa faveur au hub suivant une quête gagnée, ou renonce ; le tirage au hasard est retiré
+(`docs/regles/exploration-et-fouille.md` §Faveurs). Le choix est une décision de tour, écrite en base.
 
 ### 8. Trésors — les 8 cartes + « Nothing! », TRANSCRITES
 

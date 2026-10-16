@@ -744,6 +744,25 @@ final class MenuMoteur
         return $salle === null ? null : app(MoteurTerrain::class)->mareDeLaSalle($quete->carte, $salle);
     }
 
+    /**
+     * La cheminée de la salle du héros lui offre-t-elle le soin à la place de la
+     * fouille ? Même lecture de salle que `mareOfferte()` ; la règle elle-même est
+     * dans `MoteurCheminee`, jamais recopiée ici.
+     */
+    private function cheminéeOfferte(Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat): bool
+    {
+        if ($etat === null || $etat->position_x === null || $quete->carte === null) {
+            return false;
+        }
+
+        $salle = Salles::indexDe(
+            (array) data_get($quete->carte->grille, 'salles', []),
+            (int) $etat->position_x, (int) $etat->position_y,
+        );
+
+        return $salle !== null && app(MoteurCheminee::class)->soinOffert($quete, $personnage, $salle);
+    }
+
     private function salleFouillableTresor(Quete $quete, ?EtatPersonnageQuete $etat): bool
     {
         if ($etat === null || $etat->position_x === null || $quete->carte === null) {
@@ -2708,6 +2727,19 @@ final class MenuMoteur
                         'libelle' => "Boire à la mare — rendre {$mare['soin']} PV de Body, au lieu d'une carte de trésor",
                         'type' => 'boire_mare',
                         'parametres' => ['soin' => $mare['soin'], 'terrain' => $mare['nom']],
+                    ];
+                }
+
+                // CHEMINÉE (First Light, FL-Q p. 7, *Healing Hearth*) : la même
+                // fouille, le même endroit, les mêmes conditions que la Mare — et
+                // la même règle de menu : seulement un héros qui a perdu un point
+                // (`MoteurCheminee::soinOffert()`, la seule lecture de la règle).
+                if ($this->cheminéeOfferte($quete, $personnage, $etat)) {
+                    $options[] = [
+                        'id' => 'soin_cheminee',
+                        'libelle' => 'Se réchauffer à la cheminée — rendre '.MoteurCheminee::SOIN.' PV de Body, au lieu d\'une carte de trésor',
+                        'type' => 'soin_cheminee',
+                        'parametres' => ['soin' => MoteurCheminee::SOIN],
                     ];
                 }
             }

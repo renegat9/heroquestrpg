@@ -37,7 +37,8 @@ use Illuminate\Support\Facades\Http;
  * chantier 1c, décision de René du 2026-10-06 : récompense de quête séparée,
  * HORS arbre de talents. Les CINQ compétences transcrites
  * (`reference/18_extensions.md` §Wizards of Morcar — cartes TRANSCRITES, §7)
- * et le tirage de fin de quête (`FaveursHopekins::attribuerFaveurDeFinDeQuete()`).
+ * et le choix de chaque héros au hub (`FaveursHopekins::choisirLieu()`, René 2026-10-16 : le tirage
+ * de fin de quête est retiré).
  */
 
 beforeEach(function () {
@@ -52,7 +53,7 @@ beforeEach(function () {
     ]);
 });
 
-/** Octroie une faveur directement (contourne le tirage de fin de quête, hors sujet ici). */
+/** Octroie une faveur directement (contourne le choix au hub, hors sujet ici). */
 function donnerFaveur(Personnage $p, string $cle, ?string $parametre = null): PersonnageFaveur
 {
     return PersonnageFaveur::create(['personnage_id' => $p->id, 'cle' => $cle, 'parametre' => $parametre]);
@@ -436,8 +437,8 @@ it('PEACEKEEPER ne compte PAS un monstre achevé par un allié ou un piège — 
 });
 
 // ---------------------------------------------------------------------------
-// ATTRIBUTION DE FIN DE QUÊTE — tirage (décision d'interprétation du
-// chantier) : UNE faveur parmi les 5 non détenues, à un héros actif au hasard.
+// CHOIX AU HUB (René, 2026-10-16) — le tirage de fin de quête n'existe plus.
+// Le détail (tour, liste blanche, annonce, repli) est dans FaveurHubChoixTest.
 // ---------------------------------------------------------------------------
 
 /** Id de la dernière quête achevée — ce que `terminerQuete()` passe à l'attribution. */
@@ -446,62 +447,40 @@ function derniereQueteTerminee(Groupe $groupe): int
     return (int) $groupe->quetes()->where('etat', 'terminee')->orderByDesc('id')->value('id');
 }
 
-it('ATTRIBUTION n\'offre rien avant le statut de Gardien', function () {
+it('CHOIX n\'est offert ni avant le statut de Gardien, ni dans une campagne sans Wizards of Morcar', function () {
     $alice = connecterJoueur('alice');
-    $groupe = creerGroupe();
-    creerHeros($alice, $groupe, 'Albrecht', 1);
+    $groupe = jouerMorcar(creerGroupe());
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
 
     expect($groupe->estGardien())->toBeFalse()
-        ->and(app(FaveursHopekins::class)->attribuerFaveurDeFinDeQuete($groupe, 1))->toBeNull();
+        ->and(FaveursHopekins::visiteOuverte($groupe, $heros))->toBeNull();
+
+    rendreGardien($groupe);
+    expect(FaveursHopekins::visiteOuverte($groupe->fresh(), $heros))->not->toBeNull();
+
+    $sansMorcar = creerGroupe('table-2');
+    $sansMorcar->update(['boites_bestiaire' => []]);
+    rendreGardien($sansMorcar);
+    $brynn = creerHeros(connecterJoueur('bob'), $sansMorcar, 'Brynn', 1);
+
+    expect(FaveursHopekins::visiteOuverte($sansMorcar->fresh(), $brynn))->toBeNull();
 });
 
-it('ATTRIBUTION tire une faveur pour un héros actif, une fois Gardien : chacune une fois, sauf la potion qui est cumulable', function () {
+it('CHOIX : une faveur tenue est remplacée par le lieu choisi — la compétence relâchée est de nouveau choisissable', function () {
     $alice = connecterJoueur('alice');
-    $groupe = creerGroupe();
+    $groupe = jouerMorcar(creerGroupe());
+    $groupe->update(['compagnon_offert' => 'refuse']);
     $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
     rendreGardien($groupe);
 
-    // Dés figés à 1 : le premier candidat, dans l'ordre de `TOUTES` (le tirage est au dé injecté).
-    desFiges(array_fill(0, 200, 1));
+    $this->putJson('/api/groupes/table-1/faveurs/lieu', ['personnage_id' => $heros->id, 'lieu' => FaveursHopekins::DEADEYE])->assertOk();
+    expect(PersonnageFaveur::where('personnage_id', $heros->id)->pluck('cle')->all())->toBe([FaveursHopekins::DEADEYE]);
 
-    $vues = [];
-    foreach (range(1, 7) as $_) {
-        $resultat = app(FaveursHopekins::class)->attribuerFaveurDeFinDeQuete($groupe, derniereQueteTerminee($groupe));
-        expect($resultat)->not->toBeNull()
-            ->and($resultat['personnage_id'])->toBe($heros->id)
-            ->and(FaveursHopekins::TOUTES)->toContain($resultat['faveur']);
-        $vues[] = $resultat['faveur'];
-    }
+    ouvrirTourDeHub($groupe);
+    $this->putJson('/api/groupes/table-1/faveurs/lieu', ['personnage_id' => $heros->id, 'lieu' => FaveursHopekins::WEAPON_EXPERT])->assertOk();
 
-    // Sept faveurs durables (un barbare n'a pas la bibliothèque), chacune UNE fois : jamais la même clé deux fois pour un héros.
-    expect($vues)->toBe([
-        FaveursHopekins::DEADEYE, FaveursHopekins::WEAPON_EXPERT, FaveursHopekins::HEALING_HANDS,
-        FaveursHopekins::HOLD_THE_LINE, FaveursHopekins::PEACEKEEPER, FaveursHopekins::MERCENARY_GUILD,
-        FaveursHopekins::DEWDROP_INN,
-    ])->and(PersonnageFaveur::where('personnage_id', $heros->id)->count())->toBe(7);
-
-    // Il ne reste que la potion, et elle n'est JAMAIS épuisée (« Can be gained multiple times »).
-    foreach (range(1, 2) as $_) {
-        $resultat = app(FaveursHopekins::class)->attribuerFaveurDeFinDeQuete($groupe, derniereQueteTerminee($groupe));
-        expect($resultat['faveur'])->toBe(FaveursHopekins::WITCHS_HUT);
-    }
-
-    expect(PersonnageFaveur::where('personnage_id', $heros->id)->count())->toBe(7)
-        ->and((int) Inventaire::where('personnage_id', $heros->id)
-            ->where('objet_id', Objet::where('nom', 'Potion de guérison')->value('id'))->value('quantite'))->toBe(2);
-});
-
-it('ATTRIBUTION est journalisée et republiée au hub (groupe.faveur_hopekins)', function () {
-    $alice = connecterJoueur('alice');
-    $groupe = creerGroupe();
-    creerHeros($alice, $groupe, 'Albrecht', 1);
-    rendreGardien($groupe);
-
-    app(FaveursHopekins::class)->attribuerFaveurDeFinDeQuete($groupe, derniereQueteTerminee($groupe));
-
-    $hub = app(EtatGroupe::class)->payload($groupe->fresh());
-    expect($hub['groupe']['faveur_hopekins'])->not->toBeNull()
-        ->and($hub['groupe']['faveur_hopekins']['action'])->toBe('faveur_hopekins');
+    expect(PersonnageFaveur::where('personnage_id', $heros->id)->pluck('cle')->all())->toBe([FaveursHopekins::WEAPON_EXPERT])
+        ->and(collect(FaveursHopekins::lieuxPour($groupe->fresh(), $heros->fresh()))->firstWhere('cle', FaveursHopekins::DEADEYE)['disponible'])->toBeTrue();
 });
 
 it('visible sur la fiche du héros (EtatGroupe.entites[].faveurs)', function () {

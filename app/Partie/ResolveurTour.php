@@ -622,6 +622,9 @@ final class ResolveurTour
                 // MARE (Jungles of Delthrak p. 4) : la fouille de trésor, mais le
                 // gain est 1 PV de Body plutôt qu'une carte du deck.
                 'boire_mare' => $this->resoudreBoireALaMare($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // CHEMINÉE (First Light, FL-Q p. 7) : la même fouille, un autre gain —
+                // 1 PV de Body, sans carte. Lecture unique : `MoteurCheminee`.
+                'soin_cheminee' => $this->resoudreSoinCheminee($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $etat, $option, $acteur),
                 'retraite' => $this->resoudreRetraite($groupe, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: true),
@@ -9314,6 +9317,72 @@ final class ResolveurTour
     }
 
     /**
+     * CHEMINÉE — *Healing Hearth* (First Light, livret de quêtes p. 7) : « When a
+     * hero would draw a treasure card in a room containing a fireplace, they may
+     * instead heal 1 Body point. »
+     *
+     * Même geste que `resoudreBoireALaMare()` : C'EST une fouille de trésor. Elle
+     * dépense la fouille de CE héros dans CETTE salle (`marquerTresorFouille()`),
+     * rend le point, et ne touche ni au deck (aucune carte, aucun piège ni errant
+     * possible) ni au coffre désigné, que les compagnons ouvriront en fouillant.
+     *
+     * ⚠ Re-validée comme les autres choix du menu : une salle, une cheminée dans
+     * cette salle POUR CE GROUPE (First Light), une fouille non encore dépensée, un
+     * point réellement perdu. Le menu ne propose pas ce que ceci refusera.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreSoinCheminee(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $salle = $this->salleA($quete, (int) $etat->position_x, (int) $etat->position_y);
+
+        if ($salle === null) {
+            throw ValidationException::withMessages(['option_id' => 'On ne se réchauffe à la cheminée qu\'en fouillant une salle.']);
+        }
+
+        if (! app(MoteurCheminee::class)->reconforte($quete, $salle)) {
+            throw ValidationException::withMessages(['option_id' => 'Il n\'y a pas de cheminée dans cette salle.']);
+        }
+
+        if ($quete->aFouille($salle, (int) $personnage->id)) {
+            throw ValidationException::withMessages(['option_id' => 'Tu as déjà fouillé cette salle.']);
+        }
+
+        $avant = (int) $personnage->pv_body;
+
+        if ($avant >= (int) $personnage->pv_body_max) {
+            throw ValidationException::withMessages(['option_id' => 'Tu n\'as perdu aucun point de Body : la cheminée ne te rendrait rien.']);
+        }
+
+        $quete->marquerTresorFouille($salle, (int) $personnage->id);
+
+        $personnage->update(['pv_body' => min((int) $personnage->pv_body_max, $avant + MoteurCheminee::SOIN)]);
+        $apres = (int) $personnage->fresh()->pv_body;
+
+        $payload = [
+            'type' => 'soin_cheminee',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'salle' => $salle,
+            'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+            'soin' => $apres - $avant,
+            'pv_body_apres' => $apres,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
      * SIXIÈME SENS (Explorateur) — « Once per turn, when you draw a hazard card
      * from the treasure deck, you may return that card to the bottom of the
      * deck and draw a new card. »
@@ -11295,12 +11364,14 @@ final class ResolveurTour
         // boss appelaient `jouerTourDread()`, un lanceur de tier `base` avait un répertoire, un archétype,
         // des usages réarmés à chaque quête… et ne lançait JAMAIS rien. Un répertoire non vide ouvre la porte.
         if ((in_array($tier, ['sous_boss', 'boss'], true) || $this->dread->aUnRepertoire($instance)) && ! $herosAPortee) {
+            $positionAvant = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
             $actionDread = $this->dread->jouerTourDread($groupe, $quete, $instance, $cibles);
 
             if ($actionDread !== null) {
                 $this->animerTrajetsDread($actionDread);
 
-                return $actionDread;
+                // Un sorcier qui vient de lancer peut encore MARCHER, jamais frapper (`avancerApresSortDread()`).
+                return $this->avancerApresSortDread($groupe, $quete, $instance, $cibles, $actionDread, $positionAvant, $nomMonstre, $acteur);
             }
         }
 
@@ -11373,11 +11444,7 @@ final class ResolveurTour
         // sait pas porter — ne pas finir sur une case occupée, ne pas entrer
         // dans une zone non découverte — sont tenus juste après, au moment de
         // choisir la case d'arrivée.
-        if ($this->dread->aCapacite($instance, 'ethere')) {
-            $grille->autoriserEthere();
-        } elseif ($this->dread->aCapacite($instance, 'agile')) {
-            $grille->autoriserFranchissement();
-        }
+        $this->appliquerModeDeMarche($grille, $instance);
 
         // Attaque en DIAGONALE (Assassin, Rise of the Dread Moon — carte
         // scannée, reference/20_cartes_monstres.md : « Each Assassin may
@@ -11421,6 +11488,106 @@ final class ResolveurTour
         // Les héros d'abord, puis les alliés : à distance ÉGALE, le héros reste
         // la cible — seul un allié strictement plus proche détourne le monstre.
         // C'est le comportement d'avant pour tout groupe sans allié.
+        $meilleure = $this->cibleLaPlusProche($quete, $instance, $cibles, $grille, $diagonalesMonstre);
+
+        if ($meilleure === null) {
+            // Spawn : ceinturé de personne, il pond. « En alternative à chaque
+            // tour » — c'est l'action de ce tour, il n'attaquera pas.
+            $ponte = $this->dread->pondre($groupe, $quete, $instance, $acteur);
+
+            return $ponte ?? ['monstre' => $nomMonstre, 'action' => 'immobile'];
+        }
+
+        [$cible, $chemin] = $meilleure;
+
+        // Spawn : hors contact, pondre vaut mieux qu'avancer d'un pas — la
+        // carte en fait une alternative au tour, pas un bonus.
+        if ($chemin !== [] && ($ponte = $this->dread->pondre($groupe, $quete, $instance, $acteur)) !== null) {
+            return $ponte;
+        }
+
+        // Se rapprocher : la marche (trajet, pas, case d'arrêt, trace pour la table) est `marcheVersLaCible()`.
+        $marche = $this->marcheVersLaCible($groupe, $quete, $instance, $grille, $chemin, $nomMonstre, $acteur);
+
+        // BRASIER (« Any creature who moves through the bonfire… », Jungles of
+        // Delthrak p. 4) : le monstre brûle comme le héros, sur le chemin qu'il
+        // vient RÉELLEMENT de parcourir. ⚠ Un monstre qui meurt en marchant ne
+        // frappe pas : on rend le compte rendu de sa brûlure comme issue du tour.
+        if ($marche['brulure'] !== null && $marche['brulure']['vaincu']) {
+            return $marche['brulure'];
+        }
+
+        $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y, $diagonalesMonstre);
+
+        // VOILE D'OMBRE (*Cloak of Shadows*) : « heroes and monsters on the tile
+        // may not attack ». Le monstre qui se tient sous le voile a pu marcher
+        // jusqu'au contact — il n'a pas pu le faire sous l'ombre ailleurs, la
+        // carte ne l'interdit pas —, mais il ne frappe pas : ni coup simple, ni
+        // frappe de zone, ni double attaque, ni coup sur un allié, qui passent
+        // tous APRÈS ce point. Le tir à distance est déjà fermé par la ligne de
+        // vue (`Grille::ligneDeVue()`). Annoncé : un monstre qui reste les bras
+        // ballants sans qu'on sache pourquoi est un effet automatique muet.
+        if ($adjacent && app(MoteurOmbre::class)->contientMonstre($quete, $instance)) {
+            $payload = [
+                'type' => 'monstre_dans_l_ombre',
+                'monstre' => $nomMonstre,
+                'action' => 'ombre',
+                'id' => $instance->id,
+            ];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
+        if (! $adjacent) {
+            $payload = $marche['deplacement'];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
+        // La cible est un ALLIÉ : attaque simple, sa propre défense. Les
+        // capacités ci-dessous (frappe de zone, choix tactique) raisonnent sur
+        // des HÉROS et le restent — limite nommée, docs/regles/combat-et-tour.md.
+        if ($cible instanceof GroupeMercenaire) {
+            return $this->resoudreAttaqueMonstreSurAllie(
+                $groupe, $quete, $instance, $cible, $instance->attaqueEffective(), $acteur, $nomMonstre,
+            );
+        }
+
+        // Frappe de zone (capacité) : si plusieurs héros adjacents, tous sont touchés.
+        if ($this->dread->aCapacite($instance, 'frappe_de_zone')) {
+            $adjacents = $cibles->filter(fn (EtatPersonnageQuete $c) => $this->heroAuContact($instance, (int) $c->position_x, (int) $c->position_y, $diagonalesMonstre)
+            )->values();
+
+            if ($adjacents->count() >= 2) {
+                return $this->dread->frappeDeZone($groupe, $instance, $cibles, $acteur, $adjacents);
+            }
+        }
+
+        // Deux attaques par tour (Ours polaire de guerre, Frozen Horror p. 37) —
+        // décision 100 % mécanique (jamais LLM).
+        if ($this->dread->aCapacite($instance, 'deux_attaques')) {
+            return $this->deuxAttaques($groupe, $instance, $cible, $cibles, $acteur, $nomMonstre);
+        }
+
+        // Attaque simple du héros adjacent — moteur seul.
+        return $this->resoudreAttaqueMonstre(
+            $groupe, $instance, $cible, $instance->attaqueEffective(), $acteur, $nomMonstre,
+        );
+    }
+
+    /**
+     * La figure la plus proche qu'un monstre peut rejoindre ou frapper : HÉROS OU ALLIÉ (René, 2026-10-04), à
+     * distance égale le héros. Rend `[cible, chemin]` — un chemin VIDE = déjà au contact — ou `null` si personne
+     * n'est atteignable. Point de passage UNIQUE de la cible d'une marche : l'approche ordinaire
+     * (`jouerMonstreEveille()`) et le pas qui suit un sort de Dread (`avancerApresSortDread()`) s'y fient.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @return array{0: EtatPersonnageQuete|GroupeMercenaire, 1: list<array{x: int, y: int}>}|null
+     */
+    private function cibleLaPlusProche(Quete $quete, InstanceMonstre $instance, Collection $cibles, Grille $grille, bool $diagonalesMonstre): ?array
+    {
         $meilleure = null; // [etat héros | GroupeMercenaire, chemin]
         // FIGURE IMMOBILE (déplacement 0 : tourelle, Bloomrot Scion) : aucun chemin à calculer, elle
         // ne frappe que ce qui est déjà à sa portée — jamais un faux « avance de 0 case » au fil.
@@ -11457,22 +11624,22 @@ final class ResolveurTour
             }
         }
 
-        if ($meilleure === null) {
-            // Spawn : ceinturé de personne, il pond. « En alternative à chaque
-            // tour » — c'est l'action de ce tour, il n'attaquera pas.
-            $ponte = $this->dread->pondre($groupe, $quete, $instance, $acteur);
+        return $meilleure;
+    }
 
-            return $ponte ?? ['monstre' => $nomMonstre, 'action' => 'immobile'];
-        }
-
-        [$cible, $chemin] = $meilleure;
-
-        // Spawn : hors contact, pondre vaut mieux qu'avancer d'un pas — la
-        // carte en fait une alternative au tour, pas un bonus.
-        if ($chemin !== [] && ($ponte = $this->dread->pondre($groupe, $quete, $instance, $acteur)) !== null) {
-            return $ponte;
-        }
-
+    /**
+     * LA MARCHE d'un monstre vers la case retenue : le trajet tronqué aux chausse-trappes, le pas que la figure peut
+     * payer, la case d'arrêt légale (`derniereCaseOuSArreter()`), la trace de la marche pour la table
+     * (`mouvementsAnime`), puis le brasier. UN seul point de passage : l'approche ordinaire ET le pas qui suit un
+     * sort de Dread (*Against the Ogre Horde* p. 10) marchent par ici. Ne journalise rien : l'appelant publie le
+     * `deplacement`, et ne le publie que s'il y a eu un trajet.
+     *
+     * @param  list<array{x: int, y: int}>  $chemin  le chemin vers la cible, sans la case de départ
+     * @param  array<string, mixed>  $acteur
+     * @return array{depart: array{x: int, y: int}, chemin: list<array{x: int, y: int}>, brulure: array<string, mixed>|null, deplacement: array<string, mixed>}
+     */
+    private function marcheVersLaCible(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Grille $grille, array $chemin, string $nomMonstre, array $acteur): array
+    {
         // Se rapprocher : déplacement fixe du catalogue, le long du chemin.
         $departMonstre = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
         $cheminParcouruMonstre = [];
@@ -11573,81 +11740,113 @@ final class ResolveurTour
             ];
         }
 
-        // BRASIER (« Any creature who moves through the bonfire… », Jungles of
-        // Delthrak p. 4) : le monstre brûle comme le héros, sur le chemin qu'il
-        // vient RÉELLEMENT de parcourir. ⚠ Un monstre qui meurt en marchant ne
-        // frappe pas : on rend le compte rendu de sa brûlure comme issue du tour.
         $brulure = $this->blesserMonstreSurLeChemin($groupe, $quete, $instance, $cheminParcouruMonstre, $acteur);
 
-        if ($brulure !== null && $brulure['vaincu']) {
-            return $brulure;
-        }
-
-        $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y, $diagonalesMonstre);
-
-        // VOILE D'OMBRE (*Cloak of Shadows*) : « heroes and monsters on the tile
-        // may not attack ». Le monstre qui se tient sous le voile a pu marcher
-        // jusqu'au contact — il n'a pas pu le faire sous l'ombre ailleurs, la
-        // carte ne l'interdit pas —, mais il ne frappe pas : ni coup simple, ni
-        // frappe de zone, ni double attaque, ni coup sur un allié, qui passent
-        // tous APRÈS ce point. Le tir à distance est déjà fermé par la ligne de
-        // vue (`Grille::ligneDeVue()`). Annoncé : un monstre qui reste les bras
-        // ballants sans qu'on sache pourquoi est un effet automatique muet.
-        if ($adjacent && app(MoteurOmbre::class)->contientMonstre($quete, $instance)) {
-            $payload = [
-                'type' => 'monstre_dans_l_ombre',
-                'monstre' => $nomMonstre,
-                'action' => 'ombre',
-                'id' => $instance->id,
-            ];
-            Journal::ajouter($groupe, 'action', $payload, $acteur);
-
-            return $payload;
-        }
-
-        if (! $adjacent) {
-            $payload = [
+        return [
+            'depart' => $departMonstre,
+            'chemin' => $cheminParcouruMonstre,
+            'brulure' => $brulure,
+            'deplacement' => [
                 'type' => 'deplacement_monstre',
                 'id' => $instance->id,
                 'monstre' => $nomMonstre,
                 'depart' => $departMonstre,
                 'chemin' => $cheminParcouruMonstre, // animation case-par-case (table)
                 'vers' => ['x' => $instance->position_x, 'y' => $instance->position_y],
-            ];
-            Journal::ajouter($groupe, 'action', $payload, $acteur);
+            ],
+        ];
+    }
 
-            return $payload;
+    /**
+     * Le mode de franchissement d'une figure qui marche : Éthéré (murs, portes, mobilier et figures s'effacent) ou
+     * Agile (le mobilier et les figures seulement). Un seul endroit : l'approche ordinaire et le pas qui suit un
+     * sort le lisent de la même façon.
+     */
+    private function appliquerModeDeMarche(Grille $grille, InstanceMonstre $instance): void
+    {
+        if ($this->dread->aCapacite($instance, 'ethere')) {
+            $grille->autoriserEthere();
+        } elseif ($this->dread->aCapacite($instance, 'agile')) {
+            $grille->autoriserFranchissement();
+        }
+    }
+
+    /**
+     * Le SORCIER qui vient de lancer peut encore MARCHER, jamais frapper (*Against the Ogre Horde* p. 10 : « they may
+     * take their movement but may not make a weapon attack in the same turn »). Décision de René (2026-10-16) : le
+     * sort part de la case où il se tient, puis il avance vers le héros ou l'allié le plus proche, sans frapper. Le
+     * pas est `marcheVersLaCible()` — la marche ordinaire d'un monstre, pièges et brasier compris.
+     *
+     * Pas de pas : aucun sort lancé ce tour ; la capacité `mouvement_apres_sort` n'est pas portée ; un Draconic
+     * Flight a déjà volé (`vol_draconique`, ses jambes se sont jouées dans `jouerTourDread()`) ; un sort l'a déjà
+     * déplacé (*Fuite* le téléporte : sa case a changé pendant le tour) ; il est enchaîné (« may not move ») ou
+     * immobile ; personne à rejoindre, ou déjà au contact.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  array{x: int, y: int}  $positionAvant  la case du lanceur AVANT son tour de Dread
+     * @param  array<string, mixed>  $action  le tour de Dread joué (un sort, éventuellement précédé de la régénération)
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function avancerApresSortDread(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        Collection $cibles,
+        array $action,
+        array $positionAvant,
+        string $nomMonstre,
+        array $acteur,
+    ): array {
+        if (! MoteurDread::contientUnSortLance($action)
+            || ! $this->dread->aCapacite($instance, 'mouvement_apres_sort')
+            || $this->dread->aCapacite($instance, 'vol_draconique')
+            || (int) $instance->position_x !== $positionAvant['x']
+            || (int) $instance->position_y !== $positionAvant['y']
+            || $instance->monstre->estImmobile()
+            || $this->sorts->monstreA($instance, MoteurSorts::MONSTRE_ENCHAINE)) {
+            return $action;
         }
 
-        // La cible est un ALLIÉ : attaque simple, sa propre défense. Les
-        // capacités ci-dessous (frappe de zone, choix tactique) raisonnent sur
-        // des HÉROS et le restent — limite nommée, docs/regles/combat-et-tour.md.
-        if ($cible instanceof GroupeMercenaire) {
-            return $this->resoudreAttaqueMonstreSurAllie(
-                $groupe, $quete, $instance, $cible, $instance->attaqueEffective(), $acteur, $nomMonstre,
-            );
-        }
-
-        // Frappe de zone (capacité) : si plusieurs héros adjacents, tous sont touchés.
-        if ($this->dread->aCapacite($instance, 'frappe_de_zone')) {
-            $adjacents = $cibles->filter(fn (EtatPersonnageQuete $c) => $this->heroAuContact($instance, (int) $c->position_x, (int) $c->position_y, $diagonalesMonstre)
-            )->values();
-
-            if ($adjacents->count() >= 2) {
-                return $this->dread->frappeDeZone($groupe, $instance, $cibles, $acteur, $adjacents);
-            }
-        }
-
-        // Deux attaques par tour (Ours polaire de guerre, Frozen Horror p. 37) —
-        // décision 100 % mécanique (jamais LLM).
-        if ($this->dread->aCapacite($instance, 'deux_attaques')) {
-            return $this->deuxAttaques($groupe, $instance, $cible, $cibles, $acteur, $nomMonstre);
-        }
-
-        // Attaque simple du héros adjacent — moteur seul.
-        return $this->resoudreAttaqueMonstre(
-            $groupe, $instance, $cible, $instance->attaqueEffective(), $acteur, $nomMonstre,
+        $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
+        $this->appliquerModeDeMarche($grille, $instance);
+        $meilleure = $this->cibleLaPlusProche(
+            $quete, $instance, $cibles, $grille, $this->dread->aCapacite($instance, 'attaque_diagonale'),
         );
+
+        // Personne à rejoindre, ou déjà au contact : rien à marcher.
+        if ($meilleure === null || $meilleure[1] === []) {
+            return $action;
+        }
+
+        $marche = $this->marcheVersLaCible($groupe, $quete, $instance, $grille, $meilleure[1], $nomMonstre, $acteur);
+
+        if ($marche['brulure'] !== null && $marche['brulure']['vaincu']) {
+            return $this->actionsEnchainees($action, $marche['brulure']);
+        }
+
+        if ($marche['chemin'] === []) {
+            return $action;
+        }
+
+        Journal::ajouter($groupe, 'action', $marche['deplacement'], $acteur);
+
+        return $this->actionsEnchainees($action, $marche['deplacement']);
+    }
+
+    /**
+     * Deux actions d'un même tour, dans l'ordre où elles se sont produites — `actions_composites` (la régénération
+     * puis le sort, le sort puis la marche).
+     *
+     * @param  array<string, mixed>  $premiere
+     * @param  array<string, mixed>  $suivante
+     * @return array<string, mixed>
+     */
+    private function actionsEnchainees(array $premiere, array $suivante): array
+    {
+        $avant = ($premiere['type'] ?? null) === 'actions_composites' ? (array) $premiere['actions'] : [$premiere];
+
+        return ['type' => 'actions_composites', 'actions' => [...$avant, $suivante]];
     }
 
     /**
@@ -13128,11 +13327,9 @@ final class ResolveurTour
         // AVANT le `.groupe.etat` final (null pour une quête normale).
         $niveaux = $this->monteeNiveau->appliquer($groupe, $quete);
 
-        // FAVEUR DE HOPEKINS REST (même chantier) : tirage de fin de quête
-        // réussie, une fois Gardien — voir le docblock de
-        // FaveursHopekins::attribuerFaveurDeFinDeQuete() pour la règle
-        // d'attribution (choix ou tirage, décidés là).
-        $faveur = $this->faveurs->attribuerFaveurDeFinDeQuete($groupe, (int) $quete->id);
+        // FAVEUR DE HOPEKINS REST : AUCUN tirage ici (René, 2026-10-16). Le lieu se choisit AU HUB
+        // qui suit cette victoire, par chaque héros (`FaveursHopekins::choisirLieu()`), dans une
+        // campagne Wizards of Morcar — voir le docblock de `FaveursHopekins` (« RÈGLE DE CHOIX »).
 
         // Clôture de campagne (doc 05 §6) : la victoire du BOSS FINAL ouvre
         // automatiquement la fenêtre de clôture (broadcast `.cloture.ouverte`,
@@ -13143,7 +13340,7 @@ final class ResolveurTour
 
         return [
             'etat' => 'terminee', 'or_butin' => $orButin, 'niveaux' => $niveaux,
-            'mercenaires_entretien' => $entretien, 'faveur_hopekins' => $faveur,
+            'mercenaires_entretien' => $entretien,
             'peacekeeper' => $peacekeeper,
             // Brassards réveillés par cette victoire (Fangwarden Armlet) :
             // `[{objet, personnage}]`, vide le plus souvent.

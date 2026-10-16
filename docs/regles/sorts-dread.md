@@ -96,8 +96,16 @@
 **Trois sorts, trois Sorciers, une règle commune** (p. 10) : « A Dread Sorcerer may only cast one spell per turn. A spell can be cast on any target in
 the Dread Sorcerer's line of sight. If a Dread Sorcerer casts a spell on their turn, they may take their movement but may not make a weapon attack in the
 same turn. If a Dread Sorcerer has an active spell and is killed, the effects of that spell immediately end. » Un sort par activation et pas de coup d'arme
-après un sort : `jouerTourDreadBrut()` rend la main dès qu'un sort part. ⚠ « may take their movement » est un *peut* : le moteur ne fait pas marcher un Sorcier qui
-vient de lancer (nommé, pas oublié — aucun lecteur d'une marche de plus n'aurait de raison d'être). La mort du Sorcier lève ses gels
+après un sort : `jouerTourDreadBrut()` rend la main dès qu'un sort part. **Le déplacement après un sort est PORTÉ** (2026-10-16, décision de René : « il doit pouvoir
+faire son déplacement dans le même tour »). **Politique écrite : le sort part DEPUIS la case où le Sorcier se tient** (son choix de sort est inchangé,
+`choisirSort()` ne lit pas de case d'essai), **puis il avance vers le héros ou l'allié le plus proche** avec son déplacement, **sans frapper**, et il ne recule
+pas. Le déplacement AVANT le sort (« s'approcher pour voir la cible ») n'est pas écrit : il ferait dépendre le sort d'une case d'arrêt, comme le Dragon
+(`tourDraconique()`), pour une carte qui ne le demande pas, et il ferait lancer des Sorciers qui ne lancent pas aujourd'hui. Le trajet est LE trajet de
+toute marche de monstre — `ResolveurTour::marcheVersLaCible()`, le même point de passage que l'approche ordinaire (pièges, chausse-trappes, brasier,
+`mouvements` pour la table, `deplacement_monstre` sans `vol` ni `jambe`) — jamais une seconde marche. Le déplacement n'a PAS lieu si le sort a déjà déplacé
+le Sorcier (*Fuite* le téléporte : `avancerApresSortDread()` compare sa case), s'il est enchaîné (*Chains of Darkness* : « may not move »), immobile, ou si le
+Draconic Flight a déjà marché. Porté par la capacité `mouvement_apres_sort` du catalogue (`MonstreSeeder` : Nexrael, Xenloth, Festral) — les autres lanceurs
+de Dread n'ont pas cette ligne, et leur livret ne le dit pas : nommé, pas deviné. La mort du Sorcier lève ses gels
 (`MoteurDegats::infligerAMonstre()` → `VerrouMental::leverPourLanceur()`, l'UNIQUE point de passage de la mort d'un monstre), et le fil le dit.
 
 **Le jet en opposition** (`App\Engine\OppositionMind`, pur, hasard injecté) : « both attacker and defender roll combat dice equal to their Mind Points » — des dés de
@@ -105,8 +113,7 @@ COMBAT (jamais des d6 bruts), la JAUGE `pv_mind` (errata 2021 C4, comme les rupt
 - **Crânes NETS** — *Mind Lock*, *Dominate* : les crânes du Sorcier moins les boucliers BLANCS du héros. ⚠ **Interprétation de René (2026-10-15)** : le livret est
   muet sur les boucliers pour ces deux sorts ; il a tranché qu'ils annulent les crânes « comme dans un combat normal ». Résistance `opposition_mind_nette`.
 - **Écart de crânes BRUTS** — *Mind Burst* : « the combatant with the most rolled skulls […] inflicts Mind Point damage equal to the difference ». Aucun bouclier :
-  c'est la lettre du livret et l'exemple de la p. 11 (5 dés contre 6, « the wizard rolled two more skulls ») la tient. ⚠ **Rien n'a été tranché pour ce sort** — la
-  décision de René porte sur les deux autres ; la lecture littérale est une lecture à CONFIRMER. Résistance `opposition_mind_ecart`.
+  c'est la lettre du livret et l'exemple de la p. 11 (5 dés contre 6, « the wizard rolled two more skulls ») la tient. **Tranché par René (2026-10-16) : crânes BRUTS, sans boucliers, comme le livret** (la décision du 2026-10-15 portait sur *Mind Lock* et *Dominate* seulement). Résistance `opposition_mind_ecart`.
 Ce n'est ni un `jet_mind` au lancer, ni une rupture (`rupture_6_par_mind`) : le jet décide de l'effet ET de sa durée, une fois.
 
 **La réserve de cartes** (`App\Partie\CartesDread`, capacité `reserve_cartes` : `['Explosion mentale' => 4]`). Nexrael : « a reserve of 4 cards » ; Festral : « 3 cards for each
@@ -140,8 +147,7 @@ sans lecteur. La couture ne journalise pas : l'appelant porte l'événement (Pos
 des monstres vient après) : il ne le perd pas, le MJ prend une action de plus. La carte est prêtée le temps du sort puis rendue — il en faut UNE en main. Le Contresort (talent) est une seconde chance, commune à tous les sorts de contrôle
 (`tenterContresort()`). Un sort lancé sous contrôle est RÉELLEMENT dépensé (`personnage_sorts.disponible`) et résolu par `ResolveurTour::lancerSortSousControleMj()` — la résolution du sort du joueur, au mot près, y compris le tir
 ami que ses dégâts sur un autre héros sont déjà.
-**Ce que Zargon ne fait PAS avec un héros dominé, écrit** : il ne tire pas à distance (arme de jet, arc), n'emploie aucun objet ni capacité de classe, et le coup est celui de `personnage.des_attaque` (équipement, classe — ramené à 1 par
-l'état de choc, plafonné par `Apeuré`), sans les talents ni les tags de maîtrise de `ResolveurTour::frapper()`. « Perform any other action » n'a aucun lecteur : un MJ qui choisirait entre vingt options sans qu'on le lui demande est la
+**Le héros dominé joue son ARME ÉQUIPÉE** (2026-10-16, décision de René ; le livret : « move, fight, cast spells, and perform any other action as the Dominated hero »). Trois cas, lus UNE fois dans `HerosJoueParLeMj` : (1) **tir** — arme `portee: distance` non `jetable` (arbalète, arc, fronde), une cible en ligne de vue hors contact : il s'arrête sur la PREMIÈRE case du trajet d'où il la voit, tire sans marcher, et le coup est publié `portee: "distance"` (le fil dit « tire sur ») ; (2) **corps à corps** — au contact, à mains nues si l'arme refuse le contact (`Objet::interditAuContact()`, le même prédicat que le menu du héros et que `frapperUnHeros()` pour un coup au corps à corps) ; (3) **arme `jetable` seule** — jamais lancée par Zargon (elle est perdue : c'est un choix du joueur), il avance et frappe au contact. **Déjà au contact de sa cible, il ne marche PAS** (`HerosJoueParLeMj::auContact()`) : sans cette garde, `cheminVersCaseAdjacente()` le faisait contourner la cible jusqu'à une autre case voisine, et un tireur au contact s'éloignait de deux pas pour tirer de loin, alors que son arme refuse le contact. Le contact, la garde de marche et le choix de la cible de tir lisent UN prédicat (`enContact()`, orthogonal sauf le loup). Le tir passe la figure que la Faveur « Deadeye » laisse passer (`FaveursHopekins::figuresBloquentPour()`), comme celui du héros. Le dé est celui de la colonne `des_attaque` (l'arme tenue), sauf à mains nues (`Equipement::desAttaqueAvec($p, null)`) ; ramené à 1 par l'état de choc, plafonné par `Apeuré`. **Ce que Zargon ne fait PAS** : n'emploie aucun objet, ni capacité de classe, et ne lance AUCUN talent ni tag de maîtrise de `ResolveurTour::frapper()` (écrit : c'est une seconde frappe simplifiée, pas le point de passage d'un coup de héros — `frapper()` ne prend qu'un monstre). Le loup-garou ne tire jamais (une forme sans arme : `ControleMj::$tir` à `false`). « Perform any other action » n'a aucun lecteur : un MJ qui choisirait entre vingt options sans qu'on le lui demande est la
 décision que ce projet refuse de confier à autre chose qu'une politique écrite. Les sorts retenus : le premier sort de dégâts à CIBLE UNIQUE encore disponible du répertoire du héros, sur le héros en vue qui a le moins de PV de Body.
 **Non porté, écrit** : la règle de quête de la Fosse du Dread (q. 8 p. 35 : « moves into the pit under the Dominate spell and does not move out on their next turn […] consumed by Dread ») — c'est un objectif de quête, pas un sort.
 

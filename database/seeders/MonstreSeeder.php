@@ -535,9 +535,11 @@ class MonstreSeeder extends Seeder
             // cartes 2021), RELEVÉ À 4 sur décision de portage : à 3 il tomberait dans la masse des
             // « faibles » (`seuil_cout_fort`), où une rencontre en achèterait plusieurs — le livret n'en
             // nomme QU'UN par donjon, dans sa propre salle. À 4 il est un « fort », au plus un par quête.
+            // `mouvement_apres_sort` (F9528 p. 10 : « may take their movement » après un sort) : lu par
+            // `ResolveurTour::avancerApresSortDread()`, testé en jeu (`SortsOgreHordeTest`).
             ['nom_base' => 'Nexrael', 'deplacement' => 8, 'attaque' => 3, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 5,
                 'tier' => 'base', 'boite' => 'horde_ogre', 'cout' => 4,
-                'capacites' => ['reserve_cartes' => ['Explosion mentale' => 4]],
+                'capacites' => ['reserve_cartes' => ['Explosion mentale' => 4], 'mouvement_apres_sort'],
                 'sorts_dread' => [], 'archetype_lanceur' => 'nexrael_apprenti'],
 
             // XENLOTH, « Festral's assistant, Xenloth the Dread Mage » (q. 9, p. 37) : A2 D4 M6 B1 Mi4,
@@ -549,7 +551,7 @@ class MonstreSeeder extends Seeder
             // coût du Garde-mage, l'autre sous-boss à Body léger : le plus léger des sous-boss.
             ['nom_base' => 'Xenloth', 'deplacement' => 6, 'attaque' => 2, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 4,
                 'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 8,
-                'capacites' => ['reserve_cartes' => ['Verrou mental' => 5, 'Explosion mentale' => 5]],
+                'capacites' => ['reserve_cartes' => ['Verrou mental' => 5, 'Explosion mentale' => 5], 'mouvement_apres_sort'],
                 'sorts_dread' => [], 'archetype_lanceur' => 'xenloth_mage_dread'],
 
             // FESTRAL, « the Dread Sorcerer » (q. 8, p. 35) : A4 D5 M6 B3 Mi8, *Mind Burst*, *Mind Lock* et
@@ -564,6 +566,7 @@ class MonstreSeeder extends Seeder
                 'capacites' => [
                     'reserve_cartes' => ['Explosion mentale' => 3, 'Verrou mental' => 3, 'Domination' => 3],
                     'garde_personnelle' => ['monstre' => 'Guerrier du Chaos', 'attaque' => 5, 'defense' => 5],
+                    'mouvement_apres_sort',
                 ],
                 'sorts_dread' => [], 'archetype_lanceur' => 'festral_sorcier_dread'],
 

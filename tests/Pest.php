@@ -444,3 +444,31 @@ function placerHerosSurAxeDegage(Quete $quete, EtatPersonnageQuete $etat, int $l
 
     throw new RuntimeException('Aucune case de la salle de départ n\'offre un axe dégagé — scénario invalide.');
 }
+
+/**
+ * Campagne qui JOUE Wizards of Morcar : bestiaire MANUEL, la boîte cochée (`FaveursHopekins::campagneAvecMorcar()`).
+ * Sans elle, aucun tour de Hopekins Rest ne s'ouvre (René, 2026-10-16 : « si les extensions qui les utilisent
+ * sont utilisées »).
+ */
+function jouerMorcar(Groupe $groupe): Groupe
+{
+    $groupe->update(['boites_bestiaire' => ['wizards_of_morcar']]);
+
+    return $groupe->fresh();
+}
+
+/**
+ * Ouvre un NOUVEAU tour de hub : une quête FICTIVE achevée, la plus récente. Le tour de Hopekins Rest suit la
+ * quête achevée la plus récente (`FaveursHopekins::tourDeHub()`), donc une telle quête rouvre le choix de chacun.
+ */
+function ouvrirTourDeHub(Groupe $groupe): Quete
+{
+    return Quete::create([
+        'groupe_id' => $groupe->id,
+        'gabarit_id' => GabaritQuete::query()->value('id'),
+        'titre' => 'Quête fictive (tour de hub)',
+        'position_arc' => (int) $groupe->quetes()->count() + 1,
+        'type_jalon' => 'normale',
+        'etat' => 'terminee',
+    ]);
+}

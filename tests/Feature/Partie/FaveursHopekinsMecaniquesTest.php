@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Jobs\GenererMenu;
+use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
 use App\Models\Inventaire;
 use App\Models\Mercenaire;
@@ -11,6 +12,7 @@ use App\Models\Personnage;
 use App\Models\PersonnageFaveur;
 use App\Partie\FaveursHopekins;
 use App\Partie\MoteurSorts;
+use App\Partie\RangementObjet;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\ConditionSeeder;
@@ -32,7 +34,7 @@ use Illuminate\Support\Facades\Http;
  *   - Witch's Hut     : « Gain 1 Potion of Healing » (cumulable) ;
  *   - Arcane Library  : « an additional set of spells that you are eligible to cast »
  *                       (« only for spellcasting heroes »).
- * Le héros et la faveur restent tirés au hasard (au dé injecté). Chaque faveur est jouée par les
+ * Chaque faveur est CHOISIE au hub par son héros (René, 2026-10-16 : `PUT …/faveurs/lieu`), puis jouée par les
  * vraies routes : /moi, /etat, /mercenaires, /equipement, /pret, /faveurs/arcane-library, /choix.
  * Les cinq compétences sont dans `FaveursHopekinsTest`.
  */
@@ -53,56 +55,40 @@ beforeEach(function () {
 // Aides — propres à ce fichier (un fichier de test ne doit pas dépendre des fonctions d'un autre).
 // ---------------------------------------------------------------------------
 
-/** Les chiffres d de dé qui font tirer l'INDICE `$indice` parmi `$n` à `OubliSorts::indiceAleatoire()`. */
-function hopDes(int $indice, int $n): array
-{
-    $chiffres = max(1, (int) ceil(log(max($n, 2), 6)));
-    $des = [];
-
-    for ($i = $chiffres - 1; $i >= 0; $i--) {
-        $des[] = intdiv($indice, 6 ** $i) % 6 + 1;
-    }
-
-    return $des;
-}
-
-/** Id de la dernière quête achevée — ce que `terminerQuete()` passe à l'attribution. */
+/** Id de la dernière quête achevée — le tour de hub qui s'ouvre après elle. */
 function hopQuete($groupe): int
 {
     return (int) $groupe->quetes()->where('etat', 'terminee')->orderByDesc('id')->value('id');
 }
 
 /**
- * Force le tirage de fin de quête sur `$cle` (et le héros de rang `$rangHeros` parmi les éligibles)
- * en servant au moteur les dés qui y mènent — le tirage est au dé injecté, donc rejouable.
+ * Fait CHOISIR le lieu `$cle` au héros de rang `$rangHeros` (parmi les actifs, par id) par la VRAIE route, au hub.
+ * Un seul choix par tour : si ce héros a déjà décidé à ce tour, une nouvelle quête gagnée rouvre le hub.
  *
  * @return array<string, mixed>
  */
-function hopTirer($groupe, string $cle, int $rangHeros = 0): array
+function hopChoisir($groupe, string $cle, int $rangHeros = 0): array
 {
-    $heros = $groupe->personnages()->wherePivot('actif', true)->orderBy('personnages.id')->get();
-    $candidats = app(FaveursHopekins::class)->candidatsDeTirage($heros);
-    $cles = array_keys($candidats);
-    $rang = array_search($cle, $cles, true);
+    $heros = $groupe->personnages()->wherePivot('actif', true)->orderBy('personnages.id')->get()->values()[$rangHeros];
+    $tour = FaveursHopekins::tourDeHub($groupe->fresh());
 
-    expect($rang)->not->toBeFalse(); // « $cle » doit être tirable parmi $cles
+    if ($tour !== null && FaveursHopekins::visiteDecidee($heros, $tour)) {
+        ouvrirTourDeHub($groupe);
+    }
 
-    $des = [
-        ...(count($cles) > 1 ? hopDes((int) $rang, count($cles)) : []),
-        ...($candidats[$cle]->count() > 1 ? hopDes($rangHeros, $candidats[$cle]->count()) : []),
-    ];
-
-    desFiges([...$des, ...array_fill(0, 12, 4)]);
-
-    $resultat = app(FaveursHopekins::class)->attribuerFaveurDeFinDeQuete($groupe->fresh(), hopQuete($groupe));
-
-    expect($resultat)->not->toBeNull()
-        ->and($resultat['faveur'])->toBe($cle);
-
-    return $resultat;
+    return test()->putJson("/api/groupes/{$groupe->identifiant}/faveurs/lieu", [
+        'personnage_id' => $heros->id,
+        'lieu' => $cle,
+    ])->assertOk()->json();
 }
 
-/** Donne à ce héros toutes les faveurs PERSISTANTES sauf celles de `$sauf` (les lignes directes, hors tirage). */
+/** Les lieux que ce héros peut CHOISIR à ce tour (liste blanche de `FaveursHopekins::lieuxPour()`). */
+function hopDisponibles(Groupe $groupe, Personnage $heros): array
+{
+    return collect(FaveursHopekins::lieuxPour($groupe, $heros))->where('disponible', true)->pluck('cle')->values()->all();
+}
+
+/** Donne à ce héros toutes les faveurs PERSISTANTES sauf celles de `$sauf` (les lignes directes, hors choix). */
 function hopToutesSauf(Personnage $heros, array $sauf = []): void
 {
     foreach (array_diff(FaveursHopekins::TOUTES, FaveursHopekins::INSTANTANEES, $sauf) as $cle) {
@@ -127,7 +113,7 @@ function hopFaveurPubliee(Personnage $heros, string $cle): ?array
 function hopGroupeGardien(string $classe = 'barbare'): array
 {
     $alice = connecterJoueur('alice');
-    $groupe = creerGroupe();
+    $groupe = jouerMorcar(creerGroupe());
     $groupe->update(['compagnon_offert' => 'refuse']);
     $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => $classe]);
     rendreGardien($groupe);
@@ -135,7 +121,7 @@ function hopGroupeGardien(string $classe = 'barbare'): array
     return compact('alice', 'groupe', 'heros');
 }
 
-/** Fin de quête GAGNÉE sans butin (le dé ne sert qu'au tirage de faveur). */
+/** Fin de quête GAGNÉE sans butin. */
 function hopVictoire($groupe): array
 {
     $quete = $groupe->fresh()->queteCourante;
@@ -161,21 +147,23 @@ it('NEUF faveurs, un seul registre : TOUTES, LIBELLES et EFFETS se répondent, e
         ->and(Objet::where('nom', FaveursHopekins::POTION_DE_LA_SORCIERE)->value('categorie'))->toBe('consommable');
 });
 
-it('REGISTRE dans les deux sens : tout ce qui est déclaré et durable arrive en base, rien n\'y arrive hors déclaration', function () {
+it('REGISTRE dans les deux sens : une faveur TENUE arrive en base, une seule à la fois ; rien n\'y arrive hors déclaration', function () {
     ['groupe' => $groupe, 'heros' => $heros] = hopGroupeGardien('magicien');
 
+    // Chaque faveur durable, choisie à son tour : chaque réception relâche la précédente (DURÉE du livret :
+    // « A hero may only benefit from one boon at a time »). Le registre est donc lu un à un, pas cumulé.
     foreach (array_diff(FaveursHopekins::TOUTES, FaveursHopekins::INSTANTANEES) as $cle) {
-        hopTirer($groupe, $cle);
+        hopChoisir($groupe, $cle);
+
+        expect(PersonnageFaveur::where('personnage_id', $heros->id)->pluck('cle')->all())->toBe([$cle]);
     }
 
-    // Déclaré → en base (hors instantanées)…
-    expect(PersonnageFaveur::where('personnage_id', $heros->id)->pluck('cle')->all())
-        ->toEqualCanonicalizing(array_values(array_diff(FaveursHopekins::TOUTES, FaveursHopekins::INSTANTANEES)));
-
-    // …et la potion, instantanée, n'écrit AUCUNE ligne : son état est le sac.
-    hopTirer($groupe, FaveursHopekins::WITCHS_HUT);
+    // …et la potion, instantanée, n'écrit AUCUNE ligne et ne relâche PAS la faveur tenue : son état est le sac.
+    hopChoisir($groupe, FaveursHopekins::WITCHS_HUT);
     expect(PersonnageFaveur::whereNotIn('cle', FaveursHopekins::TOUTES)->count())->toBe(0)
-        ->and(PersonnageFaveur::where('cle', FaveursHopekins::WITCHS_HUT)->count())->toBe(0);
+        ->and(PersonnageFaveur::where('cle', FaveursHopekins::WITCHS_HUT)->count())->toBe(0)
+        ->and(PersonnageFaveur::where('personnage_id', $heros->id)->pluck('cle')->all())
+        ->toBe([FaveursHopekins::ARCANE_LIBRARY]);
 });
 
 // ---------------------------------------------------------------------------
@@ -183,15 +171,12 @@ it('REGISTRE dans les deux sens : tout ce qui est déclaré et durable arrive en
 // ---------------------------------------------------------------------------
 
 it('ÉLIGIBILITÉ : un barbare peut tout recevoir sauf la bibliothèque ; un magicien aussi cette dernière', function () {
-    ['groupe' => $groupe] = hopGroupeGardien('barbare');
-    $heros = $groupe->personnages()->get();
-
-    $cles = array_keys(app(FaveursHopekins::class)->candidatsDeTirage($heros));
-    expect($cles)->toBe(array_values(array_diff(FaveursHopekins::TOUTES, [FaveursHopekins::ARCANE_LIBRARY])));
+    ['groupe' => $groupe, 'heros' => $heros] = hopGroupeGardien('barbare');
+    expect(hopDisponibles($groupe, $heros))->toBe(array_values(array_diff(FaveursHopekins::TOUTES, [FaveursHopekins::ARCANE_LIBRARY])));
 
     $groupe2 = creerGroupe('table-2');
     $mage = creerHeros(connecterJoueur('bob'), $groupe2, 'Aldric', 1, ['classe' => 'magicien']);
-    expect(array_keys(app(FaveursHopekins::class)->candidatsDeTirage(collect([$mage]))))->toBe(FaveursHopekins::TOUTES);
+    expect(hopDisponibles($groupe2, $mage))->toBe(FaveursHopekins::TOUTES);
 });
 
 it('ÉLIGIBILITÉ : « only for spellcasting heroes » — et seulement s\'il reste un répertoire à prendre', function () {
@@ -216,13 +201,13 @@ it('ÉLIGIBILITÉ : « only for spellcasting heroes » — et seulement s\'il re
     $barbare = creerHeros($alice, $groupe, 'Grondin', 4);
     expect($sorts->repertoiresSupplementaires($barbare))->toBe([]);
 
-    // Un magicien qui connaît déjà les sept : la carte n'a plus rien à lui donner, elle ne lui est pas tirée.
+    // Un magicien qui connaît déjà les sept : la carte n'a plus rien à lui donner, elle ne lui est pas offerte.
     foreach ([...MoteurSorts::ELEMENTS, ...MoteurSorts::REPERTOIRES_OPTIONNELS] as $element) {
         $sorts->attacherElement($mage, $element);
     }
-    $candidats = app(FaveursHopekins::class)->candidatsDeTirage(collect([$mage->fresh()]));
     expect($sorts->repertoiresSupplementaires($mage->fresh()))->toBe([])
-        ->and($candidats)->not->toHaveKey(FaveursHopekins::ARCANE_LIBRARY);
+        ->and(collect(FaveursHopekins::lieuxPour($groupe, $mage->fresh()))->firstWhere('cle', FaveursHopekins::ARCANE_LIBRARY))
+        ->toMatchArray(['disponible' => false, 'motif' => 'Réservée aux lanceurs de sorts, à qui il reste un répertoire à prendre.']);
 });
 
 it('ÉLIGIBILITÉ : les compétences sont UNE par groupe ; la guilde, l\'auberge et la bibliothèque UNE par héros ; la potion, toujours', function () {
@@ -235,36 +220,40 @@ it('ÉLIGIBILITÉ : les compétences sont UNE par groupe ; la guilde, l\'auberge
         PersonnageFaveur::create(['personnage_id' => $a->id, 'cle' => $cle]);
     }
 
-    $candidats = app(FaveursHopekins::class)->candidatsDeTirage(collect([$a, $b]));
+    $pourA = collect(FaveursHopekins::lieuxPour($groupe->fresh(), $a->fresh()))->keyBy('cle');
+    $pourB = collect(FaveursHopekins::lieuxPour($groupe->fresh(), $b->fresh()))->keyBy('cle');
 
-    // « (1 available) » : Deadeye est pris, personne ne peut l'avoir.
-    expect($candidats)->not->toHaveKey(FaveursHopekins::DEADEYE);
+    // « (1 available) » : Deadeye est tenue par Aldric, personne ne peut l'avoir — pas même Brynn.
+    expect($pourB[FaveursHopekins::DEADEYE])->toMatchArray(['disponible' => false, 'motif' => 'Tenue par Aldric.']);
 
-    // Sans cette mention : le héros qui la détient n'en reçoit pas une seconde, l'autre oui.
+    // Sans cette mention : Aldric n'en reçoit pas une seconde ; Brynn, qui ne la tient pas, si.
     foreach ([FaveursHopekins::MERCENARY_GUILD, FaveursHopekins::DEWDROP_INN, FaveursHopekins::ARCANE_LIBRARY] as $cle) {
-        expect($candidats[$cle]->pluck('id')->all())->toBe([$b->id]);
+        expect($pourA[$cle])->toMatchArray(['disponible' => false, 'motif' => 'Vous la tenez déjà.'])
+            ->and($pourB[$cle]['disponible'])->toBeTrue();
     }
 
     // Cumulable : tout le monde, toujours.
-    expect($candidats[FaveursHopekins::WITCHS_HUT]->pluck('id')->all())->toBe([$a->id, $b->id]);
+    expect($pourA[FaveursHopekins::WITCHS_HUT]['disponible'])->toBeTrue()
+        ->and($pourB[FaveursHopekins::WITCHS_HUT]['disponible'])->toBeTrue();
 });
 
-it('ÉLIGIBILITÉ : sans la Potion de guérison au catalogue, le Witch\'s Hut n\'est pas tirable (retrait écrit, pas un trou)', function () {
+it('ÉLIGIBILITÉ : sans la Potion de guérison au catalogue, le Witch\'s Hut n\'est pas offert (retrait écrit, pas un trou)', function () {
     ['groupe' => $groupe, 'heros' => $heros] = hopGroupeGardien();
     Objet::where('nom', FaveursHopekins::POTION_DE_LA_SORCIERE)->delete();
 
-    expect(app(FaveursHopekins::class)->candidatsDeTirage(collect([$heros])))->not->toHaveKey(FaveursHopekins::WITCHS_HUT);
+    expect(collect(FaveursHopekins::lieuxPour($groupe, $heros))->firstWhere('cle', FaveursHopekins::WITCHS_HUT))
+        ->toMatchArray(['disponible' => false, 'motif' => 'La Potion de guérison n\'est pas au catalogue.']);
 });
 
-it('TIRAGE au dé injecté : le héros comme la faveur se tirent avec les dés du moteur, donc rejouables', function () {
+it('CHOIX : c\'est le héros que le JOUEUR désigne qui choisit — jamais un tirage, et chacun décide pour soi', function () {
     $alice = connecterJoueur('alice');
-    $groupe = creerGroupe();
+    $groupe = jouerMorcar(creerGroupe());
     $groupe->update(['compagnon_offert' => 'refuse']);
     $a = creerHeros($alice, $groupe, 'Aldric', 1);
     $b = creerHeros($alice, $groupe, 'Brynn', 2);
     rendreGardien($groupe);
 
-    $r = hopTirer($groupe, FaveursHopekins::PEACEKEEPER, rangHeros: 1);
+    $r = hopChoisir($groupe, FaveursHopekins::PEACEKEEPER, rangHeros: 1);
 
     expect($r['personnage_id'])->toBe($b->id)
         ->and(PersonnageFaveur::where('personnage_id', $b->id)->pluck('cle')->all())->toBe([FaveursHopekins::PEACEKEEPER])
@@ -279,7 +268,7 @@ it('DEWDROP INN : +2 PV de Body maximum (et courants), la place du sac suit, ann
     ['groupe' => $groupe, 'heros' => $heros] = hopGroupeGardien();
     $avant = hopMoi($heros);
 
-    $r = hopTirer($groupe, FaveursHopekins::DEWDROP_INN);
+    $r = hopChoisir($groupe, FaveursHopekins::DEWDROP_INN);
 
     $apres = hopMoi($heros);
     expect($apres['pv_body_max'])->toBe($avant['pv_body_max'] + 2)
@@ -290,15 +279,15 @@ it('DEWDROP INN : +2 PV de Body maximum (et courants), la place du sac suit, ann
 
     // Annoncé : le journal, le hub (nom + effet + ce qui a changé), la fiche.
     expect($r['detail'])->toContain((string) ($avant['pv_body_max'] + 2).' PV de Body maximum');
-    $hub = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.faveur_hopekins');
-    expect($hub['faveur'])->toBe('dewdrop_inn')
-        ->and($hub['faveur_effet'])->toBe(FaveursHopekins::EFFETS[FaveursHopekins::DEWDROP_INN])
-        ->and($hub['detail'])->toBe($r['detail']);
+    $hub = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.hopekins');
+    expect($hub['visites'][0])->toMatchArray(['lieu' => FaveursHopekins::DEWDROP_INN, 'libelle' => 'Dewdrop Inn'])
+        ->and($hub['visites'][0]['effet'])->toBe(FaveursHopekins::EFFETS[FaveursHopekins::DEWDROP_INN])
+        ->and($hub['visites'][0]['detail'])->toBe($r['detail']);
 });
 
 it('DEWDROP INN : le +2 survit à un talisman posé puis retiré, et la quête démarre au nouveau maximum', function () {
     ['alice' => $alice, 'groupe' => $groupe, 'heros' => $heros] = hopGroupeGardien();
-    hopTirer($groupe, FaveursHopekins::DEWDROP_INN);
+    hopChoisir($groupe, FaveursHopekins::DEWDROP_INN);
     $base = hopMoi($heros)['pv_body_max'];
 
     $amulette = Inventaire::create([
@@ -321,10 +310,10 @@ it('DEWDROP INN : le +2 survit à un talisman posé puis retiré, et la quête d
 
 it('DEWDROP INN : une seule fois par héros — la ligne unique n\'ajoute jamais un second +2', function () {
     ['groupe' => $groupe, 'heros' => $heros] = hopGroupeGardien();
-    hopTirer($groupe, FaveursHopekins::DEWDROP_INN);
+    hopChoisir($groupe, FaveursHopekins::DEWDROP_INN);
     $apres = $heros->fresh()->pv_body_max;
 
-    expect(app(FaveursHopekins::class)->candidatsDeTirage(collect([$heros->fresh()])))->not->toHaveKey(FaveursHopekins::DEWDROP_INN)
+    expect(collect(FaveursHopekins::lieuxPour($groupe, $heros->fresh()))->firstWhere('cle', FaveursHopekins::DEWDROP_INN)['disponible'])->toBeFalse()
         ->and(FaveursHopekins::bonusBodyMax($heros))->toBe(2)
         ->and((int) $heros->fresh()->pv_body_max)->toBe((int) $apres);
 });
@@ -337,14 +326,14 @@ it('WITCH\'S HUT : une Potion de guérison dans le sac à chaque fois — cumula
     ['groupe' => $groupe, 'heros' => $heros] = hopGroupeGardien();
     hopToutesSauf($heros, [FaveursHopekins::WITCHS_HUT]); // la potion reste la seule faveur tirable
 
-    $r = hopTirer($groupe, FaveursHopekins::WITCHS_HUT);
+    $r = hopChoisir($groupe, FaveursHopekins::WITCHS_HUT);
     $potions = fn () => collect(hopMoi($heros)['consommables'])->firstWhere('nom', FaveursHopekins::POTION_DE_LA_SORCIERE);
 
     expect($potions()['quantite'])->toBe(1)
         ->and($r['detail'])->toBe('Albrecht reçoit une Potion de guérison.');
 
     // « Can be gained multiple times » : tirable encore, et la quantité monte.
-    hopTirer($groupe, FaveursHopekins::WITCHS_HUT);
+    hopChoisir($groupe, FaveursHopekins::WITCHS_HUT);
     expect($potions()['quantite'])->toBe(2)
         ->and(PersonnageFaveur::where('cle', FaveursHopekins::WITCHS_HUT)->count())->toBe(0);
 
@@ -352,15 +341,18 @@ it('WITCH\'S HUT : une Potion de guérison dans le sac à chaque fois — cumula
     $moi = hopMoi($heros);
     expect($moi['equipement']['occupation'])->toBe(0);
 
-    $hub = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.faveur_hopekins');
-    expect($hub['faveur_libelle'])->toBe("Witch's Hut")->and($hub['faveur_effet'])->toBe(FaveursHopekins::EFFETS[FaveursHopekins::WITCHS_HUT]);
+    $hub = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.hopekins');
+    expect($hub['visites'][0])->toMatchArray(['lieu' => FaveursHopekins::WITCHS_HUT, 'libelle' => "Witch's Hut"])
+        ->and($hub['visites'][0]['effet'])->toBe(FaveursHopekins::EFFETS[FaveursHopekins::WITCHS_HUT]);
 });
 
 it('WITCH\'S HUT : la potion reçue se BOIT en quête, par le menu — elle soigne vraiment', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin');
     rendreGardien($ctx['groupe']);
     hopToutesSauf($ctx['heros'], [FaveursHopekins::WITCHS_HUT]);
-    hopTirer($ctx['groupe'], FaveursHopekins::WITCHS_HUT);
+    // Le choix du lieu se fait AU HUB, jamais en quête : la potion arrive ici comme le Witch's Hut la remet
+    // (`RangementObjet::ranger()`), et c'est elle que ce test veut voir boire.
+    RangementObjet::ranger(Objet::where('nom', FaveursHopekins::POTION_DE_LA_SORCIERE)->firstOrFail(), (int) $ctx['heros']->id, 1);
 
     $ctx['heros']->update(['pv_body' => 2, 'pv_body_max' => 8]);
     $ligne = collect(hopMoi($ctx['heros'])['consommables'])->firstWhere('nom', 'Potion de guérison');
@@ -394,7 +386,7 @@ it('MERCENARY GUILD : le recrutement est publié GRATUIT, se prend par la route 
     ['groupe' => $groupe, 'heros' => $heros] = hopGroupeGardien();
     hopToutesSauf($heros, [FaveursHopekins::MERCENARY_GUILD]);
     $groupe->update(['or' => 0]);
-    hopTirer($groupe, FaveursHopekins::MERCENARY_GUILD);
+    hopChoisir($groupe, FaveursHopekins::MERCENARY_GUILD);
 
     // Annoncé au porteur : la fiche dit qu'un recrutement est offert.
     expect(hopFaveurPubliee($heros, FaveursHopekins::MERCENARY_GUILD)['recrutement_offert'])->toBeTrue();
@@ -504,7 +496,7 @@ it('MERCENARY GUILD : tombé en quête (purgé en fin de quête gagnée), le mer
 
     // Vaincu : l'allié ne sert plus, et la fin de quête le purge (comme tout mercenaire mort).
     hopToutesSauf($ctx['heros'], [FaveursHopekins::MERCENARY_GUILD]);
-    Objet::where('nom', FaveursHopekins::POTION_DE_LA_SORCIERE)->delete(); // aucune faveur tirable : rien ne vient troubler ce test
+    Objet::where('nom', FaveursHopekins::POTION_DE_LA_SORCIERE)->delete(); // le hub ne tire plus rien : seul le recrutement tombé compte
     hopVictoire($ctx['groupe']);
 
     expect(GroupeMercenaire::whereKey($recrue->id)->exists())->toBeFalse()
@@ -512,23 +504,19 @@ it('MERCENARY GUILD : tombé en quête (purgé en fin de quête gagnée), le mer
         ->and(hopDecision($ctx['heros'], 'Fauchard')['prix'])->toBe(0);
 });
 
-it('MERCENARY GUILD : un recrutement tiré en FIN DE QUÊTE est annoncé et prêt à l\'emploi au hub', function () {
+it('MERCENARY GUILD : le lieu choisi au hub après une quête gagnée est annoncé, et le recrutement est prêt à l\'emploi', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin');
-    rendreGardien($ctx['groupe']);
-    hopToutesSauf($ctx['heros'], [FaveursHopekins::MERCENARY_GUILD]);
-    Objet::where('nom', FaveursHopekins::POTION_DE_LA_SORCIERE)->delete();
+    jouerMorcar($ctx['groupe']);
+    rendreGardien($ctx['groupe'], 1);
+    hopVictoire($ctx['groupe']);
 
-    $resultat = hopVictoire($ctx['groupe']);
+    // Au hub, Albrecht visite la guilde : c'est SON choix, pas un tirage.
+    $r = hopChoisir($ctx['groupe'], FaveursHopekins::MERCENARY_GUILD);
+    expect($r['detail'])->toContain('Albrecht peut engager gratuitement');
 
-    expect($resultat['faveur_hopekins']['faveur'])->toBe('mercenary_guild');
-    // Les quêtes fictives du statut de Gardien sont NÉES APRÈS la vraie (ids croissants) : on les retire pour
-    // que la vraie redevienne la dernière achevée — la seule dont le hub relit l'annonce — puis on rend Gardien.
-    oublierQuetesFictivesDeGardien($ctx['groupe']);
-    $hub = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.faveur_hopekins');
-    expect($hub['faveur_libelle'])->toBe('Mercenary Guild')
-        ->and($hub['faveur_effet'])->toBe(FaveursHopekins::EFFETS[FaveursHopekins::MERCENARY_GUILD])
-        ->and($hub['detail'])->toContain('Albrecht peut engager gratuitement');
-    rendreGardien($ctx['groupe']);
+    $hub = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.hopekins');
+    expect($hub['visites'][0])->toMatchArray(['personnage' => 'Albrecht', 'lieu' => FaveursHopekins::MERCENARY_GUILD, 'libelle' => 'Mercenary Guild'])
+        ->and($hub['visites'][0]['detail'])->toContain('Albrecht peut engager gratuitement');
     expect(hopDecision($ctx['heros'], 'Fauchard')['offert_par_faveur'])->toBeTrue();
 });
 
@@ -663,19 +651,18 @@ it('ARCANE LIBRARY : « Prêt ! » est refusé au porteur tant qu\'il n\'a pas c
     $this->postJson('/api/groupes/table-1/pret', ['personnage_id' => $barbare->id, 'pret' => true])->assertOk();
 });
 
-it('ARCANE LIBRARY : tirée en FIN DE QUÊTE, annoncée au hub avec ce qu\'il reste à faire', function () {
+it('ARCANE LIBRARY : choisie au hub après une quête gagnée, annoncée avec ce qu\'il reste à faire', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
-    rendreGardien($ctx['groupe']);
-    hopToutesSauf($ctx['heros'], [FaveursHopekins::ARCANE_LIBRARY]);
-    Objet::where('nom', FaveursHopekins::POTION_DE_LA_SORCIERE)->delete();
+    jouerMorcar($ctx['groupe']);
+    rendreGardien($ctx['groupe'], 1);
+    hopVictoire($ctx['groupe']);
 
-    $resultat = hopVictoire($ctx['groupe']);
+    $r = hopChoisir($ctx['groupe'], FaveursHopekins::ARCANE_LIBRARY);
+    expect($r['detail'])->toContain('choisira un répertoire de sorts supplémentaire');
 
-    expect($resultat['faveur_hopekins']['faveur'])->toBe('arcane_library');
-    oublierQuetesFictivesDeGardien($ctx['groupe']); // la vraie quête redevient la dernière achevée
-    $hub = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.faveur_hopekins');
-    expect($hub['faveur_libelle'])->toBe('Arcane Library')
-        ->and($hub['detail'])->toContain('choisira un répertoire de sorts supplémentaire');
+    $hub = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.hopekins');
+    expect($hub['visites'][0])->toMatchArray(['lieu' => FaveursHopekins::ARCANE_LIBRARY, 'libelle' => 'Arcane Library'])
+        ->and($hub['visites'][0]['detail'])->toContain('choisira un répertoire de sorts supplémentaire');
 
     // La liste est là, au hub, pour son porteur.
     expect(hopFaveurPubliee($ctx['heros'], FaveursHopekins::ARCANE_LIBRARY)['choix'])->not->toBeEmpty();

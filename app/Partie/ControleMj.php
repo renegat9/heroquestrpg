@@ -66,6 +66,12 @@ final readonly class ControleMj
         public bool $pieges = true,
         /** Le contact est-il diagonal ? Un loup-garou attaque « as a giant wolf » : toute case voisine (F7539 p. 10). */
         public bool $diagonales = false,
+        /**
+         * TIRE-t-il à l'arme équipée ? « Zargon may … fight … as the Dominated hero » (F9528 p. 10) : un héros
+         * dominé tire avec son arc ou son arbalète, à distance, en ligne de vue. Une forme sans arme (le loup)
+         * ne tire jamais. Lu par `HerosJoueParLeMj::jouer()` : le point de tir, rien d'autre.
+         */
+        public bool $tir = false,
     ) {}
 
     /**
@@ -87,8 +93,8 @@ final readonly class ControleMj
     /**
      * *Dominate* : « Zargon […] may immediately take that hero's full movement and action […] move,
      * fight, cast spells, and perform any other action as the Dominated hero (including attacking
-     * other heroes). » Le déplacement COMPLET vers un autre héros, le coup à l'arme au contact, ou
-     * un sort offensif sur un héros en vue.
+     * other heroes). » Le déplacement COMPLET vers un autre héros, le coup à l'arme au contact (à mains
+     * nues si l'arme le refuse), le tir de son arme à distance, ou un sort offensif sur un héros en vue.
      */
     public static function domination(): self
     {
@@ -98,6 +104,7 @@ final readonly class ControleMj
             deplacement: self::DEPLACEMENT_COMPLET,
             attaque: true,
             sorts: true,
+            tir: true,
         );
     }
 

@@ -3,18 +3,24 @@
 declare(strict_types=1);
 
 use App\Engine\MotsClesSortDread as Mot;
+use App\Events\EtatGroupeDiffuse;
 use App\Jobs\GenererMenu;
 use App\Models\Condition;
 use App\Models\EtatPersonnageQuete;
 use App\Models\GabaritQuete;
 use App\Models\InstanceMonstre;
+use App\Models\Inventaire;
 use App\Models\Monstre;
+use App\Models\Objet;
 use App\Models\Quete;
 use App\Models\SortDread;
 use App\Partie\BestiaireGroupe;
 use App\Partie\CartesDread;
+use App\Partie\ControleMj;
 use App\Partie\DemarreurQuete;
 use App\Partie\EtatGroupe;
+use App\Partie\Equipement;
+use App\Partie\FabriqueGrille;
 use App\Partie\GardePersonnelle;
 use App\Partie\JournalCombat;
 use App\Partie\MoteurDegats;
@@ -33,6 +39,7 @@ use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortDreadSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 
 /*
@@ -838,4 +845,240 @@ it('la garde de Festral est ACHETÉE avant les autres forts, et POSÉE dans sa s
     expect($positions[0])->toBe(['x' => 21, 'y' => 21])   // le chef n'a pas bougé
         ->and($positions[1])->toBe(['x' => 22, 'y' => 22]) // la garde est dans la salle du chef
         ->and($positions[2])->toBe(['x' => 2, 'y' => 2]);  // et le gobelin lui a cédé sa place
+});
+
+// ==================================================================
+// 6. LE SORCIER QUI A LANCÉ PEUT MARCHER — ET LE HÉROS DOMINÉ TIRE (2026-10-16)
+// ==================================================================
+//
+// F9528 p. 10 : « If a Dread Sorcerer casts a spell on their turn, they may take their movement but may not make
+// a weapon attack in the same turn. » Décision de René : le sort part de la case où le Sorcier se tient, puis il
+// avance vers le héros le plus proche, sans frapper (`ResolveurTour::avancerApresSortDread()`).
+// *Domination* : « move, fight, cast spells, and perform any other action as the Dominated hero » — le héros
+// dominé tire avec son arme ÉQUIPÉE (`HerosJoueParLeMj::jouer()`), jamais une copie de la frappe du héros.
+
+/**
+ * Pose le Sorcier à `$distMin` cases ou plus de son héros, en ligne de vue (figures comprises) et avec un chemin
+ * jusqu'à une case libre à son contact : la seule position où il lance ET doit marcher ensuite.
+ *
+ * @return array{x: int, y: int}
+ */
+function sorcierPoserAPortee(Quete $quete, InstanceMonstre $sorcier, EtatPersonnageQuete $heros, int $distMin): array
+{
+    $hx = (int) $heros->position_x;
+    $hy = (int) $heros->position_y;
+    $grille = FabriqueGrille::pour($quete, exceptInstanceId: $sorcier->id);
+    $contact = caseAdjacenteLibre($quete, $hx, $hy);
+
+    foreach ($quete->carte->grille['cases'] as $y => $ligne) {
+        foreach ($ligne as $x => $c) {
+            if (! in_array($c, ['s', 'p'], true) || abs($x - $hx) + abs($y - $hy) < $distMin) {
+                continue;
+            }
+
+            if (! caseQueteLibre($quete, $x, $y)
+                || ! $grille->ligneDeVue($x, $y, $hx, $hy, figuresBloquent: true)
+                || $grille->chemin($x, $y, $contact['x'], $contact['y']) === null) {
+                continue;
+            }
+
+            $sorcier->update(['position_x' => $x, 'position_y' => $y]);
+
+            return ['x' => $x, 'y' => $y];
+        }
+    }
+
+    throw new RuntimeException('Aucune case à distance, en ligne de vue et avec un chemin : scénario invalide.');
+}
+
+/** Pose le héros `$cible` à `$distMin` cases ou plus du `$tireur`, en ligne de vue (figures comprises). */
+function domineEloigner(Quete $quete, EtatPersonnageQuete $tireur, EtatPersonnageQuete $cible, int $distMin): void
+{
+    $tx = (int) $tireur->position_x;
+    $ty = (int) $tireur->position_y;
+    $grille = FabriqueGrille::pour($quete, exceptPersonnageId: $tireur->personnage_id);
+
+    foreach ($quete->carte->grille['cases'] as $y => $ligne) {
+        foreach ($ligne as $x => $c) {
+            if (! in_array($c, ['s', 'p'], true) || abs($x - $tx) + abs($y - $ty) < $distMin) {
+                continue;
+            }
+
+            if (caseQueteLibre($quete, $x, $y) && $grille->ligneDeVue($tx, $ty, $x, $y, figuresBloquent: true)) {
+                $cible->update(['position_x' => $x, 'position_y' => $y]);
+
+                return;
+            }
+        }
+    }
+
+    throw new RuntimeException('Aucune case à distance en ligne de vue pour le tir : scénario invalide.');
+}
+
+/** Met une arme dans la main droite du héros, et recalcule ses dés comme à la vraie création. */
+function domineArmeEnMain(\App\Models\Personnage $heros, string $nomArme): void
+{
+    Inventaire::create([
+        'personnage_id' => $heros->id,
+        'objet_id' => Objet::where('nom', $nomArme)->firstOrFail()->id,
+        'emplacement' => 'arme_principale',
+        'quantite' => 1,
+    ]);
+
+    app(Equipement::class)->recalculerCombat($heros->fresh());
+}
+
+it('LE SORCIER QUI A LANCÉ MARCHE : Nexrael jette Explosion mentale à distance, puis avance vers son héros SANS le frapper', function () {
+    Event::fake([EtatGroupeDiffuse::class]);
+
+    $ctx = ogresQuete('Nexrael', ['pv_mind' => 1, 'pv_mind_max' => 1], ['Explosion mentale' => 4]);
+    ['quete' => $quete, 'instance' => $nexrael, 'etatHeros' => $etatHeros] = $ctx;
+    $depart = sorcierPoserAPortee($quete, $nexrael, $etatHeros, 3);
+
+    $actions = ogresActions(ogresTour($ctx, []));
+    $rang = array_search('sort_dread', array_column($actions, 'type'), true);
+
+    // La marche SUIT le sort, dans le même tour, publiée comme toute marche de monstre (un trajet, pas un saut).
+    expect($rang)->not->toBeFalse('Nexrael n\'a pas lancé de sort')
+        ->and($actions[$rang + 1] ?? null)->toMatchArray(['type' => 'deplacement_monstre', 'id' => $nexrael->id, 'depart' => $depart])
+        ->and(count($actions[$rang + 1]['chemin'] ?? []))->toBeGreaterThanOrEqual(1)
+        // Jamais de coup d'arme après un sort.
+        ->and(array_column($actions, 'type'))->not->toContain('attaque_monstre');
+
+    // Il s'arrête au contact du héros, sans l'avoir frappé.
+    $etatHeros->refresh();
+    $nexrael->refresh();
+    expect(abs((int) $nexrael->position_x - (int) $etatHeros->position_x) + abs((int) $nexrael->position_y - (int) $etatHeros->position_y))->toBe(1);
+
+    // La table voit la marche case par case (la figure ne se téléporte pas).
+    Event::assertDispatched(EtatGroupeDiffuse::class, fn (EtatGroupeDiffuse $e) => collect($e->mouvements)->contains(
+        fn (array $m) => $m['type'] === 'monstre' && (int) $m['id'] === (int) $nexrael->id && count($m['chemin']) >= 1,
+    ));
+});
+
+it('LE SORCIER AU CONTACT lance puis ne frappe PAS : ni coup d\'arme, ni marche à faire', function () {
+    $ctx = ogresQuete('Nexrael', ['pv_mind' => 1, 'pv_mind_max' => 1], ['Explosion mentale' => 4]);
+
+    $types = array_column(ogresActions(ogresTour($ctx, [])), 'type');
+
+    expect($types)->toContain('sort_dread')
+        ->and($types)->not->toContain('attaque_monstre')
+        ->and($types)->not->toContain('deplacement_monstre');
+});
+
+it('SANS la capacité `mouvement_apres_sort`, un lanceur ne marche PAS après son sort (seuls les Sorciers de l\'Ogre Horde la portent)', function () {
+    Monstre::where('nom_base', 'Nexrael')->update(['capacites' => ['reserve_cartes' => ['Explosion mentale' => 4]]]);
+
+    $ctx = ogresQuete('Nexrael', ['pv_mind' => 1, 'pv_mind_max' => 1], ['Explosion mentale' => 4]);
+    $depart = sorcierPoserAPortee($ctx['quete'], $ctx['instance'], $ctx['etatHeros'], 3);
+
+    $types = array_column(ogresActions(ogresTour($ctx, [])), 'type');
+
+    expect($types)->toContain('sort_dread')->not->toContain('deplacement_monstre')
+        ->and([(int) $ctx['instance']->fresh()->position_x, (int) $ctx['instance']->fresh()->position_y])->toBe([$depart['x'], $depart['y']]);
+});
+
+it('DOMINATE, ARBALÈTE : le héros dominé TIRE sur un compagnon en ligne de vue, sans marcher, et le fil dit « tire »', function () {
+    $ctx = ogresQuete2('Festral',
+        ['pv_mind_max' => 2, 'pv_mind' => 2, 'attribut_mind' => 2],
+        ['pv_mind_max' => 4, 'pv_mind' => 4, 'attribut_mind' => 4],
+        cartes: ['Domination' => 3, 'Verrou mental' => 0, 'Explosion mentale' => 0],
+        avant: fn ($h1) => domineArmeEnMain($h1, 'Arbalète'),
+    );
+    ['h1' => $h1, 'h2' => $h2, 'etat1' => $etat1, 'etat2' => $etat2, 'quete' => $quete] = $ctx;
+    domineEloigner($quete, $etat1->refresh(), $etat2->refresh(), 3);
+
+    $pvAvant = (int) $h2->fresh()->pv_body;
+    $positionAvant = [(int) $etat1->fresh()->position_x, (int) $etat1->fresh()->position_y];
+
+    // Les dés de l'ARME (l'arbalète) — jamais ceux du profil mains nues.
+    $des = (int) $h1->fresh()->des_attaque;
+    expect($des)->toBeGreaterThan(app(Equipement::class)->desAttaqueAvec($h1->fresh(), null));
+
+    // Festral : 8 crânes contre les 2 boucliers d'Albrecht → Domination. Puis les dés de tir d'Albrecht, tous des
+    // crânes, et les 2 dés de défense de Brunhild, des crânes (aucun bouclier).
+    $reponse = ogresTour2($ctx, [1, 1, 1, 1, 1, 1, 1, 1, 4, 4, ...array_fill(0, $des, 1), 1, 1]);
+    $actionsDomine = ogresSort(ogresActions($reponse), 'Domination')['resultats'][0]['actions_domine'];
+    $coup = collect($actionsDomine)->firstWhere('type', 'domination_attaque');
+
+    expect($coup)->toMatchArray([
+        'personnage' => 'Albrecht', 'cible' => ['personnage_id' => $h2->id, 'nom' => 'Brunhild'],
+        'portee' => 'distance', 'touches' => $des, 'boucliers' => 0, 'degats' => $des,
+    ])
+        // Il n'a PAS marché : il tire de la case où il est, rien à raconter de son trajet.
+        ->and(collect($actionsDomine)->firstWhere('type', 'domination_deplacement'))->toBeNull()
+        ->and([(int) $etat1->fresh()->position_x, (int) $etat1->fresh()->position_y])->toBe($positionAvant)
+        ->and((int) $h2->fresh()->pv_body)->toBe($pvAvant - $des)
+        // L'arbalète reste en main : un tir ne la perd pas.
+        ->and($h1->fresh()->inventaire()->where('emplacement', 'arme_principale')->count())->toBe(1);
+
+    // Le fil dit « tire » — la phrase du tir d'un héros.
+    $textes = collect(app(JournalCombat::class)->depuisResultat($reponse['resultat'], 'Brunhild'))->pluck('texte')->implode(' ¦ ');
+    expect($textes)->toContain("Albrecht, dominé, tire sur Brunhild (−{$des} PV)");
+
+    // La table : la scène du coup porte la même étiquette « À distance ».
+    $scene = collect(app(SceneDeTable::class)->depuisResultat($reponse['resultat'], $h2->fresh()))
+        ->firstWhere(fn ($s) => str_contains((string) ($s['titre'] ?? ''), 'dominé'));
+    expect($scene['sous_titre'] ?? '')->toContain('À distance');
+});
+
+it('DOMINATE, ARBALÈTE AU CONTACT : le héros dominé frappe À MAINS NUES — l\'arbalète refuse le contact (inutilisable_adjacent)', function () {
+    $ctx = ogresQuete2('Festral',
+        ['pv_mind_max' => 2, 'pv_mind' => 2, 'attribut_mind' => 2],
+        ['pv_mind_max' => 4, 'pv_mind' => 4, 'attribut_mind' => 4],
+        cartes: ['Domination' => 3, 'Verrou mental' => 0, 'Explosion mentale' => 0],
+        avant: fn ($h1) => domineArmeEnMain($h1, 'Arbalète'),
+    );
+    ['h1' => $h1, 'h2' => $h2] = $ctx;
+
+    // Brunhild est au contact (placement de `ogresQuete2`). Le profil mains nues : le dé de la classe seule.
+    $nus = app(Equipement::class)->desAttaqueAvec($h1->fresh(), null);
+    $pvAvant = (int) $h2->fresh()->pv_body;
+
+    $reponse = ogresTour2($ctx, [1, 1, 1, 1, 1, 1, 1, 1, 4, 4, ...array_fill(0, $nus, 1), 1, 1]);
+    $coup = collect(ogresSort(ogresActions($reponse), 'Domination')['resultats'][0]['actions_domine'])
+        ->firstWhere('type', 'domination_attaque');
+
+    expect($coup)->toMatchArray(['touches' => $nus, 'degats' => $nus])
+        ->and($coup)->not->toHaveKey('portee')
+        ->and($coup['faces_attaque'])->toHaveCount($nus)
+        ->and((int) $h2->fresh()->pv_body)->toBe($pvAvant - $nus);
+});
+
+it('DOMINATE, DAGUE (jetable) : Zargon ne la LANCE jamais — il avance et frappe au contact, la dague reste en main', function () {
+    $ctx = ogresQuete2('Festral',
+        ['pv_mind_max' => 2, 'pv_mind' => 2, 'attribut_mind' => 2],
+        ['pv_mind_max' => 4, 'pv_mind' => 4, 'attribut_mind' => 4],
+        cartes: ['Domination' => 3, 'Verrou mental' => 0, 'Explosion mentale' => 0],
+        avant: fn ($h1) => domineArmeEnMain($h1, 'Dague'),
+    );
+    ['h1' => $h1, 'h2' => $h2, 'etat1' => $etat1, 'etat2' => $etat2, 'quete' => $quete] = $ctx;
+    domineEloigner($quete, $etat1->refresh(), $etat2->refresh(), 3);
+
+    $pvAvant = (int) $h2->fresh()->pv_body;
+    $des = (int) $h1->fresh()->des_attaque;
+
+    $reponse = ogresTour2($ctx, [1, 1, 1, 1, 1, 1, 1, 1, 4, 4, ...array_fill(0, $des, 1), 1, 1]);
+    $actionsDomine = ogresSort(ogresActions($reponse), 'Domination')['resultats'][0]['actions_domine'];
+
+    $marche = collect($actionsDomine)->firstWhere('type', 'domination_deplacement');
+    $coup = collect($actionsDomine)->firstWhere('type', 'domination_attaque');
+
+    // Il marche jusqu'au contact (deux pas), puis frappe — au corps à corps, sans `portee`.
+    $etat1->refresh();
+    $etat2->refresh();
+
+    expect($marche)->not->toBeNull()
+        ->and(abs((int) $etat1->position_x - (int) $etat2->position_x) + abs((int) $etat1->position_y - (int) $etat2->position_y))->toBe(1)
+        ->and($coup)->not->toBeNull()
+        ->and($coup)->not->toHaveKey('portee')
+        ->and((int) $h2->fresh()->pv_body)->toBe($pvAvant - (int) $coup['degats'])
+        // La dague n'a jamais quitté la main : une arme jetée se perd, une arme frappée non.
+        ->and($h1->fresh()->inventaire()->where('emplacement', 'arme_principale')->count())->toBe(1);
+});
+
+it('LA COUTURE : seule Domination TIRE — Possession et la forme du loup-garou ne prennent jamais une arme à distance', function () {
+    expect(ControleMj::domination()->tir)->toBeTrue()
+        ->and(ControleMj::possession()->tir)->toBeFalse()
+        ->and(ControleMj::loupGarou()->tir)->toBeFalse();
 });

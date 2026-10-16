@@ -53,17 +53,21 @@ final class MotsClesEpreuve
             'libelle' => '{valeur} pièces d\'or',
         ],
 
-        // Une réussite rend un objet tiré au catalogue (même tirage en deux
-        // temps — rareté puis pièce — que `App\Engine\RareteButin`, pour ne
-        // pas dupliquer une seconde courbe de progression).
+        // Une réussite rend un consommable tiré au catalogue, UNIFORMÉMENT
+        // (`ResolveurTour::epreuveObjet()`) : ce n'est PAS le tirage en deux temps
+        // de `App\Engine\RareteButin` que suit le mobilier. ⚠ Écart constaté le
+        // 2026-10-16, non corrigé (une récompense de quête n'a pas été réglée sur la
+        // courbe de niveau) : à unifier si René le décide.
         'objet' => [
             'lecteur' => 'App\Partie\ResolveurTour::resoudreEpreuve()',
             'libelle' => 'un objet',
         ],
 
-        // Le seul mécanisme du jeu qui rend un PARCHEMIN hors marché et hors
-        // bibliothèque de mobilier — cohérent avec « Grimoire à demi calciné »,
-        // la seule épreuve à le porter.
+        // Une réussite rend un parchemin tiré dans la catégorie `parchemin`, à tirage
+        // UNIFORME (`ResolveurTour::epreuveObjet()`), sans la courbe de rareté du
+        // mobilier. C'est une récompense de quête, jamais un achat : le marché n'en vend
+        // plus (René, 2026-10-16). Seule épreuve à le porter : « Grimoire à demi calciné ».
+        // Les parchemins du MOBILIER (bibliothèque, établi) passent par `MoteurMobilier`.
         'parchemin' => [
             'lecteur' => 'App\Partie\ResolveurTour::resoudreEpreuve()',
             'libelle' => 'un parchemin',

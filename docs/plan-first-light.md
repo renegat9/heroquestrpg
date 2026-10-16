@@ -27,7 +27,7 @@
 
 > **Levé en partie le 2026-10-15** : *Healing Hearth* et *Glyph Key Scroll* ont désormais leur règle, relue sur le Drive (livret de quêtes p. 6-7) — voir « Décisions de René (2026-10-15) » en fin de document. *Qwindrak* et la règle des glyphes restent bloqués.
 
-- **Healing Hearth** : la cheminée n'est pas au catalogue `mobiliers` et son emprise n'est mesurée nulle part.
+- **Healing Hearth** : la cheminée n'est pas au catalogue `mobiliers` et son emprise n'est mesurée nulle part. *(Levé le 2026-10-16 : emprise 1×3 décidée par René, règle construite — voir « Exécution (2026-10-16) ».)*
 - **Glyph Key Scroll** : la règle des glyphes n'est pas sur les pages photographiées.
 - **Qwindrak jouable** : formes non chiffrées (sauf *Warlock*), séquence de la confrontation finale partiellement illisible.
 - **Hache du nain** (FL p. 6 : « handaxe instead of a shortsword ») : contredit le jeu de base 2021 que le projet suit — non porté sans décision.
@@ -72,13 +72,33 @@ Chantier mené sur la décision 1 (Draconic Flight, à construire) et la décisi
 - Limite connue : la table ne sépare pas la jambe 1, le sort et la jambe 2 dans le temps. Quand une marche PRÉCÈDE un sort, la scène du sort attend la fin de toutes les jambes de la figurine (la file de trajets est par figurine). Une séquence stricte demanderait un trajet par segment de scène : non fait.
 - Le dossier `docs/regles/sorts-dread.md` portait une citation fausse de la carte (« the Dragon may interrupt its movement… ») : remplacée par le texte exact.
 
-**Healing Hearth — NON CONSTRUIT : bloqué par l'emprise de la cheminée.** Trois faits, tous écrits :
+**Healing Hearth — CONSTRUIT le 2026-10-16 (emprise tranchée par René : 1×3).** Le texte qui suit décrit l'état AVANT cette levée, conservé tel quel ; la suite de la section dit ce qui a été posé. Trois faits, tous écrits :
 - `reference/18_extensions.md` (§6, l. ~2149) : « l'emprise de la **Fireplace** … reste ⚠ non trouvé ».
 - `reference/17_mobilier.md` (§1, ligne Cheminée) : emprise « ⚠ non établi par le livret » ; seule la règle est sourcée.
 - `database/seeders/MobilierSeeder.php` (en-tête) : la cheminée, la table du sorcier et le portant ne sont pas au catalogue parce que « leur emprise n'a aucune mesure indépendante et resterait une invention si on la codait ».
 Donc la donnée (une ligne `mobiliers`) ne peut pas être semée sans inventer une valeur. Et la clé de vocabulaire (`MotsClesMobilier`) ne peut pas être déclarée d'abord : son test « dans les deux sens » exige un porteur au catalogue. Ordre respecté : rien n'est écrit tant que la donnée manque.
 - **Design prêt pour quand l'emprise sera tranchée** (rien de codé) : *scope* — la règle est propre à la boîte First Light, donc `BestiaireGroupe::duGroupe($groupe)->contient('first_light')` (même patron que `horreur_des_glaces` dans `Equipement`) ; *lecteur* — calqué sur la Mare (`boire_mare`, `MoteurTerrain`, `docs/regles/carte-donjon.md`) : une option « soigner 1 Body au lieu de piocher » offerte au MÊME endroit que `fouiller_tresor`, seulement dans une salle qui contient une cheminée, et seulement à un héros qui a perdu au moins un point (le menu n'offre pas ce que le résolveur refuse ; à plein Body, la carte reste la seule option) ; elle dépense la fouille du héros dans la salle et ne tire aucune carte.
 - **Décision demandée à René** : (a) mesurer l'emprise de la cheminée sur une occurrence (la planche Component Reference, FL p. 20-21, ne montre qu'un rectangle allongé sans grille, analogie seulement) ; (b) accepter 1 × 2 comme divergence NOMMÉE et provisoire (⚠ non acquise) ; (c) attendre. Tant que ce n'est pas tranché, aucune ligne de catalogue.
+
+**Tranché par René (2026-10-16) — 1×3** (« 3-Space Furniture (1x3 Grid) », et la cheminée validée à
+1×3 sur les cartes de quête de F2847, mesurée ≈ 2,6-2,7 cases). Ce qui est posé :
+- **Donnée** : la Cheminée au catalogue, en JEU DE BASE (aucune boîte : RB p. 4 la compte parmi les 15
+  pièces de la boîte de base ; seule la RÈGLE est First Light), 3×1, `bloque_vue` et `adosse_au_mur`
+  (convention « famille bibliothèque », non sourcée), ni fouillable ni destructible
+  (`difficulte_destruction` absente = indestructible, faute de source). `MobilierSeeder` ; les autres emprises passent aux décisions de René du même jour (bibliothèque, armoire, râtelier en 1×3 ; table, tombeau, établi en 3×2) par la migration `2026_10_16_130000_mobilier_trois_cases`.
+- **Lecteur** : `App\Partie\MoteurCheminee` — point de passage unique, lu par `MenuMoteur` (l'option
+  `soin_cheminee`, au même endroit que `fouiller_tresor`) ET par `ResolveurTour::resoudreSoinCheminee()`
+  (le point rendu, la fouille dépensée, aucune carte). Scope : `BestiaireGroupe::contient('first_light')`.
+  Seulement un héros qui a perdu un point.
+- **Annonce** : `JournalCombat` (`soin_cheminee`, registre et phrase). Pas de scène de table, comme la Mare.
+- **Contrat** : `docs/contrat-api.md`, sous la Mare.
+- **Tests** : `FoyerFirstLightTest` (les conditions du menu, le geste, le journal) et
+  `MobilierTroisCasesTest` (catalogue, migration, emprise figée d'une quête en cours, plancher et connexité
+  sur 30 graines × 3 bestiaires, cheminée posée sous tout bestiaire, adossement).
+- **Restent ouverts** : la table du sorcier (3 cases, hors catalogue) ; le portant ; l'image de la cheminée
+  (aucune génération lancée, l'emblème SVG de repli la remplace) ; les illustrations existantes de la
+  bibliothèque, de l'armoire, du râtelier, de la table, du tombeau et de l'établi ont été générées pour les anciennes emprises (`config/images.php`
+  les décrit « occupant N sur M cases ») et ne sont pas régénérées.
 
 **Glyph Key Scroll — non porté, dette nommée.** Texte lu sur la photo FL p. 6 (rendu `FL1_p01`, `reference/18_extensions.md` §6) : « Use this scroll at any time to destroy a discovered magical glyph, no action required. This scroll has no effet on magical glyphs disturbed by looting. After you use this scroll, it disappears. » La règle des **glyphes magiques** elle-même n'est sur aucune page photographiée : sans elle, le parchemin détruirait une case dont on ignore ce qu'elle fait. Aucun glyphe n'existe au code (`grep` vide sur `app`, `config`, `database`).
 

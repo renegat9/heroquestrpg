@@ -12,6 +12,7 @@ use App\Models\InstanceMonstre;
 use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\PersonnageFaveur;
+use App\Models\PersonnageVisiteHopekins;
 use App\Models\Quete;
 use App\Models\Sort;
 use App\Support\Journal;
@@ -35,34 +36,45 @@ use Illuminate\Validation\ValidationException;
  *  - *Arcane Library* — « you may take an additional set of spells that you are eligible
  *    to cast. This boon is only for spellcasting heroes. »
  *
- * RÈGLE D'ATTRIBUTION (décision d'interprétation de ce chantier, le livret
- * ne tranchant qu'un « un héros visite un lieu, hors ligne ») : à la fin
- * d'une quête RÉUSSIE (`ResolveurTour::terminerQuete()`, jamais un échec —
- * aligné sur la montée de niveau par jalon), UNE FOIS Gardien
- * (`Groupe::estGardien()`), le groupe reçoit UNE faveur TIRÉE AU HASARD, remise à
- * un héros actif lui aussi tiré au hasard (au dé injecté, `OubliSorts::indiceAleatoire()`
- * — la partie reste rejouable). Ni choix de la faveur ni file d'attente : une
- * décision engine-autoritaire annoncée (journal + payload), conforme à « le serveur
- * publie la décision ». Ce que « disponible » veut dire dépend de la carte
- * ({@see self::candidatsDeTirage()}, le point de passage du tirage) :
- *  - les CINQ compétences portent « (1 available) » : aucune si un héros actif du groupe
- *    la détient déjà ;
- *  - *Mercenary Guild*, *Dewdrop Inn*, *Arcane Library* ne portent pas cette mention : une
- *    par HÉROS, chacun peut avoir la sienne ; la bibliothèque ne va qu'à un lanceur à qui
- *    il reste un répertoire à prendre ;
- *  - *Witch's Hut* est cumulable : jamais épuisée, elle n'écrit AUCUNE ligne (la potion dans
- *    le sac est l'état durable).
- * Le tirage n'est donc plus jamais « épuisé » tant que le catalogue a la potion.
+ * RÈGLE DE CHOIX — AU HUB, par chaque joueur, pour SON héros (René, 2026-10-16 : « Choisissons la
+ * faveur au hub si les extensions qui les utilisent sont utilisées »). Le livret (G1504 p. 21 et 23) :
+ * « At the start of each quest, a hero may select one location to visit and receive its Boon of
+ * Heroism (if available). » Le TIRAGE au hasard de fin de quête (décisions du 2026-10-06 et du
+ * 2026-10-15) est RETIRÉ. Une campagne qui ne joue pas Wizards of Morcar n'en reçoit AUCUNE, et rien
+ * n'est affiché ({@see self::campagneAvecMorcar()}, le seul prédicat). Une campagne qui le joue : le
+ * hub qui suit une quête achevée ouvre un TOUR, où chaque héros actif choisit UN lieu, ou aucun
+ * ({@see self::choisirLieu()}). Le choix est EN BASE (`personnage_visites_hopekins`), la liste est
+ * publiée par le serveur (`lieuxPour()`), et le tour se ferme au départ de la quête suivante.
  *
- * ⚠ DEUX FIDÉLITÉS AU LIVRET QU'ON NE PORTE PAS, nommées et non devinées (René a confirmé
- * « tirées au hasard » ; le reste attend sa décision) : le livret fait CHOISIR un lieu par
- * héros À CHAQUE quête (« A hero may only benefit from one boon at a time ») ; ici une faveur
- * tirée reste acquise, un héros peut en cumuler. Et « This Mercenary returns to the guild if
- * you ever choose another boon » n'a pas de sens sans ce choix répété : la faveur dure.
+ * DURÉE — suivre le livret (René, 2026-10-16). « At the start of each quest, a hero may select one
+ * location to visit and receive its Boon of Heroism (if available). A hero may only benefit from
+ * one boon at a time. » Et, pour le Mercenary Guild : « This Mercenary returns to the guild if you
+ * ever choose another boon. » D'où : une faveur est TENUE jusqu'à ce que ce héros en reçoive une
+ * AUTRE. Recevoir une faveur RELÂCHE celles qu'il tient ({@see self::relacherFaveursTenues()}) : elles
+ * perdent leur effet dans la même opération (le mercenaire retourne à la guilde, le +2 PV tombe, le
+ * répertoire part, la spécialité d'arme se perd), et l'annonce le dit. Le livret ne donne PAS une
+ * durée « une quête » : ce n'est pas dans le texte, et la phrase du mercenaire n'aurait alors aucun sens.
+ * Une faveur HÉRITÉE (acquise avant ce changement, un héros pouvant en cumuler plusieurs) reste en
+ * vigueur jusqu'à la prochaine réception, qui les relâche TOUTES : un héros ne tient qu'une faveur à la
+ * fois dès qu'il en reçoit une. Repli écrit, sans migration de données.
+ * « Fallen Wardens may always return with new heroes » : un héros ne meurt jamais dans l'application
+ * (« tombé, jamais mort », `docs/regles/vocabulaires-effets.md`). Un héros retiré du groupe (`actif` à
+ * faux) sort déjà de toutes les listes de choix et de toutes les disponibilités : sa faveur ne bloque plus rien.
  *
- * Deux choix restent au joueur, tous deux AU HUB, par le porteur : le TYPE D'ARME de Weapon
- * Expert (« Select a type of weapon […] when you acquire this Boon », René 2026-10-15 — voir
- * `choisirTypeArme()`) et le RÉPERTOIRE d'Arcane Library (voir `choisirRepertoire()`).
+ * Ce que « disponible » veut dire, lieu par lieu ({@see self::lieuxPour()}) :
+ *  - les CINQ compétences portent « (1 available) » : indisponibles tant qu'un héros actif du groupe la
+ *    tient — la carte revient au tas quand son porteur la relâche ;
+ *  - *Mercenary Guild*, *Dewdrop Inn*, *Arcane Library* : une par HÉROS, jamais deux fois la même pour
+ *    un même héros (« another boon ») ; la bibliothèque ne va qu'à un lanceur à qui il reste un
+ *    répertoire à prendre ;
+ *  - *Witch's Hut* est INSTANTANÉE et cumulable : elle remet une potion dans le sac, ne se TIENT pas,
+ *    donc ne relâche rien (`INSTANTANEES`). Lecture nommée : « gain » ≠ « boon tenu ».
+ * Le lieu n'est donc jamais « épuisé » tant que le catalogue a la potion.
+ *
+ * Trois choix restent au joueur, tous AU HUB, par le porteur : le LIEU lui-même (ce tour-ci, `choisirLieu()`),
+ * puis, si le lieu est Weapon Expert ou Arcane Library, son sous-choix — le TYPE D'ARME (« Select a type
+ * of weapon […] when you acquire this Boon », René 2026-10-15 — voir `choisirTypeArme()`) ou le RÉPERTOIRE
+ * (voir `choisirRepertoire()`).
  */
 final class FaveursHopekins
 {
@@ -100,6 +112,13 @@ final class FaveursHopekins
      * section potions : `Potion of Healing` → `Potion de guérison`. Un test épingle ce lien.
      */
     public const POTION_DE_LA_SORCIERE = 'Potion de guérison';
+
+    /**
+     * La boîte de bestiaire qui OUVRE Hopekins Rest au choix (livret G1504, Wizards of Morcar). Seule
+     * boîte à en porter : `reference/18_extensions.md` §7bis et le texte des livrets (`Boon`, `Hopekins`)
+     * ne se trouvent que dans G1504.
+     */
+    public const BOITE_MORCAR = 'wizards_of_morcar';
 
     /** Les CINQ compétences de héros — celles du livret qui portent « (1 available) ». */
     public const COMPETENCES = [
@@ -143,6 +162,12 @@ final class FaveursHopekins
     ];
 
     /**
+     * Phrase de DURÉE commune aux faveurs TENUES (livret G1504 p. 22-23 : « A hero may only benefit
+     * from one boon at a time » ; relâchée par `relacherFaveursTenues()` à la réception d'une autre).
+     */
+    public const TENUE = 'Tenue jusqu\'à ce que vous receviez une autre faveur.';
+
+    /**
      * Effet de chaque faveur EN CLAIR, pour la fiche du héros et l'annonce au
      * hub (« nom + effet », décision de portage 2026-10-08). Traduit de la carte
      * (`reference/18_extensions.md` §7), mais chaque phrase décrit ce que le
@@ -150,15 +175,15 @@ final class FaveursHopekins
      * combat. Vocabulaire fermé : même clés que `TOUTES`, testé.
      */
     public const EFFETS = [
-        self::DEADEYE => 'Les figures (héros et monstres) ne bloquent pas votre ligne de vue pour attaquer ou lancer un sort.',
-        self::WEAPON_EXPERT => '+1 dé d\'attaque avec le type d\'arme que vous choisissez en recevant la faveur (au hub, entre deux quêtes).',
-        self::HEALING_HANDS => 'Si un héros adjacent tombe à 0 PV, il peut boire une de vos potions de soin au lieu de la sienne.',
-        self::HOLD_THE_LINE => 'Quand un monstre s\'éloigne des 8 cases qui vous entourent, un crâne au dé de combat lui inflige 1 PV de Body.',
-        self::PEACEKEEPER => '25 po à la bourse commune pour chaque monstre que vous réduisez à 0 PV.',
-        self::MERCENARY_GUILD => 'Vous engagez gratuitement le mercenaire de votre choix (au hub, panneau de recrutement) : son prix d\'engagement n\'est pas payé, son entretien de 10 po par quête reste dû. Mort ou parti, un autre vous est offert.',
-        self::DEWDROP_INN => '+2 PV de Body maximum, pour toute la campagne.',
-        self::WITCHS_HUT => 'Une Potion de guérison est remise à ce héros. La faveur peut se répéter.',
-        self::ARCANE_LIBRARY => 'Un répertoire de sorts supplémentaire, que vous choisissez au hub, parmi ceux que vous pouvez lancer (réservé aux lanceurs de sorts).',
+        self::DEADEYE => 'Les figures (héros et monstres) ne bloquent pas votre ligne de vue pour attaquer ou lancer un sort. ' . self::TENUE,
+        self::WEAPON_EXPERT => '+1 dé d\'attaque avec le type d\'arme que vous choisissez en recevant la faveur (au hub, entre deux quêtes). ' . self::TENUE,
+        self::HEALING_HANDS => 'Si un héros adjacent tombe à 0 PV, il peut boire une de vos potions de soin au lieu de la sienne. ' . self::TENUE,
+        self::HOLD_THE_LINE => 'Quand un monstre s\'éloigne des 8 cases qui vous entourent, un crâne au dé de combat lui inflige 1 PV de Body. ' . self::TENUE,
+        self::PEACEKEEPER => '25 po à la bourse commune pour chaque monstre que vous réduisez à 0 PV. ' . self::TENUE,
+        self::MERCENARY_GUILD => 'Vous engagez gratuitement le mercenaire de votre choix (au hub, panneau de recrutement) : son prix d\'engagement n\'est pas payé, son entretien de 10 po par quête reste dû. Mort ou parti, un autre vous est offert. ' . self::TENUE . ' Le mercenaire retourne alors à la guilde.',
+        self::DEWDROP_INN => '+2 PV de Body maximum, tant que vous tenez cette faveur. ' . self::TENUE,
+        self::WITCHS_HUT => 'Une Potion de guérison est remise à ce héros, tout de suite (elle ne se tient pas). La faveur peut se répéter.',
+        self::ARCANE_LIBRARY => 'Un répertoire de sorts supplémentaire, que vous choisissez au hub, parmi ceux que vous pouvez lancer (réservé aux lanceurs de sorts). ' . self::TENUE . ' Le répertoire part avec elle.',
     ];
 
     public function __construct(
@@ -289,8 +314,8 @@ final class FaveursHopekins
     //
     // DÉCISION DE RENÉ (2026-10-15) : le JOUEUR choisit le type d'arme AU MOMENT où
     // il obtient la faveur. Ce moment est la fin d'une quête réussie
-    // (`attribuerFaveurDeFinDeQuete()` — la faveur et son porteur restent TIRÉS au
-    // hasard, ça n'a pas changé), donc le choix se fait AU HUB, entre deux quêtes :
+    // (le hub qui suit une quête réussie : le LIEU se choisit là aussi, `choisirLieu()`,
+    // René 2026-10-16), donc le choix du type se fait AU HUB, entre deux quêtes :
     //   - la faveur naît avec `parametre = null` ;
     //   - `/moi` publie la liste blanche (`publier()`, clé `choix`) à son porteur, et
     //     `PUT /groupes/{id}/faveurs/weapon-expert` ({@see self::choisirTypeArme()}) la
@@ -350,12 +375,16 @@ final class FaveursHopekins
     }
 
     /**
-     * Motif pour lequel CE héros ne peut pas encore se déclarer prêt — un choix de faveur
-     * qui se fait une fois, « when you acquire this Boon » — ou `null`. Appelé par
-     * `POST /pret` : on ne bloque que le porteur, et UN geste (choisir) lève le refus.
+     * Motif pour lequel CE héros ne peut pas encore se déclarer prêt — la visite de son tour de hub
+     * (un lieu, ou renoncer), puis un choix de faveur qui se fait une fois, « when you acquire this
+     * Boon » — ou `null`. Appelé par `POST /pret` : on ne bloque que le porteur, et UN geste lève le refus.
      */
-    public static function refusDeDepart(Personnage $personnage): ?string
+    public static function refusDeDepart(Groupe $groupe, Personnage $personnage): ?string
     {
+        if (self::visiteOuverte($groupe, $personnage) !== null) {
+            return "« {$personnage->nom} » peut visiter un lieu de Hopekins Rest avant de partir : choisissez-le (fiche du héros), ou n'en visitez aucun.";
+        }
+
         if (self::choixEnAttente($personnage)) {
             return "« {$personnage->nom} » a reçu la faveur Weapon Expert : choisissez son type d'arme (fiche du héros) avant de partir.";
         }
@@ -566,8 +595,9 @@ final class FaveursHopekins
     // héros, le droit est consommé ; mort (purgé en fin de quête) ou parti faute d'entretien, la
     // ligne a disparu et le droit se rouvre. C'est ce que fait le livret en demandant de choisir
     // la guilde à CHAQUE quête (un nouveau mercenaire offert chaque fois qu'il en manque un) ;
-    // notre faveur, elle, est acquise une fois pour toutes. « Returns to the guild if you ever
-    // choose another boon » n'a pas d'objet sans ce choix répété — voir le docblock de classe.
+    // tenue jusqu'à la réception d'une AUTRE faveur (DURÉE, docblock de classe) : ce que le livret
+    // dit de « Returns to the guild if you ever choose another boon » se lit désormais ainsi : la
+    // réception d'une autre faveur renvoie le mercenaire à la guilde (`relacherFaveursTenues()`).
     //
     // « Without paying their cost » : le coût d'ENGAGEMENT (« Cost: 75 gold coins » sur la
     // carte). L'ENTRETIEN de 10 po par quête est un autre paiement (p. 8-9, « as long as they are
@@ -628,8 +658,9 @@ final class FaveursHopekins
     // passe par `Equipement::apresChangementDeJauges()` / `bonusJauges()`, le point de passage
     // des PV maximum hors montée de niveau — jamais un `increment` à côté. Les PV courants suivent
     // (« adds … to the totals »), et le sac, dont la capacité est PV max ÷ 2, gagne sa place
-    // d'office : c'est dérivé, pas ajouté. Une fois par héros (la ligne est unique), donc +2 une
-    // seule fois ; la ligne n'est pas décorative, c'est elle que `bonusJauges()` relit.
+    // d'office : c'est dérivé, pas ajouté. Tenue (DURÉE, docblock de classe) : tant qu'elle est la faveur
+    // du héros, le +2 tient ; relâchée, le plafond redescend et les PV courants s'écrêtent
+    // (`apresChangementDeJauges()`). La ligne n'est pas décorative : c'est elle que `bonusJauges()` relit.
 
     /** Plafond de Body que cette faveur donne à CE héros (0 sans elle). Requête fraîche : jamais la relation en cache. */
     public static function bonusBodyMax(Personnage $personnage): int
@@ -649,7 +680,7 @@ final class FaveursHopekins
     // son voisin (Healing Hands comprise) et le menu.
 
     /** La potion remise par le Witch's Hut, ou `null` si le catalogue ne l'a pas. */
-    private function potionDeLaSorciere(): ?Objet
+    private static function potionDeLaSorciere(): ?Objet
     {
         return Objet::query()->where('nom', self::POTION_DE_LA_SORCIERE)->first();
     }
@@ -918,141 +949,333 @@ final class FaveursHopekins
         return $payload;
     }
 
-    // ---- ATTRIBUTION DE FIN DE QUÊTE --------------------------------------
+    // ---- CHOIX AU HUB (Wizards of Morcar, René 2026-10-16) ------------------
+    //
+    // Le livret (G1504 p. 21 et 23) : « At the start of each quest, a hero may select one location to
+    // visit and receive its Boon of Heroism (if available). A hero may only benefit from one boon at a
+    // time. » Chaque joueur choisit pour SON héros, à chaque tour de hub ; « may » : renoncer est permis.
+    //
+    // UN TOUR (`tourDeHub()`) = le hub qui suit la quête ACHEVÉE la plus récente, une fois Gardien, dans
+    // une campagne Morcar, tant que ce tour n'est pas tranché par la migration (repli, voir sa docblock).
+    // Le tour se ferme au départ de la quête suivante. Un héros décide UNE fois par tour, EN BASE
+    // (`personnage_visites_hopekins`) : un lieu, ou aucun.
+    //
+    // LA LISTE BLANCHE est publiée (`lieuxPour()` : tous les lieux, `disponible` et `motif`), et
+    // `PUT …/faveurs/lieu` (`choisirLieu()`) la revalide : une route ne prend jamais un lieu que le hub
+    // n'offre pas. Un lieu choisi REMPLACE la faveur tenue (DURÉE, docblock de classe) : `remettre()`
+    // relâche et pose dans la même opération, et l'annonce le dit.
 
     /**
-     * QUI peut recevoir QUOI, maintenant : `[clé => héros éligibles]`, dans l'ordre de `TOUTES`,
-     * sans les faveurs que personne ne peut recevoir. POINT DE PASSAGE UNIQUE du tirage — la
-     * règle d'éligibilité de chaque carte tient ici et nulle part ailleurs (voir le docblock de
-     * classe) :
-     *  - les CINQ compétences « (1 available) » : tous les héros actifs, tant qu'aucun d'eux ne
-     *    la détient ;
-     *  - *Mercenary Guild*, *Dewdrop Inn* : les héros qui ne l'ont pas encore ;
-     *  - *Arcane Library* : de même, et seulement un lanceur à qui il reste un répertoire à prendre ;
-     *  - *Witch's Hut* : tous, toujours (cumulable) — tant que le catalogue a la potion.
-     *
-     * @param  Collection<int, Personnage>  $heros
-     * @return array<string, Collection<int, Personnage>>
+     * La campagne joue-t-elle Wizards of Morcar ? LE SEUL prédicat du choix au hub : le bestiaire du
+     * groupe (automatique ou boîtes cochées), lu par `BestiaireGroupe`, point de passage unique.
      */
-    public function candidatsDeTirage(Collection $heros): array
+    public static function campagneAvecMorcar(Groupe $groupe): bool
     {
-        if ($heros->isEmpty()) {
-            return [];
+        return BestiaireGroupe::duGroupe($groupe)->contient(self::BOITE_MORCAR);
+    }
+
+    /**
+     * La quête achevée après laquelle le hub OUVRE un tour de visite, ou `null`. Ouvert seulement au hub,
+     * une fois Gardien, dans une campagne Morcar, et si cette quête n'est pas déjà tranchée par la
+     * migration (`groupes.hopekins_quete_tranchee_id`, repli des campagnes en cours).
+     */
+    public static function tourDeHub(Groupe $groupe): ?Quete
+    {
+        if ($groupe->phase !== 'hub' || ! $groupe->estGardien() || ! self::campagneAvecMorcar($groupe)) {
+            return null;
         }
 
-        /** @var Collection<string, list<int>> $detenues clé => ids des héros qui la détiennent */
-        $detenues = PersonnageFaveur::query()
+        $quete = $groupe->quetes()->where('etat', 'terminee')->orderByDesc('id')->first();
+
+        if ($quete === null || (int) $groupe->hopekins_quete_tranchee_id === (int) $quete->id) {
+            return null;
+        }
+
+        return $quete;
+    }
+
+    /**
+     * LA liste du choix de CE héros au tour : les neuf lieux, dans l'ordre de `TOUTES`, chacun avec
+     * `disponible` et, quand il ne l'est pas, le `motif` que le hub affiche. POINT DE PASSAGE UNIQUE de
+     * l'éligibilité — la règle de chaque carte tient ici et nulle part ailleurs :
+     *  - les CINQ compétences « (1 available) » : indisponibles dès qu'un héros ACTIF du groupe les tient ;
+     *  - *Mercenary Guild*, *Dewdrop Inn*, *Arcane Library* : une fois par héros (« Vous la tenez déjà. ») ;
+     *  - *Arcane Library* : seulement à un lanceur à qui il reste un répertoire à prendre ;
+     *  - *Witch's Hut* : toujours, tant que la potion est au catalogue (cumulable, ne se tient pas).
+     *
+     * @return list<array{cle: string, libelle: string, effet: string, disponible: bool, motif: ?string}>
+     */
+    public static function lieuxPour(Groupe $groupe, Personnage $personnage): array
+    {
+        $heros = $groupe->personnages()->wherePivot('actif', true)->get(['personnages.id', 'personnages.nom']);
+        $noms = $heros->pluck('nom', 'id');
+
+        /** @var Collection<string, Collection<int, int>> $porteurs clé => ids des héros ACTIFS qui la tiennent */
+        $porteurs = PersonnageFaveur::query()
             ->whereIn('personnage_id', $heros->pluck('id'))
             ->get(['personnage_id', 'cle'])
             ->groupBy('cle')
-            ->map(fn (Collection $lignes) => $lignes->pluck('personnage_id')->map(fn ($id) => (int) $id)->all());
+            ->map(fn (Collection $lignes) => $lignes->pluck('personnage_id')->map(fn ($id) => (int) $id));
 
-        $candidats = [];
+        $potion = self::potionDeLaSorciere() !== null;
+        $lanceur = self::repertoiresChoisissables($personnage) !== [];
+        $lieux = [];
 
         foreach (self::TOUTES as $cle) {
-            $porteurs = $detenues->get($cle, []);
+            $tenues = $porteurs->get($cle, collect());
+            $moi = $tenues->contains((int) $personnage->id);
 
-            $eligibles = match (true) {
-                in_array($cle, self::COMPETENCES, true) => $porteurs === [] ? $heros : collect(),
-                $cle === self::WITCHS_HUT => $this->potionDeLaSorciere() !== null ? $heros : collect(),
-                $cle === self::ARCANE_LIBRARY => $heros->filter(fn (Personnage $h) => ! in_array((int) $h->id, $porteurs, true)
-                    && self::repertoiresChoisissables($h) !== []),
-                default => $heros->filter(fn (Personnage $h) => ! in_array((int) $h->id, $porteurs, true)),
+            [$disponible, $motif] = match (true) {
+                $cle === self::WITCHS_HUT => $potion
+                    ? [true, null]
+                    : [false, 'La Potion de guérison n\'est pas au catalogue.'],
+                in_array($cle, self::COMPETENCES, true) && $tenues->isNotEmpty() => $moi
+                    ? [false, 'Vous la tenez déjà.']
+                    : [false, 'Tenue par '.($noms[$tenues->first()] ?? 'un autre héros').'.'],
+                $moi => [false, 'Vous la tenez déjà.'],
+                $cle === self::ARCANE_LIBRARY && ! $lanceur => [false, 'Réservée aux lanceurs de sorts, à qui il reste un répertoire à prendre.'],
+                default => [true, null],
             };
 
-            if ($eligibles->isNotEmpty()) {
-                $candidats[$cle] = $eligibles->values();
-            }
+            $lieux[] = [
+                'cle' => $cle,
+                'libelle' => self::LIBELLES[$cle],
+                'effet' => self::EFFETS[$cle],
+                'disponible' => $disponible,
+                'motif' => $motif,
+            ];
         }
 
-        return $candidats;
+        return $lieux;
     }
 
-    /** Indice uniforme dans [0, $n[ au dé injecté — rien à tirer s'il n'y a qu'un candidat. */
-    private function indiceAuHasard(int $n): int
+    /** Ce héros a-t-il DÉJÀ décidé à ce tour (un lieu, ou aucun) ? */
+    public static function visiteDecidee(Personnage $personnage, Quete $tour): bool
     {
-        return $n <= 1 ? 0 : app(OubliSorts::class)->indiceAleatoire($this->des, $n);
+        return PersonnageVisiteHopekins::query()
+            ->where('personnage_id', $personnage->id)
+            ->where('quete_id', $tour->id)
+            ->exists();
     }
 
     /**
-     * Tirage de fin de quête RÉUSSIE (voir le docblock de classe pour la
-     * règle). `null` si pas encore Gardien, pas de héros actif, ou si plus
-     * aucune faveur ne peut être remise (cas rare : la potion manque au catalogue).
+     * La visite que CE héros doit faire à ce hub — `['quete_id' => …, 'lieux' => […]]` — ou `null` : pas de
+     * tour ouvert, héros inactif, décision déjà prise, ou aucun lieu ouvert pour lui. Publiée par `/moi`
+     * (`joueur.personnages[].visite_hopekins`) et lue par `POST /pret` (`refusDeDepart()`).
      *
-     * @return array<string, mixed>|null
+     * @return array{quete_id: int, lieux: list<array<string, mixed>>}|null
      */
-    public function attribuerFaveurDeFinDeQuete(Groupe $groupe, int $queteId): ?array
+    public static function visiteOuverte(?Groupe $groupe, Personnage $personnage): ?array
     {
-        if (! $groupe->estGardien()) {
+        if ($groupe === null) {
             return null;
         }
 
-        $heros = $groupe->personnages()->wherePivot('actif', true)->orderBy('personnages.id')->get();
-        $candidats = $this->candidatsDeTirage($heros);
+        $tour = self::tourDeHub($groupe);
 
-        if ($candidats === []) {
+        if ($tour === null) {
             return null;
         }
 
-        $cles = array_keys($candidats);
-        $cle = $cles[$this->indiceAuHasard(count($cles))];
-        /** @var Personnage $recu */
-        $recu = $candidats[$cle][$this->indiceAuHasard($candidats[$cle]->count())];
+        $actif = $groupe->personnages()->wherePivot('actif', true)->where('personnages.id', $personnage->id)->exists();
 
-        $detail = $this->remettre($recu, $cle);
+        if (! $actif || self::visiteDecidee($personnage, $tour)) {
+            return null;
+        }
 
-        // `quete_id` : l'annonce du hub ne vaut que pour la DERNIÈRE quête
-        // achevée (voir `EtatGroupe::annonceDeQuete()`) — sans lui, une quête
-        // suivante sans attribution relirait encore celle-ci.
-        $payload = [
-            'type' => 'faveur_hopekins',
-            'action' => 'faveur_hopekins',
-            'quete_id' => $queteId,
-            'faveur' => $cle,
-            'faveur_libelle' => self::LIBELLES[$cle],
-            'personnage_id' => $recu->id,
-            'personnage' => $recu->nom,
-            // Ce que la faveur a FAIT ou ce qui reste à faire, en clair (`null` pour une compétence :
-            // son effet se lit sur la fiche). Publié par le serveur : le hub ne le re-dérive pas.
-            'detail' => $detail,
-        ];
+        $lieux = self::lieuxPour($groupe, $personnage);
 
-        Journal::ajouter($groupe, 'systeme', $payload, ['nom' => $recu->nom]);
+        if (! collect($lieux)->contains('disponible', true)) {
+            return null;
+        }
 
-        return $payload;
+        return ['quete_id' => (int) $tour->id, 'lieux' => $lieux];
+    }
+
+    /**
+     * Le héros VISITE un lieu de Hopekins Rest à ce tour (`$lieu`, une clé de `TOUTES`), ou RENONCE (`null`,
+     * « may »). Revalide tout côté serveur : tour ouvert, décision encore vierge, lieu dans la liste blanche
+     * (`lieuxPour()`). Le contrôleur a déjà vérifié que le héros est actif et qu'il est à ce joueur.
+     *
+     * Un lieu REMPLACE la faveur tenue : `remettre()` relâche celles qu'il tient et pose la nouvelle dans la
+     * même opération. Écrit EN BASE (`personnage_visites_hopekins`, `personnage_faveurs`) ; journal `systeme`
+     * `visite_hopekins` `{quete_id, personnage_id, personnage, lieu, detail}`, où `detail` dit ce qui a pris
+     * fin et ce que la faveur fait (`null` pour une compétence sans relâche).
+     *
+     * @return array{personnage_id: int, lieu: ?string, detail: ?string}
+     */
+    public function choisirLieu(Groupe $groupe, Personnage $personnage, ?string $lieu): array
+    {
+        $tour = self::tourDeHub($groupe);
+
+        if ($tour === null) {
+            throw ValidationException::withMessages([
+                'phase' => 'Aucune visite de Hopekins Rest n\'est ouverte pour ce groupe entre ces quêtes.',
+            ]);
+        }
+
+        if ($lieu !== null && ! in_array($lieu, self::TOUTES, true)) {
+            throw ValidationException::withMessages(['lieu' => 'Ce n\'est pas un lieu de Hopekins Rest.']);
+        }
+
+        return DB::transaction(function () use ($groupe, $personnage, $tour, $lieu) {
+            // Deux manettes ne posent pas leur choix dans la même seconde : le verrou de groupe sérialise les
+            // écritures ; la contrainte unique (héros, quête) reste le dernier rempart.
+            Groupe::query()->whereKey($groupe->id)->lockForUpdate()->first();
+
+            if (self::visiteDecidee($personnage, $tour)) {
+                throw ValidationException::withMessages([
+                    'lieu' => 'Ce héros a déjà choisi son lieu pour cette quête.',
+                ]);
+            }
+
+            if ($lieu === null) {
+                $detail = "{$personnage->nom} ne visite aucun lieu.";
+            } else {
+                $ouvert = collect(self::lieuxPour($groupe, $personnage))->firstWhere('cle', $lieu);
+
+                if ($ouvert === null || ! $ouvert['disponible']) {
+                    throw ValidationException::withMessages([
+                        'lieu' => $ouvert['motif'] ?? 'Ce lieu n\'est pas ouvert à ce héros.',
+                    ]);
+                }
+
+                $detail = $this->remettre($personnage, $lieu);
+            }
+
+            PersonnageVisiteHopekins::query()->create([
+                'personnage_id' => $personnage->id,
+                'quete_id' => $tour->id,
+                'lieu' => $lieu,
+            ]);
+
+            Journal::ajouter($groupe, 'systeme', [
+                'action' => 'visite_hopekins',
+                'quete_id' => (int) $tour->id,
+                'personnage_id' => (int) $personnage->id,
+                'personnage' => $personnage->nom,
+                'lieu' => $lieu,
+                'detail' => $detail,
+            ], ['nom' => $personnage->nom]);
+
+            return [
+                'personnage_id' => (int) $personnage->id,
+                'lieu' => $lieu,
+                'detail' => $detail,
+            ];
+        });
     }
 
     /**
      * Remet la faveur à son porteur et rend le détail annoncé. Chaque cas écrit son ÉTAT DURABLE
      * en base (une ligne, un plafond, un objet du sac) — jamais en cache.
+     *
+     * Une faveur TENUE remplace celles que ce héros tient (« one boon at a time », DURÉE du docblock
+     * de classe) : la fin de chacune est écrite dans la MÊME opération que la nouvelle, et le détail
+     * le dit en tête (« Albrecht perd Deadeye. ») — le hub ne re-dérive rien.
      */
     private function remettre(Personnage $recu, string $cle): ?string
     {
         if ($cle === self::WITCHS_HUT) {
-            $potion = $this->potionDeLaSorciere();
+            $potion = self::potionDeLaSorciere();
             RangementObjet::ranger($potion, (int) $recu->id, 1);
 
             return "{$recu->nom} reçoit une {$potion->nom}.";
         }
 
-        if ($cle === self::DEWDROP_INN) {
-            app(Equipement::class)->apresChangementDeJauges(
-                $recu,
-                fn () => PersonnageFaveur::create(['personnage_id' => $recu->id, 'cle' => $cle]),
-            );
-            $recu->unsetRelation('faveurs');
+        $relache = ['cles' => [], 'phrases' => []];
 
-            return "{$recu->nom} passe à {$recu->pv_body_max} PV de Body maximum.";
-        }
+        // Le plafond passe TOUJOURS par le point de passage des jauges : relâcher un +2 PV (Dewdrop
+        // Inn) doit reprendre ces PV-là comme poser un nouveau les donne. Sans écart, rien ne change.
+        app(Equipement::class)->apresChangementDeJauges($recu, function () use ($recu, $cle, &$relache): void {
+            $relache = $this->relacherFaveursTenues($recu);
+            PersonnageFaveur::create(['personnage_id' => $recu->id, 'cle' => $cle]);
+        });
 
-        PersonnageFaveur::create(['personnage_id' => $recu->id, 'cle' => $cle]);
         $recu->unsetRelation('faveurs');
 
-        return match ($cle) {
+        $phrases = [];
+
+        if ($relache['cles'] !== []) {
+            $libelles = array_map(fn (string $c) => self::LIBELLES[$c] ?? $c, $relache['cles']);
+            $dernier = array_pop($libelles);
+            $phrases[] = "{$recu->nom} perd " . ($libelles === [] ? $dernier : implode(', ', $libelles) . ' et ' . $dernier) . '.';
+            array_push($phrases, ...$relache['phrases']);
+
+            if ($cle !== self::DEWDROP_INN && in_array(self::DEWDROP_INN, $relache['cles'], true)) {
+                $phrases[] = "{$recu->nom} revient à {$recu->pv_body_max} PV de Body maximum.";
+            }
+        }
+
+        $phrases[] = match ($cle) {
+            self::DEWDROP_INN => "{$recu->nom} passe à {$recu->pv_body_max} PV de Body maximum.",
             self::MERCENARY_GUILD => "{$recu->nom} peut engager gratuitement le mercenaire de son choix (recrutement, au hub).",
             self::ARCANE_LIBRARY => "{$recu->nom} choisira un répertoire de sorts supplémentaire au hub (fiche du héros).",
             default => null,
         };
+
+        $phrases = array_values(array_filter($phrases));
+
+        return $phrases === [] ? null : implode(' ', $phrases);
+    }
+
+    /**
+     * Relâche les faveurs TENUES par ce héros — « a hero may only benefit from one boon at a time »
+     * (livret G1504 p. 22-23) : chacune prend fin, sa ligne disparaît, et son effet avec elle. Ce qui
+     * dépend d'un AUTRE état est défait ici même : le mercenaire offert retourne à la guilde (sa ligne
+     * de `groupe_mercenaires` part, comme un allié qu'on ne paie plus), et le répertoire de la
+     * bibliothèque sort du livre de sorts. Le +2 PV n'a rien à défaire ici : `remettre()` réconcilie
+     * le plafond après le changement, par le point de passage des jauges.
+     *
+     * Les faveurs INSTANTANÉES n'ont pas de ligne et ne sont jamais « tenues ».
+     *
+     * @return array{cles: list<string>, phrases: list<string>} les clés relâchées, dans l'ordre de
+     *                                                       réception, et ce qui a été défait en plus
+     */
+    private function relacherFaveursTenues(Personnage $personnage): array
+    {
+        $tenues = PersonnageFaveur::query()
+            ->where('personnage_id', $personnage->id)
+            ->whereNotIn('cle', self::INSTANTANEES)
+            ->orderBy('id')
+            ->get();
+
+        if ($tenues->isEmpty()) {
+            return ['cles' => [], 'phrases' => []];
+        }
+
+        $phrases = [];
+
+        foreach ($tenues as $faveur) {
+            // Gardé par le RECRUTEUR : jamais l'allié d'un autre héros du groupe.
+            if ($faveur->cle === self::MERCENARY_GUILD && $faveur->parametre !== null) {
+                $renvoye = GroupeMercenaire::query()
+                    ->whereKey((int) $faveur->parametre)
+                    ->where('recruteur_personnage_id', $personnage->id)
+                    ->delete();
+
+                if ($renvoye > 0) {
+                    $phrases[] = 'Son mercenaire offert retourne à la guilde.';
+                }
+            }
+
+            if ($faveur->cle === self::ARCANE_LIBRARY && $faveur->parametre !== null) {
+                $sorts = $personnage->sorts()->where('element', $faveur->parametre)->pluck('sorts.id');
+
+                if ($sorts->isNotEmpty()) {
+                    $personnage->sorts()->detach($sorts->all());
+                    $phrases[] = 'Il perd son répertoire de sorts supplémentaire.';
+                }
+            }
+        }
+
+        PersonnageFaveur::query()->whereIn('id', $tenues->pluck('id')->all())->delete();
+        $personnage->unsetRelation('sorts');
+
+        return [
+            'cles' => $tenues->pluck('cle')->values()->all(),
+            'phrases' => $phrases,
+        ];
     }
 
     // ---- ENTRETIEN DES MERCENAIRES -----------------------------------------

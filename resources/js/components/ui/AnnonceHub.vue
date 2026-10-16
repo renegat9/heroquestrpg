@@ -2,8 +2,10 @@
 // Annonces de FIN DE QUÊTE au hub (chantier 1c, Wizards of Morcar, 2026-10-08) :
 // l'ENTRETIEN des mercenaires, la FAVEUR de Hopekins Rest et le PEACEKEEPER payé
 // à la fin de la quête. Le serveur publie la DÉCISION — `groupe.mercenaires_entretien`,
-// `groupe.faveur_hopekins` et `groupe.peacekeeper`, toutes bornées à la dernière
-// quête achevée. Ce composant n'en recalcule rien : ni le coût, ni qui part faute
+// `groupe.faveur_hopekins` (legacy, tirage retiré le 2026-10-16) et `groupe.peacekeeper`,
+// toutes bornées à la dernière quête achevée — et `groupe.hopekins` (le tour de Hopekins
+// Rest, René 2026-10-16 : le lieu que chaque héros a choisi, et qui doit encore choisir).
+// Ce composant n'en recalcule rien : ni le coût, ni qui part faute
 // d'or, ni qui reçoit la faveur, ni combien de monstres chacun a vaincus. Un seul
 // rendu, partagé par l'écran de table et la manette.
 import MSym from './MSym.vue';
@@ -11,8 +13,10 @@ import MSym from './MSym.vue';
 defineProps({
     /** `groupe.mercenaires_entretien` : {cout_par_mercenaire, cout_total, or_restant, payes, partis} ou null. */
     entretien: { type: Object, default: null },
-    /** `groupe.faveur_hopekins` : {personnage, faveur_libelle, faveur_effet, detail} ou null. */
+    /** `groupe.faveur_hopekins` : {personnage, faveur_libelle, faveur_effet, detail} ou null (legacy). */
     faveur: { type: Object, default: null },
+    /** `groupe.hopekins` : {quete_id, visites: [{personnage, lieu, libelle, effet, detail}], en_attente: [{personnage_id, personnage}]} ou null. */
+    hopekins: { type: Object, default: null },
     /** `groupe.peacekeeper` : {or_total, versements: [{personnage_id, nom, monstres, or}]} ou null. */
     peacekeeper: { type: Object, default: null },
     /** `groupe.objets_reveilles` : {objets: [{objet, personnage}]} ou null (Fangwarden Armlet). */
@@ -22,10 +26,12 @@ defineProps({
 });
 
 const noms = (liste) => (liste ?? []).map((m) => m.nom).join(', ');
+// `groupe.hopekins.en_attente` porte `personnage` (le nom), pas `nom`.
+const nomsHopekins = (liste) => (liste ?? []).map((h) => h.personnage).join(', ');
 </script>
 
 <template>
-    <div v-if="entretien || faveur || peacekeeper || reveil || vote" class="annonce-hub">
+    <div v-if="entretien || faveur || hopekins || peacekeeper || reveil || vote" class="annonce-hub">
         <div v-if="vote" class="annonce-hub-ligne">
             <MSym n="how_to_vote" fill :size="16" />
             <div class="annonce-hub-texte">{{ vote.texte }}</div>
@@ -53,6 +59,22 @@ const noms = (liste) => (liste ?? []).map((m) => m.nom).join(', ');
                 <span class="annonce-hub-effet">{{ faveur.faveur_effet }}</span>
                 <!-- Ce que la faveur a FAIT (PV de Body portés à…, potion remise) ou ce qui reste à faire : écrit par le serveur. -->
                 <span v-if="faveur.detail" class="annonce-hub-effet">{{ faveur.detail }}</span>
+            </div>
+        </div>
+        <div v-if="hopekins" class="annonce-hub-ligne">
+            <MSym n="signpost" fill :size="16" />
+            <div class="annonce-hub-texte">
+                <b>Hopekins Rest</b>
+                <span v-for="v in hopekins.visites" :key="v.personnage + '-' + (v.lieu ?? 'aucun')" class="annonce-hub-effet">
+                    <template v-if="v.lieu">
+                        {{ v.personnage }} visite {{ v.libelle }}. {{ v.effet }}
+                        <template v-if="v.detail"> {{ v.detail }}</template>
+                    </template>
+                    <template v-else>{{ v.detail }}</template>
+                </span>
+                <span v-if="hopekins.en_attente?.length" class="annonce-hub-attente">
+                    À choisir : {{ nomsHopekins(hopekins.en_attente) }}.
+                </span>
             </div>
         </div>
         <div v-if="peacekeeper" class="annonce-hub-ligne">
@@ -88,5 +110,6 @@ const noms = (liste) => (liste ?? []).map((m) => m.nom).join(', ');
 .annonce-hub-texte { min-width: 0; }
 .annonce-hub-parti { display: block; margin-top: 3px; color: var(--danger, #e0735c); }
 .annonce-hub-or { display: block; margin-top: 3px; font-size: 12px; color: var(--ink-500, #9a9384); }
+.annonce-hub-attente { display: block; margin-top: 3px; color: var(--torch, #c9a25a); font-weight: 700; }
 .annonce-hub-effet { display: block; margin-top: 3px; font-size: 12.5px; color: var(--ink-300, #cfc6b0); }
 </style>

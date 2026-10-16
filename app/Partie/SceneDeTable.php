@@ -639,10 +639,13 @@ final class SceneDeTable
             return null;
         }
 
+        // Un TIR porte la même étiquette que celui d'un héros (`porteeLisible()`) : la table le voit, comme le fil.
+        $portee = $this->porteeLisible($a);
+
         return [
             'genre' => 'attaque',
             'titre' => "{$attaquant->nom}, dominé, attaque {$cible->nom}",
-            'sous_titre' => 'sous la coupe du Sorcier du Dread',
+            'sous_titre' => $portee === null ? 'sous la coupe du Sorcier du Dread' : "{$portee} · sous la coupe du Sorcier du Dread",
             'acteurs' => [
                 $this->acteurHeros($attaquant, 'attaquant'),
                 $this->acteurHeros($cible, 'defenseur'),

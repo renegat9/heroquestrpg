@@ -149,23 +149,24 @@ it('calcule le total projeté en direct sur l\'ensemble des paniers (achats + re
 
     $this->postJson('/api/groupes/table-1/marche')->assertCreated();
 
-    // Alice achète une épée courte (225) et 2 potions de soin (2 × 100).
+    // Alice achète une épée courte (150) et 2 potions de sang de serpent (2 × 50) — la
+    // Potion de soin, retirée de l'étal le 2026-10-16 (prix non sourcé), n'y figure plus.
     $this->putJson('/api/groupes/table-1/marche/panier', [
         'achats' => [
             ['objet_id' => Objet::where('nom', 'Épée courte')->first()->id],
-            ['objet_id' => Objet::where('nom', 'Potion de soin')->first()->id, 'quantite' => 2],
+            ['objet_id' => Objet::where('nom', 'Potion de sang de serpent')->first()->id, 'quantite' => 2],
         ],
         'ventes' => [],
-    ])->assertOk()->assertJsonPath('total_projete', 1000 - 350);
+    ])->assertOk()->assertJsonPath('total_projete', 1000 - 250);
 
-    // Bob revend sa dague : 50 % du prix marchand courant (M1) = 150 ÷ 2 = 75.
+    // Bob revend sa dague : 50 % du prix marchand courant (M1) = 25 ÷ 2 = 12.
     $this->actingAs($bob, 'joueur');
     $etat = $this->putJson('/api/groupes/table-1/marche/panier', [
         'achats' => [],
         'ventes' => [['inventaire_id' => $dague->id]],
     ])->assertOk()->json();
 
-    expect($etat['total_projete'])->toBe(1000 - 350 + 12)
+    expect($etat['total_projete'])->toBe(1000 - 250 + 12)
         ->and($etat['or_courant'])->toBe(1000);
 
     // Panier consolidé : chaque ligne est étiquetée de son joueur.
@@ -285,7 +286,7 @@ it('refuse la finalisation si le sac d\'un personnage déborde (capacité = PV B
     $this->putJson('/api/groupes/table-1/marche/panier', [
         'achats' => [
             ['objet_id' => Objet::where('nom', 'Dague')->first()->id], // 4ᵉ et dernière place
-            ['objet_id' => Objet::where('nom', 'Potion de soin')->first()->id, 'quantite' => 2],
+            ['objet_id' => Objet::where('nom', 'Potion de sang de serpent')->first()->id, 'quantite' => 2],
         ],
         'ventes' => [],
     ])->assertOk();
@@ -336,11 +337,11 @@ it('finalise atomiquement quand tous les joueurs ont confirmé', function () {
 
     $this->postJson('/api/groupes/table-1/marche')->assertCreated();
 
-    // Alice : épée courte (150, vers le sac) + 2 potions (200, consommables).
+    // Alice : épée courte (150, vers le sac) + 2 potions de sang de serpent (100, consommables).
     $this->putJson('/api/groupes/table-1/marche/panier', [
         'achats' => [
             ['objet_id' => Objet::where('nom', 'Épée courte')->first()->id],
-            ['objet_id' => Objet::where('nom', 'Potion de soin')->first()->id, 'quantite' => 2],
+            ['objet_id' => Objet::where('nom', 'Potion de sang de serpent')->first()->id, 'quantite' => 2],
         ],
         'ventes' => [],
     ])->assertOk();
@@ -362,15 +363,15 @@ it('finalise atomiquement quand tous les joueurs ont confirmé', function () {
     $this->postJson('/api/groupes/table-1/marche/confirmation')
         ->assertOk()->assertJsonPath('applique', true);
 
-    // Or débité/crédité sur la bourse commune : 1000 − 350 + 12.
-    expect($groupe->fresh()->or)->toBe(662);
+    // Or débité/crédité sur la bourse commune : 1000 − 250 + 12.
+    expect($groupe->fresh()->or)->toBe(762);
 
     // Achats rangés : l'épée au SAC d'Albrecht, les potions empilées hors sac.
     $sac = Inventaire::where('personnage_id', $heroAlice->id)->get();
     $epee = $sac->firstWhere('emplacement', 'sac');
     $potions = $sac->firstWhere('emplacement', 'consommable');
     expect($epee->objet->nom)->toBe('Épée courte')
-        ->and($potions->objet->nom)->toBe('Potion de soin')
+        ->and($potions->objet->nom)->toBe('Potion de sang de serpent')
         ->and($potions->quantite)->toBe(2);
 
     // La vente a retiré la ligne de l'inventaire de Brunhilde.
@@ -548,8 +549,9 @@ it('retire de l\'étal ce qu\'AUCUN membre du groupe ne peut utiliser', function
 
     expect($sansBarbare)->not->toContain('Potion de rage guerrière')
         ->and($sansBarbare)->not->toContain('Potion de peau de givre')
-        // …mais tout ce qui n'exige aucune maîtrise reste en rayon.
-        ->and($sansBarbare)->toContain('Potion de soin');
+        // …mais tout ce qui n'exige aucune maîtrise reste en rayon (la Potion de soin, elle,
+        // est hors étal depuis le 2026-10-16 : prix non sourcé).
+        ->and($sansBarbare)->toContain('Potion de sang de serpent');
 
     // Un barbare rejoint le groupe : sa potion revient à l'étal.
     $this->deleteJson('/api/groupes/table-1/marche')->assertNoContent();
@@ -682,6 +684,38 @@ it('ne propose pas à la REVENTE une carte de trésor sans prix, et la refuse c�
     ])->assertStatus(422)->assertJsonValidationErrors('ventes');
 
     expect(Inventaire::whereKey($potion->id)->exists())->toBeTrue();
+});
+
+it('la Potion de soin, prix NON SOURCÉ, est hors étal : ni achetée, ni revendue — la Potion de guérison, sourcée, reste en vente', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $groupe->update(['or' => 1000]);
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    // Possédée AVANT l'ouverture de l'étal (comme une trouvaille de fouille) : la liste
+    // vendable du panier est bâtie à l'ouverture.
+    $possedee = donnerObjet($hero->id, 'Potion de soin', 'consommable');
+    $potionSoin = Objet::where('nom', 'Potion de soin')->firstOrFail();
+
+    $reponse = $this->postJson('/api/groupes/table-1/marche')->assertCreated();
+
+    expect(collect($reponse->json('inventaire'))->pluck('nom'))->not->toContain('Potion de soin')
+        ->and(collect($reponse->json('inventaire'))->pluck('nom'))->toContain('Potion de guérison')
+        ->and(collect($reponse->json('paniers.0.inventaire'))->pluck('nom'))->not->toContain('Potion de soin');
+
+    // Achat refusé par le moteur (422), comme un objet hors étal.
+    $this->putJson('/api/groupes/table-1/marche/panier', [
+        'achats' => [['objet_id' => $potionSoin->id]],
+        'ventes' => [],
+    ])->assertStatus(422)->assertJsonValidationErrors('achats');
+
+    // Revente refusée par le moteur : elle reste au sac.
+    $this->putJson('/api/groupes/table-1/marche/panier', [
+        'achats' => [],
+        'ventes' => [['inventaire_id' => $possedee->id]],
+    ])->assertStatus(422)->assertJsonValidationErrors('ventes');
+
+    expect(Inventaire::whereKey($possedee->id)->exists())->toBeTrue();
 });
 
 it('les quatre profils donnent le MÊME étal, sans carte de trésor sans prix (règle « un seul marchand »)', function () {

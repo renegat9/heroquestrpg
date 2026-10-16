@@ -972,6 +972,7 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <AnnonceHub
                             :entretien="etat?.groupe?.mercenaires_entretien ?? null"
                             :faveur="etat?.groupe?.faveur_hopekins ?? null"
+                            :hopekins="etat?.groupe?.hopekins ?? null"
                             :peacekeeper="etat?.groupe?.peacekeeper ?? null"
                             :reveil="etat?.groupe?.objets_reveilles ?? null"
                             :vote="etat?.groupe?.vote_sortie ?? null"

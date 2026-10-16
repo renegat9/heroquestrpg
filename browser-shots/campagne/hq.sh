@@ -76,6 +76,12 @@ case "${1:-}" in
   # Faveur Weapon Expert (reçue à la fin d'une quête) : `moi` publie `faveurs[].choix` au hub ;
   # on choisit le type d'arme (objet_id) avant de se déclarer prêt.
   arme-faveur) req PUT "/groupes/$GROUPE/faveurs/weapon-expert" "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"objet_id\":$2}" ;;
+  # Hopekins Rest (Wizards of Morcar, René 2026-10-16) : au hub, CHAQUE héros choisit le lieu de sa faveur,
+  # ou renonce. `moi` publie `visite_hopekins.lieux` (liste blanche : `disponible`, `motif`) ; `/pret` répond
+  # 422 « peut visiter un lieu » tant que le héros n'a pas tranché. Ex. : `hq.sh 1 visite dewdrop_inn`,
+  # `hq.sh 2 visite aucun`.
+  visite) if [ "${2:-}" = "aucun" ]; then LIEU=null; else LIEU="\"${2:-}\""; fi
+          req PUT "/groupes/$GROUPE/faveurs/lieu" "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"lieu\":$LIEU}" ;;
   marche)  # POST ouvre la phase si elle ne l'est pas ; GET la relit ensuite.
            req POST "/groupes/$GROUPE/marche" >/dev/null 2>&1
            req GET "/groupes/$GROUPE/marche" ;;
@@ -94,5 +100,5 @@ case "${1:-}" in
   vote)    req POST "/groupes/$GROUPE/votes/bulletin" "{\"option_id\":\"$2\"}" ;;
   choix)   req POST "/groupes/$GROUPE/choix" "{\"option_id\":\"$2\"${3:+,\"parametres\":$3}}" ;;
   reaction) req POST "/groupes/$GROUPE/reaction" "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"accepte\":$2${3:+,\"soin\":\"$3\"}}" ;;
-  *) echo "usage: hq.sh <slot> etat|menu|moi|pret|choix|reaction|votes|vote|marche|panier|confirmer|equiper|desequiper|donner|compagnon|arme-faveur" >&2; exit 2 ;;
+  *) echo "usage: hq.sh <slot> etat|menu|moi|pret|choix|reaction|votes|vote|marche|panier|confirmer|equiper|desequiper|donner|compagnon|arme-faveur|visite" >&2; exit 2 ;;
 esac

@@ -226,6 +226,10 @@ class AuthController extends Controller
                         // qu'il reste à faire, et seulement AU HUB (René, 2026-10-15) : la
                         // même décision que `PUT …/faveurs/weapon-expert` applique.
                         'faveurs' => FaveursHopekins::publier($p, ! $disponible && ($p->groupeActif->phase ?? null) === 'hub'),
+                        // VISITE de Hopekins Rest à ce tour de hub (Wizards of Morcar, René 2026-10-16) : le lieu
+                        // à choisir et la liste BLANCHE qui la revalide (`PUT …/faveurs/lieu`). `null` quand il n'y
+                        // a rien à décider : tour fermé, héros déjà décidé, ou campagne sans Morcar.
+                        'visite_hopekins' => FaveursHopekins::visiteOuverte($p->groupeActif, $p),
                         // Points JAMAIS stockés (contrat) : (niveau − 1) − nœuds acquis.
                         // ⚠ Point de passage UNIQUE. Cette ligne portait sa
                         // propre copie de la formule, et la copie ignorait

@@ -179,7 +179,7 @@ magicien, qui restait sinon à 2 dés toute la campagne.
 |---|---|---|---|
 | **Trousse à outils** | Peu commun | 250 | Permet de désamorcer les pièges (clé pour le Nain). |
 | **Potion de soin** | Commun | variable | Rend des Points de Body (doc Personnages, §potions). |
-| **Parchemin** | Selon le sort | variable | Sort à usage unique ; rareté = puissance du sort (doc Sorts §6/§7). |
+| ~~**Parchemin**~~ | Selon le sort | — | **Hors marché depuis le 2026-10-16** (décision de René) : ni acheté, ni vendu. Trouvé au mobilier (bibliothèque, établi d'alchimiste) ou en épreuve. Sort à usage unique ; rareté = puissance du sort (doc Sorts §6/§7). |
 
 ### Améliorations de Forge (Nain) — *prix fixe*
 Forgées par le Nain **au hub, entre les quêtes**, payées sur la **bourse commune**. **Une seule amélioration par objet**, **permanente** et **attachée à l'objet** (doc Personnages §6). Les objets de rareté **Unique** (artefacts, butin de boss) **ne peuvent pas être améliorés**.
@@ -249,7 +249,7 @@ La transaction est **groupée et atomique** sur tous les paniers : chaque joueur
 
 - **Personnages** : `inventaire` et équipement équipé (l'**or** est au niveau de la partie, pas du personnage).
 - **Combat** : stats d'armes/armures définies au §4.
-- **Sorts** : parchemins comme marchandise ; difficulté d'usage côté doc Sorts.
+- **Sorts** : parchemins HORS marché depuis le 2026-10-16 (René) — on les trouve au mobilier ; difficulté d'usage côté doc Sorts.
 - **Quêtes / MJ IA** : profils de lieu pilotés par le contexte narratif.
 
 ---

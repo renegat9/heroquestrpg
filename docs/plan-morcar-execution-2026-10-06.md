@@ -54,3 +54,25 @@ jeu → donnée.
 Suite Pest complète, migrations/seeders sur la vraie base après
 `./image-tools/sauvegarder.sh`, workers redémarrés, campagne d'agents sur le
 thème `wizards_of_morcar`.
+
+## Décisions de René du 2026-10-16 (addendum, consignées — le plan d'origine n'est pas réécrit)
+
+- **Faveurs de Hopekins — DURÉE : suivre le livret.** Une faveur est TENUE jusqu'à la réception d'une
+  autre (« A hero may only benefit from one boon at a time » ; « This Mercenary returns to the guild if
+  you ever choose another boon »). Recevoir une faveur relâche celles que le héros tient, effet compris
+  (`FaveursHopekins::relacherFaveursTenues()`). Pas de durée « une quête » : le livret ne la donne pas.
+  Le TIRAGE reste au hasard — écart nommé et non tranché : le livret fait choisir chaque joueur pour son
+  héros. Repli : les faveurs héritées tombent à la prochaine réception. Tests : `FaveursHopekinsDureeTest`.
+- **Potion de soin** (100 po, prix non sourcé) : hors de l'étal, par le drapeau `effet.hors_marche`
+  (migration `2026_10_16_120000_potion_de_soin_hors_marche`). Raison écrite : « prix non sourcé ; la
+  Potion de guérison sourcée, 500 po, reste en vente ». Elle reste buvable.
+- **Mercenaire offert par la Guilde** : l'entretien de 10 po par quête reste DÛ (« cost » = le prix
+  d'engagement de la carte).
+- **Bibliothèque arcanique** : pas de répertoire elfique — la carte ne le nomme pas (« an additional set
+  of spells that you are eligible to cast »).
+- **Mind Burst** : écart de crânes BRUTS, sans boucliers, comme le livret (la décision du 2026-10-15
+  portait sur Mind Lock et Dominate seulement).
+- **Monstre errant** : s'il est encore au contact du fouilleur à la phase des monstres du même round
+  (tour de Zargon), il frappe à nouveau, comme tout monstre.
+- **Deathspinner** : PAS de *Spawn* / *Agile* / *Venomous* tant que la source n'est pas officielle — ils
+  viennent de la compilation communautaire d'errata (`docs/plan-errata-2021.md` §5), sans confirmation.

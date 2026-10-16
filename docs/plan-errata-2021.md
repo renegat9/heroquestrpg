@@ -237,7 +237,7 @@ Recommandation : ne rien changer sans demande.
 - **Contenu non porté** (la clarification est à reprendre **le jour** où
   il l'est) :
   - *Venim* : stats officielles M9 A6 D6 B5 Mi4, pas celles de Kedrick ;
-  - *Deathspinner* : 6 cases, *Spawn* / *Agile* / *Venomous* ;
+  - *Deathspinner* : 6 cases, *Spawn* / *Agile* / *Venomous* ; (René, 2026-10-16 : ces trois mots restent NON portés, faute de source officielle) ;
   - *Gretzl* : garde ses capacités sous toutes ses formes ;
   - *Minotaur Gore* ;
   - sorts de *Wizards of Morcar* : *Call Skeletons* agit le tour même ;

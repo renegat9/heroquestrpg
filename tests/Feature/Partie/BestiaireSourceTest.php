@@ -277,6 +277,9 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
         // `sortsLancables()`) et la GARDE PERSONNELLE de Festral (`GardePersonnelle`, lue par
         // `InstanceMonstre::statDeBase()`). `SortsOgreHordeTest` les confronte aux données dans les deux sens.
         'reserve_cartes', 'garde_personnelle',
+        // Le MOUVEMENT APRÈS UN SORT (F9528 p. 10, 2026-10-16) : la marche qui suit le lancer d'un Sorcier de l'Ogre Horde,
+        // lue par `ResolveurTour::avancerApresSortDread()` ; `SortsOgreHordeTest` la joue en jeu.
+        'mouvement_apres_sort',
         // Le patron TOURELLE et les adversaires nommés de Jungles of Delthrak (René, 2026-10-15) :
         // le vocabulaire fermé `MotsClesAdversaires` dit, clé par clé, QUEL lecteur les applique ;
         // `AdversairesNommesTest` le confronte aux données dans les deux sens.
