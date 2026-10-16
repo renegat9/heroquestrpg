@@ -127,6 +127,14 @@ final class EtatGroupe
             // compagnon animal est déjà pris (un seul par groupe).
             $preambuleGroupe['mercenaires'] = $this->mercenairesRecrutes($groupe);
 
+            // COMPAGNON ANIMAL OFFERT (Against the Ogre Horde p. 8-9, « at no cost ») : la
+            // proposition, DÉCIDÉE côté serveur (`CompagnonOffert`) — le seuil de quatre héros,
+            // « une seule fois » et la liste des animaux n'ont pas à être re-dérivés par un
+            // écran. `null` quand il n'y a rien à proposer (déjà tranché, quête lancée, ou
+            // quatre héros) ; sinon `{nb_heros, seuil, consigne, animaux}`, la liste étant la
+            // LISTE BLANCHE que `POST …/compagnon-offert` revalide.
+            $preambuleGroupe['compagnon_offert'] = app(CompagnonOffert::class)->publier($groupe);
+
             // STATUT DE GARDIEN (chantier 1c, Wizards of Morcar, 2026-10-06) :
             // la DÉCISION publiée côté serveur — le panneau de recrutement
             // affiche un message de blocage plutôt que de recalculer la
@@ -1155,6 +1163,8 @@ final class EtatGroupe
                 'nom' => $a->mercenaire->nom,
                 'type' => $a->mercenaire->type,
                 'animal' => (bool) $a->mercenaire->animal,
+                // Le compagnon OFFERT (Against the Ogre Horde) : sans entretien, pour toute la campagne.
+                'offert' => (bool) $a->offert,
                 'pv_body' => (int) $a->pv_body,
                 'pv_body_max' => (int) $a->mercenaire->pv_body,
                 'image_url' => app(BibliothequeImages::class)->urlMercenaire($a->mercenaire_id, $a->mercenaire->nom),
@@ -1293,6 +1303,12 @@ final class EtatGroupe
                     // n'annonce autrement, et c'est un compagnon adjacent qui
                     // doit décider de venir les détacher.
                     'jetons_rejeton' => (int) ($etat?->jetons_rejeton ?? 0),
+                    // SABLES MOUVANTS (*The Mage of the Mirror* p. 29) : le héros ENLISÉ, qui ne
+                    // ressortira qu'à son tour suivant. `null` hors des sables ; sinon la DÉCISION —
+                    // combien d'objets il lui reste à abandonner, et la case où il ressortira
+                    // (`MoteurSables::publier()`). Sans elle, un héros immobile sur une case de
+                    // sable n'est qu'une figurine bloquée dont rien ne dit la cause.
+                    'enlise' => MoteurSables::publier($etat),
                     // Réaction HORS TOUR en attente de décision (Dark Wings,
                     // Twisting Torrent). Exposée ici en plus du broadcast privé
                     // `.reaction.proposee` : une manette rechargée au mauvais

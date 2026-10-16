@@ -192,6 +192,7 @@ final class ResolveurTour
         private readonly MoteurOracle $oracle,
         private readonly FaveursHopekins $faveurs,
         private readonly DeplacementHeros $deplacement,
+        private readonly ReactionsMj $reactionsMj,
     ) {}
 
     /**
@@ -257,6 +258,23 @@ final class ResolveurTour
      * `tour`) qui ferme le tour. Voir `resoudreDeplacement()`.
      */
     private bool $finTourPiegeSol = false;
+
+    /**
+     * SABLES MOUVANTS (*The Mage of the Mirror* p. 29) : « This ends the hero's turn. »
+     * Posé par le résolveur du saut / de la défausse quand il vient de clore le tour du
+     * héros (dernier objet abandonné, ou héros tombé faute d'en avoir), lu une seule fois
+     * pour forcer `$creneauEffectif = 'tour'` — le MÊME mécanisme que `$finTourPiegeSol`,
+     * dans une variable à part parce que la cause n'est pas un piège de sol.
+     */
+    private bool $finTourSables = false;
+
+    /** Les sables mouvants — construit avec LE lanceur de ce résolveur, pour que le dé du saut soit le sien. */
+    private ?MoteurSables $moteurSables = null;
+
+    private function sables(): MoteurSables
+    {
+        return $this->moteurSables ??= new MoteurSables($this->des, $this->equipement);
+    }
 
     /**
      * `resultat.type` d'une action SUSPENDUE sur une *Vision du futur* : le jet
@@ -352,6 +370,7 @@ final class ResolveurTour
         $this->mouvementsAnime = [];
         $this->evenementGlace = null;
         $this->finTourPiegeSol = false;
+        $this->finTourSables = false;
         // Tampon vidé À L'ENTRÉE aussi : une résolution précédente refusée en
         // cours de route (422) n'a jamais atteint le vidage de la sortie, et ses
         // annonces s'afficheraient sur l'action de quelqu'un d'autre.
@@ -397,6 +416,23 @@ final class ResolveurTour
         }
 
         $this->verifierInitiative($groupe, $quete, $personnage, $etats);
+
+        // SABLES MOUVANTS (F7539 p. 29) : un héros ENLISÉ n'a que les gestes de la règle.
+        // Le menu n'en propose pas d'autres (`MoteurSables::menuForce()`) ; ce garde-fou
+        // refuse l'option forgée ou périmée qui, elle, aurait déjà traversé le contrôleur.
+        if ($etat->enlise !== null) {
+            $permis = ($etat->enlise['phase'] ?? null) === MoteurSables::PHASE_DEFAUSSE
+                ? ['defausse_sables']
+                : ['sortie_sables', 'attente'];
+
+            if (! in_array((string) ($option['type'] ?? ''), $permis, true)) {
+                throw ValidationException::withMessages([
+                    'option_id' => ($etat->enlise['phase'] ?? null) === MoteurSables::PHASE_DEFAUSSE
+                        ? 'Vous vous enlisez : abandonnez d\'abord les objets que les sables vous demandent.'
+                        : 'Vous êtes enlisé : vous ne pouvez que vous hisser hors des sables à votre tour.',
+                ]);
+            }
+        }
 
         // VISION DU FUTUR (2026-10-08) : tant qu'un jet attend la réponse du héros
         // — son d6 de déplacement, ou une action suspendue —, RIEN d'autre ne se
@@ -603,6 +639,11 @@ final class ResolveurTour
                 // `MenuMoteur::generer()`, qui n'offre plus que cette option
                 // tant que `etat_personnage_quete.piege_a_ecarter` est posé.
                 's_ecarter_du_bloc' => $this->resoudreEcartDuBloc($groupe, $etat, $option, $parametres, $acteur),
+                // SABLES MOUVANTS (F7539 p. 29) : le saut, la défausse forcée, la sortie — voir
+                // `MoteurSables`. Le menu d'un héros enlisé n'offre que les deux dernières.
+                'saut_sables' => $this->resoudreSautSables($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'defausse_sables' => $this->resoudreDefausseSables($groupe, $personnage, $etat, $option, $parametres, $acteur),
+                'sortie_sables' => $this->resoudreSortieSables($groupe, $quete, $personnage, $etat, $option, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
@@ -629,7 +670,7 @@ final class ResolveurTour
             // immediately ends » (livret p. 14) sous les trois pièges de sol,
             // et c'est le SEUL et MÊME point de passage qui ferme un tour
             // avant que les deux créneaux ne soient consommés.
-            $creneauEffectif = (($this->evenementGlace['fin_tour'] ?? false) || $this->finTourPiegeSol)
+            $creneauEffectif = (($this->evenementGlace['fin_tour'] ?? false) || $this->finTourPiegeSol || $this->finTourSables)
                 ? 'tour' : $creneau;
 
             // Consomme le créneau (mouvement/action) ; le tour ne se termine
@@ -1493,7 +1534,10 @@ final class ResolveurTour
             )) {
                 throw ValidationException::withMessages(['option_id' => 'Cible hors de vue : aucune ligne de tir dégagée.']);
             }
-        } elseif ($armePrincipale?->interditAuContact($lancer) ?? false) {
+        } elseif ($lancer && ($armePrincipale?->interditAuContact(true) ?? false)) {
+            // Seul le LANCER au contact reste refusé (« cannot be used on an adjacent target »).
+            // Un `attaquer` au contact d'une arme qui refuse le contact n'est plus une erreur :
+            // le héros frappe À MAINS NUES (René, 2026-10-15), décidé dans `frapper()`.
             throw ValidationException::withMessages([
                 'option_id' => "« {$armePrincipale->nom} » ne peut pas être utilisée au corps-à-corps.",
             ]);
@@ -1654,6 +1698,20 @@ final class ResolveurTour
         $ligneArme ??= $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first();
         $armePrincipale = $ligneArme?->objet;
 
+        // ARME QUI REFUSE LE CONTACT (Arbalète, arcs, Fronde, Dague de jet magique :
+        // `inutilisable_adjacent`) : au contact, le héros FRAPPE À MAINS NUES (René,
+        // 2026-10-15) — l'arme reste en main, intacte, pour le prochain tir. Décidé ICI, au
+        // seul choke-point de la frappe, par le prédicat que lit déjà le menu
+        // (`Objet::interditAuContact()`) : attaque du menu, riposte hors tour et frappe
+        // balayée convergent, aucune ne recopie la règle. Tout ce qui suit lit alors
+        // `$ligneArme`/`$armePrincipale` à `null` — c'est le profil « mains nues » existant.
+        $mainsNuesForcees = ! $tirADistance && ! $lancer && ($armePrincipale?->interditAuContact() ?? false);
+
+        if ($mainsNuesForcees) {
+            $ligneArme = null;
+            $armePrincipale = null;
+        }
+
         // Courage (doc 02 §7) : +2 dés à la PROCHAINE attaque, consommé ici.
         // Le contexte `au_contact` sert aux bonus CONDITIONNELS — la
         // Métamorphose du Druide n'accorde son dé qu'« en attaquant un monstre
@@ -1772,7 +1830,10 @@ final class ResolveurTour
         // en route (dual-wielding, 2026-08-12).
         $desArme = (int) $personnage->des_attaque;
 
-        if ($ligneArme !== null && $ligneArme->emplacement === 'arme_secondaire') {
+        // Main gauche, OU mains nues forcées par une arme qui refuse le contact : même échange
+        // de la part de l'arme (`desAttaqueAvec(null)` = le profil mains nues, celui d'un héros
+        // qui a lancé sa seule arme — aucune seconde valeur à tenir).
+        if ($mainsNuesForcees || ($ligneArme !== null && $ligneArme->emplacement === 'arme_secondaire')) {
             $mainDroite = $personnage->inventaire()
                 ->where('emplacement', 'arme_principale')->with('objet')->first();
 
@@ -4800,6 +4861,84 @@ final class ResolveurTour
     }
 
     /**
+     * SAUTER PAR-DESSUS LES SABLES MOUVANTS (F7539 p. 29) — la règle est dans
+     * `MoteurSables`; ce corps ne fait que ce qui appartient au RÉSOLVEUR : lui
+     * fournir les points de déplacement restants (`pointsDeplacement()` lui est privé),
+     * clore le tour si l'échec l'exige, et — comme après une fosse franchie — laisser
+     * l'Œil du mineur et la détection des portes secrètes se faire autour de la réception.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreSautSables(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $totalTour = (int) ($etat->deplacement_tour ?? $personnage->deplacement_base);
+        ['restant' => $restant] = $this->pointsDeplacement($personnage, $etat, $totalTour);
+
+        $payload = $this->sables()->resoudreSaut($groupe, $quete, $personnage, $etat, $option, $restant, $acteur);
+        $this->finTourSables = ! empty($payload['fin_de_tour']);
+
+        if (! empty($payload['franchi'])) {
+            $this->pieges->detecterAdjacents($groupe, $quete->carte, $personnage, (int) $payload['vers']['x'], (int) $payload['vers']['y']);
+            $this->portes->detecterSecretesAdjacentes($groupe, $quete->carte, $personnage, (int) $payload['vers']['x'], (int) $payload['vers']['y']);
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Abandonner un objet aux sables — le dernier (ou la chute faute d'objet) ferme le tour.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreDefausseSables(
+        Groupe $groupe,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        $payload = $this->sables()->resoudreDefausse($groupe, $personnage, $etat, $option, $parametres, $acteur);
+        $this->finTourSables = ! empty($payload['fin_de_tour']);
+
+        return $payload;
+    }
+
+    /**
+     * Se hisser hors des sables, sur la case d'en face — créneau `tour`.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreSortieSables(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $payload = $this->sables()->resoudreSortie($groupe, $quete, $personnage, $etat, $option, $acteur);
+
+        $this->pieges->detecterAdjacents($groupe, $quete->carte, $personnage, (int) $payload['vers']['x'], (int) $payload['vers']['y']);
+        $this->portes->detecterSecretesAdjacentes($groupe, $quete->carte, $personnage, (int) $payload['vers']['x'], (int) $payload['vers']['y']);
+
+        return $payload;
+    }
+
+    /**
      * S'ÉCARTER DU BLOC (Chute de blocs déclenchée, livret p. 14, 2026-09-24) :
      * le SEUL choix qu'un héros debout sur le bloc peut encore faire — voir
      * `MenuMoteur::generer()`, qui n'offre plus que `s_ecarter_du_bloc` tant
@@ -5389,14 +5528,20 @@ final class ResolveurTour
         // au hasard, pour toute la quête. Cible monstre (Sorcier) ou héros —
         // `cibleSort()` la valide contre la liste du menu, comme tout sort.
         if (! empty($sort->effet['oublie_sort'])) {
-            return $this->oublierSortSort($quete, $sort, $option, $parametres);
+            return $this->sousReactionMj(
+                $quete, $lanceur, $etat, $sort, $option, $parametres, cibleUnique: true,
+                effet: fn (array $o, array $p) => $this->oublierSortSort($quete, $sort, $o, $p),
+            );
         }
 
         // ÉCLAIR : même raison, un cran plus loin — il ne vise pas une figure
         // mais une DIRECTION, et le garde-fou ci-dessous réclamerait un
         // `cible_id` qu'il ne porte pas.
         if (! empty(($sort->effet ?? [])[self::EFFET_RAYON])) {
-            return $this->rayonDeSort($quete, $lanceur, $etat, $sort, $option);
+            return $this->sousReactionMj(
+                $quete, $lanceur, $etat, $sort, $option, $parametres, cibleUnique: false,
+                effet: fn (array $o, array $p) => $this->rayonDeSort($quete, $lanceur, $etat, $sort, $o),
+            );
         }
 
         // Garde-fou de ligne de vue (doc 03 §36) : un sort offensif (degats /
@@ -5410,11 +5555,191 @@ final class ResolveurTour
             $this->verifierLigneDeVueSort($quete, $etat, $option, $parametres);
         }
 
-        return match ($sort->type) {
-            'degats' => $this->sortDegats($quete, $sort, $option, $parametres, $lanceur),
-            'mental' => $this->sortMental($quete, $sort, $option, $parametres, $lanceur),
-            default => $this->sortUtilitaire($quete, $lanceur, $etat, $sort, $option, $parametres),
-        };
+        // Une ZONE (Flamme hypnotique) balaie tout ce qui se tient dans la salle : aucune
+        // figure unique n'est visée — la couture du MJ le sait par `cibleUnique`.
+        return $this->sousReactionMj(
+            $quete, $lanceur, $etat, $sort, $option, $parametres,
+            cibleUnique: data_get($sort->effet, 'zone') === null,
+            effet: fn (array $o, array $p) => match ($sort->type) {
+                'degats' => $this->sortDegats($quete, $sort, $o, $p, $lanceur),
+                'mental' => $this->sortMental($quete, $sort, $o, $p, $lanceur),
+                default => $this->sortUtilitaire($quete, $lanceur, $etat, $sort, $o, $p),
+            },
+        );
+    }
+
+    /**
+     * LA COUTURE « LE MJ RÉAGIT AU SORT D'UN HÉROS » (René, 2026-10-15) : enveloppe de
+     * l'effet d'un sort, appelée par les trois sorties de `lancerSort()` — la seule
+     * porte par laquelle un sort de héros, connu ou parchemin, atteint un monstre.
+     *
+     * Le MOTEUR décide (`ReactionsMj`), jamais le MJ IA, et le héros n'est pas
+     * consulté : la résolution est synchrone. Trois issues, annoncées dans la clé
+     * `reactions_mj` du payload (contrat : §« Le MJ réagit au sort d'un héros ») :
+     *
+     *  - `annule` : le sort est lancé — donc épuisé par l'appelant — puis sans effet.
+     *    Le payload ne porte que la cible visée, `sort_annule: true`, et la réaction ;
+     *  - `renvoie` : l'effet est joué sur le LANCEUR (`viserLeLanceur()`), par la même
+     *    méthode d'effet que s'il avait visé le héros d'emblée — « The hero then suffers
+     *    the effect of the spell » — et jamais par une seconde copie des règles ;
+     *  - `resiste` / aucune : l'effet part, `resiste` en laissant la trace du jet.
+     *
+     * Puis *Break* (`apresSortDeHeros()`), seule réaction qui se joue APRÈS l'effet.
+     *
+     * ⚠ Appelée APRÈS la validation de la cible et de la ligne de vue : une réaction ne
+     * doit jamais dépenser une carte pour un lancer que la route refuse.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  \Closure(array<string, mixed>, array<string, mixed>): array<string, mixed>  $effet
+     *         l'effet du sort, avec l'option et les paramètres à utiliser
+     * @return array<string, mixed>
+     */
+    private function sousReactionMj(
+        Quete $quete,
+        Personnage $lanceur,
+        EtatPersonnageQuete $etat,
+        Sort $sort,
+        array $option,
+        array $parametres,
+        bool $cibleUnique,
+        \Closure $effet,
+    ): array {
+        $visees = $this->monstresVisesParSort($quete, $etat, $sort, $option, $parametres);
+        $decision = $this->reactionsMj->auSortDeHeros($quete, $lanceur, $etat, $visees, $cibleUnique);
+        $reactions = $decision === null ? [] : [$decision];
+        $premiere = $visees->first();
+
+        if ($decision !== null && $decision['issue'] === ReactionsMj::ISSUE_ANNULE) {
+            return [
+                ...($cibleUnique && $premiere !== null
+                    ? ['cible' => ['type' => 'monstre', 'instance_id' => (int) $premiere->id, 'nom' => $premiere->nomAffiche()]]
+                    : []),
+                'sort_annule' => true,
+                'reactions_mj' => $reactions,
+            ];
+        }
+
+        if ($decision !== null && $decision['issue'] === ReactionsMj::ISSUE_RENVOIE) {
+            [$optionRenvoyee, $parametresRenvoyes] = $this->viserLeLanceur($lanceur, $option, $parametres);
+
+            try {
+                $renvoye = $effet($optionRenvoyee, $parametresRenvoyes);
+            } catch (ValidationException) {
+                // Le sort n'a plus de prise sur son propre lanceur (Désapprentissage :
+                // plus aucun sort à lui faire perdre). Il est renvoyé, sans effet.
+                $renvoye = [];
+            }
+
+            return [...$renvoye, 'sort_renvoye' => true, 'reactions_mj' => $reactions];
+        }
+
+        $photo = $this->reactionsMj->photographier($visees);
+        $resultat = $effet($option, $parametres);
+
+        foreach ($this->reactionsMj->apresSortDeHeros($photo) as $rupture) {
+            $reactions[] = $rupture;
+
+            // LA VÉRITÉ du payload (même leçon que la rupture immédiate de Sommeil) :
+            // `effet_applique` dit si la condition est EN VIGUEUR une fois le sort lancé.
+            if (array_key_exists('effet_applique', $resultat)) {
+                $resultat['effet_applique'] = false;
+                $resultat['rompu_par_mj'] = true;
+            }
+        }
+
+        return $reactions === [] ? $resultat : [...$resultat, 'reactions_mj' => $reactions];
+    }
+
+    /**
+     * Les MONSTRES qu'un sort de héros prend pour cible — ce que la couture du MJ doit
+     * savoir et que seul le résolveur sait lire : une figure choisie (dégâts, mental,
+     * Désapprentissage), tout ce qui se tient sur la ligne d'un rayon, ou toute la salle
+     * d'un sort de zone. Vide pour un soin, un soutien, une porte, un mur.
+     *
+     * ⚠ Aucune règle n'est réécrite ici : la figure vient de `cibleSort()` (la même
+     * validation que l'effet), le rayon de `casesDuRayon()`/`monstresSur()`, la zone de
+     * `monstresDeLaSalleDeCase()` — que `sortDeZone()` lit aussi.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @return \Illuminate\Support\Collection<int, InstanceMonstre>
+     */
+    private function monstresVisesParSort(
+        Quete $quete,
+        EtatPersonnageQuete $etat,
+        Sort $sort,
+        array $option,
+        array $parametres,
+    ): \Illuminate\Support\Collection {
+        if (! empty(($sort->effet ?? [])[self::EFFET_RAYON])) {
+            $direction = (string) data_get($option, 'parametres.direction', '');
+
+            // Une direction inconnue : c'est `rayonDeSort()` qui répondra 422.
+            if (! isset(Rayon::DIRECTIONS[$direction]) || $etat->position_x === null) {
+                return collect();
+            }
+
+            $vises = collect();
+
+            foreach ($this->casesDuRayon($quete, (int) $etat->position_x, (int) $etat->position_y, $direction) as $case) {
+                foreach ($this->monstresSur($quete, $case['x'], $case['y']) as $instance) {
+                    $vises->put((int) $instance->id, $instance);
+                }
+            }
+
+            return $vises->values();
+        }
+
+        if (data_get($sort->effet, 'zone') === 'salle_du_lanceur') {
+            return $etat->position_x === null
+                ? collect()
+                : $this->monstresDeLaSalleDeCase($quete, (int) $etat->position_x, (int) $etat->position_y)->values();
+        }
+
+        if (in_array($sort->type, ['degats', 'mental'], true) || ! empty($sort->effet['oublie_sort'])) {
+            $cible = $this->cibleSort($quete, $option, $parametres);
+
+            return $cible['type'] === 'monstre' ? collect([$cible['monstre']]) : collect();
+        }
+
+        return collect();
+    }
+
+    /**
+     * Le sort retombe sur son lanceur (*Mirror Magic*) : la MÊME option, dont la liste
+     * blanche des cibles ne contient plus que le héros — `cibleSort()` la relit comme
+     * pour n'importe quel tir sur un compagnon, et c'est la branche « héros » de chaque
+     * effet qui répond (défense, résistance, protections), sans règle de plus.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @return array{0: array<string, mixed>, 1: array<string, mixed>}
+     */
+    private function viserLeLanceur(Personnage $lanceur, array $option, array $parametres): array
+    {
+        $option['parametres']['cibles'] = [['type' => 'heros', 'id' => (int) $lanceur->id, 'nom' => $lanceur->nom]];
+        $parametres['cible_id'] = (int) $lanceur->id;
+        $parametres['cible_type'] = 'heros';
+
+        return [$option, $parametres];
+    }
+
+    /**
+     * Les monstres actifs et révélés qui partagent la salle — ou le couloir — d'une case :
+     * ce que balaie un sort de zone. UN seul corps, lu par `sortDeZone()` et par la
+     * couture du MJ (`monstresVisesParSort()`).
+     *
+     * @return \Illuminate\Support\Collection<int, InstanceMonstre>
+     */
+    private function monstresDeLaSalleDeCase(Quete $quete, int $x, int $y): \Illuminate\Support\Collection
+    {
+        $salle = $this->salleDeCase($quete, $x, $y);
+
+        return $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+            ->with('monstre')->get()
+            ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
+                && $this->salleDeCase($quete, (int) $i->position_x, (int) $i->position_y) === $salle);
     }
 
     /**
@@ -5902,13 +6227,9 @@ final class ResolveurTour
             }
         }
 
-        // Monstres de la même zone.
-        foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->get() as $instance) {
-            if ($instance->position_x === null
-                || $this->salleDeCase($quete, (int) $instance->position_x, (int) $instance->position_y) !== $salle) {
-                continue;
-            }
-
+        // Monstres de la même zone — la liste que la couture du MJ lit aussi
+        // (`monstresDeLaSalleDeCase()`) : « qui ce sort balaie » n'a qu'un corps.
+        foreach ($this->monstresDeLaSalleDeCase($quete, (int) $etatLanceur->position_x, (int) $etatLanceur->position_y) as $instance) {
             $mind = (int) $instance->pv_mind;
 
             // Momies, zombies, squelettes : Mind 0, donc hors d'atteinte d'un
@@ -6890,8 +7211,12 @@ final class ResolveurTour
         // plus sa case, donc un allié/monstre a pu s'y placer) : il faut de la
         // place pour qu'il se relève. La grille exclut déjà les tombés — la case
         // est « traversable » ssi personne d'autre ne s'y tient.
-        if (! $this->grille($quete, exceptPersonnageId: $cibleId)
-            ->estTraversable((int) $cible->position_x, (int) $cible->position_y)) {
+        //
+        // ⚠ « Une AUTRE figure s'y tient-elle ? », pas « la case est-elle praticable ? » : un
+        // héros enlisé (sables mouvants) gît sur une case qui ne se traverse pas, et
+        // `estTraversable()` interdisait de le relever. Même question que `MenuMoteur`.
+        if ($this->grille($quete, exceptPersonnageId: $cibleId)
+            ->estOccupeeParFigure((int) $cible->position_x, (int) $cible->position_y)) {
             throw ValidationException::withMessages([
                 'option_id' => 'Impossible de le relever : une autre figure occupe sa case.',
             ]);
@@ -9608,7 +9933,7 @@ final class ResolveurTour
             ->orderBy('cout')
             ->orderBy('id')
             ->get()
-            ->first(fn (Monstre $m) => $bestiaire->autorise($m->boite));
+            ->first(fn (Monstre $m) => $bestiaire->autorise($m->boites()));
 
         if ($monstre === null) {
             return null;
@@ -11651,8 +11976,10 @@ final class ResolveurTour
     /**
      * Créneau de tour consommé par un type d'option (doc 03 §28) :
      *  - `mouvement` : se déplacer, franchir une fosse ;
-     *  - `tour` : actions qui sacrifient le tour entier (concentration, libérer
-     *    un captif, terminer le tour) ;
+     *  - `tour` : actions qui sacrifient le tour entier (concentration, terminer
+     *    le tour) ;
+     *  - `interaction` : gestes GRATUITS, ni déplacement ni action (ouvrir une
+     *    porte, libérer un captif — 2026-10-15 —, jeter, objet libre…) ;
      *  - `action` : tout le reste (attaque, jet/fouille, sort, parchemin,
      *    désamorçage, relever un compagnon — « une action, pas tout le tour »,
      *    René 2026-10-09).
@@ -11673,7 +12000,8 @@ final class ResolveurTour
     public static function creneauOption(string $type): string
     {
         return match ($type) {
-            'deplacement', 'franchissement' => 'mouvement',
+            // `saut_sables` : franchir les sables mouvants fait partie du MOUVEMENT, comme sauter une fosse.
+            'deplacement', 'franchissement', 'saut_sables' => 'mouvement',
             // Ouvrir une porte / actionner un levier = interaction LIBRE (E2) :
             // ne consomme ni le déplacement ni l'action — on s'arrête devant la
             // porte, on l'ouvre, puis on continue son mouvement s'il reste des points.
@@ -11707,24 +12035,28 @@ final class ResolveurTour
             // `desarmer_embrasement` (Magic Reference Chart, Wizards of Morcar,
             // 2026-10-08) : « discards a Tempest spell or any Water Spell » —
             // défausser est gratuit, comme `jeter` juste à côté.
+            // `liberer_captif` REJOINT cette liste le 2026-10-15 (René) : libérer un captif est
+            // GRATUIT, ni le déplacement ni l'action — aucun livret ne lui impose de coût
+            // (*The Frozen Horror* p. 19, *The Mage of the Mirror* p. 4). Avant, il sacrifiait le
+            // tour entier (`tour`), traitement qui n'avait jamais été tranché pour lui.
             'ouvrir_porte', 'oracle_salle', 'sortie', 'retraite', 'style', 'objet_libre', 'jeter',
-            'desarmer_embrasement' => 'interaction',
+            // `defausse_sables` : abandonner un objet aux sables est GRATUIT, comme `jeter` — c'est le DERNIER
+            // objet (ou la chute faute d'objet) qui clôt le tour, par `$finTourSables`, pas le type.
+            'desarmer_embrasement', 'liberer_captif', 'defausse_sables' => 'interaction',
             // `s_ecarter_du_bloc` REJOINT cette liste le 2026-09-24 : le seul
             // choix qu'un héros debout sur un bloc de pierre tombé peut encore
             // faire, et le livret dit que ce choix FERME son tour (p. 14) —
             // exactement comme se concentrer.
-            // `liberer_captif` REJOINT cette liste (chantier 3b, 2026-10-04) :
-            // libérer un captif n'est pas un geste qu'on fait en passant. ⚠ Il
-            // garde le créneau `tour` alors que RELEVER l'a quitté (2026-10-09) :
-            // le même traitement était voulu pour les deux, René n'a tranché que
-            // relever. À reprendre séparément, pas par alignement silencieux.
+            // `liberer_captif` avait REJOINT cette liste (chantier 3b, 2026-10-04) ; il l'a
+            // QUITTÉE le 2026-10-15 pour `interaction` (René : gratuit) — voir plus haut.
             // `relever` QUITTE cette liste le 2026-10-09 (décision de René,
             // verdict Morcar) : relever un compagnon consomme le créneau
             // d'ACTION. Le héros peut encore se déplacer avant ou après ; s'il a
             // entamé son mouvement, l'action lui confisque le reste
             // (`marquerCreneau()`, annoncé par `perd_deplacement`). Avant, il
             // sacrifiait le tour entier pour une seule relève.
-            'concentration', 'attente', 's_ecarter_du_bloc', 'liberer_captif' => 'tour',
+            // `sortie_sables` : « This ends the hero's turn. » — se hisser hors des sables clôt le tour.
+            'concentration', 'attente', 's_ecarter_du_bloc', 'sortie_sables' => 'tour',
             default => 'action',
         };
     }
@@ -11791,7 +12123,7 @@ final class ResolveurTour
                 return;
             }
 
-            // Fin de tour EXPLICITE (« Terminer le tour », concentration, libérer un captif).
+            // Fin de tour EXPLICITE (« Terminer le tour », concentration).
             $etat->a_joue = true;
 
             // « Remove the tile from the board if a creature ends their turn on

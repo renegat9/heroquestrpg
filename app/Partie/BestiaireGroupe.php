@@ -78,24 +78,60 @@ final class BestiaireGroupe
     /**
      * La créature (ou le terrain, l'objet) de cette boîte PEUT-elle apparaître ?
      * Toujours en automatique ; en manuel, jeu de base, `null` et boîtes cochées.
+     *
+     * `$boite` est une boîte, ou la LISTE des boîtes d'un monstre imprimé dans plusieurs
+     * (`Monstre::boites()`) : il suffit qu'UNE soit autorisée. Liste vide ou `null` = aucune
+     * boîte, donc générique.
+     *
+     * @param  string|list<string>|null  $boite
      */
-    public function autorise(?string $boite): bool
+    public function autorise(string|array|null $boite): bool
     {
         if (! $this->estManuel()) {
             return true;
         }
 
-        return $boite === null || $boite === self::BOITE_BASE || in_array($boite, $this->boites, true);
+        $boites = self::enListe($boite);
+
+        if ($boites === []) {
+            return true;
+        }
+
+        foreach ($boites as $b) {
+            if ($b === self::BOITE_BASE || in_array($b, $this->boites, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
      * Cette boîte est-elle un THÈME de la campagne — celle tirée en auto, une
      * cochée en manuel ? C'est la PRÉFÉRENCE (boss, forts) et ce qui allume le
      * matériel propre à une boîte (terrain, équipement de glace, artefact).
+     * Comme `autorise()`, accepte la liste des boîtes d'un monstre : UNE suffit.
+     *
+     * @param  string|list<string>|null  $boite
      */
-    public function contient(?string $boite): bool
+    public function contient(string|array|null $boite): bool
     {
-        return $boite !== null && in_array($boite, $this->boites, true);
+        foreach (self::enListe($boite) as $b) {
+            if (in_array($b, $this->boites, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  string|list<string>|null  $boite
+     * @return list<string>
+     */
+    private static function enListe(string|array|null $boite): array
+    {
+        return $boite === null ? [] : array_values((array) $boite);
     }
 
     /** Libellé lisible, décidé ici — jamais par le client. */

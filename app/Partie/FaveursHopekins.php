@@ -15,6 +15,7 @@ use App\Models\PersonnageFaveur;
 use App\Models\Quete;
 use App\Support\Journal;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Faveurs de Hopekins Rest (livret G1504 p. 22-23, Wizards of Morcar) —
@@ -35,11 +36,16 @@ use Illuminate\Support\Collection;
  * aligné sur la montée de niveau par jalon), UNE FOIS Gardien
  * (`Groupe::estGardien()`), le groupe reçoit UNE faveur TIRÉE AU HASARD
  * parmi les 5 non encore détenues par aucun héros actif du groupe, remise à
- * un héros actif lui aussi tiré au hasard. Ni choix ni file d'attente : zéro
- * UI nouvelle, une décision engine-autoritaire annoncée (journal + payload),
+ * un héros actif lui aussi tiré au hasard. Ni choix de la faveur ni file
+ * d'attente : une décision engine-autoritaire annoncée (journal + payload),
  * conforme à « le serveur publie la décision ». Épuisé (les 5 déjà
  * distribuées) : rien n'est tiré ce tour-ci, silencieusement — pas un défaut
  * à annoncer, au même titre qu'un butin qui ne tombe pas.
+ *
+ * UN SEUL choix reste au joueur (René, 2026-10-15) : le TYPE D'ARME de Weapon
+ * Expert (« Select a type of weapon […] when you acquire this Boon »). La faveur
+ * est tirée et remise au hasard, mais c'est le joueur du héros qui choisit sa
+ * spécialité, au hub, dès qu'il l'a reçue — voir `choisirTypeArme()`.
  */
 final class FaveursHopekins
 {
@@ -77,13 +83,12 @@ final class FaveursHopekins
      * Effet de chaque faveur EN CLAIR, pour la fiche du héros et l'annonce au
      * hub (« nom + effet », décision de portage 2026-10-08). Traduit de la carte
      * (`reference/18_extensions.md` §7), mais chaque phrase décrit ce que le
-     * MOTEUR fait, pas ce que la carte promet : Weapon Expert lie son type à la
-     * première arme maniée (aucun écran de choix), Hold the Line ne lance qu'un
-     * dé de combat. Vocabulaire fermé : même clés que `TOUTES`, testé.
+     * MOTEUR fait, pas ce que la carte promet : Hold the Line ne lance qu'un dé de
+     * combat. Vocabulaire fermé : même clés que `TOUTES`, testé.
      */
     public const EFFETS = [
         self::DEADEYE => 'Les figures (héros et monstres) ne bloquent pas votre ligne de vue pour attaquer ou lancer un sort.',
-        self::WEAPON_EXPERT => '+1 dé d\'attaque avec l\'arme de votre spécialité : le premier type d\'arme dont vous frappez après l\'avoir reçue.',
+        self::WEAPON_EXPERT => '+1 dé d\'attaque avec le type d\'arme que vous choisissez en recevant la faveur (au hub, entre deux quêtes).',
         self::HEALING_HANDS => 'Si un héros adjacent tombe à 0 PV, il peut boire une de vos potions de soin au lieu de la sienne.',
         self::HOLD_THE_LINE => 'Quand un monstre s\'éloigne des 8 cases qui vous entourent, un crâne au dé de combat lui inflige 1 PV de Body.',
         self::PEACEKEEPER => '25 po à la bourse commune pour chaque monstre que vous réduisez à 0 PV.',
@@ -105,8 +110,7 @@ final class FaveursHopekins
         // relisent — attaque, menu, sort) : `loaded()` évite une requête par
         // appel sans jamais risquer une faveur périmée (elle n'est JAMAIS
         // réécrite une fois acquise, hors le `parametre` encore vide de
-        // Weapon Expert, lui-même rechargé explicitement par son propre
-        // lecteur).
+        // Weapon Expert, que `choisirTypeArme()` renseigne puis fait relire).
         if (! $personnage->relationLoaded('faveurs')) {
             $personnage->load('faveurs');
         }
@@ -127,18 +131,45 @@ final class FaveursHopekins
      * au moment de publier, et non figé dans le journal : un texte corrigé
      * s'affiche aussitôt sur toutes les faveurs déjà acquises.
      *
-     * @return list<array{cle: string, libelle: string, effet: string}>
+     * *Weapon Expert* porte en plus sa DÉCISION, jamais ses ingrédients :
+     *  - `specialite` : le type d'arme choisi, sous son nom d'armurerie (`null` tant
+     *    qu'aucun n'est choisi) ;
+     *  - `choix` : la LISTE BLANCHE du choix à faire (`[{objet_id, nom, des_attaque}]`),
+     *    `null` quand il n'y a rien à choisir. `$choixOuvert` dit si le choix est
+     *    permis ICI (au hub : `PUT …/faveurs/weapon-expert` le refuse ailleurs) — la
+     *    manette n'a donc ni à connaître la phase ni à relire le catalogue d'armes.
+     *
+     * @return list<array<string, mixed>>
      */
-    public static function publier(Personnage $personnage): array
+    public static function publier(Personnage $personnage, bool $choixOuvert = false): array
     {
         $personnage->loadMissing('faveurs');
 
         return $personnage->faveurs
-            ->map(fn (PersonnageFaveur $f) => [
-                'cle' => $f->cle,
-                'libelle' => self::LIBELLES[$f->cle] ?? $f->cle,
-                'effet' => self::effet($f->cle),
-            ])
+            ->map(function (PersonnageFaveur $f) use ($personnage, $choixOuvert) {
+                $entree = [
+                    'cle' => $f->cle,
+                    'libelle' => self::LIBELLES[$f->cle] ?? $f->cle,
+                    'effet' => self::effet($f->cle),
+                ];
+
+                if ($f->cle === self::WEAPON_EXPERT) {
+                    $specialite = self::typeChoisi($f);
+                    $entree['specialite'] = $specialite;
+                    $entree['choix'] = null;
+
+                    if ($f->parametre === null && $choixOuvert) {
+                        $options = self::typesArmeChoisissables($personnage);
+                        $entree['choix'] = $options->isEmpty() ? null : $options->map(fn (Objet $o) => [
+                            'objet_id' => (int) $o->id,
+                            'nom' => (string) $o->nom,
+                            'des_attaque' => (int) ($o->effet['des_attaque'] ?? 0),
+                        ])->values()->all();
+                    }
+                }
+
+                return $entree;
+            })
             ->values()
             ->all();
     }
@@ -163,18 +194,137 @@ final class FaveursHopekins
     //
     // « Select a type of weapon […] when you acquire this Boon. When
     // attacking with a weapon of that type, roll 1 additional Attack
-    // dice. » Le tirage de la faveur ne passe par aucune UI de choix
-    // (voir le docblock de classe) : le TYPE choisi est donc lié
-    // PARESSEUSEMENT, à la première arme avec laquelle ce héros frappe
-    // après l'avoir reçue — « la première arme que vous maniez devient
-    // votre spécialité », une lecture fidèle à l'esprit de la carte sans
-    // inventer un écran de sélection.
+    // dice. » (livret G1504 p. 22-23.)
+    //
+    // DÉCISION DE RENÉ (2026-10-15) : le JOUEUR choisit le type d'arme AU MOMENT où
+    // il obtient la faveur. Ce moment est la fin d'une quête réussie
+    // (`attribuerFaveurDeFinDeQuete()` — la faveur et son porteur restent TIRÉS au
+    // hasard, ça n'a pas changé), donc le choix se fait AU HUB, entre deux quêtes :
+    //   - la faveur naît avec `parametre = null` ;
+    //   - `/moi` publie la liste blanche (`publier()`, clé `choix`) à son porteur, et
+    //     `PUT /groupes/{id}/faveurs/weapon-expert` ({@see self::choisirTypeArme()}) la
+    //     revalide, écrit `parametre` EN BASE et le fige : on ne change pas de
+    //     spécialité, la carte dit « when you acquire » ;
+    //   - `POST /pret` refuse à CE héros de se déclarer prêt tant qu'il n'a pas
+    //     tranché (même patron que le panier de marché non confirmé : on ne bloque
+    //     que celui dont le choix manque, et il suffit qu'il le fasse).
+    //
+    // LA LISTE vient du catalogue, jamais d'une liste recopiée : les armes de
+    // l'ARMURERIE (ni artefact `unique`, ni copie en os) que ce héros PEUT manier
+    // (`Equipement::estAccessible()` — offrir à un magicien une hache de bataille
+    // serait lui vendre un bonus qu'il ne touchera jamais).
+    //
+    // « UN TYPE » = `Equipement::typeDArme()` : le Fléau des Orques est une épée
+    // courte, la hache de bataille en os une hache de bataille. `parametre` garde
+    // l'id de l'arme d'armurerie choisie (la même forme que l'ancien lien paresseux).
+    //
+    // REPLI — une faveur dont le type n'est pas choisi reste JOUABLE : faveurs
+    // acquises avant ce changement, ou dont le joueur n'a rien choisi (la table lance
+    // la quête sans passer par `/pret`). Le PREMIER type d'arme dont ce héros frappe
+    // devient alors sa spécialité (l'ancien comportement, conservé tel quel) — jamais
+    // « aucun bonus », qui aurait rendu muette une faveur déjà gagnée. Une faveur
+    // dont l'ancien code a déjà lié une arme PRÉCISE garde ce lien, élargi à tout son
+    // type (une épée courte liée vaut désormais pour toutes les épées courtes).
 
     /**
-     * +1 dé d'attaque si `$arme` est le type choisi ; lie paresseusement le
-     * choix au premier appel si la faveur est détenue mais encore vierge.
-     * `0` si le héros n'a pas la faveur, ou frappe à mains nues (`$arme`
-     * `null` — rien à lier, rien à bonifier).
+     * Armes d'armurerie que ce héros peut choisir comme type — la LISTE BLANCHE du
+     * choix (revalidée par `choisirTypeArme()`), dans l'ordre du prix.
+     *
+     * @return Collection<int, Objet>
+     */
+    public static function typesArmeChoisissables(Personnage $personnage): Collection
+    {
+        $equipement = app(Equipement::class);
+
+        return Objet::query()
+            ->where('categorie', 'arme')
+            ->where('rarete', '!=', 'unique') // les artefacts ont chacun leur type : `est_une`.
+            ->whereNull('os_de') // la copie en os est de SON type, elle n'en est pas un.
+            ->orderBy('prix_base')
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (Objet $o) => $equipement->estAccessible($personnage, $o))
+            ->values();
+    }
+
+    /** Ce héros a-t-il un type d'arme à choisir MAINTENANT ? (faveur reçue, type vierge, au moins un choix possible) */
+    public static function choixEnAttente(Personnage $personnage): bool
+    {
+        $personnage->loadMissing('faveurs');
+        $faveur = $personnage->faveurs->firstWhere('cle', self::WEAPON_EXPERT);
+
+        return $faveur !== null
+            && $faveur->parametre === null
+            && self::typesArmeChoisissables($personnage)->isNotEmpty();
+    }
+
+    /**
+     * Le type d'arme lié à une faveur Weapon Expert, sous son nom d'armurerie —
+     * `null` si rien n'est lié (ou si l'arme liée a quitté le catalogue).
+     */
+    public static function typeChoisi(PersonnageFaveur $faveur): ?string
+    {
+        if ($faveur->cle !== self::WEAPON_EXPERT || $faveur->parametre === null) {
+            return null;
+        }
+
+        return app(Equipement::class)->typeDArme(Objet::find((int) $faveur->parametre));
+    }
+
+    /**
+     * Le joueur choisit le type d'arme de sa faveur. Revalide TOUT côté serveur : le
+     * héros porte la faveur, son type est encore vierge, et `$objetId` figure dans la
+     * liste blanche publiée (`typesArmeChoisissables()`).
+     *
+     * @return array{personnage_id: int, objet_id: int, specialite: string}
+     */
+    public function choisirTypeArme(Groupe $groupe, Personnage $personnage, int $objetId): array
+    {
+        $faveur = $this->faveur($personnage, self::WEAPON_EXPERT);
+
+        if ($faveur === null) {
+            throw ValidationException::withMessages([
+                'personnage_id' => "« {$personnage->nom} » n'a pas la faveur Weapon Expert.",
+            ]);
+        }
+
+        if ($faveur->parametre !== null) {
+            throw ValidationException::withMessages([
+                'objet_id' => 'Le type d\'arme de cette faveur est déjà choisi : le choix se fait une fois, en la recevant.',
+            ]);
+        }
+
+        $arme = self::typesArmeChoisissables($personnage)->firstWhere('id', $objetId);
+
+        if ($arme === null) {
+            throw ValidationException::withMessages([
+                'objet_id' => 'Ce n\'est pas un type d\'arme que ce héros peut choisir.',
+            ]);
+        }
+
+        $faveur->update(['parametre' => (string) $arme->id]);
+        $personnage->unsetRelation('faveurs');
+
+        Journal::ajouter($groupe, 'systeme', [
+            'action' => 'faveur_arme_choisie',
+            'personnage_id' => (int) $personnage->id,
+            'personnage' => $personnage->nom,
+            'faveur' => self::WEAPON_EXPERT,
+            'arme' => $arme->nom,
+        ], ['nom' => $personnage->nom]);
+
+        return [
+            'personnage_id' => (int) $personnage->id,
+            'objet_id' => (int) $arme->id,
+            'specialite' => (string) $arme->nom,
+        ];
+    }
+
+    /**
+     * +1 dé d'attaque si `$arme` est du type choisi ; si le type n'est PAS choisi, le
+     * premier type d'arme dont le héros frappe le devient (le repli décrit plus haut).
+     * `0` si le héros n'a pas la faveur, ou frappe à mains nues (`$arme` `null` — rien
+     * à lier, rien à bonifier).
      */
     public function bonusArmeExperte(Personnage $personnage, ?Objet $arme): int
     {
@@ -190,7 +340,9 @@ final class FaveursHopekins
             return 1; // la toute première frappe liée profite déjà du bonus.
         }
 
-        return (int) $faveur->parametre === $arme->id ? 1 : 0;
+        $type = self::typeChoisi($faveur);
+
+        return $type !== null && $type === app(Equipement::class)->typeDArme($arme) ? 1 : 0;
     }
 
     // ---- HEALING HANDS ---------------------------------------------------
@@ -325,18 +477,17 @@ final class FaveursHopekins
     //
     // « Keep track of the number of monsters you reduce to 0 Body Points for
     // each quest. For your service, the Realm rewards you with 25 gold
-    // coins per monster defeated the end of that quest. » Décision
-    // d'interprétation (2026-10-08, à arbitrer par René) : la carte paie « at
-    // the end of that quest » ; on paie à la mise à mort, sans compteur par
-    // quête à stocker. Identique quand la quête est GAGNÉE : les trois seules
-    // dépenses de la bourse (recrutement, forge, marché) sont refusées hors
-    // hub, donc l'or gagné en quête n'est jamais dépensé avant la fin. Deux
-    // écarts seulement : (a) un TPK sans reprise garde l'or des mises à mort
-    // faites avant la chute ; (b) l'or tombe au fil du combat. Une reprise
-    // (`POST /reprise`) restaure le snapshot `debut_quete`, bourse comprise :
-    // jamais compté deux fois. Un compteur par quête (colonne sur
-    // `etat_personnages_quete`, payé à la victoire) lèverait l'écart (a) — hors
-    // de ce chantier, à demander.
+    // coins per monster defeated the end of that quest. » La carte paie « at
+    // the end of that quest » et le code fait de même — plus rien à arbitrer :
+    // chaque mise à mort est COMPTÉE sur la ligne du héros
+    // (`etat_personnages_quete.monstres_vaincus`, durable, remise à zéro à
+    // chaque quête : `compterPeacekeeper()`), et l'or se verse à la fin d'une
+    // quête GAGNÉE (`reglerPeacekeeper()`, appelé par
+    // `ResolveurTour::terminerQuete()` seulement). Une quête perdue ne verse
+    // rien ; une reprise (`POST /reprise`) restaure le snapshot `debut_quete`,
+    // compteur compris : jamais compté deux fois. L'écart d'interprétation du
+    // 2026-10-08 (payer À LA MISE À MORT, sans compteur) est clos : aligné sur la
+    // carte, `docs/regles/exploration-et-fouille.md`.
     //
     // CÂBLÉ (2026-10-08) au seul point de passage de la mort d'un monstre,
     // `MoteurDegats::infligerAMonstre()` — plus aux deux branchements
@@ -539,6 +690,11 @@ final class FaveursHopekins
     {
         $mercenaires = GroupeMercenaire::where('groupe_id', $groupe->id)
             ->where('etat', 'actif')
+            // Le compagnon animal OFFERT (Against the Ogre Horde p. 8-9, « at no cost ») ne
+            // coûte jamais d'entretien : il n'a pas été engagé, il accompagne le groupe
+            // toute la campagne (`CompagnonOffert`). Sans cette exemption, un groupe à
+            // sec le perdrait à la première quête.
+            ->where('offert', false)
             ->whereHas('mercenaire', fn ($q) => $q->where('captif', false))
             ->with('mercenaire')
             ->orderBy('id')

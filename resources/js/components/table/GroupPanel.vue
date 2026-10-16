@@ -57,6 +57,7 @@ const condIcon = { poison: 'coronavirus', burn: 'local_fire_department', buff: '
                 <div v-for="f in p.faveurs" :key="f.cle" class="grp-faveur" :title="f.effet">
                     <MSym n="workspace_premium" fill :size="13" />
                     <b>{{ f.libelle }}</b>
+                    <span v-if="f.specialite">({{ f.specialite }})</span>
                     <span>{{ f.effet }}</span>
                 </div>
             </div>

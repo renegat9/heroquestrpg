@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Jobs\GenererMenu;
+use App\Models\EtatPersonnageQuete;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Monstre;
@@ -36,9 +37,14 @@ use Illuminate\Support\Facades\Http;
  *     relançait indéfiniment. Une arme jetable visée hors contact part TOUJOURS
  *     par `lancer`, et se perd.
  *  2. `inutilisable_adjacent` n'avait de lecteur que dans le RÉSOLVEUR : le menu
- *     offrait la cible au contact, le résolveur la refusait. Le menu retire
- *     désormais les cibles au contact (`Objet::interditAuContact()`, le même
- *     prédicat des deux côtés) — pour l'Arbalète comme pour la dague.
+ *     offrait la cible au contact, le résolveur la refusait. Un seul prédicat,
+ *     `Objet::interditAuContact()`, lu des deux côtés — pour l'Arbalète comme
+ *     pour la dague.
+ *  3. (René, 2026-10-15) L'arme ne tire pas au contact, mais le héros n'est pas
+ *     désarmé : au contact il FRAPPE À MAINS NUES, l'arme reste en main. Le menu
+ *     garde la cible, marquée par le serveur (`mains_nues`, `des_attaque`,
+ *     `indication`) ; `frapper()` applique la même règle ; seul un `lancer` au
+ *     contact reste refusé.
  */
 
 beforeEach(function () {
@@ -217,39 +223,52 @@ it('refuse un `attaquer` PÉRIMÉ qui viserait à distance avec la Dague de jet 
 // Au contact : `inutilisable_adjacent` retire la cible, menu ET résolveur
 // ---------------------------------------------------------------------------
 
-it('un monstre AU CONTACT n\'est ciblé par aucune option avec la Dague de jet magique', function () {
+it('un monstre AU CONTACT est frappé À MAINS NUES avec la Dague de jet magique — jamais lancée, jamais perdue', function () {
     $ctx = demarrerQueteAvecMonstre('Orque'); // placé au contact par le helper
     $ligne = dagueArmerSeulementDe($ctx['heros'], 'Dague de jet magique');
+    $desMainsNues = app(Equipement::class)->desAttaqueAvec($ctx['heros']->fresh(), null);
 
     $options = dagueMenu($ctx);
+    $attaquer = collect($options)->firstWhere('id', 'attaquer');
+    $cible = $attaquer['parametres']['cibles'][0];
 
-    expect(dagueCiblesDe($options, 'attaquer'))->toBe([])
+    // La cible au contact reste sur la liste blanche de `attaquer`, marquée PAR LE SERVEUR.
+    expect(dagueCiblesDe($options, 'attaquer'))->toBe([$ctx['instance']->id])
         ->and(dagueCiblesDe($options, 'lancer'))->toBe([])
-        ->and(collect($options)->pluck('id')->all())->not->toContain('attaquer')
-        ->and(collect($options)->pluck('id')->all())->not->toContain('lancer');
+        ->and($cible['mains_nues'])->toBeTrue()
+        ->and($cible['distance'])->toBeFalse()
+        ->and($cible['des_attaque'])->toBe($desMainsNues)
+        ->and($cible['indication'])->toBe("à mains nues ({$desMainsNues} dé".($desMainsNues > 1 ? 's' : '').')');
 
-    // Choix forgés : l'un et l'autre sont refusés par le RÉSOLVEUR (422).
-    foreach ([
-        ['id' => 'attaquer', 'lancer' => false, 'libelle' => 'Attaquer'],
-        ['id' => 'lancer', 'lancer' => true, 'libelle' => 'Lancer Dague de jet magique (perdue)'],
-    ] as $forge) {
-        dagueForgerMenu($ctx, $forge + [
-            'type' => 'attaque',
-            'parametres' => ['arme' => 'arme_principale', 'cibles' => [
-                ['id' => $ctx['instance']->id, 'type' => 'monstre', 'nom' => 'Orque'],
-            ]],
-        ]);
+    // Choix forgé : LANCER la dague sur un monstre au contact reste refusé par le résolveur (422).
+    dagueForgerMenu($ctx, [
+        'id' => 'lancer', 'lancer' => true, 'libelle' => 'Lancer Dague de jet magique (perdue)', 'type' => 'attaque',
+        'parametres' => ['arme' => 'arme_principale', 'cibles' => [
+            ['id' => $ctx['instance']->id, 'type' => 'monstre', 'nom' => 'Orque'],
+        ]],
+    ]);
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lancer', 'parametres' => ['cible_id' => $ctx['instance']->id],
+    ])->assertStatus(422);
+    expect(Inventaire::whereKey($ligne->id)->exists())->toBeTrue();
 
-        $this->postJson('/api/groupes/table-1/choix', [
-            'option_id' => $forge['id'], 'parametres' => ['cible_id' => $ctx['instance']->id],
-        ])->assertStatus(422);
-    }
+    // Le menu réel : le coup part à MAINS NUES — dés des mains nues, pas les dégâts fixes de la dague.
+    dagueMenu($ctx);
+    desFiges(array_fill(0, 30, 1)); // des crânes : l'Orque (2 PV) tombe si le coup touche assez
 
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.portee', 'corps_a_corps')
+        ->assertJsonPath('resultat.des_attaque_effectifs', $desMainsNues)
+        ->assertJsonMissingPath('resultat.lancer');
+
+    // L'arme est RESTÉE en main : rien n'a été lancé, rien n'est perdu.
     expect(Inventaire::whereKey($ligne->id)->exists())->toBeTrue()
-        ->and((int) $ctx['instance']->fresh()->pv_body)->toBe((int) Monstre::where('nom_base', 'Orque')->value('pv_body'));
+        ->and($ligne->fresh()->emplacement)->toBe('arme_principale');
 });
 
-it('avec un monstre au contact ET un autre à distance, seul le second est lançable', function () {
+it('avec un monstre au contact ET un autre à distance, seul le second est lançable — le premier se frappe à mains nues', function () {
     $ctx = demarrerQueteAvecMonstre('Orque');
     dagueArmerSeulementDe($ctx['heros'], 'Dague de jet magique');
 
@@ -268,8 +287,10 @@ it('avec un monstre au contact ET un autre à distance, seul le second est lanç
 
     $options = dagueMenu($ctx);
 
+    // Le lointain se LANCE (perdue) ; celui au contact se frappe À MAINS NUES sous `attaquer`.
     expect(dagueCiblesDe($options, 'lancer'))->toBe([$loin->id])
-        ->and(collect($options)->pluck('id')->all())->not->toContain('attaquer');
+        ->and(dagueCiblesDe($options, 'attaquer'))->toBe([$contact->id])
+        ->and(collect($options)->firstWhere('id', 'attaquer')['parametres']['cibles'][0]['mains_nues'])->toBeTrue();
 
     // Le monstre au contact, soumis au `lancer`, est refusé : hors liste blanche.
     $this->postJson('/api/groupes/table-1/choix', [
@@ -282,20 +303,63 @@ it('avec un monstre au contact ET un autre à distance, seul le second est lanç
     ])->assertStatus(202)->assertJsonPath('resultat.lancer.perdue', true);
 });
 
-it('l\'Arbalète (inutilisable_adjacent) n\'offre plus la cible au contact, mais tire toujours à distance', function () {
+it('l\'arbalétrier frappe à mains nues le monstre au contact ET tire à l\'arbalète sur celui qui est loin, dans le même menu', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'elfe']);
-    dagueArmerSeulementDe($ctx['heros'], 'Arbalète');
+    $ligne = dagueArmerSeulementDe($ctx['heros'], 'Arbalète');
+    $desMainsNues = app(Equipement::class)->desAttaqueAvec($ctx['heros']->fresh(), null);
+    $desArbalete = (int) $ctx['heros']->fresh()->des_attaque;
 
-    // Au contact : le menu ne propose rien (le résolveur le refusait déjà).
+    // L'arme donne plus de dés que les mains : sans quoi le test ne distinguerait rien.
+    expect($desArbalete)->toBeGreaterThan($desMainsNues);
+
+    $contact = $ctx['instance'];
+    $case = dagueCaseADistance(
+        $ctx['quete'], (int) $ctx['etatHeros']->position_x, (int) $ctx['etatHeros']->position_y,
+        ["{$contact->position_x},{$contact->position_y}"],
+    );
+    $loin = InstanceMonstre::create([
+        'quete_id' => $ctx['quete']->id,
+        'monstre_id' => Monstre::where('nom_base', 'Orque')->value('id'),
+        'pv_body' => 2, 'pv_body_max' => 2, 'pv_mind' => 0,
+        'position_x' => $case['x'], 'position_y' => $case['y'],
+        'etat' => 'actif', 'revele' => true,
+    ]);
+
     $options = dagueMenu($ctx);
-    expect(dagueCiblesDe($options, 'attaquer'))->toBe([]);
+    $cibles = collect(collect($options)->firstWhere('id', 'attaquer')['parametres']['cibles'])->keyBy('id');
 
-    // À distance : inchangée, sous `attaquer`, sans `lancer` (elle n'est pas jetable).
-    dagueEloigner($ctx);
-    $options = dagueMenu($ctx);
+    // Une seule entrée d'arme, deux cibles : le contact « à mains nues », le lointain avec l'arme.
+    expect(dagueCiblesDe($options, 'lancer'))->toBe([])
+        ->and($cibles->keys()->sort()->values()->all())->toBe(collect([$contact->id, $loin->id])->sort()->values()->all())
+        ->and($cibles[$contact->id]['mains_nues'])->toBeTrue()
+        ->and($cibles[$contact->id]['des_attaque'])->toBe($desMainsNues)
+        ->and($cibles[$contact->id]['distance'])->toBeFalse()
+        ->and($cibles[$loin->id]['distance'])->toBeTrue()
+        ->and(array_key_exists('mains_nues', $cibles[$loin->id]))->toBeFalse()
+        ->and(array_key_exists('indication', $cibles[$loin->id]))->toBeFalse();
 
-    expect(dagueCiblesDe($options, 'attaquer'))->toBe([$ctx['instance']->id])
-        ->and(dagueCiblesDe($options, 'lancer'))->toBe([]);
+    // 1. Au contact : dés des MAINS NUES, corps-à-corps, arme conservée.
+    desFiges(array_fill(0, 30, 4)); // boucliers blancs : aucun crâne, la frappe ne tue pas, on ne mesure que les dés
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $contact->id],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.portee', 'corps_a_corps')
+        ->assertJsonPath('resultat.des_attaque_effectifs', $desMainsNues);
+
+    expect(Inventaire::whereKey($ligne->id)->exists())->toBeTrue()
+        ->and((int) $ctx['heros']->fresh()->des_attaque)->toBe($desArbalete); // la colonne de l'arme n'a pas bougé
+
+    // 2. Tour suivant : sur le lointain, l'ARBALÈTE tire avec ses dés.
+    // (requête directe : le modèle du contexte est périmé, un `update` sur lui n'écrirait rien)
+    EtatPersonnageQuete::whereKey($ctx['etatHeros']->id)->update(['a_agi' => false, 'a_joue' => false]);
+    dagueMenu($ctx);
+    desFiges(array_fill(0, 30, 4));
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $loin->id],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.portee', 'distance')
+        ->assertJsonPath('resultat.des_attaque_effectifs', $desArbalete);
 });
 
 // ---------------------------------------------------------------------------

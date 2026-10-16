@@ -198,14 +198,14 @@ Voir Q5.
 
 | # | Question | Recommandation |
 |---|---|---|
-| **Q1** | Quête 6 câblée sur Sorcier/Nain/Barbare/Elfe par leur CLASSE : écarter cette quête du matériau exploitable (elle ne généralise à aucun groupe), ou l'adapter en « 2 héros au choix séparés des 2 autres » générique ? | Écarter — l'adaptation perdrait tout ce qui fait le sel du texte (chaînes de dialogue liées aux classes précises) sans rien ajouter de mécanique neuf |
-| **Q2** | Skulmar : sous-boss ou boss ? Son texte ne porte aucune capacité propre au-delà de la fuite, contrairement à Kessandria/Witch Lord qui lancent des sorts | Sous-boss — cohérent avec le patron « lanceur = boss, brute = sous-boss » déjà observé sur Doralf (Against the Ogre Horde) |
-| **Q3** | Seuil de Body déclenchant `fuit_si_affaibli` (« greatly reduced », non chiffré par le livret) | Décision de portage pure, proposer 1/3 des Body de départ (cohérent avec d'autres seuils « gravement affaibli » du projet), à confirmer |
-| **Q4** | Potion de vitesse de Kessandria : réutiliser le sort Patinage existant (`cases: 12`), ou une capacité innée hors sorts ? | Réutiliser Patinage — zéro nouveau code, le décalage thématique (patinage vs potion) est invisible au joueur puisque l'IA habille le libellé |
-| **Q5** | Immunités sélectives (lot D) : construire les trois formes (immunité totale, immunité partielle par type de dégât, liste blanche de sources) comme UNE échelle de mot-clés, ou une seule boîte s'arrête-t-elle à ce qu'elle utilise réellement (ici : Kessandria + Witch Lord + statues) sans construire la forme totale que SEULE Kellar's Keep emploie (Gargouille gardienne) ? | Construire ensemble — les deux plans se recoupent sur la même quête-type (boss final protégé), autant livrer l'échelle complète une fois |
-| **Q6** | Voir Q3 de `docs/plan-kellars-keep.md` (danger mobile autonome partagé rocher/Death Mist) | Une seule mécanique |
-| **Q7** | Salle rotative : construire (gros scope, fidélité ponctuelle) ou écarter par une phrase écrite ? | Écarter pour l'instant — c'est la pièce la plus chère du lot E pour l'usage le plus rare (une seule quête du livret) |
-| **Q8** | Fin de quête « capturé, enchaîne sans hub » (Bellthor) : un troisième état de fin de quête, ou rabattre sur `echouee` (le groupe perd, retour au hub, recommence) en perdant la continuité narrative scriptée ? | Rabattre sur `echouee` — un vrai troisième état de quête est un chantier d'ampleur (`ResolveurTour`, le modèle de reprise, les deux tests qui ferment aujourd'hui `terminee`/`echouee`) pour un usage qui n'existe que dans une quête imprimée qu'on ne rejoue pas telle quelle |
+| **Q1** | Quête 6 câblée sur Sorcier/Nain/Barbare/Elfe par leur CLASSE : écarter cette quête du matériau exploitable (elle ne généralise à aucun groupe), ou l'adapter en « 2 héros au choix séparés des 2 autres » générique ? → **tranchée le 2026-10-15** : quête 6 ÉCARTÉE. | Écarter — l'adaptation perdrait tout ce qui fait le sel du texte (chaînes de dialogue liées aux classes précises) sans rien ajouter de mécanique neuf |
+| **Q2** | Skulmar : sous-boss ou boss ? Son texte ne porte aucune capacité propre au-delà de la fuite, contrairement à Kessandria/Witch Lord qui lancent des sorts → **tranchée le 2026-10-15** : Skulmar = **sous-boss**. | Sous-boss — cohérent avec le patron « lanceur = boss, brute = sous-boss » déjà observé sur Doralf (Against the Ogre Horde) |
+| **Q3** | Seuil de Body déclenchant `fuit_si_affaibli` (« greatly reduced », non chiffré par le livret) → **tranchée le 2026-10-15** : seuil = **1/3 des Body de départ** (arrondi à fixer au portage). | Décision de portage pure, proposer 1/3 des Body de départ (cohérent avec d'autres seuils « gravement affaibli » du projet), à confirmer |
+| **Q4** | Potion de vitesse de Kessandria : réutiliser le sort Patinage existant (`cases: 12`), ou une capacité innée hors sorts ? → **tranchée le 2026-10-15** : la potion de Kessandria **est le sort Patinage**. | Réutiliser Patinage — zéro nouveau code, le décalage thématique (patinage vs potion) est invisible au joueur puisque l'IA habille le libellé |
+| **Q5** | Immunités sélectives (lot D) : construire les trois formes (immunité totale, immunité partielle par type de dégât, liste blanche de sources) comme UNE échelle de mot-clés, ou une seule boîte s'arrête-t-elle à ce qu'elle utilise réellement (ici : Kessandria + Witch Lord + statues) sans construire la forme totale que SEULE Kellar's Keep emploie (Gargouille gardienne) ? → **tranchée le 2026-10-15** : les trois formes sont construites ensemble. | Construire ensemble — les deux plans se recoupent sur la même quête-type (boss final protégé), autant livrer l'échelle complète une fois |
+| **Q6** | Voir Q3 de `docs/plan-kellars-keep.md` (danger mobile autonome partagé rocher/Death Mist) → **tranchée le 2026-10-15** : une seule mécanique (Kellar's Keep, Q3). | Une seule mécanique |
+| **Q7** | Salle rotative : construire (gros scope, fidélité ponctuelle) ou écarter par une phrase écrite ? → **tranchée le 2026-10-15** : **écartée pour l'instant**. | Écarter pour l'instant — c'est la pièce la plus chère du lot E pour l'usage le plus rare (une seule quête du livret) |
+| **Q8** | Fin de quête « capturé, enchaîne sans hub » (Bellthor) : un troisième état de fin de quête, ou rabattre sur `echouee` (le groupe perd, retour au hub, recommence) en perdant la continuité narrative scriptée ? → **tranchée le 2026-10-15** : fin « capturé » **ÉCARTÉE** (propre à une seule mission). | Rabattre sur `echouee` — un vrai troisième état de quête est un chantier d'ampleur (`ResolveurTour`, le modèle de reprise, les deux tests qui ferment aujourd'hui `terminee`/`echouee`) pour un usage qui n'existe que dans une quête imprimée qu'on ne rejoue pas telle quelle |
 
 ## 5. Sources à demander (photos des cartes)
 
@@ -282,3 +282,16 @@ et quand René la demande.
 > les 5 artefacts et 5 parchemins de sort y sont bien paraphrasés avec la
 > bonne page (confirmé §1 : « aucune erreur trouvée… sur les 5 artefacts »).
 > Rien à retirer de la liste de photos (§5).
+
+## Décisions de René (2026-10-15)
+
+| # | Décision | Conséquence |
+|---|---|---|
+| **Q1** | Quête 6 **écartée**. | Non portée : aucune adaptation « 2 héros au choix ». |
+| **Q2** | **Skulmar = sous-boss**. | Lot B (variantes nommées). Même patron que Doralf (*Against the Ogre Horde*). |
+| **Q3** | Seuil de `fuit_si_affaibli` : **1/3 des Body de départ**. | Valeur de portage. L'**arrondi n'est pas tranché** : à fixer au portage, sans le deviner. |
+| **Q4** | Potion de vitesse de Kessandria = **sort Patinage** (`cases: 12`). | Zéro code nouveau ; l'habillage IA donne le libellé « potion ». |
+| **Q5** | Immunités sélectives : **les trois formes construites ensemble** (totale, partielle par type de dégât, liste blanche de sources). | Lot D : une seule échelle de mots-clés, séquencée avec la Gargouille gardienne de *Kellar's Keep*. |
+| **Q6** | ***Death Mist* = la même mécanique** que le rocher roulant (*Kellar's Keep*, Q3). | Une seule implémentation « danger mobile autonome ». |
+| **Q7** | **Salle rotative écartée** pour l'instant. | Lot E sans salle rotative ; cercueils et *Death Mist* inchangés. |
+| **Q8** | Fin « capturé » (quête 5, Bellthor) **ÉCARTÉE** : « on pourrait l'écarter si c'est spécifique à une mission » (René). | Ni troisième état de fin de quête, ni repli sur `echouee` (recommandation non suivie) : la fin n'est pas portée. |

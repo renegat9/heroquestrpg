@@ -505,6 +505,22 @@ export function badgesFigure(entite) {
         });
     }
 
+    // SABLES MOUVANTS (F7539 p. 29, 2026-10-15) : le héros ENLISÉ, publié par le serveur
+    // (`entites[].enlise` = {a_defausser, vers, terrain}). Pas une condition à durée : il dure
+    // jusqu'à son tour suivant, où il se hisse de l'autre côté — d'où ce badge propre, comme
+    // l'état de choc ou les rejetons, qui survit à un rechargement.
+    if (entite?.enlise) {
+        badges.unshift({
+            nom: 'enlise',
+            t: 'poison',
+            l: entite.enlise.a_defausser > 0
+                ? `Enlisé dans les sables — ${entite.enlise.a_defausser} objet(s) à abandonner`
+                : 'Enlisé dans les sables — se hisse de l\'autre côté à son prochain tour',
+            ic: 'landslide',
+            d: null,
+        });
+    }
+
     if (jetons > 0) {
         badges.unshift({
             nom: 'rejetons',
@@ -890,7 +906,10 @@ export function ciblesVersListe(cibles, entites = []) {
         // (« Attaquer X (Gobelin) (à distance) »), qui n'existe plus par cible.
         // `nom_base` renvoie à la fiche du bestiaire quand l'IA a rhabillé le nom.
         const base = objet && c.nom_base && c.nom_base !== nom ? String(c.nom_base) : '';
-        const details = [base, objet && c.distance ? 'à distance' : '', pv].filter(Boolean);
+        // `indication` : phrase DÉCIDÉE par le serveur, affichée telle quelle — « à mains nues (2 dés) »
+        // pour un coup au contact d'une arme qui refuse le contact (Arbalète…). Le client ne la déduit pas.
+        const indication = objet && typeof c.indication === 'string' ? c.indication : '';
+        const details = [base, objet && c.distance ? 'à distance' : '', indication, pv].filter(Boolean);
         return {
             brut: c,
             // Ancrage mécanique À PLAT pour POST choix (contrat :

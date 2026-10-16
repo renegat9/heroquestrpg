@@ -29,9 +29,10 @@ use Illuminate\Database\Seeder;
  * C'est le PLAN qui avait tort, pas cette absence ; elle est ici par écrit
  * pour qu'un prochain passage ne la reprenne pas pour un oubli.
  *
- * ⚠ Aucun des 7 ne bloque le mouvement ni la vue à ce jour — ce sont des
+ * ⚠ Aucun des 7 de la glace ne bloque le mouvement ni la vue — ce sont des
  * dangers de SOL (on marche dessus, on glisse, on coûte plus cher), pas des
- * murs. La seule pièce du lot qui bloquera un jour le mouvement (le Mur de
+ * murs. Le premier terrain qui BLOQUE le mouvement est celui de The Mage of the
+ * Mirror (2026-10-15) : les Sables mouvants, qu'on franchit d'un saut. La seule pièce du lot qui bloquera un jour le mouvement (le Mur de
  * Glace, sort du boss — « jusqu'à 4 cases de glace pleine qui bloquent le
  * déplacement mais pas la vue ») N'EST PAS un terrain de catalogue : c'est un
  * effet posé EN COURS DE QUÊTE par un sort (Phase 2 du plan), sur une couche
@@ -250,6 +251,42 @@ class TerrainSeeder extends Seeder
                     'jet_des_combat' => 1,
                     'sur' => ['crane' => ['degats_pv_body' => 1]],
                     'type_degat' => 'feu',
+                ],
+            ],
+
+            // ===== The Mage of the Mirror (livret F7539 p. 29, quête 8, note C) =====
+            // Boîte `mage_du_miroir` : `placerTerrains()` ne le pose que sous ce thème.
+
+            // SABLES MOUVANTS (« Quicksand », composants p. 5 : « a bottomless pit
+            // filled with quicksand that threatens to suck in careless or unlucky
+            // heroes »). Règle, quête 8 note C, p. 29 : « a hero must stand adjacent
+            // to it and try to jump over the quicksand. The hero rolls one combat
+            // die in the attempt. If a black shield is rolled, the hero successfully
+            // lands on the square directly across from the square they left. Any
+            // other result means the hero lands in the quicksand and starts to sink.
+            // To avoid death, tell the hero to immediately discard any two items
+            // (weapons, armor, potions, scrolls, etc.). This ends the hero's turn. On
+            // the hero's next turn, the hero climbs out of the quicksand onto the
+            // square across from the square they left. This ends the hero's turn. »
+            //
+            // TROIS clés, toutes lues par `MoteurSables` (jamais décoratives) :
+            //  - `saut_par_dessus: 2` — la bande fait 2 cases de profondeur (le plan
+            //    imprimé de la quête 8 : la salle C coupée en deux par 2 rangées) ;
+            //  - `saut_reussi_sur: bouclier_noir` — « If a black shield is rolled » ;
+            //  - `enlise: 2` — « discard any two items ».
+            // `bloque_mouvement: true` : on n'y marche pas, on la franchit d'un saut
+            // (ni passage ni arrêt — `FabriqueGrille::pour()` la range aussi parmi les
+            // cases où l'on ne finit pas son mouvement). `bloque_vue: false` : un trou
+            // de sable ne coupe pas la vue, et le livret ne dit rien de tel.
+            // ⚠ Ce que le livret ne dit PAS (monstres, case de sortie occupée, coût du
+            // saut) est tranché et écrit dans `MoteurSables` — rien n'est inventé ici.
+            [
+                'nom' => 'Sables mouvants', 'nom_anglais' => 'Quicksand',
+                'cout_deplacement' => 1, 'bloque_mouvement' => true, 'bloque_vue' => false, 'boite' => 'mage_du_miroir',
+                'effet' => [
+                    'saut_par_dessus' => 2,
+                    'saut_reussi_sur' => 'bouclier_noir',
+                    'enlise' => 2,
                 ],
             ],
         ];

@@ -152,6 +152,9 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
                 <div class="tbody">
                     <div class="tn">{{ f.libelle }}</div>
                     <div v-if="f.effet" class="tdesc">{{ f.effet }}</div>
+                    <!-- Weapon Expert : le type d'arme choisi, ou le rappel qu'il reste à le choisir (décidé par le serveur). -->
+                    <div v-if="f.specialite" class="tdesc"><b>Spécialité</b> : {{ f.specialite }}</div>
+                    <div v-else-if="f.choix" class="tdesc"><b>Type d'arme à choisir</b> : onglet Action, avant de partir.</div>
                 </div>
             </div>
         </div>

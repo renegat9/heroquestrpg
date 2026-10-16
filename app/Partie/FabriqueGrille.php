@@ -267,6 +267,17 @@ final class FabriqueGrille
                 if (! empty($effetTerrain['interdit_arret'])) {
                     $sansArret[] = $case;
                 }
+                // SABLES MOUVANTS (`saut_par_dessus`, F7539 p. 29) : on ne la traverse
+                // pas à pied (`bloque_mouvement` la range déjà dans `$obstacles`) et on
+                // n'y FINIT jamais son mouvement non plus — c'est la même question que
+                // pour la Mare, `Grille::arretInterdit()`. Elle compte pour une créature
+                // qui lèverait l'obstacle (Agile, éthéré : `autoriserFranchissement()`
+                // vide `$obstacles`, jamais ce jeu-ci) : celle-là traverse, elle ne s'y
+                // arrête pas. Seul un héros qui s'ENLISE s'y tient, et il y est posé par
+                // `MoteurSables`, pas par un déplacement.
+                if (isset($effetTerrain['saut_par_dessus'])) {
+                    $sansArret[] = $case;
+                }
             }
         }
 

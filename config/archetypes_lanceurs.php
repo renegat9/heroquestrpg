@@ -100,19 +100,24 @@ return [
         // p. 30) : « connaît *dispel, firestorm, mind blast, mirror magic,
         // reanimation, restore Dread, summon wolves, werewolf's curse* ».
         //
-        // ⚠ TROIS de ses huit ne sont pas portés — *Dispel* et *Mirror Magic*
-        // attendent qu'un monstre puisse agir hors de la phase des monstres,
-        // *Werewolf's Curse* une transformation de héros. On ne les nomme donc
-        // pas : un répertoire qui cite un sort absent rétrécit en silence.
-        // Restent les cinq portés, et c'est elle qui donne enfin un lanceur à
-        // l'*Invocation de loups* — la carte dit bien « GIANT wolves », et le
-        // *Loup géant* est au bestiaire depuis le portage des extensions.
+        // ⚠ UN SEUL de ses huit n'est pas porté — *Werewolf's Curse*, une
+        // transformation de héros. On ne le nomme donc pas : un répertoire qui
+        // cite un sort absent rétrécit en silence. *Dispel* et *Mirror Magic*
+        // l'ont rejoint le 2026-10-15 (`App\Partie\ReactionsMj`, la couture « le
+        // MJ réagit au sort d'un héros ») : ce sont deux sorts de RÉACTION, jamais
+        // choisis comme action de son tour (`MoteurDread::sortUtilisable()` les
+        // refuse), joués quand un héros lance un sort contre son camp. Restent cinq
+        // sorts d'action et deux réactions, et c'est elle qui donne enfin un
+        // lanceur à l'*Invocation de loups* — la carte dit bien « GIANT wolves »,
+        // et le *Loup géant* est au bestiaire depuis le portage des extensions.
         'sorts' => [
             'Invocation de loups',
             'Choc Mental',
             'Tempête de feu',
             'Réanimation',
             'Restauration de l\'Effroi',
+            'Dissipation',
+            'Magie Miroir',
         ],
     ],
 

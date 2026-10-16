@@ -36,6 +36,10 @@ class Groupe extends Model
         'boites_bestiaire',
         'etat',
         'phase',
+        // Issue DURABLE de la proposition du compagnon animal offert (Against the
+        // Ogre Horde p. 8-9) : `null` (pas tranchée), `'pris'` ou `'refuse'`. Lire via
+        // App\Partie\CompagnonOffert, qui dit aussi quand la proposition EXISTE.
+        'compagnon_offert',
         'quete_courante_id',
     ];
 

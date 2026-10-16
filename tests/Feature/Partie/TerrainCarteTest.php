@@ -157,8 +157,9 @@ it('exclut le Bottomless Chasm, la Living Fog Room et le Sceptre — dettes nomm
 it('a un catalogue cohérent : cout_deplacement >= 1, effet non vide (vocabulaire), drapeaux booléens', function () {
     $terrains = Terrain::query()->get();
 
-    // 7 de The Frozen Horror + 5 de Jungles of Delthrak (2026-10-09).
-    expect($terrains)->toHaveCount(12);
+    // 7 de The Frozen Horror + 5 de Jungles of Delthrak (2026-10-09) + les Sables mouvants de
+    // The Mage of the Mirror (2026-10-15).
+    expect($terrains)->toHaveCount(13);
 
     foreach ($terrains as $t) {
         expect($t->cout_deplacement)->toBeGreaterThanOrEqual(1, "cout_deplacement de {$t->nom}")
@@ -176,9 +177,11 @@ it('donne à la Rivière gelée un coût de déplacement de 2, et 1 à tous les 
     }
 });
 
-it('ne bloque le mouvement ni la vue pour aucun des 7 terrains sourcés — ce sont des dangers de sol, pas des murs', function () {
+it('ne bloque le mouvement ni la vue pour aucun terrain — SAUF les Sables mouvants, qui ferment la marche (jamais la vue)', function () {
     foreach (Terrain::query()->get() as $t) { // les 5 de la jungle non plus : ils ralentissent ou se traversent
-        expect($t->bloque_mouvement)->toBeFalse("bloque_mouvement de {$t->nom}")
+        // Les Sables mouvants (The Mage of the Mirror p. 29) sont le seul terrain qui BLOQUE le
+        // mouvement : on le franchit d'un saut, on ne le traverse pas. La vue, jamais.
+        expect($t->bloque_mouvement)->toBe($t->nom === 'Sables mouvants', "bloque_mouvement de {$t->nom}")
             ->and($t->bloque_vue)->toBeFalse("bloque_vue de {$t->nom}");
     }
 });
@@ -196,7 +199,7 @@ it('reste seedé SANS purge (clé sur nom) : re-semer garde les mêmes identifia
 
     $idApres = Terrain::where('nom', 'Glace glissante')->value('id');
     expect($idApres)->toBe($idAvant)
-        ->and(Terrain::query()->count())->toBe(12);
+        ->and(Terrain::query()->count())->toBe(13);
 });
 
 // ---------------------------------------------------------------------

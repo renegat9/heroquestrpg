@@ -77,5 +77,17 @@ curl -s -b "$D/jar-table.txt" -c "$D/jar-table.txt" -X POST http://localhost/api
   -d "{\"code\":\"$CODE\"}" >/dev/null
 nohup "$D/battement.sh" >/dev/null 2>&1 & echo $! > "$D/battement.pid"
 sleep 3
+# COMPAGNON ANIMAL OFFERT (Against the Ogre Horde p. 8-9, 2026-10-15) : un groupe de MOINS DE 4
+# héros reçoit, avant sa première quête, une offre gratuite et unique, et `/pret` refuse de
+# partir tant qu'elle n'est pas tranchée. Le harnais joue la VRAIE route, comme un joueur :
+# COMPAGNON=prendre (défaut : le premier animal proposé, mené par le slot 1) | refuser.
+OFFRE=$(P 1 GET "/groupes/$CODE/etat" | python3 -c "import json,sys; o=(json.load(sys.stdin).get('groupe') or {}).get('compagnon_offert'); print(o['animaux'][0]['mercenaire_id'] if o else '')" 2>/dev/null || true)
+if [ -n "$OFFRE" ]; then
+  if [ "${COMPAGNON:-prendre}" = "refuser" ]; then
+    P 1 DELETE "/groupes/$CODE/compagnon-offert" >/dev/null && echo "  compagnon animal offert : refusé" >&2
+  else
+    P 1 POST "/groupes/$CODE/compagnon-offert" "{\"mercenaire_id\":$OFFRE}" >/dev/null && echo "  compagnon animal offert : pris (mercenaire $OFFRE, mené par le slot 1)" >&2
+  fi
+fi
 for s in $(seq 1 $slot); do P "$s" POST "/groupes/$CODE/pret" "{\"personnage_id\":$(cat "$D/perso-$s.txt"),\"pret\":true}" >/dev/null; done
 echo "$CODE"

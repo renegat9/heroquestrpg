@@ -221,7 +221,11 @@ class AuthController extends Controller
                         // durable, hors arbre de talents, visible sur la fiche
                         // du héros AU HUB comme en quête (`cle`, `libelle`, `effet`
                         // — point de passage unique `FaveursHopekins::publier()`).
-                        'faveurs' => FaveursHopekins::publier($p),
+                        //
+                        // *Weapon Expert* y porte la liste blanche de son CHOIX d'arme tant
+                        // qu'il reste à faire, et seulement AU HUB (René, 2026-10-15) : la
+                        // même décision que `PUT …/faveurs/weapon-expert` applique.
+                        'faveurs' => FaveursHopekins::publier($p, ! $disponible && ($p->groupeActif->phase ?? null) === 'hub'),
                         // Points JAMAIS stockés (contrat) : (niveau − 1) − nœuds acquis.
                         // ⚠ Point de passage UNIQUE. Cette ligne portait sa
                         // propre copie de la formule, et la copie ignorait

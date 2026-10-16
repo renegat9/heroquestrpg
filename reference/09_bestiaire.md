@@ -341,21 +341,33 @@ mécanique qui manque.
     spellcaster **during a hero's turn**. It is used in an attempt to cancel a
     spell cast by a hero. […] the Dread spellcaster rolls 1 red die and adds
     the result to their Mind Points. Then the hero does the same. If the Dread
-    spellcaster's total is higher, the hero's spell is cancelled. » → ⚠ **NON
-    PORTÉ**.
+    spellcaster's total is higher, the hero's spell is cancelled. » → **PORTÉ
+    le 2026-10-15** (`Dissipation`, sort de type `reaction`, `ReactionsMj`).
 29. **Mirror Magic** (2023) — « may be cast by a Dread spellcaster during a
     hero's turn. This enables the spellcaster to **reflect any hero's spell
     back on them**. […] The hero then suffers the effect of the spell that was
-    intended for the spellcaster. » → ⚠ **NON PORTÉ**.
+    intended for the spellcaster. » → **PORTÉ le 2026-10-15** (`Magie Miroir`,
+    sort de type `reaction`, `ReactionsMj`).
 
-    ⚠ Les deux manquent la **même** mécanique, et c'est pour cela qu'elles sont
-    groupées : un **monstre qui agit hors de la phase des monstres**. Notre
-    `MoteurReactions` est entièrement tourné vers les héros — il pose une offre
-    sur un canal privé et attend une réponse de téléphone. Ici c'est le MJ qui
-    réagit, sans joueur à consulter : la résolution serait synchrone, dans la
-    requête du héros qui lance, mais le point d'entrée n'existe pas. La
-    réflexion d'un sort (`Mirror Magic`) est en outre déjà nommée comme dette
-    par la doc 16 §9.1 (*Dawnshield*, *Raven's Talon*).
+    Texte COMPLET des deux cartes (relu à l'image, `dread_spells.pdf`, 2026-10-15 —
+    les « […] » ci-dessus cachaient deux précisions qui décident du moteur) :
+    *Dispel* « **can be used immediately after the hero casts a spell**. First the
+    Dread spellcaster rolls 1 red die and adds the result to their Mind Points.
+    Then the hero does the same. If the Dread spellcaster's total is higher, the
+    hero's spell is cancelled » ; *Mirror Magic* « can be used immediately after
+    the hero casts a spell **at the Dread spellcaster**. The hero then suffers the
+    effect of the spell that was intended for the spellcaster ». Le sort est donc
+    déjà lancé (épuisé) avant d'être annulé, et le renvoi ne vaut que pour un sort
+    qui VISE le lanceur.
+
+    Les deux manquaient la **même** mécanique, et c'est pour cela qu'elles étaient
+    groupées : un **monstre qui agit hors de la phase des monstres**. `MoteurReactions`
+    est entièrement tourné vers les héros — il pose une offre sur un canal privé et
+    attend une réponse de téléphone. Ici c'est le MJ qui réagit, sans joueur à
+    consulter : la résolution est synchrone, dans la requête du héros qui lance, par
+    la couture `App\Partie\ReactionsMj` (`ResolveurTour::lancerSort()`) — règles en
+    vigueur : `docs/regles/sorts-dread.md`. La « réflexion d'un sort » que la doc 16
+    §9.1 nommait comme dette est le renvoi de *Mirror Magic* sur son lanceur.
 
 ### 4bis.2 — Ce que le portage change au §4
 

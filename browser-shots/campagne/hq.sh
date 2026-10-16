@@ -69,6 +69,13 @@ case "${1:-}" in
   moi)     req GET "/moi" ;;
   pret)    req POST "/groupes/$GROUPE/pret" "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"pret\":true}" ;;
   votes)   req GET "/groupes/$GROUPE/votes" ;;
+  # Compagnon animal OFFERT (groupe de moins de 4 héros, avant la 1re quête) : `etat` publie
+  # `groupe.compagnon_offert.animaux` ; on le PREND (id du mercenaire) ou on le REFUSE.
+  compagnon) if [ "${2:-}" = "refuser" ]; then req DELETE "/groupes/$GROUPE/compagnon-offert"
+             else req POST "/groupes/$GROUPE/compagnon-offert" "{\"mercenaire_id\":$2,\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt")}"; fi ;;
+  # Faveur Weapon Expert (reçue à la fin d'une quête) : `moi` publie `faveurs[].choix` au hub ;
+  # on choisit le type d'arme (objet_id) avant de se déclarer prêt.
+  arme-faveur) req PUT "/groupes/$GROUPE/faveurs/weapon-expert" "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"objet_id\":$2}" ;;
   marche)  # POST ouvre la phase si elle ne l'est pas ; GET la relit ensuite.
            req POST "/groupes/$GROUPE/marche" >/dev/null 2>&1
            req GET "/groupes/$GROUPE/marche" ;;
@@ -87,5 +94,5 @@ case "${1:-}" in
   vote)    req POST "/groupes/$GROUPE/votes/bulletin" "{\"option_id\":\"$2\"}" ;;
   choix)   req POST "/groupes/$GROUPE/choix" "{\"option_id\":\"$2\"${3:+,\"parametres\":$3}}" ;;
   reaction) req POST "/groupes/$GROUPE/reaction" "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"accepte\":$2${3:+,\"soin\":\"$3\"}}" ;;
-  *) echo "usage: hq.sh <slot> etat|menu|moi|pret|choix|reaction|votes|vote|marche|panier|confirmer|equiper|desequiper|donner" >&2; exit 2 ;;
+  *) echo "usage: hq.sh <slot> etat|menu|moi|pret|choix|reaction|votes|vote|marche|panier|confirmer|equiper|desequiper|donner|compagnon|arme-faveur" >&2; exit 2 ;;
 esac

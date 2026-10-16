@@ -4,9 +4,11 @@ use App\Http\Controllers\Api\PlaceholderController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChoixController;
 use App\Http\Controllers\Api\ClotureController;
+use App\Http\Controllers\Api\CompagnonOffertController;
 use App\Http\Controllers\Api\CompetenceController;
 use App\Http\Controllers\Api\DonController;
 use App\Http\Controllers\Api\EquipementController;
+use App\Http\Controllers\Api\FaveurController;
 use App\Http\Controllers\Api\ForgeController;
 use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\GuideController;
@@ -181,6 +183,16 @@ Route::middleware('auth:joueur')->group(function () {
     // Recrutement d'alliés au hub (3.5) — catalogue + bourse commune.
     Route::get('/mercenaires', [MercenaireController::class, 'catalogue']);
     Route::post('/groupes/{identifiant}/mercenaires', [MercenaireController::class, 'recruter']);
+
+    // Compagnon animal OFFERT (Against the Ogre Horde p. 8-9, « at no cost ») : proposé UNE
+    // fois, au hub, avant la première quête d'un groupe de moins de 4 héros — le premier
+    // joueur qui PREND un des animaux (POST) en devient le maître, ou REFUSE l'offre (DELETE).
+    Route::post('/groupes/{identifiant}/compagnon-offert', [CompagnonOffertController::class, 'prendre']);
+    Route::delete('/groupes/{identifiant}/compagnon-offert', [CompagnonOffertController::class, 'refuser']);
+
+    // Faveur Weapon Expert (Wizards of Morcar, Hopekins Rest) : le JOUEUR choisit son type
+    // d'arme au hub, en la recevant (René, 2026-10-15) — HUB uniquement.
+    Route::put('/groupes/{identifiant}/faveurs/weapon-expert', [FaveurController::class, 'choisirArme']);
 
     // Boire une potion AU HUB (Wizards of Morcar, Potion of Charm : « Drink this
     // potion between quests ») — réservée aux potions de

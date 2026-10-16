@@ -222,12 +222,12 @@ décide, l'IA narre »).
 
 | # | Question | Recommandation |
 |---|---|---|
-| **Q1** | Les quatre tours élémentaires à ordre libre (Lot B) : construire le graphe de quêtes à prérequis cumulatifs (gros chantier, partagé avec *Jungles of Delthrak*), ou écarter cette structure et ne garder que les 4 artefacts/boss comme contenu (quêtes linéarisées dans un ordre fixe choisi par le gabarit) ? | **Écarter pour l'instant** : le gain (ordre choisi par les joueurs) est mineur au regard du coût (un second modèle de progression de campagne). Les 4 tours peuvent nourrir 4 quêtes linéaires ordinaires sans perdre leur contenu |
+| **Q1** | Les quatre tours élémentaires à ordre libre (Lot B) : construire le graphe de quêtes à prérequis cumulatifs (gros chantier, partagé avec *Jungles of Delthrak*), ou écarter cette structure et ne garder que les 4 artefacts/boss comme contenu (quêtes linéarisées dans un ordre fixe choisi par le gabarit) ? → **tranchée le 2026-10-15** : tours élémentaires en **ordre FIXE** (linéarisés). | **Écarter pour l'instant** : le gain (ordre choisi par les joueurs) est mineur au regard du coût (un second modèle de progression de campagne). Les 4 tours peuvent nourrir 4 quêtes linéaires ordinaires sans perdre leur contenu |
 | **Q2** | Alliés jouables par le joueur (Sigill, Udren) juste après son héros plutôt que par le moteur : même arbitrage que Q2 d'Ogre Horde ? | Trancher **une seule fois pour les deux boîtes** — c'est exactement la même demande, formulée deux fois indépendamment par deux livrets différents |
-| **Q3** | « Lancer deux sorts de Dread au même tour » (Kavra 1er tour, Nelath systématiquement) : capacité nommée par instance, ou assouplir la règle générale « un seul sort par tour » pour les profils `boss`/nommés ? | Capacité nommée (`double_sort`) — la règle générale a sa raison d'être (budget d'usages), l'assouplir globalement romprait l'équilibre partout ailleurs |
-| **Q4** | Les mécaniques de terrain nouvelles (sol meuble probabiliste, courant bonus, insubstantialité à charges) : les généraliser en mots-clés réutilisables ailleurs, ou les garder scopées à cette seule boîte (`boite: spirit_queen` sur chaque entrée) ? | Scoper d'abord (`boite: spirit_queen`) — les généraliser sans un second cas d'usage réel serait inventer un vocabulaire pour un seul client, l'inverse de la règle « pas de clé décorative » |
+| **Q3** | « Lancer deux sorts de Dread au même tour » (Kavra 1er tour, Nelath systématiquement) : capacité nommée par instance, ou assouplir la règle générale « un seul sort par tour » pour les profils `boss`/nommés ? → **tranchée le 2026-10-15** : capacité nommée **`double_sort`**. | Capacité nommée (`double_sort`) — la règle générale a sa raison d'être (budget d'usages), l'assouplir globalement romprait l'équilibre partout ailleurs |
+| **Q4** | Les mécaniques de terrain nouvelles (sol meuble probabiliste, courant bonus, insubstantialité à charges) : les généraliser en mots-clés réutilisables ailleurs, ou les garder scopées à cette seule boîte (`boite: spirit_queen` sur chaque entrée) ? → **tranchée le 2026-10-15** : terrains **scopés `boite: spirit_queen`**. | Scoper d'abord (`boite: spirit_queen`) — les généraliser sans un second cas d'usage réel serait inventer un vocabulaire pour un seul client, l'inverse de la règle « pas de clé décorative » |
 | **Q5** | *Tempest* trouvé comme PARCHEMIN DE HÉROS (q. 7) alors que notre seule « Tourmente » est un sort de Dread côté MJ : incohérence du livret à assumer telle quelle (le héros apprend un sort normalement réservé au MJ), ou lecture alternative (un parchemin à usage unique qui imite l'effet, sans toucher au catalogue de sorts héros) ? | Lecture alternative : un OBJET consommable à effet one-shot (copie l'effet de Tourmente sans devenir un sort permanent du héros) — évite de faire apparaître un sort de Dread dans le répertoire héros, ce que rien d'autre dans le jeu ne fait |
-| **Q6** | Le boss à résolution alternative (Lot G) : généraliser un champ `quetes.issue_alternative`/`boss_epargne` réutilisable pour de futurs boss « rachetables », ou le garder scopé à Nelath ? | Généraliser le CHAMP (coût nul, une colonne), mais ne construire qu'UNE narration (Nelath) tant qu'aucun second boss ne le demande |
+| **Q6** | Le boss à résolution alternative (Lot G) : généraliser un champ `quetes.issue_alternative`/`boss_epargne` réutilisable pour de futurs boss « rachetables », ou le garder scopé à Nelath ? → **tranchée le 2026-10-15** : champ **généralisé**, **une seule narration** (Nelath). | Généraliser le CHAMP (coût nul, une colonne), mais ne construire qu'UNE narration (Nelath) tant qu'aucun second boss ne le demande |
 
 ## 5. Sources à demander (photos des cartes)
 
@@ -297,3 +297,12 @@ le PHP. Une campagne d'agents (`campagne-agents`) sur le thème
 > déjà sourcés mot pour mot via le livret *Return of the Witch Lord*
 > (mêmes cartes physiques, réutilisées sans réimpression ici) et déjà
 > portés dans `config/cartes.php`.
+
+## Décisions de René (2026-10-15)
+
+| # | Décision | Conséquence |
+|---|---|---|
+| **Q1** | Tours élémentaires : **ordre FIXE**, linéarisés. | Lot B réduit à quatre quêtes linéaires ; pas de graphe de prérequis (second modèle de progression non construit). |
+| **Q3** | Deux sorts de Dread au même tour : **capacité nommée `double_sort`**. | Lot C : une capacité par instance (Kavra au premier tour, Nelath) ; la règle « un sort par tour » reste la règle générale. |
+| **Q4** | Terrains nouveaux (sol meuble, courant bonus, insubstantialité à charges) : **scopés `boite: spirit_queen`**. | Pas de mot-clé générique tant qu'un second cas d'usage ne le réclame pas. |
+| **Q6** | `quetes.issue_alternative` : **champ généralisé** (une colonne), **une seule narration** (Nelath). | Lot G : coût nul côté schéma ; aucun second boss « rachetable » construit. |

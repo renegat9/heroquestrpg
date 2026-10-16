@@ -16,6 +16,13 @@ le moteur, initiative, réactions hors tour. Un pot de cookies par joueur.
    tourne déjà, en nommant son PID (depuis le 2026-10-09). `nettoyer.sh` arrête le
    battement de la campagne et relit qu'il est mort.
 6. tous : `POST /api/groupes/{code}/pret {personnage_id, pret:true}`
+   ⚠ **Depuis le 2026-10-15**, un groupe de **moins de 4 héros** reçoit AVANT sa première
+   quête un **compagnon animal offert** (*Against the Ogre Horde* p. 8-9, « at no cost ») :
+   `/pret` répond 422 tant que l'offre n'est pas tranchée. `preparer.sh` joue la vraie route
+   (`COMPAGNON=prendre`, défaut : le premier animal proposé, mené par le slot 1 ;
+   `COMPAGNON=refuser` pour une campagne sans animal). Même chose pour la faveur *Weapon
+   Expert* : son porteur choisit son type d'arme au hub (`hq.sh <slot> arme-faveur <objet_id>`,
+   la liste est dans `moi` → `faveurs[].choix`) avant de pouvoir se déclarer prêt.
 
 ## Outils donnés aux agents
 - `vue.py <slot>` — situation du héros : PV, alliés (**héros ET mercenaires**,
@@ -29,6 +36,7 @@ le moteur, initiative, réactions hors tour. Un pot de cookies par joueur.
 - `hq.sh <slot> etat|menu|moi|pret|choix|reaction`
 - **au hub** : `hq.sh <slot> marche|panier <json>|confirmer|equiper <inv>|donner <inv> <perso>`
 - **vote** : `hq.sh <slot> votes|vote <option_id>`
+- **compagnon animal offert / type d'arme de Weapon Expert** : `hq.sh <slot> compagnon <mercenaire_id>|compagnon refuser`, `hq.sh <slot> arme-faveur <objet_id>`
 
 ⚠ **Une option peut PORTER une liste** depuis le 2026-09-01 (doc 13 §3.1, « 2
 à 5 options claires ») : `lancer_sort`, `lire_parchemin` et `utiliser_objet`

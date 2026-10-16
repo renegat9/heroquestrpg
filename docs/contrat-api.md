@@ -15,7 +15,7 @@ Routes protégées par middleware `auth` sauf connexion.
 | Méthode | Route | Corps | Réponse |
 |---|---|---|---|
 | POST | /api/connexion | {identifiant} | {joueur} (nom seul, sans mot de passe) |
-| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes (chacune avec **`depart: {arme, pieces[], des_attaque, des_defense}`** — l'attaque et la défense **avec l'équipement de départ**, décidées par le serveur (`EquipementDepart::valeurs()`, mêmes règles que `recalculerCombat()`), à côté des `des_attaque`/`des_defense` de base à mains nues, 2026-09-24), competences, monstres (chacun avec **`boite`/`boite_libelle`**, 2026-10-09), objets (chacun avec **`avantages: string[]`** — ce que fait la pièce, traduit par le serveur via `MotsClesEquipement::avantages()`, le même texte que le sac ; le front ne retraduit plus la clé), sorts, pieges, **mobiliers** (`{nom, largeur, hauteur, bloque_vue, fouillable, difficulte_destruction, pv_body, defense_dice, attaquable, detruit_par_action, boite_libelle}`) — `detruit_par_action` (2026-10-09) : le **Cocon** de Jungles of Delthrak, détruit par une action d'un héros adjacent, sans jet, décidé par le serveur depuis `effet.detruit_par_action` —, **terrains** (`[{nom, cout_deplacement, avantages: string[], boite, boite_libelle}]`, 2026-10-09 : ce que chaque tuile FAIT, en phrases, traduit par le serveur via `MotsClesTerrain::avantages()` ; une tuile qui ne produit rien dit « sans effet à ce jour » ; une clé non implémentée ne produit aucune phrase), **themes** (`[{cle, libelle}]` = `DemarreurQuete::BOITES_THEMATIQUES`), **cartes**} (catalogues seedés, autres effets bruts mis en forme côté front). `cartes` = les **trois** paquets sources (`config/cartes.php`, **69 cartes** : `equipement` 20 + `potions` 15, photos du matériel officiel Hasbro, + `artefacts` 34) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque}]}` — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
+| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes (chacune avec **`depart: {arme, pieces[], des_attaque, des_defense}`** — l'attaque et la défense **avec l'équipement de départ**, décidées par le serveur (`EquipementDepart::valeurs()`, mêmes règles que `recalculerCombat()`), à côté des `des_attaque`/`des_defense` de base à mains nues, 2026-09-24), competences, monstres (chacun avec **`boite`/`boite_libelle`**, 2026-10-09 ; `boite` reste la boîte d'ORIGINE, et `boite_libelle` nomme TOUTES les boîtes où la fiche est imprimée, séparées par « · » — l'Archer elfe et le Guerrier elfe : « The Mage of the Mirror · Rise of the Dread Moon », 2026-10-15, `monstres.boites_partagees`), objets (chacun avec **`avantages: string[]`** — ce que fait la pièce, traduit par le serveur via `MotsClesEquipement::avantages()`, le même texte que le sac ; le front ne retraduit plus la clé), sorts, pieges, **mobiliers** (`{nom, largeur, hauteur, bloque_vue, fouillable, difficulte_destruction, pv_body, defense_dice, attaquable, detruit_par_action, boite_libelle}`) — `detruit_par_action` (2026-10-09) : le **Cocon** de Jungles of Delthrak, détruit par une action d'un héros adjacent, sans jet, décidé par le serveur depuis `effet.detruit_par_action` —, **terrains** (`[{nom, cout_deplacement, avantages: string[], boite, boite_libelle}]`, 2026-10-09 : ce que chaque tuile FAIT, en phrases, traduit par le serveur via `MotsClesTerrain::avantages()` ; une tuile qui ne produit rien dit « sans effet à ce jour » ; une clé non implémentée ne produit aucune phrase), **themes** (`[{cle, libelle}]` = `DemarreurQuete::BOITES_THEMATIQUES`), **cartes**} (catalogues seedés, autres effets bruts mis en forme côté front). `cartes` = les **trois** paquets sources (`config/cartes.php`, **69 cartes** : `equipement` 20 + `potions` 15, photos du matériel officiel Hasbro, + `artefacts` 34) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque}]}` — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
 | POST | /api/deconnexion | — | 204 |
 | GET | /api/moi | — | {joueur, personnages: [...], boites_bestiaire: [{id, libelle}]} |
 | POST | /api/groupes | {nom, theme, longueur, ton, bestiaire_boites?} | {groupe} + dispatch squelette — `bestiaire_boites` : voir §Bestiaire automatique ou manuel |
@@ -49,7 +49,9 @@ proposition du MJ. » quand ce n'est pas son tour.
              "bestiaire_mode": "auto|manuel", "bestiaire_boites": ["horreur_des_glaces"],
              "prets": [{"personnage_id": 1, "pret": false}],
              "mercenaires": [{"id": 3, "mercenaire_id": 2, "nom": "...", "type": "archer",
-                              "animal": false, "pv_body": 1, "pv_body_max": 1}],
+                              "animal": false, "offert": false, "pv_body": 1, "pv_body_max": 1}],
+             "compagnon_offert": {"nb_heros": 2, "seuil": 4, "consigne": "Le groupe compte 2 héros (moins de 4) : un compagnon animal vous est offert, gratuitement, pour toute la campagne. Un seul choix, une seule fois — le joueur qui le prend le mène.",
+                                  "animaux": [{"mercenaire_id": 6, "nom": "Loup", "type": "compagnon", "deplacement": 10, "attaque": 3, "defense": 2, "pv_body": 5, "description": "…", "image_url": "…|null"}]},
              "gardien": true,
              "mercenaires_entretien": {"action": "mercenaire_entretien", "quete_id": 7, "cout_par_mercenaire": 10,
                                        "cout_total": 20, "or_restant": 480,
@@ -674,7 +676,7 @@ runique) ») : un sort resté allumé sans explication est un effet automatique 
 **Ciblage en deux temps.** Une option qui vise (`attaque`, `sort`, parchemin)
 n'en désigne **pas** la cible : elle joint les cibles légales dans
 `parametres.cibles` — `[{id, type: "monstre"|"heros", nom, nom_base?,
-distance?}]` — et la manette ouvre sa feuille de ciblage. Le choix part en
+distance?, mains_nues?, des_attaque?, indication?}]` — et la manette ouvre sa feuille de ciblage. Le choix part en
 `POST choix {option_id, parametres: {cible_id, cible_type?}}`, **à plat**.
 ⚠ **Le dual-wielding a changé de forme le 2026-09-18** — voir §« Équiper,
 ranger et attaquer passent au sous-choix » plus bas, qui fait foi. Il émettait
@@ -753,11 +755,19 @@ jeter son arme n'est pas frapper avec: la pièce est **détruite**, et son libel
 porte ce fait mécanique qu'une paraphrase effacerait. Elle porte néanmoins la
 même liste quand plusieurs armes sont jetables.
 
-⚠ **Les `cibles` d'une arme excluent le contact quand la carte l'interdit** (2026-10-15) :
-une arme `inutilisable_adjacent` (Arbalète, arcs, Fronde, Dague de jet magique) ne publie
-JAMAIS un monstre au contact, ni sous `attaquer` ni sous `lancer` ; et une arme jetable
-visée hors contact ne figure que sous `lancer` (libellé « Lancer X (perdue) »). La forme
-du payload n'a pas changé — seule la liste blanche est plus juste.
+⚠ **Une arme qui refuse le contact frappe À MAINS NUES** (décision de René, 2026-10-15) :
+une arme `inutilisable_adjacent` (Arbalète, arcs, Fronde, Dague de jet magique) ne tire jamais sur un
+monstre au contact — mais le héros n'est pas désarmé pour autant. Chaque monstre AU CONTACT figure
+alors sous `attaquer` (jamais sous `lancer`), son entrée de cible portant la décision, déjà prise par
+le serveur : `mains_nues: true`, `des_attaque` (les dés réels de ce coup, ceux des mains nues — le
+`des_attaque` de l'entrée d'arme est celui du tir, il ne vaut pas ici) et `indication` (la phrase à
+afficher, « à mains nues (2 dés) »). Les cibles à distance gardent l'arme : même liste, mêmes
+entrées, `distance: true`, sans ces trois clés. La manette affiche `indication` telle quelle, sans
+rien re-déduire. Le résolveur applique la MÊME règle (`Objet::interditAuContact()`, au point de
+passage de la frappe `ResolveurTour::frapper()`) : un coup au contact d'une telle arme se résout
+à mains nues, l'arme reste en main (rien n'est perdu) ; la liste portée par l'option reste la liste
+blanche. Seul un `lancer` au contact d'une arme qui l'interdit reste refusé (422). Une arme jetable
+visée hors contact ne figure toujours que sous `lancer` (libellé « Lancer X (perdue) »).
 
 ### `creneau` — chaque option dit ce qu'elle coûte
 
@@ -791,8 +801,14 @@ relever un compagnon tombé consomme le créneau d'**action**, comme une attaque
 peut encore se déplacer avant ou après. `creneauOption('relever')` rend donc `action` ; le
 menu ne le propose plus une fois l'action jouée (`a_agi`) ; si une relève périmée arrive
 quand même, le résolveur la refuse (« Tu as déjà agi ce tour. ») — la route répond 422 avant
-cela, « Option illégale », tant que l'option n'est plus au menu. ⚠ `liberer_captif` garde `tour` pour l'instant :
-même traitement que relever avant cette décision. Pas tranché, à reprendre séparément.
+cela, « Option illégale », tant que l'option n'est plus au menu.
+
+**`liberer_captif` est GRATUIT** (décision de René, 2026-10-15 : aucun livret n'impose de coût — *The Frozen Horror*
+p. 19, *The Mage of the Mirror* p. 4) : `creneauOption('liberer_captif')` rend `interaction`, comme `ouvrir_porte`.
+Le payload change donc d'une valeur, pas de forme : l'option porte `creneau: "interaction"` (elle portait `tour`),
+sans `perd_deplacement` ; elle n'est plus enfermée derrière l'action — le menu l'offre encore APRÈS une attaque, et la
+manette ne la grise pas (`creneauConsomme()` ne grise `interaction` qu'une fois `a_joue`). La libération ne ferme plus le
+tour du héros : il peut ensuite frapper, se déplacer ou « Terminer le tour ».
 
 **`perd_deplacement`** (2026-10-09, décision de René : « garder la règle, mais l'annoncer ») :
 toute option `creneau: "action"` porte `perd_deplacement: N`, le nombre de cases que CET
@@ -861,6 +877,56 @@ Broadcasts canal `groupe.{identifiant}` : `.marche.ouvert` (EtatMarche),
 | POST | /groupes/{identifiant}/mercenaires | {mercenaire_id, personnage_id?} | recrute un allié contre l'or de la **bourse commune** (422 si pas au hub, **groupe pas encore Gardien**, **4 mercenaires déjà engagés par ce recruteur**, or insuffisant, 2ᵉ compagnon animal, ou `personnage_id` hors des héros actifs DE CE JOUEUR) — `personnage_id` désigne qui le CONTRÔLERA en quête (chantier 3a) ; absent, le PREMIER héros actif de ce joueur, même patron que `achats[].personnage_id` au marché |
 | POST | /groupes/{identifiant}/potions/boire-au-hub | {personnage_id, inventaire_id} | **boit une potion ENTRE DEUX QUÊTES** (Wizards of Morcar, Potion of Charm : « Drink this potion between quests »). 422 hors phase `hub`, pour un héros qui n'est pas actif et contrôlé par ce joueur, ou pour une potion **hors** `MotsClesEquipement::CLES_AU_HUB` (elle se boit en quête, par le menu). Résultat : `{potion: {objet, effets, …}, personnage: {id, nom, rabais_recrutement: {restants, po}}}` ; journal `systeme` `potion_bue_au_hub`. Consomme l'exemplaire comme `boire()`. Rediffuse `.groupe.etat` (la remise restante change `groupe.recrutement`). |
 
+### Compagnon animal OFFERT (*Against the Ogre Horde*, livret F9528 p. 8-9 — René, 2026-10-15)
+
+« Animal allies […] can be recruited **at no cost** […] so long as there are **fewer than
+four hero players**. The animal ally must be recruited before the quest begins. » Décision
+de René (Q2, 2026-10-02 ; interprétation confirmée le 2026-10-15) : l'animal est proposé
+**UNE fois, gratuitement**, à un groupe de **moins de 4 héros**, et il **accompagne le
+groupe toute la campagne**. Un animal par groupe (la règle existante), mené comme tout allié
+(chantier 3a : dans le tour de son héros-maître, depuis sa manette).
+
+**Quand.** Pas « à la création du groupe » : le fondateur y est SEUL (`POST /groupes`), les
+autres rejoignent ensuite par le code — la taille n'est connue qu'au **lancement de la première
+quête**, borne du livret (« before the quest begins »). La proposition est donc **ouverte au
+hub tant que le groupe n'a JAMAIS lancé de quête**, son existence suivant le nombre de héros
+actifs du moment (`App\Partie\CompagnonOffert::ouvert()`) : un quatrième joueur qui arrive la
+retire, un départ la rend, la première quête (de n'importe quel état) la ferme. Les campagnes
+déjà entamées n'ont donc jamais cette offre.
+
+**Publiée** par `EtatGroupe.groupe.compagnon_offert` (hub) : `null` quand il n'y a rien à
+proposer, sinon `{nb_heros, seuil, consigne, animaux: [{mercenaire_id, nom, type, deplacement,
+attaque, defense, pv_body, description, image_url}]}`. La `consigne` est écrite par le
+serveur ; `animaux` est lu dans le catalogue (`mercenaires.animal`, hors `octroi_seul`/`captif`)
+et **EST la liste blanche** que le POST revalide — le client ne re-dérive ni le seuil, ni la
+liste, ni « une seule fois ».
+
+**Qui décide : le premier joueur qui touche** (mécanisme du recrutement, pas un vote — un
+`VoteGroupe` n'élirait pas le MAÎTRE de l'animal, et ferait attendre tout le monde).
+
+| Méthode | URL | Corps | Effet |
+|---|---|---|---|
+| POST | /groupes/{identifiant}/compagnon-offert | {mercenaire_id, personnage_id?} | **prend** l'animal pour `personnage_id` (un héros actif DE CE JOUEUR ; absent, son premier héros) qui en devient le maître (`recruteur_personnage_id`). Gratuit : la bourse ne bouge pas. 201 `{recrue: {id, nom, type, animal: true, offert: true, recruteur_personnage_id}, or}`. 422 : offre fermée (déjà tranchée, quête lancée, quatre héros, pas au hub), `mercenaire_id` hors de `animaux` (mercenaire payant, captif, inconnu), héros qui n'est pas à ce joueur, ou un autre joueur a tranché entre-temps (compare-and-set) |
+| DELETE | /groupes/{identifiant}/compagnon-offert | {personnage_id?} | **refuse** l'offre, pour tous, définitivement. 200 `{compagnon_offert: "refuse"}`. Mêmes 422 |
+
+Diffuse `.groupe.etat`. Journal `systeme` : `compagnon_offert_pris` `{mercenaire, mercenaire_id,
+recruteur_personnage_id, recruteur, texte}` / `compagnon_offert_refuse` `{personnage_id, texte}`.
+L'issue est **durable en base** : `groupes.compagnon_offert` (`null` / `pris` / `refuse`).
+
+**`POST /pret`** : **422 `pret`** tant que l'offre est ouverte (`CompagnonOffert::refusDeDepart()`
+— même patron que le panier de marché : on ne bloque que celui qui se déclare prêt, un seul
+geste d'un seul joueur lève le refus pour tous). Se retirer des prêts n'est jamais bloqué. Le
+lancement par la **table** (`POST /quetes`, « Lancer la quête ») n'est pas un « Prêt ! » : il
+passe outre et l'offre expire avec le premier lancement — la table confirme avant (voir
+`docs/regles/front-manette-et-table.md`).
+
+**L'animal offert** est un `groupe_mercenaires` ordinaire marqué `offert: true`
+(`mercenairesRecrutes[].offert`) : mêmes tours, mêmes soins, même purge s'il tombe (il ne
+revient pas — « une fois »), mais **exempté de l'entretien de 10 po/quête**
+(`FaveursHopekins::reglerEntretien()`) : « at no cost » vaut pour tout son séjour, et sans
+l'exemption un groupe à sec le perdrait à la première quête. Il compte pour l'animal unique du
+groupe et pour les quatre suivants de son maître. Le snapshot de reprise sérialise `offert`.
+
 ⚠ **Le Squelette Hearthkin (First Light, FL-Q p. 6, lot C) partage ce
 catalogue SANS jamais y figurer** (`mercenaires.octroi_seul`). Il n'existe
 que par l'action du Cor des Hearthkin (`POST .../choix {option_id:
@@ -924,8 +990,9 @@ durable sur la FICHE DU HÉROS (`EtatGroupe.entites[].faveurs` en quête,
 `groupe.faveur_hopekins` pour la dernière attribuée au hub), jamais recalculé
 depuis autre chose que `personnage_faveurs`. Les CINQ compétences portées :
 *Deadeye* (les figures ne bloquent plus la ligne de vue de ce héros pour
-tirer/lancer un sort), *Weapon Expert* (+1 dé d'attaque avec le type d'arme
-lié — la PREMIÈRE arme maniée après l'acquisition, aucun écran de choix),
+tirer/lancer un sort), *Weapon Expert* (+1 dé d'attaque avec le **type d'arme choisi par le
+joueur au hub, en recevant la faveur** — voir plus bas ; repli : le premier type d'arme
+manié si rien n'a été choisi),
 *Healing Hands* (un héros adjacent tombé à 0 PV peut boire UNE potion de
 soin DE CE porteur), *Hold the Line* (jet de dé de combat quand un monstre
 quitte les 8 cases autour de ce héros au tour de Zargon ; sur un crâne, 1
@@ -942,13 +1009,46 @@ fiche de la manette, au hub comme en quête).
 tranche que « un héros visite un lieu, hors ligne ») : à la fin d'une quête
 **réussie**, une fois Gardien, le groupe reçoit **une faveur tirée au
 hasard** parmi les 5 non encore détenues par aucun héros actif, remise à un
-héros actif **lui aussi tiré au hasard** — zéro choix, zéro UI nouvelle, une
+héros actif **lui aussi tiré au hasard** — ni choix de la faveur ni de son
+porteur (le seul choix du joueur est le TYPE D'ARME de *Weapon Expert*, ci-dessous), une
 décision engine-autoritaire annoncée (journal `systeme`
 `{action: 'faveur_hopekins', quete_id, faveur, faveur_libelle, personnage_id,
 personnage}`, republiée au hub sous `groupe.faveur_hopekins` avec en plus
 `faveur_effet`, **seulement si** `quete_id` est la dernière quête achevée —
 même garde que l'entretien). Épuisé (les 5 déjà distribuées dans ce groupe) :
 rien n'est tiré, silencieusement.
+
+**Weapon Expert — le joueur choisit son type d'arme** (René, 2026-10-15 ; livret G1504
+p. 22-23 : « Select a type of weapon […] when you acquire this Boon »). La faveur et son
+porteur restent tirés au hasard ; le type d'arme se choisit **au hub**, dès que la faveur est
+reçue (fin de quête réussie → hub), par le joueur du héros :
+
+- `faveurs[]` (`FaveursHopekins::publier()`) porte, pour `weapon_expert` seulement :
+  `specialite` (le type choisi, sous son nom d'armurerie, `null` tant qu'aucun n'est lié) et
+  `choix` — la **LISTE BLANCHE** du choix à faire, `[{objet_id, nom, des_attaque}]`, ou `null`
+  quand il n'y a rien à choisir. `choix` n'est non nul **que dans `GET /moi` et que pour un héros
+  au hub** (`EtatGroupe.entites[].faveurs` porte `specialite` mais toujours `choix: null`) : la même décision que le PUT
+  applique, le client n'a ni la phase ni le catalogue d'armes à connaître. La liste est lue
+  dans le catalogue : les armes d'**armurerie** (ni artefact `unique`, ni copie en os) que le
+  héros **peut manier** (`Equipement::estAccessible()`).
+- **« Un type » = `Equipement::typeDArme()`** : l'arme elle-même, ou l'arme ordinaire qu'elle
+  est (`est_une` : le Fléau des Orques est une épée courte), ou dont elle est la copie en os
+  (`os_de` : la hache de bataille en os est une hache de bataille).
+
+| Méthode | URL | Corps | Effet |
+|---|---|---|---|
+| PUT | /groupes/{identifiant}/faveurs/weapon-expert | {personnage_id, objet_id} | écrit `personnage_faveurs.parametre` (EN BASE) et le **fige** (« when you acquire »). **Hub uniquement.** 200 `{personnage_id, objet_id, specialite, faveurs}`. 422 : hors hub, héros qui n'est pas à ce joueur ou sans la faveur, choix déjà fait, `objet_id` hors de la liste blanche (artefact, copie en os, arme interdite à la classe, inconnu) |
+
+Diffuse `.groupe.etat` (chaque manette relit `/moi`). Journal `systeme` `faveur_arme_choisie`
+`{personnage_id, personnage, faveur, arme}`. **`POST /pret` : 422 `pret`** pour CE héros tant
+qu'il porte la faveur sans type choisi **et** qu'une liste est possible (un seul héros bloqué,
+et il suffit qu'il choisisse).
+
+**Repli — une faveur sans choix reste jouable** (acquise avant ce changement, ou dont le
+joueur n'a rien choisi parce que la table a lancé la quête sans `/pret`) : le **premier type
+d'arme dont le héros frappe devient sa spécialité** (l'ancien comportement), jamais « aucun
+bonus ». Une faveur que l'ancien code avait liée à une arme PRÉCISE garde ce lien, **élargi à
+tout son type** (une épée courte liée vaut désormais pour toutes les épées courtes).
 
 **Fil de combat** (2026-10-08) : les deux effets qui se déclenchent pendant
 une action se disent, en direct comme à la reconnexion. Peacekeeper : journal
@@ -1093,8 +1193,8 @@ nomme le captif dès qu'il est posé (« Retrouver Gothar et le ramener vivant �
 l'escalier. »).
 
 Un héros à son contact voit l'option `type: "liberer_captif"` (id
-`liberer_{allie_id}`, `parametres.allie_id`) — sacrifie le tour, comme
-relever un compagnon. `POST /choix {option_id: "liberer_{id}"}` le libère :
+`liberer_{allie_id}`, `parametres.allie_id`) — GRATUITE depuis le 2026-10-15
+(`creneau: "interaction"` : ni déplacement ni action, voir « `creneau` »). `POST /choix {option_id: "liberer_{id}"}` le libère :
 le résultat porte `{type: "captif_libere", personnage, allie, allie_id,
 mercenaire_id, mode: "figurine"|"escorte"}` — **la DÉCISION publiée côté
 serveur**, jamais à re-dériver de `allie_id`. Deux profils, deux devenirs :
@@ -3270,7 +3370,7 @@ C'est la condition pour qu'une partie soit jouable/reprenable.
 |---|---|---|---|
 | POST | /api/inscription | {pseudo, identifiant} | crée le compte et connecte ; 422 si identifiant pris (sans mot de passe) |
 | POST | /api/connexion | {identifiant} | (existant) — nom seul |
-| GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` ; `faveurs: [{cle, libelle, effet}]` (faveurs de Hopekins Rest, 2026-10-08 — `FaveursHopekins::publier()`) ; `attribut_body/attribut_mind/des_attaque/des_defense` (fiche perso, invariants hors quête) ; `equipement: {armes: [{inventaire_id, nom, emplacement, bouclier}…], casque, armure, talisman: {inventaire_id, nom}\|null, sac: [{inventaire_id, nom, categorie, rarete, quantite, equipable}], capacite, occupation, maitrises: [tag…]}` (chaque pièce équipée porte son `inventaire_id` pour déséquiper ; `equipable` = objet du sac montable dans un slot — voir §Équipement) |
+| GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` ; `faveurs: [{cle, libelle, effet}]` (faveurs de Hopekins Rest, 2026-10-08 — `FaveursHopekins::publier()` ; *Weapon Expert* y ajoute `specialite` et, au hub tant que le type n'est pas choisi, `choix` — 2026-10-15) ; `attribut_body/attribut_mind/des_attaque/des_defense` (fiche perso, invariants hors quête) ; `equipement: {armes: [{inventaire_id, nom, emplacement, bouclier}…], casque, armure, talisman: {inventaire_id, nom}\|null, sac: [{inventaire_id, nom, categorie, rarete, quantite, equipable}], capacite, occupation, maitrises: [tag…]}` (chaque pièce équipée porte son `inventaire_id` pour déséquiper ; `equipable` = objet du sac montable dans un slot — voir §Équipement) |
 | POST | /api/personnages | {nom, classe, elements?} | crée un perso du roster (libre) |
 | POST | /api/groupes | {nom, theme, longueur, ton?, personnage_id, bestiaire_boites?} | crée un groupe DEPUIS un perso LIBRE du joueur (le perso le rejoint comme fondateur) ; 422 si perso déjà engagé ; `bestiaire_boites` absent/`null` = automatique, liste (vide comprise) = manuel — voir §Bestiaire automatique ou manuel |
 | POST | /api/groupes/{identifiant}/joueurs | {personnage_id} | rejoint par code avec un perso libre (existant, + accepte {nom,classe}) |
@@ -3284,7 +3384,7 @@ qu'un **narrateur est actif** (remplace le démarrage manuel par la table).
 
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
-| POST | /api/groupes/{identifiant}/pret | {personnage_id, pret} | (dé)marque un perso prêt (cache `partie:pret:{groupe_id}`) ; si tous les membres actifs sont prêts ET narrateur actif → **démarre la quête** (DemarreurQuete) et réinitialise les statuts. ⚠ **422 si CE joueur a un panier de marché non vide et non confirmé** — l'application du marché est atomique, donc rien n'est débité, mais ses achats se perdraient au départ (constaté en partie réelle, 2026-08-17). On refuse à ce joueur seul, jamais au groupe : bloquer le départ pour tous referait le piège du vote de sortie, où un joueur distrait enferme les autres. Le démarrage de quête referme la phase de marché **explicitement** (`marche_ferme_par_quete` au journal + `.marche.finalise`), au lieu de la laisser expirer en silence. |
+| POST | /api/groupes/{identifiant}/pret | {personnage_id, pret} | (dé)marque un perso prêt (cache `partie:pret:{groupe_id}`) ; si tous les membres actifs sont prêts ET narrateur actif → **démarre la quête** (DemarreurQuete) et réinitialise les statuts. ⚠ **422 si CE joueur a un panier de marché non vide et non confirmé** — l'application du marché est atomique, donc rien n'est débité, mais ses achats se perdraient au départ (constaté en partie réelle, 2026-08-17). On refuse à ce joueur seul, jamais au groupe : bloquer le départ pour tous referait le piège du vote de sortie, où un joueur distrait enferme les autres. **Même patron, 2026-10-15** : 422 `pret` tant que le **compagnon animal offert** est ouvert (groupe de moins de 4 héros, avant la 1re quête — un seul geste d'un seul joueur, prendre ou refuser, lève le refus pour tous) et tant que CE héros porte *Weapon Expert* sans type d'arme choisi. Le démarrage de quête referme la phase de marché **explicitement** (`marche_ferme_par_quete` au journal + `.marche.finalise`), au lieu de la laisser expirer en silence. |
 | POST | /api/groupes/{identifiant}/quetes | — | démarrage MANUEL (bouton « Lancer la quête » de la table) — autorisation **membre OU table** (le narrateur sans compte peut lancer). Sans ça la table prenait un 401 → faux « session expirée » → redirection vers le login joueur |
 
 > Un 401 sur l'écran **narrateur/table** ne renvoie PAS au login joueur : la
@@ -3583,6 +3683,59 @@ table sans `genre` connu retombe sur l'icône par défaut (`SceneEvenement.vue`,
 `ICONE_GENRE[...] ?? 'bolt'`) — ajouter une forme de scène ne demande donc
 pas de toucher l'icône tant qu'une entrée dédiée n'est pas jugée utile.
 
+### Le MJ réagit au sort d'un héros — `sort_annule`, `sort_renvoye`, `reactions_mj` (René, 2026-10-15)
+
+**Contrat ajouté avant le payload.** Quatre cartes du MJ se jouent *pendant le tour d'un
+héros*, sur le sort qu'il vient de lancer : *Dispel* de Gretzl, *Dispel* et *Mirror Magic* de
+Sinestra (le sort de Dread du même nom), *Break* de Gruzbella. `MoteurReactions` ne parlait
+qu'aux héros (offre sur canal privé, réponse d'un téléphone) ; ici le MJ réagit **sans joueur
+à consulter** — la résolution est synchrone, dans la requête du héros qui lance, et c'est le
+**moteur** qui décide (`App\Partie\ReactionsMj`, appelée par `ResolveurTour::lancerSort()`,
+le point commun du sort connu et du parchemin). Aucune route, aucune offre : ce n'est pas une
+réaction de héros (`POST /reaction` n'est pas concerné).
+
+Trois champs s'ajoutent au payload de l'action `sort` / `parchemin`, **absents** quand rien n'a
+réagi (aucun client existant n'est touché) :
+
+- **`sort_annule`** : `true` — le sort a été lancé (donc épuisé : un sort connu passe à
+  `disponible: false`, un parchemin est consommé, l'action du héros est dépensée) puis annulé.
+  Le payload ne porte alors ni dégâts ni condition : seulement la `cible` visée quand le sort
+  n'en avait qu'une, et `reactions_mj`.
+- **`sort_renvoye`** : `true` — *Mirror Magic* : le sort visait le lanceur du MJ et retombe sur
+  le héros. Le payload porte l'effet **sur le héros** (`cible` = le héros, `tir_ami: true`,
+  `degats`, `cible_tombee`, `condition`… les mêmes champs qu'un tir sur un compagnon).
+- **`reactions_mj`** : liste (ordre de jeu) de décisions, chacune
+  `{issue, mecanique, par: {instance_id, nom}, carte, jet?, conditions_levees?}` :
+  - `issue` : `"annule"` · `"renvoie"` · `"resiste"` (*Dispel* tentée, le héros l'emporte ou
+    égale : le sort part quand même, avec son effet normal) · `"rompu"` (*Break* : le sort a
+    pris, puis ses effets sont levés — `effet_applique` repasse alors à `false` et
+    `rompu_par_mj: true` s'ajoute, la vérité du payload étant « en vigueur une fois le sort
+    lancé »).
+  - `mecanique` : `"annule_sort_ciblant"` (capacité de Gretzl) · `"rompt_sort_actif"`
+    (capacité de Gruzbella) · `"dissipe"` · `"renvoie"` (les deux sorts de Dread).
+    Vocabulaire fermé : `MotsClesReactionMj::CAPACITES` et `MotsClesSortDread::MECANIQUES`.
+  - `par` : le monstre qui réagit (`nomAffiche()`, habillage compris).
+  - `carte` : le sort de Dread joué (`"Dissipation"`, `"Magie Miroir"`), `null` pour une
+    capacité de monstre.
+  - `jet` (*Dissipation* seulement) : `{lanceur, heros}`, chacun
+    `{mind, des: [faces], de, total}` — Mind (la **jauge** `pv_mind`) + 1 dé rouge de chaque
+    côté, le MJ lance **d'abord** ; le plus haut total annule, l'égalité profite au héros.
+  - `conditions_levees` (*Break*) : `[{cle, libelle}]` — le mot de chaque état est décidé côté
+    serveur (`MoteurSorts::libelleConditionMonstre()`).
+
+**Politique du moteur** (aucune carte ne dit quand Zargon réagit) : seul un sort lancé
+*contre* le camp du MJ appelle une réaction (il prend un monstre pour cible — figure choisie,
+zone ou rayon) ; ordre : la capacité du monstre visé, puis *Mirror Magic* (cible UNIQUE
+seulement), puis *Dispel* — une seule tentative par sort. Un lanceur non visé ne dissipe que ce
+qu'il voit, et ni endormi, ni paralysé, ni passé aux ordres des héros. Une capacité se dépense
+pour la rencontre (`capacites_reactives_utilisees`, colonne portée par le snapshot) ; un sort de
+Dread coûte **un usage** du budget du lanceur, même quand le jet échoue.
+
+Rendu, **sans nouveau code front** : le fil (`JournalCombat::lignesSortAvecReactionsMj()`,
+tons `echec`/`succes`/`subit`/`pare` déjà stylés) et, pour la table, une scène `genre:
+"reaction"` par décision à la suite de celle du sort (`SceneDeTable::reactionMj()`). Le rejeu
+relit le même payload : la ligne est identique en direct et à la reconnexion.
+
 ## Jungles of Delthrak — le butin (lot A, 2026-10-09)
 
 Source : livret F9907 p. 50 (« Treasure and Artifact Reference », page 26 du PDF) et p. 2
@@ -3698,6 +3851,65 @@ druide aux Ronces complices), jamais l'ingrédient. Les monstres **Agile** l'ign
   durable `retenu: personnage_id`) ; `pieges_declenches[]` porte `retenu`, `retient`,
   `condition_appliquee`. Sortie : l'option existante **`liberer_entraves`** (action du héros tenu
   ou d'un voisin au contact) ; son payload gagne `lianes_detruites[]` et le piège passe à `desarme`.
+
+## The Mage of the Mirror — les sables mouvants (livret F7539 p. 29, 2026-10-15)
+
+Source : quête 8 « The Gathering Storm », note C, relue au livret : « a hero must stand adjacent
+to it and try to jump over the quicksand. The hero rolls one combat die… If a black shield is
+rolled, the hero successfully lands on the square directly across… Any other result means the
+hero lands in the quicksand and starts to sink. To avoid death, tell the hero to immediately
+discard any two items (weapons, armor, potions, scrolls, etc.). This ends the hero's turn. On
+the hero's next turn, the hero climbs out… onto the square across… » (René, 2026-10-15 : le
+héros **choisit** les deux objets — `reference/18` et le plan disaient « au hasard », c'était
+faux ; sans deux objets il tombe à 0 PV, à terre, la mort définitive étant refusée.)
+
+**Un TERRAIN du catalogue**, pas une couche : `terrains` « Sables mouvants » (`boite =
+mage_du_miroir`, `bloque_mouvement = true`, `bloque_vue = false`), trois clés du vocabulaire
+fermé `MotsClesTerrain` — `saut_par_dessus: 2` (profondeur de la bande), `saut_reussi_sur:
+bouclier_noir`, `enlise: 2` (objets à abandonner). `carte.terrain[]` le publie comme tout terrain
+(brouillard inchangé) avec ses `avantages` en phrases décidées par le serveur ; sa case n'est ni
+un passage ni un arrêt (`FabriqueGrille::pour()`, `Grille::arretInterdit()`). **Placement** :
+`structure.terrains.sables: {min, max}` (nombre de BANDES, 0..1 aux quatre gabarits) ; le thème dit
+si ; une bande de 2 rangées collée à un mur, jamais en salle de départ, jamais devant une
+porte/un levier/une épreuve, **sans jamais couper la salle** (contournement d'au moins une case,
+plancher de cases libres, une vraie ligne de saut) — la pose est abandonnée plutôt que forcée.
+Écart nommé au livret : l'imprimé coupe la salle en deux ; ici le saut est un raccourci risqué.
+
+**Le saut** — option `sauter_sables_{x}_{y}` (`x,y` = première case de sable), `type:
+saut_sables`, `creneau: mouvement`, offerte **seulement** depuis une case voisine, avec une
+file de sable de la profondeur exacte et une case de réception libre en face, et de quoi payer
+les cases traversées (3 points : 2 de sable + la réception, par analogie avec la Fosse).
+`parametres: {sable: {x,y}, vers: {x,y}, sens: n|s|e|o, cout: 3, enlise: 2}` — le serveur publie
+la DÉCISION, le client ne calcule ni la ligne ni l'arrivée. Résolution : un dé de combat.
+Payload `{type: "saut_sables", terrain, terrain_id, sens, depart, en_face, cout, des_lances: 1,
+faces: [face], face_requise, succes, franchi, vers, deplacement_restant}` ; sur échec s'y
+ajoutent `a_defausser` (0 ou 2), `tombe`, et — si le héros n'a pas deux objets —
+`objets_disponibles` et `fin_de_tour: true`. La réponse de `POST /choix` porte `des` (dé
+unilatéral, `defensive: "bouclier_noir"`) ; la table reçoit une scène `jet`.
+
+**L'enlisement** — `etat_personnage_quete.enlise` (JSON, **colonne**, jamais le cache) :
+`{phase: defausse|sables, a_defausser, sable: {x,y}, vers: {x,y}, terrain}`. Publié par
+`entites[].enlise` = `{a_defausser, vers, terrain}` (`null` hors des sables) ; la manette et la
+table en tirent un badge. Il survit au round et au snapshot (`Sauvegarde`).
+
+- Phase **`defausse`** — menu FORCÉ, une seule option : `defausser_sables` (`type:
+  defausse_sables`, `creneau: interaction`), `parametres: {restantes, objets: [{cle:
+  "objet:{id}", inventaire_id, nom, quantite, porte, detail}]}`. `objets` est la **liste
+  blanche** : `POST /choix {option_id: "defausser_sables", parametres: {cle}}` abandonne **un
+  exemplaire** (une pile compte pour autant d'objets qu'elle en a) et le serveur republie la
+  liste, jusqu'à deux. **Un « objet »** = toute unité d'inventaire du héros, **portée ou non** (le
+  livret nomme les armes et armures) ; une pièce portée qui part fait recalculer ses dés
+  (`Equipement::recalculerCombat()`). Le dernier abandon clôt le tour (`fin_de_tour: true`). Plus
+  rien à abandonner : la liste est vide, l'option devient « Sombrer » et le héros tombe (`tombe:
+  true`). Payload `{type: "defausse_sables", objet, porte, restantes, a_defausser, tombe,
+  fin_de_tour}`.
+- Phase **`sables`**, au tour suivant — menu FORCÉ : `sortir_des_sables` (`type: sortie_sables`,
+  `creneau: tour`, `parametres: {vers}`) ; si la case d'en face est occupée, seulement
+  `attendre` et une `situation` qui le dit (le livret n'en dit rien : il reste enlisé).
+  Payload `{type: "sortie_sables", terrain, depart, vers}`. Le tour s'achève.
+- Le résolveur refuse tout autre geste à un héros enlisé (422), même forgé.
+
+Les trois types sont dans `JournalCombat::TYPES` (le fil dit le saut, l'abandon, la sortie).
 
 ## Garanties
 

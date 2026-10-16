@@ -626,7 +626,17 @@ const phaseHub = computed(() => !!etat.value && etat.value.groupe?.phase === 'hu
 // narrateur voie les renforts avant de lancer la quête (le recrutement lui-même
 // se fait sur la manette d'un joueur, bourse commune).
 const recruesHub = computed(() => etat.value?.groupe?.mercenaires ?? []);
+// COMPAGNON ANIMAL OFFERT : tant que `groupe.compagnon_offert` est publié, l'offre est ouverte et le
+// premier lancement la fermerait pour toujours (une seule fois, gratuite). Le bouton de la table
+// n'est pas un « Prêt ! » (le serveur ne le refuse pas) : on prévient donc, et le second clic passe outre.
+const lancementAConfirmer = ref(false);
+const compagnonOffertHub = computed(() => etat.value?.groupe?.compagnon_offert ?? null);
 async function lancerQuete() {
+    if (compagnonOffertHub.value && !lancementAConfirmer.value) {
+        lancementAConfirmer.value = true;
+        return;
+    }
+    lancementAConfirmer.value = false;
     lancementEnCours.value = true;
     erreurLancement.value = '';
     try {
@@ -966,9 +976,20 @@ watch(() => store.state.clotureTerminee, (t) => {
                             :reveil="etat?.groupe?.objets_reveilles ?? null"
                             :vote="etat?.groupe?.vote_sortie ?? null"
                         />
+                        <!-- Compagnon animal offert (Against the Ogre Horde) : décidé et rédigé par le serveur. -->
+                        <p v-if="compagnonOffertHub" class="hub-compagnon">
+                            <MSym n="pets" fill :size="15" />
+                            <span>
+                                {{ compagnonOffertHub.consigne }}
+                                ({{ compagnonOffertHub.animaux.map((a) => a.nom).join(', ') }})
+                                À prendre ou à refuser sur une manette avant de lancer la quête.
+                            </span>
+                        </p>
                         <div style="display: flex; gap: 10px">
                             <button class="btn torch" :disabled="lancementEnCours" @click="lancerQuete">
-                                <MSym n="play_arrow" /> {{ lancementEnCours ? 'Préparation…' : 'Lancer la quête' }}
+                                <MSym n="play_arrow" />
+                                {{ lancementEnCours ? 'Préparation…'
+                                    : (lancementAConfirmer ? 'Lancer sans compagnon' : 'Lancer la quête') }}
                             </button>
                             <button class="btn" :disabled="ouvertureMarche" @click="ouvrirMarche">
                                 <MSym n="storefront" /> {{ ouvertureMarche ? 'Ouverture…' : 'Ouvrir le marché' }}
@@ -983,7 +1004,7 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <div v-if="recruesHub.length" class="hub-allies">
                             <span class="hub-allies-titre"><MSym n="diversity_3" fill :size="15" /> Renforts</span>
                             <span v-for="r in recruesHub" :key="r.id" class="hub-allie">
-                                <MSym :n="r.animal ? 'pets' : 'shield'" :size="14" /> {{ r.nom }}
+                                <MSym :n="r.animal ? 'pets' : 'shield'" :size="14" /> {{ r.nom }}<template v-if="r.offert"> (offert)</template>
                             </span>
                         </div>
                     </div>
@@ -1507,6 +1528,10 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .top .scene-vignette { width: 56px; height: 56px; object-fit: cover; border-radius: var(--r-md);
   border: var(--line); flex: none; box-shadow: var(--sh-1); }
 .table-screen .hub-panel p { font-family: var(--font-narr); font-style: italic; font-size: 17px; margin: 0; }
+.table-screen .hub-panel .hub-compagnon { display: flex; align-items: flex-start; gap: 8px; max-width: 560px; margin: 0;
+  padding: 10px 12px; border: 1px solid var(--torch, #c9a25a); border-radius: 10px; background: rgba(201, 162, 90, 0.08);
+  font-family: var(--font-ui); font-style: normal; font-size: 13.5px; line-height: 1.45; text-align: left; }
+.table-screen .hub-panel .hub-compagnon > .msym { flex: none; margin-top: 1px; color: var(--torch, #c9a25a); }
 .table-screen .hub-panel .hub-err { font-family: var(--font-ui); font-style: normal; font-size: 13px; color: var(--danger, #c33); }
 .table-screen .hub-allies { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px;
   font-family: var(--font-ui); font-style: normal; }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Des\FaceDeCombat;
 use App\Engine\MotsClesEquipement;
 use App\Models\InstanceMonstre;
 use App\Models\Mobilier;
@@ -221,6 +222,16 @@ final class SceneDeTable
             $scenes[] = $this->reactionMonstre($a['reaction_monstre']);
         }
 
+        // LE MJ A RÉAGI AU SORT D'UN HÉROS (René, 2026-10-15) : une scène par réaction, à la
+        // suite de celle du sort — même patron que `reaction_monstre` juste au-dessus, au-
+        // dessus de n'importe quel type d'action. Sans elle la table montrait un sort lancé
+        // et RIEN de ce qui l'avait annulé.
+        foreach ((array) ($a['reactions_mj'] ?? []) as $reaction) {
+            if (is_array($reaction)) {
+                $scenes[] = $this->reactionMj($reaction, $acteur->nom, (string) ($a['sort']['nom'] ?? 'le sort'));
+            }
+        }
+
         if (is_array($a['reddition_monstre'] ?? null)) {
             $scenes[] = $this->redditionMonstre((int) ($a['reddition_monstre']['or'] ?? 0));
         }
@@ -261,6 +272,35 @@ final class SceneDeTable
         ];
     }
 
+    /**
+     * Une réaction du MJ au sort d'un héros — le texte vient de `JournalCombat` quand il
+     * existe (la ligne d'une *Dispel* porte déjà ses deux totaux), jamais recomposé ici.
+     *
+     * @param  array<string, mixed>  $r
+     * @return array<string, mixed>
+     */
+    private function reactionMj(array $r, string $nomHeros, string $nomSort): array
+    {
+        $par = (string) ($r['par']['nom'] ?? 'Le maître du jeu');
+        $instanceId = (int) ($r['par']['instance_id'] ?? 0);
+        $carte = $r['carte'] ?? null;
+        $ligne = app(JournalCombat::class)->ligneReactionMjPublique($r, $nomHeros, $nomSort);
+
+        return [
+            'genre' => 'reaction',
+            'titre' => $carte !== null ? (string) $carte : 'Défense réactive',
+            'sous_titre' => $carte !== null
+                ? "{$par} réagit au sort de {$nomHeros}"
+                : "{$par} — à usage unique pour toute la rencontre",
+            'acteurs' => $instanceId > 0 ? [$this->acteurMonstre($instanceId, $par, 'acteur')] : [],
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [],
+            'issue' => ['ton' => $ligne['ton'], 'libelle' => $ligne['texte']],
+        ];
+    }
+
     /** @return array<string, mixed> */
     private function redditionMonstre(int $or): array
     {
@@ -292,6 +332,9 @@ final class SceneDeTable
             'piege_desarme_embrasement' => $this->pieceMagique($a, $acteur),
             'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteur),
             'jet', 'desamorcage', 'franchissement' => $this->jet($a, $acteur),
+            // SABLES MOUVANTS (F7539 p. 29) : un dé de combat que la table doit VOIR tomber — le saut
+            // réussit sur le seul bouclier noir, et l'échec enlise le héros.
+            'saut_sables' => $this->sautSables($a, $acteur),
             'actionner_levier' => $this->levier($a, $acteur),
             // PORTE DE PIERRE (Against the Ogre Horde p. 4) : même raison que
             // `desamorcage` ci-dessus — un échec ne laisse AUCUNE trace sur la
@@ -931,6 +974,41 @@ final class SceneDeTable
     }
 
     /**
+     * SAUT par-dessus les SABLES MOUVANTS : un seul dé de combat, et la face qui fait réussir est
+     * celle du catalogue (`face_requise`) — la table dessine le dé et nomme l'issue, elle ne
+     * redéduit rien.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>
+     */
+    private function sautSables(array $a, Personnage $acteur): array
+    {
+        $reussi = ! empty($a['franchi']);
+        $terrain = (string) ($a['terrain'] ?? 'Sables mouvants');
+        $requise = FaceDeCombat::tryFrom((string) ($a['face_requise'] ?? ''));
+
+        return [
+            'genre' => 'jet',
+            'titre' => $acteur->nom.' tente de sauter par-dessus les '.mb_strtolower($terrain),
+            'sous_titre' => 'Un dé de combat — '.($requise !== null ? MoteurSables::libelleFace($requise) : 'la bonne face').' pour réussir',
+            'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
+            'jet' => app(JournalCombat::class)->desJetUnilateral($a, $acteur->nom),
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [[
+                'nom' => $terrain,
+                'image_url' => $this->images->urlTerrain(isset($a['terrain_id']) ? (int) $a['terrain_id'] : null, $terrain),
+                'detail' => $reussi ? 'franchis' : 'le héros s\'enlise',
+            ]],
+            'issue' => match (true) {
+                $reussi => ['ton' => 'tresor', 'libelle' => 'il atterrit de l\'autre côté'],
+                ! empty($a['tombe']) => ['ton' => 'mort', 'libelle' => 'il sombre : à terre, 0 PV'],
+                default => ['ton' => 'echec', 'libelle' => 'il s\'enlise — il abandonne '.(int) ($a['a_defausser'] ?? 0).' objets'],
+            },
+        ];
+    }
+
+    /**
      * POTION ou consommable bu.
      *
      * ⚠ Deux cas, et l'écran doit les distinguer : boire SA potion, ou en tendre
@@ -1232,6 +1310,7 @@ final class SceneDeTable
         if (($instanceId = (int) ($a['cible']['instance_id'] ?? 0)) > 0) {
             $acteurs[] = $this->acteurMonstre($instanceId, (string) $cibleNom, 'cible');
         } elseif (($persoId = (int) ($a['cible']['personnage_id'] ?? 0)) > 0
+            && $persoId !== (int) $acteur->id // un sort RENVOYÉ retombe sur son lanceur : un seul portrait
             && ($autre = Personnage::find($persoId)) !== null) {
             $acteurs[] = $this->acteurHeros($autre, 'cible');
         }
@@ -1248,6 +1327,12 @@ final class SceneDeTable
             'figure' => null,
             'objets' => $objets,
             'issue' => match (true) {
+                // Le MJ a rencontré le sort (René, 2026-10-15) : la scène du sort dit ce
+                // qui lui est arrivé, la scène de la réaction (`reactionMj()`) dit qui.
+                ! empty($a['sort_annule']) => ['ton' => 'pare', 'libelle' => $nomSort.' est annulé'],
+                ! empty($a['sort_renvoye']) => $degats > 0
+                    ? ['ton' => 'subit', 'libelle' => "−{$degats} PV — renvoyé sur son lanceur"]
+                    : ['ton' => 'subit', 'libelle' => $nomSort.' est renvoyé sur son lanceur'],
                 ! empty($a['cible_vaincue']) => ['ton' => 'mort', 'libelle' => $cibleNom.' est foudroyé'],
                 $degats > 0 => ['ton' => 'degats', 'libelle' => "−{$degats} PV"],
                 $soin > 0 => ['ton' => 'tresor', 'libelle' => "+{$soin} PV rendus"],

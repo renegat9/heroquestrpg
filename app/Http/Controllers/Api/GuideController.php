@@ -88,10 +88,14 @@ class GuideController extends Controller
                 // `boite` + `boite_libelle` (2026-10-09) : la boîte d'extension d'où
                 // vient la créature. Le libellé est celui du serveur
                 // (`DemarreurQuete::LIBELLES_BOITES`), jamais un identifiant brut.
-                ->get(['nom_base', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'tier', 'cout', 'capacites', 'boite'])
+                // Un monstre imprimé dans DEUX boîtes (Archer / Guerrier elfe : Mage of the
+                // Mirror et Rise of the Dread Moon, 2026-10-15) les nomme toutes, dans
+                // `boite_libelle` — `boite` reste la boîte d'origine.
+                ->get(['nom_base', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'tier', 'cout', 'capacites', 'boite', 'boites_partagees'])
                 ->map(fn (Monstre $m) => [
                     ...$m->only(['nom_base', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'tier', 'cout', 'capacites', 'boite']),
-                    'boite_libelle' => $m->boite === null ? null : app(DemarreurQuete::class)->libelleBoiteBestiaire((string) $m->boite),
+                    'boite_libelle' => $m->boite === null ? null : collect($m->boites())
+                        ->map(fn (string $b) => app(DemarreurQuete::class)->libelleBoiteBestiaire($b))->implode(' · '),
                 ])
                 ->sortBy(fn ($m) => sprintf('%d|%04d|%s', $rangTier[$m['tier']] ?? 9, $m['cout'], $m['nom_base']))
                 ->values()

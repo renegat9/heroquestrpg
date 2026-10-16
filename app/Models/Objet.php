@@ -43,10 +43,13 @@ class Objet extends Model
      * Cette pièce refuse-t-elle une cible AU CONTACT ? — « cannot be used on an
      * adjacent target » (Arbalète, arcs, Fronde, Dague de jet magique).
      *
-     * LE point de passage de la clé `inutilisable_adjacent` : `MenuMoteur`
-     * retire les cibles au contact de la liste blanche qu'il publie,
-     * `ResolveurTour::resoudreAttaque()` refuse le choix forgé — deux sites, une
-     * seule règle, sans quoi le menu offrait ce que le résolveur refusait.
+     * LE point de passage de la clé `inutilisable_adjacent` : `MenuMoteur` marque
+     * les cibles au contact (`mains_nues`, `des_attaque`, `indication`), et
+     * `ResolveurTour::frapper()` y fait frapper le héros À MAINS NUES — l'arme
+     * ne tire pas au contact, mais ne désarme pas son porteur (René, 2026-10-15).
+     * Deux sites, une seule règle, sans quoi le menu annonçait un coup que le
+     * résolveur ne résolvait pas autrement. Seul un `lancer` au contact reste
+     * refusé (`resoudreAttaque()`).
      *
      * La clé ne vaut que pour une arme qui TIRE : `portee: distance`, ou une
      * arme jetable le temps de son vol (`$lancee`). Une arme qui n'a pas la

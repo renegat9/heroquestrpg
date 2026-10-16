@@ -249,10 +249,10 @@ Vander - Use the stats shown on the Elf card for Vander. »
 | # | Question | Recommandation |
 |---|---|---|
 | **Q1** | *Ring of Return* : le lecteur actuel de `ramene_heros_au_depart` ramène-t-il tout le groupe visible par le porteur (texte de carte, §1) ou seulement le porteur ? Si c'est ce dernier, faut-il corriger — sachant que l'objet est **déjà vendu/seedé** et peut être en possession de personnages réels ? | Vérifier le lecteur avant tout — si divergent, le signaler comme défaut préexistant plutôt que de le resourcer silencieusement sur cette boîte |
-| **Q2** | Dread Skull (cette boîte) et Guardian Effigy (*Against the Ogre Horde*) partagent le même besoin : une créature `deplacement: 0` purement réactive à distance. Construire le patron UNE fois (mot-clé générique « tourelle »/« immobile ») avant de seeder l'un ou l'autre ? | Oui — exactement la discipline « une règle, un point de passage » |
-| **Q3** | Souffle Acide (Venim) : carte-sœur de Tempête de feu avec `type_degat: acide` (une carte dupliquée, une donnée), ou un paramètre de nature de dégât porté par l'instance de monstre (une exception au registre figé) ? | Carte-sœur — cohérent avec le reste de `config/cartes.php`, pas de première exception |
+| **Q2** | Dread Skull (cette boîte) et Guardian Effigy (*Against the Ogre Horde*) partagent le même besoin : une créature `deplacement: 0` purement réactive à distance. Construire le patron UNE fois (mot-clé générique « tourelle »/« immobile ») avant de seeder l'un ou l'autre ? → **tranchée le 2026-10-15** : UN seul mécanisme « tourelle » ; le Dread Skull tire dès qu'il est vu ; immunité totale de l'Effigie aux sorts ; tourelle en salle seulement. | Oui — exactement la discipline « une règle, un point de passage » |
+| **Q3** | Souffle Acide (Venim) : carte-sœur de Tempête de feu avec `type_degat: acide` (une carte dupliquée, une donnée), ou un paramètre de nature de dégât porté par l'instance de monstre (une exception au registre figé) ? → **tranchée le 2026-10-15** : carte-sœur de *Tempête de feu*, `type_degat: acide`. | Carte-sœur — cohérent avec le reste de `config/cartes.php`, pas de première exception |
 | **Q4** | Vander (allié gratuit, stats Elfe, joué par le joueur) recoupe la question Q2 ouverte d'*Against the Ogre Horde* (allié animal gratuit, joué par le joueur ou par le moteur ?) : trancher les deux ensemble ? | Oui — la réponse à l'une répond à l'autre, un seul mécanisme d'« allié joué par un joueur » sert les deux boîtes |
-| **Q5** | Cette boîte devient-elle un thème `crypte_tenebres` à part entière (6ᵉ/7ᵉ entrée de `BOITES_THEMATIQUES`), sachant qu'elle n'a **aucun monstre générique propre** — seulement des adversaires nommés réutilisant des gabarits du jeu de base ? Le principe « un thème a besoin d'un fond commun + quelques signatures » (`docs/plan-themes-bestiaire.md`) tient-il avec zéro créature de base dédiée ? | À trancher après le lot E : si les 7 adversaires nommés suffisent à « colorer » un arc (ils couvrent déjà boss + plusieurs sous-boss), rien n'empêche le thème — sinon, la boîte reste un réservoir de rencontres scriptées sans thème propre |
+| **Q5** | Cette boîte devient-elle un thème `crypte_tenebres` à part entière (6ᵉ/7ᵉ entrée de `BOITES_THEMATIQUES`), sachant qu'elle n'a **aucun monstre générique propre** — seulement des adversaires nommés réutilisant des gabarits du jeu de base ? Le principe « un thème a besoin d'un fond commun + quelques signatures » (`docs/plan-themes-bestiaire.md`) tient-il avec zéro créature de base dédiée ? → **différée le 2026-10-15** : la décision de thème se prend une fois le contenu porté. | À trancher après le lot E : si les 7 adversaires nommés suffisent à « colorer » un arc (ils couvrent déjà boss + plusieurs sous-boss), rien n'empêche le thème — sinon, la boîte reste un réservoir de rencontres scriptées sans thème propre |
 
 ## 5. Sources à demander (photos des cartes)
 
@@ -305,3 +305,14 @@ base** ; redémarrer `queue` et `queue-jeu` après le PHP.
 > propres (*Crown of Shadows*, *Dragon Spear*) comme le reste (*Ring of
 > Return* et l'équipement réemployé) sont déjà sourcés sans photo. Liste de
 > photos (§5) inchangée.
+
+## Décisions de René (2026-10-15)
+
+| # | Décision | Conséquence |
+|---|---|---|
+| **Q2** | **Tourelle : UN seul mécanisme** pour le *Guardian Effigy* (*Against the Ogre Horde*) et le *Dread Skull* (cette boîte). | Lot C : un patron commun (`deplacement` 0, tir à distance réactif), construit **une fois**, avant les deux seedages. |
+| **Q2** | Le **Dread Skull tire DÈS qu'il est vu**, comme au livret (« As soon as a hero sees a Dread Skull, place it on the board. Immediately… »). | Révélation par `MoteurPieges::revelerEnVue()` et tir immédiat hors tour : les points (a) et (b) du lot C sont retenus. |
+| **Q2** | **Immunité de l'Effigie TOTALE aux sorts** (« immune to all spell effects »). | Même mot-clé que la Gargouille gardienne de *Kellar's Keep* (immunité totale), pas une immunité partielle. |
+| **Q2** | **Tourelle en SALLE seulement, jamais en couloir.** | Placement limité aux salles : une tourelle posée dans un couloir d'une case bloquerait le passage (règle « connexe n'est pas jouable »). |
+| **Q3** | **Souffle Acide = carte-sœur de *Tempête de feu*** (`type_degat: acide`). | Une carte de plus dans `config/cartes.php`, une donnée : pas de nature de dégât portée par l'instance (aucune exception au registre figé). |
+| **Q5** | **Thème propre `crypte_tenebres` : décision différée** jusqu'au portage du contenu. | Pas de nouvelle entrée `BOITES_THEMATIQUES` avant ce portage. |

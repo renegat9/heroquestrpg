@@ -361,11 +361,17 @@ class MonstreSeeder extends Seeder
             // ⚠ Magrian, le Dread Wraith (boss final, quête 10, p. 33) reste
             // NON semée comme créature nommée distincte : ses QUATRE
             // capacités à usage unique sans action (*Terror*, *Consume
-            // Magic*, *Reflection*, *Shift Reality*) dépassent le vocabulaire
-            // `reactions_defense` construit ici pour Gruzbella/Gretzl
-            // (`ignore_degats_attaque` seul) — *Reflection* redirige un coup
-            // APRÈS l'avoir subi, *Shift Reality* lance un sort en DÉBUT de
-            // tour : deux mécaniques sans point de passage encore construit.
+            // Magic*, *Reflection*, *Shift Reality*) dépassent encore le
+            // vocabulaire `reactions_defense` (`MotsClesReactionMj`).
+            // *Consume Magic* (annule un sort qu'un héros vient de lancer,
+            // +2 Body) serait la seule à entrer à la couture « le MJ réagit au
+            // sort d'un héros » (2026-10-15) — mais Magrian n'en aurait alors
+            // qu'UNE sur quatre : *Terror* (intouchable le reste du tour d'un
+            // héros), *Reflection* (redirige un coup APRÈS l'avoir subi) et
+            // *Shift Reality* (un sort en DÉBUT de tour du MJ) n'ont aucun point
+            // de passage, et son leurre d'image-miroir aucune mécanique. Le semer
+            // à un quart de sa fiche trahirait la source ; le nom de la dette est
+            // `MotsClesReactionMj::NON_IMPLEMENTEES`.
             // L'« Ombre du Dread » ci-dessus reste son habillage, exactement
             // comme avant ce chantier (`docs/plan-dread-moon.md` lot I le dit
             // explicitement : « Magrian redevient un sous-boss nommé » une
@@ -374,11 +380,18 @@ class MonstreSeeder extends Seeder
             // ---- The Mage of the Mirror (doc 18) ----
             // L'archer elfe est la seconde créature à distance du bestiaire :
             // « Attack 4 (1 si adjacent) ».
+            //
+            // BOÎTES PARTAGÉES (René, 2026-10-15) : l'Archer elfe et le Guerrier elfe sont aussi
+            // dans *Rise of the Dread Moon* (livret F6646 p. 36, « Elf Warrior » / « Elf Archer »,
+            // même fiche) : `boite` reste la boîte d'origine, `boites_partagees` ajoute l'autre —
+            // UNE ligne, deux thèmes. Jamais `boite: null` (ils entreraient dans TOUS les thèmes
+            // et dans le bestiaire « jeu de base seul ») ni une ligne dupliquée.
+            // Lu par `Monstre::boites()` → `BestiaireGroupe::autorise()/contient()`.
             ['nom_base' => 'Archer elfe', 'deplacement' => 6, 'attaque' => 1, 'defense' => 2, 'pv_body' => 3, 'pv_mind' => 2,
-                'tier' => 'base', 'boite' => 'mage_du_miroir', 'cout' => 5, 'portee' => 'distance', 'attaque_distance' => 4,
+                'tier' => 'base', 'boite' => 'mage_du_miroir', 'boites_partagees' => ['dread_moon'], 'cout' => 5, 'portee' => 'distance', 'attaque_distance' => 4,
                 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Guerrier elfe', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 3, 'pv_mind' => 2,
-                'tier' => 'base', 'boite' => 'mage_du_miroir', 'cout' => 5, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'mage_du_miroir', 'boites_partagees' => ['dread_moon'], 'cout' => 5, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Loup géant', 'deplacement' => 9, 'attaque' => 6, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 1,
                 // `grande_taille` : le livret nomme le Loup géant grande figurine ;
                 // l'Ogre garde aussi ses 2 cases (René, 2026-10-04).
@@ -464,14 +477,16 @@ class MonstreSeeder extends Seeder
             // stats relues A/D/M/B/Mi : Confiante 4/6/5/5/4 → Déterminée
             // 5/5/7/5/4 → Imprudente 6/1/8/5/4 (Body et Mind inchangés, seule
             // la fougue grimpe et la garde tombe). `reactions_defense` :
-            // SEULE *Resilience* (« ignore tous les dégâts d'une attaque »,
-            // une fois pour toute la rencontre) est portée — *Break* (« met
-            // fin à un sort actif sur elle ») et *Deflect* (« redirige
-            // l'attaque vers un héros dans ses 10 cases ») attendent un
-            // patron non construit ici (interception du ciblage / de la pose
-            // de condition sur toute la rencontre plutôt qu'au seul point de
-            // passage de la mort) — DÉLIBÉRÉMENT absentes plutôt que
-            // déclarées sans lecteur. Vaincue (dernière phase à 0 Body),
+            // *Resilience* (« ignore tous les dégâts d'une attaque », une
+            // fois pour toute la rencontre) ET *Break* (« met fin à un sort
+            // actif sur elle », `rompt_sort_actif`, portée le 2026-10-15 par la
+            // couture « le MJ réagit au sort d'un héros » —
+            // `ReactionsMj::apresSortDeHeros()`). *Deflect* (« redirige
+            // l'attaque vers un héros dans ses 10 cases ») reste DÉLIBÉRÉMENT
+            // absente plutôt que déclarée sans lecteur : c'est une ATTAQUE qu'elle
+            // détourne, pas un sort — elle appartient au choix de la cible de
+            // `ResolveurTour::frapper()`, un autre point de passage
+            // (`MotsClesReactionMj::NON_IMPLEMENTEES`). Vaincue (dernière phase à 0 Body),
             // « elle s'incline » : `recompense_reddition` crédite 1000 po au
             // groupe au lieu d'une mort — ELLE N'EST PAS maléfique (p. 2).
             // `cout` : somme des attaques-à-3-dés par phase (10 + 7,5 + 3,75
@@ -479,15 +494,15 @@ class MonstreSeeder extends Seeder
             // partage la résistance totale.
             ['nom_base' => 'Gruzbella Hammerhand', 'deplacement' => 5, 'attaque' => 4, 'defense' => 6, 'pv_body' => 5, 'pv_mind' => 4,
                 'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
-                'capacites' => ['reactions_defense' => ['ignore_degats_attaque']],
+                'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif']],
                 'sorts_dread' => [], 'phase_suivante' => 'Gruzbella Déterminée'],
             ['nom_base' => 'Gruzbella Déterminée', 'deplacement' => 7, 'attaque' => 5, 'defense' => 5, 'pv_body' => 5, 'pv_mind' => 4,
                 'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
-                'capacites' => ['reactions_defense' => ['ignore_degats_attaque']],
+                'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif']],
                 'sorts_dread' => [], 'phase_suivante' => 'Gruzbella Imprudente'],
             ['nom_base' => 'Gruzbella Imprudente', 'deplacement' => 8, 'attaque' => 6, 'defense' => 1, 'pv_body' => 5, 'pv_mind' => 4,
                 'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
-                'capacites' => ['reactions_defense' => ['ignore_degats_attaque'], 'recompense_reddition' => ['or' => 1000]],
+                'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif'], 'recompense_reddition' => ['or' => 1000]],
                 'sorts_dread' => [], 'phase_suivante' => null],
 
             // SPAWN OF THE PIT (q. 1, p. 21), SOUS-BOSS (Q7). 2 formes, stats
@@ -577,10 +592,11 @@ class MonstreSeeder extends Seeder
             // `reactions_defense` : *Demon Wings* (« ignore tous les dégâts
             // d'une attaque », `ignore_degats_attaque`) est portée, dans les
             // TROIS phases — « toujours le même monstre » pour ses capacités
-            // aussi. *Dispel* (« annule un sort la ciblant ») reste absente
-            // ici, même raison que *Break* chez Gruzbella (interception de la
-            // pose de condition sur toute une rencontre : patron non construit,
-            // nommé plutôt que deviné).
+            // aussi. *Dispel* (« annule un sort la ciblant », `annule_sort_ciblant`)
+            // l'est aussi depuis le 2026-10-15, avec elle, dans les trois phases :
+            // `ReactionsMj::auSortDeHeros()` annule en entier le sort d'un héros qui
+            // la prend pour cible (cible unique, zone ou rayon), une fois par
+            // rencontre, sans action et sans jet.
             //
             // `cout` : somme des attaques-à-3-dés par phase (5 + 4,8 + 5,14
             // ≈ 14,9), interpolée comme le Dragon (First Light) entre les
@@ -590,17 +606,17 @@ class MonstreSeeder extends Seeder
             // construit pour Gruulob (2026-10-09).
             ['nom_base' => 'Gretzl la Porte-Fléau', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 6,
                 'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 18,
-                'capacites' => ['tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque']],
+                'capacites' => ['tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque', 'annule_sort_ciblant']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
                 'phase_suivante' => 'Demonspider'],
             ['nom_base' => 'Demonspider', 'deplacement' => 8, 'attaque' => 5, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 3,
                 'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 18,
-                'capacites' => ['agile', 'venimeux', 'tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque']],
+                'capacites' => ['agile', 'venimeux', 'tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque', 'annule_sort_ciblant']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
                 'phase_suivante' => 'Demonape'],
             ['nom_base' => 'Demonape', 'deplacement' => 8, 'attaque' => 6, 'defense' => 2, 'pv_body' => 6, 'pv_mind' => 1,
                 'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 18,
-                'capacites' => ['agile', 'tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque']],
+                'capacites' => ['agile', 'tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque', 'annule_sort_ciblant']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
                 'phase_suivante' => null],
 
@@ -634,9 +650,11 @@ class MonstreSeeder extends Seeder
             // la PREMIÈRE forme seulement — c'est elle qui entre dans la quête. Figé au
             // démarrage (`EffetsGlobauxQuete::etablir()`) : la forme démoniaque n'a pas à le
             // porter, et l'effet tient jusqu'à la fin de la quête même si Gruulob tombe.
-            // Faction « Gobelin » = le monstre de base et son archer (`estDeFaction()`) :
-            // Gruulob lui-même (« Gruulob, … ») et le Chamane Gobelin (nôtre, pas du livret)
-            // n'en font pas partie — décision à confirmer par René.
+            // Faction « Gobelin » = le monstre de base, son archer ET le Chamane Gobelin
+            // (`InstanceMonstre::estDeFaction()`, `MEMBRES_SUPPLEMENTAIRES_DE_FACTION`) —
+            // René, 2026-10-15 : le Chamane est un gobelin, « All Goblins in this quest »
+            // l'inclut. Gruulob lui-même (« Gruulob, … ») et sa forme démoniaque n'en font
+            // PAS partie : le chef auquel les gobelins sont dévoués garde sa fiche imprimée.
             //
             // Aucune capacité RÉACTIVE dans le livret (contrairement à Gretzl et *Demon
             // Wings*) : aucune entrée de `reactions_defense`.

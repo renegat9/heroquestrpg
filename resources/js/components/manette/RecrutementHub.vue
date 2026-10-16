@@ -106,7 +106,11 @@ const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' 
             <div class="sect-title"><MSym n="diversity_3" :size="16" /> Alliés recrutés</div>
             <div v-for="r in recrues" :key="r.id" class="recrut-recrue">
                 <span class="recrut-ic"><Vignette :src="r.image_url" :icon="TYPE_ICON[r.type] || 'swords'" /></span>
-                <div class="recrut-nom"><div class="rn">{{ r.nom }}</div></div>
+                <div class="recrut-nom">
+                    <div class="rn">{{ r.nom }}</div>
+                    <!-- Le compagnon animal OFFERT (Against the Ogre Horde) : sans entretien, pour toute la campagne. -->
+                    <div v-if="r.offert" class="rt">Offert · sans entretien</div>
+                </div>
                 <span class="recrut-pv"><MSym n="favorite" fill :size="13" /> {{ r.pv_body }}/{{ r.pv_body_max }}</span>
             </div>
         </template>

@@ -371,9 +371,11 @@ roster du tournoi.
   - *Gruzbella la Déterminée* — Attack 5 · Defend 5 · Move 7 · Body 5 · Mind 4
   - *Gruzbella l'Imprudente* — Attack 6 · Defend 1 · Move 8 · Body 5 · Mind 4
   - 3 capacités à usage unique chacune, utilisables à tout moment sans
-    action : **Break** (annule un sort actif sur elle), **Resilience**
+    action : **Break** (annule un sort actif sur elle — *porté le 2026-10-15*,
+    `rompt_sort_actif`), **Resilience**
     (ignore tous les dégâts d'une attaque), **Deflect** (redirige une
-    attaque la ciblant vers un héros dans les 10 cases environnantes)
+    attaque la ciblant vers un héros dans les 10 cases environnantes — *non porté* :
+    une ATTAQUE, `ResolveurTour::frapper()`, `MotsClesReactionMj::NON_IMPLEMENTEES`)
     (Ogre Horde, p. 25).
 - **Xenloth le Mage Dread** (quête 9) — **Attack 2 · Defend 4 · Move 6 ·
   Body 1 · Mind 4** ; connaît *Mind Lock* et *Mind Burst*, 5 cartes de
@@ -430,20 +432,25 @@ explicitement pour chaque profil dans ce livret.
   Dread, jamais cumulables avec une attaque à l'arme le même tour (Ogre
   Horde, p. 10-11) :
   - *Mind Lock* — attaquant et défenseur lancent chacun autant de dés de
-    combat que leurs Mind Points ; chaque crâne net de l'attaquant gèle la
+    combat que leurs Mind Points ; chaque crâne net de l'attaquant (*net* = après les boucliers du défenseur : **interprétation** retenue par René le 2026-10-15, le livret ne dit rien des boucliers pour ce sort) gèle la
     cible 1 tour (defend à 1 dé, aucune action) ; la cible tente de briser
     le sort en fin de tour gelé (3+ crânes sur un jet égal à ses Mind
     Points).
-  - *Dominate* — même jet en opposition (Mind vs Mind) ; 2 crânes net ou
+  - *Dominate* — même jet en opposition (Mind vs Mind) ; 2 crânes nets (même interprétation) ou
     plus = le MJ prend le contrôle complet du héros dominé pour un tour
     (mouvement + action, y compris attaquer d'autres héros).
   - *Mind Burst* — même jet en opposition ; la différence de crânes
     inflige des dégâts de **Mind Points** au perdant de l'opposition (peut
     donc blesser le lanceur si le défenseur fait mieux). Exemple du livret
-    (p. 10) : un Sorcier à 5 Mind contre le magicien à 6, et « the Dread
+    (p. 11) : un Sorcier à 5 Mind contre le magicien à 6, et « the Dread
     Sorcerer takes 2 Mind Points of damage ». ⚠ C'est le **premier
     producteur de dégâts de Mind côté MONSTRE** : il donne enfin une raison
     d'étendre l'état de choc aux monstres (« every creature »).
+    Règles omises jusqu'ici, ajoutées le 2026-10-15 : « Each time they cast
+    Mind Burst, they discard one of their spell cards » (p. 11) ; « If a Dread
+    Sorcerer has an active spell and is killed, the effects of that spell
+    immediately end » (p. 10). Les boucliers pour *Mind Burst* ne sont pas
+    tranchés : la décision de René porte sur *Mind Lock* et *Dominate*.
 - ⚠ Coûts et détails des cartes Mercenaire ogre et Allié animal (voir
   mécaniques ci-dessous) non trouvés dans le texte — probablement sur des
   cartes physiques hors PDF.
@@ -773,6 +780,15 @@ Entrance**.
   adversaires contrôlés par le MJ selon la quête). *Coût :* voir Ogre
   Horde — potentiellement le même système, réutilisable entre boîtes.
 
+> **Décisions de René du 2026-10-15 — The Frozen Horror.**
+> - **Quête double 9-10 (« The Heart of Ice ») : ÉCARTÉE pour le moment.**
+>   Le modèle suppose une quête = une carte ; deux cartes ouvertes en parallèle
+>   n'est pas lancé. `docs/plan-frozen-horror.md` (lot B, Q2).
+> - **Cartes de glace : ÉCARTÉES pour le moment** — *Armband of Ice*, *Chill*,
+>   *Ice Storm*, *Ice Bridge*, *Skate*. Les entrées `manque` de `config/cartes.php`
+>   sont gardées, annotées « Écarté pour le moment (René, 2026-10-15) ».
+>   `docs/regles/artefacts.md`.
+
 ---
 
 ## The Mage of the Mirror (2022/2023)
@@ -880,12 +896,15 @@ malédiction de loup-garou), **Prospector** et **Princess Millandriel**
   du groupe. *Coût :* le moteur suppose un groupe de sorts fixe par classe
   à la création du personnage ; il faudrait un choix de sous-ensemble
   reconfigurable par quête.
-- **Sables mouvants** : un jet de saut raté fait perdre au hasard 2 objets
-  de l'inventaire du héros (armes/armures/potions/parchemins) et fige son
-  tour ; le tour suivant, il ressort automatiquement de l'autre côté.
-  *Coût :* mécanique de pénalité d'inventaire aléatoire liée à une case de
-  décor — inédite, le moteur ne retire jamais d'objet aléatoirement hors
-  contexte de vol (Ice Gremlin, Bone Weapons cassées).
+- **Sables mouvants** : un jet de saut raté (un dé de combat, le bouclier
+  noir réussit) enlise le héros, qui doit **abandonner deux objets de SON
+  choix** (« discard any two items (weapons, armor, potions, scrolls,
+  etc.) », F7539 p. 29 — le héros CHOISIT ; une version antérieure de ce
+  document écrivait « au hasard », c'était faux) ; cela finit son tour, et le
+  tour suivant il ressort de l'autre côté. *Porté 2026-10-15* comme terrain
+  (`MoteurSables`, `docs/regles/carte-donjon.md`) : sans deux objets le héros
+  tombe à 0 PV (la mort définitive est refusée), et la bande ne coupe pas la
+  salle (écart nommé au plan imprimé).
 - **Monstres envoûtés récupérables** : des monstres (les archers elfes de
   Tormuk) combattent d'abord contre les héros puis rejoignent leur camp une
   fois le sort brisé (mort de leur maître), passant sous le contrôle d'un
@@ -971,6 +990,13 @@ catalogue à ce jour, aucun prix imprimé.
   once. Do not return this card to the deck.* »
   → chez nous : rien — attend la malédiction elle-même
   (`docs/plan-mage-du-miroir.md` lot B).
+
+> **Décisions de René du 2026-10-15 — The Mage of the Mirror.**
+> - **Quête double par miroir (9-10, *Silvermane's Lair*) : ÉCARTÉE pour le
+>   moment**, comme la quête double de *The Frozen Horror*. `docs/plan-mage-du-miroir.md`
+>   (lot C, Q2).
+> - **Archer elfe et Guerrier elfe** sont aussi dans *Rise of the Dread Moon*
+>   (p. 36) : une ligne de catalogue, deux boîtes (`monstres.boites_partagees`).
 
 ## Rise of the Dread Moon (2022/2023)
 
@@ -1180,6 +1206,16 @@ n'est au catalogue à ce jour.
 paquet d'alchimie. ⚠ Le reste du paquet (les potions d'alchimie elles-mêmes,
 dont *Potion of Defense*) n'est pas encore photographié.
 
+> **Décisions de René du 2026-10-15 — Rise of the Dread Moon.**
+> - **Archer elfe et Guerrier elfe : disponibles dans les DEUX thèmes**
+>   (`dread_moon` et `mage_du_miroir`, tableau des monstres p. 36), sur UNE ligne
+>   de catalogue — `boite: mage_du_miroir` + `boites_partagees: ['dread_moon']`.
+>   Ni `boite: null`, ni ligne dupliquée. `docs/regles/bestiaire-et-rencontres.md`.
+> - **Systèmes de campagne ÉCARTÉS pour le moment** : **jetons de réputation**,
+>   **système de déguisement**, **planques**, **fabrication de potions**
+>   (artisanat) — les quatre entrées de §5 ci-dessus. `docs/plan-dread-moon.md`
+>   (lots C, E, F, G).
+
 ## Prophecy of Telor (2023)
 
 **Source :** livret de quêtes unique, réf. G0052, 36 pages imprimées / 19
@@ -1310,6 +1346,11 @@ boîtes précédentes plutôt que d'en introduire de nouvelles.
   tirage les cartes Monstre errant/Danger et forcent à repiocher jusqu'à un
   résultat de trésor. *Coût :* mineur — un filtre de retirage sur le deck
   de fouille existant, contextuel à une salle précise.
+
+> **Décision de René du 2026-10-15 — Prophecy of Telor.** La boîte reste
+> **ÉTEINTE** (`DemarreurQuete::BOITES_INCOMPLETES['prophecy_telor']`) tant que
+> Fellmarak n'a **ni fuite (quête 12) ni mort par tirage aléatoire (quête 13)**.
+> `docs/plan-telor.md`.
 
 ---
 
@@ -1529,7 +1570,7 @@ voit son mouvement stoppé net).
   Defend 4 · Body 4 · Mind 5 ; sorts *Creeping Grasp, Channel Dread,
   Summon Orcs* (invoque des Gobelins à la place) ; **multi-phase** : à 0
   Body Points, devient **Gruulob, Forme Démoniaque** — Move 6 · Attack 4 ·
-  Defend 5 · Body 3 · Mind 4. *Porté le 2026-10-09 (`docs/plan-delthrak-execution-2026-10-09.md`, lot A) :* deux formes, mot-clé `phases`, `cout` 15 ; « Summon Orcs* (*Summons the same number of Goblins instead) » est une LIGNE de catalogue, « Invocation de gobelins », même table que l'orque. *Porté le 2026-10-09, tout le texte de la note C et la note A (brief Gruulob, René) :* le **tir à distance « dans les deux formes »** (`tir_au_choix`, sur place, sans recul, au contact = mêlée) et l'**effet global de quête** « All Goblins in this quest … roll 1 additional Attack die » (`effet_global_quete`, figé au démarrage, tenu jusqu'à la fin de la quête). Décisions de faction (Gruulob et le Chamane Gobelin exclus) et de durée : `docs/regles/bestiaire-et-rencontres.md`, à confirmer par René.
+  Defend 5 · Body 3 · Mind 4. *Porté le 2026-10-09 (`docs/plan-delthrak-execution-2026-10-09.md`, lot A) :* deux formes, mot-clé `phases`, `cout` 15 ; « Summon Orcs* (*Summons the same number of Goblins instead) » est une LIGNE de catalogue, « Invocation de gobelins », même table que l'orque. *Porté le 2026-10-09, tout le texte de la note C et la note A (brief Gruulob, René) :* le **tir à distance « dans les deux formes »** (`tir_au_choix`, sur place, sans recul, au contact = mêlée) et l'**effet global de quête** « All Goblins in this quest … roll 1 additional Attack die » (`effet_global_quete`, figé au démarrage, tenu jusqu'à la fin de la quête). Décisions de faction et de durée : `docs/regles/bestiaire-et-rencontres.md` — **tranchées par René le 2026-10-15 : le Chamane Gobelin est INCLUS (c'est un gobelin), Gruulob lui-même et sa forme démoniaque restent EXCLUS.**
 - **Arcane Mummy** (variante de Dread Warrior, quête 9) — Move 6 · Attack 4
   · Defend 4 · Body 4 · Mind 0 ; sorts *Channel Dread, Creeping Grasp, Ball
   of Flame*.
@@ -1539,7 +1580,7 @@ voit son mouvement stoppé net).
   - Phase 1 : Move 6 · Attack 4* · Defend 3 · Body 5 · Mind 6 ; sorts
     *Creeping Grasp, Channel Dread, Fear* ; capacités à usage unique
     *Demon Wings* (ignore tous les dégâts d'une attaque) et *Dispel*
-    (annule un sort la ciblant).
+    (annule un sort la ciblant — *porté le 2026-10-15*, `annule_sort_ciblant`).
   - Phase 2, « Demonspider » (Agile, Venomous) : Move 8 · Attack 5* ·
     Defend 4 · Body 4 · Mind 3.
   - Phase 3, « Demonape » (Agile) : Move 8 · Attack 6* · Defend 2 ·
@@ -1656,6 +1697,14 @@ tiles**, **Stranger tiles**.
   >   quête, `reference/03_combat.md`) : la règle la lève à chaque round, et il
   >   faut une décision collective, un état de round et un contrat. À arbitrer
   >   par René avant tout chantier.
+
+  > **Décisions de René du 2026-10-15.**
+  > - **Ordre de tour choisi par les joueurs : RESTE TEL QUEL.** L'initiative
+  >   est fixe (décision C1, `reference/03_combat.md`), la règle optionnelle de
+  >   F9907 p. 9 n'est pas portée. Elle n'est plus « REPORTÉE, à arbitrer » :
+  >   elle est **écartée, par écrit**. `docs/regles/combat-et-tour.md`.
+  > - **Bonus de Gruulob** (« All Goblins in this quest… roll 1 additional Attack
+  >   die », p. 27) : **inclut le Chamane Gobelin**, exclut Gruulob lui-même.
 
 ---
 
@@ -2536,7 +2585,7 @@ trois siens). ⚠ Aucun texte de carte.
 Unmaker* (quête 3, salle E, p. 24), *Drakehide Cuirass* (quête 5, trésor de
 Boroush, p. 28), *Elixir of Life* (quête 2, salle C, p. 18 — « *if this is
 already owned by a hero, find 2 Potions of Healing instead* »). ⚠ Aucun
-texte de carte pour les trois.
+texte de carte pour les trois. **Mise à jour 2026-10-15** : l'*Elixir of Life* a désormais son texte de carte (Drive racine `artifacts_part2.pdf` p. 29 ; voir la ligne du tableau ci-dessous).
 
 **Huit cartes de trésor** ajoutées au deck de base, plus une carte « Nothing!»
 optionnelle (p. 6) — ⚠ aucun texte, seul le nombre est donné.
@@ -2835,7 +2884,7 @@ avait raison sur la seule foi du texte du livret, la carte confirme.
 |---|---|---|
 | **Urdyn the Unmaker** | Arme, 2 dés d'attaque de combat normal, 4 dés contre un Dreadshifter ou un Golem spécifiquement. | ⚠ Rien d'équivalent : aucun artefact actuel ne porte un bonus CONDITIONNÉ au TYPE de monstre adverse (nos bonus conditionnels existent `au_contact`, jamais `type_monstre_cible`). Nouveau mot-clé si porté — et nécessite d'abord que Golem/Dreadshifter existent au catalogue. |
 | **Drakehide Cuirass** | Armure non métallique, +1 dé de défense, fixe le déplacement à 8 cases (au lieu de lancer les dés), cumulable avec casque/bouclier, explicitement interdite au Magicien. | Le déplacement FIXE (au lieu d'un jet) n'a pas d'équivalent — nos classes ont toutes `deplacement_base + 1d6`, jamais un artefact qui REMPLACE le jet par une valeur fixe. Nouveau. |
-| **Elixir of Life** | ⚠ Toujours **non trouvée** — absente des 2 cartes d'artefact rendues. Seul le texte de quête (p. 18 : « *if this is already owned by a hero, find 2 Potions of Healing instead* ») en parle. | Sans changement depuis la section 2025 — René n'a pas cette carte en photo. |
+| **Elixir of Life** | **Trouvée** (2026-10-15) : Drive racine `artifacts_part2.pdf` p. 29, relue sur le rendu : « This small bottle of pearly liquid brings a dead hero back to life, restoring all of their Body and Mind Points. This potion can only be used once. » (© 2021 Hasbro). Texte de quête (p. 18) : « *if this is already owned by a hero, find 2 Potions of Healing instead* ». | **Déjà portée** : `config/cartes.php` (l. 199, « Élixir de Vie ») et `database/seeders/ObjetSeeder.php` (l. 410). |
 
 ### 7. Faveurs de Hopekins Rest — les 5 compétences, TRANSCRITES
 
@@ -2848,7 +2897,7 @@ permanent une fois acquis).
 | **Peacekeeper** | « Keep track of the number of monsters you reduce to 0 Body Points for each quest. For your service, the Realm rewards you with 25 gold coins per monster defeated the end of that quest. » | Rien d'équivalent : aucune récompense en or indexée sur le nombre de monstres vaincus PAR UN HÉROS SPÉCIFIQUE pendant la quête — nos récompenses d'or sont actuellement globales au groupe. Nouveau. |
 | **Hold the Line** | « Each time a monster on Zargon's turn moves away from the 8 spaces immediately surrounding you, roll a combat die. If you roll a skull, inflict 1 Body Point of damage on the retreating monster. » | Famille des réactions hors tour (`MoteurReactions`) mais déclenchée par le DÉPART d'un monstre d'une case adjacente plutôt qu'une attaque reçue — nouveau déclencheur, aucun équivalent « attaque d'opportunité sur repli » au catalogue. |
 | **Deadeye** | « Monster and heroes do not block your line of sight when attacking or casting spells. » | Lève le blocage de ligne de vue par les FIGURES (héros/monstres, pas les murs/meubles) pour attaquer ou lancer un sort — nuance absente de `Grille::ligneDeVue()` aujourd'hui (nos monstres/héros bloquent la vue comme tout obstacle ; seul `Voile de Brume`/`franchit_figures` lève un blocage de MOUVEMENT, pas de VISÉE). Nouveau. |
-| **Weapon Expert** | « Select a type of weapon (e.g., battleaxe, longsword, or crossbow) when you acquire this Boon. When attacking with a weapon of that type, roll 1 additional Attack dice. » | Même famille que les tags de maîtrise déjà portés par certaines classes (ex. `arme_warlock`, `arme_elfe`) mais choisi PAR LE JOUEUR à l'acquisition plutôt que figé par classe — nouveau mécanisme de sélection, portable sur le même seam de bonus d'attaque. |
+| **Weapon Expert** | « Select a type of weapon (e.g., battleaxe, longsword, or crossbow) when you acquire this Boon. When attacking with a weapon of that type, roll 1 additional Attack dice. » | Même famille que les tags de maîtrise déjà portés par certaines classes (ex. `arme_warlock`, `arme_elfe`) mais choisi PAR LE JOUEUR à l'acquisition plutôt que figé par classe — nouveau mécanisme de sélection, portable sur le même seam de bonus d'attaque. **Porté le 2026-10-15** : le joueur choisit le type d'arme au hub dès qu'il reçoit la faveur (`PUT /groupes/{id}/faveurs/weapon-expert`, liste lue au catalogue), « un type » étant `Equipement::typeDArme()` ; voir `docs/regles/exploration-et-fouille.md`. |
 | **Healing Hands** | « If a hero adjacent to you is reduced to 0 Body points, you may allow them to use one of your available healing potions instead of their own. » | Partage de ressource entre héros adjacents au moment critique (0 PV) — proche en esprit de « Passing Items » (don d'objet entre héros adjacents, déjà couvert par `SeanceEchange`) mais déclenché AUTOMATIQUEMENT à 0 PV plutôt que par une action volontaire. Nuance à traiter. |
 
 ### 8. Trésors — les 8 cartes + « Nothing! », TRANSCRITES

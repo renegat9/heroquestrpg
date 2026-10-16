@@ -25,6 +25,8 @@
 
 ## 3. Bloqué faute de source — NE PAS implanter
 
+> **Levé en partie le 2026-10-15** : *Healing Hearth* et *Glyph Key Scroll* ont désormais leur règle, relue sur le Drive (livret de quêtes p. 6-7) — voir « Décisions de René (2026-10-15) » en fin de document. *Qwindrak* et la règle des glyphes restent bloqués.
+
 - **Healing Hearth** : la cheminée n'est pas au catalogue `mobiliers` et son emprise n'est mesurée nulle part.
 - **Glyph Key Scroll** : la règle des glyphes n'est pas sur les pages photographiées.
 - **Qwindrak jouable** : formes non chiffrées (sauf *Warlock*), séquence de la confrontation finale partiellement illisible.
@@ -48,3 +50,12 @@
 > reproduite ailleurs dans ce PDF : il réutilise le jeu de base à
 > l'identique (§3 ci-dessus). Rien à retirer de la liste de photos — ce
 > plan n'en tenait pas.
+
+## Décisions de René (2026-10-15)
+
+| # | Décision | Conséquence |
+|---|---|---|
+| 1 | **Draconic Flight fractionné : à CONSTRUIRE.** Texte du livret (p. 7) : « The dragon may take partial movement, perform an action, and then finish its movement. » | Lecteur à étendre : `MoteurDread::tentativeVolDraconique()` ne fait aujourd'hui qu'un déplacement d'un bloc, puis l'attaque. Il faut une **action entre deux moitiés du mouvement**. La dette nommée de §3 est levée. La citation de `docs/regles/sorts-dread.md` (l. 61) ne reprend pas ce texte : à remplacer par la phrase exacte (hors de ce plan). |
+| 2 | **Healing Hearth** : règle sourcée sur le Drive (livret de quêtes p. 7) : « When a hero would draw a treasure card in a room containing a fireplace, they may instead heal 1 Body point. » | Sort du « bloqué » : portable à partir du texte. Restent à mesurer l'emprise de la cheminée et à l'ajouter au catalogue `mobiliers`. |
+| 3 | **Glyph Key Scroll** : règle sourcée (livret p. 6) : détruit un glyphe magique découvert, sans action ; sans effet sur les glyphes déclenchés par le pillage ; disparaît après usage. | La règle des **glyphes** elle-même n'est pas sur ces pages : elle attend la photo de la ligne 4. |
+| 4 | **Formes de Qwindrak et règle des glyphes : photo des notes de quête (quêtes 2 à 10) nécessaire.** | Qwindrak reste non jouable (§3) tant que les photos ne sont pas reçues. |

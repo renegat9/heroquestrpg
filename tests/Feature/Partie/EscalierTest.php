@@ -355,3 +355,35 @@ it("fait démarrer le groupe SUR l'escalier, puis au plus près (René, 2026-10-
         }
     }
 });
+
+it('la case de PORTE (embrasure) de la salle de départ compte « dans la salle » pour la sortie — décision de René, 2026-10-15', function () {
+    // Verdict Jungle 2026-10-15 : un héros debout sur l'embrasure d'une porte de la salle de départ ne bloque pas
+    // `quitter_donjon`. `Salles::indexDe()` englobe la couronne de murs, et « la porte occupe sa propre case »
+    // (`Grille::caseEmbrasure()`) : l'embrasure est donc DANS le rectangle de la salle. René GARDE ce comportement
+    // (docs/regles/exploration-et-fouille.md) — ce test l'épingle pour qu'une « correction » ne le retire pas en silence.
+    $assembleur = app(AssembleurCarte::class);
+    $gabarits = GabaritQuete::all();
+    $trouvees = 0;
+
+    foreach (range(1, 30) as $i) {
+        $carte = $assembleur->assembler($gabarits[$i % count($gabarits)], $i * 4211);
+        $salles = (array) $carte['salles'];
+        $depart = Salles::indexDe($salles, (int) $carte['escalier']['x'], (int) $carte['escalier']['y']);
+        $salle = $salles[$depart];
+
+        foreach ((array) ($carte['portes'] ?? []) as $porte) {
+            $embrasure = Grille::caseEmbrasure($porte, $salles);
+            $surLAnneau = $embrasure['x'] === (int) $salle['x'] || $embrasure['x'] === (int) $salle['x'] + (int) $salle['largeur'] - 1
+                || $embrasure['y'] === (int) $salle['y'] || $embrasure['y'] === (int) $salle['y'] + (int) $salle['hauteur'] - 1;
+            $dansLeRectangle = $embrasure['x'] >= (int) $salle['x'] && $embrasure['x'] < (int) $salle['x'] + (int) $salle['largeur']
+                && $embrasure['y'] >= (int) $salle['y'] && $embrasure['y'] < (int) $salle['y'] + (int) $salle['hauteur'];
+
+            if ($surLAnneau && $dansLeRectangle && Salles::indexDe($salles, $embrasure['x'], $embrasure['y']) === $depart) {
+                $trouvees++;
+            }
+        }
+    }
+
+    // Au moins une porte de la salle de départ a son embrasure sur sa couronne de murs, et `indexDe()` la range dans la salle.
+    expect($trouvees)->toBeGreaterThan(0);
+});

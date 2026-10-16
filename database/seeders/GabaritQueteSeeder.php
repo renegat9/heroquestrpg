@@ -86,7 +86,11 @@ class GabaritQueteSeeder extends Seeder
                     // `boite = horreur_des_glaces`, une boîte absente de
                     // `DemarreurQuete::BOITES_THEMATIQUES` tant que ses règles
                     // restent incomplètes — voir le rapport de la phase 6a.
-                    'terrains' => ['min' => 1, 'max' => 2, 'tunnels' => ['min' => 0, 'max' => 1]],
+                    'terrains' => ['min' => 1, 'max' => 2, 'tunnels' => ['min' => 0, 'max' => 1],
+                        // SABLES MOUVANTS (F7539 p. 29) : COMBIEN de bandes — le thème `mage_du_miroir`
+                        // dit SI (`terrains.boite`), `placerTerrains()` abandonne la pose plutôt que de
+                        // casser la connectivité d'une salle.
+                        'sables' => ['min' => 0, 'max' => 1]],
                     // LEVIERS (2026-09-06, phase 6b) : même format que
                     // pieges/epreuves/terrains — le gabarit dit COMBIEN,
                     // `AssembleurCarte::placerLeviers()` choisit LA porte à
@@ -151,7 +155,11 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'pieges' => ['min' => 1, 'max' => 2],
                     'epreuves' => ['min' => 1, 'max' => 2],
-                    'terrains' => ['min' => 1, 'max' => 2, 'tunnels' => ['min' => 0, 'max' => 1]],
+                    'terrains' => ['min' => 1, 'max' => 2, 'tunnels' => ['min' => 0, 'max' => 1],
+                        // SABLES MOUVANTS (F7539 p. 29) : COMBIEN de bandes — le thème `mage_du_miroir`
+                        // dit SI (`terrains.boite`), `placerTerrains()` abandonne la pose plutôt que de
+                        // casser la connectivité d'une salle.
+                        'sables' => ['min' => 0, 'max' => 1]],
                     'leviers' => ['min' => 0, 'max' => 1],
                     'butin' => ['or_base' => 50],
                 ],
@@ -245,7 +253,11 @@ class GabaritQueteSeeder extends Seeder
                     'epreuves' => ['min' => 1, 'max' => 2],
                     // TERRAIN — même remarque que ci-dessus (inerte tant que
                     // la boîte de glace n'est pas rallumée).
-                    'terrains' => ['min' => 2, 'max' => 3, 'tunnels' => ['min' => 0, 'max' => 1]],
+                    'terrains' => ['min' => 2, 'max' => 3, 'tunnels' => ['min' => 0, 'max' => 1],
+                        // SABLES MOUVANTS (F7539 p. 29) : COMBIEN de bandes — le thème `mage_du_miroir`
+                        // dit SI (`terrains.boite`), `placerTerrains()` abandonne la pose plutôt que de
+                        // casser la connectivité d'une salle.
+                        'sables' => ['min' => 0, 'max' => 1]],
                     // LEVIERS — voir le commentaire du gabarit « Exploration
                     // simple ». Un antre de sous-boss gagne à garder au moins
                     // une antichambre gardée par une porte verrouillée.
@@ -363,7 +375,8 @@ class GabaritQueteSeeder extends Seeder
                     'epreuves' => ['min' => 1, 'max' => 2],
                     // TERRAIN — même remarque que ci-dessus (inerte tant que
                     // la boîte de glace n'est pas rallumée).
-                    'terrains' => ['min' => 2, 'max' => 4, 'tunnels' => ['min' => 1, 'max' => 2]],
+                    'terrains' => ['min' => 2, 'max' => 4, 'tunnels' => ['min' => 1, 'max' => 2],
+                        'sables' => ['min' => 0, 'max' => 1]],
                     // LEVIERS — voir le commentaire du gabarit « Exploration
                     // simple ». Le donjon final est le plus grand (7-10
                     // salles) : deux antichambres verrouillées avant la salle

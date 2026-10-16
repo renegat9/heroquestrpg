@@ -147,15 +147,21 @@ it('refuse d\'attaquer un monstre non adjacent SANS arme à distance équipée',
         ->assertStatus(422);
 });
 
-it('refuse d\'utiliser l\'Arbalète au corps-à-corps (inutilisable_adjacent)', function () {
+it('n\'utilise pas l\'Arbalète au corps-à-corps (inutilisable_adjacent) : le coup part À MAINS NUES (René, 2026-10-15)', function () {
     // demarrerQueteAvecMonstre place le monstre AU CONTACT.
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'elfe']);
-    equipeArbalete($ctx['heros']);
+    $ligne = equipeArbalete($ctx['heros']);
 
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    desFiges(array_fill(0, 20, 4));
 
+    // Avant le 2026-10-15 : 422 (« ne peut pas être utilisée au corps-à-corps »), aucune cible offerte.
+    // L'Arbalète n'est pas utilisée — pas de tir (`portee`), pas de relance de Tir précis — et reste en main.
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id]])
-        ->assertStatus(422);
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.portee', 'corps_a_corps');
+
+    expect(Inventaire::whereKey($ligne->id)->exists())->toBeTrue();
 });
 
 it('Tir précis (+1 dé) s\'applique sur un tir à distance véritable, jamais au corps-à-corps', function () {

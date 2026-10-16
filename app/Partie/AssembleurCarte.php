@@ -124,6 +124,13 @@ final class AssembleurCarte
     private const NOM_TERRAIN_TUNNEL = 'Tunnel de glace';
 
     /**
+     * Nom du terrain « Sables mouvants » (*The Mage of the Mirror* p. 29) — posé par BANDES
+     * de 2 cases de profondeur (`placerBandeDeSables()`), jamais case par case comme les
+     * terrains ordinaires, d'où sa mise à part dans `placerTerrains()`.
+     */
+    private const NOM_TERRAIN_SABLES = 'Sables mouvants';
+
+    /**
      * @param  int  $chancePassageSecret  probabilité (en %) qu'une salle soit
      *                                    cachée derrière une porte secrète —
      *                                    le compteur de pitié du groupe, qui
@@ -2823,7 +2830,8 @@ final class AssembleurCarte
         $sansArretParSalle = [];
 
         $tunnel = $catalogue->firstWhere('nom', self::NOM_TERRAIN_TUNNEL);
-        $ordinaires = $catalogue->reject(fn (Terrain $t) => $tunnel !== null && $t->is($tunnel))->values();
+        $sables = $catalogue->firstWhere('nom', self::NOM_TERRAIN_SABLES);
+        $ordinaires = $catalogue->reject(fn (Terrain $t) => ($tunnel !== null && $t->is($tunnel)) || ($sables !== null && $t->is($sables)))->values();
 
         $min = (int) data_get($structure, 'terrains.min', 0);
         $max = max($min, (int) data_get($structure, 'terrains.max', $min));
@@ -2930,7 +2938,208 @@ final class AssembleurCarte
             }
         }
 
+        // SABLES MOUVANTS (*The Mage of the Mirror* p. 29, 2026-10-15) : une BANDE de
+        // 2 cases de profondeur dans une salle, qu'on franchit d'un saut. Posée EN
+        // DERNIER, avec le PRNG local déjà entamé par les tirages précédents : une
+        // carte sans ce thème (ou sans `structure.terrains.sables`) consomme exactement
+        // les mêmes tirages qu'avant, et les graines existantes ne bougent pas.
+        //
+        // ⚠ Le livret COUPE la salle en deux (« Dividing the room »), chaque héros
+        // devant donc sauter. Ici la bande ne coupe JAMAIS : « connexe n'est pas
+        // jouable » (§2.12 ter) et la pose est abandonnée plutôt que forcée — un
+        // contournement d'au moins une case reste toujours, le saut est un raccourci
+        // risqué et non un péage obligatoire. Écart à la règle imprimée, nommé et
+        // voulu (René, 2026-10-15 : ne jamais casser la connectivité).
+        if ($sables !== null) {
+            $minBandes = (int) data_get($structure, 'terrains.sables.min', 0);
+            $maxBandes = max($minBandes, (int) data_get($structure, 'terrains.sables.max', $minBandes));
+            $voulues = $prng->entre($minBandes, $maxBandes);
+
+            if ($voulues > 0) {
+                $posees = 0;
+
+                foreach ($prng->melanger(array_keys($parSalle)) as $i) {
+                    if ($posees >= $voulues) {
+                        break;
+                    }
+
+                    $candidates = $this->bandesDeSablesPossibles(
+                        $salles[$i], $parSalle[$i], $parvis, $occupeesGlobal,
+                        $bloquantesParSalle[$i] ?? [], $sansArretParSalle[$i] ?? 0,
+                    );
+
+                    if ($candidates === []) {
+                        continue; // aucune bande ne tient dans cette salle : on passe à la suivante
+                    }
+
+                    // Bits de poids FORT, comme `melanger()` : le modulo direct d'un LCG est périodique.
+                    $bande = $candidates[($prng->suivant() >> 15) % count($candidates)];
+
+                    foreach ($bande as $case) {
+                        $cle = "{$case['x']},{$case['y']}";
+                        $terrains[] = ['x' => $case['x'], 'y' => $case['y'], 'terrain_id' => (int) $sables->id];
+                        $occupeesGlobal[$cle] = true;
+                        $bloquantesParSalle[$i][$cle] = true;
+                    }
+
+                    $posees++;
+                }
+            }
+        }
+
         return $terrains;
+    }
+
+    /**
+     * Les BANDES de sables mouvants qui tiennent dans une salle : 2 cases de profondeur,
+     * collées à un mur par un bout, avec un contournement d'une ou deux cases à l'autre.
+     *
+     * Une bande n'est retenue que si TOUT ce qui suit tient (sinon elle est écartée, jamais
+     * ajustée) :
+     *  - ses cases sont du sol libre, hors de toute couche déjà posée et hors du PARVIS d'une
+     *    porte, d'un levier ou d'une épreuve (on n'y agirait plus) ;
+     *  - il reste une rangée de sol de CHAQUE côté, sur la profondeur de la bande : sans elle
+     *    personne ne pourrait sauter, et le terrain ne serait qu'un mur ;
+     *  - au moins une ligne de saut existe réellement : une case de départ ET une case de
+     *    réception libres face à face, de part et d'autre de la bande ;
+     *  - la salle reste CONNEXE depuis un seul seuil (`salleResteConnexe()`) ET JOUABLE : le
+     *    plancher `CASES_JOUABLES_MINIMUM` se tient sur les cases restantes, mobilier bloquant,
+     *    terrains sans arrêt et bande compris.
+     *
+     * L'ordre des candidates est déterministe (orientation, trou, ancrage, décalage) : le tirage
+     * du PRNG ne dépend que de leur nombre, donc de la géométrie de la carte.
+     *
+     * @param  array{x: int, y: int, largeur: int, hauteur: int}  $salle
+     * @param  array{interieur: list<array{x: int, y: int}>, libres: list<array{x: int, y: int}>, seuils: list<array{x: int, y: int}>}  $entreeSalle
+     * @param  array<string, true>  $parvis
+     * @param  array<string, true>  $occupeesGlobal  toute case déjà donnée à un terrain
+     * @param  array<string, true>  $bloquantes  cases déjà bloquantes dans CETTE salle
+     * @param  int  $sansArret  mares/brasiers déjà posés dans CETTE salle (cases où personne ne finit son tour)
+     * @return list<list<array{x: int, y: int}>>
+     */
+    private function bandesDeSablesPossibles(
+        array $salle,
+        array $entreeSalle,
+        array $parvis,
+        array $occupeesGlobal,
+        array $bloquantes,
+        int $sansArret,
+    ): array {
+        if ($entreeSalle['seuils'] === []) {
+            return []; // pas de seuil, pas de preuve de connexité
+        }
+
+        $profondeur = 2; // « Dividing the room is a quicksand pit » — la bande du plan imprimé de la quête 8
+        $x0 = (int) $salle['x'] + 1;
+        $y0 = (int) $salle['y'] + 1;
+        $largeur = (int) $salle['largeur'] - 2;
+        $hauteur = (int) $salle['hauteur'] - 2;
+
+        $libres = [];
+        foreach ($entreeSalle['libres'] as $p) {
+            $libres["{$p['x']},{$p['y']}"] = true;
+        }
+
+        $candidates = [];
+
+        // 'h' : la bande court en x, son épaisseur est en y ; 'v' : l'inverse.
+        foreach (['h' => [$largeur, $hauteur], 'v' => [$hauteur, $largeur]] as $orientation => [$longueur, $epaisseur]) {
+            if ($epaisseur < $profondeur + 2 || $longueur < 3) {
+                continue; // une rangée de sol de chaque côté, sinon il n'y a nulle part d'où sauter
+            }
+
+            foreach ([1, 2] as $trou) {
+                $taille = $longueur - $trou;
+
+                if ($taille < 2) {
+                    continue;
+                }
+
+                foreach ([0, $trou] as $debut) { // collée au début du mur, ou à sa fin
+                    for ($decalage = 1; $decalage <= $epaisseur - $profondeur - 1; $decalage++) {
+                        $cellule = static fn (int $leLong, int $enTravers): array => $orientation === 'h'
+                            ? ['x' => $x0 + $leLong, 'y' => $y0 + $enTravers]
+                            : ['x' => $x0 + $enTravers, 'y' => $y0 + $leLong];
+
+                        $bande = [];
+                        for ($l = $debut; $l < $debut + $taille; $l++) {
+                            for ($e = $decalage; $e < $decalage + $profondeur; $e++) {
+                                $bande[] = $cellule($l, $e);
+                            }
+                        }
+
+                        if ($this->bandeDeSablesTient($bande, $cellule, $debut, $taille, $decalage, $profondeur, $libres, $parvis, $occupeesGlobal, $bloquantes, $sansArret, $entreeSalle)) {
+                            $candidates[] = $bande;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Une bande candidate respecte-t-elle toutes les conditions de
+     * {@see self::bandesDeSablesPossibles()} ?
+     *
+     * @param  list<array{x: int, y: int}>  $bande
+     * @param  \Closure(int, int): array{x: int, y: int}  $cellule  (le long, en travers) → case
+     * @param  array<string, true>  $libres
+     * @param  array<string, true>  $parvis
+     * @param  array<string, true>  $occupeesGlobal
+     * @param  array<string, true>  $bloquantes
+     * @param  array{interieur: list<array{x: int, y: int}>, libres: list<array{x: int, y: int}>, seuils: list<array{x: int, y: int}>}  $entreeSalle
+     */
+    private function bandeDeSablesTient(
+        array $bande,
+        \Closure $cellule,
+        int $debut,
+        int $taille,
+        int $decalage,
+        int $profondeur,
+        array $libres,
+        array $parvis,
+        array $occupeesGlobal,
+        array $bloquantes,
+        int $sansArret,
+        array $entreeSalle,
+    ): bool {
+        $cles = [];
+
+        foreach ($bande as $case) {
+            $cle = "{$case['x']},{$case['y']}";
+
+            if (! isset($libres[$cle]) || isset($parvis[$cle]) || isset($occupeesGlobal[$cle]) || isset($bloquantes[$cle])) {
+                return false;
+            }
+
+            $cles[$cle] = true;
+        }
+
+        // Au moins une LIGNE DE SAUT : départ et réception libres, face à face.
+        $sol = static fn (array $case): bool => isset($libres["{$case['x']},{$case['y']}"])
+            && ! isset($occupeesGlobal["{$case['x']},{$case['y']}"])
+            && ! isset($bloquantes["{$case['x']},{$case['y']}"]);
+        $ligne = false;
+
+        for ($l = $debut; $l < $debut + $taille && ! $ligne; $l++) {
+            $ligne = $sol($cellule($l, $decalage - 1)) && $sol($cellule($l, $decalage + $profondeur));
+        }
+
+        if (! $ligne) {
+            return false;
+        }
+
+        // JOUABLE : le plancher se tient sur les cases restantes, bande comprise.
+        $prises = count($bloquantes) + $sansArret + count($bande);
+
+        if (count($entreeSalle['interieur']) - $prises < self::CASES_JOUABLES_MINIMUM) {
+            return false;
+        }
+
+        // CONNEXE depuis UN seul seuil, bande comprise.
+        return $this->salleResteConnexe($entreeSalle['interieur'], $entreeSalle['seuils'], $bloquantes + $cles);
     }
 
     /**

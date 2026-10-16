@@ -24,6 +24,41 @@
 | **Q6** Archers | **Générique** : une règle « variante à distance » utilisable par tous les thèmes | Lot B |
 | **Q7** Paliers | **Confirmé** : boss Gruzbella et Festral ; sous-boss Doralf, Spawn of the Pit, Xenloth et l'Effigie ; Nexrael au palier que mesurera son `cout` | Lot C |
 
+### Q2 — réalisé le 2026-10-15 (interprétation confirmée par René)
+
+> Ajout daté : le reste du plan est un instantané du 2026-10-02. Règle en vigueur :
+> `docs/regles/exploration-et-fouille.md` §« Le compagnon animal OFFERT » ; contrat :
+> `docs/contrat-api.md` §« Compagnon animal OFFERT ».
+
+Le livret (F9528 p. 8-9) : « Animal allies […] can be recruited **at no cost** to accompany a hero on
+a quest, so long as there are **fewer than four hero players**. The animal ally must be recruited
+**before the quest begins**. » Le livret le propose avant CHAQUE quête ; René a tranché : **une fois**,
+au début de la campagne, et il accompagne le groupe pendant TOUTE la campagne.
+
+- **Quand — pas « à la création du groupe ».** `POST /groupes` n'attache que le fondateur ; les autres
+  joueurs rejoignent ensuite par le code (`POST /groupes/{id}/joueurs`). Compter à la création offrirait
+  un animal à tout groupe, y compris à ceux qui finiront à quatre. La taille n'est connue qu'au
+  **lancement de la première quête** — qui est aussi la borne du livret (« before the quest begins »).
+  L'offre est donc **ouverte au hub tant que le groupe n'a jamais lancé de quête**, suit le nombre de héros
+  actifs du moment (moins de 4 : un par siège, les « hero players » du livret) et se ferme au premier
+  lancement. Les campagnes déjà entamées n'ont rien à recevoir.
+- **Qui décide : le premier joueur qui touche**, et c'est lui qui MÈNE l'animal. Le mécanisme existant le plus
+  proche est le recrutement (`MercenaireController`), pas `VoteGroupe` : un vote `choix_groupe` élirait un
+  animal sans dire qui le mène, et il faudrait que tous aient voté avant d'être prêts (le piège du vote de
+  sortie). `POST /pret` refuse tant que l'offre est ouverte — un seul geste d'un seul joueur, prendre ou
+  refuser, la lève pour tous — pour qu'elle soit **vue** avant de partir. **Non tranché** : si René préfère un
+  vote de groupe, c'est une autre décision à lui demander.
+- **Choix fermé** : les animaux du catalogue (Loup, Croc-sabre, Raptor apprivoisé), lus en base ; la liste
+  publiée est la liste blanche que le serveur revalide.
+- **Gratuit pour toute la campagne** : l'or ne bouge pas, et l'animal est **exempté de l'entretien** de 10 po/quête
+  (colonne `groupe_mercenaires.offert`) — sinon un groupe à sec le perdrait à la première quête. Il compte pour
+  l'animal unique du groupe. S'il tombe, il ne revient pas (« une fois ») ; le groupe peut ensuite en recruter un
+  contre de l'or, comme avant.
+- ⚠ **« Reste joué par le moteur » (Q2, 2026-10-02) est périmé** : le 2026-10-04, chantier 3a, René a tranché
+  « un allié est TOUJOURS joué par son joueur » (`docs/regles/combat-et-tour.md`). L'animal offert suit le
+  mécanisme de tous les alliés : il joue dans le tour de son maître, depuis sa manette. Reste non porté du lot E :
+  donner une potion à l'animal.
+
 ## 0. Ce que le livret contient, et ce qu'il ne contient pas
 
 **Le livret porte** : les règles de la boîte (p. 4-16), dix quêtes (p. 21-39),
@@ -258,12 +293,12 @@ Les dix quêtes sont des donjons **imprimés** et nous n'en jouons aucun. Leurs
 | # | Question | Recommandation |
 |---|---|---|
 | **Q1** | Le *World's End Tournament* : (a) écarté par une phrase écrite, (b) un mode « arène » à part, plus tard, (c) une épreuve « arène » posée dans un donjon (un combat par vagues, sans le système d'activation) | **(a) maintenant**, (c) plus tard si l'envie vient : (b) est un second jeu |
-| **Q2** | L'allié animal : règles officielles (**gratuit** sous 4 héros, **joué par le joueur**, juste après son héros) ou nos règles actuelles (payant, joué par le moteur) ? | La gratuité et l'ordre de jeu sont simples à aligner ; le **contrôle par le joueur** change la manette (un second menu). À trancher séparément |
+| **Q2** | L'allié animal : règles officielles (**gratuit** sous 4 héros, **joué par le joueur**, juste après son héros) ou nos règles actuelles (payant, joué par le moteur) ? → **tranchée le 2026-10-15** : gratuit, proposé une fois ; interprétation confirmée (voir « Décisions de René (2026-10-15) » en fin de document). | La gratuité et l'ordre de jeu sont simples à aligner ; le **contrôle par le joueur** change la manette (un second menu). À trancher séparément |
 | **Q3** | Le mercenaire ogre : reconduction à **moitié prix** d'une quête à l'autre ? | Oui : c'est une colonne d'état durable (pas de cache), et c'est petit |
-| **Q4** | *Dominate* : le moteur joue le héros dominé (déplacement + attaque contre ses alliés) pendant un tour ? | À porter **en dernier** dans le lot D. C'est la seule carte qui fait agir un héros sans son joueur |
+| **Q4** | *Dominate* : le moteur joue le héros dominé (déplacement + attaque contre ses alliés) pendant un tour ? → **tranchée le 2026-10-15** : à PORTER, avec *Mind Lock* et *Mind Burst*, sans photo. | À porter **en dernier** dans le lot D. C'est la seule carte qui fait agir un héros sans son joueur |
 | **Q5** | Les capacités de nos ogres (`charge`, `frappe_de_zone`, `resistance_magique`) : photos des **cartes de monstre** pour les sourcer, ou divergence nommée ? | Demander les photos, avec celles des autres cartes de la boîte (§5) |
 | **Q6** | Les archers (gobelin, orque, squelette) : boîte `jungles_delthrak` seulement, ou aussi `horde_ogre` ? `monstres.boite` n'a qu'une valeur | Une règle générique « variante à distance » (p. 8) plutôt qu'une boîte : les deux thèmes y puisent |
-| **Q7** | Gruzbella **boss** de la boîte, Doralf et le Spawn **sous-boss**, les trois sorciers comme lanceurs de Dread du thème ? | Oui : c'est ce qui donne une identité à la boîte, aujourd'hui quatre ogres sans magie |
+| **Q7** | Gruzbella **boss** de la boîte, Doralf et le Spawn **sous-boss**, les trois sorciers comme lanceurs de Dread du thème ? → **en partie tranchée le 2026-10-15** : les sorciers Festral, Xenloth et Nexrael sont à PORTER ; l'Effigie suit le patron « tourelle » (voir la Crypte, Q2). | Oui : c'est ce qui donne une identité à la boîte, aujourd'hui quatre ogres sans magie |
 
 **Q7 — en partie tranchée (René, 2026-10-02)** : **Doralf est sous-boss**. Le reste suit la mesure de résistance de `cout` (nombre d'attaques de héros à 3 dés pour l'abattre) : **boss** Gruzbella (~21, comme le Seigneur ogre) et Festral (lanceur, comme l'Archimage elfe) ; **sous-boss** Spawn of the Pit (~8,5), Xenloth, l'Effigie gardienne (~3) ; Nexrael au palier que son `cout` mesuré lui donnera. ⚠ Une campagne n'a qu'**un** boss (dernière quête) mais jusqu'à **quatre** sous-boss (`JalonsCampagne::nbSousBossAttendu()`) : ce sont les sous-boss qui donnent sa couleur à un arc ogre.
 
@@ -275,8 +310,7 @@ Les **29 cartes** de la boîte, en priorité :
   amis de Gruzbella), pour vérifier si elles diffèrent de notre *Ogre
   mercenaire* © 2023 (8/4/4/4/1, 150 po) ;
 - la carte du **Loup** de cette boîte (même vérification) ;
-- les cartes de sort *Mind Lock*, *Dominate* et *Mind Burst* (le livret
-  donne la règle complète, mais la carte fait foi) ;
+- ~~les cartes de sort *Mind Lock*, *Dominate* et *Mind Burst* (le livret donne la règle complète, mais la carte fait foi)~~ — **retiré le 2026-10-15 : aucune photo nécessaire (décision de René)** ;
 - les cartes du Druide, si elles diffèrent du Mythic Tier.
 
 En attendant, le livret suffit aux lots B, C, D et G : il porte toutes leurs
@@ -310,3 +344,13 @@ pas.
 > mot « Artifact » sur les 44 pages : zéro occurrence) — cohérent avec
 > §3 qui ne cite que *Bone Weapons* et le *Supply Crate*, rien d'autre à
 > transcrire. Rien à retirer de la liste de photos.
+
+## Décisions de René (2026-10-15)
+
+| # | Décision | Conséquence |
+|---|---|---|
+| **Q2** | **Allié animal gratuit : interprétation CONFIRMÉE** (proposé une fois, au début de la campagne, sans coût). | Réalisé : voir « Q2 — réalisé le 2026-10-15 » plus haut. Règle en vigueur : `docs/regles/exploration-et-fouille.md` (compagnon animal OFFERT). |
+| **Q4** | ***Dominate***, ***Mind Lock*** et ***Mind Burst*** : **à PORTER** (F9528 p. 10-11). | Lot D. **Aucune photo nécessaire** : le livret donne la règle complète (retiré de §5). |
+| **Q7** | **Sorciers Festral, Xenloth et Nexrael** : **à PORTER** comme lanceurs de Dread (stats F9528 p. 35, 37 et 31). | Festral reste **boss** et Xenloth **sous-boss** (décision du 2026-10-02) ; Nexrael suit le palier que mesurera son `cout`. |
+| — | ***Mind Lock* et *Dominate*** : les boucliers du défenseur annulent les crânes comme dans un combat normal (**crânes nets**). | **Interprétation de René** : le livret est muet sur les boucliers pour ces deux sorts. Le mot « net » de `reference/18` est donc une interprétation, à présenter comme telle. ***Mind Burst*** n'est pas tranché par cette décision (le livret parle de « différence de crânes ») : à trancher avant son portage. |
+| — | **Guardian Effigy = patron « tourelle »** (sous-boss, décision du 2026-10-02) : immobile, tire à distance (3 dés) sur un héros en ligne de vue, **immunité TOTALE aux sorts**. | Un seul mécanisme avec le Dread Skull de la Crypte (`docs/plan-crypte-tenebres.md`, Q2) : tourelle en **salle** seulement. |

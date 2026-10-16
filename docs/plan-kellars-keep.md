@@ -181,8 +181,8 @@ Voir Q2.
 |---|---|---|
 | **Q1** | Mind 0 chez Borokk : le livret 2021 dit « mort définitive sauf Élixir de Vie », notre règle actuelle (2026-10-01, Against the Ogre Horde p. 9, « every creature ») dit choc. Confirmer que la règle PLUS RÉCENTE l'emporte explicitement, y compris pour cette boîte plus ancienne ? | Oui — c'est déjà la logique de l'arbitrage du 2026-10-01 (compilation d'erratas, applicable à toute créature) ; rien à faire sauf le documenter ici |
 | **Q2** | Monstre métamorphe : construire maintenant (tirage aléatoire jusqu'à répétition), ou attendre que le lot « phases » d'Against the Ogre Horde pose le branchement « 0 Body ne tue pas » qu'il réutiliserait entièrement ? | Attendre — éviter DEUX implémentations de « ne pas retirer à 0 Body » |
-| **Q3** | Rocher roulant (Kellar's Keep) et Death Mist (Witch Lord) : une seule mécanique « danger mobile autonome » partagée, ou deux pièces séparées ? | Une seule — même famille, même coût d'implémentation, deux habillages |
-| **Q4** | Portes secrètes contrôlées par le MJ : limiter à une embuscade scriptée sur rencontre nommée (petit scope), ou un vrai troisième état de porte générique (gros scope, tension avec le modèle « porte secrète = trouvée par fouille ») ? | Scope réduit — l'embuscade scriptée couvre l'usage réel du livret (3 portes, 1 quête) sans toucher au modèle général |
+| **Q3** | Rocher roulant (Kellar's Keep) et Death Mist (Witch Lord) : une seule mécanique « danger mobile autonome » partagée, ou deux pièces séparées ? → **tranchée le 2026-10-15** : UNE SEULE mécanique « danger mobile autonome » (rocher et Death Mist). | Une seule — même famille, même coût d'implémentation, deux habillages |
+| **Q4** | Portes secrètes contrôlées par le MJ : limiter à une embuscade scriptée sur rencontre nommée (petit scope), ou un vrai troisième état de porte générique (gros scope, tension avec le modèle « porte secrète = trouvée par fouille ») ? → **tranchée le 2026-10-15** : embuscade scriptée sur rencontre nommée (petit scope). | Scope réduit — l'embuscade scriptée couvre l'usage réel du livret (3 portes, 1 quête) sans toucher au modèle général |
 | **Q5** | ⚠ **Répondue le 2026-10-05** : Abomination : toujours aucune source primaire. Le SEUL chiffre existant (6/3/3/2/3) vient d'une table de tournoi d'une AUTRE boîte, explicitly « à prendre avec prudence » par sa propre source. Semer avec ce chiffre et une mention de provenance, ou continuer d'attendre une photo de carte ? | La photo est arrivée : carte « Abomination » (© 2021) scannée par René, `reference/20_cartes_monstres.md` — 6/3/3/2/3, même chiffre, désormais sourcé sans réserve. Semée dans `MonstreSeeder` |
 | **Q6** | Les 4 cartes manquantes du compte « 14 game cards » (10 trouvées) : probablement des cartes de rappel des monstres rencontrés. Prioritaire dans la demande de photos ? | Oui, en même temps que les cartes de monstre (aucune des 3 figurines, gobelin/orc/abomination, n'a de carte stats dans CE livret) |
 
@@ -270,3 +270,10 @@ documenter comme une attente, pas un refus.
 > bonne page, et §5 ne demande en photo que ce que le livret ne porte
 > vraiment pas (monstres, les 4 cartes non comptées). Rien à retirer de la
 > liste de photos.
+
+## Décisions de René (2026-10-15)
+
+| # | Décision | Conséquence |
+|---|---|---|
+| **Q3** | Rocher roulant et *Death Mist* : **UNE SEULE mécanique « danger mobile autonome »** (position, vitesse, dégâts et condition d'arrêt paramétrables). | Un seul point de passage. Le *Death Mist* de *Return of the Witch Lord* (lot E) s'y branche (Witch Lord, Q6). |
+| **Q4** | **Portes secrètes contrôlées par le MJ = embuscade scriptée** sur rencontre nommée (petit scope). | Aucun troisième état de porte générique : le modèle « porte secrète = trouvée par fouille » reste intact (`docs/regles/carte-donjon.md`). |

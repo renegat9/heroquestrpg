@@ -184,6 +184,11 @@ export const TERRAIN_TEINTES = {
     'Jungle entravante': 'gene',
     'Mare': 'eau',
     'Brasier': 'feu',
+    // The Mage of the Mirror (F7539 p. 29, 2026-10-15) : les SABLES MOUVANTS, le seul terrain
+    // qui BLOQUE la marche — `sables`, une teinte sable à hachure CROISÉE (les autres hachures
+    // sont simples : la croix est ce qui dit « ça ne se traverse pas à pied », même en niveaux
+    // de gris). On le franchit d'un saut, une option du menu ; le serveur décide quand.
+    'Sables mouvants': 'sables',
 };
 export const TERRAIN_TEINTE_DEFAUT = 'decor';
 

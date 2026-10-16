@@ -778,7 +778,27 @@ final class Equipement
     public function estArmeDeType(?Objet $objet, string $nomArme): bool
     {
         return $objet !== null
-            && ($objet->nom === $nomArme || ($objet->effet[MotsClesEquipement::EST_UNE] ?? null) === $nomArme);
+            && ($objet->nom === $nomArme || $this->typeDArme($objet) === $nomArme);
+    }
+
+    /**
+     * LE TYPE d'une arme, sous son nom d'ARMURERIE : la pièce elle-même, ou l'arme ordinaire
+     * qu'elle est (`est_une` — *Fléau des Orques* est une épée courte, errata 2021 B2), ou dont
+     * elle est la copie en os (`os_de` — « Weapons made of bone are identical to weapons of
+     * the same name found in the armory », *Against the Ogre Horde* p. 8). `null` sans objet.
+     *
+     * Point de passage UNIQUE de « de quel type est cette arme ? » : `estArmeDeType()` (liste
+     * du Moine, Ambidextrie) et le bonus de la faveur *Weapon Expert* (« a type of weapon »,
+     * `FaveursHopekins::bonusArmeExperte()`) le lisent tous deux. Comparer des noms sur place
+     * rendait la hache de bataille en os invisible à sa propre hache.
+     */
+    public function typeDArme(?Objet $objet): ?string
+    {
+        if ($objet === null) {
+            return null;
+        }
+
+        return $objet->effet[MotsClesEquipement::EST_UNE] ?? $objet->os_de ?? $objet->nom;
     }
 
     public function compteCommeArme(Personnage $personnage, string $nomArme): bool

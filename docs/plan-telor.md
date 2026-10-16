@@ -254,3 +254,7 @@ le PHP. Une campagne d'agents (`campagne-agents`) sur le thème
 > Talisman of Lore*), aucun texte de carte caché — cohérent avec §3
 > (« aucun nouvel artefact nommé »). Rien à corriger, rien à retirer de la
 > liste de photos.
+
+## Décisions de René (2026-10-15)
+
+**Prophecy of Telor reste ÉTEINTE** (`DemarreurQuete::BOITES_INCOMPLETES['prophecy_telor']`) tant que Fellmarak n'a **ni fuite (quête 12) ni mort par tirage aléatoire (quête 13)**. Le Sorcier du Dread générique reste seedé comme sous-boss ; aucun thème n'est ouvert sans boss jouable. La raison écrite de la liste est inchangée. `docs/regles/bestiaire-et-rencontres.md` § Décisions de René du 2026-10-15.

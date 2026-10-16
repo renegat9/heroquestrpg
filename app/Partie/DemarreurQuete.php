@@ -735,7 +735,9 @@ final class DemarreurQuete
         'prophecy_telor' => 'Fellmarak (son seul boss sourcé) ne meurt pas '
             .'normalement — il fuit en quête 12, meurt par tirage aléatoire '
             .'en quête 13 — et aucun des deux mécanismes n\'est construit ; '
-            .'le Sorcier du Dread générique reste seedé comme sous-boss.',
+            .'le Sorcier du Dread générique reste seedé comme sous-boss. '
+            .'Reste éteinte tant que Fellmarak n\'a ni fuite ni mort par tirage '
+            .'(René, 2026-10-15).',
     ];
 
     /**
@@ -869,7 +871,7 @@ final class DemarreurQuete
     private function variantesDistanceParBase(BestiaireGroupe $bestiaire): Collection
     {
         return Monstre::query()->whereNotNull('variante_distance_de')->get()
-            ->filter(fn (Monstre $v) => $bestiaire->autorise($v->boite))
+            ->filter(fn (Monstre $v) => $bestiaire->autorise($v->boites()))
             ->keyBy('variante_distance_de');
     }
 
@@ -1034,7 +1036,7 @@ final class DemarreurQuete
                     ->orderBy('id')->get()
                     // Bestiaire MANUEL : un FILTRE, avant toute préférence —
                     // une boîte non cochée n'entre jamais (2026-09-28).
-                    ->filter(fn (Monstre $m) => $bestiaire->autorise($m->boite))
+                    ->filter(fn (Monstre $m) => $bestiaire->autorise($m->boites()))
                     ->values();
 
                 // ⚠ ROTATION, pas tirage — et la distinction est celle que le
@@ -1056,7 +1058,7 @@ final class DemarreurQuete
                 // le pool entier. Une préférence, pas un filtre — c'est ce qui
                 // permet à une boîte pauvre en boss (la Horde ogre n'a que des
                 // brutes) de rester jouable.
-                $duTheme = $candidats->filter(fn (Monstre $m) => $bestiaire->contient($m->boite))->values();
+                $duTheme = $candidats->filter(fn (Monstre $m) => $bestiaire->contient($m->boites()))->values();
                 $candidats = $duTheme->isNotEmpty() ? $duTheme : $candidats;
 
                 $final = $candidats->isEmpty()
@@ -1069,7 +1071,7 @@ final class DemarreurQuete
             // d'origine. Une donnée de référence absente ne doit jamais empêcher
             // une quête de démarrer.
             $final ??= Monstre::query()->where('tier', $tierFinal)->orderByDesc('cout')->orderBy('id')->get()
-                ->first(fn (Monstre $m) => $bestiaire->autorise($m->boite));
+                ->first(fn (Monstre $m) => $bestiaire->autorise($m->boites()));
 
             if ($final !== null) {
                 $achats[] = $final;
@@ -1093,7 +1095,7 @@ final class DemarreurQuete
         $base = Monstre::query()->where('tier', 'base')->where('cout', '>', 0)
             ->whereNull('variante_distance_de')
             ->orderBy('cout')->orderBy('id')->get()
-            ->filter(fn (Monstre $m) => $bestiaire->autorise($m->boite))
+            ->filter(fn (Monstre $m) => $bestiaire->autorise($m->boites()))
             ->values();
         $faibles = $base->filter(fn (Monstre $m) => (int) $m->cout <= $seuil)->values();       // coût croissant
 
@@ -1104,7 +1106,7 @@ final class DemarreurQuete
         // un donjon de Gremlins (la boîte des glaces n'a qu'une créature de tier
         // base) ; ne rien filtrer du tout ne montrait jamais la signature.
         $forts = $base->filter(fn (Monstre $m) => (int) $m->cout > $seuil)
-            ->sortByDesc(fn (Monstre $m) => [$bestiaire->contient($m->boite) ? 1 : 0, (int) $m->cout])
+            ->sortByDesc(fn (Monstre $m) => [$bestiaire->contient($m->boites()) ? 1 : 0, (int) $m->cout])
             ->values();
 
         // Aucun « faible » défini (seuil mal réglé / bestiaire atypique) : tout le

@@ -114,6 +114,56 @@ it('avec des cases cochées, montre leur signature et jamais une boîte non coch
         ->and($boites)->toContain('horde_ogre');
 });
 
+it('rend l\'Archer et le Guerrier elfes disponibles dans les DEUX thèmes qui les impriment, et dans aucun autre', function () {
+    // Rise of the Dread Moon p. 36 les nomme comme Mage of the Mirror (René, 2026-10-15) : UNE ligne de
+    // catalogue (`boites_partagees`), pas un doublon, pas `boite: null` (qui les ferait entrer partout).
+    $elfes = Monstre::whereIn('nom_base', ['Archer elfe', 'Guerrier elfe'])->get();
+
+    expect($elfes)->toHaveCount(2)
+        ->and(Monstre::whereIn('nom_base', ['Archer elfe', 'Guerrier elfe'])->count())->toBe(2);
+
+    foreach ($elfes as $elfe) {
+        expect($elfe->boite)->toBe('mage_du_miroir')
+            ->and($elfe->boites())->toBe(['mage_du_miroir', 'dread_moon'])
+            ->and(BestiaireGroupe::manuel(['dread_moon'])->autorise($elfe->boites()))->toBeTrue("{$elfe->nom_base} : Dread Moon")
+            ->and(BestiaireGroupe::manuel(['mage_du_miroir'])->autorise($elfe->boites()))->toBeTrue("{$elfe->nom_base} : Mirror")
+            ->and(BestiaireGroupe::manuel(['horde_ogre'])->autorise($elfe->boites()))->toBeFalse("{$elfe->nom_base} : Ogre Horde")
+            ->and(BestiaireGroupe::manuel([])->autorise($elfe->boites()))->toBeFalse("{$elfe->nom_base} : jeu de base seul")
+            // La PRÉFÉRENCE de thème (forts, boss) : l'un ou l'autre thème les allume.
+            ->and(BestiaireGroupe::auto('dread_moon')->contient($elfe->boites()))->toBeTrue()
+            ->and(BestiaireGroupe::auto('mage_du_miroir')->contient($elfe->boites()))->toBeTrue()
+            ->and(BestiaireGroupe::auto('horde_ogre')->contient($elfe->boites()))->toBeFalse();
+    }
+
+    // Un monstre `boite: null` reste générique, et un monstre d'une seule boîte ne change pas.
+    $champion = Monstre::where('nom_base', 'Champion')->firstOrFail();
+    $assassin = Monstre::where('nom_base', 'Assassin')->firstOrFail();
+
+    expect($champion->boites())->toBe([])
+        ->and(BestiaireGroupe::manuel([])->autorise($champion->boites()))->toBeTrue()
+        ->and($assassin->boites())->toBe(['dread_moon'])
+        ->and(BestiaireGroupe::manuel(['mage_du_miroir'])->autorise($assassin->boites()))->toBeFalse();
+});
+
+it('tire réellement les elfes sous le bestiaire Dread Moon seul, et jamais sous celui de la Horde ogre', function () {
+    // Le test qui échouait avant `boites_partagees` : sous `manuel(['dread_moon'])` les elfes
+    // (boîte `mage_du_miroir`) n'entraient JAMAIS dans une rencontre. On élargit le nombre de
+    // forts pour que les créatures de signature du thème défilent toutes dans l'achat.
+    config(['jeu.rencontres.forts_par_quete' => 8]);
+
+    $noms = fn (BestiaireGroupe $b) => collect(range(1, 12))
+        ->flatMap(fn (int $graine) => collect(achatsPour($b, ['rencontre_finale' => ['tier' => 'sous_boss']], 1, $graine))->pluck('nom_base'))
+        ->unique()->values();
+
+    $lune = $noms(BestiaireGroupe::manuel(['dread_moon']));
+    $miroir = $noms(BestiaireGroupe::manuel(['mage_du_miroir']));
+    $ogre = $noms(BestiaireGroupe::manuel(['horde_ogre']));
+
+    expect($lune)->toContain('Archer elfe')->toContain('Guerrier elfe')
+        ->and($miroir)->toContain('Archer elfe')->toContain('Guerrier elfe')
+        ->and($ogre)->not->toContain('Archer elfe')->not->toContain('Guerrier elfe');
+});
+
 it('garde l\'automatique inchangé : une préférence, jamais un filtre', function () {
     $auto = BestiaireGroupe::auto('horreur_des_glaces');
 

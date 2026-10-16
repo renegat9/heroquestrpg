@@ -285,13 +285,14 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
 
 it('n\'accorde à l\'intérieur de `reactions_defense` que des mécaniques que le moteur applique', function () {
     // Même registre, un niveau plus bas : `reactions_defense` elle-même est
-    // déclarée ci-dessus, mais rien n'empêchait d'y glisser un troisième nom
-    // (« annule_sort », « redirige_attaque ») sans lecteur — EXACTEMENT le
-    // défaut que ce fichier traque pour `capacites` elle-même. Seule
-    // `ignore_degats_attaque` est lue par `MoteurDegats::infligerAMonstre()`
-    // aujourd'hui (Break/Dispel/Deflect restent nommées, absentes du
-    // catalogue — voir `docs/regles/bestiaire-et-rencontres.md`).
-    $implementees = ['ignore_degats_attaque'];
+    // déclarée ci-dessus, mais rien n'empêchait d'y glisser un nom sans lecteur
+    // — EXACTEMENT le défaut que ce fichier traque pour `capacites` elle-même.
+    // La liste des noms lus est `MotsClesReactionMj::CAPACITES` (elle n'était
+    // qu'un tableau en dur ici) : `ignore_degats_attaque` (`MoteurDegats`), puis
+    // `annule_sort_ciblant` et `rompt_sort_actif` (`ReactionsMj`, 2026-10-15).
+    // *Deflect* reste nommée dans `NON_IMPLEMENTEES`, absente du catalogue
+    // (`ReactionsMjTest` le vérifie) — voir `docs/regles/bestiaire-et-rencontres.md`.
+    $implementees = array_keys(\App\Engine\MotsClesReactionMj::CAPACITES);
 
     $inconnues = collect(Monstre::all())
         ->flatMap(fn (Monstre $m) => (array) data_get($m->capacites, 'reactions_defense', []))

@@ -4127,6 +4127,52 @@ final class MoteurDread
     }
 
     /**
+     * Les sorts de RÉACTION que ce lanceur peut jouer MAINTENANT pour ce
+     * déclencheur (`effet.reaction`) — la porte de `App\Partie\ReactionsMj`, la
+     * couture « le MJ réagit au sort d'un héros » (René, 2026-10-15).
+     *
+     * Contrairement à `reactionsALaMort()` (réservée aux Sorciers de Morcar, dont
+     * le budget EST le répertoire), celle-ci sert aussi les lanceurs à budget
+     * d'usages — Sinestra : un sort de réaction coûte donc UN usage, comme tout
+     * sort de Dread (`consommerUsage()`), et un lanceur à sec ne réagit plus.
+     * Le filtre de palier s'applique (`sortsDisponibles()`), pas l'utilité : une
+     * réaction n'a pas de choix à faire, elle a un déclencheur.
+     *
+     * @return \Illuminate\Support\Collection<int, SortDread>
+     */
+    public function sortsDeReaction(InstanceMonstre $instance, Quete $quete, string $declencheur): \Illuminate\Support\Collection
+    {
+        if ($this->usagesRestants($instance, $quete) <= 0) {
+            return collect();
+        }
+
+        return $this->sortsDisponibles($instance, $quete)
+            ->filter(fn (SortDread $s) => $s->type === Mot::TYPE_REACTION
+                && data_get($s->effet, 'reaction') === $declencheur)
+            ->values();
+    }
+
+    /**
+     * Dépense l'usage d'un sort de réaction — le même compteur, au même point de
+     * passage (`consommerUsage()`), que le sort lancé comme action du tour.
+     */
+    public function depenserSortDeReaction(InstanceMonstre $instance, Quete $quete, SortDread $sort): void
+    {
+        $this->consommerUsage($instance, $quete, $sort);
+    }
+
+    /**
+     * Cette créature VOIT-elle ce héros ? La règle des sorts de Dread (« un sort
+     * de Dread exige la vue sur sa cible », figures interposées bloquantes),
+     * exposée telle quelle plutôt que réécrite : `ciblesEnVue()` reste son seul
+     * corps.
+     */
+    public function voitLeHeros(Quete $quete, InstanceMonstre $instance, EtatPersonnageQuete $heros): bool
+    {
+        return $this->ciblesEnVue($quete, $instance, new Collection([$heros]))->isNotEmpty();
+    }
+
+    /**
      * POSSESSION (*Possess*) : « Zargon will move this figure on its next turn.
      * The affected figure may not attack or cast spells. » Joué à la place du
      * héros, comme le Commandement — un tour, puis la condition tombe.

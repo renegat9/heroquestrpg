@@ -353,3 +353,7 @@ qui n'attend que cinq règles.
   skill `campagne-agents` — c'est la méthode qui a trouvé dix défauts que 1139
   tests verts n'avaient pas vus.
 - Suite complète dans le conteneur jetable (skill `outillage-dev-et-tests`).
+
+## Décisions de René (2026-10-15)
+
+**Les cinq cartes de glace restantes sont écartées pour le moment** : *Brassard de Glace*, *Chill*, *Ice Storm*, *Ice Bridge*, *Skate*. Leurs entrées `manque` de `config/cartes.php` sont gardées et annotées. Les phases ci-dessus qui les concernaient (ciblage de zone côté héros, terrain posé en cours de quête) ne sont pas relancées. `docs/regles/artefacts.md`.

@@ -439,6 +439,16 @@ const doors = computed(() => (props.carte.portes ?? [])
     linear-gradient(150deg, oklch(0.40 0.12 45), oklch(0.28 0.09 35));
   box-shadow: inset 0 0 0 1px oklch(0.80 0.16 60 / 0.55);
 }
+/* The Mage of the Mirror : `sables` (les sables mouvants) — teinte sable, hachure CROISÉE
+   (les autres terrains n'ont qu'une direction) : c'est une case qu'on ne traverse pas à pied,
+   on la franchit d'un saut. Le fond sombre au centre dit « trou », la croix le dit en gris. */
+.dg-cell.terrain-sables {
+  background:
+    repeating-linear-gradient(45deg, oklch(0.82 0.11 85 / 0.30) 0 3px, transparent 3px 7px),
+    repeating-linear-gradient(-45deg, oklch(0.82 0.11 85 / 0.30) 0 3px, transparent 3px 7px),
+    radial-gradient(circle at 50% 50%, oklch(0.24 0.05 70), oklch(0.37 0.08 82));
+  box-shadow: inset 0 0 0 1px oklch(0.82 0.11 85 / 0.6);
+}
 
 /* ---- surcouche manette (accessibilité / départ / occupants) ---- */
 .dg-cell.accessible { background: oklch(0.6 0.15 145 / 0.32); cursor: pointer; outline: 1px solid oklch(0.6 0.15 145 / 0.5); }

@@ -42,3 +42,13 @@ reste mineur, sinon nommé et reporté ; la campagne ramifiée écartée par éc
 Suite Pest complète, seeders/migrations sur la vraie base après
 `./image-tools/sauvegarder.sh`, workers redémarrés, guide et livret mis à jour,
 commit et push.
+
+## Décisions de René (2026-10-15)
+
+| Sujet | Décision |
+|---|---|
+| **Bonus de Gruulob** (F9907 p. 27, « All Goblins in this quest are elite warriors dedicated to Gruulob and roll 1 additional Attack die ») — le « à confirmer par René » du 2026-10-09 | **INCLURE le Chamane Gobelin, EXCLURE Gruulob lui-même** (et sa forme démoniaque). Le Chamane est un gobelin : il lance 1 dé d'attaque de plus (2 → 3). Code : `InstanceMonstre::estDeFaction()` lit désormais `MEMBRES_SUPPLEMENTAIRES_DE_FACTION` (`'Gobelin' => ['Chamane Gobelin']`), un registre déclaré et non un élargissement de la comparaison de noms — « Gruulob, Sorcier Gobelin Corrompu » contient « Gobelin ». Test en jeu : `GruulobDelthrakTest` (le chamane à 3 dés, Gruulob à 3 sans bonus). `docs/regles/bestiaire-et-rencontres.md`. |
+| **Ordre de tour choisi par les joueurs** (lot I, règle optionnelle F9907 p. 9) — « REPORTÉ, à arbitrer » le 2026-10-09 | **RESTE TEL QUEL : l'initiative est fixe** (décision C1, `reference/03_combat.md`). La règle optionnelle n'est pas portée et n'est plus « reportée » : elle est écartée, par écrit. `docs/regles/combat-et-tour.md`. |
+| **Libérer un captif** (hors Delthrak, mais arbitré dans le même lot) | GRATUIT : voir `docs/regles/combat-et-tour.md`. |
+
+Migrations : aucune pour ces deux lignes. Seeder à rejouer : `MonstreSeeder` (commentaire seul, aucune valeur ne change).

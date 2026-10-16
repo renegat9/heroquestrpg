@@ -212,6 +212,50 @@ it('un héros au contact libère le captif : il devient un allié qu\'il contrô
     expect($quete->fresh()->objectifAccompli())->toBeTrue();
 });
 
+it('libérer un captif est GRATUIT : ni le déplacement ni l\'action du héros ne sont consommés (René, 2026-10-15)', function () {
+    [$groupe, $quete, $heros, $captif] = queteAvecCaptif();
+
+    $menu = $this->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu');
+    $option = collect($menu['options'])->firstWhere('id', "liberer_{$captif->id}");
+
+    // La DÉCISION est publiée : le créneau dit « gratuit », la manette n'a rien à re-déduire.
+    expect($option['creneau'])->toBe('interaction')
+        ->and(array_key_exists('perd_deplacement', $option))->toBeFalse();
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "liberer_{$captif->id}"])->assertStatus(202);
+
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->firstOrFail();
+
+    // Avant : `tour` → `a_joue = true`, le héros perdait sa journée pour une serrure.
+    expect((bool) $etat->a_joue)->toBeFalse()
+        ->and((bool) $etat->a_agi)->toBeFalse()
+        ->and((bool) $etat->a_deplace)->toBeFalse()
+        ->and($captif->fresh()->etat)->toBe('actif');
+});
+
+it('le captif reste à libérer APRÈS avoir agi : une option gratuite n\'est pas derrière le verrou de l\'action', function () {
+    [$groupe, $quete, $heros, $captif, $alice] = queteAvecCaptif();
+
+    // Le héros a déjà dépensé son action ce tour (il a frappé, fouillé…).
+    EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->update(['a_agi' => true]);
+    \App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+
+    $menu = $this->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu');
+    $option = collect($menu['options'])->firstWhere('id', "liberer_{$captif->id}");
+
+    // Le menu l'offre (il était enfermé dans le bloc `! $aAgi`, comme la porte avant le
+    // 2026-09-04) et le résolveur l'accepte — sans fermer le tour.
+    expect($option)->not->toBeNull()
+        ->and($option['creneau'])->toBe('interaction');
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "liberer_{$captif->id}"])->assertStatus(202);
+
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->firstOrFail();
+
+    expect((bool) $etat->a_joue)->toBeFalse()
+        ->and($captif->fresh()->etat)->toBe('actif');
+});
+
 it('REPLI : sur une carte sans la couche escalier, la libération seule accomplit la mission', function () {
     [, $quete, , $captif] = queteAvecCaptif();
 
@@ -270,10 +314,12 @@ it('la mort du captif libéré échoue la quête IMMÉDIATEMENT, comme un TPK', 
     // ne pare rien.
     desFiges(array_fill(0, 80, 1));
 
-    // Libérer ferme le tour du héros ET celui de l'allié fraîchement libéré
-    // (il ne joue pas le round de sa propre libération) : la phase des
-    // monstres s'ouvre dans CETTE MÊME réponse.
-    $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => "liberer_{$captif->id}"])
+    // Libérer est GRATUIT (2026-10-15) : il ne ferme plus le tour du héros. L'allié
+    // fraîchement libéré, lui, ne joue pas le round de sa propre libération ; quand le
+    // héros TERMINE son tour, la phase des monstres s'ouvre dans cette réponse-là.
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "liberer_{$captif->id}"])
+        ->assertStatus(202);
+    $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
         ->assertStatus(202);
 
     $attaque = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('type', 'attaque_monstre');
@@ -518,9 +564,8 @@ it('mode ESCORTÉ : si le porteur tombe, le captif est REPRIS — jamais un éch
     $positionOrigineY = $captif->position_y;
 
     // Albrecht fragile (1 PV), un monstre robuste posté à SON contact —
-    // adjacent dès que son tour se terminera (libérer un captif sacrifie le
-    // tour — créneau `tour`. Relever un compagnon, lui, est une ACTION depuis le
-    // 2026-10-09 : ne plus le prendre pour modèle ici).
+    // adjacent dès que son tour se terminera (libérer un captif est GRATUIT depuis le
+    // 2026-10-15 : le tour se termine par « Terminer le tour », plus par la libération).
     $heros->update(['pv_body' => 1]);
     $instance = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
     $quete->instancesMonstres()->whereKeyNot($instance->id)->update(['etat' => 'vaincu']);
@@ -547,11 +592,13 @@ it('mode ESCORTÉ : si le porteur tombe, le captif est REPRIS — jamais un éch
     // Des crânes partout : le monstre touche Albrecht, qui ne pare rien.
     desFiges(array_fill(0, 80, 1));
 
-    // Libérer ferme le tour d'Albrecht ; Brunehilde ayant déjà joué, plus
-    // aucun acteur n'attend — la phase des monstres s'ouvre dans CETTE MÊME
-    // réponse, et avec elle `ouvrirNouveauTour()`, le point de passage
-    // unique qui détecte la chute du porteur.
-    $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => "liberer_{$captif->id}"])
+    // Libérer est gratuit (2026-10-15) : Albrecht termine ensuite son tour ; Brunehilde
+    // ayant déjà joué, plus aucun acteur n'attend — la phase des monstres s'ouvre dans CETTE
+    // réponse, et avec elle `ouvrirNouveauTour()`, le point de passage unique qui détecte la
+    // chute du porteur.
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "liberer_{$captif->id}"])
+        ->assertStatus(202);
+    $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
         ->assertStatus(202);
 
     $attaque = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('type', 'attaque_monstre');

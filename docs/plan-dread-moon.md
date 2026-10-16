@@ -133,11 +133,12 @@ jetons). À porter en premier parmi les lots neufs.
 
 ### Lot D — Mercenaires elfiques (p. 10-11)
 
-**Ce ne sont PAS nos 5 mercenaires génériques.** `MercenaireSeeder` porte
-Éclaireur/Arbalétrier/Fauchard/Estafier/Ogre mercenaire + 3 compagnons
-animaux (cartes © 2023, `MercenaireSeeder.php:30-80`) — un catalogue
-disjoint. Dread Moon ajoute 4 mercenaires **propres à la boîte**, à
-déverrouillage progressif :
+**Ce ne sont PAS 4 mercenaires nouveaux : ce sont les 4 cartes DÉJÀ semées**
+dans `MercenaireSeeder` (Scout = Éclaireur, Arbalist = Arbalétrier, Glaive =
+Fauchard, Striker = Estafier ; `MercenaireSeeder.php:30-80`). Chiffres et prix
+identiques au tableau de F6646 p. 10-11 ; cartes du Drive : `Ally_part1.jpg`
+et `Ally_part2.jpg`. Ce qui est **neuf** dans cette boîte, c'est le
+**déverrouillage progressif** :
 
 | Mercenaire | Coût/quête | M/A/D/B/Mi | Trait |
 |---|---|---|---|
@@ -346,3 +347,12 @@ thème `dread_moon` clôt les lots C à H.
 > sont photographiés et transcrits (*Sacred Plant*, *Mysterious Flower*,
 > *Unidentified Ingredient* — `reference/18_extensions.md` § Rise of the Dread
 > Moon). Le reste du paquet (les potions d'alchimie) reste à photographier.
+
+## Décisions de René (2026-10-15)
+
+| Sujet | Décision |
+|---|---|
+| **Q1 — Archer elfe / Guerrier elfe** (§2.5, §4) | **Disponibles dans les DEUX thèmes** (`dread_moon` ET `mage_du_miroir`, livret p. 36), sur UNE ligne de catalogue. Ni `boite: null` (ils entreraient dans tous les thèmes et dans le bestiaire manuel « jeu de base seul »), ni ligne dupliquée : la colonne `monstres.boites_partagees` (migration `2026_10_15_110000_boites_partagees_sur_monstres`) porte `['dread_moon']` à côté de `boite: mage_du_miroir`, lue par `Monstre::boites()` → `BestiaireGroupe::autorise()`/`contient()`. Test : `BestiaireManuelTest`. |
+| **Lots C, E, F, G** — jetons de **réputation**, **déguisement**, **planques**, **artisanat de potions** | **Écartés pour le moment, par écrit.** Ni vocabulaire, ni lecteur, ni donnée : la boîte reste jouable par son bestiaire, ses artefacts, ses chausse-trappes et ses monstres éthérés. Les questions Q3 (contrôle du déguisement), Q4 (tirage de la *Potion of Unforeseeable Fate*) et Q6 (réputation de groupe) sont sans objet tant que ces lots ne sont pas relancés. |
+
+`docs/regles/bestiaire-et-rencontres.md` § Décisions de René du 2026-10-15.

@@ -382,6 +382,11 @@ final class Sauvegarde
                     // Sorts de Sorcier dépensés (Wizards of Morcar) : sans eux une reprise
                     // rendrait au Sorcier ses six sorts.
                     'sorts_dread_lances' => (array) ($i->sorts_dread_lances ?? []),
+                    // Capacités réactives à usage unique déjà jouées (Resilience, Dispel de
+                    // Gretzl, Break de Gruzbella — `MotsClesReactionMj`) : elles manquaient
+                    // au snapshot comme tout compteur durable avant elles, et une reprise
+                    // rendait GRATUITEMENT au boss sa défense réactive.
+                    'capacites_reactives_utilisees' => (array) ($i->capacites_reactives_utilisees ?? []),
                     'habillage' => $i->habillage, // reskin + conditions des monstres
                 ])->values()->all(),
             'etat_personnage_quete' => $quete->etatsPersonnages()->orderBy('id')->get()
@@ -424,6 +429,9 @@ final class Sauvegarde
                     // Peacekeeper : compteur PAR QUÊTE — sans lui, une reprise remettrait
                     // à zéro les monstres déjà vaincus, et Peacekeeper paierait moins.
                     'monstres_vaincus' => (int) $e->monstres_vaincus,
+                    // SABLES MOUVANTS (F7539 p. 29) : un héros enlisé le reste d'un round à l'autre —
+                    // l'oublier le ferait sortir des sables sans avoir payé ni attendu.
+                    'enlise' => $e->enlise,
                 ])->values()->all(),
             'heros' => $this->herosActifs($groupe)
                 ->map(fn (Personnage $p) => $this->serialiserHeros($p))->values()->all(),
@@ -436,6 +444,8 @@ final class Sauvegarde
                     'mercenaire_id' => $a->mercenaire_id,
                     'recruteur_personnage_id' => $a->recruteur_personnage_id,
                     'invoque_par_objet_id' => $a->invoque_par_objet_id,
+                    // Compagnon animal OFFERT : sans ce drapeau, une reprise lui rendrait l'entretien.
+                    'offert' => (bool) $a->offert,
                     'pv_body' => (int) $a->pv_body,
                     'position_x' => $a->position_x,
                     'position_y' => $a->position_y,
@@ -604,6 +614,7 @@ final class Sauvegarde
                 'invocation_dread_utilisee' => $instance['invocation_dread_utilisee'] ?? false,
                 'fuite_dread_utilisee' => $instance['fuite_dread_utilisee'] ?? false,
                 'sorts_dread_lances' => $instance['sorts_dread_lances'] ?? [],
+                'capacites_reactives_utilisees' => $instance['capacites_reactives_utilisees'] ?? [],
                 'habillage' => $instance['habillage'],
             ])->save();
         }
@@ -626,6 +637,7 @@ final class Sauvegarde
                 'mercenaire_id' => $m['mercenaire_id'],
                 'recruteur_personnage_id' => $m['recruteur_personnage_id'] ?? null,
                 'invoque_par_objet_id' => $m['invoque_par_objet_id'] ?? null,
+                'offert' => (bool) ($m['offert'] ?? false), // snapshots d'avant la colonne : suivant ordinaire.
                 'pv_body' => $m['pv_body'],
                 'position_x' => $m['position_x'],
                 'position_y' => $m['position_y'],
@@ -663,6 +675,8 @@ final class Sauvegarde
                 'dernier_degat' => $etat['dernier_degat'] ?? null,
                 // `??` : un snapshot antérieur au 2026-10-08 ne porte pas le compteur.
                 'monstres_vaincus' => $etat['monstres_vaincus'] ?? 0,
+                // `??` : un snapshot antérieur au 2026-10-15 ne porte pas l'enlisement.
+                'enlise' => $etat['enlise'] ?? null,
             ]);
         }
     }

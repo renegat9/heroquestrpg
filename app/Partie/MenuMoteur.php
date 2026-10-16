@@ -243,12 +243,16 @@ final class MenuMoteur
         $idsAdjacents = $adjacents->pluck('id')->all();
 
         // `inutilisable_adjacent` (Arbalète, arcs, Fronde, Dague de jet magique) :
-        // « cannot be used on an adjacent target ». Les cibles AU CONTACT sortent
-        // de la liste blanche — le résolveur les refuse (`Objet::interditAuContact()`,
-        // le même prédicat), et le menu n'offre jamais ce que le résolveur refuse.
+        // « cannot be used on an adjacent target ». L'ARME ne tire pas au contact, mais le
+        // héros n'est pas désarmé pour autant : il FRAPPE À MAINS NUES (René, 2026-10-15).
+        // Les cibles au contact restent donc sur la liste blanche, marquées par le serveur
+        // (`mains_nues`, `des_attaque`, `indication`), et le résolveur applique le même
+        // prédicat (`Objet::interditAuContact()`, au point de passage `frapper()`).
         // ⚠ On garde `$idsAdjacents` entier : un monstre au contact n'est pas pour
         // autant une cible « à distance ».
-        $visablesAuContact = ($arme?->interditAuContact() ?? false) ? collect() : $adjacents;
+        $interditAuContact = $arme?->interditAuContact() ?? false;
+        $visablesAuContact = $adjacents;
+        $desMainsNues = $interditAuContact ? $this->equipement->desAttaqueAvec($personnage, null) : 0;
 
         // Tir à distance (Arbalète, Tir précis) : monstres HORS contact mais en
         // ligne de vue dégagée, si l'arme porte.
@@ -290,7 +294,14 @@ final class MenuMoteur
                 // IA → le joueur retrouve la fiche du bestiaire (guide).
                 'nom_base' => $instance->monstre->nom_base,
                 'distance' => $aPortee,
-            ];
+            ] + (! $aPortee && $interditAuContact ? [
+                // Arme qui refuse le contact : ce coup-ci part à MAINS NUES. Décision et phrase
+                // publiées par le serveur — la manette n'a rien à re-déduire, et le `des_attaque`
+                // de l'entrée d'arme (celui du tir) ne vaut pas pour cette cible.
+                'mains_nues' => true,
+                'des_attaque' => $desMainsNues,
+                'indication' => "à mains nues ({$desMainsNues} dé".($desMainsNues > 1 ? 's' : '').')',
+            ] : []);
         }
 
         return $cibles;
@@ -1327,6 +1338,18 @@ final class MenuMoteur
         // `piege_a_ecarter` vit en COLONNE (`ResolveurTour::resoudreEcartDuBloc()`
         // l'efface), jamais en cache : un téléphone rechargé au mauvais
         // moment doit retrouver le choix en attente, pas une carte muette.
+        // SABLES MOUVANTS (*The Mage of the Mirror* p. 29, 2026-10-15) : un héros
+        // ENLISÉ n'a plus aucun autre choix — abandonner les objets qu'il doit, puis, à
+        // son tour suivant, se hisser de l'autre côté. Même court-circuit que la Chute
+        // de blocs ci-dessous, même raison : l'état vit en COLONNE (`enlise`), un
+        // téléphone rechargé retrouve le choix en attente.
+        if ($etat !== null && ($forceSables = app(MoteurSables::class)->menuForce($quete, $personnage, $etat)) !== null) {
+            return [
+                'situation' => $forceSables['situation'],
+                'options' => $this->avecCreneaux($forceSables['options']),
+            ];
+        }
+
         if ($etat !== null && $etat->piege_a_ecarter !== null) {
             $attente = (array) $etat->piege_a_ecarter;
 
@@ -1502,6 +1525,17 @@ final class MenuMoteur
                         ];
                     }
                 }
+            }
+        }
+
+        // SAUTER PAR-DESSUS LES SABLES MOUVANTS (F7539 p. 29) : un saut est du
+        // MOUVEMENT, comme celui d'une fosse — offert seulement depuis une case voisine,
+        // avec une case de réception libre en face et de quoi payer les cases traversées.
+        // La liste vient de `MoteurSables::sauts()`, que le résolveur relit pour
+        // revalider : le menu ne propose jamais ce que le résolveur refusera.
+        if (! $aDeplace && $etat !== null && ! $this->sorts->deplacementInterdit($personnage)) {
+            foreach (app(MoteurSables::class)->optionsDeSaut($quete, $personnage, $etat, $this->pointsRestants($personnage, $etat)) as $saut) {
+                $options[] = $saut;
             }
         }
 
@@ -2019,8 +2053,11 @@ final class MenuMoteur
                 // moteur rejettera à coup sûr. Constaté en partie réelle — un
                 // monstre campait sur le corps et le bouton restait cliquable,
                 // échouant à chaque fois sans issue.
-                $libre = FabriqueGrille::pour($quete, exceptPersonnageId: (int) $allie->personnage_id)
-                    ->estTraversable((int) $allie->position_x, (int) $allie->position_y);
+                // ⚠ La question est « une AUTRE figure s'y tient-elle ? », pas « la case est-elle
+                // praticable ? » : un héros enlisé gît sur une case de sable, qui ne se traverse pas
+                // (`bloque_mouvement`) — `estTraversable()` le déclarait injoignable à jamais.
+                $libre = ! FabriqueGrille::pour($quete, exceptPersonnageId: (int) $allie->personnage_id)
+                    ->estOccupeeParFigure((int) $allie->position_x, (int) $allie->position_y);
 
                 if (! $libre) {
                     continue;
@@ -2031,31 +2068,6 @@ final class MenuMoteur
                     'libelle' => "Relever {$allie->personnage->nom}",
                     'type' => 'relever',
                     'cible_personnage_id' => (int) $allie->personnage_id,
-                ];
-            }
-
-            // LIBÉRER UN CAPTIF (mission « secourir », 2026-10-04, chantier 3b) :
-            // un héros au contact d'un captif NON ENCORE libéré peut le libérer
-            // — il devient un allié contrôlé par CE héros pour le reste de la
-            // quête (chantier 3a, `ResolveurTour::resoudreLibererCaptif()`).
-            // Sacrifie le tour (créneau `tour`) : libérer quelqu'un n'est pas un
-            // geste qu'on fait en passant. ⚠ Relever un compagnon, lui, ne le fait
-            // plus depuis le 2026-10-09 (décision de René : une action) — libérer
-            // garde son créneau tant que René ne l'a pas tranché.
-            $captifs = GroupeMercenaire::where('groupe_id', $groupe->id)
-                ->where('etat', 'captif')
-                ->whereNotNull('position_x')
-                ->with('mercenaire')
-                ->get()
-                ->filter(fn (GroupeMercenaire $c) => abs((int) $c->position_x - (int) $etat->position_x)
-                    + abs((int) $c->position_y - (int) $etat->position_y) === 1);
-
-            foreach ($captifs as $captif) {
-                $options[] = [
-                    'id' => "liberer_{$captif->id}",
-                    'libelle' => "Libérer {$captif->mercenaire?->nom}",
-                    'type' => 'liberer_captif',
-                    'parametres' => ['allie_id' => (int) $captif->id],
                 ];
             }
 
@@ -2376,6 +2388,38 @@ final class MenuMoteur
                         'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                     ];
                 }
+            }
+        }
+
+        // LIBÉRER UN CAPTIF (mission « secourir », 2026-10-04, chantier 3b) : un héros
+        // au contact d'un captif NON ENCORE libéré peut le libérer — il devient un allié
+        // contrôlé par CE héros pour le reste de la quête (chantier 3a,
+        // `ResolveurTour::resoudreLibererCaptif()`).
+        //
+        // GRATUIT depuis le 2026-10-15 (René : aucun livret n'impose de coût — Frozen
+        // Horror p. 19, Mage of the Mirror p. 4) : `creneauOption('liberer_captif')` rend
+        // `interaction`, ni le déplacement ni l'action. ⚠ Donc HORS du verrou `! $aAgi`,
+        // exactement comme `ouvrir_porte` juste au-dessus : un héros qui a déjà frappé
+        // peut encore libérer son captif, et le menu doit le dire — le résolveur
+        // l'accepte, une option absente serait la même faille que la porte du 2026-09-04.
+        // Gardé par `! $actionInterdite` : l'Évanescent « ne peut que bouger et ouvrir des
+        // portes » (même garde que la plupart des gestes ci-dessous).
+        if (! $actionInterdite && $etat !== null && $etat->position_x !== null) {
+            $captifs = GroupeMercenaire::where('groupe_id', $groupe->id)
+                ->where('etat', 'captif')
+                ->whereNotNull('position_x')
+                ->with('mercenaire')
+                ->get()
+                ->filter(fn (GroupeMercenaire $c) => abs((int) $c->position_x - (int) $etat->position_x)
+                    + abs((int) $c->position_y - (int) $etat->position_y) === 1);
+
+            foreach ($captifs as $captif) {
+                $options[] = [
+                    'id' => "liberer_{$captif->id}",
+                    'libelle' => "Libérer {$captif->mercenaire?->nom}",
+                    'type' => 'liberer_captif',
+                    'parametres' => ['allie_id' => (int) $captif->id],
+                ];
             }
         }
 

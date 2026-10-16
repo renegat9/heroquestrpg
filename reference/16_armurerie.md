@@ -200,6 +200,12 @@ Le « Ranged » referme au passage une question ouverte : `inutilisable_adjacent
 était jusqu'ici une règle **de nous**, que rien ne sourçait (§10). Elle est
 désormais le texte même du paquet.
 
+> **Décision de René du 2026-10-15 — le contact n'est pas une impasse.** Le paquet dit que
+> l'arme ne s'emploie pas contre une cible adjacente ; il ne dit pas que son porteur ne peut
+> plus rien faire. Chez nous, un héros dont l'arme en main est `inutilisable_adjacent` **frappe
+> à mains nues** un monstre au contact (le profil mains nues existant), l'arme restant en main
+> pour le prochain tir. `docs/regles/combat-et-tour.md`, `docs/contrat-api.md`.
+
 #### Armes (20 cartes portées sur 21)
 
 Les restrictions de classe des cartes passent par `tag_equipement` ×

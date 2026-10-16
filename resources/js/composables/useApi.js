@@ -418,6 +418,27 @@ export function useApi() {
                 ? { mercenaire_id: mercenaireId, personnage_id: personnageId }
                 : { mercenaire_id: mercenaireId }),
 
+        /** POST /groupes/{id}/compagnon-offert {mercenaire_id, personnage_id?} — PREND le compagnon
+         *  animal OFFERT (Against the Ogre Horde, gratuit, une fois, groupe de moins de 4 héros) pour
+         *  CE héros, qui en devient le maître. La liste des animaux vient de
+         *  `groupe.compagnon_offert.animaux` (la liste blanche du serveur). 422 : offre fermée. */
+        prendreCompagnonOffert: (identifiant, mercenaireId, personnageId = null) =>
+            request('POST', `/groupes/${identifiant}/compagnon-offert`, personnageId
+                ? { mercenaire_id: mercenaireId, personnage_id: personnageId }
+                : { mercenaire_id: mercenaireId }),
+
+        /** DELETE /groupes/{id}/compagnon-offert {personnage_id?} — REFUSE l'offre, pour tous, définitivement. */
+        refuserCompagnonOffert: (identifiant, personnageId = null) =>
+            request('DELETE', `/groupes/${identifiant}/compagnon-offert`, personnageId ? { personnage_id: personnageId } : undefined),
+
+        /** PUT /groupes/{id}/faveurs/weapon-expert {personnage_id, objet_id} — le joueur choisit le type
+         *  d'arme de sa faveur Weapon Expert (HUB uniquement, définitif). La liste vient de `/moi`
+         *  (`faveurs[].choix`, la liste blanche du serveur). */
+        choisirArmeFaveur: (identifiant, personnageId, objetId) =>
+            request('PUT', `/groupes/${identifiant}/faveurs/weapon-expert`, {
+                personnage_id: personnageId, objet_id: objetId,
+            }),
+
         /** POST /groupes/{id}/potions/boire-au-hub {personnage_id, inventaire_id} —
          *  boit une potion ENTRE DEUX QUÊTES (Potion de charme) ; 422 hors hub ou
          *  pour une potion qui se boit en quête. */

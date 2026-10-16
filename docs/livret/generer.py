@@ -1167,7 +1167,7 @@ faveurs qu'aucun héros actif ne détient encore, la remet à un héros actif ti
 l'annonce. Quand les cinq sont distribuées, rien ne tombe.</p>
 <table><thead><tr><th>Faveur</th><th>Ce qu'elle fait</th></tr></thead><tbody>
 <tr><td class="nom">Deadeye</td><td>Les figures, héros comme monstres, ne bloquent plus la <strong>ligne de vue</strong> du porteur pour attaquer ou lancer un sort. Murs, portes et meubles bloquent toujours.</td></tr>
-<tr><td class="nom">Weapon Expert</td><td><strong>+1 dé d'attaque</strong> avec l'arme de sa spécialité : le premier type d'arme dont le porteur frappe après avoir reçu la faveur.</td></tr>
+<tr><td class="nom">Weapon Expert</td><td><strong>+1 dé d'attaque</strong> avec le type d'arme que son porteur choisit au hub en recevant la faveur (liste lue au catalogue, choix définitif).</td></tr>
 <tr><td class="nom">Healing Hands</td><td>Quand un héros adjacent tombe à 0 PV, il peut boire <strong>une potion de soin du porteur</strong> au lieu de la sienne.</td></tr>
 <tr><td class="nom">Hold the Line</td><td>Quand un monstre s'éloigne des huit cases qui entourent le porteur, un <strong>crâne</strong> au dé de combat lui inflige 1 PV de Body. C'est la seule exception à « aucune attaque d'opportunité ».</td></tr>
 <tr><td class="nom">Peacekeeper</td><td><strong>25 po</strong> versés à la bourse commune, à la fin d'une quête gagnée, pour chaque monstre que le porteur a réduit à 0 PV. Un allié, un piège, un sort du Dread ou un monstre qui en frappe un autre n'ouvrent pas ce droit — ni la forme d'un monstre à phases qui n'est pas encore sa mort.</td></tr>
@@ -1747,8 +1747,8 @@ dégâts : coup, sort, piège ou braise.</p>
       toutes deux à distance, au choix. Son invocation fait surgir des <strong>gobelins</strong>, en
       nombre égal à celui des orques d'une invocation ordinaire.
       Dès le démarrage de la quête, il fait de <strong>tous les gobelins de la quête</strong> des
-      guerriers d'élite : <strong>+1 dé d'attaque</strong> chacun, gobelins de base, archers et
-      gobelins invoqués compris. Cet effet de quête est annoncé au démarrage, reste affiché sous
+      guerriers d'élite : <strong>+1 dé d'attaque</strong> chacun, gobelins de base, archers,
+      <strong>Chamane Gobelin</strong> et gobelins invoqués compris. Cet effet de quête est annoncé au démarrage, reste affiché sous
       l'objectif, et tient jusqu'à la fin de la quête — même une fois Gruulob tombé. Ni Gruulob ni sa
       forme démoniaque n'en font partie.</li>
   <li><strong>Sir Ragnar</strong> (<em>Rise of the Dread Moon</em>) n'a pas de phases mais

@@ -103,8 +103,11 @@ final class MotsClesSortDread
     /**
      * Le sort se lance HORS TOUR, sans action, en réaction à un événement
      * (*Raise the Dead* : « after a monster has been killed, no action
-     * required »). Jamais choisi par `choisirSort()` : son déclencheur est
-     * `effet.reaction`, lu par `MoteurDread::reactionsALaMort()`.
+     * required » ; *Dispel* et *Mirror Magic* : « immediately after the hero
+     * casts a spell »). Jamais choisi par `choisirSort()` : son déclencheur est
+     * `effet.reaction`, une valeur de `REACTIONS`, lue par
+     * `MoteurDread::reactionsALaMort()` / `reactionALaChute()` ou — pour les
+     * sorts de héros — par `App\Partie\ReactionsMj::auSortDeHeros()`.
      */
     public const TYPE_REACTION = 'reaction';
 
@@ -468,12 +471,55 @@ final class MotsClesSortDread
             'lecteur' => 'App\Partie\MoteurDread::reactionALaChute',
             'libelle' => 'Table d6 jouée quand le lanceur tombe à 0 PV de Body (*Beseech Dread Powers!*)',
         ],
+
+        // -- Le MJ réagit au sort d'un héros (René, 2026-10-15) --------
+
+        'dissipe' => [
+            'lecteur' => 'App\Partie\ReactionsMj::dissiper',
+            'libelle' => 'Annule le sort d\'un héros : Mind + 1 dé rouge de chaque côté, le plus haut total l\'emporte (*Dispel*)',
+        ],
+        'renvoie' => [
+            'lecteur' => 'App\Partie\ReactionsMj::renvoyer',
+            'libelle' => 'Renvoie sur son lanceur le sort d\'un héros qui visait le MJ (*Mirror Magic*)',
+        ],
+    ];
+
+    /**
+     * LES DÉCLENCHEURS d'un sort de type `reaction` — les valeurs que peut
+     * prendre `effet.reaction`, chacune avec le lecteur qui la joue.
+     *
+     * Un sort de réaction ne se lance JAMAIS comme action du tour
+     * (`MoteurDread::sortUtilisable()` le refuse) : son déclencheur est un
+     * ÉVÉNEMENT, et c'est ce mot qui dit lequel. Il n'y en avait que deux, lus
+     * par deux méthodes différentes, sans que rien n'interdise une troisième
+     * valeur muette ; `SortsDreadSourcesTest` confronte maintenant cette liste
+     * aux sorts DANS LES DEUX SENS, et le fichier du lecteur doit nommer la valeur.
+     *
+     * @var array<string, array{lecteur: string, libelle: string}>
+     */
+    public const REACTIONS = [
+        'mort_de_monstre' => [
+            'lecteur' => 'App\Partie\MoteurDread::reactionsALaMort',
+            'libelle' => 'Un monstre vient d\'être tué (*Raise the Dead*)',
+        ],
+        'zero_pv_du_lanceur' => [
+            'lecteur' => 'App\Partie\MoteurDread::reactionALaChute',
+            'libelle' => 'Le lanceur vient d\'être réduit à 0 PV de Body (*Beseech Dread Powers!*)',
+        ],
+        'sort_de_heros' => [
+            'lecteur' => 'App\Partie\ReactionsMj::dissiper',
+            'libelle' => 'Un héros vient de lancer un sort contre le camp du MJ (*Dispel*)',
+        ],
+        'sort_visant_le_lanceur' => [
+            'lecteur' => 'App\Partie\ReactionsMj::renvoyer',
+            'libelle' => 'Un héros vient de lancer un sort sur CE lanceur (*Mirror Magic*)',
+        ],
     ];
 
     /**
      * Mots qu'une carte porte et que le moteur **n'applique pas**. Vide
-     * aujourd'hui, et c'est délibéré : les sept cartes non portées le sont
-     * ENTIÈREMENT (registre `config/cartes.php`, section `dread`), pas à
+     * aujourd'hui, et c'est délibéré : la carte non portée (*Werewolf's Curse*)
+     * l'est ENTIÈREMENT (registre `config/cartes.php`, section `dread`), pas à
      * moitié. Une carte à moitié portée serait la seule chose que cette classe
      * existe pour empêcher.
      *

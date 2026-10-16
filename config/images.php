@@ -57,7 +57,10 @@ return [
         // téléportation…), pas un obstacle qu'on contourne comme le mobilier —
         // d'où l'insistance sur la texture de la case elle-même, vue de dessus
         // comme le mobilier (une case se lit à plat sur la carte).
-        'terrain' => 'Case de sol de donjon vue de dessus : {nom}, texture de glace ou de givre caractéristique. Case isolée sur fond sombre. {style}',
+        // ⚠ NEUTRE depuis le 2026-10-15 : le gabarit disait « texture de glace ou de givre » pour TOUT
+        // terrain, y compris le sable, la mare et le brasier de la jungle — et un « Sables mouvants »
+        // généré par ce gabarit aurait été givré. Le NOM porte la matière.
+        'terrain' => 'Case de sol de donjon vue de dessus : {nom}, avec la texture caractéristique de cette matière. Case isolée sur fond sombre. {style}',
         // LEVIER et PORTE (2026-08-29) : les deux seuls éléments d'une salle
         // sans table de catalogue — un levier n'est qu'un id dans la grille, une
         // porte une arête. Ils sont donc nommés comme les CLASSES, par un

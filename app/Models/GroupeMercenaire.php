@@ -48,6 +48,9 @@ class GroupeMercenaire extends Model
         // `objets.id` de l'objet qui a APPELÉ cet allié (Fangwarden Armlet) ;
         // `null` = recruté ou octroyé. Un allié appelé ne survit pas à la quête.
         'invoque_par_objet_id',
+        // Le compagnon animal OFFERT (Against the Ogre Horde p. 8-9, « at no cost ») :
+        // exempté de l'entretien de 10 po par quête (FaveursHopekins::reglerEntretien()).
+        'offert',
         'pv_body',
         'position_x',
         'position_y',
@@ -63,6 +66,7 @@ class GroupeMercenaire extends Model
             'a_deplace' => 'boolean',
             'a_agi' => 'boolean',
             'a_joue' => 'boolean',
+            'offert' => 'boolean',
         ];
     }
 

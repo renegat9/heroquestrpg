@@ -186,7 +186,7 @@ Horror seul).
 | # | Question | Recommandation |
 |---|---|---|
 | **Q1** | L'Ours polaire de guerre (A2) : porter sa vraie capacité (2 attaques, 1 ou 2 cibles) à la place de `choix_attaque`, ou documenter `choix_attaque` comme divergence assumée dans `BestiaireSourceTest` ? | Porter : c'est une carte sourcée avec un texte clair, et `choix_attaque` n'est utilisé que par ce seul monstre aujourd'hui — rien d'autre n'en dépend |
-| **Q2** | La quête double 9-10 (lot B) : un plan dédié commun à Frozen Horror ET Mage of the Mirror (deux cartes ouvertes simultanément, bascule de personnage sans restauration), ou porté une fois pour chaque boîte séparément ? | Plan commun — c'est littéralement le même mécanisme (texte quasi identique dans les deux livrets), et le dupliquer romprait « une règle, un point de passage » |
+| **Q2** | La quête double 9-10 (lot B) : un plan dédié commun à Frozen Horror ET Mage of the Mirror (deux cartes ouvertes simultanément, bascule de personnage sans restauration), ou porté une fois pour chaque boîte séparément ? → **tranchée le 2026-10-15** : quête double 9-10 écartée pour le moment. | Plan commun — c'est littéralement le même mécanisme (texte quasi identique dans les deux livrets), et le dupliquer romprait « une règle, un point de passage » |
 | **Q3** | L'immunité des monstres au terrain dangereux (A1) : un chantier qui touche `FabriqueGrille::pour()`, donc le point de passage central de toute la couche terrain — à traiter isolément ou avec la Rivière Gelée déjà posée comme le poste le plus risqué du plan glace ? | Isolément, et vite : c'est un défaut de règle **en l'état actuel du jeu**, pas une nouvelle fonctionnalité — un monstre placé sur une case de glace aujourd'hui se comporte hors des règles sourcées |
 | **Q4** | Le gabarit « libérer un captif » (lot C, Gothar / Prospecteur / Princesse) : vaut-il la peine pour deux boîtes seulement, ou on attend une troisième occurrence avant de l'écrire comme gabarit générique ? | L'écrire maintenant : les deux occurrences ont déjà la même forme exacte (capture automatique à la mort du héros, ciblage prioritaire des monstres sur l'escorteur), ce qui est le signe qu'une généralisation ne devinerait rien |
 
@@ -228,3 +228,12 @@ migration, aucune purge de `groupes`/`personnages`/`joueurs`, redémarrer
 > version précédente de ce plan ne comptait, et qui manque encore de
 > `config/cartes.php`. Toujours à demander : les cartes de monstre et de
 > mercenaire (Q1, capacités éventuelles au-delà du texte).
+
+## Décisions de René (2026-10-15)
+
+| # | Décision | Conséquence |
+|---|---|---|
+| **Q2** | **Quête double 9-10 (« The Heart of Ice ») : écartée pour le moment.** | Le modèle suppose une quête = une carte ; deux cartes ouvertes en parallèle pour un même groupe ne sont pas lancées, pas plus que le plan commun avec *The Mage of the Mirror*. Lot B nommé ici, non porté. |
+| — | **Cartes de glace : écartées pour le moment** — *Brassard de Glace*, *Chill*, *Ice Storm*, *Ice Bridge*, *Skate*. | Les entrées `manque` de `config/cartes.php` sont gardées, annotées « Écarté pour le moment (René, 2026-10-15) ». |
+
+`docs/regles/bestiaire-et-rencontres.md` et `docs/regles/artefacts.md`.

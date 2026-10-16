@@ -44,7 +44,8 @@ reason, and the two must never drift.
   `DifficulteBody::plafonnee()`, `ResolveurTour::frapper()`, `Equipement::estAccessible()`,
   and since 2026-09-11: `Grille::caseEmbrasure()` for a door's cell,
   `MoteurSorts::mobiliteCombatDisponible()`, `Equipement::recalculerCombat()`,
-  `DeckFouille::sallesACoffre()`).
+  `DeckFouille::sallesACoffre()`; since 2026-10-15: `ReactionsMj::auSortDeHeros()` for every
+  GM reaction to a hero's spell — Dispel, Dissipation, Break, Mirror Magic).
   Two copies of a rule too simple to notice drifting is this project's most repeated defect.
 - **`sortBy([$f, $g])` is never a multi-key sort** — Laravel reads a callable there as a
   *comparator*, and it never errors. It bit twice. → `docs/regles/sorts-dread.md`

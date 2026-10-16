@@ -53,6 +53,12 @@ class EtatPersonnageQuete extends Model
         // retrouver le choix en attente, pas perdre la seule option qui reste
         // au héros. Voir App\Partie\MoteurPieges::declencher()/`MenuMoteur::generer()`.
         'piege_a_ecarter',
+        // SABLES MOUVANTS (*The Mage of the Mirror* p. 29, 2026-10-15) : le héros
+        // qui a raté son saut est ENLISÉ — {phase, a_defausser, sable: {x, y},
+        // vers: {x, y}, terrain}. En COLONNE, jamais en cache : il doit survivre
+        // à un round entier (« on the hero's next turn, the hero climbs out »).
+        // Voir App\Partie\MoteurSables et `MenuMoteur::generer()`.
+        'enlise',
         // Capacités « once per quest » déjà dépensées (liste de noms). Un
         // booléen par capacité aurait fait 24 colonnes.
         'capacites_utilisees',
@@ -132,6 +138,7 @@ class EtatPersonnageQuete extends Model
             'detail_deplacement_tour' => 'array',
             'reaction_en_attente' => 'array',
             'piege_a_ecarter' => 'array',
+            'enlise' => 'array',
             'capacites_utilisees' => 'array',
             'capacites_tour' => 'array',
             'styles_epuises' => 'array',

@@ -14,6 +14,8 @@ import FicheTab from '../components/manette/FicheTab.vue';
 import SpellsTab from '../components/manette/SpellsTab.vue';
 import SacTab from '../components/manette/SacTab.vue';
 import RecrutementHub from '../components/manette/RecrutementHub.vue';
+import CompagnonOffert from '../components/manette/CompagnonOffert.vue';
+import ChoixArmeFaveur from '../components/manette/ChoixArmeFaveur.vue';
 import AnnonceHub from '../components/ui/AnnonceHub.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
 import JetDes from '../components/ui/JetDes.vue';
@@ -610,6 +612,12 @@ const LISTES = {
     // ChoixListeSheet plutôt qu'un 3e niveau : `jeter` n'a pas de cibles.
     // C'est le seul geste du jeu qui détruit de la valeur sans rien rendre.
     jeter: { cle: 'objets', titre: 'Quel objet jeter ?', retour: 'Retour aux objets', confirmer: true },
+    // SABLES MOUVANTS (F7539 p. 29, 2026-10-15) : le héros enlisé CHOISIT, un objet à la fois, ceux
+    // qu'il abandonne (le serveur republie la liste après chaque pick, jusqu'à deux). Pas de palier
+    // de confirmation ni de quantité : ce n'est pas un `jeter` de confort, la règle l'EXIGE — et
+    // chaque tap abandonne UN exemplaire. La liste vient de `parametres.objets`, entrée par ligne
+    // d'inventaire (porté ou non), jamais reconstruite ici.
+    defausser_sables: { cle: 'objets', titre: 'Quel objet abandonner aux sables ?', retour: 'Retour aux actions' },
     // Échanger — la SÉANCE du canon (R3) : l'option porte désormais
     // `parametres.allies[]` (un par allié adjacent debout), PAS des objets.
     // Choisir un allié dans cette liste n'envoie rien : `choisirEntree`
@@ -1009,6 +1017,57 @@ const faveurHub = computed(() => store.state.etat?.groupe?.faveur_hopekins ?? nu
 const peacekeeperHub = computed(() => store.state.etat?.groupe?.peacekeeper ?? null);
 const reveilHub = computed(() => store.state.etat?.groupe?.objets_reveilles ?? null);
 const voteSortieHub = computed(() => store.state.etat?.groupe?.vote_sortie ?? null);
+// COMPAGNON ANIMAL OFFERT (Against the Ogre Horde, 2026-10-15) : la proposition entière est
+// publiée par le serveur (`groupe.compagnon_offert`, `null` quand elle n'existe pas ou plus) ;
+// on la rend telle quelle. Le premier joueur qui prend un animal en devient le maître.
+const compagnonOffert = computed(() => store.state.etat?.groupe?.compagnon_offert ?? null);
+const compagnonEnCours = ref(false);
+async function prendreCompagnon(mercenaireId) {
+    if (compagnonEnCours.value) return;
+    compagnonEnCours.value = true;
+    try {
+        await api.prendreCompagnonOffert(props.groupe, mercenaireId, monPersonnageId.value);
+        // L'offre se referme et la recrue apparaît par .groupe.etat ; on relit aussi l'état soi-même
+        // (même patron que la reconnexion) : le geste ne dépend pas d'un message temps réel.
+        store.appliquerEtat(await api.getEtatReprise(props.groupe));
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        compagnonEnCours.value = false;
+    }
+}
+async function refuserCompagnon() {
+    if (compagnonEnCours.value) return;
+    compagnonEnCours.value = true;
+    try {
+        await api.refuserCompagnonOffert(props.groupe, monPersonnageId.value);
+        store.appliquerEtat(await api.getEtatReprise(props.groupe));
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        compagnonEnCours.value = false;
+    }
+}
+
+// FAVEUR WEAPON EXPERT (René, 2026-10-15) : le joueur choisit son type d'arme au hub. `/moi`
+// publie la LISTE BLANCHE (`faveurs[].choix`) tant que le choix reste à faire et qu'il est permis :
+// on prend l'entrée qui la porte, sans connaître la faveur ni la phase.
+const faveurAChoisir = computed(() => (monPerso.value?.faveurs ?? []).find((f) => Array.isArray(f.choix) && f.choix.length) ?? null);
+const choixArmeEnCours = ref(false);
+async function choisirArmeFaveur(objetId) {
+    if (choixArmeEnCours.value || !monPersonnageId.value) return;
+    choixArmeEnCours.value = true;
+    try {
+        await api.choisirArmeFaveur(props.groupe, monPersonnageId.value, objetId);
+        // `/moi` porte la liste de choix et la spécialité : relu tout de suite, sans attendre `.groupe.etat`.
+        const { joueur: moi, personnages: persos } = await api.moi();
+        store.setJoueur(moi, persos ?? []);
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        choixArmeEnCours.value = false;
+    }
+}
 async function chargerMercenaires() {
     if (catalogueMercs.value.length) return;
     try {
@@ -1365,6 +1424,22 @@ const navItems = computed(() => (scene.value === 'marche'
                             <div v-if="auHub && (entretienHub || faveurHub || peacekeeperHub || reveilHub || voteSortieHub)" class="manette-annonces-hub">
                                 <AnnonceHub :entretien="entretienHub" :faveur="faveurHub" :peacekeeper="peacekeeperHub" :reveil="reveilHub" :vote="voteSortieHub" />
                             </div>
+
+                            <!-- ---- choix à faire AVANT de partir : le serveur les publie tant qu'ils restent
+                                 ouverts (compagnon animal offert, type d'arme de Weapon Expert) ---- -->
+                            <CompagnonOffert
+                                v-if="auHub && compagnonOffert"
+                                :offre="compagnonOffert"
+                                :en-cours="compagnonEnCours"
+                                @prendre="prendreCompagnon"
+                                @refuser="refuserCompagnon"
+                            />
+                            <ChoixArmeFaveur
+                                v-if="auHub && faveurAChoisir"
+                                :faveur="faveurAChoisir"
+                                :en-cours="choixArmeEnCours"
+                                @choisir="choisirArmeFaveur"
+                            />
 
                             <!-- ---- bouton Prêt (phase hub, mode connecté) ---- -->
                             <div v-if="auHub" class="pret-hub">

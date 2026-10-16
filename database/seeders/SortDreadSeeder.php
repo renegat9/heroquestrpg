@@ -8,12 +8,14 @@ use App\Partie\MoteurDread;
 use Illuminate\Database\Seeder;
 
 /**
- * LES 26 SORTS DE DREAD PORTÉS, un par carte officielle.
+ * LES 28 SORTS DE DREAD PORTÉS, un par carte officielle.
  *
  * Source : `dread_spells.pdf` — 29 sorts photographiés par René le 2026-09-04,
- * transcrits carte par carte en **doc 09 §4bis**. Trois ne sont pas portés et
- * sont recensés dans `config/cartes.php` (section `dread`) avec, chacune, la
- * mécanique qui lui manque : *Werewolf's Curse*, *Dispel*, *Mirror Magic*.
+ * transcrits carte par carte en **doc 09 §4bis**. UN seul n'est pas porté et
+ * est recensé dans `config/cartes.php` (section `dread`) avec la mécanique qui
+ * lui manque : *Werewolf's Curse*. *Dispel* et *Mirror Magic* l'ont été le
+ * 2026-10-15, avec la couture « le MJ réagit au sort d'un héros »
+ * (`App\Partie\ReactionsMj`).
  *
  * ⚠ *Mind Freeze*, *Ice Wall* et *Skate* ont rejoint le catalogue le
  * 2026-09-06 (plan glace, phase 2 — `docs/plan-glace-et-degats-mind.md`) :
@@ -700,6 +702,38 @@ class SortDreadSeeder extends Seeder
             // jamais déguisé : l'embuscade est celle du coffre de départ.
             ['nom' => 'Appel du Dreadshifter', 'palier' => 'sous_boss', 'type' => Mot::TYPE_INVOCATION,
                 'effet' => ['invoque' => ['Dreadshifter' => 1], 'invoque_en_vue' => true]],
+
+            // ============================================================
+            // LE MJ RÉAGIT AU SORT D'UN HÉROS — *Dispel* et *Mirror Magic*
+            // (René, 2026-10-15). Les deux cartes se jouent « during a hero's
+            // turn », jamais comme action du MJ : TYPE_REACTION, lues par
+            // `ReactionsMj::auSortDeHeros()`, la couture unique que
+            // `ResolveurTour::lancerSort()` appelle. Elles coûtent UN usage du
+            // budget du lanceur, comme tout sort de Dread.
+            //
+            // Palier `sous_boss` : TORMUK (sous-boss de la quête 6, Mage of the
+            // Mirror p. 25) connaît *Mirror Magic* et Sinestra (boss) les deux —
+            // un palier `boss` aurait retiré la carte à Tormuk en silence le jour
+            // où il serait semé. Le rang est NÔTRE (aucune carte n'en porte).
+            // ============================================================
+
+            // « may be cast by a Dread spellcaster during a hero's turn. It is used in
+            // an attempt to cancel a spell cast by a hero. This spell card can be used
+            // immediately after the hero casts a spell. First the Dread spellcaster
+            // rolls 1 red die and adds the result to their Mind Points. Then the hero
+            // does the same. If the Dread spellcaster's total is higher, the hero's
+            // spell is cancelled. » (carte © 2023 Hasbro, lue à l'image.) `des_rouges` :
+            // le nombre de dés rouges de CHAQUE côté.
+            ['nom' => 'Dissipation', 'palier' => 'sous_boss', 'type' => Mot::TYPE_REACTION,
+                'effet' => ['reaction' => 'sort_de_heros', 'dissipe' => ['des_rouges' => 1]]],
+
+            // « may be cast by a Dread spellcaster during a hero's turn. This enables the
+            // spellcaster to reflect any hero's spell back on them. This spell card can
+            // be used immediately after the hero casts a spell AT THE DREAD SPELLCASTER.
+            // The hero then suffers the effect of the spell that was intended for the
+            // spellcaster. » Aucun jet.
+            ['nom' => 'Magie Miroir', 'palier' => 'sous_boss', 'type' => Mot::TYPE_REACTION,
+                'effet' => ['reaction' => 'sort_visant_le_lanceur', 'renvoie' => true]],
         ];
 
         foreach ($sorts as $sort) {

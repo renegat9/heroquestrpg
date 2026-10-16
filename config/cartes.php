@@ -267,7 +267,7 @@ return [
                     ."fois, `MotsClesSort::CIBLE_MONSTRES_ZONE` reste `NON_IMPLEMENTES`). Porter ce bracelet "
                     ."sur sa seule moitié terrain vendrait une immunité au gel qui laisse geler par Gel de "
                     ."l'Esprit : exactement la carte à moitié tenue que ce registre existe pour ne jamais "
-                    .'afficher.'],
+                    .'afficher. Écarté pour le moment (René, 2026-10-15).'],
 
             // « Raquettes de Vitesse » / Snowshoes of Speed : sa dette disait
             // les deux appelants de `deDeplacementAnnule()` (MenuMoteur,
@@ -422,23 +422,23 @@ return [
                 'manque' => "GLACE — cible multiple (les 4 cases orthogonales du lanceur, comme son jumeau "
                     ."Dread `zone => ZONE_CONTACT`) : `MotsClesSort::CIBLE_MONSTRES_ZONE` est explicitement "
                     ."NON_IMPLEMENTES côté héros (« le sort touche une seule cible »), et son seul lecteur "
-                    ."possible vit dans ResolveurTour::sortDegats(), hors périmètre de cette phase."],
+                    ."possible vit dans ResolveurTour::sortDegats(), hors périmètre de cette phase. Écarté pour le moment (René, 2026-10-15)."],
             ['carte' => 'Spell Scroll — Ice Storm', 'paquet' => 'Frozen Horror', 'nom' => 'Tempête de Glace',
                 'texte' => 'Zone de 2×2 ; chaque figure y est attaquée séparément à 3 dés, sans défense possible. Interdit en couloir.',
                 'manque' => "GLACE — même manque que Chill, un cran plus loin : une zone carrée 2×2 existe "
                     ."déjà côté Dread (`MotsClesSortDread::ZONE_CARRE_2X2`, lue par `MoteurDread::casesZone()`), "
-                    ."mais rien d'équivalent n'existe côté héros — `ResolveurTour::sortDegats()`, hors périmètre."],
+                    ."mais rien d'équivalent n'existe côté héros — `ResolveurTour::sortDegats()`, hors périmètre. Écarté pour le moment (René, 2026-10-15)."],
             ['carte' => 'Spell Scroll — Ice Bridge', 'paquet' => 'Frozen Horror', 'nom' => 'Pont de Glace',
                 'texte' => 'Crée un pont permanent permettant de franchir fosse, piège, gouffre, crevasse ou case glacée.',
                 'manque' => "GLACE — poser du TERRAIN en cours de quête (la couche `cartes.grille['terrain']` "
                     ."n'est peuplée qu'à l'assemblage, doc 18 §4/phase 4a) ET la résolution de sort qui le "
-                    ."ferait, toutes deux hors périmètre — un mécanisme neuf, pas une couture existante."],
+                    ."ferait, toutes deux hors périmètre — un mécanisme neuf, pas une couture existante. Écarté pour le moment (René, 2026-10-15)."],
             ['carte' => 'Spell Scroll — Skate', 'paquet' => 'Frozen Horror', 'nom' => 'Patinage',
                 'texte' => '+6 au jet de déplacement et traversée des monstres et héros, pour un tour.',
                 'manque' => "GLACE — la traversée des figures a un précédent qui MARCHE (`franchit_figures`, "
                     ."posé par le sort Voile de Brume), mais le « +6 au jet de déplacement » n'a aucun lecteur "
                     ."symétrique câblable ici : le seul point qui module l'allonge (`Deplacement::calculer()`) "
-                    ."n'est appelé que par `MenuMoteur`/`ResolveurTour`, hors périmètre de cette phase."],
+                    ."n'est appelé que par `MenuMoteur`/`ResolveurTour`, hors périmètre de cette phase. Écarté pour le moment (René, 2026-10-15)."],
         ],
     ],
 
@@ -451,7 +451,7 @@ return [
     | du 2026-09-04 : 30 clichés, dont deux tirages de *Channel Dread* (2023 et
     | 2024, texte identique).
     |
-    | `sort_dread` = nom au catalogue quand la carte est portée (22 sur 29).
+    | `sort_dread` = nom au catalogue quand la carte est portée (28 sur 29).
     | `manque`     = la mécanique absente du moteur quand elle ne l'est pas.
     |
     | ⚠ Ce paquet a coûté un sort au catalogue plutôt que d'en ajouter un : le
@@ -460,9 +460,13 @@ return [
     | 2026-09-03. « Les cartes sont la source » n'est une propriété que si elle
     | retire autant qu'elle ajoute.
     |
-    | ⚠ Les sept écartées le sont ENTIÈREMENT. Deux d'entre elles — *Dispel* et
-    | *Mirror Magic* — manquent la même chose, et c'est pour cela qu'elles sont
-    | voisines ici : un monstre qui AGIT HORS DE LA PHASE DES MONSTRES.
+    | ⚠ Celle qui reste écartée l'est ENTIÈREMENT (*Werewolf's Curse*).
+    | *Dispel* et *Mirror Magic* l'étaient pour la même raison — un monstre qui AGIT
+    | HORS DE LA PHASE DES MONSTRES — et ont été portées ensemble le 2026-10-15,
+    | par la seule couture qui leur manquait : `App\Partie\ReactionsMj`, appelée
+    | par `ResolveurTour::lancerSort()` (le MJ réagit au sort qu'un héros vient de
+    | lancer). La carte du jeu dit « during a hero's turn » : c'est le moteur qui
+    | joue, sans joueur à consulter, dans la requête du héros.
     */
     'dread' => [
         'source' => 'dread_spells.pdf',
@@ -508,6 +512,13 @@ return [
             ['carte' => 'Summon Wolves', 'paquet' => 'Mage of the Mirror', 'sort_dread' => 'Invocation de loups'],
             ['carte' => 'Summon Specters', 'paquet' => 'Dread Moon', 'sort_dread' => 'Invocation de spectres'],
             ['carte' => 'Reanimation', 'paquet' => 'Dread Moon', 'sort_dread' => 'Réanimation'],
+
+            // ---- Réactions du MJ pendant le tour d'un héros (portées le 2026-10-15) ----
+            // Deux cartes qui ne se jouent JAMAIS comme action du MJ : `type: reaction`,
+            // déclencheur `sort_de_heros` / `sort_visant_le_lanceur`
+            // (`MotsClesSortDread::REACTIONS`), lues par `ReactionsMj::auSortDeHeros()`.
+            ['carte' => 'Dispel', 'paquet' => 'Dread Moon', 'sort_dread' => 'Dissipation'],
+            ['carte' => 'Mirror Magic', 'paquet' => 'Dread Moon', 'sort_dread' => 'Magie Miroir'],
 
             // ---- Soin / évasion ----
             ['carte' => 'Soothe', 'paquet' => 'Frozen Horror', 'sort_dread' => 'Apaisement'],
@@ -575,12 +586,12 @@ return [
                 'texte' => 'Le héros lance un dé rouge : sur un 6 le sort est sans effet, sinon il contracte la malédiction du loup-garou.',
                 'manque' => 'TRANSFORMATION D\'UN HÉROS EN MONSTRE — la carte délègue toute sa règle à la section « Turning Heroes into Werewolves » d\'un livret que nous n\'avons pas.'],
             ['carte' => 'Rust', 'paquet' => 'Base', 'sort_dread' => 'Rouille'],
-            ['carte' => 'Dispel', 'paquet' => 'Dread Moon', 'nom' => 'Dissipation',
-                'texte' => "Pendant le tour d'un héros, pour annuler un sort qu'il vient de lancer : le lanceur Dread ajoute 1 dé rouge à ses points de Mind, le héros fait de même ; le plus haut total l'emporte.",
-                'manque' => "RÉACTION DU MJ PENDANT LE TOUR D'UN HÉROS — `MoteurReactions` ne parle qu'aux héros (offre sur canal privé, réponse d'un téléphone). Ici c'est le MJ qui réagit, sans joueur à consulter : la résolution serait synchrone, mais le point d'entrée n'existe pas."],
-            ['carte' => 'Mirror Magic', 'paquet' => 'Dread Moon', 'nom' => 'Magie Miroir',
-                'texte' => "Pendant le tour d'un héros, renvoie sur lui le sort qu'il vient de lancer sur le lanceur Dread. Le héros subit l'effet destiné au lanceur.",
-                'manque' => 'RÉACTION DU MJ (même manque que Dissipation) + RÉFLEXION DE SORT, déjà nommée comme dette par la doc 16 §9.1 (Bouclier de l\'Aube, Serre du Corbeau).'],
+            // *Dispel* et *Mirror Magic* ont quitté cette liste le 2026-10-15 : voir
+            // `ReactionsMj` (la réaction du MJ) et `ResolveurTour::sousReactionMj()` (le
+            // renvoi du sort sur son lanceur, par la branche « héros » de chaque effet).
+            // La « réflexion de sort » que leur entrée citait comme dette (doc 16 §9.1) est
+            // donc payée dans ce sens-là ; le sens inverse — un sort de Dread retourné sur sa
+            // salle — a `ReactionEffet::REFLET_SORT` (le Bâton Ancien) depuis le 2026-09-04.
         ],
     ],
 

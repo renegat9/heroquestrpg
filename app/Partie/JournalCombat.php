@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Engine\Des\DeRouge;
+use App\Engine\MotsClesReactionMj;
 use App\Engine\ReactionEffet;
 use Illuminate\Support\Facades\Log;
 
@@ -38,6 +39,7 @@ use Illuminate\Support\Facades\Log;
 final class JournalCombat
 {
     use LignesEffetsAutomatiques;
+    use LignesSablesMouvants;
 
     /**
      * LE REGISTRE des types d'action que le moteur peut rendre (`'type' => …`
@@ -70,6 +72,8 @@ final class JournalCombat
         'oracle_salle' => true, 'poussee' => true, 'briser_glace' => true,
         'detacher_rejetons' => true, 's_ecarter_du_bloc' => true, 'retraite' => true,
         'sortie' => true, 'jet_en_attente' => true, 'reaction' => true, 'objet_detruit' => true,
+        // Sables mouvants (F7539 p. 29) : le saut, l'abandon d'un objet, la sortie.
+        'saut_sables' => true, 'defausse_sables' => true, 'sortie_sables' => true,
         // ---- Les pièges
         'piege_declenche' => true, 'piege_ignore' => true, 'piege_esquive' => true,
         'piege_amorce' => true, 'piege_explosion' => true, 'piege_teleporte' => true,
@@ -662,6 +666,29 @@ final class JournalCombat
             ], $a);
         }
 
+        // SAUT par-dessus des SABLES MOUVANTS : UN dé de combat dont la face qui fait
+        // réussir est celle du catalogue (`face_requise`, ici le bouclier noir) — le
+        // marqueur de cette forme. Ni `mind_cible`, ni `touches`.
+        if (array_key_exists('face_requise', $a) && array_key_exists('faces', $a)) {
+            $faces = array_values((array) $a['faces']);
+
+            if ($faces === []) {
+                return null;
+            }
+
+            return $this->avecModificateurs([
+                'atk' => [],
+                'def' => $faces,
+                'touchante' => null,
+                'defensive' => (string) $a['face_requise'],
+                'attaquant' => null,
+                'defenseur' => $nomCible,
+                'touches' => null,
+                'boucliers' => count(array_filter($faces, fn ($f) => $f === $a['face_requise'])),
+                'libelle_def' => ! empty($a['franchi']) ? 'saute' : 'retombe',
+            ], $a);
+        }
+
         // PIÈGE de sol : lui seul lance, sans défense en face — `faces` SANS
         // `mind_cible` le distingue du cas précédent (les deux publient une
         // clé `faces`, jamais ensemble).
@@ -1023,6 +1050,11 @@ final class JournalCombat
             'soin_allie' => $this->soinAllie($a, $acteurNom),
             'concentration', 'sacrifice_sort' => $this->sortRecupere($a, $acteurNom),
             's_ecarter_du_bloc' => $this->ecartDuBloc($a, $acteurNom),
+            // SABLES MOUVANTS (F7539 p. 29) : un saut raté enlise, un objet quitte le sac, un héros
+            // peut tomber — autant d'effets automatiques qu'aucune autre ligne ne dirait.
+            'saut_sables' => $this->sautSables($a, $acteurNom),
+            'defausse_sables' => $this->defausseSables($a, $acteurNom),
+            'sortie_sables' => $this->sortieSables($a, $acteurNom),
             'retraite' => $this->vote($a, $acteurNom, 'propose de battre en retraite'),
             'sortie' => $this->vote($a, $acteurNom, 'propose de quitter le donjon'),
             'poussee' => $this->poussee($a, $acteurNom),
@@ -2014,6 +2046,13 @@ final class JournalCombat
      */
     private function lignesSort(array $a, string $acteurNom): array
     {
+        // LE MJ A RÉAGI AU SORT (René, 2026-10-15) : annulé, renvoyé, dissipé en vain ou
+        // défait après coup. Une seule porte pour les quatre — `reactions_mj` est publié
+        // par `ResolveurTour::sousReactionMj()`, jamais recomposé ici.
+        if (is_array($a['reactions_mj'] ?? null) && $a['reactions_mj'] !== []) {
+            return $this->lignesSortAvecReactionsMj($a, $acteurNom);
+        }
+
         $nom = $a['sort']['nom'] ?? 'un sort';
         $cible = $a['cible']['nom'] ?? null;
         $des = $this->detailDes($a);
@@ -2066,6 +2105,166 @@ final class JournalCombat
         $suffixe = $cible !== null ? " sur {$cible}" : '';
 
         return [['texte' => "{$acteurNom} lance {$nom}{$suffixe}{$des}", 'ton' => 'info']];
+    }
+
+    /**
+     * Le fil d'un sort que le MJ a rencontré : annulé (`sort_annule`), renvoyé
+     * (`sort_renvoye`), dissipé en vain, ou défait après coup (*Break*).
+     *
+     * Le héros a LANCÉ son sort dans les quatre cas — c'est la première ligne quand rien
+     * n'a eu lieu —, puis la réaction, puis (renvoi) ce que le sort fait à son lanceur.
+     * Une tentative de dissipation ratée précède l'effet normal, *Break* le suit.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function lignesSortAvecReactionsMj(array $a, string $acteurNom): array
+    {
+        $reactions = array_values(array_filter((array) $a['reactions_mj'], 'is_array'));
+        $nom = (string) ($a['sort']['nom'] ?? 'un sort');
+        $sansReactions = array_diff_key($a, ['reactions_mj' => true]);
+
+        if (! empty($a['sort_annule'])) {
+            $visee = $a['cible']['nom'] ?? null;
+            $lignes = [$this->info("{$acteurNom} lance {$nom}".($visee !== null ? " sur {$visee}" : ''))];
+
+            foreach ($reactions as $reaction) {
+                $lignes[] = $this->ligneReactionMj($reaction, $acteurNom, $nom);
+            }
+
+            return $lignes;
+        }
+
+        if (! empty($a['sort_renvoye'])) {
+            $par = (string) ($reactions[0]['par']['nom'] ?? 'le maître du jeu');
+            $lignes = [$this->info("{$acteurNom} lance {$nom} sur {$par}")];
+
+            foreach ($reactions as $reaction) {
+                $lignes[] = $this->ligneReactionMj($reaction, $acteurNom, $nom);
+            }
+
+            return [...$lignes, ...$this->lignesRenvoi($a, $acteurNom, $nom)];
+        }
+
+        $avant = [];
+        $apres = [];
+
+        foreach ($reactions as $reaction) {
+            if (($reaction['issue'] ?? null) === ReactionsMj::ISSUE_ROMPU) {
+                $apres[] = $this->ligneReactionMj($reaction, $acteurNom, $nom);
+            } else {
+                $avant[] = $this->ligneReactionMj($reaction, $acteurNom, $nom);
+            }
+        }
+
+        return [...$avant, ...$this->lignesSort($sansReactions, $acteurNom), ...$apres];
+    }
+
+    /**
+     * La ligne d'une réaction du MJ, pour la scène de table : même phrase que le fil, un
+     * seul corps (`ligneReactionMj()`).
+     *
+     * @param  array<string, mixed>  $r
+     * @return array{texte: string, ton: string}
+     */
+    public function ligneReactionMjPublique(array $r, string $acteurNom, string $nomSort): array
+    {
+        return $this->ligneReactionMj($r, $acteurNom, $nomSort);
+    }
+
+    /**
+     * UNE réaction du MJ, en une ligne : qui, avec quoi, et ce que ça change. Les dés de la
+     * *Dispel* y sont toujours — c'est le seul jet que le héros ne lance pas lui-même.
+     *
+     * @param  array<string, mixed>  $r
+     * @return array{texte: string, ton: string}
+     */
+    private function ligneReactionMj(array $r, string $acteurNom, string $nomSort): array
+    {
+        $par = (string) ($r['par']['nom'] ?? 'Le maître du jeu');
+        $carte = (string) ($r['carte'] ?? 'Réaction');
+
+        return match ($r['mecanique'] ?? null) {
+            MotsClesReactionMj::ANNULE_SORT_CIBLANT => [
+                'texte' => "{$par} annule {$nomSort} — une capacité à usage unique vient de jouer",
+                'ton' => 'echec',
+            ],
+            MotsClesReactionMj::ROMPT_SORT_ACTIF => [
+                'texte' => "{$par} met fin au sort : ".implode(', ', array_map(
+                    fn ($c) => (string) ($c['libelle'] ?? $c['cle'] ?? 'un état'),
+                    (array) ($r['conditions_levees'] ?? []),
+                ))." — une capacité à usage unique vient de jouer",
+                'ton' => 'echec',
+            ],
+            'renvoie' => [
+                'texte' => "{$par} — {$carte} (sans action) : {$nomSort} est renvoyé sur son lanceur !",
+                'ton' => 'echec',
+            ],
+            default => $this->ligneDissipation($r, $par, $carte, $nomSort),
+        };
+    }
+
+    /**
+     * *Dispel* : « Mind + 1 dé rouge » de chaque côté, le plus haut total annule. Les deux
+     * totaux sont dits — l'égalité, perdue pour le MJ, y reste lisible.
+     *
+     * @param  array<string, mixed>  $r
+     * @return array{texte: string, ton: string}
+     */
+    private function ligneDissipation(array $r, string $par, string $carte, string $nomSort): array
+    {
+        $jet = (array) ($r['jet'] ?? []);
+        $mj = (array) ($jet['lanceur'] ?? []);
+        $heros = (array) ($jet['heros'] ?? []);
+        $annule = ($r['issue'] ?? null) === ReactionsMj::ISSUE_ANNULE;
+
+        $de = fn (array $c) => 'Mind '.(int) ($c['mind'] ?? 0).' + dé '.(int) ($c['de'] ?? 0).' = '.(int) ($c['total'] ?? 0);
+
+        return [
+            'texte' => "{$par} — {$carte} (sans action) : ".$de($mj).' contre '.$de($heros)
+                .($annule ? " — {$nomSort} est annulé" : ' — le sort tient'),
+            'ton' => $annule ? 'echec' : 'succes',
+        ];
+    }
+
+    /**
+     * Ce que le sort renvoyé fait à son LANCEUR (*Mirror Magic*) : « The hero then suffers
+     * the effect of the spell ». Les mêmes issues que le tir sur un compagnon, dites pour
+     * celui qui les subit de sa propre main — « Aldric lance Boule de Feu sur Aldric »
+     * ne dirait pas ce qui vient de se passer.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function lignesRenvoi(array $a, string $heros, string $nom): array
+    {
+        if (! empty($a['immunite_degat'])) {
+            return [['texte' => "{$heros} est protégé contre son propre {$nom}", 'ton' => 'pare']];
+        }
+
+        $degats = (int) ($a['degats'] ?? 0);
+
+        if ($degats > 0) {
+            $lignes = [['texte' => "{$heros} subit son propre {$nom} (−{$degats} PV)", 'ton' => 'subit']];
+
+            if (! empty($a['cible_tombee'])) {
+                $lignes[] = ['texte' => "{$heros} s'effondre sous son propre sort", 'ton' => 'chute'];
+            }
+
+            return $lignes;
+        }
+
+        if (array_key_exists('effet_applique', $a)) {
+            return [empty($a['effet_applique'])
+                ? ['texte' => "{$heros} résiste à son propre {$nom}", 'ton' => 'pare']
+                : ['texte' => "{$heros} subit son propre {$nom} — ".($a['condition'] ?? 'affecté'), 'ton' => 'subit']];
+        }
+
+        if (isset($a['mode']) || isset($a['texte'])) {
+            return [$this->info("{$heros} subit son propre {$nom} — ".($a['texte'] ?? 'sans autre effet'))];
+        }
+
+        return [['texte' => "{$heros} encaisse son propre {$nom} sans dommage", 'ton' => 'pare']];
     }
 
     /**
@@ -2178,6 +2377,11 @@ final class JournalCombat
         }
 
         if (empty($a['effet_applique'])) {
+            // Défait par le MJ (*Break*) : le sort a PRIS, la réaction suit sur sa propre ligne.
+            if (! empty($a['rompu_par_mj'])) {
+                return ['texte' => "{$cible} subit {$nom} ({$condition})…", 'ton' => 'succes'];
+            }
+
             // Rompu à l'instant : le sort a PRIS, puis cédé.
             if (! empty($a['rupture_immediate'])) {
                 return ['texte' => "{$cible} subit {$nom} ({$condition})… puis s'en libère aussitôt{$des}", 'ton' => 'echec'];

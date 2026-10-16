@@ -198,6 +198,12 @@ Une porte non `ouverte` est infranchissable + opaque (overlay `App\Partie\Grille
 > qu'on en pose une. Écrit par `DemarreurQuete` à chaque démarrage de quête. En
 > COLONNE et non en cache : c'est un état de campagne durable.
 
+> ⚠ `groupes.compagnon_offert` (VARCHAR(16) NULL : `NULL` · `pris` · `refuse`) et
+> `groupe_mercenaires.offert` (BOOL, défaut 0) — **compagnon animal offert** d'*Against the Ogre
+> Horde* (2026-10-15) : l'issue de la proposition « une fois, gratuite, aux groupes de moins de
+> 4 héros » vit en colonne (jamais en cache), et l'allié ainsi obtenu est exempté de l'entretien
+> de 10 po/quête. Voir `docs/regles/exploration-et-fouille.md`.
+
 ### `epreuves`
 | id · nom · description · attribut ENUM(body,mind) · difficulte TINYINT(1-4) · contexte NULL · exige_placement NULL · effet JSON | catalogue des ANCRAGES À JET D'ATTRIBUT (2026-08-24). `contexte` alimente `avantage_jet_mind` des talents — c'est par là que `savoir` et `social_peur` retrouvent un producteur, après la suppression de `MenuChoix`. ⚠ `exige_placement` est une **précondition de POSE** (`piege_dans_la_salle`), distincte de `effet` qui dit la conséquence. `effet.mecanique` appartient au vocabulaire fermé `App\Engine\MotsClesEpreuve`. La couche `cartes.grille.epreuves[]` stocke un `epreuve_id` et un `tentee_par[]` (une tentative par héros), d'où un seeder qui ne purge jamais |
 

@@ -37,9 +37,10 @@ l'inscrire au vocabulaire, c'est le rendre introuvable au prochain passage.
 | `App\Engine\DureeEffet` | **quand un buff s'arrête** (7 mots-clés ; un entier = un compte à rebours en tours) |
 | `App\Engine\RegainEffet` | sur quel ÉVÉNEMENT un sort redevient lançable |
 | `App\Engine\TypeDegat` | nature du dégât (`feu`, `froid`) |
-| `App\Engine\MotsClesTerrain` | effets de case de sol (glace, gouffre, pont, terrain gênant, mare, brasier) |
+| `App\Engine\MotsClesTerrain` | effets de case de sol (glace, gouffre, pont, terrain gênant, mare, brasier, **sables mouvants** — `saut_par_dessus`/`saut_reussi_sur`/`enlise`, lus par `MoteurSables`) |
 | `App\Engine\MotsClesMobilier` | `mobiliers.effet` (table de fouille, destruction d'une action — le Cocon) |
-| `App\Engine\ReactionEffet` | actions hors tour |
+| `App\Engine\ReactionEffet` | actions hors tour **de héros** (offre sur canal privé) |
+| `App\Engine\MotsClesReactionMj` | réactions du **MJ** au sort d'un héros — capacités `reactions_defense`, lues par `App\Partie\ReactionsMj` (+ `MotsClesSortDread::REACTIONS` pour les sorts de réaction) |
 
 ⚠ **Inscrire le vocabulaire à CETTE TABLE fait partie de sa création.** `MotsClesTerrain`
 est né le 2026-09-10 et n'apparaissait **nulle part** — ni ici, ni dans `CLAUDE.md`, ni

@@ -22,6 +22,13 @@ class Monstre extends Model
         // Boîte d'origine (doc 18) : `null` = aucune, donc compatible avec TOUS
         // les thèmes — c'est le cas de nos propres blocs de stats.
         'boite',
+        // AUTRES boîtes où la MÊME fiche est imprimée (liste de `boite`), en plus de `boite`
+        // qui reste la boîte d'origine. `null` = aucune. Une figurine commune à deux thèmes
+        // (Archer elfe / Guerrier elfe : Mage of the Mirror ET Rise of the Dread Moon p. 36)
+        // se déclare ici, sur UNE ligne — jamais dupliquée, jamais `boite: null` (qui la
+        // ferait entrer dans TOUS les thèmes, jeu de base compris). Lu à un seul endroit :
+        // `boites()`.
+        'boites_partagees',
         'cout',
         'grande_taille',
         'capacites',
@@ -46,7 +53,26 @@ class Monstre extends Model
             'capacites' => 'array',
             'sorts_dread' => 'array',
             'grande_taille' => 'array',
+            'boites_partagees' => 'array',
         ];
+    }
+
+    /**
+     * TOUTES les boîtes où ce monstre est imprimé : la boîte d'origine, puis les boîtes
+     * partagées (`boites_partagees`). Liste VIDE = aucune boîte (`boite: null`, nos propres
+     * blocs de stats), donc compatible avec tous les thèmes. C'est ce que lisent
+     * `BestiaireGroupe::autorise()` / `contient()` — le point de passage unique de « ce
+     * bestiaire peut-il le tirer ? ».
+     *
+     * @return list<string>
+     */
+    public function boites(): array
+    {
+        if ($this->boite === null) {
+            return [];
+        }
+
+        return array_values(array_unique([(string) $this->boite, ...array_map('strval', (array) ($this->boites_partagees ?? []))]));
     }
 
     /** Attaque à distance (ligne de vue) plutôt qu'au contact. */

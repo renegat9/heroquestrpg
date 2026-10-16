@@ -43,6 +43,8 @@ namespace App\Engine;
  * @see \App\Partie\ResolveurTour::saignerParTerrain()         recurrent
  * @see \App\Partie\ResolveurTour::saignerSurRiviere()          jet_des_combat, sur, degats_pv_body (SANS arrêt — Rivière gelée)
  * @see \App\Partie\ResolveurTour::teleporterSiTunnel()        teleportation
+ * @see \App\Partie\MoteurSables::sauts()                     saut_par_dessus (+ FabriqueGrille::pour())
+ * @see \App\Partie\MoteurSables::resoudreSaut()              saut_reussi_sur, enlise
  */
 final class MotsClesTerrain
 {
@@ -202,6 +204,46 @@ final class MotsClesTerrain
             ],
             'libelle' => 'dégât de nature : %s',
         ],
+
+        // SABLES MOUVANTS (*The Mage of the Mirror* F7539 p. 29, quête 8, note C,
+        // 2026-10-15) : « To reach the other side of the quicksand pit, a hero
+        // must stand adjacent to it and try to jump over the quicksand. » La
+        // VALEUR est la PROFONDEUR de la bande, en cases : le saut n'est offert
+        // que depuis une case voisine, au travers d'EXACTEMENT ce nombre de cases
+        // de sable (`MoteurSables::sauts()`), jusqu'à une case de réception libre.
+        // La case n'est ni un passage ni un arrêt : `FabriqueGrille::pour()` la
+        // range avec les cases où l'on ne finit pas son mouvement, en plus de la
+        // colonne `bloque_mouvement` qui la ferme à la marche.
+        'saut_par_dessus' => [
+            'lecteur' => [
+                'App\Partie\MoteurSables::sauts()',
+                'App\Partie\FabriqueGrille::pour()',
+            ],
+            'libelle' => 'se franchit d\'un saut depuis la case voisine ({valeur} cases de large) : on ne la traverse pas à pied et on n\'y finit pas son mouvement',
+        ],
+
+        // « The hero rolls one combat die in the attempt. If a black shield is
+        // rolled, the hero successfully lands on the square directly across…
+        // Any other result means the hero lands in the quicksand. » La VALEUR est
+        // la FACE de `App\Engine\Des\FaceDeCombat` qui fait réussir (registre
+        // distinct, exclu de ce vocabulaire comme `sur.{face}`).
+        'saut_reussi_sur' => [
+            'lecteur' => 'App\Partie\MoteurSables::resoudreSaut()',
+            'libelle' => 'le saut se joue sur un dé de combat : il réussit sur {valeur}',
+        ],
+
+        // « To avoid death, tell the hero to immediately discard any two items
+        // (weapons, armor, potions, scrolls, etc.). This ends the hero's turn.
+        // On the hero's next turn, the hero climbs out… » La VALEUR est le nombre
+        // d'objets à abandonner — que le héros CHOISIT (René, 2026-10-15) ; à
+        // défaut, il tombe à 0 PV (la mort définitive est refusée dans ce jeu).
+        'enlise' => [
+            'lecteur' => [
+                'App\Partie\MoteurSables::resoudreSaut()',
+                'App\Partie\MoteurSables::resoudreDefausse()',
+            ],
+            'libelle' => 'un saut raté enlise le héros : il abandonne {valeur} objets de son choix (à défaut, il tombe), son tour s\'achève, et il ressort de l\'autre côté à son tour suivant',
+        ],
     ];
 
     /**
@@ -287,6 +329,12 @@ final class MotsClesTerrain
             }
 
             $texte = is_scalar($valeur) ? (string) $valeur : '';
+
+            // `saut_reussi_sur` porte une FACE de dé : on la dit comme le joueur la voit.
+            if ($cle === 'saut_reussi_sur') {
+                $texte = self::FACES[$texte] ?? $texte;
+            }
+
             $phrases[] = str_replace(['{valeur}', '%s'], [$texte, $texte], self::VOCABULAIRE[$cle]['libelle']);
         }
 

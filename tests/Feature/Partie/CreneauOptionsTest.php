@@ -209,7 +209,8 @@ it('confronte le `creneau` publié à `ResolveurTour::creneauOption()` pour le m
         ->and(ResolveurTour::creneauOption('jeter'))->toBe('interaction')
         ->and(ResolveurTour::creneauOption('concentration'))->toBe('tour')
         ->and(ResolveurTour::creneauOption('relever'))->toBe('action')   // « une action, pas tout le tour » (2026-10-09)
-        ->and(ResolveurTour::creneauOption('liberer_captif'))->toBe('tour')
+        // Libérer un captif est GRATUIT (René, 2026-10-15) : aucun livret ne lui impose de coût.
+        ->and(ResolveurTour::creneauOption('liberer_captif'))->toBe('interaction')
         ->and(ResolveurTour::creneauOption('attente'))->toBe('tour')
         ->and(ResolveurTour::creneauOption('attaque'))->toBe('action')
         ->and(ResolveurTour::creneauOption('sort'))->toBe('action');

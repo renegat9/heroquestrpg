@@ -263,7 +263,7 @@ meuble », simple à brancher sur le seam existant.
 | # | Question | Recommandation |
 |---|---|---|
 | **Q1** | Le modèle économique des mercenaires de cette boîte (Gardien dès la quête 2, 4 par héros, entretien de 10 po/quête) remplace-t-il notre modèle actuel (payant une fois, gardé jusqu'à la mort), ou les deux coexistent-ils par boîte ? | Aligner : la gratuité d'Ogre Horde pour l'allié animal (plan Ogre Horde, Q2/Q3) a déjà ouvert la porte à des règles de recrutement variables ; un entretien périodique est une colonne d'état, pas un chantier lourd |
-| **Q2** | Les 5 compétences de Hopekins Rest (Dead Eye, Weapon Expert…) : un système de progression À PART (don lié à un lieu visité, pas au niveau), ou à fondre dans l'arbre de talents existant une fois les cartes photographiées ? | Attendre les photos avant de trancher la mécanique — nommer la question évite de la geler par défaut |
+| **Q2** | Les 5 compétences de Hopekins Rest (Dead Eye, Weapon Expert…) : un système de progression À PART (don lié à un lieu visité, pas au niveau), ou à fondre dans l'arbre de talents existant une fois les cartes photographiées ? → **tranchée le 2026-10-15 (en partie)** : *Weapon Expert* (choix du type d'arme) et les 4 faveurs mécaniques sont décidées ; *Dead Eye*, *Hold the Line*, *Peacekeeper* et *Healing Hands* restent ouvertes. Voir « Décisions de René (2026-10-15) ». | Attendre les photos avant de trancher la mécanique — nommer la question évite de la geler par défaut |
 | **Q3** | Sir Ragnar, allié jouable par un joueur humain pendant 2 quêtes scriptées : écarté (notre modèle ne rejoue aucune quête du livret), ou un futur « allié temporaire joueur » générique pour une quête IA qui le proposerait ? | Écarté pour l'instant — aucun gabarit ne peut aujourd'hui garantir la scène qui l'introduit |
 | **Q4** | Le lecteur « mobilier destructible avec PV/défense » (lot A) sert Wizards of Morcar (3 usages), Jungles of Delthrak (Crystal Cluster) ET relancerait potentiellement *Ice Wall* de la boîte de glace désactivée : construire une fois, générique, tout de suite ? | Oui — c'est la seule pièce qui débloque trois boîtes à la fois, le meilleur rapport effort/couverture du rapport |
 | **Q5** | Cette boîte devient-elle un THÈME de bestiaire (`BOITES_THEMATIQUES`) ? Elle a 5 lanceurs nommés mais SEULEMENT 2 sorts sourcés par sorcier (les 3 génériques de plateau) sur 6 — les répertoires individuels sont ⚠ non trouvés | Pas avant les photos des 30 cartes de sort : un thème à sorciers muets (seulement Murs/Éclair/Séisme) serait plus pauvre que le fond commun actuel |
@@ -276,7 +276,7 @@ cinq questions d'origine ; les deux autres restent entières.
 | # | État au 2026-10-05 |
 |---|---|
 | **Q1** | **Toujours ouverte, inchangée.** Les cartes de mercenaires confirment les stats mais ne disent rien du modèle Gardien/entretien — c'est une règle du LIVRET (p. 8-9), pas une carte. Décision de René toujours attendue. |
-| **Q2** | **Plus bloquée par l'absence de cartes** — les 5 compétences sont transcrites mot pour mot (`reference/18_extensions.md` §7). La question devient concrète : *Peacekeeper* (or par monstre vaincu en quête), *Hold the Line* (attaque d'opportunité sur un monstre qui recule), *Deadeye* (les figures ne bloquent plus la ligne de vue pour attaquer/lancer un sort), *Weapon Expert* (bonus sur un type d'arme choisi à l'acquisition — PAS figé par classe, contrairement aux tags de maîtrise actuels), *Healing Hands* (partage automatique de potion de soin à 0 PV). Aucune des 5 n'est un simple doublon d'un nœud de talent existant : à trancher — système à part ou nouvelles feuilles de l'arbre — avec le texte réel en main cette fois. |
+| **Q2** | **Plus bloquée par l'absence de cartes** — les 5 compétences sont transcrites mot pour mot (`reference/18_extensions.md` §7). La question devient concrète : *Peacekeeper* (or par monstre vaincu en quête), *Hold the Line* (attaque d'opportunité sur un monstre qui recule), *Deadeye* (les figures ne bloquent plus la ligne de vue pour attaquer/lancer un sort), *Weapon Expert* (bonus sur un type d'arme choisi à l'acquisition — PAS figé par classe, contrairement aux tags de maîtrise actuels), *Healing Hands* (partage automatique de potion de soin à 0 PV). Aucune des 5 n'est un simple doublon d'un nœud de talent existant : à trancher — système à part ou nouvelles feuilles de l'arbre — avec le texte réel en main cette fois. → **même décision partielle, 2026-10-15** (voir « Décisions de René (2026-10-15) » en fin de document). |
 | **Q3** | **Résolue, mais pas comme prévu.** La recommandation d'origine (« écarté ») est dépassée par la décision transverse du 2026-10-04 : un allié temporaire générique (« mission secourir ») existe désormais, et la carte de Sir Ragnar (M7 A3 D5 B6 Mi2, aucun texte de capacité) suffit à le porter par le même gabarit que Gothar. Reste à nommer : ⚠ collision avec le « Sir Ragnar » déjà seedé comme monstre boss de *Rise of the Dread Moon* (table différente, pas de conflit technique, mais à distinguer clairement dans la narration et le nom catalogue, ex. `Sir Ragnar (captif)` ou `Sir Ragnar — Garde mercenaire`). |
 | **Q4** | **Tranchée par René le 2026-10-04, et déjà construite** (chantiers-transverses, commit « Mobilier attaquable ») — oui, lecteur générique construit une fois ; `Haut Autel` et `Coffre du Dread` sont déjà dans `MobilierSeeder`. Les Murs magiques restent à seeder (mobilier d'UNE case, décision déjà prise, plus besoin de `plan-murs-en-aretes.md`). |
 | **Q5** | **Rouverte, en sens inverse de la recommandation d'origine.** Les 30 cartes de sort sont connues (6 par sorcier, aucun sorcier muet) et les 9 sorts de héros aussi — l'objection d'origine (« sorciers à 2 sorts sur 6 ») ne tient plus. Nouvelle question à trancher avec René : vu le volume de nouveaux mots-clés que ces 30+9 sorts réclament (sort réactif sans action — *Raise the Dead* —, contrôle du déplacement d'un héros par le MJ — *Possess* —, bouclier à jetons absorbant N coups — *Scrolls of Morcar* —, buff de zone pour une faction de monstres — *Shield of Protection*/*Sharpen Blades* —, etc.), le thème `wizards_of_morcar` est-il à construire d'un coup ou par vagues (walls + 1-2 sorciers d'abord) ? |
@@ -294,9 +294,12 @@ Statut de chaque élément demandé dans la version d'origine de cette liste :
   (5/5) ;
 - ✅ les 3 répertoires de sorts de héros (Protection/Détection/Ténèbres) —
   **reçus et transcrits** (9/9) ;
-- ⚠ les 3 cartes d'artefact : **2 sur 3 reçues** (*Urdyn the Unmaker*,
-  *Drakehide Cuirass*) — **`Elixir of Life` reste non trouvée**, absente du
-  paquet de cartes rendu ; seul le texte de quête (p. 18) en parle encore ;
+- ✅ les 3 cartes d'artefact : **3 sur 3** (*Urdyn the Unmaker*,
+  *Drakehide Cuirass*, *Elixir of Life*) — l'**`Elixir of Life` est trouvée**
+  le 2026-10-15 au Drive racine (`artifacts_part2.pdf` p. 29, texte relu sur le
+  rendu : « This small bottle of pearly liquid brings a dead hero back to life,
+  restoring all of their Body and Mind Points. This potion can only be used
+  once. ») ;
 - ✅ la carte de Sir Ragnar — **reçue** (M7 A3 D5 B6 Mi2, aucun texte de
   capacité propre) ;
 - ✅ les 8 cartes de trésor ajoutées + la carte « Nothing! » — **reçues**
@@ -307,8 +310,8 @@ Statut de chaque élément demandé dans la version d'origine de cette liste :
   (Dreadshifter, Golem, Minotaure) — **reçues**, stats = tableau officiel
   déjà cité section 2025.
 
-**Ne reste à demander que la carte `Elixir of Life`** — tout le reste de la
-liste d'origine est soldé. Le livret ne suffisait plus à rien bloquer :
+**Plus rien à demander** : la carte `Elixir of Life` a été trouvée au Drive
+le 2026-10-15 — tout le reste de la liste d'origine est soldé. Le livret ne suffisait plus à rien bloquer :
 les lots A (hors l'arête, tranchée par René sans attendre les cartes), B, C,
 F et G étaient déjà couverts par le texte seul ; ce sont désormais **D et E**
 qui peuvent avancer avec le texte réel des cartes plutôt que des noms.
@@ -342,3 +345,12 @@ le PHP.
 > couvertes par la relecture du jour (Magic Reference Chart, mercenaires,
 > sorts, artefacts, faveurs, trésors, voir `reference/18_extensions.md`
 > § Wizards of Morcar — cartes TRANSCRITES). Rien à ajouter ni à retirer.
+
+## Décisions de René (2026-10-15)
+
+| # | Décision | Conséquence |
+|---|---|---|
+| **Q2** | **Faveur *Weapon Expert*** : le joueur **choisit le type d'arme à l'obtention** (ni figé par classe, ni tiré au sort). | Reprend la version concrète de Q2 (table reformulée du 2026-10-05, §4). Le type choisi est un état **durable** de la faveur : une colonne en base, jamais en cache. |
+| **Q2** | **Les 4 autres faveurs mécaniques** — mercenaire gratuit, +2 PV de Body max, +1 Potion de guérison cumulable, répertoire de sorts supplémentaire — **à PORTER**. | Portables sans nouvelle famille (lot E, comme les potions et les dons). Le mercenaire gratuit touche au modèle de recrutement, **Q1 toujours ouverte** : à coordonner avec le lot D. |
+| **Q2** | **Le héros et la faveur restent tirés au hasard.** | Pas de choix du héros ni de la faveur. Lecture retenue : système à part (tirage au lieu visité), **pas** l'arbre de talents. ⚠ À confirmer si René voulait fondre la faveur dans l'arbre. |
+| — | **Restent ouvertes** : *Dead Eye*, *Hold the Line*, *Peacekeeper*, *Healing Hands*. | Q2 n'est tranchée qu'**en partie**. |

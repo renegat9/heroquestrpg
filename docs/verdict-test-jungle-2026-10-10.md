@@ -139,4 +139,6 @@ Un agent Sonnet pilote deux héros (Brakka barbare, Durin nain) sur les routes r
 
 **Observé, laissé tel quel :** une case de PORTE ouverte de la salle de départ compte comme « dans la salle » (`Salles::indexDe()` englobe la couronne de murs), cohérent avec « la porte occupe sa case ».
 
+**Décision de René (2026-10-15) :** GARDER. Une case de porte ouverte de la salle de départ compte « dans la salle » pour la sortie. Écrit dans `docs/regles/exploration-et-fouille.md` (paragraphe de la sortie) et épinglé par `EscalierTest.php`.
+
 **Non vérifié faute de combat :** les lignes « tire » des attaques à distance des héros (couvertes par `tests/Feature/Partie/FilEtTableTirEsquiveFinsTest.php`).

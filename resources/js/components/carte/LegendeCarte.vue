@@ -97,6 +97,7 @@ const TERRAIN_DETAILS = {
     gene: 'terrain gênant : coûte 2 points de déplacement (Agile et certains talents l\'ignorent)',
     eau: 'on la traverse sans y finir son mouvement — fouiller dans la salle peut rendre 1 PV',
     feu: 'on le traverse sans y finir son mouvement — un dé de combat, un crâne fait perdre 1 PV',
+    sables: 'ne se traverse pas à pied : on le saute (un dé de combat, bouclier noir pour réussir) — sinon on s\'enlise et on abandonne 2 objets',
 };
 const terrains = computed(() => parNom(props.carte?.terrain).map((t) => ({
     nom: t.nom,
@@ -361,5 +362,11 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 .lg-terrain.cat-gene { background: oklch(0.27 0.055 118); box-shadow: inset 0 0 0 1px oklch(0.72 0.10 110 / 0.5); }
 .lg-terrain.cat-eau { background: oklch(0.32 0.08 217); box-shadow: inset 0 0 0 1px oklch(0.75 0.11 215 / 0.55); }
 .lg-terrain.cat-feu { background: oklch(0.34 0.10 40); box-shadow: inset 0 0 0 1px oklch(0.80 0.16 60 / 0.6); }
+.lg-terrain.cat-sables {
+  background:
+    repeating-linear-gradient(45deg, oklch(0.82 0.11 85 / 0.38) 0 2px, transparent 2px 5px),
+    repeating-linear-gradient(-45deg, oklch(0.82 0.11 85 / 0.38) 0 2px, transparent 2px 5px),
+    oklch(0.30 0.06 78);
+  box-shadow: inset 0 0 0 1px oklch(0.82 0.11 85 / 0.6); }
 .lg-terrain.cat-decor { background: oklch(0.27 0.03 220); box-shadow: inset 0 0 0 1px oklch(0.6 0.04 220 / 0.4); }
 </style>

@@ -2733,12 +2733,30 @@ final class MoteurSorts
         }
     }
 
-    /** Les clés de `habillage.conditions` d'un monstre, en français pour le fil. */
-    private const LIBELLES_CONDITION_MONSTRE = [
+    /**
+     * Les clés de `habillage.conditions` d'un monstre, en français pour le fil.
+     *
+     * Complétée le 2026-10-15 (*Break*, `ReactionsMj`) : le fil doit nommer l'état
+     * qu'un sort a posé et qu'une capacité vient de lever, et trois états sur sept
+     * n'avaient de mot que par le repli `str_replace('_', ' ')`.
+     *
+     * @var array<string, string>
+     */
+    public const LIBELLES_CONDITION_MONSTRE = [
+        self::MONSTRE_ENDORMI => 'endormi',
+        self::MONSTRE_SAUTE_TOUR => 'privé de son prochain tour',
         self::MONSTRE_TERRIFIE => 'terrifié',
         self::MONSTRE_RALENTI => 'ralenti',
         self::MONSTRE_PARALYSE => 'paralysé',
+        self::MONSTRE_ENFUME => 'noyé dans la fumée',
+        self::MONSTRE_ENCHAINE => 'enchaîné',
     ];
+
+    /** Le mot français d'une condition de monstre — le seul point de passage. */
+    public static function libelleConditionMonstre(string $cle): string
+    {
+        return self::LIBELLES_CONDITION_MONSTRE[$cle] ?? str_replace('_', ' ', $cle);
+    }
 
     /** La condition à durée d'un MONSTRE vient de tomber : le fil le dit. */
     private function annoncerFinConditionMonstre(Quete $quete, InstanceMonstre $instance, string $cle): void
@@ -2749,7 +2767,7 @@ final class MoteurSorts
             return;
         }
 
-        $etat = self::LIBELLES_CONDITION_MONSTRE[$cle] ?? str_replace('_', ' ', $cle);
+        $etat = self::libelleConditionMonstre($cle);
         $nom = $instance->nomAffiche();
 
         app(TamponAnnonces::class)->annoncer($groupe, [

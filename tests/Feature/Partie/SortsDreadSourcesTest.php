@@ -52,19 +52,17 @@ it('recense les 29 cartes de dread_spells.pdf, portées et non portées', functi
     expect($variante)->not->toBeNull()
         ->and($variante['carte'])->toBe('Summon Orcs');
 
-    // 26 depuis le 2026-09-06 : les trois derniers sorts de The Frozen Horror
-    // — Gel de l'Esprit, Mur de Glace, Patinage — ont été portés pour rendre à
-    // l'Horreur des Glaces la moitié de son répertoire, et à la boîte ses
-    // règles manquantes. (23 depuis le 2026-09-04, quand la *Rouille* a été
-    // portée sur arbitrage de René : « c'est correct qu'un joueur puisse
-    // perdre un objet ».)
+    // 28 depuis le 2026-10-15 : *Dispel* et *Mirror Magic* ont été portées avec la couture
+    // « le MJ réagit au sort d'un héros » (`App\Partie\ReactionsMj`). (26 depuis le
+    // 2026-09-06 : les trois derniers sorts de The Frozen Horror — Gel de l'Esprit, Mur de
+    // Glace, Patinage —, 23 depuis le 2026-09-04, quand la *Rouille* a été portée sur
+    // arbitrage de René : « c'est correct qu'un joueur puisse perdre un objet ».)
     //
-    // ⚠ Les 3 qui restent NE SONT PAS des oublis : *Werewolf's Curse* délègue
-    // sa règle à un livret que nous n'avons pas, *Dispel* et *Mirror Magic*
-    // demandent une RÉACTION DU MJ pendant le tour d'un héros, un point
-    // d'entrée que `MoteurReactions` n'a pas (il ne parle qu'aux joueurs).
+    // ⚠ La seule qui reste N'EST PAS un oubli : *Werewolf's Curse* délègue sa règle à un
+    // livret que nous n'avons pas.
     $portees = $cartes->whereNotNull('sort_dread');
-    expect($portees)->toHaveCount(26);
+    expect($portees)->toHaveCount(28)
+        ->and($cartes->whereNull('sort_dread')->pluck('carte')->all())->toBe(["Werewolf's Curse"]);
 
     // Chaque carte écartée dit son texte de plateau ET la mécanique qui lui
     // manque : une carte non portée est une dette NOMMÉE, pas un oubli.
@@ -170,6 +168,35 @@ it('chaque lecteur déclaré existe ET nomme sa clé dans son propre fichier', f
             ->toBeTrue("{$cle} : {$classe} est déclaré lecteur mais ne nomme jamais la clé.");
 
         expect($meta['libelle'] ?? '')->not->toBeEmpty("{$cle} : libellé manquant.");
+    }
+});
+
+it('confronte les DÉCLENCHEURS de réaction (`effet.reaction`) aux sorts DANS LES DEUX SENS', function () {
+    // Un sort de type `reaction` ne se lance jamais comme action du tour : son seul mot est
+    // l'événement qui le déclenche. Il n'y en avait que deux, lus par deux méthodes, sans
+    // que rien n'interdise une troisième valeur MUETTE — c'est cette liste qui la refuse.
+    $employes = [];
+
+    foreach (SortDread::where('type', Mot::TYPE_REACTION)->get() as $sort) {
+        $declencheur = data_get($sort->effet, 'reaction');
+        $employes[] = $declencheur;
+
+        expect(array_key_exists((string) $declencheur, Mot::REACTIONS))
+            ->toBeTrue("{$sort->nom} : déclencheur « {$declencheur} » hors vocabulaire (MotsClesSortDread::REACTIONS).");
+    }
+
+    // …et l'autre sens : un déclencheur déclaré que personne n'emploie est une clé décorative.
+    $inutilises = array_diff(array_keys(Mot::REACTIONS), $employes);
+    expect($inutilises)->toBe([], 'Déclencheurs déclarés sans aucun sort : '.implode(', ', $inutilises));
+
+    // Le lecteur existe ET nomme la valeur dans son propre fichier.
+    foreach (Mot::REACTIONS as $valeur => $meta) {
+        [$classe, $methode] = explode('::', $meta['lecteur']);
+
+        expect(method_exists($classe, $methode))->toBeTrue("{$valeur} : {$meta['lecteur']} introuvable.");
+        expect(str_contains((string) file_get_contents((string) (new ReflectionClass($classe))->getFileName()), $valeur))
+            ->toBeTrue("{$valeur} : {$classe} est déclaré lecteur mais ne nomme jamais ce déclencheur.");
+        expect($meta['libelle'] ?? '')->not->toBeEmpty("{$valeur} : libellé manquant.");
     }
 });
 
