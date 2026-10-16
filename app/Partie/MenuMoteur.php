@@ -460,12 +460,14 @@ final class MenuMoteur
                 $requete->where('tombe', false);
             }
 
+            // Un héros sous forme de loup n'accepte rien (F7539 p. 10) : ni potion, ni don.
             $cibles = $requete->get()
                 ->filter(fn (EtatPersonnageQuete $e) => $e->personnage !== null && $e->position_x !== null
                     && ($e->personnage_id === $personnage->id || $grille->sontAdjacentes(
                         (int) $etat->position_x, (int) $etat->position_y,
                         (int) $e->position_x, (int) $e->position_y,
                     ))
+                    && ($e->personnage_id === $personnage->id || ! MaledictionLoupGarou::estEnLoup($e->personnage))
                     && $accessible($e->personnage))
                 ->map(fn (EtatPersonnageQuete $e) => [
                     'id' => $e->personnage_id, 'type' => 'heros', 'nom' => $e->personnage->nom,
@@ -489,6 +491,7 @@ final class MenuMoteur
         $cibles = $requete->get()
             ->filter(fn (EtatPersonnageQuete $e) => $e->personnage !== null
                 && ($e->personnage_id === $personnage->id || $vue($e->position_x, $e->position_y))
+                && ($e->personnage_id === $personnage->id || ! MaledictionLoupGarou::estEnLoup($e->personnage))
                 && $accessible($e->personnage))
             ->map(fn (EtatPersonnageQuete $e) => [
                 'id' => $e->personnage_id, 'type' => 'heros', 'nom' => $e->personnage->nom,
@@ -2227,6 +2230,7 @@ final class MenuMoteur
                 ->with('personnage')
                 ->get()
                 ->filter(fn ($e) => $e->personnage !== null && $e->position_x !== null
+                    && ! MaledictionLoupGarou::estEnLoup($e->personnage)
                     && abs((int) $e->position_x - (int) $etat->position_x)
                         + abs((int) $e->position_y - (int) $etat->position_y) === 1);
 

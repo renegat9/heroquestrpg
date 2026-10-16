@@ -50,7 +50,9 @@ it('recense exactement les trois sources, sans doublon de carte', function () {
         // pas potions.pdf), même patron que le Fire Ring côté artefacts.
         // +3 potions de la boutique de l'Alchimiste de Jungles of Delthrak (livret
         // F9907 p. 2, 2026-10-09) : *Potion of Healing* existait déjà (500 po).
-        ->and((array) config('cartes.potions.cartes'))->toHaveCount(21)
+        ->and((array) config('cartes.potions.cartes'))->toHaveCount(22)
+        // +1 de Mage of the Mirror (F7539 p. 14, 2026-10-16) : la Wolfsbane Potion, remède de la
+        // malédiction du loup-garou — carte transcrite, aucun prix imprimé.
         // 35 + le Cor des Hearthkin (First Light, lot C, 2026-09-30) + les
         // deux armes en os d'Against the Ogre Horde (lot B, 2026-10-02) + 2
         // de Wizards of Morcar (Drakehide Cuirass, Urdyn the Unmaker, lot
@@ -163,7 +165,7 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // Morcar, lot F, 2026-10-06) : immunité au feu réutilisée, second
         // sort du tour réutilisé, annulation de sort nouvelle — les trois
         // sans mécanique manquante.
-        ->and($portees('potions'))->toBe(21)
+        ->and($portees('potions'))->toBe(22)
         // 34 artefacts portés sur 35 : seul le Brassard de Glace reste écarté
         // (2 clauses sur 4 sans lecteur — voir sa dette, config/cartes.php).
         // ⚠ Trois de plus le 2026-09-03 — Poudre d'Invisibilité, Cape des

@@ -41,6 +41,7 @@ final class JournalCombat
     use LignesEffetsAutomatiques;
     use LignesSorciersDuDread;
     use LignesSablesMouvants;
+    use LignesMaledictionLoup;
 
     /**
      * LE REGISTRE des types d'action que le moteur peut rendre (`'type' => …`
@@ -110,6 +111,9 @@ final class JournalCombat
         // sa fin à la mort du Sorcier, et les trois gestes du MJ avec un héros DOMINÉ.
         'verrou_mental_tour' => true, 'verrou_mental_leve' => true,
         'domination_deplacement' => true, 'domination_attaque' => true, 'domination_sort' => true,
+        // The Mage of the Mirror (F7539 p. 10-11) : la malédiction du loup-garou — le jet de début de tour, le
+        // loup qui marche et qui mord pendant le tour de Zargon, et le retour sous forme humaine.
+        'malediction_jet' => true, 'loup_deplacement' => true, 'loup_attaque' => true, 'loup_reprend_forme' => true,
         // ---- Les faveurs
         'faveur_hold_the_line' => true, 'faveur_peacekeeper' => true,
         // ---- Ce qui S'ÉCOULE, S'ÉTEINT ou APPARAÎT sans qu'une action le retourne
@@ -1049,6 +1053,11 @@ final class JournalCombat
             'domination_deplacement' => $this->dominationDeplacement($a),
             'domination_attaque' => $this->dominationAttaque($a),
             'domination_sort' => $this->dominationSort($a),
+            // MALÉDICTION DU LOUP-GAROU (F7539 p. 10-11) — voir `LignesMaledictionLoup`.
+            'malediction_jet' => $this->maledictionJet($a),
+            'loup_deplacement' => $this->loupDeplacement($a),
+            'loup_attaque' => $this->loupAttaque($a),
+            'loup_reprend_forme' => $this->loupReprendForme($a),
             // GRÉSIL AVEUGLANT qui retombe, en tête de la phase des monstres.
             'conditions_levees' => array_map(
                 fn (array $l) => $this->info(($l['nom'] ?? 'Un héros').' : '.($l['condition'] ?? 'l\'effet').' se dissipe'),
@@ -1482,6 +1491,14 @@ final class JournalCombat
             // MIND LOCK / DOMINATE (Against the Ogre Horde p. 10) : le jet en opposition, les deux volées.
             if (isset($r['cranes_nets'])) {
                 $lignes[] = $this->ligneOpposition($r, $nom, $acteurNom);
+
+                continue;
+            }
+
+            // MALÉDICTION DU LOUP-GAROU : le dé rouge du lancer (le 6 seul annule) — avant la branche générique des
+            // sorts de contrôle, qui ne sait pas dessiner ce dé-là.
+            if (array_key_exists('de_malediction', $r)) {
+                $lignes[] = $this->ligneDeMalediction($r, $nom, $cible);
 
                 continue;
             }
@@ -2075,10 +2092,11 @@ final class JournalCombat
     }
 
     /**
-     * Draconic Flight (First Light, carte Dragon) : déplacement qui traverse
-     * la mêlée, puis attaque — ou simple rapprochement si le recul sur case
-     * réellement libre l'a arrêté avant le contact (`cible` absente du
-     * payload, voir `MoteurDread::tentativeVolDraconique()`).
+     * Draconic Flight (First Light, carte Dragon) : le COUP du vol, joué au
+     * contact de sa proie après la jambe 1 (le trajet lui-même est rendu par
+     * `deplacementMonstre()`, « prend son vol »). Pas de `cible` = rien à
+     * frapper : ligne de repli, puisque `MoteurDread::tourDraconique()` ne
+     * publie un coup qu'avec une cible. Voir `docs/contrat-api.md` (First Light).
      *
      * @param  array<string, mixed>  $a
      * @return list<array{texte: string, ton: string}>
@@ -2088,13 +2106,13 @@ final class JournalCombat
         $monstre = $a['monstre'] ?? 'Le monstre';
 
         if (! isset($a['cible'])) {
-            return [$this->info("{$monstre} fond en vol à travers la mêlée et se rapproche")];
+            return [$this->info("{$monstre} fond en vol et se rapproche")];
         }
 
         $cible = $a['cible']['nom'] ?? 'un héros';
         $degats = (int) ($a['degats'] ?? 0);
         $des = $this->detailDes($a);
-        $intro = "{$monstre} fond en vol sur {$cible}, traversant la mêlée";
+        $intro = "{$monstre} fond sur {$cible}";
 
         if ($degats <= 0) {
             return (int) ($a['touches'] ?? 0) === 0

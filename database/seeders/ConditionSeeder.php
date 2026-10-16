@@ -58,6 +58,8 @@ class ConditionSeeder extends Seeder
         'Ligoté' => "Pris dans des liens magiques : il ne peut ni se déplacer ni attaquer avant d'avoir tranché les liens (1 point de Body, 4 dés de défense). Il pare encore les autres coups.",
         'Possédé' => "Un monstre le prend en main : au prochain tour, le MJ joue ce héros à sa place. Il ne peut ni attaquer ni lancer de sorts.",
         'Verrou mental' => "Gelé par un Sorcier du Dread : il ne bouge ni n'agit, ne défend qu'avec 1 dé de combat et perd chacun de ses tours. À chaque tour gelé il rend une carte de Verrou mental, puis lance autant de dés de combat que de points de Mind : trois crânes ou plus brisent l'emprise. Elle cède aussi dès que le Sorcier tombe.",
+        'Malédiction du loup-garou' => "Maudit : au début de chacun de ses tours il lance deux dés rouges. Sur 10 à 12 il se transforme en loup, que Zargon joue comme un monstre pendant son tour, puis il reprend forme humaine. Ses biens restent à lui, mais il ne peut pas s'en servir sous forme de loup. Seule une Potion d'aconit ou une Potion de restauration supérieure le guérit.",
+        'Forme de loup' => "Transformé en loup : il ne joue pas ce tour. Zargon dirige ce loup comme un monstre pendant son tour (déplacement de Loup géant, morsure à 6 dés), puis il reprend forme humaine. Ni attaquable ni agissant jusque-là.",
     ];
 
     public function run(): void
@@ -321,6 +323,26 @@ class ConditionSeeder extends Seeder
             ['nom' => 'Verrou mental', 'type' => 'mental', 'duree_defaut' => 0,
                 'effet' => ['deplacement_interdit' => true, 'action_interdite' => true,
                     'des_attaque_max' => 0, 'des_defense_max' => 1, 'fin' => 'cartes_rendues']],
+
+            // ===== The Mage of the Mirror — la malédiction du loup-garou (F7539 p. 10-11, 2026-10-16) =====
+            //
+            // `duree_defaut: 0` : AUCUN compteur. La malédiction dure « until they are cured by drinking a
+            // wolfsbane potion (or the potion of superior restoration) » — sa seule sortie est un remède, retiré
+            // par `retire_condition` (`MoteurPotions::boire()`, le même lecteur que l'Antidote). Posée par le
+            // sort de Dread (source `sort_dread:`), donc PAS purgée à la fin de quête par `reinitialiserQuete()` :
+            // la règle ne dit rien d'une fin de quête, et « jusqu'au remède » est la seule lecture qui ne
+            // l'invente pas. `malediction_loup` est lue par `MaledictionLoupGarou::ouvrirTour()`.
+            ['nom' => 'Malédiction du loup-garou', 'type' => 'mental', 'duree_defaut' => 0,
+                'effet' => ['malediction_loup' => true]],
+
+            // La forme du loup, PENDANT le tour de Zargon seulement (« Zargon controls them as a monster for one
+            // turn (on Zargon's next turn) »). Posée au jet de transformation (début du tour du héros), retirée à
+            // la fin de la phase des monstres (`MaledictionLoupGarou::reprendreForme()`) : aucun compteur, la
+            // sortie est un déclencheur. `forme_loup` est lue par `MaledictionLoupGarou` ; `inattaquable` par
+            // `MoteurSorts::estInattaquable()` (un monstre ne frappe pas un monstre, et un héros ne frappe pas un
+            // héros) ; `action_interdite` par `MenuMoteur` (aucun menu pour cette forme).
+            ['nom' => 'Forme de loup', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['forme_loup' => true, 'inattaquable' => true, 'action_interdite' => true]],
         ];
 
         foreach ($conditions as $condition) {

@@ -251,10 +251,10 @@ mécanique qui manque.
 16. **Werewolf's Curse** (2023) — « The hero rolls a red die. A roll of 6 means
     the spell has no effect. Any other result means the hero is now afflicted
     with the werewolf's curse. See the "Turning Heroes into Werewolves" section
-    of the *Mage of the Mirror* Quest Book. » → ⚠ **NON PORTÉ**. La carte
-    délègue toute sa règle à un livret que nous n'avons pas ; transformer un
-    héros en monstre jouable par le MJ est une mécanique entière, pas un
-    lecteur.
+    of the *Mage of the Mirror* Quest Book. » → **PORTÉ le 2026-10-16**
+    (`Malédiction du loup-garou`, `App\Partie\MaledictionLoupGarou`) : la carte
+    donne le jet (un dé rouge, le 6 seul annule) ; la transformation est au livret
+    (F7539 p. 10-11), que nous avons désormais.
 17. **Rust** (2021) — « causes any one metal sword or helmet to become so thin,
     brittle, and useless that it can never be used again. **Not effective
     against artifacts.** » → **Rouille** (`type: destruction`, `effet.detruit`).

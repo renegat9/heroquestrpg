@@ -31,7 +31,7 @@
 - **Glyph Key Scroll** : la règle des glyphes n'est pas sur les pages photographiées.
 - **Qwindrak jouable** : formes non chiffrées (sauf *Warlock*), séquence de la confrontation finale partiellement illisible.
 - **Hache du nain** (FL p. 6 : « handaxe instead of a shortsword ») : contredit le jeu de base 2021 que le projet suit — non porté sans décision.
-- Partage du mouvement du Dragon (*Draconic Flight* : « interrompre son mouvement pour agir puis le finir ») : seulement si un lecteur réel l'utilise (IA du monstre) ; sinon dette NOMMÉE, jamais une clé décorative.
+- ~~Partage du mouvement du Dragon~~ (*Draconic Flight*) : **levé le 2026-10-16** (décision de René du 2026-10-15, « CONSTRUIRE »). Voir « Exécution (2026-10-16) » en fin de document.
 
 ## 4. Lots
 
@@ -59,3 +59,27 @@
 | 2 | **Healing Hearth** : règle sourcée sur le Drive (livret de quêtes p. 7) : « When a hero would draw a treasure card in a room containing a fireplace, they may instead heal 1 Body point. » | Sort du « bloqué » : portable à partir du texte. Restent à mesurer l'emprise de la cheminée et à l'ajouter au catalogue `mobiliers`. |
 | 3 | **Glyph Key Scroll** : règle sourcée (livret p. 6) : détruit un glyphe magique découvert, sans action ; sans effet sur les glyphes déclenchés par le pillage ; disparaît après usage. | La règle des **glyphes** elle-même n'est pas sur ces pages : elle attend la photo de la ligne 4. |
 | 4 | **Formes de Qwindrak et règle des glyphes : photo des notes de quête (quêtes 2 à 10) nécessaire.** | Qwindrak reste non jouable (§3) tant que les photos ne sont pas reçues. |
+
+## Exécution (2026-10-16)
+
+Chantier mené sur la décision 1 (Draconic Flight, à construire) et la décision 2 (Healing Hearth). La 3 (Glyph Key Scroll) reste non portée.
+
+**Draconic Flight — CONSTRUIT (tour fractionné).** Texte exact de la carte (FL-Q p. 7, photo rendue) : « The dragon may take partial movement, perform an action, and then finish its movement. The dragon's powerful wings allow it to move through squares occupied by heroes and monsters, though it cannot end its movement on an occupied square. »
+- Lecteur : `MoteurDread::tourDraconique()`. Un budget de déplacement en points, coupé en deux jambes autour d'UNE action. **Règle de coupure** (écrite dans sa docblock et dans `docs/regles/sorts-dread.md`) : le trajet d'approche est suivi case par case et coupé à la première case libre d'où le tour a une action (un sort lançable de cette case, ou un héros au contact après au moins un pas) ; le sort prime ; après un coup, pas de jambe 2.
+- Jamais d'arrêt sur une case occupée ni interdite à l'arrêt : `Grille::empriseArretPossible()`, sur toute l'emprise du Dragon (1 × 2).
+- Payloads à trois temps (`deplacement_monstre` avec `vol` et `jambe` 1 ; l'action ; `jambe` 2) — contrat dans `docs/contrat-api.md`, fil « prend son vol » / « achève son vol », table : `ResolveurTour::animerTrajetsDread()` enregistre les jambes, et `SceneDeTable` fait attendre la scène d'un sort la marche qui le précède.
+- Tests EN JEU : `tests/Feature/Partie/DragonFirstLightTest.php` (11 tests). Sur le code de `HEAD`, 8 échouent (les « AVANT » — le sort seul sans mouvement, l'absence de jambe, la téléportation à la table, le fil et la scène).
+- Limite connue : la table ne sépare pas la jambe 1, le sort et la jambe 2 dans le temps. Quand une marche PRÉCÈDE un sort, la scène du sort attend la fin de toutes les jambes de la figurine (la file de trajets est par figurine). Une séquence stricte demanderait un trajet par segment de scène : non fait.
+- Le dossier `docs/regles/sorts-dread.md` portait une citation fausse de la carte (« the Dragon may interrupt its movement… ») : remplacée par le texte exact.
+
+**Healing Hearth — NON CONSTRUIT : bloqué par l'emprise de la cheminée.** Trois faits, tous écrits :
+- `reference/18_extensions.md` (§6, l. ~2149) : « l'emprise de la **Fireplace** … reste ⚠ non trouvé ».
+- `reference/17_mobilier.md` (§1, ligne Cheminée) : emprise « ⚠ non établi par le livret » ; seule la règle est sourcée.
+- `database/seeders/MobilierSeeder.php` (en-tête) : la cheminée, la table du sorcier et le portant ne sont pas au catalogue parce que « leur emprise n'a aucune mesure indépendante et resterait une invention si on la codait ».
+Donc la donnée (une ligne `mobiliers`) ne peut pas être semée sans inventer une valeur. Et la clé de vocabulaire (`MotsClesMobilier`) ne peut pas être déclarée d'abord : son test « dans les deux sens » exige un porteur au catalogue. Ordre respecté : rien n'est écrit tant que la donnée manque.
+- **Design prêt pour quand l'emprise sera tranchée** (rien de codé) : *scope* — la règle est propre à la boîte First Light, donc `BestiaireGroupe::duGroupe($groupe)->contient('first_light')` (même patron que `horreur_des_glaces` dans `Equipement`) ; *lecteur* — calqué sur la Mare (`boire_mare`, `MoteurTerrain`, `docs/regles/carte-donjon.md`) : une option « soigner 1 Body au lieu de piocher » offerte au MÊME endroit que `fouiller_tresor`, seulement dans une salle qui contient une cheminée, et seulement à un héros qui a perdu au moins un point (le menu n'offre pas ce que le résolveur refuse ; à plein Body, la carte reste la seule option) ; elle dépense la fouille du héros dans la salle et ne tire aucune carte.
+- **Décision demandée à René** : (a) mesurer l'emprise de la cheminée sur une occurrence (la planche Component Reference, FL p. 20-21, ne montre qu'un rectangle allongé sans grille, analogie seulement) ; (b) accepter 1 × 2 comme divergence NOMMÉE et provisoire (⚠ non acquise) ; (c) attendre. Tant que ce n'est pas tranché, aucune ligne de catalogue.
+
+**Glyph Key Scroll — non porté, dette nommée.** Texte lu sur la photo FL p. 6 (rendu `FL1_p01`, `reference/18_extensions.md` §6) : « Use this scroll at any time to destroy a discovered magical glyph, no action required. This scroll has no effet on magical glyphs disturbed by looting. After you use this scroll, it disappears. » La règle des **glyphes magiques** elle-même n'est sur aucune page photographiée : sans elle, le parchemin détruirait une case dont on ignore ce qu'elle fait. Aucun glyphe n'existe au code (`grep` vide sur `app`, `config`, `database`).
+
+**Qwindrak, formes et règle des glyphes** : inchangés (décision 4, photo des quêtes 2 à 10 toujours attendue).

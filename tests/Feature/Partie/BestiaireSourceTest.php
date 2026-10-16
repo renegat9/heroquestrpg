@@ -241,7 +241,7 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
         // (`MoteurDread::voler()`).
         'etreinte', 'vol_objet',
         // First Light (carte Dragon, 2026-09-30) : `vol_draconique` (Draconic
-        // Flight — `MoteurDread::tentativeVolDraconique()`) et `sort_a_volonte`
+        // Flight — `MoteurDread::tourDraconique()`) et `sort_a_volonte`
         // (Boule de Flammes sans compteur d'usage pour ce monstre seul —
         // `MoteurDread::sortAVolonte()`).
         'vol_draconique', 'sort_a_volonte',

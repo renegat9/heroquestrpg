@@ -111,6 +111,9 @@ return [
             ['carte' => 'Potion of Superior Restoration', 'objet' => 'Potion de restauration supérieure'],
             ['carte' => 'Potion of Vision', 'objet' => 'Potion de vision'],
             ['carte' => 'Venom Antidote', 'objet' => 'Antidote au venin'],
+            // Mage of the Mirror (F7539 p. 14) : le remède de la malédiction du loup-garou, trouvé et non acheté.
+            // Carte transcrite dans `reference/18` (§Mage of the Mirror) — aucun prix imprimé sur la carte.
+            ['carte' => 'Wolfsbane Potion', 'paquet' => 'Mage of the Mirror', 'objet' => "Potion d'aconit"],
 
             // ===== Wizards of Morcar (« Boutique de l'Alchimiste », doc 18
             // §3, lot F, 2026-10-06) : TROIS cartes vendues en boutique dans
@@ -460,8 +463,8 @@ return [
     | 2026-09-03. « Les cartes sont la source » n'est une propriété que si elle
     | retire autant qu'elle ajoute.
     |
-    | ⚠ Celle qui reste écartée l'est ENTIÈREMENT (*Werewolf's Curse*).
-    | *Dispel* et *Mirror Magic* l'étaient pour la même raison — un monstre qui AGIT
+    | ⚠ *Werewolf's Curse* l'a été ENTIÈREMENT jusqu'au 2026-10-16 (la transformation d'un héros
+    | en loup, `App\Partie\MaledictionLoupGarou`). *Dispel* et *Mirror Magic* l'étaient pour la même raison — un monstre qui AGIT
     | HORS DE LA PHASE DES MONSTRES — et ont été portées ensemble le 2026-10-15,
     | par la seule couture qui leur manquait : `App\Partie\ReactionsMj`, appelée
     | par `ResolveurTour::lancerSort()` (le MJ réagit au sort qu'un héros vient de
@@ -591,10 +594,10 @@ return [
             ['carte' => 'Dominate', 'paquet' => 'Against the Ogre Horde', 'sort_dread' => 'Domination'],
             ['carte' => 'Mind Burst', 'paquet' => 'Against the Ogre Horde', 'sort_dread' => 'Explosion mentale'],
 
-            // ---- Non portées : chacune avec la mécanique qui lui manque ----
-            ['carte' => "Werewolf's Curse", 'paquet' => 'Mage of the Mirror', 'nom' => 'Malédiction du loup-garou',
-                'texte' => 'Le héros lance un dé rouge : sur un 6 le sort est sans effet, sinon il contracte la malédiction du loup-garou.',
-                'manque' => 'TRANSFORMATION D\'UN HÉROS EN MONSTRE — la carte délègue toute sa règle à la section « Turning Heroes into Werewolves » d\'un livret que nous n\'avons pas.'],
+            // ---- Portées après coup, chacune avec la mécanique qui lui a manqué ----
+            // *Werewolf's Curse* : portée le 2026-10-16 — la carte donne le jet (un dé rouge, le 6 annule) ;
+            // la transformation, elle, est au livret (F7539 p. 10-11, « Turning Heroes into Werewolves »).
+            ['carte' => "Werewolf's Curse", 'paquet' => 'Mage of the Mirror', 'sort_dread' => 'Malédiction du loup-garou'],
             ['carte' => 'Rust', 'paquet' => 'Base', 'sort_dread' => 'Rouille'],
             // *Dispel* et *Mirror Magic* ont quitté cette liste le 2026-10-15 : voir
             // `ReactionsMj` (la réaction du MJ) et `ResolveurTour::sousReactionMj()` (le

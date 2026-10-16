@@ -846,8 +846,8 @@ class MonstreSeeder extends Seeder
             //  - capacites : `sort_a_volonte` (Boule de Flammes sans compteur
             //    d'usage, pour ce monstre SEUL — René, 2026-09-30,
             //    `MoteurDread::sortAVolonte()`) et `vol_draconique`
-            //    (Draconic Flight — traversée des figures en approche,
-            //    `MoteurDread::tentativeVolDraconique()`, FL-Q p. 7).
+            //    (Draconic Flight — tour fractionné, un budget en deux jambes
+            //    autour de l'action, `MoteurDread::tourDraconique()`, FL-Q p. 7).
             //  - cout : NOTRE valeur (aucune carte ne chiffre un budget de
             //    rencontre). Mesurée comme les autres bosses
             //    (`docs/regles/bestiaire-et-rencontres.md` — attaques d'un

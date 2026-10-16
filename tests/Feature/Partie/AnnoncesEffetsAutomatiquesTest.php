@@ -240,6 +240,12 @@ function fixturesDesTypesAnnonces(): array
             ['cible' => $cible, 'des_rouges' => [2, 5], 'degats_bruts' => 2, 'degats_annules' => 1, 'degats' => 1, 'pv_body_apres' => 7, 'cible_tombee' => false],
         ]],
         'vrille_posee' => ['monstre' => 'Scion Fleur-Pourrie', 'instance_id' => 7, 'vrille' => ['instance_id' => 9, 'nom' => 'Vrille', 'x' => 3, 'y' => 3]],
+        // LA MALÉDICTION DU LOUP-GAROU (F7539 p. 10-11) : le jet de deux dés rouges, le loup qui marche, qui mord, et
+        // le retour sous forme humaine.
+        'malediction_jet' => ['personnage_id' => 1, 'nom' => 'Grom', 'faces' => [5, 6], 'total' => 11, 'transforme' => true],
+        'loup_deplacement' => ['personnage' => 'Grom', 'vers_heros' => 'Albrecht', 'de' => ['x' => 1, 'y' => 1], 'vers' => ['x' => 2, 'y' => 1]],
+        'loup_attaque' => ['personnage' => 'Grom', 'cible' => $cible, 'degats' => 1, 'faces_attaque' => [1], 'faces_defense' => [6]],
+        'loup_reprend_forme' => ['personnage_id' => 1, 'nom' => 'Grom'],
     ];
 }
 

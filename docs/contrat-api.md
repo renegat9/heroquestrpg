@@ -3249,16 +3249,43 @@ par cible) ; Régénération (+1 PV Body au début de son tour, plafonné) ;
 Résistance magique (+2 dés de défense contre les sorts de dégâts des héros) ;
 Charge (si hors contact et joignable : déplacement + attaque à +1 dé).
 
-⚠ **First Light — carte Dragon** (2026-09-30, docs/plan-first-light.md) :
-`vol_draconique` (*Draconic Flight* — même patron que Charge, déplacement +
-attaque dans la même action, mais le CHEMIN traverse les FIGURES, jamais le
-mobilier ni les murs, et sans bonus d'attaque). Payload : `{type:
-"vol_draconique", instance_id, monstre, depart, vers, cible?, touches?,
-boucliers?, degats?, pv_body_apres?, cible_tombee?}` — `cible` **absente**
-quand le Dragon s'est seulement rapproché sans atteindre le contact (recul sur
-la dernière case réellement libre du trajet, jamais une case occupée). Seule la
-traversée est portée : « interrompre son mouvement pour agir puis le finir »
-reste une dette nommée (aucun lecteur, tour de monstre non fractionné).
+⚠ **First Light — carte Dragon** (2026-09-30, docs/plan-first-light.md ; **tour
+fractionné construit le 2026-10-16**) : `vol_draconique` (*Draconic Flight*). Texte
+de la carte, FL-Q p. 7 : « The dragon may take partial movement, perform an action,
+and then finish its movement. The dragon's powerful wings allow it to move through
+squares occupied by heroes and monsters, though it cannot end its movement on an
+occupied square. » Le CHEMIN traverse les FIGURES, jamais le mobilier ni les murs.
+**Un seul budget** (`monstre.deplacement`, en POINTS) coupé en **deux jambes autour
+d'UNE action** — lecteur `MoteurDread::tourDraconique()`, en tête de l'action Dread
+(il remplace le sort seul et le vol d'un bloc).
+
+*Règle de coupure* (écrite, simple) : le moteur suit le trajet d'approche case par
+case, départ inclus, et coupe à la **première case libre** d'où le tour a une action
+— un sort lançable D'ICI (le choix `choisirSort()`, évalué à cette position, compteur
+et « à volonté » compris), ou, après au moins un pas, un héros au contact (le coup).
+Le sort prime. Après l'action, la jambe 2 dépense ce qui reste du budget vers le
+héros le plus proche ; **après un coup, pas de jambe 2** (au contact, on ne s'éloigne
+pas de sa proie). Aucune action sur le trajet : une seule jambe, sans action. Au
+contact dès le départ, le vol ne marche pas (rien à traverser) : seul un sort peut
+partir, et le coup reste à la résolution normale. Jamais d'arrêt sur une case
+occupée ni interdite à l'arrêt (mare, brasier) : `Grille::empriseArretPossible()`.
+
+*Payloads, dans cet ordre* (à plat dans `tour_monstres.actions`) :
+1. **jambe 1** (seulement si elle parcourt au moins une case) —
+   `{type: "deplacement_monstre", id, monstre, depart, chemin, vers, vol: true, jambe: 1}` ;
+2. **l'action** — soit `{type: "sort_dread", ...}` (signé du lanceur, forme inchangée),
+   soit `{type: "vol_draconique", instance_id, monstre, cible, touches, boucliers,
+   degats, pv_body_apres, cible_tombee, ...}` : le COUP, **sans** `depart` ni `vers`
+   (le mouvement est dans la jambe 1) ;
+3. **jambe 2** — `{type: "deplacement_monstre", ..., vol: true, jambe: 2}`, après un
+   sort seulement.
+Sans action : une seule `deplacement_monstre` avec `vol: true` et `jambe: null`.
+Le fil dit « prend son vol — N cases », « achève son vol — N cases », « fond en vol
+et avance de N cases ». La table fait marcher chaque jambe comme une marche
+(`EtatGroupe.mouvements`, deux trajets de la même figurine, dans l'ordre) : la scène
+d'un sort attend la marche qui le PRÉCÈDE dans le tour, jamais celle qui le suit
+(`SceneDeTable::depuisResultat()`). Le coup, lui, attend sa jambe 1 comme avant.
+
 `sort_a_volonte` (capacité PARAMÉTRÉE, `{sort: "Boule de Flammes"}`) : ce sort
 échappe au compteur `usages_dread` pour l'instance qui la porte — chaque lancer
 coûte toujours l'action du tour, et le payload reste `{type: "sort_dread",
@@ -4154,3 +4181,25 @@ cartes de Verrou mental) : … » — décidé par `VerrouMental::texte()`, jama
 **Réserve de cartes et garde personnelle.** `monstres.capacites.reserve_cartes` (`{sort: nombre}`) est armée à chaque placement dans
 `instances_monstres.habillage.dread_etat.cartes` ; `capacites.garde_personnelle` (`{monstre, attaque, defense}`, Festral) pose
 `habillage.dread_etat.garde_personnelle` sur les figures de ce nom partageant la salle du chef. Aucun des deux n'est publié tel quel.
+
+## The Mage of the Mirror — la malédiction du loup-garou (livret F7539 p. 10-11, 2026-10-16)
+
+Le sort de Dread *Werewolf's Curse* (« Malédiction du loup-garou ») est porté. Règles en vigueur : `docs/regles/sorts-dread.md` §« La malédiction du loup-garou ».
+
+**Le sort.** `sort_dread` dont `resultats[]` porte, en plus des clés de contrôle, `de_malediction` (le d6 brut du lancer) : `6` → `effet_applique: false`, rien n'est posé ; tout autre résultat → `effet_applique: true` et la condition `Malédiction du loup-garou` est posée sur la cible. La résistance est `un_de_rouge_six` (`MotsClesSortDread::RESISTANCE_UN_DE_ROUGE_SIX`).
+
+**Les deux états (conditions du catalogue, `GET /api/moi`, fiche `entites[].conditions[]`).** Aucun nouveau champ publié : chacune porte sa description, que la fiche affiche.
+- `Malédiction du loup-garou` — DURABLE, `duree: 0`, effet `malediction_loup`. Elle ne tombe qu'à un remède : la **Potion d'aconit** (objet nouveau, `retire_condition`) ou la **Potion de restauration supérieure** (clause ajoutée). Elle survit à la fin de quête (source `sort_dread:`, non purgée par `reinitialiserQuete()`).
+- `Forme de loup` — `duree: 0`, effet `forme_loup`, `inattaquable`, `action_interdite`. Posée au jet de transformation, retirée à la **fin de la phase des monstres** (le tour de Zargon). Un héros sous cette forme ne reçoit ni potion ni échange (`MenuMoteur` n'en propose pas, `MoteurPotions::boire()` et `SeanceEchange::resoudre()` le refusent).
+
+**Types d'action** (tous déclarés dans `JournalCombat::TYPES`, une phrase et une scène chacun) :
+- `{type: "malediction_jet", personnage_id, nom, faces: [d6, d6], total, transforme}` — le jet de DEUX dés rouges, à l'**ouverture du round** (`tour_monstres.actions` ou `captifs_repris`), pour chaque héros maudit, transformé ou non. `transforme: true` (total ≥ 10) : la forme est posée et le tour du héros est perdu (aucun menu).
+- `{type: "loup_deplacement", personnage_id, personnage, de: {x, y}, vers: {x, y}, vers_heros: string|null, pieges_declenches: []}` — le pas du loup pendant la phase des monstres, **avant** les créatures de Zargon. Vitesse : celle du Loup géant (9). Aucun piège.
+- `{type: "loup_attaque", personnage_id, personnage, cible: {personnage_id, nom}, touches, boucliers, degats, pv_body_apres, cible_tombee, faces_attaque, faces_defense, face_touchante, face_defensive}` — la morsure : 6 dés d'attaque (ceux du Loup géant), défense du héros mordu, source `attaque_monstre`. Une scène d'attaque (`genre: attaque`).
+- `{type: "loup_reprend_forme", personnage_id, nom}` — fin de la phase des monstres : la forme se retire, le héros revient sous le contrôle de son joueur.
+
+**Le tour du loup** est joué par la couture `HerosJoueParLeMj` avec le profil `ControleMj::loupGarou()` (interne : non publié).
+
+**Round sans héros jouable.** Un groupe dont tous les héros sont sous forme de loup à l'ouverture du round ne reste pas figé : la phase des monstres se rejoue d'elle-même, comme pour un gel de *Mind Lock* (borne : 8 rounds). Un donjon vidé attend aussi le retour de forme avant de se clore.
+
+**Ce que la règle ne dit pas, et que nous tranchons** (écrit, pas deviné) : la figurine du loup est inerte pendant le tour des héros (ni attaquable, ni agissante) ; les PV sont ceux du héros, sans changement à la transformation ni au retour ; les biens restent au héros, inutilisables sous forme de loup ; la morsure d'un *loup-garou* (monstre errant de la quête 7) n'est pas portée — aucun loup-garou n'est au bestiaire.

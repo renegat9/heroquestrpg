@@ -10,6 +10,7 @@ use App\Engine\TypeFigurine;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
+use App\Models\Monstre;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Sort;
@@ -23,12 +24,12 @@ use Illuminate\Validation\ValidationException;
  * « Zargon will move this figure on its next turn. The affected figure may not attack or cast
  * spells »), *Dominate* (Sorcier du Dread, *Against the Ogre Horde* p. 10 : « Zargon […] may move,
  * fight, cast spells, and perform any other action as the Dominated hero (including attacking other
- * heroes) ») et, demain, la *Malédiction du loup-garou* du Mage du Miroir (« Zargon controls them as
- * a monster for one turn »). Elles ne diffèrent que par CE QUE LE MJ A LE DROIT DE FAIRE
- * ({@see ControleMj}) — jamais par la façon de marcher, de traverser un piège, de frapper un autre
- * héros. Cette classe est cette façon, écrite une seule fois ; chaque carte n'apporte que son profil
- * et SON MOMENT (Possession : le prochain tour du héros ; Domination : tout de suite, à la phase du
- * Sorcier).
+ * heroes) ») et la *Malédiction du loup-garou* du Mage du Miroir (« Zargon controls them as a monster
+ * for one turn », F7539 p. 10 — jouée par {@see MaledictionLoupGarou}). Elles ne diffèrent que par CE QUE
+ * LE MJ A LE DROIT DE FAIRE ({@see ControleMj}) — jamais par la façon de marcher, de traverser un piège,
+ * de frapper un autre héros. Cette classe est cette façon, écrite une seule fois ; chaque carte n'apporte
+ * que son profil et SON MOMENT (Possession : le prochain tour du héros ; Domination : tout de suite, à la
+ * phase du Sorcier ; le loup : la phase des monstres, « on Zargon's next turn »).
  *
  * L'ORDRE JOUÉ, comme le tour d'un héros — un déplacement, une action :
  *  1. si le profil le permet et qu'un sort offensif du répertoire du héros est disponible, avec un
@@ -79,6 +80,8 @@ final class HerosJoueParLeMj
     ): array {
         $depart = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
         $victimes = $controle->cible === ControleMj::CIBLE_HEROS ? $this->herosAtteignables($quete, $personnage) : collect();
+        // Les stats de FORME (le loup-garou joue avec celles du Loup géant) : lues une fois, au catalogue.
+        $forme = $controle->forme !== null ? Monstre::where('nom_base', $controle->forme)->firstOrFail() : null;
 
         // 1. Le sort : l'action du tour, sans mouvement.
         if ($controle->sorts && $victimes->isNotEmpty()) {
@@ -99,16 +102,22 @@ final class HerosJoueParLeMj
 
         if ($but !== null) {
             $complet = $this->dread->cheminVersCaseAdjacente($grille, $depart['x'], $depart['y'], $but['x'], $but['y']) ?? [];
-            $chemin = array_slice($complet, 0, $this->pas($controle, $personnage, $etat));
+            $chemin = array_slice($complet, 0, $this->pas($controle, $personnage, $etat, $forme));
         }
 
         $arrivee = $depart;
         $piegesCroises = [];
 
         if ($chemin !== [] && $quete->carte !== null) {
-            $piege = app(MoteurPieges::class)->repousserFigure($groupe, $quete->carte, $personnage, $etat, $chemin);
-            $arrivee = $piege['arret'] ?? end($chemin);
-            $piegesCroises = $piege['declenchements'];
+            if ($controle->pieges) {
+                $piege = app(MoteurPieges::class)->repousserFigure($groupe, $quete->carte, $personnage, $etat, $chemin);
+                $arrivee = $piege['arret'] ?? end($chemin);
+                $piegesCroises = $piege['declenchements'];
+            } else {
+                // Le loup ne déclenche rien : il arrive au bout de sa route, sans s'arrêter sur un piège.
+                $arrivee = end($chemin);
+            }
+
             $etat->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
         }
 
@@ -125,21 +134,24 @@ final class HerosJoueParLeMj
         ];
         $actions = [$deplacement];
 
-        // 3. Le coup, au contact d'un autre héros.
+        // 3. Le coup, au contact d'un autre héros. Contact orthogonal, sauf pour un profil qui attaque en
+        // diagonale (le loup-garou) : `Tchebychev` — la même distinction que `ResolveurTour::heroAuContact()`.
         $etat->refresh();
 
         if ($controle->attaque && ! $etat->tombe) {
             $adjacent = $victimes
                 ->map(fn (EtatPersonnageQuete $v) => $v->fresh())
                 ->filter(fn (?EtatPersonnageQuete $v) => $v !== null && ! $v->tombe && $v->position_x !== null
-                    && abs((int) $etat->position_x - (int) $v->position_x) + abs((int) $etat->position_y - (int) $v->position_y) === 1)
+                    && ($controle->diagonales
+                        ? max(abs((int) $etat->position_x - (int) $v->position_x), abs((int) $etat->position_y - (int) $v->position_y)) === 1
+                        : abs((int) $etat->position_x - (int) $v->position_x) + abs((int) $etat->position_y - (int) $v->position_y) === 1))
                 ->sortBy(fn (EtatPersonnageQuete $v) => (int) $v->personnage->pv_body)
                 ->first();
 
             if ($adjacent !== null) {
                 $coup = [
                     ...$this->enTete($controle, 'attaque'),
-                    ...$this->frapperUnHeros($personnage, $adjacent->personnage, $adjacent, ['domination' => true]),
+                    ...$this->frapperUnHeros($personnage, $adjacent->personnage, $adjacent, ['controle' => $controle->nom], $forme),
                 ];
                 $actions[] = $coup;
             }
@@ -161,15 +173,29 @@ final class HerosJoueParLeMj
      * Rend le corps du payload SANS `type` : chaque appelant pose le sien, en littéral.
      *
      * @param  array<string, mixed>  $contexte  clés ajoutées au contexte de dégâts (écouteurs de `HerosVaSubirDegats`)
+     * @param  Monstre|null  $forme  la FORME que l'agresseur emprunte (le loup-garou : le Loup géant). Ses dés
+     *                               d'attaque remplacent ceux du héros — jamais l'état de choc ni le plafond de
+     *                               *Apeuré*, qui sont ceux d'un HÉROS — et le coup compte comme un coup de
+     *                               MONSTRE (source `attaque_monstre`), non comme un sort du Dread.
      * @return array<string, mixed>
      */
-    public function frapperUnHeros(Personnage $agresseur, Personnage $victime, EtatPersonnageQuete $etatVictime, array $contexte = []): array
-    {
-        $des = $agresseur->estEnChoc() ? 1 : max(0, (int) $agresseur->des_attaque);
-        $plafond = $this->dread->plafondDesAttaque($agresseur);
+    public function frapperUnHeros(
+        Personnage $agresseur,
+        Personnage $victime,
+        EtatPersonnageQuete $etatVictime,
+        array $contexte = [],
+        ?Monstre $forme = null,
+    ): array {
+        if ($forme !== null) {
+            // « Désigné » (*Dreadlights*) : toute créature en gagne un contre le héros qui le porte.
+            $des = max(0, (int) $forme->attaque + $this->dread->bonusAttaqueContre($victime));
+        } else {
+            $des = $agresseur->estEnChoc() ? 1 : max(0, (int) $agresseur->des_attaque);
+            $plafond = $this->dread->plafondDesAttaque($agresseur);
 
-        if ($plafond !== null) {
-            $des = min($des, $plafond);
+            if ($plafond !== null) {
+                $des = min($des, $plafond);
+            }
         }
 
         $resultat = (new Combat($this->des))->resoudreAttaque(
@@ -180,7 +206,8 @@ final class HerosJoueParLeMj
         );
 
         $subis = $this->degats->infligerAHeros(
-            $victime, $resultat->degats, MoteurDegats::SOURCE_SORT_DREAD,
+            $victime, $resultat->degats,
+            $forme !== null ? MoteurDegats::SOURCE_ATTAQUE_MONSTRE : MoteurDegats::SOURCE_SORT_DREAD,
             ['par' => $agresseur->nom, ...$contexte],
         );
         $this->sorts->reveillerHeros($victime);
@@ -215,17 +242,28 @@ final class HerosJoueParLeMj
             ['domination', 'deplacement'] => ['type' => 'domination_deplacement'],
             ['domination', 'attaque'] => ['type' => 'domination_attaque'],
             ['domination', 'sort'] => ['type' => 'domination_sort'],
+            ['loup_garou', 'deplacement'] => ['type' => 'loup_deplacement'],
+            ['loup_garou', 'attaque'] => ['type' => 'loup_attaque'],
             default => throw new \LogicException("Le profil « {$controle->nom} » ne joue pas l'étape « {$etape} »."),
         };
     }
 
     /** Combien de cases le MJ fait avancer ce héros (au moins une — le héros qui n'a jamais lancé de dé marche de sa base). */
-    private function pas(ControleMj $controle, Personnage $personnage, EtatPersonnageQuete $etat): int
+    private function pas(ControleMj $controle, Personnage $personnage, EtatPersonnageQuete $etat, ?Monstre $forme = null): int
     {
         $base = max(1, (int) $personnage->deplacement_base);
 
         if ($controle->deplacement === ControleMj::DEPLACEMENT_BASE) {
             return $base;
+        }
+
+        if ($controle->deplacement === ControleMj::DEPLACEMENT_MONSTRE) {
+            // Le déplacement du catalogue du monstre dont il prend la forme (Loup géant : 9), jamais celui du héros.
+            if ($forme === null) {
+                throw new \LogicException("Le profil « {$controle->nom} » marche à la vitesse d'une forme, sans forme.");
+            }
+
+            return max(1, (int) $forme->deplacement);
         }
 
         // « Full movement » : celui que le héros a LANCÉ pour son propre tour de ce round

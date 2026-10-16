@@ -2,14 +2,18 @@
 
 declare(strict_types=1);
 
+use App\Events\EtatGroupeDiffuse;
 use App\Models\Carte;
 use App\Models\EtatPersonnageQuete;
 use App\Models\GabaritQuete;
 use App\Models\InstanceMonstre;
 use App\Models\Monstre;
+use App\Models\Personnage;
 use App\Models\Quete;
+use App\Partie\Grille;
+use App\Partie\JournalCombat;
 use App\Partie\MoteurDread;
-use Illuminate\Database\Eloquent\Collection;
+use App\Partie\SceneDeTable;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\ConditionSeeder;
@@ -20,20 +24,22 @@ use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortDreadSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 
 /*
- * Lot A — First Light (docs/plan-first-light.md, décisions René 2026-09-30) :
- * la carte « Dragon » — « The dragon uses Draconic Flight and may cast Ball
- * of Flame at will. » Deux mécaniques, deux tests EN JEU, avant la donnée
- * (ordre imposé par CLAUDE.md : vocabulaire → lecteur → test en jeu → donnée) :
+ * First Light — la carte « Dragon » (docs/plan-first-light.md ; docs/regles/sorts-dread.md) :
+ * « The dragon uses Draconic Flight and may cast Ball of Flame at will. » Tests EN JEU.
  *
- *  - `sort_a_volonte` : Boule de Flammes échappe au compteur `usages_dread`
- *    pour CE monstre seul (contraste explicite avec le Spectre, bridé malgré
- *    sa carte à lui aussi dire « at will » — divergence assumée).
- *  - `vol_draconique` : Draconic Flight traverse les FIGURES en approche
- *    (jamais le mobilier ni les murs), sans jamais finir sur une case
- *    occupée.
+ *  - sort_a_volonte : Boule de Flammes échappe au compteur `usages_dread` pour CE monstre seul
+ *    (contraste avec le Spectre, bridé malgré sa carte à lui aussi dire « at will »).
+ *  - Draconic Flight, TOUR FRACTIONNÉ (2026-10-16) : un budget de déplacement coupé en DEUX jambes
+ *    autour d'UNE action. Texte de la carte (FL-Q p. 7) : « The dragon may take partial movement,
+ *    perform an action, and then finish its movement. The dragon's powerful wings allow it to move
+ *    through squares occupied by heroes and monsters, though it cannot end its movement on an
+ *    occupied square. » Les tests marqués « AVANT » échouaient sur l'ancien vol d'un bloc : un seul
+ *    payload, pas de jambe 2, et un sort qui se lançait sans jamais bouger.
  */
 
 beforeEach(function () {
@@ -49,16 +55,18 @@ beforeEach(function () {
 });
 
 /**
- * Couloir d'une case de haut, `$largeur` cases de large — pour contrôler
- * EXACTEMENT qui se trouve entre le Dragon et sa cible, sans dépendre d'une
- * carte générée procéduralement (même patron que
- * `tests/Feature/Partie/TerrainCarteTest.php::queteAvecCarteEtTerrain()`,
- * copié ici localement : ce fichier tourne aussi seul, par chemin direct).
+ * Carte d'après un dessin (`s` sol, `m` mur). UNE salle couvre le plateau : la coupure dépend de la
+ * grille et des figures, jamais des salles. Deux rangées au moins : le Dragon fait 1 × 2
+ * (`grande_taille`) et doit pouvoir tenir sur une case d'arrêt.
+ *
+ * @param  list<string>  $dessin
  */
-function queteCouloir(int $largeur): Quete
+function dragonQueteDessinee(array $dessin): Quete
 {
     $groupe = creerGroupe('table-dragon-'.uniqid());
     $gabarit = GabaritQuete::where('type_jalon', 'normale')->firstOrFail();
+    $largeur = strlen($dessin[0]);
+    $hauteur = count($dessin);
 
     $quete = Quete::create([
         'groupe_id' => $groupe->id,
@@ -73,12 +81,12 @@ function queteCouloir(int $largeur): Quete
     Carte::create([
         'quete_id' => $quete->id,
         'largeur' => $largeur,
-        'hauteur' => 1,
+        'hauteur' => $hauteur,
         'grille' => [
             'largeur' => $largeur,
-            'hauteur' => 1,
-            'cases' => [array_fill(0, $largeur, 's')],
-            'salles' => [['x' => 0, 'y' => 0, 'largeur' => $largeur, 'hauteur' => 1, 'theme' => 'generique', 'mediane_x' => 0, 'mediane_y' => 0]],
+            'hauteur' => $hauteur,
+            'cases' => array_map(fn (string $ligne) => str_split($ligne), $dessin),
+            'salles' => [['x' => 0, 'y' => 0, 'largeur' => $largeur, 'hauteur' => $hauteur, 'theme' => 'generique', 'mediane_x' => 0, 'mediane_y' => 0]],
             'portes' => [],
             'leviers' => [],
             'pieges' => [],
@@ -94,8 +102,8 @@ function queteCouloir(int $largeur): Quete
     return $quete->fresh();
 }
 
-/** Héros debout à (x, 0), état de quête créé directement (pas de passage par l'API). */
-function heroEnCouloir(Quete $quete, string $nom, int $ordre, int $x): array
+/** Héros debout en (x, y), état de quête créé directement (pas de passage par l'API). */
+function dragonHeroEn(Quete $quete, string $nom, int $ordre, int $x, int $y): array
 {
     $joueur = connecterJoueur('joueur-'.$nom.'-'.uniqid());
     $personnage = creerHeros($joueur, $quete->groupe, $nom, $ordre);
@@ -104,11 +112,51 @@ function heroEnCouloir(Quete $quete, string $nom, int $ordre, int $x): array
         'personnage_id' => $personnage->id,
         'quete_id' => $quete->id,
         'position_x' => $x,
-        'position_y' => 0,
+        'position_y' => $y,
         'tombe' => false,
     ]);
 
     return [$personnage, $etat];
+}
+
+/**
+ * Une instance de monstre en (x, y), révélée et active. `$sansMagie` retire les sorts du bloc
+ * catalogue : le Dragon n'a plus que `vol_draconique`, et seul le vol est alors en jeu.
+ */
+function dragonMonstreEn(Quete $quete, string $nomBase, int $x, int $y, bool $sansMagie = false): InstanceMonstre
+{
+    $catalogue = Monstre::where('nom_base', $nomBase)->firstOrFail();
+
+    if ($sansMagie) {
+        $catalogue->update(['capacites' => ['vol_draconique'], 'sorts_dread' => []]);
+        $catalogue->refresh();
+    }
+
+    return InstanceMonstre::create([
+        'quete_id' => $quete->id,
+        'monstre_id' => $catalogue->id,
+        'pv_body' => $catalogue->pv_body,
+        'pv_body_max' => $catalogue->pv_body,
+        'pv_mind' => $catalogue->pv_mind,
+        'position_x' => $x,
+        'position_y' => $y,
+        'etat' => 'actif',
+        'elite' => false,
+        'revele' => true,
+        'usages_dread' => 0,
+        'invocation_dread_utilisee' => false,
+        'fuite_dread_utilisee' => false,
+    ]);
+}
+
+/**
+ * Les actions d'un tour de Dread, à plat (un tour fractionné rend un `actions_composites`).
+ *
+ * @return list<array<string, mixed>>
+ */
+function dragonActions(array $resultat): array
+{
+    return $resultat['type'] === 'actions_composites' ? $resultat['actions'] : [$resultat];
 }
 
 // ---------------------------------------------------------------------
@@ -170,45 +218,104 @@ it('le Spectre, lui, reste bridé à 1 usage malgré sa carte « à volonté » 
 });
 
 // ---------------------------------------------------------------------
-// vol_draconique — Draconic Flight traverse les figures, jamais le mobilier
+// Draconic Flight — un budget, deux jambes, une action au milieu
 // ---------------------------------------------------------------------
 
-it('Draconic Flight traverse un héros interposé pour frapper la cible, sans jamais s\'arrêter sur lui', function () {
-    $quete = queteCouloir(5);
+it('AVANT : à volonté, le Dragon en vue d\'un héros lointain lance Boule de Flammes ET achève son vol', function () {
+    // Une rangée de sol, deux de haut. Le héros est en ligne droite à 6 cases : le sort part du départ,
+    // puis le Dragon ne reste PAS immobile — il vole jusqu'au contact avec le reste de son budget.
+    $quete = dragonQueteDessinee(['sssssssss', 'sssssssss']);
+    [, $etatHeros] = dragonHeroEn($quete, 'Cible', 1, 6, 0);
+    $dragon = dragonMonstreEn($quete, 'Dragon', 0, 0);
 
-    // Dragon(0,0) — vide(1,0) — Blocage(2,0) — vide(3,0) — Cible(4,0). Un seul
-    // rang de cases : aucun détour n'existe, un cheminement ORDINAIRE
-    // (figures bloquantes) ne peut pas dépasser le héros du milieu. Le
-    // blocage n'est PAS adjacent au Dragon au départ (distance 2) : sinon le
-    // Dragon le considérerait comme une cible déjà au contact et renoncerait
-    // au vol avant même de regarder plus loin (même garde que la Charge).
-    [$blocage, $etatBlocage] = heroEnCouloir($quete, 'Blocage', 1, 2);
-    [$cible, $etatCible] = heroEnCouloir($quete, 'Cible', 2, 4);
+    desFiges(array_fill(0, 200, 4));
 
-    // Le bloc catalogue du Dragon, allégé de sa magie pour isoler le
-    // mouvement : seule `vol_draconique` reste en jeu dans ce test.
-    $catalogue = Monstre::where('nom_base', 'Dragon')->firstOrFail();
-    $catalogue->update(['capacites' => ['vol_draconique'], 'sorts_dread' => []]);
-    $catalogue->refresh();
+    $resultat = app(MoteurDread::class)->jouerTourDread(
+        $quete->groupe, $quete, $dragon->fresh()->load('monstre'), Collection::make([$etatHeros->fresh()]),
+    );
+    $actions = dragonActions($resultat);
 
-    $instance = InstanceMonstre::create([
-        'quete_id' => $quete->id,
-        'monstre_id' => $catalogue->id,
-        'pv_body' => $catalogue->pv_body,
-        'pv_body_max' => $catalogue->pv_body,
-        'pv_mind' => $catalogue->pv_mind,
-        'position_x' => 0,
-        'position_y' => 0,
-        'etat' => 'actif',
-        'elite' => false,
-        'revele' => true,
-        'usages_dread' => 0,
-        'invocation_dread_utilisee' => false,
-        'fuite_dread_utilisee' => false,
-    ]);
+    expect(array_column($actions, 'type'))->toBe(['sort_dread', 'deplacement_monstre'])
+        ->and($actions[0]['sort'])->toBe('Boule de Flammes')
+        ->and($actions[1])->toMatchArray([
+            'vol' => true,
+            'jambe' => 2,
+            'depart' => ['x' => 0, 'y' => 0],
+            'vers' => ['x' => 5, 'y' => 0],
+        ])
+        ->and(count($actions[1]['chemin']))->toBe(5);
+
+    $dragon->refresh();
+    expect([(int) $dragon->position_x, (int) $dragon->position_y])->toBe([5, 0]);
+});
+
+it('AVANT : la jambe 1 traverse un monstre sans jamais s\'y arrêter — la coupure tombe là où le sort voit sa cible', function () {
+    // Un Gobelin (une figure, pas une cible) occupe (3, 0) : il coupe la ligne de vue du Dragon depuis le
+    // départ, et il ne peut pas être une case d'arrêt. Le Dragon traverse, s'arrête en (4, 0) — d'où
+    // Boule de Flammes voit le héros —, lance, puis achève son vol jusqu'au contact en (5, 0).
+    $quete = dragonQueteDessinee(['sssssssss', 'sssssssss']);
+    [, $etatHeros] = dragonHeroEn($quete, 'Cible', 1, 6, 0);
+    $gobelin = dragonMonstreEn($quete, 'Gobelin', 3, 0);
+    $dragon = dragonMonstreEn($quete, 'Dragon', 0, 0);
+
+    desFiges(array_fill(0, 200, 4));
+
+    $resultat = app(MoteurDread::class)->jouerTourDread(
+        $quete->groupe, $quete, $dragon->fresh()->load('monstre'), Collection::make([$etatHeros->fresh()]),
+    );
+    $actions = dragonActions($resultat);
+
+    expect(array_column($actions, 'type'))->toBe(['deplacement_monstre', 'sort_dread', 'deplacement_monstre'])
+        ->and($actions[0])->toMatchArray(['vol' => true, 'jambe' => 1, 'vers' => ['x' => 4, 'y' => 0]])
+        ->and($actions[2])->toMatchArray(['vol' => true, 'jambe' => 2, 'vers' => ['x' => 5, 'y' => 0]]);
+
+    // La jambe 1 a bien TRAVERSÉ la case du Gobelin…
+    expect(collect($actions[0]['chemin'])->contains(fn (array $c) => $c === ['x' => 3, 'y' => 0]))->toBeTrue();
+
+    // …sans s'y arrêter, et le Gobelin n'a pas bougé.
+    $dragon->refresh();
+    $gobelin->refresh();
+    expect([(int) $dragon->position_x, (int) $dragon->position_y])->toBe([5, 0])
+        ->and([(int) $gobelin->position_x, (int) $gobelin->position_y])->toBe([3, 0]);
+});
+
+it('AVANT : sans action, une seule jambe — le Dragon ne finit jamais sur une figure, même au bout de son budget', function () {
+    // Le Gobelin tombe pile sur la 10e case du budget, (10, 0) : la jambe s'arrête sur (9, 0), jamais dessus.
+    // Aucune ligne de vue avant : la ligne vers le héros passe par le Gobelin, aucun sort ne part.
+    $quete = dragonQueteDessinee([str_repeat('s', 14), str_repeat('s', 14)]);
+    [, $etatHeros] = dragonHeroEn($quete, 'Cible', 1, 13, 0);
+    dragonMonstreEn($quete, 'Gobelin', 10, 0);
+    $dragon = dragonMonstreEn($quete, 'Dragon', 0, 0);
+
+    desFiges(array_fill(0, 200, 4));
+
+    $resultat = app(MoteurDread::class)->jouerTourDread(
+        $quete->groupe, $quete, $dragon->fresh()->load('monstre'), Collection::make([$etatHeros->fresh()]),
+    );
+
+    expect($resultat)->not->toBeNull()
+        ->and($resultat)->toMatchArray([
+            'type' => 'deplacement_monstre',
+            'vol' => true,
+            'jambe' => null,
+            'vers' => ['x' => 9, 'y' => 0],
+        ])
+        ->and($resultat['chemin'])->toHaveCount(9);
+
+    $dragon->refresh();
+    expect([(int) $dragon->position_x, (int) $dragon->position_y])->toBe([9, 0]);
+});
+
+it('AVANT : le coup de vol traverse un héros interposé, frappe au contact, et n\'a pas de jambe 2', function () {
+    // Le Dragon n'a plus de magie : seul le vol est en jeu. Blocage (2, 0) n'est pas une cible : le vol le
+    // traverse sans s'y arrêter, et frappe Cible (4, 0) depuis (3, 0). Au contact, rien ne reste à faire.
+    $quete = dragonQueteDessinee(['sssss', 'sssss']);
+    [$blocage, $etatBlocage] = dragonHeroEn($quete, 'Blocage', 1, 2, 0);
+    [$cible, $etatCible] = dragonHeroEn($quete, 'Cible', 2, 4, 0);
+    $dragon = dragonMonstreEn($quete, 'Dragon', 0, 0, sansMagie: true);
 
     desFiges([
-        1, 1, 1, 1, 1, // 5 crânes — attaque du Dragon (5 dés, sans bonus : la carte n'en donne pas)
+        1, 1, 1, 1, 1, // 5 crânes — attaque du Dragon (5 dés, sans bonus : la carte n'en donne aucun)
         4, 4,          // défense du héros, aucun succès
         ...array_fill(0, 50, 4),
     ]);
@@ -216,72 +323,145 @@ it('Draconic Flight traverse un héros interposé pour frapper la cible, sans ja
     $pvAvant = (int) $cible->pv_body;
 
     $resultat = app(MoteurDread::class)->jouerTourDread(
-        // ⚠ `$etatBlocage` n'est PAS dans `$cibles` : le Dragon ne le
-        // considère pas comme une cible à frapper (il reste un simple
-        // OBSTACLE sur le trajet), exactement comme `ResolveurTour` ne passe
-        // que les héros « debout non cachés ». S'il figurait dans la liste,
-        // étant plus proche, il deviendrait lui-même la cible choisie — ce
-        // n'est pas ce que ce test vérifie : il vérifie que le Dragon peut
-        // ATTEINDRE une cible au-delà d'une figure interposée.
-        $quete->groupe, $quete, $instance->fresh()->load('monstre'), Collection::make([$etatCible]),
+        // ⚠ `$etatBlocage` n'est PAS dans les cibles : il reste un simple obstacle sur le trajet.
+        $quete->groupe, $quete, $dragon->fresh()->load('monstre'), Collection::make([$etatCible->fresh()]),
     );
+    $actions = dragonActions($resultat);
 
-    expect($resultat)->not->toBeNull()
-        ->and($resultat['type'])->toBe('vol_draconique')
-        ->and($resultat['cible']['personnage_id'])->toBe($cible->id);
+    expect(array_column($actions, 'type'))->toBe(['deplacement_monstre', 'vol_draconique'])
+        ->and($actions[0])->toMatchArray(['vol' => true, 'jambe' => 1, 'vers' => ['x' => 3, 'y' => 0]])
+        ->and($actions[1]['cible']['personnage_id'])->toBe($cible->id);
 
-    $instance->refresh();
-    $etatBlocageApres = $etatBlocage->fresh();
-    $etatCibleApres = $etatCible->fresh();
-
-    $dragonX = (int) $instance->position_x;
-    $dragonY = (int) $instance->position_y;
-
-    // Il est arrivé AU CONTACT de la cible…
-    expect(abs($dragonX - (int) $etatCibleApres->position_x) + abs($dragonY - (int) $etatCibleApres->position_y))
-        ->toBe(1)
-        // … en ayant traversé la case du héros bloquant, jamais en s'y arrêtant.
-        ->and([$dragonX, $dragonY])
-        ->not->toBe([(int) $etatBlocageApres->position_x, (int) $etatBlocageApres->position_y])
-        // Le héros bloquant n'a ni bougé ni rien subi : il a seulement été
-        // traversé.
-        ->and((int) $etatBlocageApres->position_x)->toBe(2)
-        ->and($etatBlocageApres->tombe)->toBeFalse()
-        // Et la cible a bien été frappée.
+    $dragon->refresh();
+    expect([(int) $dragon->position_x, (int) $dragon->position_y])->toBe([3, 0])
+        ->and((int) $etatBlocage->fresh()->position_x)->toBe(2)
+        ->and($etatBlocage->fresh()->tombe)->toBeFalse()
         ->and((int) $cible->fresh()->pv_body)->toBeLessThan($pvAvant);
 });
 
 it('Draconic Flight ne fait rien de spécial quand le Dragon est déjà au contact', function () {
-    $quete = queteCouloir(2);
-    [$cible, $etatCible] = heroEnCouloir($quete, 'Cible', 1, 1);
-
-    $catalogue = Monstre::where('nom_base', 'Dragon')->firstOrFail();
-    $catalogue->update(['capacites' => ['vol_draconique'], 'sorts_dread' => []]);
-    $catalogue->refresh();
-
-    $instance = InstanceMonstre::create([
-        'quete_id' => $quete->id,
-        'monstre_id' => $catalogue->id,
-        'pv_body' => $catalogue->pv_body,
-        'pv_body_max' => $catalogue->pv_body,
-        'pv_mind' => $catalogue->pv_mind,
-        'position_x' => 0,
-        'position_y' => 0,
-        'etat' => 'actif',
-        'elite' => false,
-        'revele' => true,
-        'usages_dread' => 0,
-        'invocation_dread_utilisee' => false,
-        'fuite_dread_utilisee' => false,
-    ]);
+    // Au contact dès le départ : rien à traverser, et pas question de contourner sa proie pour la frapper
+    // d'un autre côté. Le coup reste à la résolution normale (ResolveurTour), comme avant.
+    $quete = dragonQueteDessinee(['ss', 'ss']);
+    [, $etatCible] = dragonHeroEn($quete, 'Cible', 1, 1, 0);
+    $dragon = dragonMonstreEn($quete, 'Dragon', 0, 0, sansMagie: true);
 
     $resultat = app(MoteurDread::class)->jouerTourDread(
-        $quete->groupe, $quete, $instance->fresh()->load('monstre'), Collection::make([$etatCible]),
+        $quete->groupe, $quete, $dragon->fresh()->load('monstre'), Collection::make([$etatCible->fresh()]),
     );
 
-    // Déjà au contact : rien à traverser, le comportement de base
-    // (approche + attaque normale, tenu par ResolveurTour) prend le relais.
-    $apres = $instance->fresh();
+    $apres = $dragon->fresh();
     expect($resultat)->toBeNull();
     expect([(int) $apres->position_x, (int) $apres->position_y])->toBe([0, 0]);
+});
+
+it('AVANT : la diffusion de l\'état porte les jambes du Dragon — la table les marche, il ne se téléporte pas', function () {
+    Event::fake([EtatGroupeDiffuse::class]);
+
+    ['alice' => $alice, 'groupe' => $groupe, 'quete' => $quete, 'instance' => $instance, 'etatHeros' => $etatHeros]
+        = demarrerQueteAvecMonstre('Dragon');
+
+    // Le Dragon est au contact au départ : on l'éloigne de 4 à 6 cases, sur une case où il tient en entier
+    // (1 × 2) ET que le héros atteint à pied (même grille que la résolution), pour qu'il ait un trajet à
+    // faire ce tour-ci. Une case à vol d'oiseau derrière un mur ne donnerait aucun trajet.
+    $grille = App\Partie\FabriqueGrille::pour($quete, exceptInstanceId: $instance->id);
+    $hx = (int) $etatHeros->position_x;
+    $hy = (int) $etatHeros->position_y;
+    $loin = null;
+
+    foreach (array_keys($grille->casesAtteignables($hx, $hy, 6)) as $cle) {
+        [$x, $y] = array_map('intval', explode(',', (string) $cle));
+        $distance = abs($x - $hx) + abs($y - $hy);
+
+        if ($distance >= 4 && $distance <= 6 && $grille->empriseLibre($x, $y, 1, 2)) {
+            $loin = ['x' => $x, 'y' => $y];
+            break;
+        }
+    }
+
+    expect($loin)->not->toBeNull('aucune case libre à distance pour éloigner le Dragon');
+    $instance->update(['position_x' => $loin['x'], 'position_y' => $loin['y']]);
+
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    Event::assertDispatched(EtatGroupeDiffuse::class, function ($e) use ($groupe, $instance, $loin) {
+        $trajet = collect($e->mouvements)->first(
+            fn (array $m) => $m['type'] === 'monstre' && (int) $m['id'] === (int) $instance->id,
+        );
+
+        return $e->groupe->id === $groupe->id
+            && $trajet !== null
+            && $trajet['depart'] == $loin
+            && count($trajet['chemin']) >= 1;
+    });
+});
+
+it('le fil annonce les trois temps du vol : prend son vol, l\'action, achève son vol', function () {
+    $depart = ['x' => 0, 'y' => 0];
+    $resultat = ['tour_monstres' => ['actions' => [
+        [
+            'type' => 'deplacement_monstre', 'id' => 7, 'monstre' => 'Dragon', 'vol' => true, 'jambe' => 1,
+            'depart' => $depart, 'vers' => ['x' => 4, 'y' => 0],
+            'chemin' => [['x' => 1, 'y' => 0], ['x' => 2, 'y' => 0], ['x' => 3, 'y' => 0], ['x' => 4, 'y' => 0]],
+        ],
+        [
+            'type' => 'deplacement_monstre', 'id' => 7, 'monstre' => 'Dragon', 'vol' => true, 'jambe' => 2,
+            'depart' => ['x' => 4, 'y' => 0], 'vers' => ['x' => 5, 'y' => 0],
+            'chemin' => [['x' => 5, 'y' => 0]],
+        ],
+        [
+            'type' => 'deplacement_monstre', 'id' => 7, 'monstre' => 'Dragon', 'vol' => true, 'jambe' => null,
+            'depart' => $depart, 'vers' => ['x' => 3, 'y' => 0],
+            'chemin' => [['x' => 1, 'y' => 0], ['x' => 2, 'y' => 0], ['x' => 3, 'y' => 0]],
+        ],
+    ]]];
+
+    $textes = array_column((new JournalCombat)->depuisResultat($resultat, 'Dragon'), 'texte');
+
+    expect($textes)->toContain('Dragon prend son vol — 4 cases')
+        ->toContain('Dragon achève son vol — 1 case')
+        ->toContain('Dragon fond en vol et avance de 3 cases');
+});
+
+it('la scène d\'un sort de monstre attend la marche qui le PRÉCÈDE dans le tour, et seulement celle-là', function () {
+    $acteur = new Personnage(['nom' => 'Albrecht']);
+    $marche = [
+        'type' => 'deplacement_monstre', 'id' => 7, 'monstre' => 'Dragon', 'vol' => true, 'jambe' => 1,
+        'depart' => ['x' => 0, 'y' => 0], 'vers' => ['x' => 2, 'y' => 0],
+        'chemin' => [['x' => 1, 'y' => 0], ['x' => 2, 'y' => 0]],
+    ];
+    $sort = [
+        'type' => 'sort_dread', 'sort' => 'Boule de Flammes', 'lanceur' => ['instance_id' => 7, 'nom' => 'Dragon'],
+        'resultats' => [['cible' => ['personnage_id' => 0, 'nom' => 'Albrecht'], 'faces_attaque' => [6, 4], 'faces_defense' => [4]]],
+    ];
+    $suite = [
+        'type' => 'deplacement_monstre', 'id' => 7, 'monstre' => 'Dragon', 'vol' => true, 'jambe' => 2,
+        'depart' => ['x' => 2, 'y' => 0], 'vers' => ['x' => 3, 'y' => 0],
+        'chemin' => [['x' => 3, 'y' => 0]],
+    ];
+
+    // `figure` vaut null quand la scène n'attend rien : on distingue donc « pas de scène » d'une attente nulle.
+    $figureDuSort = function (array $actions, array $enMarche) use ($acteur) {
+        $scene = collect(app(SceneDeTable::class)->depuisResultat(['tour_monstres' => ['actions' => $actions]], $acteur, $enMarche))
+            ->firstWhere('genre', 'sort');
+
+        return $scene === null ? 'pas de scène' : $scene['figure'];
+    };
+
+    // Marche AVANT le sort : la scène attend la fin du trajet de la figurine.
+    expect($figureDuSort([$marche, $sort, $suite], ['monstre:7']))->toBe('monstre:7');
+
+    // Sort AU DÉPART, la marche ne vient qu'après : la scène n'attend rien.
+    expect($figureDuSort([$sort, $suite], ['monstre:7']))->toBeNull();
+});
+
+it('une emprise 1 × 2 ne finit son mouvement que si TOUTES ses cases sont libres', function () {
+    $grille = new Grille([['s', 's', 's'], ['s', 's', 's']]);
+    $grille->occuper([['x' => 1, 'y' => 1]]);
+
+    expect($grille->empriseArretPossible(0, 0, 1, 2))->toBeTrue()
+        ->and($grille->empriseArretPossible(1, 0, 1, 2))->toBeFalse() // (1,1) occupée par une figure
+        ->and($grille->empriseArretPossible(2, 0, 1, 2))->toBeTrue();
 });

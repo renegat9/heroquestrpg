@@ -271,6 +271,18 @@ final class MotsClesSortDread
      */
     public const RESISTANCE_OPPOSITION_ECART = 'opposition_mind_ecart';
 
+    /**
+     * UN DÉ ROUGE AU LANCER, le 6 seul annule le sort (*Werewolf's Curse*, Mage of the Mirror) : « The hero
+     * rolls a red die. A roll of 6 means the spell has no effect. Any other result means the hero is now
+     * afflicted with the werewolf's curse. » (carte © 2023, relue à l'image — `reference/09` §4bis.1).
+     *
+     * ⚠ Ce n'est PAS `RESISTANCE_JET_MIND` (un jet de Mind, contre l'attribut) ni `RESISTANCE_DES_ROUGES`
+     * (deux dés, chacun 5-6 annule un point de dégât) : un seul d6 brut, et un seul résultat annule. Le sort
+     * PREND ou ne prend pas, au lancer — ce n'est pas une rupture (`RESISTANCES_RUPTURE` ne le contient pas).
+     * Lu par `MoteurDread::sortDreadControle()`, avant la pose de la condition.
+     */
+    public const RESISTANCE_UN_DE_ROUGE_SIX = 'un_de_rouge_six';
+
     /** Les deux formes d'opposition — celles qui exigent un lanceur qui a encore du Mind à jeter. */
     public const RESISTANCES_OPPOSITION = [
         self::RESISTANCE_OPPOSITION_NETTE,
@@ -287,6 +299,7 @@ final class MotsClesSortDread
         self::RESISTANCE_BOUCLIER_BLANC_PAR_MIND,
         self::RESISTANCE_OPPOSITION_NETTE,
         self::RESISTANCE_OPPOSITION_ECART,
+        self::RESISTANCE_UN_DE_ROUGE_SIX,
     ];
 
     /** Les deux ruptures — celles qui se rejouent au début du tour de la victime. */

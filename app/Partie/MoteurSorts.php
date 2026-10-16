@@ -526,6 +526,11 @@ final class MoteurSorts
         // pas d'une quête à l'autre : la colonne qui le compte (`etat_personnage_quete.verrou_mental`)
         // naît vide avec la quête, et la condition resterait seule — sans compteur, rien ne la lèverait.
         app(VerrouMental::class)->purger($personnage);
+
+        // La FORME de loup tient à la phase des monstres : une quête close au milieu du tour de Zargon ne doit pas
+        // la transporter dans la suivante, où elle rendrait le héros inattaquable et sans action. La MALÉDICTION,
+        // elle, reste : elle ne tombe qu'à un remède (F7539 p. 10).
+        app(MaledictionLoupGarou::class)->purger($personnage);
     }
 
     /**

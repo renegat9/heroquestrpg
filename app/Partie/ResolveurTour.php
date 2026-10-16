@@ -10331,6 +10331,13 @@ final class ResolveurTour
             $actions[] = $explosion;
         }
 
+        // LES LOUPS-GAROUS jouent AVANT les créatures de Zargon, par ordre de héros (F7539 p. 10 : « Zargon controls
+        // them as a monster for one turn »). Leur tour est celui de la couture `HerosJoueParLeMj` — pas une seconde
+        // marche —, et chacun de leurs gestes est journalisé par `MaledictionLoupGarou::jouerLoups()`.
+        foreach (app(MaledictionLoupGarou::class)->jouerLoups($groupe, $quete) as $geste) {
+            $actions[] = $geste;
+        }
+
         // ⚠ `whereNull('controle_par')` : un sbire enrôlé par la *Baguette d'Os*
         // a déjà joué, du côté des héros. Sans ce filtre il jouerait DEUX fois
         // dans le même round, dont une contre ceux qu'il vient d'aider.
@@ -10439,6 +10446,13 @@ final class ResolveurTour
             }
         }
 
+        // FIN DU TOUR DE ZARGON : chaque loup reprend sa forme humaine (F7539 p. 10, « At the end of Zargon's turn,
+        // the wolf transforms back into the hero »). Avant l'ouverture du round suivant, qui relance les dés de
+        // la malédiction : un héros qui n'a pas repris sa forme ne lancerait rien et ne jouerait jamais.
+        foreach (app(MaledictionLoupGarou::class)->reprendreForme($groupe, $quete) as $retour) {
+            $actions[] = $retour;
+        }
+
         $verdict = $this->ouvrirNouveauTour($groupe, $quete, $actions);
 
         if ($verdict === self::CHUTE_TPK) {
@@ -10461,16 +10475,35 @@ final class ResolveurTour
         // ⚠ Délibérément limité au gel (`verrou_mental_tour`) : le même trou existe pour l'Étourdi d'un
         // groupe réduit à un héros, et le fermer change le comportement d'un test déjà posé — nommé dans
         // `docs/regles/sorts-dread.md`, pas corrigé en passant.
+        // ⚠ La MALÉDICTION s'y ajoute : un héros transformé en loup perd son tour à l'ouverture exactement comme
+        // le gelé, et un groupe entier sous forme de loup serait figé de la même façon.
         if ($profondeur < self::ROUNDS_SANS_HEROS_MAX
-            && collect($actions)->contains(fn ($a) => is_array($a) && ($a['type'] ?? null) === 'verrou_mental_tour')
-            && $quete->fresh()?->etat === 'en_cours'
-            && app(OrdreDuTour::class)->acteurActif($groupe->fresh()) === null) {
+            && (collect($actions)->contains(fn ($a) => is_array($a) && ($a['type'] ?? null) === 'verrou_mental_tour')
+                || $this->louDoitJouerSansAutreHeros($actions, $groupe, $quete))) {
             $suite = $this->phaseMonstres($groupe->fresh(), $quete->fresh(), $profondeur + 1);
 
             return [...$suite, 'actions' => [...$actions, ...$suite['actions']]];
         }
 
         return ['actions' => $actions];
+    }
+
+    /**
+     * Un héros vient-il de se transformer en LOUP à l'ouverture du round, sans qu'AUCUN autre héros puisse jouer ?
+     * Le loup n'a pas de menu : tant que personne ne joue, aucune phase suivante ne se déclenche (F7539 p. 10 — « on
+     * Zargon's next turn », son tour est celui de Zargon, pas du joueur). Même garde que le gel de Mind Lock, à
+     * l'exception qu'elle porte sur la transformation.
+     *
+     * @param  list<mixed>  $actions
+     */
+    private function louDoitJouerSansAutreHeros(array $actions, Groupe $groupe, Quete $quete): bool
+    {
+        $transforme = collect($actions)->contains(fn ($a) => is_array($a) && ($a['type'] ?? null) === 'malediction_jet'
+            && ($a['transforme'] ?? false) === true);
+
+        return $transforme
+            && $quete->fresh()?->etat === 'en_cours'
+            && app(OrdreDuTour::class)->acteurActif($groupe->fresh()) === null;
     }
 
     /**
@@ -10597,6 +10630,15 @@ final class ResolveurTour
 
             if ($personnage === null || $etat->tombe) {
                 continue;
+            }
+
+            // MALÉDICTION DU LOUP-GAROU (F7539 p. 10) : « At the start of every turn, the hero must roll two red
+            // dice » — le premier des effets de début de tour. 10 à 12 : le héros se transforme, son tour est
+            // perdu, et le loup jouera au tour de Zargon (`MaledictionLoupGarou::jouerLoups()`). Le jet est
+            // annoncé dans tous les cas : un jet que personne ne voit n'a pas eu lieu.
+            foreach (app(MaledictionLoupGarou::class)->ouvrirTour($etat) as $jetMalediction) {
+                Journal::ajouter($groupe, 'action', $jetMalediction);
+                $payloads[] = $jetMalediction;
             }
 
             foreach ($this->sorts->conditionsARompre($personnage) as $nomCondition) {
@@ -11059,6 +11101,32 @@ final class ResolveurTour
     }
 
     /**
+     * Les trajets d'un tour de Dread — les jambes de Draconic Flight (`deplacement_monstre`, `vol: true`) —
+     * rejoignent `mouvementsAnime` : la table les fait marcher case par case, comme toute marche de monstre.
+     *
+     * ⚠ Sans cela, le Dragon se téléportait sur la table : `MoteurDread` écrit la position en base, mais le
+     * trajet n'était enregistré ici par personne (2026-10-16). Un test en jeu le verrouille
+     * (`DragonFirstLightTest`, diffusion de l'état).
+     *
+     * @param  array<string, mixed>  $action
+     */
+    private function animerTrajetsDread(array $action): void
+    {
+        $actions = ($action['type'] ?? null) === 'actions_composites' ? (array) $action['actions'] : [$action];
+
+        foreach ($actions as $a) {
+            if (is_array($a) && ($a['type'] ?? null) === 'deplacement_monstre' && ! empty($a['vol']) && ! empty($a['chemin'])) {
+                $this->mouvementsAnime[] = [
+                    'type' => 'monstre',
+                    'id' => (int) $a['id'],
+                    'depart' => $a['depart'],
+                    'chemin' => $a['chemin'],
+                ];
+            }
+        }
+    }
+
+    /**
      * Script C2 d'un monstre : pour les boss/sous-boss, MoteurDread gère la
      * régénération, les sorts de Dread et la Charge en priorité. Pour les
      * monstres de base (et en repli pour les boss sans action Dread), comportement
@@ -11230,6 +11298,8 @@ final class ResolveurTour
             $actionDread = $this->dread->jouerTourDread($groupe, $quete, $instance, $cibles);
 
             if ($actionDread !== null) {
+                $this->animerTrajetsDread($actionDread);
+
                 return $actionDread;
             }
         }
@@ -13211,13 +13281,25 @@ final class ResolveurTour
         // suivant doit quand même S'OUVRIR, sans quoi personne ne rejoue jamais
         // et le groupe reste enfermé dans un donjon vide (voir
         // `ouvrirNouveauTour()`).
-        if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+        $sansMonstre = ! $quete->instancesMonstres()->where('etat', 'actif')->exists();
+
+        // UN LOUP-GAROU joue son tour de Zargon même dans un donjon vidé (F7539 p. 10 : « Zargon controls them as a
+        // monster for one turn »), et c'est la phase des monstres qui le ramène à sa forme humaine. Sans elle, le
+        // héros resterait loup à jamais, inerte. Le donjon n'est donc clos qu'APRÈS son tour.
+        if ($sansMonstre && ! app(MaledictionLoupGarou::class)->enFormeDans($quete)) {
             // ⚠ `$actions` capturé même SANS monstre : un héros peut tomber
             // sur SON PROPRE tour (piège, terrain, tir ami) et porter un
             // captif escorté — la reprise que `ouvrirNouveauTour()` déclenche
             // ne doit pas se perdre faute de `tour_monstres` pour la porter.
             $actions = [];
             $this->ouvrirNouveauTour($groupe, $quete, $actions);
+
+            // Un héros vient de se transformer en loup À L'OUVERTURE du round, et il n'y a plus personne pour jouer :
+            // le loup n'a pas de menu, et rien ne déclenche la phase suivante. Son tour de Zargon se joue tout de suite.
+            if ($this->louDoitJouerSansAutreHeros($actions, $groupe, $quete)) {
+                $suite = $this->phaseMonstres($groupe->fresh(), $quete->fresh());
+                $actions = [...$actions, ...(array) ($suite['actions'] ?? [])];
+            }
 
             if ($actions !== []) {
                 $resultat['captifs_repris'] = $actions;
@@ -13228,7 +13310,7 @@ final class ResolveurTour
 
         $resultat['tour_monstres'] = $this->phaseMonstres($groupe, $quete);
 
-        return $resultat;
+        return $sansMonstre ? $this->donjonNettoye($resultat, $quete) : $resultat;
     }
 
     /**

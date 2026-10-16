@@ -226,9 +226,20 @@ trait LignesEffetsAutomatiques
     {
         $monstre = (string) ($a['monstre'] ?? 'Un monstre');
         $n = count((array) ($a['chemin'] ?? []));
+        $cases = $n.' case'.($n > 1 ? 's' : '');
+
+        // Draconic Flight (First Light) : chaque jambe dit où elle en est dans le tour — « prend son vol »
+        // avant l'action, « achève son vol » après (ou seule, si rien ne s'est joué sur le trajet).
+        if (! empty($a['vol']) && $n > 0) {
+            return [$this->info(match ($a['jambe'] ?? null) {
+                1 => "{$monstre} prend son vol — {$cases}",
+                2 => "{$monstre} achève son vol — {$cases}",
+                default => "{$monstre} fond en vol et avance de {$cases}",
+            })];
+        }
 
         return [$this->info($n > 0
-            ? "{$monstre} avance de {$n} case".($n > 1 ? 's' : '')
+            ? "{$monstre} avance de {$cases}"
             : "{$monstre} ne peut pas avancer")];
     }
 

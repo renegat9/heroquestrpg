@@ -63,6 +63,14 @@ class MoteurPotions
 
         $buveur = $cible ?? $personnage;
 
+        // UN LOUP N'A PAS DE MAIN (F7539 p. 10) : sous forme de loup, un héros ne boit ni ne reçoit rien. Le menu
+        // ne le propose pas (`MenuMoteur::ciblesObjet()`) ; le résolveur le refuse aussi, par la même condition.
+        if (MaledictionLoupGarou::estEnLoup($buveur)) {
+            throw ValidationException::withMessages([
+                'inventaire_id' => "« {$buveur->nom} » est sous forme de loup : il ne peut rien boire.",
+            ]);
+        }
+
         // ENTRE DEUX QUÊTES (`MotsClesEquipement::CLES_AU_HUB`, Potion of Charm :
         // « Drink this potion between quests ») : refusée EN QUÊTE, quel que
         // soit le chemin. Le menu ne l'offre pas (`MenuMoteur`), le résolveur

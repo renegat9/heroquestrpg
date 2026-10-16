@@ -11,9 +11,9 @@ use Illuminate\Database\Seeder;
  * LES SORTS DE DREAD PORTÉS, un par carte officielle (les 28 de `dread_spells.pdf`, puis ceux des extensions).
  *
  * Source : `dread_spells.pdf` — 29 sorts photographiés par René le 2026-09-04,
- * transcrits carte par carte en **doc 09 §4bis**. UN seul n'est pas porté et
- * est recensé dans `config/cartes.php` (section `dread`) avec la mécanique qui
- * lui manque : *Werewolf's Curse*. *Dispel* et *Mirror Magic* l'ont été le
+ * transcrits carte par carte en **doc 09 §4bis**. *Werewolf's Curse* était la
+ * seule non portée ; elle l'est depuis le 2026-10-16, avec la transformation
+ * (`App\Partie\MaledictionLoupGarou`). *Dispel* et *Mirror Magic* l'ont été le
  * 2026-10-15, avec la couture « le MJ réagit au sort d'un héros »
  * (`App\Partie\ReactionsMj`).
  *
@@ -800,6 +800,26 @@ class SortDreadSeeder extends Seeder
                 'effet' => [
                     'resistance' => Mot::RESISTANCE_OPPOSITION_ECART,
                     'carte' => Mot::CARTE_DEFAUSSEE,
+                ]],
+
+            // ============================================================
+            // THE MAGE OF THE MIRROR — la malédiction du loup-garou (F7539 p. 10-11, 2026-10-16).
+            // ============================================================
+
+            // « The hero rolls a red die. A roll of 6 means the spell has no effect. Any other result means
+            // the hero is now afflicted with the werewolf's curse. See the "Turning Heroes into Werewolves"
+            // section of the Mage of the Mirror Quest Book. » (carte © 2023 Hasbro, relue à l'image,
+            // `reference/09` §4bis.1). La règle de la transformation est au livret, et elle est portée par
+            // `MaledictionLoupGarou` — ce sort ne fait que poser la malédiction.
+            // Lanceurs (livret, relus au texte de la page) : LE HAUT ALCHIMISTE (quête 5, p. 23) et TORMUK
+            // (quête 6, p. 25) le connaissent aussi, et SINESTRA (boss, quête 9, p. 33). Ni le Haut Alchimiste
+            // ni Tormuk ne sont au bestiaire : seul Sinestra le lance pour l'instant (`archimage_elfe`).
+            // Palier `sous_boss` (le plus bas des porteurs, comme *Mirror Magic* pour Tormuk) : un palier `boss`
+            // le retirerait au Haut Alchimiste et à Tormuk le jour où ils seront semés.
+            ['nom' => 'Malédiction du loup-garou', 'palier' => 'sous_boss', 'type' => Mot::TYPE_CONTROLE,
+                'effet' => [
+                    'condition_appliquee' => 'Malédiction du loup-garou',
+                    'resistance' => Mot::RESISTANCE_UN_DE_ROUGE_SIX,
                 ]],
         ];
 

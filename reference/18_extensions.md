@@ -891,7 +891,9 @@ malédiction de loup-garou), **Prospector** et **Princess Millandriel**
 
 ### 5. Nouvelles mécaniques de règle
 
-- **Malédiction du loup-garou** : un héros mordu par un loup-garou ou
+- **Malédiction du loup-garou** (**portée le 2026-10-16** : `App\Partie\MaledictionLoupGarou`,
+  `docs/regles/sorts-dread.md` §« La malédiction du loup-garou » ; la morsure d'un loup-garou
+  errant, quête 7, n'est pas portée) : un héros mordu par un loup-garou ou
   touché par le sort *werewolf's curse* doit, à chaque début de tour,
   lancer 2 dés rouges — 10 à 12 le transforme en loup contrôlé par le MJ
   pour le tour suivant du MJ (véritable monstre : ni portes, ni pièges, ni
@@ -999,8 +1001,10 @@ catalogue à ce jour, aucun prix imprimé.
 - **Wolfsbane Potion** — « *This potion may be used by any hero suffering
   from the werewolf's curse. It cures the hero. The potion may be used only
   once. Do not return this card to the deck.* »
-  → chez nous : rien — attend la malédiction elle-même
-  (`docs/plan-mage-du-miroir.md` lot B).
+  → **portée le 2026-10-16** : « Potion d'aconit » (`ObjetSeeder`, `retire_condition`
+  de la malédiction ; `prix_base` 0 et rareté `unique`, car la carte ne porte aucun
+  prix — ⚠ non trouvé, on la trouve, on ne l'achète pas). Sa source en jeu, la fouille
+  de la salle E de la quête 7, n'a pas de gabarit : elle n'est pas encore tirée.
 
 > **Décisions de René du 2026-10-15 — The Mage of the Mirror.**
 > - **Quête double par miroir (9-10, *Silvermane's Lair*) : ÉCARTÉE pour le

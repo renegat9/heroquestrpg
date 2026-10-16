@@ -97,14 +97,14 @@ use Illuminate\Support\Facades\DB;
  *
  * CAPACITÉS DE FIRST LIGHT (carte « Dragon », FL-Q p. 6-7 — doc 18 §6.1bis,
  * portées le 2026-09-30) :
- *   - vol_draconique : « Draconic Flight » — déplacement + attaque dans la
- *     même action (`tentativeVolDraconique()`, même patron que `charge`),
- *     mais la grille de cheminement traverse les FIGURES, jamais le mobilier
- *     ni les murs (`Grille::autoriserFranchissementFigures()`, le mode déjà
- *     écrit pour Patinage) — sans bonus d'attaque, la carte n'en donne
- *     aucun. ⚠ Seule la traversée est portée : « interrompre son mouvement
- *     pour agir puis le finir » suppose un tour fractionné qu'aucun lecteur
- *     ne consulterait — dette NOMMÉE, `docs/plan-first-light.md` §3 ;
+ *   - vol_draconique : « Draconic Flight » — UN budget de déplacement coupé
+ *     en DEUX jambes autour d'UNE action (`tourDraconique()`, 2026-10-16) :
+ *     « partial movement, perform an action, and then finish its movement ».
+ *     Le chemin traverse les FIGURES, jamais le mobilier ni les murs
+ *     (`Grille::autoriserFranchissementFigures()`, le mode déjà écrit pour
+ *     Patinage), et jamais ne s'arrête sur une case occupée
+ *     (`Grille::empriseArretPossible()`). Sans bonus d'attaque : la carte
+ *     n'en donne aucun. La règle de coupure est écrite sur `tourDraconique()` ;
  *   - sort_a_volonte : capacité PARAMÉTRÉE (`['sort' => 'Boule de
  *     Flammes']`) — le sort qu'elle nomme échappe au compteur `usages_dread`
  *     pour CETTE instance SEULE (`sortAVolonte()`), chaque lancer coûtant
@@ -476,6 +476,20 @@ final class MoteurDread
             }
         }
 
+        // 1 bis. Draconic Flight (First Light) : le tour FRACTIONNÉ remplace à la fois le sort seul
+        //    (étape 2 ci-dessous) et le vol d'un bloc (ancienne étape 5). Il choisit lui-même le sort
+        //    de chaque case candidate (`sortALaCase()`), donc il ne peut pas être refait par l'étape 2.
+        //    Sans trajet ni action, il rend `null` et le tour retombe sur le comportement de base.
+        if ($this->aCapacite($instance, 'vol_draconique') && $cibles->isNotEmpty()) {
+            $tour = $this->tourDraconique($groupe, $quete, $instance, $cibles, $acteur) ?? [];
+
+            if ($actions === [] && $tour === []) {
+                return null;
+            }
+
+            return $this->fusionnerActions([...$actions, ...$tour]);
+        }
+
         // 2. Sort de Dread si usages restants et répertoire non vide (archétype
         //    nommé inclus — 3.8 : le répertoire peut venir de l'archétype même si
         //    le champ brut sorts_dread est vide).
@@ -540,20 +554,6 @@ final class MoteurDread
 
             if ($charge !== null) {
                 $actions[] = $charge;
-
-                return $this->fusionnerActions($actions);
-            }
-        }
-
-        // 5. Capacité vol_draconique (Draconic Flight, First Light) : même
-        //    idée que la Charge, mais le chemin traverse les FIGURES — un
-        //    héros interposé n'arrête plus le Dragon là où il arrêterait tout
-        //    autre monstre, y compris un chargeur.
-        if ($this->aCapacite($instance, 'vol_draconique') && $cibles->isNotEmpty()) {
-            $vol = $this->tentativeVolDraconique($groupe, $quete, $instance, $cibles, $acteur);
-
-            if ($vol !== null) {
-                $actions[] = $vol;
 
                 return $this->fusionnerActions($actions);
             }
@@ -2260,6 +2260,20 @@ final class MoteurDread
                 ];
 
                 if ($nets <= 0) {
+                    $ligne['effet_applique'] = false;
+                    $resultats[] = $ligne;
+
+                    continue;
+                }
+            }
+
+            // *Werewolf's Curse* (F7539 p. 10) : « The hero rolls a red die. A roll of 6 means the spell has no
+            // effect. » Un seul d6 brut, le 6 seul annule — au lancer, comme `jet_mind`, et non une rupture.
+            if ($resistance === Mot::RESISTANCE_UN_DE_ROUGE_SIX) {
+                $face = $this->des->d6();
+                $ligne['de_malediction'] = $face;
+
+                if ($face === 6) {
                     $ligne['effet_applique'] = false;
                     $resultats[] = $ligne;
 
@@ -4831,122 +4845,288 @@ final class MoteurDread
     // ------------------------------------------------------------------
 
     /**
-     * **Draconic Flight** (FL-Q p. 7, carte « Dragon » — doc 18 §6.1bis) :
-     * « le Dragon peut interrompre son mouvement pour agir puis le finir, et
-     * traverser des cases occupées (sans y finir) ».
+     * **Draconic Flight** — tour FRACTIONNÉ (First Light, carte Dragon, FL-Q p. 7). Texte exact :
+     * « The dragon may take partial movement, perform an action, and then finish its movement. The
+     * dragon's powerful wings allow it to move through squares occupied by heroes and monsters, though
+     * it cannot end its movement on an occupied square. »
      *
-     * ⚠ Seule la TRAVERSÉE est portée. « Interrompre son mouvement pour agir
-     * puis le finir » suppose un tour de monstre FRACTIONNÉ, que rien dans
-     * `ResolveurTour` (un moteur par ROUND) ne consulte — lui donner un
-     * lecteur pour cette seule carte serait exactement la clé décorative que
-     * ce projet traque : une règle promise et jamais vraiment jouée. C'est une
-     * dette NOMMÉE (`docs/plan-first-light.md` §3), pas un oubli.
+     * UN budget (`deplacement`, en POINTS) coupé en DEUX jambes autour d'UNE action. RÈGLE DE COUPURE,
+     * écrite et simple :
+     *   1. le moteur suit le trajet d'approche (le plus court, en points, jusqu'à une case libre au
+     *      contact d'un héros, figures traversées), case par case, départ inclus ;
+     *   2. il COUPE à la PREMIÈRE case libre d'où le tour a une action : un sort lançable D'ICI (le
+     *      choix de `choisirSort()`, lu à cette position par `sortALaCase()`), ou, après au moins un
+     *      pas, un héros au contact (le coup de vol). Le sort prime, comme dans tout tour de Dread ;
+     *   3. l'action jouée, la jambe 2 dépense ce qui reste du budget vers le héros le plus proche et
+     *      s'arrête sur la dernière case libre. Après un COUP il n'y a pas de jambe 2 : au contact, on
+     *      ne s'éloigne pas de sa proie.
+     * Aucune action sur tout le trajet : une seule jambe, sans action, le Dragon avance de ce que le
+     * budget lui permet. Déjà au contact dès le départ : rien à traverser, seul un sort peut partir (le
+     * coup reste à la résolution normale, comme avant).
      *
-     * Même patron que `tentativeCharge()` (déplacement puis attaque dans la
-     * même action de monstre), à deux différences : la grille de cheminement
-     * est celle du Patinage (`Grille::autoriserFranchissementFigures()` — les
-     * FIGURES ne bloquent plus le TRAJET, le mobilier et les murs si, comme
-     * sur la carte : « des cases occupées », jamais « des murs » ni « du
-     * mobilier ») ; et il n'y a pas de bonus d'attaque, la carte n'en donne
-     * aucun.
+     * ⚠ Aucune jambe ne finit sur une case occupée ni interdite à l'arrêt (mare, brasier) : ces cases-là
+     * se traversent, elles ne se choisissent pas — `Grille::empriseArretPossible()`, pour TOUTE l'emprise
+     * du monstre (le Dragon fait 1 × 2).
+     * ⚠ Le sort de chaque case candidate se lit sur un CLONE de l'instance placé là : le Dragon ne bouge
+     * en base qu'une fois la coupure retenue, et `choisirSort()` ne voit jamais une position qu'il
+     * n'occupe pas.
      *
-     * ⚠ « sans y finir » est tenu par `derniereCaseFranchissable()` — le même
-     * recul que le Patinage emploie déjà : la grille de cheminement a effacé
-     * l'occupation pour trouver un PASSAGE, elle ne doit jamais décider d'une
-     * ARRIVÉE. Si le recul retombe avant la case adjacente à la cible visée,
-     * le Dragon progresse sans frapper ce tour-ci — jamais à travers une
-     * figure sur laquelle il se serait arrêté.
+     * Payloads, à plat et dans l'ordre : jambe 1 (`jambe: 1`), l'action (`sort_dread` signé, ou le coup
+     * `vol_draconique`), jambe 2 (`jambe: 2`). Sans action : une seule jambe, `jambe: null`.
      *
-     * @param  Collection<int, EtatPersonnageQuete>  $cibles  héros debout (pas de ligne de vue requise, comme la Charge)
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles  héros debout (pas de ligne de vue requise pour le coup)
      * @param  array<string, mixed>  $acteur
-     * @return array<string, mixed>|null null si déjà au contact, ou hors de portée même en traversant
+     * @return list<array<string, mixed>>|null  null = rien à jouer ici
      */
-    private function tentativeVolDraconique(
-        Groupe $groupe,
-        Quete $quete,
-        InstanceMonstre $instance,
-        Collection $cibles,
-        array $acteur,
-    ): ?array {
-        $nomMonstre = $instance->nomAffiche();
-        $grilleReelle = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
+    private function tourDraconique(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Collection $cibles, array $acteur): ?array
+    {
+        $budget = (int) $instance->monstre->deplacement;
+        $e = $instance->monstre->emprise();
+        $depart = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
+        $reelle = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
 
-        foreach ($cibles as $cible) {
-            if ($grilleReelle->sontAdjacentes(
-                (int) $instance->position_x, (int) $instance->position_y,
-                (int) $cible->position_x, (int) $cible->position_y,
-            )) {
-                return null; // déjà au contact : rien à traverser
+        // Déjà au contact : rien à traverser, et pas question de s'éloigner de sa proie.
+        $auContact = $this->heroAuContactDe($reelle, $instance, $cibles, $depart) !== null;
+        $chemin = $auContact ? null : $this->cheminDraconique($quete, $instance, $cibles, $depart);
+        $pas = $chemin === null ? 0 : $reelle->pasAffordables($chemin, $budget);
+
+        // 2. La coupure : la première case libre d'où le tour a une action.
+        $coupure = null;
+
+        for ($c = 0; $c <= $pas; $c++) {
+            $case = $c === 0 ? $depart : $chemin[$c - 1];
+
+            if (! $reelle->empriseArretPossible($case['x'], $case['y'], $e['l'], $e['h'])) {
+                continue;
+            }
+
+            $sort = $this->sortALaCase($groupe, $quete, $instance, $cibles, $case);
+
+            if ($sort !== null) {
+                $coupure = ['c' => $c, 'sort' => $sort];
+
+                break;
+            }
+
+            // Le coup exige au moins un pas : au départ, un contact se résout comme tout coup au corps à corps.
+            $contact = $c === 0 ? null : $this->heroAuContactDe($reelle, $instance, $cibles, $case);
+
+            if ($contact !== null) {
+                $coupure = ['c' => $c, 'cible' => $contact];
+
+                break;
             }
         }
 
+        if ($coupure === null) {
+            // Rien à faire sur le trajet : une seule jambe, sans action.
+            $tronc = $chemin === null ? [] : $this->troncJusquALArret($reelle, $instance, array_slice($chemin, 0, $pas));
+
+            return $tronc === [] ? null : [$this->bougerDraconique($groupe, $instance, $depart, $tronc, null, $acteur)];
+        }
+
+        $payloads = [];
+        $position = $depart;
+        $budgetRestant = $budget;
+
+        // Jambe 1 : jusqu'à la case de coupure. Jamais une jambe vide.
+        if ($coupure['c'] > 0) {
+            $jambe1 = array_slice($chemin, 0, $coupure['c']);
+            $payloads[] = $this->bougerDraconique($groupe, $instance, $position, $jambe1, 1, $acteur);
+            $budgetRestant -= $this->grilleQuete($quete, exceptInstanceId: $instance->id)->coutChemin($jambe1);
+            $position = ['x' => (int) end($jambe1)['x'], 'y' => (int) end($jambe1)['y']];
+        }
+
+        // L'action.
+        if (isset($coupure['cible'])) {
+            // Le coup de vol : au contact, il n'y a pas de jambe 2.
+            $payloads[] = $this->frappeDuVol($groupe, $instance, $coupure['cible'], $acteur);
+
+            return $payloads;
+        }
+
+        $sort = $coupure['sort'];
+
+        if ($sort->nom !== $this->sortAVolonte($instance)) {
+            $this->consommerUsage($instance, $quete, $sort);
+        }
+
+        $payloads[] = $this->lancerSortDread(
+            $groupe, $quete, $instance, $sort, $cibles, $this->ciblesEnVue($quete, $instance, $cibles), $acteur,
+        );
+
+        // Jambe 2 : ce qui reste du budget, vers le héros le plus proche. Rien si l'on est déjà au contact.
+        $grilleApres = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
+
+        if ($budgetRestant > 0 && $this->heroAuContactDe($grilleApres, $instance, $cibles, $position) === null) {
+            $chemin2 = $this->cheminDraconique($quete, $instance, $cibles, $position);
+            $tronc2 = $chemin2 === null ? [] : $this->troncJusquALArret(
+                $grilleApres,
+                $instance,
+                array_slice($chemin2, 0, $grilleApres->pasAffordables($chemin2, $budgetRestant)),
+            );
+
+            if ($tronc2 !== []) {
+                $payloads[] = $this->bougerDraconique($groupe, $instance, $position, $tronc2, 2, $acteur);
+            }
+        }
+
+        return $payloads;
+    }
+
+    /**
+     * Le sort que ce tour lancerait DEPUIS la case `$case`, ou `null`. C'est le choix de
+     * `jouerTourDreadBrut()` — `choisirSort()`, puis le compteur d'usages et le « à volonté » — lu à une
+     * position d'essai. L'instance clonée n'est jamais sauvée.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  array{x: int, y: int}  $case
+     */
+    private function sortALaCase(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Collection $cibles, array $case): ?SortDread
+    {
+        $essai = clone $instance;
+        $essai->position_x = $case['x'];
+        $essai->position_y = $case['y'];
+
+        $sort = $this->choisirSort($groupe, $quete, $essai, $cibles, $this->ciblesEnVue($quete, $essai, $cibles));
+
+        if ($sort !== null && $this->usagesRestants($instance, $quete) <= 0 && $sort->nom !== $this->sortAVolonte($instance)) {
+            return null; // compteur à sec, et ce n'est pas le sort gratuit
+        }
+
+        return $sort;
+    }
+
+    /**
+     * Le premier héros debout au contact de l'emprise du Dragon posée en `$case`, ou `null`. Même notion
+     * que partout ailleurs (orthogonal), étendue à l'emprise : une grande figure touche un héros dès qu'il
+     * jouxte l'une de ses cases (`Grille::adjacenteAEmprise()`).
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  array{x: int, y: int}  $case
+     */
+    private function heroAuContactDe(Grille $grille, InstanceMonstre $instance, Collection $cibles, array $case): ?EtatPersonnageQuete
+    {
+        $e = $instance->monstre->emprise();
+
+        return $cibles->first(fn (EtatPersonnageQuete $c) => $c->position_x !== null
+            && $grille->adjacenteAEmprise($case['x'], $case['y'], $e['l'], $e['h'], (int) $c->position_x, (int) $c->position_y));
+    }
+
+    /**
+     * Le trajet d'approche : le plus COURT en points jusqu'à une case libre au contact d'un héros, en
+     * traversant les figures (`autoriserFranchissementFigures()`, le mode de Patinage). Une destination
+     * doit accueillir TOUTE l'emprise (`empriseArretPossible()`), sinon elle n'est pas candidate. `null`
+     * si aucune n'est accessible, `[]` n'apparaît jamais (une case déjà visée n'a rien à traverser).
+     *
+     * ⚠ Trajet de l'ANCRE, comme pour toutes les grandes figures (`ResolveurTour`, « simplification
+     * assumée ») : l'emprise se vérifie à chaque case d'arrêt, jamais pendant le trajet.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  array{x: int, y: int}  $depart
+     * @return list<array{x: int, y: int}>|null
+     */
+    private function cheminDraconique(Quete $quete, InstanceMonstre $instance, Collection $cibles, array $depart): ?array
+    {
+        $e = $instance->monstre->emprise();
+        $reelle = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
         $vol = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
         $vol->autoriserFranchissementFigures();
 
-        $meilleure = null;
+        $meilleur = null;
+        $meilleurCout = null;
 
         foreach ($cibles as $cible) {
             foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
                 $cx = (int) $cible->position_x + $dx;
                 $cy = (int) $cible->position_y + $dy;
 
-                if ($vol->arretInterditParTerrain($cx, $cy)) {
-                    continue; // Mare, Brasier : pas une case d'arrivée
+                if (! $reelle->empriseArretPossible($cx, $cy, $e['l'], $e['h'])) {
+                    continue;
                 }
 
-                $chemin = $vol->chemin(
-                    (int) $instance->position_x, (int) $instance->position_y,
-                    $cx, $cy,
-                );
+                $chemin = $vol->chemin($depart['x'], $depart['y'], $cx, $cy);
 
-                // ⚠ Budget en POINTS, pas en cases — même raison que la
-                // Charge depuis la Rivière Gelée : `coutChemin()` est ce que
-                // le déplacement du catalogue autorise réellement.
-                $cout = $chemin === null ? null : $vol->coutChemin($chemin);
+                // null : inaccessible même en traversant. [] : déjà sur la case visée.
+                if ($chemin === null || $chemin === []) {
+                    continue;
+                }
 
-                if ($chemin !== null && $cout <= (int) $instance->monstre->deplacement) {
-                    if ($meilleure === null || $cout < $vol->coutChemin($meilleure[1])) {
-                        $meilleure = [$cible, $chemin];
-                    }
+                $cout = $vol->coutChemin($chemin);
+
+                if ($meilleurCout === null || $cout < $meilleurCout) {
+                    $meilleur = $chemin;
+                    $meilleurCout = $cout;
                 }
             }
         }
 
-        if ($meilleure === null) {
-            return null; // hors de portée même en traversant
+        return $meilleur;
+    }
+
+    /**
+     * Le tronçon d'un trajet qui s'ARRÊTE sur la dernière case où le Dragon peut finir (emprise libre, hors
+     * mare et brasier). `[]` s'il n'en est aucune : il reste alors sur place. Même recul que le Patinage
+     * (`derniereCaseFranchissable()`), mais sur l'emprise entière.
+     *
+     * @param  list<array{x: int, y: int}>  $prefixe
+     * @return list<array{x: int, y: int}>
+     */
+    private function troncJusquALArret(Grille $grille, InstanceMonstre $instance, array $prefixe): array
+    {
+        $e = $instance->monstre->emprise();
+
+        for ($i = count($prefixe) - 1; $i >= 0; $i--) {
+            if ($grille->empriseArretPossible((int) $prefixe[$i]['x'], (int) $prefixe[$i]['y'], $e['l'], $e['h'])) {
+                return array_slice($prefixe, 0, $i + 1);
+            }
         }
 
-        [$cible, $chemin] = $meilleure;
-        $depart = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
-        $arrivee = $chemin === [] ? $depart : $this->derniereCaseFranchissable($quete, $instance, $chemin);
+        return [];
+    }
 
-        if ($arrivee === null) {
-            return null; // aucune case réellement libre sur tout le trajet : pas de progrès
-        }
+    /**
+     * Une jambe du Dragon : le déplacement est écrit en base, journalisé, et rendu avec son trajet case par
+     * case — la table le joue comme une marche de monstre (`ResolveurTour::animerTrajetsDread()`).
+     *
+     * @param  array{x: int, y: int}  $depart
+     * @param  list<array{x: int, y: int}>  $chemin  cases réellement parcourues ; la dernière est l'arrivée
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function bougerDraconique(Groupe $groupe, InstanceMonstre $instance, array $depart, array $chemin, ?int $jambe, array $acteur): array
+    {
+        $arrivee = end($chemin);
+        $vers = ['x' => (int) $arrivee['x'], 'y' => (int) $arrivee['y']];
 
-        $instance->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+        $instance->update(['position_x' => $vers['x'], 'position_y' => $vers['y']]);
 
-        $grilleApres = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
-        $auContact = $grilleApres->sontAdjacentes(
-            (int) $arrivee['x'], (int) $arrivee['y'], (int) $cible->position_x, (int) $cible->position_y,
-        );
+        $payload = [
+            'type' => 'deplacement_monstre',
+            'id' => (int) $instance->id,
+            'monstre' => $instance->nomAffiche(),
+            'depart' => $depart,
+            'chemin' => array_map(fn (array $c) => ['x' => (int) $c['x'], 'y' => (int) $c['y']], $chemin),
+            'vers' => $vers,
+            'vol' => true,
+            'jambe' => $jambe,
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
 
-        if (! $auContact) {
-            // Le recul sur case réellement libre l'a arrêté avant le contact :
-            // il se rapproche, sans frapper ce tour — jamais à travers une
-            // figure sur laquelle il se serait arrêté.
-            $payload = [
-                'type' => 'vol_draconique',
-                'instance_id' => (int) $instance->id,
-                'monstre' => $nomMonstre,
-                'depart' => $depart,
-                'vers' => ['x' => $arrivee['x'], 'y' => $arrivee['y']],
-            ];
-            Journal::ajouter($groupe, 'action', $payload, $acteur);
+        return $payload;
+    }
 
-            return $payload;
-        }
-
+    /**
+     * Le COUP de Draconic Flight : une attaque du Dragon sur le héros qu'il vient de rejoindre, sans bonus
+     * d'attaque (la carte n'en donne aucun). Le déplacement n'est PAS dans ce payload : il est dans la
+     * jambe 1 (`bougerDraconique()`).
+     *
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function frappeDuVol(Groupe $groupe, InstanceMonstre $instance, EtatPersonnageQuete $cible, array $acteur): array
+    {
+        $nomMonstre = $instance->nomAffiche();
         $personnage = $cible->personnage;
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: $instance->attaqueEffective(),
@@ -4969,8 +5149,6 @@ final class MoteurDread
             'type' => 'vol_draconique',
             'instance_id' => (int) $instance->id,
             'monstre' => $nomMonstre,
-            'depart' => $depart,
-            'vers' => ['x' => $arrivee['x'], 'y' => $arrivee['y']],
             'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,

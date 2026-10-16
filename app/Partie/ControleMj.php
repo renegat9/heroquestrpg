@@ -39,17 +39,33 @@ final readonly class ControleMj
     /** Son déplacement COMPLET de ce round, tel qu'il l'a lancé pour son propre tour (Domination). */
     public const DEPLACEMENT_COMPLET = 'complet';
 
+    /**
+     * Le déplacement du MONSTRE dont il emprunte la forme (le loup-garou : 9 cases, celui du Loup géant).
+     * Lu dans le catalogue par le nom `{@see $forme}` — jamais recopié ici.
+     */
+    public const DEPLACEMENT_MONSTRE = 'monstre';
+
     public function __construct(
-        /** Le nom du profil, repris par les payloads (`possession`, `domination`). */
+        /** Le nom du profil, repris par les payloads (`possession`, `domination`, `loup_garou`). */
         public string $nom,
         /** Vers qui le MJ envoie le héros : {@see self::CIBLE_MONSTRE} ou {@see self::CIBLE_HEROS}. */
         public string $cible,
-        /** De combien il avance : {@see self::DEPLACEMENT_BASE} ou {@see self::DEPLACEMENT_COMPLET}. */
+        /** De combien il avance : {@see self::DEPLACEMENT_BASE}, {@see self::DEPLACEMENT_COMPLET} ou {@see self::DEPLACEMENT_MONSTRE}. */
         public string $deplacement,
         /** Frappe-t-il à l'arme un héros à son contact ? */
         public bool $attaque,
         /** Lance-t-il un sort offensif de son répertoire sur un héros en vue ? */
         public bool $sorts,
+        /**
+         * Le NOM DE CATALOGUE du monstre dont il emprunte les stats de forme (`monstres.nom_base`) : sa vitesse
+         * (`DEPLACEMENT_MONSTRE`) et ses dés d'attaque (`attaque`). `null` = les stats du héros lui-même.
+         * Lu par `HerosJoueParLeMj::jouer()` et `frapperUnHeros()`.
+         */
+        public ?string $forme = null,
+        /** Les pièges de la route se déclenchent-ils ? Un loup n'en subit aucun (« unaffected by traps or pits »). */
+        public bool $pieges = true,
+        /** Le contact est-il diagonal ? Un loup-garou attaque « as a giant wolf » : toute case voisine (F7539 p. 10). */
+        public bool $diagonales = false,
     ) {}
 
     /**
@@ -82,6 +98,30 @@ final readonly class ControleMj
             deplacement: self::DEPLACEMENT_COMPLET,
             attaque: true,
             sorts: true,
+        );
+    }
+
+    /**
+     * *Werewolf's Curse* (Mage of the Mirror, F7539 p. 10-11) : « Zargon controls them as a monster for one
+     * turn […] This wolf is a true monster, with no hero abilities and all the abilities of monsters (moves on
+     * Zargon's turn, attacks as a giant wolf, unaffected by traps or pits, cannot open doors, etc.) ».
+     *
+     * Le loup AVANCE de la vitesse du Loup géant (9), MORD à ses 6 dés d'attaque — jamais ceux du héros —,
+     * ne lance AUCUN sort (aucune capacité de héros, et le Loup géant n'en a pas), ignore les pièges, et attaque
+     * toute case voisine (la règle des grandes figurines, p. 10). Il n'ouvre pas les portes closes : la grille
+     * de déplacement les tient fermées pour lui, comme pour tout ce qui marche — rien d'autre n'est à écrire.
+     */
+    public static function loupGarou(): self
+    {
+        return new self(
+            nom: 'loup_garou',
+            cible: self::CIBLE_HEROS,
+            deplacement: self::DEPLACEMENT_MONSTRE,
+            attaque: true,
+            sorts: false,
+            forme: 'Loup géant',
+            pieges: false,
+            diagonales: true,
         );
     }
 }

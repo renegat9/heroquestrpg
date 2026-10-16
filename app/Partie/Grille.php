@@ -759,6 +759,29 @@ final class Grille
     }
 
     /**
+     * Une figure d'emprise l×h ancrée en (x,y) peut-elle FINIR son mouvement ici ?
+     * Toute son emprise libre (`empriseLibre()`) ET hors du terrain qui interdit
+     * l'arrêt (mare, brasier, `arretInterditParTerrain()`). C'est `arretInterdit()`
+     * étendu à une emprise : une grande figure ne s'arrête pas à moitié sur une
+     * case occupée. Pour une emprise 1×1, équivaut à `!arretInterdit()` plus
+     * `estTraversable()`.
+     */
+    public function empriseArretPossible(int $x, int $y, int $l, int $h): bool
+    {
+        if (! $this->empriseLibre($x, $y, $l, $h)) {
+            return false;
+        }
+
+        foreach ($this->cellulesEmprise($x, $y, $l, $h) as $c) {
+            if ($this->arretInterditParTerrain($c['x'], $c['y'])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Ligne de vue (prérequis Phase 2, doc 14) : (x2,y2) est-elle visible
      * depuis (x1,y1) ?
      *

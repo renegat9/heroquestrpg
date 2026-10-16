@@ -57,12 +57,28 @@ final class SceneDeTable
     public function depuisResultat(array $resultat, Personnage $acteur, array $figuresEnMarche = []): array
     {
         $scenes = [];
+        // Figurines qui ont MARCHÉ plus tôt dans CE tour (une jambe de Draconic Flight, par exemple).
+        $dejaMarche = [];
 
         foreach (JournalCombat::actionsDuTour($resultat) as $action) {
+            $figure = $this->figureDe($action, $acteur);
+            $attend = in_array($figure, $figuresEnMarche, true);
+
+            // Le SORT d'un monstre attend la marche qui le PRÉCÈDE dans le tour, et seulement celle-là : une
+            // jambe qui le SUIT (Draconic Flight, sort d'abord) ne doit pas retenir la scène jusqu'à sa fin.
+            // Sans marche avant lui, la scène passe tout de suite — le sort est bien le premier de la séquence.
+            if (($action['type'] ?? null) === 'sort_dread' && is_int($action['lanceur']['instance_id'] ?? null)) {
+                $figure = 'monstre:'.$action['lanceur']['instance_id'];
+                $attend = in_array($figure, $dejaMarche, true);
+            }
+
             foreach ($this->depuisAction($action, $acteur) as $scene) {
-                $figure = $this->figureDe($action, $acteur);
-                $scene['figure'] = in_array($figure, $figuresEnMarche, true) ? $figure : null;
+                $scene['figure'] = $attend ? $figure : null;
                 $scenes[] = $scene;
+            }
+
+            if (($action['type'] ?? null) === 'deplacement_monstre' && isset($action['id'])) {
+                $dejaMarche[] = 'monstre:'.(int) $action['id'];
             }
         }
 
@@ -491,6 +507,11 @@ final class SceneDeTable
             // compagnons — deux scènes que la table devait voir, avec le héros dominé pour acteur.
             'domination_attaque' => $this->dominationAttaque($a),
             'domination_sort' => $this->dominationSort($a),
+            // MALÉDICTION DU LOUP-GAROU (F7539 p. 10-11) : le jet qui transforme, la morsure du loup, le retour.
+            // Le pas du loup est muet par principe (un déplacement l'est) : le fil le dit, la morsure se voit.
+            'malediction_jet' => $this->maledictionJet($a),
+            'loup_attaque' => $this->loupAttaque($a),
+            'loup_reprend_forme' => $this->loupReprendForme($a),
             // MOBILIER ATTAQUABLE (PV + défense, 2026-10-04) : même genre
             // `attaque` qu'un coup porté à un monstre — Crystal Cluster, Haut
             // Autel, Coffre du Dread se détruisent au combat, pas sur un jet
@@ -656,6 +677,98 @@ final class SceneDeTable
         }
 
         return $scene;
+    }
+
+    /**
+     * Le jet de début de tour d'un héros maudit : deux dés rouges, et la forme qui en sort. Le total est écrit dans
+     * le sous-titre — les dés rouges n'ont pas de planche dessinée dans ce genre de scène.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function maledictionJet(array $a): ?array
+    {
+        $heros = Personnage::find((int) ($a['personnage_id'] ?? 0));
+
+        if ($heros === null) {
+            return null;
+        }
+
+        $faces = array_values((array) ($a['faces'] ?? []));
+        $transforme = ! empty($a['transforme']);
+
+        return [
+            'genre' => 'jet',
+            'titre' => "{$heros->nom} — la malédiction du loup-garou",
+            'sous_titre' => implode(' + ', $faces).' = '.(int) ($a['total'] ?? array_sum($faces)).' sur deux dés rouges',
+            'acteurs' => [$this->acteurHeros($heros, 'acteur')],
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [],
+            'issue' => $transforme
+                ? ['ton' => 'chute', 'libelle' => 'il se transforme en loup']
+                : ['ton' => 'info', 'libelle' => 'il reste sous forme humaine'],
+        ];
+    }
+
+    /**
+     * La morsure du loup sur un héros à son contact : la scène d'attaque de `dominationAttaque()`, avec le loup pour
+     * attaquant (son nom suivi de « en loup »), jamais une seconde mise en forme du coup.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function loupAttaque(array $a): ?array
+    {
+        $loup = Personnage::find((int) ($a['personnage_id'] ?? 0));
+        $cible = Personnage::find((int) ($a['cible']['personnage_id'] ?? 0));
+
+        if ($loup === null || $cible === null) {
+            return null;
+        }
+
+        return [
+            'genre' => 'attaque',
+            'titre' => "{$loup->nom}, en loup, mord {$cible->nom}",
+            'sous_titre' => 'la malédiction du loup-garou — sous le contrôle de Zargon',
+            'acteurs' => [
+                $this->acteurHeros($loup, 'attaquant'),
+                $this->acteurHeros($cible, 'defenseur'),
+            ],
+            'jet' => $this->jetDesDes($a, $loup->nom, $cible->nom),
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [],
+            'issue' => $this->issueDuCoup($a, (int) ($a['degats'] ?? 0), $cible->nom, vaincue: ! empty($a['cible_tombee']), heros: true),
+        ];
+    }
+
+    /**
+     * Le retour sous forme humaine : le héros reprend son corps, son joueur reprend la main.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function loupReprendForme(array $a): ?array
+    {
+        $heros = Personnage::find((int) ($a['personnage_id'] ?? 0));
+
+        if ($heros === null) {
+            return null;
+        }
+
+        return [
+            'genre' => 'jet',
+            'titre' => "{$heros->nom} reprend forme humaine",
+            'sous_titre' => 'la fin du tour de Zargon',
+            'acteurs' => [$this->acteurHeros($heros, 'acteur')],
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [],
+            'issue' => ['ton' => 'succes', 'libelle' => 'son joueur reprend la main'],
+        ];
     }
 
     /**

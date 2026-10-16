@@ -61,11 +61,11 @@ it('recense les 29 cartes de dread_spells.pdf, portées et non portées', functi
     // Glace, Patinage —, 23 depuis le 2026-09-04, quand la *Rouille* a été portée sur
     // arbitrage de René : « c'est correct qu'un joueur puisse perdre un objet ».)
     //
-    // ⚠ La seule qui reste N'EST PAS un oubli : *Werewolf's Curse* délègue sa règle à un
-    // livret que nous n'avons pas.
+    // 29 depuis le 2026-10-16 : *Werewolf's Curse* (« Malédiction du loup-garou ») a rejoint le catalogue avec la
+    // transformation en loup (`App\Partie\MaledictionLoupGarou`, F7539 p. 10-11). Aucune carte n'est plus écartée.
     $portees = $cartes->whereNotNull('sort_dread');
-    expect($portees)->toHaveCount(28)
-        ->and($cartes->whereNull('sort_dread')->pluck('carte')->all())->toBe(["Werewolf's Curse"]);
+    expect($portees)->toHaveCount(29)
+        ->and($cartes->whereNull('sort_dread')->pluck('carte')->all())->toBe([]);
 
     // Chaque carte écartée dit son texte de plateau ET la mécanique qui lui
     // manque : une carte non portée est une dette NOMMÉE, pas un oubli.

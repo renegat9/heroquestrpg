@@ -992,9 +992,19 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Potion de restauration supérieure', 'categorie' => 'consommable', 'prix_base' => 800, 'emplacement' => 'consommable',
                 // « restores any hero's Body and Mind Points to the level they
                 // were at when the hero started the Quest » = au MAXIMUM chez
-                // nous. La clause « cure a hero turned into a werewolf » n'a pas
-                // d'objet : aucun lycanthrope au bestiaire.
-                'effet' => ['restaure_jauges_depart' => true, 'cible' => 'heros_adjacent']],
+                // nous. « This potion may also be used to cure a hero who has
+                // been turned into a werewolf » (F7539 p. 2) : la malédiction du
+                // loup-garou, retirée par le même lecteur que l'Antidote.
+                'effet' => ['restaure_jauges_depart' => true, 'retire_condition' => 'Malédiction du loup-garou', 'cible' => 'heros_adjacent']],
+            // Potion d'aconit — « Wolfsbane Potion » (F7539 p. 14, quête 7 : « The first hero to search for treasure in
+            // this room finds two wolfsbane potions », salle E). Carte transcrite (`reference/18` §Mage of the Mirror) : « This potion may
+            // be used by any hero suffering from the werewolf's curse. It cures the hero. The potion may be used
+            // only once. Do not return this card to the deck. » Aucun prix imprimé sur la carte : `prix_base` 0
+            // et rareté `unique`, comme la Fiole de soin — on la TROUVE, on ne l'achète pas (⚠ non trouvé : aucun
+            // prix sourcé, donc aucun prix inventé). Son remède est `retire_condition`, le lecteur de l'Antidote.
+            ['nom' => "Potion d'aconit", 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 0,
+                'emplacement' => 'consommable', 'boite' => 'mage_du_miroir',
+                'effet' => ['retire_condition' => 'Malédiction du loup-garou', 'cible' => 'heros_adjacent']],
 
             // ===== Wizards of Morcar (« Boutique de l'Alchimiste », doc 18
             // §3, lot F, 2026-10-06) : trois potions VENDUES, prix et texte de

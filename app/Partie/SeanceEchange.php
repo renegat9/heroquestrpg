@@ -60,6 +60,16 @@ final class SeanceEchange
      */
     public function resoudre(Personnage $moi, Personnage $allie, array $transferts): array
     {
+        // Un loup n'a pas de sac et ne tend rien (F7539 p. 10) : le menu ne propose pas la séance (`MenuMoteur`),
+        // et le résolveur la refuse aussi.
+        foreach ([$moi, $allie] as $partie) {
+            if (MaledictionLoupGarou::estEnLoup($partie)) {
+                throw ValidationException::withMessages([
+                    'parametres' => "« {$partie->nom} » est sous forme de loup : il ne peut rien échanger.",
+                ]);
+            }
+        }
+
         if ($transferts === []) {
             throw ValidationException::withMessages([
                 'parametres' => 'Aucun objet à échanger.',
