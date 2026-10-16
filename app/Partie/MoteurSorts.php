@@ -461,6 +461,44 @@ final class MoteurSorts
         ];
     }
 
+    /**
+     * Les répertoires qu'un héros PEUT PRENDRE EN PLUS de ceux qu'il connaît — la LISTE BLANCHE
+     * de la faveur *Arcane Library* (Hopekins Rest, livret G1504 p. 23) : « After heroes have
+     * selected spells, you may take an additional set of spells that you are eligible to cast.
+     * This boon is only for spellcasting heroes. »
+     *
+     * « Eligible to cast » est lu avec les règles des lanceurs déjà en place, jamais une liste
+     * recopiée :
+     *  - un non-lanceur (`LANCEURS`) n'a rien à prendre ;
+     *  - les trois répertoires OPTIONNELS (`REPERTOIRES_OPTIONNELS`) sont ouverts aux CINQ
+     *    classes — le livret p. 11 n'en exclut aucune ;
+     *  - les quatre ÉCOLES élémentaires (`ELEMENTS`) ne le sont qu'au Magicien et à l'Elfe, les
+     *    seules classes qui puisent dans les éléments (le Barde, le Druide et le Warlock ont leur
+     *    répertoire de classe, fixe, qu'ils ont déjà) ;
+     *  - jamais un répertoire déjà connu (`attacherElement()` est idempotent : le reprendre ne
+     *    donnerait rien, et la faveur serait dépensée pour rien).
+     *
+     * ⚠ Écart nommé : le répertoire ELFIQUE (3 sorts pris parmi 8, un choix interne) n'est pas
+     * offert comme « set supplémentaire » — il demande son propre écran, et la règle « école OU
+     * elfique, jamais les deux » de l'Elfe n'a pas été tranchée pour ce cas.
+     *
+     * @return list<string>
+     */
+    public function repertoiresSupplementaires(Personnage $personnage): array
+    {
+        if (! in_array($personnage->classe, self::LANCEURS, true)) {
+            return [];
+        }
+
+        $candidats = self::REPERTOIRES_OPTIONNELS;
+
+        if (in_array($personnage->classe, ['magicien', 'elfe'], true)) {
+            $candidats = [...self::ELEMENTS, ...$candidats];
+        }
+
+        return array_values(array_diff($candidats, $this->elementsConnus($personnage)));
+    }
+
     // ------------------------------------------------------------------
     // Récupération par quête (S5/S6)
     // ------------------------------------------------------------------
@@ -483,6 +521,11 @@ final class MoteurSorts
             ->where('personnage_id', $personnage->id)
             ->where('source', 'like', self::PREFIXE_SOURCE.'%')
             ->delete();
+
+        // Un gel de *Mind Lock* (source `sort_dread:`, que la purge ci-dessus ne connaît pas) ne passe
+        // pas d'une quête à l'autre : la colonne qui le compte (`etat_personnage_quete.verrou_mental`)
+        // naît vide avec la quête, et la condition resterait seule — sans compteur, rien ne la lèverait.
+        app(VerrouMental::class)->purger($personnage);
     }
 
     /**
@@ -1419,6 +1462,18 @@ final class MoteurSorts
         if (data_get($sort->effet, 'zone') !== null) {
             return null;
         }
+
+        // IMMUNITÉS DE MONSTRE (`App\Engine\MotsClesAdversaires`) : une créature
+        // « immune to all spell effects » (Guardian Effigy) n'est cible d'AUCUN sort — ni
+        // pour le blesser, ni pour l'endormir ; une immunité PARTIELLE (Bloomrot Scion :
+        // « spells that would cause it to sleep or miss its turn ») n'écarte que les sorts
+        // qui poseraient l'une de ces conditions. Retirée ICI, à l'unique porte du menu :
+        // la liste portée par l'option est la liste blanche que le résolveur relit.
+        $conditionsPosees = $this->conditionsPoseesSurMonstre($sort);
+        $monstres = array_values(array_filter($monstres, function (array $m) use ($conditionsPosees) {
+            return empty($m['immunite_sorts'])
+                && array_intersect($conditionsPosees, (array) ($m['conditions_immunisees'] ?? [])) === [];
+        }));
 
         $offensif = in_array($sort->type, ['degats', 'mental'], true);
 
@@ -2619,6 +2674,37 @@ final class MoteurSorts
         return (bool) data_get($instance->habillage, "conditions.{$cle}", false);
     }
 
+    /**
+     * Les conditions de MONSTRE qu'un sort de héros pose quand il prend. Le miroir EXACT de ce
+     * que `ResolveurTour::appliquerEffetMental()` et `sortDeZone()` posent — `Endormi`,
+     * `saute_tour`, `condition_monstre` — lu par `ciblesLegales()` pour écarter du menu les
+     * créatures qui s'en savent immunisées (`Monstre::conditionsImmunisees()`).
+     * `AdversairesNommesTest` verrouille l'accord : aucun sort du catalogue ne pose une condition
+     * que cette liste ignorerait.
+     *
+     * @return list<string>
+     */
+    public function conditionsPoseesSurMonstre(Sort $sort): array
+    {
+        $cles = [];
+
+        if (data_get($sort->effet, 'condition_appliquee') === 'Endormi') {
+            $cles[] = self::MONSTRE_ENDORMI;
+        }
+
+        if ((bool) data_get($sort->effet, 'saute_tour', false)) {
+            $cles[] = self::MONSTRE_SAUTE_TOUR;
+        }
+
+        $generique = data_get($sort->effet, 'condition_monstre');
+
+        if (is_string($generique)) {
+            $cles[] = $generique;
+        }
+
+        return array_values(array_unique($cles));
+    }
+
     public function retirerConditionMonstre(InstanceMonstre $instance, string $cle): void
     {
         if (! $this->monstreA($instance, $cle)) {
@@ -3247,6 +3333,11 @@ final class MoteurSorts
                     'y' => (int) $i->position_y,
                     'l' => (int) $e['l'],
                     'h' => (int) $e['h'],
+                    // IMMUNITÉS (`App\Engine\MotsClesAdversaires`) : lues par `ciblesLegales()`,
+                    // qui retire de la liste ce qu'aucun sort ne peut atteindre — le menu n'offre
+                    // jamais ce que le résolveur refuserait.
+                    'immunite_sorts' => $i->monstre->immuniseAuxSorts(),
+                    'conditions_immunisees' => $i->monstre->conditionsImmunisees(),
                 ];
             })
             ->values()

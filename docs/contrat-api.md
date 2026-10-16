@@ -59,6 +59,7 @@ proposition du MJ. » quand ce n'est pas son tour.
                                        "sequence": 101} ,
              "faveur_hopekins": {"action": "faveur_hopekins", "quete_id": 7, "faveur": "deadeye",
                                  "faveur_libelle": "Deadeye", "faveur_effet": "Les figures ne bloquent pas votre ligne de vue…",
+                                 "detail": "null pour une compétence ; sinon ce que la faveur a fait ou ce qui reste à faire",
                                  "personnage_id": 1, "personnage": "Albrecht", "sequence": 102} ,
              "prologue": {"texte": "prémisse...", "url": "/audio/.../...wav|null",
                           "menace": {"nom": "...", "description": "..."}, "auto": true}},
@@ -856,7 +857,12 @@ rarete, emplacement, quantite, revente}]}], total_projete, or_courant}` — le
 `inventaire` de chaque panier liste ce que ce joueur peut vendre (héros actifs),
 avec le prix de revente M1 déjà calculé. Prix d'achat = prix_base × multiplicateur
 du profil (doc 04 §3) ; revente = 50 % du prix marchand courant (M1) ; rareté
-`unique` jamais en stock. Garde-fous à l'application : total ≥ 0, stock, objets
+`unique` jamais en stock. ⚠ **Une carte de trésor SANS PRIX** (`effet.hors_marche`,
+décision de René du 2026-10-16 : « On ne peut pas vendre les potions qu'on trouve
+dans les trésors » — *Potion d'héroïsme*, *Potion de force*, *Potion de défense*) n'est
+ni à l'étal, ni dans l'`inventaire` vendable du panier : son achat répond 422 (« n'est
+pas proposé par ce marchand »), sa revente 422 (« ne se revend pas »), comme un
+artefact. Elle reste trouvable en fouille et se boit. Garde-fous à l'application : total ≥ 0, stock, objets
 vendus réellement possédés, **capacité de sac** (PV Body max ÷ 2 arrondi
 inférieur + bonus_sac de classe — doc 01) respectée pour chaque personnage.
 
@@ -988,7 +994,7 @@ seulement le thème `wizards_of_morcar` :
 Récompense de quête **séparée, HORS arbre de talents** — un don PONCTUEL et
 durable sur la FICHE DU HÉROS (`EtatGroupe.entites[].faveurs` en quête,
 `groupe.faveur_hopekins` pour la dernière attribuée au hub), jamais recalculé
-depuis autre chose que `personnage_faveurs`. Les CINQ compétences portées :
+depuis autre chose que `personnage_faveurs` (et, pour les faveurs instantanées, le sac). Les CINQ compétences portées :
 *Deadeye* (les figures ne bloquent plus la ligne de vue de ce héros pour
 tirer/lancer un sort), *Weapon Expert* (+1 dé d'attaque avec le **type d'arme choisi par le
 joueur au hub, en recevant la faveur** — voir plus bas ; repli : le premier type d'arme
@@ -998,9 +1004,13 @@ soin DE CE porteur), *Hold the Line* (jet de dé de combat quand un monstre
 quitte les 8 cases autour de ce héros au tour de Zargon ; sur un crâne, 1
 dégât fixe), *Peacekeeper* (**compté à la mise à mort, PAYÉ à la fin de la quête réussie** — 2026-10-08 : 25 po par monstre que ce héros réduit à 0 PV PENDANT CETTE quête, « at the end of that quest », ce qui tranche l'écart de timing que la version précédente laissait à René). Compteur durable `etat_personnage_quete.monstres_vaincus` (par héros, par quête, repris par le snapshot) ; crédit au seul point de passage `MoteurDegats::infligerAMonstre()` → `FaveursHopekins::compterPeacekeeper()`, braise différée comprise ; versement `FaveursHopekins::reglerPeacekeeper()`, appelé par `ResolveurTour::terminerQuete()` seulement (jamais après un TPK), AVANT l'entretien ; jamais pour un allié, un piège, un sort du Dread ou un sbire. Annoncé au hub : `groupe.peacekeeper` = `{quete_id, or_total, versements: [{personnage_id, nom, monstres, or}]}`, bornée à la dernière quête achevée comme l'entretien ; `null` si personne n'a rien à percevoir.)
 
+Les **QUATRE faveurs mécaniques** du lieu, portées le 2026-10-15 (René) — voir plus bas :
+*Mercenary Guild* (`mercenary_guild`), *Dewdrop Inn* (`dewdrop_inn`), *Witch's Hut*
+(`witchs_hut`, instantanée), *Arcane Library* (`arcane_library`).
+
 **Forme publiée d'une faveur** (2026-10-08, un seul point de passage
 `FaveursHopekins::publier()`) : `{cle, libelle, effet}` — `libelle` le nom de
-la carte, `effet` la phrase en clair (vocabulaire `FaveursHopekins::EFFETS`,
+la carte (ou du lieu), `effet` la phrase en clair (vocabulaire `FaveursHopekins::EFFETS`,
 relu à chaque publication). Publiée sur `EtatGroupe.entites[].faveurs` (en
 quête, table) **et** sur `GET /api/moi` → `joueur.personnages[].faveurs` (la
 fiche de la manette, au hub comme en quête).
@@ -1008,15 +1018,50 @@ fiche de la manette, au hub comme en quête).
 **Attribution** (décision d'interprétation de ce chantier — le livret ne
 tranche que « un héros visite un lieu, hors ligne ») : à la fin d'une quête
 **réussie**, une fois Gardien, le groupe reçoit **une faveur tirée au
-hasard** parmi les 5 non encore détenues par aucun héros actif, remise à un
-héros actif **lui aussi tiré au hasard** — ni choix de la faveur ni de son
-porteur (le seul choix du joueur est le TYPE D'ARME de *Weapon Expert*, ci-dessous), une
-décision engine-autoritaire annoncée (journal `systeme`
+hasard**, remise à un héros actif **lui aussi tiré au hasard** — ni choix de la faveur ni de son
+porteur (les seuls choix du joueur sont le TYPE D'ARME de *Weapon Expert* et le RÉPERTOIRE d'*Arcane Library*,
+ci-dessous). Le tirage est **au dé injecté** (`OubliSorts::indiceAleatoire()`) : la partie reste rejouable.
+Qui peut recevoir quoi est décidé en UN point, `FaveursHopekins::candidatsDeTirage()` :
+les cinq compétences portent « (1 available) » — aucune si un héros actif du groupe la détient ;
+*Mercenary Guild*, *Dewdrop Inn*, *Arcane Library* sont **par héros** (la bibliothèque seulement pour un lanceur
+à qui il reste un répertoire à prendre) ; *Witch's Hut* est **cumulable** (« Can be gained multiple times ») et
+n'écrit aucune ligne : le tirage n'est donc plus jamais épuisé. Journal `systeme`
 `{action: 'faveur_hopekins', quete_id, faveur, faveur_libelle, personnage_id,
-personnage}`, republiée au hub sous `groupe.faveur_hopekins` avec en plus
+personnage, detail}` — `detail` : ce que la faveur a **fait** (« Albrecht passe à 10 PV de Body maximum. »,
+« Albrecht reçoit une Potion de guérison. ») ou ce qui **reste à faire** (« … choisira un répertoire de sorts
+supplémentaire au hub »), `null` pour une compétence —, republiée au hub sous `groupe.faveur_hopekins` avec en plus
 `faveur_effet`, **seulement si** `quete_id` est la dernière quête achevée —
-même garde que l'entretien). Épuisé (les 5 déjà distribuées dans ce groupe) :
-rien n'est tiré, silencieusement.
+même garde que l'entretien.
+
+**Les quatre faveurs mécaniques** (René, 2026-10-15 ; livret G1504 p. 23, texte de la carte cité) :
+
+- *Dewdrop Inn* — « Raise your hero's max Body Points by 2 ». `personnage_faveurs` (ligne unique par héros) + le
+  plafond passe par `Equipement::apresChangementDeJauges()` / `bonusJauges()`, le point de passage des PV max hors
+  montée de niveau : +2 au maximum **et** au courant, la capacité du sac (PV max ÷ 2) suit d'office, le +2 survit
+  à un talisman posé puis retiré.
+- *Witch's Hut* — « Gain 1 Potion of Healing ». Une **Potion de guérison** (la carte officielle, `Potion of Healing`
+  du registre) entre dans le sac (`RangementObjet::ranger()`, hors capacité). **Instantanée** : aucune ligne de
+  faveur ; la potion est l'état durable, boissons et Healing Hands la lisent comme toute potion.
+- *Mercenary Guild* — « Recruit a Mercenary without paying their cost ». Passe par le recrutement **existant**
+  (`POST …/mercenaires`, mêmes garde-fous : hub, Gardien, quatre par héros, animal unique) : seul le **prix** change
+  (0, `offert_par_faveur: true` dans `groupe.recrutement.offres[].decisions[]` et `recrue.offert_par_faveur` dans la
+  réponse), pour un mercenaire (**pas** un compagnon animal), un seul à la fois. La faveur retient l'allié engagé
+  (`personnage_faveurs.parametre` = `groupe_mercenaires.id`) : tant qu'il sert ce héros le droit est consommé ; mort
+  ou parti, il se rouvre. La Potion de charme n'est pas consommée par un recrutement offert. **L'entretien de 10 po
+  reste dû** (« cost » = le prix d'engagement de la carte) : l'allié n'est pas `groupe_mercenaires.offert`, drapeau du
+  compagnon animal « at no cost ». La fiche publie `recrutement_offert: bool` sur cette faveur.
+- *Arcane Library* — « an additional set of spells that you are eligible to cast ; only for spellcasting heroes ».
+  Choix du joueur, au hub, comme Weapon Expert : `faveurs[]` porte `repertoire` (l'élément pris, `null` tant qu'aucun)
+  et `choix` — la **LISTE BLANCHE** `[{element, sorts: [nom…]}]`, non nulle seulement dans `GET /moi` et au hub tant
+  qu'il reste à choisir. La liste est `MoteurSorts::repertoiresSupplementaires()` : pour un lanceur, les trois
+  répertoires optionnels (`protection`, `detection`, `tenebres`) ; pour le Magicien et l'Elfe, en plus les écoles
+  élémentaires qu'ils ne connaissent pas ; jamais un répertoire déjà connu. Le répertoire pris est ensuite un
+  répertoire comme un autre (remplaçable au hub, `PUT …/sorts-repertoire`). Écart nommé : le répertoire *elfique*
+  (3 sorts parmi 8) n'est pas offert.
+
+| Méthode | URL | Corps | Effet |
+|---|---|---|---|
+| PUT | /groupes/{identifiant}/faveurs/arcane-library | {personnage_id, element} | attache les 3 sorts de l'élément (`personnage_sorts`) et écrit `personnage_faveurs.parametre` (EN BASE) = l'élément, définitif. **Hub uniquement.** 200 `{personnage_id, element, sorts: [nom…], faveurs}`. 422 : hors hub, héros qui n'est pas à ce joueur ou sans la faveur, choix déjà fait, `element` hors de la liste blanche. Journal `systeme` `faveur_repertoire_choisi` `{personnage_id, personnage, faveur, element, sorts}`. **`POST /pret` : 422 `pret`** pour CE héros tant qu'il porte la faveur sans répertoire choisi et qu'il en a un à prendre. |
 
 **Weapon Expert — le joueur choisit son type d'arme** (René, 2026-10-15 ; livret G1504
 p. 22-23 : « Select a type of weapon […] when you acquire this Boon »). La faveur et son
@@ -1129,8 +1174,9 @@ tour normal au round suivant, juste après lui. → `docs/regles/combat-et-tour.
 **Décision publiée (2026-10-08).** Le front ne calcule plus la disponibilité :
 `EtatGroupe.groupe.recrutement.offres` publie, au hub, pour CHAQUE allié non
 octroyé seul et CHAQUE héros actif du groupe, `{personnage_id, nom, prix,
-prix_catalogue, rabais_po, recrutable, motif}` — `prix` est ce que ce héros paie
-RÉELLEMENT (remise de Potion de charme comprise), `recrutable` la décision,
+prix_catalogue, rabais_po, offert_par_faveur, recrutable, motif}` — `prix` est ce que ce héros paie
+RÉELLEMENT (remise de Potion de charme comprise, ou **0** quand la faveur *Mercenary Guild* lui
+offre ce recrutement : `offert_par_faveur: true`, `rabais_po` = le prix catalogue), `recrutable` la décision,
 `motif` la phrase du serveur quand elle est négative (`null` sinon). Un seul
 point de passage, `App\Partie\RecrutementHub` : le POST `…/mercenaires` applique
 la MÊME décision (premier motif = 422, sous la clé `groupe` / `personnage_id` /
@@ -1359,8 +1405,9 @@ toutes deux sont fermées.
 - **Les listes d'actions du résultat** sont toutes parcourues
   (`JournalCombat::PHASES` : `tour_monstres`, `tour_allies`, `tour_sbires` ;
   `JournalCombat::LISTES_PLATES` : `captifs_repris`, `coups_de_corne`,
-  `annonces_automatiques`) et les actions IMBRIQUÉES aussi : `action` (l'embusqué
-  joue tout de suite), `embuscades` (d'un déplacement), `actions_composites`.
+  `filets_silencieux`, `annonces_automatiques`) et les actions IMBRIQUÉES aussi :
+  `action` (l'embusqué joue tout de suite), `embuscades` et `apparitions` (d'un
+  déplacement ou d'une action), `actions_composites`.
   `resultat.annonces_automatiques` est neuf : le tampon générique
   (`TamponAnnonces`) pour les effets qu'aucune action ne retourne (objet volé
   perdu de vue, détection de la Potion de vision).
@@ -1412,6 +1459,15 @@ toutes deux sont fermées.
   « Albrecht boit Fiole de soin : +4 PV de Body (dé 4) — Albrecht est à 6/8 PV »,
   « …Potion de défense : « Renforcé » : +2 dés de défense, Durée : prochaine défense »,
   « …Potion d'héroïsme : une seconde attaque ce tour ».
+  ⚠ **La Potion d'héroïsme se boit AVANT la frappe** (2026-10-16, cartes 2021 et 2024 :
+  « Drink this potion before you attack to make two weapon attacks instead of one »). Une
+  gorgée ni offerte (`utiliser_objet` absente du menu) ni acceptée (422) une fois le héros
+  AYANT AGI ce tour, ou quand une seconde frappe est déjà armée (drapeau
+  `attaque_supplementaire` posé) : une seule gorgée par frappe. C'est `MoteurPotions::refusAvantAttaque()`,
+  lu par `offrable()` (menu) et `boire()` (résolveur). Une gorgée déjà bue sous l'ancien ordre
+  garde sa seconde frappe (le drapeau n'a pas changé de sens, seule la prochaine gorgée est gardée).
+  Le drapeau est remis à zéro à chaque manche (`ouvrirNouveauTour()`) : une gorgée bue puis non
+  suivie d'une frappe dans le même tour est perdue — limite nommée, non tranchée.
 - **Fouille** : un monstre errant nomme le fouilleur (« Gobelin surgit du coffre que fouille
   Tamsin ! ») ; `carte_ecartee` (*Sixième sens*) se dit au fil : « Sixième sens : Tamsin remet
   la carte de piège sous le paquet et en tire une autre ». Seul un **piège** s'écarte (décision
@@ -1529,6 +1585,19 @@ absentes de ce tableau — corrigé au passage du lot First Light C.
 réaction qui ne parte pas d'un coup encaissé, mais d'une carte de fouille qui
 fait surgir un errant dans la salle. `degats` y vaut 0 — la manette doit donc
 lire `action` avant d'écrire « tu viens d'encaisser… ».
+
+⚠ **Le défi ne décide pas seul de la frappe du surgissement** (2026-10-16, carte
+2024 *Wandering Monster* : « The monster immediately attacks »). Tant que la
+proposition est ouverte, le monstre **n'a pas frappé** et ne joue pas au tour des
+monstres (`MoteurReactions::instancesEnAttenteDeDefi()`). La réponse tranche :
+- **accepté** → le monstre se place au contact du Chevalier et le frappe (`frappe`,
+  comme aujourd'hui) ; rien n'est dû au fouilleur ;
+- **refusé**, **expiré** (rattrapé à la lecture d'état) ou **impossible à placer** → le
+  monstre frappe le **fouilleur**, si celui-ci est toujours à son contact : la
+  réponse porte `active: false` et `frappe` (l'`attaque_monstre` avec
+  `apres_defi`). Sans frappe due (le monstre n'était pas au contact au surgissement, ou
+  le fouilleur s'en est éloigné), la réponse n'a pas de `frappe` : le monstre jouera au
+  tour des monstres, comme tout errant.
 
 ⚠ **`soin_urgence` est la seule qui ne DÉFAIT rien : elle paie.** Elle n'est
 proposée que si le héros tombe **à 0 PV** et qu'il lui reste un remède, et elle
@@ -2449,10 +2518,31 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
   - `tresor` — `or` versé au groupe (montant figé dans la carte) ;
   - `potion` — consommable rangé chez **le fouilleur** (`objet`) ;
   - `artefact` — arme **unique** du coffre désigné (`objet`, `coffre: true`) ;
-  - `errant` — monstre du bestiaire instancié au contact, qui joue au tour des monstres — **sans plafond**, sa carte revenant sous le
-    paquet comme les autres ;
-  - `piege` — effet du « Piège de coffre » appliqué **tout de suite** au fouilleur
-    (`declenchement`), jamais posé sur la grille ;
+  - `errant` — monstre du bestiaire instancié (`monstre`), **sans plafond**, sa carte revenant
+    sous le paquet comme les autres. Carte 2024 (*Wandering Monster*) : il est posé sur une case
+    **adjacente OU DIAGONALE** du fouilleur (les huit voisines, `caseLibreProche()`) et **frappe
+    tout de suite** (`frappe_errant`, payload d'`attaque_monstre`) ; le fouilleur **continue son
+    tour** (rien ne l'arrête). Si toutes les voisines sont occupées, il est posé « as close as
+    possible » (repli, LR p. 15) et **ne frappe pas** : il joue au tour des monstres. ⚠ **Défi du
+    chevalier** : quand un Chevalier de la salle accepte la proposition, la frappe immédiate
+    **attend sa réponse** — `defi_en_attente: true` sur le payload, et le monstre ne joue pas au
+    tour des monstres tant que le défi est ouvert. Accepté : il frappe le Chevalier. Refusé,
+    expiré ou impossible à placer : il frappe le fouilleur **à ce moment-là**, si celui-ci est
+    toujours à son contact (`frappe` de la réponse `POST /reaction`, ou du `GET /etat` qui
+    purge l'expiration), avec `apres_defi` sur l'`attaque_monstre` (`refuse` | `expire` |
+    `impossible`). Le même chemin vaut pour une fouille de mobilier : aucune table de meuble ne
+    rend aujourd'hui d'errant (`MobilierSeeder`), mais si l'une en rendait un, elle passerait
+    par `appliquerButin()` et serait traitée pareil ;
+  - `piege` — appliqué **tout de suite** au fouilleur (`declenchement`), jamais posé
+    sur la grille. Deux cas, à ne pas confondre :
+    - **carte « Hazard! » du paquet** (`variante: fleches | trou`, cartes 2021 et 2024) :
+      **1 PV de Body exactement**, le tour s'arrête (`a_joue`), **ni jet ni poison**.
+      Le payload `piege_declenche` porte `hazard: true`, `variante`, `piege.nom`
+      (« Flèche cachée » / « Trou peu profond »), `degats` (ce qui a été réellement
+      perdu) et `fin_de_tour: true` ;
+    - piège **nommé** (un meuble : aiguille du tombeau, fiole de l'établi) ou
+      « Piège de coffre » : effet du catalogue, d6 (1 PV ou Empoisonné).
+
   - `rien`.
 
   Clés additionnelles du payload : `deck_restant` (cartes encore en pioche),
@@ -3267,6 +3357,54 @@ monstre. Il ne RECULE jamais pour tirer : le recul est le trait de l'archer
 (`portee: distance`), pas celui-ci. Le choix est toujours « tirer » : le serveur
 tranche, jamais l'IA.
 
+**Le patron TOURELLE et les quatre adversaires nommés de *Jungles of Delthrak*** (René,
+2026-10-15 — `docs/regles/bestiaire-et-rencontres.md`, `docs/regles/carte-donjon.md`).
+Vocabulaire fermé `App\Engine\MotsClesAdversaires` (huit clés, chacune avec son lecteur).
+
+- **Figure immobile = `deplacement: 0`** (`Monstre::estImmobile()`). Aucune clé de plus sur
+  `entites[]` : c'est le catalogue qui le dit (`des_attaque`, `emprise`… inchangés). Elle n'avance
+  jamais — pas de `deplacement_monstre` pour elle ; elle frappe ce qui est à sa portée ou ne fait
+  rien. **Placement** : en SALLE seulement (jamais en couloir), hors parvis d'une porte, d'un
+  levier ou d'une épreuve, la salle restant connexe et au-dessus du plancher de cases jouables.
+  `carte.grille.spawn_figures_fixes` (liste `{x, y}`, sous-ensemble de `spawn_monstres`) est
+  **interne** : jamais publiée par `EtatGroupe::carte()`, lue seulement par `DemarreurQuete`.
+- **Tourelle** (`capacites: [tourelle]` — *Guardian Effigy*, Against the Ogre Horde p. 27).
+  Chaque tour du MJ, elle fait feu sur un héros en ligne de vue (figures bloquantes), **au contact
+  comme à distance, aux mêmes dés** : `attaque_monstre` porte `portee: "distance"` ET
+  **`tourelle: true`** — le fil dit « fait feu sur », la table « Tourelle — fait feu depuis son
+  poste ». Sans héros en vue : rien.
+- **Immunité aux sorts** (`immunite_sorts`, totale : Effigy ; `immunite_conditions: [endormi,
+  saute_tour]`, partielle : Scion). Le **menu** n'offre pas la créature comme cible (une entrée
+  de sort sans cible légale disparaît) ; un sort de **zone** ou de **rayon** passe sans l'atteindre
+  et le DIT : `touches[]` porte `{type: "monstre", instance_id, nom, immunise: true}` (zone) et
+  `{…, degats: 0, vaincu: false, immunise: true}` (rayon de sort — pas la technique du Moine,
+  qui n'est pas un sort). Les sorts du Dread (collatéral, soin, drain) l'épargnent aussi.
+- **Apparition à la vue** (`apparait_a_la_vue` — *Dread Skull*, G1798 ; **aucune ligne de catalogue
+  ne la porte encore**, `MotsClesAdversaires::SANS_DONNEE`). La figure attend `revele = false` ;
+  la réponse d'un déplacement ou de toute action porte `apparitions: [{type:
+  "apparition_a_la_vue", monstre, instance_id, declencheur: {personnage_id, nom}, position: {x, y},
+  action: <son tir, immédiat>}]` dès qu'un héros la VOIT — **chaque case du chemin** compte. Elle
+  n'est jamais révélée à l'ouverture de la porte.
+- **Silencing Snare** (`filet_silencieux: {sort}` — Deathspinner). Quand un héros **finit son
+  tour** en sa ligne de vue, la réponse de l'action qui clôt le tour porte `filets_silencieux:
+  [{type: "filet_silencieux", monstre, instance_id, cible: {personnage_id, nom}, sort}, <payload
+  sort_dread>]` : une annonce, puis le sort lancé SANS action ni usage du budget. Pas de filet si
+  elle ne pourrait pas agir (endormie, paralysée, tour perdu — la *Tempête* de la carte —, enfumée,
+  sous la Baguette d'Os).
+- **Souffle du Construit** (`souffle_du_construit: {degats, des_rouges}` — Golem Cœur-de-Forge),
+  UNE fois par quête, à la place de son action : `{type: "souffle_du_construit", monstre,
+  instance_id, resultats: [{cible: {personnage_id, nom}, des_rouges: [d6, d6], degats_bruts,
+  degats_annules, degats, pv_body_apres, cible_tombee}]}` — tous les héros de la même salle ou du
+  même couloir. Il souffle dès que deux héros au moins sont pris (le seul debout, pour un groupe
+  réduit à un). Scène de table `genre: "attaque"`, un objet par héros pris.
+- **Vrilles** (Scion Fleur-Pourrie). À la fin de son tour : `{type: "vrille_posee", monstre,
+  instance_id, vrille: {instance_id, nom, x, y} | null}` (`null` : aucune case libre à portée) ; la
+  Vrille rejoint `entites` (`revele: true`) et ne joue qu'au round suivant. Au coup fatal, il
+  sacrifie une Vrille et tombe à **1 PV** : `reaction_monstre: "sacrifice_de_vrille"` sur l'action
+  qui l'a frappé, plus un événement `{type: "reaction_monstre", mecanique: "sacrifice_de_vrille",
+  sacrifice: {instance_id, nom, x, y}}` au journal. Son balayage est une `frappe_de_zone` qui
+  atteint aussi les cases en diagonale.
+
 **EtatGroupe** : `entites` (héros ET monstres) gagnent
 `conditions: [{nom, duree}]` — la table et la manette affichent les états.
 ⚠ **Depuis le 2026-10-10**, une condition de HÉROS porte aussi **`effet_source`** (`string|null`) :
@@ -3370,7 +3508,7 @@ C'est la condition pour qu'une partie soit jouable/reprenable.
 |---|---|---|---|
 | POST | /api/inscription | {pseudo, identifiant} | crée le compte et connecte ; 422 si identifiant pris (sans mot de passe) |
 | POST | /api/connexion | {identifiant} | (existant) — nom seul |
-| GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` ; `faveurs: [{cle, libelle, effet}]` (faveurs de Hopekins Rest, 2026-10-08 — `FaveursHopekins::publier()` ; *Weapon Expert* y ajoute `specialite` et, au hub tant que le type n'est pas choisi, `choix` — 2026-10-15) ; `attribut_body/attribut_mind/des_attaque/des_defense` (fiche perso, invariants hors quête) ; `equipement: {armes: [{inventaire_id, nom, emplacement, bouclier}…], casque, armure, talisman: {inventaire_id, nom}\|null, sac: [{inventaire_id, nom, categorie, rarete, quantite, equipable}], capacite, occupation, maitrises: [tag…]}` (chaque pièce équipée porte son `inventaire_id` pour déséquiper ; `equipable` = objet du sac montable dans un slot — voir §Équipement) |
+| GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` ; `faveurs: [{cle, libelle, effet}]` (faveurs de Hopekins Rest, 2026-10-08 — `FaveursHopekins::publier()` ; *Weapon Expert* y ajoute `specialite` et, au hub tant que le type n'est pas choisi, `choix` ; *Arcane Library* `repertoire` et `choix` ; *Mercenary Guild* `recrutement_offert` — 2026-10-15) ; `attribut_body/attribut_mind/des_attaque/des_defense` (fiche perso, invariants hors quête) ; `equipement: {armes: [{inventaire_id, nom, emplacement, bouclier}…], casque, armure, talisman: {inventaire_id, nom}\|null, sac: [{inventaire_id, nom, categorie, rarete, quantite, equipable}], capacite, occupation, maitrises: [tag…]}` (chaque pièce équipée porte son `inventaire_id` pour déséquiper ; `equipable` = objet du sac montable dans un slot — voir §Équipement) |
 | POST | /api/personnages | {nom, classe, elements?} | crée un perso du roster (libre) |
 | POST | /api/groupes | {nom, theme, longueur, ton?, personnage_id, bestiaire_boites?} | crée un groupe DEPUIS un perso LIBRE du joueur (le perso le rejoint comme fondateur) ; 422 si perso déjà engagé ; `bestiaire_boites` absent/`null` = automatique, liste (vide comprise) = manuel — voir §Bestiaire automatique ou manuel |
 | POST | /api/groupes/{identifiant}/joueurs | {personnage_id} | rejoint par code avec un perso libre (existant, + accepte {nom,classe}) |
@@ -3671,7 +3809,9 @@ champs s'ajoutent au payload de **toute** action qui blesse un monstre
 - **`reaction_monstre`** : `null`, ou le nom de la mécanique réactive à usage
   unique qui vient de jouer (`"ignore_degats_attaque"` — Resilience/Demon
   Wings, `"increvable_une_fois"` — Sir Ragnar). Consomme le coup entier (le
-  monstre ne subit RIEN) sans changer de phase ni mourir.
+  monstre ne subit RIEN) sans changer de phase ni mourir. `"sacrifice_de_vrille"`
+  (Scion Fleur-Pourrie) n'est PAS à usage unique : chaque coup fatal qui trouve
+  une Vrille la brûle, et le monstre reste à 1 PV.
 - **`reddition_monstre`** : `null`, ou `{or}` — une dernière phase qui porte
   `recompense_reddition` (Gruzbella, vaincue elle s'incline et paie plutôt
   que de mourir) crédite le groupe et le dit, plutôt que de laisser
@@ -3964,3 +4104,53 @@ Les trois types sont dans `JournalCombat::TYPES` (le fil dit le saut, l'abandon,
   affiche un bandeau « Se reconnecter » (message français, pas « Unauthenticated »)
   et route vers le login → « Reprendre la partie ». Session LAN longue par défaut
   (`SESSION_LIFETIME=1440`).
+
+## Against the Ogre Horde — les Sorciers du Dread (livret F9528 p. 10-11, 31, 35, 37, 2026-10-16)
+
+Trois sorts de Dread (*Mind Burst* → « Explosion mentale », *Mind Lock* → « Verrou mental », *Dominate* → « Domination ») et trois
+Sorciers qui les lancent avec une **réserve de cartes par sort** : Nexrael (tier `base`, 4 cartes de Mind Burst), Xenloth (sous-boss,
+5 + 5), Festral (boss, 3 + 3 + 3). Règles en vigueur : `docs/regles/sorts-dread.md` §« Les Sorciers du Dread d'Against the Ogre Horde ».
+
+**Jet en opposition.** Chaque payload d'opposition publie la forme que le fil et la table dessinent déjà (`JetDes.vue`) :
+`faces_attaque` (les dés du Sorcier, autant que son Mind), `faces_defense` (ceux du héros), `face_touchante: "crane"`,
+`face_defensive`, `touches` (crânes du Sorcier), `boucliers` (boucliers blancs du héros — ou, pour *Mind Burst* qui compare des crânes
+BRUTS, les crânes du héros, avec `face_defensive: "crane"`).
+
+Formes de `sort_dread` ajoutées (`resultats[]`, une entrée par victime) :
+- *Verrou mental* : `{cible, pv_mind_lanceur, pv_mind_cible, <jet>, cranes_nets, effet_applique, tours_geles?, contresort?}` — `tours_geles` =
+  cartes prêtées (un crâne net = un tour, borné par la main du Sorcier). `cranes_nets: 0` → `effet_applique: false`, rien n'est posé.
+- *Domination* : `{cible, pv_mind_lanceur, pv_mind_cible, <jet>, cranes_nets, cranes_requis, effet_applique, domine?, fin_domination?,
+  actions_domine?: [<action>…], cartes_restantes?}`. Si `domine`, `actions_domine[]` porte, **dans l'ordre**, ce que le MJ a joué avec le héros
+  dominé : `domination_deplacement`, puis `domination_attaque` OU `domination_sort`. `JournalCombat::actionsDuTour()` les étale comme des
+  actions à part entière — le fil et la table les lisent chacune par son propre arm, avec le héros dominé pour acteur.
+- *Explosion mentale* : `{cible, <jet brut>, pv_mind_lanceur_avant, pv_mind_cible_avant, ecart_cranes (signé : > 0 le Sorcier gagne, < 0 c'est
+  le héros), pv_mind_apres, degats_mind, mind_absorbe, entre_en_choc, degats_mind_lanceur, pv_mind_lanceur_apres, lanceur_en_choc,
+  cartes_restantes}`. Le perdant paie l'écart en Mind — le Sorcier aussi.
+
+Types d'action ajoutés (tous déclarés dans `JournalCombat::TYPES`, une phrase chacun) :
+- `{type: "verrou_mental_tour", personnage_id, nom, sort, lanceur: {instance_id, nom}, cartes_avant, cartes_apres, tentative: {des, faces[],
+  cranes, seuil, libere}|null, libere, raison: "cartes_rendues"|"cranes"|null}` — le tour d'un héros GELÉ, à l'**ouverture du round**
+  (`tour_monstres.actions`) : tour perdu, une carte rendue, puis (s'il en reste) la tentative de libération. `tentative` est `null` quand
+  la dernière carte vient d'être rendue (aucun dé pour rien).
+- `{type: "verrou_mental_leve", personnage_id, nom, sort, lanceur, raison: "lanceur_vaincu"}` — le Sorcier est tombé : « the effects of that
+  spell immediately end ». Publié par le tampon générique (`annonces_automatiques`) du coup qui l'a tué.
+- `{type: "domination_deplacement", personnage_id, personnage, de, vers, vers_heros, pieges_declenches[]}`,
+  `{type: "domination_attaque", personnage_id, personnage, cible: {personnage_id, nom}, touches, boucliers, degats, pv_body_apres,
+  cible_tombee, faces_attaque, faces_defense, face_touchante, face_defensive}`,
+  `{type: "domination_sort", personnage_id, personnage, sort, cible, resultat: <payload `sort` du sort lancé>}`.
+
+**Plusieurs rounds dans une même réponse.** Quand un gel de *Mind Lock* prend leur tour à tous les héros debout à l'ouverture du round, plus
+personne ne peut déclencher la phase suivante : le moteur la rejoue d'elle-même (`tour_monstres.actions` porte alors les actions de plusieurs
+rounds, dans l'ordre) jusqu'à ce qu'un héros retrouve la main — au plus la réserve du Sorcier (borne : 8 rounds).
+
+**Fiche du héros.** La condition `Verrou mental` (`entites[].conditions[]`) publie `effet_source` : « Gelé pour N tours encore (il tient N
+cartes de Verrou mental) : … » — décidé par `VerrouMental::texte()`, jamais re-déduit par le client. La condition n'a aucun compteur
+(`duree: 0`) ; ce que le gel COMPTE vit dans `etat_personnage_quete.verrou_mental` `{lanceur_id, sort, cartes}` (migration
+`2026_10_16_100000_verrou_mental_sur_etat_personnage_quete`), porté par le snapshot (`Sauvegarde`).
+
+**État de choc d'un MONSTRE.** `instances_monstres.pv_mind` à 0 sur une fiche qui a du Mind : 1 dé d'attaque et 2 de défense au plus
+(`InstanceMonstre::estEnChoc()`, dérivé de la jauge). Pas de nouveau champ publié.
+
+**Réserve de cartes et garde personnelle.** `monstres.capacites.reserve_cartes` (`{sort: nombre}`) est armée à chaque placement dans
+`instances_monstres.habillage.dread_etat.cartes` ; `capacites.garde_personnelle` (`{monstre, attaque, defense}`, Festral) pose
+`habillage.dread_etat.garde_personnelle` sur les figures de ce nom partageant la salle du chef. Aucun des deux n'est publié tel quel.

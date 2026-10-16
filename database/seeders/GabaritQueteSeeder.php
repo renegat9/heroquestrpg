@@ -44,7 +44,9 @@ class GabaritQueteSeeder extends Seeder
                     // Deck de cartes de fouille (doc 14 §3.2) — remplace l'ancien
                     // tirage pondéré, qui remappait un d6 sur des poids et biaisait
                     // la distribution dès que leur total n'était pas 6. Ici la
-                    // composition est GARANTIE : on pioche sans remise.
+                    // composition est GARANTIE : on pioche, et seules les cartes qui
+                    // disent de revenir sous le paquet (errants, pièges) y reviennent —
+                    // le reste sort pour la quête (`DeckFouille::SORT_PAR_ISSUE`).
                     //
                     // Règle de dimensionnement : somme(cartes) > salles.max, sinon
                     // la dernière salle devient déductible (« il ne reste qu'une
@@ -54,8 +56,13 @@ class GabaritQueteSeeder extends Seeder
                     // `or_coffre` : ce que verse le coffre désigné quand aucune arme
                     // unique n'est disponible pour la quête.
                     'deck_fouille' => [
-                        // Deck de trésor du JEU DE PLATEAU, à l'identique : 24 cartes
-                        // piochées SANS REMISE. Les montants d'or sont ceux des cartes.
+                        // Paquet de trésor : 24 cartes au TOTAL, confirmé (livret 2021,
+                        // boîte F2847 « Contents » ; First Light G0978 p. 4). ⚠ La
+                        // RÉPARTITION par carte n'est sourcée nulle part (⚠ non trouvé :
+                        // aucune liste officielle par carte) : elle reste à confirmer par
+                        // le décompte du paquet photographié par René. Montants sourcés
+                        // par ces photos (reference/16 §7.4) : gemme 35, or 15, or 25,
+                        // bijoux 50. Aucune quantité ne se change sans source.
                         'cartes' => [
                             'gemme' => 2,          // 35 po
                             'or_25' => 2,
@@ -71,6 +78,9 @@ class GabaritQueteSeeder extends Seeder
                         ],
                         'or' => 25,                // repli si un montant manque
                         'or_coffre' => 90,
+                        // Potions du COFFRE ORDINAIRE (derrière une porte secrète), lues par
+                        // `DeckFouille::carteCoffre()` une fois sur deux. Ce ne sont PAS des
+                        // cartes du paquet : celle-ci donne la Fiole de soin.
                         'potions' => ['Potion de soin', 'Potion de soin mineur'],
                     ],
                     'pieges' => ['min' => 1, 'max' => 2],
@@ -136,6 +146,13 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'budget_rencontres' => ['base' => 6, 'par_salle' => true],
                     'deck_fouille' => [
+                        // Paquet de trésor : 24 cartes au TOTAL, confirmé (livret 2021,
+                        // boîte F2847 « Contents » ; First Light G0978 p. 4). ⚠ La
+                        // RÉPARTITION par carte n'est sourcée nulle part (⚠ non trouvé :
+                        // aucune liste officielle par carte) : elle reste à confirmer par
+                        // le décompte du paquet photographié par René. Montants sourcés
+                        // par ces photos (reference/16 §7.4) : gemme 35, or 15, or 25,
+                        // bijoux 50. Aucune quantité ne se change sans source.
                         'cartes' => [
                             'gemme' => 2,
                             'or_25' => 2,
@@ -151,6 +168,9 @@ class GabaritQueteSeeder extends Seeder
                         ],
                         'or' => 25,
                         'or_coffre' => 90,
+                        // Potions du COFFRE ORDINAIRE (derrière une porte secrète), lues par
+                        // `DeckFouille::carteCoffre()` une fois sur deux. Ce ne sont PAS des
+                        // cartes du paquet : celle-ci donne la Fiole de soin.
                         'potions' => ['Potion de soin', 'Potion de soin mineur'],
                     ],
                     'pieges' => ['min' => 1, 'max' => 2],
@@ -177,8 +197,13 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'budget_rencontres' => ['base' => 8, 'par_salle' => true],
                     'deck_fouille' => [
-                        // Deck de trésor du JEU DE PLATEAU, à l'identique : 24 cartes
-                        // piochées SANS REMISE. Les montants d'or sont ceux des cartes.
+                        // Paquet de trésor : 24 cartes au TOTAL, confirmé (livret 2021,
+                        // boîte F2847 « Contents » ; First Light G0978 p. 4). ⚠ La
+                        // RÉPARTITION par carte n'est sourcée nulle part (⚠ non trouvé :
+                        // aucune liste officielle par carte) : elle reste à confirmer par
+                        // le décompte du paquet photographié par René. Montants sourcés
+                        // par ces photos (reference/16 §7.4) : gemme 35, or 15, or 25,
+                        // bijoux 50. Aucune quantité ne se change sans source.
                         'cartes' => [
                             'gemme' => 2,          // 35 po
                             'or_25' => 2,
@@ -194,6 +219,9 @@ class GabaritQueteSeeder extends Seeder
                         ],
                         'or' => 25,                // repli si un montant manque
                         'or_coffre' => 180,
+                        // Potions du COFFRE ORDINAIRE (derrière une porte secrète), lues par
+                        // `DeckFouille::carteCoffre()` une fois sur deux. Ce ne sont PAS des
+                        // cartes du paquet : celle-ci donne la Fiole de soin.
                         'potions' => ['Potion de soin', 'Potion de restauration', 'Potion de bataille'],
                     ],
                     // ⚠ POOL de sorciers nommés, tiré au sort à chaque quête
@@ -224,6 +252,14 @@ class GabaritQueteSeeder extends Seeder
                             // Morcar you must defeat », p. 28). La Gardienne, elle,
                             // est le boss du gabarit final.
                             'orages_morcar', 'haut_mage_morcar', 'guerriere_orque_morcar', 'necromancien_morcar',
+                            // BAKABRI LE CRUEL (Jungles of Delthrak, quête 15 voie C, 2026-10-15) :
+                            // sous-boss lanceur — Étreinte des Ronces, Canaliser l'Effroi, Éclair de Chaos,
+                            // et le tir au choix de Gruulob. Le livret l'envoie vers la quête 16 : il
+                            // n'est pas le dernier mot de sa voie.
+                            'bakabri_le_cruel',
+                            // XENLOTH, « the Dread Mage » (Against the Ogre Horde q. 9, F9528 p. 37) :
+                            // sous-boss (René, 2026-10-02), Mind Lock et Mind Burst, 5 cartes de chaque.
+                            'xenloth_mage_dread',
                         ],
                         // ⚠ …et les ONZE brutes du palier, qui n'ont pas de
                         // répertoire et ne pouvaient donc pas être nommées.
@@ -247,6 +283,13 @@ class GabaritQueteSeeder extends Seeder
                             // MINOTAURE (Wizards of Morcar, 2026-10-08) : brute sans
                             // répertoire (coup de corne), « Brak-Fellorn » du livret.
                             'Minotaure',
+                            // LES TROIS SOUS-BOSS NOMMÉS DE 2026-10-15 : l'EFFIGIE gardienne
+                            // (Against the Ogre Horde q. 4 — tourelle, immunisée aux sorts, posée en
+                            // salle seulement), la DEATHSPINNER (Jungles of Delthrak q. 3 — un
+                            // Canaliser l'Effroi gratuit sur chaque héros qui finit son tour en sa
+                            // vue) et le GOLEM Cœur-de-Forge (q. 6 — un souffle de salle, une fois).
+                            // Aucune n'a de répertoire de sorcier : elles se nomment en créatures.
+                            'Effigie gardienne', 'Deathspinner la Reine du Fléau', 'Golem Cœur-de-Forge',
                         ],
                     ],
                     'pieges' => ['min' => 2, 'max' => 3],
@@ -278,8 +321,13 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'budget_rencontres' => ['base' => 10, 'par_salle' => true],
                     'deck_fouille' => [
-                        // Deck de trésor du JEU DE PLATEAU, à l'identique : 24 cartes
-                        // piochées SANS REMISE. Les montants d'or sont ceux des cartes.
+                        // Paquet de trésor : 24 cartes au TOTAL, confirmé (livret 2021,
+                        // boîte F2847 « Contents » ; First Light G0978 p. 4). ⚠ La
+                        // RÉPARTITION par carte n'est sourcée nulle part (⚠ non trouvé :
+                        // aucune liste officielle par carte) : elle reste à confirmer par
+                        // le décompte du paquet photographié par René. Montants sourcés
+                        // par ces photos (reference/16 §7.4) : gemme 35, or 15, or 25,
+                        // bijoux 50. Aucune quantité ne se change sans source.
                         'cartes' => [
                             'gemme' => 2,          // 35 po
                             'or_25' => 2,
@@ -295,6 +343,9 @@ class GabaritQueteSeeder extends Seeder
                         ],
                         'or' => 25,                // repli si un montant manque
                         'or_coffre' => 300,
+                        // Potions du COFFRE ORDINAIRE (derrière une porte secrète), lues par
+                        // `DeckFouille::carteCoffre()` une fois sur deux. Ce ne sont PAS des
+                        // cartes du paquet : celle-ci donne la Fiole de soin.
                         'potions' => ['Potion de soin', 'Potion de bataille', 'Antidote au venin'],
                     ],
                     // ⚠ Les CINQ bosses lanceurs, tirés au sort (même raison
@@ -349,6 +400,15 @@ class GabaritQueteSeeder extends Seeder
                             // ci-dessus). Sous le thème, le pool thématique se réduit
                             // à elle : la campagne finit sur la Gardienne.
                             'artificiere_morcar',
+                            // FESTRAL, « the Dread Sorcerer » (Against the Ogre Horde q. 8, F9528 p. 35) :
+                            // BOSS (René, 2026-10-02 : lanceur de boss, comme l'Archimage elfe) — Mind
+                            // Burst, Mind Lock et Dominate, 3 cartes de chaque ; sa garde de Guerriers du
+                            // Dread lance 5 dés d'attaque et 5 de défense (`GardePersonnelle`). Sous le
+                            // thème `horde_ogre` le pool se resserre à ses quatre figures de boîte —
+                            // Gruzbella, le Commandant, le Seigneur et lui : une préférence, jamais un
+                            // filtre. Nexrael (tier `base`) n'est dans AUCUN pool : il entre par l'achat
+                            // des « forts », comme toute créature de signature d'une boîte.
+                            'festral_sorcier_dread',
                         ],
                         // Les bosses sans répertoire : ils frappent, c'est tout,
                         // et c'est une lecture du combat final aussi.
@@ -369,6 +429,10 @@ class GabaritQueteSeeder extends Seeder
                         'creatures' => [
                             'Ogre commandant', 'Seigneur ogre', 'Dragon',
                             'Gruzbella Hammerhand', 'Sir Ragnar',
+                            // LE SCION FLEUR-POURRIE (Jungles of Delthrak, quête 14 voie B, 2026-10-15) :
+                            // le boss final du livret, immobile (Move 0 : posé en salle seulement) —
+                            // sans répertoire de sorcier, donc nommé en créature, comme le Dragon.
+                            'Scion Fleur-Pourrie',
                         ],
                     ],
                     'pieges' => ['min' => 2, 'max' => 4],

@@ -10,6 +10,7 @@ use App\Engine\Des\FaceDeCombat;
 use App\Engine\Des\LanceurDes;
 use App\Engine\MotsClesSort;
 use App\Engine\MotsClesSortDread as Mot;
+use App\Engine\OppositionMind;
 use App\Engine\SortMental;
 use App\Engine\TypeDegat;
 use App\Engine\TypeFigurine;
@@ -128,6 +129,13 @@ use Illuminate\Support\Facades\DB;
  *      autre ;
  *   5. Invocation si ≤ 1 autre monstre actif (verrou 1×/rencontre) ;
  *   6. Fuite si pv_body < 25 % du max (verrou 1×/rencontre).
+ *
+ * ⚠ RÉSERVE DE CARTES (Against the Ogre Horde, 2026-10-16) : Nexrael, Xenloth et Festral lancent « a reserve of N cards »
+ * PAR SORT — `CartesDread`, capacité `reserve_cartes` ; le budget est alors DÉRIVÉ des cartes en main
+ * (`usagesRestants()`), une carte est défaussée (*Mind Burst*) ou prêtée (*Mind Lock*, *Dominate*) selon `effet.carte`. Trois
+ * sorts neufs : *Mind Burst* (`sortDreadMindBurst()`, l'écart de crânes, le perdant paie), *Mind Lock* (`sortDreadControle()`
+ * + `VerrouMental`) et *Dominate* (`sortDreadDomination()`, le MJ joue le héros par `HerosJoueParLeMj`). Un lanceur de tier
+ * `base` lance désormais aussi (`aUnRepertoire()`, lu par `ResolveurTour::jouerMonstreEveille()`).
  *
  * ⚠ Trois familles de plus depuis le plan glace, phase 2 (2026-09-06) — Gel de
  * l'Esprit (`TYPE_MIND`), Mur de Glace (`TYPE_TERRAIN`), Patinage
@@ -255,6 +263,22 @@ final class MoteurDread
             return;
         }
 
+        // SORCIERS DU DREAD D'AGAINST THE OGRE HORDE (`reserve_cartes`) : « uses a reserve of 4 cards »,
+        // « 3 cards for each spell », « 5 cards for each spell » (F9528 p. 31, 35, 37). Le budget est une
+        // RÉSERVE DE CARTES PAR SORT, pleine à chaque placement (`CartesDread`) — ni le budget par palier,
+        // ni « chaque sort une fois ». `usages_dread` n'est pas écrit : le nombre de lancers possibles est
+        // DÉRIVÉ des cartes en main (`usagesRestants()`), jamais une seconde copie qui dériverait.
+        if (CartesDread::aUneReserve($instance)) {
+            CartesDread::armer($instance);
+            $instance->update([
+                'invocation_dread_utilisee' => false,
+                'fuite_dread_utilisee' => false,
+                'capacites_reactives_utilisees' => [],
+            ]);
+
+            return;
+        }
+
         // ⚠ Un monstre de tier `base` reçoit un usage S'IL A UN RÉPERTOIRE, et
         // seulement dans ce cas : c'est la condition qui garde la porte fermée
         // pour les 25 créatures ordinaires qui ne lancent rien, tout en
@@ -291,12 +315,30 @@ final class MoteurDread
     /** Usages restants pour cette instance (0 si jamais réarmée). */
     public function usagesRestants(InstanceMonstre $instance, Quete $quete): int
     {
+        // Un Sorcier à RÉSERVE DE CARTES : il lui reste autant de lancers que de cartes en main.
+        if (CartesDread::aUneReserve($instance)) {
+            return CartesDread::total($instance);
+        }
+
         return (int) $instance->usages_dread;
     }
 
     /** Consomme un usage (ne descend pas en dessous de 0). */
     private function consommerUsage(InstanceMonstre $instance, Quete $quete, ?SortDread $sort = null): void
     {
+        // Un Sorcier à RÉSERVE DE CARTES (`CartesDread`) : le sort DÉFAUSSE une carte (*Mind Burst* :
+        // « each time they cast Mind Burst, they discard one of their spell cards ») ou la PRÊTE (*Mind
+        // Lock*, *Dominate*) — et une carte prêtée ne quitte la main qu'au moment où le sort PREND
+        // (`VerrouMental::enregistrer()`) : « if no skulls are scored against the defender, the spell has no
+        // effect », donc aucune carte n'est donnée à un héros qui n'est pas gelé.
+        if (CartesDread::aUneReserve($instance)) {
+            if ($sort !== null && data_get($sort->effet, 'carte') === Mot::CARTE_DEFAUSSEE) {
+                CartesDread::depenser($instance, $sort->nom);
+            }
+
+            return;
+        }
+
         $maj = ['usages_dread' => max(0, (int) $instance->usages_dread - 1)];
 
         // « Each spell may only be used once per quest » : on retient QUEL sort
@@ -614,34 +656,11 @@ final class MoteurDread
             return $payload;
         }
 
-        // Attaquer l'allié adjacent.
-        $resultat = (new Combat($this->des))->resoudreAttaque(
-            desAttaque: (int) $personnage->des_attaque,
-            desDefense: $this->sorts->desDefenseHeros($ciblePersonnage),
-            typeDefenseur: TypeFigurine::Heros,
-            pvBodyDefenseur: (int) $ciblePersonnage->pv_body,
-        );
-
-        $subis = $this->degats->infligerAHeros(
-            $ciblePersonnage, $resultat->degats, MoteurDegats::SOURCE_SORT_DREAD,
-            ['par' => $personnage->nom, 'commandement' => true],
-        );
-        $this->sorts->reveillerHeros($ciblePersonnage); // être attaqué réveille
-
-        if ((int) $ciblePersonnage->pv_body === 0 && $subis > 0) {
-            $cibleEtat->update(['tombe' => true]);
-        }
-
+        // Attaquer l'allié adjacent — par LE coup du MJ sur un héros (`HerosJoueParLeMj::frapperUnHeros()`),
+        // qu'*Dominate* emploie aussi : le Commandement en avait sa propre copie.
         $payload = [
             'type' => 'commandement_attaque',
-            'personnage' => $personnage->nom,
-            'cible' => ['personnage_id' => $ciblePersonnage->id, 'nom' => $ciblePersonnage->nom],
-            'touches' => $resultat->touches,
-            'boucliers' => $resultat->boucliers,
-            'degats' => $subis,
-            'pv_body_apres' => (int) $ciblePersonnage->pv_body,
-            'cible_tombee' => (int) $ciblePersonnage->pv_body === 0 && $subis > 0,
-            ...$resultat->pourJournal(),
+            ...app(HerosJoueParLeMj::class)->frapperUnHeros($personnage, $ciblePersonnage, $cibleEtat, ['commandement' => true]),
         ];
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
@@ -726,6 +745,18 @@ final class MoteurDread
     // ------------------------------------------------------------------
 
     /**
+     * Cette créature a-t-elle un RÉPERTOIRE de sorts de Dread (liste brute du catalogue ou archétype nommé) ?
+     *
+     * Lue par `ResolveurTour::jouerMonstreEveille()` pour décider qui appelle `jouerTourDread()` : le tier
+     * `sous_boss`/`boss` ne suffit plus, puisque les extensions donnent la magie à des créatures de
+     * tier `base` (le Cultiste du Dread, le Spectre, et Nexrael, *Against the Ogre Horde* p. 31).
+     */
+    public function aUnRepertoire(InstanceMonstre $instance): bool
+    {
+        return $instance->monstre !== null && $this->repertoireSorts($instance->monstre) !== [];
+    }
+
+    /**
      * `monstres.capacites` se déclare en LISTE (`['charge']`) ou en MAP quand
      * la capacité porte des paramètres (`['spawn' => ['creature' => …]]`).
      * Les deux formes coexistent dans le catalogue : ne lire que les valeurs,
@@ -765,7 +796,16 @@ final class MoteurDread
     /**
      * Frappe de zone : attaque TOUS les héros adjacents, un jet par cible.
      *
+     * `$adjacents` : les héros que l'APPELANT a déjà reconnus au contact — la décision de
+     * `ResolveurTour::heroAuContact()`, seul corps de la notion de contact (orthogonal, ou en
+     * diagonale pour `attaque_diagonale` : le Bloomrot Scion « has a sweeping attack that targets
+     * all heroes adjacent and diagonal to it »). Sans lui, cette méthode refaisait sa propre
+     * adjacence — orthogonale seulement — et un balayage diagonal n'aurait touché personne :
+     * deux copies d'une règle, dont une qui ignore la diagonale. Le repli (liste vide) garde
+     * l'ancien calcul pour tout appelant qui ne la fournit pas.
+     *
      * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  Collection<int, EtatPersonnageQuete>|null  $adjacents
      * @return array<string, mixed>
      */
     public function frappeDeZone(
@@ -773,9 +813,12 @@ final class MoteurDread
         InstanceMonstre $instance,
         Collection $cibles,
         array $acteur,
+        ?Collection $adjacents = null,
     ): array {
         $nomMonstre = $instance->nomAffiche();
-        $adjacents = $cibles->filter(function (EtatPersonnageQuete $c) use ($instance) {
+        // `$quete` : lu pour le flanc du tacticien — la méthode l'utilisait sans jamais le définir.
+        $quete = $instance->quete;
+        $adjacents ??= $cibles->filter(function (EtatPersonnageQuete $c) use ($instance) {
             return abs((int) $instance->position_x - (int) $c->position_x)
                 + abs((int) $instance->position_y - (int) $c->position_y) === 1;
         });
@@ -897,6 +940,14 @@ final class MoteurDread
             return false;
         }
 
+        // Un sort EN OPPOSITION DE MIND lance « combat dice equal to their Mind Points » : un lanceur
+        // dont le Mind est tombé à zéro n'en lance aucun et ne peut rien gagner — jamais choisi, sans
+        // quoi il brûlerait une carte pour un jet qu'il perd d'avance.
+        if (in_array(data_get($sort->effet, 'resistance'), Mot::RESISTANCES_OPPOSITION, true)
+            && (int) $instance->pv_mind <= 0) {
+            return false;
+        }
+
         return match ($sort->type) {
             Mot::TYPE_DEGATS => $this->ciblesDuSort($sort, $quete, $instance, $cibles, $enVue)->isNotEmpty()
                 || $this->monstresDuSort($sort, $quete, $instance)->isNotEmpty(),
@@ -937,7 +988,13 @@ final class MoteurDread
             // Gel de l'Esprit : il faut au moins un héros EN VUE qui ait
             // encore un point de Mind à perdre — un héros déjà à 0 Mind est
             // déjà tombé, le geler une seconde fois ne dirait rien de plus.
-            Mot::TYPE_MIND => $this->cibleMindFreeze($enVue) !== null,
+            // ⚠ DEUX sorts de Mind, deux cibles : *Mind Burst* (opposition, écart de crânes) ne se lance
+            // que sur un héros qu'il ne risque pas de perdre contre (`cibleMindBurst()`).
+            Mot::TYPE_MIND => data_get($sort->effet, 'resistance') === Mot::RESISTANCE_OPPOSITION_ECART
+                ? $this->cibleMindBurst($instance, $enVue) !== null
+                : $this->cibleMindFreeze($enVue) !== null,
+            // Dominate : un héros en vue À JETER contre au moins un autre héros debout.
+            Mot::TYPE_DOMINATION => $this->cibleDomination($enVue, $cibles) !== null,
             // Mur de Glace : au moins une case candidate a survécu au filtre
             // d'occupation ET à l'invariant de connexité — `planMurDeGlace()`
             // est le SEUL point de passage, lu ici et repris tel quel par la
@@ -1009,6 +1066,10 @@ final class MoteurDread
             // mortel — mais c'est une cible unique, sans le bonus de zone des
             // dégâts.
             Mot::TYPE_MIND => 95,
+            // Dominate : entre le Gel de l'Esprit / Mind Burst (95) et le contrôle (80) — un héros qui
+            // frappe ses compagnons vaut plus qu'un héros gelé, moins qu'une perte de Mind qui peut tout
+            // changer. C'est une POLITIQUE nôtre (aucune carte ne dit quel sort Zargon choisit).
+            Mot::TYPE_DOMINATION => 85,
             // Entre l'invocation (60) et le soin (40) : un outil défensif qui
             // ralentit la poursuite sans blesser ni soigner personne.
             Mot::TYPE_TERRAIN => 50,
@@ -1109,13 +1170,39 @@ final class MoteurDread
             // salle, d'où un mot distinct — sans lui, la Nuée d'Effroi ne
             // fonctionnerait nulle part hors des salles, ce que sa carte
             // autorise expressément.
-            Mot::ZONE_SALLE_OU_COULOIR => $this->salleDuLanceur($quete, $instance) === null
-                ? $this->casesDuCouloir($quete, $instance)
-                : $this->casesDeLaSalle($quete, $instance),
+            Mot::ZONE_SALLE_OU_COULOIR => $this->casesDeSalleOuCouloir($quete, $instance),
             Mot::ZONE_CARRE_2X2 => $this->meilleurCarre($quete, $instance, $cibles),
             Mot::ZONE_RAYON => $this->meilleurRayonDetail($sort, $quete, $instance, $cibles)['cases'],
             default => [],
         };
+    }
+
+    /**
+     * « The same room OR CORRIDOR » : la salle de la créature, ou — si elle est en couloir — son
+     * couloir. UN corps pour la Nuée d'Effroi (`ZONE_SALLE_OU_COULOIR`) ET pour le Souffle du
+     * Construit du Golem de Forge (« all heroes located in the same room or corridor »,
+     * `AdversairesDelthrak::souffle()`) : deux copies de « même zone » ne tiendraient pas ensemble.
+     *
+     * @return list<array{x: int, y: int}>
+     */
+    public function casesDeSalleOuCouloir(Quete $quete, InstanceMonstre $instance): array
+    {
+        return $this->salleDuLanceur($quete, $instance) === null
+            ? $this->casesDuCouloir($quete, $instance)
+            : $this->casesDeLaSalle($quete, $instance);
+    }
+
+    /**
+     * Les héros de `$cibles` dont la case est dans `$cases` — la lecture que le Souffle du
+     * Construit partage avec les sorts de zone (`herosSurCases()`, privée).
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  list<array{x: int, y: int}>  $cases
+     * @return \Illuminate\Support\Collection<int, EtatPersonnageQuete>
+     */
+    public function herosDansLesCases(Collection $cibles, array $cases): \Illuminate\Support\Collection
+    {
+        return $this->herosSurCases($cibles, $cases);
     }
 
     /**
@@ -1370,9 +1457,11 @@ final class MoteurDread
         // les autres, héros comme MJ, la respectent.
         $vivier = (bool) data_get($sort->effet, 'sans_ligne_de_vue', false) ? $cibles : $enVue;
 
-        $cible = $sort->type === Mot::TYPE_CONTROLE
-            ? $this->cibleControle($sort, $enVue)
-            : $this->cibleOffensive($instance, $vivier);
+        $cible = match ($sort->type) {
+            Mot::TYPE_CONTROLE => $this->cibleControle($sort, $enVue),
+            Mot::TYPE_DOMINATION => $this->cibleDomination($enVue, $cibles),
+            default => $this->cibleOffensive($instance, $vivier),
+        };
 
         return $cible === null ? collect() : collect([$cible]);
     }
@@ -1407,11 +1496,48 @@ final class MoteurDread
 
         $epargneLanceur = (bool) data_get($sort->effet, 'epargne_lanceur', false);
 
-        return $quete->instancesMonstres()->where('etat', 'actif')->get()
+        return $quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get()
             ->filter(fn (InstanceMonstre $m) => $m->position_x !== null
                 && isset($index[(int) $m->position_x.':'.(int) $m->position_y])
-                && ! ($epargneLanceur && $m->id === $instance->id))
+                && ! ($epargneLanceur && $m->id === $instance->id)
+                // « immune to all spell effects » (Guardian Effigy) : la zone passe sans l'atteindre.
+                && ! $m->monstre->immuniseAuxSorts())
             ->values();
+    }
+
+    /**
+     * La SECONDE CHANCE du talent `annuler_effet_magique` (Contresort du magicien et du warlock, Verbe
+     * ancien du druide) : un jet de Mind indépendant qui annule l'effet magique avant qu'il ne soit posé.
+     * Point de passage UNIQUE des sorts de contrôle et de *Dominate* — rend `null` quand le héros n'a pas
+     * le talent, sinon `{reussi, faces}`, et ANNONCE le talent quand il joue.
+     *
+     * @return array{reussi: bool, faces: list<string>}|null
+     */
+    private function tenterContresort(Personnage $personnage): ?array
+    {
+        $noeudContresort = $this->talents->noeud($personnage, 'annuler_effet_magique');
+
+        if ($noeudContresort === null) {
+            return null;
+        }
+
+        $mindHeros = $this->sorts->desResistanceMentale($personnage);
+        $jetContresort = (new SortMental($this->des))->resoudre($mindHeros);
+        $contresort = [
+            'reussi' => ! $jetContresort->effetApplique(),
+            'faces' => array_map(fn ($f) => $f->value, $jetContresort->faces),
+        ];
+
+        if ($contresort['reussi']) {
+            // Un talent qui s'active tout seul se VOIT (2026-09-25) :
+            // sans cette annonce, la ligne générique du fil disait
+            // « X résiste à <sort> » — vrai, mais indiscernable d'une
+            // résistance de Mind ordinaire. Le joueur ne savait jamais
+            // que Contresort venait de jouer sa SECONDE chance.
+            $this->annonces->annoncer($personnage, $noeudContresort, 'annule un effet magique');
+        }
+
+        return $contresort;
     }
 
     /**
@@ -1424,9 +1550,15 @@ final class MoteurDread
     {
         $condition = (string) data_get($sort->effet, 'condition_appliquee', 'Étourdi');
 
+        // ⚠ Un sort EN OPPOSITION (*Mind Lock*) joue le Mind POSSÉDÉ — la jauge, qui est le nombre de dés que
+        // le héros lancera —, les autres sorts de contrôle l'attribut (leur rupture, elle, lit déjà la jauge).
+        $opposition = in_array(data_get($sort->effet, 'resistance'), Mot::RESISTANCES_OPPOSITION, true);
+
         return $cibles
             ->filter(fn (EtatPersonnageQuete $e) => ! $this->herosSousCondition($e->personnage, $condition))
-            ->sortBy(fn (EtatPersonnageQuete $e) => (int) $e->personnage->attribut_mind)
+            ->sortBy(fn (EtatPersonnageQuete $e) => $opposition
+                ? (int) $e->personnage->pv_mind
+                : (int) $e->personnage->attribut_mind)
             ->first();
     }
 
@@ -1476,6 +1608,8 @@ final class MoteurDread
         }
 
         return $candidats
+            // « immune to all spell effects » : un soin est un effet de sort comme un autre.
+            ->reject(fn (InstanceMonstre $m) => $m->monstre->immuniseAuxSorts())
             ->filter(fn (InstanceMonstre $m) => (int) $m->pv_body < (int) $m->pvBodyMax())
             ->sortBy(fn (InstanceMonstre $m) => (int) $m->pv_body)
             ->first();
@@ -1584,6 +1718,12 @@ final class MoteurDread
             $noms = array_values(array_diff($noms, (array) ($instance->sorts_dread_lances ?? [])));
         }
 
+        // Un sort dont la dernière carte a quitté la main (défaussée, ou prêtée à un héros gelé) ne se
+        // lance plus : la réserve EST le budget du Sorcier.
+        if (CartesDread::aUneReserve($instance)) {
+            $noms = array_values(array_filter($noms, fn (string $nom) => CartesDread::restantes($instance, $nom) > 0));
+        }
+
         return $noms;
     }
 
@@ -1682,6 +1822,7 @@ final class MoteurDread
             Mot::TYPE_FUITE => $this->sortDreadFuite($groupe, $quete, $instance, $sort, $cibles, $acteur),
             Mot::TYPE_DESTRUCTION => $this->sortDreadDestruction($groupe, $quete, $instance, $sort, $cibles, $enVue, $acteur),
             Mot::TYPE_MIND => $this->sortDreadMind($groupe, $instance, $sort, $enVue, $acteur),
+            Mot::TYPE_DOMINATION => $this->sortDreadDomination($groupe, $quete, $instance, $sort, $cibles, $enVue, $acteur),
             Mot::TYPE_TERRAIN => $this->sortDreadMurDeGlace($groupe, $quete, $instance, $sort, $enVue, $acteur),
             Mot::TYPE_DEPLACEMENT => $this->sortDreadPatinage($groupe, $quete, $instance, $sort, $enVue, $acteur),
             Mot::TYPE_MUR_MAGIQUE => $this->sortDreadMurMagique($groupe, $quete, $instance, $sort, $enVue, $acteur),
@@ -2100,6 +2241,32 @@ final class MoteurDread
                 }
             }
 
+            // *MIND LOCK* (F9528 p. 10) : « both attacker and defender roll combat dice equal to their Mind
+            // Points. For each skull scored by the attacker, the defender is frozen for one turn. If no skulls
+            // are scored against the defender, the spell has no effect. » Crânes NETS (décision de René,
+            // 2026-10-15 : les boucliers blancs du héros annulent les crânes comme dans un combat normal).
+            // Le sort ne se « rompt » pas à un 6 : il se lève aux cartes rendues ou à trois crânes
+            // (`VerrouMental`).
+            $nets = 0;
+
+            if ($resistance === Mot::RESISTANCE_OPPOSITION_NETTE) {
+                $jet = (new OppositionMind($this->des))->lancer((int) $instance->pv_mind, (int) $personnage->pv_mind, TypeFigurine::Heros);
+                $nets = $jet->cranesNets();
+                $ligne += [
+                    'pv_mind_lanceur' => (int) $instance->pv_mind,
+                    'pv_mind_cible' => (int) $personnage->pv_mind,
+                    ...$jet->pourJournal(),
+                    'cranes_nets' => $nets,
+                ];
+
+                if ($nets <= 0) {
+                    $ligne['effet_applique'] = false;
+                    $resultats[] = $ligne;
+
+                    continue;
+                }
+            }
+
             // Résistance au LANCER : seul `jet_mind` en accorde une. Les
             // ruptures, elles, laissent passer le sort.
             if ($resistance === MotsClesSort::RESISTANCE_JET_MIND) {
@@ -2124,24 +2291,12 @@ final class MoteurDread
             // `annuler_effet_magique` (Contresort du magicien et du warlock,
             // Verbe ancien du druide) : une SECONDE chance, jet de Mind
             // indépendant, qui annule l'effet magique avant qu'il ne soit posé.
-            $noeudContresort = $this->talents->noeud($personnage, 'annuler_effet_magique');
+            $contresort = $this->tenterContresort($personnage);
 
-            if ($noeudContresort !== null) {
-                $mindHeros = $this->sorts->desResistanceMentale($personnage);
-                $jetContresort = (new SortMental($this->des))->resoudre($mindHeros);
-                $ligne['contresort'] = [
-                    'reussi' => ! $jetContresort->effetApplique(),
-                    'faces' => array_map(fn ($f) => $f->value, $jetContresort->faces),
-                ];
+            if ($contresort !== null) {
+                $ligne['contresort'] = $contresort;
 
-                if ($ligne['contresort']['reussi']) {
-                    // Un talent qui s'active tout seul se VOIT (2026-09-25) :
-                    // sans cette annonce, la ligne générique du fil disait
-                    // « X résiste à <sort> » — vrai, mais indiscernable d'une
-                    // résistance de Mind ordinaire. Le joueur ne savait jamais
-                    // que Contresort venait de jouer sa SECONDE chance.
-                    $this->annonces->annoncer($personnage, $noeudContresort, 'annule un effet magique');
-
+                if ($contresort['reussi']) {
                     $ligne['effet_applique'] = false;
                     $resultats[] = $ligne;
 
@@ -2164,6 +2319,22 @@ final class MoteurDread
                 $resultats[] = $ligne;
 
                 continue;
+            }
+
+            // *MIND LOCK* : « That hero takes a Mind Lock card for each turn they are affected » —
+            // les cartes sont PRÊTÉES d'abord (bornées par la main du Sorcier), et c'est le nombre prêté
+            // qui dit combien de tours le héros est gelé. Aucune carte en main : le sort ne prend pas.
+            if ($resistance === Mot::RESISTANCE_OPPOSITION_NETTE) {
+                $prises = app(VerrouMental::class)->enregistrer($cible, $instance, $sort, $nets);
+
+                if ($prises <= 0) {
+                    $ligne['effet_applique'] = false;
+                    $resultats[] = $ligne;
+
+                    continue;
+                }
+
+                $ligne['tours_geles'] = $prises;
             }
 
             // Une condition dont la sortie est une RUPTURE ne porte pas de
@@ -2198,7 +2369,10 @@ final class MoteurDread
             // n'atteint jamais `MoteurDegats` — et c'est là que toutes les
             // autres réactions naissent. Celle-ci s'ouvre ICI, comme le *Défi du
             // chevalier* le fait pour un errant qui surgit.
-            if ($ligne['effet_applique']) {
+            // ⚠ Pas pour un sort EN OPPOSITION de Mind : le reflet ne sait renvoyer qu'un dégât, une
+            // condition mappée (`REFLET_CONDITIONS`) ou un *Commandement* — « Verrou mental » n'est aucun
+            // des trois, et le renvoyer en ferait un Commandement que la carte n'a jamais été.
+            if ($ligne['effet_applique'] && $resistance !== Mot::RESISTANCE_OPPOSITION_NETTE) {
                 $ligne['reflet_propose'] = app(MoteurReactions::class)->proposerRefletControle($personnage, [
                     'sort' => $sort->nom,
                     'lanceur_id' => (int) $instance->id,
@@ -2563,6 +2737,12 @@ final class MoteurDread
         Collection $enVue,
         array $acteur,
     ): array {
+        // *Mind Burst* a SON jet — l'opposition, et l'écart de crânes — : ni le dé de bouclier blanc de
+        // *Mind Freeze*, ni sa cible. Même famille (la jauge de Mind), autre règle.
+        if (data_get($sort->effet, 'resistance') === Mot::RESISTANCE_OPPOSITION_ECART) {
+            return $this->sortDreadMindBurst($groupe, $instance, $sort, $enVue, $acteur);
+        }
+
         $victime = $this->cibleMindFreeze($enVue);
 
         if ($victime === null) {
@@ -2635,6 +2815,236 @@ final class MoteurDread
             ->filter(fn (EtatPersonnageQuete $e) => (int) $e->personnage->pv_mind > 0)
             ->sortBy(fn (EtatPersonnageQuete $e) => (int) $e->personnage->pv_mind)
             ->first();
+    }
+
+    // ------------------------------------------------------------------
+    // Les Sorciers du Dread d'Against the Ogre Horde (F9528 p. 10-11) :
+    // Mind Burst, et Dominate. (Mind Lock passe par `sortDreadControle()` — sa
+    // condition et son gel vivent dans `VerrouMental`.)
+    // ------------------------------------------------------------------
+
+    /**
+     * *MIND BURST* : « Each time they cast Mind Burst, they discard one of their spell cards. When Mind
+     * Burst is cast, both attacker and defender roll combat dice equal to their Mind Points. The
+     * combatant with the most rolled skulls (be it attacker or defender) then inflicts Mind Point damage
+     * on their opponent. The damage dealt is equal to the difference in skulls rolled by each combatant.
+     * If they have an equal amount of skulls, neither takes damage. » (p. 11)
+     *
+     * Crânes BRUTS des deux côtés, sans boucliers — c'est la lettre du livret, et son exemple (5 dés contre
+     * 6, « the wizard rolled two more skulls than their opponent ») la tient. ⚠ Contrairement à *Mind Lock* et
+     * *Dominate* (décision de René sur les boucliers, 2026-10-15), RIEN n'a été tranché pour celui-ci : la
+     * comparaison se lit comme elle est écrite. C'est une lecture à confirmer, nommée dans
+     * `docs/regles/sorts-dread.md`.
+     *
+     * Le gagnant inflige l'écart en dégâts de MIND À L'AUTRE — « lanceur compris » : le Sorcier qui perd perd
+     * du Mind (`MoteurDegats::infligerMindAMonstre()`, le premier producteur de Mind côté monstre), et un Mind à
+     * zéro met sa créature en ÉTAT DE CHOC (`InstanceMonstre::estEnChoc()`). La carte est défaussée AVANT le
+     * jet (`consommerUsage()`), qu'il gagne ou non.
+     *
+     * Côté héros : l'Orbe Céleste (`absorbePartielDegatMind()`) grignote la perte comme pour *Mind Freeze*.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function sortDreadMindBurst(
+        Groupe $groupe,
+        InstanceMonstre $instance,
+        SortDread $sort,
+        Collection $enVue,
+        array $acteur,
+    ): array {
+        $victime = $this->cibleMindBurst($instance, $enVue);
+
+        if ($victime === null) {
+            return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
+        }
+
+        $personnage = $victime->personnage;
+        $mindLanceurAvant = (int) $instance->pv_mind;
+        $mindCibleAvant = (int) $personnage->pv_mind;
+
+        $jet = (new OppositionMind($this->des))->lancer($mindLanceurAvant, $mindCibleAvant, TypeFigurine::Heros);
+        $ecart = $jet->ecart();
+
+        $perteHeros = 0;
+        $absorbe = 0;
+        $perteLanceur = 0;
+
+        if ($ecart > 0) {
+            $apresOrbe = $this->sorts->absorbePartielDegatMind($personnage, $ecart);
+            $absorbe = $ecart - $apresOrbe;
+            $perteHeros = $this->degats->infligerMindAHeros(
+                $personnage, $apresOrbe, MoteurDegats::SOURCE_SORT_DREAD_MIND,
+                ['sort' => $sort->nom, 'lanceur_id' => (int) $instance->id],
+            );
+        } elseif ($ecart < 0) {
+            $perteLanceur = $this->degats->infligerMindAMonstre(
+                $instance, -$ecart, MoteurDegats::SOURCE_SORT_DREAD_MIND,
+                ['sort' => $sort->nom, 'victime' => $personnage->nom],
+            );
+        }
+
+        $payload = [
+            'type' => 'sort_dread',
+            'sort' => $sort->nom,
+            'resultats' => [[
+                'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
+                ...$jet->pourJournal(brut: true),
+                'pv_mind_lanceur_avant' => $mindLanceurAvant,
+                'pv_mind_cible_avant' => $mindCibleAvant,
+                // L'écart SIGNÉ du jet : positif, le Sorcier gagne ; négatif, c'est le héros.
+                'ecart_cranes' => $ecart,
+                'pv_mind_apres' => (int) $personnage->pv_mind,
+                'degats_mind' => $perteHeros,
+                'mind_absorbe' => $absorbe,
+                'entre_en_choc' => (int) $personnage->pv_mind === 0 && $perteHeros > 0,
+                // Le Sorcier est blessé par son propre sort quand il perd le jet — « the Dread Sorcerer takes
+                // 2 Mind Points of damage » : un effet automatique qui se dit.
+                'degats_mind_lanceur' => $perteLanceur,
+                'pv_mind_lanceur_apres' => (int) $instance->pv_mind,
+                'lanceur_en_choc' => $perteLanceur > 0 && $instance->fresh()->estEnChoc(),
+                'cartes_restantes' => CartesDread::restantes($instance, $sort->nom),
+            ]],
+        ];
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Cible de *Mind Burst* : le héros EN VUE qui a le moins de Mind POSSÉDÉ, parmi ceux qui en ont encore et
+     * que le Sorcier ne risque pas de perdre contre. Politique nôtre (aucune carte ne dit qui Zargon vise) :
+     * jamais un héros dont le Mind dépasse celui du Sorcier — il y perdrait plus souvent que lui, et le
+     * livret fait payer le perdant sur sa propre jauge. Un héros à 0 Mind est déjà en choc (« a creature cannot
+     * go below 0 Mind Points ») : le viser ne dirait rien de plus.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     */
+    private function cibleMindBurst(InstanceMonstre $instance, Collection $enVue): ?EtatPersonnageQuete
+    {
+        return $enVue
+            ->filter(fn (EtatPersonnageQuete $e) => (int) $e->personnage->pv_mind > 0
+                && (int) $e->personnage->pv_mind <= (int) $instance->pv_mind)
+            ->sortBy(fn (EtatPersonnageQuete $e) => (int) $e->personnage->pv_mind)
+            ->first();
+    }
+
+    /**
+     * Cible de *Dominate* : parmi les héros EN VUE qui ont au moins UN AUTRE héros debout et non caché à
+     * frapper, celui dont le Mind est le plus bas (il a le moins de dés pour résister), à égalité celui qui
+     * frappe le plus fort. Un héros seul debout n'a personne contre qui être jeté : aucune cible.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles  tous les héros debout non cachés
+     */
+    private function cibleDomination(Collection $enVue, Collection $cibles): ?EtatPersonnageQuete
+    {
+        return $enVue
+            ->filter(fn (EtatPersonnageQuete $e) => $cibles->contains(
+                fn (EtatPersonnageQuete $autre) => (int) $autre->personnage_id !== (int) $e->personnage_id,
+            ))
+            ->sortBy(fn (EtatPersonnageQuete $e) => [(int) $e->personnage->pv_mind, -1 * (int) $e->personnage->des_attaque, (int) $e->personnage_id])
+            ->first();
+    }
+
+    /**
+     * *DOMINATE* : « both attacker and defender roll combat dice equal to their Mind Points. If the attacker
+     * scores at least two skulls, the hero is Dominated. If the attack is unsuccessful, nothing happens. Zargon
+     * hands the affected hero a Dominate card and may immediately take that hero's full movement and action.
+     * Zargon may move, fight, cast spells, and perform any other action as the Dominated hero (including
+     * attacking other heroes). At the end of the Dread Sorcerer's turn, the spell ends. » (p. 10)
+     *
+     * Crânes NETS (décision de René, 2026-10-15 : les boucliers du héros annulent les crânes comme dans un
+     * combat normal), seuil `cranes_requis`. Le héros n'est ni gelé ni marqué : « immediately » — il est JOUÉ
+     * sur-le-champ, à la phase du Sorcier, par {@see HerosJoueParLeMj} (la couture qu'utilise aussi
+     * *Possession*), et le sort est fini quand cette méthode rend la main. Son PROPRE tour de ce round est déjà
+     * joué — la phase des monstres vient après —, il ne le perd pas : le MJ prend une action de plus.
+     *
+     * La carte est PRÊTÉE le temps du sort (`effet.carte: prete`) et rendue à son terme : la main du Sorcier
+     * n'en est donc pas entamée, il lui en faut seulement UNE (`sortsLancables()`).
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function sortDreadDomination(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        SortDread $sort,
+        Collection $cibles,
+        Collection $enVue,
+        array $acteur,
+    ): array {
+        $victime = $this->cibleDomination($enVue, $cibles);
+
+        if ($victime === null) {
+            return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
+        }
+
+        $personnage = $victime->personnage;
+        $requis = max(1, (int) data_get($sort->effet, 'cranes_requis', 2));
+
+        $jet = (new OppositionMind($this->des))->lancer((int) $instance->pv_mind, (int) $personnage->pv_mind, TypeFigurine::Heros);
+        $nets = $jet->cranesNets();
+
+        $ligne = [
+            'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
+            'pv_mind_lanceur' => (int) $instance->pv_mind,
+            'pv_mind_cible' => (int) $personnage->pv_mind,
+            ...$jet->pourJournal(),
+            'cranes_nets' => $nets,
+            'cranes_requis' => $requis,
+            'effet_applique' => false,
+        ];
+
+        // ⚠ Reçoit la ligne en ARGUMENT : une fonction fléchée capture `$ligne` PAR VALEUR à sa création, et ne
+        // verrait jamais « domine » / « actions_domine » posés plus bas.
+        $enveloppe = fn (array $l): array => [
+            'type' => 'sort_dread',
+            'sort' => $sort->nom,
+            'resultats' => [$l],
+        ];
+
+        // « If the attack is unsuccessful, nothing happens. »
+        if ($nets < $requis) {
+            $recu = $enveloppe($ligne);
+            Journal::ajouter($groupe, 'action', $recu, $acteur);
+
+            return $recu;
+        }
+
+        // Le Contresort (talent) est une SECONDE chance contre tout effet magique posé sur le héros.
+        $contresort = $this->tenterContresort($personnage);
+
+        if ($contresort !== null) {
+            $ligne['contresort'] = $contresort;
+
+            if ($contresort['reussi']) {
+                $recu = $enveloppe($ligne);
+                Journal::ajouter($groupe, 'action', $recu, $acteur);
+
+                return $recu;
+            }
+        }
+
+        // LE MJ JOUE LE HÉROS — tout de suite, jusqu'à la fin du tour du Sorcier.
+        $actions = app(HerosJoueParLeMj::class)->jouer(
+            $groupe, $quete, $personnage, $victime->fresh(), ControleMj::domination(),
+        );
+
+        $ligne['effet_applique'] = true;
+        $ligne['domine'] = true;
+        $ligne['actions_domine'] = $actions;
+        $ligne['fin_domination'] = true;
+        $ligne['cartes_restantes'] = CartesDread::restantes($instance, $sort->nom);
+
+        $recu = $enveloppe($ligne);
+        Journal::ajouter($groupe, 'action', $recu, $acteur);
+
+        return $recu;
     }
 
     // ------------------------------------------------------------------
@@ -4173,6 +4583,43 @@ final class MoteurDread
     }
 
     /**
+     * Lance UN sort de Dread, nommé, sur UN héros précis, HORS de l'action du lanceur : ni choix
+     * de sort, ni usage du budget (`consommerUsage()` n'est pas appelé), ni action consommée. Le
+     * *Silencing Snare* de la Deathspinner — « may cast Channel Dread at will on any hero that ends
+     * their turn within her line of sight (no action required) » — est la première capacité à
+     * l'employer. La résolution est celle de tout sort de la même famille (`lancerSortDread()` :
+     * dés, défenses, interceptions de `MoteurDegats`, conditions posées) — jamais une seconde copie
+     * des règles du sort. Le payload est `sort_dread`, signé du lanceur : le fil et la table le
+     * disent déjà.
+     *
+     * Rend `null` si le sort n'existe pas au catalogue (une donnée absente ne doit jamais lever en
+     * pleine phase de jeu).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function lancerSortSurHeros(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $lanceur,
+        string $nomSort,
+        EtatPersonnageQuete $cible,
+    ): ?array {
+        $sort = SortDread::query()->where('nom', $nomSort)->first();
+
+        if ($sort === null) {
+            return null;
+        }
+
+        $seule = new Collection([$cible]);
+        $acteur = ['type' => 'monstre', 'id' => $lanceur->id, 'nom' => $lanceur->nomAffiche()];
+
+        return $this->signerLanceur(
+            $this->lancerSortDread($groupe, $quete, $lanceur, $sort, $seule, $seule, $acteur),
+            $lanceur,
+        );
+    }
+
+    /**
      * POSSESSION (*Possess*) : « Zargon will move this figure on its next turn.
      * The affected figure may not attack or cast spells. » Joué à la place du
      * héros, comme le Commandement — un tour, puis la condition tombe.
@@ -4183,6 +4630,12 @@ final class MoteurDread
      * contact SANS attaquer. Les pièges de la route se déclenchent (mouvement
      * forcé, `MoteurPieges::repousserFigure()`). Cibles : des HÉROS — alliés et
      * mercenaires ne sont pas visés par les sorts de Dread (nommé, pas oublié).
+     *
+     * ⚠ Depuis le 2026-10-16 la marche n'est plus écrite ICI : c'est
+     * {@see HerosJoueParLeMj}, la couture unique du « MJ joue un héros »
+     * (*Dominate* l'utilise aussi), avec le profil {@see ControleMj::possession()}.
+     * Cette méthode ne garde que ce qui est à *Possession* : sa condition, son moment
+     * (le prochain tour du héros) et son journal.
      *
      * @return array<string, mixed>|null
      */
@@ -4197,43 +4650,12 @@ final class MoteurDread
         }
 
         $this->retirerConditionHeros($personnage, 'Possédé');
-        $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
-        $depart = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
 
-        $grille = $this->grilleQuete($quete, exceptPersonnageId: $personnage->id);
-        $monstre = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->orderBy('id')->get()
-            ->filter(fn (InstanceMonstre $m) => $m->position_x !== null)
-            ->sortBy(fn (InstanceMonstre $m) => abs((int) $m->position_x - $depart['x']) + abs((int) $m->position_y - $depart['y']))
-            ->first();
+        $payload = app(HerosJoueParLeMj::class)->jouer($groupe, $quete, $personnage, $etat, ControleMj::possession())[0] ?? null;
 
-        $chemin = [];
-
-        if ($monstre !== null) {
-            $complet = $this->cheminVersCaseAdjacente($grille, $depart['x'], $depart['y'], (int) $monstre->position_x, (int) $monstre->position_y) ?? [];
-            $chemin = array_slice($complet, 0, max(1, (int) $personnage->deplacement_base));
+        if ($payload !== null) {
+            Journal::ajouter($groupe, 'action', $payload, ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom]);
         }
-
-        $arrivee = $depart;
-        $piegesCroises = [];
-
-        if ($chemin !== [] && $quete->carte !== null) {
-            $piege = app(MoteurPieges::class)->repousserFigure($groupe, $quete->carte, $personnage, $etat, $chemin);
-            $arrivee = $piege['arret'] ?? end($chemin);
-            $piegesCroises = $piege['declenchements'];
-            $etat->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
-        }
-
-        $payload = [
-            'type' => 'possession_deplacement',
-            'personnage' => $personnage->nom,
-            'de' => $depart,
-            'vers' => ['x' => (int) $arrivee['x'], 'y' => (int) $arrivee['y']],
-            'vers_monstre' => $monstre?->nomAffiche(),
-            // Les pièges que cette marche forcée a croisés : ils n'étaient que journalisés
-            // à part, donc absents du fil en direct (bâti sur le RÉSULTAT).
-            'pieges_declenches' => $piegesCroises,
-        ];
-        Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
     }
@@ -4903,7 +5325,7 @@ final class MoteurDread
     }
 
     /** Une créature peut-elle encore AGIR (ni endormie, ni paralysée, ni passant son tour) ? */
-    private function peutAgir(InstanceMonstre $m): bool
+    public function peutAgir(InstanceMonstre $m): bool
     {
         return $m->etat === 'actif' && $m->revele && $m->controle_par === null
             && ! $this->sorts->monstreA($m, MoteurSorts::MONSTRE_ENDORMI)
@@ -5226,7 +5648,9 @@ final class MoteurDread
         $monstres = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->with('monstre')->get()
             ->filter(fn (InstanceMonstre $m) => $m->id !== $instance->id
                 && $m->position_x !== null
-                && isset($index[(int) $m->position_x.':'.(int) $m->position_y]))
+                && isset($index[(int) $m->position_x.':'.(int) $m->position_y])
+                // « immune to all spell effects » (Guardian Effigy) : le drain ne la saigne pas.
+                && ! $m->monstre->immuniseAuxSorts())
             ->values();
 
         return [

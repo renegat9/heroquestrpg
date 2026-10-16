@@ -13,8 +13,10 @@ use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\PersonnageFaveur;
 use App\Models\Quete;
+use App\Models\Sort;
 use App\Support\Journal;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -23,29 +25,44 @@ use Illuminate\Validation\ValidationException;
  * séparée, hors arbre de talents — une faveur offerte au groupe à la fin de
  * CERTAINES quêtes, comme le livret après la quête 2 ».
  *
- * Les CINQ compétences transcrites mot pour mot
- * (`reference/18_extensions.md` §Wizards of Morcar — cartes TRANSCRITES,
- * §7) — les quatre autres faveurs du lieu (mercenaire gratuit, +2 PV Body,
- * +1 Potion, répertoire de sorts supplémentaire) sont HORS CHANTIER (pas
- * nommées par la décision du 2026-10-06, déjà couvertes par d'autres dons du
- * catalogue) et restent ⚠ non portées.
+ * Les NEUF lieux du livret, portés (René, 2026-10-15) : les CINQ compétences
+ * transcrites mot pour mot (`reference/18_extensions.md` §Wizards of Morcar —
+ * cartes TRANSCRITES, §7 : Deadeye, Weapon Expert, Healing Hands, Hold the Line,
+ * Peacekeeper) et les QUATRE faveurs mécaniques du lieu, sourcées en toutes lettres :
+ *  - *Mercenary Guild* — « Recruit a Mercenary without paying their cost » ;
+ *  - *Dewdrop Inn* — « Raise your hero's max Body Points by 2 » ;
+ *  - *Witch's Hut* — « Gain 1 Potion of Healing. » (« Can be gained multiple times. ») ;
+ *  - *Arcane Library* — « you may take an additional set of spells that you are eligible
+ *    to cast. This boon is only for spellcasting heroes. »
  *
  * RÈGLE D'ATTRIBUTION (décision d'interprétation de ce chantier, le livret
  * ne tranchant qu'un « un héros visite un lieu, hors ligne ») : à la fin
  * d'une quête RÉUSSIE (`ResolveurTour::terminerQuete()`, jamais un échec —
  * aligné sur la montée de niveau par jalon), UNE FOIS Gardien
- * (`Groupe::estGardien()`), le groupe reçoit UNE faveur TIRÉE AU HASARD
- * parmi les 5 non encore détenues par aucun héros actif du groupe, remise à
- * un héros actif lui aussi tiré au hasard. Ni choix de la faveur ni file
- * d'attente : une décision engine-autoritaire annoncée (journal + payload),
- * conforme à « le serveur publie la décision ». Épuisé (les 5 déjà
- * distribuées) : rien n'est tiré ce tour-ci, silencieusement — pas un défaut
- * à annoncer, au même titre qu'un butin qui ne tombe pas.
+ * (`Groupe::estGardien()`), le groupe reçoit UNE faveur TIRÉE AU HASARD, remise à
+ * un héros actif lui aussi tiré au hasard (au dé injecté, `OubliSorts::indiceAleatoire()`
+ * — la partie reste rejouable). Ni choix de la faveur ni file d'attente : une
+ * décision engine-autoritaire annoncée (journal + payload), conforme à « le serveur
+ * publie la décision ». Ce que « disponible » veut dire dépend de la carte
+ * ({@see self::candidatsDeTirage()}, le point de passage du tirage) :
+ *  - les CINQ compétences portent « (1 available) » : aucune si un héros actif du groupe
+ *    la détient déjà ;
+ *  - *Mercenary Guild*, *Dewdrop Inn*, *Arcane Library* ne portent pas cette mention : une
+ *    par HÉROS, chacun peut avoir la sienne ; la bibliothèque ne va qu'à un lanceur à qui
+ *    il reste un répertoire à prendre ;
+ *  - *Witch's Hut* est cumulable : jamais épuisée, elle n'écrit AUCUNE ligne (la potion dans
+ *    le sac est l'état durable).
+ * Le tirage n'est donc plus jamais « épuisé » tant que le catalogue a la potion.
  *
- * UN SEUL choix reste au joueur (René, 2026-10-15) : le TYPE D'ARME de Weapon
- * Expert (« Select a type of weapon […] when you acquire this Boon »). La faveur
- * est tirée et remise au hasard, mais c'est le joueur du héros qui choisit sa
- * spécialité, au hub, dès qu'il l'a reçue — voir `choisirTypeArme()`.
+ * ⚠ DEUX FIDÉLITÉS AU LIVRET QU'ON NE PORTE PAS, nommées et non devinées (René a confirmé
+ * « tirées au hasard » ; le reste attend sa décision) : le livret fait CHOISIR un lieu par
+ * héros À CHAQUE quête (« A hero may only benefit from one boon at a time ») ; ici une faveur
+ * tirée reste acquise, un héros peut en cumuler. Et « This Mercenary returns to the guild if
+ * you ever choose another boon » n'a pas de sens sans ce choix répété : la faveur dure.
+ *
+ * Deux choix restent au joueur, tous deux AU HUB, par le porteur : le TYPE D'ARME de Weapon
+ * Expert (« Select a type of weapon […] when you acquire this Boon », René 2026-10-15 — voir
+ * `choisirTypeArme()`) et le RÉPERTOIRE d'Arcane Library (voir `choisirRepertoire()`).
  */
 final class FaveursHopekins
 {
@@ -59,8 +76,39 @@ final class FaveursHopekins
 
     public const PEACEKEEPER = 'peacekeeper';
 
+    /** « Wandering Monsters' Mercenary Guild » — « Recruit a Mercenary without paying their cost. » */
+    public const MERCENARY_GUILD = 'mercenary_guild';
+
+    /** « Dewdrop Inn » — « Raise your hero's max Body Points by 2. » */
+    public const DEWDROP_INN = 'dewdrop_inn';
+
+    /** « Witch's Hut » — « Gain 1 Potion of Healing. » (cumulable) */
+    public const WITCHS_HUT = 'witchs_hut';
+
+    /** « The Arcane Library » — « an additional set of spells that you are eligible to cast ». */
+    public const ARCANE_LIBRARY = 'arcane_library';
+
     /** « 25 gold coins per monster defeated at the end of that quest » (carte Peacekeeper). */
     public const OR_PAR_MONSTRE = 25;
+
+    /** « Raise your hero's max Body Points by 2 » (Dewdrop Inn). */
+    public const BONUS_BODY_MAX = 2;
+
+    /**
+     * La « Potion of Healing » du livret = la carte officielle du même nom (500 po,
+     * « roll 1 red die and restore that number of Body Points ») — `config/cartes.php`,
+     * section potions : `Potion of Healing` → `Potion de guérison`. Un test épingle ce lien.
+     */
+    public const POTION_DE_LA_SORCIERE = 'Potion de guérison';
+
+    /** Les CINQ compétences de héros — celles du livret qui portent « (1 available) ». */
+    public const COMPETENCES = [
+        self::DEADEYE,
+        self::WEAPON_EXPERT,
+        self::HEALING_HANDS,
+        self::HOLD_THE_LINE,
+        self::PEACEKEEPER,
+    ];
 
     /** Vocabulaire fermé — seule source, testée dans les deux sens. */
     public const TOUTES = [
@@ -69,7 +117,18 @@ final class FaveursHopekins
         self::HEALING_HANDS,
         self::HOLD_THE_LINE,
         self::PEACEKEEPER,
+        self::MERCENARY_GUILD,
+        self::DEWDROP_INN,
+        self::WITCHS_HUT,
+        self::ARCANE_LIBRARY,
     ];
+
+    /**
+     * Faveurs qui s'ACCOMPLISSENT sur le coup et n'écrivent aucune ligne de `personnage_faveurs` :
+     * leur état durable est ailleurs (la potion, dans le sac). Une ligne n'aurait aucun lecteur —
+     * et, unique sur `(personnage_id, cle)`, empêcherait justement le « cumulable » de la carte.
+     */
+    public const INSTANTANEES = [self::WITCHS_HUT];
 
     public const LIBELLES = [
         self::DEADEYE => 'Deadeye',
@@ -77,6 +136,10 @@ final class FaveursHopekins
         self::HEALING_HANDS => 'Healing Hands',
         self::HOLD_THE_LINE => 'Hold the Line',
         self::PEACEKEEPER => 'Peacekeeper',
+        self::MERCENARY_GUILD => 'Mercenary Guild',
+        self::DEWDROP_INN => 'Dewdrop Inn',
+        self::WITCHS_HUT => 'Witch\'s Hut',
+        self::ARCANE_LIBRARY => 'Arcane Library',
     ];
 
     /**
@@ -92,6 +155,10 @@ final class FaveursHopekins
         self::HEALING_HANDS => 'Si un héros adjacent tombe à 0 PV, il peut boire une de vos potions de soin au lieu de la sienne.',
         self::HOLD_THE_LINE => 'Quand un monstre s\'éloigne des 8 cases qui vous entourent, un crâne au dé de combat lui inflige 1 PV de Body.',
         self::PEACEKEEPER => '25 po à la bourse commune pour chaque monstre que vous réduisez à 0 PV.',
+        self::MERCENARY_GUILD => 'Vous engagez gratuitement le mercenaire de votre choix (au hub, panneau de recrutement) : son prix d\'engagement n\'est pas payé, son entretien de 10 po par quête reste dû. Mort ou parti, un autre vous est offert.',
+        self::DEWDROP_INN => '+2 PV de Body maximum, pour toute la campagne.',
+        self::WITCHS_HUT => 'Une Potion de guérison est remise à ce héros. La faveur peut se répéter.',
+        self::ARCANE_LIBRARY => 'Un répertoire de sorts supplémentaire, que vous choisissez au hub, parmi ceux que vous pouvez lancer (réservé aux lanceurs de sorts).',
     ];
 
     public function __construct(
@@ -139,6 +206,9 @@ final class FaveursHopekins
      *    permis ICI (au hub : `PUT …/faveurs/weapon-expert` le refuse ailleurs) — la
      *    manette n'a donc ni à connaître la phase ni à relire le catalogue d'armes.
      *
+     * *Arcane Library* publie de même `repertoire` (l'élément pris) et `choix`
+     * (`[{element, sorts: [nom…]}]`) ; *Mercenary Guild* publie `recrutement_offert` (bool).
+     *
      * @return list<array<string, mixed>>
      */
     public static function publier(Personnage $personnage, bool $choixOuvert = false): array
@@ -166,6 +236,27 @@ final class FaveursHopekins
                             'des_attaque' => (int) ($o->effet['des_attaque'] ?? 0),
                         ])->values()->all();
                     }
+                }
+
+                // *Arcane Library* : même patron que Weapon Expert — le répertoire pris (`null`
+                // tant qu'aucun) et, au hub tant qu'il reste à choisir, la LISTE BLANCHE.
+                if ($f->cle === self::ARCANE_LIBRARY) {
+                    $entree['repertoire'] = $f->parametre;
+                    $entree['choix'] = null;
+
+                    if ($f->parametre === null && $choixOuvert) {
+                        $options = self::repertoiresChoisissables($personnage);
+                        $entree['choix'] = $options === [] ? null : array_map(fn (string $element) => [
+                            'element' => $element,
+                            'sorts' => Sort::query()->where('element', $element)->orderBy('id')->pluck('nom')->all(),
+                        ], $options);
+                    }
+                }
+
+                // *Mercenary Guild* : la DÉCISION (« ai-je un recrutement gratuit à prendre ? »),
+                // jamais ses ingrédients — la fiche ne relit ni le recrutement ni le groupe.
+                if ($f->cle === self::MERCENARY_GUILD) {
+                    $entree['recrutement_offert'] = self::mercenaireGratuitDisponible($personnage, (int) $personnage->groupe_actif_id);
                 }
 
                 return $entree;
@@ -259,6 +350,24 @@ final class FaveursHopekins
     }
 
     /**
+     * Motif pour lequel CE héros ne peut pas encore se déclarer prêt — un choix de faveur
+     * qui se fait une fois, « when you acquire this Boon » — ou `null`. Appelé par
+     * `POST /pret` : on ne bloque que le porteur, et UN geste (choisir) lève le refus.
+     */
+    public static function refusDeDepart(Personnage $personnage): ?string
+    {
+        if (self::choixEnAttente($personnage)) {
+            return "« {$personnage->nom} » a reçu la faveur Weapon Expert : choisissez son type d'arme (fiche du héros) avant de partir.";
+        }
+
+        if (self::repertoireEnAttente($personnage)) {
+            return "« {$personnage->nom} » a reçu la faveur Arcane Library : choisissez son répertoire de sorts supplémentaire (fiche du héros) avant de partir.";
+        }
+
+        return null;
+    }
+
+    /**
      * Le type d'arme lié à une faveur Weapon Expert, sous son nom d'armurerie —
      * `null` si rien n'est lié (ou si l'arme liée a quitté le catalogue).
      */
@@ -343,6 +452,206 @@ final class FaveursHopekins
         $type = self::typeChoisi($faveur);
 
         return $type !== null && $type === app(Equipement::class)->typeDArme($arme) ? 1 : 0;
+    }
+
+    // ---- ARCANE LIBRARY ---------------------------------------------------
+    //
+    // « Mentor expands your knowledge of arcane mysteries. After heroes have selected spells,
+    // you may take an additional set of spells that you are eligible to cast. This boon is only
+    // for spellcasting heroes. » (livret G1504 p. 23.)
+    //
+    // Un « set » est un RÉPERTOIRE au sens du projet (`sorts.element` : une école, un répertoire
+    // de classe, un répertoire optionnel de Morcar) — trois sorts, attachés en bloc par
+    // `MoteurSorts::attacherElement()`, le même geste que le choix de départ et le rechoix au
+    // hub. « Eligible to cast » est lu par `MoteurSorts::repertoiresSupplementaires()` avec les
+    // règles des lanceurs, jamais une liste recopiée ici. Comme Weapon Expert : le JOUEUR choisit,
+    // au hub, en recevant la faveur ; la liste blanche est publiée (`publier()`, clé `choix`),
+    // `PUT …/faveurs/arcane-library` la revalide, écrit `parametre` EN BASE (l'élément pris) et le
+    // fige, et `POST /pret` refuse au porteur de partir sans avoir choisi.
+    //
+    // Le répertoire pris est ensuite un répertoire comme un autre : « Spellcasters may change their
+    // spells between quests » (p. 11) vaut pour lui aussi (`MoteurSorts::remplacerElement()`), la
+    // faveur n'en garde que la trace — l'ensemble reste, lui, plus gros d'un répertoire.
+
+    /**
+     * Répertoires que ce héros peut prendre en plus — la LISTE BLANCHE du choix
+     * (revalidée par `choisirRepertoire()`).
+     *
+     * @return list<string>
+     */
+    public static function repertoiresChoisissables(Personnage $personnage): array
+    {
+        return app(MoteurSorts::class)->repertoiresSupplementaires($personnage);
+    }
+
+    /** Ce héros a-t-il un répertoire à choisir MAINTENANT ? (faveur reçue, choix vierge, au moins un répertoire à prendre) */
+    public static function repertoireEnAttente(Personnage $personnage): bool
+    {
+        $personnage->loadMissing('faveurs');
+        $faveur = $personnage->faveurs->firstWhere('cle', self::ARCANE_LIBRARY);
+
+        return $faveur !== null
+            && $faveur->parametre === null
+            && self::repertoiresChoisissables($personnage) !== [];
+    }
+
+    /**
+     * Le joueur choisit le répertoire supplémentaire de sa faveur. Revalide TOUT côté serveur :
+     * le héros porte la faveur, son choix est encore vierge, et `$element` figure dans la liste
+     * blanche publiée.
+     *
+     * @return array{personnage_id: int, element: string, sorts: list<string>}
+     */
+    public function choisirRepertoire(Groupe $groupe, Personnage $personnage, string $element): array
+    {
+        $faveur = $this->faveur($personnage, self::ARCANE_LIBRARY);
+
+        if ($faveur === null) {
+            throw ValidationException::withMessages([
+                'personnage_id' => "« {$personnage->nom} » n'a pas la faveur Arcane Library.",
+            ]);
+        }
+
+        if ($faveur->parametre !== null) {
+            throw ValidationException::withMessages([
+                'element' => 'Le répertoire de cette faveur est déjà choisi : le choix se fait une fois, en la recevant.',
+            ]);
+        }
+
+        if (! in_array($element, self::repertoiresChoisissables($personnage), true)) {
+            throw ValidationException::withMessages([
+                'element' => 'Ce n\'est pas un répertoire que ce héros peut prendre en plus de ses sorts.',
+            ]);
+        }
+
+        $sorts = DB::transaction(function () use ($faveur, $personnage, $element) {
+            $sorts = app(MoteurSorts::class)->attacherElement($personnage, $element);
+            $faveur->update(['parametre' => $element]);
+
+            return $sorts;
+        });
+
+        $personnage->unsetRelation('faveurs');
+        $personnage->unsetRelation('sorts');
+
+        Journal::ajouter($groupe, 'systeme', [
+            'action' => 'faveur_repertoire_choisi',
+            'personnage_id' => (int) $personnage->id,
+            'personnage' => $personnage->nom,
+            'faveur' => self::ARCANE_LIBRARY,
+            'element' => $element,
+            'sorts' => $sorts->pluck('nom')->all(),
+        ], ['nom' => $personnage->nom]);
+
+        return [
+            'personnage_id' => (int) $personnage->id,
+            'element' => $element,
+            'sorts' => $sorts->pluck('nom')->all(),
+        ];
+    }
+
+    // ---- MERCENARY GUILD --------------------------------------------------
+    //
+    // « Ragnar and the veterans of the guild share stories of their past victories. Ragnar's
+    // spirits seem lifted. Recruit a Mercenary without paying their cost. This Mercenary returns
+    // to the guild if you ever choose another boon. » (livret G1504 p. 23.)
+    //
+    // Passe par le recrutement EXISTANT : même route (`POST …/mercenaires`), mêmes garde-fous
+    // (hub, Gardien, quatre par héros, animal unique — `RecrutementHub`), même allié ordinaire
+    // joué par son maître. Seul le PRIX change : `RecrutementHub::prixPour()` lit
+    // `mercenaireGratuitDisponible()` et publie 0 au lieu du catalogue.
+    //
+    // DURÉE — la faveur est un DROIT à un mercenaire offert « en poste » : `parametre` retient
+    // l'id du `groupe_mercenaires` engagé par ce droit. Tant qu'il est vivant et au service de ce
+    // héros, le droit est consommé ; mort (purgé en fin de quête) ou parti faute d'entretien, la
+    // ligne a disparu et le droit se rouvre. C'est ce que fait le livret en demandant de choisir
+    // la guilde à CHAQUE quête (un nouveau mercenaire offert chaque fois qu'il en manque un) ;
+    // notre faveur, elle, est acquise une fois pour toutes. « Returns to the guild if you ever
+    // choose another boon » n'a pas d'objet sans ce choix répété — voir le docblock de classe.
+    //
+    // « Without paying their cost » : le coût d'ENGAGEMENT (« Cost: 75 gold coins » sur la
+    // carte). L'ENTRETIEN de 10 po par quête est un autre paiement (p. 8-9, « as long as they are
+    // paid 10 gold coins at the end of each quest ») que la carte ne retire pas : l'allié offert
+    // par la guilde est donc un suivant ORDINAIRE (`groupe_mercenaires.offert` reste `false` — ce
+    // drapeau est celui du compagnon animal d'Against the Ogre Horde, « at no cost » pour tout
+    // son séjour). Si René veut l'en exempter, c'est une ligne dans `reglerEntretien()`.
+    //
+    // « A Mercenary » : un mercenaire, pas un compagnon animal — les animaux sont des « animal
+    // allies » d'une autre boîte, avec leur propre règle de gratuité.
+
+    /** Cet allié, recruté au titre de la guilde, est-il toujours au service de CE héros ? */
+    public static function mercenaireOffertEnPoste(PersonnageFaveur $faveur, int $groupeId): bool
+    {
+        if ($faveur->parametre === null) {
+            return false;
+        }
+
+        return GroupeMercenaire::query()
+            ->whereKey((int) $faveur->parametre)
+            ->where('groupe_id', $groupeId)
+            ->where('recruteur_personnage_id', $faveur->personnage_id)
+            ->where('etat', 'actif')
+            ->exists();
+    }
+
+    /** Ce héros a-t-il, DANS CE GROUPE, un recrutement gratuit à prendre ? */
+    public static function mercenaireGratuitDisponible(Personnage $personnage, int $groupeId): bool
+    {
+        if ($groupeId <= 0) {
+            return false;
+        }
+
+        $personnage->loadMissing('faveurs');
+        $faveur = $personnage->faveurs->firstWhere('cle', self::MERCENARY_GUILD);
+
+        return $faveur !== null && ! self::mercenaireOffertEnPoste($faveur, $groupeId);
+    }
+
+    /**
+     * Le droit est CONSOMMÉ par ce recrutement : la faveur retient l'allié engagé. À appeler dans
+     * la transaction du recrutement, après la création de la ligne.
+     */
+    public static function lierMercenaireOffert(Personnage $recruteur, GroupeMercenaire $recrue): void
+    {
+        PersonnageFaveur::query()
+            ->where('personnage_id', $recruteur->id)
+            ->where('cle', self::MERCENARY_GUILD)
+            ->update(['parametre' => (string) $recrue->id]);
+
+        $recruteur->unsetRelation('faveurs');
+    }
+
+    // ---- DEWDROP INN ------------------------------------------------------
+    //
+    // « Friendship, food, merriment, and songs of heroic glory fortify your resolve. Raise your
+    // hero's max Body Points by 2. » Une SECONDE source de plafond à côté des talismans : elle
+    // passe par `Equipement::apresChangementDeJauges()` / `bonusJauges()`, le point de passage
+    // des PV maximum hors montée de niveau — jamais un `increment` à côté. Les PV courants suivent
+    // (« adds … to the totals »), et le sac, dont la capacité est PV max ÷ 2, gagne sa place
+    // d'office : c'est dérivé, pas ajouté. Une fois par héros (la ligne est unique), donc +2 une
+    // seule fois ; la ligne n'est pas décorative, c'est elle que `bonusJauges()` relit.
+
+    /** Plafond de Body que cette faveur donne à CE héros (0 sans elle). Requête fraîche : jamais la relation en cache. */
+    public static function bonusBodyMax(Personnage $personnage): int
+    {
+        return PersonnageFaveur::query()
+            ->where('personnage_id', $personnage->id)
+            ->where('cle', self::DEWDROP_INN)
+            ->exists() ? self::BONUS_BODY_MAX : 0;
+    }
+
+    // ---- WITCH'S HUT ------------------------------------------------------
+    //
+    // « Gain 1 Potion of Healing. » (« Can be gained multiple times. ») La Potion de guérison du
+    // catalogue (`POTION_DE_LA_SORCIERE`) entre dans le sac par le rangement de tous les butins
+    // (`RangementObjet::ranger()` : un consommable s'empile, hors capacité du sac). INSTANTANÉE :
+    // aucune ligne de faveur — la potion EST l'état durable, et c'est elle que boivent le héros,
+    // son voisin (Healing Hands comprise) et le menu.
+
+    /** La potion remise par le Witch's Hut, ou `null` si le catalogue ne l'a pas. */
+    private function potionDeLaSorciere(): ?Objet
+    {
+        return Objet::query()->where('nom', self::POTION_DE_LA_SORCIERE)->first();
     }
 
     // ---- HEALING HANDS ---------------------------------------------------
@@ -612,9 +921,63 @@ final class FaveursHopekins
     // ---- ATTRIBUTION DE FIN DE QUÊTE --------------------------------------
 
     /**
+     * QUI peut recevoir QUOI, maintenant : `[clé => héros éligibles]`, dans l'ordre de `TOUTES`,
+     * sans les faveurs que personne ne peut recevoir. POINT DE PASSAGE UNIQUE du tirage — la
+     * règle d'éligibilité de chaque carte tient ici et nulle part ailleurs (voir le docblock de
+     * classe) :
+     *  - les CINQ compétences « (1 available) » : tous les héros actifs, tant qu'aucun d'eux ne
+     *    la détient ;
+     *  - *Mercenary Guild*, *Dewdrop Inn* : les héros qui ne l'ont pas encore ;
+     *  - *Arcane Library* : de même, et seulement un lanceur à qui il reste un répertoire à prendre ;
+     *  - *Witch's Hut* : tous, toujours (cumulable) — tant que le catalogue a la potion.
+     *
+     * @param  Collection<int, Personnage>  $heros
+     * @return array<string, Collection<int, Personnage>>
+     */
+    public function candidatsDeTirage(Collection $heros): array
+    {
+        if ($heros->isEmpty()) {
+            return [];
+        }
+
+        /** @var Collection<string, list<int>> $detenues clé => ids des héros qui la détiennent */
+        $detenues = PersonnageFaveur::query()
+            ->whereIn('personnage_id', $heros->pluck('id'))
+            ->get(['personnage_id', 'cle'])
+            ->groupBy('cle')
+            ->map(fn (Collection $lignes) => $lignes->pluck('personnage_id')->map(fn ($id) => (int) $id)->all());
+
+        $candidats = [];
+
+        foreach (self::TOUTES as $cle) {
+            $porteurs = $detenues->get($cle, []);
+
+            $eligibles = match (true) {
+                in_array($cle, self::COMPETENCES, true) => $porteurs === [] ? $heros : collect(),
+                $cle === self::WITCHS_HUT => $this->potionDeLaSorciere() !== null ? $heros : collect(),
+                $cle === self::ARCANE_LIBRARY => $heros->filter(fn (Personnage $h) => ! in_array((int) $h->id, $porteurs, true)
+                    && self::repertoiresChoisissables($h) !== []),
+                default => $heros->filter(fn (Personnage $h) => ! in_array((int) $h->id, $porteurs, true)),
+            };
+
+            if ($eligibles->isNotEmpty()) {
+                $candidats[$cle] = $eligibles->values();
+            }
+        }
+
+        return $candidats;
+    }
+
+    /** Indice uniforme dans [0, $n[ au dé injecté — rien à tirer s'il n'y a qu'un candidat. */
+    private function indiceAuHasard(int $n): int
+    {
+        return $n <= 1 ? 0 : app(OubliSorts::class)->indiceAleatoire($this->des, $n);
+    }
+
+    /**
      * Tirage de fin de quête RÉUSSIE (voir le docblock de classe pour la
-     * règle). `null` si pas encore Gardien, pas de héros actif, ou les 5
-     * faveurs sont déjà toutes distribuées dans ce groupe.
+     * règle). `null` si pas encore Gardien, pas de héros actif, ou si plus
+     * aucune faveur ne peut être remise (cas rare : la potion manque au catalogue).
      *
      * @return array<string, mixed>|null
      */
@@ -624,28 +987,19 @@ final class FaveursHopekins
             return null;
         }
 
-        $heros = $groupe->personnages()->wherePivot('actif', true)->get();
+        $heros = $groupe->personnages()->wherePivot('actif', true)->orderBy('personnages.id')->get();
+        $candidats = $this->candidatsDeTirage($heros);
 
-        if ($heros->isEmpty()) {
+        if ($candidats === []) {
             return null;
         }
 
-        $dejaDetenues = PersonnageFaveur::whereIn('personnage_id', $heros->pluck('id'))
-            ->pluck('cle')
-            ->unique()
-            ->all();
-
-        $pool = array_values(array_diff(self::TOUTES, $dejaDetenues));
-
-        if ($pool === []) {
-            return null; // les 9 lieux de Hopekins Rest : les 5 portés ici sont épuisés.
-        }
-
-        $cle = $pool[array_rand($pool)];
+        $cles = array_keys($candidats);
+        $cle = $cles[$this->indiceAuHasard(count($cles))];
         /** @var Personnage $recu */
-        $recu = $heros->random();
+        $recu = $candidats[$cle][$this->indiceAuHasard($candidats[$cle]->count())];
 
-        PersonnageFaveur::create(['personnage_id' => $recu->id, 'cle' => $cle]);
+        $detail = $this->remettre($recu, $cle);
 
         // `quete_id` : l'annonce du hub ne vaut que pour la DERNIÈRE quête
         // achevée (voir `EtatGroupe::annonceDeQuete()`) — sans lui, une quête
@@ -658,11 +1012,47 @@ final class FaveursHopekins
             'faveur_libelle' => self::LIBELLES[$cle],
             'personnage_id' => $recu->id,
             'personnage' => $recu->nom,
+            // Ce que la faveur a FAIT ou ce qui reste à faire, en clair (`null` pour une compétence :
+            // son effet se lit sur la fiche). Publié par le serveur : le hub ne le re-dérive pas.
+            'detail' => $detail,
         ];
 
         Journal::ajouter($groupe, 'systeme', $payload, ['nom' => $recu->nom]);
 
         return $payload;
+    }
+
+    /**
+     * Remet la faveur à son porteur et rend le détail annoncé. Chaque cas écrit son ÉTAT DURABLE
+     * en base (une ligne, un plafond, un objet du sac) — jamais en cache.
+     */
+    private function remettre(Personnage $recu, string $cle): ?string
+    {
+        if ($cle === self::WITCHS_HUT) {
+            $potion = $this->potionDeLaSorciere();
+            RangementObjet::ranger($potion, (int) $recu->id, 1);
+
+            return "{$recu->nom} reçoit une {$potion->nom}.";
+        }
+
+        if ($cle === self::DEWDROP_INN) {
+            app(Equipement::class)->apresChangementDeJauges(
+                $recu,
+                fn () => PersonnageFaveur::create(['personnage_id' => $recu->id, 'cle' => $cle]),
+            );
+            $recu->unsetRelation('faveurs');
+
+            return "{$recu->nom} passe à {$recu->pv_body_max} PV de Body maximum.";
+        }
+
+        PersonnageFaveur::create(['personnage_id' => $recu->id, 'cle' => $cle]);
+        $recu->unsetRelation('faveurs');
+
+        return match ($cle) {
+            self::MERCENARY_GUILD => "{$recu->nom} peut engager gratuitement le mercenaire de son choix (recrutement, au hub).",
+            self::ARCANE_LIBRARY => "{$recu->nom} choisira un répertoire de sorts supplémentaire au hub (fiche du héros).",
+            default => null,
+        };
     }
 
     // ---- ENTRETIEN DES MERCENAIRES -----------------------------------------

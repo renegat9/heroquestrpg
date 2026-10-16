@@ -586,3 +586,123 @@ it('FORCE un marchand unique qui vend tout au prix normal, quel que soit le prof
         expect(collect($etat['inventaire'])->pluck('nom')->all())->toContain('Armure de plates');
     }
 });
+
+// ---------------------------------------------------------------------------
+// Cartes de trésor SANS PRIX (`effet.hors_marche`, René 2026-10-16 :
+// « On ne peut pas vendre les potions qu'on trouve dans les trésors »).
+// ---------------------------------------------------------------------------
+
+/** Les trois potions que la carte de trésor n'imprime à aucun prix. */
+function potionsTresorSansPrixMarche(): array
+{
+    return ["Potion d'héroïsme", 'Potion de force', 'Potion de défense'];
+}
+
+it('n\'expose à l\'étal que les potions à prix SOURCÉ : les trois cartes de trésor sans prix en sont retirées', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $noms = collect($this->postJson('/api/groupes/table-1/marche')->assertCreated()->json('inventaire'))->pluck('nom');
+
+    foreach (potionsTresorSansPrixMarche() as $nom) {
+        expect($noms)->not->toContain($nom);
+    }
+
+    // Une potion à prix sourcé reste en vente : la Potion de guérison (500 po,
+    // potions.pdf) — la même carte que la Potion of Healing de l'extension —, la
+    // Potion de sang de serpent (50 po) et la Potion de résistance au feu (300 po),
+    // deux cartes de l'Alchemist's Shop de leurs boîtes (reference/18 §3).
+    expect($noms)->toContain('Potion de guérison')
+        ->and($noms)->toContain('Potion de sang de serpent')
+        ->and($noms)->toContain('Potion de résistance au feu');
+});
+
+it('refuse d\'ACHETER une carte de trésor sans prix : 422, comme un objet hors étal', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $groupe->update(['or' => 1000]);
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/marche')->assertCreated();
+
+    $this->putJson('/api/groupes/table-1/marche/panier', [
+        'achats' => [['objet_id' => Objet::where('nom', 'Potion de force')->firstOrFail()->id]],
+        'ventes' => [],
+    ])->assertStatus(422)->assertJsonValidationErrors('achats');
+});
+
+it('refuse, à la CONFIRMATION, l\'achat d\'une carte de trésor sans prix venu d\'une phase ouverte AVANT son retrait', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $groupe->update(['or' => 1000]);
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/marche')->assertCreated();
+
+    // La phase a été ouverte avant le déploiement : son cache garde la potion
+    // dans le panier d'Alice. C'est l'application qui doit la refuser.
+    $potion = Objet::where('nom', 'Potion de force')->firstOrFail();
+    $phase = Cache::get(PhaseMarche::cle($groupe->id));
+    $phase['paniers'][(string) $alice->id]['achats'] = [[
+        'objet_id' => $potion->id,
+        'nom' => $potion->nom,
+        'quantite' => 1,
+        'prix_unitaire' => 150,
+        'total' => 150,
+        'personnage_id' => $hero->id,
+    ]];
+    Cache::put(PhaseMarche::cle($groupe->id), $phase, now()->addMinutes(60));
+
+    $this->postJson('/api/groupes/table-1/marche/confirmation')
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('achats');
+
+    expect($groupe->fresh()->or)->toBe(1000)
+        ->and(Inventaire::where('personnage_id', $hero->id)->where('objet_id', $potion->id)->exists())->toBeFalse();
+});
+
+it('ne propose pas à la REVENTE une carte de trésor sans prix, et la refuse côté moteur : elle reste au sac', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $potion = donnerObjet($hero->id, 'Potion de défense', 'consommable');
+
+    $reponse = $this->postJson('/api/groupes/table-1/marche')->assertCreated();
+
+    // Absente de la liste vendable du panier, comme un artefact : pas de bouton
+    // qui échoue.
+    expect(collect($reponse->json('paniers.0.inventaire'))->pluck('nom'))->not->toContain('Potion de défense');
+
+    // Et le refus est dans le MOTEUR, pas seulement dans l'affichage.
+    $this->putJson('/api/groupes/table-1/marche/panier', [
+        'achats' => [],
+        'ventes' => [['inventaire_id' => $potion->id]],
+    ])->assertStatus(422)->assertJsonValidationErrors('ventes');
+
+    expect(Inventaire::whereKey($potion->id)->exists())->toBeTrue();
+});
+
+it('les quatre profils donnent le MÊME étal, sans carte de trésor sans prix (règle « un seul marchand »)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Krogar', 1, ['classe' => 'barbare']);
+
+    $etals = [];
+
+    foreach (['village', 'bourg', 'cite', 'marche_noir'] as $demande) {
+        Illuminate\Support\Facades\Cache::flush();
+        $etal = collect(app(App\Partie\Marche\PhaseMarche::class)->ouvrir($groupe->fresh(), $demande)['inventaire']);
+
+        $etals[$demande] = $etal->map(fn (array $ligne) => [$ligne['nom'], $ligne['prix'], $ligne['stock']])->values()->all();
+
+        foreach (potionsTresorSansPrixMarche() as $nom) {
+            expect(in_array($nom, $etal->pluck('nom')->all(), true))->toBe(false, "profil « {$demande} » : {$nom} ne doit pas être à l'étal");
+        }
+    }
+
+    expect($etals['bourg'])->toEqual($etals['village'])
+        ->and($etals['cite'])->toEqual($etals['bourg'])
+        ->and($etals['marche_noir'])->toEqual($etals['cite']);
+});

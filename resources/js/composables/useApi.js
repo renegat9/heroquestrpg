@@ -439,6 +439,14 @@ export function useApi() {
                 personnage_id: personnageId, objet_id: objetId,
             }),
 
+        /** PUT /groupes/{id}/faveurs/arcane-library {personnage_id, element} — le joueur choisit le répertoire
+         *  de sorts supplémentaire de sa faveur Arcane Library (HUB uniquement, définitif). La liste vient de
+         *  `/moi` (`faveurs[].choix`, la liste blanche du serveur). */
+        choisirRepertoireFaveur: (identifiant, personnageId, element) =>
+            request('PUT', `/groupes/${identifiant}/faveurs/arcane-library`, {
+                personnage_id: personnageId, element,
+            }),
+
         /** POST /groupes/{id}/potions/boire-au-hub {personnage_id, inventaire_id} —
          *  boit une potion ENTRE DEUX QUÊTES (Potion de charme) ; 422 hors hub ou
          *  pour une potion qui se boit en quête. */

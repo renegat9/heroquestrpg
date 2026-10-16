@@ -354,3 +354,23 @@ pas.
 | **Q7** | **Sorciers Festral, Xenloth et Nexrael** : **à PORTER** comme lanceurs de Dread (stats F9528 p. 35, 37 et 31). | Festral reste **boss** et Xenloth **sous-boss** (décision du 2026-10-02) ; Nexrael suit le palier que mesurera son `cout`. |
 | — | ***Mind Lock* et *Dominate*** : les boucliers du défenseur annulent les crânes comme dans un combat normal (**crânes nets**). | **Interprétation de René** : le livret est muet sur les boucliers pour ces deux sorts. Le mot « net » de `reference/18` est donc une interprétation, à présenter comme telle. ***Mind Burst*** n'est pas tranché par cette décision (le livret parle de « différence de crânes ») : à trancher avant son portage. |
 | — | **Guardian Effigy = patron « tourelle »** (sous-boss, décision du 2026-10-02) : immobile, tire à distance (3 dés) sur un héros en ligne de vue, **immunité TOTALE aux sorts**. | Un seul mécanisme avec le Dread Skull de la Crypte (`docs/plan-crypte-tenebres.md`, Q2) : tourelle en **salle** seulement. |
+
+### Lot D — réalisé le 2026-10-16 (Mind Burst, Mind Lock, Dominate, Nexrael, Xenloth, Festral)
+
+> Ajout daté : le reste du plan est un instantané du 2026-10-02. Règle en vigueur :
+> `docs/regles/sorts-dread.md` §« Les Sorciers du Dread d'Against the Ogre Horde » ; bestiaire :
+> `docs/regles/bestiaire-et-rencontres.md` ; contrat : `docs/contrat-api.md` §« Against the Ogre Horde — les Sorciers du Dread ».
+
+Les trois sorts (« Explosion mentale », « Verrou mental », « Domination ») et les trois Sorciers sont portés, sourcés au livret (stats relues sur le rendu PNG des
+p. 31, 35, 37). Ce que le plan prévoyait et ce qui a été fait :
+- **Le jet en opposition** : `App\Engine\OppositionMind` — deux volées de dés de combat (Mind possédé de chaque côté). *Mind Lock* et *Dominate* en crânes NETS (interprétation de
+  René, 2026-10-15), *Mind Burst* en écart de crânes BRUTS (la lettre du livret ; **à confirmer par René** — rien n'a été tranché pour ce sort).
+- **Le premier producteur de Mind côté monstre** (§2.4 du plan) : `MoteurDegats::infligerMindAMonstre()` ; l'état de choc des monstres suit (`InstanceMonstre::estEnChoc()` : 1 dé d'attaque, 2 de défense).
+- **La réserve de cartes par sort** (`CartesDread`, capacité `reserve_cartes`) plutôt qu'un budget par palier : Nexrael 4, Xenloth 5 + 5, Festral 3 + 3 + 3.
+- **Mind Lock** (`VerrouMental` + colonne `etat_personnage_quete.verrou_mental`) : cartes prêtées puis rendues, tentative de libération à 3 crânes, fin à la mort du Sorcier.
+- **Dominate — « en dernier » du lot, comme prévu** : le MJ joue le héros dominé par la couture `HerosJoueParLeMj` / `ControleMj`, que *Possession* utilise aussi (et que la *Malédiction du loup-garou* pourra utiliser).
+- **Placement** : Festral boss final du thème, Xenloth sous-boss, Nexrael « fort » (tier `base`, cout 4 relevé de 3). Deux `cout` relevés sur décision de portage, écrits dans `MonstreSeeder` (Nexrael 4, Xenloth 8).
+- **Un défaut trouvé en chemin** : un lanceur de tier `base` n'appelait jamais `jouerTourDread()` (le Cultiste du Dread ne lançait rien en partie). Corrigé — conséquence à connaître : le Cultiste, le Spectre et le Tisseur putride lancent désormais leurs sorts.
+- **Non porté, écrit** : la marche d'un Sorcier APRÈS un sort (« may take their movement » est un *peut*), le dé de mouvement d'un monstre en choc, les armes de jet / objets d'un héros dominé, la règle de quête de la Fosse du Dread (q. 8).
+
+> **Réalisé le 2026-10-15 (René)** — le *Guardian Effigy* est semé (« Effigie gardienne », sous-boss `horde_ogre`, `cout` 8) sur le patron TOURELLE : immobile (`deplacement: 0`), fait feu chaque tour sur un héros en ligne de vue aux mêmes 3 dés, immunité TOTALE aux sorts (menu, zone, rayon, Dread), placée en SALLE seulement, hors parvis, plancher de cases jouables tenu. `docs/regles/bestiaire-et-rencontres.md`, `docs/regles/carte-donjon.md` §2.12 quater. Ajoutée au pool `rencontre_finale.creatures` du gabarit « Antre du sous-boss ».

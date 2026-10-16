@@ -516,15 +516,76 @@ class MonstreSeeder extends Seeder
                 'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 12, 'capacites' => [], 'sorts_dread' => [],
                 'phase_suivante' => null],
 
-            // ⚠ Guardian Effigy (q. 4, p. 27 — stats A3 D5 M0 B2 Mi0 déjà
-            // relevées en lot A du plan Ogre Horde) reste NON semée ici :
-            // « immobile, boule de feu à 3 dés sur un héros en vue chaque
-            // tour, immunisée à tous les sorts » est un patron de TOURELLE
-            // (déplacement 0 + attaque à distance automatique + immunité
-            // totale aux sorts) qu'aucun lecteur du moteur ne construit
-            // aujourd'hui — nommé plutôt que deviné, comme demandé (René,
-            // 2026-10-04). Un sous-boss de plus sans ce patron serait une
-            // brute ordinaire qui ne bougerait jamais, pas l'Effigie.
+            // ---- LES SORCIERS DU DREAD d'Against the Ogre Horde (F9528 p. 31, 35, 37, René 2026-10-15) ----
+            // Stats relues sur le RENDU PNG de chaque page (colonnes Attack / Defend / Move / Body /
+            // Mind du livret ; l'extraction texte les mélange). Chacun lance ses sorts avec « a reserve
+            // of N cards » PAR SORT : la capacité `reserve_cartes` (`App\Partie\CartesDread`), pleine à
+            // chaque placement — ni le budget par palier, ni `sorts_uniques`. Les trois sorts sont ceux
+            // de `SortDreadSeeder` (Mind Burst → « Explosion mentale », Mind Lock → « Verrou mental »,
+            // Dominate → « Domination »). Règle commune (p. 10) : un sort par tour, pas de coup d'arme
+            // le même tour, et les effets d'un sort actif cessent à la mort de son lanceur.
+            //
+            // `cout` : NOTRE valeur (aucune carte n'en porte), mesurée comme les autres — attaques d'un
+            // héros à 3 dés pour l'abattre, Body / (1,5 − Défense/6) (`docs/regles/bestiaire-et-rencontres.md`).
+            //
+            // NEXRAEL, « an apprentice Dread Sorcerer » (q. 6, p. 31) : A3 D4 M8 B1 Mi5, *Mind Burst*,
+            // « a reserve of 4 cards ». Body 1 / Défense 4 = 1,2 attaque : le plus fragile du catalogue
+            // après les gobelins, donc tier `base` — c'est ce que la mesure dit, et ce qu'« apprenti »
+            // dit aussi. Mesuré 3 (la ligne des monstres de base : Body 1 / Déf. 4 valait 3 avant les
+            // cartes 2021), RELEVÉ À 4 sur décision de portage : à 3 il tomberait dans la masse des
+            // « faibles » (`seuil_cout_fort`), où une rencontre en achèterait plusieurs — le livret n'en
+            // nomme QU'UN par donjon, dans sa propre salle. À 4 il est un « fort », au plus un par quête.
+            ['nom_base' => 'Nexrael', 'deplacement' => 8, 'attaque' => 3, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 5,
+                'tier' => 'base', 'boite' => 'horde_ogre', 'cout' => 4,
+                'capacites' => ['reserve_cartes' => ['Explosion mentale' => 4]],
+                'sorts_dread' => [], 'archetype_lanceur' => 'nexrael_apprenti'],
+
+            // XENLOTH, « Festral's assistant, Xenloth the Dread Mage » (q. 9, p. 37) : A2 D4 M6 B1 Mi4,
+            // *Mind Lock* et *Mind Burst*, « 5 cards for each spell ». SOUS-BOSS (René, 2026-10-02).
+            // Mesuré 1,2 attaque → 6 sur la droite Garde-mage (3,6 → 8) — Ogre champion (7,2 → 11),
+            // RELEVÉ À 8 sur décision de portage : `BestiaireSourceTest` tient que les paliers ne se
+            // chevauchent pas en coût (un sous-boss coûte plus que tout monstre de base — la Gargouille,
+            // 7), et un sous-boss à 6 serait « acheté » moins cher qu'une créature ordinaire. 8 est le
+            // coût du Garde-mage, l'autre sous-boss à Body léger : le plus léger des sous-boss.
+            ['nom_base' => 'Xenloth', 'deplacement' => 6, 'attaque' => 2, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 4,
+                'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 8,
+                'capacites' => ['reserve_cartes' => ['Verrou mental' => 5, 'Explosion mentale' => 5]],
+                'sorts_dread' => [], 'archetype_lanceur' => 'xenloth_mage_dread'],
+
+            // FESTRAL, « the Dread Sorcerer » (q. 8, p. 35) : A4 D5 M6 B3 Mi8, *Mind Burst*, *Mind Lock* et
+            // *Dominate*, « 3 cards for each spell ». BOSS (René, 2026-10-02 : lanceur de boss, comme
+            // l'Archimage elfe). « The Dread Warriors in the room are Festral's personal guard. They each
+            // roll 5 Attack dice and 5 Defend dice » : `garde_personnelle`, posée au placement par
+            // `App\Partie\GardePersonnelle` sur les Guerriers du Dread de SA salle. Mesuré 4,5 attaques → 11
+            // sur la droite des boss (Ogre commandant 9 → 15, Seigneur 15 → 20) — au niveau de la
+            // Gardienne de Morcar (5 attaques → 12) : un lanceur, pas une brute.
+            ['nom_base' => 'Festral', 'deplacement' => 6, 'attaque' => 4, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 8,
+                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 11,
+                'capacites' => [
+                    'reserve_cartes' => ['Explosion mentale' => 3, 'Verrou mental' => 3, 'Domination' => 3],
+                    'garde_personnelle' => ['monstre' => 'Guerrier du Chaos', 'attaque' => 5, 'defense' => 5],
+                ],
+                'sorts_dread' => [], 'archetype_lanceur' => 'festral_sorcier_dread'],
+
+            // GUARDIAN EFFIGY (Against the Ogre Horde, quête 4, note D, p. 27) — SOUS-BOSS (Q7, René
+            // 2026-10-02), semée le 2026-10-15 : le PATRON TOURELLE existe (`MotsClesAdversaires`).
+            // Stats relues sur le RENDU de la page : Attack 3 dice · Defend 5 dice · Move 0 · Body 2 ·
+            // Mind 0. Texte : « This Orc is a magical effigy that guards the iron gate of the ogre
+            // horde. Each turn, it may launch a ball of fire of 3 Attack dice at any one hero in its
+            // line of sight. It is unable to move and is immune to all spell effects. »
+            //  - `tourelle` : immobile, fait feu chaque tour du MJ sur un héros en ligne de vue, au
+            //    contact comme à distance, aux mêmes 3 dés (`ResolveurTour::jouerMonstreEveille()`) ;
+            //  - `immunite_sorts` : « immune to ALL spell effects » — TOTALE (René 2026-10-15), comme la
+            //    Gargouille gardienne de Kellar's Keep : ni sort de héros, ni sort de Dread ;
+            //  - Move 0 = `Monstre::estImmobile()` : posée en SALLE seulement, hors parvis, jamais au
+            //    détriment du plancher de cases jouables (`AssembleurCarte::casesPourFiguresFixes()`).
+            // `cout` 8 = le PLANCHER du palier (Garde-mage, Sorcier du Dread) : la mesure donne 3
+            // attaques à 3 dés pour l'abattre (Body 2 / (1,5 − 5/6)), nettement sous un sous-boss mobile,
+            // mais le test de palier exige un coût au-dessus du plus cher des sbires (7) — et l'immunité
+            // totale aux sorts ferme la moitié des réponses d'un groupe de lanceurs.
+            ['nom_base' => 'Effigie gardienne', 'deplacement' => 0, 'attaque' => 3, 'defense' => 5, 'pv_body' => 2, 'pv_mind' => 0,
+                'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 8,
+                'capacites' => ['tourelle', 'immunite_sorts'], 'sorts_dread' => []],
 
             // ---- Jungles of Delthrak (doc 18) ----
             // Attaque 0 au livret : le rejeton ne frappe pas, il S'ACCROCHE.
@@ -674,6 +735,99 @@ class MonstreSeeder extends Seeder
                 'capacites' => ['tir_au_choix'],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gruulob_sorcier_gobelin',
                 'phase_suivante' => null],
+
+            // ---- Les QUATRE ADVERSAIRES NOMMÉS de Jungles of Delthrak (René, 2026-10-15) ----
+            // Stats relues sur le RENDU PNG de chaque page (F9907 p. 17, 23, 39, 41 ; l'extraction texte
+            // mélange les colonnes). Aucun n'était au catalogue : ce sont des figures de QUÊTE du livret,
+            // portées parce que René les a toutes demandées. Chaque capacité nomme son lecteur dans
+            // `App\Engine\MotsClesAdversaires`. Mesure de `cout` : attaques d'un héros à 3 dés pour
+            // abattre = Body / (1,5 − Défense/6), sur la droite des sous-boss (Ogre champion 7,2 → 11,
+            // Minotaure 9 → 12, Doralf 10,5 → 13) ; le plancher du palier est 8.
+
+            // DEATHSPINNER LA REINE DU FLÉAU (quête 3, zone D, p. 17 ; figurine Blightcrawler).
+            // ⚠ « MOVEMENT 6 dice » est IMPRIMÉ ainsi, seule colonne Move du livret à porter « dice » —
+            // lu 6 CASES : l'erratum 2021 (plan-errata-2021.md §5) dit « 6 cases » et `reference/18`
+            // aussi ; tous les autres blocs du livret donnent un nombre de cases. Attack 5 · Defend 4 ·
+            // Body 4 · Mind 4 → 4,8 attaques ; sous-boss, `cout` 10 (plancher 8, plus le Filet : un
+            // sort gratuit sur chaque héros qui finit son tour en sa vue).
+            // « Silencing Snare – Deathspinner may cast Channel Dread at will on any hero that ends
+            // their turn within her line of sight (no action required). She cannot use this ability if
+            // she would not be able to take her action (for example, when under the effects of the
+            // Tempest spell). » → `filet_silencieux`, paramétré par le sort : lu par
+            // `AdversairesDelthrak::filetsSilencieux()` à la fin du tour de chaque héros. PAS de
+            // `sorts_dread` : la carte ne lui donne ce sort que sous cette forme, pas comme action.
+            // ⚠ Non porté, nommé : l'erratum compile aussi « Spawn / Agile / Venomous » (les traits du
+            // Blightcrawler dont elle emprunte la figurine) — l'erratum n'est pas un livret et le bloc
+            // imprimé n'en porte aucun ; les trois mots ont déjà leur lecteur (`agile`, `venimeux`,
+            // `spawn`), une ligne les ajouterait si René le décide.
+            ['nom_base' => 'Deathspinner la Reine du Fléau', 'deplacement' => 6, 'attaque' => 5, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 4,
+                'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 10,
+                'capacites' => ['filet_silencieux' => ['sort' => 'Canaliser l\'Effroi']], 'sorts_dread' => []],
+
+            // GOLEM CŒUR-DE-FORGE (« Forgeheart Golem », quête 6, zone A, p. 23) : Move 8 · Attack 5 ·
+            // Defend 5 · Body 5 · Mind 0 → 7,5 attaques ; sous-boss, `cout` 11 (droite des sous-boss).
+            // Mind 0 : immunisé aux sorts mentaux (`Monstre::immuniseMental()`), comme les morts-vivants.
+            // « Breath Of the Construct – This attack inflicts 2 Body Points of damage to all heroes
+            // located in the same room or corridor. Each affected hero then rolls two red dice. For each
+            // 5 or 6 rolled, the damage is reduced by 1 point. » — « once as an action » →
+            // `souffle_du_construit` (`degats` 2, `des_rouges` 2 : les chiffres de la carte), lu par
+            // `AdversairesDelthrak::souffle()`. Le Golem « Wizards of Morcar » (5/4/5/3/0) est une autre fiche.
+            ['nom_base' => 'Golem Cœur-de-Forge', 'deplacement' => 8, 'attaque' => 5, 'defense' => 5, 'pv_body' => 5, 'pv_mind' => 0,
+                'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 11,
+                'capacites' => ['souffle_du_construit' => ['degats' => 2, 'des_rouges' => 2]], 'sorts_dread' => []],
+
+            // SCION FLEUR-POURRIE (« Bloomrot Scion », quête 14 voie B, p. 39 — BOSS FINAL du livret) :
+            // Move 0 · Attack 5* · Defend 5 · Body 12** · Mind 0, « (Venomous. Entangling Roots.) » →
+            // 18 attaques ; boss, `cout` 22 (entre le Seigneur ogre, 15 attaques → 22, et Gruzbella,
+            // 21 → 23 : le sacrifice ajoute du Body que la mesure ne compte pas, l'immobilité en retire
+            // de la menace). Son Move 0 reprend le patron de la tourelle pour l'IMMOBILITÉ seule
+            // (`Monstre::estImmobile()` : posé en salle, hors parvis, plancher tenu).
+            //  * « has a sweeping attack that targets all heroes adjacent and diagonal to it » →
+            //    `frappe_de_zone` + `attaque_diagonale`, deux mots-clés existants (le balayage lit la
+            //    MÊME adjacence que `heroAuContact()`) ;
+            //  ** « may sacrifice one of its Tendrils and instead be reduced to 1 Body Point » →
+            //    `sacrifice_de_vrille`, lu à `MoteurDegats::infligerAMonstre()` ;
+            //  « At the end of the Bloomrot Scion's turn, place one Tendril in an unoccupied square as close
+            //    as possible » → `vrille_en_fin_de_tour` (la créature posée est « Vrille ») ;
+            //  « immune to spells that would cause it to sleep or miss its turn » → `immunite_conditions`
+            //    (`endormi`, `saute_tour`) — lecture LITTÉRALE : la paralysie (Flamme hypnotique) et
+            //    l'enchaînement sont d'autres états, non cités ;
+            //  « may cast the Channel Dread spell at will » → `sort_a_volonte` + `sorts_dread`, comme
+            //    la boule de feu du Dragon ; il frappe d'abord ce qui est à sa portée
+            //    (`ResolveurTour`, `$herosAPortee`) et ne lance le sort que sans personne au contact.
+            // ⚠ NON porté, nommé : « A hero or monster that enters the rift is consumed by Dread and lost
+            // forever » — la faille est un élément de la CARTE imprimée de la quête 14, que la génération
+            // procédurale ne dresse pas.
+            ['nom_base' => 'Scion Fleur-Pourrie', 'deplacement' => 0, 'attaque' => 5, 'defense' => 5, 'pv_body' => 12, 'pv_mind' => 0,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 22,
+                'capacites' => [
+                    'venimeux', 'racines_entravantes', 'frappe_de_zone', 'attaque_diagonale',
+                    'sacrifice_de_vrille', 'vrille_en_fin_de_tour' => ['creature' => 'Vrille'],
+                    'immunite_conditions' => ['endormi', 'saute_tour'],
+                    'sort_a_volonte' => ['sort' => 'Canaliser l\'Effroi'],
+                ],
+                'sorts_dread' => ['Canaliser l\'Effroi']],
+
+            // VRILLE (« Tendril », même page) : Move 6 · Attack 3* · Defend 2 · Body 2 · Mind 0, « (Venomous.
+            // Entangling Roots.) » — « *Tendrils may attack diagonally. » Ne s'ACHÈTE JAMAIS : le Scion la
+            // pose (`vrille_en_fin_de_tour`) et la sacrifie. `cout` 0 le dit — `DemarreurQuete` n'achète
+            // que `cout > 0`, comme le monstre errant (`spawnErrant()`). Posée sur la case libre la plus
+            // proche du Scion, révélée d'emblée, elle joue au round suivant.
+            ['nom_base' => 'Vrille', 'deplacement' => 6, 'attaque' => 3, 'defense' => 2, 'pv_body' => 2, 'pv_mind' => 0,
+                'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 0,
+                'capacites' => ['venimeux', 'racines_entravantes', 'attaque_diagonale'], 'sorts_dread' => []],
+
+            // BAKABRI LE CRUEL (quête 15 voie C, zone C, p. 41 ; figurine Goblin Warlock) : Move 8 ·
+            // Attack 3* · Defend 4 · Body 4 · Mind 5 → 4,8 attaques ; sous-boss, `cout` 10. « *Bakabri may
+            // choose to fire at range at any hero in his line of sight. He knows the following Dread
+            // spells: Creeping Grasp, Channel Dread, and Lightning Bolt. » → `tir_au_choix` (celui de
+            // Gruulob et de Gretzl : sur place, aux dés d'attaque, jamais au contact) et l'archétype
+            // `bakabri_le_cruel`. Les trois sorts existent : Étreinte des Ronces, Canaliser l'Effroi et
+            // Éclair de Chaos (la carte *Lightning Bolt* du paquet de Dread). Le livret l'envoie vers la
+            // quête 16 (« Proceed to Quest 16 ») : il n'est PAS le dernier mot de sa voie — sous-boss.
+            ['nom_base' => 'Bakabri le Cruel', 'deplacement' => 8, 'attaque' => 3, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 5,
+                'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 10,
+                'capacites' => ['tir_au_choix'], 'sorts_dread' => [], 'archetype_lanceur' => 'bakabri_le_cruel'],
 
             // ---- First Light (2024) ----
             // Source : carte de monstre « Dragon » photographiée par René

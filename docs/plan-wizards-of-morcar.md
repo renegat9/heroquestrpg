@@ -47,7 +47,7 @@
 >   `embuscade` existe.
 > - **Lot D (statut de Gardien + entretien)** — rien de neuf : les 4 cartes
 >   de mercenaires confirment nos stats à l'identique, Q1 reste entière.
-> - **Lot E (faveurs de Hopekins Rest)** — **débloqué** : les 5 compétences
+> - **Lot E (faveurs de Hopekins Rest)** — **PORTÉ (2026-10-16)** ; au 2026-10-05 : **débloqué**, les 5 compétences
 >   sont transcrites mot pour mot (Peacekeeper = or par monstre vaincu, Hold
 >   the Line = attaque d'opportunité sur repli, Deadeye = les figures ne
 >   bloquent plus la ligne de vue, Weapon Expert = bonus sur un type d'arme
@@ -208,6 +208,12 @@ fois, gardé jusqu'à la mort), pas une case à cocher — à trancher avec Ren�
 
 ### Lot E — Faveurs de Hopekins Rest
 
+> **Statut 2026-10-16 : PORTÉ en entier** (les neuf lieux). Les cinq compétences l'étaient depuis
+> 2026-10-06/08 ; *Weapon Expert* avec choix du joueur depuis le 2026-10-15 ; les quatre faveurs
+> mécaniques (*Mercenary Guild*, *Dewdrop Inn*, *Witch's Hut*, *Arcane Library*) le 2026-10-16, chacune
+> avec son lecteur réel et son test en jeu — voir « Décisions de René (2026-10-15) » en fin de document
+> et `docs/regles/exploration-et-fouille.md` §Faveurs. Le texte ci-dessous est l'analyse d'origine.
+
 Neuf lieux, un visitable par quête une fois Gardien : quatre sont mécaniques
 et sourcés en clair (mercenaire gratuit, +2 PV Body max, +1 Potion de
 guérison cumulable, répertoire de sorts supplémentaire) — portables tout de
@@ -263,7 +269,7 @@ meuble », simple à brancher sur le seam existant.
 | # | Question | Recommandation |
 |---|---|---|
 | **Q1** | Le modèle économique des mercenaires de cette boîte (Gardien dès la quête 2, 4 par héros, entretien de 10 po/quête) remplace-t-il notre modèle actuel (payant une fois, gardé jusqu'à la mort), ou les deux coexistent-ils par boîte ? | Aligner : la gratuité d'Ogre Horde pour l'allié animal (plan Ogre Horde, Q2/Q3) a déjà ouvert la porte à des règles de recrutement variables ; un entretien périodique est une colonne d'état, pas un chantier lourd |
-| **Q2** | Les 5 compétences de Hopekins Rest (Dead Eye, Weapon Expert…) : un système de progression À PART (don lié à un lieu visité, pas au niveau), ou à fondre dans l'arbre de talents existant une fois les cartes photographiées ? → **tranchée le 2026-10-15 (en partie)** : *Weapon Expert* (choix du type d'arme) et les 4 faveurs mécaniques sont décidées ; *Dead Eye*, *Hold the Line*, *Peacekeeper* et *Healing Hands* restent ouvertes. Voir « Décisions de René (2026-10-15) ». | Attendre les photos avant de trancher la mécanique — nommer la question évite de la geler par défaut |
+| **Q2** | Les 5 compétences de Hopekins Rest (Dead Eye, Weapon Expert…) : un système de progression À PART (don lié à un lieu visité, pas au niveau), ou à fondre dans l'arbre de talents existant une fois les cartes photographiées ? → **tranchée le 2026-10-15 (en partie)** : *Weapon Expert* (choix du type d'arme) et les 4 faveurs mécaniques sont décidées ; *Dead Eye*, *Hold the Line*, *Peacekeeper* et *Healing Hands* restent ouvertes. Voir « Décisions de René (2026-10-15) ». **2026-10-16 : les neuf faveurs sont portées** (les quatre « ouvertes » l'étaient déjà ; ce qui reste ouvert est un choix de règle, voir « Exécution (2026-10-16) » en fin de document). | Attendre les photos avant de trancher la mécanique — nommer la question évite de la geler par défaut |
 | **Q3** | Sir Ragnar, allié jouable par un joueur humain pendant 2 quêtes scriptées : écarté (notre modèle ne rejoue aucune quête du livret), ou un futur « allié temporaire joueur » générique pour une quête IA qui le proposerait ? | Écarté pour l'instant — aucun gabarit ne peut aujourd'hui garantir la scène qui l'introduit |
 | **Q4** | Le lecteur « mobilier destructible avec PV/défense » (lot A) sert Wizards of Morcar (3 usages), Jungles of Delthrak (Crystal Cluster) ET relancerait potentiellement *Ice Wall* de la boîte de glace désactivée : construire une fois, générique, tout de suite ? | Oui — c'est la seule pièce qui débloque trois boîtes à la fois, le meilleur rapport effort/couverture du rapport |
 | **Q5** | Cette boîte devient-elle un THÈME de bestiaire (`BOITES_THEMATIQUES`) ? Elle a 5 lanceurs nommés mais SEULEMENT 2 sorts sourcés par sorcier (les 3 génériques de plateau) sur 6 — les répertoires individuels sont ⚠ non trouvés | Pas avant les photos des 30 cartes de sort : un thème à sorciers muets (seulement Murs/Éclair/Séisme) serait plus pauvre que le fond commun actuel |
@@ -353,4 +359,36 @@ le PHP.
 | **Q2** | **Faveur *Weapon Expert*** : le joueur **choisit le type d'arme à l'obtention** (ni figé par classe, ni tiré au sort). | Reprend la version concrète de Q2 (table reformulée du 2026-10-05, §4). Le type choisi est un état **durable** de la faveur : une colonne en base, jamais en cache. |
 | **Q2** | **Les 4 autres faveurs mécaniques** — mercenaire gratuit, +2 PV de Body max, +1 Potion de guérison cumulable, répertoire de sorts supplémentaire — **à PORTER**. | Portables sans nouvelle famille (lot E, comme les potions et les dons). Le mercenaire gratuit touche au modèle de recrutement, **Q1 toujours ouverte** : à coordonner avec le lot D. |
 | **Q2** | **Le héros et la faveur restent tirés au hasard.** | Pas de choix du héros ni de la faveur. Lecture retenue : système à part (tirage au lieu visité), **pas** l'arbre de talents. ⚠ À confirmer si René voulait fondre la faveur dans l'arbre. |
-| — | **Restent ouvertes** : *Dead Eye*, *Hold the Line*, *Peacekeeper*, *Healing Hands*. | Q2 n'est tranchée qu'**en partie**. |
+| — | **Restent ouvertes** : *Dead Eye*, *Hold the Line*, *Peacekeeper*, *Healing Hands*. | Q2 n'est tranchée qu'**en partie**. **Exécution 2026-10-16** : les quatre faveurs mécaniques sont portées ; les quatre « ouvertes » n'avaient aucun défaut de portage — il reste des choix de règle (voir « Exécution »). |
+
+### Exécution (2026-10-16) — les quatre faveurs mécaniques portées
+
+| Faveur (lieu) | Carte (G1504 p. 23) | Ce qui est fait | Lecteur réel |
+|---|---|---|---|
+| **Mercenary Guild** | « Recruit a Mercenary without paying their cost. This Mercenary returns to the guild if you ever choose another boon. » | `mercenary_guild` : le prix d'engagement est 0, publié (`offert_par_faveur`) et appliqué par le **recrutement existant** ; un mercenaire (pas un animal) offert à la fois ; mort ou parti, le droit se rouvre. | `RecrutementHub::prixPour()` |
+| **Dewdrop Inn** | « Raise your hero's max Body Points by 2. » | `dewdrop_inn` : +2 PV de Body max et courants, une fois par héros, par le point de passage des plafonds. | `Equipement::bonusJauges()` / `apresChangementDeJauges()` |
+| **Witch's Hut** | « Gain 1 Potion of Healing. » (« Can be gained multiple times. ») | `witchs_hut`, instantanée : une Potion de guérison dans le sac, cumulable, sans ligne de faveur. | `RangementObjet::ranger()` + le menu des potions |
+| **Arcane Library** | « …an additional set of spells that you are eligible to cast. This boon is only for spellcasting heroes. » | `arcane_library` : un répertoire de plus, choisi par le joueur au hub dans une liste blanche lue avec les règles des lanceurs. | `MoteurSorts::repertoiresSupplementaires()` + `attacherElement()` |
+
+Le héros et la faveur restent **tirés au hasard** (décision de René), désormais **au dé injecté** et par un seul
+point d'éligibilité (`FaveursHopekins::candidatsDeTirage()`) : les cinq compétences « (1 available) » → une par
+groupe ; les trois faveurs sans cette mention → une par héros ; la potion → cumulable, jamais épuisée.
+
+**Dead Eye, Hold the Line, Peacekeeper, Healing Hands — ce que Q2 leur reprochait.** Rien qui soit un défaut de
+portage : Q2 est la question d'**architecture** (« système à part ou nouvelles feuilles de l'arbre »), pas un
+reproche de comportement. Les quatre sont portées avec un lecteur réel et des tests en jeu (`FaveursHopekinsTest`) :
+*Deadeye* aux cinq points de visée (`figuresBloquentPour()`), *Hold the Line* au tour des monstres
+(`tenterHoldTheLine()`, un dé de combat, 1 PV fixe sur un crâne), *Peacekeeper* compté au point de passage de la mort
+d'un monstre et versé à la fin d'une quête gagnée, *Healing Hands* par la réaction « Passing Items » à 0 PV.
+**Restent des choix de règle, non tranchés ici** :
+1. **Système à part (retenu depuis le 2026-10-06) ou arbre de talents** — ⚠ toujours « à confirmer » par René.
+2. **Faveur acquise une fois pour toutes (tirée au hasard) ou choisie à chaque quête.** Le livret fait choisir un
+   lieu par héros au début de chaque quête (« A hero may only benefit from one boon at a time ») ; chez nous une
+   faveur tirée reste et un héros en cumule plusieurs. Cela touche les neuf, et ôte son sens à « This Mercenary
+   returns to the guild if you ever choose another boon ».
+3. **Granularité de *Hold the Line*** : « each time a monster moves away » est lu une fois par tour de monstre
+   (position de départ comparée à celle d'arrivée), non pas à chaque pas — un monstre qui s'écarte puis revient au contact
+   dans le même tour n'est pas visé.
+4. **L'entretien du mercenaire offert** : dû (« cost » = le prix d'engagement de la carte) ; une ligne dans
+   `reglerEntretien()` l'en exempterait si René le veut.
+5. **Le répertoire *elfique* n'est pas offert** comme « set » supplémentaire de la bibliothèque.

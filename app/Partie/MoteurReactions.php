@@ -17,6 +17,7 @@ use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Personnage;
+use App\Models\Quete;
 use App\Jobs\GenererMenu;
 use App\Models\Sort;
 use App\Support\Journal;
@@ -669,13 +670,22 @@ final class MoteurReactions
      * ⚠ Le FOUILLEUR est exclu : c'est déjà lui que l'errant vient chercher, se
      * défier soi-même ne changerait rien et gaspillerait la capacité.
      *
+     * ⚠ La frappe du SURGISSEMENT attend la réponse (2026-10-16, carte 2024 :
+     * « The monster immediately attacks »). `$frappeDuSurgissement` dit si le monstre
+     * a été posé au contact du fouilleur, donc s'il lui doit une frappe si le défi
+     * n'est pas relevé. L'offre le porte (`frappe_fouilleur`) : tant qu'elle est
+     * ouverte, le monstre ne joue pas au tour des monstres (`instancesEnAttenteDeDefi()`),
+     * et la réponse — ou l'expiration — décide qui il frappe (`defiNonRelevé()`).
+     *
      * @param  Collection<int, EtatPersonnageQuete>  $candidats  héros de la salle
+     * @return bool `true` si une proposition a été déposée (la frappe attend alors sa réponse)
      */
     public function proposerDefi(
         InstanceMonstre $errant,
         Personnage $fouilleur,
         Collection $candidats,
-    ): void {
+        bool $frappeDuSurgissement = false,
+    ): bool {
         foreach ($candidats as $etat) {
             $chevalier = $etat->personnage;
 
@@ -700,10 +710,104 @@ final class MoteurReactions
                 'description' => $noeud?->description,
                 'instance_id' => (int) $errant->id,
                 'monstre' => $errant->nomAffiche(),
+                // La frappe due au fouilleur si le défi n'est pas relevé (voir
+                // `defiNonRelevé()`) — jamais recalculée à la réponse : c'est ce
+                // qui était vrai au surgissement.
+                'frappe_fouilleur' => $frappeDuSurgissement,
             ], 0, ReactionEffet::SUR_ERRANT_REVELE, ['monstre' => $errant->nomAffiche()]);
 
-            return; // un seul champion sollicité
+            return true; // un seul champion sollicité
         }
+
+        return false;
+    }
+
+    /**
+     * Les monstres errants dont la FRAPPE DU SURGISSEMENT attend une réponse de Chevalier.
+     * Lu par `ResolveurTour::phaseMonstres()` : une bête dans cet état ne joue pas au tour
+     * des monstres — elle a déjà une frappe due, et elle la donnera à la réponse.
+     *
+     * @return list<int> identifiants d'instances
+     */
+    public function instancesEnAttenteDeDefi(Quete $quete): array
+    {
+        return $quete->etatsPersonnages()->whereNotNull('reaction_en_attente')->get()
+            ->map(fn (EtatPersonnageQuete $etat) => (array) $etat->reaction_en_attente)
+            ->filter(fn (array $attente) => ($attente['action'] ?? null) === ReactionEffet::DEFI_ERRANT
+                && ($attente['frappe_fouilleur'] ?? false) === true)
+            ->map(fn (array $attente) => (int) ($attente['instance_id'] ?? 0))
+            ->filter(fn (int $id) => $id > 0)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Le DÉFI n'est pas relevé — refusé, expiré, ou impossible à placer : le monstre
+     * frappe le FOUILLEUR qu'il a surgi devant, si celui-ci est toujours à son contact et
+     * qu'une frappe lui était due (`frappe_fouilleur`). Sinon rien : la bête jouera au tour
+     * des monstres, comme tout errant.
+     *
+     * ⚠ N'appelle PAS `reprendreVerdictDeChute()` : l'appelant le fait une fois, après la
+     * résolution complète (un refus le fait déjà, une expiration le fait à la fin de
+     * `rattraperExpiration()`).
+     *
+     * @param  array<string, mixed>  $attente  l'offre telle que déposée
+     * @param  'refuse'|'expire'|'impossible'  $motif  dit au fil pourquoi la bête se retourne
+     * @return array<string, mixed> réponse de `POST /reaction`
+     */
+    private function defiNonRelevé(
+        Groupe $groupe,
+        Personnage $heros,
+        EtatPersonnageQuete $etat,
+        array $attente,
+        string $motif,
+    ): array {
+        $frappe = $this->frappeFouilleurDuDefi($groupe, $etat->quete_id, $attente, $motif);
+
+        return [
+            'type' => 'reaction',
+            'personnage' => $heros->nom,
+            'victime' => $attente['victime'] ?? null,
+            'sort' => $attente['nom'] ?? null,
+            'action' => ReactionEffet::DEFI_ERRANT,
+            'active' => false,
+            'raison' => match ($motif) {
+                'refuse' => 'Le défi n\'est pas relevé.',
+                'expire' => 'Le temps du défi est écoulé.',
+                default => 'Aucune case libre à ton contact pour l\'y placer.',
+            },
+            ...($frappe !== null ? ['frappe' => $frappe] : []),
+        ];
+    }
+
+    /**
+     * La frappe due au fouilleur après un défi non relevé — `null` s'il n'y en a pas
+     * (frappe non due au surgissement, monstre tué entre-temps, fouilleur à terre ou
+     * parti du contact). Un seul point de passage : ni le refus, ni l'expiration, ni
+     * l'échec du placement ne réécrivent cette règle.
+     *
+     * @param  array<string, mixed>  $attente
+     * @return array<string, mixed>|null
+     */
+    private function frappeFouilleurDuDefi(Groupe $groupe, int $queteId, array $attente, string $motif): ?array
+    {
+        if (($attente['frappe_fouilleur'] ?? false) !== true) {
+            return null;
+        }
+
+        $errant = InstanceMonstre::query()
+            ->whereKey((int) ($attente['instance_id'] ?? 0))
+            ->where('quete_id', $queteId)
+            ->first();
+
+        $fouilleur = Personnage::find((int) ($attente['victime_id'] ?? 0));
+        $etatFouilleur = $fouilleur === null ? null : EtatPersonnageQuete::enQuete($fouilleur);
+
+        if ($errant === null || $etatFouilleur === null) {
+            return null;
+        }
+
+        return app(ResolveurTour::class)->frappeDuSurgissement($groupe, $errant, $etatFouilleur, $motif);
     }
 
     /**
@@ -848,6 +952,15 @@ final class MoteurReactions
         }
 
         if (! $accepte) {
+            // DÉFI refusé : la bête ne relève personne et frappe le FOUILLEUR qu'elle
+            // a surgi devant, si une frappe lui était due — ici, maintenant (2026-10-16).
+            if (($attente['action'] ?? null) === ReactionEffet::DEFI_ERRANT) {
+                $refus = $this->defiNonRelevé($groupe, $heros, $etat, $attente, 'refuse');
+                $this->reprendreVerdictDeChute($groupe);
+
+                return $refus;
+            }
+
             // ⚠ Refuser peut CONCLURE le TPK : si le groupe ne tenait encore
             // que par cette offre en attente, c'est ce « non » qui tranche.
             $this->reprendreVerdictDeChute($groupe);
@@ -856,6 +969,16 @@ final class MoteurReactions
         }
 
         if (isset($attente['expire_a']) && now()->greaterThan($attente['expire_a'])) {
+            // Un DÉFI accepté après sa fenêtre n'est pas une erreur de saisie : l'offre
+            // vient d'être consommée (ligne du haut), et une 422 laisserait la frappe
+            // du surgissement orpheline. Il est donc traité comme expiré.
+            if (($attente['action'] ?? null) === ReactionEffet::DEFI_ERRANT) {
+                $expire = $this->defiNonRelevé($groupe, $heros, $etat, $attente, 'expire');
+                $this->reprendreVerdictDeChute($groupe);
+
+                return $expire;
+            }
+
             throw ValidationException::withMessages([
                 'reaction' => 'Trop tard : la fenêtre de réaction est passée.',
             ]);
@@ -1456,14 +1579,13 @@ final class MoteurReactions
 
         $frappe = app(ResolveurTour::class)->releverLeDefi($groupe, $heros, $etat, $errant);
 
+        // Accepté, mais aucune case au contact du Chevalier : le défi ne peut pas être
+        // relevé, donc la bête frappe le fouilleur comme si on avait refusé (2026-10-16).
         if ($frappe === null) {
-            return [
-                'type' => 'reaction',
-                'personnage' => $heros->nom,
-                'action' => ReactionEffet::DEFI_ERRANT,
-                'active' => false,
-                'raison' => 'Aucune case libre à ton contact pour l\'y placer.',
-            ];
+            $repli = $this->defiNonRelevé($groupe, $heros, $etat, $attente, 'impossible');
+            $this->reprendreVerdictDeChute($groupe);
+
+            return $repli;
         }
 
         if (isset($attente['capacite'])) {
@@ -1553,6 +1675,12 @@ final class MoteurReactions
                 }
 
                 continue;
+            }
+
+            // DÉFI expiré : la bête frappe le fouilleur si une frappe lui était due.
+            // La frappe se journalise elle-même (`attaque_monstre`, `apres_defi: expire`).
+            if (($attente['action'] ?? null) === ReactionEffet::DEFI_ERRANT && $etat->personnage !== null) {
+                $this->defiNonRelevé($groupe, $etat->personnage, $etat, $attente, 'expire');
             }
 
             Journal::ajouter($groupe, 'combat', [

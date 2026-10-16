@@ -78,6 +78,8 @@ const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' 
                     <template v-if="decision(m)">
                         <s v-if="decision(m).rabais_po > 0" class="recrut-prix-catalogue">{{ decision(m).prix_catalogue }}</s>
                         <MSym n="paid" fill :size="13" /> {{ decision(m).prix }}
+                        <!-- Faveur Mercenary Guild : le serveur dit que CE recrutement est offert (un seul, au choix). -->
+                        <span v-if="decision(m).offert_par_faveur" class="recrut-offert"><MSym n="workspace_premium" fill :size="13" /> Offert</span>
                     </template>
                     <template v-else><MSym n="paid" fill :size="13" /> {{ m.prix }}</template>
                 </div>
@@ -119,6 +121,8 @@ const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' 
 </template>
 
 <style scoped>
+.recrut-offert { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; font-size: 11px;
+    font-weight: 700; color: var(--gold, #c9a24a); }
 .recrut { padding-top: 4px; }
 .recrut-bourse {
     display: flex; align-items: center; gap: 6px;

@@ -227,13 +227,17 @@ final class DemarreurQuete
         $budget = $this->budgetRencontres($groupe, $positionArc, $typeJalon);
         $monstres = $this->acheterMonstres(
             $gabarit->structure ?? [], $budget, count($carte['spawn_monstres']), $positionArc, (int) $groupe->id, $bestiaire,
+            // FIGURES IMMOBILES : seulement si la carte offre une case où la poser sans fermer une
+            // porte, couper une salle ni passer sous le plancher de cases jouables.
+            figuresFixesPossibles: ($carte['spawn_figures_fixes'] ?? []) !== [],
         );
+        $positionsMonstres = $this->positionsDesMonstres($monstres, $carte);
 
         if (count($carte['spawn_heros']) < $heros->count()) {
             throw new RuntimeException('Carte assemblée trop petite pour les héros du groupe.');
         }
 
-        $quete = DB::transaction(function () use ($groupe, $heros, $gabarit, $carte, $monstres, $positionArc, $typeJalon, $fouille) {
+        $quete = DB::transaction(function () use ($groupe, $heros, $gabarit, $carte, $monstres, $positionsMonstres, $positionArc, $typeJalon, $fouille) {
             $quete = Quete::create([
                 'groupe_id' => $groupe->id,
                 'gabarit_id' => $gabarit->id,
@@ -270,8 +274,8 @@ final class DemarreurQuete
             ]);
 
             foreach ($monstres as $i => $monstre) {
-                $px = $carte['spawn_monstres'][$i]['x'];
-                $py = $carte['spawn_monstres'][$i]['y'];
+                $px = $positionsMonstres[$i]['x'];
+                $py = $positionsMonstres[$i]['y'];
 
                 $elite = $this->roulerElite($monstre);
 
@@ -392,6 +396,11 @@ final class DemarreurQuete
             // fois la roster posée — la liste tient jusqu'à la fin de la quête (colonne
             // `quetes.effets_globaux`). L'annonce part plus bas, une fois la transaction close.
             EffetsGlobauxQuete::etablir($quete);
+
+            // GARDE PERSONNELLE (Festral : « The Dread Warriors in the room are Festral's personal guard.
+            // They each roll 5 Attack dice and 5 Defend dice », F9528 p. 35) : les dés fixés pour les
+            // figures de SA salle, une fois la roster posée — `GardePersonnelle`, lu par `InstanceMonstre`.
+            GardePersonnelle::etablir($quete, $carte);
 
             return $quete;
         });
@@ -571,6 +580,120 @@ final class DemarreurQuete
         }
 
         return $autres->first() ?? $candidats->first();
+    }
+
+    /**
+     * La case de chaque monstre acheté : `spawn_monstres[i]`, comme avant — sauf pour une FIGURE
+     * IMMOBILE (`Monstre::estImmobile()`), qui ne se pose que sur une case de `spawn_figures_fixes`
+     * (`AssembleurCarte::casesPourFiguresFixes()` : en salle, hors parvis, salle connexe et
+     * plancher de cases jouables tenu). Elle prend cette case et CÈDE la sienne à celui qui y
+     * était — un échange, jamais un doublon —, de préférence dans la MÊME salle (le boss reste dans
+     * la salle du trône). Une case sûre jamais prise deux fois : deux figures fixes ne se partagent pas.
+     *
+     * ⚠ Aujourd'hui au plus UNE figure immobile par rencontre (le palier final : aucune créature de
+     * palier `base` n'est immobile et achetable — `AdversairesNommesTest` l'épingle). Faute de case
+     * sûre pour une seconde, la figure garde sa case par défaut ; `acheterMonstres()` ne l'achète déjà
+     * pas quand la liste est vide.
+     *
+     * @param  list<Monstre>  $monstres
+     * @param  array<string, mixed>  $carte
+     * @return list<array{x: int, y: int}>
+     */
+    private function positionsDesMonstres(array $monstres, array $carte): array
+    {
+        $positions = array_values((array) ($carte['spawn_monstres'] ?? []));
+        $sures = array_values((array) ($carte['spawn_figures_fixes'] ?? []));
+        $salles = (array) ($carte['salles'] ?? []);
+        $prises = [];
+
+        foreach (array_values($monstres) as $i => $monstre) {
+            if (! $monstre->estImmobile() || $sures === []) {
+                continue;
+            }
+
+            $cle = fn (array $p): string => "{$p['x']},{$p['y']}";
+            $libres = array_values(array_filter($sures, fn (array $p) => ! isset($prises[$cle($p)])));
+
+            if ($libres === []) {
+                continue;
+            }
+
+            // Déjà sur une case sûre : rien à échanger.
+            $choisie = null;
+            foreach ($libres as $p) {
+                if ($cle($p) === $cle($positions[$i])) {
+                    $choisie = $p;
+                    break;
+                }
+            }
+
+            // Sinon : une case sûre de la MÊME salle d'abord, n'importe quelle salle ensuite.
+            if ($choisie === null) {
+                $salle = Salles::indexDe($salles, (int) $positions[$i]['x'], (int) $positions[$i]['y']);
+
+                foreach ($libres as $p) {
+                    if (Salles::indexDe($salles, (int) $p['x'], (int) $p['y']) === $salle) {
+                        $choisie = $p;
+                        break;
+                    }
+                }
+
+                $choisie ??= $libres[0];
+            }
+
+            $j = array_search($cle($choisie), array_map($cle, $positions), true);
+
+            if ($j !== false && $j !== $i) {
+                [$positions[$i], $positions[$j]] = [$positions[$j], $positions[$i]];
+            }
+
+            $prises[$cle($choisie)] = true;
+        }
+
+        // LA GARDE PERSONNELLE d'un chef (`garde_personnelle`, Festral : « The Dread Warriors in the room are
+        // Festral's personal guard ») se tient DANS SA SALLE : la répartition en round-robin des monstres sur les
+        // salles n'y mettrait presque jamais ses figures, et leurs dés fixés (`GardePersonnelle`) n'auraient
+        // personne à qui s'appliquer. Chaque garde hors de la salle du chef ÉCHANGE sa case avec un autre
+        // occupant de cette salle — un échange, jamais un doublon —, qui ne soit ni le chef, ni une autre garde, ni
+        // une figure immobile (déjà posée sur une case sûre).
+        $liste = array_values($monstres);
+
+        foreach ($liste as $k => $chef) {
+            $garde = $chef->capacites[GardePersonnelle::CAPACITE] ?? null;
+
+            if (! is_array($garde) || ! isset($positions[$k])) {
+                continue;
+            }
+
+            $salleDuChef = Salles::indexDe($salles, (int) $positions[$k]['x'], (int) $positions[$k]['y']);
+
+            if ($salleDuChef === null) {
+                continue;
+            }
+
+            $estGarde = fn (int $i): bool => ($liste[$i]->nom_base ?? null) === ($garde['monstre'] ?? null);
+
+            foreach (array_keys($positions) as $i) {
+                if ($i === $k || ! isset($liste[$i]) || ! $estGarde($i)
+                    || Salles::indexDe($salles, (int) $positions[$i]['x'], (int) $positions[$i]['y']) === $salleDuChef) {
+                    continue;
+                }
+
+                foreach (array_keys($positions) as $j) {
+                    if ($j === $k || $j === $i
+                        || Salles::indexDe($salles, (int) $positions[$j]['x'], (int) $positions[$j]['y']) !== $salleDuChef
+                        || (isset($liste[$j]) && ($estGarde($j) || $liste[$j]->estImmobile()))) {
+                        continue;
+                    }
+
+                    [$positions[$i], $positions[$j]] = [$positions[$j], $positions[$i]];
+
+                    break;
+                }
+            }
+        }
+
+        return $positions;
     }
 
     /**
@@ -973,7 +1096,7 @@ final class DemarreurQuete
      *                          (appel direct en test par réflexion).
      * @return list<Monstre>
      */
-    private function acheterMonstres(array $structure, int $budget, int $maxSpawns, int $positionArc, int $graineGroupe = 0, ?BestiaireGroupe $bestiaire = null): array
+    private function acheterMonstres(array $structure, int $budget, int $maxSpawns, int $positionArc, int $graineGroupe = 0, ?BestiaireGroupe $bestiaire = null, bool $figuresFixesPossibles = true): array
     {
         $achats = [];
         $restant = $budget;
@@ -1037,6 +1160,12 @@ final class DemarreurQuete
                     // Bestiaire MANUEL : un FILTRE, avant toute préférence —
                     // une boîte non cochée n'entre jamais (2026-09-28).
                     ->filter(fn (Monstre $m) => $bestiaire->autorise($m->boites()))
+                    // ⚠ Une FIGURE IMMOBILE (déplacement 0 : Guardian Effigy, Bloomrot Scion) ne
+                    // s'achète que si la carte a une case SÛRE pour elle (`spawn_figures_fixes`) :
+                    // une figure qui ne bougera plus, posée sur le seul parvis d'une porte ou au
+                    // milieu d'un boyau, ferait de la salle un cul-de-sac (§2.12 ter). Écrit : la
+                    // rotation passe alors à l'adversaire suivant plutôt que de le poser n'importe où.
+                    ->reject(fn (Monstre $m) => ! $figuresFixesPossibles && $m->estImmobile())
                     ->values();
 
                 // ⚠ ROTATION, pas tirage — et la distinction est celle que le
@@ -1071,7 +1200,8 @@ final class DemarreurQuete
             // d'origine. Une donnée de référence absente ne doit jamais empêcher
             // une quête de démarrer.
             $final ??= Monstre::query()->where('tier', $tierFinal)->orderByDesc('cout')->orderBy('id')->get()
-                ->first(fn (Monstre $m) => $bestiaire->autorise($m->boites()));
+                ->first(fn (Monstre $m) => $bestiaire->autorise($m->boites())
+                    && ($figuresFixesPossibles || ! $m->estImmobile()));
 
             if ($final !== null) {
                 $achats[] = $final;
@@ -1096,6 +1226,7 @@ final class DemarreurQuete
             ->whereNull('variante_distance_de')
             ->orderBy('cout')->orderBy('id')->get()
             ->filter(fn (Monstre $m) => $bestiaire->autorise($m->boites()))
+            ->reject(fn (Monstre $m) => ! $figuresFixesPossibles && $m->estImmobile())
             ->values();
         $faibles = $base->filter(fn (Monstre $m) => (int) $m->cout <= $seuil)->values();       // coût croissant
 
@@ -1138,7 +1269,18 @@ final class DemarreurQuete
             // garde le comportement d'avant quand il n'y a plus de choix.
             $abordables = $forts->filter(fn (Monstre $m) => $this->coutEffectif($m) <= $restant - $coutFaibleMin);
             $dejaAchetes = collect($achats)->pluck('id')->all();
-            $fort = $abordables->first(fn (Monstre $m) => ! in_array($m->id, $dejaAchetes, true)) ?? $abordables->first();
+
+            // LA GARDE DU CHEF d'abord : un chef qui en porte une (`garde_personnelle`, Festral — « the
+            // Dread Warriors in the room are Festral's personal guard ») la fait passer devant les autres
+            // « forts ». Sans cette préférence, sa capacité n'aurait presque jamais de figure à qui
+            // s'appliquer : le Guerrier du Dread (cout 6) est toujours devancé par la Gargouille (7).
+            $nomGarde = isset($achats[0]) ? data_get($achats[0]->capacites, GardePersonnelle::CAPACITE.'.monstre') : null;
+            $garde = $nomGarde === null ? null : $abordables->first(fn (Monstre $m) => $m->nom_base === $nomGarde
+                && ! in_array($m->id, $dejaAchetes, true));
+
+            $fort = $garde
+                ?? $abordables->first(fn (Monstre $m) => ! in_array($m->id, $dejaAchetes, true))
+                ?? $abordables->first();
             if ($fort === null) {
                 break;
             }

@@ -137,6 +137,14 @@ final class MotsClesSortDread
      */
     public const TYPE_DRAIN = 'drain';
 
+    /**
+     * Le sort PREND LA MAIN d'un héros pour la fin du tour du lanceur (*Dominate*, *Against the Ogre Horde*
+     * p. 10) : « Zargon […] may immediately take that hero's full movement and action ». Ni une condition
+     * (rien ne reste posé sur le héros — le sort est fini avec le tour du Sorcier), ni un dégât : le héros est
+     * JOUÉ sur-le-champ par `App\Partie\HerosJoueParLeMj`, la couture unique du « MJ joue un héros ».
+     */
+    public const TYPE_DOMINATION = 'domination';
+
     public const TYPES = [
         self::TYPE_DEGATS,
         self::TYPE_CONTROLE,
@@ -154,6 +162,7 @@ final class MotsClesSortDread
         self::TYPE_RENFORT,
         self::TYPE_AMELIORATION,
         self::TYPE_DRAIN,
+        self::TYPE_DOMINATION,
     ];
 
     // -------------------------------------------------------- RÉSISTANCES
@@ -238,6 +247,36 @@ final class MotsClesSortDread
      */
     public const RESISTANCE_BOUCLIER_BLANC_PAR_MIND = 'bouclier_blanc_par_mind';
 
+    /**
+     * OPPOSITION MIND CONTRE MIND, CRÂNES NETS (*Mind Lock*, *Dominate* — *Against the Ogre Horde* p. 10) :
+     * « both attacker and defender roll combat dice equal to their Mind Points. For each skull scored by the
+     * attacker […] ». Le Sorcier lance son Mind en dés de combat, la cible le sien ; les crânes du Sorcier
+     * moins les BOUCLIERS BLANCS du héros donnent les crânes nets (`App\Engine\OppositionMind::lancer()`).
+     *
+     * ⚠ INTERPRÉTATION DE RENÉ (2026-10-15) : le livret ne dit rien des boucliers pour ces deux sorts ; il a
+     * tranché qu'ils annulent les crânes « comme dans un combat normal ». *Mind Burst* n'est PAS concerné
+     * (voir {@see self::RESISTANCE_OPPOSITION_ECART}).
+     *
+     * ⚠ Ce n'est NI un jet de résistance au lancer (`jet_mind`), NI une rupture (`rupture_6_par_mind` : un d6 par
+     * point de Mind, un 6 libère) : le jet décide de l'effet ET de sa durée, une fois, au lancer.
+     */
+    public const RESISTANCE_OPPOSITION_NETTE = 'opposition_mind_nette';
+
+    /**
+     * OPPOSITION MIND CONTRE MIND, ÉCART DE CRÂNES BRUTS (*Mind Burst*, p. 11) : « The combatant with the most
+     * rolled skulls (be it attacker or defender) then inflicts Mind Point damage on their opponent. The damage
+     * dealt is equal to the difference in skulls rolled by each combatant. If they have an equal amount of
+     * skulls, neither takes damage. » Aucun bouclier : on compare des crânes à des crânes, et le PERDANT paie,
+     * lanceur compris.
+     */
+    public const RESISTANCE_OPPOSITION_ECART = 'opposition_mind_ecart';
+
+    /** Les deux formes d'opposition — celles qui exigent un lanceur qui a encore du Mind à jeter. */
+    public const RESISTANCES_OPPOSITION = [
+        self::RESISTANCE_OPPOSITION_NETTE,
+        self::RESISTANCE_OPPOSITION_ECART,
+    ];
+
     public const RESISTANCES = [
         self::RESISTANCE_AUCUNE,
         self::RESISTANCE_DES_ROUGES,
@@ -246,12 +285,36 @@ final class MotsClesSortDread
         self::RESISTANCE_RUPTURE_PAR_MIND,
         self::RESISTANCE_RUPTURE_5_6,
         self::RESISTANCE_BOUCLIER_BLANC_PAR_MIND,
+        self::RESISTANCE_OPPOSITION_NETTE,
+        self::RESISTANCE_OPPOSITION_ECART,
     ];
 
     /** Les deux ruptures — celles qui se rejouent au début du tour de la victime. */
     public const RESISTANCES_RUPTURE = [
         self::RESISTANCE_RUPTURE_PAR_MIND,
         self::RESISTANCE_RUPTURE_5_6,
+    ];
+
+    // -------------------------------------------------------------- CARTES
+
+    /**
+     * La carte du sort est DÉFAUSSÉE à chaque lancer (*Mind Burst* : « Each time they cast Mind Burst, they
+     * discard one of their spell cards », p. 11) : perdue pour la quête.
+     */
+    public const CARTE_DEFAUSSEE = 'defausse';
+
+    /**
+     * La carte est PRÊTÉE à un héros et revient en main (*Mind Lock* : « returning one card to Zargon at the
+     * end of each of their turns spent frozen » ; *Dominate* : « Zargon hands the affected hero a Dominate
+     * card », rendue quand le sort finit avec le tour du Sorcier). C'est ce prêt qui borne combien de héros un
+     * Sorcier tient gelés en même temps.
+     */
+    public const CARTE_PRETEE = 'prete';
+
+    /** Ce que `effet.carte` peut dire d'un sort — lu par `MoteurDread::consommerUsage()` et `CartesDread`. */
+    public const CARTES = [
+        self::CARTE_DEFAUSSEE,
+        self::CARTE_PRETEE,
     ];
 
     // -------------------------------------------------------------- ZONES
@@ -481,6 +544,25 @@ final class MotsClesSortDread
         'renvoie' => [
             'lecteur' => 'App\Partie\ReactionsMj::renvoyer',
             'libelle' => 'Renvoie sur son lanceur le sort d\'un héros qui visait le MJ (*Mirror Magic*)',
+        ],
+
+        // -- Against the Ogre Horde : les trois sorts des Sorciers du Dread (2026-10-16) ---
+
+        'carte' => [
+            'lecteur' => 'App\Partie\MoteurDread::consommerUsage',
+            'libelle' => 'Ce que devient la carte du sort : défaussée (Mind Burst) ou prêtée au héros puis rendue (Mind Lock, Dominate)',
+        ],
+        'gel_par_crane' => [
+            'lecteur' => 'App\Partie\VerrouMental::enregistrer',
+            'libelle' => 'Tours de gel (et cartes prêtées) par crâne net du Sorcier (Mind Lock)',
+        ],
+        'liberation_cranes' => [
+            'lecteur' => 'App\Partie\VerrouMental::tenterLiberation',
+            'libelle' => 'Crânes qui libèrent le héros gelé, sur autant de dés de combat que de points de Mind (Mind Lock)',
+        ],
+        'cranes_requis' => [
+            'lecteur' => 'App\Partie\MoteurDread::sortDreadDomination',
+            'libelle' => 'Crânes nets nécessaires pour que le héros soit dominé (Dominate)',
         ],
     ];
 

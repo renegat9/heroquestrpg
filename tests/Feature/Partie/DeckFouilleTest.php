@@ -7,8 +7,10 @@ use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
 use App\Models\GabaritQuete;
 use App\Models\Groupe;
+use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Mobilier;
+use App\Models\Monstre;
 use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Piege;
@@ -280,18 +282,18 @@ it('rend un deck de MÊME composition mais d\'ordre différent à chaque constru
         ->and($a['deck'])->not->toEqual($b['deck']);
 });
 
-it('remet la carte piochée SOUS le paquet : le deck cycle, il ne s\'épuise pas', function () {
+it('remet l\'errant piochée SOUS le paquet : le deck cycle, il ne s\'épuise pas', function () {
     [, , , $quete] = demarrerFouille();
 
     $avant = count($quete->deckFouille());
 
-    empilerCarteFouille($quete, ['issue' => 'rien', 'marqueur' => 'A']);
+    // Seule une carte qui dit de la remettre (« Return this card to the bottom »)
+    // repart dessous. Un « rien » ou un or, lui, sort du paquet : DeckFouilleRetourTest.
+    empilerCarteFouille($quete, ['issue' => 'errant', 'marqueur' => 'A']);
     fouiller();
 
     $apres = $quete->fresh()->deckFouille();
 
-    // Règle du plateau : la carte repart dessous. Avec une fouille par héros ET
-    // par salle, le deck serait sinon vidé sur un grand donjon.
     expect(count($apres))->toBe($avant + 1)
         ->and(end($apres)['marqueur'] ?? null)->toBe('A');
 });
@@ -345,6 +347,21 @@ it('EMPILE une seconde potion identique au lieu de créer une ligne', function (
     $lignes = Inventaire::where('personnage_id', $hero->id)->where('objet_id', $potion->id)->get();
     expect($lignes)->toHaveCount(1)
         ->and((int) $lignes->first()->quantite)->toBe(2);
+});
+
+it('la fouille rend TOUJOURS une carte de trésor sans prix, que le marché ne vend plus (René, 2026-10-16)', function () {
+    [, , $hero, $quete] = demarrerFouille();
+
+    $potion = Objet::where('nom', 'Potion de force')->firstOrFail();
+    empilerCarteFouille($quete, ['issue' => 'potion', 'objet_id' => $potion->id]);
+
+    $resultat = fouiller();
+
+    expect($resultat['issue'])->toBe('potion')
+        ->and($resultat['objet']['nom'])->toBe('Potion de force');
+
+    $ligne = Inventaire::where('personnage_id', $hero->id)->where('objet_id', $potion->id)->firstOrFail();
+    expect($ligne->emplacement)->toBe('consommable');
 });
 
 // ---------------------------------------------------------------------------
@@ -1355,4 +1372,202 @@ it('Sly Storage : une salle-coffre avec une armoire rend le coffre sur la 1re ca
     // 2e carte : JAMAIS une seconde fois le coffre — il vient d'être marqué
     // plein par la ligne du dessus, avant que la seconde carte ne soit tirée.
     expect($resultat['carte_armoire']['coffre'] ?? false)->toBeFalse();
+});
+
+// ---------------------------------------------------------------------------
+// Cartes « Hazard! » et monstre errant AU CONTACT (cartes 2021 et 2024, 2026-10-16)
+// ---------------------------------------------------------------------------
+
+/**
+ * Pose le fouilleur sur (x, y) de la salle `$salle`, la marque découverte et régénère son
+ * menu. Même geste que `deplacerVersSalle()`, à une case précise près.
+ */
+function poserFouilleurEn(Quete $quete, EtatPersonnageQuete $etat, int $x, int $y, int $salle): void
+{
+    $etat->refresh();
+    $etat->update([
+        'position_x' => $x, 'position_y' => $y,
+        'a_joue' => false, 'a_agi' => false, 'a_deplace' => false,
+    ]);
+    $quete->marquerSalleDecouverte($salle);
+
+    GenererMenu::dispatchSync(
+        $quete->groupe_id,
+        (int) Personnage::findOrFail($etat->personnage_id)->joueur_id,
+        (int) $etat->personnage_id,
+    );
+}
+
+/**
+ * Trouve une case intérieure (hors salle de départ, hors salle à coffre) dont les huit voisines
+ * sont du sol libre, et la case à deux pas à gauche aussi, puis BOUCHE les voisines avec des
+ * monstres dormants (`revele` faux : ils occupent la case sans rendre la salle « habitée », donc
+ * « Fouiller — trésor » reste offerte). Les monstres du donjon sont d'abord vaincus pour que
+ * rien d'autre n'occupe le voisinage.
+ *
+ * ⚠ Le sol à deux pas à gauche n'est pas décoratif : c'est la case que l'ancien ordre de
+ * repli (anneau Manhattan 2 : (x−2, y) avant les diagonales) aurait choisie. Sans elle, le
+ * test passerait même sur l'ancien code, pour une raison qui n'a rien à voir avec ce qu'il
+ * affirme.
+ *
+ * @return array{x: int, y: int, salle: int}
+ */
+function isolerFouilleurPourErrant(Quete $quete, bool $toutesLesVoisines): array
+{
+    $quete->instancesMonstres()->update(['etat' => 'vaincu']);
+    $quete = $quete->fresh();
+
+    $grille = $quete->carte->grille;
+    $cases = $grille['cases'];
+    $coffres = array_map('intval', (array) $quete->salles_coffre);
+
+    $voisines = $toutesLesVoisines
+        ? [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]
+        : [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    $sol = fn (int $x, int $y): bool => ($cases[$y][$x] ?? 'm') === 's' && caseQueteLibre($quete, $x, $y);
+
+    foreach (array_keys((array) $grille['salles']) as $k) {
+        if ($k === 0 || in_array($k, $coffres, true)) {
+            continue;
+        }
+
+        $s = $grille['salles'][$k];
+
+        for ($y = (int) $s['y'] + 2; $y <= (int) $s['y'] + (int) $s['hauteur'] - 3; $y++) {
+            for ($x = (int) $s['x'] + 3; $x <= (int) $s['x'] + (int) $s['largeur'] - 4; $x++) {
+                if (! $sol($x, $y) || ! $sol($x - 2, $y)) {
+                    continue;
+                }
+
+                $toutes = true;
+                foreach ($voisines as [$dx, $dy]) {
+                    $toutes = $toutes && $sol($x + $dx, $y + $dy);
+                }
+
+                if (! $toutes) {
+                    continue;
+                }
+
+                foreach ($voisines as [$dx, $dy]) {
+                    InstanceMonstre::create([
+                        'quete_id' => $quete->id,
+                        'monstre_id' => Monstre::query()->firstOrFail()->id,
+                        'pv_body' => 1, 'pv_mind' => 1,
+                        'position_x' => $x + $dx, 'position_y' => $y + $dy,
+                        'etat' => 'actif', 'elite' => false, 'revele' => false,
+                    ]);
+                }
+
+                return ['x' => $x, 'y' => $y, 'salle' => (int) $k];
+            }
+        }
+    }
+
+    throw new RuntimeException('Aucune case intérieure isolable dans ce donjon — scénario invalide.');
+}
+
+it('une carte Hazard de FLÈCHE fait perdre EXACTEMENT 1 PV, finit le tour, sans jet ni poison', function () {
+    [, , $hero, $quete, $etat] = demarrerFouille();
+
+    empilerCarteFouille($quete, ['issue' => 'piege', 'variante' => 'fleches']);
+
+    // Un 6 aurait empoisonné sous le « Piège de coffre » : la carte Hazard ne lance rien.
+    desFiges(array_fill(0, 10, 6));
+    $pvAvant = (int) $hero->fresh()->pv_body;
+
+    $resultat = fouiller();
+
+    expect($resultat['issue'])->toBe('piege')
+        ->and($resultat['declenchement']['hazard'])->toBeTrue()
+        ->and($resultat['declenchement']['degats'])->toBe(1)
+        ->and($resultat['declenchement']['piege']['nom'])->toBe('Flèche cachée')
+        ->and((int) $hero->fresh()->pv_body)->toBe($pvAvant - 1)
+        ->and($hero->fresh()->conditions()->where('nom', 'Empoisonné')->exists())->toBeFalse('aucun poison')
+        ->and((bool) $etat->fresh()->a_joue)->toBeTrue('le tour s\'arrête sur-le-champ');
+});
+
+it('une carte Hazard de TROU fait tomber un héros à 1 PV, et le fil dit que son tour s\'arrête', function () {
+    [, , $hero, $quete, $etat] = demarrerFouille();
+    $hero->update(['pv_body' => 1]);
+
+    empilerCarteFouille($quete, ['issue' => 'piege', 'variante' => 'trou']);
+    desFiges(array_fill(0, 10, 3));
+
+    $resultat = fouiller();
+
+    expect((int) $hero->fresh()->pv_body)->toBe(0)
+        ->and($resultat['declenchement']['tombe'])->toBeTrue()
+        ->and((bool) $etat->fresh()->tombe)->toBeTrue();
+
+    $fil = implode(' | ', array_column(app(App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'), 'texte'));
+
+    expect($fil)->toContain('trou peu profond')
+        ->toContain("Son tour s'arrête");
+});
+
+it('un monstre errant surgi AU CONTACT frappe aussitôt le fouilleur (carte 2024), et son tour continue', function () {
+    [, , $hero, $quete, $etat] = demarrerFouille();
+    empilerCarteFouille($quete, ['issue' => 'errant']);
+
+    // Aucun bouclier : chaque crâne du monstre compte, le coup porte.
+    desFiges(array_fill(0, 40, 1));
+    $pvAvant = (int) $hero->fresh()->pv_body;
+
+    $resultat = fouiller();
+
+    expect($resultat['issue'])->toBe('errant')
+        ->and($resultat['frappe_errant']['type'])->toBe('attaque_monstre')
+        ->and($resultat['frappe_errant']['cible']['personnage_id'])->toBe($hero->id)
+        ->and((int) $hero->fresh()->pv_body)->toBeLessThan($pvAvant, 'le coup a porté tout de suite')
+        ->and((bool) $etat->fresh()->a_joue)->toBeFalse('le fouilleur continue son tour');
+
+    $errant = App\Models\InstanceMonstre::findOrFail($resultat['monstre']['instance_id']);
+    $dx = abs((int) $errant->position_x - (int) $etat->fresh()->position_x);
+    $dy = abs((int) $errant->position_y - (int) $etat->fresh()->position_y);
+
+    expect(max($dx, $dy))->toBe(1, 'posé sur une case adjacente ou diagonale');
+});
+
+it('un errant se pose sur une DIAGONALE quand les voisines orthogonales sont prises (carte 2024)', function () {
+    [, , , $quete, $etat] = demarrerFouille();
+
+    $poste = isolerFouilleurPourErrant($quete->fresh(), toutesLesVoisines: false);
+    poserFouilleurEn($quete->fresh(), $etat->fresh(), $poste['x'], $poste['y'], $poste['salle']);
+    empilerCarteFouille($quete->fresh(), ['issue' => 'errant']);
+
+    // Quatre crânes de défense : le coup ne fait rien, seule la case compte ici.
+    desFiges(array_fill(0, 40, 4));
+
+    $resultat = fouiller();
+
+    $errant = App\Models\InstanceMonstre::findOrFail($resultat['monstre']['instance_id']);
+    $dx = abs((int) $errant->position_x - $poste['x']);
+    $dy = abs((int) $errant->position_y - $poste['y']);
+
+    // Ancien ordre : (x−2, y), à deux cases — donc hors contact, et sans frappe.
+    expect($dx === 1 && $dy === 1)->toBeTrue('une DIAGONALE, à un pas : « adjacent or diagonal to you »')
+        ->and($resultat['frappe_errant'] ?? null)->not->toBeNull('au contact : il frappe');
+});
+
+it('sans AUCUNE case au contact, l\'errant naît à deux cases et ne frappe PAS (repli, LR p. 15)', function () {
+    [, , $hero, $quete, $etat] = demarrerFouille();
+
+    $poste = isolerFouilleurPourErrant($quete->fresh(), toutesLesVoisines: true);
+    poserFouilleurEn($quete->fresh(), $etat->fresh(), $poste['x'], $poste['y'], $poste['salle']);
+    empilerCarteFouille($quete->fresh(), ['issue' => 'errant']);
+
+    desFiges(array_fill(0, 40, 1));
+    $pvAvant = (int) $hero->fresh()->pv_body;
+
+    $resultat = fouiller();
+
+    $errant = App\Models\InstanceMonstre::findOrFail($resultat['monstre']['instance_id']);
+    $distance = max(abs((int) $errant->position_x - $poste['x']), abs((int) $errant->position_y - $poste['y']));
+
+    // « as close to the searcher as possible » : la bête est posée, mais elle n'est pas au contact,
+    // donc elle ne frappe pas tout de suite. Elle jouera au tour des monstres.
+    expect($resultat['issue'])->toBe('errant')
+        ->and($distance)->toBe(2)
+        ->and($resultat)->not->toHaveKey('frappe_errant')
+        ->and((int) $hero->fresh()->pv_body)->toBe($pvAvant);
 });

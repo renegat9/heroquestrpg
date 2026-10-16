@@ -160,11 +160,14 @@ et les voici.
    *Holy Water*, *Smoke Bomb*. La *Wand* du Warlock non plus, alors que
    `GroupeController` lui en donne une au départ — l'objet n'existe pas au
    catalogue.
-7. **Les potions sont une divergence quasi totale.** Aucune des 15 cartes ne
-   porte le nom d'une des nôtres. Nos potions de force / défense / rage /
-   héroïsme sont des inventions du projet ; les cartes, elles, réservent trois
-   potions au **Barbare** et deux à l'**Elfe**, ce que notre catalogue ne fait
-   pour aucune potion.
+7. **Les potions sont une divergence quasi totale.** Hormis la *Potion of Healing*
+   (= Potion de guérison), aucune des 15 cartes ne porte le nom d'une des nôtres.
+   Nos potions de force et de défense ne sont pourtant **pas** des inventions :
+   ce sont les cartes de trésor *Potion of Strength* et *Potion of Defense*, du
+   paquet de base (§7.4) ; notre potion d'héroïsme est la carte *Heroic Brew*.
+   La potion de rage, elle, n'est dans aucun matériel photographié. Les cartes
+   vendues réservent trois potions au **Barbare** et deux à l'**Elfe**, ce que
+   notre catalogue ne fait pour aucune potion.
 
 ### 2.2 ⚠ ANNEXE HISTORIQUE — le paquet fan, remplacé le 2026-08-15
 
@@ -728,6 +731,84 @@ Quatre types de pièges officiels, chacun avec un mécanisme distinct (LR p. 16-
 - **Le nain n'a jamais besoin de trousse à outils** : il lance 1 dé, **bouclier noir = déclenché**, tout le reste = désamorcé — inversion de la règle normale, et sans outil (LR p. 20).
 - Avertissement spécifique : un piège posé juste derrière une porte **ne peut pas être détecté en regardant à travers la porte** — il faut être physiquement dans la salle pour le chercher (LR p. 16).
 
+### 7.4 Cartes de trésor photographiées par René (2026-10-16)
+
+**Source** : photos de René des cartes physiques, en deux éditions — **© 2021 Hasbro** (jeu de base ; la carte *Gem!* porte en outre le code imprimé « F2847 ») et **© 2024 Hasbro** (paquet de trésors de *First Light*). Les photos restent hors dépôt. Les textes sont reproduits **à la lettre** (anglais, gras et italique d'origine compris). L'italique en tête de carte, en 2024, est du *flavour text* : il ne porte aucune règle. Chaque carte est suivie de sa correspondance chez nous.
+
+#### Monstre errant — *Wandering Monster*
+- **2021** : « As you are searching, a monster stalks you and attacks! Zargon places the wandering monster (listed in the Quest Book) on any square next to you. The monster attacks immediately! Return this card to the bottom of the deck. »
+- **2024** : *« The hair on the back of your neck stands up. »* « You turn to see a monster stalking behind you! Zargon places the wandering monster (listed in the quest notes) on any square adjacent or diagonal to you. The monster immediately attacks. After they attack, you can continue your turn. Return this card to the bottom of the treasure deck. »
+- **Différences de règle** : 2024 ajoute la case **diagonale** (« adjacent or diagonal ») et la **suite du tour** (« you can continue your turn » après l'attaque). 2021 dit « any square next to you » et ne dit rien de la suite du tour.
+- **Chez nous** : issue `errant`.
+
+#### Piège — *Hazard!* (flèche)
+- **2021** : « While you are searching, a hidden arrow shoots from the wall and strikes you. You lose 1 Body Point and your turn is over. Return this card to the bottom of the deck. »
+- **2024** : *« Was that a trip wire? »* « An arrow suddenly flies from the wall, striking you! You lose 1 Body Point. Your turn immediately ends. Return this card to the bottom of the treasure deck. »
+- **Différences de règle** : aucune (1 point de Body, fin du tour, carte remise sous le paquet).
+- **Chez nous** : issue `piege`, `variante: fleches`.
+
+#### Piège — *Hazard!* (fosse)
+- **2021** : « Suddenly, the stone beneath your feet gives way. You fall into a shallow hole, losing 1 Body Point and ending your turn. You may climb out and move normally on your next turn. Return this card to the bottom of the deck. »
+- **2024** : *« That crunching noise did **not** sound good. »* « The stone beneath your feet gives way! You fall into a shallow hole and lose 1 Body Point. Your turn immediately ends. You may climb out and take your normal movement on your next turn. Return this card to the bottom of the treasure deck. »
+- **Différences de règle** : aucune (1 point de Body, fin du tour, sortie « normale » au tour suivant).
+- **Chez nous** : issue `piege`, `variante: trou`.
+
+#### Breuvage héroïque — *Heroic Brew*
+- **2021** : « You are surprised to find a leather bag hanging on the wall. If you drink its contents before you attack, you can make two attacks instead of one. This may only be used once. Do not return this card to the deck. »
+- **2024** : *« Fortify your fighting spirit, brave hero. »* « Drink this potion before you attack to make two weapon attacks instead of one. As with all potions, this can only be used once. Do not return this card to the treasure deck. »
+- **Différences de règle** : les deux exigent de boire **avant d'attaquer**. 2024 précise « two **weapon** attacks » (deux attaques d'arme).
+- **Chez nous** : *Potion d'héroïsme* (`attaque_supplementaire`).
+
+#### Potion de soin — *Potion of Healing*
+- **2021** : « In a bundle of rags, you find a small bottle of bluish liquid. You can drink this healing potion at any time, restoring the number of Body Points equal to a roll of 1 red die. You cannot, however, exceed your starting number of Body Points. This may only be used once. Do not return this card to the deck. »
+- **2024** : *« A blue, brilliantly-glowing elixir that tastes of home. »* « Drink this potion to roll 1 red die and restore that number of Body Points (not exceeding your Body Point total). As with all potions, this can only be used once. Do not return this card to the treasure deck. »
+- **Différences de règle** : même effet (1 dé rouge, plafonné au maximum). 2021 dit « at any time » (à tout moment) ; 2024 ne dit pas quand. Le plafond s'écrit « starting number of Body Points » en 2021 et « Body Point total » en 2024 : lu comme le maximum dans les deux cas.
+- **Chez nous** : *Fiole de soin* (`soin_pv_body_de: 6`, plafonné au maximum). Même nom que la *Potion of Healing* vendue 500 po (`potions.pdf`, © 2023), même effet : deux objets chez nous, à dessein.
+
+#### Gemme — *Gem!* / *Gem*
+- **2021** : « Tucked into the toe of an old boot you find a small gem worth 35 gold coins. Record the money on your character sheet. Do not return this card to the deck. » (© 2021 Hasbro, F2847)
+- **2024** : *« This will go towards the armory fund. »* « Tucked inside the toe of an old, weathered boot is a small gem worth 35 gold coins. Record the money on your character sheet. Do not return this card to the treasure deck. »
+- **Différences de règle** : aucune (35 po). La phrase italique de 2024 est de l'ambiance : elle ne crée aucune règle de dépense.
+- **Chez nous** : `gemme` (35).
+
+#### Or — *Gold!* / *Gold* (15 po)
+- **2021** : « Amidst old rags, tattered fur robes and soiled blankets, you find a collection of 15 gold coins. Record the money on your character sheet. Do not return this card to the deck. »
+- **2024** : *« One adventurer's trash is another's treasure. »* « While sifting through old rags, tattered fur robes, and soiled blankets, you find a collection of 15 gold coins. Record the money on your character sheet. Do not return this card to the treasure deck. »
+- **Différences de règle** : aucune.
+- **Chez nous** : `or_15`.
+
+#### Or — *Gold!* / *Gold* (25 po)
+- **2021** : « You find a loose stone and tear it from the wall. Behind it you discover a small leather pouch wrapped in an old rag. Peering inside, you find 25 gold coins. Record the money on your character sheet. Do not return this card to the deck. »
+- **2024** : *« What luck! »* « While skimming your hand along the wall, you find a loose stone. Behind it you find a small leather pouch containing 25 gold coins. Record the money on your character sheet. Do not return this card to the treasure deck. »
+- **Différences de règle** : aucune.
+- **Chez nous** : `or_25`.
+
+#### Bijoux — *Jewels!* / *Jewels* (50 po)
+- **2021** : « You find a small wooden box. It is simple looking and very old. Within you discover that it is lined with velvet and contains very small jewels worth 50 gold coins. Record the money on your character sheet. Do not return this card to the deck. »
+- **2024** : *« It doesn't seem like anyone's coming back for this. »* « You find a plain, worn wooden box. Inside you find 50 gold coins nestled on velvet lining. Record the money on your character sheet. Do not return this card to the treasure deck. »
+- **Différences de règle** : aucune sur la valeur (50 po). 2021 parle de « very small jewels worth 50 gold coins », 2024 de « 50 gold coins » directement.
+- **Chez nous** : `bijoux` (50).
+
+#### Potion de défense — *Potion of Defense*
+- **2021** : « Amidst a collection of old bottles, you find a small vial containing a clear liquid. You can drink this potion at any time, giving you 2 extra combat dice the next time you defend. This may only be used once. Do not return this card to the deck. »
+- **2024** : *« A hero's best offense is, after all, a worthwhile defense. »* « Drink this potion to roll 2 additional dice the next time you roll Defend dice. As with all potions, this can only be used once. Do not return this card to the treasure deck. »
+- **Différences de règle** : même effet (+2 dés au **prochain** jet de défense, une seule fois). 2021 dit « at any time » ; 2024 ne précise pas le moment.
+- **Chez nous** : *Potion de défense* (`bonus_des_defense: 2`, `prochaine_defense`).
+
+#### Potion de force — *Potion of Strength*
+- **2021** : « You find a small purple flask. You can drink this strange smelling liquid at any time, enabling you to roll 2 extra combat dice the next time you attack. This may only be used once. Do not return this card to the deck. »
+- **2024** : *« May your next strike hit true. »* « Drink this potion to roll 2 additional dice the next time you roll Attack dice. As with all potions, this can only be used once. Do not return this card to the treasure deck. »
+- **Différences de règle** : même effet (+2 dés au **prochain** jet d'attaque, une seule fois). 2021 dit « at any time » ; 2024 ne précise pas le moment.
+- **Chez nous** : *Potion de force* (`bonus_des_attaque: 2`, `prochaine_attaque`).
+
+#### Ce que ces cartes établissent
+- **La *Potion de défense* et la *Potion de force* sont dans le paquet de BASE** (© 2021), et dans *First Light* (© 2024) : ce ne sont pas des potions d'extension. Le paragraphe « réactifs d'alchimie » de `reference/18_extensions.md` est corrigé en conséquence.
+- **Le soin au dé est sourcé** : la *Potion of Healing* de trésor dit « roll 1 red die » (voir la ligne *Fiole de soin* de §10).
+- **Aucun prix sur les cartes de trésor.** Les potions de force et de défense ne figurent pas parmi les 15 potions vendues (§2.1bis) : leur **prix de 150 po n'est sourcé nulle part** (`database/seeders/ObjetSeeder.php`, valeur du projet). Il en va de même pour la Fiole de soin (100 po), hors de l'étal puisque sa rareté est `unique`.
+- **Décision de René (2026-10-16) : hors de l'étal.** « On ne peut pas vendre les potions qu'on trouve dans les trésors. » La *Potion d'héroïsme* (*Heroic Brew*), la *Potion de force* (*Potion of Strength*) et la *Potion de défense* (*Potion of Defense*) — les trois cartes de trésor sans prix — ne sont donc **ni à l'étal ni revendables** : `effet.hors_marche` (`PhaseMarche::estHorsMarche()`, `docs/regles/exploration-et-fouille.md`). Elles restent trouvables en fouille et se boivent. La *Fiole de soin* (*Potion of Healing* de trésor) l'était déjà, par `rarete: unique`. La *Potion of Healing* **vendue**, elle, reste la *Potion de guérison* (500 po, `potions.pdf` et Jungles of Delthrak) : une carte à prix sourcé reste en vente.
+- **Le nombre d'exemplaires** de chaque carte n'est donné par aucune photo.
+- La potion de rage, l'esprit clair et l'antidote ne figurent sur aucune de ces photos : leur statut reste celui de §10.
+
 ---
 
 ## 8. Le tour de Zargon (monstres)
@@ -1277,9 +1358,10 @@ Comparaison ligne à ligne entre ce que ce matériel officiel atteste et `notre_
 | **Casque** (125 po, +1 défense) / **Bouclier** (125 po, +1 défense, incompatible deux mains) | Les deux objets sont bien attestés par leur nom (§2), mais **aucun bonus chiffré ni prix** n'est donné pour l'un ou l'autre isolément — le seul chiffre disponible (+2) concerne l'armure de plates *artefact*, pas le casque/bouclier de base. L'incompatibilité bouclier/deux-mains n'est **pas énoncée** textuellement (bien que logique). |
 | **Armure de plates** (850 po, +2 défense, `malus_deplacement: 2`) | Le **+2 dés de défense** correspond exactement au texte de l'artefact *Borin's Armor* (LR p. 7). Le ralentissement est **cohérent par contraste** avec la même carte : « unlike normal plate mail, this... does not slow down its wearer » implique qu'une armure de plates ordinaire ralentit son porteur — jamais énoncé comme règle autonome, seulement en creux d'un artefact. Sa VALEUR, elle, vient de la carte du paquet : « a 2 square movement penalty ». On retirait auparavant le d6 entier (`deplacement_sans_d6`), soit −3,5 cases en moyenne **et** un déplacement déterministe. Aucun prix officiel. |
 | **Trousse à outils** (250 po) | Fonction confirmée à l'identique (LR p. 19). Aucun prix. |
-| **Fiole de soin** (100 po, `soin_pv_body_de: 6` — soin par jet de 1d6) | Le mécanisme d'un soin **tiré au dé** n'apparaît **nulle part** : toutes les potions de soin rencontrées dans les notes de quêtes soignent un **montant fixe** annoncé sur la carte (« restores up to 4 », « up to 2 » — LQ p. 7, 13, 17…), jamais un jet de dé. |
-| **Potion de soin** (100 po, fixe 4 PV) | Le montant "4" est bien attesté dans plusieurs quêtes (LQ p. 7, p. 17, p. 29), mais **pas universel** : une même potion de soin restaure ailleurs « up to 2 » (LQ p. 13) — la valeur varie par carte/quête dans le jeu officiel, alors que chez nous elle est figée à 4. |
-| **Potion d'esprit clair** (soin PV de Mind), **Potion d'héroïsme**, **Potion de force**, **Potion de défense**, **Potion de rage**, **Antidote** | **Aucune** de ces six potions n'est nommée ni décrite dans ce matériel — ni un effet de soin ciblant le Mind, ni une potion d'attaque supplémentaire, ni un antidote. |
+| **Fiole de soin** (100 po, `soin_pv_body_de: 6` — soin par jet de 1d6) | Le soin **tiré au dé** existe sur une carte officielle : *Potion of Healing* du paquet de trésors, « roll 1 red die » (© 2021 et © 2024, §7.4). Les potions de soin des notes de quêtes, elles, soignent un **montant fixe** annoncé sur la carte (« restores up to 4 », « up to 2 » — LQ p. 7, 13, 17…). Le **prix de 100 po n'est sourcé nulle part** : la carte de trésor n'en porte pas. |
+| **Potion de soin** (100 po, fixe 4 PV) | Le montant "4" est bien attesté dans plusieurs quêtes (LQ p. 7, p. 17, p. 29), mais **pas universel** : une même potion de soin restaure ailleurs « up to 2 » (LQ p. 13) — la valeur varie par carte/quête dans le jeu officiel, alors que chez nous elle est figée à 4. **Reste à l'étal** au 2026-10-16 : son prix de 100 po est *non trouvé*, et la décision de la retirer ou de la sourcer revient à René (elle n'est pas une carte de trésor, contrairement à la force et à la défense). |
+| **Potion d'esprit clair** (soin PV de Mind), **Potion de rage**, **Antidote** | **Aucune** de ces trois potions n'est nommée ni décrite dans ce matériel — ni un effet de soin ciblant le Mind, ni un antidote. |
+| **Potion d'héroïsme**, **Potion de force**, **Potion de défense** | **Nommées et décrites** depuis le 2026-10-16 : *Heroic Brew*, *Potion of Strength* et *Potion of Defense*, cartes du paquet de trésors de base (© 2021) et de *First Light* (© 2024) — §7.4. Le **prix de 150 po** de la force et de la défense reste **non sourcé**. **Retirées de l'étal le 2026-10-16** (décision de René : carte de trésor sans prix, `effet.hors_marche`). |
 
 ### Sorts
 
@@ -1317,7 +1399,7 @@ Comparaison ligne à ligne entre ce que ce matériel officiel atteste et `notre_
 ### Règles générales
 
 - **Composition du dé de combat** (3 crânes/2 boucliers blancs/1 bouclier noir, affirmée dans `03_combat.md` et `01_personnages.md`) : **non retrouvée en toutes lettres** dans ce matériel — seules les faces individuelles sont illustrées (§6.1). Ni confirmée ni infirmée par cette source précise.
-- **Contenu détaillé du paquet de 24 cartes Trésor** (`deck_fouille` : gemmes, bijoux, pièges de fosse/flèches, potions d'héroïsme/force/défense — CLAUDE.md, §Searching & artefacts) : le total de **24 cartes** est confirmé (LR p. 4) et la proportion « environ la moitié de dangers » aussi (LR p. 15), mais le **détail carte par carte** n'apparaît jamais dans le texte extrait : la composition précise de notre deck est une reconstruction, pas une donnée sourcée ici.
+- **Contenu détaillé du paquet de 24 cartes Trésor** (`deck_fouille` : gemmes, bijoux, pièges de fosse/flèches, potions d'héroïsme/force/défense — CLAUDE.md, §Searching & artefacts) : le total de **24 cartes** est confirmé (LR p. 4) et la proportion « environ la moitié de dangers » aussi (LR p. 15). Les **identités, montants et effets** des cartes sont désormais photographiés (§7.4, 2026-10-16) ; en revanche le **nombre d'exemplaires** de chaque carte n'est donné par aucune photo : la répartition de notre deck reste une reconstruction, pas une donnée sourcée ici.
 - **Pièges — mécanique de franchissement/désarmement** : notre catalogue (doc 10) résume les 4 pièges officiels en un modèle plus simple et plus uniforme (détection → désarmement par jet de Body/trousse à outils, franchissement par jet de Body) ; le livret distingue en réalité **quatre mécaniques bien différentes** par type de piège (voir §7.3 : jets à 1 ou 3 dés selon le piège, franchissement uniquement pour la fosse, piège-lance à usage unique et sans tuile, chute de blocs sans aucun désamorçage possible une fois déclenchée). Ce n'est pas qu'une divergence de valeurs : c'est une simplification structurelle assumée.
 - **Restriction « pas de fouille de trésor si un monstre est visible »** (LR p. 14) : confirmée présente dans notre moteur (`app/Partie/MenuMoteur.php::salleFouillableTresor()`, commentaire « Salle "vide" : aucun monstre actif révélé dans ses limites ») — **conforme**, pas un écart.
 - **Assignation de sorts par classe** (magicien = 3 groupes/9 sorts, elfe = 1 groupe/3 sorts) : confirmée codée à l'identique dans `app/Partie/MoteurSorts.php` (`NB_ELEMENTS_DEPART = ['magicien' => 3, 'elfe' => 1]`) — **conforme**, pas un écart.

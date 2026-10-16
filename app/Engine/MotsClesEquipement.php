@@ -1035,6 +1035,20 @@ final class MotsClesEquipement
     public const VALEUR_MARCHANDE = 'valeur_marchande';
 
     /**
+     * Carte de TRÉSOR SANS PRIX — la potion que le deck de fouille donne et dont
+     * la carte n'imprime aucun prix (*Heroic Brew*, *Potion of Strength*,
+     * *Potion of Defense* : `reference/16` §7.4). Elle n'est NI à l'étal NI
+     * revendable — « On ne peut pas vendre les potions qu'on trouve dans les
+     * trésors » (René, 2026-10-16). Son `prix_base` reste un chiffre de projet :
+     * il sert à la rareté et aux classements internes, jamais à une transaction.
+     * Pas `rarete: unique`, qui veut dire « artefact » partout ailleurs.
+     * Lecteur : `PhaseMarche::estHorsMarche()` — l'étal (`ouvrir()`), la liste
+     * vendable (`inventaireVendable()`) et la revente (`motifRefusVente()`).
+     * N'empêche ni la fouille ni la boisson : la potion reste trouvable et utilisable.
+     */
+    public const HORS_MARCHE = 'hors_marche';
+
+    /**
      * Récupère UN sort de héros ou UNE compétence déjà utilisés —
      * *Potion of Elder Wisdom* : « recover any 1 hero spell or skill you have
      * used ». Le buveur reçoit d'abord le premier sort épuisé, à défaut la
@@ -1163,6 +1177,7 @@ final class MotsClesEquipement
         self::DES_ATTAQUE_AU_CONTACT,
         self::APPELLE_ALLIE,
         self::VALEUR_MARCHANDE,
+        self::HORS_MARCHE,
         self::RECUPERE_SORT_OU_COMPETENCE,
         self::UNE_PAR_QUETE,
     ];
@@ -1363,6 +1378,7 @@ final class MotsClesEquipement
         'une_par_tour' => 'Une seule fois par tour',
         self::UNE_PAR_QUETE => 'Une seule par héros et par quête',
         self::VALEUR_MARCHANDE => 'Se revend %s pièces d\'or (valeur entière)',
+        self::HORS_MARCHE => 'Carte de trésor sans prix : ni à l\'étal, ni revendable',
         // ⚠ « S'active à volonté » précédait « Cadence : une fois par quête » sur
         // la même ligne. La clé dit seulement que l'objet se DÉCLENCHE.
         'activable' => 'Pouvoir à déclencher',

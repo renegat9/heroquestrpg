@@ -325,6 +325,79 @@ trait LignesEffetsAutomatiques
         ]];
     }
 
+    /**
+     * Une figure CACHÉE paraît à la vue d'un héros (Dread Skull). Le tir qu'elle joue aussitôt
+     * est une action imbriquée (`action`), étalée par `ligneAction()` juste après cette ligne.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function apparitionALaVue(array $a): array
+    {
+        $qui = isset($a['declencheur']['nom']) ? ' — '.$a['declencheur']['nom'].' vient de la voir' : '';
+
+        return [['texte' => ((string) ($a['monstre'] ?? 'Une figure')).' paraît'.$qui.' : elle tire aussitôt', 'ton' => 'degats']];
+    }
+
+    /**
+     * Le SILENCING SNARE de la Deathspinner : qui, sur qui, quel sort — « sans action ». Le sort
+     * lui-même (dés, dégâts, chute) suit sur sa propre ligne, c'est le payload `sort_dread` habituel.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function filetSilencieux(array $a): array
+    {
+        return [['texte' => ((string) ($a['monstre'] ?? 'La créature')).' tisse son filet : '
+            .((string) ($a['cible']['nom'] ?? 'un héros')).' finit son tour sous son regard — '
+            .((string) ($a['sort'] ?? 'un sort')).', sans action', 'ton' => 'subit']];
+    }
+
+    /**
+     * Le SOUFFLE DU CONSTRUIT du Golem de Forge : une ligne d'annonce, puis une par héros pris — les
+     * dés rouges, ce qui a été annulé, ce qui reste.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function souffleDuConstruit(array $a): array
+    {
+        $monstre = (string) ($a['monstre'] ?? 'Le Golem');
+        $resultats = array_values(array_filter((array) ($a['resultats'] ?? []), 'is_array'));
+        $n = count($resultats);
+        $lignes = [['texte' => "{$monstre} exhale son Souffle du Construit sur toute la salle : {$n} héros pris dans le souffle", 'ton' => 'subit']];
+
+        foreach ($resultats as $r) {
+            $cible = (string) ($r['cible']['nom'] ?? 'un héros');
+            $degats = (int) ($r['degats'] ?? 0);
+            $des = ' · dés rouges '.implode(', ', (array) ($r['des_rouges'] ?? []));
+            $annules = (int) ($r['degats_annules'] ?? 0);
+
+            if (! empty($r['cible_tombee'])) {
+                $lignes[] = ['texte' => "{$cible} s'effondre sous le souffle (−{$degats} PV){$des}", 'ton' => 'chute'];
+            } elseif ($degats > 0) {
+                $lignes[] = ['texte' => "{$cible} encaisse −{$degats} PV".($annules > 0 ? " ({$annules} annulé".($annules > 1 ? 's' : '').' par les dés)' : '').$des, 'ton' => 'subit'];
+            } else {
+                $lignes[] = ['texte' => "{$cible} résiste au souffle : tout est annulé{$des}", 'ton' => 'pare'];
+            }
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * La VRILLE que le Scion pose à la fin de son tour — ou l'absence de case libre à portée.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function vrillePosee(array $a): array
+    {
+        $monstre = (string) ($a['monstre'] ?? 'Le Scion');
+
+        if (! is_array($a['vrille'] ?? null)) {
+            return [$this->info("{$monstre} cherche où poser une Vrille — aucune case libre à sa portée")];
+        }
+
+        return [['texte' => "{$monstre} fait jaillir une Vrille ({$a['vrille']['nom']}) en ({$a['vrille']['x']}, {$a['vrille']['y']})", 'ton' => 'degats']];
+    }
+
     /** @return list<array{texte: string, ton: string}> */
     private function spawn(array $a): array
     {
@@ -486,6 +559,7 @@ trait LignesEffetsAutomatiques
         return [$this->info(match ($a['mecanique'] ?? null) {
             'ignore_degats_attaque' => "{$nom} ignore intégralement le coup — une défense à usage unique vient de jouer",
             'increvable_une_fois' => "{$nom} s'effondre… et tient debout à 1 PV, une seule fois",
+            'sacrifice_de_vrille' => "{$nom} s'effondre… sacrifie ".((string) ($a['sacrifice']['nom'] ?? 'une de ses Vrilles'))." et tient debout à 1 PV",
             'jeton_ombre' => "Le coup est absorbé par un jeton d'ombre — {$nom} ne perd rien",
             default => "{$nom} active une défense à usage unique",
         })];

@@ -209,6 +209,13 @@ function fixturesDesTypesAnnonces(): array
         'tour_perdu' => ['nom' => 'Grom'],
         'heros_endormi' => ['personnage' => 'Grom'],
         'possession_deplacement' => ['personnage' => 'Grom'],
+        // Against the Ogre Horde (F9528 p. 10-11) : le gel de Mind Lock et les gestes du héros DOMINÉ.
+        'verrou_mental_tour' => ['nom' => 'Grom', 'lanceur' => ['nom' => 'Xenloth'], 'cartes_apres' => 1, 'libere' => false,
+            'tentative' => ['des' => 2, 'faces' => ['crane', 'bouclier_blanc'], 'cranes' => 1, 'seuil' => 3, 'libere' => false]],
+        'verrou_mental_leve' => ['nom' => 'Grom', 'lanceur' => ['nom' => 'Xenloth'], 'raison' => 'lanceur_vaincu'],
+        'domination_deplacement' => ['personnage' => 'Grom', 'vers_heros' => 'Albrecht', 'de' => ['x' => 1, 'y' => 1], 'vers' => ['x' => 2, 'y' => 1]],
+        'domination_attaque' => ['personnage' => 'Grom', 'cible' => $cible, 'degats' => 1],
+        'domination_sort' => ['personnage' => 'Grom', 'sort' => 'Boule de Feu', 'cible' => $cible],
         'commandement_sans_effet' => ['personnage' => 'Grom'],
         'commandement_sans_cible' => ['personnage' => 'Grom'],
         'commandement_deplacement' => ['personnage' => 'Grom', 'vers_allié' => 'Albrecht'],
@@ -226,6 +233,13 @@ function fixturesDesTypesAnnonces(): array
         'reaction_monstre' => ['nom' => 'Gruzbella', 'mecanique' => 'ignore_degats_attaque'],
         'monstres_reveles' => ['boss' => ['Gruulob'], 'texte' => 'Gruulob apparaît !'],
         'vote_resolu' => ['vote' => 'retraite', 'option_id' => 'continuer', 'applique' => false, 'texte' => 'Vote de retraite : on continue'],
+        // LE PATRON TOURELLE ET LES QUATRE ADVERSAIRES DE DELTHRAK (René, 2026-10-15).
+        'apparition_a_la_vue' => ['monstre' => 'Crâne du Dread', 'instance_id' => 7, 'declencheur' => ['personnage_id' => 1, 'nom' => 'Grom'], 'position' => ['x' => 4, 'y' => 2]],
+        'filet_silencieux' => ['monstre' => 'Deathspinner', 'instance_id' => 7, 'cible' => $cible, 'sort' => 'Canaliser l\'Effroi'],
+        'souffle_du_construit' => ['monstre' => 'Golem Cœur-de-Forge', 'instance_id' => 7, 'resultats' => [
+            ['cible' => $cible, 'des_rouges' => [2, 5], 'degats_bruts' => 2, 'degats_annules' => 1, 'degats' => 1, 'pv_body_apres' => 7, 'cible_tombee' => false],
+        ]],
+        'vrille_posee' => ['monstre' => 'Scion Fleur-Pourrie', 'instance_id' => 7, 'vrille' => ['instance_id' => 9, 'nom' => 'Vrille', 'x' => 3, 'y' => 3]],
     ];
 }
 
@@ -264,7 +278,7 @@ it('un type INCONNU n\'est jamais le silence : une ligne de repli le dit', funct
 
 it('CLÉS DE RÉSULTAT : toute liste d\'actions que le résolveur range est parcourue par le fil', function () {
     $source = (string) file_get_contents(base_path('app/Partie/ResolveurTour.php'));
-    preg_match_all("/\\\$(?:resultat|payload)\\['((?:tour_|coups_|captifs_|annonces_)[a-z_]+)'\\]\\s*=/", $source, $m);
+    preg_match_all("/\\\$(?:resultat|payload)\\['((?:tour_|coups_|captifs_|filets_|annonces_)[a-z_]+)'\\]\\s*=/", $source, $m);
 
     $connues = [...JournalCombat::PHASES, ...JournalCombat::LISTES_PLATES];
 
@@ -283,6 +297,12 @@ it('chaque liste du résultat est réellement parcourue (phases, listes plates, 
     foreach (JournalCombat::LISTES_PLATES as $liste) {
         expect($fil->depuisResultat(['type' => 'attente', $liste => [$monstre]], 'A'))->toHaveCount(1, $liste);
     }
+
+    // DREAD SKULL : les figures qui paraissent à la vue d'un héros (`apparitions`), chacune avec
+    // le tir qu'elle joue aussitôt (`action`).
+    expect($fil->depuisResultat(['type' => 'deplacement', 'apparitions' => [[
+        'type' => 'apparition_a_la_vue', 'monstre' => 'Crâne du Dread', 'action' => $monstre,
+    ]]], 'A'))->toHaveCount(2);
 
     // L'action que l'embusqué joue tout de suite, et les embuscades d'un déplacement.
     expect($fil->depuisResultat(['type' => 'embuscade', 'monstre' => 'Dreadshifter', 'action' => $monstre], 'A'))->toHaveCount(2)

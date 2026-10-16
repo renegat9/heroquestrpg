@@ -39,6 +39,7 @@ use Illuminate\Support\Facades\Log;
 final class JournalCombat
 {
     use LignesEffetsAutomatiques;
+    use LignesSorciersDuDread;
     use LignesSablesMouvants;
 
     /**
@@ -91,6 +92,13 @@ final class JournalCombat
         'capacite_dread' => true, 'spawn' => true, 'rejeton_accroche' => true,
         'regeneration' => true, 'vol_objet' => true, 'objet_perdu' => true, 'embuscade' => true,
         'actions_composites' => true,
+        // ---- Le patron TOURELLE et les quatre adversaires nommés de Jungles of Delthrak (René,
+        // 2026-10-15) : une figure qui paraît à la vue d'un héros et tire aussitôt (Dread Skull),
+        // le Filet silencieux de la Deathspinner, le Souffle du Golem de Forge, la Vrille que le
+        // Scion pose à chaque fin de tour. (Le tir de tourelle est une `attaque_monstre` de portée
+        // `distance`, drapeau `tourelle` ; le sacrifice d'une Vrille, un `reaction_monstre`.)
+        'apparition_a_la_vue' => true, 'filet_silencieux' => true, 'souffle_du_construit' => true,
+        'vrille_posee' => true,
         // ---- Le MJ et ses sorts
         'sort_dread' => true, 'sort_dread_annule' => true, 'rupture_sort_dread' => true,
         'effet_dread' => true, 'effet_global_quete' => true, 'conditions_levees' => true,
@@ -98,6 +106,10 @@ final class JournalCombat
         'commandement_sans_effet' => true, 'commandement_sans_cible' => true,
         'commandement_deplacement' => true, 'commandement_attaque' => true,
         'ombre_decompte' => true, 'glace_dissipee' => true,
+        // Against the Ogre Horde p. 10-11 : le gel de Mind Lock (tour perdu, carte rendue, libération),
+        // sa fin à la mort du Sorcier, et les trois gestes du MJ avec un héros DOMINÉ.
+        'verrou_mental_tour' => true, 'verrou_mental_leve' => true,
+        'domination_deplacement' => true, 'domination_attaque' => true, 'domination_sort' => true,
         // ---- Les faveurs
         'faveur_hold_the_line' => true, 'faveur_peacekeeper' => true,
         // ---- Ce qui S'ÉCOULE, S'ÉTEINT ou APPARAÎT sans qu'une action le retourne
@@ -147,7 +159,7 @@ final class JournalCombat
      * (`TamponAnnonces`). Trois listes que personne ne lisait — leurs effets
      * étaient publiés, journalisés, et affichés NULLE PART.
      */
-    public const LISTES_PLATES = ['captifs_repris', 'coups_de_corne', 'annonces_automatiques'];
+    public const LISTES_PLATES = ['captifs_repris', 'coups_de_corne', 'filets_silencieux', 'annonces_automatiques'];
 
     /**
      * Les clés sous lesquelles un piège peut être IMBRIQUÉ dans une action : `declenchement`
@@ -227,7 +239,25 @@ final class JournalCombat
             }
         }
 
-        return $actions;
+        // DOMINATE (F9528 p. 10) : le MJ joue le héros dominé À LA SUITE du sort — chacune de ses actions
+        // (marche, coup, sort) est une action comme une autre, dite par son propre arm et dessinée par sa
+        // propre scène de table, avec LUI pour acteur. Étalées ICI, au parcours partagé par le fil et la
+        // table : deux listes séparées dériveraient (c'est l'histoire de `PHASES`).
+        $aplati = [];
+
+        foreach ($actions as $action) {
+            $aplati[] = $action;
+
+            foreach ((array) ($action['resultats'] ?? []) as $r) {
+                foreach ((array) (is_array($r) ? ($r['actions_domine'] ?? []) : []) as $domine) {
+                    if (is_array($domine)) {
+                        $aplati[] = $domine;
+                    }
+                }
+            }
+        }
+
+        return $aplati;
     }
 
     /**
@@ -471,6 +501,7 @@ final class JournalCombat
                 'ignore_degats_attaque' => 'La créature ignore intégralement le coup — une défense à usage unique vient de jouer',
                 'increvable_une_fois' => 'La créature s\'effondre… et tient debout à 1 PV, une seule fois',
                 'jeton_ombre' => 'Le coup est absorbé par un jeton d\'ombre — la créature ne perd rien',
+                'sacrifice_de_vrille' => 'La créature s\'effondre… sacrifie une de ses Vrilles et tient debout à 1 PV',
                 default => 'La créature active une défense à usage unique',
             });
         }
@@ -513,6 +544,20 @@ final class JournalCombat
             if (is_array($embuscade)) {
                 $liste[] = $embuscade;
             }
+        }
+
+        // DREAD SKULL : les figures qui paraissent à la vue d'un héros, chacune portant le tir
+        // qu'elle joue aussitôt sous `action` (étalé par la première boucle de cette méthode).
+        foreach ((array) ($a['apparitions'] ?? []) as $apparition) {
+            if (is_array($apparition)) {
+                $liste[] = $apparition;
+            }
+        }
+
+        // ERRANT du surgissement (carte 2024 *Wandering Monster*) : la bête frappe aussitôt le
+        // fouilleur — une attaque de monstre à part entière, dite sous la fouille qui l'a fait naître.
+        if (is_array($a['frappe_errant'] ?? null)) {
+            $liste[] = $a['frappe_errant'];
         }
 
         if (($a['type'] ?? null) === 'actions_composites') {
@@ -938,7 +983,7 @@ final class JournalCombat
             'echanger' => [$this->info($this->echange($a, $acteurNom))],
             'jeter' => [$this->info("{$acteurNom} jette ".($a['objet'] ?? 'un objet').' — définitif')],
             'attaque_allie' => $this->attaqueOffensive($a['allie'] ?? 'Allié', $a),
-            'attaque_monstre' => $this->attaqueMonstre($a),
+            'attaque_monstre' => $this->enTeteDefi($a, $this->attaqueMonstre($a)),
             // MOBILIER ATTAQUABLE (PV + défense, 2026-10-04) : Crystal
             // Cluster, Haut Autel, Coffre du Dread — un effet automatique
             // (les PV qui tombent) que rien n'annonçait serait injouable,
@@ -998,6 +1043,12 @@ final class JournalCombat
                     .(! empty($a['vers_monstre']) ? ' vers '.$a['vers_monstre'] : '').' — sans attaquer',
                 'ton' => 'subit',
             ]],
+            // AGAINST THE OGRE HORDE (F9528 p. 10-11) — voir `LignesSorciersDuDread`.
+            'verrou_mental_tour' => $this->verrouMentalTour($a),
+            'verrou_mental_leve' => $this->verrouMentalLeve($a),
+            'domination_deplacement' => $this->dominationDeplacement($a),
+            'domination_attaque' => $this->dominationAttaque($a),
+            'domination_sort' => $this->dominationSort($a),
             // GRÉSIL AVEUGLANT qui retombe, en tête de la phase des monstres.
             'conditions_levees' => array_map(
                 fn (array $l) => $this->info(($l['nom'] ?? 'Un héros').' : '.($l['condition'] ?? 'l\'effet').' se dissipe'),
@@ -1075,6 +1126,10 @@ final class JournalCombat
             'monstre_enchaine' => [$this->info(($a['monstre'] ?? 'Le monstre').' est enchaîné — il ne bouge ni n\'attaque ce tour')],
             'etreinte_maintenue' => $this->etreinteMaintenue($a),
             'frappe_de_zone' => $this->frappeDeZone($a),
+            'apparition_a_la_vue' => $this->apparitionALaVue($a),
+            'filet_silencieux' => $this->filetSilencieux($a),
+            'souffle_du_construit' => $this->souffleDuConstruit($a),
+            'vrille_posee' => $this->vrillePosee($a),
             'charge' => $this->attaqueMonstre($a, charge: true),
             'capacite_dread' => $this->capaciteDread($a),
             'spawn' => $this->spawn($a),
@@ -1387,6 +1442,12 @@ final class JournalCombat
             ]];
         }
 
+        // MIND BURST (Against the Ogre Horde p. 11) : l'opposition de crânes, puis ce que le perdant paie.
+        // Avant la branche de *Gel de l'Esprit* juste dessous — les deux publient `pv_mind_apres`.
+        if (isset($resultats[0]['ecart_cranes'])) {
+            return [$entete(1), ...$this->ligneMindBurst($resultats[0], $nom, $acteurNom)];
+        }
+
         // Gel de l'Esprit (plan glace phase 2) : une jauge de MIND, pas de
         // Body — la ligne générique plus bas lirait `degats` (absent ici,
         // la clé est `degats_mind`) et afficherait « sans dommage » sur un
@@ -1417,6 +1478,13 @@ final class JournalCombat
 
         foreach ($resultats as $r) {
             $cible = $r['cible']['nom'] ?? 'un héros';
+
+            // MIND LOCK / DOMINATE (Against the Ogre Horde p. 10) : le jet en opposition, les deux volées.
+            if (isset($r['cranes_nets'])) {
+                $lignes[] = $this->ligneOpposition($r, $nom, $acteurNom);
+
+                continue;
+            }
 
             // Leach Life : un dé sous le Mind de la cible — le sort ne l'atteint pas.
             if (array_key_exists('touche', $r) && ! $r['touche']) {
@@ -1698,6 +1766,29 @@ final class JournalCombat
     }
 
     /**
+     * Une frappe due APRÈS un défi du Chevalier non relevé (2026-10-16) se dit AVANT le coup :
+     * sans cette phrase, la bête frappe sans qu'on sache pourquoi elle se retourne contre ce
+     * héros-là. Le motif vient du serveur (`apres_defi`), jamais déduit ici.
+     *
+     * @param  array<string, mixed>  $a
+     * @param  list<array{texte: string, ton: string}>  $lignes
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function enTeteDefi(array $a, array $lignes): array
+    {
+        $cible = (string) ($a['cible']['nom'] ?? 'un héros');
+
+        $intro = match ($a['apres_defi'] ?? null) {
+            'refuse' => "Le Chevalier refuse le défi : la bête se retourne contre {$cible}",
+            'expire' => "Le temps du défi est écoulé : la bête se retourne contre {$cible}",
+            'impossible' => "Aucune case pour relever le défi : la bête se retourne contre {$cible}",
+            default => null,
+        };
+
+        return $intro === null ? $lignes : [$this->info($intro), ...$lignes];
+    }
+
+    /**
      * Attaque d'un monstre contre un héros (le héros ENCAISSE).
      *
      * @param  array<string, mixed>  $a
@@ -1717,6 +1808,10 @@ final class JournalCombat
         // publie `portee` ; la charge, elle, n'est jamais un tir.
         $tire = ! $charge && self::estUnTir($a);
 
+        // TOURELLE (Guardian Effigy, Dread Skull) : « fait feu » — une figure qui ne bouge pas, dite
+        // comme telle, jamais un archer qui aurait pu s'approcher.
+        $verbeTir = ! empty($a['tourelle']) ? 'fait feu sur' : 'tire sur';
+
         if ($degats <= 0) {
             // Même distinction côté monstre : un héros lisait « je pare »
             // quand la créature l'avait simplement manqué.
@@ -1724,7 +1819,7 @@ final class JournalCombat
                 ? [['texte' => $charge
                     ? "{$monstre} charge {$cible} — et le manque{$des}{$oracle}"
                     : ($tire
-                        ? "{$monstre} tire sur {$cible} — et le manque{$des}{$oracle}"
+                        ? "{$monstre} {$verbeTir} {$cible} — et le manque{$des}{$oracle}"
                         : "{$monstre} manque {$cible}{$des}{$oracle}"), 'ton' => 'echec']]
                 : [['texte' => $charge
                     ? "{$cible} encaisse la charge de {$monstre} sans dommage{$des}{$oracle}"
@@ -1733,7 +1828,7 @@ final class JournalCombat
                         : "{$cible} pare l'assaut de {$monstre}{$des}{$oracle}"), 'ton' => 'pare']];
         }
 
-        $verbe = $charge ? "{$monstre} charge {$cible}" : ($tire ? "{$monstre} tire sur {$cible}" : "{$monstre} touche {$cible}");
+        $verbe = $charge ? "{$monstre} charge {$cible}" : ($tire ? "{$monstre} {$verbeTir} {$cible}" : "{$monstre} touche {$cible}");
         $lignes = [['texte' => "{$verbe} (−{$degats} PV){$des}{$oracle}", 'ton' => 'subit']];
 
         // Ce que le coup a POSÉ sur le héros (venin, étreinte…) : dit dans l'ordre où
@@ -2280,6 +2375,25 @@ final class JournalCombat
     {
         $mode = $a['mode'] ?? null;
 
+        // ÉCLAIR (rayon de sort) : une ligne par figure sur la ligne — traversée, abattue ou, pour une
+        // créature « immune to all spell effects » (Guardian Effigy), IMMUNISÉE : le rayon passe sans
+        // l'atteindre. Le payload de sort ne portait cette liste que pour personne.
+        if (! empty($a['rayon']) && is_array($a['touches'] ?? null)) {
+            $lignes = [$this->info("{$acteurNom} lance {$nom}")];
+
+            foreach ($a['touches'] as $t) {
+                $nomFigure = (string) ($t['nom'] ?? 'Une figure');
+                $lignes[] = match (true) {
+                    ! empty($t['immunise']) => ['texte' => "{$nomFigure} est immunisé contre {$nom} — le rayon passe sans l'atteindre", 'ton' => 'pare'],
+                    ! empty($t['vaincu']) => ['texte' => "{$nomFigure} est foudroyé !", 'ton' => 'mort'],
+                    ($t['type'] ?? null) === 'heros' => ['texte' => "{$nomFigure} est pris dans le rayon (−".(int) ($t['degats'] ?? 0).' PV)', 'ton' => 'subit'],
+                    default => ['texte' => "{$nomFigure} est traversé (−".(int) ($t['degats'] ?? 0).' PV)', 'ton' => 'degats'],
+                };
+            }
+
+            return $lignes;
+        }
+
         // Murs et portes : une POSE, pas une victime.
         if ($mode === 'pose_mur_magique') {
             return [$this->info("{$acteurNom} lance {$nom} — ".mb_strtolower((string) ($a['mobilier']['nom'] ?? 'un mur magique')).' se dresse sur deux cases')];
@@ -2335,11 +2449,21 @@ final class JournalCombat
 
         // Sort mental de ZONE (Flamme hypnotique) : une liste de figures prises.
         if (! empty($a['zone']) && is_array($a['touches'] ?? null)) {
-            $noms = array_map(fn ($t) => (string) ($t['nom'] ?? 'une figure'), $a['touches']);
+            // IMMUNISÉS (`MotsClesAdversaires`) : une créature « immune to all spell effects » — ou à
+            // la condition de ce sort — n'est pas « prise dans le sort », et le fil le DIT.
+            $pris = array_filter($a['touches'], fn ($t) => empty($t['immunise']));
+            $immunises = array_filter($a['touches'], fn ($t) => ! empty($t['immunise']));
+            $noms = array_map(fn ($t) => (string) ($t['nom'] ?? 'une figure'), array_values($pris));
 
-            return [$noms === []
+            $lignes = [$noms === []
                 ? $this->info("{$acteurNom} lance {$nom} — personne n'est affecté")
                 : ['texte' => "{$acteurNom} lance {$nom} : ".implode(', ', $noms).' '.(count($noms) > 1 ? 'sont pris' : 'est pris').' dans le sort', 'ton' => 'succes']];
+
+            foreach ($immunises as $t) {
+                $lignes[] = ['texte' => ((string) ($t['nom'] ?? 'Une créature'))." est immunisé contre {$nom} — le sort passe sans l'atteindre", 'ton' => 'pare'];
+            }
+
+            return $lignes;
         }
 
         // Soutien (Courage, Voile de Brume, Traverser la Pierre…) : la condition posée.
@@ -2680,6 +2804,12 @@ final class JournalCombat
             ));
         }
 
+        // DÉFI DU CHEVALIER ouvert : la bête a surgi, mais sa frappe attend la réponse. Le fil
+        // le dit, sinon le coup arrive plus tard sans qu'on sache d'où il vient.
+        if (! empty($a['defi_en_attente'])) {
+            $lignes[] = $this->info("La bête attend la réponse du Chevalier avant de frapper {$acteurNom}");
+        }
+
         if (! empty($a['sac_deborde'])) {
             $lignes[] = $this->info('Sac plein : '.($a['objet']['nom'] ?? 'l\'objet').' déborde — à équiper ou à écouler au marché');
         }
@@ -2825,6 +2955,13 @@ final class JournalCombat
             return [$this->info(($a['personnage'] ?? $acteurNom).' traverse '.($a['piege'] ?? 'la fosse').' sans y tomber')];
         }
 
+        // CARTE « HAZARD! » du deck : sa phrase est celle de la carte, et elle dit
+        // ce qui arrête le tour (« Your turn immediately ends »). Le piège nommé d'un
+        // meuble n'a pas de `hazard` : il reste sur le gabarit ci-dessous.
+        if (! empty($a['hazard'])) {
+            return $this->hazardDeFouille($a);
+        }
+
         // LAME BALANÇOIRE (Against the Ogre Horde p. 4-5) : plusieurs cibles,
         // chacune avec SA PROPRE défense — forme distincte de celle, à cible
         // unique et sans défense, des deux autres pièges de sol. Un effet
@@ -2887,6 +3024,39 @@ final class JournalCombat
         if ($degats === 0 && empty($a['condition_appliquee'])) {
             $lignes[] = $this->info("{$nom} s'en tire sans une égratignure");
         }
+
+        return $lignes;
+    }
+
+    /**
+     * CARTE « HAZARD! » du deck de fouille (2021 et 2024) : « You lose 1 Body Point. Your
+     * turn immediately ends. » — la flèche ou le trou. Le trou ne dit pas « il s'en sort » :
+     * la carte lui accorde son mouvement normal au tour SUIVANT, et c'est dit comme tel.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function hazardDeFouille(array $a): array
+    {
+        $nom = (string) ($a['personnage']['nom'] ?? 'Le héros');
+        $trou = ($a['variante'] ?? null) === 'trou';
+
+        $lignes = [[
+            'texte' => $trou
+                ? "Le sol cède sous {$nom} : il tombe dans un trou peu profond !"
+                : "Une flèche cachée jaillit du mur et frappe {$nom} !",
+            'ton' => 'subit',
+        ]];
+
+        $degats = (int) ($a['degats'] ?? 0);
+
+        if ($degats > 0) {
+            $lignes[] = ['texte' => "{$nom} encaisse −{$degats} PV", 'ton' => ! empty($a['tombe']) ? 'chute' : 'degats'];
+        }
+
+        $lignes[] = $this->info($trou
+            ? "Son tour s'arrête là — il sortira du trou à son tour suivant, en marchant normalement"
+            : "Son tour s'arrête là");
 
         return $lignes;
     }

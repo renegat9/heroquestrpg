@@ -21,10 +21,19 @@ use App\Partie\MoteurPortes;
  *
  * Reprend le principe du jeu de plateau : fouiller une salle, c'est piocher une
  * carte — or, potion, piège, monstre errant, ou rien. Le deck est **bâti neuf
- * au démarrage de chaque quête** depuis la composition du gabarit, et **pioché
- * sans remise** : la composition est donc GARANTIE, là où l'ancien tirage
+ * au démarrage de chaque quête** depuis la composition du gabarit, et **pioché**
+ * (sans remise, sauf les cartes qui disent de revenir — voir plus bas) : la
+ * composition est donc GARANTIE, là où l'ancien tirage
  * (`ceil(d6/6 × total)` sur des poids) n'en donnait qu'une espérance, biaisée
  * dès que le total des poids n'était pas 6.
+ *
+ * Une carte piochée ne revient pas toujours dans le paquet. Seules celles qui
+ * disent « Return this card to the bottom of the deck » (monstre errant, Hazard!)
+ * repartent SOUS le paquet ; l'or, les gemmes, les bijoux et les potions sortent
+ * du paquet pour le reste de la quête (`SORT_PAR_ISSUE`). Le paquet s'épuise donc
+ * de ses trésors, et il ne reste que les errants et les pièges, qui tournent —
+ * c'est le plateau. ⚠ Remettre TOUTE carte, comme le faisait l'ancien cycle, faisait
+ * revenir l'or et les potions dans la même quête.
  *
  * À part : **le coffre à artefact**. Une salle — la plus profonde — abrite au
  * plus UNE arme unique. Elle ne consomme aucune carte : c'est un bonus net, et
@@ -33,6 +42,77 @@ use App\Partie\MoteurPortes;
  */
 final class DeckFouille
 {
+    /** La carte repart SOUS le paquet : « Return this card to the bottom of the deck ». */
+    public const REMISE_SOUS_LE_PAQUET = 'remise_sous_le_paquet';
+
+    /** La carte sort du paquet pour le reste de la quête : « Do not return this card to the deck ». */
+    public const RETIREE_DU_PAQUET = 'retiree_du_paquet';
+
+    /**
+     * LE SORT de chaque carte piochée — une déclaration par TYPE de carte, c'est-à-dire
+     * par issue. Liste fermée : `sortDe()` la lit au seul point de passage
+     * (`Quete::piocherCarte()`), et `DeckFouilleRetourTest` la tient dans les deux
+     * sens contre ce que `construire()` peut réellement produire : aucune issue sans
+     * déclaration, aucune déclaration sans issue.
+     *
+     * Ce qui n'y figure pas, et pourquoi :
+     * - `artefact` : le paquet n'en tire jamais — le coffre désigné le rend sans
+     *   pioche (`carteCoffre()`). Un artefact qui sortirait d'un paquet serait retiré :
+     *   aucune carte d'artefact transcrite ne dit de la remettre (`sortDe()` le fait
+     *   par défaut).
+     * - les issues des TABLES DE MEUBLE (`MoteurMobilier::tirerButin()`) : elles ne
+     *   passent pas par le paquet (`resoudreFouilleMobilier()`, `duDeck: false`).
+     *
+     * ⚠ Une issue ABSENTE de cette liste sort du paquet (`sortDe()`). C'est le sens
+     * sûr : remettre une carte qu'aucune règle ne désigne ferait revenir des errants
+     * et des pièges sans que personne l'ait décidé.
+     */
+    public const SORT_PAR_ISSUE = [
+        // Monstre errant (2021 et 2024) : « Return this card to the bottom of the deck ».
+        'errant' => self::REMISE_SOUS_LE_PAQUET,
+
+        // Hazard! flèche et fosse (2021 et 2024) : même formule. Les pièges de
+        // Wizards of Morcar (Magical Trap, Poison) relèvent de la même famille — le
+        // livret : « almost half of the treasure cards contain wandering monsters and
+        // hazards » (LR p. 15). ⚠ Leur texte de retour n'est pas transcrit
+        // (reference/18 §8) : à confirmer sur la carte.
+        'piege' => self::REMISE_SOUS_LE_PAQUET,
+
+        // Or de 15 et de 25, gemme de 35, bijoux de 50 (photos 2021 et 2024) : « Do not
+        // return this card to the deck ». Les livrets : l'or et les potions restent au
+        // héros jusqu'à la quête suivante (livret 2021, version italienne p. 8 ; First
+        // Light p. 10).
+        'tresor' => self::RETIREE_DU_PAQUET,
+
+        // Potions de soin, d'héroïsme, de force et de défense (photos 2021 et 2024) :
+        // « Do not return ». Morcar, mêmes règles : les potions restent au héros.
+        'potion' => self::RETIREE_DU_PAQUET,
+
+        // Trésors-valeurs de Jungles of Delthrak (Emerald Heart, Ancient Dwarven Relic) :
+        // une carte qu'on garde, comme l'or. Leur transcription (reference/18, « Treasure
+        // and Artifact Reference » p. 50) ne porte aucune ligne de retour.
+        'objet' => self::RETIREE_DU_PAQUET,
+
+        // « Rien » n'est pas une carte officielle du paquet de base. Le seul « Nothing! »
+        // imprimé (Wizards of Morcar, p. 6, optionnel) n'a aucune ligne de retour, et
+        // `cartes()` n'en ajoute que pour compléter un paquet plus petit que le donjon
+        // (aucun gabarit n'y arrive). Une carte sans ordre de retour sort du paquet. Le
+        // remettre donnerait un « rien » éternel : il ne resterait plus seulement des
+        // errants et des pièges, comme au plateau.
+        'rien' => self::RETIREE_DU_PAQUET,
+    ];
+
+    /**
+     * Le sort d'une carte piochée. Une issue absente de `SORT_PAR_ISSUE` sort du
+     * paquet : voir la note de la constante.
+     *
+     * @param  array<string, mixed>  $carte
+     */
+    public static function sortDe(array $carte): string
+    {
+        return self::SORT_PAR_ISSUE[(string) ($carte['issue'] ?? '')] ?? self::RETIREE_DU_PAQUET;
+    }
+
     /**
      * Bâtit le deck, désigne le coffre et lui attribue une arme unique.
      *
@@ -221,8 +301,13 @@ final class DeckFouille
     }
 
     /**
-     * Pioche la carte suivante. Deck épuisé → « rien », signalé par `deck_vide`
-     * (une salle de plus que de cartes reste possible sur une carte généreuse).
+     * Pioche la carte suivante (son sort : `sortDe()`, appliqué par
+     * `Quete::piocherCarte()`). Paquet vide → « rien », signalé par `deck_vide`.
+     *
+     * Le paquet ne se vide qu'à court de cartes NON remises : l'errant et le piège
+     * tournent sans fin. Avec les gabarits actuels (six errants, quatre pièges), il
+     * ne se vide donc jamais — le cas ne se rencontre que sur un paquet sans l'un ni
+     * l'autre, et il reste géré plutôt que supposé impossible.
      *
      * @return array<string, mixed>
      */

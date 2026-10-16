@@ -941,7 +941,32 @@ final class Equipement
             $bonus[$cle] = (int) $portes->sum(fn ($ligne) => (int) (($ligne->objet?->effet ?? [])[$cle] ?? 0));
         }
 
+        // FAVEUR « Dewdrop Inn » (Hopekins Rest, Wizards of Morcar) : « Raise your hero's
+        // max Body Points by 2 » — une SECONDE source de plafond, à côté des talismans, qui
+        // passe par le même écart réconcilié plutôt que par un `increment` à part : le
+        // maximum encaisse aussi les montées de niveau, il n'a pas de « base » à recalculer.
+        $bonus[MotsClesEquipement::BONUS_PV_BODY_MAX] += FaveursHopekins::bonusBodyMax($personnage);
+
         return $bonus;
+    }
+
+    /**
+     * Exécute `$changement` (qui modifie ce qui alimente les plafonds : une pièce portée,
+     * une faveur) puis RÉCONCILIE les jauges maximales du héros avec l'écart produit.
+     *
+     * POINT DE PASSAGE UNIQUE d'un changement de plafond hors montée de niveau : équiper,
+     * déséquiper et la faveur *Dewdrop Inn* y arrivent par le même `appliquerEcartJauges()`.
+     * Le plafond gagné DONNE les points (« adds 2 Body points to the totals »), le perdre
+     * les reprend en écrêtant la valeur courante.
+     */
+    public function apresChangementDeJauges(Personnage $personnage, \Closure $changement): void
+    {
+        $avant = $this->bonusJauges($personnage);
+
+        $changement();
+
+        $personnage->refresh();
+        $this->appliquerEcartJauges($personnage, $avant);
     }
 
     /**

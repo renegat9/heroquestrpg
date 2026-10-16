@@ -256,17 +256,40 @@ class ObjetSeeder extends Seeder
             // Deux attaques dans le même tour (et non des dés en plus) :
             // l'attaque vient de l'arme chez nous, un bonus de dés n'aurait pas
             // rendu la carte du plateau.
+            // SOURCE — « Heroic Brew », carte de trésor de BASE (© 2021) et de First
+            // Light (© 2024), reference/16 §7.4. ⚠ PRIX 150 NON SOURCÉ : la carte
+            // n'en porte pas. Carte de trésor SANS PRIX → `hors_marche` (René,
+            // 2026-10-16 : « On ne peut pas vendre les potions qu'on trouve dans
+            // les trésors ») : ni à l'étal, ni revendable ; trouvable et buvable.
             ['nom' => "Potion d'héroïsme", 'categorie' => 'consommable', 'prix_base' => 150, 'emplacement' => 'consommable',
-                'effet' => ['attaque_supplementaire' => true, 'cible' => 'heros_adjacent']],
+                'effet' => ['attaque_supplementaire' => true, 'cible' => 'heros_adjacent', 'hors_marche' => true]],
             // `duree` : vocabulaire App\Engine\DureeEffet (reference/19_mots_cles_effets.md).
             // Ces deux-là portaient `duree => 0`, qui n'est pas une durée mais
             // l'absence de compteur : rien ne les retirait jamais. Force et
             // Défense sont donc des BURSTS (+2 sur un jet), là où Rage, au même
             // prix, tient tout le combat pour +1 — départ playtest.
+            // SOURCE — « Potion of Strength », carte de trésor de BASE (© 2021
+            // Hasbro) et de First Light (© 2024), photographiées par René le
+            // 2026-10-16 (reference/16 §7.4). Même effet sur les deux éditions :
+            // +2 dés au PROCHAIN jet d'attaque, une seule fois.
+            // ⚠ PRIX 150 NON SOURCÉ : la carte de trésor n'en porte pas, et la
+            // potion ne figure pas parmi les 15 potions vendues (reference/16
+            // §2.1bis). Valeur du projet, à remplacer dès qu'une source existe.
+            // Carte de trésor SANS PRIX → `hors_marche` (René, 2026-10-16) : ni à
+            // l'étal, ni revendable ; trouvable en fouille et buvable.
             ['nom' => 'Potion de force', 'categorie' => 'consommable', 'prix_base' => 150, 'emplacement' => 'consommable',
-                'effet' => ['bonus_des_attaque' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
+                'effet' => ['bonus_des_attaque' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent', 'hors_marche' => true]],
+            // SOURCE — « Potion of Defense », carte de trésor de BASE (© 2021
+            // Hasbro) et de First Light (© 2024), photographiées par René le
+            // 2026-10-16 (reference/16 §7.4). Même effet sur les deux éditions :
+            // +2 dés au PROCHAIN jet de défense, une seule fois.
+            // ⚠ PRIX 150 NON SOURCÉ, comme la Potion de force : ni la carte de
+            // trésor ni les 15 potions vendues (reference/16 §2.1bis) ne le
+            // donnent. Valeur du projet, à remplacer dès qu'une source existe.
+            // Carte de trésor SANS PRIX → `hors_marche` (René, 2026-10-16) : ni à
+            // l'étal, ni revendable ; trouvable en fouille et buvable.
             ['nom' => 'Potion de défense', 'categorie' => 'consommable', 'prix_base' => 150, 'emplacement' => 'consommable',
-                'effet' => ['bonus_des_defense' => 2, 'duree' => 'prochaine_defense', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
+                'effet' => ['bonus_des_defense' => 2, 'duree' => 'prochaine_defense', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent', 'hors_marche' => true]],
 
             // ----- Artefacts UNIQUES (doc 04 §4/§6, reference/16 §9) -----
             //
@@ -898,11 +921,13 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Trousse à outils', 'categorie' => 'outil', 'prix_base' => 250, 'emplacement' => 'sac',
                 'effet' => ['permet_desamorcage' => true]],
 
-            // ----- Potions du DECK DE TRÉSOR (conservées) -----
-            // Ce ne sont pas des articles de boutique : ce sont les cartes que
-            // `DeckFouille` tire nommément, et qui existent au plateau dans le
-            // deck de trésor. Elles cohabitent donc avec les potions officielles
-            // ci-dessous sans faire doublon de nom.
+            // ----- Potion de soin (vendue, prix NON SOURCÉ) -----
+            // ⚠ Ce n'est PAS la fiole du deck de trésor : le deck donne la Fiole
+            // de soin (1d6, `unique`). Cette potion à montant fixe (4 PV) est une
+            // potion d'ÉTAL, voulue telle par `exploration-et-fouille.md` (« la
+            // Potion de soin achetée au marché ») — mais son prix de 100 po est
+            // ⚠ non trouvé (reference/16 §10). Laissée à l'étal le 2026-10-16 :
+            // la décision de la retirer, comme la force et la défense, reste à René.
             ['nom' => 'Potion de soin', 'categorie' => 'consommable', 'prix_base' => 100, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body' => 4, 'cible' => 'heros_adjacent']],
 

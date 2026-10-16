@@ -8,7 +8,7 @@ use App\Partie\MoteurDread;
 use Illuminate\Database\Seeder;
 
 /**
- * LES 28 SORTS DE DREAD PORTÉS, un par carte officielle.
+ * LES SORTS DE DREAD PORTÉS, un par carte officielle (les 28 de `dread_spells.pdf`, puis ceux des extensions).
  *
  * Source : `dread_spells.pdf` — 29 sorts photographiés par René le 2026-09-04,
  * transcrits carte par carte en **doc 09 §4bis**. UN seul n'est pas porté et
@@ -734,6 +734,73 @@ class SortDreadSeeder extends Seeder
             // spellcaster. » Aucun jet.
             ['nom' => 'Magie Miroir', 'palier' => 'sous_boss', 'type' => Mot::TYPE_REACTION,
                 'effet' => ['reaction' => 'sort_visant_le_lanceur', 'renvoie' => true]],
+
+            // ============================================================
+            // AGAINST THE OGRE HORDE — les trois sorts des SORCIERS DU DREAD
+            // (F9528 p. 10-11, René 2026-10-15 : « à PORTER », sans photo — le
+            // livret donne la règle complète). Chacun lance « combat dice equal to
+            // their Mind Points » des deux côtés (`App\Engine\OppositionMind`).
+            //
+            // Règle commune (p. 10) : « A Dread Sorcerer may only cast one spell per
+            // turn. […] If a Dread Sorcerer casts a spell on their turn, they may
+            // take their movement but may not make a weapon attack in the same turn.
+            // If a Dread Sorcerer has an active spell and is killed, the effects of
+            // that spell immediately end. » Un sort par tour et pas de coup d'arme
+            // après un sort : `MoteurDread::jouerTourDreadBrut()` rend la main dès
+            // qu'un sort est lancé. La mort du Sorcier lève ses gels
+            // (`VerrouMental::leverPourLanceur()`).
+            //
+            // Les PALIERS sont NÔTRES (aucune carte ne porte de rang) : le plus bas
+            // des porteurs — Nexrael (tier `base`) lance *Mind Burst*, Xenloth (sous-boss)
+            // y ajoute *Mind Lock*, Festral (boss) *Dominate*.
+            // ============================================================
+
+            // « For each skull scored by the attacker, the defender is frozen for one turn.
+            // If no skulls are scored against the defender, the spell has no effect. A frozen
+            // hero rolls 1 Defend die and may not move, attack, or perform any other action.
+            // That hero takes a Mind Lock card for each turn they are affected, returning one
+            // card to Zargon at the end of each of their turns spent frozen. When they return a
+            // card, they may attempt to break the spell's hold by rolling a number of combat
+            // dice equal to their Mind Points. On a roll result of three or more skulls, they
+            // return all remaining Mind Lock cards and the spell ends. » (p. 10)
+            // ⚠ CRÂNES NETS : décision de René (2026-10-15), le livret est muet sur les
+            // boucliers de ce sort. La condition porte l'état (1 dé de défense, aucune action),
+            // `VerrouMental` le compte (cartes) et le lève.
+            ['nom' => 'Verrou mental', 'palier' => 'sous_boss', 'type' => Mot::TYPE_CONTROLE,
+                'effet' => [
+                    'condition_appliquee' => 'Verrou mental',
+                    'resistance' => Mot::RESISTANCE_OPPOSITION_NETTE,
+                    'gel_par_crane' => 1,
+                    'liberation_cranes' => 3,
+                    'carte' => Mot::CARTE_PRETEE,
+                ]],
+
+            // « If the attacker scores at least two skulls, the hero is Dominated. If the attack
+            // is unsuccessful, nothing happens. Zargon hands the affected hero a Dominate card and
+            // may immediately take that hero's full movement and action. Zargon may move, fight,
+            // cast spells, and perform any other action as the Dominated hero (including attacking
+            // other heroes). At the end of the Dread Sorcerer's turn, the spell ends. » (p. 10)
+            // ⚠ CRÂNES NETS (René, 2026-10-15). Le héros est joué TOUT DE SUITE par
+            // `HerosJoueParLeMj`, la couture de *Possession* : rien ne reste posé sur lui.
+            ['nom' => 'Domination', 'palier' => 'boss', 'type' => Mot::TYPE_DOMINATION,
+                'effet' => [
+                    'resistance' => Mot::RESISTANCE_OPPOSITION_NETTE,
+                    'cranes_requis' => 2,
+                    'carte' => Mot::CARTE_PRETEE,
+                ]],
+
+            // « A Dread Sorcerer with this spell uses the reserve of Mind Burst cards specified in
+            // the quest notes. Each time they cast Mind Burst, they discard one of their spell cards.
+            // […] The combatant with the most rolled skulls (be it attacker or defender) then inflicts
+            // Mind Point damage on their opponent. The damage dealt is equal to the difference in
+            // skulls rolled by each combatant. If they have an equal amount of skulls, neither takes
+            // damage. » (p. 11) — crânes BRUTS, sans boucliers : la lettre du livret (rien n'a été
+            // tranché pour ce sort, à la différence des deux précédents).
+            ['nom' => 'Explosion mentale', 'palier' => 'base', 'type' => Mot::TYPE_MIND,
+                'effet' => [
+                    'resistance' => Mot::RESISTANCE_OPPOSITION_ECART,
+                    'carte' => Mot::CARTE_DEFAUSSEE,
+                ]],
         ];
 
         foreach ($sorts as $sort) {

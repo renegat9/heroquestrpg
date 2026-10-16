@@ -80,7 +80,7 @@ class InstanceMonstre extends Model
     /** Dés d'attaque effectifs (bloc de stats + bonus élite éventuel). */
     public function attaqueEffective(): int
     {
-        $des = (int) $this->monstre->attaque + ($this->elite ? self::BONUS_ELITE : 0);
+        $des = $this->statDeBase('attaque') + ($this->elite ? self::BONUS_ELITE : 0);
 
         // SORTS DE SORCIER (Wizards of Morcar) : +1 dé d'*Affûtage des lames*,
         // +2 de *Marteau de la Ruine* — lus ICI, au seul endroit qui compose
@@ -92,7 +92,52 @@ class InstanceMonstre extends Model
         // avant les plafonds de condition — un gobelin terrifié reste à 1 dé.
         $des += $this->bonusEffetGlobalQuete('attaque');
 
+        // ÉTAT DE CHOC (*Against the Ogre Horde* p. 9) : « While at 0 Mind Points, they can only roll […]
+        // 1 Attack die, and 2 Defend dice. […] The creature's Attack and Defend dice can be temporarily
+        // increased by some spells and spell scrolls. » Un PLAFOND — « only » —, relevé par les sorts de
+        // Sorcier posés sur la créature, jamais par le bonus d'élite ni par l'effet de quête.
+        if ($this->estEnChoc()) {
+            $des = min($des, 1 + $this->bonusDesDread('attaque'));
+        }
+
         return $this->apresConditions($des, 'attaque');
+    }
+
+    /**
+     * La stat de BASE d'une volée — celle du catalogue, SAUF pour la figure de la GARDE PERSONNELLE d'un
+     * chef (`GardePersonnelle`, Festral : « They each roll 5 Attack dice and 5 Defend dice »), dont la
+     * fiche est REMPLACÉE par les dés du livret. Le seul endroit qui lit cet état.
+     */
+    private function statDeBase(string $volee): int
+    {
+        $garde = $this->etatDread(\App\Partie\GardePersonnelle::ETAT);
+
+        if (is_array($garde) && isset($garde[$volee])) {
+            return (int) $garde[$volee];
+        }
+
+        return (int) $this->monstre->{$volee};
+    }
+
+    /**
+     * ÉTAT DE CHOC d'un MONSTRE : sa jauge de Mind est à zéro ALORS QUE sa fiche en a un. DÉRIVÉ de
+     * `instances_monstres.pv_mind`, jamais une colonne — le jumeau de `Personnage::estEnChoc()` : « when a
+     * creature reaches 0 Mind Points, they go into shock » vaut pour TOUTE créature (F9528 p. 9), mais ne
+     * pouvait pas s'écrire côté monstre tant que rien ne lui retirait de Mind. *Mind Burst* est ce producteur
+     * (`MoteurDegats::infligerMindAMonstre()`).
+     *
+     * Une créature SANS Mind (un squelette, une momie : fiche à 0) n'est jamais « en choc » : elle n'a rien
+     * perdu, c'est sa nature — l'immunité aux sorts mentaux, elle, est déjà lue sur la jauge.
+     *
+     * ⚠ Plafonne les DÉS d'attaque et de défense (`attaqueEffective()`, `defenseEffective()`,
+     * `attaqueDistanceEffective()`). « One red movement die » n'est PAS porté : un monstre n'a pas de dé de
+     * mouvement mais un score fixe, et la carte ne dit pas ce que devient ce score — nommé, pas deviné.
+     */
+    public function estEnChoc(): bool
+    {
+        return $this->monstre !== null
+            && (int) $this->monstre->pv_mind > 0
+            && (int) $this->pv_mind <= 0;
     }
 
     /**
@@ -258,17 +303,25 @@ class InstanceMonstre extends Model
             return null;
         }
 
-        return (int) $base + ($this->elite ? self::BONUS_ELITE : 0);
+        $des = (int) $base + ($this->elite ? self::BONUS_ELITE : 0);
+
+        // Même plafond de choc que `attaqueEffective()` : « 1 Attack die ».
+        return $this->estEnChoc() ? min($des, 1 + $this->bonusDesDread('attaque')) : $des;
     }
 
     /** Dés de défense effectifs (bloc de stats + bonus élite éventuel). */
     public function defenseEffective(): int
     {
-        $des = (int) $this->monstre->defense + ($this->elite ? self::BONUS_ELITE : 0);
+        $des = $this->statDeBase('defense') + ($this->elite ? self::BONUS_ELITE : 0);
 
         // *Bouclier de protection* (Orc Warcaster) : +1 dé de défense tant que
         // le sort tient. Même point de lecture que les dés d'attaque.
         $des += $this->bonusDesDread('defense');
+
+        // ÉTAT DE CHOC : « 2 Defend dice » au plus (voir `attaqueEffective()` et `estEnChoc()`).
+        if ($this->estEnChoc()) {
+            $des = min($des, 2 + $this->bonusDesDread('defense'));
+        }
 
         return $this->apresConditions($des, 'defense');
     }

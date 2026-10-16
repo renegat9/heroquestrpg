@@ -84,8 +84,10 @@ function equiperEpeeCourteFaveurs(Personnage $p): Inventaire
 // VOCABULAIRE — registre testé dans les deux sens.
 // ---------------------------------------------------------------------------
 
-it('TOUTES, LIBELLES et EFFETS déclarent exactement les mêmes 5 clés', function () {
-    expect(FaveursHopekins::TOUTES)->toHaveCount(5)
+it('TOUTES, LIBELLES et EFFETS déclarent exactement les mêmes 9 clés — les 5 compétences et les 4 faveurs mécaniques', function () {
+    expect(FaveursHopekins::TOUTES)->toHaveCount(9)
+        ->and(FaveursHopekins::COMPETENCES)->toHaveCount(5)
+        ->and(array_diff(FaveursHopekins::COMPETENCES, FaveursHopekins::TOUTES))->toBe([])
         ->and(array_keys(FaveursHopekins::LIBELLES))->toEqualCanonicalizing(FaveursHopekins::TOUTES)
         ->and(array_keys(FaveursHopekins::EFFETS))->toEqualCanonicalizing(FaveursHopekins::TOUTES);
 });
@@ -453,14 +455,17 @@ it('ATTRIBUTION n\'offre rien avant le statut de Gardien', function () {
         ->and(app(FaveursHopekins::class)->attribuerFaveurDeFinDeQuete($groupe, 1))->toBeNull();
 });
 
-it('ATTRIBUTION tire une des 5 faveurs pour un héros actif, une fois Gardien, et épuise le pool', function () {
+it('ATTRIBUTION tire une faveur pour un héros actif, une fois Gardien : chacune une fois, sauf la potion qui est cumulable', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
     rendreGardien($groupe);
 
+    // Dés figés à 1 : le premier candidat, dans l'ordre de `TOUTES` (le tirage est au dé injecté).
+    desFiges(array_fill(0, 200, 1));
+
     $vues = [];
-    foreach (range(1, 5) as $_) {
+    foreach (range(1, 7) as $_) {
         $resultat = app(FaveursHopekins::class)->attribuerFaveurDeFinDeQuete($groupe, derniereQueteTerminee($groupe));
         expect($resultat)->not->toBeNull()
             ->and($resultat['personnage_id'])->toBe($heros->id)
@@ -468,12 +473,22 @@ it('ATTRIBUTION tire une des 5 faveurs pour un héros actif, une fois Gardien, e
         $vues[] = $resultat['faveur'];
     }
 
-    // Les 5 faveurs, chacune UNE fois (jamais deux fois le même héros/la même clé).
-    expect($vues)->toEqualCanonicalizing(FaveursHopekins::TOUTES)
-        ->and(PersonnageFaveur::where('personnage_id', $heros->id)->count())->toBe(5);
+    // Sept faveurs durables (un barbare n'a pas la bibliothèque), chacune UNE fois : jamais la même clé deux fois pour un héros.
+    expect($vues)->toBe([
+        FaveursHopekins::DEADEYE, FaveursHopekins::WEAPON_EXPERT, FaveursHopekins::HEALING_HANDS,
+        FaveursHopekins::HOLD_THE_LINE, FaveursHopekins::PEACEKEEPER, FaveursHopekins::MERCENARY_GUILD,
+        FaveursHopekins::DEWDROP_INN,
+    ])->and(PersonnageFaveur::where('personnage_id', $heros->id)->count())->toBe(7);
 
-    // Épuisé : plus rien à tirer.
-    expect(app(FaveursHopekins::class)->attribuerFaveurDeFinDeQuete($groupe, derniereQueteTerminee($groupe)))->toBeNull();
+    // Il ne reste que la potion, et elle n'est JAMAIS épuisée (« Can be gained multiple times »).
+    foreach (range(1, 2) as $_) {
+        $resultat = app(FaveursHopekins::class)->attribuerFaveurDeFinDeQuete($groupe, derniereQueteTerminee($groupe));
+        expect($resultat['faveur'])->toBe(FaveursHopekins::WITCHS_HUT);
+    }
+
+    expect(PersonnageFaveur::where('personnage_id', $heros->id)->count())->toBe(7)
+        ->and((int) Inventaire::where('personnage_id', $heros->id)
+            ->where('objet_id', Objet::where('nom', 'Potion de guérison')->value('id'))->value('quantite'))->toBe(2);
 });
 
 it('ATTRIBUTION est journalisée et republiée au hub (groupe.faveur_hopekins)', function () {

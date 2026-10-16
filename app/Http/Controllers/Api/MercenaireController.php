@@ -9,7 +9,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
 use App\Models\Mercenaire;
+use App\Models\PersonnageFaveur;
 use App\Partie\EtatGroupe;
+use App\Partie\FaveursHopekins;
 use App\Partie\RecrutementHub;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
@@ -133,12 +135,31 @@ class MercenaireController extends Controller
         // POTION DE CHARME (Wizards of Morcar) : « You may hire up to three
         // Mercenaries for 25 gold coins each less than normal » — un ÉTAT DURABLE
         // du recruteur, consommé UN par recrutement dans la transaction ci-dessous.
-        $prix = $recrutement->prixPour($recruteur, $mercenaire);
+        $prix = $recrutement->prixPour($recruteur, $mercenaire, $recrutement->gratuitPour($groupe, $recruteur));
         $prixAPayerActuel = $prix['prix'];
         $rabais = $prix['rabais_po'];
 
         $recrue = DB::transaction(function () use ($groupe, $mercenaire, $recruteur, $prixAPayerActuel, $prix) {
-            $groupe->decrement('or', $prixAPayerActuel);
+            // FAVEUR *Mercenary Guild* (Hopekins Rest) : le droit à UN mercenaire offert est relu
+            // SOUS VERROU, dans la transaction — deux requêtes simultanées du même héros ne
+            // prennent pas deux fois ce qui n'est offert qu'une fois.
+            if ($prix['gratuit_faveur']) {
+                $faveur = PersonnageFaveur::query()
+                    ->where('personnage_id', $recruteur->id)
+                    ->where('cle', FaveursHopekins::MERCENARY_GUILD)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($faveur === null || FaveursHopekins::mercenaireOffertEnPoste($faveur, (int) $groupe->id)) {
+                    throw ValidationException::withMessages([
+                        'mercenaire_id' => 'Le mercenaire offert par la faveur est déjà engagé.',
+                    ]);
+                }
+            }
+
+            if ($prixAPayerActuel > 0) {
+                $groupe->decrement('or', $prixAPayerActuel);
+            }
 
             // La potion se consomme recrutement par recrutement : UN rabais
             // dépensé ici, dans la même transaction que l'or.
@@ -146,13 +167,21 @@ class MercenaireController extends Controller
                 $recruteur->decrement('recrutements_a_rabais');
             }
 
-            return GroupeMercenaire::create([
+            $recrue = GroupeMercenaire::create([
                 'groupe_id' => $groupe->id,
                 'mercenaire_id' => $mercenaire->id,
                 'recruteur_personnage_id' => $recruteur->id,
                 'pv_body' => (int) $mercenaire->pv_body,
                 'etat' => 'actif',
             ]);
+
+            // La faveur retient l'allié engagé à son titre : tant qu'il sert ce héros, le droit
+            // est consommé ; mort ou parti, il se rouvre (`FaveursHopekins`, section Mercenary Guild).
+            if ($prix['gratuit_faveur']) {
+                FaveursHopekins::lierMercenaireOffert($recruteur, $recrue);
+            }
+
+            return $recrue;
         });
 
         Journal::ajouter($groupe, 'systeme', [
@@ -161,6 +190,7 @@ class MercenaireController extends Controller
             'prix' => $prixAPayerActuel,
             'prix_catalogue' => (int) $mercenaire->prix,
             'rabais' => $rabais,
+            'faveur' => $prix['gratuit_faveur'] ? FaveursHopekins::MERCENARY_GUILD : null,
             'recruteur_personnage_id' => $recruteur->id,
         ]);
 
@@ -173,6 +203,7 @@ class MercenaireController extends Controller
                 'type' => $mercenaire->type,
                 'animal' => (bool) $mercenaire->animal,
                 'recruteur_personnage_id' => $recruteur->id,
+                'offert_par_faveur' => $prix['gratuit_faveur'],
             ],
             'or' => (int) $groupe->fresh()->or,
         ], 201);

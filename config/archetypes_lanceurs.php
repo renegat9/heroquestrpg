@@ -133,6 +133,21 @@ return [
         ],
     ],
 
+    'bakabri_le_cruel' => [
+        'porteur' => 'Bakabri le Cruel (Jungles of Delthrak, quête 15 voie C, p. 41 — 2026-10-15)',
+        // « He knows the following Dread spells: Creeping Grasp, Channel Dread, and Lightning Bolt »
+        // (livret F9907 p. 41, relu sur le rendu de la page). Les trois existent au catalogue :
+        // *Creeping Grasp* = Étreinte des Ronces, *Channel Dread* = Canaliser l'Effroi, et *Lightning
+        // Bolt* = Éclair de Chaos — la carte du paquet de Dread (`config/cartes.php`, « Lightning Bolt »
+        // → `Éclair de Chaos`), pas le *Lightning Strike* du Maître des orages (Foudroiement). Le palier
+        // est filtré à l'exécution : Bakabri est sous-boss, les trois sorts sont de palier base ou sous-boss.
+        'sorts' => [
+            'Étreinte des Ronces',
+            'Canaliser l\'Effroi',
+            'Éclair de Chaos',
+        ],
+    ],
+
     'horreur_glacee' => [
         'porteur' => 'Horreur des Glaces',
         // « connaît 6 sorts Dread fixes (*Chill, Ice Storm, Ice Wall, Mind
@@ -363,6 +378,41 @@ return [
             'Appel des squelettes',
             'Invocation de momie',
             'Relève des morts',
+        ],
+    ],
+
+    // ------------------------------------------------------------------
+    // AGAINST THE OGRE HORDE — les trois Sorciers du Dread nommés (F9528 p. 31, 35, 37,
+    // 2026-10-16). Chacun a SA réserve de cartes par sort (`monstres.capacites.reserve_cartes`,
+    // `App\Partie\CartesDread`) : le répertoire dit QUOI, la réserve dit COMBIEN. Chaque sort du
+    // répertoire a une réserve, chaque réserve nomme un sort du répertoire — `SortsOgreHordeTest`
+    // le confronte dans les deux sens. L'ordre est la préférence à score égal.
+    // ------------------------------------------------------------------
+
+    'nexrael_apprenti' => [
+        'porteur' => 'Nexrael',
+        // « Nexrael can cast Mind Burst and uses a reserve of 4 cards » (p. 31).
+        'sorts' => [
+            'Explosion mentale',
+        ],
+    ],
+
+    'xenloth_mage_dread' => [
+        'porteur' => 'Xenloth',
+        // « Xenloth can cast the spells Mind Lock and Mind Burst. He has 5 cards for each spell » (p. 37).
+        'sorts' => [
+            'Verrou mental',
+            'Explosion mentale',
+        ],
+    ],
+
+    'festral_sorcier_dread' => [
+        'porteur' => 'Festral',
+        // « Festral can cast Mind Burst, Mind Lock, and Dominate, and uses 3 cards for each spell » (p. 35).
+        'sorts' => [
+            'Domination',
+            'Verrou mental',
+            'Explosion mentale',
         ],
     ],
 

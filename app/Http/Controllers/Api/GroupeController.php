@@ -576,21 +576,20 @@ class GroupeController extends Controller
             ]);
         }
 
-        // ⚠ Deux CHOIX qui ne se font qu'une fois, et que « Prêt ! » ne doit pas laisser
+        // ⚠ Trois CHOIX qui ne se font qu'une fois, et que « Prêt ! » ne doit pas laisser
         // passer en silence — même patron que le panier de marché ci-dessus : on ne bloque
         // que celui qui se déclare prêt, et UN geste le lève.
         //  - le COMPAGNON ANIMAL OFFERT (Against the Ogre Horde p. 8-9) : proposé une seule
         //    fois, il se prend ou se refuse AVANT la première quête, par n'importe quel joueur ;
         //  - le TYPE D'ARME de la faveur Weapon Expert (René, 2026-10-15) : « when you acquire
-        //    this Boon », donc avant de repartir, et par SON porteur.
+        //    this Boon », donc avant de repartir, et par SON porteur ;
+        //  - le RÉPERTOIRE de la faveur Arcane Library (même décision, même patron) :
+        //    `FaveursHopekins::refusDeDepart()` dit lequel manque.
         // Le lancement par la TABLE (« Lancer la quête ») n'est pas un « Prêt ! » : il passe
         // outre, et la proposition expire avec le premier lancement.
         if ((bool) $donnees['pret'] && $groupe->phase === 'hub') {
-            $refus = app(CompagnonOffert::class)->refusDeDepart($groupe);
-
-            if ($refus === null && FaveursHopekins::choixEnAttente($personnage)) {
-                $refus = "« {$personnage->nom} » a reçu la faveur Weapon Expert : choisissez son type d'arme (fiche du héros) avant de partir.";
-            }
+            $refus = app(CompagnonOffert::class)->refusDeDepart($groupe)
+                ?? FaveursHopekins::refusDeDepart($personnage);
 
             if ($refus !== null) {
                 throw ValidationException::withMessages(['pret' => $refus]);

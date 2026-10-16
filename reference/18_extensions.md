@@ -392,6 +392,9 @@ roster du tournoi.
   Body 2 · Mind 0 ; effigie d'orque **immobile** gardant la porte de fer :
   chaque tour, une boule de feu à **3 dés d'attaque** sur un héros en ligne
   de vue ; **immunisée à tous les effets de sort** (p. 27).
+  *Porté le 2026-10-15* (René) : « Effigie gardienne », sous-boss `horde_ogre`, `cout` 8 —
+  patron TOURELLE (`tourelle` + `immunite_sorts`, `deplacement: 0`), voir
+  `docs/regles/bestiaire-et-rencontres.md`. Stats relues sur le rendu de la page.
 - **Nexrael**, apprenti Sorcier du Dread (quête 6, note D) — Attack 3 ·
   Defend 4 · Move 8 · Body 1 · Mind 5 ; *Mind Burst*, réserve de 4 cartes
   (p. 31).
@@ -451,6 +454,14 @@ explicitement pour chaque profil dans ce livret.
     Sorcerer has an active spell and is killed, the effects of that spell
     immediately end » (p. 10). Les boucliers pour *Mind Burst* ne sont pas
     tranchés : la décision de René porte sur *Mind Lock* et *Dominate*.
+  - ⚠ **PORTÉS le 2026-10-16** (`docs/regles/sorts-dread.md` §« Les Sorciers du Dread d'*Against
+    the Ogre Horde* ») : *Verrou mental*, *Domination*, *Explosion mentale* au catalogue
+    (`SortDreadSeeder`) et au registre `config/cartes.php` (paquet « Against the Ogre Horde »).
+    *Mind Burst* se lit à la lettre — écart de crânes BRUTS, sans boucliers — en attendant que René
+    tranche (lecture à confirmer). Réserve de cartes PAR SORT : Nexrael 4, Xenloth 5 + 5, Festral
+    3 + 3 + 3 (capacité `reserve_cartes`). Nexrael (tier `base`, cout 4), Xenloth (sous-boss, cout 8) et
+    Festral (boss, cout 11) sont au bestiaire, boîte `horde_ogre` ; les Guerriers du Dread de la salle de
+    Festral lancent 5 dés d'attaque et 5 de défense (`garde_personnelle`).
 - ⚠ Coûts et détails des cartes Mercenaire ogre et Allié animal (voir
   mécaniques ci-dessous) non trouvés dans le texte — probablement sur des
   cartes physiques hors PDF.
@@ -1203,8 +1214,12 @@ n'est au catalogue à ce jour.
 
 → chez nous : les deux premiers sont aussi des **consommables** (1 Mind /
 1 Body) portables sans l'artisanat ; le troisième n'a de sens qu'avec le
-paquet d'alchimie. ⚠ Le reste du paquet (les potions d'alchimie elles-mêmes,
-dont *Potion of Defense*) n'est pas encore photographié.
+paquet d'alchimie. Le nom *Potion of Defense* y est cité comme **produit de
+l'artisanat** ; il désigne aussi une carte de **trésor de base** (© 2021) et de
+*First Light* (© 2024), photographiée le 2026-10-16 (`reference/16` §7.4) — ce
+n'est donc pas une potion propre à une extension. ⚠ Nous ignorons encore si la
+potion d'artisanat est la même carte : le reste du paquet d'alchimie n'est pas
+photographié.
 
 > **Décisions de René du 2026-10-15 — Rise of the Dread Moon.**
 > - **Archer elfe et Guerrier elfe : disponibles dans les DEUX thèmes**
@@ -1558,14 +1573,20 @@ voit son mouvement stoppé net).
 - **Deathspinner la Reine du Fléau** (figurine Blightcrawler, quête 3) —
   Move 6 · Attack 5 · Defend 4 · Body 4 · Mind 4 ; « Silencing Snare » —
   lance *Channel Dread* **à volonté** sur tout héros terminant son tour en
-  ligne de vue.
+  ligne de vue. *Porté le 2026-10-15* : `filet_silencieux`, sous-boss
+  `jungles_delthrak`, `cout` 10 ; « Movement 6 dice » imprimé, lu 6 cases ;
+  l'erratum 2021 y ajoute Spawn/Agile/Venomous — non porté, nommé
+  (`docs/regles/bestiaire-et-rencontres.md`).
 - **Stone Sentry** (squelettes reskinnés, quête 6) — Move 6 · Attack 3 ·
   Defend 2 · Body 2 · Mind 0 ; version à distance lance des rochers (3 dés
   contre cible non adjacente, 1 contre adjacente).
 - **Forgeheart Golem** (quête 6) — Move 8 · Attack 5 · Defend 5 · Body 5 ·
   Mind 0 ; capacité « Breath of the Construct » (usage unique, action) :
   2 Body Points de dégâts de zone à toute la salle/couloir, réduits de 1
-  par 5/6 obtenu sur 2 dés rouges par chaque héros touché.
+  par 5/6 obtenu sur 2 dés rouges par chaque héros touché. *Porté le
+  2026-10-15* : « Golem Cœur-de-Forge », sous-boss `jungles_delthrak`, `cout`
+  11, `souffle_du_construit` (une fois par quête ; il souffle dès que deux
+  héros au moins sont pris — politique écrite).
 - **Gruulob, Sorcier Gobelin Corrompu** (quête 8) — Move 6 · Attack 3 ·
   Defend 4 · Body 4 · Mind 5 ; sorts *Creeping Grasp, Channel Dread,
   Summon Orcs* (invoque des Gobelins à la place) ; **multi-phase** : à 0
@@ -1588,7 +1609,10 @@ voit son mouvement stoppé net).
   (*tir à distance possible en ligne de vue.)
 - **Bakabri le Cruel** (figurine Goblin Warlock, quête 15C) — Move 8 ·
   Attack 3* · Defend 4 · Body 4 · Mind 5 ; sorts *Creeping Grasp, Channel
-  Dread, Lightning Bolt*.
+  Dread, Lightning Bolt*. *Porté le 2026-10-15* : « Bakabri le Cruel »,
+  sous-boss `jungles_delthrak`, `cout` 10, `tir_au_choix` + archétype
+  `bakabri_le_cruel` ; *Lightning Bolt* = Éclair de Chaos (texte du livret
+  p. 41 relu sur le rendu).
 - **Bloomrot Scion** (boss final, quête 14B, Venomous, Entangling Roots) —
   Move 0 · Attack 5 (attaque de zone sur toutes les cases adjacentes et
   diagonales) · Defend 5 · **Body 12** · Mind 0 ; immunisé au sommeil et
@@ -1596,7 +1620,11 @@ voit son mouvement stoppé net).
   apparaître une **Tendril** (Move 6 · Attack 3 diagonale · Defend 2 ·
   Body 2 · Mind 0, Venomous, Entangling Roots) à la fin de chacun de ses
   tours ; à 0 Body Points, peut **sacrifier une Tendril active** pour
-  revenir à 1 Body Point au lieu de mourir.
+  revenir à 1 Body Point au lieu de mourir. *Porté le 2026-10-15* (René) :
+  « Scion Fleur-Pourrie », boss `jungles_delthrak` nommé en créature, `cout`
+  22 ; « Vrille » (cout 0, jamais achetée) ; balayage = `frappe_de_zone` +
+  `attaque_diagonale` ; immunité LITTÉRALE au sommeil et au tour perdu
+  (`immunite_conditions`) ; la faille de la carte imprimée n'est pas portée.
 
 ### 3. Nouveaux objets, artefacts, sorts
 
@@ -2693,7 +2721,8 @@ la quête et la campagne.
   Expert*, *Healing Hands*, *Hold the Line*, *Peacekeeper*. Les quatre autres
   sont mécaniques et sourcées en toutes lettres : engager un mercenaire
   gratuitement, +2 points de vie de Body maximum, +1 Potion de guérison
-  (cumulable), un répertoire de sorts supplémentaire pour un lanceur. Après
+  (cumulable), un répertoire de sorts supplémentaire pour un lanceur
+  (**portées le 2026-10-15**, voir §7bis). Après
   la quête 10, la récompense passe à 2 faveurs par quête, choisies parmi 2
   lieux.
 - **Don d'objet en quête** (« Passing Items », p. 6) : un héros peut tendre
@@ -2899,6 +2928,23 @@ permanent une fois acquis).
 | **Deadeye** | « Monster and heroes do not block your line of sight when attacking or casting spells. » | Lève le blocage de ligne de vue par les FIGURES (héros/monstres, pas les murs/meubles) pour attaquer ou lancer un sort — nuance absente de `Grille::ligneDeVue()` aujourd'hui (nos monstres/héros bloquent la vue comme tout obstacle ; seul `Voile de Brume`/`franchit_figures` lève un blocage de MOUVEMENT, pas de VISÉE). Nouveau. |
 | **Weapon Expert** | « Select a type of weapon (e.g., battleaxe, longsword, or crossbow) when you acquire this Boon. When attacking with a weapon of that type, roll 1 additional Attack dice. » | Même famille que les tags de maîtrise déjà portés par certaines classes (ex. `arme_warlock`, `arme_elfe`) mais choisi PAR LE JOUEUR à l'acquisition plutôt que figé par classe — nouveau mécanisme de sélection, portable sur le même seam de bonus d'attaque. **Porté le 2026-10-15** : le joueur choisit le type d'arme au hub dès qu'il reçoit la faveur (`PUT /groupes/{id}/faveurs/weapon-expert`, liste lue au catalogue), « un type » étant `Equipement::typeDArme()` ; voir `docs/regles/exploration-et-fouille.md`. |
 | **Healing Hands** | « If a hero adjacent to you is reduced to 0 Body points, you may allow them to use one of your available healing potions instead of their own. » | Partage de ressource entre héros adjacents au moment critique (0 PV) — proche en esprit de « Passing Items » (don d'objet entre héros adjacents, déjà couvert par `SeanceEchange`) mais déclenché AUTOMATIQUEMENT à 0 PV plutôt que par une action volontaire. Nuance à traiter. |
+
+### 7bis. Faveurs de Hopekins Rest — les 4 faveurs mécaniques, PORTÉES (2026-10-15)
+
+Relues sur le texte du livret G1504 p. 23 (`texte/G1504_en-us/p12.txt`) ; chaque faveur est un
+lieu, « a hero may select one location to visit and receive its Boon of Heroism (if available) ».
+Les cinq lieux de compétence portent « (1 available) » ; **ces quatre-là non**, et la dernière
+(« Can be gained multiple times ») est expressément cumulable.
+
+| Lieu | Citation | → chez nous |
+|---|---|---|
+| **Wandering Monsters' Mercenary Guild** | « Recruit a Mercenary without paying their cost. This Mercenary returns to the guild if you ever choose another boon. » | Faveur `mercenary_guild` : le prix d'engagement (« Cost: 75 gold coins » de la carte de mercenaire) n'est pas payé, par le recrutement existant (`RecrutementHub::prixPour()`). L'entretien de 10 po (p. 8-9) reste dû. Voir `docs/regles/exploration-et-fouille.md`. |
+| **Dewdrop Inn** | « Raise your hero's max Body Points by 2. » | Faveur `dewdrop_inn` : +2 PV de Body max par `Equipement::apresChangementDeJauges()`. |
+| **Witch's Hut** | « Gain 1 Potion of Healing. » / « ** Can be gained multiple times. » | Faveur `witchs_hut`, instantanée : une *Potion de guérison* (`Potion of Healing` du registre des cartes) dans le sac. |
+| **The Arcane Library** | « Mentor expands your knowledge of arcane mysteries. After heroes have selected spells, you may take an additional set of spells that you are eligible to cast. This boon is only for spellcasting heroes. » | Faveur `arcane_library` : un répertoire de plus, choisi par le joueur au hub parmi `MoteurSorts::repertoiresSupplementaires()`. |
+
+⚠ Le livret fait **choisir un lieu à chaque quête** (« A hero may only benefit from one boon at a time ») ;
+notre système tire une faveur au hasard (décision de René) qui reste acquise — écart nommé, non tranché.
 
 ### 8. Trésors — les 8 cartes + « Nothing! », TRANSCRITES
 

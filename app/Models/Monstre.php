@@ -101,6 +101,59 @@ class Monstre extends Model
         return in_array('tir_au_choix', $capacites, true) || array_key_exists('tir_au_choix', $capacites);
     }
 
+    /**
+     * Figure IMMOBILE : déplacement 0 au catalogue (Guardian Effigy, Dread Skull, Bloomrot
+     * Scion). UNE seule définition — c'est elle que lisent la phase des monstres (aucun
+     * chemin à calculer), le placement (`AssembleurCarte::casesPourFiguresFixes()` : en salle
+     * seulement, jamais en couloir, jamais au détriment du plancher de cases jouables) et
+     * l'achat des rencontres. Jamais un drapeau séparé : une fiche à Move 0 qui ne le serait
+     * pas se contredirait elle-même.
+     */
+    public function estImmobile(): bool
+    {
+        return (int) $this->deplacement === 0;
+    }
+
+    /**
+     * TOURELLE (`tourelle`) : immobile ET fait feu à chaque tour du MJ sur un héros en ligne
+     * de vue — au contact comme à distance, aux mêmes dés. Lu par
+     * `ResolveurTour::jouerMonstreEveille()`. Voir `App\Engine\MotsClesAdversaires`.
+     */
+    public function estTourelle(): bool
+    {
+        $capacites = (array) ($this->capacites ?? []);
+
+        return in_array('tourelle', $capacites, true) || array_key_exists('tourelle', $capacites);
+    }
+
+    /**
+     * IMMUNITÉ TOTALE aux effets de sort (`immunite_sorts`) — Guardian Effigy : « immune to
+     * all spell effects ». Lu aux points de passage des sorts qui atteignent un monstre :
+     * le menu des sorts de héros (`MoteurSorts::ciblesLegales()`), les sorts de zone et de
+     * rayon (`ResolveurTour`), les sorts de Dread qui frappent ou soignent des monstres
+     * (`MoteurDread`).
+     */
+    public function immuniseAuxSorts(): bool
+    {
+        $capacites = (array) ($this->capacites ?? []);
+
+        return in_array('immunite_sorts', $capacites, true) || array_key_exists('immunite_sorts', $capacites);
+    }
+
+    /**
+     * Les conditions de monstre qu'un SORT ne peut pas poser sur cette créature
+     * (`immunite_conditions`) — Bloomrot Scion : « immune to spells that would cause it to
+     * sleep or miss its turn ». Liste de clés `MoteurSorts::CONDITIONS_MONSTRE`.
+     *
+     * @return list<string>
+     */
+    public function conditionsImmunisees(): array
+    {
+        $liste = ((array) ($this->capacites ?? []))['immunite_conditions'] ?? [];
+
+        return is_array($liste) ? array_values(array_map('strval', $liste)) : [];
+    }
+
     /** Emprise en cases : [largeur, hauteur]. Par défaut 1×1. */
     public function emprise(): array
     {

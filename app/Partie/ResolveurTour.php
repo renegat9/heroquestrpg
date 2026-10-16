@@ -128,6 +128,14 @@ final class ResolveurTour
     /** Clé d'effet de l'*Éclair* : un rayon, donc une direction et non une cible. */
     private const EFFET_RAYON = 'rayon';
 
+    /**
+     * Combien de rounds consécutifs la phase des monstres rejoue d'elle-même quand AUCUN héros ne peut
+     * jouer à l'ouverture (tous gelés ou étourdis) — voir `phaseMonstres()`. Le plus long gel possible est
+     * la réserve d'un Sorcier (5 cartes) : la borne ne sert qu'à garantir qu'une boucle ne s'écrit pas
+     * d'elle-même si un futur état « sans tour » n'avait pas de fin.
+     */
+    private const ROUNDS_SANS_HEROS_MAX = 8;
+
     /** Au moins un héros tient encore debout : la quête continue. */
     public const CHUTE_DEBOUT = 'debout';
 
@@ -689,6 +697,16 @@ final class ResolveurTour
                 if ($corne !== []) {
                     $resultat['coups_de_corne'] = $corne;
                 }
+
+                // SILENCING SNARE (Deathspinner, F9907 p. 17) : « may cast Channel Dread at will on
+                // any hero that ENDS THEIR TURN within her line of sight (no action required) » —
+                // le même instant que le coup de corne, et nul autre : le tour du héros vient de
+                // se fermer ici (`marquerCreneau()`).
+                $filets = app(AdversairesDelthrak::class)->filetsSilencieux($groupe, $quete, $personnage, $etat->fresh());
+
+                if ($filets !== []) {
+                    $resultat['filets_silencieux'] = $filets;
+                }
             }
 
             // *Baguette d'Os* : « à la suite du tour du joueur » (René,
@@ -707,6 +725,16 @@ final class ResolveurTour
             // Entrée dans une salle encore inexplorée (déplacement classique OU
             // Traverser la Pierre) → description de la nouvelle salle par le MJ.
             $this->decouvrirSalle($groupe, $quete, $etat, $personnage);
+
+            // DREAD SKULL : « As soon as a hero sees a Dread Skull, place it on the board » —
+            // ce que l'action vient de MONTRER (une porte ouverte, un sort de vision) paraît ici,
+            // depuis la case de chaque héros debout. La marche, elle, l'a déjà fait case par case
+            // (`resoudreDeplacement()`) : une figure déjà paraissante n'est plus cachée.
+            $apparitions = $this->apparitionsDesHerosDebout($groupe, $quete, $personnage);
+
+            if ($apparitions !== []) {
+                $resultat['apparitions'] = [...(array) ($resultat['apparitions'] ?? []), ...$apparitions];
+            }
 
             // Fin du COMBAT (plus aucun monstre engagé) — distincte de la fin de
             // quête : il peut rester des dormants derrière des portes closes.
@@ -1316,6 +1344,18 @@ final class ResolveurTour
         // groupe lit d'abord le pas, puis ce qui en surgit.
         foreach (app(MoteurEmbuscade::class)->declenchees($quete, $cheminParcouru) as $embusque) {
             $payload['embuscades'][] = $this->declencherEmbuscade($groupe, $quete, $embusque, $personnage);
+        }
+
+        // DREAD SKULL : « as soon as a hero SEES a Dread Skull » — pendant la marche, donc depuis
+        // CHAQUE case du chemin, la case de départ comprise (René : il tire dès qu'il est vu, aussi
+        // en plein déplacement). Une seule fois : la figure révélée n'est plus cachée.
+        $casesVues = array_map(
+            fn (array $c) => ['x' => (int) $c['x'], 'y' => (int) $c['y'], 'personnage_id' => (int) $personnage->id],
+            [$depart, ...$cheminParcouru],
+        );
+
+        foreach (app(MoteurTourelle::class)->apparitionsEnVue($quete, $casesVues) as $vue) {
+            $payload['apparitions'][] = $this->declencherApparition($groupe, $quete, $vue['instance'], $personnage);
         }
 
         return $payload;
@@ -2476,7 +2516,7 @@ final class ResolveurTour
 
         $touches = $this->projeterRayon(
             $quete->groupe, $quete, $etat, $lanceur, $direction, $degats,
-            touchesLesHeros: true, source: $sort->nom,
+            touchesLesHeros: true, source: $sort->nom, sortMagique: true,
         );
 
         return [
@@ -2509,11 +2549,28 @@ final class ResolveurTour
         int $degats,
         bool $touchesLesHeros,
         string $source,
+        bool $sortMagique = false,
     ): array {
         $touches = [];
 
         foreach ($this->casesDuRayon($quete, (int) $etat->position_x, (int) $etat->position_y, $direction) as $case) {
             foreach ($this->monstresSur($quete, $case['x'], $case['y']) as $instance) {
+                // IMMUNITÉ TOTALE AUX SORTS (Guardian Effigy : « immune to all spell effects ») :
+                // le rayon d'un SORT passe sans l'atteindre — pas la technique du Moine, qui n'est
+                // pas un sort. Dite dans le résultat (`immunise`), jamais passée sous silence.
+                if ($sortMagique && $instance->monstre->immuniseAuxSorts()) {
+                    $touches[] = [
+                        'type' => 'monstre',
+                        'instance_id' => $instance->id,
+                        'nom' => $instance->nomAffiche(),
+                        'degats' => 0,
+                        'vaincu' => false,
+                        'immunise' => true,
+                    ];
+
+                    continue;
+                }
+
                 // UNIQUE point de passage de la mort d'un monstre — un
                 // monstre à PHASES n'y meurt pas, il adopte la forme suivante.
                 // `$lanceur` en 5e argument : FAVEUR « Peacekeeper » si ce
@@ -5060,6 +5117,53 @@ final class ResolveurTour
     }
 
     /**
+     * LE MJ LANCE UN SORT DE HÉROS à la place du héros dont il a la main (*Dominate*, F9528 p. 10 : « Zargon
+     * may move, fight, cast spells […] as the Dominated hero (including attacking other heroes) »).
+     *
+     * Appelée par {@see HerosJoueParLeMj}, hors de la requête d'un héros — pendant la phase du Sorcier. La
+     * résolution est celle d'un sort lancé par son joueur, au mot près : `lancerSort()` (ligne de vue,
+     * garde-fous de ciblage, couture de réaction du MJ, effet par type) sur une cible HÉROS — c'est la branche
+     * « tir ami » de `sortDegats()`, qui existe depuis le début (doc 02 §5, S3) —, puis le sort est ÉPUISÉ
+     * (« chaque sort est lançable une fois par quête ») : Zargon dépense réellement ce qui appartient au héros.
+     *
+     * L'option reconstruite porte exactement ce que le menu aurait porté — `sort_id` et UNE cible légale :
+     * le héros visé, que la couture a déjà choisi en ligne de vue. Un refus du résolveur (ligne de vue plus
+     * stricte, sort sans prise) remonte en `ValidationException` : l'appelant retombe sur la marche et le coup.
+     *
+     * @return array<string, mixed>
+     */
+    public function lancerSortSousControleMj(
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        Sort $sort,
+        Personnage $victime,
+    ): array {
+        $option = [
+            'id' => 'domination_sort',
+            'type' => 'sort',
+            'parametres' => [
+                'sort_id' => $sort->id,
+                'cibles' => [['type' => 'heros', 'id' => (int) $victime->id, 'nom' => $victime->nom]],
+            ],
+        ];
+        $parametres = ['cible_id' => (int) $victime->id, 'cible_type' => 'heros'];
+
+        $resultat = $this->lancerSort($quete, $personnage, $etat, $sort, $option, $parametres);
+
+        $personnage->sorts()->updateExistingPivot($sort->id, ['disponible' => false]);
+
+        // Même forme que le payload de `resoudreSort()` : le fil et la table le lisent par leurs arms de `sort`.
+        return [
+            'type' => 'sort',
+            'option_id' => 'domination_sort',
+            'libelle' => null,
+            'sort' => ['id' => $sort->id, 'nom' => $sort->nom, 'element' => $sort->element, 'type' => $sort->type],
+            ...$resultat,
+        ];
+    }
+
+    /**
      * Utiliser un parchemin du sac (doc 02 §6, S1/S4) : lanceur (magicien /
      * elfe) → réussite automatique ; non-lanceur → jet de Mind à la
      * difficulté du sort (1-3). CONSOMMÉ dans tous les cas — échec =
@@ -6230,6 +6334,17 @@ final class ResolveurTour
         // Monstres de la même zone — la liste que la couture du MJ lit aussi
         // (`monstresDeLaSalleDeCase()`) : « qui ce sort balaie » n'a qu'un corps.
         foreach ($this->monstresDeLaSalleDeCase($quete, (int) $etatLanceur->position_x, (int) $etatLanceur->position_y) as $instance) {
+            // IMMUNITÉS (`MotsClesAdversaires`) : une créature « immune to all spell effects »
+            // (Guardian Effigy) ou immunisée à la condition que ce sort poserait (Bloomrot Scion :
+            // sommeil, tour perdu) n'est pas touchée — et la salle le SAIT : annoncé, sans jet.
+            if ($instance->monstre->immuniseAuxSorts()
+                || array_intersect($this->sorts->conditionsPoseesSurMonstre($sort), $instance->monstre->conditionsImmunisees()) !== []) {
+                $touches[] = ['type' => 'monstre', 'instance_id' => $instance->id,
+                    'nom' => $instance->nomAffiche(), 'immunise' => true];
+
+                continue;
+            }
+
             $mind = (int) $instance->pv_mind;
 
             // Momies, zombies, squelettes : Mind 0, donc hors d'atteinte d'un
@@ -9208,8 +9323,9 @@ final class ResolveurTour
      * table (les livrets les distinguent). Un errant tiré reste tiré : il ne se
      * repioche pas, et la capacité n'est pas dépensée. Remettre la carte sous le
      * paquet ne demande rien —
-     * `Quete::piocherCarte()` le fait déjà pour TOUTES les cartes, le deck
-     * cyclant au lieu de s'épuiser ; repiocher suffit donc.
+     * `Quete::piocherCarte()` le fait déjà pour un piège ou un errant (« Return this
+     * card to the bottom of the deck », `DeckFouille::SORT_PAR_ISSUE`) ; repiocher
+     * suffit donc.
      *
      * ⚠ « You MAY » est ici résolu AUTOMATIQUEMENT, et c'est assumé : la carte
      * écartée est strictement mauvaise, la question n'a qu'une réponse
@@ -9268,9 +9384,10 @@ final class ResolveurTour
      * carte parle du DECK, pas de la salle — et l'entrée du menu est « Lire un
      * parchemin », pas « Fouiller ».
      *
-     * ⚠ Les cartes ignorées repartent quand même SOUS le paquet : `piocherCarte()`
-     * fait cycler le deck, et court-circuiter ce cycle ici en aurait fait deux
-     * vérités. Un errant écarté n'est pas un errant détruit.
+     * ⚠ Une carte ignorée suit la règle de `piocherCarte()` (`DeckFouille::SORT_PAR_ISSUE`) :
+     * un piège ou un errant repart SOUS le paquet, le reste en sort pour la quête.
+     * La court-circuiter ici en aurait fait deux vérités. Un errant écarté n'est pas
+     * un errant détruit.
      *
      * ⚠ `duDeck: true` — le *Chasseur de trésor* de l'Explorateur ajoute 25 po
      * « whenever you draw a card from the TREASURE DECK that rewards you with
@@ -9329,9 +9446,10 @@ final class ResolveurTour
      *
      * ⚠ « You MAY shuffle back » est résolu AUTOMATIQUEMENT, comme
      * `piocherAvecSixiemeSens` : une carte « piège »/« errant »/« rien »
-     * n'a qu'une réponse rationnelle (la remettre), et aucune n'est perdue —
-     * `Quete::piocherCarte()` fait déjà cycler le deck SOUS le paquet pour
-     * TOUTE carte piochée, remettre revient donc à ne rien résoudre.
+     * n'a qu'une réponse rationnelle (la remettre) — `Quete::piocherCarte()` remet
+     * déjà SOUS le paquet un piège ou un errant (`DeckFouille::SORT_PAR_ISSUE`) ;
+     * un « rien » en sort, ce qui ne coûte rien (ce n'est pas une carte officielle,
+     * le paquet de base n'en a pas).
      *
      * ⚠ PAS une fouille de SALLE : aucun piège remis n'est déclenché, aucun
      * errant remis n'apparaît — seules les cartes GARDÉES passent par
@@ -9436,14 +9554,44 @@ final class ResolveurTour
                     'y' => (int) $errant->position_y,
                 ];
 
+                // La carte 2024 (*Wandering Monster*) : « The monster immediately
+                // attacks. » Due au fouilleur seulement si la bête est au contact de
+                // lui — les huit voisines comptent (adjacent OU diagonal).
+                $auContact = $this->heroAuContact($errant, (int) $etat->position_x, (int) $etat->position_y, true);
+
                 // DÉFI DU CHEVALIER : « when a Wandering Monster is revealed in
                 // the SAME ROOM as you ». On propose au Chevalier de détourner
                 // la bête sur lui — le seul déclencheur de réaction qui ne soit
                 // pas un coup encaissé.
-                $this->reactions->proposerDefi(
+                $defi = $this->reactions->proposerDefi(
                     $errant, $personnage, $this->herosDeLaSalle($quete, $etat, $personnage),
+                    frappeDuSurgissement: $auContact,
                 );
+
+                if ($defi) {
+                    // Un défi attend sa réponse, et la frappe du surgissement attend avec
+                    // lui : la donner maintenant doublerait un coup que le Chevalier peut
+                    // encore détourner. Elle part à la réponse (`MoteurReactions`), et la
+                    // bête ne joue pas au tour des monstres d'ici là (`phaseMonstres()`).
+                    if ($auContact) {
+                        $payload['defi_en_attente'] = true;
+                    }
+                } else {
+                    $frappe = $this->frappeDuSurgissement($groupe, $errant, $etat);
+
+                    if ($frappe !== null) {
+                        $payload['frappe_errant'] = $frappe;
+                    }
+                }
             }
+        } elseif ($issue === 'piege' && isset($carte['variante'])) {
+            // CARTE « HAZARD! » du deck (variante `fleches` / `trou`) : 1 PV, le
+            // tour s'arrête, ni jet ni poison — ce que dit la carte, et rien de
+            // plus. Ni le piège NOMMÉ d'un meuble ni le piège de coffre ne
+            // passent par cette branche (ils n'ont pas de variante).
+            $payload['declenchement'] = $this->pieges->declencherCarteHazard(
+                $groupe, $personnage, $etat, (string) $carte['variante'], narrer: false,
+            );
         } elseif ($issue === 'piege') {
             // Le meuble peut NOMMER son piège (aiguille du tombeau, fiole de
             // l'établi) ; le deck, lui, n'a que le piège de coffre. Repli sur
@@ -9906,9 +10054,48 @@ final class ResolveurTour
     }
 
     /**
+     * FRAPPE DU SURGISSEMENT (carte 2024 *Wandering Monster* : « The monster immediately
+     * attacks. After they attack, you can continue your turn. »). L'errant frappe `$cible`
+     * aussitôt, par le point de passage de l'attaque de monstre (`resoudreAttaqueMonstre()`).
+     *
+     * Rend `null` s'il ne frappe pas : monstre tombé ou dormant entre-temps, cible à terre,
+     * ou cible PAS au contact (le repli « as close as possible » de LR p. 15 : la bête
+     * jouera au tour des monstres). Le tour du fouilleur n'est pas clos par la frappe.
+     *
+     * Public : `MoteurReactions` la donne quand un défi du Chevalier n'est pas relevé
+     * (refus, expiration, placement impossible) — `$motif` le dit au fil (`apres_defi`).
+     *
+     * @param  ?string  $motif  `refuse` | `expire` | `impossible`, ou `null` au surgissement même
+     * @return array<string, mixed>|null payload de l'attaque du monstre
+     */
+    public function frappeDuSurgissement(
+        Groupe $groupe,
+        InstanceMonstre $errant,
+        EtatPersonnageQuete $cible,
+        ?string $motif = null,
+    ): ?array {
+        if ($errant->etat !== 'actif' || ! $errant->revele || $cible->tombe || $cible->position_x === null) {
+            return null;
+        }
+
+        if (! $this->heroAuContact($errant, (int) $cible->position_x, (int) $cible->position_y, true)) {
+            return null;
+        }
+
+        $errant->loadMissing('monstre');
+        $acteur = ['type' => 'monstre', 'id' => $errant->id, 'nom' => $errant->nomAffiche()];
+
+        return $this->resoudreAttaqueMonstre(
+            $groupe, $errant, $cible, $errant->attaqueEffective(), $acteur, $errant->nomAffiche(), apresDefi: $motif,
+        );
+    }
+
+    /**
      * Instancie un monstre ERRANT (doc 14 §3.2) depuis le bestiaire, placé sur une
-     * case libre proche du fouilleur, actif et révélé (il jouera au tour des
-     * monstres). null si aucune place libre autour du héros.
+     * case libre proche du fouilleur, actif et révélé. S'il a été posé au contact
+     * (voisines, diagonales comprises), il frappe aussitôt — `frappeDuSurgissement()`
+     * — sauf défi du Chevalier en attente ; sinon il joue au tour des monstres.
+     * null si aucune place libre autour du héros.
      *
      * SANS PLAFOND : sa carte revient sous le paquet comme les autres, elle doit
      * donc mordre à chaque fois.
@@ -9958,8 +10145,17 @@ final class ResolveurTour
     }
 
     /**
-     * Première case traversable LIBRE proche de (x, y) : adjacence d'abord,
-     * puis anneau Manhattan croissant (rayon ≤ 3). null si rien de libre.
+     * Case libre où poser un errant près de (x, y) — le fouilleur (2026-10-16).
+     *
+     * 1. Les HUIT voisines, orthogonales ET diagonales : la carte 2024 pose la bête
+     *    « on any square adjacent OR DIAGONAL to you ». Avant, l'ordre Manhattan
+     *    tentait (x−2, y) avant les diagonales : une bête pouvait naître hors contact.
+     * 2. Repli, quand toutes les voisines sont occupées : l'anneau Manhattan croissant
+     *    (rayon 2 puis 3), « as close to the searcher as possible » (LR p. 15). Dans ce
+     *    cas la bête n'est PAS au contact : `frappeDuSurgissement()` ne la fait pas
+     *    frapper, elle joue au tour des monstres.
+     *
+     * null si rien de libre dans le rayon 3.
      *
      * @return array{x: int, y: int}|null
      */
@@ -9967,7 +10163,14 @@ final class ResolveurTour
     {
         $grille = $this->grille($quete);
 
-        for ($rayon = 1; $rayon <= 3; $rayon++) {
+        foreach ([[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as [$dx, $dy]) {
+            if ($grille->estTraversable($x + $dx, $y + $dy)) {
+                return ['x' => $x + $dx, 'y' => $y + $dy];
+            }
+        }
+
+        // Repli : anneau Manhattan 2 puis 3 (le rayon 1 est déjà couvert ci-dessus).
+        for ($rayon = 2; $rayon <= 3; $rayon++) {
             for ($dx = -$rayon; $dx <= $rayon; $dx++) {
                 $dy = $rayon - abs($dx);
                 foreach (array_unique([$dy, -$dy]) as $signeY) {
@@ -10100,7 +10303,7 @@ final class ResolveurTour
      *
      * @return array<string, mixed>
      */
-    private function phaseMonstres(Groupe $groupe, Quete $quete): array
+    private function phaseMonstres(Groupe $groupe, Quete $quete, int $profondeur = 0): array
     {
         $actions = [];
 
@@ -10138,9 +10341,15 @@ final class ResolveurTour
         // quand la boucle l'atteint.
         $dejaJoues = [];
 
+        // ERRANT en attente de la réponse d'un Chevalier (défi du surgissement, 2026-10-16) :
+        // sa frappe est DUE et sera donnée à la réponse. Il ne joue donc pas ce tour-ci —
+        // ce serait frapper deux fois, ou frapper avant que le défi ne soit tranché.
+        $enAttenteDeDefi = $this->reactions->instancesEnAttenteDeDefi($quete);
+
         foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
             ->whereNull('controle_par')->with('monstre')->orderBy('id')->get() as $instance) {
-            if (in_array((int) $instance->id, $dejaJoues, true)) {
+            if (in_array((int) $instance->id, $dejaJoues, true)
+                || in_array((int) $instance->id, $enAttenteDeDefi, true)) {
                 continue;
             }
 
@@ -10171,6 +10380,16 @@ final class ResolveurTour
                 }
             } else {
                 $actions[] = $resultatMonstre;
+            }
+
+            // BLOOMROT SCION : « At the end of the Bloomrot Scion's turn, place one Tendril in an
+            // unoccupied square as close as possible to the Bloomrot Scion » (F9907 p. 39). Posée
+            // APRÈS son tour, annoncée ; la boucle ci-dessus a chargé sa liste avant, la Vrille ne
+            // joue donc qu'au round suivant — « placed », pas « activated ».
+            $vrille = app(AdversairesDelthrak::class)->vrilleEnFinDeTour($groupe, $quete, $instance->fresh()->load('monstre'));
+
+            if ($vrille !== null) {
+                $actions[] = $vrille;
             }
 
             // ACTIVATION IMMÉDIATE (`activation_immediate`) : *Call Orcs* /
@@ -10230,6 +10449,25 @@ final class ResolveurTour
         // une réponse qui peut relever quelqu'un. On ne conclut pas.
         if ($verdict === self::CHUTE_SUSPENDUE) {
             return ['actions' => $actions, 'tpk_suspendu' => true];
+        }
+
+        // ROUND OUVERT SANS AUCUN HÉROS QUI PUISSE JOUER PARCE QU'UN GEL LUI A PRIS SON TOUR : le héros gelé
+        // par un *Mind Lock* perd son tour à l'ouverture (`VerrouMental::ouvrirTour()`) — son créneau est
+        // consommé, plus aucun menu ne s'ouvre, et si PERSONNE d'autre ne peut jouer, personne ne peut
+        // déclencher la phase suivante : le groupe resterait figé, sans erreur, à attendre un joueur qui
+        // n'a rien à jouer. Un héros seul gelé par un Sorcier à 5 cartes le serait cinq rounds de suite.
+        // Le round suivant se joue donc tout de suite, jusqu'à ce qu'un héros retrouve la main — borné :
+        // un gel ne dure jamais plus que la réserve du Sorcier.
+        // ⚠ Délibérément limité au gel (`verrou_mental_tour`) : le même trou existe pour l'Étourdi d'un
+        // groupe réduit à un héros, et le fermer change le comportement d'un test déjà posé — nommé dans
+        // `docs/regles/sorts-dread.md`, pas corrigé en passant.
+        if ($profondeur < self::ROUNDS_SANS_HEROS_MAX
+            && collect($actions)->contains(fn ($a) => is_array($a) && ($a['type'] ?? null) === 'verrou_mental_tour')
+            && $quete->fresh()?->etat === 'en_cours'
+            && app(OrdreDuTour::class)->acteurActif($groupe->fresh()) === null) {
+            $suite = $this->phaseMonstres($groupe->fresh(), $quete->fresh(), $profondeur + 1);
+
+            return [...$suite, 'actions' => [...$actions, ...$suite['actions']]];
         }
 
         return ['actions' => $actions];
@@ -10376,6 +10614,18 @@ final class ResolveurTour
 
                 Journal::ajouter($groupe, 'action', $payload);
                 $payloads[] = $payload;
+            }
+
+            // MIND LOCK (*Against the Ogre Horde* p. 10) : le héros GELÉ perd son tour, rend une carte à son
+            // Sorcier et tente de briser l'emprise (3 crânes ou plus). Même crochet que l'Étourdi juste
+            // dessous : le payload remonte dans `$actions`, un jet que personne ne voit n'a pas eu lieu.
+            // `VerrouMental::ouvrirTour()` lève aussi une condition ORPHELINE (gel resté d'une quête close).
+            $gel = app(VerrouMental::class)->ouvrirTour($groupe, $etat);
+
+            if ($gel !== null) {
+                $payloads[] = $gel;
+
+                continue;
             }
 
             if ($this->sorts->consommerTourPerdu($personnage)) {
@@ -10756,6 +11006,59 @@ final class ResolveurTour
     }
 
     /**
+     * Le DREAD SKULL paraît et TIRE SUR LE COUP (« Immediately, and on Zargon's turn, the Dread
+     * Skull makes a ranged attack »). Même patron que `declencherEmbuscade()` : la figure est
+     * révélée, puis JOUE SON TOUR tout de suite — une tourelle ne fait que tirer, aucun
+     * déplacement à rejouer. L'action jouée est rangée sous `action`, pour que le fil et la
+     * table montrent l'apparition ET le tir dans le même geste.
+     *
+     * @return array<string, mixed>
+     */
+    private function declencherApparition(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Personnage $declencheur): array
+    {
+        $apparition = app(MoteurTourelle::class)->reveler($groupe, $instance, $declencheur);
+
+        $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
+            ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
+            ->values();
+
+        if ($cibles->isNotEmpty()) {
+            $apparition['action'] = $this->jouerMonstre($groupe, $quete, $instance->fresh()->load('monstre'), $cibles);
+        }
+
+        return $apparition;
+    }
+
+    /**
+     * Les figures cachées que les héros DEBOUT voient depuis où ils se tiennent, révélées et déjà
+     * en train de tirer — pour tout ce qui change ce qu'un héros voit sans qu'il marche : une porte
+     * qui s'ouvre, un levier, un sort. `$acteur` est le héros qui vient d'agir, crédité de
+     * l'apparition quand c'est lui qui la voit.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function apparitionsDesHerosDebout(Groupe $groupe, Quete $quete, Personnage $acteur): array
+    {
+        $etats = $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get();
+
+        // L'acteur d'abord : c'est lui que la figure a vu en premier quand ils la voient tous.
+        $etats = $etats->sortBy(fn (EtatPersonnageQuete $e) => $e->personnage_id === $acteur->id ? 0 : 1)->values();
+
+        $cases = $etats->map(fn (EtatPersonnageQuete $e) => [
+            'x' => (int) $e->position_x, 'y' => (int) $e->position_y, 'personnage_id' => (int) $e->personnage_id,
+        ])->all();
+
+        $payloads = [];
+
+        foreach (app(MoteurTourelle::class)->apparitionsEnVue($quete, $cases) as $vue) {
+            $declencheur = $etats->firstWhere('personnage_id', $vue['personnage_id'])?->personnage ?? $acteur;
+            $payloads[] = $this->declencherApparition($groupe, $quete, $vue['instance'], $declencheur);
+        }
+
+        return $payloads;
+    }
+
+    /**
      * Script C2 d'un monstre : pour les boss/sous-boss, MoteurDread gère la
      * régénération, les sorts de Dread et la Charge en priorité. Pour les
      * monstres de base (et en repli pour les boss sans action Dread), comportement
@@ -10899,7 +11202,31 @@ final class ResolveurTour
         // Charge). Si une action Dread a été jouée, on retourne son payload.
         $tier = $instance->monstre->tier ?? 'base';
 
-        if (in_array($tier, ['sous_boss', 'boss'], true)) {
+        // GOLEM : *Breath of the Construct* — « once as an action » (F9907 p. 23). Une ACTION, donc
+        // elle remplace le reste du tour du Golem ; lue ici, avant les sorts, comme n'importe quelle
+        // capacité de boss qui consomme l'action (`AdversairesDelthrak::souffle()`).
+        $souffle = app(AdversairesDelthrak::class)->souffle($groupe, $quete, $instance, $cibles, $acteur);
+
+        if ($souffle !== null) {
+            return $souffle;
+        }
+
+        // UNE FIGURE IMMOBILE QUI A QUELQU'UN À PORTÉE FRAPPE avant de lancer quoi que ce soit : le
+        // Bloomrot Scion « has a sweeping attack that targets all heroes adjacent and diagonal to
+        // it » (5 dés sur chacun) et « may cast Channel Dread at will » — la magie à volonté est son
+        // arme quand personne n'est à sa portée, pas ce qu'il choisit contre un héros collé à lui.
+        $herosAPortee = $instance->monstre->estImmobile()
+            && $cibles->contains(fn (EtatPersonnageQuete $c) => $this->heroAuContact(
+                $instance, (int) $c->position_x, (int) $c->position_y,
+                $this->dread->aCapacite($instance, 'attaque_diagonale'),
+            ));
+
+        // ⚠ Le tier ne suffit PLUS à décider qui lance un sort : les extensions donnent la magie à des
+        // créatures de tier `base` (le Cultiste du Dread, le Spectre, et Nexrael, l'apprenti sorcier
+        // d'*Against the Ogre Horde* p. 31 — « can cast Mind Burst »). Tant que seuls les sous-boss et les
+        // boss appelaient `jouerTourDread()`, un lanceur de tier `base` avait un répertoire, un archétype,
+        // des usages réarmés à chaque quête… et ne lançait JAMAIS rien. Un répertoire non vide ouvre la porte.
+        if ((in_array($tier, ['sous_boss', 'boss'], true) || $this->dread->aUnRepertoire($instance)) && ! $herosAPortee) {
             $actionDread = $this->dread->jouerTourDread($groupe, $quete, $instance, $cibles);
 
             if ($actionDread !== null) {
@@ -10946,7 +11273,13 @@ final class ResolveurTour
         $tirAuChoix = $instance->monstre->aTirAuChoix()
             && ! $this->figureAuContact($instance, $cibles, $quete);
 
-        if ($instance->monstre->aDistance() || $tirAuChoix) {
+        // TOURELLE (`App\Engine\MotsClesAdversaires`, René 2026-10-15 : un seul mécanisme pour le
+        // Guardian Effigy et le Dread Skull) : immobile, elle fait feu à chaque tour sur un héros
+        // en ligne de vue — AU CONTACT COMME À DISTANCE, aux mêmes dés (« any one hero in its line
+        // of sight »), et jamais ne recule ni n'avance : le repli est le trait de l'archer.
+        $tourelle = $instance->monstre->estTourelle();
+
+        if ($instance->monstre->aDistance() || $tirAuChoix || $tourelle) {
             // Il se REPLACE d'abord (René, 2026-08-23) : un archer collé frappait
             // au corps-à-corps sans jamais décrocher — 1 dé au lieu de 4 pour
             // l'Archer elfe, dont la fiche « Attack 4 (1 if adjacent) » dit
@@ -10958,7 +11291,7 @@ final class ResolveurTour
                 $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
             }
 
-            $tir = $this->tirerSiCibleEnVue($groupe, $quete, $instance, $cibles, $grille, $acteur, $nomMonstre);
+            $tir = $this->tirerSiCibleEnVue($groupe, $quete, $instance, $cibles, $grille, $acteur, $nomMonstre, tourelle: $tourelle);
 
             if ($tir !== null) {
                 return $tir;
@@ -11019,12 +11352,20 @@ final class ResolveurTour
         // la cible — seul un allié strictement plus proche détourne le monstre.
         // C'est le comportement d'avant pour tout groupe sans allié.
         $meilleure = null; // [etat héros | GroupeMercenaire, chemin]
+        // FIGURE IMMOBILE (déplacement 0 : tourelle, Bloomrot Scion) : aucun chemin à calculer, elle
+        // ne frappe que ce qui est déjà à sa portée — jamais un faux « avance de 0 case » au fil.
+        $immobile = $instance->monstre->estImmobile();
+
         foreach ([...$cibles->all(), ...$this->alliesCiblables($quete)->all()] as $cible) {
             if ($this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y, $diagonalesMonstre)) {
                 if ($meilleure === null || $meilleure[1] !== []) {
                     $meilleure = [$cible, []];
                 }
 
+                continue;
+            }
+
+            if ($immobile) {
                 continue;
             }
 
@@ -11223,7 +11564,7 @@ final class ResolveurTour
             )->values();
 
             if ($adjacents->count() >= 2) {
-                return $this->dread->frappeDeZone($groupe, $instance, $cibles, $acteur);
+                return $this->dread->frappeDeZone($groupe, $instance, $cibles, $acteur, $adjacents);
             }
         }
 
@@ -11255,6 +11596,10 @@ final class ResolveurTour
         array $acteur,
         string $nomMonstre,
         string $portee = 'corps_a_corps',
+        bool $tourelle = false,
+        // DÉFI DU CHEVALIER non relevé (`refuse` | `expire` | `impossible`) : la frappe
+        // du surgissement, donnée au fouilleur à la réponse. `null` = pas de défi.
+        ?string $apresDefi = null,
     ): array {
         $personnage = $cible->personnage;
 
@@ -11486,6 +11831,13 @@ final class ResolveurTour
             // table ne distinguait pas un TIR d'un coup de mêlée. C'est pourtant
             // toute la différence pour un archer — 4 dés contre 1.
             'portee' => $portee,
+            // TOURELLE : le tir d'une figure immobile (`MotsClesAdversaires::TOURELLE`), dit comme
+            // tel au fil — « fait feu depuis son poste », jamais un coup de mêlée ni un archer qui
+            // aurait pu bouger.
+            ...($tourelle ? ['tourelle' => true] : []),
+            // Frappe due après un défi du Chevalier non relevé : le fil dit pourquoi
+            // la bête se retourne contre ce héros-là (`JournalCombat::attaqueMonstre()`).
+            ...($apresDefi !== null ? ['apres_defi' => $apresDefi] : []),
             'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
             'bonus_garde_tenace' => $bonusGardeTenace,
             'bonus_flanc' => $bonusFlanc,
@@ -11782,6 +12134,7 @@ final class ResolveurTour
         Grille $grille,
         array $acteur,
         string $nomMonstre,
+        bool $tourelle = false,
     ): ?array {
         $ix = (int) $instance->position_x;
         $iy = (int) $instance->position_y;
@@ -11817,20 +12170,27 @@ final class ResolveurTour
 
         // Au contact : corps-à-corps (valeur d'attaque de mêlée, un dé de moins par
         // construction du catalogue) ; à distance : dés d'`attaque_distance`.
-        $desAttaque = $adjacent
+        //
+        // ⚠ UNE TOURELLE TIRE TOUJOURS : « it may launch a ball of fire of 3 Attack dice at any
+        // one hero in its line of sight » ne distingue pas le héros collé de celui qui est loin.
+        // Aux mêmes dés dans les deux cas, et la portée publiée est `distance` — c'est un TIR,
+        // que le fil et la table doivent dire comme tel.
+        $auContact = $adjacent && ! $tourelle;
+        $desAttaque = $auContact
             ? $instance->attaqueEffective()
             : ($instance->attaqueDistanceEffective() ?? $instance->attaqueEffective());
 
         if ($cible instanceof GroupeMercenaire) {
             return $this->resoudreAttaqueMonstreSurAllie(
                 $groupe, $quete, $instance, $cible, $desAttaque, $acteur, $nomMonstre,
-                $adjacent ? 'corps_a_corps' : 'distance',
+                $auContact ? 'corps_a_corps' : 'distance',
             );
         }
 
         return $this->resoudreAttaqueMonstre(
             $groupe, $instance, $cible, $desAttaque, $acteur, $nomMonstre,
-            $adjacent ? 'corps_a_corps' : 'distance',
+            $auContact ? 'corps_a_corps' : 'distance',
+            tourelle: $tourelle,
         );
     }
 
@@ -12450,6 +12810,9 @@ final class ResolveurTour
             // Un Dreadshifter DÉGUISÉ n'est pas un monstre dormant : il est un
             // coffre, et ne se révèle que par l'embuscade (`MoteurEmbuscade`).
             ->reject(fn (InstanceMonstre $i) => MoteurEmbuscade::estDeguise($i))
+            // Un DREAD SKULL non plus : il ne se révèle pas à l'ouverture de la porte mais au
+            // REGARD d'un héros, et il tire aussitôt (`MoteurTourelle`, `declencherApparition()`).
+            ->reject(fn (InstanceMonstre $i) => MoteurTourelle::apparaitALaVue($i))
             ->values();
 
         // §2.6 — on retient les NOMS de ce qui vient d'apparaître : sans eux, le

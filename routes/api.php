@@ -193,6 +193,8 @@ Route::middleware('auth:joueur')->group(function () {
     // Faveur Weapon Expert (Wizards of Morcar, Hopekins Rest) : le JOUEUR choisit son type
     // d'arme au hub, en la recevant (René, 2026-10-15) — HUB uniquement.
     Route::put('/groupes/{identifiant}/faveurs/weapon-expert', [FaveurController::class, 'choisirArme']);
+    // Faveur Arcane Library (Hopekins Rest) : le JOUEUR choisit son répertoire de sorts supplémentaire.
+    Route::put('/groupes/{identifiant}/faveurs/arcane-library', [FaveurController::class, 'choisirRepertoire']);
 
     // Boire une potion AU HUB (Wizards of Morcar, Potion of Charm : « Drink this
     // potion between quests ») — réservée aux potions de

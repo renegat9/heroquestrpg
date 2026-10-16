@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\TableController;
 use App\Models\Carte;
 use App\Models\Condition;
 use App\Models\Epreuve;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Evenement;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
@@ -1323,7 +1324,7 @@ final class EtatGroupe
                     // doit pouvoir le voir comme toute autre condition.
                     'benediction_oracle' => (bool) $p->benediction_oracle,
                     'malediction_oracle' => (bool) $p->malediction_oracle,
-                    'conditions' => $this->conditionsHeros($p),
+                    'conditions' => $this->conditionsHeros($p, $etat),
                     // FAVEURS DE HOPEKINS REST (chantier 1c, Wizards of
                     // Morcar, 2026-10-06) : don PONCTUEL durable, hors arbre
                     // de talents — « visible sur la fiche du héros » (brief).
@@ -1399,7 +1400,7 @@ final class EtatGroupe
      *
      * @return list<array{nom: string, duree: int, description: string|null, source: string, effet_source: string|null}>
      */
-    private function conditionsHeros(Personnage $personnage): array
+    private function conditionsHeros(Personnage $personnage, ?EtatPersonnageQuete $etat = null): array
     {
         return $personnage->conditions()
             ->get()
@@ -1429,7 +1430,12 @@ final class EtatGroupe
                 // Jungle 2026-10-10 §3) : « Renforcé » est la condition par défaut de
                 // tous les buffs, sa description reste générique et c'est ce champ qui
                 // dit « +2 dés d'attaque » ou « +2 dés de défense ». `null` si rien à dire.
-                'effet_source' => app(MoteurSorts::class)->effetLisibleDeSource((string) $c->pivot->source),
+                // ⚠ *Mind Lock* : la source (`sort_dread:Verrou mental`) ne dit pas COMBIEN de tours il reste —
+                // ce compte vit dans `etat_personnage_quete.verrou_mental`, et c'est le MOTEUR qui l'écrit
+                // en clair (`VerrouMental::texte()`), jamais la manette qui le re-déduirait.
+                'effet_source' => $c->nom === VerrouMental::CONDITION
+                    ? app(VerrouMental::class)->texte($etat)
+                    : app(MoteurSorts::class)->effetLisibleDeSource((string) $c->pivot->source),
             ])
             ->values()
             ->all();

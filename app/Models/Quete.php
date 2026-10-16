@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Partie\Fouille\DeckFouille;
 use App\Partie\MoteurMobilier;
 use App\Partie\Talents;
 use Illuminate\Database\Eloquent\Model;
@@ -232,8 +233,13 @@ class Quete extends Model
     }
 
     /**
-     * Pioche la carte du dessus SANS REMISE et persiste le reste. `null` si la
-     * pioche est épuisée (l'appelant rétrograde alors en « rien »).
+     * Pioche la carte du dessus et applique SON sort (`DeckFouille::sortDe()`) :
+     * repartie SOUS le paquet si elle dit de la remettre (monstre errant, Hazard!),
+     * retirée du paquet pour le reste de la quête sinon (or, gemme, bijoux, potion).
+     * `null` si le paquet est vide — l'appelant rétrograde alors en « rien ».
+     *
+     * Le sort d'une carte est lu à UN seul endroit, ici : ne jamais le recopier
+     * ailleurs (le piège des deux copies d'une règle simple, `CLAUDE.md`).
      *
      * @return array<string, mixed>|null
      */
@@ -245,12 +251,12 @@ class Quete extends Model
             return null;
         }
 
-        // La carte repart SOUS le paquet (règle du plateau) : le deck ne
-        // s'épuise jamais, il cycle. Avec une fouille par héros ET par salle,
-        // un donjon de 6 salles à 4 joueurs produit jusqu'à 24 tirages — soit
-        // exactement la taille du deck.
         $carte = array_shift($deck);
-        $deck[] = $carte;
+
+        if (DeckFouille::sortDe($carte) === DeckFouille::REMISE_SOUS_LE_PAQUET) {
+            $deck[] = $carte;
+        }
+
         $this->update(['deck_fouille' => array_values($deck)]);
 
         return $carte;

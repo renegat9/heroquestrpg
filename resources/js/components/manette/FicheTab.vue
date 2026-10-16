@@ -3,6 +3,7 @@
 import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
 import PipsGauge from './PipsGauge.vue';
+import { ELEMENT } from '../../compendium';
 
 defineProps({
     hero: { type: Object, required: true },
@@ -154,7 +155,13 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
                     <div v-if="f.effet" class="tdesc">{{ f.effet }}</div>
                     <!-- Weapon Expert : le type d'arme choisi, ou le rappel qu'il reste à le choisir (décidé par le serveur). -->
                     <div v-if="f.specialite" class="tdesc"><b>Spécialité</b> : {{ f.specialite }}</div>
-                    <div v-else-if="f.choix" class="tdesc"><b>Type d'arme à choisir</b> : onglet Action, avant de partir.</div>
+                    <div v-else-if="f.cle === 'weapon_expert' && f.choix" class="tdesc"><b>Type d'arme à choisir</b> : onglet Action, avant de partir.</div>
+                    <!-- Arcane Library : le répertoire pris, ou le rappel qu'il reste à le choisir (décidé par le serveur). -->
+                    <div v-if="f.repertoire" class="tdesc"><b>Répertoire pris</b> : {{ ELEMENT[f.repertoire]?.l || f.repertoire }}</div>
+                    <div v-else-if="f.cle === 'arcane_library' && f.choix" class="tdesc"><b>Répertoire à choisir</b> : onglet Action, avant de partir.</div>
+                    <!-- Mercenary Guild : un recrutement offert est-il à prendre ? (décidé par le serveur) -->
+                    <div v-if="f.recrutement_offert === true" class="tdesc"><b>Recrutement offert disponible</b> : au hub, dans le panneau de recrutement.</div>
+                    <div v-else-if="f.recrutement_offert === false" class="tdesc">Votre mercenaire offert est en poste.</div>
                 </div>
             </div>
         </div>

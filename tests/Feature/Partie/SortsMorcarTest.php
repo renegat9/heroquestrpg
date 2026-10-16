@@ -533,11 +533,11 @@ it('pioche EXACTEMENT 3 cartes, applique les trésors et remet les dangers sous 
     expect((int) $ctx['groupe']->fresh()->or)->toBe($orAvant + 65); // 40 + 25
 
     // Le piège remis n'a RIEN déclenché, et la 4e carte (« rien ») n'a jamais
-    // été tirée — exactement 3 piochées (chacune cycle sous le paquet,
-    // `Quete::piocherCarte()`), le deck garde ses 4 cartes.
+    // été tirée — exactement 3 piochées. Les deux trésors gardés SORTENT du
+    // paquet (« Do not return ») ; seul le piège repasse dessous
+    // (`Quete::piocherCarte()`), derrière la carte restée en tête.
     $deckApres = $ctx['quete']->fresh()->deckFouille();
-    expect($deckApres)->toHaveCount(4)
-        ->and(collect($deckApres)->pluck('issue')->all())->toContain('piege');
+    expect(collect($deckApres)->pluck('issue')->all())->toBe(['rien', 'piege']);
 });
 
 // =====================================================================

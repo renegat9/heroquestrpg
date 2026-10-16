@@ -60,7 +60,7 @@ class SortSeeder extends Seeder
         'Mur de Pierre' => "Un mur de pierre couvre 2 cases libres de figures : il a 1 point de Body et 6 dés de défense, et disparaît quand il est détruit.",
         'Invisibilité' => "Le lanceur devient invisible jusqu'au début de son prochain tour : il ne peut plus attaquer, mais personne ne peut l'attaquer et aucun sort ne l'atteint.",
         'Désapprentissage' => "Un lanceur de Dread en vue perd un sort tiré au hasard, pour toute la quête : ce sort est retiré du jeu jusqu'à la fin de la quête.",
-        'Trésor convoité' => "Au lieu de piocher une carte trésor, le lanceur en pioche trois : les cartes qui rapportent sont appliquées, les dangers et les « rien » retournent sous le paquet.",
+        'Trésor convoité' => "Au lieu de piocher une carte trésor, le lanceur en pioche trois : les cartes qui rapportent sont appliquées, les dangers retournent sous le paquet.",
         'Clairvoyance' => "Montre le contenu d'une salle non découverte, où qu'elle soit sur le plateau : monstres (par nom) et nombre de pièges. Le brouillard ne bouge pas. Une salle vide consomme le sort comme une pleine.",
         'Vision du futur' => "Se lance à tout moment, sans action : après un jet de déplacement, d'attaque ou de défense du héros qui le connaît ou porte son parchemin, il relance tous les dés de ce jet. Le sort est défaussé après usage.",
         'Chaînes des Ténèbres' => "Un monstre visible ne peut plus se déplacer ni attaquer jusqu'au début du prochain tour du lanceur ; il peut encore défendre et lancer des sorts. Aucun jet ne le libère.",
@@ -529,9 +529,9 @@ class SortSeeder extends Seeder
             // the drawn cards back into the treasure deck and keep the rest. »
             // `pioche_triple` → `ResolveurTour::piocherTresorConvoite()` : pioche
             // EXACTEMENT 3 cartes, applique celles qui payent, remet
-            // automatiquement les dangers/« rien » sous le paquet (même
-            // résolution automatique du « may » que `piocherAvecSixiemeSens`,
-            // une carte remise ne coûte jamais rien à remettre).
+            // automatiquement les dangers sous le paquet (même résolution
+            // automatique du « may » que `piocherAvecSixiemeSens` ; la règle de
+            // retour est celle de `DeckFouille::SORT_PAR_ISSUE`).
             ['element' => 'detection', 'nom' => 'Trésor convoité', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['pioche_triple' => true]],
             // CLAIRVOYANCE : « You may ask Zargon to lay out the contents of one

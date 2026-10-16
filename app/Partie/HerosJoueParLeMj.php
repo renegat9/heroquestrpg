@@ -1,0 +1,355 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Partie;
+
+use App\Engine\Combat;
+use App\Engine\Des\LanceurDes;
+use App\Engine\TypeFigurine;
+use App\Models\EtatPersonnageQuete;
+use App\Models\Groupe;
+use App\Models\InstanceMonstre;
+use App\Models\Personnage;
+use App\Models\Quete;
+use App\Models\Sort;
+use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * LE MJ JOUE UN HÉROS — la couture UNIQUE.
+ *
+ * Trois cartes de Zargon prennent la main d'un héros : *Possess* (High Mage, Wizards of Morcar :
+ * « Zargon will move this figure on its next turn. The affected figure may not attack or cast
+ * spells »), *Dominate* (Sorcier du Dread, *Against the Ogre Horde* p. 10 : « Zargon […] may move,
+ * fight, cast spells, and perform any other action as the Dominated hero (including attacking other
+ * heroes) ») et, demain, la *Malédiction du loup-garou* du Mage du Miroir (« Zargon controls them as
+ * a monster for one turn »). Elles ne diffèrent que par CE QUE LE MJ A LE DROIT DE FAIRE
+ * ({@see ControleMj}) — jamais par la façon de marcher, de traverser un piège, de frapper un autre
+ * héros. Cette classe est cette façon, écrite une seule fois ; chaque carte n'apporte que son profil
+ * et SON MOMENT (Possession : le prochain tour du héros ; Domination : tout de suite, à la phase du
+ * Sorcier).
+ *
+ * L'ORDRE JOUÉ, comme le tour d'un héros — un déplacement, une action :
+ *  1. si le profil le permet et qu'un sort offensif du répertoire du héros est disponible, avec un
+ *     héros en vue : le sort EST l'action (le héros ne s'approche pas pour le lancer) ;
+ *  2. sinon il AVANCE vers sa cible (le monstre le plus proche, ou l'autre héros le plus proche) de la
+ *     distance que le profil dit, les pièges de la route se déclenchant (mouvement forcé,
+ *     `MoteurPieges::repousserFigure()`) ;
+ *  3. au contact d'un autre héros, et si le profil l'autorise, il le FRAPPE à l'arme.
+ *
+ * ⚠ Ce que Zargon ne fait PAS avec un héros dominé, écrit plutôt que tu : il ne tire pas à distance
+ * (arme de jet, arc), il ne se sert d'aucun objet ni d'aucune capacité de classe, et le coup à l'arme
+ * est celui de `personnage.des_attaque` — la colonne de l'équipement, plafonnée par l'état de choc et
+ * par les conditions (`Apeuré`) —, sans les talents ni les tags de maîtrise de `ResolveurTour::frapper()`.
+ * « Perform any other action » n'a ici aucun lecteur : un MJ qui choisirait entre vingt options sans
+ * que personne ne le lui demande est la décision que ce projet refuse de confier à autre chose
+ * qu'une politique écrite.
+ *
+ * ÉTENDRE : un nouveau client = un constructeur nommé de {@see ControleMj} + l'endroit qui décide DU
+ * MOMENT. Si sa règle exige une capacité que le profil ne dit pas (jouer avec les stats d'un MONSTRE),
+ * on ajoute le champ ET la branche de {@see self::jouer()} qui le lit — pas avant.
+ */
+final class HerosJoueParLeMj
+{
+    public function __construct(
+        private readonly LanceurDes $des,
+        private readonly MoteurSorts $sorts,
+        private readonly MoteurDegats $degats,
+        private readonly MoteurDread $dread,
+    ) {}
+
+    /**
+     * Joue le tour du héros pour le MJ, et rend la LISTE des actions jouées, dans l'ordre où elles se
+     * sont produites. Jamais vide : un héros qui n'a rien pu faire rend une action `…_deplacement` sans
+     * déplacement, la décision du moteur.
+     *
+     * ⚠ Cette méthode NE journalise PAS : c'est l'APPELANT qui porte l'événement (Possession journalise
+     * son déplacement, la Domination range les actions DANS le payload du sort). Journalisées ici ET
+     * imbriquées par l'appelant, elles se liraient deux fois au rejeu du fil.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function jouer(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        ControleMj $controle,
+    ): array {
+        $depart = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+        $victimes = $controle->cible === ControleMj::CIBLE_HEROS ? $this->herosAtteignables($quete, $personnage) : collect();
+
+        // 1. Le sort : l'action du tour, sans mouvement.
+        if ($controle->sorts && $victimes->isNotEmpty()) {
+            $sortLance = $this->lancerUnSort($quete, $controle, $personnage, $etat, $victimes);
+
+            if ($sortLance !== null) {
+                return [$sortLance];
+            }
+        }
+
+        // 2. La marche.
+        $but = $controle->cible === ControleMj::CIBLE_HEROS
+            ? $this->plusProche($victimes->map(fn (EtatPersonnageQuete $v) => ['x' => (int) $v->position_x, 'y' => (int) $v->position_y, 'nom' => $v->personnage->nom, 'obj' => $v]), $depart)
+            : $this->monstreLePlusProche($quete, $depart);
+
+        $grille = FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id);
+        $chemin = [];
+
+        if ($but !== null) {
+            $complet = $this->dread->cheminVersCaseAdjacente($grille, $depart['x'], $depart['y'], $but['x'], $but['y']) ?? [];
+            $chemin = array_slice($complet, 0, $this->pas($controle, $personnage, $etat));
+        }
+
+        $arrivee = $depart;
+        $piegesCroises = [];
+
+        if ($chemin !== [] && $quete->carte !== null) {
+            $piege = app(MoteurPieges::class)->repousserFigure($groupe, $quete->carte, $personnage, $etat, $chemin);
+            $arrivee = $piege['arret'] ?? end($chemin);
+            $piegesCroises = $piege['declenchements'];
+            $etat->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+        }
+
+        $deplacement = [
+            ...$this->enTete($controle, 'deplacement'),
+            'personnage_id' => (int) $personnage->id,
+            'personnage' => $personnage->nom,
+            'de' => $depart,
+            'vers' => ['x' => (int) $arrivee['x'], 'y' => (int) $arrivee['y']],
+            ($controle->cible === ControleMj::CIBLE_HEROS ? 'vers_heros' : 'vers_monstre') => $but['nom'] ?? null,
+            // Les pièges que cette marche forcée a croisés : ils n'étaient que journalisés
+            // à part, donc absents du fil en direct (bâti sur le RÉSULTAT).
+            'pieges_declenches' => $piegesCroises,
+        ];
+        $actions = [$deplacement];
+
+        // 3. Le coup, au contact d'un autre héros.
+        $etat->refresh();
+
+        if ($controle->attaque && ! $etat->tombe) {
+            $adjacent = $victimes
+                ->map(fn (EtatPersonnageQuete $v) => $v->fresh())
+                ->filter(fn (?EtatPersonnageQuete $v) => $v !== null && ! $v->tombe && $v->position_x !== null
+                    && abs((int) $etat->position_x - (int) $v->position_x) + abs((int) $etat->position_y - (int) $v->position_y) === 1)
+                ->sortBy(fn (EtatPersonnageQuete $v) => (int) $v->personnage->pv_body)
+                ->first();
+
+            if ($adjacent !== null) {
+                $coup = [
+                    ...$this->enTete($controle, 'attaque'),
+                    ...$this->frapperUnHeros($personnage, $adjacent->personnage, $adjacent, ['domination' => true]),
+                ];
+                $actions[] = $coup;
+            }
+        }
+
+        return $actions;
+    }
+
+    /**
+     * UN HÉROS FRAPPE UN AUTRE HÉROS à l'arme — le coup que le MJ porte avec un héros dont il a la main
+     * (*Commandement*, *Dominate*). Point de passage unique : le *Commandement* avait sa propre copie
+     * de ce calcul, que cette méthode remplace.
+     *
+     * Les dés d'attaque sont ceux de la colonne `des_attaque` (équipement, classe), ramenés à 1 par
+     * l'ÉTAT DE CHOC et plafonnés par les conditions (`Apeuré` : « may ONLY USE 1 Attack die ») —
+     * deux lectures que `ResolveurTour::frapper()` fait aussi, au moment du jet. Le défenseur lance
+     * sa défense ordinaire (`desDefenseHeros()`, choc et plafonds compris) ; être attaqué réveille.
+     *
+     * Rend le corps du payload SANS `type` : chaque appelant pose le sien, en littéral.
+     *
+     * @param  array<string, mixed>  $contexte  clés ajoutées au contexte de dégâts (écouteurs de `HerosVaSubirDegats`)
+     * @return array<string, mixed>
+     */
+    public function frapperUnHeros(Personnage $agresseur, Personnage $victime, EtatPersonnageQuete $etatVictime, array $contexte = []): array
+    {
+        $des = $agresseur->estEnChoc() ? 1 : max(0, (int) $agresseur->des_attaque);
+        $plafond = $this->dread->plafondDesAttaque($agresseur);
+
+        if ($plafond !== null) {
+            $des = min($des, $plafond);
+        }
+
+        $resultat = (new Combat($this->des))->resoudreAttaque(
+            desAttaque: $des,
+            desDefense: $this->sorts->desDefenseHeros($victime),
+            typeDefenseur: TypeFigurine::Heros,
+            pvBodyDefenseur: (int) $victime->pv_body,
+        );
+
+        $subis = $this->degats->infligerAHeros(
+            $victime, $resultat->degats, MoteurDegats::SOURCE_SORT_DREAD,
+            ['par' => $agresseur->nom, ...$contexte],
+        );
+        $this->sorts->reveillerHeros($victime);
+
+        if ((int) $victime->pv_body === 0 && $subis > 0) {
+            $etatVictime->update(['tombe' => true]);
+        }
+
+        return [
+            'personnage_id' => (int) $agresseur->id,
+            'personnage' => $agresseur->nom,
+            'cible' => ['personnage_id' => $victime->id, 'nom' => $victime->nom],
+            'touches' => $resultat->touches,
+            'boucliers' => $resultat->boucliers,
+            'degats' => $subis,
+            'pv_body_apres' => (int) $victime->pv_body,
+            'cible_tombee' => (int) $victime->pv_body === 0 && $subis > 0,
+            ...$resultat->pourJournal(),
+        ];
+    }
+
+    /**
+     * Les types d'action de CHAQUE profil, en LITTÉRAL — le registre `JournalCombat::TYPES` est
+     * confronté aux sources par `'type' => '…'`, et un type bâti par concaténation lui échapperait.
+     *
+     * @return array{type: string}
+     */
+    private function enTete(ControleMj $controle, string $etape): array
+    {
+        return match ([$controle->nom, $etape]) {
+            ['possession', 'deplacement'] => ['type' => 'possession_deplacement'],
+            ['domination', 'deplacement'] => ['type' => 'domination_deplacement'],
+            ['domination', 'attaque'] => ['type' => 'domination_attaque'],
+            ['domination', 'sort'] => ['type' => 'domination_sort'],
+            default => throw new \LogicException("Le profil « {$controle->nom} » ne joue pas l'étape « {$etape} »."),
+        };
+    }
+
+    /** Combien de cases le MJ fait avancer ce héros (au moins une — le héros qui n'a jamais lancé de dé marche de sa base). */
+    private function pas(ControleMj $controle, Personnage $personnage, EtatPersonnageQuete $etat): int
+    {
+        $base = max(1, (int) $personnage->deplacement_base);
+
+        if ($controle->deplacement === ControleMj::DEPLACEMENT_BASE) {
+            return $base;
+        }
+
+        // « Full movement » : celui que le héros a LANCÉ pour son propre tour de ce round
+        // (`deplacement_tour`, le total mémorisé par `MenuMoteur::deplacementDuTour()` — armure, bottes,
+        // choc et menace déjà décidés). Le recalculer ici serait une seconde copie de cette règle.
+        return max(1, (int) ($etat->deplacement_tour ?? $base));
+    }
+
+    /**
+     * Les AUTRES héros que ce héros peut frapper : debout, pas cachés (« inattaquable » : Voile de
+     * Brume, Invisibilité) — le même filtre que celui des monstres (`phaseMonstres()`).
+     *
+     * @return Collection<int, EtatPersonnageQuete>
+     */
+    private function herosAtteignables(Quete $quete, Personnage $personnage): Collection
+    {
+        return $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
+            ->filter(fn (EtatPersonnageQuete $e) => (int) $e->personnage_id !== (int) $personnage->id
+                && $e->personnage !== null
+                && $e->position_x !== null
+                && ! $this->sorts->estInattaquable($e->personnage))
+            ->values();
+    }
+
+    /**
+     * La cible la plus proche (Manhattan, comme le choix d'allié du Commandement), à égalité la première
+     * dans l'ordre reçu.
+     *
+     * @param  Collection<int, array<string, mixed>>  $cibles
+     * @param  array{x: int, y: int}  $depart
+     * @return array<string, mixed>|null
+     */
+    private function plusProche(Collection $cibles, array $depart): ?array
+    {
+        return $cibles
+            ->sortBy(fn (array $c) => abs($c['x'] - $depart['x']) + abs($c['y'] - $depart['y']))
+            ->first();
+    }
+
+    /**
+     * Le monstre actif et révélé le plus proche (Possession : « il avance vers le monstre actif le
+     * plus proche et s'arrête à son contact »).
+     *
+     * @param  array{x: int, y: int}  $depart
+     * @return array{x: int, y: int, nom: string}|null
+     */
+    private function monstreLePlusProche(Quete $quete, array $depart): ?array
+    {
+        $monstre = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->orderBy('id')->get()
+            ->filter(fn (InstanceMonstre $m) => $m->position_x !== null)
+            ->sortBy(fn (InstanceMonstre $m) => abs((int) $m->position_x - $depart['x']) + abs((int) $m->position_y - $depart['y']))
+            ->first();
+
+        return $monstre === null ? null : [
+            'x' => (int) $monstre->position_x,
+            'y' => (int) $monstre->position_y,
+            'nom' => $monstre->nomAffiche(),
+        ];
+    }
+
+    /**
+     * Le sort offensif : le premier sort de dégâts à cible UNIQUE que le héros connaît encore
+     * (`personnage_sorts.disponible`), jeté sur l'autre héros en vue qui a le moins de PV de Body — celui
+     * qu'on achève. Rend `null` quand rien ne s'y prête (le héros n'est pas lanceur, ses sorts sont épuisés,
+     * il est aveuglé, personne n'est en vue) : le MJ retombe sur la marche et le coup.
+     *
+     * Un sort lancé sous contrôle est RÉELLEMENT dépensé (« chaque sort est lançable une fois par quête »)
+     * et résolu par `ResolveurTour::lancerSortSousControleMj()` — la même résolution que si le joueur l'avait
+     * lancé, y compris le tir ami que les dégâts d'un sort de héros sur un autre héros sont déjà.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $victimes
+     * @return array<string, mixed>|null
+     */
+    private function lancerUnSort(
+        Quete $quete,
+        ControleMj $controle,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        Collection $victimes,
+    ): ?array {
+        if ($this->sorts->sortsInterdits($personnage)) {
+            return null; // Grésil aveuglant : « may not […] cast spells »
+        }
+
+        $sort = $personnage->sorts()->orderBy('sorts.id')->get()
+            ->first(fn (Sort $s) => (bool) $s->pivot->disponible
+                && $s->type === 'degats'
+                && data_get($s->effet, 'zone') === null
+                && data_get($s->effet, 'rayon') === null
+                && data_get($s->effet, 'ouvre_porte') === null);
+
+        if ($sort === null) {
+            return null;
+        }
+
+        $grille = FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id);
+
+        $victime = $victimes
+            ->filter(fn (EtatPersonnageQuete $v) => $grille->ligneDeVue(
+                (int) $etat->position_x, (int) $etat->position_y, (int) $v->position_x, (int) $v->position_y,
+                figuresBloquent: true,
+            ))
+            ->sortBy(fn (EtatPersonnageQuete $v) => (int) $v->personnage->pv_body)
+            ->first();
+
+        if ($victime === null) {
+            return null;
+        }
+
+        try {
+            $resultat = app(ResolveurTour::class)->lancerSortSousControleMj($quete, $personnage, $etat, $sort, $victime->personnage);
+        } catch (ValidationException) {
+            return null; // le résolveur refuse ce lancer (ligne de vue plus stricte…) : le MJ marche et frappe
+        }
+
+        $payload = [
+            ...$this->enTete($controle, 'sort'),
+            'personnage_id' => (int) $personnage->id,
+            'personnage' => $personnage->nom,
+            'sort' => $sort->nom,
+            'cible' => ['personnage_id' => $victime->personnage->id, 'nom' => $victime->personnage->nom],
+            'resultat' => $resultat,
+        ];
+
+        return $payload;
+    }
+}

@@ -925,6 +925,77 @@ final class MoteurPieges
     }
 
     /**
+     * Noms donnés à la carte « Hazard! » du deck, par variante (`DeckFouille::carte()`).
+     * Ce sont les mots de la carte (« a hidden arrow shoots from the wall », « a shallow
+     * hole »), pas des entrées du catalogue : la carte n'est pas un `Piege`.
+     */
+    public const NOMS_HAZARD = ['fleches' => 'Flèche cachée', 'trou' => 'Trou peu profond'];
+
+    /**
+     * CARTE « HAZARD! » du deck de fouille (Treasure, 2021 et 2024) : « You lose 1 Body
+     * Point. Your turn immediately ends. » — la flèche (« An arrow suddenly flies from the
+     * wall ») et le trou (« You fall into a shallow hole… You may climb out and take your
+     * normal movement on your next turn »). Ni jet, ni poison : c'est tout ce que la
+     * carte dit, et c'est tout ce que fait ce chemin.
+     *
+     * ⚠ DISTINCT de `declencherEphemere()`. Celui-ci applique le « Piège de coffre » du
+     * catalogue — un d6 qui rend 1 PV OU Empoisonné — que la carte Hazard ne porte pas.
+     * Il reste la voie des pièges NOMMÉS (aiguille du tombeau, fiole de l'établi,
+     * `piege` du coffre piégé) : aucun ne passe ici.
+     *
+     * ⚠ Le trou ne pose AUCUN état : « climb out and take your normal movement on your
+     * next turn » est le mouvement ordinaire du tour suivant, rien à poser ni à lever.
+     * La fin de tour est le mécanisme existant (`a_joue`), comme pour le piège de coffre.
+     *
+     * @return array<string, mixed> payload journalisé
+     */
+    public function declencherCarteHazard(
+        Groupe $groupe,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        string $variante,
+        bool $narrer = true,
+    ): array {
+        $nom = self::NOMS_HAZARD[$variante] ?? throw new \LogicException("Variante de carte Hazard inconnue : {$variante}.");
+
+        $subis = $this->degats->infligerAHeros(
+            $personnage, 1, MoteurDegats::SOURCE_PIEGE, ['piege' => $nom, 'carte' => 'hazard'],
+        );
+        $pvApres = (int) $personnage->pv_body;
+        $tombe = $pvApres === 0 && $subis > 0;
+
+        // « Your turn immediately ends » : le tour s'arrête sur-le-champ.
+        $etat->update(['tombe' => $tombe || $etat->tombe, 'a_joue' => true]);
+
+        $payload = [
+            'type' => 'piege_declenche',
+            'contexte' => 'fouille_tresor',
+            'ephemere' => true, // jamais posé sur grille.pieges
+            'hazard' => true,
+            'variante' => $variante,
+            'piege' => ['nom' => $nom],
+            'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+            // Ce qui a RÉELLEMENT été perdu : un talent de réduction peut ramener le 1 à 0.
+            'degats' => $subis,
+            'pv_body_apres' => $pvApres,
+            'tombe' => $tombe,
+            'immobilise' => false,
+            'fin_de_tour' => true,
+            'condition_appliquee' => null,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, [
+            'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
+        ]);
+
+        if ($narrer) {
+            $this->narrerPiegeDeclenche($groupe, $etat->quete, $personnage);
+        }
+
+        return $payload;
+    }
+
+    /**
      * TELEPORT TRAP (Wizards of Morcar, doc 18 §5/§9) — « finishing movement
      * on space A teleports the character to space B elsewhere on the board,
      * disoriented, and their turn ends ». La paire A/B est posée par

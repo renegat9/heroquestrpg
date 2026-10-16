@@ -118,3 +118,116 @@ it('publie le drapeau au client APRÈS la première frappe — le miroir n\'a pl
         ->and($entite['attaque_supplementaire'] ?? null)
         ->toBeTrue('sans ce champ, `ActionTab` grise l\'attaque malgré le bonus payé');
 });
+
+/**
+ * Lit l'entrée « utiliser_objet » du menu courant — comme la manette, par le cache du menu.
+ *
+ * @return list<array<string, mixed>>
+ */
+function gorgeesDuMenu(App\Models\Groupe $groupe, App\Auth\JoueurAuthentifiable $joueur, App\Models\Personnage $heros): array
+{
+    GenererMenu::dispatchSync($groupe->id, (int) $joueur->id, (int) $heros->id);
+    $menu = Illuminate\Support\Facades\Cache::get(GenererMenu::cleMenu($groupe->id, (int) $joueur->id));
+
+    $option = collect($menu['menu']['options'] ?? [])->firstWhere('id', 'utiliser_objet');
+
+    return (array) ($option['parametres']['objets'] ?? []);
+}
+
+it('AVANT la frappe, par la route : la gorgée est offerte, et la frappe est DOUBLÉE (menu, puis résolveur)', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $ligne = $ctx['heros']->inventaire()->create([
+        'objet_id' => Objet::where('nom', 'Potion d\'héroïsme')->firstOrFail()->id, 'emplacement' => 'sac',
+    ]);
+    $cible = ['cible_id' => $ctx['heros']->id, 'cible_type' => 'heros'];
+
+    expect(collect(gorgeesDuMenu($ctx['groupe'], $ctx['alice'], $ctx['heros']))->firstWhere('inventaire_id', $ligne->id))
+        ->not->toBeNull('offerte avant toute frappe');
+
+    desFiges(array_fill(0, 30, 6));
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet', 'parametres' => ['cle' => "objet:{$ligne->id}", ...$cible],
+    ])->assertStatus(202);
+
+    expect((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeTrue('la gorgée arme la seconde frappe');
+
+    // Première frappe : le créneau d'action normal. Le drapeau SURVIT — c'est lui la seconde.
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
+    ])->assertStatus(202);
+
+    expect((bool) $ctx['etatHeros']->fresh()->a_agi)->toBeTrue()
+        ->and((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeTrue();
+
+    // Seconde frappe : offerte, acceptée — et c'est elle qui dépense le drapeau.
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
+    ])->assertStatus(202);
+
+    expect((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeFalse('la seconde frappe a eu lieu');
+});
+
+it('APRÈS la frappe, la Potion d\'héroïsme n\'est plus offerte — et le résolveur la refuse aussi', function () {
+    // L'ancien ordre (boire APRÈS avoir frappé pour en refaire une) n'est ni offert ni accepté.
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $ligne = $ctx['heros']->inventaire()->create([
+        'objet_id' => Objet::where('nom', 'Potion d\'héroïsme')->firstOrFail()->id, 'emplacement' => 'sac',
+    ]);
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    desFiges(array_fill(0, 12, 6));
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
+    ])->assertStatus(202);
+
+    expect(collect(gorgeesDuMenu($ctx['groupe'], $ctx['alice'], $ctx['heros']))->firstWhere('inventaire_id', $ligne->id))
+        ->toBeNull('plus offerte une fois la frappe partie');
+
+    // La route refuse (la liste du menu est la liste blanche)…
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}", 'cible_id' => $ctx['heros']->id, 'cible_type' => 'heros'],
+    ])->assertStatus(422);
+
+    // …et le résolveur, pris seul, aussi : rien n'est armé.
+    expect(fn () => app(MoteurPotions::class)->boire($ctx['heros']->fresh(), $ligne->fresh()))
+        ->toThrow(Illuminate\Validation\ValidationException::class);
+    expect((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeFalse('aucune seconde frappe n\'a été armée');
+});
+
+it('UNE SEULE gorgée de Potion d\'héroïsme par frappe : la seconde n\'est ni offerte ni acceptée', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $premiere = $ctx['heros']->inventaire()->create([
+        'objet_id' => Objet::where('nom', 'Potion d\'héroïsme')->firstOrFail()->id, 'emplacement' => 'sac',
+    ]);
+    $seconde = $ctx['heros']->inventaire()->create([
+        'objet_id' => Objet::where('nom', 'Potion d\'héroïsme')->firstOrFail()->id, 'emplacement' => 'sac',
+    ]);
+
+    app(MoteurPotions::class)->boire($ctx['heros'], $premiere->fresh());
+    expect((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeTrue();
+
+    // Une seconde gorgée ne rajouterait pas une frappe (« two attacks instead of one ») : elle serait perdue.
+    expect(collect(gorgeesDuMenu($ctx['groupe'], $ctx['alice'], $ctx['heros']))->firstWhere('inventaire_id', $seconde->id))
+        ->toBeNull();
+    expect(fn () => app(MoteurPotions::class)->boire($ctx['heros']->fresh(), $seconde->fresh()))
+        ->toThrow(Illuminate\Validation\ValidationException::class);
+});
+
+it('REPLI : une frappe déjà doublée sous l\'ancien ordre (drapeau posé, frappe faite) garde sa seconde frappe', function () {
+    // Une gorgée bue après la frappe, avant ce changement, a posé le même drapeau : elle ne doit pas
+    // être perdue par la nouvelle règle. Le drapeau reste lu par la seconde frappe, inchangée.
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $ctx['etatHeros']->update(['a_agi' => true, 'attaque_supplementaire' => true]);
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    desFiges(array_fill(0, 12, 6));
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
+    ])->assertStatus(202);
+
+    expect((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeFalse('la seconde frappe a consommé le drapeau');
+});

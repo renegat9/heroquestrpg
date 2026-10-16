@@ -121,6 +121,23 @@ it('applique le buff de la Potion de force (bonus de dés d\'attaque)', function
     expect(app(MoteurSorts::class)->bonusDes($heros->fresh(), 'bonus_des_attaque'))->toBe(2);
 });
 
+it('boit une carte de trésor retirée de l\'étal : `hors_marche` ne touche jamais à la boisson', function () {
+    // René, 2026-10-16 : on ne vend plus ces potions, on les BOIT toujours. La
+    // clé ne vit que dans le marché (`PhaseMarche::estHorsMarche()`).
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    foreach (['Potion de force', 'Potion de défense'] as $nom) {
+        $ligne = donnerConsommable($heros, $nom);
+
+        $resultat = app(MoteurPotions::class)->boire($heros, $ligne);
+
+        expect($resultat['objet'])->toBe($nom)
+            ->and(Inventaire::find($ligne->id))->toBeNull(); // exemplaire consommé
+    }
+});
+
 it('ne met JAMAIS la potion d\'un autre héros dans la liste', function () {
     // ⚠ La garde d'appartenance a changé de place : elle vivait dans
     // `PotionController`, elle vit maintenant dans la LISTE que porte l'option

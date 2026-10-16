@@ -112,15 +112,22 @@ final class SceneDeTable
      */
     public function depuisReaction(array $r, Personnage $heros): array
     {
-        if (($r['type'] ?? null) !== 'reaction' || empty($r['active'])) {
+        if (($r['type'] ?? null) !== 'reaction') {
             return [];
         }
 
+        // La frappe d'une réaction est sa propre scène, même quand la réaction est REFUSÉE :
+        // un défi du Chevalier non relevé fait frapper le fouilleur (2026-10-16). Aucune
+        // autre réaction inactive ne porte de `frappe` (`riposter()` ne l'écrit qu'actif).
         if (is_array($r['frappe'] ?? null)) {
             return array_map(
                 fn (array $scene) => array_replace($scene, ['sous_titre' => (string) ($r['sort'] ?? 'Riposte')]),
                 $this->depuisResultat($r['frappe'], $heros),
             );
+        }
+
+        if (empty($r['active'])) {
+            return [];
         }
 
         $acteurs = [$this->acteurHeros($heros, 'acteur')];
@@ -207,6 +214,31 @@ final class SceneDeTable
             }
         }
 
+        // ERRANT du surgissement (carte 2024 *Wandering Monster*) : la bête frappe aussitôt le
+        // fouilleur — sa propre scène, à la suite de la fouille qui l'a fait naître.
+        if (is_array($a['frappe_errant'] ?? null)) {
+            foreach ($this->depuisAction($a['frappe_errant'], $acteur) as $scene) {
+                $scenes[] = $scene;
+            }
+        }
+
+        // DREAD SKULL : une figure PARAÎT à la vue d'un héros, et son tir (`action`) est une scène
+        // à part — même appel récursif que `carte_armoire` juste au-dessus. Sans cette boucle la
+        // table montrait un héros qui marche et un autre qui perd des PV, sans le crâne entre les deux.
+        foreach ((array) ($a['apparitions'] ?? []) as $apparition) {
+            if (! is_array($apparition)) {
+                continue;
+            }
+
+            $scenes[] = $this->apparitionALaVue($apparition);
+
+            if (is_array($apparition['action'] ?? null)) {
+                foreach ($this->depuisAction($apparition['action'], $acteur) as $scene) {
+                    $scenes[] = $scene;
+                }
+            }
+        }
+
         // MONSTRE À PHASES (chantier 2026-10-04) : même raison que les pièges
         // imbriqués ci-dessus — n'importe quel TYPE d'action (attaque de
         // héros, d'allié, sort, reflet de sort) peut amener une instance à
@@ -256,6 +288,106 @@ final class SceneDeTable
         ];
     }
 
+    /**
+     * Le SOUFFLE DU CONSTRUIT : le Golem de Forge sur toute la salle. Tous les héros pris, chacun
+     * avec ce qu'il a perdu — jamais un seul défenseur : « vs » raconterait un duel.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function souffleDuConstruit(array $a): ?array
+    {
+        $resultats = array_values(array_filter((array) ($a['resultats'] ?? []), 'is_array'));
+
+        if ($resultats === []) {
+            return null;
+        }
+
+        $nom = (string) ($a['monstre'] ?? 'Le Golem');
+        $instanceId = (int) ($a['instance_id'] ?? 0);
+        $objets = [];
+        $total = 0;
+
+        foreach ($resultats as $r) {
+            $heros = Personnage::find((int) ($r['cible']['personnage_id'] ?? 0));
+            $degats = (int) ($r['degats'] ?? 0);
+            $total += $degats;
+
+            $objets[] = [
+                'nom' => (string) ($r['cible']['nom'] ?? 'un héros'),
+                'image_url' => $heros === null
+                    ? $this->images->vignette('heros', (string) ($r['cible']['nom'] ?? 'héros'))
+                    : $this->acteurHeros($heros, 'cible')['image_url'],
+                'detail' => ! empty($r['cible_tombee']) ? 'tombe' : ($degats > 0 ? "−{$degats} PV" : 'résiste'),
+            ];
+        }
+
+        return [
+            'genre' => 'attaque',
+            'titre' => "{$nom} — Souffle du Construit",
+            'sous_titre' => count($resultats).' héros pris dans le souffle : 2 PV, réduits par deux dés rouges',
+            'acteurs' => $instanceId > 0 ? [$this->acteurMonstre($instanceId, $nom, 'attaquant')] : [],
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => $objets,
+            'issue' => $total > 0
+                ? ['ton' => 'subit', 'libelle' => "−{$total} PV au total"]
+                : ['ton' => 'pare', 'libelle' => 'le souffle ne blesse personne'],
+        ];
+    }
+
+    /**
+     * La VRILLE que le Scion fait jaillir à la fin de son tour (ou l'absence de case libre).
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>
+     */
+    private function vrillePosee(array $a): array
+    {
+        $monstre = (string) ($a['monstre'] ?? 'Le Scion');
+        $vrille = is_array($a['vrille'] ?? null) ? $a['vrille'] : null;
+
+        return [
+            'genre' => 'reaction',
+            'titre' => $vrille === null ? 'Aucune Vrille' : 'Une Vrille jaillit',
+            'sous_titre' => "{$monstre} — à la fin de son tour",
+            'acteurs' => $vrille === null ? [] : [$this->acteurMonstre((int) $vrille['instance_id'], (string) $vrille['nom'], 'acteur')],
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [],
+            'issue' => $vrille === null
+                ? ['ton' => 'info', 'libelle' => 'aucune case libre à sa portée']
+                : ['ton' => 'degats', 'libelle' => "se dresse en ({$vrille['x']}, {$vrille['y']})"],
+        ];
+    }
+
+    /**
+     * Une figure CACHÉE paraît à la vue d'un héros (Dread Skull) — son tir suit, scène à part.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>
+     */
+    private function apparitionALaVue(array $a): array
+    {
+        $monstre = (string) ($a['monstre'] ?? 'Une figure');
+        $instanceId = (int) ($a['instance_id'] ?? 0);
+        $qui = (string) ($a['declencheur']['nom'] ?? 'Un héros');
+
+        return [
+            'genre' => 'reaction',
+            'titre' => "{$monstre} paraît",
+            'sous_titre' => "{$qui} vient de la voir",
+            'acteurs' => $instanceId > 0 ? [$this->acteurMonstre($instanceId, $monstre, 'acteur')] : [],
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [],
+            'issue' => ['ton' => 'degats', 'libelle' => 'elle tire aussitôt'],
+        ];
+    }
+
     /** @return array<string, mixed> */
     private function reactionMonstre(string $mecanique): array
     {
@@ -267,6 +399,7 @@ final class SceneDeTable
                 'ignore_degats_attaque' => 'le coup est intégralement ignoré',
                 'increvable_une_fois' => 'tient debout à 1 PV',
                 'jeton_ombre' => 'le coup est absorbé par un jeton d\'ombre',
+                'sacrifice_de_vrille' => 'sacrifie une Vrille et tient debout à 1 PV',
                 default => $mecanique,
             }],
         ];
@@ -354,11 +487,19 @@ final class SceneDeTable
             // `cible` (le Dragon s'est seulement rapproché), elle rend `null`
             // et la table reste muette, exactement comme un déplacement seul.
             'vol_draconique' => $this->attaqueDuMonstre($a),
+            // DOMINATE (Against the Ogre Horde p. 10) : le coup et le sort d'un héros DOMINÉ contre ses
+            // compagnons — deux scènes que la table devait voir, avec le héros dominé pour acteur.
+            'domination_attaque' => $this->dominationAttaque($a),
+            'domination_sort' => $this->dominationSort($a),
             // MOBILIER ATTAQUABLE (PV + défense, 2026-10-04) : même genre
             // `attaque` qu'un coup porté à un monstre — Crystal Cluster, Haut
             // Autel, Coffre du Dread se détruisent au combat, pas sur un jet
             // de Body (`jet` ci-dessus, qui couvre `detruire_mobilier_*`).
             'attaque_mobilier' => $this->attaqueMobilier($a, $acteur),
+            // GOLEM CŒUR-DE-FORGE : le souffle de salle — plusieurs héros, un jet de dés rouges chacun.
+            'souffle_du_construit' => $this->souffleDuConstruit($a),
+            // SCION FLEUR-POURRIE : la Vrille qui jaillit à la fin de son tour.
+            'vrille_posee' => $this->vrillePosee($a),
             default => null,
         };
     }
@@ -459,6 +600,62 @@ final class SceneDeTable
             'objets' => [],
             'issue' => $this->issueDuCoup($a, $degats, $cibleNom, vaincue: ! empty($a['cible_tombee']), heros: true),
         ];
+    }
+
+    /**
+     * Un héros DOMINÉ frappe un compagnon à l'arme (Dominate, Against the Ogre Horde p. 10) — la même scène
+     * qu'une attaque de monstre, avec deux HÉROS : le dominé en attaquant, sa victime en défenseur.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function dominationAttaque(array $a): ?array
+    {
+        $attaquant = Personnage::find((int) ($a['personnage_id'] ?? 0));
+        $cible = Personnage::find((int) ($a['cible']['personnage_id'] ?? 0));
+
+        if ($attaquant === null || $cible === null) {
+            return null;
+        }
+
+        return [
+            'genre' => 'attaque',
+            'titre' => "{$attaquant->nom}, dominé, attaque {$cible->nom}",
+            'sous_titre' => 'sous la coupe du Sorcier du Dread',
+            'acteurs' => [
+                $this->acteurHeros($attaquant, 'attaquant'),
+                $this->acteurHeros($cible, 'defenseur'),
+            ],
+            'jet' => $this->jetDesDes($a, $attaquant->nom, $cible->nom),
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [],
+            'issue' => $this->issueDuCoup($a, (int) ($a['degats'] ?? 0), $cible->nom, vaincue: ! empty($a['cible_tombee']), heros: true),
+        ];
+    }
+
+    /**
+     * Un héros DOMINÉ lance un de ses sorts sur un compagnon : la scène de ce sort, par la scène de
+     * sort ordinaire, avec LUI pour acteur.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function dominationSort(array $a): ?array
+    {
+        $lanceur = Personnage::find((int) ($a['personnage_id'] ?? 0));
+
+        if ($lanceur === null || ! is_array($a['resultat'] ?? null)) {
+            return null;
+        }
+
+        $scene = $this->sort($a['resultat'], $lanceur);
+
+        if ($scene !== null) {
+            $scene['sous_titre'] = "{$lanceur->nom}, dominé, lance ce sort sur un compagnon";
+        }
+
+        return $scene;
     }
 
     /**
@@ -1374,7 +1571,10 @@ final class SceneDeTable
 
             // Point de passage UNIQUE avec le fil de combat : même détection,
             // même face gagnante — voir JournalCombat::desJetUnilateral().
-            $jet = app(JournalCombat::class)->desJetUnilateral($r, $cibleNom);
+            // ⚠ L'OPPOSITION de Mind (Mind Lock, Dominate, Mind Burst — Against the Ogre Horde p. 10-11)
+            // publie DEUX volées (`faces_attaque`/`faces_defense`) : `jetDesDes()` les lit d'abord et
+            // retombe sur le jet unilatéral pour tous les autres sorts.
+            $jet = $this->jetDesDes($r, (string) ($a['lanceur']['nom'] ?? 'Le maître du jeu'), $cibleNom);
 
             if ($jet === null) {
                 continue; // rien à montrer pour cette victime : la suivante, ou aucune scène
@@ -1406,7 +1606,15 @@ final class SceneDeTable
                     // Gel de l'Esprit (René, 2026-10-01) : 0 Mind met en ÉTAT
                     // DE CHOC, ça ne fait plus tomber — clé DISTINCTE de
                     // `cible_tombee`, qui reste vraie pour un Body à zéro.
+                    // Against the Ogre Horde p. 10-11 : dominé, gelé, ou l'écart de crânes de Mind Burst.
+                    ! empty($r['domine']) => ['ton' => 'chute', 'libelle' => "{$cibleNom} est dominé jusqu'à la fin du tour du Sorcier"],
+                    isset($r['tours_geles']) && ! empty($r['effet_applique']) => ['ton' => 'subit', 'libelle' => "{$cibleNom} est gelé — {$r['tours_geles']} tour".((int) $r['tours_geles'] > 1 ? 's' : '').' perdu'.((int) $r['tours_geles'] > 1 ? 's' : '')],
                     ! empty($r['entre_en_choc']) => ['ton' => 'chute', 'libelle' => "{$cibleNom} entre en état de choc"],
+                    isset($r['ecart_cranes']) => match (true) {
+                        (int) $r['ecart_cranes'] > 0 => ['ton' => 'subit', 'libelle' => '−'.(int) $r['degats_mind']." Mind pour {$cibleNom}"],
+                        (int) $r['ecart_cranes'] < 0 => ['ton' => 'degats', 'libelle' => 'le Sorcier perd '.(int) $r['degats_mind_lanceur'].' Mind'],
+                        default => ['ton' => 'pare', 'libelle' => 'égalité de crânes — personne ne perd de Mind'],
+                    },
                     ! empty($r['cible_tombee']) => ['ton' => 'chute', 'libelle' => "{$cibleNom} s'effondre"],
                     (int) ($r['degats'] ?? 0) > 0 => ['ton' => 'subit', 'libelle' => '−'.(int) $r['degats'].' PV'],
                     array_key_exists('effet_applique', $r) => empty($r['effet_applique'])
@@ -1848,6 +2056,11 @@ final class SceneDeTable
      */
     private function porteeLisible(array $a): ?string
     {
+        // TOURELLE : une figure qui ne bouge pas — le sous-titre le dit.
+        if (! empty($a['tourelle'])) {
+            return 'Tourelle — fait feu depuis son poste';
+        }
+
         return JournalCombat::estUnTir($a) ? 'À distance' : null;
     }
 

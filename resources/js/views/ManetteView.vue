@@ -16,6 +16,7 @@ import SacTab from '../components/manette/SacTab.vue';
 import RecrutementHub from '../components/manette/RecrutementHub.vue';
 import CompagnonOffert from '../components/manette/CompagnonOffert.vue';
 import ChoixArmeFaveur from '../components/manette/ChoixArmeFaveur.vue';
+import ChoixRepertoireFaveur from '../components/manette/ChoixRepertoireFaveur.vue';
 import AnnonceHub from '../components/ui/AnnonceHub.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
 import JetDes from '../components/ui/JetDes.vue';
@@ -1049,11 +1050,16 @@ async function refuserCompagnon() {
     }
 }
 
-// FAVEUR WEAPON EXPERT (René, 2026-10-15) : le joueur choisit son type d'arme au hub. `/moi`
-// publie la LISTE BLANCHE (`faveurs[].choix`) tant que le choix reste à faire et qu'il est permis :
-// on prend l'entrée qui la porte, sans connaître la faveur ni la phase.
-const faveurAChoisir = computed(() => (monPerso.value?.faveurs ?? []).find((f) => Array.isArray(f.choix) && f.choix.length) ?? null);
+// FAVEURS À CHOIX (René, 2026-10-15) : le joueur choisit au hub, en recevant la faveur — le type d'arme
+// de WEAPON EXPERT, le répertoire d'ARCANE LIBRARY. `/moi` publie la LISTE BLANCHE (`faveurs[].choix`)
+// tant que le choix reste à faire et qu'il est permis. Le client ne décide ni de la liste ni de la phase :
+// il prend l'entrée qui porte un `choix`. Elle ne sait que laquelle des deux feuilles monter, car les deux
+// listes n'ont pas la même forme (armes / répertoires) — un écran par forme, pas une règle.
+const faveursAChoix = computed(() => (monPerso.value?.faveurs ?? []).filter((f) => Array.isArray(f.choix) && f.choix.length));
+const faveurAChoisir = computed(() => faveursAChoix.value.find((f) => f.cle === 'weapon_expert') ?? null);
+const faveurRepertoireAChoisir = computed(() => faveursAChoix.value.find((f) => f.cle === 'arcane_library') ?? null);
 const choixArmeEnCours = ref(false);
+const choixRepertoireEnCours = ref(false);
 async function choisirArmeFaveur(objetId) {
     if (choixArmeEnCours.value || !monPersonnageId.value) return;
     choixArmeEnCours.value = true;
@@ -1066,6 +1072,20 @@ async function choisirArmeFaveur(objetId) {
         store.setNarration(e.message);
     } finally {
         choixArmeEnCours.value = false;
+    }
+}
+async function choisirRepertoireFaveur(element) {
+    if (choixRepertoireEnCours.value || !monPersonnageId.value) return;
+    choixRepertoireEnCours.value = true;
+    try {
+        await api.choisirRepertoireFaveur(props.groupe, monPersonnageId.value, element);
+        // `/moi` porte le répertoire pris ET les sorts qui en viennent : relu tout de suite.
+        const { joueur: moi, personnages: persos } = await api.moi();
+        store.setJoueur(moi, persos ?? []);
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        choixRepertoireEnCours.value = false;
     }
 }
 async function chargerMercenaires() {
@@ -1439,6 +1459,12 @@ const navItems = computed(() => (scene.value === 'marche'
                                 :faveur="faveurAChoisir"
                                 :en-cours="choixArmeEnCours"
                                 @choisir="choisirArmeFaveur"
+                            />
+                            <ChoixRepertoireFaveur
+                                v-if="auHub && faveurRepertoireAChoisir"
+                                :faveur="faveurRepertoireAChoisir"
+                                :en-cours="choixRepertoireEnCours"
+                                @choisir="choisirRepertoireFaveur"
                             />
 
                             <!-- ---- bouton Prêt (phase hub, mode connecté) ---- -->

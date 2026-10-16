@@ -215,6 +215,16 @@ const CAPACITES = {
     sorts_uniques: 'Sorts du Dread (chacun une seule fois par quête)',
     embuscade: 'Embuscade (déguisé en coffre jusqu\'à ce qu\'un héros approche)',
     coup_de_corne: 'Coup de corne (encorne le héros qui finit son tour à son contact)',
+    // Le patron TOURELLE et les adversaires nommés de Jungles of Delthrak (2026-10-15) — libellés
+    // de `App\Engine\MotsClesAdversaires`, jamais une règle réécrite ici.
+    tourelle: 'Tourelle : immobile, fait feu chaque tour sur un héros en vue',
+    immunite_sorts: 'Immunisé à tous les effets de sort',
+    immunite_conditions: 'Immunisé aux sorts qui l\'endorment ou lui font perdre son tour',
+    apparait_a_la_vue: 'Paraît dès qu\'un héros le voit, et fait feu aussitôt',
+    filet_silencieux: 'Filet silencieux : Canaliser l\'Effroi sur tout héros qui finit son tour en sa vue (sans action)',
+    souffle_du_construit: 'Souffle du Construit (une fois) : 2 PV à toute la salle ou le couloir, réduits par 2 dés rouges',
+    vrille_en_fin_de_tour: 'Pose une Vrille à la fin de chacun de ses tours',
+    sacrifice_de_vrille: 'Sacrifie une Vrille pour rester à 1 PV au lieu de mourir',
 };
 
 /** Humanise une valeur brute (snake_case → « snake case »). */

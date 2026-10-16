@@ -165,7 +165,9 @@ it('expose la provenance des cartes, portées et non portées', function () {
     // (vague 2B : Orc Warcaster, Artificer) = 165.
     // +10 cartes de Jungles of Delthrak (7 artefacts/trésors p. 50, 3 potions
     // p. 2, chantier A, 2026-10-09) et +1 sort de Gruulob (chantier règles).
-    expect($cartes)->toHaveCount(176);
+    // +3 cartes de sorts de Dread d'Against the Ogre Horde (Mind Lock, Dominate, Mind Burst, F9528
+    // p. 10-11, 2026-10-16) = 179.
+    expect($cartes)->toHaveCount(179);
 
     // Chaque carte dit si elle est portée, et celles qui ne le sont pas
     // annoncent leur texte de plateau ET la mécanique qui leur manque.

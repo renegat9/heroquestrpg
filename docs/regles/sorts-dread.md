@@ -90,3 +90,82 @@
 **Ce qui se paie.** Le sort du héros est LANCÉ avant d'être annulé (« immediately after the hero casts a spell ») : un sort connu est épuisé, un parchemin consommé, l'action dépensée — le livret ne dit rien d'autre, et l'ordre du plateau l'impose. Une capacité se dépense pour la rencontre (`capacites_reactives_utilisees`, **colonne**). ⚠ Elle manquait au snapshot depuis *Resilience* — une reprise rendait sa défense réactive au boss, sans une erreur — : `Sauvegarde` la porte désormais, aux deux bouts. Une carte de Dread coûte UN usage du budget du lanceur, même quand le jet échoue, ET n'est jouée qu'UNE fois par rencontre (`« Each monster may cast each spell they know once per quest »`, Dread Moon p. 4) : le budget global tient lieu de compteur par sort pour les sorts d'ACTION, il ne le peut pas pour une réaction dont le déclencheur revient à chaque tour de héros — Sinestra aurait renvoyé trois sorts de suite. Un lancer que la route refuse (ligne de vue) ne dépense rien : la couture est APRÈS la validation.
 
 **Annoncé** : la décision voyage dans le payload du sort (`sort_annule`, `sort_renvoye`, `reactions_mj[]` — contrat `docs/contrat-api.md`), donc le fil en direct, le rejeu et la table lisent le même résultat (`JournalCombat::lignesSortAvecReactionsMj()`, une scène `reaction` par décision). Un sort de réaction n'est JAMAIS choisi comme action du tour (`sortUtilisable()` le refuse) ; ses déclencheurs sont un vocabulaire fermé, `MotsClesSortDread::REACTIONS`. **Non porté, et pourquoi** : *Deflect* (une ATTAQUE, `ResolveurTour::frapper()`) et *Consume Magic* de Magrian (Magrian n'est pas semée à un quart de sa fiche) — `MotsClesReactionMj::NON_IMPLEMENTEES`.
+
+## Les Sorciers du Dread d'*Against the Ogre Horde* — Nexrael, Xenloth, Festral (F9528 p. 10-11, 31, 35, 37 — 2026-10-16)
+
+**Trois sorts, trois Sorciers, une règle commune** (p. 10) : « A Dread Sorcerer may only cast one spell per turn. A spell can be cast on any target in
+the Dread Sorcerer's line of sight. If a Dread Sorcerer casts a spell on their turn, they may take their movement but may not make a weapon attack in the
+same turn. If a Dread Sorcerer has an active spell and is killed, the effects of that spell immediately end. » Un sort par activation et pas de coup d'arme
+après un sort : `jouerTourDreadBrut()` rend la main dès qu'un sort part. ⚠ « may take their movement » est un *peut* : le moteur ne fait pas marcher un Sorcier qui
+vient de lancer (nommé, pas oublié — aucun lecteur d'une marche de plus n'aurait de raison d'être). La mort du Sorcier lève ses gels
+(`MoteurDegats::infligerAMonstre()` → `VerrouMental::leverPourLanceur()`, l'UNIQUE point de passage de la mort d'un monstre), et le fil le dit.
+
+**Le jet en opposition** (`App\Engine\OppositionMind`, pur, hasard injecté) : « both attacker and defender roll combat dice equal to their Mind Points » — des dés de
+COMBAT (jamais des d6 bruts), la JAUGE `pv_mind` (errata 2021 C4, comme les ruptures), le Sorcier d'abord. Deux lectures du même jet :
+- **Crânes NETS** — *Mind Lock*, *Dominate* : les crânes du Sorcier moins les boucliers BLANCS du héros. ⚠ **Interprétation de René (2026-10-15)** : le livret est
+  muet sur les boucliers pour ces deux sorts ; il a tranché qu'ils annulent les crânes « comme dans un combat normal ». Résistance `opposition_mind_nette`.
+- **Écart de crânes BRUTS** — *Mind Burst* : « the combatant with the most rolled skulls […] inflicts Mind Point damage equal to the difference ». Aucun bouclier :
+  c'est la lettre du livret et l'exemple de la p. 11 (5 dés contre 6, « the wizard rolled two more skulls ») la tient. ⚠ **Rien n'a été tranché pour ce sort** — la
+  décision de René porte sur les deux autres ; la lecture littérale est une lecture à CONFIRMER. Résistance `opposition_mind_ecart`.
+Ce n'est ni un `jet_mind` au lancer, ni une rupture (`rupture_6_par_mind`) : le jet décide de l'effet ET de sa durée, une fois.
+
+**La réserve de cartes** (`App\Partie\CartesDread`, capacité `reserve_cartes` : `['Explosion mentale' => 4]`). Nexrael : « a reserve of 4 cards » ; Festral : « 3 cards for each
+spell » ; Xenloth : « 5 cards for each spell ». Ni le budget par palier (`usages_dread`), ni « chaque sort une fois » (`sorts_uniques`) : une réserve PAR SORT, pleine à chaque
+placement, dérivée en `usagesRestants()` (jamais copiée dans une seconde colonne). L'état vit dans `habillage.dread_etat.cartes` — durable, dans le snapshot. Le destin d'une carte est la
+donnée du SORT (`effet.carte`, `MotsClesSortDread::CARTES`) : `defausse` (*Mind Burst* : « they discard one of their spell cards », perdue pour la quête) ou `prete` (*Mind Lock* :
+« returning one card to Zargon at the end of each of their turns spent frozen » ; *Dominate* : « hands the affected hero a Dominate card »). Une carte PRÊTÉE ne quitte la main qu'au moment où
+le sort PREND — « if no skulls are scored, the spell has no effect » — et c'est ce prêt qui borne les héros qu'un Sorcier tient gelés en même temps. Un sort sans carte ne se lance plus
+(`sortsLancables()`) ; les paliers de `sorts_dread.palier` restent le MINIMUM de tier du porteur (Burst `base` ← Nexrael, Lock `sous_boss` ← Xenloth, Dominate `boss` ← Festral).
+
+**Mind Lock** (`App\Partie\VerrouMental`). Un crâne net = un tour gelé = une carte prêtée. Le gel est **une condition SANS compteur** (`Verrou mental`, `duree: 0` :
+`decrementerDurees()` la lèverait dans le dos de la carte) qui porte ce qu'il FAIT — `deplacement_interdit`, `action_interdite`, `des_attaque_max: 0`, `des_defense_max: 1`, quatre
+lecteurs qui existaient déjà (*Esprit brisé* en porte trois) — plus la colonne `etat_personnage_quete.verrou_mental` `{lanceur_id, sort, cartes}` qui COMPTE. « At the end of each of their turns spent
+frozen » se joue à l'**ouverture du round** (`ResolveurTour::ouvrirTourDesHeros()`, même crochet que l'Étourdi) : un moteur par rounds n'a pas de « fin du tour de ce héros » qui ne soit déjà le début
+du suivant, et rien ne se passe entre les deux. Le tour est perdu, une carte revient dans la main DU SORCIER qui l'a prêtée, puis — s'il en reste — le héros lance autant de dés de combat que de Mind (jauge)
+et se libère à 3 crânes ou plus (`liberation_cranes`), rendant toutes les cartes restantes. La dernière carte rendue libère sans jet. ⚠ Un gel qui prend le tour de **tous** les héros debout laissait le
+groupe FIGÉ (aucun menu ne s'ouvre, personne ne déclenche la phase suivante) : `phaseMonstres()` se rejoue alors d'elle-même, jusqu'à ce qu'un héros ait la main — borné à `ROUNDS_SANS_HEROS_MAX` (8).
+**Non corrigé, nommé** : le même trou existe pour l'Étourdi d'un groupe réduit à un seul héros (`tour_perdu`) ; le fermer change un comportement déjà couvert par un test, hors périmètre.
+La condition ne survit pas à la quête (`MoteurSorts::reinitialiserQuete()` → `VerrouMental::purger()`) : les conditions de Dread n'ont pas le préfixe `sort:` que la purge connaissait, et un gel resté d'une
+quête à l'autre aurait privé le héros de son tour sans qu'aucune colonne ne sache plus le lever (`ouvrirTour()` lève aussi toute condition orpheline).
+
+**Dominate** — et **la couture « le MJ joue un héros »** (`App\Partie\HerosJoueParLeMj`, profils `App\Partie\ControleMj`). Trois cartes de Zargon prennent la main d'un héros : *Possess* (High Mage), *Dominate*
+(ici) et, demain, la *Malédiction du loup-garou* du Mage du Miroir (« Zargon controls them as a monster for one turn »). Elles ne diffèrent que par CE QUE LE MJ A LE DROIT DE FAIRE : un profil de cinq champs (`cible`
+monstre|héros, `deplacement` base|complet, `attaque`, `sorts`, `nom`), pas une seconde copie de la marche, des pièges ou du coup. `ControleMj::possession()` (déplacement de base vers le monstre le plus proche, sans frapper
+ni lancer) et `ControleMj::domination()` (déplacement COMPLET — le total que le héros a lancé pour SON tour de ce round, `deplacement_tour` — vers un autre héros ; coup à l'arme au contact, ou sort offensif sur un héros en vue)
+sont les deux clients d'aujourd'hui. La marche (chemin de la grille unique, pièges franchis par `MoteurPieges::repousserFigure()`) et le coup d'un héros sur un autre (`frapperUnHeros()`, que le *Commandement* emploie désormais aussi
+— il en avait sa propre copie) vivent UNE fois. **Ajouter un client** = un constructeur nommé de `ControleMj` + l'endroit qui décide DU MOMENT (Possession : le prochain tour du héros, par `ResolveurTour` ; Domination : tout de
+suite, dans `sortDreadDomination()`) ; si sa règle exige une capacité que le profil ne dit pas (le loup-garou joue avec les stats D'UN MONSTRE, pas celles du héros), on ajoute le champ ET la branche de `jouer()` qui le lit — jamais un champ
+sans lecteur. La couture ne journalise pas : l'appelant porte l'événement (Possession son déplacement ; Domination range les actions DANS le payload du sort — journalisées deux fois, elles se liraient deux fois au rejeu).
+*Dominate* : ≥ 2 crânes nets (`cranes_requis`) ; « immediately » — le héros est joué à la phase du Sorcier, rien ne reste posé sur lui, le sort est fini avec la méthode. Son PROPRE tour du round est déjà joué (la phase
+des monstres vient après) : il ne le perd pas, le MJ prend une action de plus. La carte est prêtée le temps du sort puis rendue — il en faut UNE en main. Le Contresort (talent) est une seconde chance, commune à tous les sorts de contrôle
+(`tenterContresort()`). Un sort lancé sous contrôle est RÉELLEMENT dépensé (`personnage_sorts.disponible`) et résolu par `ResolveurTour::lancerSortSousControleMj()` — la résolution du sort du joueur, au mot près, y compris le tir
+ami que ses dégâts sur un autre héros sont déjà.
+**Ce que Zargon ne fait PAS avec un héros dominé, écrit** : il ne tire pas à distance (arme de jet, arc), n'emploie aucun objet ni capacité de classe, et le coup est celui de `personnage.des_attaque` (équipement, classe — ramené à 1 par
+l'état de choc, plafonné par `Apeuré`), sans les talents ni les tags de maîtrise de `ResolveurTour::frapper()`. « Perform any other action » n'a aucun lecteur : un MJ qui choisirait entre vingt options sans qu'on le lui demande est la
+décision que ce projet refuse de confier à autre chose qu'une politique écrite. Les sorts retenus : le premier sort de dégâts à CIBLE UNIQUE encore disponible du répertoire du héros, sur le héros en vue qui a le moins de PV de Body.
+**Non porté, écrit** : la règle de quête de la Fosse du Dread (q. 8 p. 35 : « moves into the pit under the Dominate spell and does not move out on their next turn […] consumed by Dread ») — c'est un objectif de quête, pas un sort.
+
+**Mind Burst et l'état de choc d'un MONSTRE.** Le Sorcier qui perd le jet perd du Mind (« the Dread Sorcerer takes 2 Mind Points of damage », p. 11) : `MoteurDegats::infligerMindAMonstre()`, la méthode SŒUR d'`infligerMindAHeros()` — le
+**premier producteur** de Mind côté monstre (les lecteurs existaient : le Mind d'un monstre est son nombre de dés d'opposition et le seuil de ses ruptures). À 0 Mind une créature qui en avait ENTRE EN CHOC (p. 9, « every creature ») :
+`InstanceMonstre::estEnChoc()` (dérivé de la jauge, comme `Personnage::estEnChoc()`) plafonne 1 dé d'attaque et 2 de défense (`attaqueEffective()`, `defenseEffective()`, `attaqueDistanceEffective()`), relevés par les sorts de Sorcier posés sur
+elle. « One red movement die » n'est PAS porté : un monstre a un score de déplacement, pas un dé, et la carte ne dit pas ce qu'il devient — nommé, pas deviné. Une créature SANS Mind (squelette, momie) n'est jamais en choc.
+
+**La politique de choix (la nôtre — aucune carte ne dit ce que Zargon préfère).** Scores : *Mind Burst* 95 (`TYPE_MIND`), *Dominate* 85 (`TYPE_DOMINATION`), *Mind Lock* 80 (contrôle). *Mind Burst* ne se lance que sur un héros dont le Mind NE DÉPASSE PAS celui du Sorcier
+(il le perdrait plus souvent que lui) et qui en a encore (« a creature cannot go below 0 »). Aucun sort en opposition si le Mind du Sorcier est tombé à 0 (il ne lance aucun dé). *Mind Lock* vise le héros dont la JAUGE est la plus basse parmi ceux qui ne sont pas déjà gelés ;
+*Dominate* le plus faible d'esprit qui a un AUTRE héros debout et non caché à frapper. Le *Bâton Ancien* ne reflète pas ces sorts : il ne sait renvoyer qu'un dégât, une condition mappée ou un *Commandement*, et « Verrou mental » n'est aucun des trois.
+
+**Un lanceur de tier `base` lance enfin.** `ResolveurTour::jouerMonstreEveille()` n'appelait `jouerTourDread()` que pour les sous-boss et les boss : le Cultiste du Dread, le Spectre et le Tisseur putride (tier `base`, répertoire, archétype, usage réarmé à chaque
+quête) ne lançaient JAMAIS rien en partie réelle. Nexrael (tier `base`, mesure 1,2 attaque) a mis le défaut au jour : la porte s'ouvre désormais dès qu'un monstre a un répertoire (`MoteurDread::aUnRepertoire()`). **Conséquence assumée et à signaler** :
+ces trois créatures lancent maintenant leurs sorts, une fois par quête, comme leurs cartes le disent.
+
+**Annoncé.** Le jet (deux volées dessinées), le gel, chaque tour perdu, la tentative de libération, la fin du gel à la mort du Sorcier, la domination et chacun de ses gestes sont des phrases du fil (`LignesSorciersDuDread`, trait de
+`JournalCombat`) ET des scènes de table (`SceneDeTable::dominationAttaque()`, `dominationSort()`, scène de sort). `JournalCombat::actionsDuTour()` étale `resultats[].actions_domine[]` comme des actions à part entière. La fiche du héros publie « Gelé pour N tours encore ».
+
+## Le Filet silencieux, l'immunité aux sorts et le sort « hors action » (René, 2026-10-15)
+
+**`MoteurDread::lancerSortSurHeros()` lance UN sort de Dread, nommé, sur UN héros précis, HORS de l'action du lanceur** : ni choix de sort (`choisirSort()`), ni usage du budget (`consommerUsage()` n'est pas appelé), ni action consommée. C'est la résolution ORDINAIRE de la famille du sort (`lancerSortDread()` : dés, interceptions de `MoteurDegats`, conditions posées, payload `sort_dread` signé du lanceur) — jamais une seconde copie de ses règles. Premier utilisateur : le *Silencing Snare* de la Deathspinner (`filet_silencieux: {sort}`, `AdversairesDelthrak::filetsSilencieux()`), appelé au point où `ResolveurTour::resoudre()` constate qu'un héros vient de finir son tour (`marquerCreneau()`, comme le coup de corne du Minotaure) : « Deathspinner may cast Channel Dread at will on any hero that ends their turn within her line of sight (no action required). She cannot use this ability if she would not be able to take her action (for example, when under the effects of the Tempest spell). » `MoteurDread::peutAgir()` (désormais publique) dit « ne pourrait pas agir » : endormie, paralysée, privée de son tour, sous la Baguette d'Os — plus l'enfumage. Le sort part sur un héros VU (`voitLeHeros()`, la règle de vue des sorts de Dread) ; un héros tombé ou caché n'est pas visé. Le test `AdversairesNommesTest` vérifie que le budget (`usages_dread`) n'est PAS entamé.
+
+**Immunité aux sorts côté Dread** : une créature `immunite_sorts` (*Guardian Effigy* : « immune to all spell effects ») n'est ni frappée par la zone d'un sort de Dread (`monstresDuSort()` : Tempête de feu, Éclair de Chaos, Tempête de glace… — « all heroes AND monsters »), ni soignée (`cibleSoin()`), ni saignée (`figuresDuDrain()`). Les autres chemins qui désignent un monstre pour cible (buffs de faction, relève des morts) ne la concernent pas : l'Effigie n'est d'aucune faction et n'est pas un mort-vivant — si une future créature immunisée l'était, ce serait à ces lecteurs-là d'apprendre l'immunité.
+
+**`MoteurDread::casesDeSalleOuCouloir()` (« same room OR corridor »)** est le corps de la zone de la Nuée d'Effroi ET du Souffle du Construit du Golem de Forge — deux lecteurs, une zone. `herosDansLesCases()` expose `herosSurCases()` au Souffle. `MoteurDread::frappeDeZone()` reçoit les héros que l'appelant a reconnus au contact (`heroAuContact()`, diagonale comprise pour le Scion) : il refaisait sa propre adjacence, orthogonale — deux copies d'une règle ; elle lisait aussi un `$quete` jamais défini (le flanc du tacticien, silencieux tant qu'aucun tacticien ne balayait).
+

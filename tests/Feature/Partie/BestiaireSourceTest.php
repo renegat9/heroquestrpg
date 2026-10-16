@@ -104,6 +104,10 @@ it('porte les créatures d\'extension telles que les livrets les chiffrent', fun
         'Ogre champion' => [6, 5, 4, 6, 1],
         'Ogre commandant' => [4, 6, 5, 6, 2],
         'Seigneur ogre' => [4, 6, 6, 10, 5],
+        // Les trois Sorciers du Dread (F9528 p. 31, 35, 37 — blocs relus sur le RENDU PNG des pages).
+        'Nexrael' => [8, 3, 4, 1, 5],
+        'Xenloth' => [6, 2, 4, 1, 4],
+        'Festral' => [6, 4, 5, 3, 8],
         // Jungles of Delthrak
         'Rejeton putride' => [3, 0, 0, 1, 0],
         'Tisseur putride' => [7, 2, 2, 1, 2],
@@ -267,7 +271,16 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
         // mêlée (`Monstre::aTirAuChoix()`, lu par `ResolveurTour::jouerMonstre()`) et
         // l'EFFET GLOBAL de quête (`EffetsGlobauxQuete`, lu par
         // `InstanceMonstre::bonusEffetGlobalQuete()`).
-        'tir_au_choix', 'effet_global_quete'];
+        'tir_au_choix', 'effet_global_quete',
+        // Against the Ogre Horde, les Sorciers du Dread (F9528 p. 31, 35, 37) : la RÉSERVE DE CARTES par sort
+        // (`CartesDread`, lue par `MoteurDread::reinitialiserUsagesInstance()` / `consommerUsage()` /
+        // `sortsLancables()`) et la GARDE PERSONNELLE de Festral (`GardePersonnelle`, lue par
+        // `InstanceMonstre::statDeBase()`). `SortsOgreHordeTest` les confronte aux données dans les deux sens.
+        'reserve_cartes', 'garde_personnelle',
+        // Le patron TOURELLE et les adversaires nommés de Jungles of Delthrak (René, 2026-10-15) :
+        // le vocabulaire fermé `MotsClesAdversaires` dit, clé par clé, QUEL lecteur les applique ;
+        // `AdversairesNommesTest` le confronte aux données dans les deux sens.
+        ...\App\Engine\MotsClesAdversaires::cles()];
 
     $inconnues = collect(Monstre::all())
         ->flatMap(fn (Monstre $m) => array_map(
@@ -442,8 +455,10 @@ it('déclare tir_au_choix et effet_global_quete là où le livret les porte, et 
         ->filter(fn (Monstre $m) => is_array($m->capacites) && array_key_exists('effet_global_quete', $m->capacites))
         ->pluck('nom_base')->sort()->values()->all();
 
-    // Gretzl (ses trois formes) : « *Gretzl may choose to fire at range… » (p. 35).
-    expect($tirAuChoix)->toBe(['Demonape', 'Demonspider', 'Gretzl la Porte-Fléau', 'Gruulob, Forme Démoniaque', 'Gruulob, Sorcier Gobelin Corrompu'])
+    // Gretzl (ses trois formes) : « *Gretzl may choose to fire at range… » (p. 35) ; Bakabri le
+    // Cruel (quête 15, p. 41 : « *Bakabri may choose to fire at range at any hero in his line of
+    // sight », 2026-10-15).
+    expect($tirAuChoix)->toBe(['Bakabri le Cruel', 'Demonape', 'Demonspider', 'Gretzl la Porte-Fléau', 'Gruulob, Forme Démoniaque', 'Gruulob, Sorcier Gobelin Corrompu'])
         ->and($effets)->toBe(['Gruulob, Sorcier Gobelin Corrompu']);
 });
 
@@ -510,7 +525,9 @@ it('tire Gretzl ou Gruulob comme boss du thème Jungles of Delthrak — jamais u
         ->toContain('Demonspider', 'Demonape', 'Gruulob, Forme Démoniaque');
 
     // Les SEULS boss du thème sont les deux premières phases (§1.3 du plan
-    // Delthrak : « actif, mais SANS boss » avant ce chantier).
+    // Delthrak : « actif, mais SANS boss » avant ce chantier) ET, depuis le 2026-10-15, le Scion
+    // Fleur-Pourrie — le boss final du livret (quête 14 voie B), nommé en CRÉATURE : sans répertoire
+    // de sorcier, il n'a pas d'archétype.
     $bossDuTheme = Monstre::where('tier', 'boss')
         ->where('boite', 'jungles_delthrak')
         ->whereNotIn('nom_base', Monstre::nomsDeFormeSuivante())
@@ -518,7 +535,7 @@ it('tire Gretzl ou Gruulob comme boss du thème Jungles of Delthrak — jamais u
         ->pluck('nom_base')
         ->all();
 
-    expect($bossDuTheme)->toBe(['Gretzl la Porte-Fléau', 'Gruulob, Sorcier Gobelin Corrompu']);
+    expect($bossDuTheme)->toBe(['Gretzl la Porte-Fléau', 'Gruulob, Sorcier Gobelin Corrompu', 'Scion Fleur-Pourrie']);
     expect(\App\Partie\DemarreurQuete::BOITES_THEMATIQUES)->toContain('jungles_delthrak');
 });
 
@@ -597,21 +614,24 @@ it("donne leurs 2 cases à l'Ogre ET au Loup géant de The Mage of the Mirror", 
     }
 });
 
-it('donne à l\'Assassin `attaque_diagonale`, le seul monstre à porter ce mot-clé', function () {
+it('déclare `attaque_diagonale` sur l\'Assassin, la Vrille et le Scion Fleur-Pourrie, et nulle part ailleurs', function () {
     // Carte « Assassin » (Rise of the Dread Moon, p15, © 2023, scan de René
     // 2026-10-05) : « Each Assassin may attack diagonally. » Le comportement
     // EN JEU (un Assassin en diagonale attaque, un Gobelin en diagonale non)
     // est testé par `AttaqueDiagonaleMonstreTest` — ce test-ci verrouille
     // seulement le CATALOGUE : la capacité est déclarée au bon endroit et
     // nulle part ailleurs par accident.
-    $assassin = Monstre::where('nom_base', 'Assassin')->firstOrFail();
-    expect(in_array('attaque_diagonale', (array) $assassin->capacites, true))->toBeTrue();
-
-    $autres = Monstre::where('nom_base', '!=', 'Assassin')
-        ->get()
+    //
+    // Deux porteurs de plus depuis le 2026-10-15, chacun sur sa ligne du livret (F9907 p. 39) :
+    // « *Tendrils may attack diagonally. » (la Vrille) et « *The Bloomrot Scion has a sweeping
+    // attack that targets all heroes adjacent and diagonal to it. » (le Scion — son balayage lit la
+    // MÊME adjacence diagonale, `ResolveurTour::heroAuContact()`).
+    $porteurs = Monstre::all()
         ->filter(fn (Monstre $m) => in_array('attaque_diagonale', (array) $m->capacites, true))
         ->pluck('nom_base')
+        ->sort()
+        ->values()
         ->all();
 
-    expect($autres)->toBe([], 'monstre(s) inattendu(s) avec `attaque_diagonale` : '.implode(', ', $autres));
+    expect($porteurs)->toBe(['Assassin', 'Scion Fleur-Pourrie', 'Vrille'], '`attaque_diagonale` : porteurs inattendus : '.implode(', ', $porteurs));
 });

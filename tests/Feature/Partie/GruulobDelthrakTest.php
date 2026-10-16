@@ -114,9 +114,10 @@ it('tire Gretzl ou Gruulob comme boss du thème Jungles, et JAMAIS une forme sui
 
     // Les deux premières phases, et elles seules : Demonspider, Demonape et Gruulob
     // Forme Démoniaque portent le même archétype que leur entrée — c'est l'exclusion de
-    // `Monstre::nomsDeFormeSuivante()` qui les retient.
+    // `Monstre::nomsDeFormeSuivante()` qui les retient. Plus, depuis le 2026-10-15, le Scion
+    // Fleur-Pourrie (boss final du livret, nommé en créature : il n'a pas de répertoire).
     expect(array_values(array_unique($bosses)))
-        ->toEqualCanonicalizing(['Gretzl la Porte-Fléau', 'Gruulob, Sorcier Gobelin Corrompu']);
+        ->toEqualCanonicalizing(['Gretzl la Porte-Fléau', 'Gruulob, Sorcier Gobelin Corrompu', 'Scion Fleur-Pourrie']);
 });
 
 /**
@@ -193,10 +194,15 @@ function demarrerGruulob(): array
 /** Pose une figure de `$nomBase` dans la quête, active et révélée. */
 function gruulobPoser(Quete $quete, string $nomBase): InstanceMonstre
 {
+    $catalogue = Monstre::where('nom_base', $nomBase)->firstOrFail();
+
     return InstanceMonstre::create([
         'quete_id' => $quete->id,
-        'monstre_id' => Monstre::where('nom_base', $nomBase)->value('id'),
-        'pv_body' => 1, 'pv_body_max' => 1, 'pv_mind' => 0,
+        'monstre_id' => $catalogue->id,
+        // Le Mind du CATALOGUE : une jauge à 0 sur une fiche qui a du Mind est un ÉTAT DE CHOC
+        // (`InstanceMonstre::estEnChoc()`, 1 dé d'attaque et 2 de défense au plus) — ce que ce
+        // cas ne cherche pas à montrer.
+        'pv_body' => 1, 'pv_body_max' => 1, 'pv_mind' => (int) $catalogue->pv_mind,
         'etat' => 'actif', 'revele' => true, 'elite' => false,
     ]);
 }

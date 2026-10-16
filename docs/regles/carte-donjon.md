@@ -165,6 +165,31 @@ meubles d'une carte déjà générée réattribuerait donc les drapeaux `detruit
 de fouille aux mauvaises pièces. Le correctif vaut pour la **prochaine carte
 assemblée**, et une quête en cours garde ses salles encombrées.
 
+**§2.12 quater — une FIGURE IMMOBILE ne se pose qu'en salle, hors parvis, plancher tenu** (René,
+2026-10-15 : « tourelle en SALLE seulement, jamais en couloir »). Un monstre ordinaire qui gêne se
+déplace ou tombe ; le *Guardian Effigy*, le *Dread Skull* et le *Bloomrot Scion* (`deplacement: 0`,
+`Monstre::estImmobile()`) restent où on les pose jusqu'à ce qu'on les détruise : une tourelle posée dans
+un couloir d'une case bloquerait le passage, posée sur le seul parvis d'une porte elle la rendrait
+inouvrable — « connexe n'est pas jouable » (§2.12 ter), cette fois avec une figure.
+- `AssembleurCarte::casesPourFiguresFixes()` rend `spawn_figures_fixes`, un SOUS-ENSEMBLE de
+  `spawn_monstres` : une case de salle (jamais la salle 0, jamais un couloir — les spawns de monstres n'en
+  sortent d'ailleurs jamais), hors du **parvis** (`AssembleurCarte::parvis()`, extrait de `placerTerrains()` :
+  UN corps pour les terrains `interdit_arret` et pour les figures fixes), la salle restant **connexe** depuis
+  un seuil une fois la case prise, mobilier compris (`salleResteConnexe()`), et **au moins
+  `CASES_JOUABLES_MINIMUM` cases libres** une fois mobilier ET figure posés — un plancher, jamais un plafond.
+- `DemarreurQuete::positionsDesMonstres()` pose la figure sur une case de cette liste en ÉCHANGEANT sa case
+  avec celle du monstre qui s'y trouvait (de préférence dans la même salle : le boss reste dans la salle du
+  trône) ; `acheterMonstres(…, figuresFixesPossibles)` n'achète **aucune** figure immobile quand la liste est
+  vide — la rotation passe à l'adversaire suivant plutôt que de poser une tourelle n'importe où. Aujourd'hui
+  au plus UNE figure immobile par rencontre (le palier final ; aucune créature de palier `base` n'est à la fois
+  immobile et achetable).
+- La clé `spawn_figures_fixes` est INTERNE : jamais publiée par `EtatGroupe::carte()` (le placement ne dit
+  rien au joueur que la carte ne montre déjà). Les cartes assemblées avant elle n'en portent pas : lecture
+  `?? []`, donc aucune figure immobile n'est achetée pour elles — une quête en cours n'est pas touchée.
+- Le PRNG du donjon n'est pas déplacé : `spawnsMonstres()` est appelé au même endroit de la séquence (après
+  l'escalier, qui ne tire pas), la clé neuve ne consomme rien — deux donjons de même graine restent
+  identiques. `AdversairesNommesTest` épingle l'invariant sur 60 graines.
+
 **La plus petite tuile passe d'un intérieur 2×2 à 2×3** (René, 2026-09-12 :
 « remplace la 2x2 par 2x3 »). Les deux correctifs ci-dessus rendaient cette salle
 *jouable* — 1 monstre, 4 cases au groupe — sans l'agrandir : quatre héros y tenaient

@@ -8,6 +8,7 @@ use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
 use App\Models\Mercenaire;
 use App\Models\Personnage;
+use App\Models\PersonnageFaveur;
 
 /**
  * Recrutement d'un allié au hub — la DÉCISION, prise en UN seul point.
@@ -29,13 +30,28 @@ final class RecrutementHub
 
     /**
      * Ce que CE héros paie réellement : le catalogue, moins sa remise de Potion
-     * de charme tant qu'il lui en reste une (`recrutements_a_rabais` > 0).
+     * de charme tant qu'il lui en reste une (`recrutements_a_rabais` > 0) — ou RIEN si la
+     * faveur *Mercenary Guild* (Hopekins Rest) lui offre son recrutement (`$gratuitDuHeros`,
+     * voir {@see FaveursHopekins::mercenaireGratuitDisponible()}) et que l'allié est un
+     * mercenaire, pas un compagnon animal. La gratuité prime sur la remise : la potion n'est
+     * alors PAS consommée (`remise_active` faux), elle servira au recrutement suivant.
      *
-     * @return array{prix: int, prix_catalogue: int, rabais_po: int, remise_active: bool}
+     * @return array{prix: int, prix_catalogue: int, rabais_po: int, remise_active: bool, gratuit_faveur: bool}
      */
-    public function prixPour(Personnage $recruteur, Mercenaire $mercenaire): array
+    public function prixPour(Personnage $recruteur, Mercenaire $mercenaire, bool $gratuitDuHeros = false): array
     {
         $catalogue = (int) $mercenaire->prix;
+
+        if ($gratuitDuHeros && ! $mercenaire->animal) {
+            return [
+                'prix' => 0,
+                'prix_catalogue' => $catalogue,
+                'rabais_po' => $catalogue,
+                'remise_active' => false,
+                'gratuit_faveur' => true,
+            ];
+        }
+
         $remiseActive = (int) $recruteur->recrutements_a_rabais > 0;
         $remise = $remiseActive ? (int) $recruteur->rabais_recrutement_po : 0;
         $prix = max(0, $catalogue - $remise);
@@ -45,7 +61,17 @@ final class RecrutementHub
             'prix_catalogue' => $catalogue,
             'rabais_po' => $catalogue - $prix,
             'remise_active' => $remiseActive,
+            'gratuit_faveur' => false,
         ];
+    }
+
+    /**
+     * Ce héros a-t-il, dans ce groupe, un recrutement offert par la faveur *Mercenary Guild* ?
+     * Le seul endroit que le contrôleur interroge pour appeler {@see self::prixPour()}.
+     */
+    public function gratuitPour(Groupe $groupe, Personnage $recruteur): bool
+    {
+        return FaveursHopekins::mercenaireGratuitDisponible($recruteur, (int) $groupe->id);
     }
 
     /**
@@ -80,7 +106,7 @@ final class RecrutementHub
             ->get()
             ->map(function (Mercenaire $mercenaire) use ($groupe, $heros, $contexte) {
                 $decisions = $heros->map(function (Personnage $h) use ($groupe, $mercenaire, $contexte) {
-                    $prix = $this->prixPour($h, $mercenaire);
+                    $prix = $this->prixPour($h, $mercenaire, isset($contexte['gratuits'][$h->id]));
                     $motif = $this->verdict($groupe, $mercenaire, $h, $contexte);
 
                     return [
@@ -89,6 +115,9 @@ final class RecrutementHub
                         'prix' => $prix['prix'],
                         'prix_catalogue' => $prix['prix_catalogue'],
                         'rabais_po' => $prix['rabais_po'],
+                        // La faveur *Mercenary Guild* offre ce recrutement : la manette l'écrit,
+                        // sans savoir ce qu'est la faveur ni si l'allié est un animal.
+                        'offert_par_faveur' => $prix['gratuit_faveur'],
                         'recrutable' => $motif === null,
                         'motif' => $motif['message'] ?? null,
                     ];
@@ -106,7 +135,7 @@ final class RecrutementHub
      * Les faits du groupe qui ne dépendent pas du héros : calculés UNE fois,
      * pour que la publication ne multiplie pas les requêtes par héros × allié.
      *
-     * @return array{hub: bool, gardien: bool, animal_pris: bool, engages: array<int, int>}
+     * @return array{hub: bool, gardien: bool, animal_pris: bool, engages: array<int, int>, gratuits: array<int, true>}
      */
     private function contexte(Groupe $groupe): array
     {
@@ -124,14 +153,40 @@ final class RecrutementHub
                 ->pluck('n', 'recruteur_personnage_id')
                 ->map(fn ($n) => (int) $n)
                 ->all(),
+            // Héros qui ont un recrutement OFFERT à prendre (faveur *Mercenary Guild*).
+            'gratuits' => $this->heroisAvecRecrutementOffert($groupe),
         ];
+    }
+
+    /**
+     * Les héros ACTIFS du groupe dont la faveur *Mercenary Guild* n'a pas (ou plus) de mercenaire
+     * en poste. Une requête pour toutes les faveurs, puis une par faveur pour son allié.
+     *
+     * @return array<int, true>
+     */
+    private function heroisAvecRecrutementOffert(Groupe $groupe): array
+    {
+        $ids = $groupe->personnages()->wherePivot('actif', true)->pluck('personnages.id');
+
+        $gratuits = [];
+
+        foreach (PersonnageFaveur::query()
+            ->where('cle', FaveursHopekins::MERCENARY_GUILD)
+            ->whereIn('personnage_id', $ids)
+            ->get() as $faveur) {
+            if (! FaveursHopekins::mercenaireOffertEnPoste($faveur, (int) $groupe->id)) {
+                $gratuits[(int) $faveur->personnage_id] = true;
+            }
+        }
+
+        return $gratuits;
     }
 
     /**
      * L'ORDRE des motifs est celui qu'annonçait la validation d'origine : hub,
      * gardien, plafond par héros, allié non recrutable, or, animal unique.
      *
-     * @param  array{hub: bool, gardien: bool, animal_pris: bool, engages: array<int, int>}  $contexte
+     * @param  array{hub: bool, gardien: bool, animal_pris: bool, engages: array<int, int>, gratuits: array<int, true>}  $contexte
      * @return array{cle: string, message: string}|null
      */
     private function verdict(Groupe $groupe, Mercenaire $mercenaire, Personnage $recruteur, array $contexte): ?array
@@ -160,7 +215,7 @@ final class RecrutementHub
             ];
         }
 
-        $prix = $this->prixPour($recruteur, $mercenaire)['prix'];
+        $prix = $this->prixPour($recruteur, $mercenaire, isset($contexte['gratuits'][$recruteur->id]))['prix'];
 
         if ((int) $groupe->or < $prix) {
             return ['cle' => 'mercenaire_id', 'message' => "Or insuffisant : {$prix} requis, {$groupe->or} disponible."];

@@ -57,6 +57,7 @@ class ConditionSeeder extends Seeder
         'Grésil aveuglant' => "Aveuglé par le grésil : il ne peut ni se déplacer, ni lancer de sorts, ni tirer à distance, et n'attaque que ce qui est à son contact, jusqu'au prochain tour du MJ.",
         'Ligoté' => "Pris dans des liens magiques : il ne peut ni se déplacer ni attaquer avant d'avoir tranché les liens (1 point de Body, 4 dés de défense). Il pare encore les autres coups.",
         'Possédé' => "Un monstre le prend en main : au prochain tour, le MJ joue ce héros à sa place. Il ne peut ni attaquer ni lancer de sorts.",
+        'Verrou mental' => "Gelé par un Sorcier du Dread : il ne bouge ni n'agit, ne défend qu'avec 1 dé de combat et perd chacun de ses tours. À chaque tour gelé il rend une carte de Verrou mental, puis lance autant de dés de combat que de points de Mind : trois crânes ou plus brisent l'emprise. Elle cède aussi dès que le Sorcier tombe.",
     ];
 
     public function run(): void
@@ -303,6 +304,23 @@ class ConditionSeeder extends Seeder
             // qui prend le tour du héros et retire la condition : un tour, pas plus.
             ['nom' => 'Possédé', 'type' => 'mental', 'duree_defaut' => 0,
                 'effet' => ['controle_par_ennemi' => true, 'fin' => 'prochain_tour_du_heros']],
+
+            // ===== Against the Ogre Horde — les Sorciers du Dread (2026-10-16) =====
+            //
+            // *Mind Lock* (F9528 p. 10) : « A frozen hero rolls 1 Defend die and may not move, attack, or
+            // perform any other action. » Les quatre interdits existent DÉJÀ et ont leurs lecteurs
+            // (`deplacement_interdit` : menu + résolveur ; `action_interdite` : `MenuMoteur` ;
+            // `des_attaque_max` : `MoteurDread::plafondDesAttaque()` ; `des_defense_max` :
+            // `MoteurSorts::desDefenseHerosDetail()`) — *Esprit brisé* (Mind Blast) en porte les trois derniers.
+            // Ce n'est PAS *Paralysé* : celui-ci ne défend pas du tout (`defense_nulle`).
+            //
+            // `duree_defaut: 0` : AUCUN compteur. `MoteurSorts::decrementerDurees()` décrémenterait chaque round
+            // et retirerait le gel dans le dos de la carte ; sa sortie est un déclencheur (dernière carte
+            // rendue, trois crânes, mort du Sorcier) tenu par `App\Partie\VerrouMental` et sa colonne
+            // `etat_personnage_quete.verrou_mental`, qui compte les cartes et nomme le Sorcier.
+            ['nom' => 'Verrou mental', 'type' => 'mental', 'duree_defaut' => 0,
+                'effet' => ['deplacement_interdit' => true, 'action_interdite' => true,
+                    'des_attaque_max' => 0, 'des_defense_max' => 1, 'fin' => 'cartes_rendues']],
         ];
 
         foreach ($conditions as $condition) {

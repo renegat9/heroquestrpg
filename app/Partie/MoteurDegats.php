@@ -373,6 +373,42 @@ final class MoteurDegats
     }
 
     /**
+     * Entame la jauge de MIND d'un MONSTRE — la méthode SŒUR d'{@see self::infligerMindAHeros()}, jamais un
+     * paramètre `$jauge` de `infligerAMonstre()` : le Body d'un monstre passe par la mort, les réactions et les
+     * phases ; son Mind ne meurt de rien, il ne fait que monter vers l'état de choc.
+     *
+     * Le PREMIER producteur de Mind côté monstre : *Mind Burst* (*Against the Ogre Horde* p. 11 : « the Dread
+     * Sorcerer takes 2 Mind Points of damage ») blesse aussi son lanceur quand le héros gagne le jet. Les
+     * LECTEURS existaient déjà (le Mind d'un monstre est son nombre de dés d'opposition, et le seuil de ses
+     * jets de rupture) ; le PRODUCTEUR manquait — la faute jumelle de la clé décorative.
+     *
+     * « A creature cannot go below 0 Mind Points » : plancher à zéro, et un monstre dont la fiche n'a PAS de
+     * Mind (les morts-vivants) ne perd rien — `0 → 0` ne dit rien. À 0 Mind une créature qui en avait ENTRE EN
+     * CHOC (`InstanceMonstre::estEnChoc()`, dérivé de la jauge comme `Personnage::estEnChoc()`).
+     *
+     * Rend ce qui a été RÉELLEMENT perdu.
+     *
+     * @param  array<string, mixed>  $contexte
+     */
+    public function infligerMindAMonstre(
+        InstanceMonstre $instance,
+        int $degats,
+        string $source,
+        array $contexte = [],
+    ): int {
+        $degats = max(0, $degats);
+
+        if ($degats === 0) {
+            return 0;
+        }
+
+        $avant = (int) $instance->pv_mind;
+        $instance->update(['pv_mind' => max(0, $avant - $degats)]);
+
+        return $avant - (int) $instance->pv_mind;
+    }
+
+    /**
      * Applique `$degats` au Body d'un MONSTRE et rend ce qui s'est RÉELLEMENT
      * passé — l'UNIQUE point de passage par lequel un monstre peut mourir,
      * quel que soit le chemin de dégâts (attaque de héros, sort de héros ou
@@ -518,6 +554,32 @@ final class MoteurDegats
             ];
         }
 
+        // BLOOMROT SCION (Jungles of Delthrak p. 39) : « If the Bloomrot Scion would be reduced to
+        // 0 body points, it may sacrifice one of its Tendrils and instead be reduced to 1 Body
+        // Point. » Après Résilience et Increvable, avant les phases : la carte ne dit pas que la
+        // Vrille change de forme, elle dit qu'elle PAIE. Chaque coup fatal qui trouve encore une
+        // Vrille en brûle une (`AdversairesDelthrak::vrilleASacrifier()`) ; sans Vrille, le Scion
+        // meurt comme n'importe qui.
+        if ($instance->aCapacite('sacrifice_de_vrille')
+            && ($sacrifice = app(AdversairesDelthrak::class)->vrilleASacrifier($instance)) !== null) {
+            $instance->update(['pv_body' => 1, 'etat' => 'actif']);
+            $this->journaliserDefenseMonstre($instance, 'sacrifice_de_vrille', $source, $contexte + ['sacrifice' => $sacrifice]);
+
+            return [
+                'degats' => $avant - 1,
+                'pv_body' => 1,
+                'pv_body_max' => $instance->pvBodyMax(),
+                'etat' => 'actif',
+                'vaincu' => false,
+                'changement_phase' => null,
+                'reaction' => 'sacrifice_de_vrille',
+                'sacrifice' => $sacrifice,
+                'survie_increvable' => false,
+                'reddition' => false,
+                'or_gagne' => 0,
+            ];
+        }
+
         $prochaine = $instance->monstre->monstrePhaseSuivante();
 
         if ($prochaine !== null) {
@@ -600,6 +662,12 @@ final class MoteurDegats
         }
 
         $instance->update(['pv_body' => 0, 'etat' => 'vaincu']);
+
+        // « If a Dread Sorcerer has an active spell and is killed, the effects of that spell immediately
+        // end » (*Against the Ogre Horde* p. 10) : lu ICI, au point de passage unique de la mort — tout
+        // héros que ce Sorcier tenait gelé par *Mind Lock* est libéré sur-le-champ, et le fil le dit.
+        // Résolu par le conteneur (même raison que `MoteurDread` juste dessous : pas de boucle d'injection).
+        app(VerrouMental::class)->leverPourLanceur($instance);
 
         // RAISE THE DEAD (Necromancer, Wizards of Morcar) : un sort lancé HORS TOUR,
         // sans action, « after a monster has been killed ». Lu ICI, au point de
@@ -738,7 +806,9 @@ final class MoteurDegats
             'nom' => $instance->nomAffiche(),
             'mecanique' => $mecanique,
             'source_degats' => $source,
-        ] + (isset($contexte['sort']) ? ['sort' => $contexte['sort']] : []));
+        ] + (isset($contexte['sort']) ? ['sort' => $contexte['sort']] : [])
+          // La Vrille que le Scion vient de sacrifier : le fil la NOMME, la table la montre disparaître.
+          + (isset($contexte['sacrifice']) ? ['sacrifice' => $contexte['sacrifice']] : []));
     }
 
     /** Annonce une REDDITION (Gruzbella) — une mort qui n'en est pas une. */

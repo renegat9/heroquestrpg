@@ -767,9 +767,11 @@ it('pioche en ignorant errants et pièges, et s\'arrête au premier gain', funct
     // résolvent pas, elles passent.
     expect($quete->instancesMonstres()->where('etat', 'actif')->count())->toBe(1);
 
-    // ⚠ Les cartes ignorées repartent SOUS le paquet — le deck cycle, un
-    // errant écarté n'est pas un errant détruit.
-    expect(count($quete->fresh()->deckFouille()))->toBe(5);
+    // ⚠ Les cartes ignorées (errants, pièges) repartent SOUS le paquet — un
+    // errant écarté n'est pas un errant détruit. La gemme gagnante, elle, SORT
+    // du paquet (« Do not return ») : il reste l'or de 25 en tête.
+    expect(collect($quete->fresh()->deckFouille())->pluck('issue')->all())
+        ->toBe(['tresor', 'errant', 'piege', 'errant']);
 
     // Le parchemin est détruit, comme tous les parchemins (S1).
     expect(Inventaire::find($parchemin->id))->toBeNull();

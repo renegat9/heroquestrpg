@@ -107,6 +107,16 @@ class MoteurPotions
             ]);
         }
 
+        // POTION D'HÉROÏSME (« Drink this potion before you attack ») : une gorgée qui
+        // arrive après la frappe, ou alors que la seconde est déjà prête, ne rend rien.
+        // Le menu (`offrable()`) pose la MÊME question : le résolveur ne refuse que ce
+        // qu'on ne lui offre pas.
+        if ($etat !== null && ($refus = self::refusAvantAttaque($effet, $etat)) !== null) {
+            throw ValidationException::withMessages([
+                'inventaire_id' => "« {$objet->nom} » {$refus}",
+            ]);
+        }
+
         // POTION OF ELDER WISDOM (Jungles of Delthrak, p. 2) : « A hero may only
         // use one of these potions per quest » ET « recover any 1 hero spell or
         // skill you have used » — la garde et le menu (`offrable()`) posent la
@@ -380,6 +390,48 @@ class MoteurPotions
         ];
     }
 
+    /**
+     * Une potion qui pose une ATTAQUE SUPPLÉMENTAIRE sans durée se boit AVANT la frappe :
+     * la Potion d'héroïsme, « Drink this potion before you attack to make two weapon
+     * attacks instead of one » (cartes 2021 et 2024). La Potion de rage guerrière porte
+     * une `duree` et se réarme à chaque tour : elle n'entre pas dans cette règle.
+     *
+     * ⚠ Le drapeau posé est `etat.attaque_supplementaire` (colonne DURABLE, en base).
+     * La frappe qui vient d'abord ne le consomme pas : c'est la SECONDE qui le dépense
+     * (`ResolveurTour::marquerCreneau()`, branche `bonusHeroisme`), exactement comme
+     * l'Ambidextrie. Une gorgée déjà bue selon l'ancien ordre (après la frappe) garde
+     * donc sa seconde frappe : rien ne change pour elle, seule la prochaine est gardée.
+     */
+    public static function sePoseAvantAttaque(array $effet): bool
+    {
+        return ! empty($effet['attaque_supplementaire']) && ! isset($effet['duree']);
+    }
+
+    /**
+     * Pourquoi cette gorgée arriverait trop tard pour la frappe qu'elle double — `null`
+     * si elle peut encore servir. Un seul prédicat, lu par `offrable()` (le menu) et par
+     * `boire()` (le résolveur) :
+     *  - la frappe a déjà eu lieu, ou une autre action a pris le créneau : rien à doubler ;
+     *  - la seconde frappe est déjà prête (drapeau posé) : une seconde gorgée ne rajoute
+     *    pas une frappe (« two attacks instead of one »), elle serait perdue.
+     */
+    public static function refusAvantAttaque(array $effet, \App\Models\EtatPersonnageQuete $etat): ?string
+    {
+        if (! self::sePoseAvantAttaque($effet)) {
+            return null;
+        }
+
+        if ((bool) $etat->a_agi) {
+            return "se boit AVANT d'attaquer : tu as déjà agi ce tour.";
+        }
+
+        if ((bool) $etat->attaque_supplementaire) {
+            return 'ne se boit pas une seconde fois : ta prochaine frappe est déjà doublée.';
+        }
+
+        return null;
+    }
+
     /** Clé de la fenêtre « une par héros et par quête » (compteur des compétences). */
     private static function cleParQuete(\App\Models\Objet $objet): string
     {
@@ -397,6 +449,11 @@ class MoteurPotions
 
         if (! empty($effet[MotsClesEquipement::UNE_PAR_QUETE])
             && ($etat === null || app(Talents::class)->dejaUtilisee($etat, self::cleParQuete($objet)))) {
+            return false;
+        }
+
+        // Potion d'héroïsme : plus offerte une fois la frappe partie (ou sa seconde déjà prête).
+        if ($etat !== null && self::refusAvantAttaque($effet, $etat) !== null) {
             return false;
         }
 

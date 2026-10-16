@@ -52,6 +52,9 @@ final class PhaseMarche
     /** Refus de revente d'un artefact (rareté `unique`, doc 04 §4). */
     public const REFUS_VENTE_UNIQUE = 'Un artefact ne se revend pas.';
 
+    /** Refus de revente d'une carte de trésor sans prix (`effet.hors_marche`, René 2026-10-16). */
+    public const REFUS_VENTE_HORS_MARCHE = 'Une carte de trésor sans prix imprimé ne se revend pas.';
+
     public function __construct(private readonly EtatGroupe $etatGroupe) {}
 
     /** Clé du cache de la phase marché d'un groupe. */
@@ -130,6 +133,10 @@ final class PhaseMarche
         // soit le thème de la campagne. Seuls les coffres, la fouille et le
         // terrain suivent le thème ; l'étal, non — décision écrite, à ne pas
         // « corriger » par symétrie.
+        // ⚠ Une carte de trésor SANS PRIX n'entre pas à l'étal (René, 2026-10-16 :
+        // « On ne peut pas vendre les potions qu'on trouve dans les trésors »).
+        // Son prix est un chiffre de projet, pas une carte : la laisser en rayon
+        // revenait à vendre une valeur inventée. Elle reste trouvable en fouille.
         $inventaire = Objet::query()
             ->whereIn('rarete', $config['raretes'])
             ->where('rarete', '!=', 'unique')
@@ -142,6 +149,7 @@ final class PhaseMarche
             ))
             ->orderBy('id')
             ->get()
+            ->reject(fn (Objet $o) => self::estHorsMarche($o))
             ->map(fn (Objet $o) => [
                 'objet_id' => $o->id,
                 'nom' => $o->nom,
@@ -517,6 +525,39 @@ final class PhaseMarche
     }
 
     /**
+     * Carte de trésor SANS PRIX (`effet.hors_marche`, René 2026-10-16) : ni à
+     * l'étal, ni revendable. LE point de passage de la règle : l'étal
+     * (`ouvrir()`), la liste vendable (`inventaireVendable()`) et les gardes de
+     * la revente (`motifRefusVente()`) passent tous par cette fonction, jamais
+     * par un second test.
+     */
+    public static function estHorsMarche(Objet $objet): bool
+    {
+        $effet = (array) $objet->effet;
+
+        return (bool) ($effet[MotsClesEquipement::HORS_MARCHE] ?? false);
+    }
+
+    /**
+     * Motif qui REFUSE la revente de cet objet, ou `null` si elle est permise.
+     * Un artefact (`unique`) et une carte de trésor sans prix ne se revendent
+     * pas : le même 422 pour les deux gardes (préview et application). Un
+     * objet absent n'est pas refusé ici, comme avant (`?->` d'origine).
+     */
+    public static function motifRefusVente(?Objet $objet): ?string
+    {
+        if ($objet === null) {
+            return null;
+        }
+
+        if ($objet->rarete === 'unique') {
+            return self::REFUS_VENTE_UNIQUE;
+        }
+
+        return self::estHorsMarche($objet) ? self::REFUS_VENTE_HORS_MARCHE : null;
+    }
+
+    /**
      * Revente (M1) : 50 % du prix du marchand courant si l'objet figure à
      * son étal, à défaut 50 % du prix de base. La ligne d'inventaire entière
      * est vendue (quantité comprise).
@@ -550,8 +591,8 @@ final class PhaseMarche
                 ]);
             }
 
-            if ($ligne->objet?->rarete === 'unique') {
-                throw ValidationException::withMessages(['ventes' => self::REFUS_VENTE_UNIQUE]);
+            if (($motif = self::motifRefusVente($ligne->objet)) !== null) {
+                throw ValidationException::withMessages(['ventes' => $motif]);
             }
 
             $prixRevente = self::reventePour($ligne->objet, $inventaire->get($ligne->objet_id)['prix'] ?? null);
@@ -596,6 +637,17 @@ final class PhaseMarche
                 }
             }
             foreach ($parObjet as $objetId => $quantite) {
+                // Une carte de trésor sans prix ne s'achète jamais. Une phase ouverte
+                // AVANT son retrait de l'étal garde l'objet dans son cache : on le
+                // refuse ici, sur l'état réel, comme les autres garde-fous.
+                $achete = Objet::find($objetId);
+
+                if ($achete !== null && self::estHorsMarche($achete)) {
+                    throw ValidationException::withMessages([
+                        'achats' => "« {$achete->nom} » n'est plus à l'étal : une carte de trésor sans prix ne s'achète pas.",
+                    ]);
+                }
+
                 $stock = $inventaire->get($objetId)['stock'] ?? null;
 
                 if ($stock !== null && $quantite > $stock) {
@@ -628,8 +680,8 @@ final class PhaseMarche
                         ]);
                     }
 
-                    if ($ligne->objet?->rarete === 'unique') {
-                        throw ValidationException::withMessages(['ventes' => self::REFUS_VENTE_UNIQUE]);
+                    if (($motif = self::motifRefusVente($ligne->objet)) !== null) {
+                        throw ValidationException::withMessages(['ventes' => $motif]);
                     }
 
                     $lignesVendues[$vente['inventaire_id']] = $ligne;
@@ -792,6 +844,10 @@ final class PhaseMarche
             // bouton qui échoue serait un piège.
             ->whereHas('objet', fn ($q) => $q->where('rarete', '!=', 'unique'))
             ->get()
+            // Même traitement que les artefacts : une carte de trésor sans prix
+            // (`hors_marche`) n'est pas proposée à la revente, plutôt qu'affichée
+            // barrée (`motifRefusVente()` la refuserait de toute façon).
+            ->reject(fn (Inventaire $ligne) => self::estHorsMarche($ligne->objet))
             ->map(fn (Inventaire $ligne) => [
                 'inventaire_id' => (int) $ligne->id,
                 'personnage_id' => (int) $ligne->personnage_id,

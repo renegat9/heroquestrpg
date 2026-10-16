@@ -11,7 +11,7 @@ import MSym from './MSym.vue';
 defineProps({
     /** `groupe.mercenaires_entretien` : {cout_par_mercenaire, cout_total, or_restant, payes, partis} ou null. */
     entretien: { type: Object, default: null },
-    /** `groupe.faveur_hopekins` : {personnage, faveur_libelle, faveur_effet} ou null. */
+    /** `groupe.faveur_hopekins` : {personnage, faveur_libelle, faveur_effet, detail} ou null. */
     faveur: { type: Object, default: null },
     /** `groupe.peacekeeper` : {or_total, versements: [{personnage_id, nom, monstres, or}]} ou null. */
     peacekeeper: { type: Object, default: null },
@@ -51,6 +51,8 @@ const noms = (liste) => (liste ?? []).map((m) => m.nom).join(', ');
             <div class="annonce-hub-texte">
                 <b>Faveur de Hopekins Rest</b> : {{ faveur.personnage }} reçoit « {{ faveur.faveur_libelle }} ».
                 <span class="annonce-hub-effet">{{ faveur.faveur_effet }}</span>
+                <!-- Ce que la faveur a FAIT (PV de Body portés à…, potion remise) ou ce qui reste à faire : écrit par le serveur. -->
+                <span v-if="faveur.detail" class="annonce-hub-effet">{{ faveur.detail }}</span>
             </div>
         </div>
         <div v-if="peacekeeper" class="annonce-hub-ligne">

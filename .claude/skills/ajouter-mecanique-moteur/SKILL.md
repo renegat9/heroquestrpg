@@ -40,6 +40,7 @@ l'inscrire au vocabulaire, c'est le rendre introuvable au prochain passage.
 | `App\Engine\MotsClesTerrain` | effets de case de sol (glace, gouffre, pont, terrain gênant, mare, brasier, **sables mouvants** — `saut_par_dessus`/`saut_reussi_sur`/`enlise`, lus par `MoteurSables`) |
 | `App\Engine\MotsClesMobilier` | `mobiliers.effet` (table de fouille, destruction d'une action — le Cocon) |
 | `App\Engine\ReactionEffet` | actions hors tour **de héros** (offre sur canal privé) |
+| `App\Engine\MotsClesAdversaires` | capacités d'**adversaires nommés** (`monstres.capacites`) : le patron **tourelle** (`tourelle`, `immunite_sorts`, `immunite_conditions`, `apparait_a_la_vue`) et les quatre de Delthrak (`filet_silencieux`, `souffle_du_construit`, `vrille_en_fin_de_tour`, `sacrifice_de_vrille`) — `SANS_DONNEE` nomme une clé construite et testée mais qu'aucune ligne ne porte encore |
 | `App\Engine\MotsClesReactionMj` | réactions du **MJ** au sort d'un héros — capacités `reactions_defense`, lues par `App\Partie\ReactionsMj` (+ `MotsClesSortDread::REACTIONS` pour les sorts de réaction) |
 
 ⚠ **Inscrire le vocabulaire à CETTE TABLE fait partie de sa création.** `MotsClesTerrain`

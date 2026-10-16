@@ -111,6 +111,7 @@ final class AssembleurCarte
      *   escalier: array{x: int, y: int, l: int, h: int}|null,
      *   spawn_heros: list<array{x: int, y: int}>,
      *   spawn_monstres: list<array{x: int, y: int}>,
+     *   spawn_figures_fixes: list<array{x: int, y: int}>,
      *   aretes: list<array{a: int, b: int, porte_a: array{x: int, y: int}, porte_b: array{x: int, y: int}}>
      * }
      */
@@ -421,6 +422,13 @@ final class AssembleurCarte
         // (aucun tirage PRNG consommé).
         $escalier = $this->placerEscalier($cases, $salles[0], $portes);
 
+        // Les spawns de monstres : le PRNG du donjon est consommé ICI, après les couches et
+        // l'escalier, exactement là où l'ancien littéral de tableau l'appelait — ni `spawn_heros`
+        // ni l'escalier ne tirent, la suite de nombres ne bouge pas.
+        $spawnsMonstres = $this->spawnsMonstres($cases, $salles, $this->casesDuDecor(
+            $salles, $portes, $mobilier, $pieges, $leviers, $epreuves, $terrain,
+        ), $suivant);
+
         return [
             'largeur' => $largeur,
             'hauteur' => $hauteur,
@@ -479,9 +487,11 @@ final class AssembleurCarte
             // EXACTEMENT comme une carte assemblée avant ce chantier.
             'escalier' => $escalier,
             'spawn_heros' => array_slice($this->spawnsDepuisEscalier($this->spawnsHeros($cases, $salles[0], $portes), $escalier), 0, self::MAX_SPAWNS_HEROS),
-            'spawn_monstres' => $this->spawnsMonstres($cases, $salles, $this->casesDuDecor(
-                $salles, $portes, $mobilier, $pieges, $leviers, $epreuves, $terrain,
-            ), $suivant),
+            'spawn_monstres' => $spawnsMonstres,
+            // FIGURES IMMOBILES (tourelle, Bloomrot Scion) : le sous-ensemble de `spawn_monstres` où
+            // une figure qui ne bougera plus peut se poser sans fermer une porte, couper une salle
+            // ni la réduire sous le plancher de cases jouables — voir `casesPourFiguresFixes()`.
+            'spawn_figures_fixes' => $this->casesPourFiguresFixes($cases, $salles, $portes, $leviers, $epreuves, $mobilier, $spawnsMonstres),
         ];
     }
 
@@ -2755,23 +2765,7 @@ final class AssembleurCarte
         // salles). Seules les poses SANS ARRÊT y sont refusées : un terrain
         // gênant se franchit et se tient, un terrain bloquant passe déjà par la
         // BFS de connexité.
-        $parvis = [];
-        $voisines = static function (int $x, int $y) use (&$parvis): void {
-            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
-                $parvis[($x + $dx).','.($y + $dy)] = true;
-            }
-        };
-        foreach ($portes as $porte) {
-            foreach (Grille::casesPorte($porte) as $case) {
-                $voisines((int) $case['x'], (int) $case['y']);
-            }
-        }
-        foreach ($leviers as $levier) {
-            $voisines((int) $levier['x'], (int) $levier['y']);
-        }
-        foreach ($epreuves as $epreuve) {
-            $voisines((int) $epreuve['x'], (int) $epreuve['y']);
-        }
+        $parvis = $this->parvis($portes, $leviers, $epreuves);
 
         // Par salle (jamais la 0) : l'INTÉRIEUR COMPLET (pour la BFS de
         // connexité, comme `placerMobilier()`), les cases LIBRES (candidates
@@ -3693,6 +3687,117 @@ final class AssembleurCarte
         }
 
         return $tuiles;
+    }
+
+    /**
+     * Le PARVIS : les cases orthogonalement voisines d'une porte (ses deux cases), d'un levier ou
+     * d'une épreuve — celles d'où l'on AGIT sur eux (ouvrir, tirer, tenter : tout se fait au
+     * contact). UN SEUL corps, lu par `placerTerrains()` (aucune Mare ni aucun Brasier sur un
+     * parvis) ET par `casesPourFiguresFixes()` (aucune figure immobile non plus) : ce sont deux
+     * pièces qui rendent une porte inouvrable en occupant la seule case d'où on l'ouvre.
+     *
+     * @param  list<array<string, mixed>>  $portes
+     * @param  list<array<string, mixed>>  $leviers
+     * @param  list<array<string, mixed>>  $epreuves
+     * @return array<string, true>
+     */
+    private function parvis(array $portes, array $leviers, array $epreuves): array
+    {
+        $parvis = [];
+        $voisines = static function (int $x, int $y) use (&$parvis): void {
+            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                $parvis[($x + $dx).','.($y + $dy)] = true;
+            }
+        };
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $voisines((int) $case['x'], (int) $case['y']);
+            }
+        }
+        foreach ($leviers as $levier) {
+            $voisines((int) $levier['x'], (int) $levier['y']);
+        }
+        foreach ($epreuves as $epreuve) {
+            $voisines((int) $epreuve['x'], (int) $epreuve['y']);
+        }
+
+        return $parvis;
+    }
+
+    /**
+     * Les cases où une FIGURE IMMOBILE (déplacement 0 : *Guardian Effigy*, *Dread Skull*,
+     * *Bloomrot Scion* — `Monstre::estImmobile()`) peut se poser (René, 2026-10-15) : « tourelle en
+     * SALLE seulement, jamais en couloir », et jamais au détriment du plancher de cases jouables.
+     *
+     * Une figure mobile qui gêne s'écarte ou tombe ; celle-ci reste là jusqu'à ce qu'on la détruise,
+     * et c'est ce qui fait la différence avec un monstre ordinaire — « connexe n'est pas jouable »
+     * (§2.12 ter). Une case est donc retenue quand :
+     *
+     *  - elle est DANS UNE SALLE du donjon qui n'est pas la salle de départ (les spawns de monstres
+     *    n'en sortent jamais : jamais de couloir, jamais sous le groupe au tour 1) ;
+     *  - elle n'est pas sur un PARVIS (`parvis()`) — la figure ne rend aucune porte, aucun levier
+     *    ni aucune épreuve inaccessible ;
+     *  - la salle reste entièrement connexe depuis UN seuil une fois la case prise, MOBILIER compris
+     *    (`salleResteConnexe()`, la même BFS que le mobilier et les terrains) ;
+     *  - il reste au moins `CASES_JOUABLES_MINIMUM` cases libres une fois le mobilier ET la figure
+     *    posés — un plancher sur les cases restantes, jamais un plafond sur leur nombre.
+     *
+     * Rend un sous-ensemble de `$spawnsMonstres` : `DemarreurQuete` y pose la figure en échangeant
+     * sa case avec le monstre qui l'occupait, et renonce à acheter une figure immobile quand la liste
+     * est vide (écrit, `DemarreurQuete::acheterMonstres()`) plutôt que de la poser n'importe où.
+     *
+     * @param  list<list<string>>  $cases
+     * @param  list<array<string, mixed>>  $salles
+     * @param  list<array<string, mixed>>  $portes
+     * @param  list<array<string, mixed>>  $leviers
+     * @param  list<array<string, mixed>>  $epreuves
+     * @param  list<array<string, mixed>>  $mobilier
+     * @param  list<array{x: int, y: int}>  $spawnsMonstres
+     * @return list<array{x: int, y: int}>
+     */
+    private function casesPourFiguresFixes(
+        array $cases,
+        array $salles,
+        array $portes,
+        array $leviers,
+        array $epreuves,
+        array $mobilier,
+        array $spawnsMonstres,
+    ): array {
+        $parvis = $this->parvis($portes, $leviers, $epreuves);
+
+        $meubles = [];
+        foreach ($mobilier as $m) {
+            for ($dy = 0; $dy < max(1, (int) ($m['h'] ?? 1)); $dy++) {
+                for ($dx = 0; $dx < max(1, (int) ($m['l'] ?? 1)); $dx++) {
+                    $meubles[((int) $m['x'] + $dx).','.((int) $m['y'] + $dy)] = true;
+                }
+            }
+        }
+
+        $sures = [];
+
+        foreach ($spawnsMonstres as $p) {
+            $cle = "{$p['x']},{$p['y']}";
+            $i = Salles::indexDe($salles, (int) $p['x'], (int) $p['y']);
+
+            if ($i === null || $i === 0 || isset($parvis[$cle])) {
+                continue;
+            }
+
+            $interieur = $this->interieur($cases, $salles[$i]);
+            $occupees = $meubles + [$cle => true];
+            $prises = count(array_filter($interieur, fn (array $c) => isset($occupees["{$c['x']},{$c['y']}"])));
+
+            if (count($interieur) - $prises < self::CASES_JOUABLES_MINIMUM
+                || ! $this->salleResteConnexe($interieur, $this->seuilsDeSalle($salles[$i], $portes), $occupees)) {
+                continue;
+            }
+
+            $sures[] = ['x' => (int) $p['x'], 'y' => (int) $p['y']];
+        }
+
+        return $sures;
     }
 
     /**

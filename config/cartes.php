@@ -581,6 +581,16 @@ return [
             ['carte' => 'Conjure Golem', 'paquet' => 'Wizards of Morcar — Artificer', 'sort_dread' => 'Invocation de golem'],
             ['carte' => 'Summon Dreadshifter', 'paquet' => 'Wizards of Morcar — Artificer', 'sort_dread' => 'Appel du Dreadshifter'],
 
+            // ---- Against the Ogre Horde : les trois sorts des Sorciers du Dread (F9528 p. 10-11, 2026-10-16) ----
+            // René (2026-10-15) : « à PORTER », sans photo — le livret donne la règle complète de chacune.
+            // Portées d'emblée, jamais passées par `manque` : Nexrael, Xenloth et Festral les lancent
+            // (`config/archetypes_lanceurs.php`), chacun avec SA réserve de cartes (`CartesDread`).
+            // ⚠ *Mind Lock* et *Dominate* : crânes NETS des boucliers du héros — INTERPRÉTATION de René, le
+            // livret est muet sur les boucliers. *Mind Burst* : l'écart de crânes BRUTS, à la lettre.
+            ['carte' => 'Mind Lock', 'paquet' => 'Against the Ogre Horde', 'sort_dread' => 'Verrou mental'],
+            ['carte' => 'Dominate', 'paquet' => 'Against the Ogre Horde', 'sort_dread' => 'Domination'],
+            ['carte' => 'Mind Burst', 'paquet' => 'Against the Ogre Horde', 'sort_dread' => 'Explosion mentale'],
+
             // ---- Non portées : chacune avec la mécanique qui lui manque ----
             ['carte' => "Werewolf's Curse", 'paquet' => 'Mage of the Mirror', 'nom' => 'Malédiction du loup-garou',
                 'texte' => 'Le héros lance un dé rouge : sur un 6 le sort est sans effet, sinon il contracte la malédiction du loup-garou.',

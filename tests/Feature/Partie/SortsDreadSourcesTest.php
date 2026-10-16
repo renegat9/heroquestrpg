@@ -43,6 +43,9 @@ it('recense les 29 cartes de dread_spells.pdf, portées et non portées', functi
     $cartes = collect(config('cartes.dread.cartes'))
         ->reject(fn ($c) => str_starts_with((string) $c['paquet'], 'Wizards of Morcar'))
         ->reject(fn ($c) => str_contains((string) $c['paquet'], 'Gruulob'))
+        // …et les trois cartes d'*Against the Ogre Horde* (Mind Lock, Dominate, Mind Burst, F9528 p. 10-11),
+        // comptées à part dans `SortsOgreHordeTest` : un autre paquet, pas des cartes de `dread_spells.pdf`.
+        ->reject(fn ($c) => (string) $c['paquet'] === 'Against the Ogre Horde')
         ->values();
 
     expect($cartes)->toHaveCount(29);

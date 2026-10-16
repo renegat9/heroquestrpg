@@ -59,6 +59,11 @@ class EtatPersonnageQuete extends Model
         // à un round entier (« on the hero's next turn, the hero climbs out »).
         // Voir App\Partie\MoteurSables et `MenuMoteur::generer()`.
         'enlise',
+        // MIND LOCK (*Against the Ogre Horde* p. 10) : le héros GELÉ par un Sorcier du Dread —
+        // {lanceur_id, sort, cartes}, les cartes qu'il tient encore (un tour perdu chacune).
+        // En COLONNE, jamais en cache : il traverse la phase des monstres, le round suivant
+        // et une reprise. Voir App\Partie\VerrouMental.
+        'verrou_mental',
         // Capacités « once per quest » déjà dépensées (liste de noms). Un
         // booléen par capacité aurait fait 24 colonnes.
         'capacites_utilisees',
@@ -139,6 +144,7 @@ class EtatPersonnageQuete extends Model
             'reaction_en_attente' => 'array',
             'piege_a_ecarter' => 'array',
             'enlise' => 'array',
+            'verrou_mental' => 'array',
             'capacites_utilisees' => 'array',
             'capacites_tour' => 'array',
             'styles_epuises' => 'array',
