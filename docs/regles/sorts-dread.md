@@ -217,3 +217,5 @@ attend ce monstre, et ce monstre attend le gabarit de la quête 7. Le sort seul 
 `LignesMaledictionLoup`, scènes dans `SceneDeTable`) ; les deux états sont des conditions du catalogue, donc sur la fiche avec leur
 description. Tests : `tests/Feature/Partie/MaledictionLoupGarouTest.php` (par les routes de la manette ; chaque correctif y a été retiré une
 fois pour voir le test tomber).
+
+**La flamme du Dread n'est PAS un sort de Dread (Qwindrak, 2026-10-17).** À l'arrivée de la forme Dragon de Qwindrak, « chaque héros dans la même salle que lui lance un dé rouge ; sur 3 ou moins, il perd 1 Body Point » (`reference/18` §6.1, notes de quête). C'est une règle de QUÊTE, lue par la ligne du Dragon (`capacites.flamme_du_dread`) à l'arrivée de la forme, jamais par le répertoire de sorts : elle n'a ni compteur, ni palier, ni `sorts_dread`. Elle voyage dans `changement_phase.flamme`. Le dé est `App\Engine\Des\DeRouge::brule()`. Voir `docs/regles/bestiaire-et-rencontres.md`, section Qwindrak.

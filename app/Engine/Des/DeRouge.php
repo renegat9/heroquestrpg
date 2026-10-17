@@ -27,6 +27,18 @@ final class DeRouge
     }
 
     /**
+     * LA FLAMME DU DREAD (Qwindrak, à sa forme de Dragon — `reference/18` §6.1 : « chaque héros dans
+     * la même salle que lui lance un dé rouge ; sur 3 ou moins, il perd 1 Body Point ») lit le MÊME dé
+     * à l'envers : ici, c'est le 1-3 qui blesse, le 4-6 qui épargne. Le seuil reste ici, avec le dé.
+     */
+    public const SEUIL_FLAMME = 3;
+
+    public static function brule(int $face): bool
+    {
+        return $face <= self::SEUIL_FLAMME;
+    }
+
+    /**
      * L'ensemble des faces gagnantes, tel que `JetDes.vue` le compare.
      *
      * @return list<int>

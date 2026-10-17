@@ -87,6 +87,24 @@ final class MotsClesAdversaires
     public const SACRIFICE_DE_VRILLE = 'sacrifice_de_vrille';
 
     /**
+     * SYNCHROFORMES (Qwindrak the Warlock, livret de quêtes First Light p. 7 : « the warlock assumes one
+     * or more distinct creature forms called Synchroforms … If he transforms, place the new miniature on
+     * the square occupied by the previous Synchroform »). À chaque forme vaincue, la créature prend la
+     * forme SUIVANTE d'une pioche mélangée — la carte de Banjo, validée par René (2026-10-17) : le DRAGON
+     * toujours en dernier. Paramétrée : `['formes' => […], 'dernier' => 'Dragon']`. Lu au point de passage
+     * unique de la mort, `App\Partie\MoteurSynchroformes::prochaine()`.
+     */
+    public const SYNCHROFORMES = 'synchroformes';
+
+    /**
+     * FLAMME DU DREAD (Qwindrak, forme de Dragon : « souffle la flamme du Dread : chaque héros dans la même
+     * salle que lui lance un dé rouge ; sur 3 ou moins, il perd 1 Body Point », `reference/18` §6.1). Portée
+     * par la LIGNE du Dragon : c'est son ARRIVÉE qui souffle. Paramétrée : `['degats' => 1]`, seuil dans
+     * `App\Engine\Des\DeRouge::SEUIL_FLAMME`.
+     */
+    public const FLAMME_DU_DREAD = 'flamme_du_dread';
+
+    /**
      * @var array<string, array{lecteur: string, libelle: string}>
      */
     public const CAPACITES = [
@@ -121,6 +139,14 @@ final class MotsClesAdversaires
         self::SACRIFICE_DE_VRILLE => [
             'lecteur' => 'App\Partie\AdversairesDelthrak::vrilleASacrifier',
             'libelle' => 'Sacrifie une Vrille pour rester à 1 PV au lieu de mourir',
+        ],
+        self::SYNCHROFORMES => [
+            'lecteur' => 'App\Partie\MoteurSynchroformes::prochaine',
+            'libelle' => 'Se transforme à chaque forme vaincue (pioche mélangée, le Dragon en dernier) ; ses sorts actifs cessent',
+        ],
+        self::FLAMME_DU_DREAD => [
+            'lecteur' => 'App\Partie\MoteurSynchroformes::flammeALArrivee',
+            'libelle' => 'Flamme du Dread à son arrivée : chaque héros de la salle lance un dé rouge, 3 ou moins = 1 PV',
         ],
     ];
 

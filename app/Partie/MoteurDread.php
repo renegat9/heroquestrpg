@@ -1228,7 +1228,7 @@ final class MoteurDread
      *
      * @return list<array{x: int, y: int}>
      */
-    private function casesDeLaSalle(Quete $quete, InstanceMonstre $instance): array
+    public function casesDeLaSalle(Quete $quete, InstanceMonstre $instance): array
     {
         $salles = (array) ($quete->carte?->grille['salles'] ?? []);
         $index = $this->salleDuLanceur($quete, $instance);

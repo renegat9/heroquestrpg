@@ -265,6 +265,15 @@ final class SceneDeTable
         // jamais ses nouveaux dés (« Zargon, do not reveal… », Ogre Horde p. 6).
         if (is_array($a['changement_phase'] ?? null)) {
             $scenes[] = $this->changementPhase($a['changement_phase']);
+
+            // La flamme du Dread de l'arrivée du Dragon : une scène de plus, avec le dé de chaque héros.
+            if (is_array($a['changement_phase']['flamme'] ?? null)) {
+                $flamme = $this->flammeDuDread($a['changement_phase']['flamme']);
+
+                if ($flamme !== null) {
+                    $scenes[] = $flamme;
+                }
+            }
         }
 
         if (is_string($a['reaction_monstre'] ?? null)) {
@@ -302,6 +311,57 @@ final class SceneDeTable
             'titre' => "{$avant} se transforme",
             'sous_titre' => 'adopte de nouvelles statistiques',
             'issue' => ['ton' => 'info', 'libelle' => "devient {$apres} !"],
+        ];
+    }
+
+    /**
+     * La FLAMME DU DREAD (arrivée du Dragon de Qwindrak) : chaque héros de la salle, avec le dé rouge qu'il
+     * a lancé et ce qu'il y a perdu. Même lecture que le souffle — un héros par ligne, jamais un duel.
+     *
+     * @param  array<string, mixed>  $f
+     * @return array<string, mixed>|null
+     */
+    private function flammeDuDread(array $f): ?array
+    {
+        $resultats = array_values(array_filter((array) ($f['resultats'] ?? []), 'is_array'));
+
+        if ($resultats === []) {
+            return null;
+        }
+
+        $nom = (string) ($f['monstre'] ?? 'Le Dragon');
+        $instanceId = (int) ($f['instance_id'] ?? 0);
+        $objets = [];
+        $total = 0;
+
+        foreach ($resultats as $r) {
+            $heros = Personnage::find((int) ($r['cible']['personnage_id'] ?? 0));
+            $degats = (int) ($r['degats'] ?? 0);
+            $face = (int) ($r['des_rouges'][0] ?? 0);
+            $total += $degats;
+
+            $objets[] = [
+                'nom' => (string) ($r['cible']['nom'] ?? 'un héros'),
+                'image_url' => $heros === null
+                    ? $this->images->vignette('heros', (string) ($r['cible']['nom'] ?? 'héros'))
+                    : $this->acteurHeros($heros, 'cible')['image_url'],
+                'detail' => ! empty($r['cible_tombee']) ? "dé {$face} — tombe"
+                    : ($degats > 0 ? "dé {$face} — −{$degats} PV" : "dé {$face} — indemne"),
+            ];
+        }
+
+        return [
+            'genre' => 'attaque',
+            'titre' => "{$nom} — La flamme du Dread",
+            'sous_titre' => count($resultats).' héros dans la salle : un dé rouge chacun, 3 ou moins blesse',
+            'acteurs' => $instanceId > 0 ? [$this->acteurMonstre($instanceId, $nom, 'attaquant')] : [],
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => $objets,
+            'issue' => $total > 0
+                ? ['ton' => 'subit', 'libelle' => "−{$total} PV au total"]
+                : ['ton' => 'pare', 'libelle' => 'la flamme ne blesse personne'],
         ];
     }
 

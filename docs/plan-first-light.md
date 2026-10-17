@@ -103,3 +103,16 @@ Donc la donnée (une ligne `mobiliers`) ne peut pas être semée sans inventer u
 **Glyph Key Scroll — non porté, dette nommée.** Texte lu sur la photo FL p. 6 (rendu `FL1_p01`, `reference/18_extensions.md` §6) : « Use this scroll at any time to destroy a discovered magical glyph, no action required. This scroll has no effet on magical glyphs disturbed by looting. After you use this scroll, it disappears. » La règle des **glyphes magiques** elle-même n'est sur aucune page photographiée : sans elle, le parchemin détruirait une case dont on ignore ce qu'elle fait. Aucun glyphe n'existe au code (`grep` vide sur `app`, `config`, `database`).
 
 **Qwindrak, formes et règle des glyphes** : inchangés (décision 4, photo des quêtes 2 à 10 toujours attendue).
+
+## Exécution (2026-10-17) — Qwindrak
+
+Décision de René (2026-10-17) : porter **Qwindrak**, boss de First Light, avec la règle officielle des Synchroformes et le tirage de la carte de Banjo (validé : « c'est le même fonctionnement »). Règle en vigueur : `docs/regles/bestiaire-et-rencontres.md`, section « Qwindrak the Warlock ».
+
+- **Pioche** : Qwindrak commence en Warlock (6/3/6/3/6). À sa première mort, cinq formes existantes (Abomination, Gargouille, Guerrier du Chaos, Gobelin, Orque) sont mélangées au dé injecté, le **Dragon au fond**. Chaque forme vaincue cède la place, à la même case, à la suivante. L'ordre est stocké en base (`instances_monstres.formes_a_venir`) et jamais publié.
+- **Sorts actifs** : ils cessent à chaque changement de forme, et la table le dit. Les compteurs de la rencontre restent. La chaîne des phases (Gretzl…) garde ses sorts, comme avant.
+- **Flamme du Dread à l'arrivée du Dragon** : chaque héros de la même salle lance un dé rouge, 1-3 lui coûte 1 Body. **Source du texte** : `reference/18_extensions.md` §6.1, notes de quête photographiées (« le dernier vaincu, Qwindrak prend sa forme de Dragon et souffle la flamme du Dread : chaque héros dans la même salle que lui lance un dé rouge ; sur 3 ou moins, il perd 1 Body Point »). Ce texte ne figurait pas dans le présent plan ; il est reporté ici tel quel de la référence. Elle voyage dans `changement_phase.flamme`, avec une scène de table et une ligne de journal par héros.
+- **Place du Dragon** (1 × 2) : la case sûre la plus proche si l'ancre ne tient pas, jamais sur un héros.
+- **Boss du thème** : Qwindrak remplace le Dragon dans la rencontre finale « Confrontation finale ». Le Dragon n'est plus acheté seul. Il n'existait qu'une boîte `first_light` ; son boss est désormais Qwindrak.
+- **Non porté, nommé** : répertoire de sorts du Warlock (⚠ non trouvé : ni la note ni la carte ne le listent) ; tuiles Skull du Dragon (⚠ non trouvé, le Dragon entre à pleins Body) ; issues « escape » et « true warlock appearance » de la note de quête (hors de la décision de René).
+- **Seeders et migration à jouer** : migration `2026_10_17_100000_formes_a_venir_sur_instances_monstres` (colonne nullable, additive), puis `MonstreSeeder` (Qwindrak, flamme du Dragon) et `GabaritQueteSeeder` (rencontre finale). Les deux seeders sont `updateOrCreate` et ne suppriment rien.
+- **Tests** : `tests/Feature/Partie/QwindrakFirstLightTest.php` (15), registre `AdversairesNommesTest`, `SorciersNommesTest` (exemption des formes de pioche).

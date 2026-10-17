@@ -54,12 +54,17 @@ class InstanceMonstre extends Model
         'controle_par',
         'controle_agi',
         'habillage',
+        // Pioche des formes de Qwindrak (`App\Partie\MoteurSynchroformes`) : les formes qui
+        // restent à venir, dans l'ordre TIRÉ une fois et stocké — jamais montré au joueur.
+        // `null` = pioche pas encore tirée ; `[]` = tout a déjà été joué.
+        'formes_a_venir',
     ];
 
     protected function casts(): array
     {
         return [
             'habillage' => 'array',
+            'formes_a_venir' => 'array',
             'revele' => 'boolean',
             'elite' => 'boolean',
             'brule' => 'boolean',

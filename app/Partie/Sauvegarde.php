@@ -388,6 +388,8 @@ final class Sauvegarde
                     // rendait GRATUITEMENT au boss sa défense réactive.
                     'capacites_reactives_utilisees' => (array) ($i->capacites_reactives_utilisees ?? []),
                     'habillage' => $i->habillage, // reskin + conditions des monstres
+                    // Pioche des formes (Qwindrak) : l'ordre tiré se rejoue à l'identique à la reprise.
+                    'formes_a_venir' => $i->formes_a_venir,
                 ])->values()->all(),
             'etat_personnage_quete' => $quete->etatsPersonnages()->orderBy('id')->get()
                 ->map(fn (EtatPersonnageQuete $e) => [
@@ -620,6 +622,8 @@ final class Sauvegarde
                 'sorts_dread_lances' => $instance['sorts_dread_lances'] ?? [],
                 'capacites_reactives_utilisees' => $instance['capacites_reactives_utilisees'] ?? [],
                 'habillage' => $instance['habillage'],
+                // `?? null` : un snapshot antérieur à la pioche n'a pas de file (= pas encore tirée).
+                'formes_a_venir' => $instance['formes_a_venir'] ?? null,
             ])->save();
         }
     }

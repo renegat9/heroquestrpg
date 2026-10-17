@@ -1516,7 +1516,7 @@ toutes deux sont fermées.
     RETENU (réductions et réactions comprises).
   - `sort_regagne` `{personnage_id, personnage, sort, regain, texte}` — `RegainEffet::libelle()`
     (la Métamorphose revient quand le Body repasse au maximum).
-  - `changement_phase` `{instance_id, nom, phase: {avant, apres, stats}, texte?}` — l'annonce
+  - `changement_phase` `{instance_id, nom, phase: {avant, apres, stats, sorts_termines?, flamme?}, texte?}` — l'annonce
     AUTONOME d'un changement de forme (écrite par `MoteurDegats`, pour les appelants qui ne
     relaient pas `changement_phase`) ; le rejeu l'écarte quand le coup qui l'a provoquée la
     porte déjà (`JournalCombat::signatureDeDoublon()`).
@@ -3934,7 +3934,7 @@ champs s'ajoutent au payload de **toute** action qui blesse un monstre
 `frapper_entre_monstres`…), toujours présents (même `null`/`false`), comme
 `cible_vaincue` à côté d'eux :
 
-- **`changement_phase`** : `null`, ou `{avant, apres, stats}` — `avant` : le nom que
+- **`changement_phase`** : `null`, ou `{avant, apres, stats, sorts_termines, flamme?}` — `avant` : le nom que
   l'ÉCRAN montrait (`nomAffiche()`, habillage compris) ; `apres` : le `nom_base` de la
   forme adoptée si l'instance est habillée (son nom d'habillage ne change pas), sinon son
   nom affiché (le nom de catalogue de la nouvelle forme, ★ compris). Depuis
@@ -3947,6 +3947,20 @@ champs s'ajoutent au payload de **toute** action qui blesse un monstre
   et une scène de table dédiée (`genre: "transformation"`), au-dessus de
   n'importe quel type d'action — jamais une spécificité par type, le même
   patron que les pièges imbriqués (`declenchement`/`pieges_declenches`).
+  **`sorts_termines`** (liste de libellés, `[]` hors pioche) : les sorts actifs sur la créature
+  qui cessent AVEC sa forme (« Any spell active on Qwindrak ends ») ; la ligne de journal
+  le dit (« Les sorts actifs sur lui cessent : … »). Seule la PIOCHE de Qwindrak
+  (`synchroformes`, voir `docs/regles/bestiaire-et-rencontres.md`) en produit : la chaîne des
+  phases (Gretzl, Gruzbella…) GARDE ses sorts.
+  **`flamme`** — absent sauf à l'arrivée du Dragon de Qwindrak : `{monstre, instance_id,
+  resultats: [{cible: {personnage_id, nom}, des_rouges: [d6], degats, pv_body_apres,
+  cible_tombee}]}`. La flamme du Dread : chaque héros DEBOUT DANS LA MÊME SALLE lance un dé rouge,
+  1 à 3 lui fait perdre 1 Body (`App\Partie\MoteurSynchroformes::flammeALArrivee()`). Rendue par une
+  seconde scène de table `genre: "attaque"` (« X — La flamme du Dread », un objet par héros, avec
+  son dé : « dé 2 — −1 PV ») et par une ligne de journal par héros (« Albrecht : dé 2, −1 PV. »).
+  ⚠ La PIOCHE elle-même (les formes restantes, `instances_monstres.formes_a_venir`) n'est JAMAIS
+  publiée : seule la forme COURANTE l'est (`EtatGroupe::monstres()` : nom, `nom_base`, emprise,
+  position). Le client ne sait pas quelle forme vient après celle qui joue.
 - **`reaction_monstre`** : `null`, ou le nom de la mécanique réactive à usage
   unique qui vient de jouer (`"ignore_degats_attaque"` — Resilience/Demon
   Wings, `"increvable_une_fois"` — Sir Ragnar). Consomme le coup entier (le

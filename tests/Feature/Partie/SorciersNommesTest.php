@@ -143,9 +143,20 @@ it('remplit un POOL d\'archétypes dans chaque gabarit à rencontre finale', fun
         // nommée par le `phase_suivante` D'UNE AUTRE ligne est exemptée.
         $phasesSuivantes = Monstre::whereNotNull('phase_suivante')->pluck('phase_suivante')->all();
 
+        // ⚠ Une FORME DE PIOCHE (`synchroformes`, Qwindrak the Warlock, 2026-10-17) a le même droit : le
+        // Dragon est la DERNIÈRE forme de la pioche, jamais achetée seule (elle ne s'atteint qu'en jeu, à la
+        // mort de la forme précédente). Lu sur la fiche qui porte la pioche, jamais recopié ici.
+        $formesDePioche = Monstre::all()->flatMap(function (Monstre $m): array {
+            $decl = ((array) ($m->capacites ?? []))['synchroformes'] ?? null;
+
+            return is_array($decl)
+                ? [...array_map('strval', (array) ($decl['formes'] ?? [])), (string) ($decl['dernier'] ?? '')]
+                : [];
+        })->all();
+
         $orphelins = Monstre::where('tier', $tier)->pluck('nom_base')
             ->reject(fn ($n) => in_array($n, $atteignables, true) || in_array($n, $desactivees, true)
-                || in_array($n, $phasesSuivantes, true))
+                || in_array($n, $phasesSuivantes, true) || in_array($n, $formesDePioche, true))
             ->values()->all();
 
         expect($orphelins)->toBe([],

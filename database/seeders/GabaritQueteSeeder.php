@@ -412,14 +412,12 @@ class GabaritQueteSeeder extends Seeder
                         ],
                         // Les bosses sans répertoire : ils frappent, c'est tout,
                         // et c'est une lecture du combat final aussi.
-                        // ⚠ Le DRAGON (First Light, 2026-09-30) les rejoint : il
-                        // a bien UN sort (Boule de Flammes, à volonté), mais pas
-                        // de répertoire de sorcier nommé — sa carte ne porte
-                        // qu'une seule capacité magique, pas un `archetype_lanceur`
-                        // (voir le commentaire du Champion dans `MonstreSeeder`).
-                        // Nommé en CRÉATURE, il entre dans le pool au même titre
-                        // que les deux autres plutôt que par un archétype fabriqué
-                        // pour une seule entrée.
+                        // ⚠ QWINDRAK THE WARLOCK (First Light, 2026-10-17) occupe la place du
+                        // Dragon, qui n'entre plus ici : le Dragon est la DERNIÈRE FORME de
+                        // Qwindrak, jamais une rencontre achetée seule. Qwindrak n'a pas de
+                        // répertoire sourcé (⚠ non trouvé) : il entre en CRÉATURE nommée, comme
+                        // les bosses sans sorts. La pioche de ses formes est `MonstreSeeder` +
+                        // `App\Partie\MoteurSynchroformes`.
                         //
                         // ⚠ GRUZBELLA HAMMERHAND et SIR RAGNAR (chantier monstre à
                         // phases 2026-10-04) le rejoignent, même raison : ni l'une
@@ -427,7 +425,7 @@ class GabaritQueteSeeder extends Seeder
                         // phase de Gruzbella est nommée, même garde-fou que
                         // Spawn of the Pit ci-dessus (le jalon sous-boss).
                         'creatures' => [
-                            'Ogre commandant', 'Seigneur ogre', 'Dragon',
+                            'Ogre commandant', 'Seigneur ogre', 'Qwindrak the Warlock',
                             'Gruzbella Hammerhand', 'Sir Ragnar',
                             // LE SCION FLEUR-POURRIE (Jungles of Delthrak, quête 14 voie B, 2026-10-15) :
                             // le boss final du livret, immobile (Move 0 : posé en salle seulement) —

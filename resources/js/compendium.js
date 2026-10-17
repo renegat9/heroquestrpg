@@ -223,6 +223,8 @@ const CAPACITES = {
     apparait_a_la_vue: 'Paraît dès qu\'un héros le voit, et fait feu aussitôt',
     filet_silencieux: 'Filet silencieux : Canaliser l\'Effroi sur tout héros qui finit son tour en sa vue (sans action)',
     souffle_du_construit: 'Souffle du Construit (une fois) : 2 PV à toute la salle ou le couloir, réduits par 2 dés rouges',
+    synchroformes: 'Se transforme à chaque forme vaincue (pioche mélangée, le Dragon en dernier) ; ses sorts actifs cessent',
+    flamme_du_dread: 'Flamme du Dread à son arrivée : chaque héros de la salle lance un dé rouge, 3 ou moins = 1 PV',
     vrille_en_fin_de_tour: 'Pose une Vrille à la fin de chacun de ses tours',
     sacrifice_de_vrille: 'Sacrifie une Vrille pour rester à 1 PV au lieu de mourir',
 };

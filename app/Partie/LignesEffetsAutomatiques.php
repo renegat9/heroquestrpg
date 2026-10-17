@@ -542,7 +542,50 @@ trait LignesEffetsAutomatiques
             }
         }
 
-        return [$this->info($texte)];
+        $lignes = [$this->info($texte)];
+
+        // Une forme de la pioche de Qwindrak : les sorts actifs sur elle cessent — dit, pas seulement fait.
+        $sorts = array_values(array_filter(array_map('strval', (array) ($p['sorts_termines'] ?? []))));
+
+        if ($sorts !== []) {
+            $lignes[] = $this->info('Les sorts actifs sur lui cessent : '.implode(', ', $sorts).'.');
+        }
+
+        if (is_array($p['flamme'] ?? null)) {
+            array_push($lignes, ...$this->ligneFlammeDuDread($p['flamme']));
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * La flamme du Dread à l'arrivée du Dragon : une ligne par héros de la salle, avec son dé rouge — « dé 2 :
+     * −1 PV » — pour que la table voie le dé qui a blessé, et pas seulement le total.
+     *
+     * @param  array<string, mixed>  $f  `{monstre, instance_id, resultats}`
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function ligneFlammeDuDread(array $f): array
+    {
+        $resultats = array_values(array_filter((array) ($f['resultats'] ?? []), 'is_array'));
+
+        if ($resultats === []) {
+            return [$this->info('La flamme du Dread ne trouve personne dans la salle.')];
+        }
+
+        $lignes = [$this->info('La flamme du Dread : chaque héros de la salle lance un dé rouge, 3 ou moins le blesse.')];
+
+        foreach ($resultats as $r) {
+            $nom = (string) ($r['cible']['nom'] ?? 'un héros');
+            $face = (int) ($r['des_rouges'][0] ?? 0);
+            $degats = (int) ($r['degats'] ?? 0);
+            $issue = ! empty($r['cible_tombee']) ? 'tombe'
+                : ($degats > 0 ? "−{$degats} PV" : 'indemne');
+
+            $lignes[] = $this->info("{$nom} : dé {$face}, {$issue}.");
+        }
+
+        return $lignes;
     }
 
     /**

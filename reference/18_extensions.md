@@ -2082,7 +2082,8 @@ bien de ce livret se déduit du dépôt commun et de la mise en page identique ;
     - La **flamme du Dread** de la confrontation finale (un dé rouge par héros
       de la salle, 1 Body sur 3 ou moins) est une règle de la QUÊTE (notes de
       quête, ci-dessus), pas de la carte : elle ne suit pas le Dragon ailleurs.
-  - Les autres **Synchroforms** de Qwindrak ne sont pas chiffrées.
+  - Les autres **Synchroforms** de Qwindrak ne sont pas chiffrées *(une pioche de cinq formes, aux stats de leur ligne de bestiaire de base, le Dragon au fond — décision de René, 2026-10-17 : voir `docs/regles/bestiaire-et-rencontres.md`)*.
+  - *Porté le 2026-10-17* : la pioche (`synchroformes`), la flamme du Dread à l'arrivée du Dragon (`flamme_du_dread`, 1-3 = 1 Body, dés des héros de la même salle), et Qwindrak comme boss final de First Light. **Non porté** : répertoire de sorts du Warlock (⚠ non trouvé), tuiles Skull du Dragon (⚠ non trouvé), issues « escape » et « true warlock appearance ».
   - *Première fouille de trésor* (même page) : texte à lire, purement narratif
     — l'œuf du SeerScale éclot, **Alousen**, fille d'Ethlarin, « la dernière
     du SeerScale », remercie les héros et s'envole. Aucun effet de jeu.

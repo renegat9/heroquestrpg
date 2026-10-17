@@ -580,7 +580,10 @@ final class MoteurDegats
             ];
         }
 
-        $prochaine = $instance->monstre->monstrePhaseSuivante();
+        // LA forme suivante, par le seul point de passage des formes (chaîne des phases OU pioche de
+        // Qwindrak) — voir `MoteurSynchroformes`. `synchro` : le changement fait partie de la pioche.
+        $chaine = app(MoteurSynchroformes::class)->prochaine($instance);
+        $prochaine = $chaine['monstre'] ?? null;
 
         if ($prochaine !== null) {
             // ⚠ Le nom que l'ÉCRAN montre (`nomAffiche()`), jamais celui du catalogue :
@@ -616,6 +619,20 @@ final class MoteurDegats
             // qui est ce qui change vraiment : « Le Cœur-Liane Éveillé … : Demonspider ».
             // Sans habillage, le nom affiché EST celui de la nouvelle forme (★ d'élite compris).
             $nomApres = $habille ? $prochaine->nom_base : $instance->nomAffiche();
+
+            // Une forme de la PIOCHE (Qwindrak) : ses sorts actifs cessent, sa place doit être SÛRE (une
+            // emprise de 1 × 2 n'entre pas toujours là où était la forme précédente), puis son arrivée
+            // souffle la flamme du Dread si la fiche la porte. La chaîne des phases ne fait rien de tout cela.
+            $sortsTermines = [];
+            $flamme = null;
+
+            if ($chaine['synchro']) {
+                $synchroformes = app(MoteurSynchroformes::class);
+                $sortsTermines = $synchroformes->terminerSorts($instance);
+                $synchroformes->ancrer($instance);
+                $flamme = $synchroformes->flammeALArrivee($instance);
+            }
+
             $changement = [
                 'avant' => $nomAvant,
                 'apres' => $nomApres,
@@ -628,7 +645,12 @@ final class MoteurDegats
                         'pv_body_max' => $nouveauMax,
                     ],
                 ],
+                'sorts_termines' => $sortsTermines,
             ];
+
+            if ($flamme !== null) {
+                $changement['flamme'] = $flamme;
+            }
 
             $this->journaliserChangementPhase($instance, $changement);
 
