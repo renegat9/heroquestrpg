@@ -145,11 +145,32 @@ final class BibliothequeImages
             : null;
     }
 
+    /**
+     * Image d'un meuble, dans l'ordre : le DÉCOUPAGE DU LIVRET officiel s'il existe,
+     * sinon l'illustration GÉNÉRÉE du catalogue, sinon l'emblème.
+     *
+     * ⚠ Le découpage est de l'art Hasbro : il vit SUR LA MACHINE qui l'a découpé, dans un
+     * dossier que le dépôt (public) ne suit pas. Un dépôt fraîchement cloné n'en a aucun et
+     * retombe sur le généré : rien ne casse.
+     * ⚠ Le généré (vue de face, proportions fausses) ne sert plus qu'à défaut. Cet accesseur
+     * est le seul point qui choisit l'image : aucun autre code ne lit ces dossiers.
+     * ⚠ Le nom de fichier suit le slug du nom : renommer un meuble impose de refaire son découpage.
+     */
     public function urlMobilier(?int $id, ?string $nom): ?string
     {
-        return $id
-            ? $this->url($this->relatifCatalogue('mobiliers', $id, (string) $nom)) ?? $this->vignette('mobilier', $id)
-            : null;
+        if (! $id) {
+            return null;
+        }
+
+        return $this->url($this->relatifLivretMobilier($id, (string) $nom))
+            ?? $this->url($this->relatifCatalogue('mobiliers', $id, (string) $nom))
+            ?? $this->vignette('mobilier', $id);
+    }
+
+    /** Découpage du livret officiel, vu du dessus : `livret/mobiliers/{id}-{slug}`, hors dépôt. */
+    public function relatifLivretMobilier(int $id, string $nom): string
+    {
+        return "livret/mobiliers/{$id}-".self::slug($nom).'.'.self::FORMAT;
     }
 
     public function urlEpreuve(?int $id, ?string $nom): ?string

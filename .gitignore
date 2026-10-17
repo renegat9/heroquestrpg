@@ -46,6 +46,13 @@ browser-shots/*.png
 /public/images/**/*.png
 /public/images/dyn/quete/
 
+# Découpages du LIVRET officiel (art Hasbro, 2026-10-17) : le dépôt est PUBLIC, et ces
+# dessins n'y entrent JAMAIS — même règle que les PDF des livrets, hors dépôt. Ils vivent
+# sur la machine qui les a découpés ; sans eux, le jeu retombe sur l'image générée puis sur
+# l'emblème (BibliothequeImages::urlMobilier()). Une image sous licence libre se suit par
+# une exception explicite, avec son fichier d'attribution à côté.
+/public/images/livret/
+
 # artefacts Windows (flux ADS de fichiers téléchargés) — bruit, hors dépôt
 *:Zone.Identifier
 
