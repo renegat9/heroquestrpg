@@ -15,7 +15,7 @@ Routes protégées par middleware `auth` sauf connexion.
 | Méthode | Route | Corps | Réponse |
 |---|---|---|---|
 | POST | /api/connexion | {identifiant} | {joueur} (nom seul, sans mot de passe) |
-| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes (chacune avec **`depart: {arme, pieces[], des_attaque, des_defense}`** — l'attaque et la défense **avec l'équipement de départ**, décidées par le serveur (`EquipementDepart::valeurs()`, mêmes règles que `recalculerCombat()`), à côté des `des_attaque`/`des_defense` de base à mains nues, 2026-09-24), competences, monstres (chacun avec **`boite`/`boite_libelle`**, 2026-10-09 ; `boite` reste la boîte d'ORIGINE, et `boite_libelle` nomme TOUTES les boîtes où la fiche est imprimée, séparées par « · » — l'Archer elfe et le Guerrier elfe : « The Mage of the Mirror · Rise of the Dread Moon », 2026-10-15, `monstres.boites_partagees`), objets (chacun avec **`avantages: string[]`** — ce que fait la pièce, traduit par le serveur via `MotsClesEquipement::avantages()`, le même texte que le sac ; le front ne retraduit plus la clé), sorts, pieges, **mobiliers** (`{nom, largeur, hauteur, bloque_vue, fouillable, difficulte_destruction, pv_body, defense_dice, attaquable, detruit_par_action, boite_libelle}`) — `detruit_par_action` (2026-10-09) : le **Cocon** de Jungles of Delthrak, détruit par une action d'un héros adjacent, sans jet, décidé par le serveur depuis `effet.detruit_par_action` —, **terrains** (`[{nom, cout_deplacement, avantages: string[], boite, boite_libelle}]`, 2026-10-09 : ce que chaque tuile FAIT, en phrases, traduit par le serveur via `MotsClesTerrain::avantages()` ; une tuile qui ne produit rien dit « sans effet à ce jour » ; une clé non implémentée ne produit aucune phrase), **themes** (`[{cle, libelle}]` = `DemarreurQuete::BOITES_THEMATIQUES`), **cartes**} (catalogues seedés, autres effets bruts mis en forme côté front). `cartes` = les **trois** paquets sources (`config/cartes.php`, **69 cartes** : `equipement` 20 + `potions` 15, photos du matériel officiel Hasbro, + `artefacts` 34) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque}]}` — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
+| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes (chacune avec **`depart: {arme, pieces[], des_attaque, des_defense}`** — l'attaque et la défense **avec l'équipement de départ**, décidées par le serveur (`EquipementDepart::valeurs()`, mêmes règles que `recalculerCombat()`), à côté des `des_attaque`/`des_defense` de base à mains nues, 2026-09-24), competences, monstres (chacun avec **`boite`/`boite_libelle`**, 2026-10-09 ; `boite` reste la boîte d'ORIGINE, et `boite_libelle` nomme TOUTES les boîtes où la fiche est imprimée, séparées par « · » — l'Archer elfe et le Guerrier elfe : « The Mage of the Mirror · Rise of the Dread Moon », 2026-10-15, `monstres.boites_partagees`), objets (chacun avec **`avantages: string[]`** — ce que fait la pièce, traduit par le serveur via `MotsClesEquipement::avantages()`, le même texte que le sac ; le front ne retraduit plus la clé ; **`prix_base` est `null` pour un objet HORS MARCHÉ**, 2026-10-16 — parchemin, carte de trésor sans prix, potion de soin : `PhaseMarche::estHorsMarche()`, le prédicat de l'étal. Un prix qu'aucune transaction n'utilise n'est pas publié, et le front n'en affiche aucun), sorts, pieges, **mobiliers** (`{nom, largeur, hauteur, bloque_vue, fouillable, difficulte_destruction, pv_body, defense_dice, attaquable, detruit_par_action, boite_libelle}`) — `detruit_par_action` (2026-10-09) : le **Cocon** de Jungles of Delthrak, détruit par une action d'un héros adjacent, sans jet, décidé par le serveur depuis `effet.detruit_par_action` —, **terrains** (`[{nom, cout_deplacement, avantages: string[], boite, boite_libelle}]`, 2026-10-09 : ce que chaque tuile FAIT, en phrases, traduit par le serveur via `MotsClesTerrain::avantages()` ; une tuile qui ne produit rien dit « sans effet à ce jour » ; une clé non implémentée ne produit aucune phrase), **themes** (`[{cle, libelle}]` = `DemarreurQuete::BOITES_THEMATIQUES`), **cartes**} (catalogues seedés, autres effets bruts mis en forme côté front). `cartes` = les **trois** paquets sources (`config/cartes.php`, **69 cartes** : `equipement` 20 + `potions` 15, photos du matériel officiel Hasbro, + `artefacts` 34) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque, image_url}]}` — `image_url` (2026-10-16) : l'illustration d'une carte de **Dread**, emblème compris, `null` hors de ce paquet (§« Sorts de Dread illustrés ») — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
 | POST | /api/deconnexion | — | 204 |
 | GET | /api/moi | — | {joueur, personnages: [...], boites_bestiaire: [{id, libelle}]} |
 | POST | /api/groupes | {nom, theme, longueur, ton, bestiaire_boites?} | {groupe} + dispatch squelette — `bestiaire_boites` : voir §Bestiaire automatique ou manuel |
@@ -53,6 +53,7 @@ proposition du MJ. » quand ce n'est pas son tour.
              "compagnon_offert": {"nb_heros": 2, "seuil": 4, "consigne": "Le groupe compte 2 héros (moins de 4) : un compagnon animal vous est offert, gratuitement, pour toute la campagne. Un seul choix, une seule fois — le joueur qui le prend le mène.",
                                   "animaux": [{"mercenaire_id": 6, "nom": "Loup", "type": "compagnon", "deplacement": 10, "attaque": 3, "defense": 2, "pv_body": 5, "description": "…", "image_url": "…|null"}]},
              "gardien": true,
+             "depart_possible": true, "depart_motif": null,
              "mercenaires_entretien": {"action": "mercenaire_entretien", "quete_id": 7, "cout_par_mercenaire": 10,
                                        "cout_total": 20, "or_restant": 480,
                                        "payes": [{"id": 3, "nom": "Fauchard"}], "partis": [],
@@ -966,6 +967,16 @@ PNJ **scriptés** (hors roster). Au démarrage de quête ils sont instanciés su
 les cases de spawn restantes, à côté des héros. Réponse :
 `{recrue:{id,nom,type,animal}, or}` ; broadcast `.groupe.etat`.
 
+### Départ de la quête — la décision est publiée (2026-10-16, fin de campagne)
+
+`groupe.depart_possible` (bool) et `groupe.depart_motif` (string|null), publiés **au hub seulement** (absents en
+quête). Décidés par `DemarreurQuete::refusDeDepart()`, le seul point de passage : `depart_possible: false` quand la
+campagne est **gagnée** (boss final vaincu, arc épuisé — `Groupe::victoireFinaleAcquise()`), avec le motif écrit par
+le serveur (« La campagne est gagnée (boss final vaincu) : aucune nouvelle quête ne peut démarrer. Clôturez la
+campagne. »). La **manette** masque « Prêt pour la quête ! » et la **table** masque « Lancer la quête » ; le motif
+s'affiche à leur place. Le client ne redérive ni la victoire ni le motif. Les mêmes motifs refusent `POST /pret`
+(422 `pret`) et `POST /quetes` (422 `groupe`) : la décision publiée et le refus serveur ne peuvent pas diverger.
+
 ### Statut de Gardien et entretien des mercenaires (chantier 1c, Wizards of
 Morcar, livret G1504 p. 8-9, René 2026-10-06)
 
@@ -1035,7 +1046,10 @@ retiré** (décisions du 2026-10-06 et du 2026-10-15) : il n'existe plus.
   (bestiaire automatique ou boîtes cochées). Une campagne sans Morcar ne reçoit AUCUNE faveur nouvelle et rien n'est affiché ;
   une faveur déjà TENUE reste tenue (aucun retrait rétroactif).
 - **Quel tour** : `FaveursHopekins::tourDeHub()` — le hub (`phase: hub`) qui suit la quête ACHEVÉE la plus récente, une fois
-  Gardien (deux quêtes achevées). Le tour se ferme au départ de la quête suivante.
+  Gardien (deux quêtes achevées). Le tour se ferme au départ de la quête suivante. **Jamais après la victoire finale**
+  (`Groupe::victoireFinaleAcquise()`, 2026-10-16 : ni fenêtre de clôture ouverte, ni arc épuisé après `DELETE /cloture`) —
+  ce prédicat unique est lu par `tourDeHub()` (donc par `/moi`, `/etat` et l'annonce) et par `choisirLieu()`, qui refuse
+  (`docs/plan-wizards-of-morcar.md` §Exécution (2026-10-16, fin de campagne)).
 - **Qui** : CHAQUE héros actif choisit pour SON héros, UNE fois par tour, ou renonce (« may »). La décision est écrite EN BASE
   (`personnage_visites_hopekins` : `quete_id`, `lieu` — `null` = renonce). Rien de ce tour n'est gardé en cache.
 - **Liste blanche** : `/moi` → `visite_hopekins: {quete_id, lieux: [{cle, libelle, effet, disponible, motif}]}`. Les neuf lieux,
@@ -1048,7 +1062,7 @@ retiré** (décisions du 2026-10-06 et du 2026-10-15) : il n'existe plus.
 
 | Méthode | URL | Corps | Effet |
 |---|---|---|---|
-| PUT | /groupes/{identifiant}/faveurs/lieu | {personnage_id, lieu: string\|null} | le héros visite `lieu` (une clé de `FaveursHopekins::TOUTES`, revalidée contre la liste blanche) ou, avec `lieu: null`, renonce. **Hub uniquement, un seul choix par tour.** 200 `{personnage_id, lieu, detail, faveurs, visite_hopekins}` (`visite_hopekins` relu : `null` après la décision). 422 : hors hub ou tour fermé (`phase`), héros qui n'est pas à ce joueur (`personnage_id`), décision déjà prise (`lieu`), lieu hors de la liste blanche (`lieu`, avec le motif en message). Diffuse `.groupe.etat`. Journal `systeme` `visite_hopekins` `{quete_id, personnage_id, personnage, lieu, detail}` — `detail` : ce qui a pris fin et ce que la faveur fait ; `lieu: null` → « … ne visite aucun lieu. ». |
+| PUT | /groupes/{identifiant}/faveurs/lieu | {personnage_id, lieu: string\|null} | le héros visite `lieu` (une clé de `FaveursHopekins::TOUTES`, revalidée contre la liste blanche) ou, avec `lieu: null`, renonce. **Hub uniquement, un seul choix par tour.** 200 `{personnage_id, lieu, detail, faveurs, visite_hopekins}` (`visite_hopekins` relu : `null` après la décision). 422 : hors hub ou tour fermé (`phase`) — **y compris après la victoire finale** (« La campagne est gagnée : Hopekins Rest ne reçoit plus de visite. », 2026-10-16) —, héros qui n'est pas à ce joueur (`personnage_id`), décision déjà prise (`lieu`), lieu hors de la liste blanche (`lieu`, avec le motif en message). Diffuse `.groupe.etat`. Journal `systeme` `visite_hopekins` `{quete_id, personnage_id, personnage, lieu, detail}` — `detail` : ce qui a pris fin et ce que la faveur fait ; `lieu: null` → « … ne visite aucun lieu. ». |
 
 - **Annonce** : `groupe.hopekins` (au hub seulement, `null` hors tour) = `{quete_id, visites: [{personnage_id, personnage, lieu,
   libelle, effet, detail}], en_attente: [{personnage_id, personnage}]}`. `visites` relit le journal `visite_hopekins` de CE tour
@@ -2284,6 +2298,25 @@ entrée de `carte.portes[]` gagne aussi `embrasure: {x, y}` (§Portes &
 exploration plus bas) — la case sur laquelle `DungeonGrid.vue` centre l'image.
 `images:generer --type=leviers|portes` les produit.
 
+**Sorts de Dread illustrés** (2026-10-16). Chaque carte de la magie du MJ (`sorts_dread`)
+a son gabarit `sort_dread` (`config/images.php`), et son sujet est le **TYPE** de son
+effet (`config('images.sorts_dread_effets')`, confronté à `MotsClesSortDread::TYPES`
+**dans les deux sens**) — jamais `effet`, qui porte les dés et les crânes qu'un prompt
+ferait peindre en chiffres sur la carte. `BibliothequeImages::urlSortDread()` rend
+`catalogue/sorts_dread/{id}-{slug}` ou, à défaut, l'emblème `sort_dread` (un œil) : `null`
+seulement quand la carte n'existe pas. Deux lecteurs, et c'est voulu : la **scène de
+table** `sort` (`objets[].image_url`, pour les sorts qui jettent un dé — un sort SANS dé
+n'a pas de scène, voir §`.table.scene`) et **`GET /api/guide`**, `cartes[].image_url` du
+paquet `dread`, où figurent les 63 cartes du paquet. `images:generer --type=sorts_dread` (inclus
+dans `tous`) les produit.
+
+**Mobilier — emprise en MOTS** (2026-10-16). Le gabarit `mobilier` ne reçoit plus
+« 3 × 2 » mais `{forme}` (`BibliothequeImages::formeMobilier()` : « une fois et demie
+plus large que haut : son côté le plus long est HORIZONTAL dans l'image »), parce qu'un chiffre dans
+un prompt se fait peindre sur le meuble. Il ne prend plus non plus le style à torches
+(`images.style`) : c'est lui qui peignait un brasero dans la bibliothèque. Les meubles
+déjà générés gardent leur ancienne image tant qu'on ne les relance pas.
+
 ⚠ **Une porte secrète non révélée n'a plus d'existence à illustrer** (2026-09-11,
 §Portes & exploration plus bas) : elle ne figure plus du tout dans `portes[]`,
 sa case se peint directement `m` dans `carte.cases` — un mur n'affiche jamais
@@ -3104,13 +3137,25 @@ la dernière quête est **échouée** (TPK doc 05 §6 : l'or à partager est alo
 `abandon` (fin décidée saine, pot complet). Le drapeau `abandon: true` reste
 réservé à une campagne réellement échouée (422 sinon). 422 si une quête est en cours.
 
+**Après la victoire finale** (`Groupe::victoireFinaleAcquise()` : boss final `terminee`, arc épuisé — 2026-10-16) :
+la clôture est la **seule issue**. Aucune quête ne démarre (422 `pret` sur `POST /pret`, 422 `groupe` sur
+`POST /quetes`, membre comme table), aucun tour de Hopekins Rest n'est publié (`/moi`, `/etat`) ni accepté
+(`PUT …/faveurs/lieu`, 422 `phase`). `DELETE /cloture` annule la fenêtre sans rouvrir le départ : le groupe reste au
+hub, et `POST /cloture` la rouvre (issue `victoire`).
+
+**Faveurs de Hopekins Rest : elles ne survivent pas à la campagne** (décision de René, 2026-10-16 : « aucune
+récompense, car on ne suit pas l'histoire réelle »). Toutes les issues (victoire, échec, abandon, arrêt d'urgence)
+passent par `ClotureCampagne::purger()` : chaque héros de la campagne, actif OU parti en cours de route, voit ses
+faveurs relâchées (`FaveursHopekins::relacherCampagne()`), effets défaits, PV max compris (+2 de *Dewdrop Inn*),
+avant la remise à plein. Aucune ligne `personnage_faveurs` ne subsiste ; une autre campagne en cours n'est pas touchée.
+
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
 | POST | /groupes/{identifiant}/cloture | {abandon?: bool} | ouvre la fenêtre |
 | GET | /groupes/{identifiant}/cloture | — | EtatCloture, ou `{cloture: null}` (200) si aucune fenêtre ouverte (même sonde de rattrapage que le marché, pas de 404) |
 | PUT | /groupes/{identifiant}/cloture/repartition | {inventaire_id, personnage_id} | réassigne un équipement (annule les confirmations) |
 | POST | /groupes/{identifiant}/cloture/confirmation | — | confirme ; tous confirmés → finalisation |
-| DELETE | /groupes/{identifiant}/cloture | — | annule la fenêtre (rien appliqué) |
+| DELETE | /groupes/{identifiant}/cloture | — | annule la fenêtre (rien appliqué). Après la victoire finale, le groupe reste au hub SANS quête possible (`POST /pret` et `POST /quetes` refusés) : la clôture reste la seule issue, `POST /cloture` la rouvre. Annule aussi une fenêtre d'abandon ouverte par un membre. |
 | POST | /groupes/{identifiant}/cloture/urgence | — | **arrêt d'urgence** : finalise IMMÉDIATEMENT, sans confirmation d'aucun joueur — **membre OU table**, à tout moment (y compris en pleine quête). Menu d'urgence du narrateur, écran de table. Issue `abandon`, or_a_partager = or courant, aucune réassignation d'équipement (chacun garde ce qu'il porte) — sinon même finalisation que ci-dessous (job, historique, purge, `.cloture.terminee`) |
 
 **EtatCloture** : `{issue: "victoire|echec|abandon", or_a_partager,
@@ -3123,10 +3168,14 @@ rarete, personnage_id}], confirmations: [{joueur_id, pseudo, confirme}]}`.
 `personnages.or` ; 3. **résumé de campagne généré AVANT la purge** (skill MJ
 `ResumeCampagne` depuis le journal ; repli sans LLM : résumé factuel — quêtes,
 boss, or, issue) ; 4. une ligne `personnage_historique` par héros (groupe_nom,
-theme, resume, issue, niveau_atteint, termine_le) ; 5. détachement
-(`groupe_actif_id` null), **personnages remis à plein** (pv_body/pv_mind au
-max, sorts tous `disponible`, conditions/buffs effacés — victoire, échec ou
-abandon referment l'ardoise) puis **purge complète** : quetes, cartes,
+theme, resume, issue, niveau_atteint, termine_le) ; 5. **faveurs de Hopekins Rest
+relâchées** (`FaveursHopekins::relacherCampagne()`, tout héros du pivot, actif ou
+parti en cours de route : effets défaits — mercenaire offert retourné, répertoire
+d'*Arcane Library* retiré, +2 PV de *Dewdrop Inn* réconcilié par le point de passage
+des plafonds — puis lignes supprimées ; *Witch's Hut* n'est pas une faveur tenue, sa
+potion reste au sac) ; 6. détachement (`groupe_actif_id` null), **personnages remis à
+plein** (pv_body/pv_mind au max, sorts tous `disponible`, conditions/buffs effacés —
+victoire, échec ou abandon referment l'ardoise) puis **purge complète** : quetes, cartes,
 instances_monstres, etat_personnage_quete, evenements, snapshots, caches de
 phase, le groupe lui-même, et les points **Qdrant** du group_id (best-effort
 si Qdrant est joignable). Broadcast final `.cloture.terminee`
@@ -3614,8 +3663,8 @@ qu'un **narrateur est actif** (remplace le démarrage manuel par la table).
 
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
-| POST | /api/groupes/{identifiant}/pret | {personnage_id, pret} | (dé)marque un perso prêt (cache `partie:pret:{groupe_id}`) ; si tous les membres actifs sont prêts ET narrateur actif → **démarre la quête** (DemarreurQuete) et réinitialise les statuts. ⚠ **422 si CE joueur a un panier de marché non vide et non confirmé** — l'application du marché est atomique, donc rien n'est débité, mais ses achats se perdraient au départ (constaté en partie réelle, 2026-08-17). On refuse à ce joueur seul, jamais au groupe : bloquer le départ pour tous referait le piège du vote de sortie, où un joueur distrait enferme les autres. **Même patron, 2026-10-15** : 422 `pret` tant que le **compagnon animal offert** est ouvert (groupe de moins de 4 héros, avant la 1re quête — un seul geste d'un seul joueur, prendre ou refuser, lève le refus pour tous) et tant que CE héros porte *Weapon Expert* sans type d'arme choisi. Le démarrage de quête referme la phase de marché **explicitement** (`marche_ferme_par_quete` au journal + `.marche.finalise`), au lieu de la laisser expirer en silence. |
-| POST | /api/groupes/{identifiant}/quetes | — | démarrage MANUEL (bouton « Lancer la quête » de la table) — autorisation **membre OU table** (le narrateur sans compte peut lancer). Sans ça la table prenait un 401 → faux « session expirée » → redirection vers le login joueur |
+| POST | /api/groupes/{identifiant}/pret | {personnage_id, pret} | (dé)marque un perso prêt (cache `partie:pret:{groupe_id}`) ; si tous les membres actifs sont prêts ET narrateur actif → **démarre la quête** (DemarreurQuete) et réinitialise les statuts. ⚠ **422 si CE joueur a un panier de marché non vide et non confirmé** — l'application du marché est atomique, donc rien n'est débité, mais ses achats se perdraient au départ (constaté en partie réelle, 2026-08-17). On refuse à ce joueur seul, jamais au groupe : bloquer le départ pour tous referait le piège du vote de sortie, où un joueur distrait enferme les autres. **Même patron, 2026-10-15** : 422 `pret` tant que le **compagnon animal offert** est ouvert (groupe de moins de 4 héros, avant la 1re quête — un seul geste d'un seul joueur, prendre ou refuser, lève le refus pour tous) et tant que CE héros porte *Weapon Expert* sans type d'arme choisi. Le démarrage de quête referme la phase de marché **explicitement** (`marche_ferme_par_quete` au journal + `.marche.finalise`), au lieu de la laisser expirer en silence. **Campagne GAGNÉE (2026-10-16)** : 422 `pret` « La campagne est gagnée (boss final vaincu) : aucune nouvelle quête ne peut démarrer. Clôturez la campagne. » pour tout `pret: true`, refusé AVANT l'écriture du cache (aucun `.prets.maj`, rien ne reste en attente) ; `pret: false` reste permis. Même motif que `DemarreurQuete::refusDeDepart()`. |
+| POST | /api/groupes/{identifiant}/quetes | — | démarrage MANUEL (bouton « Lancer la quête » de la table) — autorisation **membre OU table** (le narrateur sans compte peut lancer). Sans ça la table prenait un 401 → faux « session expirée » → redirection vers le login joueur. **Campagne GAGNÉE (2026-10-16)** : 422 `groupe` (même motif que `/pret`) — `DemarreurQuete::demarrer()` le lève, donc aucune quête 4 (`boss_final` par défaut de `JalonsCampagne`) ne part, ni pour le membre ni pour la table. |
 
 > Un 401 sur l'écran **narrateur/table** ne renvoie PAS au login joueur : la
 > table se rouvre par **code** (`/narrateur`), pas par compte (App.vue).

@@ -55,19 +55,20 @@ final class MotsClesEpreuve
 
         // Une réussite rend un consommable tiré au catalogue, UNIFORMÉMENT
         // (`ResolveurTour::epreuveObjet()`) : ce n'est PAS le tirage en deux temps
-        // de `App\Engine\RareteButin` que suit le mobilier. ⚠ Écart constaté le
-        // 2026-10-16, non corrigé (une récompense de quête n'a pas été réglée sur la
-        // courbe de niveau) : à unifier si René le décide.
+        // de `App\Partie\TirageButin` que suit le mobilier, ni celui du Grimoire.
+        // ⚠ Écart constaté le 2026-10-16, non tranché : René n'a arbitré que le
+        // Grimoire. À unifier si René le décide.
         'objet' => [
             'lecteur' => 'App\Partie\ResolveurTour::resoudreEpreuve()',
             'libelle' => 'un objet',
         ],
 
-        // Une réussite rend un parchemin tiré dans la catégorie `parchemin`, à tirage
-        // UNIFORME (`ResolveurTour::epreuveObjet()`), sans la courbe de rareté du
-        // mobilier. C'est une récompense de quête, jamais un achat : le marché n'en vend
-        // plus (René, 2026-10-16). Seule épreuve à le porter : « Grimoire à demi calciné ».
-        // Les parchemins du MOBILIER (bibliothèque, établi) passent par `MoteurMobilier`.
+        // Une réussite rend un parchemin, tiré par la MÊME courbe que le mobilier
+        // (`App\Partie\TirageButin` : la rareté pondérée par le niveau du groupe, puis le
+        // sort uniformément dans cette rareté) — décision de René, 2026-10-16. C'est une
+        // récompense de quête, jamais un achat : le marché n'en vend plus. Seule épreuve
+        // à le porter : « Grimoire à demi calciné ». Les parchemins du MOBILIER
+        // (bibliothèque, établi) passent par le même `TirageButin`.
         'parchemin' => [
             'lecteur' => 'App\Partie\ResolveurTour::resoudreEpreuve()',
             'libelle' => 'un parchemin',

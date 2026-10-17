@@ -15,6 +15,7 @@ use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Sort;
+use App\Models\SortDread;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\JournalCombat;
 use App\Partie\SceneDeTable;
@@ -26,6 +27,7 @@ use Database\Seeders\MercenaireSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\PiegeSeeder;
+use Database\Seeders\SortDreadSeeder;
 use Database\Seeders\SortSeeder;
 use Illuminate\Support\Facades\Event;
 
@@ -865,6 +867,37 @@ it('ne montre AUCUNE scène pour un sort de Dread sans dé à montrer (soin, inv
         'type' => 'sort_dread', 'sort' => 'Vol de vie', 'soin' => 3,
         'cible' => ['nom' => 'Le Gardien'],
     ], sceneHeros('Aldric', 'magicien')))->toBe([]);
+});
+
+it('illustre le sort de Dread par SA carte, et publie l\'URL dans `objets[]`', function () {
+    // Sans la carte au catalogue, l'URL serait celle de l'emblème du genre `sort` — le défaut d'avant.
+    $this->seed(SortDreadSeeder::class);
+
+    // Bac à sable : `url()` regarde le disque, et une illustration réelle de la carte y changerait le résultat.
+    $racine = sys_get_temp_dir().'/hq-scene-dread-'.uniqid();
+    mkdir($racine, 0775, true);
+    app()->usePublicPath($racine);
+
+    try {
+        $victime = sceneHeros('Borin', 'nain');
+
+        $scene = scenesDe([
+            'type' => 'sort_dread', 'sort' => 'Sommeil', 'condition' => 'Endormi',
+            'resultats' => [[
+                'cible' => ['personnage_id' => $victime->id, 'nom' => 'Borin'],
+                'mind_cible' => 2, 'succes' => 0, 'difficulte' => 1,
+                'faces' => ['bouclier_blanc', 'bouclier_noir'], 'effet_applique' => true,
+            ]],
+        ], sceneHeros('Aldric', 'magicien'))[0];
+
+        $id = SortDread::where('nom', 'Sommeil')->value('id');
+
+        expect($scene['objets'])->toHaveCount(1)
+            ->and($scene['objets'][0]['nom'])->toBe('Sommeil')
+            ->and($scene['objets'][0]['image_url'])->toBe("/api/placeholder/sort_dread/{$id}");
+    } finally {
+        exec('rm -rf '.escapeshellarg($racine));
+    }
 });
 
 it('dessine le(s) dé(s) d\'un piège de sol sur la scène de table — payload FABRIQUÉ', function () {

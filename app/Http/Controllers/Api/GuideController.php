@@ -12,11 +12,14 @@ use App\Models\Monstre;
 use App\Models\Objet;
 use App\Models\Piege;
 use App\Models\Sort;
+use App\Models\SortDread;
 use App\Models\Terrain;
 use App\Engine\MotsClesEquipement;
 use App\Engine\MotsClesTerrain;
 use App\Partie\DemarreurQuete;
 use App\Partie\EquipementDepart;
+use App\Partie\Images\BibliothequeImages;
+use App\Partie\Marche\PhaseMarche;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -109,15 +112,22 @@ class GuideController extends Controller
                 // poids). C'est elle qui ferme la cotte au Druide et au Rogue,
                 // et qui coûte au Barde son dé de défense supplémentaire.
                 ->get(['nom', 'categorie', 'rarete', 'prix_base', 'emplacement', 'effet', 'tag_equipement', 'metallique'])
+                // Le tri lit le prix RÉEL, avant qu'il ne soit retiré : un prix nul
+                // ferait passer chaque potion hors marché avant les autres consommables.
+                ->sortBy(fn (Objet $o) => sprintf('%d|%06d|%s', $rangCategorie[$o->categorie] ?? 9, $o->prix_base, $o->nom))
                 // `avantages` (2026-10-09) : ce que fait la pièce, TRADUIT PAR LE
                 // SERVEUR (`MotsClesEquipement::avantages()`, le même texte que le
                 // sac du téléphone et le livret). Le client ne retraduit plus la clé
                 // mécanique : 43 objets s'affichaient en « relance des attaque ».
+                // `prix_base` (2026-10-16) : la DÉCISION du serveur. Un objet HORS MARCHÉ
+                // (parchemin, carte de trésor sans prix, potion de soin) n'a pas de prix,
+                // puisqu'aucune transaction ne l'utilise — `null`, et le front n'affiche rien.
+                // Même prédicat que l'étal (`PhaseMarche::estHorsMarche()`), jamais un second test.
                 ->map(fn (Objet $o) => [
-                    ...$o->only(['nom', 'categorie', 'rarete', 'prix_base', 'emplacement', 'effet', 'tag_equipement', 'metallique']),
+                    ...$o->only(['nom', 'categorie', 'rarete', 'emplacement', 'effet', 'tag_equipement', 'metallique']),
+                    'prix_base' => PhaseMarche::estHorsMarche($o) ? null : $o->prix_base,
                     'avantages' => MotsClesEquipement::avantages((array) $o->effet),
                 ])
-                ->sortBy(fn ($o) => sprintf('%d|%06d|%s', $rangCategorie[$o['categorie']] ?? 9, $o['prix_base'], $o['nom']))
                 ->values()
                 ->all(),
 
@@ -204,6 +214,11 @@ class GuideController extends Controller
         // ⚠ SIXIÈME paquet depuis le 2026-10-08 : les sorts de héros de Wizards
         // of Morcar (trois répertoires optionnels). Même raison que `dread` : des
         // cartes de sort, portées par une ligne de `sorts` et non d'`objets`.
+        // Illustrations des cartes de DREAD (2026-10-16) : une requête pour tout le paquet,
+        // et l'emblème en repli. Les autres paquets n'en ont pas — leur `image_url` reste `null`.
+        $biblio = app(BibliothequeImages::class);
+        $idsDread = SortDread::query()->pluck('id', 'nom');
+
         foreach (['equipement', 'potions', 'artefacts', 'parchemins', 'dread', 'sorts_heros'] as $cle) {
             $paquet = (array) config("cartes.{$cle}", []);
 
@@ -232,6 +247,10 @@ class GuideController extends Controller
                     'porte' => isset($c['objet']) || isset($c['sort']) || isset($c['sort_dread']),
                     'texte' => $c['texte'] ?? null,
                     'manque' => $c['manque'] ?? null,
+                    // L'illustration de la carte de Dread, emblème `sort_dread` en repli (`null` hors du paquet).
+                    'image_url' => isset($c['sort_dread'])
+                        ? $biblio->urlSortDread($idsDread[$c['sort_dread']] ?? null, (string) $c['sort_dread'])
+                        : null,
                 ], (array) ($paquet['cartes'] ?? [])),
             ];
         }

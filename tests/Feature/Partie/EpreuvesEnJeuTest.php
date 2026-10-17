@@ -215,6 +215,60 @@ it('mécanique « parchemin » : rend une pièce de catégorie parchemin, jamais
         ->whereHas('objet', fn ($q) => $q->where('categorie', 'parchemin'))->exists())->toBeTrue();
 });
 
+it('mécanique « parchemin » : tire par la COURBE du groupe, comme le mobilier — à niveau 1, du commun, et non un sort au hasard', function () {
+    // Décision de René (2026-10-16). Avant, l'épreuve tirait UNIFORMÉMENT dans les 40 sorts :
+    // 3 communs (difficulté 1), 22 peu communs, 15 rares — soit 7,5 % de communs et 37,5 % de
+    // rares. La courbe `RareteButin::poids(1)` donne 70 % de communs et 2 % de rares. Le COMMUN
+    // est le signal le plus net, donc c'est lui qui porte l'assertion. Passe par la VRAIE route
+    // de choix à chaque tour — pas d'appel direct au résolveur.
+    //
+    // Coût : ~0,4 s par tour (la route régénère les menus de chaque héros actif après un choix),
+    // d'où 30 tours. Sous la courbe on attend ~21 communs, sous l'uniforme ~2 : le seuil de 10
+    // rend le hasard négligeable des deux côtés.
+    $ctx = demarrerAvecEpreuve('Grimoire à demi calciné');
+    $epreuve = Epreuve::where('nom', 'Grimoire à demi calciné')->firstOrFail();
+
+    $salle = salleIndexDe($ctx['quete'], (int) $ctx['etat']->position_x, (int) $ctx['etat']->position_y);
+    $entree = [
+        'x' => (int) $ctx['etat']->position_x,
+        'y' => (int) $ctx['etat']->position_y,
+        'epreuve_id' => $epreuve->id,
+        'salle' => $salle,
+        'tentee_par' => [],
+    ];
+
+    $communs = 0;
+    $rares = 0;
+
+    for ($i = 0; $i < 30; $i++) {
+        // Une réussite ferme l'épreuve pour tout le monde, et la tentative reste inscrite :
+        // on la rouvre à chaque tour, comme une nouvelle rencontre sur la même case.
+        poserEpreuve($ctx['quete']->fresh(), [$entree]);
+
+        // La tentative de la manche dépense le créneau d'action : on le rend à chaque tour.
+        // ⚠ Par le BUILDER, pas par `$ctx['etat']->update()` : le modèle en mémoire croit
+        // encore `a_agi = false` (chargé avant le 1er tour), donc Eloquent n'écrit rien.
+        EtatPersonnageQuete::query()->whereKey($ctx['etat']->id)
+            ->update(['a_joue' => false, 'a_agi' => false, 'a_deplace' => false]);
+
+        GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['hero']->id);
+        // 2 dés de Mind : 2 crânes → réussite (difficulté 2).
+        desFiges([1, 1]);
+
+        $resultat = test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'epreuve_0'])
+            ->assertStatus(202)->json('resultat');
+
+        expect($resultat['issue'])->toBe('reussite');
+
+        $rarete = $resultat['objet']['rarete'] ?? null;
+        $communs += $rarete === 'commun' ? 1 : 0;
+        $rares += $rarete === 'rare' ? 1 : 0;
+    }
+
+    expect($communs)->toBeGreaterThanOrEqual(10,
+        "{$communs} parchemins communs sur 30 à niveau 1 ({$rares} rares) : le Grimoire tire uniformément, pas selon la courbe du mobilier.");
+});
+
 it('mécanique « soin_groupe » : TOUS les héros de la quête regagnent des PV, et un héros TOMBÉ se relève', function () {
     // Mind 4 pour Albrecht (le défaut, 2, ne suffirait pas à la difficulté 3
     // de « Crâne accusateur » — ce n'est pas ce qu'on teste ici).

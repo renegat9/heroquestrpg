@@ -100,7 +100,7 @@ final class ClotureCampagne
         //  - sinon (fin décidée saine) → abandon (pot complet).
         // Garde-fou historique : un TPK sur la quête finale se clôturait en
         // « abandon » si le client omettait `abandon: true` — désormais « echec ».
-        if ($groupe->quetes()->where('type_jalon', 'boss_final')->where('etat', 'terminee')->exists()) {
+        if ($groupe->victoireFinaleAcquise()) {
             return $this->creerFenetre($groupe, 'victoire', (int) $groupe->or);
         }
 
@@ -320,6 +320,12 @@ final class ClotureCampagne
      * conditions/buffs effacés) : une campagne close (victoire, échec ou
      * abandon) referme l'ardoise, blessures et sorts épuisés compris (doc 05 §6).
      *
+     * FAVEURS DE HOPEKINS REST : relâchées AVANT la remise à plein, pour tout
+     * héros qui a été dans la campagne (`heroesDeLaCampagne()`) — décision de
+     * René (2026-10-16) : elles ne survivent pas à la campagne. Le plafond
+     * (+2 PV de *Dewdrop Inn*) se défait donc avant que le héros ne reprenne
+     * ses PV au max, et aucune ligne `personnage_faveurs` ne reste.
+     *
      * Silencieuse (aucun broadcast, aucun résumé) : c'est aussi le nettoyage
      * automatique d'un GROUPE VIDE au départ du dernier joueur (doc 05 §6).
      */
@@ -338,6 +344,12 @@ final class ClotureCampagne
         $instanceIdsImages = InstanceMonstre::whereIn('quete_id', $queteIdsImages)->pluck('id');
 
         DB::transaction(function () use ($groupe) {
+            // Faveurs relâchées D'ABORD : le plafond de PV qu'elles donnent doit
+            // retomber avant la remise à plein du héros ci-dessous.
+            foreach ($this->heroesDeLaCampagne($groupe) as $personnage) {
+                app(FaveursHopekins::class)->relacherCampagne($personnage);
+            }
+
             // Détachement : les personnages retournent au roster (doc 05 §6),
             // remis à plein — PV au max, sorts réinitialisés, conditions/buffs
             // effacés (la campagne close referme l'ardoise, cf. reinitialiserQuete).
@@ -561,5 +573,21 @@ final class ClotureCampagne
             ->unique();
 
         return Joueur::whereIn('id', $ids)->orderBy('id')->get();
+    }
+
+    /**
+     * Tous les héros qui ont été dans CETTE campagne, à sa fermeture : ceux du pivot, actifs OU partis en cours de
+     * route (un départ laisse le pivot à `actif: false` jusqu'à la purge — `VoteGroupe::detacherJoueur()`), et ceux
+     * dont c'est le groupe actif. Un héros parti n'emporte donc pas sa faveur dans une autre campagne.
+     *
+     * @return Collection<int, Personnage>
+     */
+    private function heroesDeLaCampagne(Groupe $groupe): Collection
+    {
+        return $groupe->personnages()
+            ->get()
+            ->merge($groupe->personnagesActifs()->get())
+            ->unique('id')
+            ->values();
     }
 }

@@ -12,6 +12,7 @@ use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
+use App\Models\SortDread;
 use App\Partie\Images\BibliothequeImages;
 
 /**
@@ -1659,11 +1660,10 @@ final class SceneDeTable
      * (Sommeil, Terreur, Ralentissement, Commandement…) qui se joue au jet de
      * Mind de la VICTIME, ou un sort de dégâts à dés rouges (Boule de Flammes
      * du MJ). `sort_dread` n'avait ici aucun cas : la table ne montrait rien
-     * au moment où le sort frappait (René, 2026-09-24). Aucune illustration
-     * de catalogue n'existe pour les cartes de Dread (`SortDread` n'a pas de
-     * pipeline d'images, contrairement à `Sort`) : l'emblème générique du
-     * genre `sort` couvre la carte, comme le fait déjà le levier sans
-     * illustration propre.
+     * au moment où le sort frappait (René, 2026-09-24). L'illustration est celle
+     * de la CARTE (`BibliothequeImages::urlSortDread()`, emblème `sort_dread` en
+     * repli) — jusqu'au 2026-10-16 elle était l'emblème générique du genre `sort`,
+     * qui ne disait pas que c'était la magie de Zargon.
      *
      * ⚠ Une scène, pas une par victime (même arbitrage que
      * `attaqueBalayee()`) : la PREMIÈRE victime qui porte un dé décide de la
@@ -1715,7 +1715,9 @@ final class SceneDeTable
                 'figure' => null,
                 'objets' => [[
                     'nom' => $nom,
-                    'image_url' => $this->images->vignette('sort', $nom),
+                    // L'illustration de la CARTE (2026-10-16) : le sort de Dread n'est plus l'emblème
+                    // générique du genre `sort`. Carte inconnue du catalogue → `null` → l'icône côté front.
+                    'image_url' => $this->images->urlSortDread(SortDread::where('nom', $nom)->value('id'), $nom),
                     'detail' => null,
                 ]],
                 'issue' => match (true) {

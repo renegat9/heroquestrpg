@@ -132,12 +132,34 @@ final class DemarreurQuete
         return max($adapte, (int) ceil($pv * 0.4));
     }
 
+    /**
+     * Le motif pour lequel ce groupe ne peut PAS démarrer de quête, ou `null`. Point de passage unique :
+     * `demarrer()` le lève (422 `groupe`), et `POST /pret` le publie au héros qui se déclare prêt, AVANT toute
+     * écriture (rien ne se met en cache, aucun `.prets.maj`).
+     *
+     * Campagne GAGNÉE (boss final vaincu, arc épuisé — `Groupe::victoireFinaleAcquise()`) : la clôture est la
+     * seule issue. Sans ce refus, `JalonsCampagne::type()` rendait `boss_final` à la quête suivante, et une
+     * quête 4 partait après `DELETE /cloture` (mesuré 2026-10-16).
+     */
+    public function refusDeDepart(Groupe $groupe): ?string
+    {
+        if ($groupe->victoireFinaleAcquise()) {
+            return 'La campagne est gagnée (boss final vaincu) : aucune nouvelle quête ne peut démarrer. Clôturez la campagne.';
+        }
+
+        return null;
+    }
+
     public function demarrer(Groupe $groupe): Quete
     {
         if ($groupe->phase !== 'hub') {
             throw ValidationException::withMessages([
                 'groupe' => 'Une quête est déjà en cours : terminez-la avant d\'en démarrer une autre.',
             ]);
+        }
+
+        if (($motif = $this->refusDeDepart($groupe)) !== null) {
+            throw ValidationException::withMessages(['groupe' => $motif]);
         }
 
         $heros = $groupe->personnages()

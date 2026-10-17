@@ -430,3 +430,75 @@ lieu de Hopekins Rest » tant que le héros n'a pas tranché (README §pret).
 
 **À jouer en prod** : la migration `2026_10_16_150000` (colonne + table + repli) après `image-tools/sauvegarder.sh`,
 puis `docker compose restart queue queue-jeu`.
+
+## Exécution (2026-10-16, fin de campagne) — la récompense de conclusion : NON PORTÉE
+
+**Texte exact** (G1504 p. 21, « Reward! », relu à l'image) : « When visiting the outpost, heroes may visit 2 locations
+and have a maximum of 2 Boons of Heroism each on all future quests. » **Qui** : chaque héros (même lecture que « a hero
+may select one location » p. 23). **Quand** : à une visite de l'avant-poste, donc au début des quêtes qui SUIVENT la
+conclusion ; le livret n'ouvre aucune visite à la conclusion elle-même. **Combien de temps** : « all future quests ».
+**Cumul** : elle lève « a hero may only benefit from one boon at a time » (p. 23) jusqu'à DEUX, pour les quêtes futures
+seulement.
+
+**Comment la fin est détectée** (inchangé depuis b43f2c7) : le Haut Autel détruit, ou le boss final vaincu, passe par
+`ResolveurTour::terminerQuete()` → quête `boss_final` `terminee`, groupe en `hub`, puis
+`ClotureCampagne::ouvrirVictoire()` ouvre la fenêtre `victoire`.
+
+**Ce que la fin fait réellement** — mesuré par les routes réelles, dans un test jetable (3 tests, supprimé, rien conservé) :
+- **A.** Après la victoire finale, `/moi` publie quand même un tour de Hopekins Rest à UN choix (neuf lieux) :
+  `tourDeHub()` prend la quête finale (phase en base `hub`, Gardien, Morcar), la manette l'affiche (`auHub` lit
+  `groupe.phase`), et la fenêtre de clôture est ouverte **en même temps**.
+- **B.** `DELETE /cloture` (204), puis `PUT faveurs/lieu` à `null` (200), puis `POST /pret` (200) : une **quête 4** démarre,
+  typée `boss_final`. `JalonsCampagne::type()` rend `boss_final` à toute position ≥ `nb_quetes_total`, et
+  `DemarreurQuete::demarrer()` ne refuse pas un arc épuisé. La campagne ne finit donc pas en code : elle s'arrête à la clôture.
+- **C.** `POST /cloture/confirmation` (finalisation) : le groupe est supprimé, le héros est détaché, et **sa faveur tenue
+  (`dewdrop_inn`) survit** — `personnage_faveurs` n'a pas de `groupe_id` et la purge ne la touche pas.
+
+**Verdict.** La récompense ne sert qu'aux quêtes qui suivent la conclusion. Une campagne close n'en a aucune : rien à
+visiter, rien à plafonner. Il reste deux chemins, et aucun n'est une suite de jeu décidée : (1) la suite par annulation de
+la fenêtre (B), qui relance des quêtes « boss final » par défaut de `JalonsCampagne::type()` ; (2) une NOUVELLE campagne
+avec les mêmes héros, où une faveur survivante (C) agirait. Ce second chemin dépend d'une décision que René n'a pas prise :
+les faveurs survivent-elles à la clôture ? La doc de clôture (« referme l'ardoise ») cite PV, sorts, conditions et buffs,
+pas les faveurs. Sans cette réponse, la récompense serait une clé décorative : **elle n'est pas construite**. Aucune
+migration, aucun seeder, aucun changement de route ni de payload.
+
+**Décisions à prendre (René)**
+1. Les faveurs survivent-elles à la clôture ? *Non* : la récompense est décorative, à ne pas porter. *Oui* : elle se porte sur
+   la couture du hub (2 lieux à la visite de la quête suivante, `/pret`), avec un drapeau par héros.
+2. Le tour publié après la victoire finale (mesure A) : à supprimer (le livret n'ouvre aucune visite après la conclusion), ou
+   à garder si la réponse 1 est « oui ». Aujourd'hui il s'affiche sans effet dans la campagne qui se clôt.
+3. La suite après la conclusion (mesure B) : un défaut (refuser `/pret` sur un arc épuisé), ou une suite voulue, à définir
+   (quêtes normales, pas `boss_final`).
+4. Si la récompense se porte : deux faveurs TENUES au maximum — laquelle est relâchée quand un héros en tient deux et en
+   reçoit une troisième ? Le livret ne le dit pas.
+
+### Suite (2026-10-16) — mesures A et B corrigées, décision 1 tranchée par René
+
+**A (décision 2 : le tour après la victoire est supprimé).** `Groupe::victoireFinaleAcquise()` (boss final `terminee`,
+arc épuisé) est lu par `FaveursHopekins::tourDeHub()` : plus de tour ni dans `/moi`, ni dans `/etat`, ni dans l'annonce, et
+`PUT …/faveurs/lieu` refuse (422 `phase` : « La campagne est gagnée : Hopekins Rest ne reçoit plus de visite. »).
+
+**B (décision 3 : un arc épuisé ne démarre plus de quête).** `DemarreurQuete::refusDeDepart()` : `POST /pret` refuse le
+`pret: true` (422 `pret`, avant l'écriture du cache, donc aucun « prêt » ne reste en attente), `demarrer()` lève le même
+motif (422 `groupe`) — la table et le membre sont refusés pareil. La clôture reste la **seule issue** ; `DELETE /cloture`
+annule la fenêtre sans rouvrir le départ, `POST /cloture` la rouvre.
+
+**Décision de René (2026-10-16), décision 1 tranchée : « Les faveurs de Hopekins ne survivent pas à la campagne ; aucune
+récompense, car on ne suit pas l'histoire réelle. »** Conséquences, appliquées :
+- la récompense de conclusion **n'est pas construite** (rien à porter, rien à plafonner) ;
+- à la finalisation — toutes les issues, un seul point de passage, `ClotureCampagne::purger()` — chaque héros de la campagne
+  (actif, ou parti en cours de route) voit ses faveurs relâchées par `FaveursHopekins::relacherCampagne()` : effets défaits
+  (+2 PV de *Dewdrop Inn*, mercenaire offert, répertoire d'*Arcane Library*), puis lignes supprimées, **avant** la remise à
+  plein des PV. *Witch's Hut* n'est pas une faveur tenue : sa potion reste au sac.
+- **Données réelles, lecture seule (2026-10-16)** : `personnage_faveurs` ne contient **aucune ligne** en production ; le seul
+  héros détaché n'a ni faveur ni pivot. **Aucune migration de données** : il n'y a rien à relâcher.
+- Tests : `tests/Feature/Partie/FinDeCampagneTest.php` — A, B, C (victoire, abandon, arrêt d'urgence : faveur relâchée, PV
+  max revenus ; une autre campagne intacte ; un héros parti relâché).
+
+**Écarts NOMMÉS, non tranchés :**
+- Un héros qui **quitte** une campagne EN COURS (`VoteGroupe::detacherJoueur()`) garde sa faveur jusqu'à la clôture de la
+  campagne qu'il a quittée ; s'il rejoint une autre campagne avant, il l'y emporte. Relâcher au départ est une décision à
+  prendre.
+- Le choix du type d'arme ou du répertoire, s'il était en attente à la victoire, reste accepté par sa route (ce n'est pas un
+  tour de Hopekins) ; la manette affiche encore le bouton « Prêt » après la victoire, qui répond désormais le message du
+  serveur au lieu de partir. Masquer ce bouton côté front n'est pas fait.

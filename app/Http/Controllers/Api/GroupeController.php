@@ -589,8 +589,11 @@ class GroupeController extends Controller
         //    `FaveursHopekins::refusDeDepart()` dit lequel manque.
         // Le lancement par la TABLE (« Lancer la quête ») n'est pas un « Prêt ! » : il passe
         // outre, et la proposition expire avec le premier lancement.
+        //  - la CAMPAGNE GAGNÉE (boss final vaincu, arc épuisé) : aucune quête ne part, `DemarreurQuete::refusDeDepart()`
+        //    le dit ; refusé ici AVANT l'écriture du cache, pour qu'aucun « prêt » ne reste en attente d'un départ impossible.
         if ((bool) $donnees['pret'] && $groupe->phase === 'hub') {
-            $refus = app(CompagnonOffert::class)->refusDeDepart($groupe)
+            $refus = $demarreur->refusDeDepart($groupe)
+                ?? app(CompagnonOffert::class)->refusDeDepart($groupe)
                 ?? FaveursHopekins::refusDeDepart($groupe, $personnage);
 
             if ($refus !== null) {

@@ -14,6 +14,7 @@ use App\Models\Mercenaire;
 use App\Models\Mobilier;
 use App\Models\Piege;
 use App\Models\Sort;
+use App\Models\SortDread;
 use App\Models\Terrain;
 use App\Partie\Images\BibliothequeImages;
 use Illuminate\Console\Command;
@@ -33,7 +34,7 @@ use Illuminate\Console\Command;
 final class GenererImages extends Command
 {
     protected $signature = 'images:generer
-        {--type=tous : classes|monstres|mercenaires|objets|pieges|epreuves|mobiliers|terrains|leviers|portes|sorts|tous}
+        {--type=tous : classes|monstres|mercenaires|objets|pieges|epreuves|mobiliers|terrains|leviers|portes|sorts|sorts_dread|tous}
         {--force : Régénère même les fichiers déjà présents}';
 
     protected $description = 'Génère les images du catalogue (Gemini image) dans public/images/catalogue';
@@ -182,11 +183,11 @@ final class GenererImages extends Command
             $cibles[] = [
                 'type' => 'mobiliers',
                 'rel' => $biblio->relatifCatalogue('mobiliers', $m->id, $m->nom),
+                // ⚠ L'emprise passe en MOTS (`formeMobilier()`) : un chiffre se fait peindre.
                 'prompt' => $biblio->prompt('mobilier', [
                     'nom' => $m->nom,
                     'description' => (string) $m->description,
-                    'largeur' => (string) $m->largeur,
-                    'hauteur' => (string) $m->hauteur,
+                    'forme' => BibliothequeImages::formeMobilier((int) $m->largeur, (int) $m->hauteur),
                 ]),
             ];
         }
@@ -204,6 +205,20 @@ final class GenererImages extends Command
                 'type' => 'sorts',
                 'rel' => $biblio->relatifCatalogue('sorts', $s->id, $s->nom),
                 'prompt' => $biblio->prompt('sort', ['nom' => $s->nom, 'element' => (string) $s->element, 'type' => (string) $s->type]),
+            ];
+        }
+
+        // SORTS DE DREAD (2026-10-16) : la magie du MJ, carte par carte. Le sujet est le
+        // TYPE d'effet (`images.sorts_dread_effets`), jamais `effet` : les dés et les
+        // crânes qu'il porte seraient peints sur la carte.
+        foreach (SortDread::orderBy('id')->get() as $s) {
+            $cibles[] = [
+                'type' => 'sorts_dread',
+                'rel' => $biblio->relatifCatalogue('sorts_dread', $s->id, $s->nom),
+                'prompt' => $biblio->prompt('sort_dread', [
+                    'nom' => $s->nom,
+                    'effet' => (string) config("images.sorts_dread_effets.{$s->type}", ''),
+                ]),
             ];
         }
 

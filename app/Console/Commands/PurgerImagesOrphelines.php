@@ -9,6 +9,7 @@ use App\Models\Monstre;
 use App\Models\Objet;
 use App\Models\Piege;
 use App\Models\Sort;
+use App\Models\SortDread;
 use App\Partie\Images\BibliothequeImages;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -72,6 +73,8 @@ final class PurgerImagesOrphelines extends Command
         'objets' => [Objet::class, 'nom'],
         'pieges' => [Piege::class, 'nom'],
         'sorts' => [Sort::class, 'nom'],
+        // Sorts de Dread (2026-10-16) : même convention que les sorts de héros.
+        'sorts_dread' => [SortDread::class, 'nom'],
     ];
 
     public function handle(BibliothequeImages $biblio): int

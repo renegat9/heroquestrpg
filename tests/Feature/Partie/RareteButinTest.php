@@ -6,6 +6,7 @@ use App\Engine\RareteButin;
 use App\Models\Mobilier;
 use App\Models\Objet;
 use App\Partie\MoteurMobilier;
+use App\Partie\TirageButin;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\MobilierSeeder;
 use Database\Seeders\ObjetSeeder;
@@ -57,6 +58,29 @@ it('incline les chances vers le RARE quand le groupe monte, et sature au sommet'
     // ⚠ Aucun plafond de niveau dans ce jeu (doc 01 §5) : la courbe SATURE au
     // lieu de déborder, sans quoi un groupe de niveau 20 sortirait de la table.
     expect(RareteButin::poids(20))->toBe(RareteButin::poids(7));
+});
+
+it('tire le parchemin par la COURBE du niveau, et non uniformément — pour le mobilier comme pour le Grimoire', function () {
+    // Le point de passage commun (`TirageButin`) : la rareté d'abord, pondérée par le
+    // niveau, puis le sort uniformément dans cette rareté. Avant le 2026-10-16 l'épreuve
+    // du Grimoire tirait uniformément dans toute la catégorie.
+    $vivier = fn () => Objet::query()->where('categorie', 'parchemin')->where('rarete', '!=', 'unique');
+
+    // Ce qu'un tirage UNIFORME donnerait sur le catalogue réel (40 sorts, 15 de difficulté 3
+    // au 2026-10-16) : une part de rares de ~37 %. À niveau 1, la courbe n'en veut que 2 %.
+    // Le seuil est le TIERS de l'uniforme, calculé sur le catalogue vivant : il ne se
+    // recalibre pas à la main quand un sort s'ajoute.
+    $total = $vivier()->count();
+    $rares = $vivier()->where('rarete', 'rare')->count();
+    expect($total)->toBeGreaterThan(0)->and($rares)->toBeGreaterThan(0);
+
+    $seuil = (400 * $rares / $total) / 3;
+
+    $tirages = collect(range(1, 400))->map(fn () => TirageButin::objetSelonRarete($vivier(), 1));
+
+    expect($tirages->every(fn ($o) => $o instanceof Objet))->toBeTrue();
+    expect($tirages->filter(fn (Objet $o) => $o->rarete === 'rare')->count())->toBeLessThan($seuil,
+        'à niveau 1, le parchemin de difficulté 3 sort presque comme un tirage uniforme : la courbe n\'est pas lue');
 });
 
 it('ne tire jamais une rareté ABSENTE du vivier', function () {

@@ -121,4 +121,21 @@ class Groupe extends Model
     {
         return $this->quetes()->where('etat', 'terminee')->count() >= 2;
     }
+
+    /**
+     * VICTOIRE FINALE acquise : le boss final de l'arc est vaincu (`type_jalon` = `boss_final`, `etat` =
+     * `terminee`). La victoire du Haut Autel passe par la même fin de quête (`ResolveurTour::terminerQuete()`).
+     *
+     * L'ARC EST ÉPUISÉ : plus aucune quête ne démarre (`DemarreurQuete::refusDeDepart()`, lu par `POST /pret` et
+     * par `demarrer()`, donc aussi par la table), et plus aucun tour de Hopekins Rest ne s'ouvre
+     * (`FaveursHopekins::tourDeHub()`). Le drapeau ne se remet pas à zéro quand on annule la fenêtre de victoire
+     * (`DELETE /cloture`) : la clôture reste la seule issue, et `POST /cloture` la rouvre.
+     *
+     * Calculé en DIRECT sur `quetes` (même patron que `estGardien()`) : rien à remettre à jour, rien en cache.
+     * ⚠ Le SEUL prédicat de cette règle : `ClotureCampagne::ouvrir()` lit le même (issue `victoire`).
+     */
+    public function victoireFinaleAcquise(): bool
+    {
+        return $this->quetes()->where('type_jalon', 'boss_final')->where('etat', 'terminee')->exists();
+    }
 }

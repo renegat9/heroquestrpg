@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Models\Objet;
+use App\Partie\Marche\PhaseMarche;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\MobilierSeeder;
@@ -259,4 +261,37 @@ it('dit qu\'un Cocon se détruit d\'une action adjacente, et rien de plus', func
     expect($mobiliers['Cocon']['detruit_par_action'])->toBeTrue()
         ->and($mobiliers['Cocon']['attaquable'])->toBeFalse()
         ->and($mobiliers['Table']['detruit_par_action'])->toBeFalse();
+});
+
+it('ne publie AUCUN prix pour un objet hors marché : la décision du serveur, le prédicat de l\'étal', function () {
+    // Les parchemins se dérivent des sorts en fin d'ObjetSeeder : le sort passe avant.
+    // updateOrCreate partout : rejouer ObjetSeeder ici ne supprime rien.
+    $this->seed([SortSeeder::class, ObjetSeeder::class]);
+
+    $publies = collect($this->getJson('/api/guide')->assertOk()->json('objets'))->keyBy('nom');
+
+    // Dans les DEUX sens : un objet est sans prix publié si et seulement si l'étal ne le vend pas.
+    // Une seule règle, lue par le marché et par le guide — pas un second test ici.
+    foreach (Objet::all() as $objet) {
+        // ⚠ Pas de `??` ici : il confondrait le `null` voulu avec une clé absente.
+        expect($publies->has($objet->nom))->toBeTrue($objet->nom.' : absent du guide.');
+
+        $prix = $publies[$objet->nom]['prix_base'];
+
+        expect($prix === null)->toBe(PhaseMarche::estHorsMarche($objet),
+            $objet->nom.' : prix publié '.var_export($prix, true).', en désaccord avec l\'étal.');
+    }
+
+    // Les trois familles nommées le 2026-10-16 : parchemin, carte de trésor sans prix, potion de soin.
+    expect($publies['Parchemin : Soin du Corps']['prix_base'])->toBeNull()
+        ->and($publies["Potion d'héroïsme"]['prix_base'])->toBeNull()
+        ->and($publies['Potion de soin']['prix_base'])->toBeNull()
+        // Un objet à l'étal garde son prix : la règle ne déshabille pas tout le catalogue.
+        ->and($publies['Épée longue']['prix_base'])->toBe(350);
+
+    // Le tri lit le prix RÉEL, pas le `null` publié : la Potion de soin (100) précède
+    // la Potion de force (150), bien qu'aucune des deux ne se vende plus.
+    $ordre = $publies->keys()->all();
+    expect(array_search('Potion de soin', $ordre, true))
+        ->toBeLessThan(array_search('Potion de force', $ordre, true));
 });

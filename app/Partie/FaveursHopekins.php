@@ -978,10 +978,18 @@ final class FaveursHopekins
      * La quête achevée après laquelle le hub OUVRE un tour de visite, ou `null`. Ouvert seulement au hub,
      * une fois Gardien, dans une campagne Morcar, et si cette quête n'est pas déjà tranchée par la
      * migration (`groupes.hopekins_quete_tranchee_id`, repli des campagnes en cours).
+     *
+     * JAMAIS après la VICTOIRE FINALE (`Groupe::victoireFinaleAcquise()`, mesuré 2026-10-16) : ni fenêtre de
+     * clôture ouverte, ni arc épuisé après `DELETE /cloture`. Une campagne qui se clôt n'a rien à visiter, et
+     * ce choix s'affichait sans effet. Ce prédicat est lu aussi par `choisirLieu()` (la route refuse) et par
+     * la publication (`/moi`, `/etat`), qui passent toutes par cette méthode.
      */
     public static function tourDeHub(Groupe $groupe): ?Quete
     {
-        if ($groupe->phase !== 'hub' || ! $groupe->estGardien() || ! self::campagneAvecMorcar($groupe)) {
+        if ($groupe->phase !== 'hub'
+            || $groupe->victoireFinaleAcquise()
+            || ! $groupe->estGardien()
+            || ! self::campagneAvecMorcar($groupe)) {
             return null;
         }
 
@@ -1110,7 +1118,9 @@ final class FaveursHopekins
 
         if ($tour === null) {
             throw ValidationException::withMessages([
-                'phase' => 'Aucune visite de Hopekins Rest n\'est ouverte pour ce groupe entre ces quêtes.',
+                'phase' => $groupe->victoireFinaleAcquise()
+                    ? 'La campagne est gagnée : Hopekins Rest ne reçoit plus de visite.'
+                    : 'Aucune visite de Hopekins Rest n\'est ouverte pour ce groupe entre ces quêtes.',
             ]);
         }
 
@@ -1217,6 +1227,26 @@ final class FaveursHopekins
         $phrases = array_values(array_filter($phrases));
 
         return $phrases === [] ? null : implode(' ', $phrases);
+    }
+
+    /**
+     * Relâche TOUTES les faveurs tenues par ce héros à la fermeture de SA campagne — appelé par
+     * `ClotureCampagne::purger()`, point de passage unique des issues (victoire, échec, abandon, arrêt
+     * d'urgence). Décision de René (2026-10-16) : « Les faveurs de Hopekins ne survivent pas à la
+     * campagne ; aucune récompense, car on ne suit pas l'histoire réelle. » Même chemin que la relâche
+     * d'un lieu (`remettre()`) : les effets se défont, le plafond de PV se réconcilie (+2 de *Dewdrop
+     * Inn*), puis les lignes partent — aucune ne reste. Le héros revient au roster sans faveur.
+     *
+     * La potion de *Witch's Hut* n'est PAS une faveur tenue (instantanée) : elle reste au sac, comme
+     * un objet trouvé. Rien ne se pose : c'est une relâche pure.
+     */
+    public function relacherCampagne(Personnage $personnage): void
+    {
+        app(Equipement::class)->apresChangementDeJauges($personnage, function () use ($personnage): void {
+            $this->relacherFaveursTenues($personnage);
+        });
+
+        $personnage->unsetRelation('faveurs');
     }
 
     /**

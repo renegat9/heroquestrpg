@@ -9069,13 +9069,10 @@ final class ResolveurTour
         // aurait tirée. Chaque meuble a maintenant son butin plausible, et le
         // deck reste au service des salles.
         // Niveau MOYEN du groupe : c'est lui qui incline les chances de rareté
-        // (`RareteButin`). Moyenne des héros ENGAGÉS dans la quête, arrondie au
-        // plus proche — un compagnon resté au hub ne pèse pas sur ce que le
-        // donjon rend à ceux qui y sont.
-        $herosEngages = $quete->etatsPersonnages()->with('personnage')->get()
-            ->map(fn ($e) => $e->personnage)->filter();
-
-        $niveauMoyen = (int) round($herosEngages->map(fn ($p) => (int) $p->niveau)->avg() ?: 1);
+        // (`RareteButin`), via `niveauMoyenDuButin()` — le même calcul que la
+        // destruction de mobilier et que l'épreuve du Grimoire.
+        $herosEngages = $this->herosEngages($quete);
+        $niveauMoyen = $this->niveauMoyenDuButin($herosEngages);
 
         // `rarete_butin_amelioree` (Œil du prix, explorateur) : le FOUILLEUR
         // décale la table d'un cran. Exprimé en niveaux plutôt qu'en poids —
@@ -9842,7 +9839,7 @@ final class ResolveurTour
         return match ($mecanique) {
             'or' => $this->epreuveOr($groupe, $valeur),
             'objet' => $this->epreuveObjet($personnage, ['consommable']),
-            'parchemin' => $this->epreuveObjet($personnage, ['parchemin']),
+            'parchemin' => $this->epreuveParchemin($quete, $personnage),
             'soin_groupe' => $this->epreuveSoinGroupe($quete, $valeur),
             'retire_condition' => $this->epreuveRetireCondition($personnage),
             'desarme_pieges_salle' => $this->epreuveDesarmeSalle($quete, (int) ($entree['salle'] ?? -1)),
@@ -9884,7 +9881,9 @@ final class ResolveurTour
     }
 
     /**
-     * Une pièce du catalogue, remise au héros qui a réussi.
+     * Une pièce du catalogue, TIRÉE UNIFORMÉMENT, remise au héros qui a réussi —
+     * la mécanique `objet` (consommable). Le parchemin ne passe PAS ici : il suit
+     * la courbe de rareté (`epreuveParchemin()`).
      *
      * ⚠ Sac plein : on remet QUAND MÊME, en dépassement (`sac_deborde`) — même
      * règle que le coffre d'artefact. Refuser la trouvaille la perdrait pour de
@@ -9905,6 +9904,56 @@ final class ResolveurTour
         }
 
         return $this->remettreButin(['objet_id' => $objet->id], $personnage, 'objet');
+    }
+
+    /**
+     * Le GRIMOIRE À DEMI CALCINÉ (`parchemin`) : un parchemin tiré par la MÊME
+     * courbe que le mobilier — la rareté d'abord, pondérée par le niveau moyen des
+     * héros engagés, puis le sort uniformément dans cette rareté (`TirageButin`).
+     * Décision de René, 2026-10-16 : l'épreuve tirait uniformément dans toute la
+     * catégorie, et un groupe de niveau 1 tombait sur un sort de difficulté 3
+     * (rare) bien plus souvent que la courbe ne le permet.
+     *
+     * ⚠ Le talent « Œil du prix » n'entre PAS ici : il ne décale que le butin du
+     * MOBILIER que son porteur fouille (`resoudreFouilleMobilier()`), jamais une épreuve.
+     */
+    private function epreuveParchemin(Quete $quete, Personnage $personnage): array
+    {
+        $objet = TirageButin::objetSelonRarete(
+            Objet::query()->where('categorie', 'parchemin')->where('rarete', '!=', 'unique'),
+            $this->niveauMoyenDuButin($this->herosEngages($quete)),
+        );
+
+        if ($objet === null) {
+            return ['objet_indisponible' => true];
+        }
+
+        return $this->remettreButin(['objet_id' => $objet->id], $personnage, 'objet');
+    }
+
+    /**
+     * Les HÉROS ENGAGÉS dans la quête. Un compagnon resté au hub ne pèse ni sur le
+     * niveau qui incline la rareté du butin, ni sur les maîtrises qui filtrent le
+     * vivier (`Equipement::tagsAccessiblesAux()`).
+     *
+     * @return \Illuminate\Support\Collection<int, Personnage>
+     */
+    private function herosEngages(Quete $quete): \Illuminate\Support\Collection
+    {
+        return $quete->etatsPersonnages()->with('personnage')->get()
+            ->map(fn ($e) => $e->personnage)->filter();
+    }
+
+    /**
+     * Le NIVEAU MOYEN des héros engagés, arrondi au plus proche : ce qui incline la
+     * rareté du butin (`RareteButin`). UN seul calcul pour le mobilier et l'épreuve
+     * du Grimoire — deux copies, jusque-là, dans ce fichier.
+     *
+     * @param  \Illuminate\Support\Collection<int, Personnage>  $herosEngages
+     */
+    private function niveauMoyenDuButin(\Illuminate\Support\Collection $herosEngages): int
+    {
+        return (int) round($herosEngages->map(fn ($p) => (int) $p->niveau)->avg() ?: 1);
     }
 
     /**
@@ -10007,10 +10056,8 @@ final class ResolveurTour
             return $payload;
         }
 
-        $herosEngages = $quete->etatsPersonnages()->with('personnage')->get()
-            ->map(fn ($e) => $e->personnage)->filter();
-
-        $niveauMoyen = (int) round($herosEngages->map(fn ($p) => (int) $p->niveau)->avg() ?: 1);
+        $herosEngages = $this->herosEngages($quete);
+        $niveauMoyen = $this->niveauMoyenDuButin($herosEngages);
         $niveauMoyen += $this->talents->valeur($personnage, 'rarete_butin_amelioree');
         $this->annoncerOeilDuPrix($personnage);
 

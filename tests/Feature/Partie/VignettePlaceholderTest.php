@@ -42,6 +42,10 @@ it('donne son propre emblème à chaque type de sujet', function () {
     expect($svg('quete'))->not->toBe($svg('hub'))
         ->and($svg('hub'))->not->toBe($svg('monstre'));
 
+    // La magie du MJ a son œil, distinct du sceau du sort de héros (2026-10-16).
+    expect($svg('sort_dread'))->not->toBe($svg('sort'))
+        ->and($svg('sort_dread'))->not->toBe($svg('quete'));
+
     // Un type inconnu ne casse pas : il retombe sur l'arche de quête.
     expect($this->get('/api/placeholder/inconnu/1'))->assertOk();
 });

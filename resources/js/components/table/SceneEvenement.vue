@@ -28,6 +28,7 @@
 import { computed } from 'vue';
 import JetDes from '../ui/JetDes.vue';
 import MSym from '../ui/MSym.vue';
+import Vignette from '../ui/Vignette.vue';
 
 const props = defineProps({
     /** Payload `.table.scene` — voir docs/contrat-api.md. */
@@ -108,7 +109,8 @@ const depAriaLabel = computed(() => {
 
             <div v-if="objets.length" class="scn-objets">
                 <figure v-for="(o, i) in objets" :key="o.nom + i" class="scn-objet">
-                    <img :src="o.image_url" :alt="o.nom" />
+                    <!-- L'image est résolue par le serveur ; `Vignette` retombe sur l'icône si le fichier casse. -->
+                    <Vignette :src="o.image_url" :alt="o.nom" icon="auto_awesome" />
                     <figcaption>
                         <span class="scn-nom">{{ o.nom }}</span>
                         <span v-if="o.detail" class="scn-detail">{{ o.detail }}</span>

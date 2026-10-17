@@ -62,6 +62,10 @@ class PlaceholderController extends Controller
             .'M490 590 L530 428 L570 590',
         // Un sceau arcanique : deux triangles entrelacés, lisible même à 40 px.
         'sort' => 'M450 282 L562 472 L338 472 Z M450 562 L338 372 L562 372 Z',
+        // Un œil : la magie de ZARGON (2026-10-16). Pas le sceau du sort de héros : un
+        // sorcier qui regarde, et qui ne se confond ni avec un monstre ni avec un sort.
+        'sort_dread' => 'M270 337 Q450 150 630 337 Q450 524 270 337 Z '
+            .'M412 337 a38 38 0 1 0 76 0 a38 38 0 1 0 -76 0',
         // Une dalle gravée et la main qui s'y pose : on se MESURE à une
         // épreuve, on ne la subit pas. ⚠ Le trait ne reprend NI les pointes du
         // piège NI la bourse de l'objet : les confondre à 40 px coûterait une

@@ -281,6 +281,11 @@ const mesCompetences = computed(() => {
    broadcast .prets.maj. Le narrateur doit être actif pour que la quête
    démarre (côté serveur). */
 const auHub = computed(() => store.state.etat?.groupe?.phase === 'hub');
+// DÉPART DE LA QUÊTE (fin de campagne, 2026-10-16) : la DÉCISION du serveur, publiée par EtatGroupe au hub
+// (`depart_possible` / `depart_motif`). Campagne gagnée : pas de « Prêt », le motif publié s'affiche à sa place.
+// Le client ne redérive ni la victoire ni le motif.
+const departBloque = computed(() => store.state.etat?.groupe?.depart_possible === false);
+const departMotif = computed(() => store.state.etat?.groupe?.depart_motif ?? '');
 const narrateurActif = computed(() => store.state.etat?.groupe?.narrateur_actif ?? false);
 const monPersonnageId = computed(() => monPerso.value?.id ?? null);
 const preEnAttente = ref(false);
@@ -1531,8 +1536,9 @@ const navItems = computed(() => (scene.value === 'marche'
                                         <MSym :n="codeCopie ? 'check' : 'content_copy'" :size="13" />
                                     </button>
                                 </div>
-                                <!-- bouton Prêt / Annuler -->
+                                <!-- bouton Prêt / Annuler — masqué quand le serveur refuse le départ (campagne gagnée) -->
                                 <button
+                                    v-if="!departBloque"
                                     class="pret-btn"
                                     :class="{ pret: monPret }"
                                     :disabled="preEnAttente || !monPersonnageId"
@@ -1545,6 +1551,9 @@ const navItems = computed(() => (scene.value === 'marche'
                                             : (monPret ? 'Annuler ma présence' : 'Prêt pour la quête !')
                                     }}
                                 </button>
+                                <p v-else class="pret-depart-motif">
+                                    <MSym n="flag" fill :size="15" /> {{ departMotif }}
+                                </p>
                                 <p v-if="erreurPret" class="pret-err">
                                     <MSym n="error" :size="13" /> {{ erreurPret }}
                                 </p>

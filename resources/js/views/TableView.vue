@@ -631,6 +631,10 @@ const recruesHub = computed(() => etat.value?.groupe?.mercenaires ?? []);
 // n'est pas un « Prêt ! » (le serveur ne le refuse pas) : on prévient donc, et le second clic passe outre.
 const lancementAConfirmer = ref(false);
 const compagnonOffertHub = computed(() => etat.value?.groupe?.compagnon_offert ?? null);
+// DÉPART DE LA QUÊTE (fin de campagne, 2026-10-16) : la décision du serveur (`groupe.depart_possible`, EtatGroupe au
+// hub). Campagne gagnée : pas de « Lancer la quête » ; le motif publié par le serveur s'affiche à la place.
+const departBloque = computed(() => etat.value?.groupe?.depart_possible === false);
+const departMotif = computed(() => etat.value?.groupe?.depart_motif ?? '');
 async function lancerQuete() {
     if (compagnonOffertHub.value && !lancementAConfirmer.value) {
         lancementAConfirmer.value = true;
@@ -986,8 +990,12 @@ watch(() => store.state.clotureTerminee, (t) => {
                                 À prendre ou à refuser sur une manette avant de lancer la quête.
                             </span>
                         </p>
+                        <p v-if="departBloque" class="hub-depart-motif">
+                            <MSym n="flag" fill :size="15" />
+                            <span>{{ departMotif }}</span>
+                        </p>
                         <div style="display: flex; gap: 10px">
-                            <button class="btn torch" :disabled="lancementEnCours" @click="lancerQuete">
+                            <button v-if="!departBloque" class="btn torch" :disabled="lancementEnCours" @click="lancerQuete">
                                 <MSym n="play_arrow" />
                                 {{ lancementEnCours ? 'Préparation…'
                                     : (lancementAConfirmer ? 'Lancer sans compagnon' : 'Lancer la quête') }}
@@ -1533,6 +1541,10 @@ watch(() => store.state.clotureTerminee, (t) => {
   padding: 10px 12px; border: 1px solid var(--torch, #c9a25a); border-radius: 10px; background: rgba(201, 162, 90, 0.08);
   font-family: var(--font-ui); font-style: normal; font-size: 13.5px; line-height: 1.45; text-align: left; }
 .table-screen .hub-panel .hub-compagnon > .msym { flex: none; margin-top: 1px; color: var(--torch, #c9a25a); }
+.table-screen .hub-panel .hub-depart-motif { display: flex; align-items: flex-start; gap: 8px; max-width: 560px; margin: 0;
+  padding: 10px 12px; border: 1px solid var(--torch, #c9a25a); border-radius: 10px; background: rgba(201, 162, 90, 0.08);
+  font-family: var(--font-ui); font-style: normal; font-size: 13.5px; line-height: 1.45; text-align: left; }
+.table-screen .hub-panel .hub-depart-motif > .msym { flex: none; margin-top: 1px; color: var(--torch, #c9a25a); }
 .table-screen .hub-panel .hub-err { font-family: var(--font-ui); font-style: normal; font-size: 13px; color: var(--danger, #c33); }
 .table-screen .hub-allies { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px;
   font-family: var(--font-ui); font-style: normal; }

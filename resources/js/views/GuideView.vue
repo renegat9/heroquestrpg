@@ -5,6 +5,7 @@
 // Les effets mécaniques sont traduits en libellés lisibles via compendium.js.
 import { computed, onMounted, ref } from 'vue';
 import MSym from '../components/ui/MSym.vue';
+import Vignette from '../components/ui/Vignette.vue';
 import { useApi } from '../composables/useApi';
 import {
     accesEquipement,
@@ -434,7 +435,9 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                         <article v-for="o in liste" :key="o.nom" class="ent-card">
                             <div class="ent-head">
                                 <h4>{{ o.nom }}</h4>
-                                <span class="prix"><MSym n="paid" :size="13" /> {{ o.prix_base }}</span>
+                                <!-- Pas de prix quand le SERVEUR n'en publie pas (`prix_base` à null :
+                                     objet hors marché — parchemin, carte de trésor sans prix, potion de soin). -->
+                                <span v-if="o.prix_base != null" class="prix"><MSym n="paid" :size="13" /> {{ o.prix_base }}</span>
                             </div>
                             <div class="meta-row">
                                 <span class="tag" :class="'rar-' + o.rarete">{{ RARETE[o.rarete] ?? o.rarete }}</span>
@@ -594,6 +597,8 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                             :class="{ absente: !c.porte }"
                         >
                             <MSym :n="c.porte ? 'check_circle' : 'schedule'" :size="15" class="carte-ic" />
+                            <!-- Une carte de Dread a son illustration (ou l'emblème `sort_dread`, côté serveur). -->
+                            <span v-if="c.image_url" class="cartes-vign"><Vignette :src="c.image_url" icon="auto_awesome" :alt="c.nom" /></span>
                             <div class="carte-corps">
                                 <div class="carte-nom">
                                     {{ c.nom }}
@@ -634,6 +639,9 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
   background: color-mix(in srgb, var(--stone-900) 80%, transparent); border: 1px solid var(--stone-800); }
 .carte-ligne.absente { opacity: 0.82; border-style: dashed; }
 .carte-ic { flex: none; margin-top: 2px; color: var(--moss, #7fae6a); }
+/* Vignette d'une carte de Dread : un médaillon carré, comme les autres illustrations du guide. */
+.cartes-vign { flex: none; width: 52px; height: 52px; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--stone-800); background: var(--stone-950); display: block; }
 .carte-ligne.absente .carte-ic { color: var(--ink-500); }
 .carte-corps { min-width: 0; }
 .carte-nom { font-weight: 700; font-size: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

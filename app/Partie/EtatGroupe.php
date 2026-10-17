@@ -143,6 +143,14 @@ final class EtatGroupe
             // condition (2 quêtes achevées) côté client.
             $preambuleGroupe['gardien'] = $groupe->estGardien();
 
+            // DÉPART DE LA QUÊTE (fin de campagne, 2026-10-16) : la décision de
+            // `DemarreurQuete::refusDeDepart()`, le même point de passage que `POST /pret` et
+            // `POST /quetes`. Campagne GAGNÉE : « Prêt » (manette) et « Lancer la quête » (table)
+            // se masquent, et le motif écrit ici s'affiche à leur place — aucun écran ne redérive la victoire.
+            $motifDepart = app(DemarreurQuete::class)->refusDeDepart($groupe);
+            $preambuleGroupe['depart_possible'] = $motifDepart === null;
+            $preambuleGroupe['depart_motif'] = $motifDepart;
+
             // DÉCISIONS de recrutement, héros par héros (prix réel avec la Potion
             // de charme, recrutable ou non, et le motif) : `RecrutementHub` est
             // le seul point de passage. La manette affiche la ligne de son héros

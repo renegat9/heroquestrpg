@@ -174,6 +174,60 @@ final class BibliothequeImages
             : null;
     }
 
+    /**
+     * SORT DE DREAD (2026-10-16) — la magie du MJ, carte par carte. Même patron que
+     * `urlSort()` : une image par ligne de `sorts_dread`, et l'emblème `sort_dread`
+     * (un œil) en BOUT de chaîne. Un sort de Dread n'avait AUCUN chemin d'image : la
+     * scène de table publiait l'emblème générique du genre `sort`, qui ne disait pas
+     * que c'était la magie de Zargon.
+     *
+     * `null` seulement sans carte à montrer (`$id` absent) — jamais pour une carte
+     * qui existe.
+     */
+    public function urlSortDread(?int $id, ?string $nom): ?string
+    {
+        return $id
+            ? $this->url($this->relatifCatalogue('sorts_dread', $id, (string) $nom)) ?? $this->vignette('sort_dread', $id)
+            : null;
+    }
+
+    /**
+     * Le RAPPORT d'emprise d'un meuble, EN MOTS, pour le gabarit `mobilier`.
+     *
+     * `largeur` est l'axe horizontal de la carte, `hauteur` sa profondeur — donc
+     * l'axe vertical de l'image. Un chiffre (« 3 × 2 ») se fait peindre sur le meuble,
+     * et Gemini étirait une table 3 × 2 jusqu'à 2,8 : 1 pour 1,5 : 1. La phrase donne
+     * le rapport et le sens, et rien d'autre.
+     */
+    public static function formeMobilier(int $largeur, int $hauteur): string
+    {
+        $largeur = max(1, $largeur);
+        $hauteur = max(1, $hauteur);
+
+        if ($largeur === $hauteur) {
+            return 'le meuble est carré : aussi large que haut';
+        }
+
+        $long = max($largeur, $hauteur);
+        $court = min($largeur, $hauteur);
+        $rapport = $long / $court;
+
+        $multiple = match (true) {
+            abs($rapport - 1.5) < 0.01 => 'une fois et demie',
+            abs($rapport - 2) < 0.01 => 'deux fois',
+            abs($rapport - 3) < 0.01 => 'trois fois',
+            abs($rapport - 4) < 0.01 => 'quatre fois',
+            default => str_replace('.', ',', rtrim(rtrim(number_format($rapport, 1, '.', ''), '0'), '.')).' fois',
+        };
+
+        // ⚠ « plus long que large » ne disait pas quel axe de l'IMAGE porte le long côté : la
+        // table 3 × 2 est sortie DRESSÉE (verticale) alors qu'elle devait être couchée. D'où les
+        // axes nommés, dans les mots de l'image.
+        return $largeur > $hauteur
+            ? "{$multiple} plus large que haut : son côté le plus long est HORIZONTAL dans l'image, de gauche à droite"
+            : "{$multiple} plus haut que large : son côté le plus long est VERTICAL dans l'image, du haut vers le bas";
+    }
+
     // ---- Dynamique (jobs / cache) ----------------------------------------
 
     public function relatifDyn(string $sousType, int|string $id): string

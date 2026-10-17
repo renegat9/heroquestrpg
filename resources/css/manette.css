@@ -346,4 +346,6 @@ body:has(.overlay) .scene-ctrl { display: none; }
 .pret-btn:disabled { opacity: 0.45; cursor: not-allowed; background: var(--stone-800); color: var(--ink-600); border: var(--line); }
 .pret-err { font-size: 12px; font-weight: 600; color: var(--danger, #c33); margin: 0;
   display: flex; align-items: center; gap: 5px; }
+.pret-depart-motif { font-size: 13px; font-weight: 700; color: var(--ink-300); margin: 0; padding: 10px 12px;
+  display: flex; align-items: flex-start; gap: 6px; border-radius: var(--r-md); background: var(--stone-800); border: var(--line); }
 .obj-consigne { color: var(--torch); font-weight: 700; }

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Engine\MotsClesMobilier;
-use App\Engine\RareteButin;
 use App\Models\Carte;
 use App\Models\Mobilier;
 use App\Models\Objet;
@@ -260,27 +259,16 @@ final class MoteurMobilier
                     ->orWhereIn('tag_equipement', $tagsAccessibles));
             }
 
-            // TIRAGE EN DEUX TEMPS depuis le 2026-08-17 (décision de René) :
-            // d'abord la RARETÉ, pondérée par le niveau moyen du groupe, puis la
-            // pièce, uniformément dans cette rareté.
-            //
-            // Le tirage était uniforme sur tout le vivier : un établi
-            // d'alchimiste rendait une Potion de restauration supérieure (800 po)
-            // aussi souvent qu'une Potion de soin (100), et un groupe de niveau 8
-            // continuait de trouver des dagues. La progression ne se lisait nulle
-            // part dans le butin.
-            $disponibles = (clone $vivier)->distinct()->pluck('rarete')
-                ->map(fn ($r) => (string) $r)->all();
-
-            $rarete = RareteButin::tirer($disponibles, $niveauMoyen);
-
-            $objet = $rarete === null
-                ? null
-                : $vivier->where('rarete', $rarete)->inRandomOrder()->first();
+            // TIRAGE EN DEUX TEMPS (rareté pondérée par le niveau moyen, puis la pièce
+            // uniformément dans cette rareté) : décidé le 2026-08-17 (décision de René).
+            // Le geste vit dans `TirageButin`, le même point de passage que l'épreuve du
+            // Grimoire. Le tirage uniforme sur tout le vivier rendait une Potion de
+            // restauration supérieure (800 po) aussi souvent qu'une Potion de soin (100).
+            $objet = TirageButin::objetSelonRarete($vivier, $niveauMoyen);
 
             return $objet === null
                 ? ['issue' => 'rien', 'objet_indisponible' => true]
-                : ['issue' => 'objet', 'objet_id' => (int) $objet->id, 'rarete' => $rarete];
+                : ['issue' => 'objet', 'objet_id' => (int) $objet->id, 'rarete' => $objet->rarete];
         }
 
         return ['issue' => 'rien'];
