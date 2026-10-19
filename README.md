@@ -38,6 +38,9 @@ moteur résout l'option choisie*.
 | Front Vue (accueil, narrateur, joueur, table, manette) | ✅ | Écrans vérifiés au navigateur (Playwright) |
 | Modèle de session (narrateur par code + joueurs à compte) | ✅ | Heartbeat « narrateur actif » ; quête au statut « prêt » de tous |
 | **Audio / voix** | ✅ | Narration MJ **lue en TTS** + **voix dédiée du narrateur** + **barks de monstres** (voix par archétype, répliques nommées de boss) + **musique d'ambiance** (hub/exploration/combat/boss, via Lyria). Audio pré-généré (`php artisan barks:generer`, `narration:generer`, `audio-tools/`) ; **sans clé/asset**, repli Web Speech (texte) et ambiance silencieuse |
+| **Alliés recrutables** (mercenaires & compagnons animaux) | ✅ | Recrutement au hub (`RecrutementHub`) : 4 par héros max, un seul animal, remise de la Potion de charme, recrutement offert par la faveur *Mercenary Guild*, entretien entre les quêtes. Les alliés jouent en fin de round et **les monstres les attaquent** |
+| **Monstres à phases** & **lanceurs de Dread autonomes** | ✅ | Un seul mot-clé `phase_suivante` (Gruzbella, Gruulob…) ; sbires lanceurs de sorts par archétype (`archetype_lanceur`) |
+| **Pièges magiques** | ✅ | Embrasement (*Fireburst*) et consorts, issus de *Wizards of Morcar* |
 | **Équilibrage** (stats, prix, difficultés) | 🧪 | Valeurs **de départ**, à régler en playtest |
 | Déploiement public / WAN durci | 🚫 | Hors périmètre — LAN/VPN uniquement |
 
@@ -217,8 +220,22 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
   `docker compose down -v` ne retire que les volumes **nommés**, donc les données y survivent ;
   et hors du dépôt parce que `git clean -xfd` supprime aussi les fichiers ignorés.
 
-## 🛣️ Reste à faire (court terme)
+## 🛣️ Reste à faire
+
+**Court terme**
 
 - **Équilibrage** : régler stats / prix / difficultés en playtest (la tactique du bot de test est limitée — un humain place mieux ses héros).
 - **Assets** : (re)générer les illustrations / voix manquantes selon le budget API ; affiner les prompts de style (`config/images.php`) au besoin.
-- Phase 2 (doc 00 §8) : alliés recrutables, marchandage, ramifications profondes, boss multi-phases, etc.
+- **Restes du dernier relevé** (`docs/correctifs-restants.md` §0) : voix du narrateur muette sur l'issue `errant` d'un coffre ; épilogue de défaite qui oublie les quêtes gagnées ; narration décorrélée d'une action (**à reproduire avant de corriger**) ; porte sans option « Ouvrir » (à reconfirmer en jeu). L'onglet narrateur en arrière-plan > 1 min reste écarté **par choix** (piste : battement en Web Worker).
+
+**Extensions** (voir [🧩 Extensions](#-extensions))
+
+- *Prophecy of Telor* : construire la fuite (quête 12) et la mort par tirage (quête 13) de Fellmarak, puis rallumer le thème.
+- *Kellar's Keep*, *Return of the Witch Lord*, *Spirit Queen's Torment*, *The Crypt of Perpetual Darkness* : pas encore de thème (plans dans `docs/plan-*.md`).
+
+**Phase 2** (doc 00 §8) — déjà livrés : alliés recrutables, lanceurs de Dread autonomes, monstres à phases, pièges magiques. Restent :
+
+- **Marchandage** : un seul marchand, tout au prix normal, **par décision** (René, 2026-09-12) — les quatre profils de `ProfilMarche` sont la matière première de la négociation, pas du code mort.
+- **Économie dynamique** et **événements de ville dynamiques** : rien d'engagé.
+- **Ramifications profondes** : la colonne `quetes.branche_active` existe mais rien ne l'écrit encore ; l'arc reste à ramification simple.
+- **Succès à coût généralisé** : le moteur détecte déjà la réussite mixte des jets (`ReussiteMixte`, P4) ; l'étendre au-delà reste à faire.
