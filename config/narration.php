@@ -427,16 +427,20 @@ return [
             ],
         ],
         'reussite_mixte' => [
+            // ⚠ Le quasi-échec est un ÉCHEC (P4 tranchée le 2026-10-19 : comme au
+            // plateau, il n'y a pas de « succès à coût »). Ces phrases disaient
+            // « la tentative aboutit », « réussi, de justesse » pendant que le
+            // moteur n'appliquait RIEN : elles disent désormais « raté de peu ».
             'ambiance' => 'tension',
             'variantes' => [
-                'La tentative aboutit, mais quelque chose accroche au passage — le groupe progresse, sur ses gardes.',
-                'Réussi, de justesse : un détail cloche, restez vigilants.',
-                'Ça passe, mais pas proprement. Quelque chose a été dérangé.',
-                'Le résultat est là ; le bruit qu\'il a fait, aussi.',
-                'Un succès qui laisse un arrière-goût.',
-                'L\'affaire est réglée, à un détail près — et les détails comptent, ici.',
-                'Réussi. Mais quelque part, quelque chose a bougé.',
-                'Le groupe obtient ce qu\'il voulait, et un peu plus.',
+                'Presque… mais pas tout à fait. La tentative échoue d\'un cheveu.',
+                'Si près du but — et pourtant, rien ne cède.',
+                'Il s\'en est fallu de peu. Cette fois, ce n\'est pas suffisant.',
+                'L\'effort était là, le résultat non : à un souffle près.',
+                'Un instant, on y a cru. Puis le donjon a gardé son secret.',
+                'Ça a failli passer. Failli seulement.',
+                'Raté de justesse — une autre tentative pourrait suffire.',
+                'Le but était à portée de main, et il a glissé entre les doigts.',
             ],
         ],
         'echec' => [

@@ -499,3 +499,56 @@ it('ne dit jamais « −N PV » pour un coup qu\'une défense à usage unique an
         ->and($texte)->not->toContain('−2 PV')
         ->and($texte)->toContain('ignore intégralement le coup');
 });
+
+// QUASI-ÉCHEC = ÉCHEC (P4 tranchée le 2026-10-19, fonctionnement du plateau).
+// `succes` est le NOMBRE de crânes : lu comme un booléen, un jet raté d'un seul
+// crâne s'annonçait « réussi ». C'est l'`issue`, la décision du moteur, qui fait foi.
+describe('JournalCombat — un quasi-échec s\'annonce comme un échec', function () {
+    it('une épreuve ratée d\'un crâne dit « échoué », sans « rien ne vient »', function () {
+        $l = lignes([
+            'type' => 'jet', 'option_id' => 'epreuve_0', 'epreuve' => 'Dalle descellée',
+            'difficulte' => 2, 'succes' => 1, 'issue' => 'reussite_mixte',
+        ]);
+
+        expect($l)->toHaveCount(1)
+            ->and($l[0]['texte'])->toContain('échoué')
+            ->and($l[0]['ton'])->toBe('echec');
+    });
+
+    it('un meuble resté debout dit « échoué »', function () {
+        $l = lignes([
+            'type' => 'jet', 'option_id' => 'detruire_mobilier_3', 'libelle' => 'Fracasser : Armoire',
+            'mobilier' => 'Armoire', 'difficulte' => 3, 'succes' => 2, 'issue' => 'reussite_mixte',
+        ]);
+
+        expect($l[0]['texte'])->toContain('échoué')->and($l[0]['ton'])->toBe('echec');
+    });
+
+    it('un échec sec qui a tout de même roulé des crânes dit « échoué »', function () {
+        $l = lignes([
+            'type' => 'jet', 'option_id' => 'detruire_mobilier_3', 'libelle' => 'Fracasser : Armoire',
+            'mobilier' => 'Armoire', 'difficulte' => 4, 'succes' => 1, 'issue' => 'echec',
+        ]);
+
+        expect($l[0]['ton'])->toBe('echec');
+    });
+
+    it('un saut de fosse raté d\'un crâne fait tomber, il ne « franchit » pas', function () {
+        $l = lignes([
+            'type' => 'franchissement', 'difficulte' => 2, 'succes' => 1,
+            'issue' => 'reussite_mixte', 'franchi' => false,
+        ]);
+
+        expect($l[0]['texte'])->toContain('chute dans la fosse')->and($l[0]['ton'])->toBe('echec');
+    });
+
+    it('une vraie réussite reste « réussi »', function () {
+        $l = lignes([
+            'type' => 'jet', 'option_id' => 'epreuve_0', 'epreuve' => 'Dalle descellée',
+            'difficulte' => 2, 'succes' => 2, 'issue' => 'reussite', 'or' => 100,
+        ]);
+
+        expect($l[0]['texte'])->toContain('réussi')
+            ->and($l[1]['texte'])->toContain('100 pièces');
+    });
+});

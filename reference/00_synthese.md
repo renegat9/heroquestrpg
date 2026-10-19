@@ -42,7 +42,7 @@ Un jeu de rôle **fondé sur HeroQuest**, avec un **maître de jeu IA**. Le comb
 
 ## 4. Décisions clés par domaine
 
-**Personnages** — Attribut Body/Mind **séparé** des PV ; jets en dés de combat (crânes ; difficulté = succès requis). Mort **relevable sinon définitive** (P1) ; récupération **entre quêtes + potions** (P2) ; **aucun plafond** d'attribut (P3) ; réussite **mixte** (P4) ; inventaire **par emplacements** (P5) ; niveaux **liés aux quêtes** (P6). Sac = **PV Body max ÷ 2** (Nain +1, nœud *Solides épaules* +2).
+**Personnages** — Attribut Body/Mind **séparé** des PV ; jets en dés de combat (crânes ; difficulté = succès requis). Mort **relevable sinon définitive** (P1) ; récupération **entre quêtes + potions** (P2) ; **aucun plafond** d'attribut (P3) ; quasi-échec = **échec sec** (P4, tranchée le 2026-10-19) ; inventaire **par emplacements** (P5) ; niveaux **liés aux quêtes** (P6). Sac = **PV Body max ÷ 2** (Nain +1, nœud *Solides épaules* +2).
 
 **P1** ⚠ Remplacé le 2026-10-09 (René) : un héros tombé ne meurt jamais (mode Story de *Jungles of Delthrak*) — voir `docs/regles/vocabulaires-effets.md`. La mort définitive ci-dessus n'est plus la règle ; le texte d'origine est conservé.
 
@@ -108,7 +108,7 @@ Les docs 01 à 05 sont **entièrement tranchés**. Restent :
 
 **MVP** — Règles complètes (personnages, sorts, combat, market, session) ; boucle MJ IA en menus ; génération hybride + tuiles ; arc de campagne (sous-boss + boss final) ; ramification simple ; bible + RAG ; 8 monstres + boss avec sorts de Dread ; 4 pièges ; bourse commune ; phase marché atomique.
 
-**Phase 2** — Alliés recrutables ; marchandage ; économie dynamique ; ramifications profondes ; lanceurs de Dread autonomes ; bestiaire élargi & boss multi-phases ; pièges magiques / de salle ; succès à coût généralisé ; événements de ville dynamiques.
+**Phase 2** — Alliés recrutables ; marchandage ; économie dynamique ; ramifications profondes ; lanceurs de Dread autonomes ; bestiaire élargi & boss multi-phases ; pièges magiques / de salle ; ~~succès à coût généralisé~~ (écarté le 2026-10-19, voir P4) ; événements de ville dynamiques.
 
 ---
 

@@ -233,9 +233,8 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
 - *Prophecy of Telor* : construire la fuite (quête 12) et la mort par tirage (quête 13) de Fellmarak, puis rallumer le thème.
 - *Kellar's Keep*, *Return of the Witch Lord*, *Spirit Queen's Torment*, *The Crypt of Perpetual Darkness* : pas encore de thème (plans dans `docs/plan-*.md`).
 
-**Phase 2** (doc 00 §8) — déjà livrés : alliés recrutables, lanceurs de Dread autonomes, monstres à phases, pièges magiques. Restent :
+**Phase 2** (doc 00 §8) — déjà livrés : alliés recrutables, lanceurs de Dread autonomes, monstres à phases, pièges magiques. Écarté : le **succès à coût généralisé** — un jet raté de peu est un échec sec, comme au plateau (P4, tranchée le 2026-10-19). Restent :
 
 - **Marchandage** : un seul marchand, tout au prix normal, **par décision** (René, 2026-09-12) — les quatre profils de `ProfilMarche` sont la matière première de la négociation, pas du code mort.
 - **Économie dynamique** et **événements de ville dynamiques** : rien d'engagé.
 - **Ramifications profondes** : la colonne `quetes.branche_active` existe mais rien ne l'écrit encore ; l'arc reste à ramification simple.
-- **Succès à coût généralisé** : le moteur détecte déjà la réussite mixte des jets (`ReussiteMixte`, P4) ; l'étendre au-delà reste à faire.

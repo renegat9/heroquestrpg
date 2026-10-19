@@ -2587,7 +2587,7 @@ final class JournalCombat
             // pièges ou des passages. ≠ réussite sans trouvaille (ci-dessous), qui dit que la
             // zone est SÛRE (verdict Jungle 2026-10-10 §3 : « rien » / « rien de suspect »
             // se lisaient pareil alors que leur sens est opposé).
-            if (empty($a['succes'])) {
+            if (! self::jetReussi($a)) {
                 return [['texte' => "{$acteurNom} fouille la zone : jet raté — rien n'est révélé (la zone peut encore cacher des pièges ou des passages)", 'ton' => 'echec']];
             }
             $pieges = count($a['pieges_reveles'] ?? []);
@@ -2615,11 +2615,30 @@ final class JournalCombat
         }
 
         $libelle = $a['libelle'] ?? 'un jet';
+        $reussi = self::jetReussi($a);
 
         return [[
-            'texte' => "{$acteurNom} — {$libelle} : ".(! empty($a['succes']) ? 'réussi' : 'échoué'),
-            'ton' => ! empty($a['succes']) ? 'succes' : 'echec',
+            'texte' => "{$acteurNom} — {$libelle} : ".($reussi ? 'réussi' : 'échoué'),
+            'ton' => $reussi ? 'succes' : 'echec',
         ]];
+    }
+
+    /**
+     * Le jet a-t-il RÉUSSI ? C'est l'`issue` qui le dit — la décision du moteur —,
+     * jamais `succes`, qui est ici le NOMBRE de crânes : une épreuve de difficulté 2
+     * ratée d'un crâne (`reussite_mixte`) s'annonçait « réussi » puis « rien ne
+     * vient », et un meuble resté debout « réussi » aussi. Le quasi-échec est un
+     * ÉCHEC (P4 tranchée le 2026-10-19 : fonctionnement du plateau), `rien` est une
+     * fouille de zone réussie sans trouvaille. Sans `issue` (payload ancien ou de
+     * test), `succes` est lu comme le booléen qu'il était alors.
+     *
+     * @param  array<string, mixed>  $a
+     */
+    private static function jetReussi(array $a): bool
+    {
+        return isset($a['issue'])
+            ? in_array($a['issue'], ['reussite', 'rien'], true)
+            : ! empty($a['succes']);
     }
 
     /**
@@ -2638,7 +2657,7 @@ final class JournalCombat
     private function epreuve(array $a, string $acteurNom): array
     {
         $nom = (string) $a['epreuve'];
-        $reussi = ! empty($a['succes']);
+        $reussi = self::jetReussi($a);
 
         $lignes = [[
             'texte' => "{$acteurNom} — {$nom} : ".($reussi ? 'réussi' : 'échoué'),
@@ -3179,7 +3198,12 @@ final class JournalCombat
      */
     private function issueSimple(array $a, string $acteurNom, string $reussite, string $echec): array
     {
-        $ok = ! empty($a['succes']) || ($a['issue'] ?? null) === 'reussi';
+        // Même lecture que `jetReussi()` : un saut de fosse raté d'un crâne
+        // (`reussite_mixte`, `succes` = 1) s'annonçait « franchit la fosse » pendant
+        // que le héros tombait. `succes` n'est un booléen que sans `issue`.
+        $ok = isset($a['issue'])
+            ? in_array($a['issue'], ['reussite', 'reussi'], true)
+            : ! empty($a['succes']);
 
         return [[
             'texte' => $acteurNom.' '.($ok ? $reussite : $echec),
