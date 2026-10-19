@@ -18,7 +18,7 @@ moteur résout l'option choisie*.
 > (campagne multi-quêtes, sous-boss, boss final, clôture), avec **narration IA
 > (Claude ou Gemini, au choix)**, **voix TTS**, **musique d'ambiance** et
 > **illustrations** générées. Reste surtout l'**équilibrage** (valeurs de départ
-> à playtester). **564 tests Pest verts.**
+> à playtester). **2 519 tests Pest.**
 
 | Domaine | Statut | Notes |
 |---|:---:|---|
@@ -185,7 +185,7 @@ Deux mécaniques ont été ouvertes le 2026-08-09 pour débloquer sept de ces ca
 
 ## 🧪 Tests
 
-Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **638 tests verts**.
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **2 519 tests** (88 699 assertions).
 
 ```bash
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
