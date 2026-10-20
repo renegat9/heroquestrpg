@@ -70,6 +70,11 @@ node audio-tools/lyria-ambiance.mjs                    # boucles d'ambiance
   `lignes` attaque/touché/raté/mort, `lignes_boss` avec `{nom}`). Résolveur
   `BanqueBarks`. Sans clé ni asset, la table **lit le texte** en Web Speech —
   l'audio est de l'ambiance, jamais une mécanique.
+  ⚠ **Tout monstre ajouté au bestiaire doit recevoir sa voix** dans
+  `barks.archetypes` — `BarksArchetypesTest` échoue sinon (registre testé dans les
+  deux sens, 2026-10-20 : 63 créatures d'extension retombaient en silence sur
+  `defaut`). Une voix par **famille** (ogre, bete, sorcier, fleau…), pas par
+  monstre : un profil neuf coûte 12 requêtes TTS.
 - **Narration** : `config/narration.php` (`lancement`, `repli`). ⚠ Le repli
   scripté est le **cas nominal**, pas un filet : il porte 21 des 24 temps forts
   et joue pendant les premières secondes de **chaque** quête.

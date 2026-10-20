@@ -49,6 +49,60 @@ return [
             'voix' => 'Charon',
             'style' => 'une voix terrifiante, profonde et solennelle de seigneur du chaos',
         ],
+        // --- Familles des EXTENSIONS (2026-10-20) --------------------------------
+        // Une voix par FAMILLE, pas par monstre : chaque profil coûte 12 requêtes
+        // TTS (4 événements × 3), et le quota est de 100/jour — 63 profils en
+        // auraient coûté ~756. Le registre `archetypes` ci-dessous est testé dans
+        // les deux sens (`BarksArchetypesTest`) : aucun monstre du bestiaire sans
+        // voix déclarée, aucune entrée qui ne soit un monstre.
+        'ogre' => [
+            'voix' => 'Algenib',
+            'style' => 'une voix énorme, rocailleuse et lente d\'ogre affamé',
+        ],
+        'ogresse' => [
+            'voix' => 'Kore',
+            'style' => 'une voix féminine rauque, puissante et goguenarde de cheffe de guerre ogre',
+        ],
+        'bete' => [
+            'voix' => 'Enceladus',
+            'style' => 'des grondements, rugissements et feulements de bête sauvage, sans parole articulée',
+        ],
+        'sorcier' => [
+            'voix' => 'Gacrux',
+            'style' => 'une voix ancienne, sifflante et cruelle de sorcier du Dread qui psalmodie',
+        ],
+        'sorciere' => [
+            'voix' => 'Despina',
+            'style' => 'une voix féminine glacée, ensorcelante et méprisante de sorcière',
+        ],
+        'fleau' => [
+            'voix' => 'Umbriel',
+            'style' => 'un murmure humide, grouillant et chuintant de végétation pourrie et d\'insecte',
+        ],
+        'spectre' => [
+            'voix' => 'Enceladus',
+            'style' => 'un chuchotement spectral, lointain et soufflé, comme venu d\'outre-tombe',
+        ],
+        'elfe' => [
+            'voix' => 'Schedar',
+            'style' => 'une voix claire, hautaine et froide d\'elfe corrompu',
+        ],
+        'glace' => [
+            'voix' => 'Achernar',
+            'style' => 'une voix glaciale, lente et cristalline, comme un vent de banquise',
+        ],
+        'dragon' => [
+            'voix' => 'Alnilam',
+            'style' => 'une voix immense, grondante et souveraine de dragon ancien, chargée de feu',
+        ],
+        'construct' => [
+            'voix' => 'Rasalgethi',
+            'style' => 'une voix mécanique, monocorde et grinçante de pierre et de métal animés',
+        ],
+        'tueur' => [
+            'voix' => 'Achird',
+            'style' => 'une voix basse, sèche et moqueuse de tueur à gages',
+        ],
         // Repli si un monstre n'a pas de profil dédié.
         'defaut' => [
             'voix' => 'Fenrir',
@@ -68,6 +122,81 @@ return [
         'Gargouille' => 'demon',
         'Champion' => 'champion',
         'Seigneur' => 'boss',
+        'Abomination' => 'demon',
+        // Variantes À DISTANCE (Against the Ogre Horde p. 8, `monstres.variante_distance_de`) :
+        // même créature, même voix que leur monstre de base.
+        'Gobelin archer' => 'gobelin',
+        'Orque archer' => 'brute',
+        'Archer squelette' => 'mort_vivant',
+        // Gabarits génériques (sans boîte).
+        'Troll' => 'ogre',
+        'Chamane Gobelin' => 'gobelin',
+        'Liche' => 'mort_vivant',
+        'Sorcier des Tempêtes' => 'sorcier',
+        // Rise of the Dread Moon
+        'Cultiste du Dread' => 'sorcier',
+        'Spectre' => 'spectre',
+        'Assassin' => 'tueur',
+        'Garde-mage' => 'sorcier',
+        'Ombre du Dread' => 'spectre',
+        'Sir Ragnar' => 'champion',
+        // The Mage of the Mirror
+        'Ogre' => 'ogre',
+        'Archer elfe' => 'elfe',
+        'Guerrier elfe' => 'elfe',
+        'Loup géant' => 'bete',
+        'Archimage elfe' => 'elfe',
+        // The Frozen Horror
+        'Ours polaire de guerre' => 'bete',
+        'Gremlin des glaces' => 'gobelin',
+        'Yéti' => 'bete',
+        'Horreur des Glaces' => 'glace',
+        // Against the Ogre Horde
+        'Ogre guerrier' => 'ogre',
+        'Ogre champion' => 'ogre',
+        'Ogre commandant' => 'ogre',
+        'Seigneur ogre' => 'ogre',
+        'Doralf' => 'ogre',
+        'Gruzbella Hammerhand' => 'ogresse',
+        'Gruzbella Déterminée' => 'ogresse',
+        'Gruzbella Imprudente' => 'ogresse',
+        'Spawn of the Pit' => 'demon',
+        'Spawn of the Pit déchaîné' => 'demon',
+        'Nexrael' => 'sorcier',
+        'Xenloth' => 'sorcier',
+        'Festral' => 'sorcier',
+        'Effigie gardienne' => 'construct',
+        // Jungles of Delthrak
+        'Rejeton putride' => 'fleau',
+        'Tisseur putride' => 'fleau',
+        'Crâne putride' => 'fleau',
+        'Raptor' => 'bete',
+        'Rampant putride' => 'fleau',
+        'Serpent géant' => 'bete',
+        'Singe géant' => 'bete',
+        'Gretzl la Porte-Fléau' => 'sorciere',
+        'Demonspider' => 'fleau',
+        'Demonape' => 'demon',
+        'Gruulob, Sorcier Gobelin Corrompu' => 'gobelin',
+        'Gruulob, Forme Démoniaque' => 'demon',
+        'Deathspinner la Reine du Fléau' => 'sorciere',
+        'Golem Cœur-de-Forge' => 'construct',
+        'Scion Fleur-Pourrie' => 'fleau',
+        'Vrille' => 'fleau',
+        'Bakabri le Cruel' => 'sorcier',
+        // First Light
+        'Dragon' => 'dragon',
+        // Prophecy of Telor
+        'Sorcier du Dread' => 'sorcier',
+        // Wizards of Morcar
+        'Maître des orages' => 'sorcier',
+        'Haut mage' => 'sorcier',
+        'Nécromancien' => 'sorcier',
+        'Mage de guerre orque' => 'sorcier',
+        'Artificière' => 'sorciere',
+        'Golem' => 'construct',
+        'Dreadshifter' => 'spectre',
+        'Minotaure' => 'bete',
     ],
 
     'evenements' => ['attaque', 'touche', 'rate', 'mort'],
@@ -109,6 +238,78 @@ return [
             'touche' => ['VOUS OSEZ ME DÉFIER ?!', 'Insolents mortels !', 'Cela ne change RIEN !'],
             'rate' => ['Vos lames sont des jouets !', 'Vous ne pouvez RIEN contre moi !', 'Pitoyable !'],
             'mort' => ['NON… c\'est… impossible…', 'Les ténèbres… me réclament…', 'Vous… n\'avez fait… que retarder…'],
+        ],
+        'ogre' => [
+            'attaque' => ['Ogre a faim !', 'Je vais t\'écraser comme un cafard !', 'Viens dans la marmite !'],
+            'touche' => ['Ça chatouille !', 'GRAOUH ! Petit insolent !', 'Tu m\'as énervé !'],
+            'rate' => ['Hoho ! Trop petit !', 'Même pas senti !', 'C\'est une piqûre de moustique ?'],
+            'mort' => ['Ogre… plus faim…', 'Grrouh… tombe…', 'Pas… juste…'],
+        ],
+        'ogresse' => [
+            'attaque' => ['Place à Gruzbella !', 'Mon marteau a soif !', 'Allez, viens danser !'],
+            'touche' => ['Ha ! Enfin un adversaire !', 'Tu cognes fort, pour un nabot !', 'Ça, tu vas le payer !'],
+            'rate' => ['Raté, mon mignon !', 'C\'est tout ce que t\'as ?', 'Je m\'ennuie !'],
+            'mort' => ['Bien joué… nabot…', 'La horde… chantera mon nom…', 'Pas… encore…'],
+        ],
+        'bete' => [
+            'attaque' => ['GRRRAAAOH !', 'Rrrraaah !', 'Hhhhhaaarrr !'],
+            'touche' => ['Kaïïï !', 'GRAOU !', 'Rrrh… rrrh…'],
+            'rate' => ['Grrrr…', 'Hhhfff !', 'Rrrrrrr…'],
+            'mort' => ['Aouuuuh…', 'Hhhnnn…', 'Rrrr… rrr…'],
+        ],
+        'sorcier' => [
+            'attaque' => ['Que le Dread vous consume !', 'Brûlez !', 'Sentez la colère de Zargon !'],
+            'touche' => ['Ma magie me protège…', 'Vous ne savez pas à qui vous avez affaire !', 'Impudents !'],
+            'rate' => ['Vos armes sont aveugles !', 'Ha ! Prévisible.', 'Les ténèbres m\'ont averti.'],
+            'mort' => ['Le Dread… m\'abandonne…', 'Zargon… vengez-moi…', 'Mon savoir… perdu…'],
+        ],
+        'sorciere' => [
+            'attaque' => ['Approchez, mes petits…', 'Je vais vous défaire, fil à fil.', 'Votre fin est déjà tissée.'],
+            'touche' => ['Tu oses abîmer mon œuvre ?', 'Insolent !', 'Je m\'en souviendrai.'],
+            'rate' => ['Si maladroit…', 'Tu me fais pitié.', 'Encore manqué, mon chou.'],
+            'mort' => ['Non… pas maintenant…', 'Mon œuvre… inachevée…', 'Vous… paierez…'],
+        ],
+        'fleau' => [
+            'attaque' => ['Sssss… pourrissez…', 'Le Fléau vous réclame…', 'Grandir… dévorer…'],
+            'touche' => ['Ssskkkk !', 'Ça repousse… toujours…', 'Kssshhh…'],
+            'rate' => ['Ssss… lent…', 'Le Fléau ne craint rien…', 'Kkhhh…'],
+            'mort' => ['Ssss… flétrir…', 'Retourner… à l\'humus…', 'Khhhh…'],
+        ],
+        'spectre' => [
+            'attaque' => ['Votre souffle… m\'appartient…', 'Froid… si froid…', 'Venez… dans l\'ombre…'],
+            'touche' => ['Vous ne pouvez saisir… le vent…', 'Ahhh…', 'Je me dissipe… et reviens…'],
+            'rate' => ['Vous frappez… le vide…', 'Je ne suis… plus ici…', 'Rien… vous ne touchez rien…'],
+            'mort' => ['Enfin… libre…', 'Le voile… se déchire…', 'Ahhhh…'],
+        ],
+        'elfe' => [
+            'attaque' => ['Tu n\'aurais pas dû venir ici.', 'Pas un pas de plus.', 'Ma lame est plus vieille que ta lignée.'],
+            'touche' => ['Une chance, rien de plus.', 'Tu vas le regretter.', 'Hmph.'],
+            'rate' => ['Lourd et lent, comme tous les tiens.', 'Prévisible.', 'Pitoyable.'],
+            'mort' => ['Le miroir… se brise…', 'Si loin… de chez moi…', 'Non…'],
+        ],
+        'glace' => [
+            'attaque' => ['Que l\'hiver vous prenne.', 'Gelez.', 'Le froid ne pardonne pas.'],
+            'touche' => ['La glace se reforme.', 'Vous ne faites que me réveiller.', 'Craquement… rien de plus.'],
+            'rate' => ['Vos lames gèlent.', 'Trop froid pour vous.', 'L\'hiver est patient.'],
+            'mort' => ['Le dégel… déjà…', 'Fondre…', 'L\'hiver… reviendra…'],
+        ],
+        'dragon' => [
+            'attaque' => ['BRÛLEZ, MORTELS !', 'Vous serez cendres !', 'Mon feu est éternel !'],
+            'touche' => ['Une égratignure !', 'VOUS OSEZ ?!', 'Mes écailles en ont vu d\'autres !'],
+            'rate' => ['Des moucherons !', 'Ridicule !', 'Je ne sens rien !'],
+            'mort' => ['Mille ans… pour finir ainsi…', 'Mon trésor…', 'GRRAAAAH…'],
+        ],
+        'construct' => [
+            'attaque' => ['Intrus. Éliminer.', 'Ordre reçu.', 'Avancer. Frapper.'],
+            'touche' => ['Dommage… mineur.', 'Fissure… détectée.', 'Fonction… maintenue.'],
+            'rate' => ['Aucun effet.', 'Structure intacte.', 'Inefficace.'],
+            'mort' => ['Arrêt…', 'Fonction… terminée…', 'Effondrement…'],
+        ],
+        'tueur' => [
+            'attaque' => ['Rien de personnel.', 'Tu ne m\'as pas vu venir.', 'Ton nom était sur ma liste.'],
+            'touche' => ['Pas mal.', 'Tu viens de doubler mon prix.', 'Tch.'],
+            'rate' => ['Trop lent.', 'Par ici.', 'Raté.'],
+            'mort' => ['Le contrat… était trop bas…', 'Bien joué…', 'Ombre… à l\'ombre…'],
         ],
         'defaut' => [
             'attaque' => ['Grrraah !', 'À l\'attaque !', 'Meurs !'],
