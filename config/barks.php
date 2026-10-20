@@ -65,7 +65,10 @@ return [
         ],
         'bete' => [
             'voix' => 'Enceladus',
-            'style' => 'des grondements, rugissements et feulements de bête sauvage, sans parole articulée',
+            // ⚠ « sans parole articulée » contredisait le prompt (« Dis ceci… ») : trois
+            // grognements sur douze revenaient SANS AUDIO (2026-10-20). On décrit le
+            // timbre, pas l'absence de parole.
+            'style' => 'la voix rauque et gutturale d\'une bête sauvage qui gronde et rugit',
         ],
         'sorcier' => [
             'voix' => 'Gacrux',
@@ -253,9 +256,12 @@ return [
         ],
         'bete' => [
             'attaque' => ['GRRRAAAOH !', 'Rrrraaah !', 'Hhhhhaaarrr !'],
-            'touche' => ['Kaïïï !', 'GRAOU !', 'Rrrh… rrrh…'],
-            'rate' => ['Grrrr…', 'Hhhfff !', 'Rrrrrrr…'],
-            'mort' => ['Aouuuuh…', 'Hhhnnn…', 'Rrrr… rrr…'],
+            // ⚠ Gemini TTS rend parfois une réponse SANS AUDIO sur un grognement sans
+            // voyelle terminé par « … » (3 échecs sur 6, 0 sur les 6 en « ! ») : voyelle
+            // et point d'exclamation.
+            'touche' => ['Kaïïï !', 'GRAOU !', 'Rraaah, rraaah !'],
+            'rate' => ['Grrraou !', 'Hhhfff !', 'Rrrrrrr…'],
+            'mort' => ['Aouuuuuh !', 'Hhhnnn…', 'Rrrr… rrr…'],
         ],
         'sorcier' => [
             'attaque' => ['Que le Dread vous consume !', 'Brûlez !', 'Sentez la colère de Zargon !'],
