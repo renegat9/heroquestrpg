@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Agent\Audio\TtsGemini;
-use App\Agent\Exceptions\AppelLlmException;
+use App\Partie\Audio\BanqueAudio;
 use Illuminate\Console\Command;
 
 /**
@@ -16,12 +16,15 @@ use Illuminate\Console\Command;
  * GEMINI_API_KEY : ne fait rien et l'explique — le jeu reste jouable, l'écran
  * de table lit alors le TEXTE des barks via Web Speech.
  *
- *   php artisan barks:generer          # ne (re)génère que les fichiers absents
+ * Chaque fichier porte l'empreinte du texte qu'il prononce (`BanqueAudio`) : une
+ * réplique retouchée est régénérée, une réplique retirée voit son fichier supprimé.
+ *
+ *   php artisan barks:generer          # ne (re)génère que l'absent et le périmé
  *   php artisan barks:generer --force  # régénère tout
  */
 final class GenererBarks extends Command
 {
-    protected $signature = 'barks:generer {--force : Régénère même les fichiers déjà présents}';
+    protected $signature = 'barks:generer {--force : Régénère même les fichiers à jour}';
 
     protected $description = 'Génère la banque de barks de monstres (audio Gemini TTS) dans public/audio/barks';
 
@@ -37,46 +40,38 @@ final class GenererBarks extends Command
         $lignes = (array) config('barks.lignes', []);
         $force = (bool) $this->option('force');
 
-        $faits = 0;
-        $ignores = 0;
-        $echecs = 0;
-
+        // Voix PAR PROFIL : le dossier `{profil}/{evenement}` la désigne.
+        $groupes = [];
         foreach ($lignes as $profil => $parEvenement) {
-            $voix = $profils[$profil]['voix'] ?? $profils['defaut']['voix'] ?? 'Fenrir';
-            $style = $profils[$profil]['style'] ?? $profils['defaut']['style'] ?? 'une voix de monstre menaçant';
-
             foreach ((array) $parEvenement as $evenement => $variantes) {
-                foreach (array_values((array) $variantes) as $index => $texte) {
-                    $dossier = public_path("audio/barks/{$profil}/{$evenement}");
-                    $fichier = "{$dossier}/{$index}.wav";
-
-                    if (! $force && is_file($fichier)) {
-                        $ignores++;
-
-                        continue;
-                    }
-
-                    try {
-                        $wav = $tts->synthetiser((string) $texte, (string) $voix, (string) $style);
-                    } catch (AppelLlmException $e) {
-                        $this->error("✗ {$profil}/{$evenement}/{$index} : ".$e->getMessage());
-                        $echecs++;
-
-                        continue;
-                    }
-
-                    if (! is_dir($dossier)) {
-                        mkdir($dossier, 0775, true);
-                    }
-
-                    file_put_contents($fichier, $wav);
-                    $this->line("✓ {$profil}/{$evenement}/{$index}  «{$texte}» ({$voix})");
-                    $faits++;
-                }
+                $groupes["{$profil}/{$evenement}"] = array_map('strval', array_values((array) $variantes));
             }
         }
 
-        $this->info("Barks générés : {$faits} · ignorés (déjà présents) : {$ignores} · échecs : {$echecs}");
+        $voixDe = function (string $dossier) use ($profils): array {
+            $profil = explode('/', $dossier)[0];
+
+            return [
+                (string) ($profils[$profil]['voix'] ?? $profils['defaut']['voix'] ?? 'Fenrir'),
+                (string) ($profils[$profil]['style'] ?? $profils['defaut']['style'] ?? 'une voix de monstre menaçant'),
+            ];
+        };
+
+        // Texte → fichier par EMPREINTE (`BanqueAudio`), comme la narration.
+        $bilan = BanqueAudio::synchroniser(
+            'barks',
+            $groupes,
+            function (string $dossier, string $texte) use ($tts, $voixDe) {
+                [$voix, $style] = $voixDe($dossier);
+
+                return $tts->synthetiser($texte, $voix, $style);
+            },
+            $force,
+            fn (string $ligne) => str_starts_with($ligne, '✗') ? $this->error($ligne) : $this->line($ligne),
+        );
+
+        $this->info(BanqueAudio::resume('Barks générés', $bilan));
+        $echecs = $bilan['echecs'];
 
         return $echecs > 0 ? self::FAILURE : self::SUCCESS;
     }

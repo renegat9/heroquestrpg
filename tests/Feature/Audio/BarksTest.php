@@ -70,6 +70,8 @@ it('renvoie l\'URL de l\'asset quand le fichier audio existe', function () {
     $dir = public_path("audio/barks/{$rel}");
     @mkdir($dir, 0775, true);
     file_put_contents("{$dir}/0.wav", 'RIFF');
+    // Le fichier n'est servi que s'il porte l'empreinte du texte qu'il prononce.
+    file_put_contents("{$dir}/0.sha1", sha1('Avec audio !'));
 
     config([
         'barks.archetypes' => ['Bestiole Asset' => 'profil_asset_test'],
@@ -84,6 +86,7 @@ it('renvoie l\'URL de l\'asset quand le fichier audio existe', function () {
     expect($bark['url'])->toBe('/audio/barks/profil_asset_test/touche/0.wav');
 
     @unlink("{$dir}/0.wav");
+    @unlink("{$dir}/0.sha1");
     @rmdir($dir);
     @rmdir(public_path('audio/barks/profil_asset_test'));
 });

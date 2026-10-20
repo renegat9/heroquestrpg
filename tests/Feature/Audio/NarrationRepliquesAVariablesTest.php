@@ -58,6 +58,7 @@ it('repli() sert toujours l\'audio d\'une réplique sans variables', function ()
     app()->usePublicPath($public);
     mkdir("{$public}/audio/narration/porte_ouverte", 0775, true);
     file_put_contents("{$public}/audio/narration/porte_ouverte/0.wav", 'VOIX');
+    file_put_contents("{$public}/audio/narration/porte_ouverte/0.sha1", sha1('La porte grince.'));
     config(['narration.repli' => ['porte_ouverte' => ['variantes' => ['La porte grince.']]]]);
 
     expect((new BibliothequeNarration)->repli('porte_ouverte')['url'])->toBe('/audio/narration/porte_ouverte/0.wav');

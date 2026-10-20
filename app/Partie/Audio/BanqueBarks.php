@@ -60,7 +60,10 @@ final class BanqueBarks
             'evenement' => $evenement,
             'nom' => $nomAffiche,
             'texte' => $texte,
-            'url' => $this->urlAsset("{$profil}/{$evenement}/{$index}.wav"),
+            // Servi seulement s'il prononce CE texte (`BanqueAudio`). ⚠ Le texte peut
+            // venir du profil `defaut` (événement absent du profil) : le fichier du
+            // profil, s'il en reste un, ne le prononce pas — l'empreinte le refuse.
+            'url' => BanqueAudio::url('barks', "{$profil}/{$evenement}/{$index}.wav", $texte),
         ];
     }
 

@@ -80,6 +80,12 @@ node audio-tools/lyria-ambiance.mjs                    # boucles d'ambiance
   comprises et jouées à la table). Une variante **sans** variable coûte 1 requête
   TTS ; une variante **à** variables est gratuite — et les clés fréquentes en
   veulent 8 à 12, pas 2.
+- ⚠ **Un fichier pré-généré est lié à son TEXTE, pas à son rang** : chaque
+  `{i}.wav` porte `{i}.sha1` (`App\Partie\Audio\BanqueAudio`, narration ET
+  barks). Retoucher une réplique dans `config/` suffit : la commande régénère ce
+  qui a changé, supprime ce qui ne correspond plus à rien, et la table ne joue
+  jamais un fichier dont l'empreinte diffère du texte. **Plus de `rm -r` à la
+  main.** Un fichier sans empreinte n'est jamais joué ; le premier passage l'adopte.
 - ⚠ **Quota Gemini TTS : 100 requêtes/jour**, même facturé. Les commandes sont
   résumables (elles sautent l'existant) ; étaler sur plusieurs jours.
 - **Ambiance** : `public/audio/ambiance/{scene}.{ogg|mp3|wav}`, scène dérivée

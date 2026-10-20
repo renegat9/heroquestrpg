@@ -7,6 +7,7 @@ namespace App\Partie\Narration;
 use App\Agent\Audio\TtsGemini;
 use App\Models\Parametre;
 use App\Models\Quete;
+use App\Partie\Audio\BanqueAudio;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -36,7 +37,7 @@ final class BibliothequeNarration
             'cle' => 'lancement',
             'texte' => (string) ($variantes[$index] ?? ''),
             'ambiance' => $ambiance,
-            'url' => $this->urlScript('lancement', $index),
+            'url' => $this->urlScript('lancement', $index, (string) ($variantes[$index] ?? '')),
         ];
     }
 
@@ -64,7 +65,7 @@ final class BibliothequeNarration
             // ⚠ Jamais d'audio pour une réplique à variables : le fichier lirait
             // « {heros} » quand le texte, lui, est substitué par `pourQuete()`. La
             // table la lit en Web Speech, avec le vrai nom (2026-10-20).
-            'url' => self::aDesVariables($texte) ? null : $this->urlScript($cle, $index),
+            'url' => self::aDesVariables($texte) ? null : $this->urlScript($cle, $index, $texte),
         ];
     }
 
@@ -201,12 +202,14 @@ final class BibliothequeNarration
         return preg_match('/\{[a-z_]+\}/', $texte) === 1;
     }
 
-    /** URL publique de l'audio scripté (cle/index) s'il existe, sinon null. */
-    public function urlScript(string $cle, int $index): ?string
+    /**
+     * URL publique de l'audio scripté (cle/index) s'il prononce bien `$texte`,
+     * sinon null — un fichier resté d'une version antérieure de la réplique n'est
+     * jamais joué sur le nouveau texte (`BanqueAudio`).
+     */
+    public function urlScript(string $cle, int $index, string $texte): ?string
     {
-        $rel = "narration/{$cle}/{$index}.wav";
-
-        return is_file(public_path("audio/{$rel}")) ? "/audio/{$rel}" : null;
+        return BanqueAudio::url('narration', "{$cle}/{$index}.wav", $texte);
     }
 
     /**

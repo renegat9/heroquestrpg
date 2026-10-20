@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Agent\Audio\TtsGemini;
-use App\Agent\Exceptions\AppelLlmException;
+use App\Partie\Audio\BanqueAudio;
 use App\Partie\Narration\BibliothequeNarration;
 use Illuminate\Console\Command;
 
@@ -22,11 +22,15 @@ use Illuminate\Console\Command;
  * placeholders ne sont jamais synthétisées, leur texte n'existant qu'une
  * fois substitué au runtime.
  *
+ * Chaque fichier porte l'empreinte du texte qu'il prononce (`BanqueAudio`) : une
+ * réplique retouchée est régénérée, une réplique retirée ou à variables voit son
+ * fichier supprimé. Le premier passage ADOPTE les fichiers d'avant ce dispositif.
+ *
  *   php artisan narration:generer [--force]
  */
 final class GenererNarrationAudio extends Command
 {
-    protected $signature = 'narration:generer {--force : Régénère même les fichiers déjà présents}';
+    protected $signature = 'narration:generer {--force : Régénère même les fichiers à jour}';
 
     protected $description = 'Génère la voix de narrateur des répliques scriptées (audio Gemini TTS) dans public/audio/narration';
 
@@ -52,50 +56,19 @@ final class GenererNarrationAudio extends Command
             $groupes[$cle] = (array) ($def['variantes'] ?? []);
         }
 
-        $faits = 0;
-        $ignores = 0;
-        $aVariables = 0;
-        $echecs = 0;
+        // Texte → fichier par EMPREINTE (`BanqueAudio`) : ce qui a changé est
+        // régénéré, ce qui ne correspond plus à rien est supprimé, une réplique à
+        // variables n'a jamais d'audio. Plus de `rm -r` à la main après une retouche.
+        $bilan = BanqueAudio::synchroniser(
+            'narration',
+            $groupes,
+            fn (string $cle, string $texte) => $tts->synthetiser($texte, $voix, $style),
+            $force,
+            fn (string $ligne) => str_starts_with($ligne, '✗') ? $this->error($ligne) : $this->line($ligne),
+        );
 
-        foreach ($groupes as $cle => $variantes) {
-            foreach (array_values($variantes) as $index => $texte) {
-                // Une réplique à variables n'est connue qu'une fois substituée :
-                // sa voix lirait « {heros} ». Jamais synthétisée, jamais servie.
-                if (BibliothequeNarration::aDesVariables((string) $texte)) {
-                    $aVariables++;
-
-                    continue;
-                }
-
-                $dossier = public_path("audio/narration/{$cle}");
-                $fichier = "{$dossier}/{$index}.wav";
-
-                if (! $force && is_file($fichier)) {
-                    $ignores++;
-
-                    continue;
-                }
-
-                try {
-                    $wav = $tts->synthetiser((string) $texte, $voix, $style);
-                } catch (AppelLlmException $e) {
-                    $this->error("✗ {$cle}/{$index} : ".$e->getMessage());
-                    $echecs++;
-
-                    continue;
-                }
-
-                if (! is_dir($dossier)) {
-                    mkdir($dossier, 0775, true);
-                }
-
-                file_put_contents($fichier, $wav);
-                $this->line("✓ {$cle}/{$index}  «".mb_strimwidth((string) $texte, 0, 50, '…').'»');
-                $faits++;
-            }
-        }
-
-        $this->info("Narration générée : {$faits} · ignorés : {$ignores} · à variables (lues en Web Speech) : {$aVariables} · échecs : {$echecs}");
+        $this->info(BanqueAudio::resume('Narration générée', $bilan));
+        $echecs = $bilan['echecs'];
 
         return $echecs > 0 ? self::FAILURE : self::SUCCESS;
     }
