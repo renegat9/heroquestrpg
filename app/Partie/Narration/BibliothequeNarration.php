@@ -55,12 +55,16 @@ final class BibliothequeNarration
         }
 
         $index = array_rand($variantes);
+        $texte = (string) $variantes[$index];
 
         return [
             'cle' => $cle,
-            'texte' => (string) $variantes[$index],
+            'texte' => $texte,
             'ambiance' => (string) config("narration.repli.{$cle}.ambiance", 'tension'),
-            'url' => $this->urlScript($cle, $index),
+            // ⚠ Jamais d'audio pour une réplique à variables : le fichier lirait
+            // « {heros} » quand le texte, lui, est substitué par `pourQuete()`. La
+            // table la lit en Web Speech, avec le vrai nom (2026-10-20).
+            'url' => self::aDesVariables($texte) ? null : $this->urlScript($cle, $index),
         ];
     }
 
@@ -181,6 +185,20 @@ final class BibliothequeNarration
             array_map('strval', array_values($remplacements)),
             $texte,
         );
+    }
+
+    /**
+     * La réplique porte-t-elle une variable `{heros}`, `{monstre}`, `{objet}`, `{or}`… ?
+     *
+     * ⚠ SEUL point de passage de la règle « une réplique à variables n'a jamais
+     * d'audio pré-généré » : `narration:generer` la saute (73 des 184 répliques,
+     * autant de requêtes du quota TTS de 100/jour qui produisaient une voix lisant
+     * les accolades), et `repli()` ne sert pas l'URL d'un fichier qu'une
+     * génération antérieure aurait laissé.
+     */
+    public static function aDesVariables(string $texte): bool
+    {
+        return preg_match('/\{[a-z_]+\}/', $texte) === 1;
     }
 
     /** URL publique de l'audio scripté (cle/index) s'il existe, sinon null. */

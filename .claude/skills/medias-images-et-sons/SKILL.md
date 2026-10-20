@@ -73,10 +73,13 @@ node audio-tools/lyria-ambiance.mjs                    # boucles d'ambiance
 - **Narration** : `config/narration.php` (`lancement`, `repli`). ⚠ Le repli
   scripté est le **cas nominal**, pas un filet : il porte 21 des 24 temps forts
   et joue pendant les premières secondes de **chaque** quête.
-  ⚠ **Seules les descriptions de salle** reçoivent la vraie voix : une ligne à
-  variables n'existe qu'une fois substituée, donc son `sha1` ne peut jamais
-  toucher le cache. **Ajouter des variantes est donc gratuit** (zéro token, zéro
-  quota TTS) — et les clés fréquentes en veulent 8 à 12, pas 2.
+  ⚠ **Une ligne à variables (`{heros}`, `{or}`…) n'a JAMAIS d'audio** : elle
+  n'existe qu'une fois substituée. `BibliothequeNarration::aDesVariables()` est
+  le seul point de passage — `narration:generer` la saute, `repli()` ne sert pas
+  son fichier (avant le 2026-10-20, 73 lignes étaient synthétisées accolades
+  comprises et jouées à la table). Une variante **sans** variable coûte 1 requête
+  TTS ; une variante **à** variables est gratuite — et les clés fréquentes en
+  veulent 8 à 12, pas 2.
 - ⚠ **Quota Gemini TTS : 100 requêtes/jour**, même facturé. Les commandes sont
   résumables (elles sautent l'existant) ; étaler sur plusieurs jours.
 - **Ambiance** : `public/audio/ambiance/{scene}.{ogg|mp3|wav}`, scène dérivée

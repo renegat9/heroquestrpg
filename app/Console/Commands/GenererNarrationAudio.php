@@ -54,10 +54,19 @@ final class GenererNarrationAudio extends Command
 
         $faits = 0;
         $ignores = 0;
+        $aVariables = 0;
         $echecs = 0;
 
         foreach ($groupes as $cle => $variantes) {
             foreach (array_values($variantes) as $index => $texte) {
+                // Une réplique à variables n'est connue qu'une fois substituée :
+                // sa voix lirait « {heros} ». Jamais synthétisée, jamais servie.
+                if (BibliothequeNarration::aDesVariables((string) $texte)) {
+                    $aVariables++;
+
+                    continue;
+                }
+
                 $dossier = public_path("audio/narration/{$cle}");
                 $fichier = "{$dossier}/{$index}.wav";
 
@@ -86,7 +95,7 @@ final class GenererNarrationAudio extends Command
             }
         }
 
-        $this->info("Narration générée : {$faits} · ignorés : {$ignores} · échecs : {$echecs}");
+        $this->info("Narration générée : {$faits} · ignorés : {$ignores} · à variables (lues en Web Speech) : {$aVariables} · échecs : {$echecs}");
 
         return $echecs > 0 ? self::FAILURE : self::SUCCESS;
     }
