@@ -32,6 +32,15 @@ final class TtsGemini
 
     private const ATTENTE_MAX_SECONDES = 65;
 
+    /**
+     * Essais SUPPLÉMENTAIRES quand Gemini répond 200 mais SANS audio. Constaté le
+     * 2026-10-20/21 sur `barks:generer` : 8 répliques sur ~150 revenaient vides,
+     * dont des phrases ordinaires (« Inefficace. », « Pas… juste… ») — un aléa du
+     * modèle, pas un texte imprononçable. Chaque essai est une requête du quota :
+     * on en tente deux, pas davantage.
+     */
+    private const REESSAIS_SANS_AUDIO = 2;
+
     public function __construct(
         private readonly ?string $apiKey = null,
         private readonly ?string $model = null,
@@ -74,6 +83,38 @@ final class TtsGemini
             ],
         ];
 
+        for ($essai = 0; ; $essai++) {
+            $b64 = $this->demanderAudio($url, $corps, $finDeReponse);
+
+            if (is_string($b64) && $b64 !== '') {
+                break;
+            }
+
+            if ($essai >= self::REESSAIS_SANS_AUDIO) {
+                throw new AppelLlmException(
+                    'Gemini TTS : réponse sans données audio (finishReason: '
+                    .($finDeReponse ?? 'inconnu').', '.($essai + 1).' essais).'
+                );
+            }
+        }
+
+        $pcm = base64_decode($b64, true);
+
+        if ($pcm === false) {
+            throw new AppelLlmException('Gemini TTS : audio base64 invalide.');
+        }
+
+        return self::pcmVersWav($pcm);
+    }
+
+    /**
+     * Un appel (avec ses réessais sur 429) ; renvoie l'audio base64, ou null si la
+     * réponse n'en porte pas — `$finDeReponse` reçoit alors le `finishReason`.
+     *
+     * @param  array<string, mixed>  $corps
+     */
+    private function demanderAudio(string $url, array $corps, ?string &$finDeReponse): ?string
+    {
         // Réessais sur 429 (free tier ≈ 3 req/min) en respectant le retryDelay
         // renvoyé par l'API ; au-delà d'une attente trop longue → quota journalier.
         for ($tentative = 0; ; $tentative++) {
@@ -106,19 +147,11 @@ final class TtsGemini
 
         SanteServices::signalerSucces('gemini_tts');
 
+        $fin = $reponse->json('candidates.0.finishReason');
+        $finDeReponse = is_string($fin) ? $fin : null;
         $b64 = $reponse->json('candidates.0.content.parts.0.inlineData.data');
 
-        if (! is_string($b64) || $b64 === '') {
-            throw new AppelLlmException('Gemini TTS : réponse sans données audio.');
-        }
-
-        $pcm = base64_decode($b64, true);
-
-        if ($pcm === false) {
-            throw new AppelLlmException('Gemini TTS : audio base64 invalide.');
-        }
-
-        return self::pcmVersWav($pcm);
+        return is_string($b64) && $b64 !== '' ? $b64 : null;
     }
 
     private function cle(): string

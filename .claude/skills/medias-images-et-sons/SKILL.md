@@ -91,6 +91,10 @@ node audio-tools/lyria-ambiance.mjs                    # boucles d'ambiance
   qui a changé, supprime ce qui ne correspond plus à rien, et la table ne joue
   jamais un fichier dont l'empreinte diffère du texte. **Plus de `rm -r` à la
   main.** Un fichier sans empreinte n'est jamais joué ; le premier passage l'adopte.
+- ⚠ **Gemini TTS répond parfois 200 SANS audio**, sur des phrases ordinaires
+  (« Inefficace. ») : un aléa, pas un texte imprononçable. `TtsGemini` retente
+  deux fois (`REESSAIS_SANS_AUDIO`) et nomme le `finishReason` s'il abandonne.
+  Une réplique encore en échec : relancer la commande, elle ne reprend qu'elle.
 - ⚠ **Quota Gemini TTS : 100 requêtes/jour**, même facturé. Les commandes sont
   résumables (elles sautent l'existant) ; étaler sur plusieurs jours.
 - **Ambiance** : `public/audio/ambiance/{scene}.{ogg|mp3|wav}`, scène dérivée
