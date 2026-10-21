@@ -18,11 +18,13 @@ avec facturation. Les commandes sont reprenables (sautent l'existant).
 
 ## Musique d'ambiance — Lyria RealTime
 
-`lyria-ambiance.mjs` génère une boucle par scène sonore
-(`hub`, `exploration`, `combat`, `boss`) via le modèle **Lyria RealTime** de
-Google (musique instrumentale en streaming), écrite en WAV 48 kHz stéréo dans
-`public/audio/ambiance/{scene}.wav`. Le lecteur de la table les enchaîne en
-fondu selon `groupe.ambiance` (cf. EtatGroupe).
+`lyria-ambiance.mjs` génère, via le modèle **Lyria RealTime** de Google
+(musique instrumentale en streaming, PAS du TTS — hors quota des 100/jour),
+**six scènes** — `hub`, `exploration`, `combat`, `boss`, `victoire`,
+`defaite` — en `VARIANTS` boucles chacune (défaut 2), WAV 48 kHz stéréo dans
+`public/audio/ambiance/{scene}/{n}.wav`, plus `manifeste.json` qui les liste.
+La table tire une variante au hasard et enchaîne en fondu selon
+`groupe.ambiance`, décidée par le serveur (`EtatGroupe::sceneAmbiance()`).
 
 ```bash
 # depuis la racine du dépôt, GEMINI_API_KEY pris du .env
@@ -32,6 +34,13 @@ docker run --rm --network host -v "$PWD:/work" -w /work \
   sh -c "npm i @google/genai --no-save --silent && node audio-tools/lyria-ambiance.mjs"
 ```
 
-`CAPTURE_MS` = durée capturée par scène (défaut 40 s). Édite les `SCENES`
-(prompt/bpm) dans le script pour changer l'ambiance. Les prompts sont en
-anglais (meilleur rendu Lyria).
+`CAPTURE_MS` = durée capturée par variante (défaut 40 s), `VARIANTS` = nombre
+de boucles par scène. Édite les `SCENES` (prompt, teintes, bpm) dans le script
+pour changer l'ambiance ; les prompts sont en anglais (meilleur rendu Lyria).
+
+⚠ **Ce script n'est PAS reprenable**, contrairement à `barks:generer` et
+`narration:generer` : chaque lancement régénère TOUTES les scènes et réécrit
+`manifeste.json` — une variante en échec en disparaît, même si un ancien
+fichier existait. Il ne sait pas encore refaire une seule scène : réduire
+`SCENES` réécrirait le manifeste SANS les autres, et la table les jouerait en
+silence.

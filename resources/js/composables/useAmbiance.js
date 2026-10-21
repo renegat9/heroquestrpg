@@ -1,11 +1,13 @@
 // Musique/ambiance de fond de l'écran de table : joue en BOUCLE la piste
 // correspondant à la scène sonore (groupe.ambiance : hub | exploration |
-// combat | boss), avec fondu enchaîné au changement de scène.
+// combat | boss | victoire | defaite — décidée par le serveur,
+// `EtatGroupe::sceneAmbiance()`), avec fondu enchaîné au changement de scène.
 //
-// Les pistes sont des fichiers fournis (loops libres de droits) dans
-// public/audio/ambiance/{scene}.{mp3|ogg}. Best-effort : fichier absent →
-// silence (aucune erreur). Comme l'autoplay, le son ne démarre qu'après un
-// geste utilisateur (activer()).
+// Les pistes sont générées par audio-tools/lyria-ambiance.mjs dans
+// public/audio/ambiance/{scene}/{n}.wav, listées par manifeste.json (repli :
+// piste plate {scene}.{ogg|mp3|wav}). Best-effort : piste absente → SILENCE
+// (aucune erreur). Comme l'autoplay, le son ne démarre qu'après un geste
+// utilisateur (activer()).
 import { ref } from 'vue';
 
 const SCENES = ['hub', 'exploration', 'combat', 'boss', 'victoire', 'defaite'];
@@ -15,11 +17,15 @@ const DUREE_FONDU = 900; // ms
 // Manifeste des variantes par scène (généré par audio-tools/lyria-ambiance.mjs) :
 // { scene: ["/audio/ambiance/scene/0.wav", ...] }. Chargé une fois ; absent →
 // repli sur une piste plate {scene}.{ext}.
+// ⚠ On ATTEND le manifeste avant de choisir une piste (2026-10-21) : lu avant
+// qu'il n'arrive, `urlsScene()` retombait sur les pistes plates — qui n'existent
+// plus, le script les efface — et la scène restait muette jusqu'au changement
+// suivant.
 let banque = null;
-fetch('/audio/ambiance/manifeste.json', { cache: 'no-cache' })
+const banquePrete = fetch('/audio/ambiance/manifeste.json', { cache: 'no-cache' })
     .then((r) => (r.ok ? r.json() : null))
-    .then((j) => { banque = j; })
-    .catch(() => { banque = null; });
+    .catch(() => null)
+    .then((j) => { banque = j; });
 
 function melanger(liste) {
     const a = [...liste];
@@ -68,7 +74,9 @@ function cibleVolume() {
 
 // Tente de lire une variante (au hasard) de la scène ; résout avec l'élément
 // Audio qui démarre, ou null si aucune piste ne charge.
-function ouvrirPiste(scene) {
+async function ouvrirPiste(scene) {
+    await banquePrete;
+
     return new Promise((resolve) => {
         const candidats = urlsScene(scene);
         let i = 0;
@@ -95,25 +103,39 @@ function fondu(audio, vers, fini) {
     requestAnimationFrame(pas);
 }
 
+// Pistes encore AUDIBLES (en cours de lecture ou de fondu sortant). ⚠ Avant le
+// 2026-10-21, seule l'ancienne piste de `courant` était éteinte : deux changements
+// de scène pendant un chargement (exploration → combat → exploration) laissaient
+// la première jouer SOUS la nouvelle, hors de portée du bouton « couper ».
+const pistes = new Set();
+
+function eteindreSauf(garde) {
+    for (const a of pistes) {
+        if (a === garde) continue;
+        pistes.delete(a);
+        fondu(a, 0, () => { try { a.pause(); } catch { /* noop */ } });
+    }
+}
+
 async function jouer(scene) {
     if (courant?.scene === scene) return;
 
-    const ancien = courant;
     courant = { audio: null, scene }; // réserve la scène (évite les courses)
 
     const audio = await ouvrirPiste(scene);
-    if (audio === null) { // aucun fichier pour cette scène → silence
-        if (courant.scene === scene) courant = ancien?.scene === scene ? ancien : { audio: null, scene };
+    if (courant.scene !== scene) { // scène a changé entre-temps
+        try { audio?.pause(); } catch { /* noop */ }
         return;
     }
-    if (courant.scene !== scene) { try { audio.pause(); } catch { /* noop */ } return; } // scène a changé entre-temps
+    if (audio === null) { // aucune piste pour cette scène → SILENCE, pas l'ancienne
+        eteindreSauf(null);
+        return;
+    }
 
     courant.audio = audio;
+    pistes.add(audio);
     fondu(audio, cibleVolume());
-
-    if (ancien?.audio) {
-        fondu(ancien.audio, 0, () => { try { ancien.audio.pause(); } catch { /* noop */ } });
-    }
+    eteindreSauf(audio);
 }
 
 // Définit la scène sonore (appelée sur chaque EtatGroupe). Mémorise la scène

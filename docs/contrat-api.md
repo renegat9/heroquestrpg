@@ -192,6 +192,12 @@ campagne.
   System », suivi des boîtes cochées (« HeroQuest Game System + Jungles of
   Delthrak »). `App\Partie\BestiaireGroupe` est le point de passage unique.
 
+`groupe.ambiance` — scène sonore **décidée par le serveur**
+(`EtatGroupe::sceneAmbiance()`), la table ne fait que jouer la piste :
+`exploration` | `combat` | `boss` en quête (monstres révélés vivants ; un
+boss ou sous-boss révélé l'emporte), `hub` | `victoire` (boss final vaincu) |
+`defaite` (dernière quête échouée) au hub.
+
 `groupe.prets` et `groupe.mercenaires` ne sont présents **qu'en phase hub**
 (statuts « prêt » des héros actifs ; alliés déjà recrutés — voir §Alliés).
 `quete`/`carte`/`entites`/`initiative` sont `null`/`[]` en phase hub —
