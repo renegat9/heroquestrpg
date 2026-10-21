@@ -261,7 +261,10 @@ return [
             // et point d'exclamation.
             'touche' => ['Kaïïï !', 'GRAOU !', 'Rraaah, rraaah !'],
             'rate' => ['Grrraou !', 'Hhhfff !', 'Rrrrrrr…'],
-            'mort' => ['Aouuuuuh !', 'Hhhnnn…', 'Rrrr… rrr…'],
+            // ⚠ « Aouuuuh… » puis « Aouuuuuh ! » : deux délais de 60 s dépassés d'affilée
+            // (2026-10-21) — une voyelle tenue que le modèle semble ne jamais finir.
+            // Un râle COURT, sur le modèle des « Aaargh… » qui passent ailleurs.
+            'mort' => ['Raaargh… hhh…', 'Hhhnnn…', 'Rrrr… rrr…'],
         ],
         'sorcier' => [
             'attaque' => ['Que le Dread vous consume !', 'Brûlez !', 'Sentez la colère de Zargon !'],
