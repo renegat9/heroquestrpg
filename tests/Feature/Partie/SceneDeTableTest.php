@@ -682,7 +682,7 @@ it('annonce le début du tour avec le dé et le calcul du déplacement', functio
             'des' => [4], 'calcul' => 'base 5 + dé 4 = 9', 'de_annule' => false, 'de_annule_par' => null,
             'sans_menace' => false,
         ])
-        ->and($scene['issue'])->toBe(['ton' => 'info', 'libelle' => '9 cases ce tour']);
+        ->and($scene['issue'])->toBe(['ton' => 'info', 'libelle' => '9 points ce tour']);
 });
 
 it('nomme chaque ajustement du jet au lieu de les fondre dans le total', function () {
@@ -721,7 +721,7 @@ it('ne montre pas une soustraction qui contredit le plancher d\'une case', funct
         ['base' => 0, 'des' => [4], 'de_annule' => true, 'de_annule_par' => 'Armure de plates', 'total_jet' => 1, 'portee' => 1]);
 
     expect($scene['deplacement']['calcul'])->toBe('base 0 (Armure de plates : le dé ne compte pas) → au moins 1 = 1')
-        ->and($scene['issue']['libelle'])->toBe('1 case ce tour');
+        ->and($scene['issue']['libelle'])->toBe('1 point ce tour');
 });
 
 it('a une icône côté table pour CHAQUE genre, et aucune pour un genre inconnu', function () {

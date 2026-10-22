@@ -2066,7 +2066,7 @@ final class JournalCombat
         }
 
         if (isset($e['deplacement_restant'])) {
-            $effets[] = 'déplacement porté à '.(int) $e['deplacement_restant'].' cases';
+            $effets[] = 'déplacement porté à '.(int) $e['deplacement_restant'].' points';
         }
 
         if (isset($e['sorts_restaures'])) {

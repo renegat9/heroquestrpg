@@ -1918,7 +1918,8 @@ final class SceneDeTable
             $plancher = '';
         }
 
-        $cases = $d['portee'] > 1 ? 'cases' : 'case';
+        // Des POINTS de mouvement, pas des cases : le terrain coûte (2026-10-22, comme la mini-carte).
+        $cases = $d['portee'] > 1 ? 'points' : 'point';
 
         return [
             'genre' => 'deplacement',

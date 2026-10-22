@@ -281,7 +281,7 @@ refusera est pire que ne rien proposer.
 
 L'option `deplacement` (id `se_deplacer`) porte dans `parametres` l'allonce du
 tour, **lancée une seule fois par tour et mémorisée** (doc 03 §3 : base + 1d6) :
-`{base, de (résultat du d6), portee (cases max ce tour, Vent Véloce inclus)}`. La
+`{base, de (résultat du d6), portee (POINTS de mouvement max ce tour — le terrain coûte —, Vent Véloce inclus)}`. La
 manette affiche le dé puis une mini-carte tappable des cases accessibles ; le
 choix part en `POST choix {option_id: "se_deplacer", parametres: {x, y}}`, que le
 moteur revalide contre `portee` (réservé re-lancé en repli si absent).
@@ -836,7 +836,7 @@ acte fera perdre. `N` est DÉCIDÉ par `ResolveurTour::casesPerduesParAction()`,
 de `marquerCreneau()` : le reliquat `deplacement_restant` si le déplacement est entamé, `0`
 sinon (rien entamé, Vague montante — `deplacement_scinde` — active, ou action déjà jouée :
 un bonus d'attaque ne confisque rien). Le même chiffre vaut pour toutes les options d'action
-d'un menu. La manette affiche « Tu perdras tes N cases restantes si tu agis maintenant » AVANT
+d'un menu. La manette affiche « Tu perdras tes N points de déplacement restants si tu agis maintenant » AVANT
 le geste ; elle ne recalcule jamais `N`.
 
 ⚠ **Correction du même jour.** La condition « déplacement entamé » comparait le reliquat au
@@ -863,6 +863,20 @@ rien : le menu reste tel quel. « Oui » reprend le geste normal. Avant la premi
 champ vaut `false` : boire → bouger → frapper → frapper reste permis, sans question.
 La perte est appliquée au geste RÉSOLU, dans la même transaction que le déplacement : un déplacement refusé
 (422) ne fait perdre aucune frappe. Elle s'annonce par `attaque_supplementaire_perdue` (§ annonces).
+
+**Le menu d'une seconde frappe en attente** (2026-10-22, correction du même jour). Tant que la frappe est armée,
+le menu n'ouvre que ce que le résolveur accepte pendant elle : le reste du menu (mouvement, `jeter`,
+`desarmer_embrasement`, `utiliser_objet`, `ouvrir_porte`, `oracle_salle`, `liberer_captif`, `battre_en_retraite`,
+`quitter_donjon`, `attendre`) et les seules options `type: "attaque"` (l'arme, la Furie, le poing nu). Ne sont PAS
+offerts : toute option de créneau `action` qui n'est pas une frappe (`frappe_balayee`, `rayon_{direction}`,
+`toucher_brasier`, les sorts, la fouille, `relever`…), et, dans `utiliser_objet`, toute entrée `cout: "action"`
+(une fois `a_agi`, la liste ne garde que `cout: "gratuit"` ; `entreeChoisie()` refuse ce qui n'est pas listé).
+La Potion d'héroïsme n'est pas offerte tant que la frappe est armée (`refusAvantAttaque()`). `menu.situation` dit ce
+que le menu offre : « Une attaque supplémentaire vous est offerte ce tour. » seulement si une option `attaque` est
+au menu ; sinon « Aucune cible à portée pour ton attaque supplémentaire. », ou la raison du refus
+(`raisonAttaqueInterdite()` : héros invisible, voile d'ombre). Un héros Paralysé ou Évanescent garde la phrase
+ordinaire du menu. Une potion gratuite (`utiliser_objet`, `cout: gratuit`) se boit sans toucher ni à l'action ni à
+la frappe armée : `a_agi` et `attaque_supplementaire` restent tels quels.
 
 ⚠ `parametres.cibles` **est la liste blanche** : l'identifiant d'option ne
 porte plus la légalité de la cible, donc la valider contre le menu ne la valide

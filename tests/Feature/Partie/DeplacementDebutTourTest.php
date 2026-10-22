@@ -133,6 +133,6 @@ it('annonce la MÊME portée que celle que le téléphone propose', function () 
 
     $scene = scenesDeDebutDeTour()[0];
 
-    expect($scene['issue']['libelle'])->toStartWith($option['parametres']['portee'].' case')
+    expect($scene['issue']['libelle'])->toStartWith($option['parametres']['portee'].' point')
         ->and($scene['deplacement']['calcul'])->toEndWith('= '.$option['parametres']['portee']);
 });

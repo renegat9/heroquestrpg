@@ -554,9 +554,9 @@ final class MenuMoteur
                 }
             }
 
-            // « Instead of attacking » : l'eau bénite coûte l'action, donc elle
-            // quitte la liste dès que le héros a agi.
-            if (! empty($effet['tue_creatures']) && ! $aAgi) {
+            // « Instead of attacking » : l'eau bénite coûte l'action. Elle quitte la liste
+            // dès que le héros a agi par le filtre de FIN de liste (coût `action`, `$aAgi`).
+            if (! empty($effet['tue_creatures'])) {
                 $noms = array_map('mb_strtolower', array_map('strval', (array) $effet['tue_creatures']));
                 $grille ??= FabriqueGrille::pour($quete);
 
@@ -696,6 +696,14 @@ final class MenuMoteur
                     ];
                 }
             }
+        }
+
+        // Une fois l'action jouée (`$aAgi`, seconde frappe comprise), la liste ne garde que le GRATUIT :
+        // une entrée au coût `action` (eau bénite, cor, artefact activable à 'action') ne se joue plus.
+        // Ce filtre est la liste que l'option porte, donc aussi la liste blanche que `entreeChoisie()`
+        // relit : une entrée retirée ici est refusée là-bas, sans second prédicat.
+        if ($aAgi) {
+            $entrees = array_values(array_filter($entrees, static fn (array $entree) => ($entree['cout'] ?? null) !== 'action'));
         }
 
         if ($entrees === []) {
@@ -1590,6 +1598,10 @@ final class MenuMoteur
         // arcanique du magicien, plus bas. Le prédicat est celui du résolveur.
         $bonusAttaqueDisponible = $secondeFrappeEnAttente;
 
+        // La phrase de la seconde frappe, posée par le bloc ACTION ci-dessous quand la frappe y est
+        // ouverte ; `null` sinon, et le menu garde sa phrase ordinaire.
+        $situationSecondeFrappe = null;
+
         // `action_interdite` (Paralysé, Évanescent) : le pendant de
         // `deplacement_interdit`. ⚠ Il ne gardait QUE le bloc des sorts jusqu'au
         // 2026-08-14 — un héros Paralysé attaquait, fouillait et désamorçait
@@ -1930,18 +1942,26 @@ final class MenuMoteur
                 ];
             }
 
-            // Tout ce qui suit est une action ORDINAIRE : hors bonus d'attaque,
-            // le créneau doit encore être libre. Le héros garde toutefois le
-            // droit de terminer son tour sans dépenser la frappe offerte.
+            // SECONDE FRAPPE EN ATTENTE (décision de René, 2026-10-22) : la phrase dit ce que le menu
+            // OFFRE, pas ce que la règle permet. « offerte » seulement si une frappe `attaque` est au
+            // menu, et jamais si le filtre d'invisibilité de `generer()` la retirera (même prédicat que
+            // le résolveur, `raisonAttaqueInterdite()`). Une cible abattue par la première frappe ne
+            // laisse donc pas la phrase promettre un bouton qui n'existe pas.
             if ($bonusAttaqueDisponible) {
-                $options[] = ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'];
+                $raisonRefus = $this->sorts->raisonAttaqueInterdite($personnage);
+                $frappeOfferte = $raisonRefus === null
+                    && collect($options)->contains(fn (array $option) => ResolveurTour::estSecondeFrappe($option));
 
-                return [
-                    'situation' => 'Une attaque supplémentaire vous est offerte ce tour.',
-                    'options' => $this->avecCreneaux($options, $perteDeplacement, $secondeFrappeEnAttente),
-                ];
+                $situationSecondeFrappe = $frappeOfferte
+                    ? 'Une attaque supplémentaire vous est offerte ce tour.'
+                    : ($raisonRefus ?? 'Aucune cible à portée pour ton attaque supplémentaire.');
             }
 
+            // Tout ce qui suit est une action ORDINAIRE : hors bonus d'attaque, le créneau doit encore
+            // être libre. Pendant une seconde frappe, le filtre de FIN de menu retire ce qui coûte
+            // l'action ; il ne retire pas le reste. Aucun retour anticipé ici : l'objet gratuit, les
+            // portes, l'oracle, la libération et la retraite restent offerts, comme après une action.
+            //
             // Attaquer les REJETONS accrochés (Jungles of Delthrak, règle de
             // retrait précisée par René le 2026-08-10) : « un héros portant des
             // jetons peut les attaquer, et un héros adjacent à un autre héros
@@ -2873,10 +2893,22 @@ final class MenuMoteur
             $options[] = ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'];
         }
 
+        // SECONDE FRAPPE EN ATTENTE : le menu n'ouvre QUE ce que le résolveur accepte pendant cette
+        // frappe — tout ce qui n'est pas une action (mouvement, objet gratuit, interaction, attente) et
+        // les seules frappes `attaque`. Le même prédicat que la porte du résolveur : `creneauOption()`
+        // (son gate sur le créneau `action`) et `estSecondeFrappe()` (son `$bonusHeroisme`).
+        if ($bonusAttaqueDisponible) {
+            $options = array_values(array_filter(
+                $options,
+                static fn (array $option) => ResolveurTour::creneauOption((string) ($option['type'] ?? '')) !== 'action'
+                    || ResolveurTour::estSecondeFrappe($option),
+            ));
+        }
+
         return [
-            'situation' => $aJoue
+            'situation' => $situationSecondeFrappe ?? ($aJoue
                 ? 'Tour terminé — au tour des autres héros.'
-                : 'Vous progressez dans le donjon.'.$this->consigneRassemblement($quete, $peutSortir, $rassemblement),
+                : 'Vous progressez dans le donjon.'.$this->consigneRassemblement($quete, $peutSortir, $rassemblement)),
             'options' => $this->avecCreneaux($options, $perteDeplacement, $secondeFrappeEnAttente),
         ];
     }

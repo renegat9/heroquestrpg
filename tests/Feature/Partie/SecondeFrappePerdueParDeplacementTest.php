@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Jobs\GenererMenu;
 use App\Models\Carte;
+use App\Models\Condition;
 use App\Models\EtatPersonnageQuete;
 use App\Models\GabaritQuete;
 use App\Models\InstanceMonstre;
@@ -103,13 +104,19 @@ function sfpSalleOuverte(string $monstre = 'Gobelin', int $pvMonstre = 5): array
     return compact('alice', 'groupe', 'heros', 'quete', 'etat', 'instance');
 }
 
-/** Le menu du héros, RÉGÉNÉRÉ comme le fait la manette, puis lu dans le cache. @return list<array<string, mixed>> */
-function sfpMenu(array $ctx): array
+/** Le menu du héros, RÉGÉNÉRÉ comme le fait la manette, puis lu dans le cache : situation et options. @return array<string, mixed> */
+function sfpMenuComplet(array $ctx): array
 {
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
     $menu = Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id));
 
-    return array_values((array) ($menu['menu']['options'] ?? []));
+    return (array) ($menu['menu'] ?? []);
+}
+
+/** Les options du menu, régénéré comme ci-dessus. @return list<array<string, mixed>> */
+function sfpMenu(array $ctx): array
+{
+    return array_values((array) (sfpMenuComplet($ctx)['options'] ?? []));
 }
 
 /** @param  list<array<string, mixed>>  $options */
@@ -161,6 +168,14 @@ function sfpBoire(array $ctx, string $potion): void
     ]);
 
     app(MoteurPotions::class)->boire($ctx['heros'], $ligne->fresh());
+}
+
+/** Range un objet dans le sac du héros, sans l'utiliser. */
+function sfpPoser(array $ctx, string $objet)
+{
+    return $ctx['heros']->inventaire()->create([
+        'objet_id' => Objet::where('nom', $objet)->firstOrFail()->id, 'emplacement' => 'sac',
+    ]);
 }
 
 /** Les annonces d'un type donné dans un résultat. */
@@ -335,4 +350,164 @@ it('une AUTRE source — le Fléau des Orques — obéit à la même règle : m�
 
     expect((bool) $ctx['etat']->fresh()->attaque_supplementaire)->toBeFalse('bouger fait perdre la seconde frappe du Fléau')
         ->and(sfpAnnonces($resultat, 'attaque_supplementaire_perdue'))->toHaveCount(1);
+});
+
+// =====================================================================
+// LE MENU DE LA SECONDE FRAPPE — il n'offre que ce que le résolveur accepte (2026-10-22)
+// =====================================================================
+
+it('sans cible à portée, la seconde frappe n\'est PAS annoncée comme offerte : la situation dit vrai, aucune frappe n\'est au menu', function () {
+    // Une seule figure, à un PV : la première frappe l'abat, et il ne reste plus rien à frapper.
+    $ctx = sfpSalleOuverte('Gobelin', 1);
+    sfpBoire($ctx, 'Potion d\'héroïsme');
+    desFiges(array_fill(0, 80, 1)); // crânes partout : la première frappe touche et tue
+
+    sfpFrapper($ctx);
+
+    expect($ctx['instance']->fresh()->etat)->toBe('vaincu', 'précondition : la première frappe a abattu la seule cible')
+        ->and((bool) $ctx['etat']->fresh()->attaque_supplementaire)->toBeTrue('précondition : la seconde frappe est en attente');
+
+    $menu = sfpMenuComplet($ctx);
+
+    expect($menu['situation'] ?? null)->toBe('Aucune cible à portée pour ton attaque supplémentaire.')
+        ->and(collect($menu['options'])->where('type', 'attaque'))->toHaveCount(0, 'aucune frappe à offrir')
+        ->and(sfpOption($menu['options'], 'attendre'))->not->toBeNull('le héros peut toujours terminer son tour');
+});
+
+it('une cible au contact : la seconde frappe est annoncée, son option est au menu, et le résolveur l\'accepte (non-régression)', function () {
+    $ctx = sfpSalleOuverte('Gobelin', 5);
+    sfpBoire($ctx, 'Potion d\'héroïsme');
+    desFiges(array_fill(0, 80, 4)); // boucliers blancs : la frappe manque, la figure tient
+
+    sfpFrapper($ctx);
+
+    $menu = sfpMenuComplet($ctx);
+
+    expect($menu['situation'] ?? null)->toBe('Une attaque supplémentaire vous est offerte ce tour.')
+        ->and(sfpOption($menu['options'], 'attaquer')['type'] ?? null)->toBe('attaque');
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
+    ])->assertStatus(202);
+
+    expect((bool) $ctx['etat']->fresh()->attaque_supplementaire)->toBeFalse('la seconde frappe a eu lieu');
+});
+
+it('Frénésie du Berserker : la frappe balayée n\'est PAS offerte pendant la seconde frappe — une autre action, que le résolveur refuse', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'berserker']);
+    $ctx['heros']->update(['pv_body' => 3]); // seuil de la Frénésie : 3 PV de corps ou moins
+    sfpBoire($ctx, 'Potion d\'héroïsme');
+    desFiges(array_fill(0, 80, 4));
+
+    expect(sfpOption(sfpMenu($ctx), 'frappe_balayee'))->not->toBeNull('précondition : la Frénésie existe avant la première frappe');
+
+    sfpFrapper($ctx);
+    expect((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeTrue('précondition : la seconde frappe est en attente');
+
+    $options = sfpMenu($ctx);
+
+    expect(sfpOption($options, 'frappe_balayee'))->toBeNull('la Frénésie ne se joue pas comme seconde frappe');
+    expect(sfpOption($options, 'attaquer'))->not->toBeNull('la frappe à l\'arme, elle, reste offerte');
+
+    // Forcée quand même, la Frénésie est refusée par la route (option absente du dernier menu).
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'frappe_balayee'])->assertStatus(422);
+
+    // Chaque option d'ACTION encore au menu est une frappe : rien que le résolveur refuserait.
+    collect($options)
+        ->filter(fn (array $option) => ResolveurTour::creneauOption((string) $option['type']) === 'action')
+        ->each(fn (array $option) => expect($option['type'])->toBe('attaque'));
+});
+
+it('Style du Feu du Moine : le rayon et le Brasier ne sont PAS offerts pendant la seconde frappe', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'moine']);
+    $ctx['etatHeros']->update(['styles_epuises' => ['air', 'terre', 'eau']]); // le Feu se déverrouille
+    sfpBoire($ctx, 'Potion d\'héroïsme');
+    desFiges(array_fill(0, 80, 4));
+
+    $avant = collect(sfpMenu($ctx))->pluck('id');
+    expect($avant->contains('toucher_brasier'))->toBeTrue('précondition : le Brasier existe avant la première frappe')
+        ->and($avant->contains(fn (string $id) => str_starts_with($id, 'rayon_')))->toBeTrue('précondition : un rayon existe avant la première frappe');
+
+    sfpFrapper($ctx);
+    expect((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeTrue('précondition : la seconde frappe est en attente');
+
+    $options = collect(sfpMenu($ctx));
+
+    expect($options->pluck('id')->contains('toucher_brasier'))->toBeFalse('le Brasier est une autre action')
+        ->and($options->pluck('id')->contains(fn (string $id) => str_starts_with($id, 'rayon_')))->toBeFalse('le rayon est une autre action')
+        ->and($options->pluck('id')->contains('attaquer'))->toBeTrue('la frappe à l\'arme reste offerte');
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'toucher_brasier', 'parametres' => ['cible_id' => $ctx['instance']->id]])
+        ->assertStatus(422);
+
+    $options
+        ->filter(fn (array $option) => ResolveurTour::creneauOption((string) $option['type']) === 'action')
+        ->each(fn (array $option) => expect($option['type'])->toBe('attaque'));
+});
+
+it('invisible pendant la seconde frappe : pas de phrase « offerte », et la raison de l\'interdiction est celle du résolveur', function () {
+    $ctx = sfpSalleOuverte('Gobelin', 5);
+    sfpBoire($ctx, 'Potion d\'héroïsme');
+    desFiges(array_fill(0, 80, 4));
+    sfpFrapper($ctx);
+
+    // « Caché » tombe sur le héros APRÈS sa première frappe : le filtre d'invisibilité de
+    // `generer()` retire la frappe bonus, et la phrase ne doit pas promettre un bouton disparu.
+    $ctx['heros']->conditions()->attach(Condition::where('nom', 'Caché')->value('id'), ['duree' => 1, 'source' => 'test']);
+
+    $menu = sfpMenuComplet($ctx);
+
+    expect($menu['situation'] ?? null)->toContain('invisible')
+        ->and($menu['situation'] ?? null)->not->toContain('offerte')
+        ->and(collect($menu['options'])->where('type', 'attaque'))->toHaveCount(0, 'aucune frappe à offrir');
+});
+
+it('seconde frappe en attente : « Utiliser un objet » reste offert — une potion de soin se boit, la frappe et l\'action ne bougent pas', function () {
+    $ctx = sfpSalleOuverte('Gobelin', 5);
+    sfpBoire($ctx, 'Potion d\'héroïsme');
+    desFiges(array_fill(0, 80, 4));
+    sfpFrapper($ctx);
+
+    $ctx['heros']->update(['pv_body' => 3]);
+    $soin = sfpPoser($ctx, 'Potion de soin');
+    sfpPoser($ctx, 'Potion d\'héroïsme'); // une gorgée de plus au sac : refusée tant que la frappe est armée
+
+    $entrees = collect(sfpOption(sfpMenu($ctx), 'utiliser_objet')['parametres']['objets'] ?? []);
+
+    expect($entrees->firstWhere('cle', "objet:{$soin->id}"))->not->toBeNull('la potion de soin est offerte pendant la seconde frappe')
+        ->and($entrees->where('nom', 'Potion d\'héroïsme'))->toHaveCount(0, 'la Potion d\'héroïsme reste refusée tant que la frappe est armée');
+
+    $aAgiAvant = (bool) $ctx['etat']->fresh()->a_agi;
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$soin->id}", 'cible_id' => $ctx['heros']->id, 'cible_type' => 'heros'],
+    ])->assertStatus(202);
+
+    expect((int) $ctx['heros']->fresh()->pv_body)->toBeGreaterThan(3, 'le héros est soigné')
+        ->and((bool) $ctx['etat']->fresh()->attaque_supplementaire)->toBeTrue('boire ne consomme pas la seconde frappe')
+        ->and((bool) $ctx['etat']->fresh()->a_agi)->toBe($aAgiAvant, 'boire ne change pas l\'action');
+});
+
+it('seconde frappe en attente : un objet dont le coût est l\'action (Bracelet de Guérison) n\'est PAS offert — l\'action est déjà jouée', function () {
+    $ctx = sfpSalleOuverte('Gobelin', 5);
+    $ctx['heros']->update(['pv_body' => 3]);
+    $bracelet = sfpPoser($ctx, 'Bracelet de Guérison');
+    sfpBoire($ctx, 'Potion d\'héroïsme');
+    desFiges(array_fill(0, 80, 4));
+
+    $offert = fn (): bool => collect(sfpOption(sfpMenu($ctx), 'utiliser_objet')['parametres']['objets'] ?? [])
+        ->contains(fn (array $entree) => $entree['cle'] === "objet:{$bracelet->id}");
+
+    expect($offert())->toBeTrue('précondition : le Bracelet est offert avant toute frappe');
+
+    sfpFrapper($ctx);
+    expect((bool) $ctx['etat']->fresh()->attaque_supplementaire)->toBeTrue('précondition : la seconde frappe est en attente');
+
+    expect($offert())->toBeFalse('un objet qui coûte l\'action ne se joue pas une fois l\'action jouée');
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$bracelet->id}", 'cible_id' => $ctx['heros']->id, 'cible_type' => 'heros'],
+    ])->assertStatus(422);
 });

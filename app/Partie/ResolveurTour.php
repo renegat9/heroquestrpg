@@ -494,9 +494,10 @@ final class ResolveurTour
             throw ValidationException::withMessages(['personnage_id' => 'Tu t\'es déjà déplacé ce tour.']);
         }
         // Potion d'héroïsme (et toute seconde frappe en attente) : une seconde ATTAQUE au-delà du
-        // créneau d'action. Le prédicat est celui du menu : `secondeFrappeEnAttente()`.
+        // créneau d'action. Les deux prédicats sont ceux du menu : `secondeFrappeEnAttente()` et
+        // `estSecondeFrappe()` (quelles options peuvent être cette seconde frappe).
         $bonusHeroisme = $creneau === 'action'
-            && ($option['type'] ?? null) === 'attaque'
+            && self::estSecondeFrappe($option)
             && self::secondeFrappeEnAttente($etat);
 
         // SECONDE FRAPPE PERDUE PAR LE DÉPLACEMENT (décision de René, 2026-10-22) : lu AVANT le geste.
@@ -12841,6 +12842,22 @@ final class ResolveurTour
             && (bool) $etat->a_agi
             && ! (bool) $etat->a_joue
             && (bool) $etat->attaque_supplementaire;
+    }
+
+    /**
+     * QUELLE option peut être la SECONDE FRAPPE (2026-10-22) — UN prédicat, lu par `resoudre()`
+     * (`$bonusHeroisme`) et par le menu, qui n'offre une attaque bonus que de ces options-là.
+     *
+     * Seule une option `attaque` est une frappe à l'arme : l'arme, la Furie, le poing nu. Une frappe
+     * balayée (*Frénésie sanguinaire*, *Œil du Cyclone*), un rayon (*Esprit ardent*) ou un Brasier
+     * (*Toucher du Brasier*) sont D'AUTRES actions. ARBITRAGE PRUDENT, pas une lecture certaine de la
+     * carte : « Drink this potion before you attack to make two weapon attacks instead of one » ne dit
+     * pas si une frappe balayée compte comme « weapon attack ». On ne l'ouvre donc pas en seconde frappe :
+     * le résolveur les refuse (« Tu as déjà agi ce tour. ») et le menu ne les offre pas.
+     */
+    public static function estSecondeFrappe(array $option): bool
+    {
+        return ($option['type'] ?? null) === 'attaque';
     }
 
     /**
