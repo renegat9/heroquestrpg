@@ -41,11 +41,14 @@ const ordre = computed(() => props.order ?? []);
 .init-mini { display: flex; gap: 6px; align-items: center; margin-bottom: 16px; overflow-x: auto; padding: 6px 4px 4px; }
 .init-mini .tok { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center;
   font-weight: 800; font-size: 12px; border: 2px solid var(--stone-600); background: var(--stone-800); color: var(--ink-300); }
-.init-mini .unite { flex: none; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 54px; }
+.init-mini .unite { flex: none; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 60px; }
 .init-mini .tok { overflow: hidden; }
 .init-mini .tok .vignette-img { width: 100%; height: 100%; object-fit: cover; }
-.init-mini .nom { max-width: 54px; font-size: 10px; font-weight: 600; line-height: 1.1; color: var(--ink-400);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Le nom passe à la LIGNE plutôt que d'être coupé (« Raptor a… », 2026-10-22) : deux lignes au plus,
+   centrées — « Raptor / apprivoisé » tient ; un mot plus long que la colonne se coupe en dernier recours. */
+.init-mini .nom { max-width: 60px; font-size: 10px; font-weight: 600; line-height: 1.1; color: var(--ink-400);
+  text-align: center; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .init-mini .unite.foe .tok { border-color: var(--body); color: var(--body-bright); }
 .init-mini .unite.foe .nom { color: var(--body-bright); }
 .init-mini .unite.ally .tok { border-color: oklch(0.7 0.13 155); color: oklch(0.82 0.13 152); }
@@ -56,4 +59,8 @@ const ordre = computed(() => props.order ?? []);
      dans ce conteneur qui défile, le halo était rogné en un carré sombre. */
   box-shadow: 0 0 0 2px oklch(0.76 0.155 65 / 0.45); transform: scale(1.08); }
 .init-mini .arrow { color: var(--ink-700); }
+/* Un nom sur deux lignes allonge sa colonne : sans cet ancrage en HAUT, son portrait remontait au-dessus
+   des autres. Les portraits s'alignent donc par le haut, et la flèche se centre sur eux (42 px de jeton). */
+.init-mini .unite, .init-mini .arrow { align-self: flex-start; }
+.init-mini .arrow { margin-top: calc((42px - 1em) / 2); }
 </style>
