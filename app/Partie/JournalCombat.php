@@ -121,6 +121,9 @@ final class JournalCombat
         // tic de poison/étreinte/rejeton/terrain, sort regagné, changement de forme
         // d'un boss, défense à usage unique d'un monstre, salle dévoilée, vote clos.
         'condition_terminee' => true, 'breuvage_dissipe' => true, 'saignement' => true, 'sort_regagne' => true,
+        // La seconde frappe qu'un DÉPLACEMENT fait perdre (décision de René, 2026-10-22) : la phrase est décidée
+        // par `ResolveurTour::perdreSecondeFrappeParDeplacement()`, rendue par `LignesEffetsAutomatiques`.
+        'attaque_supplementaire_perdue' => true,
         'changement_phase' => true, 'reaction_monstre' => true, 'monstres_reveles' => true,
         'vote_resolu' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
@@ -1116,6 +1119,7 @@ final class JournalCombat
             'condition_terminee' => $this->conditionTerminee($a),
             // Potion d'héroïsme bue sans frappe (2026-10-17) : la phrase est décidée par le moteur.
             'breuvage_dissipe' => $this->breuvageDissipe($a),
+            'attaque_supplementaire_perdue' => $this->attaqueSupplementairePerdue($a),
             'saignement' => $this->saignement($a),
             'sort_regagne' => $this->sortRegagne($a),
             'changement_phase' => $this->changementPhaseJournalise($a),

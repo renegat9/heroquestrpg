@@ -1223,17 +1223,23 @@ final class MenuMoteur
      * une fois par `genererBrut()`). Toujours présent sur une action, `0` compris,
      * pour que la manette n'ait qu'un champ à lire.
      *
+     * Et `perd_attaque_supplementaire` (décision de René, 2026-10-22) sur chaque option de
+     * MOUVEMENT : vrai quand la seconde frappe est en attente (`ResolveurTour::secondeFrappeEnAttente()`,
+     * calculé une fois par `genererBrut()`), c'est-à-dire quand bouger la fait perdre. Toujours présent
+     * sur un mouvement, `false` compris.
+     *
      * @param  list<array<string, mixed>>  $options
      * @return list<array<string, mixed>>
      */
-    private function avecCreneaux(array $options, int $perteDeplacement = 0): array
+    private function avecCreneaux(array $options, int $perteDeplacement = 0, bool $secondeFrappeEnAttente = false): array
     {
         return array_map(
-            static function (array $option) use ($perteDeplacement) {
+            static function (array $option) use ($perteDeplacement, $secondeFrappeEnAttente) {
                 $creneau = ResolveurTour::creneauOption((string) ($option['type'] ?? ''));
 
                 return $option + ['creneau' => $creneau]
-                    + ($creneau === 'action' ? ['perd_deplacement' => $perteDeplacement] : []);
+                    + ($creneau === 'action' ? ['perd_deplacement' => $perteDeplacement] : [])
+                    + ($creneau === 'mouvement' ? ['perd_attaque_supplementaire' => $secondeFrappeEnAttente] : []);
             },
             $options,
         );
@@ -1416,6 +1422,11 @@ final class MenuMoteur
             )
             : 0;
 
+        // SECONDE FRAPPE EN ATTENTE (décision de René, 2026-10-22) : bouger maintenant la fait perdre.
+        // UN prédicat, lu aussi par le résolveur (`ResolveurTour::secondeFrappeEnAttente()`) : il sert
+        // à l'offre d'attaque bonus ci-dessous ET à `perd_attaque_supplementaire` sur chaque mouvement.
+        $secondeFrappeEnAttente = ResolveurTour::secondeFrappeEnAttente($etat);
+
         // ── Créneau DÉPLACEMENT (base + 1d6 lancé une fois/tour et mémorisé) ──
         // On masque « Se déplacer » quand le héros est TOTALEMENT bloqué (aucune
         // case orthogonale traversable : murs / portes fermées / figures) — sinon
@@ -1576,9 +1587,8 @@ final class MenuMoteur
         // MENU ne la proposait pas — et le contrôleur refuse toute option
         // absente du dernier menu : l'effet de la potion était donc
         // inatteignable par le jeu normal. Même traitement que la Réserve
-        // arcanique du magicien, plus bas.
-        $bonusAttaqueDisponible = $etat !== null && $aAgi && ! $aJoue
-            && (bool) ($etat->attaque_supplementaire ?? false);
+        // arcanique du magicien, plus bas. Le prédicat est celui du résolveur.
+        $bonusAttaqueDisponible = $secondeFrappeEnAttente;
 
         // `action_interdite` (Paralysé, Évanescent) : le pendant de
         // `deplacement_interdit`. ⚠ Il ne gardait QUE le bloc des sorts jusqu'au
@@ -1928,7 +1938,7 @@ final class MenuMoteur
 
                 return [
                     'situation' => 'Une attaque supplémentaire vous est offerte ce tour.',
-                    'options' => $this->avecCreneaux($options, $perteDeplacement),
+                    'options' => $this->avecCreneaux($options, $perteDeplacement, $secondeFrappeEnAttente),
                 ];
             }
 
@@ -2707,7 +2717,7 @@ final class MenuMoteur
                 // traités au-dessus.
                 $options[] = ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'];
 
-                return ['situation' => 'Vous ne pouvez pas agir ce tour.', 'options' => $this->avecCreneaux($options)];
+                return ['situation' => 'Vous ne pouvez pas agir ce tour.', 'options' => $this->avecCreneaux($options, 0, $secondeFrappeEnAttente)];
             }
 
             $options[] = [
@@ -2867,7 +2877,7 @@ final class MenuMoteur
             'situation' => $aJoue
                 ? 'Tour terminé — au tour des autres héros.'
                 : 'Vous progressez dans le donjon.'.$this->consigneRassemblement($quete, $peutSortir, $rassemblement),
-            'options' => $this->avecCreneaux($options, $perteDeplacement),
+            'options' => $this->avecCreneaux($options, $perteDeplacement, $secondeFrappeEnAttente),
         ];
     }
 

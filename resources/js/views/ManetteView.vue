@@ -25,6 +25,7 @@ import TalentPopup from '../components/ui/TalentPopup.vue';
 import ReactionSheet from '../components/manette/ReactionSheet.vue';
 import CibleSheet from '../components/manette/CibleSheet.vue';
 import DeplacementSheet from '../components/manette/DeplacementSheet.vue';
+import ConfirmationSheet from '../components/manette/ConfirmationSheet.vue';
 import ChoixListeSheet from '../components/manette/ChoixListeSheet.vue';
 import EchangeSheet from '../components/manette/EchangeSheet.vue';
 import VoteSheet from '../components/manette/VoteSheet.vue';
@@ -641,6 +642,16 @@ const LISTES = {
     se_deplacer_allie: { cle: 'destinations', titre: 'Où déplacer l\'allié ?', retour: 'Retour aux actions' },
 };
 
+/* SECONDE FRAPPE PERDUE PAR LE MOUVEMENT (décision de René, 2026-10-22). Le serveur publie
+   `perd_attaque_supplementaire` sur chaque option de mouvement ; on le LIT, on ne le recalcule
+   jamais. Le texte de la question est de la présentation. */
+const QUESTION_SECONDE_FRAPPE = {
+    titre: 'Attaque supplémentaire',
+    texte: 'Te déplacer maintenant te fait perdre ton attaque supplémentaire. Continuer ?',
+    oui: 'Oui',
+    non: 'Non',
+};
+
 function choisirOption(choix) {
     if (boutonsGeles.value) return;
 
@@ -656,6 +667,18 @@ function choisirOption(choix) {
 
     const option = choix;
 
+    // Un mouvement qui fait perdre la seconde frappe en attente : LA QUESTION d'abord. « Oui » reprend
+    // le geste normal (`repondreQuestionSecondeFrappe`), « Non » ne envoie rien et laisse le menu intact.
+    if (option.perd_attaque_supplementaire === true) {
+        empiler({ option, mode: 'confirmation', question: QUESTION_SECONDE_FRAPPE, retour: 'Retour aux actions' });
+        return;
+    }
+
+    ouvrirOption(option);
+}
+
+/** Le geste d'une option, une fois la question éventuelle tranchée : mini-carte, liste, ciblage ou envoi. */
+function ouvrirOption(option) {
     // Déplacement : ouvre la mini-carte tappable (l'allonce du tour, dé déjà
     // lancé côté serveur, est dans l'option) → le joueur choisit sa case.
     //
@@ -707,6 +730,21 @@ function choisirOption(choix) {
     }
 
     envoyerOption(option, option.parametres);
+}
+
+/**
+ * Réponse à la question « seconde frappe » : « Oui » reprend le geste de l'option, « Non » ne
+ * fait rien. La question se ferme dans tous les cas. Un groupe devenu occupé pendant la question
+ * ne reçoit rien (la même garde que `choisirOption`).
+ */
+function repondreQuestionSecondeFrappe(continuer) {
+    const frame = feuilleOption.value;
+
+    retourFeuille();
+
+    if (!continuer || !frame || boutonsGeles.value) return;
+
+    ouvrirOption(frame.option);
 }
 
 /**
@@ -1673,8 +1711,17 @@ const navItems = computed(() => (scene.value === 'marche'
                     </div>
 
                     <!-- overlays -->
+                    <!-- Question « seconde frappe » (décision de René, 2026-10-22) : AVANT la mini-carte ou
+                         l'envoi du mouvement. Elle ouvre la chaîne ci-dessous, qui finit par CibleSheet
+                         (fourre-tout) : sans ce `v-if` en tête, ce mode tomberait dans CibleSheet. -->
+                    <ConfirmationSheet
+                        v-if="feuilleOption && feuilleOption.mode === 'confirmation'"
+                        :question="feuilleOption.question"
+                        @oui="repondreQuestionSecondeFrappe(true)"
+                        @non="repondreQuestionSecondeFrappe(false)"
+                    />
                     <DeplacementSheet
-                        v-if="feuilleOption && feuilleOption.mode === 'deplacement' && monEntite"
+                        v-else-if="feuilleOption && feuilleOption.mode === 'deplacement' && monEntite"
                         :carte="store.state.etat.carte"
                         :entites="store.state.etat.entites ?? []"
                         :depart="feuilleOption.depart ?? { x: monEntite.x, y: monEntite.y }"

@@ -463,12 +463,34 @@ class MoteurPotions
     public static function gorgeeBueCeTour(\App\Models\EtatPersonnageQuete $etat): bool
     {
         foreach ((array) ($etat->capacites_tour ?? []) as $marque) {
-            if (is_string($marque) && str_starts_with($marque, self::MARQUE_BREUVAGE)) {
+            if (self::estMarqueBreuvage($marque)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Efface la marque d'une gorgée SANS rien annoncer : sa seconde frappe vient d'être perdue
+     * par un déplacement (décision de René, 2026-10-22), et le fil le dit déjà
+     * (`ResolveurTour::perdreSecondeFrappeParDeplacement()`). Sans cela,
+     * `dissiperBreuvageNonUtilise()` annoncerait la même gorgée une seconde fois, en fin de tour.
+     */
+    public function oublierBreuvage(\App\Models\EtatPersonnageQuete $etat): void
+    {
+        $marques = (array) ($etat->capacites_tour ?? []);
+        $restantes = array_values(array_filter($marques, fn ($m) => ! self::estMarqueBreuvage($m)));
+
+        if (count($restantes) !== count($marques)) {
+            $etat->update(['capacites_tour' => $restantes]);
+        }
+    }
+
+    /** Une entrée de `capacites_tour` est-elle la marque d'une gorgée de Breuvage ? Un seul test. */
+    private static function estMarqueBreuvage(mixed $marque): bool
+    {
+        return is_string($marque) && str_starts_with($marque, self::MARQUE_BREUVAGE);
     }
 
     /**
@@ -490,7 +512,7 @@ class MoteurPotions
         $marque = null;
 
         foreach ($marques as $candidate) {
-            if (is_string($candidate) && str_starts_with($candidate, self::MARQUE_BREUVAGE)) {
+            if (self::estMarqueBreuvage($candidate)) {
                 $marque = $candidate;
             }
         }

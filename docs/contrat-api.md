@@ -845,6 +845,25 @@ total du jet (`deplacement_tour`). Or le tour s'ouvre avec `total × multiplicat
 (reliquat 11, total 6) ne perdait jamais son reliquat en agissant. « Entamé » se lit désormais
 sur `deplacement_restant` lui-même, posé par la résolution de chaque pas.
 
+**`perd_attaque_supplementaire`** (décision de René, 2026-10-22) : toute option `creneau: "mouvement"`
+(`se_deplacer`, `franchissement`, `saut_sables`) porte `perd_attaque_supplementaire: true|false`. Il vaut
+`true` quand la SECONDE FRAPPE du héros est EN ATTENTE, c'est-à-dire quand bouger maintenant la lui
+fera perdre. La seconde frappe fait partie de la MÊME action que la première : un héros qui a frappé
+(`a_agi`) mais n'a pas fini son tour (`a_joue` faux) et a encore `attaque_supplementaire` peut toujours se
+déplacer — le déplacement, lui, la consomme. Le champ est présent sur chaque option de mouvement (`false`
+compris) et n'apparaît jamais sur une option d'action. Le prédicat est UN seul,
+`ResolveurTour::secondeFrappeEnAttente()`, lu par le menu (`MenuMoteur`, qui le publie) et par le
+résolveur (`resoudre()`, qui fait perdre la frappe au geste). Il ne dépend PAS de la source de la frappe
+armée : Potion d'héroïsme, Potion de rage guerrière, Ambidextrie, Sang qui bout / Coup de grâce / Soif de
+sang, Fléau des Orques portent le même drapeau, donc la même règle.
+La manette LIT ce champ et ne le recalcule pas : si `perd_attaque_supplementaire` vaut `true`, elle pose la
+question « Te déplacer maintenant te fait perdre ton attaque supplémentaire. Continuer ? » AVANT d'ouvrir la
+zone de déplacement (`deplacement`) ou d'envoyer le geste (`franchissement`, `saut_sables`). « Non » n'envoie
+rien : le menu reste tel quel. « Oui » reprend le geste normal. Avant la première frappe (`a_agi` faux), le
+champ vaut `false` : boire → bouger → frapper → frapper reste permis, sans question.
+La perte est appliquée au geste RÉSOLU, dans la même transaction que le déplacement : un déplacement refusé
+(422) ne fait perdre aucune frappe. Elle s'annonce par `attaque_supplementaire_perdue` (§ annonces).
+
 ⚠ `parametres.cibles` **est la liste blanche** : l'identifiant d'option ne
 porte plus la légalité de la cible, donc la valider contre le menu ne la valide
 plus. Le résolveur vérifie l'appartenance et répond 422 sinon — sans quoi un
@@ -1562,6 +1581,12 @@ toutes deux sont fermées.
     `ouvrirNouveauTour()`). Texte : « Albrecht : l'effet de « Potion d'héroïsme » se dissipe,
     faute d'attaque » (nom du catalogue, comme le menu). Une gorgée suivie de sa seconde
     frappe n'annonce rien.
+  - `attaque_supplementaire_perdue` `{personnage_id, personnage, texte}` — un héros SE DÉPLACE alors que sa
+    seconde frappe est en attente (décision de René, 2026-10-22) : la frappe tombe, et le fil le dit au geste.
+    Texte : « Albrecht se déplace : son attaque supplémentaire est perdue. ». Point de passage UNIQUE :
+    `ResolveurTour::resoudre()`, après la résolution réussie d'une option `mouvement` et avant `marquerCreneau()`
+    (qui ne redit donc plus `breuvage_dissipe` pour la même gorgée). Le drapeau tombe, la marque `breuvage:{nom}`
+    s'efface sans bruit (`MoteurPotions::oublierBreuvage()`), puis l'annonce passe par `TamponAnnonces`.
   - `saignement` `{personnage_id, personnage, cause, degats, pv_body_apres, tombe, reste, texte}`
     — poison, étreinte, rejetons, Chambre forte de glace, en fin de tour
     (« Tamsin : Empoisonné — −1 PV (5/8, encore 1 tour) »). `degats` = ce que le moteur a

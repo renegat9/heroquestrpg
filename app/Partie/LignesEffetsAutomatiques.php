@@ -104,6 +104,12 @@ trait LignesEffetsAutomatiques
     }
 
     /** @return list<array{texte: string, ton: string}> */
+    private function attaqueSupplementairePerdue(array $a): array
+    {
+        return [$this->info((string) ($a['texte'] ?? 'Une attaque supplémentaire est perdue'))];
+    }
+
+    /** @return list<array{texte: string, ton: string}> */
     private function ouvrirPorte(array $a, string $acteurNom): array
     {
         return [['texte' => "{$acteurNom} ouvre une porte".(($a['cause'] ?? 'main') === 'cle' ? ' avec une clé' : ''), 'ton' => 'info']];

@@ -493,10 +493,15 @@ final class ResolveurTour
         if ($creneau === 'mouvement' && $etat->a_deplace) {
             throw ValidationException::withMessages(['personnage_id' => 'Tu t\'es déjà déplacé ce tour.']);
         }
-        // Potion d'héroïsme : une seconde ATTAQUE au-delà du créneau d'action.
-        $bonusHeroisme = $creneau === 'action' && $etat->a_agi
+        // Potion d'héroïsme (et toute seconde frappe en attente) : une seconde ATTAQUE au-delà du
+        // créneau d'action. Le prédicat est celui du menu : `secondeFrappeEnAttente()`.
+        $bonusHeroisme = $creneau === 'action'
             && ($option['type'] ?? null) === 'attaque'
-            && (bool) $etat->attaque_supplementaire;
+            && self::secondeFrappeEnAttente($etat);
+
+        // SECONDE FRAPPE PERDUE PAR LE DÉPLACEMENT (décision de René, 2026-10-22) : lu AVANT le geste.
+        // Appliqué après une résolution RÉUSSIE seulement, dans la transaction : un 422 ne fait rien perdre.
+        $perdSecondeFrappe = $creneau === 'mouvement' && self::secondeFrappeEnAttente($etat);
 
         if ($creneau === 'action' && $etat->a_agi && ! $bonusReserveArcanique && ! $bonusHeroisme) {
             throw ValidationException::withMessages(['personnage_id' => 'Tu as déjà agi ce tour.']);
@@ -507,7 +512,7 @@ final class ResolveurTour
         app(TamponAnnonces::class)->ouvrir();
 
         try {
-        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique, $bonusHeroisme) {
+        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique, $bonusHeroisme, $perdSecondeFrappe) {
             $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
 
             // Endormi (Sommeil de Dread ou sort héros en tir ami) : le héros
@@ -657,6 +662,13 @@ final class ResolveurTour
                 'sortie_sables' => $this->resoudreSortieSables($groupe, $quete, $personnage, $etat, $option, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
+
+            // SECONDE FRAPPE PERDUE PAR LE DÉPLACEMENT (décision de René, 2026-10-22) : le geste a
+            // RÉUSSI (une exception l'aurait quitté plus haut). Avant `marquerCreneau()`, pour que la
+            // gorgée ne soit plus « non utilisée » à la fin du tour : elle est perdue au geste, et annoncée.
+            if ($perdSecondeFrappe) {
+                $this->perdreSecondeFrappeParDeplacement($groupe, $etat, $personnage);
+            }
 
             // La quête vient d'être GAGNÉE sur le coup (élément-objectif détruit) :
             // ni créneau à consommer, ni fin de round — voir `gagnerParDestruction()`.
@@ -12811,6 +12823,46 @@ final class ResolveurTour
         }
 
         return max(0, $restant);
+    }
+
+    /**
+     * LA SECONDE FRAPPE EN ATTENTE (décision de René, 2026-10-22) — UN SEUL prédicat.
+     *
+     * Vrai quand le héros a frappé ce tour (`a_agi`), n'a pas fini son tour (`a_joue` faux) et
+     * a encore sa seconde frappe armée (`attaque_supplementaire`), QUELLE QUE SOIT SA SOURCE :
+     * Potion d'héroïsme, rage, Ambidextrie, Sang qui bout, Fléau des Orques. Une seule règle, un
+     * seul point de passage : `MenuMoteur` l'utilise pour offrir l'attaque bonus et publier
+     * `perd_attaque_supplementaire` sur chaque option de mouvement ; `resoudre()` l'utilise pour
+     * accepter la frappe bonus et pour faire perdre la frappe au déplacement.
+     */
+    public static function secondeFrappeEnAttente(?EtatPersonnageQuete $etat): bool
+    {
+        return $etat !== null
+            && (bool) $etat->a_agi
+            && ! (bool) $etat->a_joue
+            && (bool) $etat->attaque_supplementaire;
+    }
+
+    /**
+     * Un déplacement résolu alors que la seconde frappe était EN ATTENTE la fait perdre : bouger
+     * FAIT PERDRE la seconde frappe (décision de René, 2026-10-22). Appelé UNE fois, par `resoudre()`,
+     * après la résolution réussie d'une option `mouvement`, avant `marquerCreneau()`.
+     *
+     * Dans l'ordre : le drapeau tombe ; la marque de Breuvage s'efface sans bruit (sinon
+     * `dissiperBreuvageNonUtilise()` redirait la même gorgée en fin de tour) ; le fil annonce la
+     * perte au moment du geste (`attaque_supplementaire_perdue`, rendu par `TamponAnnonces`).
+     */
+    private function perdreSecondeFrappeParDeplacement(Groupe $groupe, EtatPersonnageQuete $etat, Personnage $personnage): void
+    {
+        $etat->update(['attaque_supplementaire' => false]);
+        app(MoteurPotions::class)->oublierBreuvage($etat);
+
+        app(TamponAnnonces::class)->annoncer($groupe, [
+            'type' => 'attaque_supplementaire_perdue',
+            'personnage_id' => (int) $personnage->id,
+            'personnage' => $personnage->nom,
+            'texte' => "{$personnage->nom} se déplace : son attaque supplémentaire est perdue.",
+        ], ['type' => 'personnage', 'id' => (int) $personnage->id, 'nom' => $personnage->nom]);
     }
 
     /**
