@@ -38,7 +38,7 @@ moteur résout l'option choisie*.
 | Front Vue (accueil, narrateur, joueur, table, manette) | ✅ | Écrans vérifiés au navigateur (Playwright) |
 | Modèle de session (narrateur par code + joueurs à compte) | ✅ | Heartbeat « narrateur actif » ; quête au statut « prêt » de tous |
 | **Audio / voix** | ✅ | Narration MJ **lue en TTS** + **voix dédiée du narrateur** + **barks de monstres** (voix par archétype, répliques nommées de boss) + **musique d'ambiance** (hub/exploration/combat/boss, via Lyria). Audio pré-généré (`php artisan barks:generer`, `narration:generer`, `audio-tools/`) ; **sans clé/asset**, repli Web Speech (texte) et ambiance silencieuse |
-| **Alliés recrutables** (mercenaires & compagnons animaux) | ✅ | Recrutement au hub (`RecrutementHub`) : 4 par héros max, un seul animal, remise de la Potion de charme, recrutement offert par la faveur *Mercenary Guild*, entretien entre les quêtes. Les alliés jouent en fin de round et **les monstres les attaquent** |
+| **Alliés recrutables** (mercenaires & compagnons animaux) | ✅ | Recrutement au hub (`RecrutementHub`) : 4 par héros max, un seul animal, remise de la Potion de charme, recrutement offert par la faveur *Mercenary Guild*, entretien entre les quêtes. Les alliés jouent dans le tour du héros qui les mène (sa manette : déplacement libre sur la carte, « approcher » un monstre, attaque) et **les monstres les attaquent** |
 | **Monstres à phases** & **lanceurs de Dread autonomes** | ✅ | Un seul mot-clé `phase_suivante` (Gruzbella, Gruulob…) ; sbires lanceurs de sorts par archétype (`archetype_lanceur`) |
 | **Pièges magiques** | ✅ | Embrasement (*Fireburst*) et consorts, issus de *Wizards of Morcar* |
 | **Équilibrage** (stats, prix, difficultés) | 🧪 | Valeurs **de départ**, à régler en playtest |

@@ -633,11 +633,11 @@ const LISTES = {
     // qu'on retrouve en sortant de la séance (même convention que
     // `liste.retour` pour un 3e niveau de ciblage : « Retour aux sorts », etc.).
     echanger: { cle: 'allies', titre: 'Échanger avec qui ?', retour: 'Retour aux alliés' },
-    // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) : le déplacement de
-    // l'allié n'a pas de mini-carte dédiée — une poignée de destinations
-    // (une par monstre approchable, « Approcher X »), la liste générique
-    // suffit. `attaquer_allie`, lui, porte `type: 'attaque'` et retombe donc
-    // directement sur `frameCible` plus bas, sans entrée ici.
+    // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) : « Approcher X » reste
+    // une liste (une destination par monstre approchable) — le RACCOURCI. Le
+    // déplacement libre de l'allié, lui, n'est PAS une liste : `deplacement_case_allie`
+    // ouvre la mini-carte (2026-10-17, `choisirOption`). `attaquer_allie`, lui, porte
+    // `type: 'attaque'` et retombe sur `frameCible` plus bas, sans entrée ici.
     se_deplacer_allie: { cle: 'destinations', titre: 'Où déplacer l\'allié ?', retour: 'Retour aux actions' },
 };
 
@@ -664,6 +664,15 @@ function choisirOption(choix) {
     // décidées par le serveur) — voir `DeplacementSheet.casesEcart`.
     if ((option.type === 'deplacement' || option.type === 's_ecarter_du_bloc') && monEntite.value) {
         empiler({ option, mode: 'deplacement', retour: 'Retour aux actions' });
+        return;
+    }
+
+    // ALLIÉ joué par ce joueur (2026-10-17) : le déplacement LIBRE de l'allié ouvre la MÊME
+    // feuille que celui du héros, mais partie de la case DE L'ALLIÉ. Sans sa case, on n'ouvre
+    // rien : une feuille partie de la case du héros tracerait un trajet qui n'est pas le sien.
+    if (option.type === 'deplacement_case_allie') {
+        const depart = departDeLAllie();
+        if (depart) empiler({ option, mode: 'deplacement', depart, retour: 'Retour aux actions' });
         return;
     }
 
@@ -804,6 +813,16 @@ function choisirEntree(entree) {
 function validerEchange(transferts) {
     const { option, allie } = feuilleOption.value;
     envoyerOption(option, { cle: allie.cle, transferts });
+}
+
+/** Case de l'allié dont c'est le tour (entité `allie` d'EtatGroupe, id = `allie_id` du menu),
+ *  ou `null`. Le serveur ne publie que la DÉCISION (les cases) : la position de l'allié, elle,
+ *  est un fait déjà présent dans `entites`. */
+function departDeLAllie() {
+    const id = store.state.menuAllieId;
+    const e = (store.state.etat?.entites ?? []).find((x) => x.type === 'allie' && x.id === id);
+
+    return e ? { x: e.x, y: e.y } : null;
 }
 
 /** Case choisie sur la mini-carte → POST {option_id, parametres: {x, y}}. */
@@ -1658,7 +1677,7 @@ const navItems = computed(() => (scene.value === 'marche'
                         v-if="feuilleOption && feuilleOption.mode === 'deplacement' && monEntite"
                         :carte="store.state.etat.carte"
                         :entites="store.state.etat.entites ?? []"
-                        :depart="{ x: monEntite.x, y: monEntite.y }"
+                        :depart="feuilleOption.depart ?? { x: monEntite.x, y: monEntite.y }"
                         :portee="feuilleOption.option.parametres?.portee ?? feuilleOption.option.parametres?.portee_base ?? 0"
                         :de="feuilleOption.option.parametres?.de ?? null"
                         :base="feuilleOption.option.parametres?.base ?? 0"

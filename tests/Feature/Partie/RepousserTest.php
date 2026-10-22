@@ -358,3 +358,67 @@ it('ne déclenche AUCUN piège sous la créature repoussée — une embuscade, p
         // créature sur un piège est une embuscade, pas un bug » (CLAUDE.md).
         ->and($ctx['quete']->fresh()->carte->grille['pieges'][$index]['etat'])->toBe('cache');
 });
+
+// =====================================================================
+// LE FIL DIT POURQUOI (2026-10-17) — défaut relevé en partie réelle : « 3 succès
+// sur 4, `repoussee: false`, et rien ne dit pourquoi ». Le résolveur publie les
+// ingrédients (succès obtenus, requis, motif), le renderer n'en choisit que la phrase.
+// =====================================================================
+
+it('3 succès sur 4 : le fil DIT pourquoi la créature ne recule pas — un quasi-échec reste un échec sec', function () {
+    $ctx = quetePousseeMinimale(['classe' => 'barbare']); // Body 4, en (3,3)
+    Monstre::where('nom_base', 'Gobelin')->update(['pv_body' => 4]); // difficulté 4 (plafonnée au Body du groupe)
+    $instance = poserInstanceMonstre($ctx['quete'], 'Gobelin', 4, 3);
+
+    desFiges([1, 1, 1, 4]); // 3 crânes sur 4 requis : raté de peu, reussite_mixte
+
+    $methode = new ReflectionMethod(ResolveurTour::class, 'resoudrePoussee');
+    $option = ['id' => "repousser_{$instance->id}", 'libelle' => 'Repousser',
+        'parametres' => ['instance_id' => $instance->id]];
+    $acteur = ['type' => 'personnage', 'id' => $ctx['heros']->id, 'nom' => $ctx['heros']->nom];
+
+    $resultat = $methode->invoke(
+        app(ResolveurTour::class), $ctx['groupe'], $ctx['quete'], $ctx['heros'], $ctx['etatHeros'], $option, [], $acteur,
+    );
+
+    // Les ingrédients de la phrase, publiés PAR LE RÉSOLVEUR : succès obtenus, requis, motif.
+    expect($resultat['repoussee'])->toBeFalse()
+        ->and($resultat['jet']['succes'])->toBe(3)
+        ->and($resultat['jet']['difficulte'])->toBe(4)
+        ->and($resultat['jet']['issue'])->toBe('reussite_mixte')
+        ->and($resultat['motif'])->toBe('jet_rate')
+        ->and((int) $instance->fresh()->position_x)->toBe(4);
+
+    $texte = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'))->pluck('texte')->implode(' | ');
+
+    expect($texte)->toContain('3 succès sur 4')
+        ->toContain('raté de peu')
+        ->toContain('ne recule pas');
+});
+
+it('jet RÉUSSI mais case de recul OCCUPÉE : le fil le dit, la créature ne bouge pas', function () {
+    $ctx = quetePousseeMinimale(['classe' => 'barbare']);
+    $instance = poserInstanceMonstre($ctx['quete'], 'Gobelin', 4, 3);
+    poserInstanceMonstre($ctx['quete'], 'Gobelin', 5, 3); // un second monstre sur la case de recul
+
+    desFiges(array_fill(0, 4, 1)); // 4 crânes : réussite nette (difficulté 1)
+
+    $methode = new ReflectionMethod(ResolveurTour::class, 'resoudrePoussee');
+    $option = ['id' => "repousser_{$instance->id}", 'libelle' => 'Repousser',
+        'parametres' => ['instance_id' => $instance->id]];
+    $acteur = ['type' => 'personnage', 'id' => $ctx['heros']->id, 'nom' => $ctx['heros']->nom];
+
+    $resultat = $methode->invoke(
+        app(ResolveurTour::class), $ctx['groupe'], $ctx['quete'], $ctx['heros'], $ctx['etatHeros'], $option, [], $acteur,
+    );
+
+    // Le résolveur refuse le recul qu'il ne peut pas faire : il ne déplace jamais une figure sur une autre.
+    expect($resultat['repoussee'])->toBeFalse()
+        ->and($resultat['motif'])->toBe('case_bloquee')
+        ->and((int) $instance->fresh()->position_x)->toBe(4);
+
+    $texte = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'))->pluck('texte')->implode(' | ');
+
+    expect($texte)->toContain('case derrière est occupée')
+        ->toContain('ne recule pas');
+});

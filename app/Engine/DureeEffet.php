@@ -104,12 +104,17 @@ final class DureeEffet
      * aucun monstre révélé et actif nulle part). Ici c'est la vue du porteur :
      * un ennemi vivant dans la salle d'à côté ne prolonge rien.
      *
-     * ⚠ Évalué au DÉBUT DU TOUR du porteur (et à la génération de son menu),
-     * pas en continu — c'est le seul crochet de ce genre dans le moteur, celui
-     * qui sert déjà au Moine. Conséquence assumée : la peau de givre protège
-     * encore pendant la phase de monstres qui suit la mort du dernier ennemi.
+     * ⚠ Évalué AU MOMENT où la vue se vide (2026-10-17), pas au début du tour du
+     * porteur : Courage dit « the moment a monster is no longer in the hero's
+     * line of sight » (reference/16 §3bis). La vue est relue à la fin de chaque
+     * résolution, pour TOUS les héros (après l'action ET la phase des monstres) ;
+     * la peau de givre ne protège donc plus la phase de monstres qui suit la mort
+     * du dernier ennemi. Avant cette date la chute n'était lue qu'au tour du
+     * porteur, et jamais si ce porteur avait déjà joué : un compagnon gardait
+     * Courage jusqu'au round suivant.
      *
-     * Lecteur : `MoteurSorts::rythmerBuffsDeVue()`.
+     * Lecteurs : `MoteurSorts::rompreBuffsDeVue()` (la chute) et
+     * `MoteurSorts::rythmerBuffsDeVue()` (le réarmement de la rage).
      */
     public const PLUS_DE_MONSTRE_EN_VUE = 'plus_de_monstre_en_vue';
 

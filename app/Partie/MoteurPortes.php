@@ -99,83 +99,93 @@ final class MoteurPortes
     }
 
     /**
-     * Porte FERMÉE (verrouillée, ou secrète non révélée) orthogonalement
-     * adjacente à (x, y), avec son index — null sinon.
+     * Toutes les portes FERMÉES qu'un héros voit et atteint depuis la case (x, y) —
+     * verrouillées comprises — avec leur index, dans l'ordre des portes. Une porte
+     * est retenue si son EMBRASURE (`Grille::caseEmbrasure()`) est orthogonalement
+     * adjacente à (x, y) : la géométrie du passage, sans seconde copie.
      *
-     * ⚠ « Adjacente » teste désormais l'ADJACENCE GÉOMÉTRIQUE à la case
-     * d'EMBRASURE (`Grille::caseEmbrasure()`), pas l'égalité à l'une des deux
-     * `casesPorte()` (René, 2026-09-11 : une porte non ouverte bloque
-     * maintenant sa case). L'ancien test supposait qu'on pouvait se TENIR sur
-     * le seuil pour l'ouvrir ; ce n'est plus vrai QUE côté couloir, plus côté
-     * salle — un héros qui vient d'entrer par un autre accès et s'arrête
-     * juste devant une porte close, depuis l'INTÉRIEUR, ne serait jamais sur
-     * aucune des deux `casesPorte()` (l'embrasure lui est fermée, et l'autre
-     * cellule est souvent à plus d'un pas). Sans ce changement, une porte dont
-     * l'embrasure tombe côté salle ne serait plus jamais ouvrable de
-     * l'intérieur : personne ne pourrait jamais se tenir assez près pour
-     * presser « Ouvrir la porte ».
+     * ⚠ UNE LISTE, jamais une seule porte. Un héros dans un coin peut toucher DEUX
+     * portes closes ; l'ancienne méthode n'en rendait qu'une, le menu n'offrait
+     * qu'elle, le harnais affichait l'autre « à portée », et un choix forgé sur
+     * celle-ci était refusé (422, 2026-10-17). Menu et résolveur lisent CETTE liste
+     * et seulement elle.
      *
-     * @return array{index: int, porte: array<string, mixed>}|null
+     * ⚠ Une porte SECRÈTE non trouvée n'y figure jamais : pour le héros, c'est un
+     * mur. Une Bénédiction de l'Oracle offerte à côté d'elle révélerait la salle
+     * derrière un passage que personne n'a trouvé.
+     *
+     * « Adjacente » teste la case d'EMBRASURE, pas l'égalité à l'une des deux
+     * `casesPorte()` (René, 2026-09-11 : une porte non ouverte bloque maintenant sa
+     * case). Un héros qui s'arrête devant une porte close, depuis l'intérieur de la
+     * salle, ne serait jamais sur aucune des deux cases de passage.
+     *
+     * @return list<array{index: int, porte: array<string, mixed>}>
      */
-    public function porteFermeeAdjacente(Carte $carte, int $x, int $y): ?array
+    public function portesFermeesAdjacentes(Carte $carte, int $x, int $y): array
     {
-        $reponse = null;
-        $salles = (array) ($carte->grille['salles'] ?? []);
-
-        foreach ($this->portes($carte) as $index => $porte) {
-            if (($porte['etat'] ?? self::ETAT_OUVERTE) === self::ETAT_OUVERTE) {
-                continue;
-            }
-            $embrasure = Grille::caseEmbrasure($porte, $salles);
-            if (abs($embrasure['x'] - $x) + abs($embrasure['y'] - $y) !== 1) {
-                continue;
-            }
-
-            // Une porte OUVRABLE l'emporte toujours. Rendre la première close
-            // venue masquait une porte parfaitement ouvrable derrière une porte
-            // SECRÈTE adjacente (l'appelant ne teste l'ouvrabilité qu'après) :
-            // le héros se retrouvait sans option « Ouvrir la porte » devant une
-            // porte qu'il voyait — la signature d'un groupe figé.
-            if ($this->ouvrableAMain($porte)) {
-                return ['index' => $index, 'porte' => $porte];
-            }
-
-            $reponse ??= ['index' => $index, 'porte' => $porte];
-        }
-
-        return $reponse;
+        return $this->portesAdjacentes(
+            $carte, $x, $y,
+            fn (array $porte) => ($porte['etat'] ?? self::ETAT_OUVERTE) !== self::ETAT_OUVERTE
+                && ($porte['etat'] ?? null) !== self::ETAT_SECRETE,
+        );
     }
 
     /**
-     * Porte DE PIERRE (`verrou.type === VERROU_PIERRE`), non encore ouverte,
-     * orthogonalement adjacente à l'embrasure — même géométrie que
-     * `porteFermeeAdjacente()`, mais un scan DÉDIÉ plutôt qu'un filtre
-     * supplémentaire sur celle-ci : une porte de pierre n'est jamais
-     * `ouvrableAMain()` ni à clé, la mêler à la logique de priorité de
-     * `porteFermeeAdjacente()` (« la première ouvrable l'emporte ») n'aurait
-     * rien apporté et aurait compliqué une méthode déjà dense.
+     * LE scan unique des portes adjacentes à une case : seul le FILTRE change d'une
+     * liste à l'autre. Deux boucles copiées auraient fini par diverger.
      *
-     * @return array{index: int, porte: array<string, mixed>}|null
+     * @param  callable(array<string, mixed>): bool  $retenue
+     * @return list<array{index: int, porte: array<string, mixed>}>
      */
-    public function porteDePierreAdjacente(Carte $carte, int $x, int $y): ?array
+    private function portesAdjacentes(Carte $carte, int $x, int $y, callable $retenue): array
     {
         $salles = (array) ($carte->grille['salles'] ?? []);
+        $trouvees = [];
 
         foreach ($this->portes($carte) as $index => $porte) {
-            if (($porte['etat'] ?? self::ETAT_OUVERTE) === self::ETAT_OUVERTE) {
-                continue;
-            }
-            if (($porte['verrou']['type'] ?? null) !== self::VERROU_PIERRE) {
+            if (! $retenue($porte)) {
                 continue;
             }
 
             $embrasure = Grille::caseEmbrasure($porte, $salles);
             if (abs($embrasure['x'] - $x) + abs($embrasure['y'] - $y) === 1) {
-                return ['index' => $index, 'porte' => $porte];
+                $trouvees[] = ['index' => $index, 'porte' => $porte];
             }
         }
 
-        return null;
+        return $trouvees;
+    }
+
+    /**
+     * Portes DE PIERRE (`verrou.type === VERROU_PIERRE`), non encore ouvertes,
+     * adjacentes à la case — même géométrie et même liste que
+     * `portesFermeesAdjacentes()`, avec un autre filtre. Une porte de pierre n'est
+     * jamais `ouvrableAMain()` ni à clé : elle ne se mêle à aucune autre liste.
+     *
+     * @return list<array{index: int, porte: array<string, mixed>}>
+     */
+    public function portesDePierreAdjacentes(Carte $carte, int $x, int $y): array
+    {
+        return $this->portesAdjacentes(
+            $carte, $x, $y,
+            fn (array $porte) => ($porte['etat'] ?? self::ETAT_OUVERTE) !== self::ETAT_OUVERTE
+                && ($porte['verrou']['type'] ?? null) === self::VERROU_PIERRE,
+        );
+    }
+
+    /**
+     * La direction de la porte VUE DEPUIS la case (x, y) — « au nord », « à l'ouest »… —
+     * lue dans `Rayon::DIRECTIONS`, le seul vocabulaire cardinal. Null si l'embrasure
+     * n'est pas orthogonalement voisine de (x, y). Le libellé d'un geste sur une porte
+     * porte ce mot quand plusieurs portes sont offertes (2026-10-17).
+     *
+     * @param  array<string, mixed>  $porte
+     */
+    public function directionDepuis(Carte $carte, array $porte, int $x, int $y): ?string
+    {
+        $embrasure = Grille::caseEmbrasure($porte, (array) ($carte->grille['salles'] ?? []));
+
+        return Rayon::phrasePour($embrasure['x'] - $x, $embrasure['y'] - $y);
     }
 
     /**

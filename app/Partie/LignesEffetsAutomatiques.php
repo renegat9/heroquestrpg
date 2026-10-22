@@ -68,16 +68,39 @@ trait LignesEffetsAutomatiques
         return [$this->info("{$acteurNom} {$proposition} — un vote du groupe est ouvert")];
     }
 
-    /** @return list<array{texte: string, ton: string}> */
+    /**
+     * La poussée DIT pourquoi la figure ne recule pas (2026-10-17) : la phrase est bâtie
+     * sur les ingrédients publiés par le résolveur — succès obtenus (`jet.succes`), requis
+     * (`jet.difficulte`), issue (`jet.issue`) et `motif` — jamais sur une devinette.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
     private function poussee(array $a, string $acteurNom): array
     {
         $cible = (string) ($a['cible']['nom'] ?? 'la créature');
         $succes = (int) ($a['jet']['succes'] ?? 0);
-        $difficulte = (int) ($a['jet']['difficulte'] ?? 0);
+        $requis = (int) ($a['jet']['difficulte'] ?? 0);
 
-        return [! empty($a['repoussee'])
-            ? ['texte' => "{$acteurNom} repousse {$cible} d'une case ({$succes}/{$difficulte})", 'ton' => 'succes']
-            : ['texte' => "{$acteurNom} s'arc-boute contre {$cible} — la créature ne cède pas ({$succes}/{$difficulte})", 'ton' => 'echec']];
+        if (! empty($a['repoussee'])) {
+            return [['texte' => "{$acteurNom} repousse {$cible} d'une case ({$succes} succès, {$requis} requis)", 'ton' => 'succes']];
+        }
+
+        // Le jet a atteint le requis, mais la case de recul est prise : rien ne bouge.
+        if (($a['motif'] ?? null) === 'case_bloquee') {
+            return [['texte' => "{$acteurNom} pousse {$cible}, mais la case derrière est occupée — {$cible} ne recule pas ({$succes} succès, {$requis} requis)", 'ton' => 'echec']];
+        }
+
+        // Le jet n'a pas atteint le requis. « Raté de peu » nomme le quasi-échec : c'est un
+        // ÉCHEC sec (P4 tranchée le 2026-10-19), jamais une réussite à coût.
+        $mixte = ($a['jet']['issue'] ?? null) === 'reussite_mixte' ? ', raté de peu' : '';
+
+        return [['texte' => "{$acteurNom} s'arc-boute contre {$cible} : {$succes} succès sur {$requis}{$mixte} — {$cible} ne recule pas", 'ton' => 'echec']];
+    }
+
+    /** @return list<array{texte: string, ton: string}> */
+    private function breuvageDissipe(array $a): array
+    {
+        return [$this->info((string) ($a['texte'] ?? "Un effet d'objet se dissipe"))];
     }
 
     /** @return list<array{texte: string, ton: string}> */

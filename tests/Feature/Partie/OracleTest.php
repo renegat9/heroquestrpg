@@ -123,7 +123,7 @@ it('Bénédiction, option (a) : révèle la salle derrière une porte fermée ad
     expect($portes)->not->toBeEmpty();
 
     // La première porte FERMÉE de la carte, et la case d'embrasure du côté
-    // couloir — exactement ce que `MoteurPortes::porteFermeeAdjacente()` sait
+    // couloir — exactement ce que `MoteurPortes::portesFermeesAdjacentes()` sait
     // reconnaître depuis cette case.
     $indexFermee = null;
     foreach ($portes as $i => $p) {
@@ -137,7 +137,7 @@ it('Bénédiction, option (a) : révèle la salle derrière une porte fermée ad
     $porte = $portes[$indexFermee];
     $embrasure = Grille::caseEmbrasure($porte, (array) $carte->grille['salles']);
 
-    // ⚠ ADJACENT à l'embrasure, jamais SUR elle : `porteFermeeAdjacente()`
+    // ⚠ ADJACENT à l'embrasure, jamais SUR elle : `portesFermeesAdjacentes()`
     // exige une distance de Manhattan de 1 (la case de la porte elle-même
     // est bloquée tant qu'elle n'est pas ouverte).
     $position = caseAdjacenteLibre($quete, (int) $embrasure['x'], (int) $embrasure['y']);

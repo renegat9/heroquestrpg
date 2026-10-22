@@ -38,6 +38,23 @@ final class Rayon
     ];
 
     /**
+     * La phrase de direction d'un pas (dx, dy) parmi les huit de {@see DIRECTIONS} :
+     * « au nord », « à l'est »… — null pour tout autre pas. Un libellé de menu qui
+     * nomme une direction passe par ici, jamais par une table recopiée ailleurs
+     * (2026-10-17 : suffixe « à l'ouest » des portes en double).
+     */
+    public static function phrasePour(int $dx, int $dy): ?string
+    {
+        foreach (self::DIRECTIONS as [$pasX, $pasY, $phrase]) {
+            if ($pasX === $dx && $pasY === $dy) {
+                return $phrase;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Les cases parcourues depuis (x, y), du premier pas jusqu'au mur ou à la
      * porte close — la case de départ EXCLUE : on ne se foudroie pas soi-même.
      *

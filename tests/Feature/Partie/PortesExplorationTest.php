@@ -528,11 +528,14 @@ it('propose « Ouvrir la porte » même quand une porte SECRÈTE est adjacente',
         ['x' => $hx, 'y' => $hy, 'etat' => 'fermee', 'cote' => 'e'],
     ]);
 
-    $trouvee = app(MoteurPortes::class)->porteFermeeAdjacente($quete->carte, $hx, $hy);
+    // La liste ne retient que la porte CLOSE : la secrète non trouvée est un mur pour le
+    // héros (`portesFermeesAdjacentes()`, 2026-10-17). Le menu offre donc « Ouvrir » sur
+    // la close, et sur elle seule.
+    $trouvees = app(MoteurPortes::class)->portesFermeesAdjacentes($quete->carte, $hx, $hy);
 
-    expect($trouvee)->not->toBeNull()
-        ->and($trouvee['porte']['etat'])->toBe('fermee')
-        ->and($trouvee['porte']['cote'])->toBe('e');
+    expect($trouvees)->toHaveCount(1)
+        ->and($trouvees[0]['porte']['etat'])->toBe('fermee')
+        ->and($trouvees[0]['porte']['cote'])->toBe('e');
 });
 
 it('révèle la salle et ses monstres quand un LEVIER ouvre la porte', function () {

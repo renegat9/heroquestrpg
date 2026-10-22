@@ -231,3 +231,93 @@ it('REPLI : une frappe déjà doublée sous l\'ancien ordre (drapeau posé, frap
 
     expect((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeFalse('la seconde frappe a consommé le drapeau');
 });
+
+// =====================================================================
+// LA GORGÉE NON SUIVIE D'UNE FRAPPE SE DISSIPE AU FIL (2026-10-17) — défaut relevé
+// en partie réelle : le drapeau tombait à l'ouverture du round, sans un mot, et la
+// carte dit « Drink this potion before you attack ». Le joueur perdait la potion
+// sans le savoir.
+// =====================================================================
+
+it('le menu dit qu\'il faut boire AVANT d\'attaquer, et que l\'effet ne vaut que ce tour', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $ligne = $ctx['heros']->inventaire()->create([
+        'objet_id' => Objet::where('nom', 'Potion d\'héroïsme')->firstOrFail()->id, 'emplacement' => 'sac',
+    ]);
+
+    $entree = collect(gorgeesDuMenu($ctx['groupe'], $ctx['alice'], $ctx['heros']))->firstWhere('inventaire_id', $ligne->id);
+
+    expect($entree['detail'] ?? '')->toContain('avant d\'attaquer')
+        ->and($entree['detail'] ?? '')->toContain('ce tour');
+});
+
+it('une gorgée jamais suivie d\'une frappe se DISSIPE au fil, à la fin du tour — plus perdue en silence', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $ligne = $ctx['heros']->inventaire()->create([
+        'objet_id' => Objet::where('nom', 'Potion d\'héroïsme')->firstOrFail()->id, 'emplacement' => 'sac',
+    ]);
+
+    desFiges(array_fill(0, 60, 4)); // boucliers blancs : le monstre ne frappe pas le héros
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}", 'cible_id' => $ctx['heros']->id, 'cible_type' => 'heros'],
+    ])->assertStatus(202);
+
+    expect((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeTrue('précondition : la gorgée est bue');
+
+    // Le héros termine son tour SANS frapper : la seconde frappe n'aura jamais lieu.
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    $resultat = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202)->json('resultat');
+
+    $dissipations = collect($resultat['annonces_automatiques'] ?? [])->where('type', 'breuvage_dissipe');
+
+    expect($dissipations)->toHaveCount(1)
+        ->and($dissipations->first()['texte'])->toContain('se dissipe, faute d\'attaque')
+        ->and((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeFalse('l\'effet est bien retombé');
+});
+
+it('une gorgée dont la SECONDE frappe a eu lieu ne se dissipe pas : rien à annoncer', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $ctx['instance']->update(['pv_body' => 5, 'pv_body_max' => 5]); // survit aux deux frappes manquées
+    $ligne = $ctx['heros']->inventaire()->create([
+        'objet_id' => Objet::where('nom', 'Potion d\'héroïsme')->firstOrFail()->id, 'emplacement' => 'sac',
+    ]);
+    app(MoteurPotions::class)->boire($ctx['heros'], $ligne->fresh());
+
+    desFiges(array_fill(0, 60, 4)); // 4 = bouclier blanc : deux frappes manquées, le monstre tient
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id]])
+        ->assertStatus(202);
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id]])
+        ->assertStatus(202);
+
+    expect((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeFalse('la seconde frappe a consommé la gorgée');
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    $resultat = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202)->json('resultat');
+
+    expect(collect($resultat['annonces_automatiques'] ?? [])->where('type', 'breuvage_dissipe'))->toHaveCount(0);
+});
+
+it('un tour qui s\'ouvre sans « Terminer le tour » (héros tombé en plein tour) dissipe quand même la gorgée', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $ligne = $ctx['heros']->inventaire()->create([
+        'objet_id' => Objet::where('nom', 'Potion d\'héroïsme')->firstOrFail()->id, 'emplacement' => 'sac',
+    ]);
+    app(MoteurPotions::class)->boire($ctx['heros'], $ligne->fresh());
+
+    // Le round se rouvre sans que le héros ait jamais fermé son tour : le filet de `ouvrirNouveauTour()`.
+    $methode = new ReflectionMethod(\App\Partie\ResolveurTour::class, 'ouvrirNouveauTour');
+    app(\App\Partie\TamponAnnonces::class)->ouvrir();
+    $actions = [];
+    $methode->invokeArgs(app(\App\Partie\ResolveurTour::class), [$ctx['groupe'], $ctx['quete'], &$actions]);
+    $annonces = app(\App\Partie\TamponAnnonces::class)->vider();
+
+    expect(collect($annonces)->where('type', 'breuvage_dissipe'))->toHaveCount(1)
+        ->and((bool) $ctx['etatHeros']->fresh()->attaque_supplementaire)->toBeFalse();
+});

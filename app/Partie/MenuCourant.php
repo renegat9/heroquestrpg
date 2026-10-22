@@ -61,11 +61,14 @@ final class MenuCourant
     {
         $cle = GenererMenu::cleMenu($groupe->id, $joueurId);
 
-        // Hors quête (hub) : pas d'ordre de tour, le menu en cache fait foi.
-        if ($groupe->phase !== 'quete' || $groupe->quete_courante_id === null) {
-            $cache = Cache::get($cle);
+        // HUB : AUCUN menu de quête (2026-10-17). Un menu en cache qui traîne ici est
+        // celui de la quête qui vient de finir : il est JETÉ, jamais servi. Sinon
+        // « attendre » restait servi, et acceptée sans effet, au hub. `POST choix` et
+        // l'aperçu répondent alors 422 par `refusSansMenu()`.
+        if (GenererMenu::sansQuete($groupe)) {
+            Cache::forget($cle);
 
-            return is_array($cache) ? $cache : null;
+            return null;
         }
 
         $hero = $this->herosDuJoueur($groupe, $joueurId);

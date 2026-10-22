@@ -291,6 +291,12 @@ class ChoixController extends Controller
      */
     private function refusSansMenu(Groupe $groupe, int $joueurId): ValidationException
     {
+        // Au hub il n'y a AUCUN menu de quête, donc aucune proposition du MJ à attendre
+        // (2026-10-17) : le message le dit, au lieu de promettre une proposition.
+        if (GenererMenu::sansQuete($groupe)) {
+            return ValidationException::withMessages(['option_id' => 'Aucun menu de quête au hub — le groupe se prépare entre deux quêtes.']);
+        }
+
         $message = app(MenuCourant::class)->aLaMain($groupe, $joueurId)
             ? 'Le menu se met à jour — réessaie dans un instant.'
             : 'Aucun menu en attente pour ce joueur — attendez la proposition du MJ.';
@@ -336,6 +342,24 @@ class ChoixController extends Controller
 
         if ($dernierMenu === null) {
             throw $this->refusSansMenu($groupe, (int) $joueur->id);
+        }
+
+        // ALLIÉ joué par ce joueur (2026-10-17) : le menu courant est celui de l'allié
+        // contrôlé par ce héros — son aperçu est le trajet DE L'ALLIÉ, sur la grille de
+        // son déplacement (`DeplacementHeros::trajetAllie()`), jamais celui du héros.
+        if (($dernierMenu['allie_id'] ?? null) !== null) {
+            $allie = GroupeMercenaire::where('groupe_id', $groupe->id)->where('id', (int) $dernierMenu['allie_id'])->first();
+            $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
+
+            if ($allie === null || $quete === null) {
+                throw ValidationException::withMessages([
+                    'option_id' => 'Aucun déplacement en cours : cet allié n\'est pas sur une carte.',
+                ]);
+            }
+
+            return response()->json($resolveur->apercuDeplacementAllie(
+                $quete, $allie, (int) $donnees['x'], (int) $donnees['y'],
+            ));
         }
 
         $personnage = $this->personnageLegal($groupe, (int) $joueur->id, (int) $dernierMenu['personnage_id']);

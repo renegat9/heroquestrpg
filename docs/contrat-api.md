@@ -24,8 +24,8 @@ Routes protégées par middleware `auth` sauf connexion.
 | POST | /api/groupes/{identifiant}/quetes | — | {quete} — démarre la quête suivante (assemble carte, spawn monstres, initiative) |
 | PUT | /api/groupes/{identifiant}/ordre | {ordre:[personnage_id,…]} | réordonne l'ordre du tour (ordre_initiative) — **HUB seulement**, permutation exacte des héros actifs, **membre OU table** ; rediffuse `.prets.maj` réordonné |
 | POST | /api/groupes/{identifiant}/choix | {option_id, parametres?} | 202 — le moteur résout, l'état et la narration arrivent par Reverb |
-| POST | /api/groupes/{identifiant}/deplacement/apercu | {x, y} | {atteignable, raison?, chemin: [{x,y}], cout, restant, restant_apres, pieges: [{x,y,nom,etat}], traverse_roche} — **le trajet EXACT** que le héros parcourrait, AVANT de valider (voir §Aperçu du trajet) |
-| GET | /api/groupes/{identifiant}/menu | — | {menu, personnage_id, allie_id} \| {menu: null} — rattrapage du menu courant (régénéré si c'est le tour du héros, OU de l'allié qu'il contrôle — chantier 3a, `allie_id` alors non-null). **Même point de passage que `POST choix` et `POST deplacement/apercu`** (`App\Partie\MenuCourant`, 2026-10-09) : le menu rendu ici est exactement celui que le choix acceptera. Un menu calculé AVANT le tour du héros (cache `au_tour` à `false`) est recalculé à son tour : il n'avait pas lancé le dé de déplacement, et ses `destinations` s'arrêtaient à la portée de base (2026-10-10). |
+| POST | /api/groupes/{identifiant}/deplacement/apercu | {x, y} | {atteignable, raison?, chemin: [{x,y}], cout, restant, restant_apres, pieges: [{x,y,nom,etat}], traverse_roche} — **le trajet EXACT** que le héros parcourrait, AVANT de valider (voir §Aperçu du trajet) ; pendant le tour d'un ALLIÉ (menu porteur de `allie_id`), le trajet DE L'ALLIÉ, même forme, `pieges: []` (2026-10-17, §Un allié est joué par SON JOUEUR) |
+| GET | /api/groupes/{identifiant}/menu | — | {menu, personnage_id, allie_id} \| {menu: null} — rattrapage du menu courant (régénéré si c'est le tour du héros, OU de l'allié qu'il contrôle — chantier 3a, `allie_id` alors non-null). **Même point de passage que `POST choix` et `POST deplacement/apercu`** (`App\Partie\MenuCourant`, 2026-10-09) : le menu rendu ici est exactement celui que le choix acceptera. Un menu calculé AVANT le tour du héros (cache `au_tour` à `false`) est recalculé à son tour : il n'avait pas lancé le dé de déplacement, et ses `destinations` s'arrêtaient à la portée de base (2026-10-10). **Au hub** (phase ≠ `quete`), la réponse est TOUJOURS `{menu: null}` : aucun menu de quête n'existe hors quête. Un menu resté en cache (celui de la quête qui vient de finir) n'est jamais servi, il est jeté à la lecture (`MenuCourant::pour()`, 2026-10-17). `POST choix` et `POST deplacement/apercu` y répondent 422 (`option_id` : « Aucun menu de quête au hub — le groupe se prépare entre deux quêtes. »). Le filet « Terminer le tour » (`GenererMenu::failed()`) ne publie QU'EN quête : au hub, il ne publie rien. |
 
 **Fenêtre de régénération (2026-10-09).** Après une résolution, le menu consommé
 n'est plus en cache le temps que le job `GenererMenu` le recalcule (une à deux
@@ -582,6 +582,11 @@ Le client répond **à plat** : `POST choix {option_id, parametres: {cle, cible_
   « instead of attacking »). L'option est `objet_libre` et `resoudreUsageObjet()`
   dépense l'action lui-même. La liste ne contient que du gratuit quand le héros
   a déjà agi.
+- ⚠ **Cible d'un objet** (2026-10-17) : une entrée de `utiliser_objet` qui porte
+  `cibles` exige un `cible_id` (`parametres.cle` + `parametres.cible_id`). Sans
+  `cible_id`, 422 « Cible requise : parametres.cible_id … » ; avec un `cible_id`
+  hors de la liste, 422 « Cible illégale pour cet objet. ». Le message dit
+  donc ce qui manque, et « illégale » ne sert que quand la cible est fournie.
 - ⚠ **La navigation est une PILE** côté manette, et chaque retour **nomme sa
   destination** (« Retour aux sorts », « Retour aux actions »). Un retour qui
   ramènerait au menu d'action depuis le ciblage ferait recommencer le choix du
@@ -1211,20 +1216,44 @@ personnage : `GET /menu` et `.menu.propose` restent la même route et le même
 événement, sur le canal `joueur.{id}` du CONTRÔLEUR, mais quand c'est le tour
 de son allié la réponse porte en plus `allie_id` (non-null) à côté de
 `personnage_id` (qui reste l'identité du HÉROS, pour l'auth — c'est toujours
-sa manette). Le menu de l'allié n'a que deux familles d'options — **ni porte
-ni potion** (Ogre Horde p. 9) — avec les cibles/destinations légales déjà
-décidées par le serveur, jamais recalculées côté client :
+sa manette). Le menu de l'allié ne porte que le **déplacement** et l'**attaque**
+— **ni porte, ni potion** (Ogre Horde p. 9) : sans monstre en vue, il peut
+donc se déplacer ou passer son tour, rien d'autre. Les cibles/destinations
+légales sont déjà décidées par le serveur, jamais recalculées côté client :
+- `type: "deplacement_case_allie"` (id `se_deplacer_case_allie`, 2026-10-17) :
+  **le déplacement LIBRE de l'allié**, sur la carte. `parametres.portee` = sa
+  vitesse (la `deplacement` de SA carte de mercenaire, en POINTS : le terrain
+  compte comme pour un héros ; pas de dé, un allié n'a pas de jet de déplacement).
+  `parametres.destinations` = `[{x, y, cout}]` : toutes les cases où il peut
+  S'ARRÊTER ce tour, avec leur coût. Calculée par
+  `App\Partie\DeplacementHeros::destinationsAllie()` — la MÊME grille de passage
+  que le héros (`DeplacementHeros::grilleAllie()`) et le même refus d'arrêt
+  (`refusArret()`) : il traverse héros et alliés sans jamais s'y arrêter, ne
+  traverse ni monstre, ni meuble, ni mur, ni terrain qui l'interdit, et **ne
+  franchit JAMAIS le brouillard** (une salle non révélée n'est ni destination,
+  ni passage). Pas de détour autour des pièges : un allié n'en déclenche aucun
+  (`MoteurPieges`, scope assumé). `POST /choix {option_id: "se_deplacer_case_allie",
+  parametres: {x, y}}` : le résolveur revalide `(x, y)` contre `destinationsAllie()`
+  recalculée sur l'état présent, et refuse une case hors liste (422, « Destination
+  illégale ») sans rien dépenser. **Un seul déplacement par tour** (`a_deplace`),
+  pleine vitesse, sans reliquat. La manette ouvre la MÊME feuille que pour le héros
+  (`DeplacementSheet`), partie de la case de l'allié. Son aperçu,
+  `POST deplacement/apercu {x, y}`, rend le trajet DE L'ALLIÉ tant que le menu
+  courant porte `allie_id` (`pieges: []`, `traverse_roche: false` : un allié ne
+  déclenche rien).
 - `type: "deplacement_allie"` (id `se_deplacer_allie`) : `parametres.destinations`
   = `[{cle: "vers:{instance_id}", nom: "Approcher <monstre>"}]`, une entrée
-  par monstre que l'allié peut rejoindre — pas une case libre, un ADVERSAIRE à
-  approcher (même esprit que son ancien pilotage automatique, mais choisi
-  par le joueur). ⚠ **Offerte seulement si l'approche ABOUTIT** (2026-10-09,
-  `App\Partie\ApprocheAllie`, lu aussi par le résolveur) : une case au CONTACT du
-  monstre où l'allié peut S'ARRÊTER (ni figure, ni terrain qui l'interdit — une case
-  prise par un héros ne compte pas), atteignable, et où il avance réellement. Un
-  monstre dont tout le contact est pris n'apparaît pas ; une destination forgée
-  est refusée (422, « Destination illégale »). `POST /choix {option_id: "se_deplacer_allie", parametres:
-  {cle}}`.
+  par monstre que l'allié peut rejoindre — un RACCOURCI vers un ADVERSAIRE à
+  approcher (le déplacement libre est `se_deplacer_case_allie`) ; choisi par le
+  joueur, comme l'ancien pilotage automatique. ⚠ **Offerte seulement si l'approche
+  ABOUTIT** (2026-10-09, `App\Partie\ApprocheAllie`, lu aussi par le résolveur) :
+  une case au CONTACT du monstre où l'allié peut S'ARRÊTER (ni figure, ni terrain
+  qui l'interdit — une case prise par un héros ne compte pas), atteignable, et où
+  il avance réellement. Un monstre dont tout le contact est pris n'apparaît pas ;
+  une destination forgée est refusée (422, « Destination illégale »).
+  `POST /choix {option_id: "se_deplacer_allie", parametres: {cle}}`. Son trajet
+  passe par la MÊME grille que le déplacement libre, brouillard compris (avant
+  2026-10-17 l'approche ignorait le brouillard).
 - `type: "attaque"` (id `attaquer_allie`) : `parametres.cibles` = la même
   forme qu'une cible de héros (`{id, type: "monstre", nom, nom_base,
   distance}`) — adjacentes, ou visibles en ligne de mire pour un allié à
@@ -1234,7 +1263,9 @@ décidées par le serveur, jamais recalculées côté client :
 
 Chaque option consomme son créneau comme un héros (`a_deplace`/`a_agi` sur
 `groupe_mercenaires`), et son tour ne se termine que sur `attendre_allie` —
-jusque-là, un second appel peut encore déplacer PUIS attaquer. Le résultat
+jusque-là, un second appel peut encore déplacer PUIS attaquer. Un second
+DÉPLACEMENT (approche ou case) est refusé en 422 tant que `a_deplace` est posé
+(2026-10-17 : le résolveur le garde désormais lui-même, pas seulement le menu). Le résultat
 d'un tour d'allié a la MÊME forme qu'avant (`type: "attaque_allie"` /
 `"deplacement_allie"` / `"attente_allie"`, `allie_id`, `mercenaire_id`) —
 mais il n'est plus NICHÉ sous `resultat.tour_allies.actions` : c'est
@@ -1516,6 +1547,21 @@ toutes deux sont fermées.
     attaque »…) ou d'une condition à durée entière (« prend fin : la durée est écoulée »).
     Point de passage : `MoteurSorts::retirerBuff()` / `decrementerDurees()` /
     `decrementerDureesMonstres()`.
+    ⚠ **`plus_de_monstre_en_vue` tombe AU MOMENT où la vue du porteur se vide** (Courage :
+    « The spell is broken the moment a monster is no longer in the hero's line of sight »,
+    reference/16 §3bis ; potions de rage et de peau de givre : « as soon as »). Ce n'est
+    plus au début du tour du porteur : `MoteurSorts::rompreBuffsDeVue()` est lu à la fin de
+    chaque résolution (après l'action ET la phase des monstres, qui déplacent les figures)
+    pour TOUS les héros, et au tour du porteur. Un buff de vue qui tombe emporte la seconde
+    frappe qu'il armait (`attaque_supplementaire`), sauf celle d'une gorgée de Potion
+    d'héroïsme bue ce tour.
+  - `breuvage_dissipe` `{personnage_id, personnage, texte}` — une Potion d'héroïsme bue ce
+    tour dont la seconde frappe n'a pas eu lieu : l'effet se dissipe à la FIN DU TOUR du
+    héros (`MoteurPotions::dissiperBreuvageNonUtilise()`, appelé par `marquerCreneau()`), ou
+    à l'ouverture du round si le tour s'est refermé sans « Terminer le tour » (filet de
+    `ouvrirNouveauTour()`). Texte : « Albrecht : l'effet de « Potion d'héroïsme » se dissipe,
+    faute d'attaque » (nom du catalogue, comme le menu). Une gorgée suivie de sa seconde
+    frappe n'annonce rien.
   - `saignement` `{personnage_id, personnage, cause, degats, pv_body_apres, tombe, reste, texte}`
     — poison, étreinte, rejetons, Chambre forte de glace, en fin de tour
     (« Tamsin : Empoisonné — −1 PV (5/8, encore 1 tour) »). `degats` = ce que le moteur a
@@ -1547,6 +1593,9 @@ toutes deux sont fermées.
   `attaque_supplementaire` posé) : une seule gorgée par frappe. C'est `MoteurPotions::refusAvantAttaque()`,
   lu par `offrable()` (menu) et `boire()` (résolveur). Une gorgée déjà bue sous l'ancien ordre
   garde sa seconde frappe (le drapeau n'a pas changé de sens, seule la prochaine gorgée est gardée).
+  ⚠ Le libellé de l'entrée le dit (`detail` : « Boire avant d'attaquer : une seconde frappe, ce
+  tour seulement »). Une gorgée jamais suivie d'une frappe SE DISSIPE AU FIL (`breuvage_dissipe`,
+  voir les annonces) au lieu de disparaître en silence à l'ouverture du round.
   Le drapeau est remis à zéro à chaque manche (`ouvrirNouveauTour()`) : une gorgée bue puis non
   suivie d'une frappe dans le même tour est perdue — limite nommée, non tranchée.
 - **Fouille** : un monstre errant nomme le fouilleur (« Gobelin surgit du coffre que fouille
@@ -2393,7 +2442,13 @@ achète *Colosse*, il descend quand le costaud s'en va.
   les **PV de Body du CATALOGUE** de la créature (jamais ses PV courants : un boss
   blessé n'est pas plus facile à bousculer). Réussite : la figure recule d'une
   case sur l'axe héros → monstre. ⚠ **Aucun piège n'est déclenché** sous elle.
-  Une tentative par héros et par monstre.
+  Une tentative par héros et par monstre. ⚠ **Le résultat publie POURQUOI** (2026-10-17) :
+  `motif` = `jet_rate` (le jet n'atteint pas le requis — `jet.issue` = `reussite_mixte` pour
+  un « raté de peu », jamais une réussite : P4 tranchée) ou `case_bloquee` (jet réussi, mais la
+  case de recul est occupée ou hors plateau : le résolveur ne déplace RIEN) ; `null` quand la
+  figure recule. Le fil écrit « 3 succès sur 4, raté de peu — Gobelin ne recule pas » à partir de
+  `jet.succes`, `jet.difficulte`, `jet.issue` et `motif`. Le prédicat de recul libre est UN seul,
+  `App\Partie\Poussee::reculLibre()`, lu par le menu (`ciblesRepoussables()`) et par le résolveur.
 - **Fracasser un meuble** — option `detruire_mobilier_{index}`, type `jet` Body,
   difficulté `mobiliers.difficulte_destruction` (⚠ `null` = **indestructible**).
   La pièce cesse de bloquer mouvement ET vue ; si elle était **fouillable**, elle
@@ -2571,8 +2626,23 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
   trouvé, `succes: false`). `succes` reste le résultat brut du dé. Le temps fort du
   narrateur suit : `rien` → `fouille_rien`.
 - **Verrous** (doc 14 §3.3) :
-  - `cle` : option `ouvrir_porte` (id `ouvrir_porte_{x}_{y}`) au contact d'une porte
+  - `cle` : option `ouvrir_porte` (id `ouvrir_porte_{x}_{y}_{cote}`) au contact d'une porte
     verrouillée, offerte si le héros possède l'objet-clé → la porte s'ouvre (persistant) ;
+  - ⚠ **Une option PAR porte fermée adjacente** (2026-10-17, décision de René en partie
+    réelle) : un héros dans un coin entre DEUX portes closes en voit deux, et chacune ouvre
+    la SIENNE (`parametres.porte` la désigne). La liste est lue en UN point,
+    `MoteurPortes::portesFermeesAdjacentes()` : le menu l'offre, le résolveur n'accepte
+    que ce qu'elle contient (422 « Aucune porte fermée adjacente » sinon). Une porte
+    secrète non trouvée n'y figure JAMAIS (c'est un mur pour le héros) ;
+  - ⚠ **Libellé : la DIRECTION, seulement quand elles sont plusieurs** (2026-10-17,
+    décision de René). Une seule porte offerte ce tour (tous gestes confondus) : libellé
+    INCHANGÉ — « Ouvrir la porte », « Ouvrir la porte (clé) », « Bénédiction de l'Oracle —
+    révéler la salle », « Pousser la porte de pierre — N dés… ». Dès que PLUSIEURS portes
+    sont offertes, chaque libellé de porte porte la direction de SA porte vue de la case
+    du héros : « au nord », « au sud », « à l'est », « à l'ouest » (`Rayon::DIRECTIONS`,
+    le seul vocabulaire cardinal), p. ex. « Ouvrir la porte à l'ouest (clé) ». Le serveur
+    décide ce mot ; l'IA n'habille JAMAIS un libellé mécanique (prix, dés, direction),
+    et la publication des menus ne réécrit pas `libelle` (`GenererMenu::publier()`).
   - `monstres_vaincus` : ouverture **automatique** quand les instances désignées sont
     vaincues (hook post-combat) — aucune action joueur ;
   - `levier` : option `actionner_levier` (id `actionner_levier_{x}_{y}`) au contact d'un
@@ -2581,7 +2651,8 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
     a derrière. ⚠ Coûte le créneau d'**action** depuis le 2026-08-24 (c'était une
     interaction gratuite), et se **retente** sans limite ;
   - `pierre` (Against the Ogre Horde p. 4, lot B, 2026-10-02) : option
-    `forcer_porte_pierre` (id `forcer_porte_pierre_{x}_{y}_{cote}`), offerte
+    `forcer_porte_pierre` (id `forcer_porte_pierre_{x}_{y}_{cote}`, une par porte de
+    pierre adjacente), offerte
     au contact d'une porte de pierre **uniquement si le héros lance au moins
     2 dés d'attaque DE BASE** (`personnage.des_attaque`, valeur à mains nues
     de la classe — JAMAIS l'arme en main ; un magicien, 1 dé, ne voit jamais
@@ -2601,8 +2672,9 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
     n'est pas ouverte.
 - **Bénédiction de l'Oracle, option (a)** (First Light, FL-Q p. 6, lot C
   2026-09-30) : option `oracle_salle` (id `oracle_salle_{x}_{y}_{cote}`),
-  offerte **à la place** de — et en plus de — `ouvrir_porte` sur n'importe
-  quelle porte fermée adjacente (close OU verrouillée, sans la clé) si le
+  offerte **à la place** de — et en plus de — `ouvrir_porte` sur CHAQUE porte
+  fermée adjacente (une option par porte, `MoteurPortes::portesFermeesAdjacentes()`,
+  close OU verrouillée, sans la clé ; jamais une porte secrète non trouvée) si le
   héros porte `benediction_oracle`. `App\Partie\MoteurPortes::ouvrir()` n'est
   **jamais appelé** : la porte reste close, seule la salle derrière se révèle
   (même `revelerDerriere()`/`sallesAdjacentesPorte()` que toute ouverture).

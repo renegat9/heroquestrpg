@@ -1873,31 +1873,35 @@ final class MoteurSorts
     }
 
     /**
-     * DÉBUT DE TOUR — fait vivre et mourir les buffs adossés à la vue.
+     * DÉBUT DE TOUR — réarme la rage guerrière tant qu'un monstre est en vue.
      *
-     * Deux gestes, et il faut les deux. Plus de monstre en vue : les buffs de
-     * durée `plus_de_monstre_en_vue` expirent (la peau de givre retombe). Un
-     * monstre en vue et une rage guerrière encore vivante : on RÉARME
-     * `etat.attaque_supplementaire`, que la fin du tour précédent a consommé —
-     * sans quoi la potion ne donnerait sa seconde attaque qu'une seule fois,
-     * alors que la carte dit « 2 attacks per turn as long as there are
-     * monsters in sight ».
+     * La CHUTE d'un buff de vue ne se joue plus ici : elle se joue AU MOMENT où la
+     * vue se vide, pour tous les héros (`rompreBuffsDeVuePour()`). Ce point ne fait
+     * plus que le réarmement : un monstre en vue et une rage encore vivante RÉARMENT
+     * `etat.attaque_supplementaire`, que la fin du tour précédent a consommé — sans
+     * quoi la potion ne donnerait sa seconde attaque qu'une seule fois, alors que la
+     * carte dit « 2 attacks per turn as long as there are monsters in sight ».
      *
-     * ⚠ Même garde d'idempotence que le crochet du Moine : dès que le héros a
-     * entamé son tour, on ne touche plus à rien. Sans elle, le réarmement
-     * repasserait après chaque action et offrirait une troisième attaque.
+     * ⚠ Même garde d'idempotence que le crochet du Moine : dès que le héros a entamé
+     * son tour, on ne réarme plus rien. Sans elle, le réarmement repasserait après
+     * chaque action et offrirait une troisième attaque. La CHUTE, elle, n'a PAS cette
+     * garde : c'est elle qui manquait à un compagnon ayant déjà joué (2026-10-17).
      */
     public function rythmerBuffsDeVue(Quete $quete, EtatPersonnageQuete $etat): void
     {
         $personnage = $etat->personnage;
 
-        if ($personnage === null || $etat->a_joue || $etat->a_agi || $etat->a_deplace) {
+        if ($personnage === null) {
+            return;
+        }
+
+        $this->rompreBuffsDeVuePour($quete, $etat);
+
+        if ($etat->a_joue || $etat->a_agi || $etat->a_deplace) {
             return;
         }
 
         if (! $this->monstreEnVue($quete, $etat)) {
-            $this->expirerBuffs($personnage, DureeEffet::PLUS_DE_MONSTRE_EN_VUE);
-
             // Forge du Nain — Cruelle (relance) et Gardée (bouclier du
             // premier état) sont « une fois par COMBAT » (René, 2026-09-19 :
             // « si aucun monstre n'est présent dans les zones dévoilées alors
@@ -1926,6 +1930,74 @@ final class MoteurSorts
                 return;
             }
         }
+    }
+
+    /**
+     * LA VUE, AU MOMENT OÙ ELLE SE VIDE — `plus_de_monstre_en_vue` (Courage, Potion de
+     * rage guerrière, Potion de peau de givre).
+     *
+     * Les cartes disent « the moment a monster is no longer in the hero's line of
+     * sight » (Courage, reference/16 §3bis) et « as soon as there are no monsters in
+     * the Barbarian's line of sight » (potions du Barbare) : le buff tombe quand la
+     * dernière figure en vue meurt ou sort de vue, pas au prochain début de tour de son
+     * porteur. Avant le 2026-10-17 cette chute n'était lue qu'au tour du porteur, et
+     * jamais si ce porteur avait DÉJÀ joué ce round (la garde du réarmement de la rage
+     * était appliquée aussi à la chute) : un compagnon qui avait fini son tour gardait
+     * son Courage jusqu'à l'ouverture du round suivant.
+     *
+     * Lu à la fin de chaque résolution pour TOUS les héros ({@see self::rompreBuffsDeVue()}),
+     * et par {@see self::rythmerBuffsDeVue()} pour le héros dont on régénère le menu.
+     *
+     * ⚠ La seconde frappe qu'une RAGE armait tombe avec elle : sans cela, un monstre
+     * révélé plus tard dans le même tour recevrait une seconde frappe que la potion ne
+     * garantit plus. Sauf quand une GORGÉE d'héroïsme a été bue ce tour : elle a son
+     * propre drapeau à dire, `MoteurPotions::dissiperBreuvageNonUtilise()`.
+     */
+    public function rompreBuffsDeVuePour(Quete $quete, EtatPersonnageQuete $etat): void
+    {
+        $personnage = $etat->personnage;
+
+        if ($personnage === null || ! $this->porteBuffDeVue($personnage) || $this->monstreEnVue($quete, $etat)) {
+            return;
+        }
+
+        $armeUneFrappe = $this->porteBuffDeVue($personnage, arme: true);
+
+        $this->expirerBuffs($personnage, DureeEffet::PLUS_DE_MONSTRE_EN_VUE);
+
+        if ($armeUneFrappe && $etat->attaque_supplementaire && ! MoteurPotions::gorgeeBueCeTour($etat)) {
+            $etat->update(['attaque_supplementaire' => false]);
+        }
+    }
+
+    /**
+     * Fin de chaque résolution : la vue de TOUS les héros est relue. Après l'action ET la
+     * phase des monstres (qui ont pu tuer ou déplacer une figure), donc au moment même où
+     * la vue change — ce que la carte demande.
+     */
+    public function rompreBuffsDeVue(Quete $quete): void
+    {
+        foreach ($quete->etatsPersonnages()->with('personnage')->get() as $etat) {
+            $this->rompreBuffsDeVuePour($quete, $etat);
+        }
+    }
+
+    /**
+     * Le héros porte-t-il un buff de vue ? Avec `$arme`, un buff de vue qui ARME une
+     * seconde frappe (la rage) — le seul garde-fou qui évite de lire la vue pour rien.
+     */
+    private function porteBuffDeVue(Personnage $personnage, bool $arme = false): bool
+    {
+        foreach ($this->buffsSorts($personnage) as $condition) {
+            $effet = $this->effetSortSource((string) $condition->pivot->source);
+
+            if (DureeEffet::correspond($effet['duree'] ?? null, DureeEffet::PLUS_DE_MONSTRE_EN_VUE)
+                && (! $arme || ! empty($effet['attaque_supplementaire']))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Multiplicateur de déplacement (Vent Véloce, Potion de vitesse) — 1 sans buff. */

@@ -48,6 +48,14 @@ g, carte = etat["groupe"], etat.get("carte") or {}
 ent = etat.get("entites", [])
 moi = next((e for e in ent if e.get("id") == moi_id and e.get("type") == "heros"), None)
 
+# Le MENU courant, lu UNE fois, en tête : les portes « à portée » se lisent sur les options
+# `ouvrir_porte` que le serveur a décidées (2026-10-17). Réutilisé plus bas, pas relu.
+menu_tete = json.loads(subprocess.run(
+    ["curl", "-s", "-b", f"{S}/jar-{slot}.txt", f"http://localhost/api/groupes/{code}/menu",
+     "-H", "Accept: application/json"], capture_output=True, text=True).stdout or "{}")
+ouvrables = {o.get("id") for o in ((menu_tete.get("menu") or {}).get("options") or [])
+             if o.get("type") == "ouvrir_porte"}
+
 print(f"PHASE {g.get('phase')} | quête: {(etat.get('quete') or {}).get('titre','—')}")
 if moi is None:
     print("(héros absent de la quête)"); sys.exit(0)
@@ -137,11 +145,11 @@ if leviers:
 # les CANDIDATS plutôt que d'inventer un identifiant que l'API ne donne pas.
 portes_carte = carte.get("portes") or []
 
-# PORTE « À PORTÉE » = la case d'EMBRASURE, pas la porte (2026-10-09, verdict Morcar).
-# `EtatGroupe::portes()` publie `embrasure` (`Grille::caseEmbrasure()`) : le menu
-# n'offre `ouvrir_porte` qu'à distance 1 de CETTE case (`MoteurPortes::porteFermeeAdjacente()`),
-# jamais de la porte elle-même — une porte annoncée « à portée » à distance 1 de sa
-# seule arête ne l'était pas. Une porte sans `embrasure` publiée est SIGNALÉE, pas devinée.
+# PORTE « À PORTÉE » = ce que le MENU offre, pas une distance recalculée ici (2026-10-17).
+# Une option `ouvrir_porte` par porte close adjacente (`MoteurPortes::portesFermeesAdjacentes()`,
+# lue aussi par le résolveur) : la porte est « à portée » si son id figure dans le menu.
+# `embrasure` (publiée par `EtatGroupe::portes()`) ne sert plus qu'à la distance affichée.
+# Une porte au contact sans option (pierre, levier, clé absente) le dit, au lieu de mentir.
 def distance_embrasure(p):
     e = p.get("embrasure")
     if e is None:
@@ -181,7 +189,13 @@ if fermees:
     print("PORTES FERMÉES (ouvrables, sans clé) :")
     for p in fermees:
         d = distance_embrasure(p)
-        contact = "  → À PORTÉE (ouvrir_porte au menu)" if d == 1 else ""
+        id_ouverture = f"ouvrir_porte_{p['x']}_{p['y']}_{p.get('cote')}"
+        if id_ouverture in ouvrables:
+            contact = "  → À PORTÉE (ouvrir_porte au menu)"
+        elif d == 1:
+            contact = "  → au contact, mais AUCUNE ouverture au menu (pierre, levier ou clé absente)"
+        else:
+            contact = ""
         print(f"  ({p['x']},{p['y']}) côté {p.get('cote')} — {texte_embrasure(p)} à distance {d}{contact}")
 
 # --- TERRAIN (doc 18 §4, thème horreur_des_glaces UNIQUEMENT) : cases proches
@@ -211,10 +225,8 @@ if terrain_proche:
         print(f"  ({t['x']},{t['y']}) {t.get('nom')} — coût {t.get('cout_deplacement')} pt(s) pour ENTRER"
               f" — distance {d}{paire}" + (f" — {effet}" if effet else ""))
 
-# --- MENU (lu d'abord : c'est lui qui porte la portée du déplacement) ------------
-menu = json.loads(subprocess.run(
-    ["curl", "-s", "-b", f"{S}/jar-{slot}.txt", f"http://localhost/api/groupes/{code}/menu",
-     "-H", "Accept: application/json"], capture_output=True, text=True).stdout or "{}")
+# --- MENU (lu en tête du script : c'est lui qui porte la portée du déplacement) --
+menu = menu_tete
 opts = (menu.get("menu") or {}).get("options") or []
 portee = 0
 destinations_serveur = None

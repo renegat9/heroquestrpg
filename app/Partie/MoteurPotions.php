@@ -22,6 +22,12 @@ use Illuminate\Validation\ValidationException;
  */
 class MoteurPotions
 {
+    /**
+     * Marque, dans `etat.capacites_tour` (remise à zéro à chaque round), d'une gorgée
+     * d'une potion qui se boit AVANT la frappe (`sePoseAvantAttaque()`) : `breuvage:{nom}`.
+     */
+    private const MARQUE_BREUVAGE = 'breuvage:';
+
     public function __construct(
         private readonly MoteurSorts $sorts,
         private readonly LanceurDes $des,
@@ -270,6 +276,15 @@ class MoteurPotions
         if (! empty($effet['attaque_supplementaire']) && $etat !== null) {
             $etat->update(['attaque_supplementaire' => true]);
             $applique['attaque_supplementaire'] = true;
+
+            // Seul le BREUVAGE (sans durée) est marqué pour ce tour : si sa seconde frappe n'a
+            // pas lieu, `dissiperBreuvageNonUtilise()` le dit au fil (2026-10-17). La rage, qui
+            // porte une durée, n'est jamais « dissipée » à la fin d'un tour : elle se réarme.
+            if (self::sePoseAvantAttaque($effet)) {
+                $etat->update(['capacites_tour' => array_values(array_unique([
+                    ...(array) ($etat->capacites_tour ?? []), self::MARQUE_BREUVAGE.$objet->nom,
+                ]))]);
+            }
         }
 
         // Parchemin de Sorts : « restores all spells that Hero possessed at the
@@ -438,6 +453,76 @@ class MoteurPotions
         }
 
         return null;
+    }
+
+    /**
+     * Une gorgée de Breuvage (Potion d'héroïsme) a-t-elle été bue ce tour ? Lu par la
+     * chute des buffs de vue : une rage qui tombe n'emporte pas la seconde frappe d'une
+     * gorgée bue ce tour — sa dissipation la dira (`dissiperBreuvageNonUtilise()`).
+     */
+    public static function gorgeeBueCeTour(\App\Models\EtatPersonnageQuete $etat): bool
+    {
+        foreach ((array) ($etat->capacites_tour ?? []) as $marque) {
+            if (is_string($marque) && str_starts_with($marque, self::MARQUE_BREUVAGE)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * FIN DU TOUR d'un héros qui a bu une Potion d'héroïsme SANS que la seconde frappe
+     * ait eu lieu : l'effet se dissipe, et le fil le dit (2026-10-17). Avant, le drapeau
+     * tombait à l'ouverture du round sans un mot, et la carte dit « Drink this potion
+     * before you attack » : le joueur perdait la potion sans le savoir.
+     *
+     * Un seul point de passage, appelé par `ResolveurTour::marquerCreneau()` (le héros
+     * termine son tour) et par `ResolveurTour::ouvrirNouveauTour()` (filet : un héros
+     * tombé en plein tour ne ferme jamais son tour, le round le referme pour lui).
+     *
+     * Sans marque, rien : la rage et l'Ambidextrie posent le même drapeau, mais aucune
+     * des deux ne se dissipe à la fin d'un tour (la rage se réarme au tour suivant).
+     */
+    public function dissiperBreuvageNonUtilise(\App\Models\EtatPersonnageQuete $etat): void
+    {
+        $marques = (array) ($etat->capacites_tour ?? []);
+        $marque = null;
+
+        foreach ($marques as $candidate) {
+            if (is_string($candidate) && str_starts_with($candidate, self::MARQUE_BREUVAGE)) {
+                $marque = $candidate;
+            }
+        }
+
+        if ($marque === null) {
+            return;
+        }
+
+        // La marque ne survit pas au tour, qu'il ait été suivi d'une frappe ou non.
+        $etat->update(['capacites_tour' => array_values(array_filter($marques, fn ($m) => $m !== $marque))]);
+
+        if (! $etat->attaque_supplementaire) {
+            return; // la seconde frappe a eu lieu : rien à dire
+        }
+
+        $etat->update(['attaque_supplementaire' => false]);
+
+        $personnage = $etat->personnage;
+        $groupe = $personnage?->groupeActif;
+
+        if ($personnage === null || $groupe === null || $groupe->quete_courante_id === null) {
+            return;
+        }
+
+        $nomPotion = substr($marque, strlen(self::MARQUE_BREUVAGE));
+
+        app(TamponAnnonces::class)->annoncer($groupe, [
+            'type' => 'breuvage_dissipe',
+            'personnage_id' => (int) $personnage->id,
+            'personnage' => $personnage->nom,
+            'texte' => "{$personnage->nom} : l'effet de « {$nomPotion} » se dissipe, faute d'attaque",
+        ], ['type' => 'personnage', 'id' => (int) $personnage->id, 'nom' => $personnage->nom]);
     }
 
     /** Clé de la fenêtre « une par héros et par quête » (compteur des compétences). */

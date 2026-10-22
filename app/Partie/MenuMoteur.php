@@ -127,22 +127,10 @@ final class MenuMoteur
                 continue;
             }
 
-            // Recul : le prolongement de l'axe héros → monstre.
-            $vx = $ix - $px;
-            $vy = $iy - $py;
-
-            $emprise = $instance->monstre->emprise();
-            $grille = FabriqueGrille::pour($quete, exceptInstanceId: (int) $instance->id);
-
-            $libre = true;
-            foreach ($grille->cellulesEmprise($ix + $vx, $iy + $vy, (int) $emprise['l'], (int) $emprise['h']) as $cellule) {
-                if (! $grille->estTraversable((int) $cellule['x'], (int) $cellule['y'])) {
-                    $libre = false;
-                    break;
-                }
-            }
-
-            if (! $libre) {
+            // Recul : le prolongement de l'axe héros → monstre, libre pour toute l'emprise.
+            // UN seul prédicat, `Poussee::reculLibre()`, que le résolveur relit avant de
+            // déplacer la figure (2026-10-17).
+            if (! Poussee::reculLibre($quete, $instance, $px, $py)) {
                 continue;
             }
 
@@ -696,7 +684,11 @@ final class MenuMoteur
                         'cle' => "objet:{$ligne->id}",
                         'inventaire_id' => $ligne->id,
                         'nom' => $objet->nom,
-                        'detail' => 'Boire',
+                        // La Potion d'héroïsme se boit AVANT la frappe qu'elle double, et son effet
+                        // ne vaut que ce tour (2026-10-17) : le libellé le dit, au lieu de « Boire ».
+                        'detail' => MoteurPotions::sePoseAvantAttaque((array) $objet->effet)
+                            ? "Boire avant d'attaquer : une seconde frappe, ce tour seulement"
+                            : 'Boire',
                         'cout' => 'gratuit',
                         'quantite' => (int) $ligne->quantite,
                         'avantages' => MotsClesEquipement::avantages((array) $objet->effet),
@@ -1300,6 +1292,26 @@ final class MenuMoteur
     }
 
     /**
+     * Le suffixe de DIRECTION d'un geste sur une porte : « " au nord" », « " à l'ouest" » —
+     * vide quand une seule porte est offerte ce tour, pour que son libellé ne bouge pas
+     * (2026-10-17). Décidé ICI, par le serveur, relatif à la case du héros : deux
+     * « Ouvrir la porte » identiques ne disent pas laquelle des deux portes elles ouvrent.
+     * L'IA n'habille jamais un libellé mécanique (docs/contrat-api.md, puce « Libellé : la DIRECTION »).
+     *
+     * @param  array<string, mixed>  $porte
+     */
+    private function suffixeDirectionPorte(Quete $quete, array $porte, int $px, int $py, bool $plusieurs): string
+    {
+        if (! $plusieurs) {
+            return '';
+        }
+
+        $direction = $this->portes->directionDepuis($quete->carte, $porte, $px, $py);
+
+        return $direction === null ? '' : " {$direction}";
+    }
+
+    /**
      * Le menu complet d'un héros, AVANT le filtre d'attaque — voir {@see generer()}.
      *
      * @return array{situation: string, options: list<array<string, mixed>>}
@@ -1308,14 +1320,11 @@ final class MenuMoteur
     {
         $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
 
+        // Plus de repli « Le groupe se prépare au hub — attendre / continuer » (2026-10-17) :
+        // il était servi ET accepté au hub. Un menu de quête n'existe pas hors quête, et
+        // `GenererMenu` ne l'appelle jamais là ; l'appeler quand même est une faute.
         if ($quete === null) {
-            return [
-                'situation' => 'Le groupe se prépare au hub.',
-                'options' => $this->avecCreneaux([
-                    ['id' => 'attendre', 'libelle' => 'Attendre et observer', 'type' => 'attente'],
-                    ['id' => 'continuer', 'libelle' => 'Continuer prudemment', 'type' => 'action'],
-                ]),
-            ];
+            throw new \LogicException('Aucun menu de quête hors quête : le hub n\'en a pas (GenererMenu::sansQuete()).');
         }
 
         $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
@@ -2374,20 +2383,44 @@ final class MenuMoteur
             // coup dormait derrière le même verrou : un bloc entier gardé sur un
             // créneau que la moitié de son contenu ne consomme pas.
             //
-            // Porte close adjacente : simplement fermée → ouverture libre (E2) ;
-            // verrouillée à clé → seulement avec la clé.
-            $porte = $this->portes->porteFermeeAdjacente($quete->carte, $px, $py);
+            // UNE OPTION PAR PORTE close adjacente (2026-10-17) : un héros dans un
+            // coin en touche deux, et chacune s'ouvre POUR ELLE-MÊME — une seule
+            // offerte, l'autre annoncée « à portée » et refusée (422). Simplement
+            // fermée → ouverture libre (E2) ; verrouillée à clé → seulement avec la
+            // clé. La liste est `MoteurPortes::portesFermeesAdjacentes()`, lue aussi
+            // par le résolveur : ce que le menu offre, le résolveur l'accepte, et rien
+            // d'autre.
+            // Les portes offertes CE TOUR, tous gestes confondus : leur nombre décide du suffixe
+            // de DIRECTION des libellés (2026-10-17). Une seule porte garde son libellé d'origine.
+            // Les portes de pierre entrent dans ce compte, avec la même garde que leur bloc plus
+            // bas (`! $aAgi` et les dés de base) : UN calcul, lu des deux côtés.
+            $closes = $this->portes->portesFermeesAdjacentes($quete->carte, $px, $py);
+            $pierres = (! $aAgi && (int) $personnage->des_attaque >= MoteurPortes::DES_MINIMUM_PORTE_PIERRE)
+                ? $this->portes->portesDePierreAdjacentes($quete->carte, $px, $py)
+                : [];
+            $cleDuHeros = fn (array $p): bool => ($p['verrou']['type'] ?? null) === 'cle'
+                && $this->portes->possedeCle($personnage, $p['verrou']);
+            $ouvrables = array_filter(
+                $closes,
+                fn (array $c) => $this->portes->ouvrableAMain($c['porte']) || $cleDuHeros($c['porte']),
+            );
+            $offertes = array_unique(array_merge(
+                array_column($ouvrables, 'index'),
+                (bool) $personnage->benediction_oracle ? array_column($closes, 'index') : [],
+                array_column($pierres, 'index'),
+            ));
+            $plusieurs = count($offertes) > 1;
 
-            if ($porte !== null) {
+            foreach ($closes as $porte) {
                 $p = $porte['porte'];
-                $avecCle = ($p['verrou']['type'] ?? null) === 'cle'
-                    && $this->portes->possedeCle($personnage, $p['verrou']);
+                $cote = (string) ($p['cote'] ?? 'e');
+                $avecCle = $cleDuHeros($p);
+                $suffixe = $this->suffixeDirectionPorte($quete, $p, $px, $py, $plusieurs);
 
                 if ($this->portes->ouvrableAMain($p) || $avecCle) {
-                    $cote = (string) ($p['cote'] ?? 'e');
                     $options[] = [
                         'id' => "ouvrir_porte_{$p['x']}_{$p['y']}_{$cote}",
-                        'libelle' => $avecCle ? 'Ouvrir la porte (clé)' : 'Ouvrir la porte',
+                        'libelle' => 'Ouvrir la porte'.$suffixe.($avecCle ? ' (clé)' : ''),
                         'type' => 'ouvrir_porte',
                         'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                     ];
@@ -2403,10 +2436,9 @@ final class MenuMoteur
                 // une fois par épreuve réussie) n'a pas à concurrencer le
                 // combat pour exister.
                 if ((bool) $personnage->benediction_oracle) {
-                    $cote = (string) ($p['cote'] ?? 'e');
                     $options[] = [
                         'id' => "oracle_salle_{$p['x']}_{$p['y']}_{$cote}",
-                        'libelle' => "Bénédiction de l'Oracle — révéler la salle",
+                        'libelle' => "Bénédiction de l'Oracle — révéler la salle{$suffixe}",
                         'type' => 'oracle_salle',
                         'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                     ];
@@ -2518,16 +2550,17 @@ final class MenuMoteur
                 // (« le menu n'offre pas ce que le résolveur refuse ») : un
                 // magicien seul devant cette porte ne voit RIEN à faire ici
                 // — elle reste visible sur la carte, juste hors de sa portée.
-                $portePierre = $this->portes->porteDePierreAdjacente($quete->carte, $px, $py);
-                if ($portePierre !== null) {
-                    $desBase = (int) $personnage->des_attaque;
+                // Une option PAR porte de pierre adjacente, comme `ouvrir_porte` (2026-10-17).
+                $desBase = (int) $personnage->des_attaque;
 
-                    if ($desBase >= MoteurPortes::DES_MINIMUM_PORTE_PIERRE) {
+                if ($desBase >= MoteurPortes::DES_MINIMUM_PORTE_PIERRE) {
+                    foreach ($pierres as $portePierre) {
                         $p = $portePierre['porte'];
                         $cote = (string) ($p['cote'] ?? 'e');
+                        $suffixe = $this->suffixeDirectionPorte($quete, $p, $px, $py, $plusieurs);
                         $options[] = [
                             'id' => "forcer_porte_pierre_{$p['x']}_{$p['y']}_{$cote}",
-                            'libelle' => "Pousser la porte de pierre — {$desBase} dés d'attaque (2 crânes requis)",
+                            'libelle' => "Pousser la porte de pierre{$suffixe} — {$desBase} dés d'attaque (2 crânes requis)",
                             'type' => 'forcer_porte_pierre',
                             'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                         ];
@@ -2866,7 +2899,9 @@ final class MenuMoteur
      * conservée pour mémoire) : cible adjacente ou visible en ligne de mire
      * pour un allié à distance, sinon le chemin le plus court vers un
      * ennemi — sauf que c'est désormais le JOUEUR qui choisit QUEL ennemi,
-     * pas le moteur.
+     * pas le moteur. Le déplacement LIBRE (`se_deplacer_case_allie`, 2026-10-17)
+     * s'ajoute à ce raccourci : les cases où il peut s'arrêter, à sa vitesse, sur la
+     * même grille que le héros.
      *
      * @return array<string, mixed>
      */
@@ -2924,9 +2959,28 @@ final class MenuMoteur
             // de toutes les cases atteignables (même esprit que le pilotage
             // d'hier : rejoindre un ennemi précis, mais désormais choisi par
             // le joueur, pas deviné par le moteur).
+            // Déplacement LIBRE (2026-10-17) : toute case où l'allié peut s'arrêter, à SA
+            // vitesse — le point de passage du héros (`DeplacementHeros::destinationsAllie()`,
+            // brouillard compris), pas une seconde règle. Sans monstre en vue, c'est elle
+            // qui permet à l'allié de suivre le groupe d'une salle à l'autre.
+            if (! $allie->a_deplace) {
+                $cases = $this->deplacement->destinationsAllie($quete, $allie);
+
+                if ($cases !== []) {
+                    $options[] = [
+                        'id' => 'se_deplacer_case_allie',
+                        'libelle' => "Déplacer {$nom} sur la carte",
+                        'type' => 'deplacement_case_allie',
+                        'parametres' => ['portee' => (int) $merc->deplacement, 'destinations' => $cases],
+                    ];
+                }
+            }
+
+            // « Approcher X » : raccourci vers un monstre, calculé sur la MÊME grille de
+            // passage que le déplacement libre (brouillard compris).
             if (! $allie->a_deplace) {
                 $cibleIds = array_column($cibles, 'id');
-                $grilleMvt = FabriqueGrille::pour($quete, exceptMercenaireId: $allie->id, franchitAllies: true);
+                $grilleMvt = $this->deplacement->grilleAllie($quete, $allie);
                 $destinations = [];
 
                 foreach ($monstres as $m) {

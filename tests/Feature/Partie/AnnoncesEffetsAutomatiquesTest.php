@@ -150,6 +150,7 @@ function fixturesDesTypesAnnonces(): array
         'ouvrir_porte' => ['cause' => 'main', 'porte' => $porte],
         'oracle_salle' => ['salles_revelees' => [2]],
         'poussee' => ['cible' => $monstre, 'jet' => ['succes' => 2, 'difficulte' => 2], 'repoussee' => true],
+        'breuvage_dissipe' => ['personnage' => 'Albrecht', 'texte' => "Albrecht : l'effet de « Potion d'héroïsme » se dissipe, faute d'attaque"],
         'briser_glace' => ['personnage' => 'Albrecht', 'x' => 1, 'y' => 1, 'brisee' => true],
         'detacher_rejetons' => ['cible' => $cible, 'retires' => 1, 'restants' => 1],
         's_ecarter_du_bloc' => ['vers' => ['x' => 2, 'y' => 3]],

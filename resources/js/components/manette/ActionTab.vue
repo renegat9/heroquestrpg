@@ -141,6 +141,8 @@ const ICONE_TYPE = {
     // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) — `attaquer_allie`
     // porte `type: 'attaque'` et partage déjà `swords` ci-dessus.
     deplacement_allie: 'directions_walk',
+    // Déplacement LIBRE de l'allié (2026-10-17) : la même marche que celle du héros.
+    deplacement_case_allie: 'directions_walk',
     attente_allie: 'hourglass_bottom',
     // MISSION « SECOURIR » (chantier 3b, même date) : une main qui ouvre une
     // cage, distincte de `liberer_entraves` (les ronces, un sécateur).

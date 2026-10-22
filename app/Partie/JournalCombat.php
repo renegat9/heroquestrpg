@@ -120,7 +120,7 @@ final class JournalCombat
         // (verdict Jungle 2026-10-10 §1) : fin d'une condition à durée ou d'un buff,
         // tic de poison/étreinte/rejeton/terrain, sort regagné, changement de forme
         // d'un boss, défense à usage unique d'un monstre, salle dévoilée, vote clos.
-        'condition_terminee' => true, 'saignement' => true, 'sort_regagne' => true,
+        'condition_terminee' => true, 'breuvage_dissipe' => true, 'saignement' => true, 'sort_regagne' => true,
         'changement_phase' => true, 'reaction_monstre' => true, 'monstres_reveles' => true,
         'vote_resolu' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
@@ -1114,6 +1114,8 @@ final class JournalCombat
             // 2026-10-09 §1) : `default => []` les rendait muets sans que rien ne
             // l'écrive. Les phrases vivent dans `LignesEffetsAutomatiques`.
             'condition_terminee' => $this->conditionTerminee($a),
+            // Potion d'héroïsme bue sans frappe (2026-10-17) : la phrase est décidée par le moteur.
+            'breuvage_dissipe' => $this->breuvageDissipe($a),
             'saignement' => $this->saignement($a),
             'sort_regagne' => $this->sortRegagne($a),
             'changement_phase' => $this->changementPhaseJournalise($a),
