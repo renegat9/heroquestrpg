@@ -114,6 +114,44 @@ final class DeckFouille
     }
 
     /**
+     * L'ORDRE FIXE du Trésor caché (lot B, 2026-10-23), du MEILLEUR au pire : artefact > potion >
+     * trésor (par valeur en or) > objet (trésor-valeur, sans or chiffré) > rien > piège > monstre
+     * errant. Une issue absente tombe après les autres.
+     *
+     * ⚠ Déclaré UNE fois, ici : `choisirTresorCache()` et `rangTresorCache()` en sont les seuls lecteurs.
+     */
+    public const ORDRE_TRESOR_CACHE = ['artefact', 'potion', 'tresor', 'objet', 'rien', 'piege', 'errant'];
+
+    /** Rang d'une carte dans {@see self::ORDRE_TRESOR_CACHE} — plus petit = meilleur. */
+    public static function rangTresorCache(array $carte): int
+    {
+        $rang = array_search((string) ($carte['issue'] ?? 'rien'), self::ORDRE_TRESOR_CACHE, true);
+
+        return $rang === false ? count(self::ORDRE_TRESOR_CACHE) : $rang;
+    }
+
+    /**
+     * Garde la meilleure de deux cartes tirées pour le Trésor caché, et rend `[gardée, écartée]`.
+     *
+     * À égalité de rang, le trésor le plus riche en or l'emporte ; à égalité de valeur aussi, c'est
+     * la PREMIÈRE tirée qui est gardée — un tirage ne se départage jamais au hasard.
+     *
+     * @param  array<string, mixed>  $premiere
+     * @param  array<string, mixed>  $seconde
+     * @return array{0: array<string, mixed>, 1: array<string, mixed>}
+     */
+    public static function choisirTresorCache(array $premiere, array $seconde): array
+    {
+        $rangPremiere = self::rangTresorCache($premiere);
+        $rangSeconde = self::rangTresorCache($seconde);
+
+        $gardeLaSeconde = $rangSeconde < $rangPremiere
+            || ($rangSeconde === $rangPremiere && (int) ($seconde['or'] ?? 0) > (int) ($premiere['or'] ?? 0));
+
+        return $gardeLaSeconde ? [$seconde, $premiere] : [$premiere, $seconde];
+    }
+
+    /**
      * Bâtit le deck, désigne le coffre et lui attribue une arme unique.
      *
      * @param  array<string, mixed>  $carte  grille assemblée (salles, aretes)

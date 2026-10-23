@@ -129,6 +129,7 @@ function fixturesDesTypesAnnonces(): array
         'sort' => ['sort' => ['nom' => 'Trait de Feu'], 'cible' => $monstre, 'degats' => 1],
         'parchemin' => ['sort' => ['nom' => 'Courage'], 'cible' => $cible, 'condition' => 'Renforcé', 'source' => 'sort:Courage'],
         'concentration' => ['sort_recupere' => ['nom' => 'Boule de Feu']],
+        'tunnelier' => ['personnage' => 'Grom'],
         'sacrifice_sort' => ['sort_recupere' => ['nom' => 'Boule de Feu'], 'pv_body_paye' => 1, 'pv_body_apres' => 3],
         'soin_allie' => ['cible' => $cible, 'de' => 4, 'soin_pv_body' => 4, 'pv_body_apres' => 8, 'releve' => true],
         'saute_tour_monstre' => ['capacite' => 'Hurlement', 'portee' => 'contact', 'cibles' => [$monstre]],

@@ -281,6 +281,14 @@ final class MotsClesTalent
             'libelle' => 'une fouille de plus par salle',
             'icone' => 'search',
         ],
+        // TUNNELIER (nain·Mine, pouvoir final, lot B) : le même mode que le sort, pour CE tour. Le lecteur
+        // est le seul endroit qui décide si le nœud s'ouvre (`MoteurSorts::tunnelierDisponible()`) ; la
+        // traversée elle-même reste celle du sort, lue par `traverseRoche()` sur le buff qu'il pose.
+        'tunnelier' => [
+            'lecteur' => 'App\Partie\MoteurSorts::tunnelierDisponible()',
+            'libelle' => 'traverse la pierre pendant ce tour',
+            'icone' => 'landslide',
+        ],
 
         // ================================================================
         // Butin et marché.
@@ -305,6 +313,20 @@ final class MotsClesTalent
             'libelle' => 'repioche une carte de piège',
             'icone' => 'replay',
         ],
+        // FLAIR DU PISTEUR (explorateur·Traque, pouvoir final, lot B) : une fouille négative est refaite,
+        // une seule reprise. Lu au point de passage des tirages (`ResolveurTour::piocherAvecFlair()`).
+        'refaire_fouille_negative' => [
+            'lecteur' => 'App\Partie\ResolveurTour::piocherAvecFlair()',
+            'libelle' => 'refait une fouille négative',
+            'icone' => 'travel_explore',
+        ],
+        // TRÉSOR CACHÉ (explorateur·Butin, pouvoir final, lot B) : deux cartes, la meilleure gardée, dans
+        // le créneau et sous l'entrée de « Fouiller — trésor » (`ResolveurTour::resoudreFouilleTresor()`).
+        'fouille_meilleure_carte' => [
+            'lecteur' => 'App\Partie\ResolveurTour::resoudreFouilleTresor()',
+            'libelle' => 'garde la meilleure de deux cartes de fouille',
+            'icone' => 'diamond',
+        ],
 
         // ================================================================
         // Soutien.
@@ -327,6 +349,13 @@ final class MotsClesTalent
             'lecteur' => 'App\Partie\Equipement::verifierAccesEquipement()',
             'libelle' => 'maîtrise',
             'icone' => 'key',
+        ],
+        // CHEF-D'ŒUVRE (nain·Forge, pouvoir final, lot B) : la forge reste UNE machinerie ; ce nœud ne
+        // rend gratuite qu'une amélioration par passage au hub. Décidé par `Forge::gratuiteOuverte()`.
+        'forge_gratuite' => [
+            'lecteur' => 'App\Partie\Forge::gratuiteOuverte()',
+            'libelle' => 'amélioration de forge gratuite à chaque passage au hub',
+            'icone' => 'hardware',
         ],
         'forge_amelioration' => [
             'lecteur' => 'App\Http\Controllers\Api\ForgeController::appliquer()',

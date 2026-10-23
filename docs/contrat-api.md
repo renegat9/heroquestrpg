@@ -641,7 +641,9 @@ d'annonce ; aucune annonce ne part d'une mécanique hors liste) :
   `rarete_butin_amelioree` (Œil du prix), `soin_apres_kill` (Sang chaud : une
   mise à mort réelle rend des PV, dite au point de passage `infligerAMonstre()`),
   `degat_differe_sur_sort` (Flétrissure : un sort qui blesse sans abattre ajoute
-  une braise, dite au même point) ;
+  une braise, dite au même point),
+  `refaire_fouille_negative` (Flair du
+  pisteur : « la fouille est refaite », une seule reprise) ;
 - *actifs qui partent seuls* : `relance_des_attaque_rates` (Coup puissant, Bras
   d'acier, Coup sauvage), `attaque_supplementaire_apres_kill` (Sang qui bout,
   Coup de grâce, Soif de sang), `annuler_effet_magique` (Contresort, Verbe
@@ -3216,6 +3218,71 @@ améliorations de Forge de l'exemplaire. Un artefact `unique` circule aussi : il
 appartient au groupe, et donner n'est pas vendre. Réponse :
 `{don: {objet, quantite, vers: {personnage_id, nom}}}` ; journal `systeme`
 `objet_donne` ; broadcast `.groupe.etat` (la manette du receveur re-`GET /moi`).
+
+### Forge gratuite — Chef-d'œuvre du Nain (pouvoir final, lot B, 2026-10-23)
+
+Le nœud **Chef-d'œuvre** (nain·Forge, 4e rang, `cout: 2`, mécanique `forge_gratuite`)
+rend **une** amélioration gratuite **à chaque passage au hub**. Un passage = la phase de
+hub qui suit une quête **achevée** (terminée ou échouée) ; le hub d'avant la première
+quête n'en est pas un. La marque « déjà utilisée à ce passage » vit en base, sur le
+**héros** (`personnages.chef_oeuvre_quete_id`, l'id de la quête qui a fermé le passage) :
+la décision est `App\Partie\Forge::gratuiteOuverte()`, la seule lecture.
+
+- `/moi` publie, **par amélioration** de `forge_catalogue[]` : `prix` vaut **0** et
+  `gratuite: true` tant que l'amélioration est ouverte pour le forgeron du groupe.
+  Une pièce non forgeable n'a pas de prix à publier, donc pas de gratuité. Le
+  `forgeable` ne change pas : le prix n'y entre toujours pas.
+- `POST /groupes/{id}/forge` : si le forgeron a l'amélioration ouverte, **aucun débit**
+  et aucun contrôle de bourse ; la marque est posée dans la même transaction.
+  La réponse porte `gratuite: true|false` (201) ; le journal `systeme`
+  `forge_appliquee` porte le même `gratuite`. Pas de 422 pour cela : le serveur décide,
+  et une seconde amélioration au même passage est payée au prix du catalogue.
+- Le fil ne publie pas de ligne de hub pour la gratuité : le prix affiché à `0`
+  (« gratuit » côté manette, `opt.gratuite`) est l'annonce.
+
+### Pouvoirs finaux, lot B — options et payloads (2026-10-23)
+
+Cinq nœuds de la grille (`CompetenceSeeder`), chacun avec son lecteur déclaré dans
+`MotsClesTalent` :
+
+| Nœud (colonne) | Mécanique | Option (`id` / `type`) | `creneau` | Payload |
+|---|---|---|---|---|
+| Tunnelier (nain·Mine) | `tunnelier` | `tunnelier` / `tunnelier` | `action` | `type: "tunnelier"` |
+| Mémoire parfaite (magicien·Érudition) | `recuperer_sort_epuise` + `cout: geste_libre` | `memoire_parfaite` / `memoire_parfaite` (`parametres.sorts[]`) | `interaction` | `type: "concentration"`, `geste_libre: true`, **sans** `tour_sacrifie` |
+| Chef-d'œuvre (nain·Forge) | `forge_gratuite` | (aucune option : `/moi` et `POST /forge`) | — | `gratuite` |
+| Flair du pisteur (explorateur·Traque) | `refaire_fouille_negative` | (passif) | — | annonce `talents_declenches` |
+| Trésor caché (explorateur·Butin) | `fouille_meilleure_carte` | `fouiller_tresor_cache` / `fouille_tresor_cache` | `action` | `type: "fouille_tresor"`, `tresor_cache: true` |
+
+- **Tunnelier** : le héros reçoit, pour CE tour, l'effet **exact** du sort Traverser la
+  Pierre — le même buff `franchit_mur`, de durée `ce_tour`, de source
+  `sort:Traverser la Pierre` (`MoteurSorts::appliquerTunnelier()`). Il paie le coût du
+  sort : **l'action** (`a_agi`). Une fois par quête (`capacites_utilisees`). La traversée,
+  le brouillard (`casesInconnues()`) et la chute dans la roche (`verifierRocheMortelle()`)
+  sont ceux du sort. Aucune limite d'épaisseur de mur. Le menu ne l'offre pas si le sort
+  est absent du catalogue.
+- **Mémoire parfaite** : récupère un sort épuisé comme « Se concentrer », sans marquer
+  `a_joue` ni `a_agi`. Sa fenêtre est la sienne (`cout: geste_libre`) : elle ne consomme
+  pas celle de Concentration (`cout: tour_complet`), et réciproquement. Le fil dit « d'un
+  geste libre — sans perdre son tour ni son action ».
+- **Flair du pisteur** : une fouille de salle OU de meuble dont la carte (ou la ligne de
+  table) est **négative** — `rien`, `piege`, `errant`, ou un objet absent du catalogue —
+  est refaite une fois : la première carte est écartée (son effet ne se joue pas), la
+  seconde est gardée quelle qu'elle soit. Sans limite de nombre. Annoncé dans
+  `talents_declenches` : « la fouille est refaite (piège écarté) ». Le Sixième sens
+  s'applique d'abord, au tirage, puis le Flair juge la carte qui reste.
+- **Trésor caché** : même créneau et même entrée `Quete::aFouille()` que « Fouiller —
+  trésor ». Deux cartes tirées, la meilleure gardée selon l'ordre fixe
+  `DeckFouille::ORDRE_TRESOR_CACHE` (artefact > potion > trésor par valeur en or > objet >
+  rien > piège > errant), à égalité la première tirée. L'autre carte retourne sous le
+  paquet quand le paquet l'a retirée (une carte REMISE y est déjà). Si la carte gardée est
+  négative et que le Flair est là, elle est refaite une fois. Le payload porte
+  `tresor_cache: true` ; le fil dit « tire deux cartes et garde la meilleure ». Dans une
+  salle qui livre son **coffre désigné**, le coffre remplace le tirage : le pouvoir n'est
+  ni dépensé ni appliqué, et le payload porte `tresor_cache_sans_effet: true`.
+
+Le type `memoire_parfaite` n'est jamais journalisé : c'est une option de menu, et son
+résultat est le payload `concentration`. `JournalCombat::TYPES` le déclare muet pour
+cette raison.
 
 ## Sorts des héros (doc 02 — tout par les menus)
 

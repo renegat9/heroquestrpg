@@ -68,6 +68,8 @@ final class AnnoncesTalents
         // rend des PV), Flétrissure (un sort blessé ajoute une braise). Lus dans `MoteurDegats`.
         'soin_apres_kill',
         'degat_differe_sur_sort',
+        // Flair du pisteur (lot B, 2026-10-23) : la fouille négative refaite se voit.
+        'refaire_fouille_negative',
         // Actifs qui partent seuls.
         'relance_des_attaque_rates',
         'attaque_supplementaire_apres_kill',

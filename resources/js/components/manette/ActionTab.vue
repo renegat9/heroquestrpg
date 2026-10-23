@@ -106,6 +106,11 @@ const ICONE_TYPE = {
     franchissement: 'moving',
     fouiller: 'search',
     concentration: 'self_improvement',
+    // Lot B (pouvoirs finaux, 2026-10-23) : TUNNELIER (la pierre s'ouvre pour ce tour), MÉMOIRE PARFAITE
+    // (un geste libre : un livre qu'on relit), TRÉSOR CACHÉ (deux cartes, la meilleure gardée).
+    tunnelier: 'landslide',
+    memoire_parfaite: 'history_edu',
+    fouille_tresor_cache: 'diamond',
     ouvrir_porte: 'door_open',
     // PORTE DE PIERRE (Against the Ogre Horde p. 4, lot B) : sans entrée ici,
     // tombait sur `touch_app` comme tant d'autres avant elle (voir les notes
@@ -183,6 +188,9 @@ function metaOption(o) {
         return [el?.l, badge, 'Sort — 1×/quête'].filter(Boolean).join(' · ');
     }
     if (o.type === 'parchemin') return 'Parchemin — consommé dans tous les cas';
+    if (o.type === 'tunnelier') return 'Action — la pierre s\'ouvre ce tour · 1×/quête';
+    if (o.type === 'memoire_parfaite') return 'Geste libre — récupère un sort épuisé · 1×/quête';
+    if (o.type === 'fouille_tresor_cache') return 'Deux cartes, la meilleure gardée · 1×/quête';
     if (o.type === 'concentration') return 'Sacrifie le tour — récupère un sort épuisé';
     // ÉPREUVE : sa DESCRIPTION de catalogue, la phrase qui dit ce qu'on voit et
     // ce qu'on tente. Elle était publiée dans l'option et affichée nulle part —

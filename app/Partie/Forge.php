@@ -7,6 +7,8 @@ namespace App\Partie;
 use App\Models\ForgeAmelioration;
 use App\Models\Groupe;
 use App\Models\Inventaire;
+use App\Models\Personnage;
+use App\Models\Quete;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -110,12 +112,57 @@ final class Forge
     }
 
     /**
+     * CHEF-D'ŒUVRE (nain·Forge, pouvoir final, lot B, 2026-10-23) : le forgeron a-t-il son amélioration
+     * GRATUITE ouverte à CE passage au hub ? — seul prédicat qui le dit : `/moi` (le prix publié à 0),
+     * `ForgeController::appliquer()` (le débit sauté) et `appliquer()` le lisent ici, jamais en copie.
+     *
+     * Ouvert = le groupe est au hub, le héros a le nœud, et la quête qui précède ce hub n'est pas celle
+     * où l'amélioration a déjà servi (`personnages.chef_oeuvre_quete_id`, en base). Pas de quête terminée
+     * (hub d'avant la première quête) = pas de passage : le chantier tient un passage pour « la phase de
+     * hub qui suit une quête ».
+     */
+    public function gratuiteOuverte(Personnage $forgeron, Groupe $groupe): bool
+    {
+        if ($groupe->phase !== 'hub' || ! app(Talents::class)->a($forgeron, 'forge_gratuite')) {
+            return false;
+        }
+
+        $passage = $this->passageCourant($groupe);
+
+        return $passage !== null && (int) ($forgeron->chef_oeuvre_quete_id ?? 0) !== $passage;
+    }
+
+    /**
+     * L'identifiant de la quête qui vient de se terminer — le passage au hub en cours — ou `null` si
+     * aucune n'est encore achevée. « Achevée » = terminée OU échouée : une défaite ramène aussi au hub.
+     */
+    public function passageCourant(Groupe $groupe): ?int
+    {
+        $quete = Quete::query()
+            ->where('groupe_id', $groupe->id)
+            ->whereIn('etat', ['terminee', 'echouee'])
+            ->max('id');
+
+        return $quete === null ? null : (int) $quete;
+    }
+
+    /**
      * Applique une amélioration à une ligne d'inventaire (arme/armure non
      * Unique, jamais déjà améliorée), débite la bourse commune du groupe.
+     *
+     * `$gratuitPour` : le forgeron dont le Chef-d'œuvre est ouvert — l'amélioration est alors GRATUITE
+     * (aucun débit, aucun contrôle de bourse) et la marque du passage est posée sur ce héros, dans la
+     * même transaction. Refusé si le prédicat {@see self::gratuiteOuverte()} ne l'ouvre pas.
      */
-    public function appliquer(Groupe $groupe, Inventaire $ligne, ForgeAmelioration $amelioration): Inventaire
+    public function appliquer(Groupe $groupe, Inventaire $ligne, ForgeAmelioration $amelioration, ?Personnage $gratuitPour = null): Inventaire
     {
         $objet = $ligne->objet;
+
+        if ($gratuitPour !== null && ! $this->gratuiteOuverte($gratuitPour, $groupe)) {
+            throw ValidationException::withMessages([
+                'amelioration_id' => "Le Chef-d'œuvre de ce héros est déjà utilisé à ce passage au hub.",
+            ]);
+        }
 
         if ($objet === null || $objet->categorie !== $amelioration->cible) {
             throw ValidationException::withMessages([
@@ -141,14 +188,19 @@ final class Forge
             ]);
         }
 
-        if ((int) $groupe->or < $amelioration->prix) {
+        if ($gratuitPour === null && (int) $groupe->or < $amelioration->prix) {
             throw ValidationException::withMessages([
                 'amelioration_id' => 'La bourse commune ne couvre pas le prix de cette amélioration.',
             ]);
         }
 
-        return DB::transaction(function () use ($groupe, $ligne, $amelioration) {
-            $groupe->decrement('or', $amelioration->prix);
+        return DB::transaction(function () use ($groupe, $ligne, $amelioration, $gratuitPour) {
+            if ($gratuitPour !== null) {
+                // Chef-d'œuvre : pas de débit ; la marque dit à quelle quête ce passage est fermé.
+                $gratuitPour->update(['chef_oeuvre_quete_id' => $this->passageCourant($groupe)]);
+            } else {
+                $groupe->decrement('or', $amelioration->prix);
+            }
 
             $ligne->update(['ameliorations' => [[
                 'nom' => $amelioration->nom,

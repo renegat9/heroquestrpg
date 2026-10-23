@@ -642,7 +642,13 @@ final class ResolveurTour
                 'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
                 'poussee' => $this->resoudrePoussee($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'fouille_tresor' => $this->resoudreFouilleTresor($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // TRÉSOR CACHÉ (lot B) : la même fouille de salle, deux cartes et la meilleure gardée — même méthode.
+                'fouille_tresor_cache' => $this->resoudreFouilleTresor($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'fouille_mobilier' => $this->resoudreFouilleMobilier($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // TUNNELIER (nain·Mine, lot B) : l'effet du sort Traverser la Pierre, pour ce tour.
+                'tunnelier' => $this->resoudreTunnelier($groupe, $personnage, $etat, $option, $acteur),
+                // MÉMOIRE PARFAITE (magicien·Érudition, lot B) : un geste libre, hors de tout créneau.
+                'memoire_parfaite' => $this->resoudreMemoireParfaite($groupe, $personnage, $etat, $option, $parametres, $acteur),
                 // MARE (Jungles of Delthrak p. 4) : la fouille de trésor, mais le
                 // gain est 1 PV de Body plutôt qu'une carte du deck.
                 'boire_mare' => $this->resoudreBoireALaMare($groupe, $quete, $personnage, $etat, $option, $acteur),
@@ -5364,6 +5370,92 @@ final class ResolveurTour
     }
 
     /**
+     * TUNNELIER (nain·Mine, pouvoir final, lot B, 2026-10-23) : une fois par quête, le héros reçoit pour CE tour
+     * l'effet exact du sort Traverser la Pierre, et le paie au même coût : l'ACTION (créneau `action`, celui de
+     * tout sort — `creneauOption()` n'y déroge pas). `MoteurSorts::appliquerTunnelier()` pose le buff du sort.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreTunnelier(
+        Groupe $groupe,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        if (! $this->sorts->tunnelierDisponible($personnage, $etat)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Tunnelier indisponible : une fois par quête, au nœud nain.',
+            ]);
+        }
+
+        $this->sorts->appliquerTunnelier($personnage, $etat);
+
+        $payload = [
+            'type' => 'tunnelier',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'personnage' => $personnage->nom,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * MÉMOIRE PARFAITE (magicien·Érudition, pouvoir final, lot B, 2026-10-23) : récupère un sort épuisé comme
+     * « Se concentrer », mais SANS sacrifier le tour ni l'action — un geste libre. Fenêtre propre (son nom), une
+     * fois par quête. La liste est celle que l'option porte (`parametres.sorts`) ; elle est revalidée ici.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreMemoireParfaite(
+        Groupe $groupe,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        if (! $this->sorts->memoireDisponible($personnage, $etat)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Mémoire parfaite indisponible : une fois par quête, au nœud magicien.',
+            ]);
+        }
+
+        $entree = $this->entreeChoisie($option, $parametres, 'sorts');
+        $sort = $personnage->sorts()->whereKey((int) ($entree['sort_id'] ?? 0))->first();
+
+        if ($sort === null || $sort->pivot->disponible) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Choisissez un sort ÉPUISÉ à récupérer.',
+            ]);
+        }
+
+        $personnage->sorts()->updateExistingPivot($sort->id, ['disponible' => true]);
+        $this->sorts->marquerMemoireUtilisee($personnage, $etat);
+
+        // Le payload de la Concentration, drapeau à l'appui : le fil dit « geste libre », jamais « tour sacrifié ».
+        $payload = [
+            'type' => 'concentration',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'sort_recupere' => ['id' => $sort->id, 'nom' => $sort->nom],
+            'geste_libre' => true,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
      * `sacrifice_pv_pour_sort` (Prix du pacte, warlock) : 1 PV de Body contre un
      * sort épuisé rendu relançable.
      *
@@ -9363,7 +9455,8 @@ final class ResolveurTour
         // plus répété du projet. Niveau et maîtrises ne changent pas entre les
         // deux tirages : la relance rejoue donc la même table, sans recalculer
         // (ni ré-annoncer l'Œil du prix).
-        [$carte, $ecartee] = $this->piocherAvecSixiemeSens(
+        // FLAIR DU PISTEUR (lot B) : un résultat négatif de la table se refait ici aussi, au même point de tirage.
+        [$carte, $ecartee] = $this->piocherAvecFlair(
             $personnage, $etat,
             fn (): array => $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles),
         );
@@ -9397,6 +9490,14 @@ final class ResolveurTour
         // salle EN BASE (§2.16 — comme l'exploration, c'est de l'état durable).
         if ($quete->aFouille($salle, (int) $personnage->id)) {
             throw ValidationException::withMessages(['option_id' => 'Tu as déjà fouillé cette salle.']);
+        }
+
+        // TRÉSOR CACHÉ (lot B, 2026-10-23) : une variante de cette fouille — même créneau, même entrée — qui
+        // tire deux cartes. Le pouvoir se refuse ici comme au menu : une fois par quête, et seulement au nœud.
+        $cache = ($option['type'] ?? null) === 'fouille_tresor_cache';
+
+        if ($cache && ! $this->talents->disponible($personnage, $etat, 'fouille_meilleure_carte')) {
+            throw ValidationException::withMessages(['option_id' => 'Trésor caché indisponible : une fois par quête, au nœud explorateur.']);
         }
 
         // SLY STORAGE (FL-Q p. 7, First Light) : « le PREMIER héros à tirer
@@ -9437,8 +9538,22 @@ final class ResolveurTour
             $quete->marquerCoffreOuvert($salle);
             $carte = $this->deck->carteCoffre($quete, $salle);
             $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
+
+            // TRÉSOR CACHÉ dans une salle qui livre son coffre désigné : le coffre REMPLACE le tirage. Le pouvoir
+            // n'est alors ni dépensé ni appliqué, et le fil le dit — jamais une carte tirée à sa place en silence.
+            if ($cache) {
+                $payload['tresor_cache_sans_effet'] = true;
+            }
         } else {
-            [$carte, $ecartee] = $this->piocherAvecSixiemeSens($personnage, $etat, fn (): array => $this->deck->piocher($quete));
+            $tirer = fn (): array => $this->deck->piocher($quete);
+
+            if ($cache) {
+                [$carte, $ecartee] = $this->tirerTresorCache($personnage, $etat, $quete, $tirer);
+                $entete['tresor_cache'] = true;
+            } else {
+                // FLAIR DU PISTEUR (lot B) : une fouille négative se refait, à l'endroit même où la carte est tirée.
+                [$carte, $ecartee] = $this->piocherAvecFlair($personnage, $etat, $tirer);
+            }
 
             if ($ecartee !== null) {
                 $entete['carte_ecartee'] = $ecartee;
@@ -9685,6 +9800,112 @@ final class ResolveurTour
         }
 
         return [$tirer(), (string) $carte['issue']];
+    }
+
+    /**
+     * FLAIR DU PISTEUR (explorateur·Traque, pouvoir final, lot B, 2026-10-23) : une fouille négative se refait.
+     *
+     * UN SEUL POINT DE PASSAGE, comme `piocherAvecSixiemeSens()` dont il reprend le patron : la fouille de SALLE
+     * et celle de MOBILIER tirent ici, et la règle (qui est négatif, qui refait, combien de fois) ne vit qu'ici.
+     * Le Sixième sens s'applique d'abord — c'est un tirage — puis le Flair juge la carte qui reste.
+     *
+     * @param  \Closure(): array<string, mixed>  $tirer
+     * @return array{0: array<string, mixed>, 1: string|null} carte retenue, issue écartée par le Sixième sens
+     */
+    private function piocherAvecFlair(Personnage $personnage, EtatPersonnageQuete $etat, \Closure $tirer): array
+    {
+        [$carte, $ecartee] = $this->piocherAvecSixiemeSens($personnage, $etat, $tirer);
+        [$carte, $ecarteeReprise] = $this->refaireSiNegative($personnage, $etat, $carte, $tirer);
+
+        return [$carte, $ecartee ?? $ecarteeReprise];
+    }
+
+    /**
+     * TRÉSOR CACHÉ (explorateur·Butin, pouvoir final, lot B, 2026-10-23) : deux cartes du paquet, la meilleure
+     * gardée selon l'ordre FIXE de `DeckFouille::choisirTresorCache()`, l'autre repassée sous le paquet. Une
+     * fois par quête (le compteur est consommé ici, une fois les deux tirages faits).
+     *
+     * @param  \Closure(): array<string, mixed>  $tirer
+     * @return array{0: array<string, mixed>, 1: string|null} carte gardée, issue écartée par le Sixième sens
+     */
+    private function tirerTresorCache(Personnage $personnage, EtatPersonnageQuete $etat, Quete $quete, \Closure $tirer): array
+    {
+        [$premiere, $ecartee] = $this->piocherAvecSixiemeSens($personnage, $etat, $tirer);
+        [$seconde, $ecarteeSeconde] = $this->piocherAvecSixiemeSens($personnage, $etat, $tirer);
+
+        [$gardee, $autre] = DeckFouille::choisirTresorCache($premiere, $seconde);
+
+        // L'autre carte retourne sous le paquet. Une carte REMISE (monstre errant, piège) y est déjà remontée au
+        // tirage : la repousser la doublerait. Une carte RETIRÉE (or, potion, objet, rien) sort du paquet : on la repose.
+        if (empty($autre['deck_vide']) && DeckFouille::sortDe($autre) === DeckFouille::RETIREE_DU_PAQUET) {
+            $quete->remettreSousLePaquet($autre);
+        }
+
+        $this->talents->consommer($personnage, $etat, 'fouille_meilleure_carte');
+
+        // Flair : la carte GARDÉE, si elle est négative, se refait une fois — elle est alors la première carte de la fouille.
+        [$gardee, $ecarteeReprise] = $this->refaireSiNegative($personnage, $etat, $gardee, $tirer);
+
+        return [$gardee, $ecartee ?? $ecarteeSeconde ?? $ecarteeReprise];
+    }
+
+    /**
+     * Une carte NÉGATIVE tirée par un héros au Flair du pisteur est ANNULÉE — son effet ne se joue pas — et la
+     * fouille est refaite UNE fois, la reprise étant gardée quelle qu'elle soit (chantier, 2026-10-23).
+     *
+     * @param  array<string, mixed>  $carte
+     * @param  \Closure(): array<string, mixed>  $tirer
+     * @return array{0: array<string, mixed>, 1: string|null} carte retenue, issue écartée par le Sixième sens de la reprise
+     */
+    private function refaireSiNegative(Personnage $personnage, EtatPersonnageQuete $etat, array $carte, \Closure $tirer): array
+    {
+        if (! $this->fouilleNegative($carte) || ! $this->talents->a($personnage, 'refaire_fouille_negative')) {
+            return [$carte, null];
+        }
+
+        $noeud = $this->talents->noeud($personnage, 'refaire_fouille_negative');
+        $annulee = (string) ($carte['issue'] ?? 'rien');
+
+        [$reprise, $ecartee] = $this->piocherAvecSixiemeSens($personnage, $etat, $tirer);
+
+        // Un effet automatique que rien n'annonce est injouable : le fil dit ce qui a été écarté.
+        if ($noeud !== null) {
+            $this->annonces->annoncer($personnage, $noeud, 'la fouille est refaite ('.$this->libelleEcartee($annulee).' écarté)');
+        }
+
+        return [$reprise, $ecartee];
+    }
+
+    /**
+     * Le prédicat de NÉGATIVITÉ d'une carte de fouille, lu par le Flair et par rien d'autre : `rien`, `piege` et
+     * `errant` le sont par nature ; un trésor dont l'objet n'existe pas au catalogue (`objet_indisponible`) aussi.
+     *
+     * @param  array<string, mixed>  $carte
+     */
+    private function fouilleNegative(array $carte): bool
+    {
+        $issue = (string) ($carte['issue'] ?? 'rien');
+
+        if (in_array($issue, ['rien', 'piege', 'errant'], true)) {
+            return true;
+        }
+
+        if (in_array($issue, ['potion', 'artefact', 'objet'], true)) {
+            return Objet::find((int) ($carte['objet_id'] ?? 0)) === null;
+        }
+
+        return false;
+    }
+
+    /** Le nom d'une issue écartée, tel que le fil le dit. */
+    private function libelleEcartee(string $issue): string
+    {
+        return match ($issue) {
+            'piege' => 'piège',
+            'errant' => 'monstre errant',
+            'rien' => 'rien',
+            default => 'objet introuvable',
+        };
     }
 
     /**
@@ -13057,7 +13278,11 @@ final class ResolveurTour
             'ouvrir_porte', 'oracle_salle', 'sortie', 'retraite', 'style', 'objet_libre', 'jeter',
             // `defausse_sables` : abandonner un objet aux sables est GRATUIT, comme `jeter` — c'est le DERNIER
             // objet (ou la chute faute d'objet) qui clôt le tour, par `$finTourSables`, pas le type.
-            'desarmer_embrasement', 'liberer_captif', 'defausse_sables' => 'interaction',
+            // `memoire_parfaite` (magicien, lot B, 2026-10-23) : « récupère un sort épuisé SANS y passer ton tour ni
+            // ton action (geste libre) » — aucun créneau n'est marqué, `marquerCreneau()` rend la main tout de suite.
+            // `tunnelier` et `fouille_tresor_cache` ne sont PAS listés : ils retombent sur `action`, comme le sort
+            // qu'ils reprennent et la fouille qu'ils remplacent.
+            'desarmer_embrasement', 'liberer_captif', 'defausse_sables', 'memoire_parfaite' => 'interaction',
             // `s_ecarter_du_bloc` REJOINT cette liste le 2026-09-24 : le seul
             // choix qu'un héros debout sur un bloc de pierre tombé peut encore
             // faire, et le livret dit que ce choix FERME son tour (p. 14) —

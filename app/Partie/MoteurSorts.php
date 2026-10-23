@@ -170,6 +170,20 @@ final class MoteurSorts
     /** Nom exact du nœud magicien de récupération (CompetenceSeeder). */
     public const MECANIQUE_CONCENTRATION = 'recuperer_sort_epuise';
 
+    /**
+     * Le coût qui distingue les DEUX nœuds portant `recuperer_sort_epuise` (lot B, 2026-10-23) :
+     * « Se concentrer » sacrifie le tour (`tour_complet`), « Mémoire parfaite » est un geste libre
+     * (`geste_libre`). Sans ce critère, `Talents::noeud()` rendrait le premier des deux seulement.
+     */
+    public const COUT_CONCENTRATION = 'tour_complet';
+    public const COUT_MEMOIRE_PARFAITE = 'geste_libre';
+
+    /** Mécanique du Tunnelier (nain·Mine, lot B) : le mode du sort, pour CE tour. */
+    public const MECANIQUE_TUNNELIER = 'tunnelier';
+
+    /** Le sort dont le Tunnelier reprend l'effet, à l'identique (`appliquerBuff()`). */
+    public const SORT_TRAVERSER_LA_PIERRE = 'Traverser la Pierre';
+
     /** Préfixe des sources de conditions posées par un sort. */
     public const PREFIXE_SOURCE = 'sort:';
 
@@ -1058,7 +1072,87 @@ final class MoteurSorts
      */
     public function concentrationDisponible(Personnage $personnage, ?EtatPersonnageQuete $etat): bool
     {
-        return app(Talents::class)->disponible($personnage, $etat, self::MECANIQUE_CONCENTRATION);
+        return app(Talents::class)->disponible($personnage, $etat, self::MECANIQUE_CONCENTRATION, ['cout' => self::COUT_CONCENTRATION]);
+    }
+
+    /**
+     * MÉMOIRE PARFAITE (magicien, pouvoir final, lot B) : le même lecteur que la Concentration, pour le
+     * nœud au coût `geste_libre`. Sa fenêtre est la sienne (son nom), donc les deux ne se consomment pas
+     * l'une l'autre, et un geste libre ne prend ni le tour ni l'action.
+     */
+    public function memoireDisponible(Personnage $personnage, ?EtatPersonnageQuete $etat): bool
+    {
+        return app(Talents::class)->disponible($personnage, $etat, self::MECANIQUE_CONCENTRATION, ['cout' => self::COUT_MEMOIRE_PARFAITE]);
+    }
+
+    /**
+     * TUNNELIER (nain·Mine, pouvoir final, lot B) : une fois par quête, et seulement si le sort qu'il
+     * reprend existe au catalogue — sans lui, l'option serait offerte pour un effet qu'on ne saurait pas poser.
+     */
+    public function tunnelierDisponible(Personnage $personnage, ?EtatPersonnageQuete $etat): bool
+    {
+        return app(Talents::class)->disponible($personnage, $etat, self::MECANIQUE_TUNNELIER)
+            && Sort::where('nom', self::SORT_TRAVERSER_LA_PIERRE)->exists();
+    }
+
+    /**
+     * Pose, pour CE tour, l'effet EXACT du sort Traverser la Pierre sur son porteur : le même
+     * `appliquerBuff()` que la cible du sort, avec sa durée (`ce_tour`) et sa source `sort:Traverser la
+     * Pierre`. Rien n'est recopié : `traverseRoche()`, le brouillard, la chute dans la roche et
+     * l'expiration de fin de tour sont ceux du sort. Marque la capacité dépensée dans la quête.
+     */
+    public function appliquerTunnelier(Personnage $personnage, EtatPersonnageQuete $etat): void
+    {
+        $sort = Sort::where('nom', self::SORT_TRAVERSER_LA_PIERRE)->firstOrFail();
+
+        $this->appliquerBuff($personnage, $sort);
+
+        app(Talents::class)->consommer($personnage, $etat, self::MECANIQUE_TUNNELIER);
+    }
+
+    /**
+     * L'option « Mémoire parfaite » (lot B) : un geste LIBRE, donc hors de tout créneau de tour. Sa liste
+     * est celle des sorts épuisés, comme « Se concentrer », et le résolveur la revalide.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function optionsGesteLibre(Personnage $personnage, ?EtatPersonnageQuete $etat): array
+    {
+        if (! $this->memoireDisponible($personnage, $etat)) {
+            return [];
+        }
+
+        $epuises = $this->entreesEpuisees($personnage);
+
+        if ($epuises === []) {
+            return [];
+        }
+
+        return [[
+            'id' => 'memoire_parfaite',
+            'libelle' => 'Mémoire parfaite — récupérer un sort épuisé, sans perdre ton tour ni ton action',
+            'type' => 'memoire_parfaite',
+            'parametres' => ['sorts' => $epuises],
+        ]];
+    }
+
+    /**
+     * L'option du Tunnelier (lot B) : un sort d'action sans cible — le héros est son propre porteur,
+     * comme la cible « soi » du sort.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function optionTunnelier(Personnage $personnage, ?EtatPersonnageQuete $etat): array
+    {
+        if (! $this->tunnelierDisponible($personnage, $etat)) {
+            return [];
+        }
+
+        return [[
+            'id' => 'tunnelier',
+            'libelle' => 'Tunnelier — traverser la pierre pendant ce tour, comme Traverser la Pierre',
+            'type' => 'tunnelier',
+        ]];
     }
 
     /**
@@ -1091,7 +1185,13 @@ final class MoteurSorts
 
     public function marquerConcentrationUtilisee(Personnage $personnage, EtatPersonnageQuete $etat): void
     {
-        app(Talents::class)->consommer($personnage, $etat, self::MECANIQUE_CONCENTRATION);
+        app(Talents::class)->consommer($personnage, $etat, self::MECANIQUE_CONCENTRATION, ['cout' => self::COUT_CONCENTRATION]);
+    }
+
+    /** La Mémoire parfaite consomme SA fenêtre, pas celle de la Concentration (même mécanique, autre coût). */
+    public function marquerMemoireUtilisee(Personnage $personnage, EtatPersonnageQuete $etat): void
+    {
+        app(Talents::class)->consommer($personnage, $etat, self::MECANIQUE_CONCENTRATION, ['cout' => self::COUT_MEMOIRE_PARFAITE]);
     }
 
     // ------------------------------------------------------------------

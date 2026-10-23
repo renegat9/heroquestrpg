@@ -602,6 +602,8 @@ const LISTES = {
     lire_parchemin: { cle: 'parchemins', titre: 'Quel parchemin lire ?', retour: 'Retour aux parchemins' },
     utiliser_objet: { cle: 'objets', titre: 'Quel objet utiliser ?', retour: 'Retour aux objets' },
     se_concentrer: { cle: 'sorts', titre: 'Quel sort récupérer ?', retour: 'Retour aux sorts' },
+    // MÉMOIRE PARFAITE (magicien, lot B) : la même liste que « Se concentrer », sans le tour sacrifié.
+    memoire_parfaite: { cle: 'sorts', titre: 'Quel sort retrouver ?', retour: 'Retour aux sorts' },
     sacrifier_pour_sort: { cle: 'sorts', titre: 'Quel sort récupérer ?', retour: 'Retour aux sorts' },
     // Équiper / ranger / attaquer (René, 2026-09-18) : les trois dernières
     // options qui portaient encore UNE pièce chacune — `equiper_{id}`,

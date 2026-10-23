@@ -263,6 +263,20 @@ class Quete extends Model
     }
 
     /**
+     * Repose SOUS le paquet une carte que le Trésor caché n'a pas gardée (lot B, 2026-10-23).
+     *
+     * ⚠ Appelé seulement pour une carte que `piocherCarte()` a RETIRÉE du paquet : une carte
+     * REMISE (monstre errant, piège) y est déjà remontée au moment du tirage, la repousser la
+     * doublerait. C'est l'appelant qui le sait (`DeckFouille::sortDe()`).
+     *
+     * @param  array<string, mixed>  $carte
+     */
+    public function remettreSousLePaquet(array $carte): void
+    {
+        $this->update(['deck_fouille' => [...$this->deckFouille(), $carte]]);
+    }
+
+    /**
      * Salles abritant un coffre. Toujours la salle-artefact si elle existe —
      * le repli couvre les quêtes démarrées avant la colonne.
      *

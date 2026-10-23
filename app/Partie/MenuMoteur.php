@@ -2421,6 +2421,11 @@ final class MenuMoteur
 
                 $options[] = $option;
             }
+
+            // TUNNELIER (nain·Mine, lot B) : l'effet du sort, pour ce tour. Un sort d'action : même bloc.
+            foreach ($this->sorts->optionTunnelier($personnage, $etat) as $option) {
+                $options[] = $option;
+            }
         } elseif ($bonusReserveArcaniqueDisponible && ! $sortsInterdits) {
             // Bonus déjà consommé le créneau action normal : seul un second
             // SORT connu (pas un parchemin/la concentration) reste proposable.
@@ -2428,6 +2433,14 @@ final class MenuMoteur
                 if (($option['type'] ?? null) === 'sort') {
                     $options[] = $option;
                 }
+            }
+        }
+
+        // MÉMOIRE PARFAITE (magicien, lot B) : un geste libre, hors du bloc `! $aAgi` — comme les objets, il ne
+        // dépend pas du créneau d'action. Le même garde-fou que « Se concentrer » : pas de geste de sort sous Grésil.
+        if ($etat !== null && ! $sortsInterdits && ! $actionInterdite) {
+            foreach ($this->sorts->optionsGesteLibre($personnage, $etat) as $option) {
+                $options[] = $option;
             }
         }
 
@@ -2828,6 +2841,16 @@ final class MenuMoteur
                     'libelle' => 'Fouiller — trésor',
                     'type' => 'fouille_tresor',
                 ];
+
+                // TRÉSOR CACHÉ (explorateur·Butin, lot B) : la même fouille — même salle, même entrée — qui tire deux
+                // cartes et garde la meilleure. Une fois par quête : ne se propose qu'au nœud, et tant qu'il reste.
+                if ($this->talents->disponible($personnage, $etat, 'fouille_meilleure_carte')) {
+                    $options[] = [
+                        'id' => 'fouiller_tresor_cache',
+                        'libelle' => 'Fouiller — trésor caché : deux cartes, tu gardes la meilleure',
+                        'type' => 'fouille_tresor_cache',
+                    ];
+                }
 
                 // MARE (Pool of Water, Jungles of Delthrak p. 4) : « If a hero
                 // searches for treasure in an area containing a pool of water,
