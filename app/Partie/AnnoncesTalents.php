@@ -64,6 +64,10 @@ final class AnnoncesTalents
         'ignore_terrain_entravant',
         'bonus_or_tresor',
         'rarete_butin_amelioree',
+        // Passifs de combat qui jouent sur un coup (lot A, 2026-10-23) : Sang chaud (une mise à mort
+        // rend des PV), Flétrissure (un sort blessé ajoute une braise). Lus dans `MoteurDegats`.
+        'soin_apres_kill',
+        'degat_differe_sur_sort',
         // Actifs qui partent seuls.
         'relance_des_attaque_rates',
         'attaque_supplementaire_apres_kill',

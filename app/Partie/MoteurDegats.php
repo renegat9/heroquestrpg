@@ -478,6 +478,48 @@ final class MoteurDegats
         array $contexte = [],
         ?Personnage $auteurHeros = null,
     ): array {
+        $etaitVivant = $instance->etat !== 'vaincu';
+
+        $resultat = $this->infligerAMonstreBrut($instance, $degats, $source, $contexte, $auteurHeros);
+
+        // FLÉTRISSURE (warlock, lot A, 2026-10-23) : un sort de HÉROS qui BLESSE sans abattre ajoute un dégât
+        // différé à la braise. Lu ici, au point de passage des dégâts encaissés par un monstre — `sortDegats()`
+        // et `projeterRayon()` y arrivent tous deux avec le lanceur. Rien quand le coup est absorbé (0 dégât)
+        // ni quand le monstre tombe : il n'y a plus de tour à suivre.
+        if ($source === self::SOURCE_SORT_HEROS
+            && $auteurHeros !== null
+            && $resultat['degats'] > 0
+            && ! $resultat['vaincu']) {
+            $this->fletrissure($instance, $auteurHeros);
+        }
+
+        // SANG CHAUD (berserker, lot A, 2026-10-23) : la mise à mort que CE coup vient de porter rend des PV à
+        // celui qui l'a portée. Même critère que la faveur Peacekeeper, et pour la même raison : `$auteurHeros`
+        // n'est renseigné que là où un héros frappe EN SON NOM (ni allié, ni piège, ni sort du Dread).
+        if ($etaitVivant && $resultat['vaincu'] && $auteurHeros !== null) {
+            $this->sangChaud($auteurHeros);
+        }
+
+        return $resultat;
+    }
+
+    /**
+     * Le corps de {@see infligerAMonstre()} : l'issue du coup SEUL, avant les effets de talent qui la suivent.
+     * Séparé pour que les deux crochets de talent (Flétrissure, Sang chaud) soient lus une fois, à la sortie,
+     * quel que soit le `return` emprunté ici (phase, increvable, sacrifice, absorption, mort…).
+     *
+     * @param  array<string, mixed>  $contexte
+     * @return array{degats: int, pv_body: int, pv_body_max: int, etat: string,
+     *     vaincu: bool, changement_phase: array{avant: string, apres: string}|null,
+     *     reaction: string|null, survie_increvable: bool, reddition: bool, or_gagne: int}
+     */
+    private function infligerAMonstreBrut(
+        InstanceMonstre $instance,
+        int $degats,
+        string $source,
+        array $contexte,
+        ?Personnage $auteurHeros,
+    ): array {
         $degats = max(0, $degats);
         $avant = (int) $instance->pv_body;
         $apres = max(0, $avant - $degats);
@@ -731,6 +773,72 @@ final class MoteurDegats
             // publié pour que le résolveur le fasse remonter à la manette.
             'reaction_dread' => $reactionDread,
         ];
+    }
+
+    /**
+     * FLÉTRISSURE (warlock, lot A, 2026-10-23) : ajoute 1 dégât différé à la BRAISE du monstre.
+     *
+     * ⚠ Une seule colonne (`degat_differe`), donc on AJOUTE à la braise déjà allumée (le Toucher du Brasier du
+     * moine, par exemple) : jamais une seconde copie. Un seul auteur est stocké ; il devient le dernier lanceur
+     * qui a ajouté un dégât. La braise est consommée à la fin du prochain tour du monstre (`consumerBraise()`).
+     */
+    private function fletrissure(InstanceMonstre $instance, Personnage $auteur): void
+    {
+        $noeud = app(Talents::class)->noeud($auteur, 'degat_differe_sur_sort');
+        $valeur = (int) ($noeud?->effet['valeur'] ?? 0);
+
+        if ($noeud === null || $valeur <= 0) {
+            return;
+        }
+
+        $instance->update([
+            'degat_differe' => (int) $instance->degat_differe + $valeur,
+            'degat_differe_personnage_id' => $auteur->id,
+        ]);
+
+        app(AnnoncesTalents::class)->annoncer(
+            $auteur,
+            $noeud,
+            "ajoute {$valeur} dégât différé à la fin du prochain tour de la cible",
+        );
+    }
+
+    /**
+     * SANG CHAUD (berserker, lot A, 2026-10-23) : chaque monstre abattu rend des PV de Body, sans dépasser le maximum.
+     *
+     * ⚠ Les PV se relisent en BASE avant d'être écrits : le modèle de l'appelant peut être périmé d'un coup encaissé
+     * dans la même transaction. Un héros déjà au maximum ne fait rien, et ne l'annonce pas (un talent qui ne joue
+     * pas n'émet rien).
+     */
+    private function sangChaud(Personnage $auteur): void
+    {
+        $noeud = app(Talents::class)->noeud($auteur, 'soin_apres_kill');
+        $valeur = (int) ($noeud?->effet['valeur'] ?? 0);
+
+        if ($noeud === null || $valeur <= 0) {
+            return;
+        }
+
+        $ligne = Personnage::query()->whereKey($auteur->id)->first(['id', 'pv_body', 'pv_body_max']);
+
+        if ($ligne === null) {
+            return;
+        }
+
+        $avant = (int) $ligne->pv_body;
+        $apres = min((int) $ligne->pv_body_max, $avant + $valeur);
+
+        if ($apres <= $avant) {
+            return;
+        }
+
+        $auteur->update(['pv_body' => $apres]);
+
+        app(AnnoncesTalents::class)->annoncer(
+            $auteur,
+            $noeud,
+            'rend '.($apres - $avant)." PV de Body ({$apres}/".(int) $ligne->pv_body_max.')',
+        );
     }
 
     /**

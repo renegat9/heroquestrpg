@@ -131,6 +131,8 @@ function fixturesDesTypesAnnonces(): array
         'concentration' => ['sort_recupere' => ['nom' => 'Boule de Feu']],
         'sacrifice_sort' => ['sort_recupere' => ['nom' => 'Boule de Feu'], 'pv_body_paye' => 1, 'pv_body_apres' => 3],
         'soin_allie' => ['cible' => $cible, 'de' => 4, 'soin_pv_body' => 4, 'pv_body_apres' => 8, 'releve' => true],
+        'saute_tour_monstre' => ['capacite' => 'Hurlement', 'portee' => 'contact', 'cibles' => [$monstre]],
+        'tir_traversant' => ['capacite' => 'Flèche traversante', 'direction' => 'e', 'cibles' => 2],
         'liberer_entraves' => ['cible' => $cible, 'sur_soi' => false, 'lianes_detruites' => true],
         'relever' => ['libelle' => 'Albrecht relève Grom'],
         'regain_corps' => ['nom' => 'Grom'],

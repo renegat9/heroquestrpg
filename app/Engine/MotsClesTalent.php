@@ -116,6 +116,13 @@ final class MotsClesTalent
             'libelle' => 'dé de défense aux héros à ton contact',
             'icone' => 'groups',
         ],
+        // Miroir côté ATTAQUE du porteur (Cri de ralliement, lot A, 2026-10-23) : le dé
+        // s'ajoute au calcul de `frapper()`, pour l'attaquant qui se tient à son contact.
+        'bonus_des_attaque_allie_adjacent' => [
+            'lecteur' => 'App\Partie\ResolveurTour::frapper()',
+            'libelle' => 'dé d\'attaque aux héros à ton contact',
+            'icone' => 'flag',
+        ],
         'ignore_defense_monstre' => [
             'lecteur' => 'App\Partie\ResolveurTour::frapper()',
             'libelle' => 'dé de défense au monstre visé',
@@ -139,6 +146,37 @@ final class MotsClesTalent
             'lecteur' => 'App\Partie\ResolveurTour::frapper()',
             'libelle' => 'inflige une condition au monstre touché',
             'icone' => 'coronavirus',
+        ],
+        // Action (lot A, 2026-10-23) : le monstre perd son prochain tour. Une mécanique, deux
+        // portées — `contact` (Hurlement, tous les monstres à ton contact) et `vue` (Mot de
+        // pouvoir, UN monstre que tu vois). Le lecteur lit `effet.cible`, jamais le nom du nœud.
+        'saute_tour_monstre' => [
+            'lecteur' => 'App\Partie\ResolveurTour::resoudreSauteTourMonstre()',
+            'libelle' => 'fait perdre son prochain tour à un monstre',
+            'icone' => 'campaign',
+        ],
+        // Action (lot A, 2026-10-23) : un tir d'arme à distance qui frappe CHAQUE ennemi de la
+        // ligne (géométrie de `Rayon`), chacun se défendant aux dés de l'arme.
+        'tir_traversant' => [
+            'lecteur' => 'App\Partie\ResolveurTour::resoudreTirTraversant()',
+            'libelle' => 'tire sur chaque ennemi de la ligne, chacun se défend',
+            'icone' => 'linear_scale',
+        ],
+        // Passif déclenché par une MISE À MORT (lot A, 2026-10-23) : le point de passage est
+        // `MoteurDegats::infligerAMonstre()`, celui où l'on sait que le monstre est vraiment tombé.
+        'soin_apres_kill' => [
+            'lecteur' => 'App\Partie\MoteurDegats::infligerAMonstre()',
+            'libelle' => 'PV de Body rendus à chaque monstre que tu abats',
+            'icone' => 'favorite',
+        ],
+        // Passif (lot A, 2026-10-23) : un sort de héros qui blesse un monstre sans l'abattre y ajoute un dégât
+        // DIFFÉRÉ, dans la colonne `degat_differe` de la braise — une seule machinerie. Le point de passage est
+        // `MoteurDegats::infligerAMonstre()`, où l'on sait qui a lancé le sort. (Déclaré en combat, pas en magie :
+        // la section magie appartient au lot B.)
+        'degat_differe_sur_sort' => [
+            'lecteur' => 'App\Partie\MoteurDegats::infligerAMonstre()',
+            'libelle' => 'dégât différé à la fin du prochain tour de la cible, sur chaque sort qui la blesse',
+            'icone' => 'timer',
         ],
 
         // ================================================================
@@ -495,9 +533,16 @@ final class MotsClesTalent
     {
         // Mécaniques dont le paramètre n'est pas un nombre mais une liste.
         if ($mecanique === 'resistance_condition') {
-            $noms = implode(' et ', (array) ($effet['condition_nom'] ?? []));
+            $noms = self::enumerer((array) ($effet['condition_nom'] ?? []));
 
             return $noms === '' ? $libelle : "{$libelle} aux conditions {$noms}";
+        }
+
+        // Hurlement (`contact`) et Mot de pouvoir (`vue`) : la PORTÉE est le paramètre, pas un nombre.
+        if ($mecanique === 'saute_tour_monstre') {
+            return ($effet['cible'] ?? null) === 'contact'
+                ? 'Fait perdre son prochain tour à tous les monstres à ton contact'
+                : 'Fait perdre son prochain tour à un monstre que tu vois';
         }
 
         if ($mecanique === 'acces_equipement') {
@@ -548,6 +593,23 @@ final class MotsClesTalent
         $signe = $soustractif ? '−' : ($valeur >= 0 ? '+' : '−');
 
         return $signe.abs($valeur).' '.$libelle;
+    }
+
+    /** « A », « A et B », « A, B et C » : la liste française, jamais « A et B et C ». */
+    private static function enumerer(array $items): string
+    {
+        $items = array_values(array_filter(
+            array_map('strval', $items),
+            static fn (string $item): bool => $item !== '',
+        ));
+
+        if (count($items) <= 1) {
+            return $items[0] ?? '';
+        }
+
+        $dernier = array_pop($items);
+
+        return implode(', ', $items).' et '.$dernier;
     }
 
     /** Condition, contexte et cadence, ajoutés en queue de phrase. */

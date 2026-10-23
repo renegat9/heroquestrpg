@@ -64,6 +64,10 @@ const ICONE_TYPE = {
     // Frappe balayée (Frénésie sanguinaire) : sans cible à choisir, elle part
     // au clic — l'icône doit dire que ça tourne sur soi-même.
     attaque_balayee: 'cyclone',
+    // Hurlement / Mot de pouvoir (lot A, 2026-10-23) : un monstre perd son prochain tour — un cri, un mégaphone.
+    saute_tour_monstre: 'campaign',
+    // Flèche traversante (lot A, 2026-10-23) : un tir qui traverse toute la ligne.
+    tir_traversant: 'linear_scale',
     // Styles Élémentaires du Moine : activation, rayon, braise.
     style: 'self_improvement',
     rayon: 'bolt',

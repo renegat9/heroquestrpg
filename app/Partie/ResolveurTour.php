@@ -201,6 +201,8 @@ final class ResolveurTour
         private readonly FaveursHopekins $faveurs,
         private readonly DeplacementHeros $deplacement,
         private readonly ReactionsMj $reactionsMj,
+        private readonly SauteTourMonstre $sauteTour,
+        private readonly TirTraversant $tirTraversant,
     ) {}
 
     /**
@@ -622,6 +624,10 @@ final class ResolveurTour
                 'concentration' => $this->resoudreConcentration($groupe, $personnage, $etat, $option, $parametres, $acteur),
                 'sacrifice_sort' => $this->resoudreSacrificePourSort($groupe, $personnage, $option, $parametres, $acteur),
                 'soin_allie' => $this->resoudreSoinAllie($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
+                // HURLEMENT / MOT DE POUVOIR (lot A, 2026-10-23) : le monstre perd son prochain tour. Action.
+                'saute_tour_monstre' => $this->resoudreSauteTourMonstre($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
+                // FLÈCHE TRAVERSANTE (lot A, 2026-10-23) : un tir qui frappe chaque ennemi de la ligne. Action.
+                'tir_traversant' => $this->resoudreTirTraversant($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'liberer_entraves' => $this->resoudreLiberationEntraves($groupe, $quete, $personnage, $option, $parametres, $acteur),
                 'attaquer_liens' => $this->resoudreAttaqueLiens($groupe, $quete, $personnage, $option, $parametres, $acteur),
                 'detacher_rejetons' => $this->resoudreDetacherRejetons($groupe, $quete, $etat, $option, $parametres, $acteur),
@@ -1878,6 +1884,12 @@ final class ResolveurTour
             ? (int) ($noeudElan->effet['valeur'] ?? 0)
             : 0;
 
+        // `bonus_des_attaque_allie_adjacent` (Cri de ralliement, chevalier) : le MIROIR côté attaque de la
+        // Bannière. Chaque porteur qui se tient au contact de l'attaquant lui donne son dé — jamais à lui-même
+        // (`sommeChezLesVoisins()` exclut l'attaquant). Compté ici, dans la même somme que les autres bonus
+        // conditionnels, donc écarté en choc comme eux et plafonné par Frayeur.
+        $bonusCri = $this->sommeChezLesVoisins($quete, $etat, 'bonus_des_attaque_allie_adjacent');
+
         // `ignore_defense_monstre` (Flèche perçante, elfe) : le DÉFENSEUR lance
         // moins de dés. Retranché de sa défense plutôt qu'ajouté à l'attaque —
         // un dé d'attaque en plus et un dé de défense en moins n'ont pas la
@@ -1960,7 +1972,7 @@ final class ResolveurTour
             ? max(0, 1 + $bonusAttaque)
             : max(0, max($desArme, $desArmeContre)
                 + $bonusAttaque + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc
-                + $bonusTier + $bonusElan + $desBonus + $bonusArmeExperte);
+                + $bonusTier + $bonusElan + $bonusCri + $desBonus + $bonusArmeExperte);
 
         // ⚠ Le plafond s'applique EN DERNIER, sur le total. Un malus s'ajoutait
         // à la somme et pouvait être compensé par un bonus ; un plafond, non —
@@ -2208,6 +2220,11 @@ final class ResolveurTour
 
         if ($bonusElan > 0 && $noeudElan !== null) {
             $modificateurs[] = ['source' => $noeudElan->nom, 'valeur' => $bonusElan, 'sur' => 'attaque'];
+        }
+
+        // Cri de ralliement : chaque porteur voisin est NOMMÉ, comme la Bannière le fait côté défense.
+        foreach ($this->detailChezLesVoisins($quete, $etat, 'bonus_des_attaque_allie_adjacent') as $entree) {
+            $modificateurs[] = ['source' => $entree['nom'], 'valeur' => $entree['valeur'], 'sur' => 'attaque'];
         }
 
         // ⚠ `ignore_defense_monstre` a DEUX sources possibles (talent, buff
@@ -5623,6 +5640,169 @@ final class ResolveurTour
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * `saute_tour_monstre` — HURLEMENT (barbare, portée `contact`) et MOT DE POUVOIR (barde, portée `vue`), lot A
+     * (2026-10-23) : le monstre perd son prochain tour, par la condition `saute_tour` de Tempête, SANS jet. Une
+     * action, une fois par quête.
+     *
+     * ⚠ La liste des cibles est lue dans `SauteTourMonstre` (point de passage unique, menu compris). `contact`
+     * n'a rien à choisir ; `vue` porte la liste blanche que `parametres.cible_id` doit honorer, et que l'on
+     * revalide ici, au moment de frapper : le monstre doit toujours être vu.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreSauteTourMonstre(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        $portee = (string) ($option['parametres']['portee'] ?? '');
+        $criteres = ['cible' => $portee];
+
+        if (! in_array($portee, ['contact', 'vue'], true)
+            || ! $this->talents->disponible($personnage, $etat, 'saute_tour_monstre', $criteres)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Action indisponible : talent requis, une seule fois par quête.',
+            ]);
+        }
+
+        if ($portee === 'contact') {
+            $cibles = $this->sauteTour->auContact($quete, $etat);
+        } else {
+            $cibleId = (int) ($parametres['cible_id'] ?? 0);
+            $legales = array_map('intval', array_column((array) ($option['parametres']['cibles'] ?? []), 'id'));
+
+            if (! in_array($cibleId, $legales, true)) {
+                throw ValidationException::withMessages([
+                    'parametres' => 'Cible hors de vue : choisissez un monstre que tu vois.',
+                ]);
+            }
+
+            $cibles = $this->sauteTour->vus($quete, $etat, $personnage)
+                ->filter(fn (InstanceMonstre $instance): bool => (int) $instance->id === $cibleId)
+                ->values();
+        }
+
+        if ($cibles->isEmpty()) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Aucun monstre à faire passer son tour ici.',
+            ]);
+        }
+
+        foreach ($cibles as $instance) {
+            $this->sauteTour->poser($instance);
+        }
+
+        $noeud = $this->talents->noeud($personnage, 'saute_tour_monstre', $criteres);
+        $this->talents->consommer($personnage, $etat, 'saute_tour_monstre', $criteres);
+
+        $payload = [
+            'type' => 'saute_tour_monstre',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'capacite' => $noeud?->nom,
+            'portee' => $portee,
+            'cibles' => $cibles
+                ->map(fn (InstanceMonstre $instance): array => ['instance_id' => (int) $instance->id, 'nom' => $instance->nomAffiche()])
+                ->values()
+                ->all(),
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * `tir_traversant` — FLÈCHE TRAVERSANTE (elfe, Œil), lot A (2026-10-23) : un tir à l'arme à distance dans UNE
+     * direction, qui frappe CHAQUE ennemi de la ligne (géométrie de `Rayon`, celle du menu). Chaque ennemi se défend
+     * séparément, aux dés de l'arme (`frapper()`, tir à distance). Une action, une fois par quête.
+     *
+     * ⚠ Annoncé AVANT les frappes, comme la frappe balayée : le fil dit d'où viennent les lignes de jet qui suivent.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreTirTraversant(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $direction = (string) ($option['parametres']['direction'] ?? '');
+
+        if (! isset(Rayon::DIRECTIONS[$direction])) {
+            throw ValidationException::withMessages(['option_id' => 'Direction de tir inconnue.']);
+        }
+
+        if (! $this->talents->disponible($personnage, $etat, 'tir_traversant')) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Flèche traversante indisponible : talent requis, une seule fois par quête.',
+            ]);
+        }
+
+        $arme = $this->equipement->armeDistanceEnMain($personnage);
+
+        if ($arme === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Flèche traversante : il te faut une arme à distance en main.',
+            ]);
+        }
+
+        $cibles = $this->tirTraversant->cibles($quete, $etat, $direction, $arme);
+
+        if ($cibles->isEmpty()) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Aucun ennemi sur cette ligne : rien à traverser.',
+            ]);
+        }
+
+        $noeud = $this->talents->noeud($personnage, 'tir_traversant');
+        $this->talents->consommer($personnage, $etat, 'tir_traversant');
+
+        $payload = [
+            'type' => 'tir_traversant',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'capacite' => $noeud?->nom ?? 'Flèche traversante',
+            'direction' => $direction,
+            'cibles' => $cibles->count(),
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        $frappes = [];
+
+        foreach ($cibles as $instance) {
+            $frappes[] = $this->frapper(
+                $groupe, $quete, $etat, $personnage, $instance,
+                tirADistance: true,
+                ligneArme: $arme,
+                meta: [
+                    'option_id' => $option['id'],
+                    'libelle' => $payload['capacite'],
+                    'traversant' => true,
+                ],
+                acteur: $acteur,
+            );
+        }
+
+        $payload['frappes'] = $frappes;
+        $payload['vaincus'] = count(array_filter($frappes, static fn (array $frappe): bool => ! empty($frappe['cible_vaincue'])));
 
         return $payload;
     }

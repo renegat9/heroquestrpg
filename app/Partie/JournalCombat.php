@@ -63,6 +63,8 @@ final class JournalCombat
     public const TYPES = [
         // ---- Le héros agit
         'attaque' => true, 'attaque_balayee' => true, 'style' => true, 'rayon' => true,
+        // Lot A (2026-10-23) : Hurlement / Mot de pouvoir (le monstre perd son tour), Flèche traversante (tir sur la ligne).
+        'saute_tour_monstre' => true, 'tir_traversant' => true,
         'degat_differe' => true, 'braise' => true, 'deplacement' => true, 'jet' => true,
         'desamorcage' => true, 'franchissement' => true, 'sort' => true, 'parchemin' => true,
         'concentration' => true, 'sacrifice_sort' => true, 'soin_allie' => true,
@@ -923,6 +925,23 @@ final class JournalCombat
                 "{$acteurNom} — ".($a['capacite'] ?? 'frappe balayée')." : {$a['cibles']} ennemi".
                 (((int) ($a['cibles'] ?? 0)) > 1 ? 's' : '').' au contact',
             )],
+            // HURLEMENT / MOT DE POUVOIR (lot A) : la ligne NOMME ceux qui perdent leur tour — « Hurlement : Gobelin,
+            // Orc perdent leur prochain tour ». Le tour des monstres dira ensuite « passe son tour » (`monstre_saute_tour`).
+            'saute_tour_monstre' => [$this->info(
+                "{$acteurNom} — ".($a['capacite'] ?? 'Hurlement').' : '
+                .implode(', ', array_map(
+                    static fn (array $cible): string => (string) ($cible['nom'] ?? 'un monstre'),
+                    array_values(array_filter((array) ($a['cibles'] ?? []), 'is_array')),
+                ))
+                .(count((array) ($a['cibles'] ?? [])) > 1 ? ' perdent' : ' perd').' leur prochain tour',
+            )],
+            // FLÈCHE TRAVERSANTE (lot A) : la ligne dit DANS QUELLE direction le tir part et combien de cibles la ligne
+            // porte ; chaque frappe se détaille ensuite par ses propres lignes de jet.
+            'tir_traversant' => [$this->info(
+                "{$acteurNom} — ".($a['capacite'] ?? 'Flèche traversante').' : tir '
+                .(Rayon::DIRECTIONS[(string) ($a['direction'] ?? '')][2] ?? '')
+                .', '.(int) ($a['cibles'] ?? 0).' ennemi'.((int) ($a['cibles'] ?? 0) > 1 ? 's' : '').' sur la ligne',
+            )],
             'sort', 'parchemin' => $this->sort($a, $acteurNom),
             // Un jet de héros en attente de sa Vision du futur : l'action n'a pas
             // encore eu lieu, le fil le dit pour qu'on ne croie pas à un silence.
@@ -1024,7 +1043,9 @@ final class JournalCombat
             // désamorçage. Voir `piegeMagique()`.
             'piege_amorce', 'piege_explosion', 'piege_teleporte', 'piege_bourrasque',
             'piege_desarme_embrasement' => $this->piegeMagique($a, $acteurNom),
-            'monstre_saute_tour' => [$this->info(($a['monstre'] ?? 'Le monstre').' est pris dans la tempête — il passe son tour')],
+            // Neutre (lot A, 2026-10-23) : la même condition `saute_tour` vient de Tempête, de Hurlement ou de Mot de
+            // pouvoir, et le tour sauté ne garde pas sa source. Dire « pris dans la tempête » mentirait pour les deux autres.
+            'monstre_saute_tour' => [$this->info(($a['monstre'] ?? 'Le monstre').' passe son tour')],
             'monstre_paralyse' => [$this->info(($a['monstre'] ?? 'Le monstre').' est paralysé par la flamme — il ne peut ni bouger, ni frapper, ni parer')],
             'monstre_endormi' => [$this->info(($a['monstre'] ?? 'Le monstre').' dort')],
             'heros_endormi' => [$this->info(($a['personnage'] ?? $acteurNom).' est endormi — tour sauté')],

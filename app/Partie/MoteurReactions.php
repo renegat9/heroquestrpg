@@ -123,6 +123,24 @@ final class MoteurReactions
             return;
         }
 
+        // ROC (nain), ÉVANESCENCE (rogue), BOUCLIER DU SERMENT (chevalier) — lot A, 2026-10-23 : `annule_degats` ACHETÉ.
+        // Une fois par quête, le porteur encaisse « comme la Parade au bouclier » : la proposition part à LUI, le coup
+        // est défait à l'acceptation, et le compteur `capacites_utilisees` se marque dans la fenêtre que la carte
+        // déclare (`resoudre()` → `marquerDepensee()`). Le critère `reaction => null` exige la clé ABSENTE : le Torrent
+        // du Moine porte `reaction: true` et reste servi par le bloc au-dessus, à son style.
+        if ($this->capacites->disponible($heros, $etat, ReactionEffet::ANNULE_DEGATS, ['reaction' => null])) {
+            $noeud = $this->capacites->noeud($heros, ReactionEffet::ANNULE_DEGATS, ['reaction' => null]);
+
+            $this->deposer($etat, $heros, $heros, [
+                'action' => ReactionEffet::ANNULE_DEGATS,
+                'capacite' => $noeud?->nom,
+                'nom' => $noeud?->nom,
+                'description' => $noeud?->description,
+            ], $degats, $source, $contexte);
+
+            return;
+        }
+
         // *Bâton Ancien* : le reflet est proposé AVANT les planchers parce
         // qu'il est strictement meilleur — il rend tous les PV au lieu d'en
         // laisser un, et il retourne le sort contre la salle. Après les

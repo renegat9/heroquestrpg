@@ -95,6 +95,11 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Fauchaison', 'type' => 'actif',
                     'description' => 'Une fois par quête, une seule attaque frappe tous les monstres à ton contact, diagonales comprises.',
                     'effet' => ['mecanique' => 'attaque_balayee', 'diagonales' => true, 'frequence' => 'une_fois_par_quete']],
+                // POUVOIR FINAL (phase 2, lot A, 2026-10-23) : la condition que pose le sort héros *Tempête*,
+                // sur chaque monstre à ton contact, sans jet (la carte n'en laisse aucun).
+                ['nom' => 'Hurlement', 'type' => 'actif', 'cout' => 2,
+                    'description' => "Une fois par quête, en action, les monstres à ton contact perdent leur prochain tour. Ceux qui y sont immunisés n'en subissent rien.",
+                    'effet' => ['mecanique' => 'saute_tour_monstre', 'cible' => 'contact', 'frequence' => 'une_fois_par_quete']],
             ]],
         ],
 
@@ -139,10 +144,11 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Ancré', 'type' => 'passif',
                     'description' => '+1 à ton attribut Body : un dé de plus à chacun de tes jets de Body.',
                     'effet' => ['mecanique' => 'bonus_attribut_body', 'valeur' => 1]],
-                // POUVOIR FINAL REPORTÉ (phase 2, 2026-10-22) : son effet `annule_degats` n'a de lecteur que
-                // pour la technique réactive du Moine (Torrent Tournoyant, `reaction: true`). Un nœud ACHETÉ avec
-                // cette mécanique serait muet — une promesse non tenue. Il faut d'abord un lecteur (offre au porteur,
-                // une fois par quête), puis le nœud. Voir docs/regles/talents-et-capacites.md, « Pouvoirs finaux ».
+                // POUVOIR FINAL (phase 2, lot A, 2026-10-23) : `annule_degats` acheté, lu comme la Parade
+                // au bouclier — une réaction proposée au porteur, une fois par quête (`MoteurReactions::proposer()`).
+                ['nom' => 'Roc', 'type' => 'actif', 'cout' => 2,
+                    'description' => "Une fois par quête, quand un coup te blesse, tu l'encaisses sans rien perdre : ses dégâts sont annulés.",
+                    'effet' => ['mecanique' => 'annule_degats', 'frequence' => 'une_fois_par_quete']],
             ]],
         ],
 
@@ -179,6 +185,11 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Flèche perçante', 'type' => 'passif',
                     'description' => 'Le monstre que tu vises lance 1 dé de défense de moins contre toi.',
                     'effet' => ['mecanique' => 'ignore_defense_monstre', 'valeur' => 1]],
+                // POUVOIR FINAL (phase 2, lot A, 2026-10-23) : un tir qui traverse la ligne. Offert seulement
+                // avec une arme à distance en main et un ennemi sur la ligne (`MenuMoteur`).
+                ['nom' => 'Flèche traversante', 'type' => 'actif', 'cout' => 2,
+                    'description' => "Une fois par quête, en action, avec ton arme à distance : tire dans une direction. Chaque ennemi de la ligne se défend séparément, aux dés de l'arme.",
+                    'effet' => ['mecanique' => 'tir_traversant', 'frequence' => 'une_fois_par_quete']],
             ]],
             ['categorie' => 'Grâce', 'icone' => 'alt_route', 'noeuds' => [
                 ['nom' => 'Pas léger', 'type' => 'passif',
@@ -273,6 +284,11 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Mot qui blesse', 'type' => 'passif',
                     'description' => "Les monstres à ton contact attaquent avec 1 dé d'attaque en moins.",
                     'effet' => ['mecanique' => 'malus_des_monstre_adjacent', 'valeur' => 1]],
+                // POUVOIR FINAL (phase 2, lot A, 2026-10-23) : la MÊME mécanique que Hurlement, portée
+                // « vue » — UN monstre que tu vois (ligne de vue des sorts), une fois par quête, en action.
+                ['nom' => 'Mot de pouvoir', 'type' => 'actif', 'cout' => 2,
+                    'description' => 'Une fois par quête, en action, un monstre que tu vois perd son prochain tour.',
+                    'effet' => ['mecanique' => 'saute_tour_monstre', 'cible' => 'vue', 'frequence' => 'une_fois_par_quete']],
             ]],
             ['categorie' => 'Marche', 'icone' => 'directions_walk', 'noeuds' => [
                 ['nom' => 'Marche entraînante', 'type' => 'passif',
@@ -367,6 +383,11 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Marque du damné', 'type' => 'passif',
                     'description' => '+1 dégât à chaque sort offensif qui a passé la défense de sa cible.',
                     'effet' => ['mecanique' => 'bonus_degats_sort', 'valeur' => 1]],
+                // POUVOIR FINAL (phase 2, lot A, 2026-10-23) : la braise de Toucher du Brasier, nourrie par
+                // chaque sort offensif. Un sort qui ABAT la cible n'y ajoute rien (il n'y a plus de tour à suivre).
+                ['nom' => 'Flétrissure', 'type' => 'passif', 'cout' => 2,
+                    'description' => "Chaque sort offensif qui blesse un monstre sans l'abattre lui inflige en plus 1 dégât, à la fin de son prochain tour.",
+                    'effet' => ['mecanique' => 'degat_differe_sur_sort', 'valeur' => 1]],
             ]],
             ['categorie' => 'Corruption', 'icone' => 'local_fire_department', 'noeuds' => [
                 ['nom' => "Cuir d'initié", 'type' => 'deblocage',
@@ -398,10 +419,10 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Fuite calculée', 'type' => 'actif',
                     'description' => 'Une fois par tour, scinde ton déplacement : une partie avant ton action, le reste après.',
                     'effet' => ['mecanique' => 'deplacement_scinde', 'frequence' => 'une_fois_par_tour']],
-                // POUVOIR FINAL REPORTÉ (phase 2, 2026-10-22) : son effet `annule_degats` n'a de lecteur que
-                // pour la technique réactive du Moine (Torrent Tournoyant, `reaction: true`). Un nœud ACHETÉ avec
-                // cette mécanique serait muet — une promesse non tenue. Il faut d'abord un lecteur (offre au porteur,
-                // une fois par quête), puis le nœud. Voir docs/regles/talents-et-capacites.md, « Pouvoirs finaux ».
+                // POUVOIR FINAL (phase 2, lot A, 2026-10-23) : même lecteur que Roc (`annule_degats` acheté).
+                ['nom' => 'Évanescence', 'type' => 'actif', 'cout' => 2,
+                    'description' => "Une fois par quête, quand un coup te blesse, tu t'évanouis dans l'ombre : ses dégâts sont annulés.",
+                    'effet' => ['mecanique' => 'annule_degats', 'frequence' => 'une_fois_par_quete']],
             ]],
             ['categorie' => 'Lame', 'icone' => 'content_cut', 'noeuds' => [
                 ['nom' => 'Coup bas', 'type' => 'passif',
@@ -475,6 +496,11 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Esprit clair', 'type' => 'actif',
                     'description' => 'Une fois par quête, un jet de Mind manqué est intégralement rejoué.',
                     'effet' => ['mecanique' => 'relance_jet_mind_rate', 'frequence' => 'une_fois_par_quete']],
+                // POUVOIR FINAL (phase 2, lot A, 2026-10-23) : `resisteA()` lit une LISTE de conditions. Les
+                // trois sont celles des noms exacts de ConditionSeeder (« Effrayé » n'existe pas : c'est Apeuré).
+                ['nom' => "Esprit d'acier", 'type' => 'passif', 'cout' => 2,
+                    'description' => "Tu résistes aux conditions Endormi, Paralysé et Apeuré, d'où qu'elles viennent.",
+                    'effet' => ['mecanique' => 'resistance_condition', 'condition_nom' => ['Endormi', 'Paralysé', 'Apeuré']]],
             ]],
         ],
 
@@ -492,10 +518,11 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Rempart', 'type' => 'passif',
                     'description' => "Chaque coup que tu subis t'inflige 1 dégât de moins, sans jamais descendre sous zéro.",
                     'effet' => ['mecanique' => 'reduction_degats', 'valeur' => 1]],
-                // POUVOIR FINAL REPORTÉ (phase 2, 2026-10-22) : son effet `annule_degats` n'a de lecteur que
-                // pour la technique réactive du Moine (Torrent Tournoyant, `reaction: true`). Un nœud ACHETÉ avec
-                // cette mécanique serait muet — une promesse non tenue. Il faut d'abord un lecteur (offre au porteur,
-                // une fois par quête), puis le nœud. Voir docs/regles/talents-et-capacites.md, « Pouvoirs finaux ».
+                // POUVOIR FINAL (phase 2, lot A, 2026-10-23) : « comme Roc » (validé par René). Coexiste avec
+                // *Parade au bouclier* (héros voisin) : deux noms, deux compteurs `capacites_utilisees`.
+                ['nom' => 'Bouclier du serment', 'type' => 'actif', 'cout' => 2,
+                    'description' => "Une fois par quête, quand un coup te blesse, ton serment l'arrête : ses dégâts sont annulés.",
+                    'effet' => ['mecanique' => 'annule_degats', 'frequence' => 'une_fois_par_quete']],
             ]],
             ['categorie' => 'Prestance', 'icone' => 'groups', 'noeuds' => [
                 ['nom' => 'Prestance', 'type' => 'passif',
@@ -507,6 +534,11 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Appel au ralliement', 'type' => 'actif',
                     'description' => 'Une fois par quête, en action, rends 1d6 PV de Body à un compagnon à ton contact.',
                     'effet' => ['mecanique' => 'soin_allie', 'frequence' => 'une_fois_par_quete']],
+                // POUVOIR FINAL (phase 2, lot A, 2026-10-23) : miroir côté attaque de la Bannière. Le dé est
+                // compté dans `frapper()` pour l'attaquant qui se tient au contact du porteur, jamais pour lui.
+                ['nom' => 'Cri de ralliement', 'type' => 'passif', 'cout' => 2,
+                    'description' => "+1 dé d'attaque à chaque héros qui se tient à ton contact, pour chacune de ses attaques — jamais à toi.",
+                    'effet' => ['mecanique' => 'bonus_des_attaque_allie_adjacent', 'valeur' => 1]],
             ]],
             ['categorie' => 'Croisade', 'icone' => 'swords', 'noeuds' => [
                 ['nom' => "Bras d'acier", 'type' => 'actif',
@@ -552,6 +584,11 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Cicatrices', 'type' => 'passif',
                     'description' => "Tu résistes aux conditions Empoisonné et Envenimé, d'où qu'elles viennent.",
                     'effet' => ['mecanique' => 'resistance_condition', 'condition_nom' => ['Empoisonné', 'Envenimé']]],
+                // POUVOIR FINAL (phase 2, lot A, 2026-10-23) : crédité au point de passage de la MORT RÉELLE
+                // (`MoteurDegats::infligerAMonstre()`), jamais à une mise hors de combat ni à un changement de forme.
+                ['nom' => 'Sang chaud', 'type' => 'passif', 'cout' => 2,
+                    'description' => 'Chaque monstre que tu abats te rend 1 PV de Body, sans jamais dépasser ton maximum.',
+                    'effet' => ['mecanique' => 'soin_apres_kill', 'valeur' => 1]],
             ]],
             ['categorie' => 'Charge', 'icone' => 'sprint', 'noeuds' => [
                 ['nom' => 'Charge', 'type' => 'passif',

@@ -57,3 +57,29 @@ Les deux effets qui se déclenchent pendant une action se disent au fil de comba
 **Preuves en jeu.** `TalentsEnJeuTest` : la riposte par tour (dépense dans la fenêtre du tour, fiche « Déjà utilisée ce tour », reprise au tour suivant), le plancher hors chevalier (une fois par quête), le bonus d'attaque sans condition (compté une seule fois dans la colonne), le second sort (fiche). `PouvoirFinalTest` : le solde, le refus faute de points et faute de prérequis, la décision publiée, le coût publié, le score.
 
 **Libellé.** `fouille_complete` se dit désormais « fouille sans risque d'échec » : l'effet ne rate pas, et la fouille ordinaire trouve déjà pièges et portes secrètes pour tout le monde.
+
+## Pouvoirs finaux, phase 2 — lot A (2026-10-23)
+
+Dix pouvoirs de combat et de conditions, chacun au 4e rang de SA colonne (`cout => 2`, exige le rang 3). Cinq mécaniques neuves, toutes déclarées dans `MotsClesTalent::MECANIQUES` (section « Actifs de frappe », « Dés de combat » et « Magie »), et une sans code neuf (`resistance_condition`, déjà lue).
+
+- **Hurlement** (barbare·Terreur) et **Mot de pouvoir** (barde·Verbe) : `saute_tour_monstre`, une mécanique à deux portées (`effet.cible` = `contact` | `vue`). Le monstre perd son prochain tour par la condition `saute_tour` de Tempête, sans jet. Un seul point de passage pour « qui est touchable » : `App\Partie\SauteTourMonstre`, lu par `MenuMoteur` (l'offre) et par `ResolveurTour::resoudreSauteTourMonstre()` (la revalidation). Immunité : `conditionsImmunisees()` ; un monstre sous le voile d'ombre n'est ni au contact ni vu.
+- **Cri de ralliement** (chevalier·Prestance) : `bonus_des_attaque_allie_adjacent`, +1 dé d'attaque à chaque héros à ton contact, jamais à toi. Le miroir côté attaque de la Bannière : même somme de voisins (`sommeChezLesVoisins()`), comptée dans `ResolveurTour::frapper()` et nommée dans `modificateurs`.
+- **Sang chaud** (berserker·Carcasse) : `soin_apres_kill`, +1 PV de Body à chaque monstre abattu, sans dépasser le maximum. Lu à `MoteurDegats::infligerAMonstre()`, sur la MORT RÉELLE (`vaincu`) et seulement quand un héros frappe en son nom — le même critère que la faveur Peacekeeper.
+- **Esprit d'acier** (moine·Méditation) : `resistance_condition` sur `['Endormi', 'Paralysé', 'Apeuré']`. `Competence::resisteA()` lisait déjà une liste ; un test prouve qu'il la lit en entier (le mutant qui ne lit que le premier élément tombe).
+- **Flétrissure** (warlock·Malédiction) : `degat_differe_sur_sort`, +1 dégât à la fin du prochain tour de la cible, sur chaque sort de héros qui la blesse sans l'abattre. Lu à `MoteurDegats::infligerAMonstre()` (source `SOURCE_SORT_HEROS`, auteur connu). Ajoute à la colonne `degat_differe` de la braise : une seule colonne, jamais une seconde copie.
+- **Flèche traversante** (elfe·Œil) : `tir_traversant`, une action par quête. La ligne est celle de `Rayon` (`App\Partie\TirTraversant::cibles()`, partagée par le menu et le résolveur) ; l'arme est celle de `Equipement::armeDistanceEnMain()` (portée distance, jamais jetable). Une volée par ennemi de la ligne, aux dés de l'arme.
+- **Roc** (nain·Ténacité), **Évanescence** (rogue·Ombre), **Bouclier du serment** (chevalier·Serment) : `annule_degats` ACHETÉ — l'action que portait déjà le Torrent du Moine, sans `reaction: true`. Lu dans `MoteurReactions::proposer()` : la proposition part au PORTEUR (comme la Parade au bouclier, mais pour soi), le coup est défait à l'acceptation, et la dépense se marque dans la fenêtre que la carte déclare.
+
+**Décisions prises seul (à relire par René).**
+- *Contact de la flèche* : une arme qui refuse le contact (`Objet::interditAuContact()`) ne tire pas sur l'ennemi ADJACENT ; une direction dont le seul ennemi est au contact n'est pas offerte.
+- *Hurlement et Mot de pouvoir ne sont pas des sorts* : l'immunité `immuniseAuxSorts()` ne les arrête pas. Seule la condition `saute_tour` compte.
+- *Sang chaud* ne se déclenche pas sur un changement de forme (phase d'un boss) : seule la mort réelle rend.
+- *Flétrissure* : la colonne n'a qu'un auteur. Ajouter à une braise déjà allumée par un autre héros en fait l'auteur du dernier dégât ajouté.
+- *Bouclier du serment* : sans condition de bouclier, comme Roc (« comme 6 », validé par René), bien que le nom parle d'un bouclier. Une ligne à ajouter si René le veut autrement.
+- *Texte du tour sauté* : `monstre_saute_tour` dit désormais « passe son tour », et non « pris dans la tempête », puisque la condition ne garde pas sa source. Tempête perd sa couleur dans le fil, pas dans ses effets.
+
+**Dette relevée, non tranchée.** Le contact entre HÉROS n'est pas une seule règle dans le code. `ResolveurTour::detailChezLesVoisins()` (Bannière, Cri de ralliement, soin d'allié) compte les huit cases voisines (Chebyshev), alors que `MoteurReactions::proposerAuVoisin()` (Parade au bouclier) exige l'orthogonal, comme le contact des monstres. Le Cri reprend la règle de la Bannière pour rester son miroir : un seul point à changer le jour où René tranche.
+
+**Données.** `CompetenceSeeder` ajoute dix nœuds (`updateOrCreate`, aucune ligne existante modifiée) : `db:seed` les pose sans toucher aux personnages. Aucune migration.
+
+**Preuves en jeu.** `PouvoirsFinauxCombatTest` (17 cas) joue chaque pouvoir par le menu, la route `choix` ou la route `reaction`, ou par le point de passage qu'il lit. Retirer un lecteur fait tomber son test, et c'est vérifié pour les sept lecteurs du lot (la mutation est restaurée à l'octet près).

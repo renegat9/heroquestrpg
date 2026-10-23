@@ -638,7 +638,10 @@ d'annonce ; aucune annonce ne part d'une mécanique hors liste) :
   (Chair impie), `inflige_condition_sur_touche` (Lame vénéneuse),
   `bonus_des_attaque_flanc` (Frappe opportuniste), `ignore_terrain_entravant`
   (Ronces complices), `bonus_or_tresor` (Chasseur de trésor),
-  `rarete_butin_amelioree` (Œil du prix) ;
+  `rarete_butin_amelioree` (Œil du prix), `soin_apres_kill` (Sang chaud : une
+  mise à mort réelle rend des PV, dite au point de passage `infligerAMonstre()`),
+  `degat_differe_sur_sort` (Flétrissure : un sort qui blesse sans abattre ajoute
+  une braise, dite au même point) ;
 - *actifs qui partent seuls* : `relance_des_attaque_rates` (Coup puissant, Bras
   d'acier, Coup sauvage), `attaque_supplementaire_apres_kill` (Sang qui bout,
   Coup de grâce, Soif de sang), `annuler_effet_magique` (Contresort, Verbe
@@ -723,6 +726,9 @@ le MENU seul peut émettre, leur coût vivant dans `parametres` :
 | `frappe_balayee` | `attaque_balayee` | — | *Frénésie sanguinaire* / *Œil du Cyclone* : **aucune cible à choisir**, elle prend tout ce qui touche le héros |
 | `toucher_brasier` | `degat_differe` | `{cibles}` | *Toucher du Brasier* : 1 PV maintenant, 2 à la fin du tour suivant de la cible |
 | `rayon_{direction}` | `rayon` | `{direction}` | *Esprit Ardent* : un rayon droit ou diagonal, une option par direction où il y a quelqu'un |
+| `hurler` | `saute_tour_monstre` | `{portee: 'contact'}` | *Hurlement* (Barbare) : les monstres **à ton contact** perdent leur prochain tour. Aucune cible à choisir ; offerte seulement si un monstre au contact peut recevoir la condition |
+| `mot_de_pouvoir` | `saute_tour_monstre` | `{portee: 'vue', cibles: [{id, type, nom}]}` | *Mot de pouvoir* (Barde) : **un** monstre que tu vois (ligne de vue des sorts) perd son prochain tour. `cibles` est la liste blanche que `parametres.cible_id` doit honorer |
+| `fleche_{direction}` | `tir_traversant` | `{direction}` | *Flèche traversante* (Elfe) : un tir de l'arme à distance **en main** dans une direction, qui frappe chaque ennemi de la ligne, chacun se défendant aux dés de l'arme. Une option par direction qui porte une cible légale ; un ennemi au contact n'est pas visé (l'arme refuse le contact) |
 | `style_vague` | `style` | `{style}` | *Vague Montante* : **interaction gratuite**, aucun créneau |
 | `fouiller_pierre` | `jet` | `{style}` | *Parler à la Pierre* : la fouille de zone sans risque d'échec |
 | `franchir_dragon_{x}_{y}` | `franchissement` | `{piege, cout, style}` | *Dragon Bondissant* : le saut de fosse réussit d'office |
@@ -1736,7 +1742,7 @@ dépend, « annuler les dégâts » étant faux pour la plupart d'entre elles :
 
 | `action` | Carte | Ce qu'elle fait |
 |---|---|---|
-| `annule_degats` | *Dark Wings*, *Twisting Torrent* | rend les PV du coup |
+| `annule_degats` | *Dark Wings*, *Twisting Torrent* ; **talents achetés** *Roc* (Nain), *Évanescence* (Rogue), *Bouclier du serment* (Chevalier), une fois par quête, proposés au PORTEUR (`capacite` nomme le talent, sans `reaction: true`) | rend les PV du coup |
 | `plancher_pv` | *Inébranlable* (Chevalier), *Cendres du Phénix* | les PV tombent à **1**, pas au-dessus — proposée **seulement** sur un coup mortel ; côté artefact, un dé de 5-6 détruit la pièce (`de_artefact`, `artefact_perdu`) |
 | `annule_degats_voisin` | *Parade au bouclier* (Chevalier) | annule le coup d'un héros **au contact** : la proposition va au PROTECTEUR, les PV rendus à la victime (`victime_id`) |
 | `riposte` | *Représailles* (Berserker) | **n'annule rien** : le Berserker encaisse et attaque aussitôt le monstre (`instance_id`), adjacence revérifiée à la résolution |

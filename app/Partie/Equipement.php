@@ -1268,6 +1268,23 @@ final class Equipement
             ->all();
     }
 
+    /**
+     * L'arme À DISTANCE tenue en main (main droite d'abord), ou `null` — le SEUL prédicat de la Flèche traversante
+     * (lot A, 2026-10-23), lu par le menu ET par le résolveur. `portee: distance` sur l'objet, et jamais une arme
+     * JETABLE (dague, hachette) : celle-ci quitte la main au lancer, elle ne tire pas.
+     */
+    public function armeDistanceEnMain(Personnage $personnage): ?Inventaire
+    {
+        foreach ($this->armesEnMain($personnage) as $ligne) {
+            if (($ligne->objet?->effet['portee'] ?? null) === 'distance'
+                && ! (bool) ($ligne->objet?->effet['jetable'] ?? false)) {
+                return $ligne;
+            }
+        }
+
+        return null;
+    }
+
     private function objetDeLaLigne(Personnage $personnage, Inventaire $ligne): Objet
     {
         if ($ligne->personnage_id !== $personnage->id || $ligne->objet === null) {

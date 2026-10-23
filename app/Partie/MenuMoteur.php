@@ -66,6 +66,8 @@ final class MenuMoteur
         private readonly FaveursHopekins $faveurs,
         private readonly ApprocheAllie $approche,
         private readonly DeplacementHeros $deplacement,
+        private readonly SauteTourMonstre $sauteTour,
+        private readonly TirTraversant $tirTraversant,
     ) {}
 
     /**
@@ -1297,7 +1299,8 @@ final class MenuMoteur
     }
 
     /** Types d'option qui frappent AVEC le héros lui-même (jamais le menu d'un allié). */
-    public const TYPES_ATTAQUE_HEROS = ['attaque', 'attaque_balayee', 'rayon', 'degat_differe', 'attaquer_mobilier'];
+    // `tir_traversant` (Flèche traversante, lot A) est une attaque : un héros caché ne tire pas.
+    public const TYPES_ATTAQUE_HEROS = ['attaque', 'attaque_balayee', 'rayon', 'degat_differe', 'attaquer_mobilier', 'tir_traversant'];
 
     /** Le prédicat UNIQUE « cette option est une attaque du héros » : lu par le menu et par le résolveur. */
     public static function estAttaqueDuHeros(array $option): bool
@@ -1895,6 +1898,25 @@ final class MenuMoteur
                 }
             }
 
+            // FLÈCHE TRAVERSANTE (elfe, Œil — lot A, 2026-10-23) : un tir de l'arme à distance EN MAIN, dans une
+            // direction qui porte au moins un ennemi. Géométrie et décompte de `Rayon` (`TirTraversant::directions()`), une
+            // option par direction, aucune cible à choisir. Garde de l'arme : `Equipement::armeDistanceEnMain()`,
+            // le même prédicat que le résolveur.
+            $arcEnMain = $this->equipement->armeDistanceEnMain($personnage);
+
+            if ($arcEnMain !== null && $this->talents->disponible($personnage, $etat, 'tir_traversant')) {
+                foreach ($this->tirTraversant->directions($quete, $etat, $arcEnMain) as $direction => $ennemis) {
+                    [, , $libelleDirection] = Rayon::DIRECTIONS[$direction];
+
+                    $options[] = [
+                        'id' => "fleche_{$direction}",
+                        'libelle' => "Flèche traversante — tir {$libelleDirection} ({$ennemis} ennemi".($ennemis > 1 ? 's' : '').')',
+                        'type' => 'tir_traversant',
+                        'parametres' => ['direction' => $direction],
+                    ];
+                }
+            }
+
             // TOUCHER DU BRASIER : « any one ADJACENT enemy » — le contact du
             // héros, jamais la portée de son arme. On repart donc des cibles
             // « à mains nues », qui sont exactement les quatre voisines.
@@ -2087,6 +2109,40 @@ final class MenuMoteur
                                 'pv_body' => (int) $e->personnage->pv_body,
                                 'pv_body_max' => (int) $e->personnage->pv_body_max,
                                 'tombe' => (bool) $e->tombe,
+                            ])->values()->all(),
+                        ],
+                    ];
+                }
+            }
+
+            // HURLEMENT (barbare, Terreur) et MOT DE POUVOIR (barde, Verbe) — lot A, 2026-10-23 : le monstre perd son
+            // prochain tour, par la condition `saute_tour` de Tempête. Une option PAR PORTÉE, jamais une par monstre :
+            // `contact` n'a rien à choisir (tous ceux à ton contact), `vue` porte la liste blanche des monstres vus.
+            // `SauteTourMonstre` est le seul point de passage des deux listes ; le résolveur les relit.
+            if ($this->talents->disponible($personnage, $etat, 'saute_tour_monstre', ['cible' => 'contact'])
+                && $this->sauteTour->auContact($quete, $etat)->isNotEmpty()) {
+                $options[] = [
+                    'id' => 'hurler',
+                    'libelle' => 'Hurlement — les monstres à ton contact perdent leur prochain tour',
+                    'type' => 'saute_tour_monstre',
+                    'parametres' => ['portee' => 'contact'],
+                ];
+            }
+
+            if ($this->talents->disponible($personnage, $etat, 'saute_tour_monstre', ['cible' => 'vue'])) {
+                $vus = $this->sauteTour->vus($quete, $etat, $personnage);
+
+                if ($vus->isNotEmpty()) {
+                    $options[] = [
+                        'id' => 'mot_de_pouvoir',
+                        'libelle' => 'Mot de pouvoir — un monstre que tu vois perd son prochain tour',
+                        'type' => 'saute_tour_monstre',
+                        'parametres' => [
+                            'portee' => 'vue',
+                            'cibles' => $vus->map(fn (InstanceMonstre $i) => [
+                                'id' => (int) $i->id,
+                                'type' => 'monstre',
+                                'nom' => $i->nomAffiche(),
                             ])->values()->all(),
                         ],
                     ];

@@ -531,6 +531,10 @@ final class SceneDeTable
         return match ($a['type'] ?? null) {
             'attaque', 'attaque_allie' => $this->attaqueDuGroupe($a, $acteur),
             'attaque_balayee' => $this->attaqueBalayee($a, $acteur),
+            // FLÈCHE TRAVERSANTE (lot A) : une volée par ennemi de la ligne — la scène balayée, dite « sur la ligne ».
+            'tir_traversant' => $this->attaqueBalayee($a, $acteur, 'sur la ligne'),
+            // HURLEMENT / MOT DE POUVOIR (lot A) : le monstre (ou ceux du contact) perd son prochain tour.
+            'saute_tour_monstre' => $this->sauteTourMonstre($a, $acteur),
             'attaque_monstre' => $this->attaqueDuMonstre($a),
             'piege_declenche' => $this->piege($a, $acteur),
             // LIANES ESQUIVÉES (Jungles of Delthrak p. 4) : le piège a jailli, le héros
@@ -1556,10 +1560,13 @@ final class SceneDeTable
      * noieraient la table, et la file n'en garde de toute façon qu'une en
      * attente. Chaque cible est une vignette avec SON issue.
      *
+     * `$lieu` (lot A) : « au contact » pour la frappe balayée, « sur la ligne » pour la Flèche traversante — même
+     * scène, un seul bâtiment pour « une volée par cible ».
+     *
      * @param  array<string, mixed>  $a
      * @return array<string, mixed>|null
      */
-    private function attaqueBalayee(array $a, Personnage $acteur): ?array
+    private function attaqueBalayee(array $a, Personnage $acteur, string $lieu = 'au contact'): ?array
     {
         $frappes = array_values(array_filter((array) ($a['frappes'] ?? []), 'is_array'));
 
@@ -1590,7 +1597,7 @@ final class SceneDeTable
         return [
             'genre' => 'attaque',
             'titre' => $acteur->nom.' — '.(string) ($a['capacite'] ?? 'frappe balayée'),
-            'sous_titre' => count($frappes).' ennemis au contact',
+            'sous_titre' => count($frappes).' ennemis '.$lieu,
             'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
             'jet' => null, // une volée PAR cible : elles sont dans les vignettes
             'deplacement' => null,
@@ -1601,6 +1608,55 @@ final class SceneDeTable
                 : ($touches > 0
                     ? ['ton' => 'degats', 'libelle' => $touches.' touché'.($touches > 1 ? 's' : '')]
                     : ['ton' => 'echec', 'libelle' => 'aucun coup ne porte']),
+        ];
+    }
+
+    /**
+     * HURLEMENT / MOT DE POUVOIR (lot A, 2026-10-23) : le monstre perd son prochain tour. Une scène d'action du
+     * héros — une vignette par monstre touché, et l'issue dit ce qui est perdu. Rien à lancer : pas de sort, donc
+     * pas de carte de sort ; l'illustration reste celle du monstre.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function sauteTourMonstre(array $a, Personnage $acteur): ?array
+    {
+        $cibles = array_values(array_filter((array) ($a['cibles'] ?? []), 'is_array'));
+
+        if ($cibles === []) {
+            return null;
+        }
+
+        $objets = [];
+
+        foreach ($cibles as $cible) {
+            $instanceId = (int) ($cible['instance_id'] ?? 0);
+            $nom = (string) ($cible['nom'] ?? 'monstre');
+
+            $objets[] = [
+                'nom' => $nom,
+                'image_url' => $instanceId > 0
+                    ? $this->acteurMonstre($instanceId, $nom, 'cible')['image_url']
+                    : $this->images->vignette('monstre', $nom),
+                'detail' => 'perd son prochain tour',
+            ];
+        }
+
+        $nombre = count($cibles);
+
+        return [
+            'genre' => 'sort',
+            'titre' => $acteur->nom.' — '.(string) ($a['capacite'] ?? 'Hurlement'),
+            'sous_titre' => ($a['portee'] ?? null) === 'contact' ? 'les monstres à son contact' : 'un monstre qu\'il voit',
+            'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => array_slice($objets, 0, 6),
+            'issue' => [
+                'ton' => 'succes',
+                'libelle' => $nombre.' monstre'.($nombre > 1 ? 's' : '').' perd'.($nombre > 1 ? 'ent' : '').' son prochain tour',
+            ],
         ];
     }
 
