@@ -833,6 +833,17 @@ final class DemarreurQuete
         // `docs/regles/bestiaire-et-rencontres.md` et
         // `database/seeders/GabaritQueteSeeder.php`.
         'wizards_of_morcar',
+        // Ajoutée le 2026-10-23 (René : « Fellmarak pourrait être juste mort sans revenir »), modulo 7 → 8.
+        // Les campagnes déjà commencées ne bougent pas : leur thème est FIGÉ dans `groupes.theme_bestiaire`
+        // au premier démarrage. Vérifié en LECTURE SEULE le même jour : aucun groupe n'a joué sans thème
+        // figé (2 groupes joués, tous figés ; 0 bestiaire manuel). Aucune migration de gel n'est donc
+        // nécessaire, contrairement à `wizards_of_morcar` (modulo 6 → 7, qui en a eu une).
+        // Boss : FELLMARAK LE ROI SORCIER (`MonstreSeeder`, quête 12 du livret G0052, stats sourcées ; à 0
+        // Body il MEURT — écart assumé au livret). Rencontre finale : son archétype `fellmarak_roi_sorcier`
+        // dans le pool « Confrontation finale » (`GabaritQueteSeeder`). Sous-boss : le Sorcier du Dread
+        // générique, déjà semé. Forts et masse de faibles viennent du jeu de base : la boîte ne possède aucun
+        // monstre de tier `base`, comme `first_light`. Voir `docs/plan-telor.md` (Exécution, 2026-10-23).
+        'prophecy_telor',
     ];
 
     /**
@@ -867,28 +878,10 @@ final class DemarreurQuete
         // deux sens — rien de désactivé ne peut être offert en thème, rien
         // d'offert ne peut être désactivé.
         //
-        // `prophecy_telor` (chantier monstre à phases, 2026-10-04) : seul le
-        // Sorcier du Dread générique (sous-boss, répertoire limité par
-        // palier) est semé pour cette boîte — son BOSS sourcé, Fellmarak le
-        // Roi Sorcier, ne meurt pas normalement (il fuit en quête 12, meurt
-        // par tirage aléatoire en quête 13 — `docs/regles/bestiaire-et-
-        // rencontres.md`) et n'a aucun des deux mécanismes construit. Semer
-        // le thème sans boss jouable referait l'erreur déjà nommée pour
-        // l'Horreur des Glaces : « un boss final à moitié écrit n'a rien à
-        // faire en tête d'affiche » — ici, un boss qui n'a MÊME PAS de mort
-        // ordinaire. Depuis le 2026-10-23, la fuite et la mort par tirage sont
-        // ÉCARTÉES (propres à deux quêtes d'un arc fixe, qu'un donjon généré ne
-        // rejoue jamais) : la boîte ne se rallume plus en les construisant.
-        // René, même jour : « Fellmarak pourrait être juste mort sans revenir »
-        // — une mort ordinaire, écart assumé au livret. Reste à SEMER Fellmarak
-        // (`docs/plan-telor.md`) avant de sortir la boîte de cette liste.
-        'prophecy_telor' => 'Fellmarak (son seul boss sourcé) ne meurt pas '
-            .'normalement — il fuit en quête 12, meurt par tirage aléatoire '
-            .'en quête 13. Ces deux fins, propres à l\'arc du livret, sont '
-            .'écartées (René, 2026-10-23) ; le Sorcier du Dread générique reste '
-            .'seedé comme sous-boss. Fellmarak mourra comme tout boss, écart '
-            .'assumé au livret (René, 2026-10-23) ; la boîte reste éteinte tant '
-            .'qu\'il n\'est pas semé.',
+        // ⚠ `prophecy_telor` est SORTIE d'ici le 2026-10-23 : Fellmarak (boss de la quête 12) est semé, et ses
+        // deux fins propres à l'arc du livret (fuite, mort par tirage) sont ÉCARTÉES — la raison écrite qui
+        // retenait la boîte n'existe plus. Trace de la décision : commentaire de `BOITES_THEMATIQUES`.
+        // Le dispositif reste en place pour la prochaine boîte à retirer.
     ];
 
     /**
@@ -967,6 +960,9 @@ final class DemarreurQuete
         // même remarque que First Light : l'année est dans le titre de section,
         // pas dans le nom de la boîte.
         'wizards_of_morcar' => 'Wizards of Morcar',
+        // reference/18_extensions.md ligne 1238 : « Prophecy of Telor (2023) » — même remarque que First Light :
+        // l'année fait partie du titre de section imprimé, jamais du nom de la boîte.
+        'prophecy_telor' => 'Prophecy of Telor',
     ];
 
     /**

@@ -194,6 +194,8 @@ return [
         'Dragon' => 'dragon',
         // Prophecy of Telor
         'Sorcier du Dread' => 'sorcier',
+        // Fellmarak, le Roi Sorcier : la voix de sorcier du Dread, comme le sorcier générique de la boîte.
+        'Fellmarak le Roi Sorcier' => 'sorcier',
         // Wizards of Morcar
         'Maître des orages' => 'sorcier',
         'Haut mage' => 'sorcier',

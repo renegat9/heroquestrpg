@@ -415,6 +415,12 @@ class GabaritQueteSeeder extends Seeder
                             // archétype (`config/archetypes_lanceurs.php`). Le DRAGON, dernière forme de sa
                             // pioche, n'entre jamais seul : c'est Qwindrak qui entre, avec ses formes.
                             'qwindrak',
+                            // FELLMARAK, LE ROI SORCIER (Prophecy of Telor, 2026-10-23) : boss sorcier de sa
+                            // boîte, répertoire NOMMÉ par le livret (« Fellmarak knows the following Dread
+                            // spells … », G0052 p. 31) → archétype `fellmarak_roi_sorcier`. Sous le thème
+                            // `prophecy_telor` le pool se réduit à lui ; ailleurs il n'est jamais tiré. Sa
+                            // mort à 0 Body est un écart assumé au livret (René, 2026-10-23).
+                            'fellmarak_roi_sorcier',
                         ],
                         // Les bosses sans répertoire : ils frappent, c'est tout,
                         // et c'est une lecture du combat final aussi.

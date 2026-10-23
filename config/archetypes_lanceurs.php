@@ -232,6 +232,22 @@ return [
         ],
     ],
 
+    // Prophecy of Telor — Fellmarak, le Roi Sorcier (boss, quête 12). Un répertoire NOMMÉ par le livret :
+    // « Fellmarak knows the following Dread spells: Firestorm, Rust, Command, Fear, and Cloud of Dread »
+    // (G0052 p. 31, lu sur le rendu). Les cinq existent au catalogue : Tempête de feu (palier sous_boss),
+    // Rouille (boss), Commandement (boss), Frayeur (sous_boss), Nuée d'Effroi (boss). Le monstre est de palier
+    // `boss` : aucun de ces sorts n'est filtré. Sa mort à 0 Body est un écart assumé (docs/plan-telor.md).
+    'fellmarak_roi_sorcier' => [
+        'porteur' => 'Fellmarak le Roi Sorcier (Prophecy of Telor, confrontation finale — livret p. 31, quête 12)',
+        'sorts' => [
+            'Tempête de feu',
+            'Rouille',
+            'Commandement',
+            'Frayeur',
+            'Nuée d\'Effroi',
+        ],
+    ],
+
     // ------------------------------------------------------------------
     // Archétypes DE NOUS — aucune carte ne les décrit ; seuls leurs sorts
     // sont sourcés. Ils existaient avant le passage aux cartes officielles

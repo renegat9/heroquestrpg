@@ -1022,20 +1022,32 @@ class MonstreSeeder extends Seeder
                 'tier' => 'sous_boss', 'boite' => 'wizards_of_morcar', 'cout' => 12, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['coup_de_corne'], 'sorts_dread' => []],
 
-            // ⚠ Fellmarak, le Roi Sorcier (boss, seul boss chiffré du livret,
-            // Q3) reste NON semé. Sa règle sourcée dit qu'il NE MEURT PAS
-            // normalement : quête 12, « Fellmarak cannot be killed […] he
-            // screams and flees » (il FUIT, la quête continue sans lui) ;
-            // quête 13, sa fin dépend d'un tirage aléatoire dans une pioche de
-            // sorts de Dread réduite (« Zargon's Flame », capacité nommée
-            // `mort_sur_tirage`, scopée à cette seule rencontre, Telor Q6).
-            // NI L'UN NI L'AUTRE n'est le mot-clé `phases` de ce chantier — et
-            // aucun des deux n'est construit : le semer comme un boss
-            // ORDINAIRE le ferait mourir à 0 Body comme n'importe quel autre,
-            // ce que sa propre carte interdit. Semer un boss qui contredit sa
-            // fiche serait la clé décorative inverse (une STAT sourcée, un
-            // COMPORTEMENT qui la trahit) — laissé de côté, nommé plutôt que
-            // deviné, en attendant un passage dédié à ces deux mécanismes.
+            // ---- Prophecy of Telor : FELLMARAK, LE ROI SORCIER (boss, chantier 2026-10-23) ----
+            // Source : livret de quêtes G0052, p. 31 (quête 12, « The Rise of Fellmarak »). Stats
+            // relues sur le RENDU PNG de la page (rendu/G0052_en-us_p16.png) : colonnes
+            // MOVEMENT / ATTACK / DEFEND / BODY / MIND = 8 / 5 / 4 / 6 / 6. Répertoire (même page :
+            // « Fellmarak knows the following Dread spells: Firestorm, Rust, Command, Fear, and
+            // Cloud of Dread ») = archétype `fellmarak_roi_sorcier`. Aucune limite d'usage n'est
+            // écrite : le budget de boss du projet (`MoteurDread::USAGES_BOSS`) s'applique.
+            //
+            // ⚠ ÉCART ASSUMÉ AU LIVRET (René, 2026-10-23 : « Fellmarak pourrait être juste mort sans
+            // revenir ») : à 0 Body il MEURT, comme tout boss. Le livret le fait fuir par une porte
+            // secrète (quête 12 : « cannot be killed ») et le fait mourir par tirage sous *Zargon's
+            // Flame* (quête 13). Ces deux fins sont propres à l'arc d'un livret : un donjon généré ne
+            // rejoue jamais une quête — elles sont ÉCARTÉES (docs/plan-telor.md, décision du
+            // 2026-10-23). Aucune `phase_suivante` ni capacité de fuite ou de tirage. Non porté non
+            // plus, parce que scripté dans UNE salle de la quête 12 : « Firestorm au premier tour
+            // détruit les portes de la salle ».
+            //
+            // `cout` MESURÉ (docs/regles/bestiaire-et-rencontres.md) : attaques d'un héros à 3 dés
+            // pour l'abattre = Body / (1,5 − Défense/6) = 6 / (1,5 − 4/6) = 7,2. Lu sur la droite
+            // des boss (Seigneur 15 → 20 ; Gruzbella 21 → 23 ; pente 0,5) : 20 + 0,5 × (7,2 − 15)
+            // = 16,1 ⇒ 16. Recoupement : la Horreur des Glaces a exactement ce profil de combat
+            // (M8 A5 D4 B6, 7,2 attaques, cout 16) ; la Liche (même Body/Défense) coûte 18 avec une
+            // invocation de plus.
+            ['nom_base' => 'Fellmarak le Roi Sorcier', 'deplacement' => 8, 'attaque' => 5, 'defense' => 4,
+                'pv_body' => 6, 'pv_mind' => 6, 'tier' => 'boss', 'boite' => 'prophecy_telor', 'cout' => 16,
+                'capacites' => [], 'sorts_dread' => [], 'archetype_lanceur' => 'fellmarak_roi_sorcier'],
         ];
 
         foreach ($monstres as $monstre) {

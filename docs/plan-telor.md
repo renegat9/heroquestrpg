@@ -267,3 +267,49 @@ Critère (René, 2026-10-23 : « retirer ce qui ne devrait pas être implanté d
 - **Conséquence** : la condition de la décision du 2026-10-15 (« éteinte tant que Fellmarak n'a ni fuite ni mort par tirage ») ne peut plus être remplie. La boîte **reste éteinte** jusqu'au chantier qui la rallume.
 - **Tranché le même jour (René) : « Fellmarak pourrait être juste mort sans revenir »** — à 0 Body il **meurt**, comme tout boss : ni fuite, ni seconde forme, ni *Zargon's Flame*. C'est un **écart assumé au livret**, à écrire au seeder et dans `BestiaireSourceTest`. Le chantier qui rallume la boîte reste à lancer : semer Fellmarak (boss `prophecy_telor`, stats de la q. 12, ses cinq sorts), mesurer son `cout`, sa rencontre finale, sa voix, puis le sortir de `BOITES_INCOMPLETES` et l'ajouter à `BOITES_THEMATIQUES` (modulo 7 → 8 : la colonne `groupes.theme_bestiaire` protège les campagnes déjà en cours).
 - Lots B, C, E et F inchangés.
+
+## Exécution (2026-10-23)
+
+Chantier EXT-TELOR (branche `ext-telor`, non committé). La décision du 2026-10-23 ci-dessus est appliquée : Fellmarak meurt à 0 Body, et ce qui est écarté reste écarté.
+
+**Fait**
+
+- **Lot D réduit à ses stats et à son répertoire.** `MonstreSeeder` : *Fellmarak le Roi Sorcier*, boss `prophecy_telor`, M8/A5/D4/B6/Mi6 (quête 12, p. 31). L'ordre des colonnes MOVEMENT / ATTACK / DEFEND / BODY / MIND est confirmé sur le rendu `G0052_en-us_p16.png`. `cout` 16, mesuré par la méthode du bestiaire (calcul en commentaire). Archétype `fellmarak_roi_sorcier` (`config/archetypes_lanceurs.php`) : Tempête de feu, Rouille, Commandement, Frayeur, Nuée d'Effroi. Les cinq existent au catalogue, et aucun n'est filtré par palier puisque le monstre est `boss`. Voix `sorcier` (`config/barks.php`). Rencontre finale : archétype ajouté au pool « Confrontation finale » (`GabaritQueteSeeder`).
+- **Le thème.** `prophecy_telor` est ajouté **à la fin** de `BOITES_THEMATIQUES` (modulo 7 → 8). Elle sort de `BOITES_INCOMPLETES`, dont le dispositif reste en place avec une liste vide. Libellé « Prophecy of Telor » dans `LIBELLES_BOITES`. Le sous-boss reste le Sorcier du Dread générique, déjà semé.
+- **Gel des campagnes : aucune migration.** Lecture seule de la base de production le 2026-10-23 : 3 groupes, 2 joués et figés, 0 automatique non figé ayant joué, 0 manuel. La rotation étendue ne touche donc aucune campagne en cours (test `FIGE le thème`). Le précédent `2026_10_08_150000_figer_theme_bestiaire_des_groupes_existants` est sans objet ici.
+- **Escorte.** La boîte n'a aucun monstre de tier `base`, comme `first_light`. Forts et masse viennent du jeu de base, et le thème ne fait que préférer ses boss. Le boss est acheté d'abord, même au-dessus du budget.
+- **Écart au livret** (fin de quête 12 écartée) : Fellmarak meurt à 0 Body. Écrit dans le seeder, dans `docs/regles/bestiaire-et-rencontres.md`, dans `BestiaireSourceTest` (test « ÉCART DE COMPORTEMENT », nommé et daté) et testé en jeu (`FellmarakEnJeuTest`).
+
+**Mesures : ce qui reste à l'escorte après Fellmarak**
+
+Groupe de référence de la quête Qwindrak : héros sans équipement, des_attaque 4, des_defense 3. Puissance 9 pour un héros seul de niveau 1, 36 pour quatre héros de niveau 1, 52 pour quatre héros de niveau 3. Plafond de 12 points de spawn, qui est une hypothèse et non la valeur d'une carte réelle.
+
+| Groupe | Arc | Budget | Reste après Fellmarak | Escorte |
+|---|---|---|---|---|
+| Héros seul, niveau 1 | 1 / 4 / 8 | 10 / 14 / 20 | 0 / 0 / 4 | 0 / 0 / 2 mobs |
+| Héros seul, niveau 3 | 1 | 20 | 4 | 2 mobs |
+| Duo, niveau 1 | 1 / 4 / 8 | 20 / 29 / 41 | 4 / 13 / 25 | 3 / 3 / 5 mobs |
+| Quatre héros, niveau 1 | 1 / 4 / 8 | 40 / 57 / 81 | 24 / 41 / 65 | 9 / 11 / 11 mobs |
+| Quatre héros, niveau 3 | 1 / 4 / 8 | 78 / 113 / 160 | 62 / 97 / 144 | 11 / 11 / 11 mobs (plafond atteint) |
+
+Le héros seul de niveau 1 affronte Fellmarak seul aux arcs 1 et 4, parce que le boss est acheté même au-dessus du budget (`EquilibrageRencontreTest`). Le groupe de niveau 3 est plafonné par les 12 spawns, pas par le budget.
+
+**Tests**
+
+`ThemeTelorTest` (10 tests) : boss et sous-boss, rotation en fin de liste, rencontre finale pour tout groupe, Fellmarak tiré seulement sous son thème, achat au-dessus du budget, sous-boss, escorte du jeu de base, coût selon la méthode mesurée, thème figé, campagne tirée en Telor qui affronte Fellmarak. `FellmarakEnJeuTest` (4 tests, dés injectés) : mort à 0 Body par une attaque, coup fatal sans changement de phase, sort de sa fiche lancé au tour des monstres, répertoire complet. `BestiaireSourceTest` : stats de Fellmarak figées, et écart de comportement nommé. Aucun lecteur nouveau n'a été écrit, donc il n'y avait rien à retirer pour vérifier que les tests tombent.
+
+**Non porté, et pourquoi**
+
+- **Talisman du Savoir maudit** (lot B) : **non tranché**. Les questions Q1 (variante dédiée), Q2 (retrait impossible) et Q5 (déclencheur automatique par tour) attendent René. Rien n'est seedé.
+- **Parchemins à trois usages** (lot C : Heal Body 3, Lightning Bolt 3, Water of Healing 2) : **à écrire**. Ils exigent `objets.usages_restants` (colonne additive, `null` = usage unique actuel), lue à la consommation, avec migration, lecteur et test en jeu. Hors de ce chantier.
+- ***Zargon's Flame* et la mort par tirage** (quête 13) : **écartés** (décision du 2026-10-23).
+- **La fuite à 0 Body** (quête 12) : **écartée**, même décision. *Firestorm* qui détruit les portes de la salle au premier tour : **écarté**, scripté dans une seule salle de la quête 12.
+- **Gor-Lethim Kar** (Q4) : laissé de côté, aucune stat sourcée.
+- Le Warlock, le KO non létal et les quatre artefacts réutilisés étaient déjà en place (§1). Les corrections de `reference/18` du lot A sont déjà dans le texte : *Rock Skin* (ajouté le 2026-10-04), la correction du KO non létal (« ⚠ Corrigé le 2026-10-04 »), et les trois sorts retirés du deck de Fellmarak pour la quête 13.
+
+**Restant hors dépôt**
+
+- Jouer les seeders après sauvegarde : `php artisan db:seed --class=MonstreSeeder`, puis `--class=GabaritQueteSeeder`. Les deux sont en `updateOrCreate` et ne purgent rien. **Aucune migration.**
+- Redémarrer `queue` et `queue-jeu`, car du PHP a changé.
+- Illustration de Fellmarak : non générée (coût d'appel). Le jeu marche avec l'emblème SVG de repli.
+- `reference/18_extensions.md` §Telor : la « Décision de René du 2026-10-15 » y dit encore « ÉTEINTE ». Elle n'a pas été modifiée, faute de source levée, comme le demande le brief commun. La décision courante est celle de ce document et de `docs/regles/bestiaire-et-rencontres.md`.

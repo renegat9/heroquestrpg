@@ -116,6 +116,8 @@ it('porte les créatures d\'extension telles que les livrets les chiffrent', fun
         'Rampant putride' => [7, 4, 4, 3, 4],
         'Serpent géant' => [8, 4, 3, 6, 3],
         'Singe géant' => [8, 4, 3, 7, 5],
+        // Prophecy of Telor — quête 12 (G0052 p. 31), relu sur le rendu PNG : MOVEMENT/ATTACK/DEFEND/BODY/MIND.
+        'Fellmarak le Roi Sorcier' => [8, 5, 4, 6, 6],
     ];
 
     foreach ($livrets as $nom => $attendu) {
@@ -488,6 +490,43 @@ it('donne au Sorcier du Dread (Prophecy of Telor) le répertoire limité par son
     expect(config('archetypes_lanceurs.sorcier_dread_telor.sorts'))->toBe([
         'Boule de Flammes', 'Tourmente', 'Frayeur', 'Nuée d\'Effroi', 'Commandement',
     ]);
+});
+
+it('porte Fellmarak le Roi Sorcier comme sa fiche de la quête 12, et son répertoire comme celui du livret', function () {
+    // G0052 p. 31 : « Fellmarak knows the following Dread spells: Firestorm, Rust, Command, Fear, and Cloud of
+    // Dread ». Une seule forme : la fiche ne le fait changer de bloc à aucun moment.
+    $f = Monstre::where('nom_base', 'Fellmarak le Roi Sorcier')->firstOrFail();
+
+    expect(statsDe('Fellmarak le Roi Sorcier'))->toBe([8, 5, 4, 6, 6])
+        ->and($f->tier)->toBe('boss')
+        ->and($f->boite)->toBe('prophecy_telor')
+        ->and($f->archetype_lanceur)->toBe('fellmarak_roi_sorcier')
+        ->and($f->phase_suivante)->toBeNull('une seule forme')
+        ->and(config('archetypes_lanceurs.fellmarak_roi_sorcier.sorts'))->toBe([
+            'Tempête de feu', 'Rouille', 'Commandement', 'Frayeur', 'Nuée d\'Effroi',
+        ]);
+});
+
+it('déclare son ÉCART DE COMPORTEMENT au livret, avec sa raison (Fellmarak, 2026-10-23)', function () {
+    // Une divergence de STAT se déclare dans le tableau de `déclare ses DIVERGENCES` : ici la fiche est exacte,
+    // c'est le COMPORTEMENT qui s'écarte. Le catalogue ne doit donc porter ni la fuite ni le tirage du livret.
+    $ecarts = [
+        'Fellmarak le Roi Sorcier' => [
+            'livret' => 'quête 12 : à 0 Body il s\'enfuit par une porte secrète et la quête continue ; '
+                .'quête 13 : sa fin dépend d\'un tirage (Zargon\'s Flame)',
+            'chez_nous' => 'à 0 Body il MEURT, comme tout boss',
+            'raison' => 'René, 2026-10-23 : « Fellmarak pourrait être juste mort sans revenir ». Ces deux fins sont '
+                .'propres à l\'arc du livret ; un donjon généré ne rejoue jamais une quête (docs/plan-telor.md).',
+        ],
+    ];
+
+    foreach ($ecarts as $nom => $ecart) {
+        $m = Monstre::where('nom_base', $nom)->firstOrFail();
+
+        expect($ecart['raison'])->not->toBeEmpty("{$nom} : écart sans raison écrite")
+            ->and($m->phase_suivante)->toBeNull("{$nom} : une seconde forme contredirait « {$ecart['chez_nous']} »")
+            ->and((array) $m->capacites)->toBe([], "{$nom} : aucune capacité de fuite ni de tirage ne doit subsister");
+    }
 });
 
 it('donne à Sir Ragnar `increvable_une_fois`, sans jamais le déclarer `phases`', function () {
