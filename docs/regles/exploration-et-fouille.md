@@ -419,3 +419,9 @@ Les tables de meuble (`MoteurMobilier::tirerButin()`) ne passent pas par le paqu
 - **Les potions du coffre ordinaire** (derrière une porte secrète) viennent de `deck_fouille.potions` du gabarit, lues par `DeckFouille::carteCoffre()`. Ce ne sont pas des cartes du paquet.
 
 **Le cercueil du Tombeau (Return of the Witch Lord p. 4-5, 2026-10-23).** L'issue `monstre` de la fouille du Tombeau fait sortir un mort-vivant de base (tiré à égalité parmi Squelette, Zombie, Momie : le livret ne nomme personne). Il est posé au contact ORTHOGONAL du fouilleur — le texte du cercueil ne nomme aucune diagonale, là où la carte d'errant dit « adjacent OR DIAGONAL » — avec repli sur la case libre la plus proche (`ResolveurTour::spawnDuTombeau()`, `caseLibreProche(…, orthogonal: true)`). Actif et révélé, il joue au tour des monstres, SANS frappe de surgissement que le livret ne prévoit pas. Si rien ne peut sortir, la fouille le dit (`monstre_indisponible`).
+## Fouiller la salle d'un adversaire qui dort (Kellar's Keep, 2026-10-23)
+
+`MenuMoteur::salleFouillableTresor()` ne compte pas comme « occupée » une figure qui DORT (`MoteurDormants::estDormant()`) : fouiller est le déclencheur de la gargouille-statue (q. 1 n.C), et une salle de squelettes endormis garde son trésor (q. 5 n.A). Sans cette exclusion, une statue rendait sa salle non fouillable, donc jamais réveillable — un trésor muré par une figure qu'on ne peut pas blesser. Une figure AWAKE, elle, bloque toujours la fouille comme avant : la règle « rencontres prévues nettoyées » ne change pas pour elle.
+
+La fouille du trésor réveille les figures `fouille_de_la_salle` de la salle (`ResolveurTour::resoudreFouilleTresor()`, annoncé par le tampon d'annonces). ÉCART DE CALENDRIER écrit : la statue du livret attaque « immediately » ; la nôtre joue au tour suivant du MJ.
+

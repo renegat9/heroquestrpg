@@ -191,6 +191,10 @@ function fixturesDesTypesAnnonces(): array
         'monstre_paralyse' => ['monstre' => 'Gobelin'],
         'monstre_endormi' => ['monstre' => 'Gobelin'],
         'monstre_reveille' => ['monstre' => 'Gobelin', 'des_rupture' => [6]],
+        // Kellar's Keep lot C (2026-10-23) : l'éveil d'un dormant (ses trois causes) et l'attaque de l'esprit.
+        'monstre_s_eveille' => ['monstre' => 'Squelette-roi nain', 'cause' => 'attaque', 'id' => 1],
+        'attaque_mind_monstre' => ['monstre' => 'Borokk', 'cible' => ['nom' => 'Albrecht', 'id' => 1, 'personnage_id' => 1],
+            'des' => ['crane', 'bouclier_blanc'], 'cranes' => 1, 'perdus' => 1, 'choc' => false],
         'monstre_enfume' => ['monstre' => 'Gobelin'],
         'monstre_enchaine' => ['monstre' => 'Sorcier'],
         'monstre_dans_l_ombre' => ['monstre' => 'Gobelin'],

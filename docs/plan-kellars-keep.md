@@ -289,3 +289,38 @@ Critère (René, 2026-10-23 : « retirer ce qui ne devrait pas être implanté d
 | Carte de pierre en quatre morceaux | G | Un **objectif de campagne** sur dix quêtes fixes, hors du modèle « un objectif par quête générée ». |
 
 **Reste à porter** : lot B (Borokk, `attaque_mind`), lot C (monstres dormants : squelettes des rois nains, gargouille-statue, immunité totale aux sorts), lot D (métamorphe — le paquet de synchroformes de Qwindrak, `App\Partie\MoteurSynchroformes`, 2026-10-22, est désormais le précédent le plus proche, à évaluer avant la Q2), lot E sans les deux lignes ci-dessus (rocher roulant = danger mobile autonome, Q3 ; trappes appariées ; portes à condition ; forge des nains), lot F (Gragor, Ograk).
+
+## Exécution (2026-10-23)
+
+Chantier `ext-kellar` (worktree `heroquestrpg-kellar`, non committé). Ce qui est porté, et où :
+
+- **Lot C — passif jusqu'à déclencheur** : `MotsClesAdversaires::PASSIF_JUSQUA` (trois déclencheurs : `attaque_du_groupe`, `groupe_dans_la_salle`, `fouille_de_la_salle`) ; lecteur `App\Partie\MoteurDormants` ; état durable `instances_monstres.passif_etat` (migration `2026_10_23_100000_passif_etat_sur_instances_monstres`, repris par `Sauvegarde`). Règles : `docs/regles/bestiaire-et-rencontres.md` (dernière section) et `docs/regles/combat-et-tour.md`.
+- **Lot B — Borokk** : `MotsClesAdversaires::ATTAQUE_MIND` (`attaque_mind`), lu par `ResolveurTour::attaqueMindMonstre()` via `gestesPassifs()`, producteur `MoteurDegats::infligerMindAHeros()`.
+- **Lot F — Gragor** : sous-boss, archétype `gragor_kellar` (cinq sorts déclarés, trois en jeu par le palier — écrit).
+- **Bellthor** (Witch Lord q. 5) : sous-boss, `boite: witch_lord`, `passif_jusqua` (`groupe_dans_la_salle`) et `attaque_mind` (souffle après attaque). Non portés : la fin « capturée » (écartée) et la brume de sa mort (non tranché).
+- **Squelettes des rois nains** (sous-boss, 6/3/4/2/0), **gargouille-statue** (ligne nommée, Gargouille de base, `fouille_de_la_salle` + intouchable jusqu'à son premier geste), **Gargouille gardienne** (boss, 4 Body, `immunite_sorts`).
+- **Thème `kellars_keep`** allumé (fin de `BOITES_THEMATIQUES`, libellé « Kellar's Keep ») : boss final = la gardienne, sourcée et jouable. `witch_lord` est en `BOITES_INCOMPLETES` jusqu'à l'allumage du chantier Witch Lord (raison écrite).
+- **Voix** (`config/barks.php`), **pools** (`GabaritQueteSeeder` : sous-boss `creatures` + `gragor_kellar`, boss `creatures` + gardienne), **catalogue** (`MonstreSeeder`, `$gargouille` et `$guerrierDuChaos` deviennent des variables : une seule copie des chiffres).
+
+**Décisions prises sans René** (à relire) :
+
+1. **Gargouille gardienne = BOSS** (et non sous-boss comme le plan) : sans un boss de palier boss, le thème n'a rien à tirer. Cout 13 : 6,0 attaques, extrapolées sur la droite des boss, 12,5 arrondi au supérieur — l'immunité n'est pas chiffrée par la méthode.
+2. **Figure dormante posée EN SALLE** : sans salle, ni porte, ni fouille, ni groupe à réunir ; une figure dans un couloir bloquerait sans pouvoir s'éveiller.
+3. **Un monstre qui dort ne bloque pas la fouille de sa salle** (`salleFouillableTresor`) : sans cela la statue rendait sa salle non fouillable, donc jamais réveillable.
+4. **Statue : éveil à la fouille, action au tour suivant du MJ** — écart de calendrier avec « immediately attacks » du livret, écrit dans `MoteurDormants`.
+5. **Gragor : trois sorts sur cinq** (palier), écrit dans l'archétype et dans le seeder.
+6. **`attaque_du_groupe` ne compte que les attaques de corps (`frapper()`)** : un sort qui blesse un squelette ne l'éveille pas.
+7. **Intouchable = aucun sort ne la vise** (y compris ceux qui ne blessent pas) : la liste blanche du menu ne fait pas la distinction ; le livret ne parle que de dégâts.
+
+**Non porté** (écrit) : métamorphe, rocher roulant, trappes, portes à condition, forge (lots D/E, prochaine vague) ; Ograk (habillage seul, entrée par porte du MJ écartée) ; la carte de pierre et les portes du MJ (décision du 2026-10-23) ; la brume de la mort de Bellthor et sa capture (voir ci-dessus).
+
+**Non éprouvé** : les sorts de zone et de rayon contre une statue intouchable (seule la liste de cibles à un seul destinataire est testée) ; l'attaque de l'esprit de Borokk dans un COULOIR (le test reste dans une salle) ; le placement de Bellthor dans une vraie quête générée (le placement est testé sur une liste de cases).
+
+**Tests** : `tests/Feature/Partie/PassifKellarsTest.php` (seize tests en jeu) ; `BestiaireSourceTest` (stats, palier, coût, registre des déclencheurs) ; `BestiaireManuelTest` (le contre-exemple « kellars_keep » devient « boite_inventee », le thème n'étant plus inconnu). Mutations (une lecture retirée à la fois, fichier restauré à chaque fois) : onze mutations sur onze font tomber au moins un test, dont l'éveil par attaque (trois tests), le groupe réuni, le dormant qui jouerait quand même, la garde de choc, le choke-point hors menu, l'attaque de l'esprit, le placement, la fouille, l'éveil par fouille, la levée de l'intouchabilité et le souffle sans attaque.
+
+**Suite complète** : 2697 verts (90600 assertions, `--parallel`), lancée AVANT deux correctifs de portée réduite — une figure déjà éveillée attaquée hors salle n'annonçait pas un faux « s'éveille » ; un allié frappé par un monstre ne lève plus l'intouchabilité d'un passif. Ces deux correctifs sont couverts par le test « ÉVEIL SANS FAUX FIL » et par un relancement ciblé (PassifKellarsTest, AdversairesNommesTest, AnnoncesEffetsAutomatiquesTest, BestiaireSourceTest, SorciersNommesTest, SortsOgreHordeTest, puis les 466 tests des fichiers de menu, de fouille et de frappe : tous verts).
+
+**Migrations et seeders à jouer** (l'orchestrateur, après sauvegarde) : `migrate` (colonne `passif_etat`), `db:seed` (`MonstreSeeder`, `GabaritQueteSeeder`). Aucune donnée existante n'est modifiée.
+
+**Ce qui reste au chantier Witch Lord** : `witch_lord` sort de `BOITES_INCOMPLETES` quand son boss final est semé ; ses autres créatures et l'entrée de `BOITES_THEMATIQUES` seront fusionnées avec celles-ci.
+

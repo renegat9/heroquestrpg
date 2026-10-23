@@ -683,3 +683,46 @@ it('déclare `attaque_diagonale` sur l\'Assassin, la Vrille et le Scion Fleur-Po
 
     expect($porteurs)->toBe(['Assassin', 'Scion Fleur-Pourrie', 'Vrille'], '`attaque_diagonale` : porteurs inattendus : '.implode(', ', $porteurs));
 });
+
+it('porte les créatures de Kellar\'s Keep et Bellthor telles que leurs livrets les chiffrent, avec leur `cout` mesuré', function () {
+    // Stats relues sur le livret (F4543 q. 1, 5, 6, 9, 10 ; F4193 q. 5 p. 17), dans l'ordre de `MonstreSeeder`. Le `cout`
+    // suit la méthode du bestiaire (Body / (1,5 − Défense/6), placé sur la droite du palier) — voir le commentaire du seeder.
+    $attendus = [
+        //  Mv At Df Bd Mi  palier      boîte           cout
+        'Squelette-roi nain'    => [6, 3, 4, 2, 0, 'sous_boss', 'kellars_keep', 8],
+        'Gargouille-statue'     => [6, 4, 5, 3, 4, 'base',      'kellars_keep', 7],
+        'Gargouille gardienne'  => [6, 4, 5, 4, 4, 'boss',      'kellars_keep', 13],
+        'Borokk'                => [7, 4, 4, 3, 3, 'sous_boss', 'kellars_keep', 9],
+        'Gragor'                => [7, 4, 4, 3, 3, 'sous_boss', 'kellars_keep', 9],
+        'Bellthor'              => [6, 4, 6, 3, 3, 'sous_boss', 'witch_lord',  10],
+    ];
+
+    foreach ($attendus as $nom => [$mv, $at, $df, $bd, $mi, $tier, $boite, $cout]) {
+        $m = Monstre::where('nom_base', $nom)->firstOrFail();
+
+        expect([(int) $m->deplacement, (int) $m->attaque, (int) $m->defense, (int) $m->pv_body, (int) $m->pv_mind,
+            $m->tier, $m->boite, (int) $m->cout])
+            ->toBe([$mv, $at, $df, $bd, $mi, $tier, $boite, $cout], "{$nom} : stats ou palier ou coût divergents du livret");
+    }
+
+    // Les capacités sont celles du livret, et seulement celles-là.
+    expect(array_keys((array) Monstre::where('nom_base', 'Squelette-roi nain')->first()->capacites))->toBe(['passif_jusqua'])
+        ->and(Monstre::where('nom_base', 'Gargouille-statue')->first()->capacites['passif_jusqua'])
+            ->toBe(['declencheur' => 'fouille_de_la_salle', 'intouchable_jusqua' => 'action'])
+        ->and(Monstre::where('nom_base', 'Gargouille gardienne')->first()->capacites)->toBe(['immunite_sorts'])
+        ->and(Monstre::where('nom_base', 'Borokk')->first()->capacites['attaque_mind'])->toBe(['des' => 2, 'portee' => 'salle_ou_couloir'])
+        ->and(Monstre::where('nom_base', 'Bellthor')->first()->capacites['attaque_mind'])
+            ->toBe(['des' => 6, 'portee' => 'salle', 'apres_attaque' => true])
+        ->and(Monstre::where('nom_base', 'Gragor')->first()->archetype_lanceur)->toBe('gragor_kellar');
+
+    // Le registre des déclencheurs est fermé : chaque valeur portée appartient à la liste déclarée.
+    foreach (Monstre::all() as $m) {
+        $passif = data_get((array) $m->capacites, 'passif_jusqua');
+
+        if (is_array($passif)) {
+            expect(in_array($passif['declencheur'], \App\Engine\MotsClesAdversaires::PASSIF_DECLENCHEURS, true))->toBeTrue($m->nom_base)
+                ->and(! isset($passif['intouchable_jusqua']) || in_array($passif['intouchable_jusqua'], \App\Engine\MotsClesAdversaires::PASSIF_INTOUCHABLE_JUSQUA, true))->toBeTrue($m->nom_base);
+        }
+    }
+});
+

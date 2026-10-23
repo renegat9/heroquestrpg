@@ -434,6 +434,21 @@ return [
         ],
     ],
 
+    // GRAGOR (Kellar's Keep q. 6 n.E, p. 19 : « his stats are the same as a Dread warrior, but he also knows the following
+    // spells: summon orcs, fear, rust, ball of flame, and lightning bolt »). Les cinq existent au catalogue. `Invocation d'orques`
+    // et `Rouille` sont de palier BOSS : la capacité `repertoire_complet` de sa ligne (`MonstreSeeder`) lève le filtre de palier
+    // (`MoteurDread::sortsDisponibles()`), comme pour Kessandria — le sous-boss lance ses cinq sorts (fusion du 2026-10-23).
+    'gragor_kellar' => [
+        'porteur' => 'Gragor',
+        'sorts' => [
+            'Invocation d\'orques',
+            'Frayeur',
+            'Rouille',
+            'Boule de Flammes',
+            'Éclair de Chaos',
+        ],
+    ],
+
     'festral_sorcier_dread' => [
         'porteur' => 'Festral',
         // « Festral can cast Mind Burst, Mind Lock, and Dominate, and uses 3 cards for each spell » (p. 35).

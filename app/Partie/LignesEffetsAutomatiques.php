@@ -51,6 +51,53 @@ trait LignesEffetsAutomatiques
         return $lignes;
     }
 
+    /**
+     * L'ÉVEIL d'un adversaire qui dormait jusqu'à son déclencheur (`MoteurDormants`) : dit QUI s'éveille et POURQUOI,
+     * jamais ce qu'il va faire — la figure s'anime sous les yeux du groupe, ses dés restent cachés.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function monstreSEveille(array $a): array
+    {
+        $monstre = (string) ($a['monstre'] ?? 'Une créature');
+
+        $texte = match ($a['cause'] ?? null) {
+            'attaque' => "{$monstre} s'éveille — l'un de ses compagnons vient d'être attaqué",
+            'groupe_reuni' => "{$monstre} s'éveille : tous les héros sont réunis dans sa salle",
+            'fouille' => "{$monstre} prend vie — un héros fouille le trésor de la salle",
+            default => "{$monstre} s'éveille",
+        };
+
+        return [['texte' => $texte, 'ton' => 'info']];
+    }
+
+    /**
+     * L'ATTAQUE DE L'ESPRIT (`attaque_mind_monstre`, Borokk, Bellthor) : combien de crânes sur combien de dés, combien
+     * de Mind le héros perd, et l'état de choc s'il tombe à 0 — jamais la mort (Q1).
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function attaqueMindMonstre(array $a): array
+    {
+        $monstre = (string) ($a['monstre'] ?? 'Le monstre');
+        $cible = (string) ($a['cible']['nom'] ?? 'un héros');
+        $perdus = (int) ($a['perdus'] ?? 0);
+        $nbDes = count((array) ($a['des'] ?? []));
+        $cranes = (int) ($a['cranes'] ?? 0);
+
+        if ($perdus === 0) {
+            return [['texte' => "{$monstre} sonde l'esprit de {$cible} : {$cranes} crâne(s) sur {$nbDes} dé(s), rien ne cède", 'ton' => 'pare']];
+        }
+
+        $lignes = [['texte' => "{$monstre} attaque l'esprit de {$cible} : {$cranes} crâne(s) sur {$nbDes} dé(s), −{$perdus} Mind", 'ton' => 'subit']];
+
+        if (! empty($a['choc'])) {
+            $lignes[] = ['texte' => "{$cible} est en état de choc", 'ton' => 'chute'];
+        }
+
+        return $lignes;
+    }
+
     /** @return list<array{texte: string, ton: string}> */
     private function soinAllie(array $a, string $acteurNom): array
     {

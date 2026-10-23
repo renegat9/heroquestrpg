@@ -672,6 +672,30 @@ final class DemarreurQuete
             $prises[$cle($choisie)] = true;
         }
 
+        // PASSIF (Kellar's Keep lot C, Witch Lord q. 5) : une figure qui DORT jusqu'à son déclencheur se pose EN SALLE.
+        // Sans salle il n'y a ni porte à fermer, ni fouille possible, ni groupe à réunir : elle bloquerait un couloir
+        // sans jamais pouvoir s'éveiller. Elle échange sa case avec une case de salle libre — jamais avec une figure
+        // qui doit déjà y être (immobile, ou dormante elle aussi).
+        $liste = array_values($monstres);
+
+        foreach ($liste as $i => $monstre) {
+            if (! isset($positions[$i]) || ! array_key_exists(MoteurDormants::CAPACITE, (array) $monstre->capacites)
+                || Salles::indexDe($salles, (int) $positions[$i]['x'], (int) $positions[$i]['y']) !== null) {
+                continue;
+            }
+
+            foreach ($positions as $j => $p) {
+                if ($j === $i || Salles::indexDe($salles, (int) $p['x'], (int) $p['y']) === null
+                    || isset($prises["{$p['x']},{$p['y']}"])
+                    || (isset($liste[$j]) && array_key_exists(MoteurDormants::CAPACITE, (array) $liste[$j]->capacites))) {
+                    continue;
+                }
+
+                [$positions[$i], $positions[$j]] = [$positions[$j], $positions[$i]];
+                break;
+            }
+        }
+
         // LA GARDE PERSONNELLE d'un chef (`garde_personnelle`, Festral : « The Dread Warriors in the room are
         // Festral's personal guard ») se tient DANS SA SALLE : la répartition en round-robin des monstres sur les
         // salles n'y mettrait presque jamais ses figures, et leurs dés fixés (`GardePersonnelle`) n'auraient
@@ -850,6 +874,11 @@ final class DemarreurQuete
         // Dread, Cavalier-esprit) au jalon sous-boss. Les immunités sélectives (Kessandria, le Seigneur)
         // sont portées — voir `docs/plan-witch-lord.md` §Exécution.
         'witch_lord',
+        // Allumée le 2026-10-23 (Kellar's Keep, lot C), modulo 9 → 10 (après prophecy_telor et witch_lord) : le boss final est la GARGOUILLE GARDIENNE de Grin's Crag (quête 10,
+        // F4543 p. 27) — sourcée (carte de la gargouille + « immune to all spells and has 4 Body Points »), jouable (`immunite_sorts`).
+        // Rencontre finale : `database/seeders/GabaritQueteSeeder.php`, pool `creatures` du boss. Ni les portes du MJ, ni la carte de
+        // pierre, ni la fouille « un piège à la fois » ne sont portées (`docs/plan-kellars-keep.md`, décision du 2026-10-23).
+        'kellars_keep',
     ];
 
     /**
@@ -970,6 +999,8 @@ final class DemarreurQuete
         // l'année fait partie du titre de section imprimé, jamais du nom de la boîte.
         'prophecy_telor' => 'Prophecy of Telor',
         'witch_lord' => 'Return of the Witch Lord',
+        // reference/18_extensions.md ligne 27 : « Kellar's Keep (2021) » — le titre de section, sans année ajoutée.
+        'kellars_keep' => "Kellar's Keep",
     ];
 
     /**

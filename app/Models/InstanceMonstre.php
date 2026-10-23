@@ -62,6 +62,9 @@ class InstanceMonstre extends Model
         // générique emporte de sa source (répertoire de sorts, météore) se lit là. `null` = la figure
         // est sa propre fiche. Voir {@see self::ligneDeReference()}.
         'origine_monstre',
+        // État du PASSIF (Kellar's Keep lot C) : éveillé / a agi / a attaqué, pour un adversaire qui dort jusqu'à son
+        // déclencheur. `null` = rien de vécu — lu par `App\Partie\MoteurDormants`, jamais en cache.
+        'passif_etat',
     ];
 
     protected function casts(): array
@@ -80,6 +83,7 @@ class InstanceMonstre extends Model
             'controle_agi' => 'boolean',
             'capacites_reactives_utilisees' => 'array',
             'sorts_dread_lances' => 'array',
+            'passif_etat' => 'array',
         ];
     }
 

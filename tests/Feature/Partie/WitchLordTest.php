@@ -52,7 +52,8 @@ function wlAcheter(string $theme, string $typeJalon, int $budget, int $maxSpawns
     return $methode->invoke($demarreur, $structure, $budget, $maxSpawns, $position, $groupeId, BestiaireGroupe::auto($theme));
 }
 
-const WL_LEGION = ['Skulmar', 'Kessandria', 'Garde du Dread', 'Cavalier-esprit'];
+// Bellthor (quête 5, porté par le chantier Kellar's Keep avec les dormants) est aussi un sous-boss de la boîte.
+const WL_LEGION = ['Skulmar', 'Kessandria', 'Garde du Dread', 'Cavalier-esprit', 'Bellthor'];
 
 it('CATALOGUE — les cinq créatures portent les stats relues sur le livret, leur palier, leur boîte et leur cout', function () {
     // [déplacement, attaque, défense, Body, Mind, palier, cout]
@@ -121,7 +122,7 @@ it('FINALE — le Seigneur Sorcier ferme la campagne du thème, quel que soit le
     }
 });
 
-it('LÉGION — les sous-boss du thème tournent entre Skulmar, Kessandria, la Garde et le Cavalier, sans jamais un autre', function () {
+it('LÉGION — les sous-boss du thème tournent entre Skulmar, Kessandria, la Garde, le Cavalier et Bellthor, sans jamais un autre', function () {
     $vus = [];
 
     foreach (range(1, 12) as $position) {

@@ -128,6 +128,17 @@ class MonstreSeeder extends Seeder
         // et dernière variante nommée par le livret p. 8.
         $orqueArcher = $varianteDistance($orque, 'Orque archer', 3);
 
+        // Carte « Dread Warrior » (p03, © 2021 — 1989 « Chaos Warrior ») : Déplacement 7, Attaque 4, Défense 4, Body 3,
+        // Mind 3 — valeurs de CARTE (décision 2026-10-05). Variable : Borokk et Gragor, « same stats as a Dread warrior »
+        // (Kellar's Keep q. 6 et q. 9), la reprennent sans la recopier.
+        $guerrierDuChaos = ['nom_base' => 'Guerrier du Chaos', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 3,
+            'tier' => 'base', 'boite' => 'base', 'cout' => 6, 'capacites' => [], 'sorts_dread' => []];
+
+        // Carte « Gargoyle » (p05, © 2021) : Déplacement 6, Attaque 4, Défense 5, Body 3, Mind 4. Variable : la Gargouille-statue
+        // (Kellar's Keep q. 1) et la Gargouille gardienne (q. 10) « moves, attacks, and defends as a normal gargoyle would ».
+        $gargouille = ['nom_base' => 'Gargouille', 'deplacement' => 6, 'attaque' => 4, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 4,
+            'tier' => 'base', 'boite' => 'base', 'cout' => 7, 'capacites' => [], 'sorts_dread' => []];
+
         $monstres = [
             $gobelin,
             $squelette,
@@ -156,15 +167,13 @@ class MonstreSeeder extends Seeder
             // Déplacement près : `cout` recalculé par la même mesure (3.6
             // attaques-à-3-dés, contre 1.2 avant) — 3 → 6, au niveau de
             // l'Assassin (même tier `base`, même méthode).
-            ['nom_base' => 'Guerrier du Chaos', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 3,
-                'tier' => 'base', 'boite' => 'base', 'cout' => 6, 'capacites' => [], 'sorts_dread' => []],
+            $guerrierDuChaos,
             // Carte « Gargoyle » (p05, © 2021) : Défense **5**, Body **3**,
             // contre 4/1 au paquet de fan — deux divergences (Déplacement/
             // Attaque/Mind identiques). `cout` recalculé par la même mesure
             // (4.5 attaques-à-3-dés, contre 1.2 avant) — 4 → 7, la créature
             // la plus endurante du tier `base` (sans capacité).
-            ['nom_base' => 'Gargouille', 'deplacement' => 6, 'attaque' => 4, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 4,
-                'tier' => 'base', 'boite' => 'base', 'cout' => 7, 'capacites' => [], 'sorts_dread' => []],
+            $gargouille,
 
             // ----- Variantes À DISTANCE génériques (Q6) -----
             $gobelinArcher,
@@ -1121,6 +1130,69 @@ class MonstreSeeder extends Seeder
             // fiche serait la clé décorative inverse (une STAT sourcée, un
             // COMPORTEMENT qui la trahit) — laissé de côté, nommé plutôt que
             // deviné, en attendant un passage dédié à ces deux mécanismes.
+
+            // ----- Kellar's Keep (F4543, 2026-10-23 — docs/plan-kellars-keep.md, « Exécution (2026-10-23) ») -----
+            //
+            // Stats relues sur le livret, jamais devinées. `cout` MESURÉ par la méthode du bestiaire
+            // (`docs/regles/bestiaire-et-rencontres.md`) : attaques-à-3-dés pour abattre = Body / (1,5 − Défense/6), placé
+            // sur la droite du palier (sous-boss : 12 + 0,604 × (attaques − 8,9), d'après Ogre champion, Minotaure, Doralf).
+
+            // Squelette-roi nain (q. 5 n.B, p. 17 : « MOVEMENT 6 · ATTACK 3 · DEFEND 4 · BODY 2 · MIND 0 »). « The skeletons
+            // do not move or attack until one of the skeletons has been attacked. Then on Zargon's next turn, they all attack »
+            // — DIVERGENT du Squelette de base (6/2/2/1/0), voulu par le livret (« more powerful than regular skeletons »).
+            // 2 / (1,5 − 4/6) = 2,4 attaques → 8,1 → 8, le plancher du palier (Garde-mage, Effigie gardienne).
+            ['nom_base' => 'Squelette-roi nain', 'deplacement' => 6, 'attaque' => 3, 'defense' => 4, 'pv_body' => 2, 'pv_mind' => 0,
+                'tier' => 'sous_boss', 'boite' => 'kellars_keep', 'cout' => 8,
+                'capacites' => ['passif_jusqua' => ['declencheur' => 'attaque_du_groupe']], 'sorts_dread' => []],
+
+            // Gargouille-statue (q. 1 n.C, p. 9) : la Gargouille de base, en LIGNE NOMMÉE (ses capacités diffèrent — une
+            // capacité posée sur la Gargouille rendrait toutes les gargouilles des salles en statues). « The gargoyle appears
+            // to be a stone statue that does not move. […] If a hero searches for treasure before the trap has been disarmed,
+            // the gargoyle springs to life […] The gargoyle cannot be harmed until it has either moved or attacked a hero. »
+            // Éveil à la fouille du trésor de sa salle (`fouille_de_la_salle`) ; intouchable jusqu'à son premier geste.
+            // Le piège du coffre n'est pas porté (le trésor de salle en tient lieu). Même `cout` que la Gargouille : 7.
+            [...$gargouille, 'nom_base' => 'Gargouille-statue', 'boite' => 'kellars_keep',
+                'capacites' => ['passif_jusqua' => ['declencheur' => 'fouille_de_la_salle', 'intouchable_jusqua' => 'action']]],
+
+            // Gargouille gardienne (q. 10 n.C, p. 27 : « On Zargon's next turn, the gargoyle moves, attacks, and defends as a
+            // normal gargoyle would, but it is also immune to all spells and has 4 Body Points. ») — le gardien de Grin's Crag,
+            // DERNIER obstacle de la boîte : la porte de sortie ne s'ouvre qu'à sa mort. Boss final du thème. Le premier héros
+            // qui pose le pied sur la case « C » l'active : déclencheur propre à cette quête, non porté — elle est posée comme
+            // un boss ordinaire. `immunite_sorts` : le mot-clé de l'Effigie (`MotsClesAdversaires::IMMUNITE_SORTS`), totale.
+            // `cout` : 4 / (1,5 − 5/6) = 6,0 attaques, sur la droite des boss (Ogre commandant 9 → 15, Seigneur 15 → 20) :
+            // 12,5 → 13 (arrondi au supérieur, comme le Scion à 21,5 → 22 : l'immunité n'est pas chiffrée par la méthode).
+            [...$gargouille, 'nom_base' => 'Gargouille gardienne', 'tier' => 'boss', 'boite' => 'kellars_keep', 'pv_body' => 4,
+                'cout' => 13, 'capacites' => ['immunite_sorts'], 'sorts_dread' => []],
+
+            // Borokk (q. 9 n.B, p. 25 : « Borokk has the same stats as a Dread warrior, but he also has a very special and deadly
+            // magical power. On each of his turns, he attacks the mind of any hero in the same room or corridor and in his line
+            // of sight. To do this, Borokk rolls 2 combat dice. For each skull he rolls, the target of the attack loses 1 Mind
+            // Point. ») — sous-boss ; hors système de sorts (pas de répertoire). Le Mind à 0 = état de choc (Q1). `cout` :
+            // 3 / (1,5 − 4/6) = 3,6 attaques → 8,8 → 9.
+            [...$guerrierDuChaos, 'nom_base' => 'Borokk', 'tier' => 'sous_boss', 'boite' => 'kellars_keep', 'cout' => 9,
+                'capacites' => ['attaque_mind' => ['des' => 2, 'portee' => 'salle_ou_couloir']], 'sorts_dread' => []],
+
+            // Gragor (q. 6 n.E, p. 19 : « His stats are the same as a Dread warrior, but he also knows the following spells:
+            // summon orcs, fear, rust, ball of flame, and lightning bolt »). Sous-boss (plan Kellar's Keep §7). Son répertoire est
+            // l'archétype `gragor_kellar`. Deux de ses cinq sorts sont de palier BOSS (Invocation d'orques, Rouille) : le livret
+            // lui donne le répertoire ENTIER, donc `repertoire_complet` lève le palier, comme pour Kessandria (fusion du 2026-10-23).
+            // `cout` : 3,6 attaques → 9, comme Borokk.
+            [...$guerrierDuChaos, 'nom_base' => 'Gragor', 'tier' => 'sous_boss', 'boite' => 'kellars_keep', 'cout' => 9,
+                'capacites' => ['repertoire_complet'], 'sorts_dread' => [], 'archetype_lanceur' => 'gragor_kellar'],
+
+            // Bellthor (Return of the Witch Lord, F4193 q. 5 n.B, p. 17 : « MOVEMENT 6 · ATTACK 4 · DEFEND 6 · BODY 3 · MIND 3 »).
+            // « Bellthor does not move or attack on its turn until all of the heroes are in the room together. Bellthor cannot be
+            // harmed until after it attacks. » Son souffle, « after it has attacked […] once per turn », roule 6 dés de combat ;
+            // chaque crâne retire 1 Mind (`attaque_mind`, après attaque). NON PORTÉS : la fin « capturée » (héros retirés de la
+            // quête — écartée, René 2026-10-15) et la brume de sa mort qui assomme la salle (non tranché). `cout` : 3 / (1,5 − 1)
+            // = 6,0 attaques → 10,25 → 10. Boîte Witch Lord : hors thème tant que la boîte n'est pas allumée.
+            ['nom_base' => 'Bellthor', 'deplacement' => 6, 'attaque' => 4, 'defense' => 6, 'pv_body' => 3, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'boite' => 'witch_lord', 'cout' => 10,
+                'capacites' => [
+                    'passif_jusqua' => ['declencheur' => 'groupe_dans_la_salle', 'intouchable_jusqua' => 'attaque'],
+                    'attaque_mind' => ['des' => 6, 'portee' => 'salle', 'apres_attaque' => true],
+                ],
+                'sorts_dread' => []],
         ];
 
         foreach ($monstres as $monstre) {

@@ -158,6 +158,42 @@ final class MotsClesAdversaires
     public const REPERTOIRE_COMPLET = 'repertoire_complet';
 
     /**
+     * PASSIF JUSQU'À DÉCLENCHEUR (Kellar's Keep q. 1 n.C, q. 5 n.B ; Witch Lord q. 5 n.B) : la figure est VISIBLE, mais ne
+     * bouge ni n'attaque tant que son déclencheur ne s'est pas produit. Paramétrée :
+     *  - `declencheur` (liste fermée {@see self::PASSIF_DECLENCHEURS}) :
+     *      `attaque_du_groupe` — un monstre de sa salle a été attaqué : éveil, elle joue au tour suivant du MJ
+     *                            (« the skeletons do not move or attack until one of the skeletons has been attacked.
+     *                            Then on Zargon's next turn, they all attack »),
+     *      `groupe_dans_la_salle` — tous les héros debout sont dans sa salle : elle joue à ce tour du MJ (« does not move
+     *                            or attack on its turn until all of the heroes are in the room together »),
+     *      `fouille_de_la_salle` — un héros fouille le trésor de sa salle : éveil (la statue du livret attaque aussitôt ;
+     *                            ici, au tour suivant du MJ — écart de calendrier écrit dans `MoteurDormants`) ;
+     *  - `intouchable_jusqua` (optionnel, liste fermée {@see self::PASSIF_INTOUCHABLE_JUSQUA}) : tant que la condition
+     *    n'est pas remplie, personne ne peut la blesser — « cannot be harmed until it has either moved or attacked »
+     *    (gargouille-statue, `action`), « cannot be harmed until after it attacks » (Bellthor, `attaque`).
+     * Lu par {@see \App\Partie\MoteurDormants}, seul point de passage du sommeil d'un adversaire.
+     */
+    public const PASSIF_JUSQUA = 'passif_jusqua';
+
+    /** Les déclencheurs que `passif_jusqua` accepte — registre fermé, testé dans `AdversairesNommesTest`. */
+    public const PASSIF_DECLENCHEURS = ['attaque_du_groupe', 'groupe_dans_la_salle', 'fouille_de_la_salle'];
+
+    /** Les conditions qui lèvent l'intouchabilité d'un passif : il a bougé ou attaqué, ou il a attaqué. */
+    public const PASSIF_INTOUCHABLE_JUSQUA = ['action', 'attaque'];
+
+    /**
+     * ATTAQUE DE L'ESPRIT (Borokk, Kellar's Keep q. 9 n.B : « On each of his turns, he attacks the mind of any hero in the
+     * same room or corridor and in his line of sight […] rolls 2 combat dice. For each skull […] loses 1 Mind Point » ;
+     * Bellthor, Witch Lord q. 5 n.B : « can breathe on any one hero in the room (once per turn) after it has attacked. To
+     * do this, it rolls 6 combat dice »). Hors système de sorts. Paramétrée :
+     *  - `des` : dés de combat lancés ;
+     *  - `portee` : `salle_ou_couloir` (Borokk) | `salle` (Bellthor) ;
+     *  - `apres_attaque` (optionnel, Bellthor) : seulement si la figure a porté une attaque physique à ce tour.
+     * Le producteur est `MoteurDegats::infligerMindAHeros()`, appelé par `ResolveurTour::attaqueMindMonstre()`.
+     */
+    public const ATTAQUE_MIND = 'attaque_mind';
+
+    /**
      * @var array<string, array{lecteur: string, libelle: string}>
      */
     public const CAPACITES = [
@@ -224,6 +260,14 @@ final class MotsClesAdversaires
         self::REPERTOIRE_COMPLET => [
             'lecteur' => 'App\Partie\MoteurDread::sortsDisponibles',
             'libelle' => 'Garde son répertoire entier malgré le palier : un sorcier nommé que son livret donne complet',
+        ],
+        self::PASSIF_JUSQUA => [
+            'lecteur' => 'App\Partie\MoteurDormants::estDormant',
+            'libelle' => 'Dort jusqu\'à son déclencheur : visible, immobile, sans attaque ; intouchable jusqu\'à son premier geste',
+        ],
+        self::ATTAQUE_MIND => [
+            'lecteur' => 'App\Partie\ResolveurTour::attaqueMindMonstre',
+            'libelle' => 'Attaque l\'esprit d\'un héros en vue : chaque crâne de ses dés de combat = 1 Mind perdu',
         ],
     ];
 
