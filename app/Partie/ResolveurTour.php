@@ -203,6 +203,7 @@ final class ResolveurTour
         private readonly ReactionsMj $reactionsMj,
         private readonly SauteTourMonstre $sauteTour,
         private readonly TirTraversant $tirTraversant,
+        private readonly MoteurDormants $dormants,
     ) {}
 
     /**
@@ -1789,6 +1790,22 @@ final class ResolveurTour
             ]);
         }
 
+        // PASSIF INTOUCHABLE (Kellar's Keep lot C : « cannot be harmed until it has either moved or attacked a hero » ;
+        // Bellthor : « until after it attacks ») : même prédicat que le menu (`MoteurDormants::estIntouchable()`).
+        if ($this->dormants->estIntouchable($instance)) {
+            throw ValidationException::withMessages([
+                'option_id' => "{$instance->nomAffiche()} ne peut pas être blessé pour l'instant.",
+            ]);
+        }
+
+        // ÉVEIL PAR ATTAQUE (Kellar's Keep q. 5 n.B : « until one of the skeletons has been attacked ») : frapper une
+        // figure `attaque_du_groupe` éveille toute sa salle, qui jouera au tour suivant du MJ. Annoncé avant le coup.
+        // Par le TAMPON d'annonces : le fil en direct se bâtit sur le RÉSULTAT, et un éveil que rien ne rend n'existe qu'à la
+        // reconnexion (`TamponAnnonces`, règle « un effet automatique que rien n'annonce est injouable »).
+        foreach ($this->dormants->attaqueSubie($quete, $instance) as $fil) {
+            app(TamponAnnonces::class)->annoncer($groupe, $fil, $acteur !== [] ? $acteur : ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom]);
+        }
+
         // Par défaut la main droite : riposte, frappe balayée et technique du
         // Moine ne choisissent pas d'arme, elles frappent avec ce qu'on tient.
         $ligneArme ??= $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first();
@@ -3011,6 +3028,8 @@ final class ResolveurTour
             // VOILE D'OMBRE : le monstre sous le voile ne se balaie pas (« may not
             // be attacked »), comme au menu qui compte les mêmes cibles.
             ->reject(fn (InstanceMonstre $i) => app(MoteurOmbre::class)->contientMonstre($quete, $i))
+            // PASSIF INTOUCHABLE : une figure qu'on ne peut pas blesser ne se balaie pas non plus.
+            ->reject(fn (InstanceMonstre $i) => $this->dormants->estIntouchable($i))
             ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
                 && $this->heroAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $diagonales));
     }
@@ -9541,6 +9560,12 @@ final class ResolveurTour
             && ($carteQuete === null || ! $this->mobilier->salleContientType($carteQuete, $salle, 'Coffre'));
         $quete->marquerTresorFouille($salle, (int) $personnage->id);
 
+        // ÉVEIL PAR FOUILLE (Kellar's Keep q. 1 n.C : « If a hero searches for treasure […] the gargoyle springs to life »).
+        // Annoncé au fil ; la figure joue au tour suivant du MJ (écart de calendrier écrit dans `MoteurDormants`).
+        foreach ($this->dormants->fouilleDeSalle($quete, $salle) as $fil) {
+            app(TamponAnnonces::class)->annoncer($groupe, $fil, ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom]);
+        }
+
         // Un coffre ne consomme aucune carte du deck : son butin est un bonus
         // net. La salle du fond rend l'arme unique, celles ouvertes par une porte
         // secrète rendent or ou potion. Mais UNE SEULE FOIS pour le groupe : les
@@ -10991,6 +11016,20 @@ final class ResolveurTour
                 continue;
             }
 
+            // PASSIF (Kellar's Keep lot C, Witch Lord q. 5) : une figure qui DORT ne joue pas. Le seul éveil qui se
+            // joue à SON tour du MJ est `groupe_dans_la_salle` (tous les héros réunis dans sa salle) : annoncé, puis
+            // la figure joue ce tour-ci. Les autres éveils se sont joués pendant les actions des héros.
+            if ($this->dormants->estDormant($instance)) {
+                $reveil = $this->dormants->reveilDuTourMJ($quete, $instance);
+
+                if ($reveil === null) {
+                    continue;
+                }
+
+                Journal::ajouter($groupe, 'action', $reveil, ['type' => 'monstre', 'id' => $instance->id, 'nom' => $instance->nomAffiche()]);
+                $actions[] = $reveil;
+            }
+
             $this->dread->definirMonstresDejaJoues($dejaJoues);
 
             $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
@@ -11811,7 +11850,10 @@ final class ResolveurTour
             Journal::ajouter($groupe, 'action', $reveil, $acteur);
         }
 
+        $xAvant = $instance->position_x;
+        $yAvant = $instance->position_y;
         $action = $this->jouerMonstreEveille($groupe, $quete, $instance, $cibles, $nomMonstre, $acteur);
+        $action = $this->gestesPassifs($groupe, $quete, $instance, $cibles, $action, $acteur, $nomMonstre, $xAvant, $yAvant);
 
         // ⚠ Le réveil était JOURNALISÉ MAIS JAMAIS RETOURNÉ : le dormeur rouvrait les
         // yeux, jouait son tour, et le fil ne disait que le tour. Le réveil précède
@@ -11826,6 +11868,172 @@ final class ResolveurTour
             'monstre' => $nomMonstre,
             'actions' => [$reveil, ...(($action['type'] ?? null) === 'actions_composites' ? (array) $action['actions'] : [$action])],
         ];
+    }
+
+    /**
+     * Ce que la figure a FAIT ce tour-ci, lu sur le résultat : un déplacement ou une frappe lève l'intouchabilité
+     * d'un passif (`MoteurDormants::marquerGeste()`) ; l'attaque de l'ESPRIT (`attaque_mind`) se joue après le reste du
+     * tour — chaque tour pour Borokk, seulement après une frappe pour Bellthor. Un sommeil, une paralysie, une
+     * tempête, une fumée, une étreinte ou une ombre ne laissent pas la figure agir : pas d'esprit non plus.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  array<string, mixed>  $action
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function gestesPassifs(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Collection $cibles, array $action, array $acteur, string $nomMonstre, mixed $xAvant, mixed $yAvant): array
+    {
+        // Le monstre ordinaire, sans passif ni attaque de l'esprit, ne paie ni relecture ni lecture : rien à lire.
+        if ($this->dormants->declencheur($instance) === null && ! $instance->aCapacite('attaque_mind')) {
+            return $action;
+        }
+
+        $types = $this->typesDuTour($action);
+        $frappe = $this->frappeDeHeros($action);
+
+        $apres = $instance->fresh();
+
+        if ($apres === null || $apres->etat !== 'actif') {
+            return $action;
+        }
+
+        if ($apres->position_x !== $xAvant || $apres->position_y !== $yAvant) {
+            $this->dormants->marquerGeste($apres, false);
+        }
+
+        if ($frappe) {
+            $this->dormants->marquerGeste($apres, true);
+        }
+
+        $bloque = array_intersect($types, ['monstre_saute_tour', 'monstre_paralyse', 'monstre_enfume', 'monstre_endormi',
+            'monstre_enchaine', 'etreinte_maintenue', 'monstre_dans_l_ombre']) !== [];
+        $param = $apres->capaciteParametree('attaque_mind');
+
+        if ($bloque || ! is_array($param) || (($param['apres_attaque'] ?? false) && ! $frappe)) {
+            return $action;
+        }
+
+        $mind = $this->attaqueMindMonstre($groupe, $quete, $apres, $cibles, $acteur, $nomMonstre);
+
+        if ($mind === null) {
+            return $action;
+        }
+
+        return [
+            'type' => 'actions_composites',
+            'monstre' => $nomMonstre,
+            'actions' => [...(($action['type'] ?? null) === 'actions_composites' ? (array) $action['actions'] : [$action]), $mind],
+        ];
+    }
+
+    /**
+     * Une frappe ATTEINT-elle un héros ? Une attaque de corps, une frappe de zone ou une charge — mais pas une attaque
+     * portée à un allié : « moves or attacks a hero » (la statue) ne se lit que sur les héros. Récursif sur les composites.
+     */
+    private function frappeDeHeros(array $action): bool
+    {
+        if (($action['type'] ?? null) === 'actions_composites') {
+            foreach ((array) ($action['actions'] ?? []) as $sous) {
+                if ($this->frappeDeHeros((array) $sous)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (! in_array($action['type'] ?? null, ['attaque_monstre', 'frappe_de_zone', 'charge'], true)) {
+            return false;
+        }
+
+        return ($action['cible']['type'] ?? 'heros') !== 'allie';
+    }
+
+    /** Les types de toutes les actions d'un tour, composites étalés. @return list<string> */
+    private function typesDuTour(array $action): array
+    {
+        $types = [(string) ($action['type'] ?? '')];
+
+        foreach (($action['type'] ?? null) === 'actions_composites' ? (array) ($action['actions'] ?? []) : [] as $sous) {
+            $types = [...$types, ...$this->typesDuTour((array) $sous)];
+        }
+
+        return $types;
+    }
+
+    /**
+     * ATTAQUE DE L'ESPRIT (`attaque_mind` : Borokk, Kellar's Keep q. 9 ; Bellthor, Witch Lord q. 5). La figure lance
+     * ses dés de combat contre le Mind d'UN héros à portée et en vue — « in the same room or corridor and in his line
+     * of sight » (salle ou couloir pour Borokk, salle seulement pour Bellthor) — et chaque crâne retire 1 Mind
+     * (`MoteurDegats::infligerMindAHeros()`, le seul producteur). Le héros visé est le plus faible en Mind (ordre de
+     * lecture pour départager), comme le choix de la tourelle. À 0 Mind le héros entre en état de CHOC, pas en mort
+     * (Q1, `Personnage::estEnChoc()`) : c'est l'arbitrage du 2026-10-01 que cette boîte plus ancienne suit.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>|null
+     */
+    private function attaqueMindMonstre(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Collection $cibles, array $acteur, string $nomMonstre): ?array
+    {
+        $param = $instance->capaciteParametree('attaque_mind');
+
+        if (! is_array($param)) {
+            return null;
+        }
+
+        $dormants = $this->dormants;
+        $salle = $dormants->salleDe($quete, $instance);
+        $zone = collect(app(MoteurDread::class)->casesDeSalleOuCouloir($quete, $instance))
+            ->map(fn (array $c) => "{$c['x']},{$c['y']}")->flip();
+        $grille = FabriqueGrille::pour($quete);
+
+        $eligibles = $cibles->filter(function (EtatPersonnageQuete $c) use ($param, $salle, $zone, $dormants, $quete, $instance, $grille) {
+            $dansLaPortee = ($param['portee'] ?? null) === 'salle'
+                ? $salle !== null && $dormants->salleDeHeros($quete, $c) === $salle
+                : $zone->has("{$c->position_x},{$c->position_y}");
+
+            return $dansLaPortee && $grille->ligneDeVue(
+                (int) $instance->position_x, (int) $instance->position_y,
+                (int) $c->position_x, (int) $c->position_y, figuresBloquent: true,
+            );
+        })->values();
+
+        $cible = $eligibles
+            ->sortBy(fn (EtatPersonnageQuete $c) => (int) $c->personnage->pv_mind * 1000000 + (int) $c->id)
+            ->first();
+
+        if ($cible === null) {
+            return null;
+        }
+
+        $faces = [];
+        $cranes = 0;
+
+        for ($i = 0; $i < (int) $param['des']; $i++) {
+            $face = $this->des->deCombat();
+            $faces[] = $face->value;
+
+            if ($face === FaceDeCombat::Crane) {
+                $cranes++;
+            }
+        }
+
+        $heros = $cible->personnage;
+        $perdus = $this->degats->infligerMindAHeros($heros, $cranes, MoteurDegats::SOURCE_ATTAQUE_MIND_MONSTRE);
+        $heros = $heros->fresh();
+
+        $payload = [
+            'type' => 'attaque_mind_monstre',
+            'monstre' => $nomMonstre,
+            'cible' => ['id' => (int) $cible->id, 'nom' => $heros->nom, 'personnage_id' => (int) $heros->id],
+            'des' => $faces,
+            'cranes' => $cranes,
+            'perdus' => $perdus,
+            'choc' => $heros->estEnChoc(),
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
     }
 
     /**

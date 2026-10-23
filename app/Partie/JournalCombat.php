@@ -95,6 +95,9 @@ final class JournalCombat
         'attaque_monstre' => true, 'deplacement_monstre' => true, 'repli_tireur' => true,
         'terrain_monstre' => true, 'monstre_saute_tour' => true, 'monstre_paralyse' => true,
         'monstre_endormi' => true, 'monstre_reveille' => true, 'monstre_enfume' => true,
+        // Kellar's Keep lot C (2026-10-23) : l'éveil d'un adversaire qui dormait jusqu'à son déclencheur, et son
+        // attaque de l'ESPRIT (Borokk, Bellthor) — `MoteurDormants`, `ResolveurTour::attaqueMindMonstre()`.
+        'monstre_s_eveille' => true, 'attaque_mind_monstre' => true,
         'monstre_enchaine' => true, 'monstre_dans_l_ombre' => true, 'etreinte_maintenue' => true,
         'vol_draconique' => true, 'frappe_de_zone' => true, 'charge' => true,
         'capacite_dread' => true, 'spawn' => true, 'rejeton_accroche' => true,
@@ -1178,6 +1181,8 @@ final class JournalCombat
             'deplacement_monstre' => $this->deplacementMonstre($a),
             'repli_tireur' => $this->repliTireur($a),
             'monstre_reveille' => $this->monstreReveille($a),
+            'monstre_s_eveille' => $this->monstreSEveille($a),
+            'attaque_mind_monstre' => $this->attaqueMindMonstre($a),
             'monstre_enfume' => [$this->info(($a['monstre'] ?? 'Le monstre').' tousse dans la fumée — il passe son tour')],
             'monstre_enchaine' => [$this->info(($a['monstre'] ?? 'Le monstre').' est enchaîné — il ne bouge ni n\'attaque ce tour')],
             'etreinte_maintenue' => $this->etreinteMaintenue($a),

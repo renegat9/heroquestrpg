@@ -159,3 +159,46 @@ Source : notes de quête First Light photographiées (`reference/18_extensions.m
 - **Non porté, nommé** : les deux autres issues de la note (« escape », « take on his true warlock appearance ») concernent les quêtes 1 à 9, PAS le combat final ; les règles propres à la quête 10 (relance de Mind, Hall of the Dead) ne s'appliquent pas aux quêtes générées, et ne sont pas portées. Les **tuiles Skull** ne sont plus `⚠ non trouvé` : la quête 10 n'en pose aucune, donc le Dragon entre à pleins Body. « Dread Warrior » du livret = notre `Guerrier du Chaos` (nom de 1989) ; « Gargoyle » = `Gargouille`, « Orc » = `Orque`. L'illustration reste à générer (aucune image).
 - **Le nom de la flamme** : le texte officiel n'a pas de nom ; Banjo l'appelle « Dragon Strike » par commodité. Le projet dit « flamme du Dread ».
 - **Tests** : `tests/Feature/Partie/QwindrakFirstLightTest.php` (27) — la fiche et la rencontre finale, l'ordre selon le dé et sa stabilité à la reprise, la chaîne complète Warlock → cinq formes → Dragon → victoire, l'annonce, les sorts actifs contre les compteurs, Gretzl qui garde ses sorts, la place sûre, la flamme (la salle seule, « 3 ou moins »), et la publication par `EtatGroupe`. Ajoutés le 2026-10-22 : le répertoire par l'origine (une forme ; un Gobelin sans origine ; le Dragon qui GARDE sa Boule de Flammes), le météore (contre le Warlock, une forme, le Dragon vivant ; sa chute n'en déclenche aucun ; annoncé au fil et à la table ; résolu en fin d'action par `resoudre()` ; un sort qui vise le Warlock, un sort qui ne le vise pas), l'origine écrite avec la pioche et rejouée après snapshot, le coût suivant la méthode, et le garde « seul un héros déclenche ». **Mutations** (un lecteur retiré à la fois, fichier restauré et vérifié à chaque fois) : chacun des onze lecteurs fait tomber au moins un test — déclencheur, appels `frapper()` et `sousReactionMj()`, flush de fin d'action, garde de la mort, origine dans le répertoire, rang du palier, écriture de l'origine à la pioche, snapshot, union du Dragon, drapeau `meteore`, phrase, scène, liste plate, archétype. Sans la pioche, huit tests échouent ; sans la flamme, trois.
+
+## Passif jusqu'à déclencheur, attaque de l'esprit, et le thème Kellar's Keep (2026-10-23)
+
+Lot C de `docs/plan-kellars-keep.md` (+ Bellthor, Witch Lord q. 5). **Une seule mécanique « dort jusqu'à son déclencheur »**, clé `passif_jusqua` du vocabulaire fermé `MotsClesAdversaires`, lue par `App\Partie\MoteurDormants` et nulle part ailleurs. La figure est VISIBLE — c'est ce qui la distingue de l'embuscade du Dreadshifter (`MoteurEmbuscade`, déguisement) et de l'apparition à la vue (`MoteurTourelle`) : tout le monde la voit, personne ne la voit agir. Trois déclencheurs (liste fermée `PASSIF_DECLENCHEURS`) :
+
+- `attaque_du_groupe` — un monstre de sa SALLE est attaqué (attaque déclarée, réussie ou non) : toute la salle s'éveille, et joue au TOUR SUIVANT du MJ (squelettes-rois nains, q. 5 n.B). Lu par `ResolveurTour::frapper()`.
+- `groupe_dans_la_salle` — tous les héros debout sont dans sa salle : elle joue CE tour du MJ, pas avant (Bellthor, F4193 q. 5 n.B). Lu au début de sa phase, `phaseMonstres()`.
+- `fouille_de_la_salle` — un héros fouille le trésor de sa salle : éveil (gargouille-statue, q. 1 n.C). **Écart de calendrier écrit** : le livret dit « and immediately attacks » ; ici elle joue au tour suivant du MJ, comme les squelettes. Lu par `resoudreFouilleTresor()`.
+
+`intouchable_jusqua` (`action` = a bougé ou attaqué ; `attaque` = a attaqué) : tant que la condition n'est pas remplie, la figure n'est la cible d'aucune attaque. ⚠ Le MÊME prédicat (`MoteurDormants::estIntouchable()`) est lu à la liste d'armes du menu, au balayage, aux sorts (`ciblesLegales()`), et au choke-point `frapper()` — qui refuse aussi une frappe HORS menu (`LE CHOKE-POINT` dans `PassifKellarsTest`). La réponse de l'éveil est un fil (`monstre_s_eveille`, `cause`), rendu dans le résultat via `TamponAnnonces` quand c'est un héros qui réveille, dans `tour_monstres` quand c'est la phase du MJ.
+
+**État DURABLE** : `instances_monstres.passif_etat` (colonne JSON, migration `2026_10_23_100000`, repris par le snapshot) — `{eveille, agi, attaque}`. Jamais en cache.
+
+⚠ **Un dormant SE POSE EN SALLE** (`DemarreurQuete::positionsDesMonstres()`, testé par `PLACEMENT`). Sans salle : pas de porte à fermer, pas de fouille possible, pas de groupe à réunir — la figure bloquerait un couloir sans jamais pouvoir s'éveiller. Même famille que « Une FIGURE IMMOBILE » (`combat-et-tour.md`) : un placement, jamais un hasard de couloir.
+
+⚠ **Un monstre qui dort ne bloque pas la fouille de sa salle** (`MenuMoteur::salleFouillableTresor()`). Fouiller est précisément ce qui réveille la statue ; et « the first hero to search for treasure in this room finds 500 gold » (q. 5 n.A) : une salle de squelettes endormis garde son trésor. Sans cette exclusion, la statue rendait sa salle NON FOUILLABLE, donc jamais réveillable — un trésor muré par une figure dormante.
+
+**L'attaque de l'ESPRIT** (`attaque_mind`, clé du même registre) : des dés de combat contre le Mind d'UN héros à portée et en vue, chaque crâne = 1 Mind (`MoteurDegats::infligerMindAHeros()`, source `SOURCE_ATTAQUE_MIND_MONSTRE`). Cible = le plus faible en Mind (comme la tourelle). À 0 Mind : ÉTAT DE CHOC, pas la mort (Q1). Deux usages :
+- **Borokk** (`portee: salle_ou_couloir`, 2 dés, à CHAQUE tour, en plus de son attaque de corps — « On each of his turns », q. 9 n.B). Lu dans `ResolveurTour::gestesPassifs()`, après le reste du tour.
+- **Bellthor** (`portee: salle`, 6 dés, `apres_attaque`) : le souffle ne vient qu'après une frappe physique du tour. Sans frappe, pas de souffle (`LE SOUFFLE`).
+- Un sommeil, une paralysie, une tempête, une fumée, une étreinte ou une ombre ne laissent pas la figure agir : pas d'esprit non plus.
+
+**Les figures portées** (stats relues sur le livret ; `cout` MESURÉ — Body / (1,5 − Défense/6), droite du palier, `MonstreSeeder` en commentaire) :
+
+| Figure | Boîte | Palier | Stats (M/A/D/B/Mi) | `cout` | Note |
+|---|---|---|---|---|---|
+| Squelette-roi nain | kellars_keep | sous_boss | 6/3/4/2/0 | 8 | 2,4 attaques → 8,1 : plancher du palier |
+| Gargouille-statue | kellars_keep | base | 6/4/5/3/4 | 7 | Ligne NOMMÉE (variable `$gargouille`) : une capacité sur la Gargouille aurait rendu toutes les gargouilles des statues |
+| Gargouille gardienne | kellars_keep | **boss** | 6/4/5/4/4 | 13 | `immunite_sorts` (le mot-clé de l'Effigie) ; 6,0 attaques → 12,5, arrondi au supérieur (l'immunité n'est pas chiffrée par la méthode) |
+| Borokk | kellars_keep | sous_boss | 7/4/4/3/3 | 9 | Valeurs de carte du Dread Warrior ; 3,6 → 8,8 |
+| Gragor | kellars_keep | sous_boss | 7/4/4/3/3 | 9 | Archétype `gragor_kellar` |
+| Bellthor | witch_lord | sous_boss | 6/4/6/3/3 | 10 | 6,0 → 10,25 |
+
+⚠ **Gargouille gardienne = BOSS, pas sous-boss** : c'est le DERNIER obstacle de la boîte (la porte de sortie ne s'ouvre qu'à sa mort, q. 10 n.D), donc le boss final du thème. Un sous-boss ne peut pas être le boss d'un thème : le pool du jalon boss ne le tirerait jamais (SorciersNommesTest). Elle n'est pas posée « pour la quête 10 seulement » (plan) : c'est une créature générique, comme l'Effigie, que n'importe quel donjon généré peut recevoir. Son déclencheur propre (le premier héros sur la case « C ») n'est pas porté.
+
+⚠ **Gragor n'a que trois de ses cinq sorts en jeu** : `Invocation d'orques` et `Rouille` sont de palier BOSS, le palier filtre à l'exécution (`MoteurDread::sortsDisponibles()`). Écrit dans l'archétype et dans le seeder ; testé (`GRAGOR`). Un boss de palier boss aurait tout lancé ; le classer boss aurait changé sa place dans le budget — la décision est prise ouvertement, pas en silence.
+
+⚠ **Bellthor est porté, sa boîte ne l'est pas comme thème.** `witch_lord` est dans `BOITES_INCOMPLETES` (raison écrite) : son boss final, le Witch Lord (quête 10), n'est pas sourcé et jouable. L'agent du chantier Witch Lord l'allumera quand il l'aura ; la liste `BOITES_THEMATIQUES` sera alors fusionnée avec la sienne.
+
+**Non portés (écrits)** : la fin « capturée » de Bellthor (héros retirés de la quête, écartée, René 2026-10-15 Q8) ; la brume de sa mort qui assomme la salle (non tranché) ; les quatre cartes de la boîte qui ne sont pas des monstres ; la forge, le rocher roulant, les trappes, les portes à condition et le métamorphe (lots D/E, hors de ce chantier) ; Ograk (habillage seul, son entrée par porte secrète du MJ est écartée) ; le déclencheur « premier pas sur C » de la gardienne.
+
+**Le thème `kellars_keep` est ALLUMÉ** (fin de `BOITES_THEMATIQUES`, libellé « Kellar's Keep ») : son boss final, la Gargouille gardienne, est sourcé et jouable (`immunite_sorts`, 4 Body). Sous le thème, le pool du jalon boss se réduit à elle, comme l'Artificière de Morcar ; sous le jalon sous-boss, Squelette-roi, Borokk et Gragor sont préférés (`forts` et `creatures`). Tout ce qui est hors thème reste éligible — une préférence, jamais un filtre.
+

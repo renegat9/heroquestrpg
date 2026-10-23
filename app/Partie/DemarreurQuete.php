@@ -672,6 +672,30 @@ final class DemarreurQuete
             $prises[$cle($choisie)] = true;
         }
 
+        // PASSIF (Kellar's Keep lot C, Witch Lord q. 5) : une figure qui DORT jusqu'à son déclencheur se pose EN SALLE.
+        // Sans salle il n'y a ni porte à fermer, ni fouille possible, ni groupe à réunir : elle bloquerait un couloir
+        // sans jamais pouvoir s'éveiller. Elle échange sa case avec une case de salle libre — jamais avec une figure
+        // qui doit déjà y être (immobile, ou dormante elle aussi).
+        $liste = array_values($monstres);
+
+        foreach ($liste as $i => $monstre) {
+            if (! isset($positions[$i]) || ! array_key_exists(MoteurDormants::CAPACITE, (array) $monstre->capacites)
+                || Salles::indexDe($salles, (int) $positions[$i]['x'], (int) $positions[$i]['y']) !== null) {
+                continue;
+            }
+
+            foreach ($positions as $j => $p) {
+                if ($j === $i || Salles::indexDe($salles, (int) $p['x'], (int) $p['y']) === null
+                    || isset($prises["{$p['x']},{$p['y']}"])
+                    || (isset($liste[$j]) && array_key_exists(MoteurDormants::CAPACITE, (array) $liste[$j]->capacites))) {
+                    continue;
+                }
+
+                [$positions[$i], $positions[$j]] = [$positions[$j], $positions[$i]];
+                break;
+            }
+        }
+
         // LA GARDE PERSONNELLE d'un chef (`garde_personnelle`, Festral : « The Dread Warriors in the room are
         // Festral's personal guard ») se tient DANS SA SALLE : la répartition en round-robin des monstres sur les
         // salles n'y mettrait presque jamais ses figures, et leurs dés fixés (`GardePersonnelle`) n'auraient
@@ -833,6 +857,11 @@ final class DemarreurQuete
         // `docs/regles/bestiaire-et-rencontres.md` et
         // `database/seeders/GabaritQueteSeeder.php`.
         'wizards_of_morcar',
+        // Allumée le 2026-10-23 (Kellar's Keep, lot C) : le boss final est la GARGOUILLE GARDIENNE de Grin's Crag (quête 10,
+        // F4543 p. 27) — sourcée (carte de la gargouille + « immune to all spells and has 4 Body Points »), jouable (`immunite_sorts`).
+        // Rencontre finale : `database/seeders/GabaritQueteSeeder.php`, pool `creatures` du boss. Ni les portes du MJ, ni la carte de
+        // pierre, ni la fouille « un piège à la fois » ne sont portées (`docs/plan-kellars-keep.md`, décision du 2026-10-23).
+        'kellars_keep',
     ];
 
     /**
@@ -889,6 +918,11 @@ final class DemarreurQuete
             .'seedé comme sous-boss. Fellmarak mourra comme tout boss, écart '
             .'assumé au livret (René, 2026-10-23) ; la boîte reste éteinte tant '
             .'qu\'il n\'est pas semé.',
+        // Return of the Witch Lord (2026-10-23) : Bellthor (quête 5) est porté, sa boîte ne l'est pas encore comme thème — son
+        // bestiaire est en cours de portage (chantier de l'agent witch). Le thème reste éteint, écrit, jusqu'à ce que son boss
+        // final (le Witch Lord, quête 10) soit sourcé et jouable.
+        'witch_lord' => 'Return of the Witch Lord : Bellthor (quête 5) est porté, mais le bestiaire de la boîte est en cours de '
+            .'portage et son boss final (le Witch Lord) n\'est pas encore semé — le thème reste éteint.',
     ];
 
     /**
@@ -967,6 +1001,8 @@ final class DemarreurQuete
         // même remarque que First Light : l'année est dans le titre de section,
         // pas dans le nom de la boîte.
         'wizards_of_morcar' => 'Wizards of Morcar',
+        // reference/18_extensions.md ligne 27 : « Kellar's Keep (2021) » — le titre de section, sans année ajoutée.
+        'kellars_keep' => "Kellar's Keep",
     ];
 
     /**

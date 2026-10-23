@@ -136,6 +136,15 @@ return [
         'Chamane Gobelin' => 'gobelin',
         'Liche' => 'mort_vivant',
         'Sorcier des Tempêtes' => 'sorcier',
+        // Kellar's Keep (2026-10-23) : le squelette-roi, la gargouille-statue et la gardienne, le sorcier Borokk, Gragor ;
+        // Witch Lord : Bellthor (une gargouille).
+        'Squelette-roi nain' => 'mort_vivant',
+        'Gargouille-statue' => 'demon',
+        'Gargouille gardienne' => 'construct',
+        'Borokk' => 'sorcier',
+        'Gragor' => 'sorcier',
+        'Bellthor' => 'demon',
+        'Sorcier des Tempêtes' => 'sorcier',
         // Rise of the Dread Moon
         'Cultiste du Dread' => 'sorcier',
         'Spectre' => 'spectre',

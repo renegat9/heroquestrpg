@@ -55,6 +55,12 @@ final class MoteurDegats
     /** Coup d'un monstre au corps à corps ou à distance. */
     public const SOURCE_ATTAQUE_MONSTRE = 'attaque_monstre';
 
+    /**
+     * L'attaque de l'ESPRIT d'un monstre (Borokk, Bellthor — `ResolveurTour::attaqueMindMonstre()`), sœur de
+     * `SOURCE_ATTAQUE_MONSTRE` : même producteur de Mind qu'un sort de Dread (`infligerMindAHeros()`), une autre origine.
+     */
+    public const SOURCE_ATTAQUE_MIND_MONSTRE = 'attaque_mind_monstre';
+
     /** Sort lancé par le Dread (le maître du donjon). */
     public const SOURCE_SORT_DREAD = 'sort_dread';
 

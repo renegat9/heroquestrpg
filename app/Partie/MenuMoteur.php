@@ -227,6 +227,8 @@ final class MenuMoteur
             // may not … be attacked » — le monstre sous le voile n'est une cible
             // d'aucune arme. Même prédicat que `ResolveurTour::frapper()`.
             ->reject(fn (InstanceMonstre $i) => $ombre->contientMonstre($quete, $i))
+            // PASSIF INTOUCHABLE (Kellar's Keep lot C) : une figure qu'on ne peut pas encore blesser n'est la cible d'aucune arme.
+            ->reject(fn (InstanceMonstre $i) => app(MoteurDormants::class)->estIntouchable($i))
             ->values();
 
         $adjacents = $actives->filter(fn (InstanceMonstre $i) => $i->position_x !== null
@@ -796,13 +798,19 @@ final class MenuMoteur
             return false;
         }
 
-        // Salle « vide » : aucun monstre actif révélé dans ses limites.
+        // Salle « vide » : aucun monstre actif révélé dans ses limites. Un monstre qui DORT n'y compte pas : fouiller
+        // la salle est précisément ce qui réveille la gargouille-statue (Kellar's Keep q. 1 n.C), et une salle de
+        // squelettes endormis garde son trésor (q. 5 n.A : « the first hero to search for treasure in this room finds
+        // 500 gold pieces »). `MoteurDormants::estDormant()` — le même lecteur que la phase des monstres.
         $occupee = $quete->instancesMonstres()
             ->where('etat', 'actif')
             ->where('revele', true)
             ->whereBetween('position_x', [(int) $salle['x'], (int) $salle['x'] + (int) $salle['largeur'] - 1])
             ->whereBetween('position_y', [(int) $salle['y'], (int) $salle['y'] + (int) $salle['hauteur'] - 1])
-            ->exists();
+            ->with('monstre')
+            ->get()
+            ->reject(fn (InstanceMonstre $m) => app(MoteurDormants::class)->estDormant($m))
+            ->isNotEmpty();
 
         return ! $occupee;
     }
@@ -1868,6 +1876,7 @@ final class MenuMoteur
                     ->with('monstre')
                     ->get()
                     ->reject(fn (InstanceMonstre $i) => app(MoteurOmbre::class)->contientMonstre($quete, $i))
+                    ->reject(fn (InstanceMonstre $i) => app(MoteurDormants::class)->estIntouchable($i))
                     ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
                         && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $diagonales))
                     ->count();

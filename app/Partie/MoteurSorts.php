@@ -3513,7 +3513,9 @@ final class MoteurSorts
                     // IMMUNITÉS (`App\Engine\MotsClesAdversaires`) : lues par `ciblesLegales()`,
                     // qui retire de la liste ce qu'aucun sort ne peut atteindre — le menu n'offre
                     // jamais ce que le résolveur refuserait.
-                    'immunite_sorts' => $i->monstre->immuniseAuxSorts(),
+                    // Une figure INTOUCHABLE (passif de Kellar's Keep, `MoteurDormants`) n'est la cible d'aucun sort qui la
+                    // blesserait : même liste blanche que l'immunité totale, lue au même endroit.
+                    'immunite_sorts' => $i->monstre->immuniseAuxSorts() || app(MoteurDormants::class)->estIntouchable($i),
                     'conditions_immunisees' => $i->monstre->conditionsImmunisees(),
                 ];
             })

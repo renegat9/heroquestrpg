@@ -65,7 +65,8 @@ it('enregistre le mode à la création : absent = automatique, liste (vide compr
         ->and(Groupe::where('identifiant', 'jungle-lune')->first()->boites_bestiaire)->toBe(['jungles_delthrak', 'dread_moon']);
 
     // Une boîte inconnue, ou deux fois la même : refusé.
-    $creer('inconnue', ['bestiaire_boites' => ['kellars_keep']])->assertStatus(422);
+    // Un identifiant qui n'est PAS un thème (Kellar's Keep l'est depuis le 2026-10-23 : le test ne doit plus le prendre pour un intrus).
+    $creer('inconnue', ['bestiaire_boites' => ['boite_inventee']])->assertStatus(422);
     $creer('doublon', ['bestiaire_boites' => ['horde_ogre', 'horde_ogre']])->assertStatus(422);
 });
 

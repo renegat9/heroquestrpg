@@ -417,3 +417,10 @@ Les tables de meuble (`MoteurMobilier::tirerButin()`) ne passent pas par le paqu
 - **Le texte de retour** des cartes de Morcar (*Magical Trap*, *Poison*) et des trésors-valeurs de Delthrak : non transcrit, rattachés à leur famille, à confirmer.
 - **Le « Trésor convoité »** (*Treasure Horde*) : `ResolveurTour::piocherTresorConvoite()` et la description du sort dans `SortSeeder` disent que le « rien » repart sous le paquet. Avec le sort ci-dessus, un « rien » tiré est retiré. Sans effet en jeu aujourd'hui (aucun paquet réel ne contient de « rien »), mais le commentaire et la description restent à aligner — fichiers hors de ce chantier.
 - **Les potions du coffre ordinaire** (derrière une porte secrète) viennent de `deck_fouille.potions` du gabarit, lues par `DeckFouille::carteCoffre()`. Ce ne sont pas des cartes du paquet.
+
+## Fouiller la salle d'un adversaire qui dort (Kellar's Keep, 2026-10-23)
+
+`MenuMoteur::salleFouillableTresor()` ne compte pas comme « occupée » une figure qui DORT (`MoteurDormants::estDormant()`) : fouiller est le déclencheur de la gargouille-statue (q. 1 n.C), et une salle de squelettes endormis garde son trésor (q. 5 n.A). Sans cette exclusion, une statue rendait sa salle non fouillable, donc jamais réveillable — un trésor muré par une figure qu'on ne peut pas blesser. Une figure AWAKE, elle, bloque toujours la fouille comme avant : la règle « rencontres prévues nettoyées » ne change pas pour elle.
+
+La fouille du trésor réveille les figures `fouille_de_la_salle` de la salle (`ResolveurTour::resoudreFouilleTresor()`, annoncé par le tampon d'annonces). ÉCART DE CALENDRIER écrit : la statue du livret attaque « immediately » ; la nôtre joue au tour suivant du MJ.
+

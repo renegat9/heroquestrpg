@@ -392,6 +392,8 @@ final class Sauvegarde
                     'formes_a_venir' => $i->formes_a_venir,
                     // Origine de la figure (Qwindrak) : sa fiche de référence — répertoire, météore, rang — se rejoue.
                     'origine_monstre' => $i->origine_monstre,
+                    // État du passif (Kellar's Keep lot C) : un dormant éveillé reste éveillé à la reprise.
+                    'passif_etat' => $i->passif_etat,
                 ])->values()->all(),
             'etat_personnage_quete' => $quete->etatsPersonnages()->orderBy('id')->get()
                 ->map(fn (EtatPersonnageQuete $e) => [
@@ -628,6 +630,8 @@ final class Sauvegarde
                 'formes_a_venir' => $instance['formes_a_venir'] ?? null,
                 // `?? null` : un snapshot antérieur à l'origine (= figure qui est sa propre fiche).
                 'origine_monstre' => $instance['origine_monstre'] ?? null,
+                // `?? null` : un snapshot antérieur au passif n'a rien vécu (figure non dormante, ou dormante intacte).
+                'passif_etat' => $instance['passif_etat'] ?? null,
             ])->save();
         }
     }

@@ -260,6 +260,9 @@ class GabaritQueteSeeder extends Seeder
                             // XENLOTH, « the Dread Mage » (Against the Ogre Horde q. 9, F9528 p. 37) :
                             // sous-boss (René, 2026-10-02), Mind Lock et Mind Burst, 5 cartes de chaque.
                             'xenloth_mage_dread',
+                            // GRAGOR, « the evil magician » de la Grande Citadelle (Kellar's Keep q. 6, 2026-10-23) : sous-boss,
+                            // cinq sorts nommés par le livret — deux de palier boss, filtrés (voir `config/archetypes_lanceurs.php`).
+                            'gragor_kellar',
                         ],
                         // ⚠ …et les ONZE brutes du palier, qui n'ont pas de
                         // répertoire et ne pouvaient donc pas être nommées.
@@ -280,6 +283,10 @@ class GabaritQueteSeeder extends Seeder
                             'Ogre guerrier', 'Ogre champion', 'Loup géant',
                             'Rampant putride', 'Serpent géant', 'Singe géant',
                             'Doralf', 'Spawn of the Pit',
+                            // KELLAR'S KEEP (2026-10-23) : le squelette-roi (q. 5, éveil par attaque de sa salle), le sorcier
+                            // Borokk (q. 9, attaque de l'esprit) et Bellthor (Witch Lord q. 5, éveil quand tout le groupe est dans
+                            // sa salle) — tous les trois sous-boss, nommés en créatures : aucun répertoire de sorts.
+                            'Squelette-roi nain', 'Borokk', 'Bellthor',
                             // MINOTAURE (Wizards of Morcar, 2026-10-08) : brute sans
                             // répertoire (coup de corne), « Brak-Fellorn » du livret.
                             'Minotaure',
@@ -434,6 +441,10 @@ class GabaritQueteSeeder extends Seeder
                             // le boss final du livret, immobile (Move 0 : posé en salle seulement) —
                             // sans répertoire de sorcier, donc nommé en créature, comme le Dragon.
                             'Scion Fleur-Pourrie',
+                            // LA GARGOUILLE GARDIENNE de Grin's Crag (Kellar's Keep q. 10, 2026-10-23) : le DERNIER obstacle de la
+                            // boîte, dont la mort ouvre la porte de sortie. Immunisée à tous les sorts, 4 Body. Boss, parce que la
+                            // boîte n'en a pas d'autre : c'est elle qui ferme le thème `kellars_keep`.
+                            'Gargouille gardienne',
                         ],
                     ],
                     'pieges' => ['min' => 2, 'max' => 4],

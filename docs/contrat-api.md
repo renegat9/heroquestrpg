@@ -1687,6 +1687,14 @@ toutes deux sont fermées.
   `briser_glace`, `deplacement_allie`, `attente_allie`, `pieges_detectes` /
   `portes_secretes_revelees` (`methode: "clairvoyance"` seule : la fouille et
   l'Œil du mineur se disent déjà).
+- **Passif jusqu'à déclencheur (Kellar's Keep, 2026-10-23)** : `monstre_s_eveille`
+  (`{monstre, id, cause}`, `cause` ∈ `attaque` | `groupe_reuni` | `fouille`) — dans
+  `tour_monstres.actions` quand l'éveil a lieu à la phase du MJ, dans
+  `annonces_automatiques` quand il a lieu pendant l'action d'un héros (frapper, fouiller,
+  via `TamponAnnonces`) ; `attaque_mind_monstre` (`{monstre, cible: {id, nom,
+  personnage_id}, des: [face…], cranes, perdus, choc}`) dans `tour_monstres.actions`, après
+  l'action de la figure. Une figure INTOUCHABLE (gargouille-statue, Bellthor avant son coup)
+  n'est publiée par aucun champ : le menu ne lui offre aucune attaque, et `frapper()` la refuse.
 - **Sorts de héros sans dégât** : le fil dit l'EFFET, plus « X lance Y » —
   soin (`+N PV de Body`, `releve`), soin de zone (`soignes[].releve`), Mind
   restauré, tour supplémentaire, mur posé, porte ouverte à distance, sort mental
