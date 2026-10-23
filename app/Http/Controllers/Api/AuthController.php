@@ -131,7 +131,10 @@ class AuthController extends Controller
                 'attribut_body', 'attribut_mind', 'des_attaque', 'des_defense',
                 // ORACLE (First Light, FL-Q p. 6, lot C) : durables, visibles
                 // hors quête comme en quête — exactement comme `or`.
-                'benediction_oracle', 'malediction_oracle']);
+                'benediction_oracle', 'malediction_oracle',
+                // CHEF-D'ŒUVRE (lot B) : la marque du passage, lue par `Forge::gratuiteOuverte()`. Absente de cette
+                // liste, elle reviendrait `null` et rouvrirait la gratuité à chaque publication.
+                'chef_oeuvre_quete_id']);
 
         // `supprimable` (DELETE /personnages/{id}, contrat) : « jamais joué »
         // se lit sur DEUX tables — en UNE requête chacune sur tout le roster,
@@ -153,6 +156,11 @@ class AuthController extends Controller
             ->filter(fn ($p) => $p->groupe_actif_id !== null && app(Talents::class)->a($p, 'forge_amelioration'))
             ->pluck('groupe_actif_id')
             ->unique();
+        // Le forgeron de chaque groupe (le nain du joueur qui regarde) : c'est lui que la
+        // gratuité du Chef-d'œuvre interroge, avec le même prédicat que `POST /forge`.
+        $forgeronParGroupe = $personnages
+            ->filter(fn ($p) => $p->groupe_actif_id !== null && app(Talents::class)->a($p, 'forge_amelioration'))
+            ->keyBy('groupe_actif_id');
         $forge = app(Forge::class);
 
         return [
@@ -160,7 +168,7 @@ class AuthController extends Controller
             'pseudo' => $joueur->pseudo,
             'identifiant' => $joueur->identifiant,
             'personnages' => $personnages
-                ->map(function ($p) use ($idsDejaEnQuete, $idsAvecHistorique, $groupesAvecForgeronDuJoueur, $forge) {
+                ->map(function ($p) use ($idsDejaEnQuete, $idsAvecHistorique, $groupesAvecForgeronDuJoueur, $forgeronParGroupe, $forge) {
                     $disponible = $p->groupe_actif_id === null;
                     // Les deux préalables de `ForgeController::appliquer()` avant
                     // même de regarder l'objet : le groupe est au hub, et LE
@@ -170,6 +178,11 @@ class AuthController extends Controller
                     $peutForgerIci = ! $disponible
                         && ($p->groupeActif->phase ?? null) === 'hub'
                         && $groupesAvecForgeronDuJoueur->contains($p->groupe_actif_id);
+                    // CHEF-D'ŒUVRE : « gratuite » est la décision du forgeron de CE groupe (`Forge::gratuiteOuverte()`),
+                    // jamais recalculée par la manette. Un groupe sans forgeron du joueur n'a rien à publier.
+                    $gratuite = $peutForgerIci
+                        && $forgeronParGroupe->has($p->groupe_actif_id)
+                        && $forge->gratuiteOuverte($forgeronParGroupe->get($p->groupe_actif_id), $p->groupeActif);
                     // L'état de quête sert aux fenêtres « une fois par quête /
                     // par tour » des capacités : lu UNE fois par héros, pas une
                     // fois par nœud.
@@ -288,7 +301,7 @@ class AuthController extends Controller
                                     'des_attaque' => (bool) ($l->objet->effet['incompatible_deux_mains'] ?? false)
                                         ? null
                                         : app(Equipement::class)->desAttaqueAvec($p, $l),
-                                ] + $this->detailForge($forge, $l, $peutForgerIci))
+                                ] + $this->detailForge($forge, $l, $peutForgerIci, $gratuite))
                                 ->values()
                                 ->all(),
                             'armure' => with(
@@ -296,7 +309,7 @@ class AuthController extends Controller
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
                                     'avantages' => $this->avantagesDeLExemplaire($l),
                                     'charges' => $this->chargesDeLExemplaire($l)]
-                                    + $this->detailForge($forge, $l, $peutForgerIci),
+                                    + $this->detailForge($forge, $l, $peutForgerIci, $gratuite),
                             ),
                             // Slot propre depuis le 2026-08-08 : le casque se
                             // CUMULE avec l'armure de corps, comme au plateau.
@@ -307,7 +320,7 @@ class AuthController extends Controller
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
                                     'avantages' => $this->avantagesDeLExemplaire($l),
                                     'charges' => $this->chargesDeLExemplaire($l)]
-                                    + $this->detailForge($forge, $l, $peutForgerIci),
+                                    + $this->detailForge($forge, $l, $peutForgerIci, $gratuite),
                             ),
                             // Talisman (artefact de classe) : cinquième slot.
                             'talisman' => with(
@@ -315,7 +328,7 @@ class AuthController extends Controller
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
                                     'avantages' => $this->avantagesDeLExemplaire($l),
                                     'charges' => $this->chargesDeLExemplaire($l)]
-                                    + $this->detailForge($forge, $l, $peutForgerIci),
+                                    + $this->detailForge($forge, $l, $peutForgerIci, $gratuite),
                             ),
                             // Bottes : sixième slot (2026-09-04). Sans cette clé
                             // la manette chausserait le héros sans jamais le
@@ -326,11 +339,11 @@ class AuthController extends Controller
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
                                     'avantages' => $this->avantagesDeLExemplaire($l),
                                     'charges' => $this->chargesDeLExemplaire($l)]
-                                    + $this->detailForge($forge, $l, $peutForgerIci),
+                                    + $this->detailForge($forge, $l, $peutForgerIci, $gratuite),
                             ),
                             'sac' => $p->inventaire
                                 ->filter(fn ($l) => $l->emplacement === 'sac' && $l->objet !== null)
-                                ->map(function ($l) use ($p, $forge, $peutForgerIci) {
+                                ->map(function ($l) use ($p, $forge, $peutForgerIci, $gratuite) {
                                     $equipement = app(Equipement::class);
                                     $portees = $equipement->occupants($p);
                                     // Point de passage unique avec l'option `equiper` du menu
@@ -380,7 +393,7 @@ class AuthController extends Controller
                                         // la règle qu'il décrit.
                                         'slots_utiles' => $detail['slots_utiles'],
                                         'remplace' => $detail['remplace'],
-                                    ] + $this->detailForge($forge, $l, $peutForgerIci);
+                                    ] + $this->detailForge($forge, $l, $peutForgerIci, $gratuite);
                                 })
                                 ->values()
                                 ->all(),
@@ -533,9 +546,15 @@ class AuthController extends Controller
         return $restantes === null ? null : ['restantes' => $restantes, 'max' => (int) $ligne->objet->effet['charges']];
     }
 
-    private function detailForge(Forge $forge, Inventaire $ligne, bool $forgeronDisponible): array
+    /**
+     * `$gratuite` : le forgeron du groupe a son Chef-d'œuvre ouvert à ce passage (`Forge::gratuiteOuverte()`).
+     * Publié PAR AMÉLIORATION : `prix` vaut 0 et `gratuite` vrai — la manette affiche ce que le serveur décide,
+     * elle ne le recalcule pas. Une pièce non forgeable n'a pas de prix, donc pas de gratuité à publier.
+     */
+    private function detailForge(Forge $forge, Inventaire $ligne, bool $forgeronDisponible, bool $gratuite = false): array
     {
         $forgeable = $forge->estForgeable($ligne, $forgeronDisponible);
+        $gratuite = $forgeable && $gratuite;
 
         return [
             'ameliorations' => collect($ligne->ameliorations ?? [])
@@ -551,7 +570,8 @@ class AuthController extends Controller
                     ->map(fn ($a) => [
                         'id' => $a->id,
                         'nom' => $a->nom,
-                        'prix' => (int) $a->prix,
+                        'prix' => $gratuite ? 0 : (int) $a->prix,
+                        'gratuite' => $gratuite,
                         'avantages' => MotsClesEquipement::avantages((array) $a->effet),
                     ])
                     ->values()

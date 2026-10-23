@@ -96,13 +96,18 @@ class ForgeController extends Controller
             throw ValidationException::withMessages(['amelioration_id' => 'Amélioration de Forge inconnue.']);
         }
 
-        $ligne = $this->forge->appliquer($groupe, $ligne, $amelioration);
+        // CHEF-D'ŒUVRE (lot B) : la décision « gratuite » vient du MÊME prédicat que `/moi` publie
+        // (`Forge::gratuiteOuverte()`), jamais d'une copie ici. Gratuite = aucun débit, marque posée.
+        $gratuite = $this->forge->gratuiteOuverte($forgeron, $groupe);
+
+        $ligne = $this->forge->appliquer($groupe, $ligne, $amelioration, $gratuite ? $forgeron : null);
 
         Journal::ajouter($groupe, 'systeme', [
             'action' => 'forge_appliquee',
             'personnage_id' => $ligne->personnage_id,
             'objet' => $ligne->objet?->nom,
             'amelioration' => $amelioration->nom,
+            'gratuite' => $gratuite,
         ], ['type' => 'personnage', 'id' => $forgeron->id, 'nom' => $forgeron->nom]);
 
         $groupe = $groupe->fresh();
@@ -122,6 +127,8 @@ class ForgeController extends Controller
                 'ameliorations' => $ligne->ameliorations,
             ],
             'groupe' => ['or' => (int) $groupe->or],
+            // La forme exacte que `/moi` publie pour cette amélioration : gratuite, ou au prix du catalogue.
+            'gratuite' => $gratuite,
         ], 201);
     }
 }

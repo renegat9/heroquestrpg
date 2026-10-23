@@ -64,7 +64,7 @@ it('la liste fermée des talents annoncés correspond EXACTEMENT à celle du con
         'detection_pieges_adjacents', 'detection_portes_secretes', 'alerte_pieges_adjacents',
         'bonus_des_defense', 'resistance_condition', 'garde_sort_qui_tue', 'resistance_degats_type',
         'inflige_condition_sur_touche', 'bonus_des_attaque_flanc', 'ignore_terrain_entravant',
-        'bonus_or_tresor', 'rarete_butin_amelioree',
+        'bonus_or_tresor', 'rarete_butin_amelioree', 'refaire_fouille_negative',
         'relance_des_attaque_rates', 'attaque_supplementaire_apres_kill',
         'annuler_effet_magique', 'repiocher_carte_piege',
     ];

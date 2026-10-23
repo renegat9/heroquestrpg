@@ -66,6 +66,11 @@ final class JournalCombat
         'degat_differe' => true, 'braise' => true, 'deplacement' => true, 'jet' => true,
         'desamorcage' => true, 'franchissement' => true, 'sort' => true, 'parchemin' => true,
         'concentration' => true, 'sacrifice_sort' => true, 'soin_allie' => true,
+        // Tunnelier (nain·Mine, lot B) : l'effet du sort Traverser la Pierre, posé pour ce tour.
+        'tunnelier' => true,
+        // Mémoire parfaite (magicien, lot B) : son RÉSULTAT est un payload `concentration` (drapeau geste_libre),
+        // annoncé sous ce type-là. Le type ne sert qu'à l'option de menu, qui n'est jamais journalisée.
+        'memoire_parfaite' => 'Option de menu seule : le résultat est un payload « concentration » (geste_libre), déjà annoncé.',
         'liberer_entraves' => true, 'relever' => true, 'regain_corps' => true,
         'equiper' => true, 'desequiper' => true, 'usage_objet' => true, 'echanger' => true,
         'jeter' => true, 'attaque_mobilier' => true, 'fouille_tresor' => true,
@@ -1129,6 +1134,7 @@ final class JournalCombat
             'vote_resolu' => $this->voteResolu($a),
             'soin_allie' => $this->soinAllie($a, $acteurNom),
             'concentration', 'sacrifice_sort' => $this->sortRecupere($a, $acteurNom),
+            'tunnelier' => $this->tunnelier($acteurNom),
             's_ecarter_du_bloc' => $this->ecartDuBloc($a, $acteurNom),
             // SABLES MOUVANTS (F7539 p. 29) : un saut raté enlise, un objet quitte le sac, un héros
             // peut tomber — autant d'effets automatiques qu'aucune autre ligne ne dirait.
@@ -2859,6 +2865,17 @@ final class JournalCombat
         // relit les `evenements` déjà stockés, qui peuvent porter un
         // `carte_ecartee = 'errant'` d'avant cette date. La supprimer rebaptiserait
         // en « carte de piège » un événement qui était bien un errant.
+        // TRÉSOR CACHÉ (lot B) : deux cartes tirées, la meilleure gardée. Le fil le dit, sinon la carte gardée
+        // arriverait sans qu'on sache qu'une autre a été repassée sous le paquet.
+        if (! empty($a['tresor_cache'])) {
+            array_unshift($lignes, $this->info("Trésor caché : {$acteurNom} tire deux cartes et garde la meilleure ; l'autre retourne sous le paquet"));
+        }
+
+        // TRÉSOR CACHÉ sans effet : cette salle livre son coffre désigné, qui remplace le tirage — dit, jamais tu.
+        if (! empty($a['tresor_cache_sans_effet'])) {
+            array_unshift($lignes, $this->info('Trésor caché sans effet : cette salle livre son coffre désigné'));
+        }
+
         if (! empty($a['carte_ecartee'])) {
             array_unshift($lignes, $this->info(
                 "Sixième sens : {$acteurNom} remet ".($a['carte_ecartee'] === 'errant' ? 'la carte de monstre errant' : 'la carte de piège')

@@ -154,7 +154,7 @@ function confirmerForge() {
                         >
                             <span class="info-forge-nom">{{ opt.nom }}</span>
                             <span v-if="opt.avantages?.length" class="info-forge-avantages">{{ opt.avantages.join(', ') }}</span>
-                            <span class="info-forge-prix"><MSym n="paid" fill :size="13" /> {{ opt.prix }}</span>
+                            <span class="info-forge-prix"><MSym n="paid" fill :size="13" /> {{ opt.gratuite ? 'gratuit' : opt.prix }}</span>
                         </button>
                         <p v-if="toutesTropCheres" class="info-forge-note">
                             <MSym n="warning" :size="14" /> Bourse commune insuffisante ({{ orCommun }} or).

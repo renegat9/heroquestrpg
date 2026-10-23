@@ -64,6 +64,8 @@ final class AnnoncesTalents
         'ignore_terrain_entravant',
         'bonus_or_tresor',
         'rarete_butin_amelioree',
+        // Flair du pisteur (lot B, 2026-10-23) : la fouille négative refaite se voit.
+        'refaire_fouille_negative',
         // Actifs qui partent seuls.
         'relance_des_attaque_rates',
         'attaque_supplementaire_apres_kill',

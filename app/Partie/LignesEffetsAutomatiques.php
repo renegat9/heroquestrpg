@@ -67,9 +67,23 @@ trait LignesEffetsAutomatiques
     }
 
     /** @return list<array{texte: string, ton: string}> */
+    private function tunnelier(string $acteurNom): array
+    {
+        return [[
+            'texte' => "{$acteurNom} traverse la pierre pendant ce tour — l'effet de Traverser la Pierre, au prix de son action",
+            'ton' => 'succes',
+        ]];
+    }
+
+    /** @return list<array{texte: string, ton: string}> */
     private function sortRecupere(array $a, string $acteurNom): array
     {
         $sort = (string) ($a['sort_recupere']['nom'] ?? 'un sort');
+
+        // Mémoire parfaite (magicien, lot B) : un geste libre. Ni le tour ni l'action ne sont sacrifiés, et le fil le dit.
+        if (! empty($a['geste_libre'])) {
+            return [['texte' => "{$acteurNom} retrouve « {$sort} » d'un geste libre — sans perdre son tour ni son action", 'ton' => 'succes']];
+        }
 
         // Concentration sacrifie le TOUR ; le Prix du pacte paie 1 PV de Body — la
         // phrase dit lequel des deux a été payé, c'est toute la différence.

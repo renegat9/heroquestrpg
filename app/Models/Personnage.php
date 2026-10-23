@@ -36,6 +36,10 @@ class Personnage extends Model
         // `oracle_benediction_malediction_sur_personnages`.
         'benediction_oracle',
         'malediction_oracle',
+        // CHEF-D'ŒUVRE du Nain (lot B, 2026-10-23) : l'id de la quête après laquelle son
+        // amélioration de forge gratuite a servi — la marque « déjà utilisée à ce
+        // passage » vit sur le HÉROS, en base. Voir `App\Partie\Forge::gratuiteOuverte()`.
+        'chef_oeuvre_quete_id',
     ];
 
     /**

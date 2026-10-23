@@ -112,6 +112,10 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Parler à la pierre', 'type' => 'passif',
                     'description' => "Les portes secrètes des cases voisines se révèlent d'elles-mêmes, sans jet ni action.",
                     'effet' => ['mecanique' => 'detection_portes_secretes']],
+                // POUVOIR FINAL (lot B, 2026-10-23) : le sort, à son coût — l'action.
+                ['nom' => 'Tunnelier', 'type' => 'actif', 'cout' => 2,
+                    'description' => 'Une fois par quête, tu traverses la pierre pendant ce tour, comme le sort Traverser la Pierre. Ça coûte ton action, comme lui.',
+                    'effet' => ['mecanique' => 'tunnelier', 'frequence' => 'une_fois_par_quete']],
             ]],
             ['categorie' => 'Forge', 'icone' => 'hardware', 'noeuds' => [
                 ['nom' => 'Forge', 'type' => 'deblocage',
@@ -123,6 +127,11 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Marchandage', 'type' => 'passif',
                     'description' => "L'étal du marché baisse ses prix de 15 % pour toute la compagnie.",
                     'effet' => ['mecanique' => 'remise_marche', 'valeur' => 15]],
+                // POUVOIR FINAL (lot B, 2026-10-23) : la machinerie de forge reste UNE — ce nœud n'y ajoute
+                // qu'un prix nul, décidé au hub (`Forge::gratuiteOuverte()`), jamais une seconde copie.
+                ['nom' => "Chef-d'œuvre", 'type' => 'passif', 'cout' => 2,
+                    'description' => 'Une fois à chaque passage au hub, ta prochaine amélioration de forge ne coûte pas un sou à la bourse commune.',
+                    'effet' => ['mecanique' => 'forge_gratuite']],
             ]],
             ['categorie' => 'Ténacité', 'icone' => 'shield', 'noeuds' => [
                 ['nom' => 'Garde tenace', 'type' => 'passif',
@@ -224,6 +233,11 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Contresort', 'type' => 'actif',
                     'description' => "Quand un sort ennemi allait te frapper, un jet de Mind l'annule avant qu'il porte.",
                     'effet' => ['mecanique' => 'annuler_effet_magique', 'jet' => 'mind']],
+                // POUVOIR FINAL (lot B, 2026-10-23) : même mécanique que Concentration, à coût différent
+                // (`geste_libre`) et compteur propre, puisqu'il a son nom. Un geste libre ne prend ni le tour ni l'action.
+                ['nom' => 'Mémoire parfaite', 'type' => 'actif', 'cout' => 2,
+                    'description' => "Une fois par quête, tu récupères un sort épuisé sans passer ton tour ni ton action : c'est un geste libre.",
+                    'effet' => ['mecanique' => 'recuperer_sort_epuise', 'cout' => 'geste_libre', 'frequence' => 'une_fois_par_quete']],
             ]],
             // Déblocages d'équipement (doc 01 §7) : le magicien du plateau ne
             // porte ni armure ni arme de mêlée sérieuse. Ces deux nœuds lèvent
@@ -583,6 +597,10 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Lecture des lieux', 'type' => 'passif',
                     'description' => "Les portes secrètes des cases voisines se révèlent d'elles-mêmes, sans jet ni action.",
                     'effet' => ['mecanique' => 'detection_portes_secretes']],
+                // POUVOIR FINAL (lot B, 2026-10-23) : une fouille négative est refaite. Décidé dans `ResolveurTour::piocherAvecFlair()`.
+                ['nom' => 'Flair du pisteur', 'type' => 'passif', 'cout' => 2,
+                    'description' => "À chaque fouille, sans limite : si elle te donne un résultat négatif (rien, piège ou monstre errant), elle est refaite. La première carte est écartée, la seconde est gardée, quelle qu'elle soit.",
+                    'effet' => ['mecanique' => 'refaire_fouille_negative']],
             ]],
             ['categorie' => 'Butin', 'icone' => 'diamond', 'noeuds' => [
                 ['nom' => 'Fouineur', 'type' => 'passif',
@@ -594,6 +612,11 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Bourse pleine', 'type' => 'passif',
                     'description' => "L'étal du marché baisse ses prix de 15 % pour toute la compagnie.",
                     'effet' => ['mecanique' => 'remise_marche', 'valeur' => 15]],
+                // POUVOIR FINAL (lot B, 2026-10-23) : une variante de « Fouiller — trésor », au même créneau et
+                // sous la même entrée `Quete::aFouille()` — `ResolveurTour::resoudreFouilleTresor()`.
+                ['nom' => 'Trésor caché', 'type' => 'actif', 'cout' => 2,
+                    'description' => "Une fois par quête, au lieu d'une fouille de trésor ordinaire, tu tires deux cartes et tu gardes la meilleure ; l'autre retourne sous le paquet.",
+                    'effet' => ['mecanique' => 'fouille_meilleure_carte', 'frequence' => 'une_fois_par_quete']],
             ]],
             ['categorie' => 'Endurance', 'icone' => 'hiking', 'noeuds' => [
                 ['nom' => 'Endurance', 'type' => 'passif',
