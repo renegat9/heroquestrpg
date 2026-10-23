@@ -116,6 +116,48 @@ final class MotsClesAdversaires
     public const METEORE = 'meteore';
 
     /**
+     * IMMUNITÉ PARTIELLE PAR FAMILLE (Kessandria, *Return of the Witch Lord* q. 9, p. 25 : « She is immune to
+     * all spells except fire spells. »). Liste des ÉLÉMENTS de sort qui passent (`['feu']`) : tout autre sort
+     * de héros est refusé. C'est le second barreau de l'échelle d'immunités, après la TOTALE (`immunite_sorts`,
+     * Effigie gardienne). Lue au point de passage unique des sorts, `MoteurSorts::sortRefuseSur()`.
+     */
+    public const IMMUNITE_SORTS_SAUF = 'immunite_sorts_sauf';
+
+    /**
+     * VULNÉRABLE UNIQUEMENT À UNE LISTE DE SOURCES (Seigneur Sorcier, *Witch Lord* q. 10, p. 27 : « The Witch Lord
+     * can only be harmed by four things at this time: the Spirit Blade, the fire of wrath spell, the ball of
+     * flame spell, and the Magical Throwing Dagger. ») — la liste nomme des ARMES (`Objet::nom`) et des SORTS DE
+     * DÉGÂTS (`Sort::nom`). Une source absente ne blesse pas : le coup se joue (jet normal) et ne fait aucun dégât,
+     * annoncé. Lue à `ResolveurTour::frapper()` pour les coups, `MoteurSorts::sortRefuseSur()` pour les sorts.
+     */
+    public const VULNERABLE_UNIQUEMENT_A = 'vulnerable_uniquement_a';
+
+    /**
+     * INVULNÉRABLE, ET BRISE L'ARME DE L'ATTAQUANT (les quatre statues d'orcs, *Witch Lord* q. 10, p. 27 : « If a
+     * hero attacks any of these statues, their weapon breaks (even a Magical Throwing Dagger or crossbow breaks) »).
+     * Paramétrée par la liste des ARMES EXEMPTÉES de casse (`['Lame des Esprits']` : « does not break. However, it
+     * still does not harm the statue »). L'arme cassée quitte l'inventaire pour de bon, comme la *Rouille*
+     * (`MoteurDread::sortDreadDestruction()`), par le même recalcul de combat. Lue à `ResolveurTour::frapper()`.
+     */
+    public const INVULNERABLE_CASSE_ARME = 'invulnerable_casse_arme';
+
+    /**
+     * FUITE À UN TIERS DES BODY (Skulmar, q. 7 p. 21 ; Kessandria, q. 9 p. 25 : « should try to escape »). Le
+     * monstre déclenche SON sort de Fuite (`TYPE_FUITE`, déjà porté) dès que ses Body tombent au plancher du tiers
+     * de ses Body de départ — et il passe alors avant les autres sorts. Lu par `MoteurDread::seuilFuiteAtteint()`.
+     * Le Seigneur Sorcier ne la porte JAMAIS : « there must be no escape for him ».
+     */
+    public const FUIT_SI_AFFAIBLI = 'fuit_si_affaibli';
+
+    /**
+     * RÉPERTOIRE COMPLET : un lanceur NOMMÉ dont le livret donne le répertoire entier ignore le filtre de palier
+     * (`MoteurDread::sortsDisponibles()`), comme `sorts_uniques` pour les sorciers de Morcar — SANS sa règle
+     * « chaque sort une fois par quête », que le livret ne donne pas. Kessandria (sous-boss, précédent des
+     * lieutenants de Morcar) garde *Nuée d'Effroi* et sa potion (*Patinage*), deux sorts de palier boss.
+     */
+    public const REPERTOIRE_COMPLET = 'repertoire_complet';
+
+    /**
      * @var array<string, array{lecteur: string, libelle: string}>
      */
     public const CAPACITES = [
@@ -163,6 +205,26 @@ final class MotsClesAdversaires
             'lecteur' => 'App\Partie\MoteurMeteore::declencheur',
             'libelle' => 'Météore : chaque attaque ou sort d\'un héros qui le vise lui vaut 2 dés d\'attaque contre ce héros, toutes formes',
         ],
+        self::IMMUNITE_SORTS_SAUF => [
+            'lecteur' => 'App\Models\Monstre::immunitesSorts',
+            'libelle' => 'Immunisé à tous les sorts SAUF une famille (éléments listés) : les autres sorts sont refusés',
+        ],
+        self::VULNERABLE_UNIQUEMENT_A => [
+            'lecteur' => 'App\Models\Monstre::immunitesSorts',
+            'libelle' => 'Ne blessé que par une liste d\'armes et de sorts nommés ; une autre source ne fait aucun dégât',
+        ],
+        self::INVULNERABLE_CASSE_ARME => [
+            'lecteur' => 'App\Models\Monstre::casseArmeExemptees',
+            'libelle' => 'Invulnérable : aucun dégât, et l\'arme de l\'attaquant se brise (sauf les armes exemptées)',
+        ],
+        self::FUIT_SI_AFFAIBLI => [
+            'lecteur' => 'App\Partie\MoteurDread::seuilFuiteAtteint',
+            'libelle' => 'Fuit (son sort de Fuite, en priorité) dès que ses Body tombent au tiers de ses Body de départ',
+        ],
+        self::REPERTOIRE_COMPLET => [
+            'lecteur' => 'App\Partie\MoteurDread::sortsDisponibles',
+            'libelle' => 'Garde son répertoire entier malgré le palier : un sorcier nommé que son livret donne complet',
+        ],
     ];
 
     /**
@@ -179,6 +241,11 @@ final class MotsClesAdversaires
             .'automatique le tier `base` se tire dans TOUTES les boîtes, et le crâne y serait acheté comme un sbire '
             .'ordinaire. Le semer est la première étape du portage de la Crypte ; le mécanisme est déjà prêt '
             .'(MoteurTourelle::apparitionsEnVue, testé en jeu avec une ligne de catalogue de test).',
+        self::INVULNERABLE_CASSE_ARME => 'Les quatre statues d\'orcs (Return of the Witch Lord q. 10, p. 27) ne sont PAS '
+            .'semées : elles « bloquent totalement le couloir » — c\'est une règle de CARTE (un obstacle sur le passage), '
+            .'et une figure du bestiaire ne se pose qu\'en salle (`AssembleurCarte::casesPourFiguresFixes()`) : les semer '
+            .'en couloir créerait une seconde règle de placement, les semer en salle leur retirerait leur sens. La forme '
+            .'(invulnérable, arme brisée sauf exemptée) est construite et testée en jeu (`ImmunitesSelectivesTest`).',
     ];
 
     /** Les clés que ce vocabulaire déclare. @return list<string> */

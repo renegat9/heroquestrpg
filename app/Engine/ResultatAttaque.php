@@ -135,6 +135,33 @@ final readonly class ResultatAttaque
     }
 
     /**
+     * Le MÊME jet, sans AUCUN dégât : une cible que la source ne peut pas blesser (Witch Lord, « can
+     * only be harmed by four things » ; statues, « invulnerable ») — le jet a bien eu lieu et se lit, mais
+     * le coup n'entame rien. Même fabrique que {@see self::avecDegatsMultiplies()} : seuls `degats`,
+     * `pvBodyApres` et `cibleTombee` changent.
+     */
+    public function avecDegatsSupprimes(): self
+    {
+        if ($this->degats <= 0) {
+            return $this;
+        }
+
+        return new self(
+            facesAttaque: $this->facesAttaque,
+            facesDefense: $this->facesDefense,
+            touches: $this->touches,
+            boucliers: $this->boucliers,
+            degats: 0,
+            pvBodyAvant: $this->pvBodyAvant,
+            pvBodyApres: $this->pvBodyAvant,
+            cibleTombee: false,
+            faceTouchante: $this->faceTouchante,
+            faceDefensive: $this->faceDefensive,
+            relancesAttaqueRatee: $this->relancesAttaqueRatee,
+        );
+    }
+
+    /**
      * Le MÊME jet, dont N boucliers du défenseur sont annulés APRÈS le
      * lancer — Perforante (Forge du Nain) : « Annule 1 bouclier de la
      * défense de la cible » (reference/04_market.md).

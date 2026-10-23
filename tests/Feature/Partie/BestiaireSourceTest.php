@@ -116,6 +116,12 @@ it('porte les créatures d\'extension telles que les livrets les chiffrent', fun
         'Rampant putride' => [7, 4, 4, 3, 4],
         'Serpent géant' => [8, 4, 3, 6, 3],
         'Singe géant' => [8, 4, 3, 7, 5],
+        // Return of the Witch Lord (F4193, chantier 2026-10-23) — lues sur le livret, `reference/18` §Witch Lord.
+        'Cavalier-esprit' => [8, 4, 4, 3, 3],   // p. 11
+        'Garde du Dread' => [8, 4, 6, 3, 3],    // p. 25
+        'Skulmar' => [8, 5, 6, 3, 4],           // p. 21
+        'Kessandria' => [6, 4, 6, 3, 4],        // p. 25
+        'Seigneur Sorcier' => [10, 5, 6, 4, 5], // p. 27 (relevé par rapport au jeu de base)
     ];
 
     foreach ($livrets as $nom => $attendu) {

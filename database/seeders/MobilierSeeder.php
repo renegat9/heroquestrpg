@@ -131,6 +131,11 @@ class MobilierSeeder extends Seeder
                     // Un tombeau se défend (décision de René, 2026-08-17) :
                     // l'aiguille dans la serrure du sarcophage.
                     ['issue' => 'piege', 'poids' => 2, 'piege' => 'Aiguille empoisonnée'],
+                    // Le cercueil peut contenir une créature morte-vivante (*Return of the Witch Lord* p. 4-5 :
+                    // « may contain an undead creature and/or a treasure. They may also have traps on them »).
+                    // Poids 2, comme le piège : la tuile est un tombeau, et ce n'est pas le livret qui pèse.
+                    // Les trois morts-vivants de base, à égalité (`MoteurMobilier::carteDepuisEntree()`).
+                    ['issue' => 'monstre', 'poids' => 2, 'monstres' => ['Squelette', 'Zombie', 'Momie']],
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
 

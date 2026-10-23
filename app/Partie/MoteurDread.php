@@ -795,6 +795,27 @@ final class MoteurDread
     }
 
     /**
+     * Le SEUIL DE FUITE est-il atteint ? Un seul point de passage (`Mot::TYPE_FUITE` de `sortDisponible()`).
+     *
+     *  - Le précédent des Dread (`SEUIL_FUITE`, 25 %) : `pv < max(1, ⌊max × 0,25⌋)`, STRICT.
+     *  - `fuit_si_affaibli` (Skulmar, Kessandria) : `pv ≤ ⌊max / 3⌋`, AU tiers, inclusif. Le précédent y est
+     *    inopérant pour un corps de 3 : son seuil vaut 1, et un monstre vivant a au moins 1 PV, donc la fuite ne
+     *    partirait jamais. Au tiers, le plancher est exact pour un entier (pv ≤ max/3 ⟺ pv ≤ ⌊max/3⌋).
+     *    Le Seigneur Sorcier ne la porte pas : il ne fuit jamais.
+     */
+    public function seuilFuiteAtteint(InstanceMonstre $instance): bool
+    {
+        $max = (int) $instance->pvBodyMax();
+        $pv = (int) $instance->pv_body;
+
+        if ($this->aCapacite($instance, 'fuit_si_affaibli')) {
+            return $pv <= intdiv($max, 3);
+        }
+
+        return $pv < max(1, (int) ($max * self::SEUIL_FUITE));
+    }
+
+    /**
      * Le nom du sort déclaré « à volonté » pour CETTE instance, ou `null`.
      *
      * Capacité paramétrée (`['sort_a_volonte' => ['sort' => 'Boule de
@@ -1000,8 +1021,7 @@ final class MoteurDread
             // feu avait avant que `ciblesDansZone()` ne devienne le point de
             // passage du choix comme de la résolution.
             Mot::TYPE_SOIN => $this->cibleSoin($sort, $quete, $instance) !== null,
-            Mot::TYPE_FUITE => ! $instance->fuite_dread_utilisee
-                && (int) $instance->pv_body < max(1, (int) ($instance->pvBodyMax() * self::SEUIL_FUITE)),
+            Mot::TYPE_FUITE => ! $instance->fuite_dread_utilisee && $this->seuilFuiteAtteint($instance),
             // Rien à ronger, pas de sort : un héros sans métal en main ni sur
             // la tête n'offre aucune prise, et brûler un usage pour un journal
             // vide est le défaut que ce filtre existe pour empêcher.
@@ -1099,7 +1119,9 @@ final class MoteurDread
             // mais moins immédiatement rentable qu'un obstacle qui protège
             // tout de suite.
             Mot::TYPE_DEPLACEMENT => 45,
-            Mot::TYPE_FUITE => 10,
+            // Une créature qui DOIT fuir (`fuit_si_affaibli`, « should try to escape ») passe devant tout autre
+            // sort une fois au seuil ; la Fuite du précédent des 25 % reste en dernier, comme elle l'a toujours été.
+            Mot::TYPE_FUITE => $this->aCapacite($instance, 'fuit_si_affaibli') ? 1000 : 10,
             // Un mur ne blesse pas : entre l'invocation (60) et le terrain (50).
             Mot::TYPE_MUR_MAGIQUE => 55,
             // Un renfort de faction vaut un cran de plus que l'invocation (60) :
@@ -1776,7 +1798,9 @@ final class MoteurDread
         // aurait retiré *Fuite* (palier boss) et le Mage de guerre *Esprit de
         // vengeance* et *Orque berserker*, alors que `usages_dread` lui en
         // compte six.
-        if ($this->aCapacite($instance, 'sorts_uniques')) {
+        // ⚠ `repertoire_complet` (Kessandria, Skulmar : répertoire donné entier par le livret) lève le palier
+        // SANS la règle « un sort par quête » de `sorts_uniques` — voir `MotsClesAdversaires::REPERTOIRE_COMPLET`.
+        if ($this->aCapacite($instance, 'sorts_uniques') || $this->aCapacite($instance, 'repertoire_complet')) {
             $rangLanceur = max(self::RANG_PALIER);
         }
 

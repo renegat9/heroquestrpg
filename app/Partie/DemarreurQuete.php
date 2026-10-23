@@ -833,6 +833,12 @@ final class DemarreurQuete
         // `docs/regles/bestiaire-et-rencontres.md` et
         // `database/seeders/GabaritQueteSeeder.php`.
         'wizards_of_morcar',
+        // Ajoutée le 2026-10-23 (chantier EXT-WITCH), modulo 7 → 8, même garde-fou : la colonne figée protège
+        // toute campagne démarrée (`groupes.theme_bestiaire`, `ThemeWitchLordTest`). Rencontre finale : le
+        // SEIGNEUR SORCIER seul au jalon boss (il ferme la campagne) ; la Légion (Skulmar, Kessandria, Garde du
+        // Dread, Cavalier-esprit) au jalon sous-boss. Les immunités sélectives (Kessandria, le Seigneur)
+        // sont portées — voir `docs/plan-witch-lord.md` §Exécution.
+        'witch_lord',
     ];
 
     /**
@@ -967,6 +973,7 @@ final class DemarreurQuete
         // même remarque que First Light : l'année est dans le titre de section,
         // pas dans le nom de la boîte.
         'wizards_of_morcar' => 'Wizards of Morcar',
+        'witch_lord' => 'Return of the Witch Lord',
     ];
 
     /**

@@ -1022,6 +1022,65 @@ class MonstreSeeder extends Seeder
                 'tier' => 'sous_boss', 'boite' => 'wizards_of_morcar', 'cout' => 12, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['coup_de_corne'], 'sorts_dread' => []],
 
+            // ---- Return of the Witch Lord (F4193, 2021/22) — lots B, C, D (chantier 2026-10-23) ----
+            // Stats : Move/Attack/Defend/Body/Mind, `reference/18` §Witch Lord, relues sur le livret.
+            // `cout` = attaques d'un héros à 3 dés pour abattre, Body / (1,5 − Défense/6), placé sur la
+            // droite de SON palier (sous-boss : Ogre champion 7,2 → 11, Minotaure 9 → 12 ; boss : Ogre
+            // commandant 9 → 15, Seigneur 15 → 20), plancher de palier 8 (sous-boss) comme l'Effigie.
+            // Lecture sans vulnérabilité ni immunité : une créature qui ne craint que certaines sources est
+            // comptée comme les autres (à trancher par René, voir `docs/plan-witch-lord.md` §Exécution).
+
+            // CAVALIER-ESPRIT (Spirit Riders, q. 2, note E, p. 11) : variante de Squelette, sous-boss (plan Lot B).
+            // Body 3 / (1,5 − 4/6) = 3,6 attaques : sous le plancher du palier, cout 8.
+            ['nom_base' => 'Cavalier-esprit', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'boite' => 'witch_lord', 'cout' => 8, 'capacites' => [], 'sorts_dread' => []],
+
+            // GARDE DU DREAD (Doomguard, q. 9-10, p. 25) : variante du Guerrier du Dread, sous-boss.
+            // Body 3 / (1,5 − 6/6) = 6 attaques, sur la droite des sous-boss : cout 10.
+            ['nom_base' => 'Garde du Dread', 'deplacement' => 8, 'attaque' => 4, 'defense' => 6, 'pv_body' => 3, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'boite' => 'witch_lord', 'cout' => 10, 'capacites' => [], 'sorts_dread' => []],
+
+            // SKULMAR, chef de la Légion Oubliée (q. 7, p. 21) : SOUS-BOSS (Q2, René 2026-10-15), comme Doralf.
+            // « Skulmar should try to escape » : la capacité `fuit_si_affaibli` le fait fuir à un TIERS de ses
+            // Body de départ (Q3, plancher de 3/3 = 1 Body), par SON sort de Fuite, déjà porté. Ce sort est de
+            // palier boss : `repertoire_complet` le lui laisse lancer, sans quoi un sous-boss ne fuirait jamais.
+            // Body 3 / (1,5 − 6/6) = 6 attaques : cout 10.
+            ['nom_base' => 'Skulmar', 'deplacement' => 8, 'attaque' => 5, 'defense' => 6, 'pv_body' => 3, 'pv_mind' => 4,
+                'tier' => 'sous_boss', 'boite' => 'witch_lord', 'cout' => 10,
+                'capacites' => ['fuit_si_affaibli', 'repertoire_complet'], 'sorts_dread' => ['Fuite']],
+
+            // KESSANDRIA, la Reine Sorcière (q. 9, p. 25) : SOUS-BOSS — tranché le 2026-10-23, le plan (Lot B) disait
+            // boss. Précédent : les quatre LIEUTENANTS de Morcar sont des lanceurs à répertoire de boss et restent
+            // sous-boss, l'Artificière seule ferme la campagne (G1504 ; `GabaritQueteSeeder`). Le Witch Lord ferme
+            // ici, Kessandria est la quête 9, avant lui. Palier levé par `repertoire_complet` (ses sorts de palier
+            // boss : Nuée d'Effroi, Patinage), SANS la règle « un sort par quête » de `sorts_uniques`.
+            // Immunisée à tous les sorts SAUF le feu (« immune to all spells except fire spells », p. 25).
+            // Répertoire du livret : lightning bolt (Éclair de Chaos), tempest (Tourmente), fear (Frayeur), sleep
+            // (Sommeil), cloud of Dread (Nuée d'Effroi) ; sa potion de vitesse (12 cases sur le tour) est le sort
+            // Patinage, Q4 (libellé « potion » par l'habillage). Fuit à un tiers (« should try to escape »).
+            // Body 3 / (1,5 − 6/6) = 6 attaques : cout 10. Son immunité n'est pas comptée : les armes la blessent.
+            ['nom_base' => 'Kessandria', 'deplacement' => 6, 'attaque' => 4, 'defense' => 6, 'pv_body' => 3, 'pv_mind' => 4,
+                'tier' => 'sous_boss', 'boite' => 'witch_lord', 'cout' => 10,
+                'capacites' => ['immunite_sorts_sauf' => ['feu'], 'fuit_si_affaibli', 'repertoire_complet'],
+                'sorts_dread' => ['Éclair de Chaos', 'Tourmente', 'Frayeur', 'Sommeil', 'Nuée d\'Effroi', 'Patinage', 'Fuite']],
+
+            // LE SEIGNEUR SORCIER (Witch Lord, boss final, q. 10, p. 27) : 10/5/6/4/5 (stats RELEVÉES par rapport au
+            // jeu de base). BOSS : il ferme la campagne. « There must be no escape for him » : il NE FUIT JAMAIS —
+            // aucune `fuit_si_affaibli`, aucune Fuite dans son répertoire, et c'est écrit ici pour que l'absence
+            // soit un choix, pas un oubli (`WitchLordBestiaireTest`). Blessé UNIQUEMENT par la Lame des Esprits, le
+            // « fire of wrath » (Trait de Feu), le « ball of flame » (Boule de Feu) et la Dague de jet magique
+            // (`vulnerable_uniquement_a`, p. 27 : « can only be harmed by four things at this time »).
+            // Répertoire : summon undead, firestorm, tempest, lightning bolt, fear, command. Body 4 / (1,5 − 6/6)
+            // = 8 attaques, sur la droite des boss : cout 14.
+            ['nom_base' => 'Seigneur Sorcier', 'deplacement' => 10, 'attaque' => 5, 'defense' => 6, 'pv_body' => 4, 'pv_mind' => 5,
+                'tier' => 'boss', 'boite' => 'witch_lord', 'cout' => 14,
+                'capacites' => ['vulnerable_uniquement_a' => ['Lame des Esprits', 'Trait de Feu', 'Boule de Feu', 'Dague de jet magique']],
+                'sorts_dread' => ['Invocation de morts-vivants', 'Tempête de feu', 'Tourmente', 'Éclair de Chaos', 'Frayeur', 'Commandement']],
+
+            // LES QUATRE STATUES D'ORCS (q. 10, note A, p. 27) : NON SEMÉES — voir `MotsClesAdversaires::SANS_DONNEE`.
+            // La forme (invulnérable, arme brisée sauf exemptée) est construite et testée ; la règle « bloquent
+            // totalement le couloir » est une règle de carte qu'une figure de bestiaire ne porte pas.
+
             // ⚠ Fellmarak, le Roi Sorcier (boss, seul boss chiffré du livret,
             // Q3) reste NON semé. Sa règle sourcée dit qu'il NE MEURT PAS
             // normalement : quête 12, « Fellmarak cannot be killed […] he

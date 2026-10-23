@@ -1720,6 +1720,21 @@ final class JournalCombat
                 : "{$attaquant} terrasse {$cible} !{$des}{$forge}{$oracle}", 'ton' => 'mort']];
         }
 
+        // COUP SANS EFFET (`sans_effet`, `arme_brisee` — `ResolveurTour::frapper()`) : le jet se lit, le coup
+        // n'entame rien, et ce qui se brise est DIT — jamais « touche (−0 PV) ». `source` : l'arme ne blesse pas
+        // cette créature ; `invulnerable` : aucune arme ne la blesse, et celle qui frappe peut se briser.
+        if (! empty($a['sans_effet'])) {
+            $lignes = [['texte' => $a['sans_effet'] === 'invulnerable'
+                ? "{$attaquant} frappe {$cible} sans l'entamer{$des}{$forge}{$oracle}"
+                : "{$attaquant} touche {$cible}, mais cette arme ne le blesse pas{$des}{$forge}{$oracle}", 'ton' => 'pare']];
+
+            if (! empty($a['arme_brisee'])) {
+                $lignes[] = ['texte' => "{$attaquant} : {$a['arme_brisee']} se brise !", 'ton' => 'degats'];
+            }
+
+            return $lignes;
+        }
+
         // ⚠ `degats` est ce que les DÉS ont produit ; une défense à usage unique du
         // monstre (`reaction_monstre`, lue par `MoteurDegats::infligerAMonstre()`)
         // peut l'annuler en entier. Le fil disait alors « touche Gretzl (−2 PV) »
@@ -2854,6 +2869,12 @@ final class JournalCombat
             // sur qui il tombe (verdict Jungle 2026-10-10 §1).
             'errant' => [[
                 'texte' => ($a['monstre']['nom'] ?? 'Un monstre')." surgit du coffre que fouille {$acteurNom} !",
+                'ton' => 'subit',
+            ]],
+            // CERCUEIL du Tombeau (`ResolveurTour::spawnDuTombeau()`) : le même payload que l'errant, nommé pour ce
+            // qui le fait sortir — un mort-vivant du sarcophage, pas un coffre.
+            'monstre' => [[
+                'texte' => ($a['monstre']['nom'] ?? 'Un mort-vivant')." sort du tombeau que fouille {$acteurNom} !",
                 'ton' => 'subit',
             ]],
             // CAISSE DE RAVITAILLEMENT (Against the Ogre Horde p. 5) : butin

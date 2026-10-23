@@ -154,6 +154,58 @@ class Monstre extends Model
         return is_array($liste) ? array_values(array_map('strval', $liste)) : [];
     }
 
+    /**
+     * L'ÉCHELLE des immunités aux sorts, lue d'un seul tenant par `MoteurSorts::sortRefuseSur()` (menu ET
+     * résolution) : `totale` (`immunite_sorts`, Effigie), `sauf` (`immunite_sorts_sauf`, les ÉLÉMENTS qui passent —
+     * Kessandria : `['feu']`) et `sources` (`vulnerable_uniquement_a`, les armes et sorts de dégâts qui blessent
+     * — Seigneur Sorcier). `null` = pas de restriction de cette forme.
+     *
+     * @return array{totale: bool, sauf: ?list<string>, sources: ?list<string>}
+     */
+    public function immunitesSorts(): array
+    {
+        $capacites = (array) ($this->capacites ?? []);
+
+        return [
+            'totale' => $this->immuniseAuxSorts(),
+            'sauf' => $this->listeDeCapacite($capacites, 'immunite_sorts_sauf'),
+            'sources' => $this->listeDeCapacite($capacites, 'vulnerable_uniquement_a'),
+        ];
+    }
+
+    /**
+     * INVULNÉRABLE ET BRISE L'ARME (`invulnerable_casse_arme`) : la liste des armes EXEMPTÉES de casse. `null` =
+     * la créature n'est pas de cette famille. Lue par `ResolveurTour::frapper()`, seul point de passage des coups.
+     *
+     * @return ?list<string>
+     */
+    public function casseArmeExemptees(): ?array
+    {
+        $capacites = (array) ($this->capacites ?? []);
+
+        if (! array_key_exists('invulnerable_casse_arme', $capacites)) {
+            return null;
+        }
+
+        return $this->listeDeCapacite($capacites, 'invulnerable_casse_arme') ?? [];
+    }
+
+    /**
+     * Une capacité PARAMÉTRÉE par une liste de noms : `['cle' => ['a', 'b']]`. Absente, ou présente sans liste
+     * exploitable, elle ne restreint rien (`null`).
+     *
+     * @param  array<array-key, mixed>  $capacites
+     * @return ?list<string>
+     */
+    private function listeDeCapacite(array $capacites, string $cle): ?array
+    {
+        if (! array_key_exists($cle, $capacites) || ! is_array($capacites[$cle])) {
+            return null;
+        }
+
+        return array_values(array_map('strval', $capacites[$cle]));
+    }
+
     /** Emprise en cases : [largeur, hauteur]. Par défaut 1×1. */
     public function emprise(): array
     {

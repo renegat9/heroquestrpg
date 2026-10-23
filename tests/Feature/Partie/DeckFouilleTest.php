@@ -993,8 +993,11 @@ it('donne à CHAQUE meuble sa table de butin, avec une chance de ne rien trouver
         }
 
         // Le tirage rend toujours une carte applicable, jamais une issue inconnue.
+        // `monstre` (chantier 2026-10-23) : le cercueil du Tombeau, Return of the Witch Lord p. 4-5 — appliqué par
+        // `ResolveurTour::appliquerButin()` (`spawnDuTombeau()`) et annoncé. Une issue nouvelle entre ici EN MÊME
+        // TEMPS que son lecteur, jamais avant.
         for ($i = 0; $i < 20; $i++) {
-            expect($mm->tirerButin($type)['issue'])->toBeIn(['tresor', 'objet', 'piege', 'rien']);
+            expect($mm->tirerButin($type)['issue'])->toBeIn(['tresor', 'objet', 'piege', 'rien', 'monstre']);
         }
     }
 

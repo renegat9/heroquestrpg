@@ -1621,6 +1621,14 @@ toutes deux sont fermées.
     porte déjà (`JournalCombat::signatureDeDoublon()`).
   - `reaction_monstre` `{instance_id, nom, mecanique}` — la défense à usage unique, avec le
     NOM de la créature.
+  - `sans_effet` `"source" | "invulnerable" | null` (chantier 2026-10-23, *Return of the Witch Lord*) — un
+    COUP qui n'entame rien : le jet se lit, `degats` vaut 0. `source` : l'arme employée n'est pas de
+    celles qui blessent cette créature (Seigneur Sorcier : Lame des Esprits, Trait de Feu, Boule de Feu,
+    Dague de jet magique) ; `invulnerable` : aucune arme ne la blesse (statues, non semées). Annoncé
+    (« … cette arme ne le blesse pas », « … sans l'entamer »). Un sort refusé n'a pas de payload : il n'est
+    pas OFFERT par le menu (`MoteurSorts::ciblesLegales()`).
+  - `arme_brisee` `string | null` — le NOM de l'arme qu'un coup a brisée contre une créature invulnérable,
+    sauf exemptée (Lame des Esprits). L'arme a quitté l'inventaire ; la ligne annonce « X se brise ! ».
   - `monstres_reveles` `{boss: [nom], monstres: [nom], texte}` — la salle qui se dévoile
     (« Gruulob apparaît, entouré de 2 Gobelins ! »).
   - `vote_resolu` `{vote, option_id, applique, decompte, texte}` — voir §Votes.
@@ -2796,6 +2804,11 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
   caisse : on les fouille par l'action **« Fouiller : Coffre »** /
   **« Fouiller : Caisse de ravitaillement »** (`type: fouille_mobilier`),
   offerte seulement quand le héros est adjacent au meuble.
+  - **Tombeau** (*Return of the Witch Lord*, chantier 2026-10-23) : l'issue `monstre` fait sortir un
+    mort-vivant de base, posé au contact ORTHOGONAL du fouilleur (repli sur la case libre la plus proche) ;
+    payload `{issue: "monstre", monstre: {instance_id, nom, x, y}}`, annoncé « X sort du tombeau… ».
+    Si rien ne peut sortir (créature hors bestiaire, aucune case libre) : `issue: "rien"` et
+    `monstre_indisponible: true` — la fouille le dit au lieu de se taire.
   - **Coffre** dans une salle à coffre désigné (salle du fond, passages
     secrets) encore plein → la récompense du coffre de la quête (artefact,
     or ou potion de `carteCoffre()`) REMPLACE la table ordinaire du coffre ;
