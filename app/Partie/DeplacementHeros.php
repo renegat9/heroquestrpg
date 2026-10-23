@@ -56,7 +56,7 @@ final class DeplacementHeros
      * et donc les seuls qu'un trajet peut nommer. Jamais `cache`.
      */
     private const ETATS_AFFICHES = [
-        MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_FOSSE_OUVERTE,
+        MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_FOSSE_OUVERTE, MoteurPieges::ETAT_MARE,
         MoteurPieges::ETAT_DESARME, MoteurPieges::ETAT_DECLENCHE,
         MoteurPieges::ETAT_RETIENT,
     ];

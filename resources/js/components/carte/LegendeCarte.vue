@@ -115,6 +115,7 @@ const terrains = computed(() => parNom(props.carte?.terrain).map((t) => ({
 const ETATS_PIEGE = {
     detecte: 'détecté, jamais déclenché — y marcher le déclenche ; à sauter ou désamorcer',
     fosse_ouverte: 'fosse ouverte — y marcher fait tomber ; se saute, ne se désamorce plus',
+    mare_acide: "mare d'acide — y marcher brûle à chaque pas ; se saute, ne se désamorce pas",
     desarme: 'désamorcé, inoffensif',
     declenche: 'déjà déclenché',
     retient: 'lianes qui retiennent un héros — une action (la sienne ou celle d\'un voisin) les détruit',
@@ -181,7 +182,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
                     <span>{{ p.nom }}</span>
                 </div>
                 <div v-for="[cle, texte] in etatsPiege" :key="cle" class="lg-ligne">
-                    <span class="lg-chip lg-piege" :class="cle"><MSym v-if="cle !== 'declenche' && cle !== 'fosse_ouverte'" n="warning" fill /></span>
+                    <span class="lg-chip lg-piege" :class="cle"><MSym v-if="cle !== 'declenche' && cle !== 'fosse_ouverte' && cle !== 'mare_acide'" n="warning" fill /></span>
                     <span class="lg-etat">{{ texte }}</span>
                 </div>
             </section>
@@ -323,6 +324,9 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 .lg-piege.detecte { opacity: 0.55; }
 .lg-piege.retient { border-radius: 50%; color: oklch(0.88 0.14 140); background: oklch(0.34 0.10 145 / 0.85);
   box-shadow: inset 0 0 0 2px oklch(0.72 0.16 145 / 0.9); }
+.lg-piege.mare_acide { border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, oklch(0.62 0.2 135) 0 30%, oklch(0.42 0.14 135 / 0.9) 60%, transparent 76%);
+  box-shadow: inset 0 0 0 1.5px oklch(0.8 0.2 130 / 0.85), inset 0 0 6px oklch(0 0 0 / 0.5); }
 .lg-piege.fosse_ouverte { border-radius: 50%;
   background: radial-gradient(circle at 50% 45%, oklch(0.06 0.01 255) 0 40%, oklch(0.24 0.045 40 / 0.9) 60%, transparent 76%);
   box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.8), inset 0 0 6px oklch(0 0 0 / 0.85); }

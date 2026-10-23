@@ -152,6 +152,9 @@ function fixturesDesTypesAnnonces(): array
         'forcer_porte_pierre' => ['reussi' => true, 'cranes' => 2],
         'ouvrir_porte' => ['cause' => 'main', 'porte' => $porte],
         'oracle_salle' => ['salles_revelees' => [2]],
+        // Souris familière (The Crypt of Perpetual Darkness, chantier EXT-CRYPTE, 2026-10-23) : la salle derrière, ses
+        // monstres et ses meubles, et la souris qui s'enfuit une fois épuisée.
+        'lacher_souris' => ['salles_revelees' => [2], 'monstres' => ['Gobelin'], 'meubles' => ['Coffre'], 'souris_epuisee' => true],
         'poussee' => ['cible' => $monstre, 'jet' => ['succes' => 2, 'difficulte' => 2], 'repoussee' => true],
         'breuvage_dissipe' => ['personnage' => 'Albrecht', 'texte' => "Albrecht : l'effet de « Potion d'héroïsme » se dissipe, faute d'attaque"],
         'attaque_supplementaire_perdue' => ['personnage' => 'Albrecht', 'texte' => 'Albrecht se déplace : son attaque supplémentaire est perdue.'],

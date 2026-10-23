@@ -838,6 +838,50 @@ class ObjetSeeder extends Seeder
                 'effet' => ['des_attaque' => 2,
                     'des_attaque_contre' => ['noms' => ['Golem', 'Dreadshifter'], 'des' => 4]]],
 
+            // ===== THE CRYPT OF PERPETUAL DARKNESS (G1798, chantier EXT-CRYPTE, 2026-10-23) =====
+            // Les DEUX artefacts propres à la boîte : le livret imprime leur texte (p. 4, « Artifact Cards ») —
+            // aucune photo, comme la Cuirasse et Urdyn. Boîte `crypte_tenebres` (thème allumé le 2026-10-23) : ces
+            // pièces ne sortent d'un coffre que sous la Crypte (`DeckFouille::choisirArtefact()`).
+
+            // « Dragon Spear: Weapon—A long magical spear of dwarven make. When using it, roll 3 Attack dice, or
+            // roll 4 if attacking a dragon. This weapon may be used to attack diagonally. May not be used by the
+            // wizard. » — 3 dés, 4 contre un dragon : `des_attaque_contre` lu sur `nom_base` (`ResolveurTour::
+            // desArmeContre()`). Le catalogue n'a PAS de famille « dragon » : « un dragon » se déclare par la
+            // liste de ses noms — le Dragon de First Light et Venim le Dragon. `attaque_diagonale` : la clé
+            // existante. « May not be used by the wizard » : `classe_interdite`, comme la Cuirasse de Peau de
+            // Dragon. ⚠ `metallique` : non trouvé dans le livret (la matière n'est pas dite) — `false` par défaut,
+            // donc à l'abri de la Rouille : à trancher.
+            ['nom' => 'Lance du Dragon', 'categorie' => 'arme', 'metallique' => false, 'rarete' => 'unique',
+                'prix_base' => 0, 'emplacement' => 'arme_principale', 'tag_equipement' => null,
+                'classe_interdite' => 'magicien', 'boite' => 'crypte_tenebres',
+                'effet' => ['des_attaque' => 3,
+                    'des_attaque_contre' => ['noms' => ['Dragon', 'Venim le Dragon'], 'des' => 4],
+                    'attaque_diagonale' => true]],
+
+            // « Crown of Shadows: Armor—This helmet gives you 1 extra Defend die and allows you to see normally in
+            // darkness, both magical and nonmagical. » — la moitié « 1 dé de défense » est portée (`des_defense`,
+            // slot `casque`, comme la Diadème de braise). ÉCARTÉE : la moitié « voir dans le noir ». Son seul
+            // lecteur possible serait l'obscurité magique de l'antre de Venim, écartée le 2026-10-23
+            // (`docs/plan-crypte-tenebres.md`, lot F) : sans lecteur, une clé `vision_nocturne` serait décorative.
+            // L'écart est écrit ici et dans `docs/regles/artefacts.md`. ⚠ `metallique` : non trouvé (comme la Lance).
+            ['nom' => 'Couronne des Ténèbres', 'categorie' => 'armure', 'metallique' => false, 'rarete' => 'unique',
+                'prix_base' => 0, 'emplacement' => 'casque', 'tag_equipement' => null, 'boite' => 'crypte_tenebres',
+                'effet' => ['des_defense' => 1]],
+
+            // « A hero can release the mouse in front of any closed door in any quest to receive a telepathic
+            // message about what monsters and furniture lie behind the door (if any). When the mouse is used once
+            // in this way, it scurries off. » (G1798 p. 9, note B ; quête 5 p. 15 note C : « make the game master
+            // place everything visible in that room before they enter »). Trouvée par une FOUILLE (quête 2, note B ;
+            // quête 5, note C), donc une carte de trésor du paquet, lue par `DeckFouille::cartesCrypte()`.
+            // Objet à charge UNIQUE : `charges: 1` est un TOTAL, posé sur la ligne d'inventaire et jamais rechargé
+            // (pas de `frequence`) — c'est le total de toute la campagne. L'objet se brise à zéro
+            // (`MoteurCharges::detruire()`, journalisé). Lu par `ResolveurTour::lacherSouris()`.
+            // ⚠ Prix et rareté : aucun prix imprimé (⚠ non trouvé) — `prix_base` 0 et `rarete: unique`, donc jamais
+            // vendue (`PhaseMarche::REFUS_VENTE_UNIQUE`).
+            ['nom' => 'Souris familière', 'categorie' => 'outil', 'rarete' => 'unique', 'prix_base' => 0,
+                'emplacement' => 'consommable', 'boite' => 'crypte_tenebres',
+                'effet' => ['charges' => 1, 'lacher_derriere_porte' => true]],
+
             // ===== JUNGLES OF DELTHRAK — LE BUTIN (chantier A, 2026-10-09) =====
             //
             // Les six artefacts du « Treasure and Artifact Reference » (livret

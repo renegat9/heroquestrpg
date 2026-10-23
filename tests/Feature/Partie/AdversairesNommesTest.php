@@ -270,7 +270,8 @@ it('CATALOGUE : les six lignes portent les stats relues sur le livret, rendu à 
 
     // Les deux figures IMMOBILES — et elles seules — ont Move 0 : c'est le catalogue qui le dit.
     expect(Monstre::all()->filter(fn (Monstre $m) => $m->estImmobile())->pluck('nom_base')->sort()->values()->all())
-        ->toBe(['Effigie gardienne', 'Scion Fleur-Pourrie']);
+        // + le Crâne du Dread (The Crypt of Perpetual Darkness, 2026-10-23) : tourelle immobile, posée en salle.
+        ->toBe(['Crâne du Dread', 'Effigie gardienne', 'Scion Fleur-Pourrie']);
 
     // La Vrille ne s'achète JAMAIS (cout 0 : le Scion la pose) ; les cinq autres ont un coût de palier.
     expect((int) Monstre::where('nom_base', 'Vrille')->value('cout'))->toBe(0);

@@ -645,6 +645,7 @@ final class ResolveurTour
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'forcer_porte_pierre' => $this->resoudreForcerPortePierre($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'oracle_salle' => $this->resoudreOracleSalle($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'lacher_souris' => $this->resoudreLacherSouris($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
                 'poussee' => $this->resoudrePoussee($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'fouille_tresor' => $this->resoudreFouilleTresor($groupe, $quete, $personnage, $etat, $option, $acteur),
@@ -8013,6 +8014,99 @@ final class ResolveurTour
     }
 
     /**
+     * SOURIS FAMILIÈRE (The Crypt of Perpetual Darkness, G1798 p. 9 note B ; quête 5 p. 15 note C) — « release the mouse
+     * in front of any closed door … to receive a telepathic message about what monsters and furniture lie behind the
+     * door (if any). When the mouse is used once in this way, it scurries off. »
+     *
+     * LE PRÉCÉDENT est la Bénédiction de l'Oracle (`resoudreOracleSalle()`) : la porte reste close, la salle derrière se
+     * découvre. UNE différence, écrite : l'Oracle passe par `revelerSalle()`, qui RÉVEILLE les monstres dormants ; la
+     * souris ne réveille personne — elle marque la salle découverte, et rien d'autre. Un dormant reste dormant, une
+     * embuscade reste cachée, un crâne reste à son regard. Le message nomme ce qui s'y trouve (monstres, meubles), lu
+     * AVANT de découvrir.
+     *
+     * La charge est dépensée ici, une fois ; la souris se brise à zéro (`MoteurCharges::detruireSiEpuise()`, journalisé).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreLacherSouris(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $ligne = app(Equipement::class)->ligneSouris($personnage);
+
+        if ($ligne === null) {
+            throw ValidationException::withMessages(['option_id' => 'Aucune souris familière utilisable.']);
+        }
+
+        $cible = $quete->carte === null ? null : $this->porteDesignee($option,
+            $this->portes->portesFermeesAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y));
+
+        if ($cible === null) {
+            throw ValidationException::withMessages(['option_id' => 'Aucune porte fermée adjacente à cette position.']);
+        }
+
+        $x = (int) $cible['porte']['x'];
+        $y = (int) $cible['porte']['y'];
+        $cote = (string) ($cible['porte']['cote'] ?? 'e');
+        $salles = (array) data_get($quete->carte?->grille, 'salles', []);
+        $avant = $quete->sallesDecouvertes();
+        // Le message ne parle que de la salle DERRIÈRE la porte : celle où se tient le héros n'entre pas dans le compte.
+        $salleDuHeros = $this->salleA($quete, (int) $etat->position_x, (int) $etat->position_y);
+
+        $sallesRevelees = [];
+        $monstres = [];
+        $meubles = [];
+
+        foreach ($this->sallesAdjacentesPorte($quete, $cible['porte']) as $salle) {
+            if ($salle !== $salleDuHeros) {
+                // Ce qui s'y trouve, lu AVANT de découvrir — même si la salle est déjà connue : c'est une information.
+                foreach (InstanceMonstre::query()->where('quete_id', $quete->id)->where('etat', '!=', 'vaincu')
+                    ->whereNotNull('position_x')->with('monstre')->get() as $instance) {
+                    if (Salles::indexDe($salles, (int) $instance->position_x, (int) $instance->position_y) === $salle) {
+                        $monstres[] = $instance->nomAffiche();
+                    }
+                }
+
+                foreach ((array) ($quete->carte?->grille['mobilier'] ?? []) as $meuble) {
+                    if (Salles::indexDe($salles, (int) ($meuble['x'] ?? -1), (int) ($meuble['y'] ?? -1)) === $salle) {
+                        $meubles[] = (string) (Mobilier::find((int) ($meuble['mobilier_id'] ?? 0))?->nom ?? 'un meuble');
+                    }
+                }
+            }
+
+            // Découvrir SANS réveiller : pas de `revelerSalle()`. C'est toute la différence avec l'Oracle.
+            if (! in_array($salle, $avant, true)) {
+                $quete->marquerSalleDecouverte($salle);
+                $sallesRevelees[] = $salle;
+            }
+        }
+
+        $this->charges->consommer($ligne, true);
+
+        $payload = [
+            'type' => 'lacher_souris',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'porte' => ['x' => $x, 'y' => $y, 'cote' => $cote],
+            'salles_revelees' => $sallesRevelees,
+            'monstres' => $monstres,
+            'meubles' => $meubles,
+            'souris_epuisee' => $this->charges->restantes($ligne) === 0,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+        $this->charges->detruireSiEpuise($ligne);
+
+        return $payload;
+    }
+
+    /**
      * Génie, second mode : « ouvre une porte AU CHOIX » (Kellar's Keep p. 28-29).
      *
      * Aucune adjacence requise — c'est tout l'intérêt : ouvrir à distance une
@@ -13603,7 +13697,10 @@ final class ResolveurTour
             // GRATUIT, ni le déplacement ni l'action — aucun livret ne lui impose de coût
             // (*The Frozen Horror* p. 19, *The Mage of the Mirror* p. 4). Avant, il sacrifiait le
             // tour entier (`tour`), traitement qui n'avait jamais été tranché pour lui.
-            'ouvrir_porte', 'oracle_salle', 'sortie', 'retraite', 'style', 'objet_libre', 'jeter',
+            // `lacher_souris` (The Crypt of Perpetual Darkness, chantier EXT-CRYPTE, 2026-10-23) : la même interaction
+            // LIBRE que la Bénédiction de l'Oracle — regarder derrière une porte close sans l'ouvrir ; ce qu'elle coûte,
+            // c'est une charge de la souris, pas un créneau.
+            'ouvrir_porte', 'oracle_salle', 'lacher_souris', 'sortie', 'retraite', 'style', 'objet_libre', 'jeter',
             // `defausse_sables` : abandonner un objet aux sables est GRATUIT, comme `jeter` — c'est le DERNIER
             // objet (ou la chute faute d'objet) qui clôt le tour, par `$finTourSables`, pas le type.
             // `memoire_parfaite` (magicien, lot B, 2026-10-23) : « récupère un sort épuisé SANS y passer ton tour ni

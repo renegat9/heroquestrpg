@@ -1045,6 +1045,20 @@ final class Equipement
     }
 
     /**
+     * La SOURIS FAMILIÈRE que ce héros peut encore lâcher (chantier EXT-CRYPTE, 2026-10-23) — le SEUL point de
+     * lecture de « détient-il une souris disponible ? » : `MenuMoteur` l'offre et `ResolveurTour::resoudreLacherSouris()`
+     * la consomme, sur cette même ligne. `null` sans souris, ou avec une souris épuisée (une charge se mange à zéro).
+     */
+    public function ligneSouris(Personnage $personnage): ?Inventaire
+    {
+        $charges = app(\App\Partie\MoteurCharges::class);
+
+        return $personnage->inventaire()->with('objet')->get()
+            ->first(fn (Inventaire $ligne) => (bool) ($ligne->objet?->effet[MotsClesEquipement::LACHER_DERRIERE_PORTE] ?? false)
+                && $charges->disponible($ligne));
+    }
+
+    /**
      * Le héros porte-t-il une ARMURE métallique — SANS compter le bouclier ?
      *
      * Against the Ogre Horde, Fosse des ténèbres (p. 5) : « Heroes wearing

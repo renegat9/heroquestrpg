@@ -599,6 +599,83 @@ class MonstreSeeder extends Seeder
                 'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 8,
                 'capacites' => ['tourelle', 'immunite_sorts'], 'sorts_dread' => []],
 
+            // ---- The Crypt of Perpetual Darkness (G1798, chantier EXT-CRYPTE, 2026-10-23) ----
+            // Stats : Move/Attack/Defend/Body/Mind relues sur le texte du livret (pages imprimées). Tous les
+            // `cout` sont MESURÉS (docs/regles/bestiaire-et-rencontres.md) : attaques d'un héros à 3 dés pour
+            // l'abattre = Body / (1,5 − Défense/6). Boîte `crypte_tenebres` : thème ALLUMÉ par René le 2026-10-23
+            // (rotation index 10). Chaque créature porte `reserve_a_son_theme` : elle ne se tire que sous la Crypte
+            // (`DemarreurQuete::acheterMonstres()`), même quand un pool partagé n'a aucun autre candidat.
+            //
+            // DREAD SKULL (composants p. 5, réemployé quête 9 note A p. 23) : « As soon as a hero sees a Dread
+            // Skull, place it on the board. Immediately, and on Zargon's turn, the Dread Skull makes a ranged
+            // attack with the strength of 2 combat dice at a hero it can see with its green eye beams. The skull
+            // has 1 Body Point, 0 Defend Dice, and disappears once it sustains damage. »
+            //  - `apparait_a_la_vue` : posé au premier regard d'un héros, il tire aussitôt (`MoteurTourelle`) ;
+            //    `tourelle` : il fait feu à chaque tour du MJ tant qu'il vit (`ResolveurTour::jouerMonstreEveille()`) ;
+            //  - Move 0 : le livret ne lui donne AUCUN mouvement (« place it on the board ») → immobile : salle
+            //    seulement, hors parvis, plancher tenu (`AssembleurCarte::casesPourFiguresFixes()`, décision Q2) ;
+            //  - Mind 0 : le livret ne donne pas de Mind (⚠ non trouvé) — 0 par défaut ; sans conséquence sur un
+            //    crâne qui disparaît au premier dégât ;
+            //  - `cout` 8 = le PLANCHER du palier sous-boss (précédent de l'Effigie gardienne) : la mesure donne
+            //    1 / (1,5 − 0) = 0,67 attaque, très sous le plancher. Tier `sous_boss` et non `base` : un tier
+            //    `base` se tirerait dans TOUTES les boîtes (`BestiaireGroupe::autorise()` est une préférence en
+            //    automatique, jamais un filtre). Nommé au pool sous-boss de la Crypte (`creatures`, comme l'Effigie
+            //    gardienne) et réservé à son thème (`reserve_a_son_theme`) : il n'est tiré que sous la Crypte.
+            ['nom_base' => 'Crâne du Dread', 'deplacement' => 0, 'attaque' => 2, 'defense' => 0, 'pv_body' => 1, 'pv_mind' => 0,
+                'tier' => 'sous_boss', 'boite' => 'crypte_tenebres', 'cout' => 8,
+                'capacites' => ['tourelle', 'apparait_a_la_vue', 'reserve_a_son_theme'], 'sorts_dread' => []],
+
+            // SORCIÈRE DES MARAIS (« the Dread sorcerer represents a swamp hag », quête 3 note C, p. 11) :
+            // M4 A2 D3 B2 Mi3. Répertoire NOMMÉ : Lightning, Command, Sleep, Tempest, Rust, Escape → archétype
+            // `sorciere_des_marais`. `cout` : 2 / (1,5 − 3/6) = 2,0 attaques, sous le plancher 8 du palier.
+            ['nom_base' => 'Sorcière des Marais', 'deplacement' => 4, 'attaque' => 2, 'defense' => 3, 'pv_body' => 2, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'boite' => 'crypte_tenebres', 'cout' => 8,
+                'capacites' => ['repertoire_complet', 'reserve_a_son_theme'], 'sorts_dread' => [], 'archetype_lanceur' => 'sorciere_des_marais'],
+
+            // SQUELETTE DE MINOTAURE (quête 4 note C, p. 13 — « Place a skeleton miniature on the board ») :
+            // M6 A3 D3 B2 Mi0, sans répertoire. `cout` : 2 / (1,5 − 3/6) = 2,0 ⇒ plancher 8. ⚠ NON PORTÉ, scripté
+            // dans le coffre de la quête 4 : il frappe « immédiatement » celui qui l'a trouvé, puis sa hache
+            // revient au groupe — une règle de ce coffre, pas d'un donjon généré.
+            ['nom_base' => 'Squelette de minotaure', 'deplacement' => 6, 'attaque' => 3, 'defense' => 3, 'pv_body' => 2, 'pv_mind' => 0,
+                'tier' => 'sous_boss', 'boite' => 'crypte_tenebres', 'cout' => 8,
+                'capacites' => ['reserve_a_son_theme'], 'sorts_dread' => []],
+
+            // BUUBHEALXEA, REINE GOBELINE (quête 5 note E, p. 15) : M8 A3 D3 B3 Mi2. Répertoire : Command, Fear,
+            // Escape → archétype `buubhealxea_reine_gobeline`. `cout` : 3 / (1,5 − 3/6) = 3,0 ⇒ plancher 8.
+            ['nom_base' => 'Buubhealxea, reine gobeline', 'deplacement' => 8, 'attaque' => 3, 'defense' => 3, 'pv_body' => 3, 'pv_mind' => 2,
+                'tier' => 'sous_boss', 'boite' => 'crypte_tenebres', 'cout' => 8,
+                'capacites' => ['repertoire_complet', 'reserve_a_son_theme'], 'sorts_dread' => [], 'archetype_lanceur' => 'buubhealxea_reine_gobeline'],
+
+            // ROI ARCHALONEUS, seigneur momie (quête 6 note B, p. 17) : M6 A4 D4 B4 Mi3. Répertoire : Sleep, Rust,
+            // Command → archétype `archaloneus_roi_momie`. `cout` : 4 / (1,5 − 4/6) = 4,8 attaques ⇒ plancher 8.
+            ['nom_base' => 'Roi Archaloneus', 'deplacement' => 6, 'attaque' => 4, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'boite' => 'crypte_tenebres', 'cout' => 8,
+                'capacites' => ['repertoire_complet', 'reserve_a_son_theme'], 'sorts_dread' => [], 'archetype_lanceur' => 'archaloneus_roi_momie'],
+
+            // MOMIE-NAINE (quête 8 note C, p. 21 : « a dwarf in its former life ») : M5 A4 D5 B4 Mi0, sans
+            // répertoire. `cout` : 4 / (1,5 − 5/6) = 6,0 attaques ⇒ plancher 8 (précédent : Xenloth, 6 attaques → 8).
+            ['nom_base' => 'Momie-naine', 'deplacement' => 5, 'attaque' => 4, 'defense' => 5, 'pv_body' => 4, 'pv_mind' => 0,
+                'tier' => 'sous_boss', 'boite' => 'crypte_tenebres', 'cout' => 8,
+                'capacites' => ['reserve_a_son_theme'], 'sorts_dread' => []],
+
+            // KEDRICK GILBANE, chevalier de la mort (quête 9 note C, p. 23 : « the Dread sorcerer represents the
+            // Dread knight Kedrick Gilbane ») : M7 A5 D5 B4 Mi4. Répertoire : Cloud of Dread, Fear, Firestorm,
+            // Command → archétype `kedrick_gilbane`. `cout` : 4 / (1,5 − 5/6) = 6,0 ⇒ plancher 8. Sous-boss : la
+            // boîte n'a qu'un boss, Venim (règle du thème : un boss par boîte, cf. Telor et Morcar).
+            ['nom_base' => 'Kedrick Gilbane', 'deplacement' => 7, 'attaque' => 5, 'defense' => 5, 'pv_body' => 4, 'pv_mind' => 4,
+                'tier' => 'sous_boss', 'boite' => 'crypte_tenebres', 'cout' => 8,
+                'capacites' => ['repertoire_complet', 'reserve_a_son_theme'], 'sorts_dread' => [], 'archetype_lanceur' => 'kedrick_gilbane'],
+
+            // VENIM LE DRAGON (boss final, quête 10, p. 25 : « Venim has the following spells: Cloud of Dread,
+            // Fear, Command, Sleep, and Breathe Acid (Firestorm but with acid damage) ») : M7 A5 D5 B4 Mi4.
+            // Répertoire → archétype `venim_dragon` (Souffle acide, carte-sœur de Tempête de feu). `cout` :
+            // 4 / (1,5 − 5/6) = 6,0 attaques, sur la droite des boss (Seigneur 15 → 20, pente 0,5) :
+            // 20 + 0,5 × (6,0 − 15) = 15,5 ⇒ 16. Venim est une cible valide du bonus « contre un dragon » de la
+            // Lance (`des_attaque_contre`, noms). Taille : le livret ne la donne pas (⚠ non trouvé) : 1 × 1.
+            ['nom_base' => 'Venim le Dragon', 'deplacement' => 7, 'attaque' => 5, 'defense' => 5, 'pv_body' => 4, 'pv_mind' => 4,
+                'tier' => 'boss', 'boite' => 'crypte_tenebres', 'cout' => 16,
+                'capacites' => ['repertoire_complet', 'reserve_a_son_theme'], 'sorts_dread' => [], 'archetype_lanceur' => 'venim_dragon'],
+
             // ---- Jungles of Delthrak (doc 18) ----
             // Attaque 0 au livret : le rejeton ne frappe pas, il S'ACCROCHE.
             // Son tour adjacent à un héros le convertit en JETON sur sa fiche —

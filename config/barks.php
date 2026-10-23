@@ -221,6 +221,17 @@ return [
         'Skulmar' => 'champion',
         'Kessandria' => 'sorcier',
         'Seigneur Sorcier' => 'boss',
+        // The Crypt of Perpetual Darkness (G1798, chantier EXT-CRYPTE, 2026-10-23) : la voix suit la figure du
+        // livret — un crâne qui tire, une sorcière des marais, une momie, une reine gobeline, le chevalier de la
+        // mort (voix de sorcier du Dread), et le dragon final (voix du Dragon de First Light).
+        'Crâne du Dread' => 'spectre',
+        'Sorcière des Marais' => 'sorciere',
+        'Squelette de minotaure' => 'mort_vivant',
+        'Buubhealxea, reine gobeline' => 'gobelin',
+        'Roi Archaloneus' => 'mort_vivant',
+        'Momie-naine' => 'mort_vivant',
+        'Kedrick Gilbane' => 'sorcier',
+        'Venim le Dragon' => 'dragon',
     ],
 
     'evenements' => ['attaque', 'touche', 'rate', 'mort'],

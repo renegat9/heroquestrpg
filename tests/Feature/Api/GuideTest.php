@@ -90,6 +90,10 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
         // §2.1bis interdit — et pour les bottes, ce serait pire : leur seule
         // vraie limite est « une fois par tour », qui vit ailleurs.
         'Bottes de Lièvre', "Baguette d'Os", 'Anneau du Retour',
+        // The Crypt of Perpetual Darkness (chantier EXT-CRYPTE, 2026-10-23) : la Lance du Dragon est interdite au magicien
+        // par `classe_interdite` (la carte ne nomme aucune maîtrise), la Couronne des Ténèbres ne pose aucune restriction
+        // de classe — mêmes raisons qu'Urdyn et la Diadème de braise.
+        'Lance du Dragon', 'Couronne des Ténèbres',
         // ⚠ 2026-09-10 : Orbe Céleste, Anneau de Chaleur et Raquettes de
         // Vitesse ne posent non plus aucune restriction de classe sur leur
         // carte — mêmes raisons que ci-dessus.
@@ -171,7 +175,9 @@ it('expose la provenance des cartes, portées et non portées', function () {
     // p. 10-11, 2026-10-16) = 179.
     // +1 Wolfsbane Potion (Mage of the Mirror, remède de la Malédiction du loup-garou,
     // 2026-10-16) = 180.
-    expect($cartes)->toHaveCount(180);
+    // +4 le 2026-10-23 (The Crypt of Perpetual Darkness, livret G1798, chantier EXT-CRYPTE) : Lance du Dragon,
+    // Couronne des Ténèbres, Souris familière (artefacts) et Breathe Acid (sort de Dread) = 184.
+    expect($cartes)->toHaveCount(184);
 
     // Chaque carte dit si elle est portée, et celles qui ne le sont pas
     // annoncent leur texte de plateau ET la mécanique qui leur manque.

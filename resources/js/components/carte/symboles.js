@@ -30,6 +30,9 @@ export const PIEGE_ICONES = {
     'Piège de coffre': 'lock',
     'Aiguille empoisonnée': 'vaccines',
     'Fiole de poison': 'coronavirus',
+    // The Crypt of Perpetual Darkness (chantier EXT-CRYPTE, 2026-10-23) : une flaque d'acide, « science » (l'alchimie),
+    // distincte de la fosse (un trou) et du feu. Persistante, elle se dessine avec la fosse ouverte — voir `DungeonGrid.vue`.
+    "Mare d'acide": 'science',
     // Against the Ogre Horde (lot B, 2026-10-02) : `content_cut` lit comme une
     // lame, distinct de la flèche du Piège à lances et du danger de chute de
     // la Chute de blocs — même silhouette de FAMILLE (carré), la zone de

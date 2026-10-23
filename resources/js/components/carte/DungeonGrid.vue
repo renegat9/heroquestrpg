@@ -216,7 +216,7 @@ const doors = computed(() => (props.carte.portes ?? [])
             :style="{ gridColumn: t.x + 1, gridRow: t.y + 1 }"
         >
             <div class="dg-trap" :class="t.etat" :title="t.titre ?? t.nom">
-                <MSym v-if="t.etat !== 'declenche' && t.etat !== 'fosse_ouverte'" :n="iconePiege(t)" fill />
+                <MSym v-if="t.etat !== 'declenche' && t.etat !== 'fosse_ouverte' && t.etat !== 'mare_acide'" :n="iconePiege(t)" fill />
             </div>
         </div>
 
@@ -500,6 +500,9 @@ const doors = computed(() => (props.carte.portes ?? [])
 /* FOSSE OUVERTE (2026-09-27) : le trou du plateau, OPAQUE, cerclé d'ambre —
    il est toujours dangereux (y marcher fait tomber), à l'inverse du cratère
    gris d'un piège dépensé juste en dessous. */
+.dg-trap.mare_acide { inset: 6%; border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, oklch(0.62 0.2 135) 0 30%, oklch(0.42 0.14 135 / 0.9) 60%, transparent 76%);
+  box-shadow: inset 0 0 0 1.5px oklch(0.8 0.2 130 / 0.85), inset 0 0 10px oklch(0 0 0 / 0.5); }
 .dg-trap.fosse_ouverte { inset: 6%; border-radius: 50%;
   background: radial-gradient(circle at 50% 45%, oklch(0.06 0.01 255) 0 40%, oklch(0.24 0.045 40 / 0.9) 60%, transparent 76%);
   box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.8), inset 0 0 10px oklch(0 0 0 / 0.85); }
@@ -532,7 +535,7 @@ const doors = computed(() => (props.carte.portes ?? [])
 .dg-trap-zone { pointer-events: none; z-index: 1; margin: 6%;
   background: oklch(0.78 0.15 75 / 0.16);
   box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.45); border-radius: 3px; }
-.dg-trap-zone.fosse_ouverte, .dg-trap-zone.declenche, .dg-trap-zone.bloc { display: none; }
+.dg-trap-zone.fosse_ouverte, .dg-trap-zone.mare_acide, .dg-trap-zone.declenche, .dg-trap-zone.bloc { display: none; }
 
 /* ---- leviers : octogone bleu, une troisième silhouette. Les figurines sont
    RONDES, l'épreuve est un LOSANGE doré ; le levier ne doit donc être ni l'un

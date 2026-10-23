@@ -2526,9 +2526,13 @@ final class MenuMoteur
                 $closes,
                 fn (array $c) => $this->portes->ouvrableAMain($c['porte']) || $cleDuHeros($c['porte']),
             );
+            // SOURIS FAMILIÈRE (chantier EXT-CRYPTE, 2026-10-23) : une ligne d'inventaire, lue par le SEUL point de
+            // passage `Equipement::ligneSouris()` — celui que le résolveur relit pour la consommer.
+            $ligneSouris = $this->equipement->ligneSouris($personnage);
             $offertes = array_unique(array_merge(
                 array_column($ouvrables, 'index'),
                 (bool) $personnage->benediction_oracle ? array_column($closes, 'index') : [],
+                $ligneSouris !== null ? array_column($closes, 'index') : [],
                 array_column($pierres, 'index'),
             ));
             $plusieurs = count($offertes) > 1;
@@ -2562,6 +2566,19 @@ final class MenuMoteur
                         'id' => "oracle_salle_{$p['x']}_{$p['y']}_{$cote}",
                         'libelle' => "Bénédiction de l'Oracle — révéler la salle{$suffixe}",
                         'type' => 'oracle_salle',
+                        'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
+                    ];
+                }
+
+                // SOURIS FAMILIÈRE (The Crypt of Perpetual Darkness, quête 2 note B) : le geste de la Bénédiction de
+                // l'Oracle — regarder la salle derrière une porte close SANS l'ouvrir — payé d'une CHARGE de la souris.
+                // Offerte sur chaque porte close adjacente tant qu'une souris reste utilisable. Le résolveur refuse ce
+                // que le menu n'offre pas, et le menu n'offre pas ce que le résolveur refuserait (même ligne).
+                if ($ligneSouris !== null) {
+                    $options[] = [
+                        'id' => "lacher_souris_{$p['x']}_{$p['y']}_{$cote}",
+                        'libelle' => 'Lâcher la souris devant la porte'.$suffixe,
+                        'type' => 'lacher_souris',
                         'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                     ];
                 }

@@ -78,7 +78,7 @@ final class JournalCombat
         'jeter' => true, 'attaque_mobilier' => true, 'fouille_tresor' => true,
         'fouille_mobilier' => true, 'boire_mare' => true, 'soin_cheminee' => true, 'detruire_par_action' => true,
         'actionner_levier' => true, 'forcer_porte_pierre' => true, 'ouvrir_porte' => true,
-        'oracle_salle' => true, 'poussee' => true, 'briser_glace' => true,
+        'oracle_salle' => true, 'lacher_souris' => true, 'poussee' => true, 'briser_glace' => true,
         'detacher_rejetons' => true, 's_ecarter_du_bloc' => true, 'retraite' => true,
         'sortie' => true, 'jet_en_attente' => true, 'reaction' => true, 'objet_detruit' => true,
         // Sables mouvants (F7539 p. 29) : le saut, l'abandon d'un objet, la sortie.
@@ -1170,6 +1170,7 @@ final class JournalCombat
             'poussee' => $this->poussee($a, $acteurNom),
             'ouvrir_porte' => $this->ouvrirPorte($a, $acteurNom),
             'oracle_salle' => $this->oracleSalle($a, $acteurNom),
+            'lacher_souris' => $this->lacherSouris($a, $acteurNom),
             'detacher_rejetons' => $this->detacherRejetons($a, $acteurNom),
             'briser_glace' => $this->briserGlace($a),
             'deplacement_allie' => $this->allie($a, 'se déplace'),
@@ -3147,7 +3148,11 @@ final class JournalCombat
             $lignes[] = $this->info("{$nom} est retenu par les lianes — lui ou un voisin au contact doit dépenser une action pour les détruire");
         }
 
-        if ($degats === 0 && empty($a['condition_appliquee'])) {
+        // NATURE ABSORBÉE (Mare d'acide, ou une immunité de feu/froid/acide) : le coup est dit tel. Sans cette
+        // branche, « s'en tire sans une égratignure » mentirait sur l'intercepteur — même lecteur, même phrase.
+        if (! empty($a['absorbe'])) {
+            $lignes[] = $this->info("{$nom} est protégé : le coup (nature ".(string) ($a['type_degat'] ?? '').') est absorbé');
+        } elseif ($degats === 0 && empty($a['condition_appliquee'])) {
             $lignes[] = $this->info("{$nom} s'en tire sans une égratignure");
         }
 
