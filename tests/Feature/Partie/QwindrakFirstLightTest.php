@@ -3,17 +3,22 @@
 declare(strict_types=1);
 
 use App\Models\Carte;
+use App\Models\Evenement;
 use App\Models\EtatPersonnageQuete;
 use App\Models\GabaritQuete;
 use App\Models\InstanceMonstre;
 use App\Models\Monstre;
 use App\Models\Personnage;
 use App\Models\Quete;
+use App\Models\Sort;
 use App\Partie\DemarreurQuete;
 use App\Partie\JournalCombat;
 use App\Partie\MoteurDegats;
+use App\Partie\MoteurDread;
+use App\Partie\MoteurMeteore;
 use App\Partie\MoteurSorts;
 use App\Partie\MoteurSynchroformes;
+use App\Partie\ResolveurTour;
 use App\Partie\Sauvegarde;
 use App\Partie\SceneDeTable;
 use Database\Seeders\ClasseHerosSeeder;
@@ -171,15 +176,17 @@ function qwChaineDes(): array
 // La fiche : sourcée, et la pioche ne nomme que des lignes qui existent
 // ---------------------------------------------------------------------
 
-it('porte Qwindrak the Warlock comme sa source : 6/3/6/3/6, boss de First Light, sans sort non sourcé', function () {
+it('porte Qwindrak the Warlock comme sa source : 6/3/6/3/6, boss de First Light, répertoire et météore sourcés', function () {
     $q = Monstre::where('nom_base', 'Qwindrak the Warlock')->firstOrFail();
 
     expect([$q->deplacement, $q->attaque, $q->defense, $q->pv_body, $q->pv_mind])->toBe([6, 3, 6, 3, 6])
         ->and($q->tier)->toBe('boss')
         ->and($q->boite)->toBe('first_light')
-        // Répertoire ⚠ non trouvé : aucun sort semé, ni Meteor ni Lightning Bolt de la fiche de Banjo.
+        // Répertoire SOURCÉ (livret de quêtes p. 31, note C) : un archétype nommé, pas une liste recopiée sur la fiche.
         ->and($q->sorts_dread)->toBe([])
-        ->and($q->archetype_lanceur)->toBeNull();
+        ->and($q->archetype_lanceur)->toBe('qwindrak')
+        ->and(config('archetypes_lanceurs.qwindrak.sorts'))->toBe(['Tourmente', "Nuée d'Effroi", 'Éclair de Chaos'])
+        ->and(((array) $q->capacites)['meteore'] ?? null)->toBe(['des_attaque' => 2]);
 
     $pioche = ((array) $q->capacites)['synchroformes'];
 
@@ -195,10 +202,12 @@ it('porte Qwindrak the Warlock comme sa source : 6/3/6/3/6, boss de First Light,
 });
 
 it('retire le Dragon de la rencontre finale : Qwindrak y entre à sa place, le Dragon n\'est jamais acheté seul', function () {
-    $creatures = GabaritQuete::where('nom', 'Confrontation finale')->firstOrFail()->structure['rencontre_finale']['creatures'];
+    $rencontre = GabaritQuete::where('nom', 'Confrontation finale')->firstOrFail()->structure['rencontre_finale'];
 
-    expect($creatures)->toContain('Qwindrak the Warlock')
-        ->and($creatures)->not->toContain('Dragon');
+    // Qwindrak entre par son ARCHÉTYPE (boss sorcier, comme Festral et l'Archimage elfe), pas en créature nommée.
+    expect($rencontre['archetypes'])->toContain('qwindrak')
+        ->and($rencontre['creatures'])->not->toContain('Qwindrak the Warlock')
+        ->and($rencontre['creatures'])->not->toContain('Dragon');
 });
 
 it('tire la rencontre finale de First Light sur QWINDRAK, pour tout groupe, et jamais le Dragon', function () {
@@ -524,4 +533,322 @@ it('EtatGroupe publie la forme COURANTE de la figure (Dragon, emprise 1 × 2), j
     expect($publie)->toContain('"nom_base":"Dragon"')
         ->and($publie)->toContain('"emprise":{"l":1,"h":2}')
         ->and($publie)->not->toContain('formes_a_venir');
+});
+
+// ---------------------------------------------------------------------
+// Le répertoire PAR L'ORIGINE : « In all forms, Qwindrak knows … » (livret p. 31, note C)
+// ---------------------------------------------------------------------
+
+/**
+ * Les dés d'un coup qui NE TUE PAS la figure, puis du météore qu'il déclenche. Le héros (3 dés d'attaque par
+ * défaut, `creerHeros`) touche trois fois ; la figure PARE tout de ses dés NOIRS (sa défense) ; le météore (2 dés)
+ * touche deux fois ; le héros ne pare rien (crânes seuls, aucun bouclier blanc). Le reste de la file est inerte.
+ *
+ * @return list<int>
+ */
+function qwDesCoupEtMeteore(int $defenseFigure): array
+{
+    return [1, 1, 1, ...array_fill(0, $defenseFigure, 6), 1, 1, ...array_fill(0, 20, 1)];
+}
+
+/**
+ * Un héros frappe la figure par `frapper()`, puis le météore dû est résolu comme en fin d'action. UN SEUL résolveur :
+ * la file des météores vit sur lui.
+ *
+ * @return array{coup: array<string, mixed>, meteores: list<array<string, mixed>>}
+ */
+function qwFrappeEtMeteore(Quete $quete, Personnage $heros, EtatPersonnageQuete $etat, InstanceMonstre $cible): array
+{
+    $resolveur = app(ResolveurTour::class);
+    $groupe = $quete->groupe->fresh();
+    $coup = $resolveur->frapper($groupe, $quete, $etat->fresh(), $heros->fresh(), $cible->fresh()->load('monstre'));
+
+    return ['coup' => $coup, 'meteores' => $resolveur->resoudreMeteoresDus($groupe, $quete)];
+}
+
+it('une forme de la pioche porte le répertoire de Qwindrak PAR SON ORIGINE, et le palier se lit sur lui', function () {
+    $quete = qwQuete(['mmmmmm', 'msssssm', 'msssssm', 'mmmmmmm']);
+    qwHeros($quete, 'Albrecht', 1, 4, 2);
+    $forme = qwMonstre($quete, 'Gobelin', 3, 2);
+    $forme->update(['origine_monstre' => 'Qwindrak the Warlock', 'usages_dread' => 3]);
+    $forme = $forme->fresh()->load(['monstre', 'origine']);
+
+    $moteur = app(MoteurDread::class);
+
+    // Le Gobelin ne porte rien de lui-même : tout vient de l'origine.
+    expect($forme->monstre->sorts_dread)->toBe([])
+        ->and($moteur->repertoireDe($forme))->toEqualCanonicalizing(['Tourmente', "Nuée d'Effroi", 'Éclair de Chaos'])
+        ->and($moteur->aUnRepertoire($forme))->toBeTrue();
+
+    // Le PALIER se lit sur la fiche d'origine (boss) : Nuée d'Effroi (palier boss) reste lançable sous une forme de tier base.
+    $disponibles = new ReflectionMethod($moteur, 'sortsDisponibles');
+    $disponibles->setAccessible(true);
+
+    expect($disponibles->invoke($moteur, $forme, $quete)->pluck('nom')->all())
+        ->toContain("Nuée d'Effroi", 'Éclair de Chaos', 'Tourmente');
+});
+
+it('le DRAGON, dernière forme, garde sa Boule de Flammes À VOLONTÉ en plus du répertoire de Qwindrak (pas de remplacement)', function () {
+    $quete = qwQuete(['mmmmmm', 'msssssm', 'msssssm', 'mmmmmmm']);
+    qwHeros($quete, 'Albrecht', 1, 4, 2);
+    $dragon = qwMonstre($quete, 'Dragon', 3, 1);
+    $dragon->update(['origine_monstre' => 'Qwindrak the Warlock']);
+    $dragon = $dragon->fresh()->load(['monstre', 'origine']);
+
+    // Son sort à volonté (fiche du Dragon) reste un sort de SA figure ; le répertoire de Qwindrak s'y ajoute.
+    expect(app(MoteurDread::class)->repertoireDe($dragon))
+        ->toEqualCanonicalizing(['Boule de Flammes', 'Tourmente', "Nuée d'Effroi", 'Éclair de Chaos'])
+        ->and(app(MoteurDread::class)->sortAVolonte($dragon))->toBe('Boule de Flammes');
+});
+
+it('une forme de la pioche LANCE, en jeu, un des sorts de Qwindrak : le répertoire et le palier viennent de l\'origine', function () {
+    $quete = qwQuete(['mmmmmm', 'msssssm', 'msssssm', 'mmmmmmm']);
+    [$heros] = qwHeros($quete, 'Albrecht', 1, 4, 2);
+    $forme = qwMonstre($quete, 'Gobelin', 3, 2);
+    $forme->update(['origine_monstre' => 'Qwindrak the Warlock', 'usages_dread' => 3]);
+    desFiges(array_fill(0, 60, 1));
+
+    // La résolution réelle du tour de Dread (choix du sort, portée, lancer), par la fiche d'un Gobelin : le sort vient de Qwindrak.
+    $action = app(MoteurDread::class)->jouerTourDread(
+        $quete->groupe->fresh(), $quete, $forme->fresh()->load(['monstre', 'origine']),
+        $quete->etatsPersonnages()->with('personnage')->get(),
+    );
+
+    expect($action)->not->toBeNull()
+        ->and(MoteurDread::TYPES_SORT_LANCE)->toContain($action['type'] ?? null)
+        ->and(['Tourmente', "Nuée d'Effroi", 'Éclair de Chaos'])->toContain($action['sort'] ?? null);
+});
+
+it('sans origine, un Gobelin ne porte aucun répertoire : rien ne passe à une figure qui n\'est pas une forme', function () {
+    $quete = qwQuete(['mmmmmm', 'msssssm', 'msssssm', 'mmmmmmm']);
+    qwHeros($quete, 'Albrecht', 1, 4, 2);
+    $gobelin = qwMonstre($quete, 'Gobelin', 3, 2)->fresh()->load(['monstre', 'origine']);
+
+    expect(app(MoteurDread::class)->repertoireDe($gobelin))->toBe([])
+        ->and(app(MoteurDread::class)->aUnRepertoire($gobelin))->toBeFalse()
+        ->and($gobelin->ligneDeReference()->nom_base)->toBe('Gobelin');
+});
+
+// ---------------------------------------------------------------------
+// LE MÉTÉORE : une attaque ou un sort d'un HÉROS qui vise la figure, après l'action
+// ---------------------------------------------------------------------
+
+it('une attaque de héros contre le Warlock déclenche un météore : 2 dés d\'attaque, défense réelle du héros, dégâts appliqués', function () {
+    $quete = qwQuete(['mmmmmm', 'msssssm', 'msssssm', 'mmmmmmm']);
+    [$heros, $etat] = qwHeros($quete, 'Albrecht', 1, 4, 2);
+    $instance = qwMonstre($quete, 'Qwindrak the Warlock', 3, 2);
+    $pv = (int) $heros->pv_body;
+    desFiges(qwDesCoupEtMeteore(6));
+
+    ['coup' => $coup, 'meteores' => $meteores] = qwFrappeEtMeteore($quete, $heros, $etat, $instance);
+
+    // Le coup du héros est paré en entier : Qwindrak ne tombe pas, et la pioche ne se tire pas.
+    expect($coup['touches'])->toBe(3)
+        ->and($coup['degats'])->toBe(0)
+        ->and($meteores)->toHaveCount(1);
+
+    $m = $meteores[0];
+
+    expect($m['type'])->toBe('attaque_monstre')
+        ->and($m['meteore'])->toBeTrue()
+        ->and($m['portee'])->toBe('distance')
+        ->and($m['monstre'])->toBe('Qwindrak the Warlock')
+        ->and($m['faces_attaque'])->toHaveCount(2)     // 2 dés d'attaque, pas les 3 du héros
+        ->and($m['faces_defense'])->not->toBeEmpty()  // le héros DÉFEND : sa défense est réellement lancée
+        ->and($m['degats'])->toBe(2)                  // deux crânes, aucun bouclier blanc
+        ->and((int) $heros->fresh()->pv_body)->toBe($pv - 2);
+});
+
+it('une attaque de héros contre une FORME de la pioche déclenche le météore : la forme garde la source', function () {
+    $quete = qwQuete(['mmmmmm', 'msssssm', 'msssssm', 'mmmmmmm']);
+    [$heros, $etat] = qwHeros($quete, 'Albrecht', 1, 4, 2);
+    $forme = qwMonstre($quete, 'Gargouille', 3, 2);
+    $forme->update(['origine_monstre' => 'Qwindrak the Warlock', 'formes_a_venir' => ['Gobelin', 'Orque', 'Abomination', 'Dragon']]);
+    desFiges(qwDesCoupEtMeteore(5)); // la Gargouille pare de sa défense 5
+
+    ['meteores' => $meteores] = qwFrappeEtMeteore($quete, $heros, $etat, $forme);
+
+    expect($meteores)->toHaveCount(1)
+        ->and($meteores[0]['monstre'])->toBe('Gargouille')
+        ->and($meteores[0]['degats'])->toBe(2);
+});
+
+it('une attaque de héros contre le DRAGON déclenche le météore ; sa chute n\'en déclenche aucun — la victoire', function () {
+    $quete = qwQuete(['mmmmmm', 'msssssm', 'msssssm', 'mmmmmmm']);
+    [$heros, $etat] = qwHeros($quete, 'Albrecht', 1, 4, 2);
+    $dragon = qwMonstre($quete, 'Dragon', 3, 1);
+    $dragon->update(['origine_monstre' => 'Qwindrak the Warlock']);
+
+    // Le Dragon vivant : le météore part, contre le héros.
+    desFiges(qwDesCoupEtMeteore(5));
+    ['meteores' => $vivant] = qwFrappeEtMeteore($quete, $heros, $etat, $dragon);
+
+    expect($vivant)->toHaveCount(1)
+        ->and($vivant[0]['monstre'])->toBe('Dragon');
+
+    // Le Dragon tombé (1 PV, trois crânes sans parade) : Qwindrak est achevé, la victoire n'a pas de météore.
+    $dragon->update(['pv_body' => 1]);
+    desFiges(array_fill(0, 8, 1));
+    ['coup' => $coup, 'meteores' => $mort] = qwFrappeEtMeteore($quete, $heros, $etat, $dragon);
+
+    expect($coup['cible_vaincue'])->toBeTrue()
+        ->and($dragon->fresh()->etat)->toBe('vaincu')
+        ->and($mort)->toBe([]);
+});
+
+it('le météore est ANNONCÉ : une phrase au fil (« Un météore de … frappe … »), une scène de table « Météore de … »', function () {
+    $quete = qwQuete(['mmmmmm', 'msssssm', 'msssssm', 'mmmmmmm']);
+    [$heros, $etat] = qwHeros($quete, 'Albrecht', 1, 4, 2);
+    $instance = qwMonstre($quete, 'Qwindrak the Warlock', 3, 2);
+    desFiges(qwDesCoupEtMeteore(6));
+
+    ['meteores' => $meteores] = qwFrappeEtMeteore($quete, $heros, $etat, $instance);
+
+    $lignes = collect(app(JournalCombat::class)->depuisResultat(['meteores' => $meteores], 'Zargon'))
+        ->pluck('texte')->implode(' | ');
+
+    expect($lignes)->toContain('Un météore de Qwindrak the Warlock frappe Albrecht (−2 PV)');
+
+    $scenes = app(SceneDeTable::class)->depuisResultat(['meteores' => $meteores], $heros->fresh());
+
+    expect(collect($scenes)->pluck('titre')->all())->toContain('Météore de Qwindrak the Warlock sur Albrecht');
+
+    // Le JOURNAL le garde (rejeu à la reconnexion) : l'attaque journalisée porte `meteore`.
+    $journal = Evenement::where('groupe_id', $quete->groupe_id)->get()->pluck('payload');
+
+    expect($journal->contains(fn (array $p) => ($p['meteore'] ?? false) === true))->toBeTrue();
+});
+
+it('le météore est résolu en FIN D\'ACTION par `resoudre()` : la réponse du héros le porte dans `meteores`', function () {
+    $quete = qwQuete(['mmmmmm', 'msssssm', 'msssssm', 'mmmmmmm']);
+    [$heros] = qwHeros($quete, 'Albrecht', 1, 4, 2);
+    // Un second héros pour que le tour ne se ferme pas : la phase des monstres (qui consommerait les dés) ne joue pas.
+    qwHeros($quete, 'Brunhilde', 2, 1, 1);
+    $instance = qwMonstre($quete, 'Qwindrak the Warlock', 3, 2);
+    desFiges(qwDesCoupEtMeteore(6));
+
+    $option = [
+        'id' => 'attaquer', 'libelle' => 'Attaquer', 'type' => 'attaque',
+        'parametres' => ['cibles' => [['id' => $instance->id, 'type' => 'monstre', 'nom' => 'Qwindrak the Warlock']]],
+    ];
+
+    $resultat = app(ResolveurTour::class)->resoudre($quete->groupe->fresh(), $heros->fresh(), $option, ['cible_id' => $instance->id]);
+
+    expect($resultat['meteores'] ?? [])->toHaveCount(1)
+        ->and($resultat['meteores'][0]['degats'])->toBe(2);
+});
+
+it('l\'origine est ÉCRITE avec la pioche et REJOUÉE après un snapshot : le répertoire et le météore reviennent', function () {
+    $quete = qwQuete(['mmmmmm', 'msssssm', 'msssssm', 'mmmmmmm']);
+    qwHeros($quete, 'Albrecht', 1, 4, 2);
+    $instance = qwMonstre($quete, 'Qwindrak the Warlock', 1, 1);
+    desFiges(qwChaineDes());
+
+    qwFrapperMortel($instance); // première mort : la pioche se tire, et l'origine s'écrit avec elle
+
+    expect($instance->fresh()->origine_monstre)->toBe('Qwindrak the Warlock');
+
+    $groupe = $quete->groupe->fresh();
+    $snapshot = app(Sauvegarde::class)->snapshotter($groupe, 'qwindrak-origine');
+    app(Sauvegarde::class)->restaurer($groupe, $snapshot);
+
+    $apres = InstanceMonstre::where('quete_id', $quete->id)->firstOrFail()->load(['monstre', 'origine']);
+
+    expect($apres->origine_monstre)->toBe('Qwindrak the Warlock')
+        ->and(app(MoteurDread::class)->repertoireDe($apres))->toEqualCanonicalizing(['Tourmente', "Nuée d'Effroi", 'Éclair de Chaos'])
+        ->and(app(MoteurMeteore::class)->declencheur($apres))->toBe(['des_attaque' => 2]);
+});
+
+/**
+ * Le héros lance « Boule de Feu » sur `$cible` par la résolution RÉELLE (`resoudre()`, sort par sort, une fois par
+ * quête). Il connaît le sort, et la figure est en vue (même salle).
+ *
+ * @return array<string, mixed>
+ */
+function qwLanceBouleDeFeu(Quete $quete, Personnage $heros, InstanceMonstre $cible): array
+{
+    $sortId = Sort::where('nom', 'Boule de Feu')->firstOrFail()->id;
+    $heros->sorts()->syncWithoutDetaching([$sortId => ['disponible' => true]]);
+
+    $option = [
+        'id' => 'lancer_sort', 'libelle' => 'Lancer un sort', 'type' => 'sort',
+        'parametres' => ['sorts' => [[
+            'cle' => "sort:{$sortId}", 'sort_id' => $sortId, 'nom' => 'Boule de Feu', 'disponible' => true,
+            'cibles' => [['type' => 'monstre', 'id' => $cible->id, 'nom' => 'X']],
+        ]]],
+    ];
+
+    return app(ResolveurTour::class)->resoudre($quete->groupe->fresh(), $heros->fresh(), $option, [
+        'cle' => "sort:{$sortId}", 'cible_id' => $cible->id, 'cible_type' => 'monstre',
+    ]);
+}
+
+it('un SORT de héros qui VISE le Warlock lui vaut un météore, à la fin de l\'action', function () {
+    $quete = qwQuete(['mmmmmm', 'msssssm', 'msssssm', 'mmmmmmm']);
+    [$heros] = qwHeros($quete, 'Albrecht', 1, 4, 2);
+    qwHeros($quete, 'Brunhilde', 2, 1, 1); // le tour ne se ferme pas : la phase des monstres ne joue pas
+    $warlock = qwMonstre($quete, 'Qwindrak the Warlock', 3, 2);
+    $warlock->update(['pv_body' => 30, 'pv_body_max' => 30]); // il survit à la boule : on regarde le météore
+    desFiges(array_fill(0, 40, 1));
+
+    $resultat = qwLanceBouleDeFeu($quete, $heros, $warlock);
+
+    expect($resultat['type'])->toBe('sort')
+        ->and($resultat['meteores'] ?? [])->toHaveCount(1)
+        ->and($resultat['meteores'][0]['meteore'])->toBeTrue()
+        ->and($resultat['meteores'][0]['monstre'])->toBe('Qwindrak the Warlock');
+});
+
+it('un sort de héros qui ne VISE PAS le Warlock — même dans la salle — ne déclenche rien', function () {
+    $quete = qwQuete(['mmmmmm', 'msssssm', 'msssssm', 'mmmmmmm']);
+    [$heros] = qwHeros($quete, 'Albrecht', 1, 4, 2);
+    qwHeros($quete, 'Brunhilde', 2, 1, 1);
+    $gobelin = qwMonstre($quete, 'Gobelin', 3, 1);
+    qwMonstre($quete, 'Qwindrak the Warlock', 3, 2); // dans la salle, en vue, mais hors de la cible du sort
+    desFiges(array_fill(0, 40, 1));
+
+    $resultat = qwLanceBouleDeFeu($quete, $heros, $gobelin);
+
+    expect($resultat['type'])->toBe('sort')
+        ->and($resultat['meteores'] ?? [])->toBe([]);
+});
+
+it('seul un HÉROS déclenche le météore : `meteoreDu()` n\'a que deux appelants, `frapper()` et `sousReactionMj()`', function () {
+    // Garde structurel (dans le style d'AdversairesNommesTest, qui lit déjà le source du résolveur) : un allié
+    // (mercenaire, compagnon) frappe par `resoudreAttaqueAllie()` / `resoudreAttaqueDAllie()`, jamais par `frapper()`,
+    // et aucun sort d'allié ne passe par `sousReactionMj()`. Ajouter un troisième appelant doit donc se voir ici.
+    $source = (string) file_get_contents(base_path('app/Partie/ResolveurTour.php'));
+
+    preg_match_all('/\$this->meteoreDu\(/', $source, $appels, PREG_OFFSET_CAPTURE);
+
+    $appelants = [];
+
+    foreach ($appels[0] as [, $position]) {
+        preg_match_all('/function (\w+)\(/', substr($source, 0, $position), $fonctions);
+        $appelants[] = end($fonctions[1]);
+    }
+
+    // Trois appels : `frapper()` en a deux (la voie Vindication et le retour standard), `sousReactionMj()` un.
+    expect(collect($appelants)->sort()->values()->all())->toBe(['frapper', 'frapper', 'sousReactionMj'])
+        ->and(substr_count($source, 'function resoudreAttaqueAllie('))->toBe(1); // les alliés existent : la garde compte
+});
+
+it('le coût de Qwindrak suit la méthode mesurée : formes, puis météore (× 5/3), puis trois sorts, sur la droite des boss', function () {
+    $q = Monstre::where('nom_base', 'Qwindrak the Warlock')->firstOrFail();
+
+    $attaques = 0.0;
+
+    foreach (['Qwindrak the Warlock', 'Abomination', 'Gargouille', 'Guerrier du Chaos', 'Gobelin', 'Orque', 'Dragon'] as $nom) {
+        $forme = Monstre::where('nom_base', $nom)->firstOrFail();
+        $attaques += $forme->pv_body / (1.5 - $forme->defense / 6);
+    }
+
+    // Le météore : 2 dés contre les 3 de l'unité du bestiaire, soit 2/3 d'une attaque par attaque ou sort du groupe.
+    // Les trois sorts : au plus 3 lancers, une action de héros chacun.
+    $equivalent = $attaques * (1 + 2 / 3) + 3;
+    // Droite des boss : Seigneur 15 → 20, Gruzbella (chaîne de ses trois phases) 21 → 23.
+    $cout = (int) round(23 + 0.5 * ($equivalent - 21));
+
+    expect((int) $q->cout)->toBe($cout)
+        ->and($cout)->toBe(38);
 });

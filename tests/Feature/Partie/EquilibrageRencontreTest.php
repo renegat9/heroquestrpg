@@ -68,12 +68,22 @@ it('escalade le nombre de forts avec la progression d\'arc', function () use ($f
     expect($arc5)->toBeGreaterThan($arc1);
 });
 
-it('garde la rencontre finale en tête et n\'empêche pas la masse de faibles', function () use ($faibles) {
-    $achats = acheter(budget: 30, maxSpawns: 20, positionArc: 1, structure: [
-        'rencontre_finale' => ['tier' => 'boss'],
-    ]);
+it('garde la rencontre finale en tête, et n\'empêche la masse de faibles QUE si le boss est abordable', function () use ($faibles) {
+    $structure = ['rencontre_finale' => ['tier' => 'boss']];
 
-    expect($achats[0]->tier)->toBe('boss')            // le boss d'abord (inchangé)
+    // Le boss d'abord, même au-dessus du budget : `acheterMonstres()` le place « toujours présente ». Le leader de coût
+    // du palier (Qwindrak, coût 38 depuis le 2026-10-22) ne tient pas dans un budget de 30 : il occupe alors toute la
+    // rencontre, et c'est ce que `docs/regles/bestiaire-et-rencontres.md` mesure. L'ancien test supposait un boss
+    // abordable à 30 ; il vérifie désormais la règle elle-même.
+    $sousBudget = acheter(budget: 30, maxSpawns: 20, positionArc: 1, structure: $structure);
+
+    expect($sousBudget[0]->tier)->toBe('boss');
+
+    // La masse existe dès qu'il reste du budget APRÈS le boss : on la mesure au coût effectif du boss, plus une marge.
+    $budget = app(DemarreurQuete::class)->coutEffectif($sousBudget[0]) + 10;
+    $achats = acheter(budget: $budget, maxSpawns: 20, positionArc: 1, structure: $structure);
+
+    expect($achats[0]->tier)->toBe('boss')                 // le boss d'abord (inchangé)
         ->and(count($faibles($achats)))->toBeGreaterThan(0); // et de la piétaille autour
 });
 

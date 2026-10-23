@@ -243,7 +243,8 @@ final class MoteurDread
      */
     public function reinitialiserUsagesInstance(InstanceMonstre $instance, Quete $quete): void
     {
-        $tier = $instance->monstre->tier ?? 'base';
+        // Le budget se lit sur la fiche de RÉFÉRENCE : une forme de pioche garde le budget de Qwindrak (boss).
+        $tier = $instance->ligneDeReference()->tier ?? 'base';
 
         // SORCIERS DE MORCAR (`sorts_uniques`) : « At the beginning of a new
         // quest, each Sorcerer in that quest starts with a full set of six
@@ -253,7 +254,7 @@ final class MoteurDread
         // dépensé.
         if ($this->aCapacite($instance, 'sorts_uniques')) {
             $instance->update([
-                'usages_dread' => count($this->repertoireSorts($instance->monstre)),
+                'usages_dread' => count($this->repertoireDe($instance)),
                 'sorts_dread_lances' => [],
                 'invocation_dread_utilisee' => false,
                 'fuite_dread_utilisee' => false,
@@ -289,7 +290,7 @@ final class MoteurDread
         $usages = match ($tier) {
             'boss' => self::USAGES_BOSS,
             'sous_boss' => self::USAGES_SOUS_BOSS,
-            default => $this->repertoireSorts($instance->monstre) === [] ? 0 : self::USAGES_BASE,
+            default => $this->repertoireDe($instance) === [] ? 0 : self::USAGES_BASE,
         };
 
         // Capacités réactives à usage unique du monstre à phases
@@ -528,7 +529,7 @@ final class MoteurDread
         $sortAVolonte = $this->sortAVolonte($instance);
         $usagesRestants = $this->usagesRestants($instance, $quete);
 
-        if ($this->repertoireSorts($instance->monstre) !== [] && ($usagesRestants > 0 || $sortAVolonte !== null)) {
+        if ($this->repertoireDe($instance) !== [] && ($usagesRestants > 0 || $sortAVolonte !== null)) {
             $enVue = $this->ciblesEnVue($quete, $instance, $cibles);
             $sortChoisi = $this->choisirSort($groupe, $quete, $instance, $cibles, $enVue);
 
@@ -771,7 +772,7 @@ final class MoteurDread
      */
     public function aUnRepertoire(InstanceMonstre $instance): bool
     {
-        return $instance->monstre !== null && $this->repertoireSorts($instance->monstre) !== [];
+        return $instance->monstre !== null && $this->repertoireDe($instance) !== [];
     }
 
     /**
@@ -1716,7 +1717,7 @@ final class MoteurDread
     {
         $oublies = app(OubliSorts::class)->oublies($quete, OubliSorts::CIBLE_INSTANCE, (int) $instance->id, OubliSorts::SOURCE_DREAD);
 
-        return array_values(array_diff($this->repertoireSorts($instance->monstre), $oublies));
+        return array_values(array_diff($this->repertoireDe($instance), $oublies));
     }
 
     /**
@@ -1755,7 +1756,9 @@ final class MoteurDread
             return collect();
         }
 
-        $rangLanceur = self::RANG_PALIER[$instance->monstre->tier ?? 'base'] ?? 0;
+        // Le RANG du lanceur se lit sur la fiche de RÉFÉRENCE (l'origine d'une forme de pioche) : une forme
+        // générique de tier base ne doit pas rétrograder Nuée d'Effroi (palier boss) que Qwindrak lance « in all forms ».
+        $rangLanceur = self::RANG_PALIER[$instance->ligneDeReference()->tier ?? 'base'] ?? 0;
 
         // ⚠ Un SORCIER DE MORCAR (`sorts_uniques`) ignore le filtre par palier
         // (2026-10-08, vague 2C). Quatre des cinq sont `sous_boss` — le livret
@@ -1787,9 +1790,27 @@ final class MoteurDread
     }
 
     /**
+     * LE RÉPERTOIRE de sorts de Dread d'UNE FIGURE — le point de passage unique (2026-10-22).
+     *
+     * Ce que la figure emporte de sa FICHE D'ORIGINE (`ligneDeReference()` : Qwindrak, pour ses formes de pioche)
+     * et ce que sa propre fiche ajoute (le Dragon garde sa Boule de Flammes à volonté). Sans origine, c'est la
+     * simple fiche, comme avant. Dédoublonné : l'origine elle-même ne se compte pas deux fois.
+     *
+     * @return list<string>
+     */
+    public function repertoireDe(InstanceMonstre $instance): array
+    {
+        return array_values(array_unique([
+            ...$this->repertoireSorts($instance->ligneDeReference()),
+            ...$this->repertoireSorts($instance->monstre),
+        ]));
+    }
+
+    /**
      * Répertoire de sorts de Dread d'un monstre (3.8) : si un archétype lanceur
      * nommé est défini ET connu de config/archetypes_lanceurs.php, on prend son
      * répertoire COMPLET ; sinon la liste per-monstre `sorts_dread` du catalogue.
+     * Lecture PAR FICHE : c'est {@see self::repertoireDe()} qui décide de la figure.
      *
      * @return list<string>
      */
@@ -2009,7 +2030,7 @@ final class MoteurDread
                 && $m->position_x !== null
                 && abs((int) $m->position_x - (int) $instance->position_x)
                     + abs((int) $m->position_y - (int) $instance->position_y) === 1
-                && in_array($sort->nom, $this->repertoireSorts($m->monstre), true))
+                && in_array($sort->nom, $this->repertoireDe($m), true))
             ->count();
     }
 

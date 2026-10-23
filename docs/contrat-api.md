@@ -1550,7 +1550,7 @@ toutes deux sont fermées.
 - **Les listes d'actions du résultat** sont toutes parcourues
   (`JournalCombat::PHASES` : `tour_monstres`, `tour_allies`, `tour_sbires` ;
   `JournalCombat::LISTES_PLATES` : `captifs_repris`, `coups_de_corne`,
-  `filets_silencieux`, `annonces_automatiques`) et les actions IMBRIQUÉES aussi :
+  `filets_silencieux`, `meteores`, `annonces_automatiques`) et les actions IMBRIQUÉES aussi :
   `action` (l'embusqué joue tout de suite), `embuscades` et `apparitions` (d'un
   déplacement ou d'une action), `actions_composites`.
   `resultat.annonces_automatiques` est neuf : le tampon générique
@@ -3617,7 +3617,7 @@ tranche, jamais l'IA.
 
 **Le patron TOURELLE et les quatre adversaires nommés de *Jungles of Delthrak*** (René,
 2026-10-15 — `docs/regles/bestiaire-et-rencontres.md`, `docs/regles/carte-donjon.md`).
-Vocabulaire fermé `App\Engine\MotsClesAdversaires` (huit clés, chacune avec son lecteur).
+Vocabulaire fermé `App\Engine\MotsClesAdversaires` (onze clés, chacune avec son lecteur).
 
 - **Figure immobile = `deplacement: 0`** (`Monstre::estImmobile()`). Aucune clé de plus sur
   `entites[]` : c'est le catalogue qui le dit (`des_attaque`, `emprise`… inchangés). Elle n'avance
@@ -3631,6 +3631,19 @@ Vocabulaire fermé `App\Engine\MotsClesAdversaires` (huit clés, chacune avec so
   comme à distance, aux mêmes dés** : `attaque_monstre` porte `portee: "distance"` ET
   **`tourelle: true`** — le fil dit « fait feu sur », la table « Tourelle — fait feu depuis son
   poste ». Sans héros en vue : rien.
+- **Météore** (`capacites: {meteore: {des_attaque: 2}}` — Qwindrak the Warlock, livret de quêtes First
+  Light p. 31, note C : « Each time a hero casts a spell or makes an attack against him, Qwindrak hurls
+  a meteor at them. Roll 2 Attack dice for each meteor. »). Porté par la **fiche d'origine** : chaque
+  forme de la pioche le garde (`InstanceMonstre::ligneDeReference()`), y compris le Dragon. Chaque
+  ATTAQUE d'un héros dont la cible est la figure, réussie ou non, et chaque SORT d'un héros dont les
+  cibles visées la comprennent, lui valent un météore : 2 dés d'attaque contre ce héros, sa défense
+  normale. Seuls les HÉROS déclenchent (ni allié, ni mercenaire, ni compagnon). Le météore part
+  **après la résolution de l'action**, et seulement si la figure est encore `actif` : la chute du Dragon
+  achève Qwindrak, et la victoire n'a pas de météore. Son coup est une `attaque_monstre` avec
+  **`meteore: true`** et `portee: "distance"` (il est lancé de loin), journalisée comme toute attaque
+  de monstre. Le résultat le porte dans **`meteores`** (liste plate, `attaque_monstre` chacune) ; une
+  riposte (*Représailles*) le porte dans `frappe.meteores`. Le fil le dit « Un météore de … » ; la
+  scène de table « Météore de … sur … » (genre `attaque`).
 - **Immunité aux sorts** (`immunite_sorts`, totale : Effigy ; `immunite_conditions: [endormi,
   saute_tour]`, partielle : Scion). Le **menu** n'offre pas la créature comme cible (une entrée
   de sort sans cible légale disparaît) ; un sort de **zone** ou de **rayon** passe sans l'atteindre

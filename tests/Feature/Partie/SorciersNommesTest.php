@@ -359,11 +359,14 @@ it('assigne le lanceur nommé demandé comme rencontre finale (indice de gabarit
 
     // Sans indice d'archétype : le LEADER DE COÛT du palier. On ne fige pas son
     // nom — le bestiaire s'est enrichi des créatures d'extension le 2026-08-10,
-    // et le Seigneur ogre (coût 22) a pris la tête. Ce que le test garde, c'est
-    // la règle : à défaut d'archétype, on prend le boss le plus cher abordable.
+    // et le Seigneur ogre (coût 22) a pris la tête ; Qwindrak (coût 38, 2026-10-22)
+    // la prend à son tour. Ce que le test garde, c'est la règle : à défaut
+    // d'archétype, on prend le boss le plus cher du palier. SANS plafond de budget :
+    // `acheterMonstres()` achète la rencontre finale même au-dessus du budget
+    // (« toujours présente, même si elle dépasse le budget »). Un plafond à 30 ici
+    // ne tenait que parce que le leader valait 27.
     $plusCher = Monstre::where('tier', 'boss')
-        ->where('cout', '<=', 30)
-        ->orderByDesc('cout')
+        ->orderByDesc('cout')->orderBy('id')
         ->firstOrFail();
 
     $achatsDefaut = $methode->invoke(

@@ -668,10 +668,15 @@ final class SceneDeTable
         $degats = (int) ($a['degats'] ?? 0);
         $cible = Personnage::find($cibleId);
 
+        // LE MÉTÉORE (`meteore: true`, `MoteurMeteore`) : la même scène d'attaque, nommée comme le fil la nomme.
+        $titre = ! empty($a['meteore'])
+            ? "Météore de {$monstre} sur {$cibleNom}"
+            : "{$monstre} attaque {$cibleNom}";
+
         return [
             'genre' => 'attaque',
-            'titre' => "{$monstre} attaque {$cibleNom}",
-            'sous_titre' => $this->porteeLisible($a),
+            'titre' => $titre,
+            'sous_titre' => ! empty($a['meteore']) ? "Un coup du ciel, après l'action du héros" : $this->porteeLisible($a),
             'acteurs' => array_values(array_filter([
                 $this->acteurMonstre($instanceId, $monstre, 'attaquant'),
                 $cible === null ? null : $this->acteurHeros($cible, 'defenseur'),

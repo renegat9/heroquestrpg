@@ -105,6 +105,17 @@ final class MotsClesAdversaires
     public const FLAMME_DU_DREAD = 'flamme_du_dread';
 
     /**
+     * MÉTÉORE (Qwindrak, livret de quêtes First Light p. 31, note C : « In all forms, Qwindrak knows the Dread
+     * spells Tempest, Cloud of Dread, and Lightning Bolt. Each time a hero casts a spell or makes an attack
+     * against him, Qwindrak hurls a meteor at them. Roll 2 Attack dice for each meteor. »). Paramétrée :
+     * `['des_attaque' => 2]`. Portée par la FICHE D'ORIGINE, donc gardée par chaque forme (`InstanceMonstre::
+     * ligneDeReference()`). Lu à UN seul endroit, `App\Partie\MoteurMeteore::declencheur()`, appelé par
+     * `ResolveurTour::frapper()` (attaque d'un héros) et `ResolveurTour::sousReactionMj()` (sort d'un héros qui
+     * vise la figure). Seuls les HÉROS déclenchent ; le météore part après la résolution de l'action.
+     */
+    public const METEORE = 'meteore';
+
+    /**
      * @var array<string, array{lecteur: string, libelle: string}>
      */
     public const CAPACITES = [
@@ -147,6 +158,10 @@ final class MotsClesAdversaires
         self::FLAMME_DU_DREAD => [
             'lecteur' => 'App\Partie\MoteurSynchroformes::flammeALArrivee',
             'libelle' => 'Flamme du Dread à son arrivée : chaque héros de la salle lance un dé rouge, 3 ou moins = 1 PV',
+        ],
+        self::METEORE => [
+            'lecteur' => 'App\Partie\MoteurMeteore::declencheur',
+            'libelle' => 'Météore : chaque attaque ou sort d\'un héros qui le vise lui vaut 2 dés d\'attaque contre ce héros, toutes formes',
         ],
     ];
 

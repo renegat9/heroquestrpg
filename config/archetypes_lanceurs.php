@@ -145,6 +145,21 @@ return [
         ],
     ],
 
+    'qwindrak' => [
+        'porteur' => 'Qwindrak the Warlock (First Light, confrontation finale — livret de quêtes p. 31, note C)',
+        // « In all forms, Qwindrak knows the Dread spells Tempest, Cloud of Dread, and Lightning Bolt »
+        // (livret de quêtes First Light, p. 31, lu sur le rendu de la page). Les trois existent au catalogue :
+        // *Tempest* = Tourmente (palier base), *Cloud of Dread* = Nuée d'Effroi (palier boss), *Lightning
+        // Bolt* = Éclair de Chaos (palier sous-boss, la carte du paquet de Dread). Le palier est lu sur la
+        // fiche d'ORIGINE (Qwindrak, boss) : une forme générique de tier base ne rétrograderait pas ses sorts.
+        // « In all forms » : la figure garde ce répertoire d'une forme à l'autre (`InstanceMonstre::ligneDeReference()`).
+        'sorts' => [
+            'Tourmente',
+            'Nuée d\'Effroi',
+            'Éclair de Chaos',
+        ],
+    ],
+
     'horreur_glacee' => [
         'porteur' => 'Horreur des Glaces',
         // « connaît 6 sorts Dread fixes (*Chill, Ice Storm, Ice Wall, Mind

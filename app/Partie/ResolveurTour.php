@@ -303,6 +303,17 @@ final class ResolveurTour
     private int $rangFrappe = 0;
 
     /**
+     * LES MÉTÉORES DUS par l'action en cours (`MoteurMeteore::declencheur()`) : `instance_id`, `heros_id` et
+     * `des_attaque`. Empilés quand l'attaque ou le sort d'un héros a été RÉSOLU, et joués APRÈS l'action
+     * (`resoudreMeteoresDus()`), jamais pendant : un météore qui abattrait le héros au milieu de son propre
+     * balayage casserait l'action. Éphémère par nature (une résolution = une requête), vidé à l'entrée et à la
+     * sortie de `resoudre()` : jamais durable, donc jamais en cache.
+     *
+     * @var list<array{instance_id: int, heros_id: int, des_attaque: int}>
+     */
+    private array $meteoresDus = [];
+
+    /**
      * Jets d'attaque DÉJÀ tombés, rejoués dans l'ordre à la reprise d'une action
      * suspendue : `[{faces_attaque: list<string>|null, faces_defense: list<string>}]`.
      * `faces_attaque: null` = le héros a relancé, on ne rejoue que SA volée.
@@ -375,6 +386,7 @@ final class ResolveurTour
     {
         $this->herosEnJet = null;
         $this->rangFrappe = 0;
+        $this->meteoresDus = [];
         $this->mouvementsAnime = [];
         $this->evenementGlace = null;
         $this->finTourPiegeSol = false;
@@ -671,6 +683,14 @@ final class ResolveurTour
                 $this->perdreSecondeFrappeParDeplacement($groupe, $etat, $personnage);
             }
 
+            // LE MÉTÉORE de Qwindrak : les attaques et les sorts de CETTE action sont résolus, et la figure est
+            // (ou n'est plus) en jeu. Il part maintenant, DANS la transaction : une action refusée l'emporte avec elle.
+            $meteores = $this->resoudreMeteoresDus($groupe, $quete);
+
+            if ($meteores !== []) {
+                $resultat['meteores'] = $meteores;
+            }
+
             // La quête vient d'être GAGNÉE sur le coup (élément-objectif détruit) :
             // ni créneau à consommer, ni fin de round — voir `gagnerParDestruction()`.
             if (! empty($resultat['objectif_detruit'])) {
@@ -795,12 +815,14 @@ final class ResolveurTour
             // rejouer, et on rend une réponse « suspendue » que `ExecutionChoix`
             // n'accompagne d'aucune narration ni d'aucun menu.
             app(TamponAnnonces::class)->vider();
+            $this->meteoresDus = []; // l'action est rejouée : ses météores aussi, à la réponse
 
             return $this->suspendreAction($groupe, $personnage, $option, $parametres, $attente);
         } catch (\Throwable $e) {
             // Une résolution refusée ne laisse pas la fenêtre ouverte : les annonces
             // d'un menu qui s'ouvre plus tard se perdraient dans un tampon que personne ne vide.
             app(TamponAnnonces::class)->vider();
+            $this->meteoresDus = []; // une résolution refusée ne laisse aucun météore en attente
 
             throw $e;
         }
@@ -1998,6 +2020,9 @@ final class ResolveurTour
                 default => 'touche',
             });
 
+            // LE MÉTÉORE : l'arme à vindication est une attaque de héros comme les autres.
+            $this->meteoreDu($instance, $personnage);
+
             return $payload;
         }
 
@@ -2327,6 +2352,9 @@ final class ResolveurTour
         if ($lancer) {
             $payload['lancer'] = $this->consommerArmeLancee($personnage, $ligneArme);
         }
+
+        // LE MÉTÉORE : cette attaque de héros a été RÉSOLUE, qu'elle ait touché ou non (`MoteurMeteore`).
+        $this->meteoreDu($instance, $personnage);
 
         return $payload;
     }
@@ -5732,6 +5760,13 @@ final class ResolveurTour
         \Closure $effet,
     ): array {
         $visees = $this->monstresVisesParSort($quete, $etat, $sort, $option, $parametres);
+
+        // LE MÉTÉORE : un sort qui VISE une figure lui vaut un météore, qu'il soit annulé, renvoyé, résisté ou non
+        // (le héros a LANCÉ le sort). Un sort qui ne la vise pas ne déclenche rien (`MoteurMeteore`).
+        foreach ($visees as $visee) {
+            $this->meteoreDu($visee, $lanceur);
+        }
+
         $decision = $this->reactionsMj->auSortDeHeros($quete, $lanceur, $etat, $visees, $cibleUnique);
         $reactions = $decision === null ? [] : [$decision];
         $premiere = $visees->first();
@@ -11961,6 +11996,62 @@ final class ResolveurTour
     }
 
     /**
+     * UN HÉROS vient d'attaquer ou de viser par un sort cette figure : le météore est-il dû ? (`MoteurMeteore`).
+     * Le seul point qui empile un météore ; appelé par `frapper()` et `sousReactionMj()`, après la résolution.
+     */
+    private function meteoreDu(InstanceMonstre $cible, Personnage $heros): void
+    {
+        $meteore = app(MoteurMeteore::class)->declencheur($cible);
+
+        if ($meteore !== null) {
+            $this->meteoresDus[] = [
+                'instance_id' => (int) $cible->id,
+                'heros_id' => (int) $heros->id,
+                'des_attaque' => $meteore['des_attaque'],
+            ];
+        }
+    }
+
+    /**
+     * LES MÉTÉORES DUS par l'action qui vient de se jouer, résolus maintenant — et rendus (le fil et la scène les
+     * lisent comme `coups_de_corne`). Public : la RIPOSTE hors tour (`MoteurReactions::riposter()`) est aussi une
+     * attaque de héros, et la fin de sa résolution la joue ici.
+     *
+     * Un météore ne part que si la figure est TOUJOURS EN JEU (`actif`) : la chute du Dragon achève Qwindrak, et la
+     * victoire n'a pas de météore. Un héros déjà tombé ne reçoit rien. Le coup passe par `resoudreAttaqueMonstre()`
+     * — dés, défense réelle, dégâts par `MoteurDegats::infligerAHeros()`, journal — avec 2 dés, ou le nombre lu.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function resoudreMeteoresDus(Groupe $groupe, Quete $quete): array
+    {
+        $dus = $this->meteoresDus;
+        $this->meteoresDus = [];
+        $rendus = [];
+
+        foreach ($dus as $du) {
+            $instance = InstanceMonstre::with('monstre', 'origine', 'quete')->find($du['instance_id']);
+            $etat = $quete->etatsPersonnages()->with('personnage')->where('personnage_id', $du['heros_id'])->first();
+
+            if ($instance === null || $etat === null || $instance->etat !== 'actif' || $etat->tombe) {
+                continue;
+            }
+
+            $nom = $instance->nomAffiche();
+            $acteur = ['type' => 'monstre', 'id' => $instance->id, 'nom' => $nom];
+
+            // Portée « distance » : un météore est LANCÉ de loin (« hurls a meteor at them »). Les talents de défense
+            // contre les tirs s'y appliquent donc, comme à tout projectile — la règle, pas une exception.
+            $rendus[] = $this->resoudreAttaqueMonstre(
+                $groupe, $instance, $etat, $du['des_attaque'], $acteur, $nom,
+                portee: 'distance', meteore: true,
+            );
+        }
+
+        return $rendus;
+    }
+
+    /**
      * Une attaque d'un monstre contre un héros adjacent (moteur seul). La défense
      * intègre les buffs de sorts (Peau de Pierre : bonus_des_defense). Met à jour
      * les PV, réveille la cible, marque la chute (C4), journalise et diffuse le bark.
@@ -11980,6 +12071,8 @@ final class ResolveurTour
         // DÉFI DU CHEVALIER non relevé (`refuse` | `expire` | `impossible`) : la frappe
         // du surgissement, donnée au fouilleur à la réponse. `null` = pas de défi.
         ?string $apresDefi = null,
+        // LE MÉTÉORE de Qwindrak (`MoteurMeteore`) : la MÊME résolution, dite comme telle au fil et à la table.
+        bool $meteore = false,
     ): array {
         $personnage = $cible->personnage;
 
@@ -12218,6 +12311,8 @@ final class ResolveurTour
             // Frappe due après un défi du Chevalier non relevé : le fil dit pourquoi
             // la bête se retourne contre ce héros-là (`JournalCombat::attaqueMonstre()`).
             ...($apresDefi !== null ? ['apres_defi' => $apresDefi] : []),
+            // MÉTÉORE de Qwindrak : une attaque de figure dite « météore » au fil et à la table, jamais un coup de mêlée.
+            ...($meteore ? ['meteore' => true] : []),
             'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
             'bonus_garde_tenace' => $bonusGardeTenace,
             'bonus_flanc' => $bonusFlanc,

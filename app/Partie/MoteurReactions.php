@@ -1378,7 +1378,10 @@ final class MoteurReactions
             $etat->update(['capacites_utilisees' => array_values(array_unique($utilisees))]);
         }
 
-        $frappe = app(ResolveurTour::class)->frapper(
+        // UN SEUL résolveur pour la frappe ET son météore : la file des météores vit sur l'instance du résolveur.
+        $resolveur = app(ResolveurTour::class);
+
+        $frappe = $resolveur->frapper(
             $groupe,
             $etat->quete,
             $etat,
@@ -1391,6 +1394,14 @@ final class MoteurReactions
             ],
             acteur: ['type' => 'personnage', 'id' => $heros->id, 'nom' => $heros->nom],
         );
+
+        // LE MÉTÉORE d'une riposte : la riposte EST une attaque de héros (`frapper()`), résolue hors de
+        // `resoudre()` — il part ici, après le coup, et la scène de la frappe le porte (`meteores`).
+        $meteores = $resolveur->resoudreMeteoresDus($groupe, $etat->quete);
+
+        if ($meteores !== []) {
+            $frappe['meteores'] = $meteores;
+        }
 
         // La riposte peut abattre la dernière figure en vue : la vue se relit AU MOMENT où elle
         // change (2026-10-17), comme après une action — hors fenêtre de résolution, le fil la diffuse.

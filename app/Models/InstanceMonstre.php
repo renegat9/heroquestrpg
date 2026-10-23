@@ -58,6 +58,10 @@ class InstanceMonstre extends Model
         // restent à venir, dans l'ordre TIRÉ une fois et stocké — jamais montré au joueur.
         // `null` = pioche pas encore tirée ; `[]` = tout a déjà été joué.
         'formes_a_venir',
+        // ORIGINE de la figure (`nom_base` de la créature qui a tiré la pioche) : ce qu'une forme
+        // générique emporte de sa source (répertoire de sorts, météore) se lit là. `null` = la figure
+        // est sa propre fiche. Voir {@see self::ligneDeReference()}.
+        'origine_monstre',
     ];
 
     protected function casts(): array
@@ -416,6 +420,39 @@ class InstanceMonstre extends Model
     public function monstre(): BelongsTo
     {
         return $this->belongsTo(Monstre::class, 'monstre_id');
+    }
+
+    /**
+     * La créature dont cette figure est une FORME (Qwindrak, pour ses cinq formes et son Dragon), ou `null`.
+     * Clé = `nom_base` : le catalogue est seedé en `updateOrCreate` sur ce nom.
+     */
+    public function origine(): BelongsTo
+    {
+        return $this->belongsTo(Monstre::class, 'origine_monstre', 'nom_base');
+    }
+
+    /**
+     * LA FICHE QUI PORTE CE QUE LA FIGURE EMPORTE (répertoire de sorts, météore, rang de lanceur) : l'ORIGINE
+     * si la figure est une forme de pioche, sinon sa propre fiche. Le point de passage unique de « qui est ce
+     * monstre, pour la magie qu'il porte ? » — une forme générique (Gobelin, Orque) ne porte rien de Qwindrak.
+     *
+     * Repli sur la fiche courante si l'origine n'existe plus au catalogue : une donnée absente ne doit jamais
+     * faire disparaître un répertoire en silence… ni le faire inventer : le repli est écrit ici, pas ailleurs.
+     */
+    public function ligneDeReference(): Monstre
+    {
+        return $this->origine ?? $this->monstre;
+    }
+
+    /**
+     * La valeur d'une capacité PARAMÉTRÉE lue sur la fiche de RÉFÉRENCE (`ligneDeReference()`), ou `null`.
+     * Même lecture que {@see self::capaciteParametree()}, mais pour ce que la figure emporte de sa source.
+     */
+    public function capaciteParametreeDeReference(string $capacite): mixed
+    {
+        $capacites = (array) ($this->ligneDeReference()->capacites ?? []);
+
+        return $capacites[$capacite] ?? null;
     }
 
     /**

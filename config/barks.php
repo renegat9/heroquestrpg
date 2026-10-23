@@ -188,6 +188,9 @@ return [
         'Vrille' => 'fleau',
         'Bakabri le Cruel' => 'sorcier',
         // First Light
+        // Qwindrak : une voix de sorcier (son répertoire est celui d'un boss sorcier, `archetype_lanceur` qwindrak).
+        // Ses formes génériques (Gobelin, Orque…) gardent la leur — la voix est celle de la figure qui crie.
+        'Qwindrak the Warlock' => 'sorcier',
         'Dragon' => 'dragon',
         // Prophecy of Telor
         'Sorcier du Dread' => 'sorcier',

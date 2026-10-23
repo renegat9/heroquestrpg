@@ -868,29 +868,48 @@ class MonstreSeeder extends Seeder
                     'flamme_du_dread' => ['degats' => 1]],
                 'sorts_dread' => ['Boule de Flammes']],
 
-            // QWINDRAK THE WARLOCK (First Light, confrontation finale — 2026-10-17, décision de René).
+            // QWINDRAK THE WARLOCK (First Light, confrontation finale — 2026-10-17, décision de René ; répertoire,
+            // météore et coût révisés le 2026-10-22).
             // Source : notes de quête photographiées (`reference/18_extensions.md` §6.1 : « Qwindrak the Warlock
-            // — Move 6 · Attack 3 dés · Defend 6 dés · Body 3 · Mind 6 »), et règle du livret p. 7 : « the
-            // warlock assumes one or more distinct creature forms called Synchroforms … When the heroes defeat
-            // his Synchroform creature, remove that miniature from the board. Any spell active on Qwindrak ends. »
-            // Il ne porte PAS la fiche d'une créature : il PREND des formes. Chaque forme est une ligne
-            // EXISTANTE du bestiaire de base, aux statistiques de sa carte — jamais recopiées ici. À sa
-            // première mort, la pioche (`synchroformes`) mélange les cinq formes, puis pose le DRAGON au fond.
-            // Le Dragon n'est donc JAMAIS acheté seul : il est retiré de la rencontre finale du gabarit.
-            // ⚠ Répertoire de sorts : NON TROUVÉ — ni la note de quête ni la carte photographiée ne listent ceux
-            // du Warlock, et ceux de la fiche de Banjo ne sont pas officiels. Rien n'est donc semé.
-            // ⚠ Tuiles Skull du Dragon : NON TROUVÉ (« how many skull tiles » — notes de quête non photographiées)
-            // — le Dragon entre à pleins Body.
-            // `cout` : somme des attaques-à-3-dés des sept formes (Warlock 6 + Abomination 2 + Gargouille 4,5 +
-            // Guerrier du Chaos 3,6 + Gobelin 0,75 + Orque 0,86 + Dragon 10,5 = 28,2), prolongée sur la droite des
-            // boss (Seigneur 15 → 20, Gruzbella 21 → 23) : 23 + 0,5 × (28,2 − 21) ≈ 27.
+            // — Move 6 · Attack 3 dés · Defend 6 dés · Body 3 · Mind 6 »), livret de quêtes First Light p. 7 (« the
+            // warlock assumes one or more distinct creature forms called Synchroforms … When the heroes defeat his
+            // Synchroform creature, remove that miniature from the board. Any spell active on Qwindrak ends. »), et
+            // p. 31, note C (« In all forms, Qwindrak knows the Dread spells Tempest, Cloud of Dread, and Lightning
+            // Bolt. Each time a hero casts a spell or makes an attack against him, Qwindrak hurls a meteor at them »).
+            // Il ne porte PAS la fiche d'une créature : il PREND des formes. Chaque forme est une ligne EXISTANTE du
+            // bestiaire de base, aux statistiques de sa carte — jamais recopiées ici. La liste du livret est
+            // « Abomination, Dread Warrior, Gargoyle, Goblin, Orc » : « Dread Warrior » est notre `Guerrier du Chaos`
+            // (nom de 1989), « Gargoyle » notre `Gargouille`, « Orc » notre `Orque`. À sa première mort, la pioche
+            // (`synchroformes`) mélange les cinq formes, puis pose le DRAGON au fond. Le Dragon n'est donc JAMAIS
+            // acheté seul : il est retiré de la rencontre finale du gabarit.
+            // RÉPERTOIRE (`archetype_lanceur` qwindrak, `config/archetypes_lanceurs.php`) : Tempest = Tourmente,
+            // Cloud of Dread = Nuée d'Effroi, Lightning Bolt = Éclair de Chaos. « In all forms » : chaque forme le
+            // porte par `InstanceMonstre::ligneDeReference()`, jamais en recopie sur sa propre fiche.
+            // MÉTÉORE (`meteore`, `App\Partie\MoteurMeteore`) : chaque attaque ou sort d'un HÉROS qui vise Qwindrak
+            // (toutes formes) lui vaut 2 dés d'attaque contre ce héros, après la résolution de l'action.
+            // ⚠ Tuiles Skull du Dragon : aucune — la quête 10 n'en pose pas (livret, notes de quête p. 31) : le Dragon
+            // entre à pleins Body. Non portées, parce qu'elles ne concernent que la quête 10 : les règles de relance
+            // de Mind et de Hall of the Dead (les quêtes générées ne les ont pas).
+            // `cout` (2026-10-22) — méthode du bestiaire, attaques-à-3-dés pour abattre = Body / (1,5 − Défense/6) :
+            //   formes : Warlock 3/(1,5 − 1) = 6 ; Abomination 2/(1,5 − 0,5) = 2 ; Gargouille 3/(1,5 − 5/6) = 4,5 ;
+            //     Guerrier du Chaos 3/(1,5 − 4/6) = 3,6 ; Gobelin 1/(1,5 − 1/6) = 0,75 ; Orque 1/(1,5 − 2/6) = 0,86 ;
+            //     Dragon 7/(1,5 − 5/6) = 10,5 ⇒ N_formes = 28,2.
+            //   météore : 2 dés contre les 3 de l'unité = 2/3 d'une attaque par attaque (ou sort) du groupe :
+            //     N × (1 + 2/3) = 47,0.
+            //   sorts : 3 lancers au plus (budget de boss, partagé par les formes), 1 action de héros chacun : +3.
+            //   N_eq = 50,0 ; sur la droite des boss (Seigneur 15 → 20 ; Gruzbella, chaîne de ses trois phases, 21 → 23 ; pente 0,5) :
+            //   23 + 0,5 × (50,0 − 21) = 37,5 ⇒ 38. Non chiffré : la flamme du Dragon (un dé rouge par héros de la salle,
+            //   comme pour le Dragon seul) et sa Boule de Flammes à volonté.
             ['nom_base' => 'Qwindrak the Warlock', 'deplacement' => 6, 'attaque' => 3, 'defense' => 6, 'pv_body' => 3, 'pv_mind' => 6,
-                'tier' => 'boss', 'boite' => 'first_light', 'cout' => 27,
-                'capacites' => ['synchroformes' => [
-                    'formes' => ['Abomination', 'Gargouille', 'Guerrier du Chaos', 'Gobelin', 'Orque'],
-                    'dernier' => 'Dragon',
-                ]],
-                'sorts_dread' => [], 'phase_suivante' => null],
+                'tier' => 'boss', 'boite' => 'first_light', 'cout' => 38,
+                'capacites' => [
+                    'synchroformes' => [
+                        'formes' => ['Abomination', 'Gargouille', 'Guerrier du Chaos', 'Gobelin', 'Orque'],
+                        'dernier' => 'Dragon',
+                    ],
+                    'meteore' => ['des_attaque' => 2],
+                ],
+                'sorts_dread' => [], 'archetype_lanceur' => 'qwindrak', 'phase_suivante' => null],
 
             // ---- Prophecy of Telor (docs/plan-telor.md lot E) ----
             // SORCIER DU DREAD — monstre GÉNÉRIQUE (deux apparitions, q. 7 et

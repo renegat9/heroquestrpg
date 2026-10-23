@@ -22,6 +22,35 @@ namespace App\Partie;
  */
 trait LignesEffetsAutomatiques
 {
+    /**
+     * LE MÉTÉORE de Qwindrak (`attaque_monstre` avec `meteore: true`, `MoteurMeteore`) : un coup qui tombe du ciel
+     * après l'action d'un héros — dit comme tel, avec ses deux dés, son issue et, si le héros tombe, sa chute.
+     * La défense du héros est celle d'une attaque ordinaire (`detailDes()` la montre).
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function meteore(array $a): array
+    {
+        $monstre = (string) ($a['monstre'] ?? 'Qwindrak');
+        $cible = (string) ($a['cible']['nom'] ?? 'un héros');
+        $degats = (int) ($a['degats'] ?? 0);
+        $des = $this->detailDes($a);
+
+        if ($degats <= 0) {
+            return [(int) ($a['touches'] ?? 0) === 0
+                ? ['texte' => "Un météore de {$monstre} s'abat sur {$cible} — il le manque{$des}", 'ton' => 'echec']
+                : ['texte' => "{$cible} pare le météore de {$monstre}{$des}", 'ton' => 'pare']];
+        }
+
+        $lignes = [['texte' => "Un météore de {$monstre} frappe {$cible} (−{$degats} PV){$des}", 'ton' => 'subit']];
+
+        if (! empty($a['cible_tombee'])) {
+            $lignes[] = ['texte' => "{$cible} s'effondre !", 'ton' => 'chute'];
+        }
+
+        return $lignes;
+    }
+
     /** @return list<array{texte: string, ton: string}> */
     private function soinAllie(array $a, string $acteurNom): array
     {

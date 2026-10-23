@@ -35,11 +35,15 @@ use App\Models\Monstre;
  *  - la forme DRAGON est la dernière : sa place doit être SÛRE (emprise 1 × 2, `ancrer()`), et son arrivée
  *    souffle la flamme du Dread (`flammeALArrivee()`, `reference/18` §6.1).
  *
- * Le Warlock n'a AUCUN sort sourcé : son répertoire est ⚠ non trouvé (ni la note de quête ni la carte
- * photographiée ne le donnent ; les sorts de la fiche de Banjo ne sont pas officiels). Rien n'est donc semé.
+ * LE RÉPERTOIRE ET LE MÉTÉORE de Qwindrak ne sont pas portés par les formes : elles sont des lignes génériques
+ * partagées (Gobelin, Orque…). La figure garde son ORIGINE (`instances_monstres.origine_monstre`, écrite au
+ * tirage de la pioche, rejouée par le snapshot), et tout ce qu'elle emporte de la source se lit sur la fiche
+ * d'origine — `InstanceMonstre::ligneDeReference()`. Le répertoire est sourcé (livret de quêtes First Light,
+ * p. 31, note C : « In all forms, Qwindrak knows the Dread spells Tempest, Cloud of Dread, and Lightning Bolt »).
  *
  * ⚠ Hors périmètre, nommé : les deux autres issues de la note de quête (« escape », « take on his true
- * warlock appearance ») ; les tuiles Skull du Dragon (« non trouvé ») — le Dragon entre à pleins Body.
+ * warlock appearance ») concernent les quêtes 1 à 9, pas le combat final ; les règles propres à la quête 10
+ * (relance de Mind, Hall of the Dead) ne s'appliquent pas aux quêtes générées, et ne sont pas portées.
  */
 final class MoteurSynchroformes
 {
@@ -71,6 +75,11 @@ final class MoteurSynchroformes
 
         if ($formes === null && ($pioche = $this->pioche($ligne)) !== null) {
             $formes = $this->tirer($pioche);
+
+            // L'ORIGINE de la figure, écrite AVEC la pioche : c'est la fiche qui a tiré les formes (Qwindrak)
+            // qui porte le répertoire et le météore de chacune d'elles (`InstanceMonstre::ligneDeReference()`).
+            $instance->update(['origine_monstre' => $ligne->nom_base]);
+            $instance->unsetRelation('origine');
         }
 
         if (is_array($formes) && $formes !== []) {

@@ -2049,14 +2049,16 @@ bien de ce livret se déduit du dépôt commun et de la mise en page identique ;
   même place, vraie apparence, ou fuite).
   - *Dragon Form* : les notes de quête indiquent combien de **tuiles Skull**
     placer sous la figurine — elles marquent les Body Points déjà perdus par le
-    Dragon.
+    Dragon. ✓ **Sourcé le 2026-10-22** : la quête 10 n'en pose **aucune** (livret
+    de quêtes First Light, p. 31) — le Dragon entre à pleins Body.
   - *Draconic Flight* : le Dragon peut interrompre son mouvement pour agir puis
     le finir, et **traverser des cases occupées** (sans y finir).
   - **Qwindrak the Warlock — Move 6 · Attack 3 dés · Defend 6 dés · Body 3 ·
     Mind 6.** Source : photo de René (2026-09-30), notes de quête du livret
-    First Light — tableau intitulé « *Qwindrak the Warlock* » ; ⚠ numéro de
-    page et nom de la quête **non visibles** sur la photo. Le texte qui
-    précède le tableau décrit la confrontation finale :
+    First Light — tableau intitulé « *Qwindrak the Warlock* ». Page et quête
+    désormais LUES sur le livret de quêtes (p. 7 : les formes ; p. 31, note C :
+    le répertoire et le météore — 2026-10-22). Le texte qui précède le tableau
+    décrit la confrontation finale :
     - les monstres listés par la quête sont affrontés tour à tour (« shuffle
       the [deck] … deal a new faceup monster card » à chaque monstre vaincu,
       jusqu'au dernier — ⚠ début de phrase et mots du milieu illisibles sur la
@@ -2077,13 +2079,15 @@ bien de ce livret se déduit du dépôt commun et de la mise en page identique ;
     - ⚠ **Taille de la figurine non trouvée** : ni la carte ni les pages
       photographiées ne disent si le Dragon est un *Large Monster* (2 cases,
       FL-Q p. 6). Ne pas le supposer.
-    - ⚠ **Combien de tuiles Skull** placer sous lui à l'apparition (*Dragon
-      Form*, Body déjà perdus) : fixé par les notes de quête, non trouvé.
+    - **Tuiles Skull** à l'apparition (*Dragon Form*, Body déjà perdus) : **aucune**
+      pour la quête 10 (livret de quêtes First Light, p. 31, note C) — sourcé le
+      2026-10-22. Le Dragon de la confrontation finale entre à pleins Body.
     - La **flamme du Dread** de la confrontation finale (un dé rouge par héros
       de la salle, 1 Body sur 3 ou moins) est une règle de la QUÊTE (notes de
       quête, ci-dessus), pas de la carte : elle ne suit pas le Dragon ailleurs.
   - Les autres **Synchroforms** de Qwindrak ne sont pas chiffrées *(une pioche de cinq formes, aux stats de leur ligne de bestiaire de base, le Dragon au fond — décision de René, 2026-10-17 : voir `docs/regles/bestiaire-et-rencontres.md`)*.
-  - *Porté le 2026-10-17* : la pioche (`synchroformes`), la flamme du Dread à l'arrivée du Dragon (`flamme_du_dread`, 1-3 = 1 Body, dés des héros de la même salle), et Qwindrak comme boss final de First Light. **Non porté** : répertoire de sorts du Warlock (⚠ non trouvé), tuiles Skull du Dragon (⚠ non trouvé), issues « escape » et « true warlock appearance ».
+  - *Porté le 2026-10-17* : la pioche (`synchroformes`), la flamme du Dread à l'arrivée du Dragon (`flamme_du_dread`, 1-3 = 1 Body, dés des héros de la même salle), et Qwindrak comme boss final de First Light.
+  - *Porté le 2026-10-22* (livret de quêtes First Light, p. 31, note C : « In all forms, Qwindrak knows the Dread spells Tempest, Cloud of Dread, and Lightning Bolt. Each time a hero casts a spell or makes an attack against him, Qwindrak hurls a meteor at them. Roll 2 Attack dice for each meteor. ») : **le répertoire** (Tourmente, Nuée d'Effroi, Éclair de Chaos — archétype `qwindrak`, suivi par l'origine d'une forme à l'autre), **le météore** (`meteore: 2`, à chaque attaque ou sort d'un héros qui le vise), et le coût (`cout` 38, méthode dans `docs/regles/bestiaire-et-rencontres.md`). Les tuiles Skull sont sourcées (aucune). **Non porté** : les issues « escape » et « true warlock appearance » (quêtes 1 à 9, pas le combat final) ; les règles propres à la quête 10 (relance de Mind, Hall of the Dead), qui ne s'appliquent pas aux quêtes générées. « Dread Warrior » du livret = notre `Guerrier du Chaos` (nom de 1989).
   - *Première fouille de trésor* (même page) : texte à lire, purement narratif
     — l'œuf du SeerScale éclot, **Alousen**, fille d'Ethlarin, « la dernière
     du SeerScale », remercie les héros et s'envole. Aucun effet de jeu.

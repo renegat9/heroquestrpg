@@ -409,15 +409,18 @@ class GabaritQueteSeeder extends Seeder
                             // filtre. Nexrael (tier `base`) n'est dans AUCUN pool : il entre par l'achat
                             // des « forts », comme toute créature de signature d'une boîte.
                             'festral_sorcier_dread',
+                            // QWINDRAK THE WARLOCK (First Light, 2026-10-17 ; archétype le 2026-10-22) : boss
+                            // sorcier, le patron d'Archimage elfe et de Festral — un répertoire NOMMÉ par le
+                            // livret (« In all forms, Qwindrak knows the Dread spells … », p. 31) et donc un
+                            // archétype (`config/archetypes_lanceurs.php`). Le DRAGON, dernière forme de sa
+                            // pioche, n'entre jamais seul : c'est Qwindrak qui entre, avec ses formes.
+                            'qwindrak',
                         ],
                         // Les bosses sans répertoire : ils frappent, c'est tout,
                         // et c'est une lecture du combat final aussi.
-                        // ⚠ QWINDRAK THE WARLOCK (First Light, 2026-10-17) occupe la place du
-                        // Dragon, qui n'entre plus ici : le Dragon est la DERNIÈRE FORME de
-                        // Qwindrak, jamais une rencontre achetée seule. Qwindrak n'a pas de
-                        // répertoire sourcé (⚠ non trouvé) : il entre en CRÉATURE nommée, comme
-                        // les bosses sans sorts. La pioche de ses formes est `MonstreSeeder` +
-                        // `App\Partie\MoteurSynchroformes`.
+                        // ⚠ Le DRAGON (First Light, 2026-09-30) n'entre plus ici : c'est la dernière
+                        // forme de Qwindrak (pioche `synchroformes`, `MonstreSeeder`), jamais une
+                        // rencontre achetée seule.
                         //
                         // ⚠ GRUZBELLA HAMMERHAND et SIR RAGNAR (chantier monstre à
                         // phases 2026-10-04) le rejoignent, même raison : ni l'une
@@ -425,7 +428,7 @@ class GabaritQueteSeeder extends Seeder
                         // phase de Gruzbella est nommée, même garde-fou que
                         // Spawn of the Pit ci-dessus (le jalon sous-boss).
                         'creatures' => [
-                            'Ogre commandant', 'Seigneur ogre', 'Qwindrak the Warlock',
+                            'Ogre commandant', 'Seigneur ogre',
                             'Gruzbella Hammerhand', 'Sir Ragnar',
                             // LE SCION FLEUR-POURRIE (Jungles of Delthrak, quête 14 voie B, 2026-10-15) :
                             // le boss final du livret, immobile (Move 0 : posé en salle seulement) —

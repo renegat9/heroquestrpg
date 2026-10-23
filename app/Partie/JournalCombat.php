@@ -165,11 +165,12 @@ final class JournalCombat
     /**
      * Les listes PLATES d'actions qu'un résultat porte à côté des phases :
      * les captifs repris, les coups de corne du Minotaure (un héros qui finit
-     * son tour à son contact) et les annonces du tampon générique
-     * (`TamponAnnonces`). Trois listes que personne ne lisait — leurs effets
-     * étaient publiés, journalisés, et affichés NULLE PART.
+     * son tour à son contact), les MÉTÉORES de Qwindrak (une attaque de figure
+     * déclenchée par l'action d'un héros, `MoteurMeteore`) et les annonces du
+     * tampon générique (`TamponAnnonces`). Des listes que personne ne lisait —
+     * leurs effets étaient publiés, journalisés, et affichés NULLE PART.
      */
-    public const LISTES_PLATES = ['captifs_repris', 'coups_de_corne', 'filets_silencieux', 'annonces_automatiques'];
+    public const LISTES_PLATES = ['captifs_repris', 'coups_de_corne', 'filets_silencieux', 'meteores', 'annonces_automatiques'];
 
     /**
      * Les clés sous lesquelles un piège peut être IMBRIQUÉ dans une action : `declenchement`
@@ -1832,6 +1833,11 @@ final class JournalCombat
      */
     private function attaqueMonstre(array $a, bool $charge = false): array
     {
+        // LE MÉTÉORE de Qwindrak : une attaque de figure qui n'est ni un coup de mêlée ni un tir — dite comme telle.
+        if (! empty($a['meteore'])) {
+            return $this->meteore($a);
+        }
+
         $monstre = $a['monstre'] ?? 'Le monstre';
         $cible = $a['cible']['nom'] ?? 'un héros';
         $degats = (int) ($a['degats'] ?? 0);

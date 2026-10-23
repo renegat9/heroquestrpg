@@ -225,6 +225,7 @@ const CAPACITES = {
     souffle_du_construit: 'Souffle du Construit (une fois) : 2 PV à toute la salle ou le couloir, réduits par 2 dés rouges',
     synchroformes: 'Se transforme à chaque forme vaincue (pioche mélangée, le Dragon en dernier) ; ses sorts actifs cessent',
     flamme_du_dread: 'Flamme du Dread à son arrivée : chaque héros de la salle lance un dé rouge, 3 ou moins = 1 PV',
+    meteore: "Météore : chaque attaque ou sort d'un héros qui le vise lui vaut 2 dés d'attaque contre ce héros, toutes formes",
     vrille_en_fin_de_tour: 'Pose une Vrille à la fin de chacun de ses tours',
     sacrifice_de_vrille: 'Sacrifie une Vrille pour rester à 1 PV au lieu de mourir',
 };

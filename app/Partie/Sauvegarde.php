@@ -390,6 +390,8 @@ final class Sauvegarde
                     'habillage' => $i->habillage, // reskin + conditions des monstres
                     // Pioche des formes (Qwindrak) : l'ordre tiré se rejoue à l'identique à la reprise.
                     'formes_a_venir' => $i->formes_a_venir,
+                    // Origine de la figure (Qwindrak) : sa fiche de référence — répertoire, météore, rang — se rejoue.
+                    'origine_monstre' => $i->origine_monstre,
                 ])->values()->all(),
             'etat_personnage_quete' => $quete->etatsPersonnages()->orderBy('id')->get()
                 ->map(fn (EtatPersonnageQuete $e) => [
@@ -624,6 +626,8 @@ final class Sauvegarde
                 'habillage' => $instance['habillage'],
                 // `?? null` : un snapshot antérieur à la pioche n'a pas de file (= pas encore tirée).
                 'formes_a_venir' => $instance['formes_a_venir'] ?? null,
+                // `?? null` : un snapshot antérieur à l'origine (= figure qui est sa propre fiche).
+                'origine_monstre' => $instance['origine_monstre'] ?? null,
             ])->save();
         }
     }
