@@ -124,7 +124,7 @@ damage. »
   structurel (monstre immobile, purement réactif) — à construire **une
   fois**, pas deux, cf. §4 Q2.
 
-### Lot D — Les 2 artefacts (p. 27, texte complet, sourcé sans photo)
+### Lot D — Les 2 artefacts (p. 27, texte complet, sourcé sans photo) — ⚠ EN PARTIE écarté le 2026-10-23 (voir la décision en fin de document)
 
 | Artefact | Citation complète | Donnée |
 |---|---|---|
@@ -172,7 +172,7 @@ nouvelle entrée de catalogue générique.
   jour) — à mettre en regard du lot D (*Dragon Spear*, bonus « contre
   Dragon ») : Venim devrait être une cible valide de ce bonus.
 
-### Lot F — Obscurité magique (p. 25, antre de Venim)
+### Lot F — Obscurité magique (p. 25, antre de Venim) — ⛔ ÉCARTÉ le 2026-10-23 (propre à une quête, voir la décision en fin de document)
 
 « Any hero who cannot see in magical darkness has -2 combat dice the first
 and second time they attack, and then they may attack as normal. The
@@ -201,7 +201,7 @@ Reagent Kit de *Rise of the Dread Moon*) se rechargent ou se consomment
 monstres + mobilier d'une salle fermée avant d'y entrer — proche d'une
 fouille anticipée, mais sans ouvrir la porte ni déclencher les monstres.
 
-### Lot H — Vander l'elfe, allié PNJ (p. 9, 11)
+### Lot H — Vander l'elfe, allié PNJ (p. 9, 11) — ⛔ ÉCARTÉ le 2026-10-23 (propre à une quête, voir la décision en fin de document)
 
 « Return Vander back to your hideout so he can translate the map. […]
 Vander - Use the stats shown on the Elf card for Vander. »
@@ -318,3 +318,16 @@ base** ; redémarrer `queue` et `queue-jeu` après le PHP.
 | **Q5** | **Thème propre `crypte_tenebres` : décision différée** jusqu'au portage du contenu. | Pas de nouvelle entrée `BOITES_THEMATIQUES` avant ce portage. |
 
 > **Réalisé le 2026-10-15 (René) — lot C, moitié mécanisme** : le patron TOURELLE est construit UNE fois (`Monstre::estTourelle()`, `Monstre::estImmobile()`) et sert déjà le *Guardian Effigy*. La **révélation à la vue** (`apparait_a_la_vue`, `MoteurTourelle::apparitionsEnVue()` : chaque case du chemin d'un héros compte, tir immédiat hors tour) est construite et testée EN JEU avec une ligne de catalogue de test. Le **Dread Skull n'est PAS semé** : aucune boîte existante ne peut l'accueillir proprement (la Crypte n'est pas un thème, Q5 différée ; en bestiaire automatique un monstre de palier `base` se tire dans TOUTES les boîtes) — sa première étape de portage est de le semer avec sa boîte. `MotsClesAdversaires::SANS_DONNEE`.
+
+## Décision de René (2026-10-23) — ce qui n'entre pas dans un jeu de quêtes générées
+
+Critère (René, 2026-10-23 : « retirer ce qui ne devrait pas être implanté dans un jeu de quête dynamique ») : ce qui n'existe que dans le script d'une quête précise — structure de campagne, objectif d'arc, fin scénarisée, PNJ de scénario, règle d'une seule salle ou d'une seule quête — n'entre pas, parce que nos quêtes sont GÉNÉRÉES et ne rejouent jamais une quête du livret. Ce qui se pose dans n'importe quel donjon généré (monstre, mécanique, piège, mobilier, objet, terrain) reste à porter. Retirer est un choix écrit, jamais une omission : le texte des lots est gardé, marqué ⛔ / ⚠ à son titre.
+
+| Élément | Lot | Pourquoi |
+|---|---|---|
+| Vander l'elfe, allié PNJ | H | Un PNJ de scénario, recruté par la quête de sauvetage 2. **Clôt la question Vander** (Q4). |
+| Obscurité magique de l'antre de Venim | F | Un état de la seule salle finale de la quête 10. |
+| Glissade vers une case fixe | I | Une note de la quête 10. |
+| La vision dans le noir de la *Crown of Shadows* | D | Sans obscurité magique, elle n'aurait **aucun lecteur** (règle « pas de clé décorative ») : la Couronne se porte avec son dé de défense seul, et l'écart s'écrit au seeder le jour du portage. |
+
+**Reste à porter** : lot B (mare d'acide ; les vignes agrippantes sont déjà en service), lot C (Dread Skull : la tourelle est construite, il manque la ligne du monstre), lot D (la Couronne avec son dé de défense, la Lance du Dragon), lot E (les sept adversaires nommés, `TypeDegat` `acide` et Souffle Acide, Q3), lot G (la souris familière), et dans le lot I les portes scellées et l'objet de quête qui sert de clé. La Q5 (thème propre) reste différée.

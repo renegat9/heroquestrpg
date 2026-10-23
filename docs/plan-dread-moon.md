@@ -191,7 +191,7 @@ proposent le déguisement) et du trait « toujours déguisés » du lot D.
 | *Potion of Unforeseeable Fate* | « draw and activate one random card from the alchemy deck […] even at 0 Body Points » (p. 10) | ⚠ Dépend d'un **deck de potions aléatoire** — absent du moteur aujourd'hui (aucun tirage de potion aléatoire nulle part dans `app/Partie`). Nouveau mécanisme, à nommer dans le vocabulaire fermé avant de le seeder |
 | *Smoke Bomb* (100 po) | « A thick cloud of colored smoke envelops any one monster adjacent to you. Until that monster's next turn, all heroes move unseen through the monster's space » (p. 2) | Nouvel effet d'objet, proche d'un sort de contrôle sans jet — condition de monstre `enfume` existe DÉJÀ (`MoteurSorts::MONSTRE_ENFUME`, cf. `ResolveurTour::monstreEnfumeSur()`) : **vérifier avant d'écrire quoi que ce soit** si le lecteur couvre déjà le franchissement de case, auquel cas il ne reste qu'à vendre la carte |
 
-### Lot H — *Plaza* (p. 4, règle complète p. 5)
+### Lot H — *Plaza* (p. 4, règle complète p. 5) — ⛔ ÉCARTÉ le 2026-10-23 (propre à une quête, voir la décision en fin de document)
 
 | Règle | Citation |
 |---|---|
@@ -356,3 +356,10 @@ thème `dread_moon` clôt les lots C à H.
 | **Lots C, E, F, G** — jetons de **réputation**, **déguisement**, **planques**, **artisanat de potions** | **Écartés pour le moment, par écrit.** Ni vocabulaire, ni lecteur, ni donnée : la boîte reste jouable par son bestiaire, ses artefacts, ses chausse-trappes et ses monstres éthérés. Les questions Q3 (contrôle du déguisement), Q4 (tirage de la *Potion of Unforeseeable Fate*) et Q6 (réputation de groupe) sont sans objet tant que ces lots ne sont pas relancés. |
 
 `docs/regles/bestiaire-et-rencontres.md` § Décisions de René du 2026-10-15.
+
+## Décision de René (2026-10-23) — ce qui n'entre pas dans un jeu de quêtes générées
+
+Critère (René, 2026-10-23 : « retirer ce qui ne devrait pas être implanté dans un jeu de quête dynamique ») : ce qui n'existe que dans le script d'une quête précise — structure de campagne, objectif d'arc, fin scénarisée, PNJ de scénario, règle d'une seule salle ou d'une seule quête — n'entre pas, parce que nos quêtes sont GÉNÉRÉES et ne rejouent jamais une quête du livret. Ce qui se pose dans n'importe quel donjon généré (monstre, mécanique, piège, mobilier, objet, terrain) reste à porter. Retirer est un choix écrit, jamais une omission : le texte des lots est gardé, marqué ⛔ / ⚠ à son titre.
+
+- **Lot H, la *Plaza*, écarté** : une salle sans murs qui s'étend dans les couloirs change le modèle de carte lui-même (salles, seuils, murs en arêtes — `docs/regles/carte-donjon.md`) ; elle ne s'intègre pas à la génération sans un chantier de topologie que rien d'autre ne réclame.
+- Le reste du plan est inchangé : Magrian (`MotsClesReactionMj::NON_IMPLEMENTEES`) reste le gros morceau à porter de la boîte.

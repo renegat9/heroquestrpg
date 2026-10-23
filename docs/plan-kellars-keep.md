@@ -147,7 +147,7 @@ tant qu'un déclencheur précis ne s'est pas produit. C'est une mécanique à
 
 Voir Q2.
 
-### Lot E — Portes et dangers de carte
+### Lot E — Portes et dangers de carte — ⚠ EN PARTIE écarté le 2026-10-23 (voir la décision en fin de document)
 
 | Élément | Règle citée | Chez nous |
 |---|---|---|
@@ -165,7 +165,7 @@ Voir Q2.
 | **Gragor** (quête 6, p. 18-19) | Mêmes stats que Guerrier du Chaos + sorts *summon orcs, fear, rust, ball of flame, lightning bolt* | Guerrier du Chaos existant + `sorts_dread => ['Invocation d\'orques', 'Frayeur', 'Rouille', 'Boule de Flammes', 'Éclair de Chaos']` — **les cinq sorts existent déjà** au catalogue (`SortDreadSeeder`), AUCUN sort manquant. Nouvelle ligne `MonstreSeeder` ou simple habillage IA d'un Guerrier du Chaos existant selon qu'on veut le nommer de façon stable (recommandé : nouvelle ligne, cohérent avec le patron Nexrael/Xenloth d'Ogre Horde) |
 | **Ograk** (quête 7, p. 20-21) | Mêmes stats que Guerrier du Chaos, sans sort — apparaît par une porte secrète placée par le MJ | **Habillage IA pur** d'un Guerrier du Chaos existant (comme Ekur/Tograk dans le plan Ogre Horde) ; son trait propre (porte secrète du MJ) est couvert par le lot E, pas par le monstre lui-même |
 
-### Lot G — Mobilier et objectif de campagne
+### Lot G — Mobilier et objectif de campagne — ⚠ EN PARTIE écarté le 2026-10-23 (voir la décision en fin de document)
 
 | Élément | Règle | Chez nous |
 |---|---|---|
@@ -277,3 +277,15 @@ documenter comme une attente, pas un refus.
 |---|---|---|
 | **Q3** | Rocher roulant et *Death Mist* : **UNE SEULE mécanique « danger mobile autonome »** (position, vitesse, dégâts et condition d'arrêt paramétrables). | Un seul point de passage. Le *Death Mist* de *Return of the Witch Lord* (lot E) s'y branche (Witch Lord, Q6). |
 | **Q4** | **Portes secrètes contrôlées par le MJ = embuscade scriptée** sur rencontre nommée (petit scope). | Aucun troisième état de porte générique : le modèle « porte secrète = trouvée par fouille » reste intact (`docs/regles/carte-donjon.md`). |
+
+## Décision de René (2026-10-23) — ce qui n'entre pas dans un jeu de quêtes générées
+
+Critère (René, 2026-10-23 : « retirer ce qui ne devrait pas être implanté dans un jeu de quête dynamique ») : ce qui n'existe que dans le script d'une quête précise — structure de campagne, objectif d'arc, fin scénarisée, PNJ de scénario, règle d'une seule salle ou d'une seule quête — n'entre pas, parce que nos quêtes sont GÉNÉRÉES et ne rejouent jamais une quête du livret. Ce qui se pose dans n'importe quel donjon généré (monstre, mécanique, piège, mobilier, objet, terrain) reste à porter. Retirer est un choix écrit, jamais une omission : le texte des lots est gardé, marqué ⛔ / ⚠ à son titre.
+
+| Élément | Lot | Pourquoi |
+|---|---|---|
+| Portes secrètes contrôlées par le MJ (q. 1) | E | Trois portes d'une seule quête. **Remplace la décision Q4** du 2026-10-15 (embuscade scriptée) : rien n'est construit. Ograk (lot F) reste un pur habillage, sans son entrée par porte secrète. |
+| Fouille limitée « un piège à la fois » (q. 3) | E | Une note de quête, en tension avec la fouille de zone en vigueur (`docs/regles/exploration-et-fouille.md`). |
+| Carte de pierre en quatre morceaux | G | Un **objectif de campagne** sur dix quêtes fixes, hors du modèle « un objectif par quête générée ». |
+
+**Reste à porter** : lot B (Borokk, `attaque_mind`), lot C (monstres dormants : squelettes des rois nains, gargouille-statue, immunité totale aux sorts), lot D (métamorphe — le paquet de synchroformes de Qwindrak, `App\Partie\MoteurSynchroformes`, 2026-10-22, est désormais le précédent le plus proche, à évaluer avant la Q2), lot E sans les deux lignes ci-dessus (rocher roulant = danger mobile autonome, Q3 ; trappes appariées ; portes à condition ; forge des nains), lot F (Gragor, Ograk).

@@ -88,7 +88,7 @@ livret, et une troisième à nuancer :
 
 ### Lot A — Corrections de `reference/18` (ci-dessus). Aucun code.
 
-### Lot B — Les quatre tours élémentaires, complétion libre (q. 10-13, p. 25-31)
+### Lot B — Les quatre tours élémentaires, complétion libre (q. 10-13, p. 25-31) — ⛔ ÉCARTÉ le 2026-10-23 (propre à une quête, voir la décision en fin de document)
 
 | Élément | Citation | Chez nous |
 |---|---|---|
@@ -115,7 +115,7 @@ cohérent avec la règle générale « un seul sort par tour » documentée pour
 Ogre Horde. Une capacité nommée (`double_sort`, portée par l'instance ou
 le palier) découplerait ce cas sans toucher la règle générale.
 
-### Lot D — Dégâts convertis en Mind, zone de quête (q. 8-9, p. 21-23)
+### Lot D — Dégâts convertis en Mind, zone de quête (q. 8-9, p. 21-23) — ⛔ ÉCARTÉ le 2026-10-23 (propre à une quête, voir la décision en fin de document)
 
 > « all monsters in this quest are spirits and all damage heroes take will
 > affect their Mind Points instead of their Body Points. Heroes still deal
@@ -133,7 +133,7 @@ déjà entre les deux jauges pour un sort donné — PAS un nouveau mot-clé par
 monstre, un override contextuel qui s'applique à la résolution normale de
 combat.
 
-### Lot E — Ressource d'insubstantialité à charges (q. 14, p. 33)
+### Lot E — Ressource d'insubstantialité à charges (q. 14, p. 33) — ⛔ ÉCARTÉ le 2026-10-23 (propre à une quête, voir la décision en fin de document)
 
 > « Each hero may become insubstantial three times. Each use can be used to
 > ignore any one source of damage, to pass through walls or solid objects
@@ -161,7 +161,7 @@ ou non est affaire de Q4.
 | **Fournaise désamorçable, dégât périodique** (Tour de Feu, q. 13, p. 31) | « a hero can disarm the furnace as if it were a trap. Until this is done, a hero ending their turn in this room must roll 1 combat die, taking 1 Body Point of damage if they roll a skull. Monsters are used to the heat and do not take this damage. » | Mobilier qui se comporte comme un PIÈGE désamorçable (même verbe que `MoteurPieges`), mais qui inflige des dégâts À CHAQUE TOUR tant qu'il reste actif plutôt qu'au déclenchement une fois — absent du vocabulaire actuel des pièges, plus proche d'un terrain persistant que d'un piège classique |
 | **Gargouille désamorçable au lieu de combattue** (Tour de Feu, q. 13, p. 31) | « The Gargoyle [...] can be destroyed through combat, or it can be disarmed as if it were a trap. » | Renforce le précédent du Lot E de *Spirit Queen* lui-même (résolution alternative du boss, ci-dessous) : une CRÉATURE ordinaire, pas seulement le boss final, admet ici une résolution non létale. Signal que « résolution alternative » n'est pas un besoin isolé au seul combat de boss |
 
-### Lot G — Résolution alternative du combat de boss (q. 14, p. 33)
+### Lot G — Résolution alternative du combat de boss (q. 14, p. 33) — ⛔ ÉCARTÉ le 2026-10-23 (propre à une quête, voir la décision en fin de document)
 
 > « Though she can be defeated in combat, if a hero wants to remind her of
 > her past as Nelath or shake her from her servitude to Zargon they may use
@@ -183,7 +183,7 @@ la cible (combat de boss classique OU action spéciale) soit déclarée
 d'avance par le gabarit, pas improvisée par l'IA (principe « le moteur
 décide, l'IA narre »).
 
-### Lot H — Remplacement posthume du Barde + alliés jouables
+### Lot H — Remplacement posthume du Barde + alliés jouables — ⚠ EN PARTIE écarté le 2026-10-23 (voir la décision en fin de document)
 
 | Élément | Citation | Chez nous |
 |---|---|---|
@@ -306,3 +306,18 @@ le PHP. Une campagne d'agents (`campagne-agents`) sur le thème
 | **Q3** | Deux sorts de Dread au même tour : **capacité nommée `double_sort`**. | Lot C : une capacité par instance (Kavra au premier tour, Nelath) ; la règle « un sort par tour » reste la règle générale. |
 | **Q4** | Terrains nouveaux (sol meuble, courant bonus, insubstantialité à charges) : **scopés `boite: spirit_queen`**. | Pas de mot-clé générique tant qu'un second cas d'usage ne le réclame pas. |
 | **Q6** | `quetes.issue_alternative` : **champ généralisé** (une colonne), **une seule narration** (Nelath). | Lot G : coût nul côté schéma ; aucun second boss « rachetable » construit. |
+
+## Décision de René (2026-10-23) — ce qui n'entre pas dans un jeu de quêtes générées
+
+Critère (René, 2026-10-23 : « retirer ce qui ne devrait pas être implanté dans un jeu de quête dynamique ») : ce qui n'existe que dans le script d'une quête précise — structure de campagne, objectif d'arc, fin scénarisée, PNJ de scénario, règle d'une seule salle ou d'une seule quête — n'entre pas, parce que nos quêtes sont GÉNÉRÉES et ne rejouent jamais une quête du livret. Ce qui se pose dans n'importe quel donjon généré (monstre, mécanique, piège, mobilier, objet, terrain) reste à porter. Retirer est un choix écrit, jamais une omission : le texte des lots est gardé, marqué ⛔ / ⚠ à son titre.
+
+| Élément | Lot | Pourquoi |
+|---|---|---|
+| Les quatre tours élémentaires et la tour finale | B | Une **structure de campagne** (quatre quêtes fixes, quatre artefacts pour ouvrir la cinquième). **Remplace la décision Q1** du 2026-10-15 (ordre fixe linéarisé) : rien n'est construit. |
+| Dégâts convertis en Mind pour toute une quête | D | Un aiguillage valable pour les quêtes 8 et 9 seulement, pas une propriété d'un monstre ou d'un lieu. |
+| Insubstantialité à trois charges | E | Une ressource de la seule quête 14. Retirée aussi de la décision Q4. |
+| Nelath « sauvée » plutôt que tuée | G | Une seconde voie de victoire écrite pour une rencontre. **Remplace la décision Q6** : pas de colonne `quetes.issue_alternative`. |
+| Remplacement posthume du Barde ; échec de quête si Udren meurt | H | Une règle de la série de quêtes et une escorte scénarisée. |
+| Gargouille désamorçable « comme un piège » | F | Une note de la seule Tour de Feu (q. 13). |
+
+**Reste à porter** : lot C (Kavra, Nelath, capacité `double_sort` — Nelath se bat et meurt comme un boss ordinaire), lot F sans la gargouille (sol meuble, courant bonus, vents, fournaise désamorçable — scopés `boite: spirit_queen`, Q4), lot I (fouille garantissant un vrai trésor, potion de fortune, coffre piégé qui lance un sort de Dread), et dans le lot H la question générique « un allié joué par un joueur » (même question que la Q2 d'`docs/plan-ogre-horde.md`, toujours ouverte). Q2 et Q5 restent non tranchées.

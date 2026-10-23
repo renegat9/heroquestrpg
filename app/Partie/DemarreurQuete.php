@@ -876,13 +876,19 @@ final class DemarreurQuete
         // le thème sans boss jouable referait l'erreur déjà nommée pour
         // l'Horreur des Glaces : « un boss final à moitié écrit n'a rien à
         // faire en tête d'affiche » — ici, un boss qui n'a MÊME PAS de mort
-        // ordinaire.
+        // ordinaire. Depuis le 2026-10-23, la fuite et la mort par tirage sont
+        // ÉCARTÉES (propres à deux quêtes d'un arc fixe, qu'un donjon généré ne
+        // rejoue jamais) : la boîte ne se rallume plus en les construisant.
+        // René, même jour : « Fellmarak pourrait être juste mort sans revenir »
+        // — une mort ordinaire, écart assumé au livret. Reste à SEMER Fellmarak
+        // (`docs/plan-telor.md`) avant de sortir la boîte de cette liste.
         'prophecy_telor' => 'Fellmarak (son seul boss sourcé) ne meurt pas '
             .'normalement — il fuit en quête 12, meurt par tirage aléatoire '
-            .'en quête 13 — et aucun des deux mécanismes n\'est construit ; '
-            .'le Sorcier du Dread générique reste seedé comme sous-boss. '
-            .'Reste éteinte tant que Fellmarak n\'a ni fuite ni mort par tirage '
-            .'(René, 2026-10-15).',
+            .'en quête 13. Ces deux fins, propres à l\'arc du livret, sont '
+            .'écartées (René, 2026-10-23) ; le Sorcier du Dread générique reste '
+            .'seedé comme sous-boss. Fellmarak mourra comme tout boss, écart '
+            .'assumé au livret (René, 2026-10-23) ; la boîte reste éteinte tant '
+            .'qu\'il n\'est pas semé.',
     ];
 
     /**

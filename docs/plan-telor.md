@@ -108,7 +108,7 @@ inchangé), lue au moment de consommer le parchemin, décrémentée au lieu de
 détruire l'objet tant qu'elle n'atteint pas 0. Trois instances d'objet
 nommées (pas trois nouvelles lignes catalogue) portent la valeur de départ.
 
-### Lot D — Fellmarak, le Roi Sorcier (boss à deux formes, p. 31, 33)
+### Lot D — Fellmarak, le Roi Sorcier (boss à deux formes, p. 31, 33) — ⚠ EN PARTIE écarté le 2026-10-23 (voir la décision en fin de document)
 
 **Dépend du Lot C d'`docs/plan-ogre-horde.md`** (mot-clé `monstres.phases`) —
 à ne construire qu'après, ou en même temps en coordination explicite,
@@ -258,3 +258,12 @@ le PHP. Une campagne d'agents (`campagne-agents`) sur le thème
 ## Décisions de René (2026-10-15)
 
 **Prophecy of Telor reste ÉTEINTE** (`DemarreurQuete::BOITES_INCOMPLETES['prophecy_telor']`) tant que Fellmarak n'a **ni fuite (quête 12) ni mort par tirage aléatoire (quête 13)**. Le Sorcier du Dread générique reste seedé comme sous-boss ; aucun thème n'est ouvert sans boss jouable. La raison écrite de la liste est inchangée. `docs/regles/bestiaire-et-rencontres.md` § Décisions de René du 2026-10-15.
+
+## Décision de René (2026-10-23) — ce qui n'entre pas dans un jeu de quêtes générées
+
+Critère (René, 2026-10-23 : « retirer ce qui ne devrait pas être implanté dans un jeu de quête dynamique ») : ce qui n'existe que dans le script d'une quête précise — structure de campagne, objectif d'arc, fin scénarisée, PNJ de scénario, règle d'une seule salle ou d'une seule quête — n'entre pas, parce que nos quêtes sont GÉNÉRÉES et ne rejouent jamais une quête du livret. Ce qui se pose dans n'importe quel donjon généré (monstre, mécanique, piège, mobilier, objet, terrain) reste à porter. Retirer est un choix écrit, jamais une omission : le texte des lots est gardé, marqué ⛔ / ⚠ à son titre.
+
+- **La fuite de Fellmarak à 0 Body (q. 12) et sa mort par tirage de *Fuite* sous *Zargon's Flame* (q. 13) sont écartées** : c'est une fin de vie écrite pour deux quêtes consécutives d'un arc fixe, qu'un donjon généré ne rejoue jamais. Le lot D se réduit à ses stats (q. 12 : 8/5/4/6/6) et à son répertoire (cinq sorts déjà au catalogue).
+- **Conséquence** : la condition de la décision du 2026-10-15 (« éteinte tant que Fellmarak n'a ni fuite ni mort par tirage ») ne peut plus être remplie. La boîte **reste éteinte** jusqu'au chantier qui la rallume.
+- **Tranché le même jour (René) : « Fellmarak pourrait être juste mort sans revenir »** — à 0 Body il **meurt**, comme tout boss : ni fuite, ni seconde forme, ni *Zargon's Flame*. C'est un **écart assumé au livret**, à écrire au seeder et dans `BestiaireSourceTest`. Le chantier qui rallume la boîte reste à lancer : semer Fellmarak (boss `prophecy_telor`, stats de la q. 12, ses cinq sorts), mesurer son `cout`, sa rencontre finale, sa voix, puis le sortir de `BOITES_INCOMPLETES` et l'ajouter à `BOITES_THEMATIQUES` (modulo 7 → 8 : la colonne `groupes.theme_bestiaire` protège les campagnes déjà en cours).
+- Lots B, C, E et F inchangés.
