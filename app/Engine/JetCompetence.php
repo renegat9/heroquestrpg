@@ -16,8 +16,8 @@ use App\Engine\Des\LanceurDes;
  * Issues (P4 — réussite mixte) :
  * - succès ≥ difficulté                → Réussite.
  * - succès = difficulté − 1 ET ≥ 1     → Réussite mixte (« quasi-échec ») :
- *   le MJ IA arbitre ensuite entre succès à coût et échec sec, mais c'est le
- *   moteur qui détecte l'état.
+ *   un ÉCHEC nommé (P4 tranchée le 2026-10-19, voir IssueJet) — aucun effet
+ *   n'en découle, seul le récit dit « raté de peu ».
  * - sinon                              → Échec.
  *
  * Interprétations actées ici :

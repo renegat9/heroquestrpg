@@ -70,13 +70,31 @@ node audio-tools/lyria-ambiance.mjs                    # boucles d'ambiance
   `lignes` attaque/touché/raté/mort, `lignes_boss` avec `{nom}`). Résolveur
   `BanqueBarks`. Sans clé ni asset, la table **lit le texte** en Web Speech —
   l'audio est de l'ambiance, jamais une mécanique.
+  ⚠ **Tout monstre ajouté au bestiaire doit recevoir sa voix** dans
+  `barks.archetypes` — `BarksArchetypesTest` échoue sinon (registre testé dans les
+  deux sens, 2026-10-20 : 63 créatures d'extension retombaient en silence sur
+  `defaut`). Une voix par **famille** (ogre, bete, sorcier, fleau…), pas par
+  monstre : un profil neuf coûte 12 requêtes TTS.
 - **Narration** : `config/narration.php` (`lancement`, `repli`). ⚠ Le repli
   scripté est le **cas nominal**, pas un filet : il porte 21 des 24 temps forts
   et joue pendant les premières secondes de **chaque** quête.
-  ⚠ **Seules les descriptions de salle** reçoivent la vraie voix : une ligne à
-  variables n'existe qu'une fois substituée, donc son `sha1` ne peut jamais
-  toucher le cache. **Ajouter des variantes est donc gratuit** (zéro token, zéro
-  quota TTS) — et les clés fréquentes en veulent 8 à 12, pas 2.
+  ⚠ **Une ligne à variables (`{heros}`, `{or}`…) n'a JAMAIS d'audio** : elle
+  n'existe qu'une fois substituée. `BibliothequeNarration::aDesVariables()` est
+  le seul point de passage — `narration:generer` la saute, `repli()` ne sert pas
+  son fichier (avant le 2026-10-20, 73 lignes étaient synthétisées accolades
+  comprises et jouées à la table). Une variante **sans** variable coûte 1 requête
+  TTS ; une variante **à** variables est gratuite — et les clés fréquentes en
+  veulent 8 à 12, pas 2.
+- ⚠ **Un fichier pré-généré est lié à son TEXTE, pas à son rang** : chaque
+  `{i}.wav` porte `{i}.sha1` (`App\Partie\Audio\BanqueAudio`, narration ET
+  barks). Retoucher une réplique dans `config/` suffit : la commande régénère ce
+  qui a changé, supprime ce qui ne correspond plus à rien, et la table ne joue
+  jamais un fichier dont l'empreinte diffère du texte. **Plus de `rm -r` à la
+  main.** Un fichier sans empreinte n'est jamais joué ; le premier passage l'adopte.
+- ⚠ **Gemini TTS répond parfois 200 SANS audio**, sur des phrases ordinaires
+  (« Inefficace. ») : un aléa, pas un texte imprononçable. `TtsGemini` retente
+  deux fois (`REESSAIS_SANS_AUDIO`) et nomme le `finishReason` s'il abandonne.
+  Une réplique encore en échec : relancer la commande, elle ne reprend qu'elle.
 - ⚠ **Quota Gemini TTS : 100 requêtes/jour**, même facturé. Les commandes sont
   résumables (elles sautent l'existant) ; étaler sur plusieurs jours.
 - **Ambiance** : `public/audio/ambiance/{scene}.{ogg|mp3|wav}`, scène dérivée

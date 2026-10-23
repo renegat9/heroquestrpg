@@ -7,6 +7,7 @@ namespace App\Partie\Narration;
 use App\Agent\Audio\TtsGemini;
 use App\Models\Parametre;
 use App\Models\Quete;
+use App\Partie\Audio\BanqueAudio;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -36,7 +37,7 @@ final class BibliothequeNarration
             'cle' => 'lancement',
             'texte' => (string) ($variantes[$index] ?? ''),
             'ambiance' => $ambiance,
-            'url' => $this->urlScript('lancement', $index),
+            'url' => $this->urlScript('lancement', $index, (string) ($variantes[$index] ?? '')),
         ];
     }
 
@@ -55,12 +56,16 @@ final class BibliothequeNarration
         }
 
         $index = array_rand($variantes);
+        $texte = (string) $variantes[$index];
 
         return [
             'cle' => $cle,
-            'texte' => (string) $variantes[$index],
+            'texte' => $texte,
             'ambiance' => (string) config("narration.repli.{$cle}.ambiance", 'tension'),
-            'url' => $this->urlScript($cle, $index),
+            // ⚠ Jamais d'audio pour une réplique à variables : le fichier lirait
+            // « {heros} » quand le texte, lui, est substitué par `pourQuete()`. La
+            // table la lit en Web Speech, avec le vrai nom (2026-10-20).
+            'url' => self::aDesVariables($texte) ? null : $this->urlScript($cle, $index, $texte),
         ];
     }
 
@@ -183,12 +188,28 @@ final class BibliothequeNarration
         );
     }
 
-    /** URL publique de l'audio scripté (cle/index) s'il existe, sinon null. */
-    public function urlScript(string $cle, int $index): ?string
+    /**
+     * La réplique porte-t-elle une variable `{heros}`, `{monstre}`, `{objet}`, `{or}`… ?
+     *
+     * ⚠ SEUL point de passage de la règle « une réplique à variables n'a jamais
+     * d'audio pré-généré » : `narration:generer` la saute (73 des 184 répliques,
+     * autant de requêtes du quota TTS de 100/jour qui produisaient une voix lisant
+     * les accolades), et `repli()` ne sert pas l'URL d'un fichier qu'une
+     * génération antérieure aurait laissé.
+     */
+    public static function aDesVariables(string $texte): bool
     {
-        $rel = "narration/{$cle}/{$index}.wav";
+        return preg_match('/\{[a-z_]+\}/', $texte) === 1;
+    }
 
-        return is_file(public_path("audio/{$rel}")) ? "/audio/{$rel}" : null;
+    /**
+     * URL publique de l'audio scripté (cle/index) s'il prononce bien `$texte`,
+     * sinon null — un fichier resté d'une version antérieure de la réplique n'est
+     * jamais joué sur le nouveau texte (`BanqueAudio`).
+     */
+    public function urlScript(string $cle, int $index, string $texte): ?string
+    {
+        return BanqueAudio::url('narration', "{$cle}/{$index}.wav", $texte);
     }
 
     /**

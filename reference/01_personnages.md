@@ -628,6 +628,6 @@ Champs du **Personnage** (la techno viendra plus tard) :
 1. **Mort (P1)** : à 0 PV de Body, le héros est **« tombé »** (occupe sa case), relevable par soin ou allié. **Mort définitive** s'il n'est pas relevé avant la fin du combat.
 2. **Récupération (P2)** : PV et sorts **récupèrent intégralement entre les quêtes** ; les **potions** soignent en cours de quête. Pas de récupération par repos.
 3. **Attributs (P3)** : **aucun plafond** ; le MJ IA monte la difficulté des jets pour conserver le défi.
-4. **Réussite des jets (P4)** : **mixte** — selon le contexte, un quasi-échec donne un « succès à coût » ou un échec sec ; arbitrage du MJ IA.
+4. **Réussite des jets (P4)** : ~~**mixte** — selon le contexte, un quasi-échec donne un « succès à coût » ou un échec sec ; arbitrage du MJ IA.~~ **Tranché le 2026-10-19 (René) : un quasi-échec est un échec sec**, pour garder le fonctionnement réel du jeu de société, qui n'a pas de réussite mixte. Le moteur continue de le **détecter** (`IssueJet::ReussiteMixte`, succès = difficulté − 1 et ≥ 1) pour le **nommer** — fil « échoué », narration « raté de peu » —, jamais pour en tirer un effet. L'arbitrage par le MJ IA est de toute façon caduc : l'IA construit la quête et ne la joue plus.
 5. **Inventaire (P5)** : **limité par emplacements**.
 6. **Niveaux (P6)** : montée **liée à l'achèvement des quêtes** (~5 à 8 niveaux par campagne).

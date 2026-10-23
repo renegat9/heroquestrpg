@@ -231,7 +231,15 @@ it('LE MIROIR : un porteur de la MAUVAISE classe peut tendre la potion à un voi
     // PORTEUR plutôt que le buveur, aurait refusé ceci à tort : le magicien
     // n'a pas la classe requise, mais ce n'est pas lui qui boit.
     $ctx = deuxHerosAdjacents('magicien', 'barbare');
-    ['groupe' => $groupe, 'alice' => $alice, 'krogar' => $porteur, 'aldric' => $buveur, 'etatAldric' => $etatBuveur] = $ctx;
+    ['groupe' => $groupe, 'alice' => $alice, 'krogar' => $porteur, 'aldric' => $buveur, 'etatAldric' => $etatBuveur, 'quete' => $quete] = $ctx;
+
+    // La rage ne dure qu'AVEC un monstre en vue du barbare (carte : « as long as there are
+    // monsters in sight », 2026-10-17) : sans figure à son contact, elle tomberait au bout de
+    // la résolution, et le test ne pourrait plus lire le destinataire du drapeau. Un gobelin
+    // se met donc au contact du buveur.
+    $gobelin = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
+    $contact = caseAdjacenteLibre($quete, (int) $etatBuveur->position_x, (int) $etatBuveur->position_y);
+    $gobelin->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'etat' => 'actif', 'revele' => true]);
 
     $ligne = potionAuSacDe($porteur, 'Potion de rage guerrière');
     $entree = entreeObjetDe($groupe, $alice, $porteur, $ligne);
@@ -265,4 +273,35 @@ it('la Potion de vision (Elfe) — citée par René — a du sens tendue à un v
 
     expect(app(MoteurSorts::class)->aBuff($elfe->fresh(), 'revele_pieges_et_portes_en_vue'))->toBeTrue()
         ->and(app(MoteurSorts::class)->aBuff($nain->fresh(), 'revele_pieges_et_portes_en_vue'))->toBeFalse();
+});
+
+it('sans cible_id, une potion qui en exige une répond « Cible requise », jamais « Cible illégale »', function () {
+    $ctx = deuxHerosAdjacents('barbare', 'magicien');
+    ['groupe' => $groupe, 'alice' => $alice, 'krogar' => $krogar, 'aldric' => $aldric,
+        'etatKrogar' => $etatKrogar, 'etatAldric' => $etatAldric] = $ctx;
+
+    // Aldric à DEUX cases : hors de la liste de cibles (même réglage que le test d'adjacence).
+    $etatAldric->update(['position_x' => (int) $etatKrogar->position_x + 2, 'position_y' => (int) $etatKrogar->position_y]);
+
+    $ligne = potionAuSacDe($krogar, 'Potion de soin mineur');
+    $entree = entreeObjetDe($groupe, $alice, $krogar, $ligne);
+
+    // La liste EXIGE une cible : sans `cible_id`, le message doit dire ce qui manque.
+    expect(collect($entree['cibles'] ?? [])->pluck('id')->all())->not->toBe([]);
+
+    $sansCible = test()->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}"],
+    ])->assertStatus(422);
+
+    expect($sansCible->json('errors.parametres.0'))->toStartWith('Cible requise')
+        ->and($sansCible->json('errors.parametres.0'))->not->toContain('illégale');
+
+    // Une cible FOURNIE mais hors de la liste (Aldric, à deux cases) reste « illégale ».
+    $horsListe = test()->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}", 'cible_id' => $aldric->id, 'cible_type' => 'heros'],
+    ])->assertStatus(422);
+
+    expect($horsListe->json('errors.parametres.0'))->toBe('Cible illégale pour cet objet.');
 });

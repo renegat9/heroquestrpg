@@ -18,7 +18,7 @@ moteur résout l'option choisie*.
 > (campagne multi-quêtes, sous-boss, boss final, clôture), avec **narration IA
 > (Claude ou Gemini, au choix)**, **voix TTS**, **musique d'ambiance** et
 > **illustrations** générées. Reste surtout l'**équilibrage** (valeurs de départ
-> à playtester). **564 tests Pest verts.**
+> à playtester). **2 519 tests Pest.**
 
 | Domaine | Statut | Notes |
 |---|:---:|---|
@@ -38,6 +38,9 @@ moteur résout l'option choisie*.
 | Front Vue (accueil, narrateur, joueur, table, manette) | ✅ | Écrans vérifiés au navigateur (Playwright) |
 | Modèle de session (narrateur par code + joueurs à compte) | ✅ | Heartbeat « narrateur actif » ; quête au statut « prêt » de tous |
 | **Audio / voix** | ✅ | Narration MJ **lue en TTS** + **voix dédiée du narrateur** + **barks de monstres** (voix par archétype, répliques nommées de boss) + **musique d'ambiance** (hub/exploration/combat/boss, via Lyria). Audio pré-généré (`php artisan barks:generer`, `narration:generer`, `audio-tools/`) ; **sans clé/asset**, repli Web Speech (texte) et ambiance silencieuse |
+| **Alliés recrutables** (mercenaires & compagnons animaux) | ✅ | Recrutement au hub (`RecrutementHub`) : 4 par héros max, un seul animal, remise de la Potion de charme, recrutement offert par la faveur *Mercenary Guild*, entretien entre les quêtes. Les alliés jouent dans le tour du héros qui les mène (sa manette : déplacement libre sur la carte, « approcher » un monstre, attaque) et **les monstres les attaquent** |
+| **Monstres à phases** & **lanceurs de Dread autonomes** | ✅ | Un seul mot-clé `phase_suivante` (Gruzbella, Gruulob…) ; sbires lanceurs de sorts par archétype (`archetype_lanceur`) |
+| **Pièges magiques** | ✅ | Embrasement (*Fireburst*) et consorts, issus de *Wizards of Morcar* |
 | **Équilibrage** (stats, prix, difficultés) | 🧪 | Valeurs **de départ**, à régler en playtest |
 | Déploiement public / WAN durci | 🚫 | Hors périmètre — LAN/VPN uniquement |
 
@@ -98,6 +101,42 @@ sont **régénérables** et hors dépôt (gitignored).
 
 Une campagne neuve démarre à **0 or** : les héros partent avec leur arme de classe et le premier butin se gagne au donjon — le marché ne prend son sens qu'après la première quête.
 
+## 🧩 Extensions
+
+Les boîtes d'extension officielles Avalon Hill (2021-2025) sont portées depuis leurs **livrets et cartes**, inventoriés et sourcés page par page dans [`reference/18_extensions.md`](reference/18_extensions.md). Rien n'est semé qu'un livret ou une carte ne source pas ; une boîte qu'on ne peut pas porter entièrement est **retirée par une phrase écrite**, jamais par omission.
+
+### Thème de campagne : une boîte par groupe
+
+Chaque campagne tire **une boîte thématique** qui fixe son bestiaire, son boss final, ses terrains et son mobilier. Le choix est une **rotation déterministe** sur l'id du groupe, puis il est **figé en base** (`groupes.theme_bestiaire`) au premier démarrage de quête : ajouter une boîte ne fait jamais changer de thème une campagne en cours. Le jeu de base n'est pas un thème — ses monstres sont le fond commun de toutes les quêtes. Liste et libellés : `DemarreurQuete::BOITES_THEMATIQUES` / `LIBELLES_BOITES`.
+
+| Boîte | Créatures semées | Boss & adversaires notables | Ce que la boîte apporte au moteur |
+|---|:---:|---|---|
+| **Rise of the Dread Moon** | 6 | Ombre du Dread, Sir Ragnar ; Garde-mage | Monstres **éthérés** (`ethere` : traversent tout, seul un bouclier noir les touche) ; Cultiste, premier sbire lanceur de sorts |
+| **The Mage of the Mirror** | 5 | Archimage elfe ; Loup géant, Ogre | Archers et guerriers elfes |
+| **Against the Ogre Horde** | 14 | Seigneur ogre, Ogre commandant, Gruzbella (3 formes), Festral ; Doralf, Xenloth, Spawn of the Pit, Effigie gardienne | **Variante à distance** générique des monstres de base, caisses de ravitaillement, adversaire **tourelle** (`immunite_sorts`) |
+| **Jungles of Delthrak** | 17 | Gruulob (2 formes), Gretzl, Demonspider, Demonape, Scion Fleur-Pourrie ; Deathspinner, Bakabri, Golem Cœur-de-Forge… | **Terrains entravants** (sable, toile, jungle), mobilier destructible (amas de cristal, cocon), traits `agile`, `racines_entravantes`, `venimeux`, `tacticien`, `spawn` |
+| **The Frozen Horror** | 4 | Horreur des Glaces (ses 6 sorts fixes) ; Yéti, Ours polaire de guerre | **Terrains de glace** (glace glissante, glissières, rivière gelée, tunnels, crevasses…), étreinte du Yéti, vol du Gremlin |
+| **First Light** | 1 | **Dragon** (grande taille, vol draconique, Boule de feu à volonté) | Rencontre finale draconique sur le bestiaire de base |
+| **Wizards of Morcar** | 8 | **l'Artificière** (boss) ; Maître des orages, Haut mage, Nécromancien, Mage de guerre orque, Minotaure (sous-boss) | Les sorciers du Dread nommés et leurs sorts, Golems, Dreadshifters (embuscade), Haut Autel et Coffre du Dread |
+
+**Désactivée (choix écrit)** — *Prophecy of Telor* : son seul boss sourcé, Fellmarak, ne meurt pas normalement (il fuit en quête 12, meurt par tirage en quête 13) et aucun de ces deux mécanismes n'existe encore. Seul son Sorcier du Dread générique est semé, comme sous-boss. Liste et raisons : `DemarreurQuete::BOITES_INCOMPLETES`.
+
+**Pas (encore) de thème** — *Kellar's Keep*, *Return of the Witch Lord*, *Spirit Queen's Torment*, *The Crypt of Perpetual Darkness* : inventoriées dans le doc 18, sans bestiaire propre suffisant ou avec des mécaniques non portées. Quelques mécanismes isolés existent déjà (l'apparition « à la vue » du Dread Skull de la Crypte est testée en jeu mais **non semée**).
+
+### Héros des extensions
+
+**12 classes jouables** : les 4 du jeu de base (Barbare, Nain, Elfe, Magicien) et **8 classes d'extension**, chacune portée depuis sa **carte de personnage officielle** (fiches et capacités transcrites dans `reference/01_personnages.md` §4bis-4quater) :
+
+| Classe | Source |
+|---|---|
+| Barde, Druide, Warlock | HasLab *Mythic Tier* (2021) |
+| Rogue | *Rogue Heir of Elethorn* (Hero Collection) |
+| Moine | *Path of the Wandering Monk* (Hero Collection) — 8 techniques |
+| Chevalier | *Commander of the Guardian Knights* (Hero Collection) — bouclier de départ |
+| Berserker, Explorateur | *Jungles of Delthrak* |
+
+Sir Ragnar, héros retiré au plateau, apparaît comme figure de *Dread Moon* et comme allié nommé de *Wizards of Morcar*. Les règles qui encadrent tout ça : [`docs/regles/bestiaire-et-rencontres.md`](docs/regles/bestiaire-et-rencontres.md) (thèmes, boss, coûts mesurés) et [`docs/regles/sorts-heros.md`](docs/regles/sorts-heros.md) (classes lanceuses de sorts).
+
 ### ⏳ Durées d'effet
 
 Un buff (sort ou potion) déclare **quand il s'arrête** via sa clé `effet.duree`. Six mots-clés, et rien d'autre — voir `reference/19_mots_cles_effets.md` et `App\Engine\DureeEffet` :
@@ -137,7 +176,7 @@ Les pièces d'armure se **cumulent**, comme au plateau : le casque a son propre 
 
 Un test verrouille le vocabulaire **dans les deux sens** : aucune clé de catalogue hors du vocabulaire (une règle annoncée que personne n'applique), et aucun mot déclaré que plus aucun objet ne porte (une règle qui n'existe que sur le papier).
 
-Le **bestiaire** suit la même discipline. Les 8 monstres de base viennent des cartes monstre — une table que les livrets renvoyaient à l'écran du MJ, jamais numérisé — et deux passages des livrets la recoupent. Les **23 créatures d'extension** (Dread Moon, Mage of the Mirror, Frozen Horror, Ogre Horde, Jungles of Delthrak) viennent, elles, des **livrets officiels** via `reference/18_extensions.md` : quand les cartes de fans les contredisent, le livret gagne. ⚠ Au plateau, tout monstre de base a **1 point de Body** — le gobelin comme la gargouille : le bestiaire est nettement plus fragile depuis le 2026-08-09, et c'est le design du jeu.
+Le **bestiaire** suit la même discipline. Les monstres de base (les 8 cartes plus l'Abomination) viennent des **cartes monstre officielles** scannées par René (`reference/20_cartes_monstres.md`) : quand un paquet de fans les contredit, la carte gagne. Les **56 créatures d'extension** (voir [🧩 Extensions](#-extensions)) viennent des **livrets officiels** via `reference/18_extensions.md`.
 
 Six **traits d'extension** sont dans le moteur depuis le 2026-08-10 : `agile` (ignore mobilier et figures, pas les murs), `racines_entravantes` (arrête net le héros qui entre au contact), `venimeux` (paralysie, sauf 5-6 sur un d6), `tacticien` (+1 dé contre une cible flanquée, puis décrochage), `spawn` (engendre la créature nommée par la capacité, qui **s'accroche** au héros en jeton cumulable — 1 PV automatique et indéfendable par fin de tour, que le **porteur ou un compagnon au contact** arrache, un par crâne) et `ethere` (traverse tout, mais ne s'arrête ni sur une case occupée ni dans une salle non découverte — et **seul un bouclier noir le touche**, sauf sort ou artefact). Porter le venin a obligé à câbler `deplacement_interdit`, une clé de condition qui n'avait **aucun lecteur** : un héros « Immobilisé » marchait normalement.
 
@@ -149,7 +188,7 @@ Deux mécaniques ont été ouvertes le 2026-08-09 pour débloquer sept de ces ca
 
 ## 🧪 Tests
 
-Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **638 tests verts**.
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **2 519 tests** (88 699 assertions).
 
 ```bash
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
@@ -181,8 +220,21 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
   `docker compose down -v` ne retire que les volumes **nommés**, donc les données y survivent ;
   et hors du dépôt parce que `git clean -xfd` supprime aussi les fichiers ignorés.
 
-## 🛣️ Reste à faire (court terme)
+## 🛣️ Reste à faire
+
+**Court terme**
 
 - **Équilibrage** : régler stats / prix / difficultés en playtest (la tactique du bot de test est limitée — un humain place mieux ses héros).
 - **Assets** : (re)générer les illustrations / voix manquantes selon le budget API ; affiner les prompts de style (`config/images.php`) au besoin.
-- Phase 2 (doc 00 §8) : alliés recrutables, marchandage, ramifications profondes, boss multi-phases, etc.
+- **Restes du dernier relevé** (`docs/correctifs-restants.md` §0) : voix du narrateur muette sur l'issue `errant` d'un coffre ; épilogue de défaite qui oublie les quêtes gagnées ; narration décorrélée d'une action (**à reproduire avant de corriger**) ; porte sans option « Ouvrir » (à reconfirmer en jeu). L'onglet narrateur en arrière-plan > 1 min reste écarté **par choix** (piste : battement en Web Worker).
+
+**Extensions** (voir [🧩 Extensions](#-extensions))
+
+- *Prophecy of Telor* : construire la fuite (quête 12) et la mort par tirage (quête 13) de Fellmarak, puis rallumer le thème.
+- *Kellar's Keep*, *Return of the Witch Lord*, *Spirit Queen's Torment*, *The Crypt of Perpetual Darkness* : pas encore de thème (plans dans `docs/plan-*.md`).
+
+**Phase 2** (doc 00 §8) — déjà livrés : alliés recrutables, lanceurs de Dread autonomes, monstres à phases, pièges magiques. Écarté : le **succès à coût généralisé** — un jet raté de peu est un échec sec, comme au plateau (P4, tranchée le 2026-10-19). Restent :
+
+- **Marchandage** : un seul marchand, tout au prix normal, **par décision** (René, 2026-09-12) — les quatre profils de `ProfilMarche` sont la matière première de la négociation, pas du code mort.
+- **Économie dynamique** et **événements de ville dynamiques** : rien d'engagé.
+- **Ramifications profondes** : la colonne `quetes.branche_active` existe mais rien ne l'écrit encore ; l'arc reste à ramification simple.

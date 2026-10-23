@@ -62,9 +62,29 @@ class GenererMenu implements ShouldQueue
         return "partie:menu:{$groupeId}:{$joueurId}";
     }
 
+    /**
+     * Le groupe n'est-il PAS en quête (hub, ou quête sans carte) ? LE prédicat unique :
+     * le job, le rattrapage (`MenuCourant`) et le refus (`ChoixController`) le lisent
+     * tous. Hors quête, il n'y a aucun menu de quête à publier, à servir ni à accepter.
+     */
+    public static function sansQuete(Groupe $groupe): bool
+    {
+        return $groupe->phase !== 'quete' || $groupe->quete_courante_id === null;
+    }
+
     public function handle(MenuMoteur $menuMoteur, OrdreDuTour $ordreDuTour): void
     {
         $groupe = Groupe::findOrFail($this->groupeId);
+
+        // HUB (2026-10-17) : la dernière action d'une quête déclenche ces jobs APRÈS la
+        // fin de la quête. Il n'y a alors aucun menu à publier : un menu resté en cache
+        // est jeté, et le job s'arrête là — il ne publie pas le repli « attendre / continuer ».
+        if (self::sansQuete($groupe)) {
+            Cache::forget(self::cleMenu($groupe->id, $this->joueurId));
+
+            return;
+        }
+
         $personnage = $this->personnage($groupe);
 
         // ALLIÉ JOUÉ PAR SON JOUEUR (2026-10-04, chantier 3a) : si c'est au
@@ -134,6 +154,15 @@ class GenererMenu implements ShouldQueue
                 'groupe_id' => $this->groupeId,
                 'erreur' => $secondaire->getMessage(),
             ]);
+
+            return;
+        }
+
+        // Le filet protège une partie EN COURS. Hors quête (hub), il n'y a aucune partie à
+        // remettre en marche : rien ne se publie, et un reste en cache est jeté (2026-10-17 —
+        // « Terminer le tour » servi au hub, et acceptable, était le même défaut).
+        if (self::sansQuete($groupe)) {
+            Cache::forget(self::cleMenu($groupe->id, $this->joueurId));
 
             return;
         }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Models\EtatPersonnageQuete;
+use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Piege;
@@ -102,7 +103,10 @@ final class DeplacementHeros
             $grille->franchirMobilier();
         }
 
-        $grille->obstruer($this->casesInconnues($quete, $personnage));
+        $position = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first(['position_x', 'position_y']);
+        $origine = $position?->position_x === null ? null : ['x' => (int) $position->position_x, 'y' => (int) $position->position_y];
+
+        $grille->obstruer($this->casesInconnues($quete, $origine));
 
         return $grille;
     }
@@ -122,6 +126,114 @@ final class DeplacementHeros
     }
 
     /**
+     * LA GRILLE DE PASSAGE D'UN ALLIÉ (2026-10-17) — la même question que celle
+     * d'un héros (« où puis-je passer, où puis-je m'arrêter ? »), posée à un mobile
+     * sans talent ni sort : il traverse héros et alliés (`franchitAllies`), ne
+     * s'arrête sur aucun, ne traverse ni monstre, ni meuble, ni mur, et NE FRANCHIT
+     * PAS LE BROUILLARD (même soupape que le héros). Point de passage UNIQUE : le
+     * menu (`se_deplacer_case_allie`, `se_deplacer_allie`), le résolveur et
+     * l'aperçu la lisent ici. Une copie par lecteur serait la dérive de miroir que
+     * cette classe interdit.
+     */
+    public function grilleAllie(Quete $quete, GroupeMercenaire $allie): Grille
+    {
+        $grille = FabriqueGrille::pour($quete, exceptMercenaireId: $allie->id, franchitAllies: true);
+        $grille->obstruer($this->casesInconnues($quete, $this->origineAllie($allie)));
+
+        return $grille;
+    }
+
+    /** La grille RÉELLE d'un allié : qui occupe quoi, pour les refus d'arrêt uniquement. */
+    public function grilleReelleAllie(Quete $quete, GroupeMercenaire $allie): Grille
+    {
+        return FabriqueGrille::pour($quete, exceptMercenaireId: $allie->id);
+    }
+
+    /**
+     * LES CASES OÙ CET ALLIÉ PEUT S'ARRÊTER, avec leur coût — `se_deplacer_case_allie.
+     * parametres.destinations`, et la liste blanche que le résolveur revalide. Même
+     * `casesAtteignables()` que le héros, même refus d'arrêt (`refusArret()`), SA
+     * vitesse (`mercenaire.deplacement`, en points) à la place de la portée d'un dé.
+     * Pas de détour autour des pièges : un allié n'en déclenche aucun (`MoteurPieges`).
+     *
+     * @return list<array{x: int, y: int, cout: int}>
+     */
+    public function destinationsAllie(Quete $quete, GroupeMercenaire $allie): array
+    {
+        $origine = $this->origineAllie($allie);
+        $vitesse = (int) $allie->mercenaire?->deplacement;
+
+        if ($origine === null || $vitesse < 1 || $quete->carte === null) {
+            return [];
+        }
+
+        $grille = $this->grilleAllie($quete, $allie);
+        $reelle = $this->grilleReelleAllie($quete, $allie);
+        $enfumes = $this->casesEnfumees($quete);
+
+        $destinations = [];
+
+        foreach ($grille->casesAtteignables($origine['x'], $origine['y'], $vitesse) as $cle => $chemin) {
+            [$x, $y] = array_map(intval(...), explode(',', $cle));
+
+            if ($this->refusArret($quete, $reelle, $x, $y, $enfumes) !== null) {
+                continue;
+            }
+
+            $destinations[] = ['x' => $x, 'y' => $y, 'cout' => $grille->coutChemin($chemin)];
+        }
+
+        usort($destinations, fn (array $a, array $b) => [$a['y'], $a['x']] <=> [$b['y'], $b['x']]);
+
+        return $destinations;
+    }
+
+    /**
+     * Le trajet qu'un ALLIÉ emprunte vers une case — l'aperçu de sa manette. Même
+     * grille et mêmes refus que `destinationsAllie()` ; le motif d'un refus est rendu
+     * tel quel (l'aperçu le dit avant le second tap, la liste et le résolveur
+     * décident). Un allié ne déclenche aucun piège : pas de `pieges` à signaler.
+     *
+     * @return array{atteignable: bool, raison: ?string, chemin: list<array{x: int, y: int}>, cout: int}
+     */
+    public function trajetAllie(Quete $quete, GroupeMercenaire $allie, int $x, int $y): array
+    {
+        $origine = $this->origineAllie($allie);
+        $vitesse = (int) $allie->mercenaire?->deplacement;
+
+        if ($origine === null || $vitesse < 1 || $quete->carte === null) {
+            return ['atteignable' => false, 'raison' => 'Cet allié n\'est pas sur la carte.', 'chemin' => [], 'cout' => 0];
+        }
+
+        $grille = $this->grilleAllie($quete, $allie);
+        $chemin = $grille->chemin($origine['x'], $origine['y'], $x, $y);
+
+        if ($chemin === null || $chemin === []) {
+            return ['atteignable' => false, 'raison' => 'Destination inaccessible (mur, case occupée ou sur place).', 'chemin' => [], 'cout' => 0];
+        }
+
+        $refus = $this->refusArret($quete, $this->grilleReelleAllie($quete, $allie), $x, $y);
+
+        if ($refus !== null) {
+            return ['atteignable' => false, 'raison' => $refus, 'chemin' => [], 'cout' => 0];
+        }
+
+        $cout = $grille->coutChemin($chemin);
+
+        if ($cout > $vitesse) {
+            return ['atteignable' => false, 'raison' => "Destination hors de portée : {$cout} points de déplacement pour {$vitesse}.", 'chemin' => [], 'cout' => $cout];
+        }
+
+        return ['atteignable' => true, 'raison' => null, 'chemin' => $chemin, 'cout' => $cout];
+    }
+
+    /** Où l'allié se tient-il ? `null` s'il n'est pas (encore) posé sur la carte. */
+    private function origineAllie(GroupeMercenaire $allie): ?array
+    {
+        return $allie->position_x === null ? null : ['x' => (int) $allie->position_x, 'y' => (int) $allie->position_y];
+    }
+
+    /**
      * Cases que la carte du groupe ne montre PAS (`b`) — obstacles de la grille
      * de déplacement. Même source que `EtatGroupe::carte().cases` : ni plus, ni
      * moins que ce que le joueur voit.
@@ -136,13 +248,13 @@ final class DeplacementHeros
      *
      * @return list<array{x: int, y: int}>
      */
-    private function casesInconnues(Quete $quete, Personnage $personnage): array
+    private function casesInconnues(Quete $quete, ?array $origine): array
     {
         $connues = $this->etatGroupe->casesConnues($quete);
 
-        $position = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first(['position_x', 'position_y']);
-
-        if ($position?->position_x !== null && ($connues[$position->position_y][$position->position_x] ?? 'b') === 'b') {
+        // Soupape : le mobile se tient sur une case inconnue → pas de brouillard
+        // à respecter pour LUI (même garde pour le héros et pour l'allié).
+        if ($origine !== null && ($connues[$origine['y']][$origine['x']] ?? 'b') === 'b') {
             return [];
         }
 

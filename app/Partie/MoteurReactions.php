@@ -1392,6 +1392,12 @@ final class MoteurReactions
             acteur: ['type' => 'personnage', 'id' => $heros->id, 'nom' => $heros->nom],
         );
 
+        // La riposte peut abattre la dernière figure en vue : la vue se relit AU MOMENT où elle
+        // change (2026-10-17), comme après une action — hors fenêtre de résolution, le fil la diffuse.
+        if ($etat->quete !== null) {
+            app(MoteurSorts::class)->rompreBuffsDeVue($etat->quete);
+        }
+
         return [
             'type' => 'reaction',
             'personnage' => $heros->nom,

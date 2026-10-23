@@ -299,10 +299,13 @@ onMounted(async () => {
                     <MSym n="square" fill />
                     <span class="dep-portee-lbl">S'écarter du bloc de pierre</span>
                 </div>
+                <!-- Le reliquat se compte en POINTS de déplacement, pas en cases : le terrain
+                     pondéré (sable, jungle) coûte 2 points par case. C'est l'unité de
+                     `destinations[].cout` et de l'aperçu ci-dessous. -->
                 <div class="dep-roll" v-else>
                     <MSym n="casino" fill />
                     <span class="dep-portee">{{ portee }}</span>
-                    <span class="dep-portee-lbl">cases</span>
+                    <span class="dep-portee-lbl">{{ portee > 1 ? 'points' : 'point' }}</span>
                 </div>
                 <div class="dep-detail" v-if="de != null">
                     {{ base }}

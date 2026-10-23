@@ -493,10 +493,16 @@ final class ResolveurTour
         if ($creneau === 'mouvement' && $etat->a_deplace) {
             throw ValidationException::withMessages(['personnage_id' => 'Tu t\'es déjà déplacé ce tour.']);
         }
-        // Potion d'héroïsme : une seconde ATTAQUE au-delà du créneau d'action.
-        $bonusHeroisme = $creneau === 'action' && $etat->a_agi
-            && ($option['type'] ?? null) === 'attaque'
-            && (bool) $etat->attaque_supplementaire;
+        // Potion d'héroïsme (et toute seconde frappe en attente) : une seconde ATTAQUE au-delà du
+        // créneau d'action. Les deux prédicats sont ceux du menu : `secondeFrappeEnAttente()` et
+        // `estSecondeFrappe()` (quelles options peuvent être cette seconde frappe).
+        $bonusHeroisme = $creneau === 'action'
+            && self::estSecondeFrappe($option)
+            && self::secondeFrappeEnAttente($etat);
+
+        // SECONDE FRAPPE PERDUE PAR LE DÉPLACEMENT (décision de René, 2026-10-22) : lu AVANT le geste.
+        // Appliqué après une résolution RÉUSSIE seulement, dans la transaction : un 422 ne fait rien perdre.
+        $perdSecondeFrappe = $creneau === 'mouvement' && self::secondeFrappeEnAttente($etat);
 
         if ($creneau === 'action' && $etat->a_agi && ! $bonusReserveArcanique && ! $bonusHeroisme) {
             throw ValidationException::withMessages(['personnage_id' => 'Tu as déjà agi ce tour.']);
@@ -507,7 +513,7 @@ final class ResolveurTour
         app(TamponAnnonces::class)->ouvrir();
 
         try {
-        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique, $bonusHeroisme) {
+        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique, $bonusHeroisme, $perdSecondeFrappe) {
             $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
 
             // Endormi (Sommeil de Dread ou sort héros en tir ami) : le héros
@@ -658,6 +664,13 @@ final class ResolveurTour
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
+            // SECONDE FRAPPE PERDUE PAR LE DÉPLACEMENT (décision de René, 2026-10-22) : le geste a
+            // RÉUSSI (une exception l'aurait quitté plus haut). Avant `marquerCreneau()`, pour que la
+            // gorgée ne soit plus « non utilisée » à la fin du tour : elle est perdue au geste, et annoncée.
+            if ($perdSecondeFrappe) {
+                $this->perdreSecondeFrappeParDeplacement($groupe, $etat, $personnage);
+            }
+
             // La quête vient d'être GAGNÉE sur le coup (élément-objectif détruit) :
             // ni créneau à consommer, ni fin de round — voir `gagnerParDestruction()`.
             if (! empty($resultat['objectif_detruit'])) {
@@ -761,6 +774,12 @@ final class ResolveurTour
                 $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
                 $this->verifierFinDuCombat($quete); // les alliés ont pu achever le dernier
             }
+
+            // LA VUE, AU MOMENT OÙ ELLE SE VIDE (2026-10-17) : après l'action ET la phase des
+            // monstres (qui ont pu tuer ou déplacer une figure), pour TOUS les héros — un
+            // compagnon qui a déjà joué gardait sinon son Courage jusqu'au round suivant.
+            // Voir `MoteurSorts::rompreBuffsDeVuePour()`.
+            $this->sorts->rompreBuffsDeVue($quete);
 
             // Fin de quête : plus aucun monstre actif → le donjon est nettoyé,
             // mais la quête reste ouverte (fouille, portes, puis vote de sortie).
@@ -7391,6 +7410,35 @@ final class ResolveurTour
     }
 
     /**
+     * La porte que l'option désigne, PARMI celles que ce héros atteint depuis sa case
+     * (`MoteurPortes::portesFermeesAdjacentes()` ou `portesDePierreAdjacentes()`).
+     * Le résolveur ne croit jamais l'option sur parole : la porte doit figurer dans la
+     * liste que le menu a offerte depuis la même case. UN point de passage pour les
+     * trois gestes de porte (ouvrir, forcer la pierre, Bénédiction de l'Oracle) — une
+     * copie par geste aurait gardé le défaut « une seule porte » dans deux d'entre eux.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  list<array{index: int, porte: array<string, mixed>}>  $portes
+     * @return array{index: int, porte: array<string, mixed>}|null
+     */
+    private function porteDesignee(array $option, array $portes): ?array
+    {
+        $x = (int) data_get($option, 'parametres.porte.x', -1);
+        $y = (int) data_get($option, 'parametres.porte.y', -1);
+        $cote = (string) data_get($option, 'parametres.porte.cote', 'e');
+
+        foreach ($portes as $candidate) {
+            if ((int) $candidate['porte']['x'] === $x
+                && (int) $candidate['porte']['y'] === $y
+                && (string) ($candidate['porte']['cote'] ?? 'e') === $cote) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Ouvrir une porte VERROUILLÉE par CLÉ au contact (doc 14 §3.3) : le héros
      * doit être adjacent à la porte et porter l'objet-clé. État persistant.
      *
@@ -7406,17 +7454,12 @@ final class ResolveurTour
         array $option,
         array $acteur,
     ): array {
-        $x = (int) data_get($option, 'parametres.porte.x', -1);
-        $y = (int) data_get($option, 'parametres.porte.y', -1);
-        $cote = (string) data_get($option, 'parametres.porte.cote', 'e');
+        // La porte désignée doit être UNE des portes closes que ce héros atteint (le
+        // menu les offre toutes, une option par porte) — pas seulement la première.
+        $cible = $quete->carte === null ? null : $this->porteDesignee($option,
+            $this->portes->portesFermeesAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y));
 
-        $cible = $quete->carte === null ? null
-            : $this->portes->porteFermeeAdjacente($quete->carte, (int) $etat->position_x, (int) $etat->position_y);
-
-        if ($cible === null
-            || (int) $cible['porte']['x'] !== $x
-            || (int) $cible['porte']['y'] !== $y
-            || (string) ($cible['porte']['cote'] ?? 'e') !== $cote) {
+        if ($cible === null) {
             throw ValidationException::withMessages(['option_id' => 'Aucune porte fermée adjacente à cette position.']);
         }
 
@@ -7445,7 +7488,7 @@ final class ResolveurTour
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'cause' => $cause,
-            'porte' => ['x' => $x, 'y' => $y, 'cote' => $cote],
+            'porte' => ['x' => (int) $cible['porte']['x'], 'y' => (int) $cible['porte']['y'], 'cote' => (string) ($cible['porte']['cote'] ?? 'e')],
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
@@ -7483,19 +7526,16 @@ final class ResolveurTour
         array $option,
         array $acteur,
     ): array {
-        $x = (int) data_get($option, 'parametres.porte.x', -1);
-        $y = (int) data_get($option, 'parametres.porte.y', -1);
-        $cote = (string) data_get($option, 'parametres.porte.cote', 'e');
+        $cible = $quete->carte === null ? null : $this->porteDesignee($option,
+            $this->portes->portesDePierreAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y));
 
-        $cible = $quete->carte === null ? null
-            : $this->portes->porteDePierreAdjacente($quete->carte, (int) $etat->position_x, (int) $etat->position_y);
-
-        if ($cible === null
-            || (int) $cible['porte']['x'] !== $x
-            || (int) $cible['porte']['y'] !== $y
-            || (string) ($cible['porte']['cote'] ?? 'e') !== $cote) {
+        if ($cible === null) {
             throw ValidationException::withMessages(['option_id' => 'Aucune porte de pierre adjacente à forcer.']);
         }
+
+        $x = (int) $cible['porte']['x'];
+        $y = (int) $cible['porte']['y'];
+        $cote = (string) ($cible['porte']['cote'] ?? 'e');
 
         $desBase = (int) $personnage->des_attaque;
 
@@ -7562,19 +7602,16 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => "La Bénédiction de l'Oracle n'est plus disponible."]);
         }
 
-        $x = (int) data_get($option, 'parametres.porte.x', -1);
-        $y = (int) data_get($option, 'parametres.porte.y', -1);
-        $cote = (string) data_get($option, 'parametres.porte.cote', 'e');
+        $cible = $quete->carte === null ? null : $this->porteDesignee($option,
+            $this->portes->portesFermeesAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y));
 
-        $cible = $quete->carte === null ? null
-            : $this->portes->porteFermeeAdjacente($quete->carte, (int) $etat->position_x, (int) $etat->position_y);
-
-        if ($cible === null
-            || (int) $cible['porte']['x'] !== $x
-            || (int) $cible['porte']['y'] !== $y
-            || (string) ($cible['porte']['cote'] ?? 'e') !== $cote) {
+        if ($cible === null) {
             throw ValidationException::withMessages(['option_id' => 'Aucune porte fermée adjacente à cette position.']);
         }
+
+        $x = (int) $cible['porte']['x'];
+        $y = (int) $cible['porte']['y'];
+        $cote = (string) ($cible['porte']['cote'] ?? 'e');
 
         $avant = $quete->sallesDecouvertes();
 
@@ -8483,6 +8520,13 @@ final class ResolveurTour
         // hors de vue et hors de portée — la leçon du ciblage en deux temps.
         $cibleId = (int) data_get($parametres, 'cible_id', 0);
         $legales = array_column((array) data_get($option, 'parametres.cibles', []), 'id');
+
+        // Une cible EXIGÉE mais ABSENTE n'est pas une cible illégale : « illégale »
+        // ne se dit que quand une cible est fournie et hors de la liste (2026-10-17 —
+        // le même « Cible requise » que les sorts, même forme).
+        if ($legales !== [] && $cibleId < 1) {
+            throw ValidationException::withMessages(['parametres' => 'Cible requise : parametres.cible_id parmi les cibles légales de cet objet.']);
+        }
 
         if ($legales !== [] && ! in_array($cibleId, array_map('intval', $legales), true)) {
             throw ValidationException::withMessages(['parametres' => 'Cible illégale pour cet objet.']);
@@ -9755,21 +9799,33 @@ final class ResolveurTour
                 'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
             ],
             'repoussee' => false,
+            // POURQUOI la figure ne recule pas — le fil l'écrit à partir de ce résultat
+            // (2026-10-17) : `jet_rate` (le jet n'atteint pas le requis, `jet.issue` dit
+            // s'il s'agit d'un « raté de peu ») ; `case_bloquee` (jet réussi, mais la case
+            // de recul est prise). `null` quand la figure recule.
+            'motif' => 'jet_rate',
         ];
 
         if ($resultat->estReussi()) {
-            $vers = ['x' => $ix + ($ix - $px), 'y' => $iy + ($iy - $py)];
-            $instance->update(['position_x' => $vers['x'], 'position_y' => $vers['y']]);
+            // Le recul est relu ici, comme dans le menu : un jet réussi ne déplace JAMAIS une
+            // figure sur une case occupée ou hors plateau (`Poussee::reculLibre()`).
+            if (Poussee::reculLibre($quete, $instance, $px, $py)) {
+                $vers = ['x' => $ix + ($ix - $px), 'y' => $iy + ($iy - $py)];
+                $instance->update(['position_x' => $vers['x'], 'position_y' => $vers['y']]);
 
-            $this->mouvementsAnime[] = [
-                'type' => 'monstre',
-                'id' => (int) $instance->id,
-                'depart' => ['x' => $ix, 'y' => $iy],
-                'chemin' => [$vers],
-            ];
+                $this->mouvementsAnime[] = [
+                    'type' => 'monstre',
+                    'id' => (int) $instance->id,
+                    'depart' => ['x' => $ix, 'y' => $iy],
+                    'chemin' => [$vers],
+                ];
 
-            $payload['repoussee'] = true;
-            $payload['vers'] = $vers;
+                $payload['repoussee'] = true;
+                $payload['motif'] = null;
+                $payload['vers'] = $vers;
+            } else {
+                $payload['motif'] = 'case_bloquee';
+            }
         }
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
@@ -10810,6 +10866,14 @@ final class ResolveurTour
 
     private function ouvrirNouveauTour(Groupe $groupe, Quete $quete, array &$actions = []): string
     {
+        // Filet du Breuvage (2026-10-17) : un héros dont le tour s'est refermé SANS
+        // « Terminer le tour » (tombé en plein tour) n'a jamais passé par `marquerCreneau()`.
+        // Sa gorgée non suivie d'une frappe se dissipe ici, avant que la remise à zéro ne
+        // l'efface sans un mot.
+        foreach ($quete->etatsPersonnages()->with('personnage')->get() as $etatTour) {
+            app(MoteurPotions::class)->dissiperBreuvageNonUtilise($etatTour);
+        }
+
         // Nouveau tour : les héros debout rejouent (l'initiative reste figée, C1).
         // Créneaux remis à zéro + on relancera le d6 de déplacement.
         $quete->etatsPersonnages()->update([
@@ -12763,6 +12827,62 @@ final class ResolveurTour
     }
 
     /**
+     * LA SECONDE FRAPPE EN ATTENTE (décision de René, 2026-10-22) — UN SEUL prédicat.
+     *
+     * Vrai quand le héros a frappé ce tour (`a_agi`), n'a pas fini son tour (`a_joue` faux) et
+     * a encore sa seconde frappe armée (`attaque_supplementaire`), QUELLE QUE SOIT SA SOURCE :
+     * Potion d'héroïsme, rage, Ambidextrie, Sang qui bout, Fléau des Orques. Une seule règle, un
+     * seul point de passage : `MenuMoteur` l'utilise pour offrir l'attaque bonus et publier
+     * `perd_attaque_supplementaire` sur chaque option de mouvement ; `resoudre()` l'utilise pour
+     * accepter la frappe bonus et pour faire perdre la frappe au déplacement.
+     */
+    public static function secondeFrappeEnAttente(?EtatPersonnageQuete $etat): bool
+    {
+        return $etat !== null
+            && (bool) $etat->a_agi
+            && ! (bool) $etat->a_joue
+            && (bool) $etat->attaque_supplementaire;
+    }
+
+    /**
+     * QUELLE option peut être la SECONDE FRAPPE (2026-10-22) — UN prédicat, lu par `resoudre()`
+     * (`$bonusHeroisme`) et par le menu, qui n'offre une attaque bonus que de ces options-là.
+     *
+     * Seule une option `attaque` est une frappe à l'arme : l'arme, la Furie, le poing nu. Une frappe
+     * balayée (*Frénésie sanguinaire*, *Œil du Cyclone*), un rayon (*Esprit ardent*) ou un Brasier
+     * (*Toucher du Brasier*) sont D'AUTRES actions. ARBITRAGE PRUDENT, pas une lecture certaine de la
+     * carte : « Drink this potion before you attack to make two weapon attacks instead of one » ne dit
+     * pas si une frappe balayée compte comme « weapon attack ». On ne l'ouvre donc pas en seconde frappe :
+     * le résolveur les refuse (« Tu as déjà agi ce tour. ») et le menu ne les offre pas.
+     */
+    public static function estSecondeFrappe(array $option): bool
+    {
+        return ($option['type'] ?? null) === 'attaque';
+    }
+
+    /**
+     * Un déplacement résolu alors que la seconde frappe était EN ATTENTE la fait perdre : bouger
+     * FAIT PERDRE la seconde frappe (décision de René, 2026-10-22). Appelé UNE fois, par `resoudre()`,
+     * après la résolution réussie d'une option `mouvement`, avant `marquerCreneau()`.
+     *
+     * Dans l'ordre : le drapeau tombe ; la marque de Breuvage s'efface sans bruit (sinon
+     * `dissiperBreuvageNonUtilise()` redirait la même gorgée en fin de tour) ; le fil annonce la
+     * perte au moment du geste (`attaque_supplementaire_perdue`, rendu par `TamponAnnonces`).
+     */
+    private function perdreSecondeFrappeParDeplacement(Groupe $groupe, EtatPersonnageQuete $etat, Personnage $personnage): void
+    {
+        $etat->update(['attaque_supplementaire' => false]);
+        app(MoteurPotions::class)->oublierBreuvage($etat);
+
+        app(TamponAnnonces::class)->annoncer($groupe, [
+            'type' => 'attaque_supplementaire_perdue',
+            'personnage_id' => (int) $personnage->id,
+            'personnage' => $personnage->nom,
+            'texte' => "{$personnage->nom} se déplace : son attaque supplémentaire est perdue.",
+        ], ['type' => 'personnage', 'id' => (int) $personnage->id, 'nom' => $personnage->nom]);
+    }
+
+    /**
      * Consomme le créneau et marque le tour terminé (a_joue) seulement quand les
      * DEUX créneaux sont faits, ou immédiatement pour une action terminante.
      *
@@ -12800,6 +12920,9 @@ final class ResolveurTour
             }
 
             // Fin de tour EXPLICITE (« Terminer le tour », concentration).
+            // Une gorgée de Potion d'héroïsme non suivie d'une frappe se dissipe ici, et le
+            // fil le dit (2026-10-17) — avant que le tour ne soit clos.
+            app(MoteurPotions::class)->dissiperBreuvageNonUtilise($etat);
             $etat->a_joue = true;
 
             // « Remove the tile from the board if a creature ends their turn on
@@ -13795,6 +13918,7 @@ final class ResolveurTour
             $resultat = match ($option['type'] ?? null) {
                 'attaque' => $this->resoudreAttaqueDAllie($groupe, $quete, $allie, $parametres, $acteur, $nom),
                 'deplacement_allie' => $this->resoudreDeplacementDAllie($groupe, $quete, $allie, $parametres, $nom),
+                'deplacement_case_allie' => $this->resoudreDeplacementCaseAllie($groupe, $quete, $allie, $parametres, $nom),
                 default => $this->resoudreAttenteAllie($groupe, $allie, $nom),
             };
 
@@ -13869,6 +13993,7 @@ final class ResolveurTour
      */
     private function resoudreDeplacementDAllie(Groupe $groupe, Quete $quete, GroupeMercenaire $allie, array $parametres, string $nom): array
     {
+        $this->exigerAlliePasDejaBouge($allie);
         $cle = (string) ($parametres['cle'] ?? '');
 
         if (! str_starts_with($cle, 'vers:') || $allie->position_x === null) {
@@ -13886,7 +14011,7 @@ final class ResolveurTour
         // ⚠ MÊME calcul que le menu (`MenuMoteur::genererMenuAllie()`) : une
         // destination qui n'aboutit pas est refusée ici aussi — le menu n'est
         // qu'une proposition, le résolveur reste seul juge (`ApprocheAllie`).
-        $grille = $this->grille($quete, exceptMercenaireId: $allie->id, franchitAllies: true);
+        $grille = $this->deplacement->grilleAllie($quete, $allie);
         $e = $cible->monstre->emprise();
         $trajet = app(ApprocheAllie::class)->trajet(
             $grille, (int) $allie->position_x, (int) $allie->position_y, (int) $allie->mercenaire->deplacement,
@@ -13911,6 +14036,80 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'action', $payload, ['type' => 'allie', 'id' => $allie->id, 'nom' => $nom]);
 
         return $payload;
+    }
+
+    /**
+     * Déplacement LIBRE d'un allié (2026-10-17) : `se_deplacer_case_allie`, `parametres:
+     * {x, y}`. La case doit figurer dans `DeplacementHeros::destinationsAllie()`, recalculée
+     * sur l'état présent : une case que le groupe ne voit pas (brouillard), occupée, ou hors
+     * de la vitesse de l'allié est refusée (422), sans rien dépenser.
+     *
+     * @param  array<string, mixed>  $parametres
+     * @return array<string, mixed>
+     */
+    private function resoudreDeplacementCaseAllie(Groupe $groupe, Quete $quete, GroupeMercenaire $allie, array $parametres, string $nom): array
+    {
+        $this->exigerAlliePasDejaBouge($allie);
+
+        if (! is_numeric($parametres['x'] ?? null) || ! is_numeric($parametres['y'] ?? null) || $allie->position_x === null) {
+            throw ValidationException::withMessages(['parametres' => 'Choisis d\'abord une case de destination.']);
+        }
+
+        $x = (int) $parametres['x'];
+        $y = (int) $parametres['y'];
+
+        // LA LISTE BLANCHE, relue : le menu n'est qu'une proposition, et le même calcul
+        // que celui qui a publié les cases (`destinationsAllie()`) décide.
+        if (! DeplacementHeros::figureParmi($this->deplacement->destinationsAllie($quete, $allie), $x, $y)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Destination illégale : cette case ne figure pas parmi les cases proposées.',
+            ]);
+        }
+
+        $allie->update(['position_x' => $x, 'position_y' => $y, 'a_deplace' => true]);
+
+        $payload = [
+            'type' => 'deplacement_allie',
+            'allie' => $nom,
+            'allie_id' => (int) $allie->id,
+            'vers' => ['x' => $x, 'y' => $y],
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, ['type' => 'allie', 'id' => $allie->id, 'nom' => $nom]);
+
+        return $payload;
+    }
+
+    /** Un allié ne se déplace qu'une fois par tour : le créneau `a_deplace` le dit. */
+    private function exigerAlliePasDejaBouge(GroupeMercenaire $allie): void
+    {
+        if ($allie->a_deplace) {
+            throw ValidationException::withMessages(['option_id' => 'Cet allié a déjà bougé ce tour.']);
+        }
+    }
+
+    /**
+     * APERÇU du tour d'un ALLIÉ (2026-10-17) — `POST deplacement/apercu` quand le menu courant
+     * porte `allie_id`. Le trajet de L'ALLIÉ, sur la même grille que son déplacement
+     * (`DeplacementHeros::trajetAllie()`). Pas de `pieges` ni de `traverse_roche` : un allié ne
+     * déclenche rien.
+     *
+     * @return array{atteignable: bool, raison: ?string, chemin: list<array{x: int, y: int}>, cout: int, restant: int, restant_apres: int, pieges: list<array<string, mixed>>, traverse_roche: bool}
+     */
+    public function apercuDeplacementAllie(Quete $quete, GroupeMercenaire $allie, int $x, int $y): array
+    {
+        $vitesse = (int) ($allie->mercenaire?->deplacement ?? 0);
+        $trajet = $allie->a_deplace
+            ? ['atteignable' => false, 'raison' => 'Cet allié a déjà bougé ce tour.', 'chemin' => [], 'cout' => 0]
+            : $this->deplacement->trajetAllie($quete, $allie, $x, $y);
+
+        return [
+            ...$trajet,
+            'restant' => $vitesse,
+            'restant_apres' => $trajet['atteignable'] ? max(0, $vitesse - $trajet['cout']) : $vitesse,
+            'pieges' => [],
+            'traverse_roche' => false,
+        ];
     }
 
     /** @return array<string, mixed> */

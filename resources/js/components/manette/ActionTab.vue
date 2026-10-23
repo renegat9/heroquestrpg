@@ -3,7 +3,7 @@
 // Le menu contextuel reçu par .menu.propose ({contexte, options: [{id,
 // libelle, type, parametres}]}) — chaque tap émet 'choose' avec l'option ;
 // `pending` gèle les boutons jusqu'au prochain .groupe.etat.
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import MSym from '../ui/MSym.vue';
 import ChoiceCard from './ChoiceCard.vue';
 import InitMini from './InitMini.vue';
@@ -38,7 +38,7 @@ const emit = defineEmits(['choose']);
 
 /** PERTE DU RELIQUAT (décision de René, 2026-10-09 : « garder la règle, mais
  *  l'annoncer »). Le SERVEUR publie, sur chaque option d'action, `perd_deplacement` :
- *  le nombre de cases que CET acte confisquerait (`ResolveurTour::casesPerduesParAction()`).
+ *  le nombre de POINTS de déplacement que CET acte confisquerait (`ResolveurTour::casesPerduesParAction()`).
  *  On LIT ce nombre — on ne le recalcule jamais à partir d'un reliquat ni d'un type.
  *  0 = rien à perdre ; un menu sans le champ n'annonce rien. */
 const pertesDeplacement = computed(() => props.menu?.options?.find((o) => (o.perd_deplacement ?? 0) > 0)?.perd_deplacement ?? 0);
@@ -141,6 +141,8 @@ const ICONE_TYPE = {
     // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) — `attaquer_allie`
     // porte `type: 'attaque'` et partage déjà `swords` ci-dessus.
     deplacement_allie: 'directions_walk',
+    // Déplacement LIBRE de l'allié (2026-10-17) : la même marche que celle du héros.
+    deplacement_case_allie: 'directions_walk',
     attente_allie: 'hourglass_bottom',
     // MISSION « SECOURIR » (chantier 3b, même date) : une main qui ouvre une
     // cage, distincte de `liberer_entraves` (les ronces, un sécateur).
@@ -289,6 +291,39 @@ watch(() => props.journal.length, async () => {
     if (el) el.scrollTop = el.scrollHeight;
 });
 
+/**
+ * INDICE DE DÉFILEMENT (René, 2026-10-22 : sur 360 px, « Terminer le tour » était coupé au
+ * bord du volet, sans rien pour dire qu'il y avait plus bas). Le volet cache sa barre
+ * (`::-webkit-scrollbar` à 0) : sans indice, une action coupée se lit comme une action
+ * absente. L'indice dépend de la POSITION (le défilement) et de la TAILLE du contenu (un
+ * menu, ou le fil, qui change de hauteur le recalcule), et disparaît en butée.
+ */
+const volet = ref(null);
+const contenu = ref(null);
+const suiteEnBas = ref(false);
+let observateur = null;
+
+function mesurerSuite() {
+    const el = volet.value;
+    if (! el) return;
+
+    // Marge d'un pixel : un scrollTop fractionnaire ne doit pas garder l'indice à l'arrivée.
+    suiteEnBas.value = el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+}
+
+watch(() => [props.menu, props.pending, props.journal.length], () => nextTick(mesurerSuite));
+
+onMounted(() => {
+    mesurerSuite();
+    if (typeof ResizeObserver === 'undefined') return;
+
+    observateur = new ResizeObserver(mesurerSuite);
+    if (volet.value) observateur.observe(volet.value);
+    if (contenu.value) observateur.observe(contenu.value);
+});
+
+onBeforeUnmount(() => observateur?.disconnect());
+
 /** Icône du journal de combat par `ton` (voir App\Partie\JournalCombat). */
 const ICONE_JOURNAL = {
     degats: 'swords',
@@ -310,7 +345,9 @@ const ICONE_JOURNAL = {
          prend de la hauteur que s'il y a un fil — sans lui, les actions
          occupent tout. -->
     <div class="act-volets">
-    <div class="act-scroll">
+    <div class="act-zone">
+    <div ref="volet" class="act-scroll" @scroll.passive="mesurerSuite">
+    <div ref="contenu">
     <!-- le menu vient du MJ (.menu.propose) -->
     <div v-if="menu">
         <div v-if="pending" class="turn-banner wait">
@@ -336,10 +373,10 @@ const ICONE_JOURNAL = {
         <!-- PERTE DU RELIQUAT : le serveur sait ce qu'une action confisquerait
              (`perd_deplacement`) — on le dit AVANT le geste, jamais après. -->
         <p v-if="pertesDeplacement > 1" class="menu-perte">
-            <MSym n="warning" :size="15" fill /> Tu perdras tes {{ pertesDeplacement }} cases restantes si tu agis maintenant.
+            <MSym n="warning" :size="15" fill /> Tu perdras tes {{ pertesDeplacement }} points de déplacement restants si tu agis maintenant.
         </p>
         <p v-else-if="pertesDeplacement === 1" class="menu-perte">
-            <MSym n="warning" :size="15" fill /> Tu perdras ta dernière case restante si tu agis maintenant.
+            <MSym n="warning" :size="15" fill /> Tu perdras ton dernier point de déplacement si tu agis maintenant.
         </p>
         <div class="choices">
             <ChoiceCard
@@ -363,6 +400,11 @@ const ICONE_JOURNAL = {
         <div class="empty-note">La partie se poursuit — tu reprendras la main dans un instant.</div>
     </div>
 
+    </div>
+    </div>
+    <!-- INDICE « il reste des actions plus bas » : un dégradé et une flèche, sans aucun tap
+         (`pointer-events: none` dans la feuille de style), et il s'éteint en butée. -->
+    <div v-if="suiteEnBas" class="act-suite" aria-hidden="true"><MSym n="keyboard_arrow_down" :size="20" /></div>
     </div>
 
     <!-- journal de combat mécanique (.combat.journal) : ce que le moteur vient
@@ -398,6 +440,16 @@ const ICONE_JOURNAL = {
 .act-volets { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 12px; }
 .act-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .act-scroll::-webkit-scrollbar { width: 0; }
+
+/* Zone des actions : le volet défilant et son indice. `position: relative` pour que
+   l'indice (absolu) se pose sur le BAS VISIBLE du volet, et non sur le bas de son contenu. */
+.act-zone { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+/* Indice de défilement (2026-10-22) : un dégradé vers le fond de la manette (stone-900) et
+   une flèche. Il dit « il y a plus bas » sans rien mettre au premier plan. */
+.act-suite { position: absolute; left: 0; right: 0; bottom: 0; height: 44px; pointer-events: none;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 2px;
+  background: linear-gradient(to bottom, transparent, var(--stone-900)); color: var(--ink-400); }
+.act-suite .msym { font-size: 20px; }
 
 /* ⚠ Le fil prend ce dont il a besoin, sans jamais dépasser 40 % : les actions
    sont ce pour quoi on ouvre la manette, et un fil bavard ne doit pas les

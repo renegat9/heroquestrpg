@@ -87,6 +87,15 @@
 .obj-peek.fait p { color: var(--ok); font-weight: 600; }
 .obj-peek.fait .obj-tag { border-color: var(--ok); color: var(--ok);
   background: color-mix(in oklch, var(--ok) 16%, transparent); }
+/* ⚠ Le bandeau « EFFET EN JEU » ne se COUPE jamais (René, 2026-10-22 : « lancent 1 dé… » à
+   360 px). Le nombre de dés EST la règle : la tronquer la supprime. Il lève donc le
+   `line-clamp` de `.obj-peek p` ci-dessus, et les DEUX propriétés : le `line-clamp` standard
+   s'applique aux blocs, pas seulement à `-webkit-box`. L'objectif garde sa limite de deux
+   lignes (choix de 2026-09-05) : la règle est scopée à `.eff-glob`, classe partagée avec la table. */
+.obj-peek.eff-glob p { display: block; -webkit-line-clamp: none; line-clamp: none; overflow: visible; }
+/* Même levée pour la CONSIGNE de rassemblement (« il manque : Krag, Thrakor… ») : à 360 px, dès trois
+   héros absents, les noms étaient coupés — et ce sont eux qu'il faut attendre (2026-10-22). */
+.obj-peek p.obj-consigne { display: block; -webkit-line-clamp: none; line-clamp: none; overflow: visible; }
 
 /* ---- Zone principale ---- */
 .body { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }

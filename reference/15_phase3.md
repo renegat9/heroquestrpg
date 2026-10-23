@@ -59,6 +59,8 @@ Extension du catalogue de pièges (doc 10) au-delà des 4 de base ; les pièges 
 ### A.8 Succès à coût généralisé
 Cité une seule fois (doc 00 §8), jamais détaillé ailleurs. Transformer l'arbitrage ponctuel du MJ IA (P4, « mixte ») en mécanique systématique nécessite une table de conséquences par type de jet manqué de peu — reste à spécifier entièrement.
 
+**Écarté le 2026-10-19 (René)** : « garder le fonctionnement réel du jeu de société pour le moment ». Le quasi-échec est un **échec sec** (doc 01 §13, P4). À rouvrir seulement comme une règle maison assumée : vocabulaire fermé de conséquences, un point de passage moteur, annonce au fil, test en jeu.
+
 ### A.9 Infrastructure (sidecar Python, monitoring)
 Pas de valeur joueur directe ; à déclencher seulement si un besoin concret apparaît (cohérent avec doc 11 §11, qui exclut explicitement le scaling par anticipation).
 
@@ -101,7 +103,7 @@ Les deux s'écartent du cadre coopératif/groupe du projet. Recommandation : **n
 ## 3. Questions ouvertes à trancher
 
 1. **Alliés joueurs (A.2)** : ce chantier reste-t-il au catalogue à long terme, ou la version scriptée (doc 14) suffit-elle définitivement ?
-2. **Succès à coût généralisé (A.8)** : table de conséquences mécanique ou maintien de l'arbitrage MJ IA au cas par cas ?
+2. ~~**Succès à coût généralisé (A.8)** : table de conséquences mécanique ou maintien de l'arbitrage MJ IA au cas par cas ?~~ **Tranchée le 2026-10-19 : ni l'un ni l'autre — un quasi-échec est un échec sec**, comme au plateau (A.8).
 3. **Déguisements/infiltration (B.3)** : compatible avec « menus seulement », ou nécessite-t-il une nouvelle famille de menus (« se faire discret », « maintenir le déguisement ») ?
 4. **Mode Arène (B.4)** : à exclure définitivement du périmètre, ou à garder en option non prioritaire pour une future « Phase 4 annexes » ?
 
