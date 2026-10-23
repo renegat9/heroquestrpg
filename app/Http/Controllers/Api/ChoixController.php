@@ -87,7 +87,8 @@ class ChoixController extends Controller
             'parametres.cible_id' => ['sometimes', 'integer', 'min:1'],
             // Sorts (doc 02) : type de la cible si un monstre et un héros
             // partagent le même id, et sort à récupérer (Concentration).
-            'parametres.cible_type' => ['sometimes', Rule::in(['monstre', 'heros'])],
+            // `danger` : une brume de la mort, cible de la seule Tempête (2026-10-23, `MoteurSorts::ciblesDangers()`).
+            'parametres.cible_type' => ['sometimes', Rule::in(['monstre', 'heros', 'danger'])],
             'parametres.sort_id' => ['sometimes', 'integer', 'min:1'],
             // Sous-choix d'une option à liste (sort, parchemin, objet) : la
             // `cle` de l'entrée retenue. ⚠ Une seule clé pour les trois listes

@@ -324,3 +324,16 @@ Chantier `ext-kellar` (worktree `heroquestrpg-kellar`, non committé). Ce qui es
 
 **Ce qui reste au chantier Witch Lord** : `witch_lord` sort de `BOITES_INCOMPLETES` quand son boss final est semé ; ses autres créatures et l'entrée de `BOITES_THEMATIQUES` seront fusionnées avec celles-ci.
 
+
+## Exécution (2026-10-23) — danger mobile autonome (chantier `ext-danger`)
+
+Le rocher roulant de la quête 3 (note A, F4543 p. 12-13) est porté, **avec** la brume de la mort de *Return of the Witch Lord* (décision Q3 du 2026-10-15, une seule mécanique). Règles en vigueur : `docs/regles/carte-donjon.md` § « DANGERS MOBILES AUTONOMES » ; contrat : `docs/contrat-api.md` § « Dangers mobiles autonomes ».
+
+- **Porté** : `App\Engine\MotsClesDanger` (vocabulaire fermé : `deplacement`, `chemin`, `degats`, `arret`, `destruction`, `pose`), `App\Partie\MoteurDanger` (un point de passage par question), table `dangers` + `DangerSeeder` (rocher : `pose: declencheur`, `boite: kellars_keep`), couche `cartes.grille['dangers']`, pose en fin d'`AssembleurCarte` (`poseRocher()`, refus si la pose coupe une route), bloc permanent dans `FabriqueGrille`, publication, hexagone et bloc plein côté front.
+- **Le déclencheur** : le DERNIER héros debout qui franchit la case A (liste `franchi` durable) ; un héros qui s'arrête sur A ne l'a pas franchie.
+- **La chute** : deux dés rouges (somme) par tour du MJ, **5 dés de combat sans défense** par héros traversé, un crâne = 1 PV ; arrêt au mur = bloc permanent.
+- **Lu sur le chemin réel** : le passage est compté dans `ResolveurTour::resoudreDeplacement()` (trajet réellement parcouru) ; le tour du MJ dans `phaseMonstres()` **et** dans la branche « donjon nettoyé » qui la saute (sinon le rocher se figerait au dernier monstre tué).
+- **Non porté / écrit** : la note B (« un piège à la fois », écartée le 2026-10-23) ; la carte de pierre (écartée) ; les portes et l'embuscade du MJ (écartées) ; l'image (l'orchestrateur).
+- **Décisions prises sans René** : fréquence 50 % par danger du thème ; le rocher passe les monstres ; la somme des deux dés rouges ; dégâts non réactifs ; **le test d'accès** (`accesPreserve()`) est la question du déplacement, obstacles de mobilier et de terrain compris.
+- **Tests** : `tests/Feature/Partie/DangerMobileTest.php` (registre dans les deux sens, lecteurs nommés, trajet réel, sans défense par comptage de dés, bloc qui bloque mouvement, placement qui ne coupe jamais l'accès sur 60 graines, publication sous brouillard). `SymbolesCarteTest` : silhouette lue par le rendu ET la légende.
+- **Migrations et seeders à jouer** (orchestrateur, après sauvegarde) : `migrate` (table `dangers`), `db:seed` (`DangerSeeder`). Aucune donnée existante n'est modifiée.

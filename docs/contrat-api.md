@@ -4601,3 +4601,54 @@ Le sort de Dread *Werewolf's Curse* (« Malédiction du loup-garou ») est port�
 **Round sans héros jouable.** Un groupe dont tous les héros sont sous forme de loup à l'ouverture du round ne reste pas figé : la phase des monstres se rejoue d'elle-même, comme pour un gel de *Mind Lock* (borne : 8 rounds). Un donjon vidé attend aussi le retour de forme avant de se clore.
 
 **Ce que la règle ne dit pas, et que nous tranchons** (écrit, pas deviné) : la figurine du loup est inerte pendant le tour des héros (ni attaquable, ni agissante) ; les PV sont ceux du héros, sans changement à la transformation ni au retour ; les biens restent au héros, inutilisables sous forme de loup ; la morsure d'un *loup-garou* (monstre errant de la quête 7) n'est pas portée — aucun loup-garou n'est au bestiaire.
+
+## Dangers mobiles autonomes — le rocher roulant et la brume de la mort (2026-10-23)
+
+Décision de René (2026-10-15, Q3/Q6 de *Kellar's Keep* et de *Witch Lord*) : **une seule mécanique** « danger mobile
+autonome », deux catalogues (`dangers`, `DangerSeeder`) — rocher roulant (*Kellar's Keep* q. 3, F4543 p. 12-13) et
+brume de la mort (*Return of the Witch Lord* q. 3, F4193 p. 13). État durable : `cartes.grille['dangers']`. Règles :
+`docs/regles/carte-donjon.md` § « Dangers mobiles autonomes ».
+
+### Publication — `EtatGroupe.carte.dangers[]`
+
+- Forme : `[{nom, x, y, etat}]`, `etat` ∈ `roule` (rocher en mouvement), `actif` (brume), `bloc` (rocher arrêté : passage
+  bloqué, dessiné en bloc plein).
+- Filtrée par le brouillard (une case non connue n'est pas publiée). **Jamais publié** : le rocher en attente (`attente`,
+  il tombera au passage de sa case déclencheur) et la brume détruite (`detruit`).
+- Le serveur publie la décision : ni trajectoire ni destruction ne sont recalculées côté client.
+
+### Frapper une brume — option `frapper_danger_{index}`
+
+- `type: 'frapper_danger'`, `parametres: {danger: index, nom}` ; offerte dans le menu d'un héros au **contact orthogonal**
+  d'une brume `actif` (`MenuMoteur`, `MoteurDanger::brumesAuContact()`). Icône manette : `swords` (`ActionTab.vue`).
+- `POST /choix` `{option_id: "frapper_danger_{index}"}` : le résolveur revérifie l'index (`entreeBrume()`, 422 si périmé)
+  et le contact (422 hors de portée). Une **Lame des Esprits** en main détruit la brume ; une autre arme ne lui fait rien
+  (`danger_sans_effet`). Le coup coûte l'action du héros.
+
+### Tempête contre une brume — `lancer_sort` avec `cible_type: 'danger'`
+
+- Les brumes actives rejoignent la liste `cibles[]` **du seul sort qui les détruit** (la Tempête, `cible: monstre` au
+  catalogue) : `{type: 'danger', id, nom}`. `id` est **à partir de 1** (`index + 1`), comme toute cible — la validation de
+  `parametres.cible_id` exige `min:1`. La ligne de vue s'applique comme aux monstres.
+- `POST /choix` `{option_id: "lancer_sort", parametres: {cle: "sort:{id}", cible_id, cible_type: "danger"}}`.
+  `cible_type` accepte désormais `monstre | heros | danger` (`ChoixController`).
+- La Tempête n'a **aucun autre effet** sur la brume (ni tour sauté, ni jet de Mind) : elle la détruit.
+
+### Journal — types `danger_*` (`JournalCombat::TYPES`, déclarés et rendus)
+
+| `type` | Payload | Quand |
+|---|---|---|
+| `danger_chute` | `{danger, x, y, heros}` | le dernier héros debout a franchi la case déclencheur du rocher |
+| `danger_roule` | `{danger, distance, x, y, bloc, touches: [{heros, degats, faces}]}` | tour du MJ : le rocher roule de la somme de deux dés rouges ; `bloc` s'il s'écrase au mur ; `faces` = les dés de combat (sans défense) |
+| `danger_avance` | `{danger, x, y, pas, touches: [{heros, degats, faces: []}]}` | tour du MJ : la brume glisse ; `faces` vide (coup sec, 1 PV par héros traversé) |
+| `danger_detruit` | `{danger, par, heros, x, y}` | Lame des Esprits au contact, ou Tempête |
+| `danger_sans_effet` | `{danger, heros, arme, x, y}` | frappe au contact sans arme qualifiée |
+
+Les mouvements (`danger_roule`, `danger_avance`) sont journalisés par le moteur au tour du MJ, en tête de
+`ResolveurTour::phaseMonstres()` — et, quand le donjon est NETTOYÉ (plus aucun monstre actif, `phaseMonstres()` sautée),
+dans la branche de `ouvrirNouveauTour()` : la quête continue, Zargon joue encore.
+
+### Clé de réponse — `tour_dangers`
+
+- Présente seulement dans la branche « donjon nettoyé » (où `tour_monstres` n'existe pas) : la liste des payloads
+  `danger_*` joués ce tour. Dans les autres cas les mouvements passent par `tour_monstres` (la phase des monstres).

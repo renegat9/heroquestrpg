@@ -482,6 +482,9 @@ final class EtatGroupe
             // que les leviers l'ont été le 2026-08-27 : elle bloquait le
             // mouvement côté moteur sans être dessinée nulle part.
             'glace' => $this->glace($carte, $cases),
+            // DANGERS MOBILES AUTONOMES (2026-10-23) : rocher roulant et brume de la mort, couche `cartes.grille['dangers']`,
+            // filtrée par le brouillard (`MoteurDanger::publier()`). Un danger en attente n'est jamais publié.
+            'dangers' => app(MoteurDanger::class)->publier($carte, $cases),
             // VOILE D'OMBRE (*Cloak of Shadows*, Wizards of Morcar, 2026-10-08) :
             // couche DÉDIÉE `carte.grille['ombre']`, posée en cours de quête par un
             // sort de héros. Un rectangle par voile avec son COMPTEUR de jetons

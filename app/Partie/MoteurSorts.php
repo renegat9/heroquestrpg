@@ -1226,6 +1226,7 @@ final class MoteurSorts
         $options = [];
         $ciblesMonstres = $this->ciblesMonstres($quete);
         $ciblesHeros = $this->ciblesHeros($quete);
+        $ciblesDangers = $this->ciblesDangers($quete);
 
         // Ligne de vue (doc 03 §36) : les sorts offensifs ne peuvent viser qu'une
         // figure VISIBLE — une figure interposée (allié comme ennemi) coupe la
@@ -1341,6 +1342,7 @@ final class MoteurSorts
                 $disponible ? $ciblesHeros : [],
                 $lanceur,
                 $grille,
+                ciblesDangers: $ciblesDangers,
             );
 
             // Sorts à DEUX modes (Génie : « ouvre une porte au choix OU attaque
@@ -1452,6 +1454,7 @@ final class MoteurSorts
                 $lanceur,
                 $grille,
                 ['inventaire_id' => $ligne->id],
+                ciblesDangers: $ciblesDangers,
             );
         }
 
@@ -1553,7 +1556,7 @@ final class MoteurSorts
      * @param  array{x: int, y: int}|null  $lanceur
      * @return list<array{type: string, id: int, nom: string}>|null
      */
-    public function ciblesLegales(Sort $sort, array $monstres, array $heros, ?array $lanceur = null, ?Grille $grille = null): ?array
+    public function ciblesLegales(Sort $sort, array $monstres, array $heros, ?array $lanceur = null, ?Grille $grille = null, array $dangers = []): ?array
     {
         $cible = (string) data_get($sort->effet, 'cible', MotsClesSort::CIBLE_SOI);
 
@@ -1604,6 +1607,16 @@ final class MoteurSorts
             };
         } else {
             $cibles = $heros;   // bénéfique : les héros, LANCEUR COMPRIS
+        }
+
+        // DANGER MOBILE qu'un sort DÉTRUIT (2026-10-23 — la Tempête détruit la brume de la mort, `cible: monstre` au catalogue) :
+        // ses candidats rejoignent la liste de la cible unique, puis subissent la MÊME ligne de vue que les monstres. Un sort
+        // qui ne le détruit pas n'en voit aucun : ni `ciblesMonstres()` ni `$monstres` ne le contiennent.
+        if ($offensif && $cible === MotsClesSort::CIBLE_MONSTRE) {
+            $cibles = [...$cibles, ...array_values(array_filter(
+                $dangers,
+                fn (array $d) => in_array($sort->nom, (array) ($d['destructrices'] ?? []), true),
+            ))];
         }
 
         // LIGNE DE VUE, pour TOUT sort — pas seulement les offensifs.
@@ -3466,6 +3479,7 @@ final class MoteurSorts
         ?array $lanceur = null,
         ?Grille $grille = null,
         array $extra = [],
+        array $ciblesDangers = [],
     ): array {
         $entree = [
             'cle' => $cle,
@@ -3478,7 +3492,7 @@ final class MoteurSorts
         ];
 
         $cibles = $disponible
-            ? $this->ciblesLegales($sort, $ciblesMonstres, $ciblesHeros, $lanceur, $grille)
+            ? $this->ciblesLegales($sort, $ciblesMonstres, $ciblesHeros, $lanceur, $grille, $ciblesDangers)
             : null;
 
         if ($cibles !== null) {
@@ -3552,6 +3566,38 @@ final class MoteurSorts
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * Les brumes de la mort ACTIVES, candidates aux seuls sorts qui les détruisent (2026-10-23). `id` est l'INDEX de la
+     * couche `cartes.grille['dangers']` (celui que `MoteurDanger::entreeBrume()` relit), `destructrices` la liste du
+     * catalogue. Lues par `ciblesLegales()`, qui leur applique la ligne de vue des monstres.
+     *
+     * @return list<array{type: string, id: int, nom: string, x: int, y: int, destructrices: list<string>}>
+     */
+    private function ciblesDangers(Quete $quete): array
+    {
+        $moteur = app(MoteurDanger::class);
+        $candidats = [];
+
+        foreach ($moteur->entrees($quete->carte) as $index => $entree) {
+            if (($entree['etat'] ?? null) !== MoteurDanger::ETAT_ACTIF) {
+                continue;
+            }
+
+            $candidats[] = [
+                'type' => 'danger',
+                // Identifiant À PARTIR DE 1, comme toute cible : la validation de `parametres.cible_id` exige `min:1`.
+                // `ResolveurTour::cibleSort()` rend l'index de la couche (id - 1).
+                'id' => (int) $index + 1,
+                'nom' => (string) ($entree['nom'] ?? ''),
+                'x' => (int) $entree['x'],
+                'y' => (int) $entree['y'],
+                'destructrices' => $moteur->destructrices($entree),
+            ];
+        }
+
+        return $candidats;
     }
 
     /**

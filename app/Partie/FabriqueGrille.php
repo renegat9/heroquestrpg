@@ -316,6 +316,14 @@ final class FabriqueGrille
             }
         }
 
+        // DANGER MOBILE ARRÊTÉ (rocher roulant, 2026-10-23) : le passage est BLOQUÉ pour de bon, mouvement ET vue, comme la
+        // Chute de blocs ci-dessus. `MoteurDanger::cellulesBloquees()` est le seul point de lecture de la couche. Jamais
+        // `$occupees` : un rocher n'est pas une figure.
+        foreach (app(MoteurDanger::class)->cellulesBloquees($carte) as $case) {
+            $obstacles[] = $case;
+            $opaques[] = $case;
+        }
+
         // VOILE D'OMBRE (*Cloak of Shadows*, Wizards of Morcar, 2026-10-08) :
         // « The darkness blocks line of sight into and through it. » Couche
         // DÉDIÉE `carte.grille['ombre']`, lue dans CETTE MÊME méthode — jamais

@@ -679,6 +679,9 @@ final class ResolveurTour
                 // frappe au combat jusqu'à épuiser ses PV, comme un monstre —
                 // voir `MenuMoteur` (option `attaquer_mobilier_{index}`).
                 'attaquer_mobilier' => $this->resoudreAttaqueMobilier($groupe, $quete, $personnage, $option, $acteur),
+                // BRUME DE LA MORT (2026-10-23) : seule la Lame des Esprits la détruit ; une arme ordinaire ne lui fait rien.
+                // Voir `MenuMoteur` (option `frapper_danger_{index}`) et `MoteurDanger::frapperAvecArme()`.
+                'frapper_danger' => $this->resoudreFrapperDanger($groupe, $quete, $personnage, $option, $acteur),
                 // COCON (Jungles of Delthrak p. 4) : une action, aucun jet.
                 'detruire_par_action' => $this->resoudreDestructionParAction($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // CHUTE DE BLOCS (livret p. 14) : le SEUL choix qu'un héros
@@ -1231,6 +1234,9 @@ final class ResolveurTour
         // points dépensés.
         $cheminParcouru = $this->cheminJusqua($chemin, $entreeTunnel);
         $parcourue = count($cheminParcouru); // nombre de CASES — animation et champ `distance` du payload
+        // ROCHER ROULANT (2026-10-23) : le passage de sa case déclencheur se compte sur le trajet RÉELLEMENT parcouru, ici.
+        // Le dernier héros debout à la franchir fait tomber le rocher (`MoteurDanger::franchissementDuHeros()`).
+        app(MoteurDanger::class)->franchissementDuHeros($groupe, $quete, $personnage, $cheminParcouru);
 
         // TERRAIN GÊNANT ignoré (talent `ignore_terrain_entravant`) : un effet
         // automatique que rien n'annonce est injouable — le popup du talent dit
@@ -6258,6 +6264,10 @@ final class ResolveurTour
             $instance = $cible['monstre'];
             $e = $instance->monstre->emprise();
             [$tx, $ty, $l, $h] = [(int) $instance->position_x, (int) $instance->position_y, (int) $e['l'], (int) $e['h']];
+        } elseif ($cible['type'] === 'danger') {
+            // La brume de la mort (2026-10-23) : sa case, relue dans la couche ; `entreeBrume()` refuse une brume inactive.
+            $brume = app(MoteurDanger::class)->entreeBrume($quete, (int) $cible['index']);
+            [$tx, $ty, $l, $h] = [(int) $brume['x'], (int) $brume['y'], 1, 1];
         } else {
             [$tx, $ty, $l, $h] = [(int) $cible['etat']->position_x, (int) $cible['etat']->position_y, 1, 1];
         }
@@ -6578,6 +6588,19 @@ final class ResolveurTour
         }
 
         $cible = $this->cibleSort($quete, $option, $parametres);
+
+        // BRUME DE LA MORT (2026-10-23) : la TEMPÊTE la détruit, et n'a AUCUN autre effet sur elle — ni tour sauté, ni jet de
+        // Mind (*Return of the Witch Lord* q. 3 : « can only be destroyed by a tempest spell »). Un sort qui ne la détruit pas
+        // n'a aucun candidat : `null` ici serait une cible périmée, refusée. Le payload est journalisé par `resoudreSort()`.
+        if ($cible['type'] === 'danger') {
+            $payload = $lanceur === null ? null : app(MoteurDanger::class)->detruireParSort($quete, $lanceur, (int) $cible['index'], $sort->nom);
+
+            if ($payload === null) {
+                throw ValidationException::withMessages(['parametres' => 'Cible invalide : ce sort ne détruit pas ce danger.']);
+            }
+
+            return $payload;
+        }
 
         $mind = $cible['type'] === 'monstre'
             ? (int) $cible['monstre']->pv_mind
@@ -7121,6 +7144,12 @@ final class ResolveurTour
             ]);
         }
 
+        // BRUME DE LA MORT (2026-10-23) : la cible est un INDEX de la couche `dangers`, non une figure. Seuls les sorts qui la
+        // détruisent en ont (`MoteurSorts::ciblesLegales()`) ; `sortMental()` la traite avant toute lecture de monstre.
+        if ($candidats[0]['type'] === 'danger') {
+            return ['type' => 'danger', 'index' => $cibleId - 1];
+        }
+
         if ($candidats[0]['type'] === 'monstre') {
             // `revele` autant qu'`actif` : un monstre dormant (salle non
             // découverte) n'est pas une cible légale — garde-fou contre un menu
@@ -7491,6 +7520,32 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
+    }
+
+    /**
+     * Frapper une brume de la mort (2026-10-23, *Return of the Witch Lord* q. 3 : « not affected by normal weapons. It
+     * can only be destroyed by a tempest spell or by the Spirit Blade »). Le coup se joue AU CONTACT orthogonal, depuis le
+     * menu ; la Lame des Esprits la détruit, une autre arme ne lui fait rien (`MoteurDanger::frapperAvecArme()`).
+     *
+     * ⚠ Le contact est revérifié ICI, et l'index d'une brume périmée refusé (`entreeBrume()`) : le menu ne propose que
+     * ce que le résolveur accepte.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreFrapperDanger(Groupe $groupe, Quete $quete, Personnage $personnage, array $option, array $acteur): array
+    {
+        $index = (int) ($option['parametres']['danger'] ?? -1);
+        $moteur = app(MoteurDanger::class);
+        $brume = $moteur->entreeBrume($quete, $index);
+        $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+
+        if ($etat === null || ! Grille::sontAdjacentes((int) $etat->position_x, (int) $etat->position_y, (int) $brume['x'], (int) $brume['y'])) {
+            throw ValidationException::withMessages(['option_id' => 'Cette brume n\'est pas au contact du héros.']);
+        }
+
+        return $moteur->frapperAvecArme($groupe, $quete, $personnage, $index, $this->armeEnMain($personnage));
     }
 
     /**
@@ -11082,6 +11137,12 @@ final class ResolveurTour
             $actions[] = $explosion;
         }
 
+        // DANGERS MOBILES AUTONOMES (2026-10-23) : le rocher roule et la brume glisse AU TOUR DU MJ, avant le moindre monstre,
+        // à la même place que le Fireburst. `MoteurDanger::avancer()` est le seul point de passage de leur mouvement.
+        foreach (app(MoteurDanger::class)->avancer($groupe, $quete) as $danger) {
+            $actions[] = $danger;
+        }
+
         // LES LOUPS-GAROUS jouent AVANT les créatures de Zargon, par ordre de héros (F7539 p. 10 : « Zargon controls
         // them as a monster for one turn »). Leur tour est celui de la couture `HerosJoueParLeMj` — pas une seconde
         // marche —, et chacun de leurs gestes est journalisé par `MaledictionLoupGarou::jouerLoups()`.
@@ -14488,6 +14549,15 @@ final class ResolveurTour
         // monster for one turn »), et c'est la phase des monstres qui le ramène à sa forme humaine. Sans elle, le
         // héros resterait loup à jamais, inerte. Le donjon n'est donc clos qu'APRÈS son tour.
         if ($sansMonstre && ! app(MaledictionLoupGarou::class)->enFormeDans($quete)) {
+            // DANGERS MOBILES AUTONOMES (2026-10-23) : Zargon joue son tour même dans un donjon NETTOYÉ — « donjon nettoyé »
+            // ouvre la sortie, il ne ferme pas la quête. Sans cet appel, le rocher et la brume se figeraient au dernier monstre
+            // tué. Appelé ICI seulement (la branche qui saute `phaseMonstres()`) : jamais deux fois dans un même round.
+            $dangersDuTour = app(MoteurDanger::class)->avancer($groupe, $quete);
+
+            if ($dangersDuTour !== []) {
+                $resultat['tour_dangers'] = $dangersDuTour;
+            }
+
             // ⚠ `$actions` capturé même SANS monstre : un héros peut tomber
             // sur SON PROPRE tour (piège, terrain, tir ami) et porter un
             // captif escorté — la reprise que `ouvrirNouveauTour()` déclenche

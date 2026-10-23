@@ -27,7 +27,7 @@ import Vignette from '../ui/Vignette.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
-    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, ESCALIER_ICONE, OMBRE_ICONE, icone,
+    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, ESCALIER_ICONE, OMBRE_ICONE, DANGER_ICONE, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -80,6 +80,7 @@ const escalier = computed(() => props.carte?.escalier ?? null);
 // de crânes le plus entamé a déjà encaissés — un mur qu'on frappe sans voir
 // céder ne dit pas au groupe si s'acharner vaut le coup.
 const glace = computed(() => (props.carte?.glace ?? []).length);
+const dangers = computed(() => (props.carte?.dangers ?? []).length);
 
 // Voiles d'ombre (*Cloak of Shadows*) : la légende dit ce que la zone FAIT et
 // combien de jetons il reste au plus entamé — un voile qui s'amincit sans qu'on
@@ -215,6 +216,14 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
                 </div>
             </section>
 
+            <section v-if="dangers" class="lg-sect">
+                <div class="lg-sous">Dangers mobiles</div>
+                <div class="lg-ligne">
+                    <span class="lg-chip lg-danger"><MSym :n="DANGER_ICONE" fill /></span>
+                    <span>Avance à chaque tour du MJ et blesse les héros qu'il traverse — arrêté, il barre le passage (bloc plein)</span>
+                </div>
+            </section>
+
             <section v-if="glace" class="lg-sect">
                 <div class="lg-sous">Murs de glace</div>
                 <div class="lg-ligne">
@@ -341,6 +350,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
   box-shadow: inset 0 0 0 1px oklch(0.5 0.06 55 / 0.55); }
 
 /* Mur de glace : même pastille que le bloc de DungeonGrid.vue (.dg-ice). */
+.lg-danger { background: oklch(0.38 0.13 25 / 0.85); color: oklch(0.9 0.07 60); }
 .lg-glace { background: linear-gradient(150deg, oklch(0.62 0.09 220 / 0.85), oklch(0.44 0.08 235 / 0.9));
   box-shadow: inset 0 0 0 1px oklch(0.88 0.06 220 / 0.7); color: oklch(0.96 0.02 220); border-radius: 3px; }
 

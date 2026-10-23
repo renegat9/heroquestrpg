@@ -1309,7 +1309,7 @@ final class MenuMoteur
 
     /** Types d'option qui frappent AVEC le héros lui-même (jamais le menu d'un allié). */
     // `tir_traversant` (Flèche traversante, lot A) est une attaque : un héros caché ne tire pas.
-    public const TYPES_ATTAQUE_HEROS = ['attaque', 'attaque_balayee', 'rayon', 'degat_differe', 'attaquer_mobilier', 'tir_traversant'];
+    public const TYPES_ATTAQUE_HEROS = ['attaque', 'attaque_balayee', 'rayon', 'degat_differe', 'attaquer_mobilier', 'frapper_danger', 'tir_traversant'];
 
     /** Le prédicat UNIQUE « cette option est une attaque du héros » : lu par le menu et par le résolveur. */
     public static function estAttaqueDuHeros(array $option): bool
@@ -2721,6 +2721,18 @@ final class MenuMoteur
                         'libelle' => "Attaquer : {$meuble['nom']} ({$pvRestants} PV)",
                         'type' => 'attaquer_mobilier',
                         'parametres' => ['mobilier' => $meuble['index'], 'nom' => $meuble['nom']],
+                    ];
+                }
+
+                // BRUME DE LA MORT (2026-10-23) — « not affected by normal weapons » : la frappe se joue au contact, avec
+                // n'importe quelle arme, et ne fait rien sauf à la Lame des Esprits (`MoteurDanger::frapperAvecArme()`).
+                // Offerte seulement au contact orthogonal ; le résolveur revérifie le contact et l'index.
+                foreach (app(MoteurDanger::class)->brumesAuContact($quete->carte, $px, $py) as $brume) {
+                    $options[] = [
+                        'id' => "frapper_danger_{$brume['index']}",
+                        'libelle' => "Frapper : {$brume['nom']}",
+                        'type' => 'frapper_danger',
+                        'parametres' => ['danger' => $brume['index'], 'nom' => $brume['nom']],
                     ];
                 }
 

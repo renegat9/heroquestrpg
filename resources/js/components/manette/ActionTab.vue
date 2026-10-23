@@ -61,6 +61,7 @@ const ICONE_TYPE = {
     // `attaque`, c'est un coup de combat — distinct de `jet` (fracasser un
     // meuble sur un jet de Body, un dé, pas une volée de dés de combat).
     attaquer_mobilier: 'swords',
+    frapper_danger: 'swords',
     // Frappe balayée (Frénésie sanguinaire) : sans cible à choisir, elle part
     // au clic — l'icône doit dire que ça tourne sur soi-même.
     attaque_balayee: 'cyclone',

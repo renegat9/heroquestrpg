@@ -150,6 +150,13 @@ final class MoteurDegats
     public const SOURCE_FAVEUR_HOLD_THE_LINE = 'faveur_hold_the_line';
 
     /**
+     * DANGER MOBILE AUTONOME (2026-10-23 — rocher roulant, brume de la mort) : dégâts de décor qui se déplace, pas un
+     * coup reçu. Hors de `ReactionEffet::SOURCES_REACTIVES` : aucune carte ne dit qu'un héros peut annuler un passage de la
+     * brume ou un coup de rocher. Lu par `App\Partie\MoteurDanger::toucher()`, seul producteur.
+     */
+    public const SOURCE_DANGER_MOBILE = 'danger_mobile';
+
+    /**
      * Applique `$degats` au héros et rend ce qui a RÉELLEMENT été retiré.
      *
      * Le retour n'est pas décoratif : un écouteur peut avoir réduit le coup, et

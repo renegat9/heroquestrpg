@@ -148,6 +148,14 @@ export const GLACE_ICONE = 'ac_unit';
 export const OMBRE_ICONE = 'visibility_off';
 
 /**
+ * DANGER MOBILE AUTONOME (2026-10-23 — rocher roulant de Kellar's Keep, brume de la mort de Witch Lord) : un HEXAGONE,
+ * la seule silhouette de la carte qui ne ressemble à aucune autre famille (figures rondes, pièges carrés, épreuves
+ * losange, leviers octogone, mobilier et glace en bloc plein, ombre en zone translucide). Un rocher ARRÊTÉ reprend le
+ * BLOC_ICONE du piège bloqué : c'est le même obstacle permanent que la Chute de blocs, et il se lit pareil.
+ */
+export const DANGER_ICONE = 'hexagon';
+
+/**
  * Terrain (doc 18 §4, The Frozen Horror) → catégorie de TEINTE de case.
  *
  * ⚠ FORME DÉLIBÉRÉMENT DIFFÉRENTE des cinq familles ci-dessus : figures,

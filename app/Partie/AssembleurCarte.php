@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Models\Danger;
 use App\Models\Epreuve;
 use App\Models\GabaritQuete;
 use App\Models\Mobilier;
@@ -414,6 +415,10 @@ final class AssembleurCarte
         // invisible, soit contradictoire (quel effet gagne ?).
         $terrain = $this->placerTerrains($structure, $cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $suivant, $bestiaire);
 
+        // DANGERS MOBILES AUTONOMES (2026-10-23 — rocher roulant, brume de la mort) : posés EN DERNIER, après les spawns,
+        // pour qu'aucun tirage existant ne soit décalé. Hors de leur thème : aucun tirage (voir `placerDangers()`).
+        $dangers = $this->placerDangers($cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $terrain, $suivant, $bestiaire);
+
         // ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05, René : « il
         // faudrait ajouter un escalier ou une porte d'entrée pour chaque
         // quête »). Contrairement aux cinq couches ci-dessus, il vit TOUJOURS
@@ -479,6 +484,9 @@ final class AssembleurCarte
             // case de glace en COULOIR n'a pas d'index à porter, le brouillard
             // dérive la visibilité des coordonnées, pas d'un index.
             'terrain' => $terrain,
+            // DANGERS MOBILES AUTONOMES (2026-10-23) : couche des dangers mobiles, `cartes.grille["dangers"]`. Une entrée
+            // ne porte que son état de pose ; position, passages et destruction vivent dans la carte, pas dans le catalogue.
+            'dangers' => $dangers,
             // ESCALIER D'ENTRÉE (2026-10-05) : le repère du plateau d'origine
             // — la quête COMMENCE et FINIT à l'escalier. `null` seulement en
             // repli défensif (salle 0 sans bloc 2×2 valide, voir
@@ -493,6 +501,283 @@ final class AssembleurCarte
             // ni la réduire sous le plancher de cases jouables — voir `casesPourFiguresFixes()`.
             'spawn_figures_fixes' => $this->casesPourFiguresFixes($cases, $salles, $portes, $leviers, $epreuves, $mobilier, $spawnsMonstres),
         ];
+    }
+
+    /**
+     * Chances sur 100 qu'un danger de la boîte du thème soit posé dans une quête. DÉCISION ÉCRITE : aucune source ne dit
+     * à quelle fréquence le rocher ou la brume apparaissent. Un tirage est consommé PAR danger du thème, posé ou non.
+     */
+    public const CHANCE_DANGER = 50;
+
+    /** Essais de pose du rocher (cases de départ A tirées au sort) avant de renoncer pour cette quête. */
+    private const ESSAIS_ROCHER = 40;
+
+    /** Longueur de la ligne droite que parcourt le rocher, case A comprise. */
+    private const LIGNE_ROCHER_MIN = 3;
+
+    private const LIGNE_ROCHER_MAX = 6;
+
+    /** Portée du test d'accès : au-delà de toute carte assemblée, donc « tout ce qui est joignable ». */
+    private const PORTEE_ACCES = 100000;
+
+    /**
+     * DANGERS MOBILES AUTONOMES (2026-10-23) — couche `dangers`, posée EN DERNIER, après les spawns : aucun tirage
+     * existant n'est décalé, et une carte dont le thème n'a aucun danger consomme exactement les mêmes tirages qu'avant
+     * (aucun tirage du tout, comme `placerTerrains()` hors de sa boîte).
+     *
+     * Le gabarit ne dit pas COMBIEN : le thème dit LESQUELS (`dangers.boite`), le tirage dit SI (`CHANCE_DANGER`).
+     * La pose suit `dangers.effet.pose` (vocabulaire `App\Engine\MotsClesDanger::POSE`) :
+     *  - `declencheur` — le rocher : une case de couloir nu A, puis une ligne droite de 3 à 6 cases de couloir nu dont le
+     *    dernier coin E est fermé par un mur. Le rocher s'arrête un jour en E et E devient un bloc permanent : E ne doit
+     *    JAMAIS couper l'accès à une case qui était accessible avant (`accesPreserve()`), sinon on ne pose rien ;
+     *  - `depart` — la brume : une case de couloir nu, tirée au sort. Elle ne bloque rien : aucune vérification d'accès.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function placerDangers(
+        array $cases,
+        array $salles,
+        array $portes,
+        array $leviers,
+        array $pieges,
+        array $mobilier,
+        array $epreuves,
+        array $terrain,
+        \Closure $suivant,
+        ?BestiaireGroupe $bestiaire,
+    ): array {
+        if ($bestiaire === null || $salles === []) {
+            return [];
+        }
+
+        $dangers = [];
+        $decor = $this->casesDuDecor($salles, $portes, $mobilier, $pieges, $leviers, $epreuves, $terrain);
+        $bloquantes = $this->cellulesBloquantesMouvement($cases, $mobilier, $terrain);
+        $origine = $this->origineDepart($cases, $salles, $bloquantes);
+
+        foreach (Danger::query()->whereNotNull('boite')->orderBy('id')->get() as $danger) {
+            if (! $bestiaire->contient($danger->boite)) {
+                continue;
+            }
+
+            if ($suivant() % 100 >= self::CHANCE_DANGER || $origine === null) {
+                continue;
+            }
+
+            $pose = $this->poseDeDanger($cases, $salles, $decor, $bloquantes, $origine, $suivant, (string) data_get($danger->effet, 'pose'));
+
+            if ($pose !== null) {
+                $dangers[] = ['danger_id' => (int) $danger->id, 'nom' => (string) $danger->nom, ...$pose];
+            }
+        }
+
+        return $dangers;
+    }
+
+    /**
+     * @param  array<string, true>  $decor
+     * @param  list<array{x: int, y: int}>  $bloquantes
+     * @param  array{0: int, 1: int}  $origine
+     * @return array<string, mixed>|null
+     */
+    private function poseDeDanger(array $cases, array $salles, array $decor, array $bloquantes, array $origine, \Closure $suivant, string $pose): ?array
+    {
+        $couloirs = $this->couloirsNus($cases, $salles, $decor);
+
+        if ($couloirs === []) {
+            return null;
+        }
+
+        if ($pose === 'depart') {
+            [$x, $y] = $couloirs[$suivant() % count($couloirs)];
+
+            return ['etat' => 'actif', 'x' => $x, 'y' => $y];
+        }
+
+        if ($pose === 'declencheur') {
+            return $this->poseRocher($cases, $salles, $decor, $bloquantes, $origine, $couloirs, $suivant);
+        }
+
+        return null;
+    }
+
+    /**
+     * Le rocher : une case A et une ligne droite de couloir nu dont le coin E est un mur. Refusée si fermer E coupe
+     * une route (`accesPreserve()`). Rend l'entrée de la couche, rocher en attente (il tombera au passage de A).
+     *
+     * @param  array<string, true>  $decor
+     * @param  list<array{x: int, y: int}>  $bloquantes
+     * @param  array{0: int, 1: int}  $origine
+     * @param  list<array{0: int, 1: int}>  $couloirs
+     * @return array<string, mixed>|null
+     */
+    private function poseRocher(array $cases, array $salles, array $decor, array $bloquantes, array $origine, array $couloirs, \Closure $suivant): ?array
+    {
+        $directions = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+        $rotation = $suivant() % 4;
+
+        for ($essai = 0, $essais = min(self::ESSAIS_ROCHER, count($couloirs)); $essai < $essais; $essai++) {
+            [$ax, $ay] = $couloirs[$suivant() % count($couloirs)];
+
+            for ($k = 0; $k < 4; $k++) {
+                [$dx, $dy] = $directions[($rotation + $k) % 4];
+                $ligne = [[$ax, $ay]];
+
+                while (count($ligne) < self::LIGNE_ROCHER_MAX) {
+                    [$px, $py] = end($ligne);
+                    [$nx, $ny] = [$px + $dx, $py + $dy];
+
+                    if (($cases[$ny][$nx] ?? 'm') !== 's' || Salles::indexDe($salles, $nx, $ny) !== null || isset($decor["$nx,$ny"])) {
+                        break;
+                    }
+
+                    $ligne[] = [$nx, $ny];
+                }
+
+                if (count($ligne) < self::LIGNE_ROCHER_MIN) {
+                    continue;
+                }
+
+                [$ex, $ey] = end($ligne);
+
+                // Le coin doit être un MUR : c'est là que le rocher s'écrase. Sinon la ligne se poursuit, et rien ne se ferme.
+                if (($cases[$ey + $dy][$ex + $dx] ?? 'm') !== 'm') {
+                    continue;
+                }
+
+                if (! $this->accesPreserve($cases, $bloquantes, $origine, $ex, $ey)) {
+                    continue;
+                }
+
+                return [
+                    'etat' => 'attente',
+                    'x' => $ax,
+                    'y' => $ay,
+                    'run' => array_map(fn (array $c) => [$c[0], $c[1]], $ligne),
+                    'i' => 0,
+                    'franchi' => [],
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Fermer E (le rocher arrêté) coupe-t-il une route ? Toute case atteignable AVANT doit rester atteignable APRÈS.
+     * La question se pose sur la grille même du déplacement (`Grille::casesAtteignables()`, obstacles de mobilier et de
+     * terrain compris) : jamais une seconde BFS qui dériverait de la première.
+     *
+     * @param  list<array{x: int, y: int}>  $bloquantes
+     * @param  array{0: int, 1: int}  $origine
+     */
+    private function accesPreserve(array $cases, array $bloquantes, array $origine, int $ex, int $ey): bool
+    {
+        $avant = $this->atteignablesDepuis($cases, $bloquantes, $origine);
+        $apres = $this->atteignablesDepuis($cases, [...$bloquantes, ['x' => $ex, 'y' => $ey]], $origine);
+        $cleE = "{$ex},{$ey}";
+
+        foreach (array_keys($avant) as $cle) {
+            if ($cle !== $cleE && ! isset($apres[$cle])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  list<array{x: int, y: int}>  $bloquees
+     * @param  array{0: int, 1: int}  $origine
+     * @return array<string, true>
+     */
+    private function atteignablesDepuis(array $cases, array $bloquees, array $origine): array
+    {
+        $grille = new Grille($cases);
+        $grille->obstruer($bloquees);
+        $ensemble = ["{$origine[0]},{$origine[1]}" => true];
+
+        foreach (array_keys($grille->casesAtteignables($origine[0], $origine[1], self::PORTEE_ACCES)) as $cle) {
+            $ensemble[$cle] = true;
+        }
+
+        return $ensemble;
+    }
+
+    /**
+     * Cases de couloir NU, dans l'ordre (y, x) : ni salle, ni décor, ni mur — le seul terrain des dangers.
+     *
+     * @param  array<string, true>  $decor
+     * @return list<array{0: int, 1: int}>
+     */
+    private function couloirsNus(array $cases, array $salles, array $decor): array
+    {
+        $nus = [];
+
+        foreach ($cases as $y => $ligne) {
+            foreach ($ligne as $x => $c) {
+                if ($c === 's' && Salles::indexDe($salles, $x, $y) === null && ! isset($decor["{$x},{$y}"])) {
+                    $nus[] = [$x, $y];
+                }
+            }
+        }
+
+        return $nus;
+    }
+
+    /**
+     * Cases que le mouvement ne traverse pas : mobilier et terrain à `bloque_mouvement`. Un seul recensement, pour le
+     * test d'accès (la question du déplacement, pas celle de la pose).
+     *
+     * @return list<array{x: int, y: int}>
+     */
+    private function cellulesBloquantesMouvement(array $cases, array $mobilier, array $terrain): array
+    {
+        $idsMobilier = Mobilier::query()->where('bloque_mouvement', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $idsTerrain = Terrain::query()->where('bloque_mouvement', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $grille = new Grille($cases);
+        $cellules = [];
+
+        foreach ($mobilier as $meuble) {
+            if (in_array((int) $meuble['mobilier_id'], $idsMobilier, true)) {
+                array_push($cellules, ...$grille->cellulesEmprise((int) $meuble['x'], (int) $meuble['y'], (int) ($meuble['l'] ?? 1), (int) ($meuble['h'] ?? 1)));
+            }
+        }
+
+        foreach ($terrain as $tuile) {
+            if (in_array((int) ($tuile['terrain_id'] ?? 0), $idsTerrain, true)) {
+                $cellules[] = ['x' => (int) $tuile['x'], 'y' => (int) $tuile['y']];
+            }
+        }
+
+        return $cellules;
+    }
+
+    /**
+     * La première case libre de la salle 0 : là où le groupe démarre, donc le point de départ du test d'accès.
+     *
+     * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
+     * @param  list<array{x: int, y: int}>  $bloquantes
+     * @return array{0: int, 1: int}|null
+     */
+    private function origineDepart(array $cases, array $salles, array $bloquantes): ?array
+    {
+        $s0 = $salles[0];
+        $bloques = [];
+
+        foreach ($bloquantes as $c) {
+            $bloques["{$c['x']},{$c['y']}"] = true;
+        }
+
+        for ($y = (int) $s0['y']; $y < $s0['y'] + $s0['hauteur']; $y++) {
+            for ($x = (int) $s0['x']; $x < $s0['x'] + $s0['largeur']; $x++) {
+                if (($cases[$y][$x] ?? 'm') === 's' && ! isset($bloques["{$x},{$y}"])) {
+                    return [$x, $y];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

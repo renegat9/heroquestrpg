@@ -18,7 +18,7 @@ import MSym from '../ui/MSym.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
-    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, BLOC_ICONE, ESCALIER_ICONE, OMBRE_ICONE, icone,
+    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, BLOC_ICONE, ESCALIER_ICONE, OMBRE_ICONE, DANGER_ICONE, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -64,6 +64,10 @@ const props = defineProps({
      *  OMBRE_ICONE dans symboles.js. Jamais re-dérivée ici : le serveur publie
      *  le rectangle ET ce qu'il reste de jetons. */
     shadow: { type: Array, default: () => [] },
+    /** Dangers mobiles autonomes (2026-10-23) : [{nom, x, y, etat}] — `etat` vaut `roule`/`actif` (en mouvement,
+     *  hexagone) ou `bloc` (rocher arrêté, bloc plein). Publiés par le serveur, filtrés par le brouillard : jamais
+     *  re-dérivés ici (ni la trajectoire, ni la destruction). Voir DANGER_ICONE dans symboles.js. */
+    dangers: { type: Array, default: () => [] },
     /** Escalier d'entrée (chantier escalier-entrée, 2026-10-05) : `{x, y, l,
      *  h}` ou `null`. Posé une seule fois dans la salle de départ — TOUJOURS
      *  traversable, aucun des deux drapeaux du mobilier ne s'applique, donc un
@@ -277,6 +281,22 @@ const doors = computed(() => (props.carte.portes ?? [])
         >
             <div class="dg-stairs" title="Escalier d'entrée — on commence et on finit la quête ici">
                 <MSym :n="ESCALIER_ICONE" fill />
+            </div>
+        </div>
+
+        <!-- dangers mobiles autonomes (2026-10-23) : un hexagone sur la case où ils SONT ce tour-ci ; un rocher arrêté
+             reprend le bloc plein de la Chute de blocs (même obstacle permanent). -->
+        <div
+            v-for="(d, i) in dangers"
+            :key="`d-${d.x}-${d.y}-${i}`"
+            class="dg-danger-holder"
+            :style="{ gridColumn: d.x + 1, gridRow: d.y + 1 }"
+        >
+            <div
+                :class="['dg-danger', d.etat === 'bloc' ? 'bloc' : 'mouvement']"
+                :title="d.etat === 'bloc' ? `${d.nom} — arrêté : le passage est bloqué pour le reste de la quête` : `${d.nom} — en mouvement`"
+            >
+                <MSym :n="d.etat === 'bloc' ? BLOC_ICONE : DANGER_ICONE" fill />
             </div>
         </div>
 
@@ -568,6 +588,14 @@ const doors = computed(() => (props.carte.portes ?? [])
   box-shadow: inset 0 0 0 1.5px oklch(0.78 0.14 80 / 0.5); }
 .dg-stairs .msym { font-size: calc(var(--dg-icone) * 1.6); color: oklch(0.82 0.13 80);
   filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
+
+/* ---- dangers mobiles autonomes (2026-10-23) : un HEXAGONE de braise sombre quand le danger est en mouvement ; une fois le
+   rocher arrêté, il reprend le BLOC PLEIN de la Chute de blocs (même obstacle permanent, même lecture). ---- */
+.dg-danger-holder { position: relative; pointer-events: none; z-index: 2; }
+.dg-danger { position: absolute; inset: 12%; display: grid; place-items: center; border-radius: 8px;
+  background: oklch(0.38 0.13 25 / 0.85); color: oklch(0.9 0.07 60); }
+.dg-danger.bloc { inset: 5%; border-radius: 4px; background: oklch(0.42 0.03 60); color: oklch(0.86 0.03 70); }
+.dg-danger .msym { font-size: var(--dg-icone); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
 
 /* ---- murs de glace (doc 18 §4) : MÊME silhouette que le mobilier bloquant
    (bloc plein occupant la case) et une palette glacée — le joueur doit lire

@@ -144,3 +144,22 @@ it('fait lire la MÊME table au rendu et à la légende', function () {
             ->and(str_contains($source, 'TERRAIN_TEINTES'))->toBeTrue("{$fichier} ne lit pas TERRAIN_TEINTES — le terrain resterait invisible");
     }
 });
+
+it('publie une silhouette pour les DANGERS mobiles, lue par le rendu ET par la légende (une couche publiée nulle part est muette)', function () {
+    // Les dangers ont une icône unique (comme la glace) : pas de table à confronter au catalogue, mais la même règle
+    // d'invariant — la silhouette est DÉCLARÉE dans symboles.js, et les deux composants la LISENT depuis ce fichier.
+    // Une silhouette déclarée et jamais lue, ou lue sans être déclarée, est exactement la faute des leviers.
+    $symboles = file_get_contents(base_path('resources/js/components/carte/symboles.js'));
+
+    expect($symboles)->toContain("export const DANGER_ICONE = 'hexagon';");
+
+    foreach (['DungeonGrid.vue', 'LegendeCarte.vue'] as $fichier) {
+        $source = file_get_contents(base_path("resources/js/components/carte/{$fichier}"));
+
+        expect(str_contains($source, 'DANGER_ICONE'))->toBeTrue("{$fichier} ne lit pas DANGER_ICONE");
+    }
+
+    // Le rendu comme la légende reçoivent la couche telle que le serveur la publie : `dangers`, jamais re-dérivée.
+    expect(file_get_contents(base_path('resources/js/components/carte/DungeonGrid.vue')))->toContain('dangers: { type: Array')
+        ->and(file_get_contents(base_path('resources/js/components/carte/LegendeCarte.vue')))->toContain('props.carte?.dangers');
+});

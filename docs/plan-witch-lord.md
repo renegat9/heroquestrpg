@@ -330,3 +330,15 @@ Chantier EXT-WITCH. Critère appliqué : la décision datée du 2026-10-23 (`672
 
 - Budget minimal d'une finale (boss final, un héros de niveau 1, premier arc) : **8**. Le Seigneur (14) le consomme : la finale est posée à coup sûr, et l'escorte est vide. Les finales existantes font pareil (Seigneur ogre 20, Scion 22). Au budget 40, il reste 26 pour l'escorte (`WitchLordTest`).
 - Mutations : huit lecteurs neufs retirés un à un, chacun fait tomber au moins un test qui le vise (voir le rapport).
+
+## Exécution (2026-10-23) — la brume de la mort (chantier `ext-danger`)
+
+La brume de la mort de la quête 3 (note A, F4193 p. 13) est portée **dans la mécanique commune** du rocher roulant de *Kellar's Keep* (décision Q6 du 2026-10-15 : une seule implémentation). Règles : `docs/regles/carte-donjon.md` § « DANGERS MOBILES AUTONOMES » ; contrat : `docs/contrat-api.md` § « Dangers mobiles autonomes ». Cette section **précise** le « Non porté » de l'exécution EXT-WITCH ci-dessus : la brume n'est plus écartée.
+
+- **Porté** : `dangers` (brume : `pose: depart`, `boite: witch_lord`, `chemin: reseau_de_couloirs`, `deplacement: cases 6`, `degats: pv 1`, `arret: jamais`, `destruction: [Tempête, Lame des Esprits]`), posée au départ sur une case de couloir nu (tirage, 50 %), publiée sous le brouillard, glissant d'au plus 6 cases vers le héros debout le plus proche.
+- **Passages** : −1 PV par héros traversé, **sans dé** ; ne termine jamais sur un héros ; ne bloque ni mouvement ni vue (pas une figure).
+- **Destruction** : Lame des Esprits au contact (`frapper_danger_{index}`), Tempête en cible (`cible_type: danger`, identifiant 1-basé). Une autre arme ou un autre sort n'a aucun effet.
+- **Non sourcé, écrit comme décision** : les PV de la brume (**⚠ non trouvé**, « destroyed » lu comme un coup qualifiant) ; la direction (non dite par le livret) ; la fréquence.
+- **Tests** : `tests/Feature/Partie/DangerMobileTest.php` (brume qui passe sur le héros sans dé ; jamais sur un héros ; Lame au contact, arme ordinaire sans effet, contact exigé ; Tempête en cible seule ; pas de pose hors `witch_lord`).
+- **Migrations et seeders à jouer** : `migrate` (table `dangers`), `db:seed` (`DangerSeeder`).
+- **Reste** : les portes à condition et le reste du lot E de cette boîte (non tranchés, hors de ce chantier).

@@ -76,6 +76,8 @@ final class JournalCombat
         'liberer_entraves' => true, 'relever' => true, 'regain_corps' => true,
         'equiper' => true, 'desequiper' => true, 'usage_objet' => true, 'echanger' => true,
         'jeter' => true, 'attaque_mobilier' => true, 'fouille_tresor' => true,
+        // DANGERS MOBILES AUTONOMES (2026-10-23) : rocher roulant et brume de la mort, tous jouent au tour du MJ.
+        'danger_chute' => true, 'danger_roule' => true, 'danger_avance' => true, 'danger_detruit' => true, 'danger_sans_effet' => true,
         'fouille_mobilier' => true, 'boire_mare' => true, 'soin_cheminee' => true, 'detruire_par_action' => true,
         'actionner_levier' => true, 'forcer_porte_pierre' => true, 'ouvrir_porte' => true,
         'oracle_salle' => true, 'poussee' => true, 'briser_glace' => true,
@@ -180,7 +182,7 @@ final class JournalCombat
      * tampon générique (`TamponAnnonces`). Des listes que personne ne lisait —
      * leurs effets étaient publiés, journalisés, et affichés NULLE PART.
      */
-    public const LISTES_PLATES = ['captifs_repris', 'coups_de_corne', 'filets_silencieux', 'meteores', 'annonces_automatiques'];
+    public const LISTES_PLATES = ['captifs_repris', 'coups_de_corne', 'filets_silencieux', 'meteores', 'annonces_automatiques', 'tour_dangers'];
 
     /**
      * Les clés sous lesquelles un piège peut être IMBRIQUÉ dans une action : `declenchement`
@@ -1033,6 +1035,7 @@ final class JournalCombat
             // (les PV qui tombent) que rien n'annonçait serait injouable,
             // exactement la faute que ce fichier corrige partout ailleurs.
             'attaque_mobilier' => $this->attaqueMobilier($a, $acteurNom),
+            'danger_chute', 'danger_roule', 'danger_avance', 'danger_detruit', 'danger_sans_effet' => $this->dangerMobile($a),
             'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteurNom),
             'actionner_levier' => $this->levier($a, $acteurNom),
             // PORTE DE PIERRE (Against the Ogre Horde p. 4) : un effet
@@ -1981,6 +1984,80 @@ final class JournalCombat
         return (int) ($a['touches'] ?? 0) === 0
             ? [['texte' => "{$acteurNom} manque {$meuble}{$des}", 'ton' => 'echec']]
             : [['texte' => "{$meuble} résiste à l'assaut de {$acteurNom}{$des}", 'ton' => 'pare']];
+    }
+
+    /**
+     * DANGERS MOBILES AUTONOMES (2026-10-23) — le rocher roulant et la brume de la mort jouent AU TOUR DU MJ, sans acteur :
+     * chaque glissement, chaque passage et chaque destruction de la couche est une ligne du fil. Un effet automatique que
+     * rien n'annonce est injouable (CLAUDE.md).
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function dangerMobile(array $a): array
+    {
+        $nom = (string) ($a['danger'] ?? 'Le danger');
+
+        return match ($a['type']) {
+            'danger_chute' => [$this->info("{$nom} tombe du plafond : {$a['heros']} vient de franchir la case déclencheur, le dernier de la troupe.")],
+            'danger_roule' => $this->dangerRoule($a, $nom),
+            'danger_avance' => $this->dangerAvance($a, $nom),
+            'danger_detruit' => [['texte' => "{$a['heros']} détruit {$nom} ({$a['par']}).", 'ton' => 'succes']],
+            'danger_sans_effet' => [['texte' => "{$a['heros']} frappe {$nom} avec {$a['arme']} — sans effet.", 'ton' => 'echec']],
+            default => [],
+        };
+    }
+
+    /** @param  array<string, mixed>  $a  @return list<array{texte: string, ton: string}> */
+    private function dangerRoule(array $a, string $nom): array
+    {
+        $lignes = [$this->info("{$nom} roule de {$a['distance']} case(s)")];
+
+        foreach ((array) ($a['touches'] ?? []) as $touche) {
+            $lignes[] = $this->touchePassage($touche);
+        }
+
+        if (! empty($a['bloc'])) {
+            $lignes[] = $this->info("{$nom} s'écrase au bout du couloir : le passage est bloqué pour le reste de la quête");
+        }
+
+        return $lignes;
+    }
+
+    /** @param  array<string, mixed>  $a  @return list<array{texte: string, ton: string}> */
+    private function dangerAvance(array $a, string $nom): array
+    {
+        $lignes = [$this->info("{$nom} glisse de {$a['pas']} case(s)")];
+
+        foreach ((array) ($a['touches'] ?? []) as $touche) {
+            $lignes[] = $this->touchePassage($touche);
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * Un héros touché par un danger mobile. Dés de combat (rocher) : crânes comptés ; coup sec (brume) : les PV seuls.
+     *
+     * @param  array<string, mixed>  $t
+     * @return array{texte: string, ton: string}
+     */
+    private function touchePassage(array $t): array
+    {
+        $perdus = (int) ($t['degats'] ?? 0);
+        $faces = (array) ($t['faces'] ?? []);
+
+        if ($faces === []) {
+            return ['texte' => "{$t['heros']} est traversé : −{$perdus} PV", 'ton' => $perdus > 0 ? 'degats' : 'pare'];
+        }
+
+        $cranes = count(array_filter($faces, fn ($f) => $f === 'crane'));
+
+        if ($perdus === 0) {
+            return ['texte' => "{$t['heros']} évite le rocher : aucun crâne sur ".count($faces).' dés', 'ton' => 'pare'];
+        }
+
+        return ['texte' => "{$t['heros']} est écrasé : {$cranes} crâne(s) sur ".count($faces)." dés — −{$perdus} PV", 'ton' => 'degats'];
     }
 
     /**

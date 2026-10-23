@@ -44,8 +44,9 @@ use Illuminate\Support\Facades\Http;
 
 /** Les `'type' => '…'` de `app/Partie` qui ne sont PAS une action rendue au fil. */
 const NON_ACTIONS_ANNONCES = [
-    // Genre d'une FIGURE (acteur, cible, trajet animé) — jamais une action.
-    'monstre', 'heros', 'personnage', 'allie', 'captif',
+    // Genre d'une FIGURE (acteur, cible, trajet animé) — jamais une action. `danger` : la CIBLE d'une brume de la mort
+    // (`cible_type: danger`, 2026-10-23) — un candidat de la liste de cibles du sort, pas un événement du fil.
+    'monstre', 'heros', 'danger', 'personnage', 'allie', 'captif',
     // Verrou de porte (`verrou.type`), tuiles, cible de soin d'urgence, sous-objet de payload.
     'levier', 'competence', 'potion', 'potion_aide', 'artefact', 'objet_use', 'objet_libre',
     // Questions de VOTE (VoteGroupe) : l'écran de vote les rend, pas le fil.
@@ -156,6 +157,14 @@ function fixturesDesTypesAnnonces(): array
         'breuvage_dissipe' => ['personnage' => 'Albrecht', 'texte' => "Albrecht : l'effet de « Potion d'héroïsme » se dissipe, faute d'attaque"],
         'attaque_supplementaire_perdue' => ['personnage' => 'Albrecht', 'texte' => 'Albrecht se déplace : son attaque supplémentaire est perdue.'],
         'briser_glace' => ['personnage' => 'Albrecht', 'x' => 1, 'y' => 1, 'brisee' => true],
+        // DANGERS MOBILES AUTONOMES (2026-10-23) : rocher roulant et brume de la mort, jouent au tour du MJ.
+        'danger_chute' => ['danger' => 'Rocher roulant', 'x' => 5, 'y' => 4, 'heros' => 'Albrecht'],
+        'danger_roule' => ['danger' => 'Rocher roulant', 'distance' => 7, 'x' => 10, 'y' => 4, 'bloc' => true,
+            'touches' => [['heros' => 'Albrecht', 'degats' => 2, 'faces' => ['crane', 'crane', 'bouclier_noir', 'bouclier_noir', 'bouclier_blanc']]]],
+        'danger_avance' => ['danger' => 'Brume de la mort', 'x' => 7, 'y' => 4, 'pas' => 2,
+            'touches' => [['heros' => 'Albrecht', 'degats' => 1, 'faces' => []]]],
+        'danger_detruit' => ['danger' => 'Brume de la mort', 'par' => 'Lame des Esprits', 'heros' => 'Albrecht', 'x' => 7, 'y' => 4],
+        'danger_sans_effet' => ['danger' => 'Brume de la mort', 'heros' => 'Albrecht', 'arme' => 'Dague', 'x' => 7, 'y' => 4],
         'detacher_rejetons' => ['cible' => $cible, 'retires' => 1, 'restants' => 1],
         's_ecarter_du_bloc' => ['vers' => ['x' => 2, 'y' => 3]],
         'saut_sables' => ['terrain' => 'Sables mouvants', 'faces' => ['crane'], 'face_requise' => 'bouclier_noir', 'franchi' => false, 'a_defausser' => 2],
