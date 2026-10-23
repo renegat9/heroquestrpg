@@ -228,6 +228,19 @@ final class MoteurMobilier
             return ['issue' => 'tresor', 'or' => random_int($min, $max)];
         }
 
+        if ($issue === 'monstre') {
+            // CERCUEIL (*Return of the Witch Lord* p. 4-5 : « may contain an undead creature »). Le livret ne
+            // nomme aucune créature : le mort-vivant est tiré À ÉGALITÉ dans la liste de l'entrée (Squelette,
+            // Zombie, Momie — les trois morts-vivants de base). Le nom voyage avec la carte, comme le piège.
+            $vivants = array_values((array) ($entree['monstres'] ?? []));
+
+            if ($vivants === []) {
+                return ['issue' => 'rien'];
+            }
+
+            return ['issue' => 'monstre', 'monstre' => (string) $vivants[random_int(0, count($vivants) - 1)]];
+        }
+
         if ($issue === 'piege') {
             // Le NOM voyage avec la carte : `appliquerButin()` le résout en
             // catalogue. Lire « Piège de coffre » en ouvrant un tombeau casserait

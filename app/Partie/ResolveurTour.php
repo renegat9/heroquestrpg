@@ -119,6 +119,11 @@ final class ResolveurTour
 
     private const ISSUE_ERRANT = 'errant';
 
+    /** Motifs d'un coup SANS EFFET (`immuniteDuCoup()`), lus par le payload et l'annonce. */
+    private const SANS_EFFET_SOURCE = 'source';
+
+    private const SANS_EFFET_INVULNERABLE = 'invulnerable';
+
     /** Clé d'effet de sort du *Trésor sans Péril* (parchemin, doc 16 §9.2). */
     private const EFFET_PIOCHE_SANS_PERIL = 'pioche_sans_peril';
 
@@ -2008,7 +2013,12 @@ final class ResolveurTour
             $face = FaceDeCombat::depuisD6($this->des->d6());
             $arretee = $face === FaceDeCombat::BouclierNoir;
             $pvAvant = (int) $instance->pv_body;
-            $degats = $arretee ? 0 : min($pvAvant, (int) ($fleche->objet?->effet[MotsClesEquipement::DEGATS_SAUF_BOUCLIER_NOIR] ?? 0));
+            // Immunités du coup (même règle que la frappe ordinaire, plus bas) : une flèche qui ne blesse pas
+            // la créature n'entame rien — elle se lit tout de même, annoncée.
+            $sansEffet = $this->immuniteDuCoup($instance, $fleche->objet);
+            $degats = $arretee || $sansEffet !== null
+                ? 0
+                : min($pvAvant, (int) ($fleche->objet?->effet[MotsClesEquipement::DEGATS_SAUF_BOUCLIER_NOIR] ?? 0));
 
             // UNIQUE point de passage de la mort d'un monstre — un monstre à
             // PHASES n'y meurt pas, il adopte la forme suivante. `$personnage`
@@ -2023,11 +2033,19 @@ final class ResolveurTour
             $payload['changement_phase'] = $resultatMort['changement_phase'];
             $payload['reaction_monstre'] = $resultatMort['reaction'];
             $payload['reddition_monstre'] = $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null;
+            $payload['sans_effet'] = $sansEffet;
+            $payload['arme_brisee'] = $sansEffet === self::SANS_EFFET_INVULNERABLE
+                ? $this->briserArmeFrappante($instance, $personnage, $fleche, $fleche->objet)
+                : null;
 
             $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAINE_ATTAQUE);
             $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
             Journal::ajouter($groupe, 'combat', $payload, $acteur);
-            $this->charges->detruireSiEpuise($fleche);
+
+            // Une arme brisée par une statue a déjà quitté l'inventaire : rien à décompter.
+            if ($fleche->exists) {
+                $this->charges->detruireSiEpuise($fleche);
+            }
 
             // Une flèche arrêtée est un raté, une flèche qui blesse sans
             // abattre (ou qui déclenche un changement de phase) est une
@@ -2186,6 +2204,19 @@ final class ResolveurTour
         // clé d'effet ne savait pas distinguer.
         $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAINE_ATTAQUE);
 
+        // IMMUNITÉS DU COUP (`MotsClesAdversaires::VULNERABLE_UNIQUEMENT_A`, `INVULNERABLE_CASSE_ARME`) : une source
+        // qui ne blesse pas ne fait AUCUN dégât — le jet a eu lieu et se lit, le coup n'entame rien, et c'est
+        // annoncé (`sans_effet`). Une créature invulnérable brise en plus l'arme employée, sauf si elle est exemptée.
+        $sansEffet = $this->immuniteDuCoup($instance, $armePrincipale);
+        $armeBrisee = null;
+
+        if ($sansEffet !== null) {
+            $resultat = $resultat->avecDegatsSupprimes();
+            $armeBrisee = $sansEffet === self::SANS_EFFET_INVULNERABLE
+                ? $this->briserArmeFrappante($instance, $personnage, $ligneArme, $armePrincipale)
+                : null;
+        }
+
         // UNIQUE point de passage de la mort d'un monstre — un monstre à
         // PHASES n'y meurt pas, il adopte la forme suivante. `$personnage`
         // en 5e argument : FAVEUR « Peacekeeper » lue LÀ (2026-10-08),
@@ -2278,6 +2309,11 @@ final class ResolveurTour
             'degats' => $resultat->degats,
             'pv_body_apres' => $resultatMort['pv_body'],
             'cible_vaincue' => $resultatMort['vaincu'],
+            // Coup SANS EFFET (`source` : l'arme ne blesse pas cette créature ; `invulnerable` : aucune arme ne
+            // la blesse) et l'arme qu'il a brisée. `null` sinon : un effet automatique que rien n'annonce est
+            // injouable.
+            'sans_effet' => $sansEffet,
+            'arme_brisee' => $armeBrisee,
             // Changement de phase (chantier 2026-10-04) : `null` tant qu'elle
             // n'a pas changé de forme — un effet automatique que rien
             // n'annonce est injouable.
@@ -2589,7 +2625,7 @@ final class ResolveurTour
 
         $touches = $this->projeterRayon(
             $quete->groupe, $quete, $etat, $lanceur, $direction, $degats,
-            touchesLesHeros: true, source: $sort->nom, sortMagique: true,
+            touchesLesHeros: true, source: $sort->nom, sortMagique: true, sort: $sort,
         );
 
         return [
@@ -2623,15 +2659,16 @@ final class ResolveurTour
         bool $touchesLesHeros,
         string $source,
         bool $sortMagique = false,
+        ?Sort $sort = null,
     ): array {
         $touches = [];
 
         foreach ($this->casesDuRayon($quete, (int) $etat->position_x, (int) $etat->position_y, $direction) as $case) {
             foreach ($this->monstresSur($quete, $case['x'], $case['y']) as $instance) {
-                // IMMUNITÉ TOTALE AUX SORTS (Guardian Effigy : « immune to all spell effects ») :
-                // le rayon d'un SORT passe sans l'atteindre — pas la technique du Moine, qui n'est
-                // pas un sort. Dite dans le résultat (`immunise`), jamais passée sous silence.
-                if ($sortMagique && $instance->monstre->immuniseAuxSorts()) {
+                // IMMUNITÉS AUX SORTS (`MoteurSorts::sortRefuseSur()`, l'échelle totale → famille → sources) :
+                // le rayon d'un SORT passe sans l'atteindre — pas la technique du Moine, qui n'est pas un
+                // sort. Dite dans le résultat (`immunise`), jamais passée sous silence.
+                if ($sortMagique && $sort !== null && $this->sorts->sortRefuseSur($instance->monstre->immunitesSorts(), $sort)) {
                     $touches[] = [
                         'type' => 'monstre',
                         'instance_id' => $instance->id,
@@ -6674,7 +6711,7 @@ final class ResolveurTour
             // IMMUNITÉS (`MotsClesAdversaires`) : une créature « immune to all spell effects »
             // (Guardian Effigy) ou immunisée à la condition que ce sort poserait (Bloomrot Scion :
             // sommeil, tour perdu) n'est pas touchée — et la salle le SAIT : annoncé, sans jet.
-            if ($instance->monstre->immuniseAuxSorts()
+            if ($this->sorts->sortRefuseSur($instance->monstre->immunitesSorts(), $sort)
                 || array_intersect($this->sorts->conditionsPoseesSurMonstre($sort), $instance->monstre->conditionsImmunisees()) !== []) {
                 $touches[] = ['type' => 'monstre', 'instance_id' => $instance->id,
                     'nom' => $instance->nomAffiche(), 'immunise' => true];
@@ -10103,6 +10140,22 @@ final class ResolveurTour
             }
         } elseif ($issue === 'potion' || $issue === 'artefact' || $issue === 'objet') {
             $payload = [...$payload, ...$this->remettreButin($carte, $personnage, $issue)];
+        } elseif ($issue === 'monstre') {
+            // CERCUEIL (`MobilierSeeder`, Tombeau) : une créature morte-vivante en sort. Même payload que l'errant
+            // (`monstre` : instance, nom, case) — l'annonce et la scène la lisent telle quelle.
+            $cree = $this->spawnDuTombeau($quete, $etat, (string) ($carte['monstre'] ?? ''));
+
+            if ($cree === null) {
+                $payload['issue'] = 'rien';
+                $payload['monstre_indisponible'] = true;
+            } else {
+                $payload['monstre'] = [
+                    'instance_id' => $cree->id,
+                    'nom' => $cree->nomAffiche(),
+                    'x' => (int) $cree->position_x,
+                    'y' => (int) $cree->position_y,
+                ];
+            }
         } elseif ($issue === 'errant') {
             $errant = $this->spawnErrant($quete, $etat);
 
@@ -10717,6 +10770,41 @@ final class ResolveurTour
     }
 
     /**
+     * Le mort-vivant d'un CERCUEIL (`MobilierSeeder`, Tombeau, issue `monstre` ; *Return of the Witch Lord* p. 4-5 :
+     * « may contain an undead creature »). Posé sur une case libre ORTHOGONALE au fouilleur — le contact du projet
+     * (`Grille::sontAdjacentes()`), le texte du cercueil ne nommant aucune diagonale, là où la carte d'errant dit
+     * « adjacent OR DIAGONAL » ; repli sur la case libre la plus proche (`caseLibreProche()`). Actif et révélé :
+     * il joue au tour des monstres, SANS frappe de surgissement, que le livret ne prévoit pas pour un cercueil.
+     * Le nom vient de la fouille (`MoteurMobilier`). `null` si la créature n'est pas au bestiaire autorisé, ou si
+     * rien n'est libre — la fouille ne sort alors rien, et le dit.
+     */
+    private function spawnDuTombeau(Quete $quete, EtatPersonnageQuete $etat, string $nom): ?InstanceMonstre
+    {
+        $monstre = Monstre::query()->where('nom_base', $nom)->where('tier', 'base')->first();
+
+        if ($monstre === null || ! BestiaireGroupe::duGroupe($quete->groupe)->autorise($monstre->boites())) {
+            return null;
+        }
+
+        $place = $this->caseLibreProche($quete, (int) $etat->position_x, (int) $etat->position_y, orthogonal: true);
+
+        if ($place === null) {
+            return null;
+        }
+
+        return $quete->instancesMonstres()->create([
+            'monstre_id' => $monstre->id,
+            'pv_body' => $monstre->pv_body,
+            'pv_mind' => $monstre->pv_mind,
+            'position_x' => $place['x'],
+            'position_y' => $place['y'],
+            'etat' => 'actif',
+            'elite' => false,
+            'revele' => true,
+        ]);
+    }
+
+    /**
      * Instancie un monstre ERRANT (doc 14 §3.2) depuis le bestiaire, placé sur une
      * case libre proche du fouilleur, actif et révélé. S'il a été posé au contact
      * (voisines, diagonales comprises), il frappe aussitôt — `frappeDuSurgissement()`
@@ -10788,13 +10876,20 @@ final class ResolveurTour
      *
      * null si rien de libre dans le rayon 3.
      *
+     * `$orthogonal` (le mort-vivant d'un TOMBEAU, `spawnDuTombeau()`) : seules les QUATRE voisines
+     * orthogonales en première passe — le contact du projet (`Grille::sontAdjacentes()`), le texte du
+     * cercueil ne nommant aucune diagonale. Le repli Manhattan reste le même.
+     *
      * @return array{x: int, y: int}|null
      */
-    private function caseLibreProche(Quete $quete, int $x, int $y): ?array
+    private function caseLibreProche(Quete $quete, int $x, int $y, bool $orthogonal = false): ?array
     {
         $grille = $this->grille($quete);
+        $voisines = $orthogonal
+            ? [[1, 0], [-1, 0], [0, 1], [0, -1]]
+            : [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 
-        foreach ([[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as [$dx, $dy]) {
+        foreach ($voisines as [$dx, $dy]) {
             if ($grille->estTraversable($x + $dx, $y + $dy)) {
                 return ['x' => $x + $dx, 'y' => $y + $dy];
             }
@@ -14654,5 +14749,46 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'action', $payload, ['type' => 'allie', 'id' => $allie->id, 'nom' => $nom]);
 
         return $payload;
+    }
+
+    /**
+     * Le motif pour lequel ce COUP n'entame rien, ou `null` (`MotsClesAdversaires`). `invulnerable` : la
+     * créature ne craint aucune arme (statues) ; `source` : l'arme employée n'est pas de celles qui la
+     * blessent (Seigneur Sorcier), mains nues comprises. Lu aux deux chemins de frappe (ordinaire et flèche).
+     */
+    private function immuniteDuCoup(InstanceMonstre $instance, ?Objet $arme): ?string
+    {
+        if ($instance->monstre->casseArmeExemptees() !== null) {
+            return self::SANS_EFFET_INVULNERABLE;
+        }
+
+        $sources = $instance->monstre->immunitesSorts()['sources'];
+
+        return $sources !== null && ! in_array((string) $arme?->nom, $sources, true) ? self::SANS_EFFET_SOURCE : null;
+    }
+
+    /**
+     * Brise l'arme qui vient de frapper une créature INVULNÉRABLE (`invulnerable_casse_arme`), sauf si elle
+     * figure parmi les exemptées (Lame des Esprits : « does not break »). Elle quitte l'inventaire pour de bon,
+     * comme la *Rouille* (`MoteurDread::sortDreadDestruction()`), et le combat du héros est recalculé. Retourne
+     * le nom de l'arme brisée, ou `null`.
+     */
+    private function briserArmeFrappante(
+        InstanceMonstre $instance,
+        Personnage $personnage,
+        ?Inventaire $ligne,
+        ?Objet $arme,
+    ): ?string {
+        $exemptees = $instance->monstre->casseArmeExemptees() ?? [];
+
+        if ($ligne === null || ! $ligne->exists || $arme === null || in_array((string) $arme->nom, $exemptees, true)) {
+            return null;
+        }
+
+        $nom = (string) $arme->nom;
+        $ligne->delete();
+        $this->equipement->recalculerCombat($personnage->refresh());
+
+        return $nom;
     }
 }

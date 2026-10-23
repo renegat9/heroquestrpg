@@ -1575,8 +1575,8 @@ final class MoteurSorts
         // qui poseraient l'une de ces conditions. Retirée ICI, à l'unique porte du menu :
         // la liste portée par l'option est la liste blanche que le résolveur relit.
         $conditionsPosees = $this->conditionsPoseesSurMonstre($sort);
-        $monstres = array_values(array_filter($monstres, function (array $m) use ($conditionsPosees) {
-            return empty($m['immunite_sorts'])
+        $monstres = array_values(array_filter($monstres, function (array $m) use ($conditionsPosees, $sort) {
+            return ! $this->sortRefuseSur((array) ($m['immunites'] ?? []), $sort)
                 && array_intersect($conditionsPosees, (array) ($m['conditions_immunisees'] ?? [])) === [];
         }));
 
@@ -2852,6 +2852,35 @@ final class MoteurSorts
     }
 
     /**
+     * L'ÉCHELLE DES IMMUNITÉS AUX SORTS, à son unique point de passage (`Monstre::immunitesSorts()`) — lue par
+     * le MENU (`ciblesLegales()`, qui retire la créature de la liste) et par la RÉSOLUTION (`ResolveurTour`
+     * pour les sorts de zone et de rayon), jamais recopiée ailleurs. Un sort est refusé :
+     *  - par l'immunité TOTALE (`immunite_sorts`) ;
+     *  - par l'immunité PAR FAMILLE (`immunite_sorts_sauf` : Kessandria, « all spells except fire ») : un
+     *    élément de sort absent de la liste des exemptés est refusé ;
+     *  - par la liste blanche des SOURCES (`vulnerable_uniquement_a`) — mais seulement un sort de DÉGÂTS : un
+     *    sort qui ne blesse pas (un sommeil) n'est pas une « source de dégâts », le livret ne le vise pas.
+     *
+     * @param  array{totale?: bool, sauf?: ?list<string>, sources?: ?list<string>}  $immunites
+     */
+    public function sortRefuseSur(array $immunites, Sort $sort): bool
+    {
+        if (($immunites['totale'] ?? false) === true) {
+            return true;
+        }
+
+        $sauf = $immunites['sauf'] ?? null;
+
+        if (is_array($sauf) && ! in_array((string) $sort->element, $sauf, true)) {
+            return true;
+        }
+
+        $sources = $immunites['sources'] ?? null;
+
+        return is_array($sources) && $sort->type === 'degats' && ! in_array((string) $sort->nom, $sources, true);
+    }
+
+    /**
      * Les conditions de MONSTRE qu'un sort de héros pose quand il prend. Le miroir EXACT de ce
      * que `ResolveurTour::appliquerEffetMental()` et `sortDeZone()` posent — `Endormi`,
      * `saute_tour`, `condition_monstre` — lu par `ciblesLegales()` pour écarter du menu les
@@ -3513,7 +3542,7 @@ final class MoteurSorts
                     // IMMUNITÉS (`App\Engine\MotsClesAdversaires`) : lues par `ciblesLegales()`,
                     // qui retire de la liste ce qu'aucun sort ne peut atteindre — le menu n'offre
                     // jamais ce que le résolveur refuserait.
-                    'immunite_sorts' => $i->monstre->immuniseAuxSorts(),
+                    'immunites' => $i->monstre->immunitesSorts(),
                     'conditions_immunisees' => $i->monstre->conditionsImmunisees(),
                 ];
             })

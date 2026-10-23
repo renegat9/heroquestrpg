@@ -1227,6 +1227,16 @@ final class SceneDeTable
             }
         }
 
+        // CERCUEIL : le mort-vivant du tombeau, sur la table (`ResolveurTour::spawnDuTombeau()`, payload `monstre`).
+        if ($issue === 'monstre') {
+            $libelle = 'un mort-vivant sort du tombeau';
+            $ton = 'degats';
+
+            if (($instanceId = (int) ($a['monstre']['instance_id'] ?? 0)) > 0) {
+                $objets[] = $this->objetDepuisMonstre($instanceId, (string) ($a['monstre']['nom'] ?? 'Mort-vivant'));
+            }
+        }
+
         if ($libelle === '' && $objets === []) {
             $libelle = 'rien à prendre ici';
             $ton = 'echec';

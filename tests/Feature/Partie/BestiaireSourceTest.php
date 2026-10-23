@@ -118,6 +118,12 @@ it('porte les créatures d\'extension telles que les livrets les chiffrent', fun
         'Singe géant' => [8, 4, 3, 7, 5],
         // Prophecy of Telor — quête 12 (G0052 p. 31), relu sur le rendu PNG : MOVEMENT/ATTACK/DEFEND/BODY/MIND.
         'Fellmarak le Roi Sorcier' => [8, 5, 4, 6, 6],
+        // Return of the Witch Lord (F4193, chantier 2026-10-23) — lues sur le livret, `reference/18` §Witch Lord.
+        'Cavalier-esprit' => [8, 4, 4, 3, 3],   // p. 11
+        'Garde du Dread' => [8, 4, 6, 3, 3],    // p. 25
+        'Skulmar' => [8, 5, 6, 3, 4],           // p. 21
+        'Kessandria' => [6, 4, 6, 3, 4],        // p. 25
+        'Seigneur Sorcier' => [10, 5, 6, 4, 5], // p. 27 (relevé par rapport au jeu de base)
     ];
 
     foreach ($livrets as $nom => $attendu) {

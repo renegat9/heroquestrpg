@@ -295,3 +295,38 @@ et quand René la demande.
 | **Q6** | ***Death Mist* = la même mécanique** que le rocher roulant (*Kellar's Keep*, Q3). | Une seule implémentation « danger mobile autonome ». |
 | **Q7** | **Salle rotative écartée** pour l'instant. | Lot E sans salle rotative ; cercueils et *Death Mist* inchangés. |
 | **Q8** | Fin « capturé » (quête 5, Bellthor) **ÉCARTÉE** : « on pourrait l'écarter si c'est spécifique à une mission » (René). | Ni troisième état de fin de quête, ni repli sur `echouee` (recommandation non suivie) : la fin n'est pas portée. |
+
+## Exécution (2026-10-23)
+
+Chantier EXT-WITCH. Critère appliqué : la décision datée du 2026-10-23 (`6725325`, `docs/regles/bestiaire-et-rencontres.md`) — ce qui se pose dans un donjon généré se porte, ce qui n'existe que dans le script d'une quête s'écarte. Cette boîte n'avait pas de bloc ⛔ propre ; le critère a été appliqué directement.
+
+**Fait**
+
+- **Lot B** — cinq créatures semées (`MonstreSeeder`), voix (`config/barks.php`), stats figées (`BestiaireSourceTest`, `WitchLordTest`).
+- **Lot C** — répertoires : Kessandria (Éclair de Chaos, Tourmente, Frayeur, Sommeil, Nuée d'Effroi, Patinage = sa potion, Fuite), Skulmar (Fuite), Seigneur (Invocation de morts-vivants, Tempête de feu, Tourmente, Éclair de Chaos, Frayeur, Commandement). Tous existent au catalogue. Capacité `fuit_si_affaibli` (Skulmar, Kessandria). Le Seigneur ne la porte pas, et n'a pas la Fuite : absence écrite au seeder et testée.
+- **Lot D** — l'échelle, lue à deux coutures : `MoteurSorts::sortRefuseSur()` (menu et zone/rayon) et `ResolveurTour::frapper()` (coups, deux chemins). (a) `immunite_sorts_sauf` : Kessandria, feu seul. (b) `vulnerable_uniquement_a` : le Seigneur, quatre sources. (c) `invulnerable_casse_arme` : forme construite, arme brisée quittant l'inventaire (même geste que la Rouille), exemptions ; **non semée**.
+- **Lot E** — issue `monstre` dans la fouille du Tombeau (`MobilierSeeder`, `MoteurMobilier`, `ResolveurTour::spawnDuTombeau()`), annoncée.
+- **Thème** — `witch_lord` ajouté à la fin de `BOITES_THEMATIQUES` (modulo 7 → 8), libellé, pools de `GabaritQueteSeeder` : Seigneur au jalon boss, légion au jalon sous-boss.
+
+**Tranché seul** (à confirmer par René)
+
+1. **Kessandria est SOUS-BOSS**, non boss comme le disait le Lot B. Précédent : les lieutenants de Morcar (G1504) sont des lanceurs à répertoire de boss et restent sous-boss ; un seul boss ferme la campagne. Un boss-tier serait tiré en concurrence avec le Seigneur dans le pool du jalon final (`DemarreurQuete` filtre par tier) — la finale ne serait plus le Seigneur. Son palier est levé par le nouveau mot `repertoire_complet`, sans la règle « un sort par quête » de `sorts_uniques`.
+2. **Seuil de fuite au tiers, inclusif, au plancher** : `pv ≤ ⌊max/3⌋`. Le précédent (25 %, `MoteurDread::SEUIL_FUITE`) est STRICT : `pv < max(1, ⌊max × 0,25⌋)`. Pour un corps de 3, son seuil vaut 1, et un monstre vivant a au moins 1 PV : la fuite ne partirait jamais. Le précédent est **inopérant pour tout corps ≤ 7** — constat existant, NON modifié ici, à signaler.
+3. **Au seuil, la fuite passe avant les autres sorts** (score 1000 ; le précédent reste 10, en dernier).
+4. **Statues non semées** : elles bloquent le couloir, règle de carte qu'une figure ne porte pas (`SANS_DONNEE`).
+5. **Cercueil** : le mort-vivant tiré à égalité parmi Squelette, Zombie, Momie (le livret ne nomme personne) ; posé au contact ORTHOGONAL, repli Manhattan ; pas de frappe de surgissement (le livret n'en prévoit pas).
+6. **Liste de sources** : elle ne vise que les sorts de DÉGÂTS. Un sommeil n'est pas une source de dégâts, et le livret ne dit pas que le Seigneur y résiste.
+7. **`cout`** : Cavalier 8 (plancher du palier, la mesure donne 3,6), Garde 10, Skulmar 10, Kessandria 10 (mesure 6 attaques sur la droite des sous-boss), Seigneur 14 (8 attaques sur la droite des boss). Les immunités ne sont pas majorées : une arme qui blesse suffit à les contourner.
+
+**Non porté** (écrit, pas oublié)
+
+- Statues d'orcs : forme seule (voir 4).
+- *Death Mist*, Bellthor et les dormants (agent kellar), quête 6, salle rotative, fin « capturé » : écartés ou hors chantier (Q1, Q7, Q8 ; décision du 2026-10-23).
+- Narration propre au cercueil : `ExecutionChoix` renvoie « progression » faute de clé dédiée. À écrire si René la veut.
+- Fuite : la case la plus éloignée, par le précédent. Kessandria « fuit par une porte secrète » ; nos donjons n'ont pas de refuge marqué (`teleportation` le dit).
+- Images : aucune générée (l'orchestrateur).
+
+**Mesures**
+
+- Budget minimal d'une finale (boss final, un héros de niveau 1, premier arc) : **8**. Le Seigneur (14) le consomme : la finale est posée à coup sûr, et l'escorte est vide. Les finales existantes font pareil (Seigneur ogre 20, Scion 22). Au budget 40, il reste 26 pour l'escorte (`WitchLordTest`).
+- Mutations : huit lecteurs neufs retirés un à un, chacun fait tomber au moins un test qui le vise (voir le rapport).

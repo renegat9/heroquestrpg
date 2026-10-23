@@ -290,6 +290,11 @@ class GabaritQueteSeeder extends Seeder
                             // vue) et le GOLEM Cœur-de-Forge (q. 6 — un souffle de salle, une fois).
                             // Aucune n'a de répertoire de sorcier : elles se nomment en créatures.
                             'Effigie gardienne', 'Deathspinner la Reine du Fléau', 'Golem Cœur-de-Forge',
+                            // LA LÉGION DU WITCH LORD (*Return of the Witch Lord*, chantier 2026-10-23) : les sous-boss du
+                            // thème `witch_lord`. Skulmar (chef de la Légion, q. 7), Kessandria (reine sorcière, q. 9 —
+                            // sous-boss par le précédent des lieutenants de Morcar), la Garde du Dread (q. 9-10), le
+                            // Cavalier-esprit (q. 2). Aucun n'a de répertoire d'archétype : ils se nomment en créatures.
+                            'Skulmar', 'Kessandria', 'Garde du Dread', 'Cavalier-esprit',
                         ],
                     ],
                     'pieges' => ['min' => 2, 'max' => 3],
@@ -440,6 +445,10 @@ class GabaritQueteSeeder extends Seeder
                             // le boss final du livret, immobile (Move 0 : posé en salle seulement) —
                             // sans répertoire de sorcier, donc nommé en créature, comme le Dragon.
                             'Scion Fleur-Pourrie',
+                            // LE SEIGNEUR SORCIER (*Return of the Witch Lord*, q. 10, chantier 2026-10-23) : le boss FINAL du
+                            // thème `witch_lord` — il ferme la campagne (« there must be no escape for him »). Le thème
+                            // resserre ce pool sur ses boss, et il n'a que lui : la rotation le désigne donc à coup sûr.
+                            'Seigneur Sorcier',
                         ],
                     ],
                     'pieges' => ['min' => 2, 'max' => 4],

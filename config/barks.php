@@ -205,6 +205,13 @@ return [
         'Golem' => 'construct',
         'Dreadshifter' => 'spectre',
         'Minotaure' => 'bete',
+        // Return of the Witch Lord (F4193) : la voix suit la figure de la fiche — un mort-vivant, un Dread, un
+        // chef de légion, une reine sorcière, et le Seigneur final, voix de boss.
+        'Cavalier-esprit' => 'mort_vivant',
+        'Garde du Dread' => 'demon',
+        'Skulmar' => 'champion',
+        'Kessandria' => 'sorcier',
+        'Seigneur Sorcier' => 'boss',
     ],
 
     'evenements' => ['attaque', 'touche', 'rate', 'mort'],

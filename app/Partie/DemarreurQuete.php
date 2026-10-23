@@ -844,6 +844,12 @@ final class DemarreurQuete
         // générique, déjà semé. Forts et masse de faibles viennent du jeu de base : la boîte ne possède aucun
         // monstre de tier `base`, comme `first_light`. Voir `docs/plan-telor.md` (Exécution, 2026-10-23).
         'prophecy_telor',
+        // Ajoutée le 2026-10-23 (chantier EXT-WITCH), modulo 8 → 9 (après prophecy_telor, le même jour), même garde-fou : la colonne figée protège
+        // toute campagne démarrée (`groupes.theme_bestiaire`, `ThemeWitchLordTest`). Rencontre finale : le
+        // SEIGNEUR SORCIER seul au jalon boss (il ferme la campagne) ; la Légion (Skulmar, Kessandria, Garde du
+        // Dread, Cavalier-esprit) au jalon sous-boss. Les immunités sélectives (Kessandria, le Seigneur)
+        // sont portées — voir `docs/plan-witch-lord.md` §Exécution.
+        'witch_lord',
     ];
 
     /**
@@ -963,6 +969,7 @@ final class DemarreurQuete
         // reference/18_extensions.md ligne 1238 : « Prophecy of Telor (2023) » — même remarque que First Light :
         // l'année fait partie du titre de section imprimé, jamais du nom de la boîte.
         'prophecy_telor' => 'Prophecy of Telor',
+        'witch_lord' => 'Return of the Witch Lord',
     ];
 
     /**

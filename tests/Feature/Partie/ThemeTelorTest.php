@@ -62,11 +62,13 @@ it('range Fellmarak en BOSS de sa boîte, et le Sorcier du Dread générique en 
         ->toBe([TELOR_FELLMARAK]);
 });
 
-it('ouvre prophecy_telor comme thème, en FIN de rotation, hors de la liste des boîtes désactivées', function () {
+it('ouvre prophecy_telor comme thème, DERRIÈRE les sept thèmes précédents, hors de la liste des boîtes désactivées', function () {
     $boites = DemarreurQuete::BOITES_THEMATIQUES;
 
     expect($boites)->toContain('prophecy_telor')
-        ->and($boites[array_key_last($boites)])->toBe('prophecy_telor')
+        // Ajoutée APRÈS les sept thèmes précédents (index 7) : une boîte ajoutée plus tard se met derrière,
+        // jamais devant — réordonner décalerait la rotation de tout groupe non figé.
+        ->and(array_search('prophecy_telor', $boites, true))->toBe(7)
         ->and(array_keys(DemarreurQuete::BOITES_INCOMPLETES))->not->toContain('prophecy_telor')
         ->and(DemarreurQuete::LIBELLES_BOITES['prophecy_telor'])->toBe('Prophecy of Telor');
 });
