@@ -237,6 +237,28 @@ return [
     // (G0052 p. 31, lu sur le rendu). Les cinq existent au catalogue : Tempête de feu (palier sous_boss),
     // Rouille (boss), Commandement (boss), Frayeur (sous_boss), Nuée d'Effroi (boss). Le monstre est de palier
     // `boss` : aucun de ces sorts n'est filtré. Sa mort à 0 Body est un écart assumé (docs/plan-telor.md).
+    // Spirit Queen's Torment (G0053, 2026-10-23) — deux sorciers nommés, boîte `spirit_queen` (thème allumé le 2026-10-23).
+    // Kavra : « She may cast the Dread spells Lightning Bolt and Ball of Flame » (quête 3, p. 11).
+    'kavra_sorciere' => [
+        'porteur' => 'Kavra (Spirit Queen\'s Torment, quête 3 — livret p. 11)',
+        'sorts' => [
+            'Éclair de Chaos',
+            'Boule de Flammes',
+        ],
+    ],
+
+    // Nelath, la Reine des Esprits : « may cast the following Dread spells: Command, Fear, Lightning Bolt, and
+    // Firestorm » (quête 14 — livret p. 33). Deux sorts par tour : `double_sort` sur la fiche, pas dans le répertoire.
+    'nelath_reine_des_esprits' => [
+        'porteur' => 'Nelath, la Reine des Esprits (Spirit Queen\'s Torment, confrontation finale — livret p. 33, quête 14)',
+        'sorts' => [
+            'Commandement',
+            'Frayeur',
+            'Éclair de Chaos',
+            'Tempête de feu',
+        ],
+    ],
+
     'fellmarak_roi_sorcier' => [
         'porteur' => 'Fellmarak le Roi Sorcier (Prophecy of Telor, confrontation finale — livret p. 31, quête 12)',
         'sorts' => [

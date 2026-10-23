@@ -9,6 +9,7 @@ use App\Engine\DureeEffet;
 use App\Engine\MotsClesEquipement;
 use App\Models\Condition;
 use App\Models\Inventaire;
+use App\Models\Objet;
 use App\Models\Personnage;
 use Illuminate\Validation\ValidationException;
 
@@ -104,6 +105,18 @@ class MoteurPotions
 
         $effet = (array) $objet->effet;
 
+        // POTION DE FORTUNE (`MotsClesEquipement::TIRAGE_DE_COMBAT`, Spirit Queen's Torment, G0053 p. 13) : la face d'un dé
+        // de combat choisit l'effet AVANT toute garde qui lit l'effet (refus avant attaque, une par tour…). Une face « crâne »
+        // donne les effets d'une Potion de bataille : son buff se pose sous SON nom, pas sous celui de la fiole.
+        $tirage = null;
+        $sourceBuff = $objet;
+
+        if (isset($effet[MotsClesEquipement::TIRAGE_DE_COMBAT])) {
+            $tirage = $this->tirerFortune($effet);
+            $effet = $tirage['effet'];
+            $sourceBuff = $tirage['objet'] ?? $objet;
+        }
+
         // L'état de quête sert désormais à quatre effets ; on le charge une
         // fois — celui du BUVEUR, pas du porteur : un buff/compteur « par
         // tour » appartient à qui va agir avec, pas à qui a tendu la fiole.
@@ -164,6 +177,10 @@ class MoteurPotions
 
         $applique = [];
 
+        if ($tirage !== null) {
+            $applique['tirage'] = ['face' => $tirage['face'], 'source' => $tirage['source']];
+        }
+
         // ÉTAT DE CHOC (René, 2026-10-01) : capturé AVANT toute branche
         // susceptible de faire remonter `pv_mind`, pour savoir si CETTE
         // gorgée vient de lever le choc (0 → positif) — « if the creature
@@ -189,6 +206,13 @@ class MoteurPotions
             $buveur->pv_body = min((int) $buveur->pv_body_max, $avant + (int) $effet['soin_pv_body']);
             $applique['soin_pv_body'] = $buveur->pv_body - $avant;
         }
+        // « On a black shield: they lose 1 Body Point » (potion de fortune). Un dégât qu'on se donne : `SOURCE_BREUVAGE`.
+        if (isset($effet[MotsClesEquipement::PERTE_PV_BODY])) {
+            $applique['perte_pv_body'] = app(MoteurDegats::class)->infligerAHeros(
+                $buveur, (int) $effet[MotsClesEquipement::PERTE_PV_BODY], MoteurDegats::SOURCE_BREUVAGE, ['objet' => $objet->nom],
+            );
+        }
+
         if (isset($effet['soin_pv_mind'])) {
             $avant = (int) $buveur->pv_mind;
             $buveur->pv_mind = min((int) $buveur->pv_mind_max, $avant + (int) $effet['soin_pv_mind']);
@@ -353,7 +377,7 @@ class MoteurPotions
         // `MotsClesEquipement::DUREE` : un effet qui déclare quand il s'arrête
         // est un effet qui dure.
         if (isset($effet['duree'])) {
-            $applique['buff'] = $this->sorts->appliquerBuffPotion($buveur, $objet)->nom;
+            $applique['buff'] = $this->sorts->appliquerBuffPotion($buveur, $sourceBuff)->nom;
             // Ce que le buff FAIT, en clair (`MotsClesEquipement::avantages()`, le vocabulaire
             // de la fiche) : « Renforcé » seul ne dit ni les dés ni la durée.
             $applique['buff_texte'] = MotsClesEquipement::avantages($effet);
@@ -624,6 +648,39 @@ class MoteurPotions
      *
      * @return array<string, mixed> résumé moteur, comme `boire()`
      */
+    /**
+     * La face d'un dé de combat décide de l'effet d'une potion de fortune (`TIRAGE_DE_COMBAT`) : bouclier blanc = soin
+     * d'un d6 (`soin_pv_body_de`, la branche existante), crâne = les effets d'une Potion de bataille (lus au catalogue,
+     * jamais recopiés), bouclier noir = la perte de Body de la table (`perte_pv_body`).
+     *
+     * @param  array<string, mixed>  $effet
+     * @return array{face: string, effet: array<string, mixed>, objet: ?Objet, source: string}
+     */
+    private function tirerFortune(array $effet): array
+    {
+        $table = (array) $effet[MotsClesEquipement::TIRAGE_DE_COMBAT];
+        $face = $this->des->deCombat()->value;
+        $issue = (array) ($table[$face] ?? []);
+
+        if (isset($issue[MotsClesEquipement::TIRAGE_POTION])) {
+            $autre = Objet::query()->where('nom', (string) $issue[MotsClesEquipement::TIRAGE_POTION])->first();
+
+            return [
+                'face' => $face,
+                'effet' => $autre === null ? [] : (array) $autre->effet,
+                'objet' => $autre,
+                'source' => (string) $issue[MotsClesEquipement::TIRAGE_POTION],
+            ];
+        }
+
+        return [
+            'face' => $face,
+            'effet' => $issue,
+            'objet' => null,
+            'source' => $face === 'bouclier_blanc' ? 'soin' : 'perte',
+        ];
+    }
+
     public function boireAuHub(Personnage $personnage, Inventaire $ligne): array
     {
         if (! MotsClesEquipement::estAuHub((array) $ligne->objet?->effet)) {

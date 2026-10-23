@@ -98,6 +98,9 @@ export const MOBILIER_ICONES = {
     // Coffre, mais une icône distincte pour ne pas laisser croire qu'elle
     // paie le coffre de la quête.
     'Caisse de ravitaillement': 'package_2',
+    // Spirit Queen's Torment (G0053 p. 13, quête 4 : « brewing strange concoctions on this table ») : une table de fioles,
+    // distincte de l'établi d'alchimiste ci-dessus, qui ne dit que la chimie et de la Table de base.
+    'Table des brasseurs': 'local_bar',
     // Mobilier ATTAQUABLE (PV + défense, 2026-10-04) — Jungles of Delthrak et
     // Wizards of Morcar. Trois icônes distinctes des meubles ordinaires
     // ci-dessus : un losange (cristal), un temple (autel), un cadenas (coffre

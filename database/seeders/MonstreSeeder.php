@@ -1193,6 +1193,36 @@ class MonstreSeeder extends Seeder
                     'attaque_mind' => ['des' => 6, 'portee' => 'salle', 'apres_attaque' => true],
                 ],
                 'sorts_dread' => []],
+            // ---- Spirit Queen's Torment (G0053, 2026-10-23) — lot C : deux sorciers nommés, sous le thème `spirit_queen`
+            // (boîte allumée le 2026-10-23 — `DemarreurQuete::BOITES_THEMATIQUES`, « Oui » de René). ----
+            // Source : livret de quêtes G0053. Kavra (quête 3, p. 11) : « Her stats are those of a Dread Warrior, with 1
+            // additional Defend die. She may cast the Dread spells Lightning Bolt and Ball of Flame. On her first turn
+            // only, she may cast both spells simultaneously. » Nelath (quête 14, p. 33) : « She has the statistics of a
+            // Dread Warrior with 6 Body Points, and may cast … Command, Fear, Lightning Bolt, and Firestorm. She may cast
+            // two spells in a single turn. »
+            //
+            // Le Dread Warrior est la CARTE officielle (`reference/20_cartes_monstres.md`, p03 : Move 7 · Attack 4 ·
+            // Defend 4 · Body 3 · Mind 3), « la carte gagne, partout » (René, 2026-10-05) — les 6/3/4/1/3 du paquet de fan
+            // de `docs/plan-spirit-queen.md` (2026-10-04) sont périmés et ne se portent pas.
+            //
+            // Aucune limite d'usage n'est écrite par le livret : le budget du palier s'applique (`USAGES_SOUS_BOSS` 2 pour
+            // le sous-boss, `USAGES_BOSS` 3 pour Nelath), comme pour Fellmarak. ⚠ Conséquence mesurée au code : Kavra
+            // lance ses deux sorts au premier tour et n'a plus d'usage ensuite ; Nelath, deux sorts au premier tour puis un
+            // au second, puis plus rien. À trancher par René (`docs/plan-spirit-queen.md` §Exécution).
+            //
+            // `cout` MESURÉ (docs/regles/bestiaire-et-rencontres.md, attaques d'un héros à 3 dés = Body / (1,5 − Défense/6)) :
+            // Kavra 3 / (1,5 − 5/6) = 4,5 attaques, sur la droite des SOUS-BOSS (Ogre champion 7,2 → 11 ; Doralf 10,5 → 13,
+            // pente ≈ 0,61) : 11 − 0,61 × 2,7 ≈ 9,4 ⇒ 9. Nelath 6 / (1,5 − 4/6) = 7,2 attaques, sur la droite des BOSS
+            // (Seigneur 15 → 20, pente 0,5) : 20 + 0,5 × (7,2 − 15) ≈ 16,1 ⇒ 16, comme Fellmarak (même Défense, même Body).
+            // Les sorts ne sont pas comptés dans le `cout`, comme pour Fellmarak.
+            ['nom_base' => 'Kavra', 'deplacement' => 7, 'attaque' => 4, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'boite' => 'spirit_queen', 'cout' => 9,
+                'capacites' => ['double_sort' => ['premier_tour' => true]], 'sorts_dread' => [],
+                'archetype_lanceur' => 'kavra_sorciere'],
+            ['nom_base' => 'Nelath, la Reine des Esprits', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 3,
+                'tier' => 'boss', 'boite' => 'spirit_queen', 'cout' => 16,
+                'capacites' => ['double_sort'], 'sorts_dread' => [],
+                'archetype_lanceur' => 'nelath_reine_des_esprits'],
         ];
 
         foreach ($monstres as $monstre) {

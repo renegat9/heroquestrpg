@@ -263,6 +263,10 @@ class GabaritQueteSeeder extends Seeder
                             // GRAGOR, « the evil magician » de la Grande Citadelle (Kellar's Keep q. 6, 2026-10-23) : sous-boss,
                             // cinq sorts nommés par le livret — deux de palier boss, filtrés (voir `config/archetypes_lanceurs.php`).
                             'gragor_kellar',
+                            // KAVRA, sorcière brigande (Spirit Queen's Torment, quête 3, G0053 p. 11 ; 2026-10-23) : sous-boss
+                            // sorcier, Éclair de Chaos + Boule de Flammes, double sort au premier tour seulement. Boîte `spirit_queen`
+                            // (thème allumé le 2026-10-23) : son archétype se tire sous ce thème, la préférence de boîte le désigne.
+                            'kavra_sorciere',
                         ],
                         // ⚠ …et les ONZE brutes du palier, qui n'ont pas de
                         // répertoire et ne pouvaient donc pas être nommées.
@@ -433,6 +437,12 @@ class GabaritQueteSeeder extends Seeder
                             // `prophecy_telor` le pool se réduit à lui ; ailleurs il n'est jamais tiré. Sa
                             // mort à 0 Body est un écart assumé au livret (René, 2026-10-23).
                             'fellmarak_roi_sorcier',
+                            // NELATH, LA REINE DES ESPRITS (Spirit Queen's Torment, quête 14, G0053 p. 33 ; 2026-10-23) : boss
+                            // sorcier de sa boîte, répertoire NOMMÉ par le livret (Commandement, Frayeur, Éclair de Chaos, Tempête
+                            // de feu) → archétype `nelath_reine_des_esprits`. Deux sorts par tour (`double_sort`). Boîte `spirit_queen`
+                            // (thème allumé le 2026-10-23) : son archétype se tire sous ce thème. Sa résolution
+                            // « sauvée » est ÉCARTÉE (René, 2026-10-23) : elle meurt à 0 Body comme tout boss.
+                            'nelath_reine_des_esprits',
                         ],
                         // Les bosses sans répertoire : ils frappent, c'est tout,
                         // et c'est une lecture du combat final aussi.

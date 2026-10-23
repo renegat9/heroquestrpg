@@ -41,8 +41,14 @@ beforeEach(function () {
 /** @return list<string> */
 function clesEffetDuCatalogue(): array
 {
+    // Une table `tirage_de_combat` (potion de fortune, G0053 p. 13) porte des clés d'effet IMBRIQUÉES, une par face :
+    // elles sont des clés du catalogue au même titre que les clés de premier niveau.
     return collect(Objet::all())
-        ->flatMap(fn (Objet $o) => array_keys((array) $o->effet))
+        ->flatMap(fn (Objet $o) => [
+            ...array_keys((array) $o->effet),
+            ...collect((array) data_get($o->effet, 'tirage_de_combat', []))
+                ->flatMap(fn ($issue) => array_keys((array) $issue))->all(),
+        ])
         ->merge(collect(ForgeAmelioration::all())->flatMap(fn (ForgeAmelioration $a) => array_keys((array) $a->effet)))
         ->unique()
         ->values()
@@ -165,7 +171,7 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
 
     // Un consommable doit soigner, retirer une condition, ou poser un buff —
     // sans quoi le boire est un clic pour rien.
-    $utiles = ['soin_pv_body', 'soin_pv_body_de', 'soin_pv_mind', 'retire_condition',
+    $utiles = ['soin_pv_body', 'soin_pv_body_de', 'soin_pv_mind', 'retire_condition', 'tirage_de_combat',
         'bonus_des_attaque', 'bonus_des_defense', 'attaque_supplementaire',
         'restaure_sorts',
         // Les sept effets apportés par les potions officielles (doc 16 §2.1bis) :

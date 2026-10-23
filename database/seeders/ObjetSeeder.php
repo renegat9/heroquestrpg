@@ -956,6 +956,18 @@ class ObjetSeeder extends Seeder
                     'duree' => 'ce_tour', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de bataille', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
                 'effet' => ['relance_des_attaque' => true, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
+            // ----- Spirit Queen's Torment (G0053 p. 13, quête 4, note B) -----
+            // « The Orc and Goblins have been brewing strange concoctions on this table; three potions can be found. If a hero
+            // drinks one, they roll 1 combat die. A different effect takes place for each roll result. » Le livret ne NOMME pas
+            // cette potion : « Potion de fortune » est notre libellé, la donnée est celle du texte. Aucun prix n'est écrit :
+            // `prix_base` 0 (⚠ non trouvé), et `hors_marche` — elle ne se vend pas, elle se trouve. La Potion de bataille, dont
+            // elle reprend l'effet sur une face « crâne », se lit au catalogue (`MoteurPotions::tirerFortune()`), jamais recopiée.
+            ['nom' => 'Potion de fortune', 'categorie' => 'consommable', 'prix_base' => 0, 'emplacement' => 'consommable',
+                'effet' => ['tirage_de_combat' => [
+                    'bouclier_blanc' => ['soin_pv_body_de' => true],   // « roll 1 red die and restore that many Body Points »
+                    'crane' => ['potion' => 'Potion de bataille'],     // « immediately take on the effects of a Potion of Battle »
+                    'bouclier_noir' => ['perte_pv_body' => 1],         // « they lose 1 Body Point »
+                ], 'hors_marche' => true]],
             ['nom' => 'Potion de soin mineur', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body' => 2, 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de vitesse', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',

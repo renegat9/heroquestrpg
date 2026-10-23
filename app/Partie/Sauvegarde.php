@@ -394,6 +394,9 @@ final class Sauvegarde
                     'origine_monstre' => $i->origine_monstre,
                     // État du passif (Kellar's Keep lot C) : un dormant éveillé reste éveillé à la reprise.
                     'passif_etat' => $i->passif_etat,
+                    // Tours de Dread joués (Kavra, `double_sort` au premier tour seulement) : une reprise qui les
+                    // remettait à zéro rendrait à la sorcière son double sort d'ouverture.
+                    'tours_dread_joues' => (int) $i->tours_dread_joues,
                 ])->values()->all(),
             'etat_personnage_quete' => $quete->etatsPersonnages()->orderBy('id')->get()
                 ->map(fn (EtatPersonnageQuete $e) => [
@@ -632,6 +635,8 @@ final class Sauvegarde
                 'origine_monstre' => $instance['origine_monstre'] ?? null,
                 // `?? null` : un snapshot antérieur au passif n'a rien vécu (figure non dormante, ou dormante intacte).
                 'passif_etat' => $instance['passif_etat'] ?? null,
+                // `?? 0` : un snapshot antérieur à la colonne n'a encore joué aucun tour de Dread compté.
+                'tours_dread_joues' => $instance['tours_dread_joues'] ?? 0,
             ])->save();
         }
     }

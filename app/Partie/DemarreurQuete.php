@@ -879,6 +879,14 @@ final class DemarreurQuete
         // Rencontre finale : `database/seeders/GabaritQueteSeeder.php`, pool `creatures` du boss. Ni les portes du MJ, ni la carte de
         // pierre, ni la fouille « un piège à la fois » ne sont portées (`docs/plan-kellars-keep.md`, décision du 2026-10-23).
         'kellars_keep',
+        // Allumée le 2026-10-23 (René, « Oui » : le thème Spirit Queen's Torment entre dans la rotation), modulo 10 → 11, à la FIN
+        // comme toute boîte ajoutée après coup (l'ordre EST la rotation, jamais réordonné). Les campagnes déjà commencées ne
+        // bougent pas : leur thème est FIGÉ dans `groupes.theme_bestiaire`. Rencontre finale : NELATH, LA REINE DES ESPRITS (boss,
+        // archétype `nelath_reine_des_esprits`, pool « Confrontation finale ») ; sous-boss : KAVRA (archétype `kavra_sorciere`,
+        // pool « Antre du sous-boss »). Aucune créature de tier `base` : la masse commune ne change pas, les forts non plus.
+        // Les terrains du thème (sol meuble, courant bonus, vents) et la fouille « trouvailles » ne sont PAS tous portés :
+        // voir `docs/plan-spirit-queen.md` §Exécution. Le libellé est dans `LIBELLES_BOITES`.
+        'spirit_queen',
     ];
 
     /**
@@ -1001,6 +1009,8 @@ final class DemarreurQuete
         'witch_lord' => 'Return of the Witch Lord',
         // reference/18_extensions.md ligne 27 : « Kellar's Keep (2021) » — le titre de section, sans année ajoutée.
         'kellars_keep' => "Kellar's Keep",
+        // reference/18_extensions.md ligne 1376 : « Spirit Queen's Torment (2023) » — l'année appartient au titre de section.
+        'spirit_queen' => "Spirit Queen's Torment",
     ];
 
     /**

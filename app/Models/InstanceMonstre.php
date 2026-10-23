@@ -65,6 +65,9 @@ class InstanceMonstre extends Model
         // État du PASSIF (Kellar's Keep lot C) : éveillé / a agi / a attaqué, pour un adversaire qui dort jusqu'à son
         // déclencheur. `null` = rien de vécu — lu par `App\Partie\MoteurDormants`, jamais en cache.
         'passif_etat',
+        // Tours de Dread joués cette rencontre (Kavra, `double_sort` { premier_tour } : « on her first turn only »).
+        // Lu AVANT incrément par `MoteurDread::jouerTourDreadBrut()` — jamais en cache.
+        'tours_dread_joues',
     ];
 
     protected function casts(): array
@@ -84,6 +87,7 @@ class InstanceMonstre extends Model
             'capacites_reactives_utilisees' => 'array',
             'sorts_dread_lances' => 'array',
             'passif_etat' => 'array',
+            'tours_dread_joues' => 'integer',
         ];
     }
 

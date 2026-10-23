@@ -221,6 +221,9 @@ return [
         'Skulmar' => 'champion',
         'Kessandria' => 'sorcier',
         'Seigneur Sorcier' => 'boss',
+        // Spirit Queen's Torment (thème allumé le 2026-10-23) : deux sorcières, la voix féminine de l'Artificière de Morcar.
+        'Kavra' => 'sorciere',
+        'Nelath, la Reine des Esprits' => 'sorciere',
     ],
 
     'evenements' => ['attaque', 'touche', 'rate', 'mort'],
