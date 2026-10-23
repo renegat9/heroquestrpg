@@ -248,6 +248,16 @@ final class MoteurMobilier
             return ['issue' => 'piege', 'piege' => (string) ($entree['piege'] ?? '')];
         }
 
+        if ($issue === 'objet' && isset($entree['objet'])) {
+            // OBJET NOMMÉ (potion de fortune, Spirit Queen's Torment, G0053 p. 13) : la table désigne la pièce, elle ne tire
+            // pas dans une catégorie. Le catalogue la donne telle quelle, sans tirage de rareté.
+            $nomme = Objet::query()->where('nom', (string) $entree['objet'])->first();
+
+            return $nomme === null
+                ? ['issue' => 'rien', 'objet_indisponible' => true]
+                : ['issue' => 'objet', 'objet_id' => (int) $nomme->id, 'rarete' => $nomme->rarete];
+        }
+
         if ($issue === 'objet') {
             // ⚠ Jamais un `unique` : les artefacts n'ont qu'une seule source,
             // le coffre désigné de la quête, et ils sont uniques PAR GROUPE.

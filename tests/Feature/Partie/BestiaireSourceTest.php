@@ -124,6 +124,11 @@ it('porte les créatures d\'extension telles que les livrets les chiffrent', fun
         'Skulmar' => [8, 5, 6, 3, 4],           // p. 21
         'Kessandria' => [6, 4, 6, 3, 4],        // p. 25
         'Seigneur Sorcier' => [10, 5, 6, 4, 5], // p. 27 (relevé par rapport au jeu de base)
+        // Spirit Queen's Torment (G0053, chantier EXT-SPIRIT, 2026-10-23) : « stats of a Dread Warrior, with 1 additional
+        // Defend die » (p. 11) et « a Dread Warrior with 6 Body Points » (p. 33). Le Dread Warrior est la carte officielle
+        // (7/4/4/3/3, `reference/20_cartes_monstres.md` p03), pas le paquet de fan de l'ancien plan (6/3/4/1/3).
+        'Kavra' => [7, 4, 5, 3, 3],                     // p. 11
+        'Nelath, la Reine des Esprits' => [7, 4, 4, 6, 3], // p. 33
     ];
 
     foreach ($livrets as $nom => $attendu) {

@@ -321,3 +321,45 @@ Critère (René, 2026-10-23 : « retirer ce qui ne devrait pas être implanté d
 | Gargouille désamorçable « comme un piège » | F | Une note de la seule Tour de Feu (q. 13). |
 
 **Reste à porter** : lot C (Kavra, Nelath, capacité `double_sort` — Nelath se bat et meurt comme un boss ordinaire), lot F sans la gargouille (sol meuble, courant bonus, vents, fournaise désamorçable — scopés `boite: spirit_queen`, Q4), lot I (fouille garantissant un vrai trésor, potion de fortune, coffre piégé qui lance un sort de Dread), et dans le lot H la question générique « un allié joué par un joueur » (même question que la Q2 d'`docs/plan-ogre-horde.md`, toujours ouverte). Q2 et Q5 restent non tranchées.
+
+## Exécution (2026-10-23)
+
+Chantier EXT-SPIRIT (worktree `ext-spirit`). Décision de René du même jour, **« Oui » : le thème `spirit_queen` est ALLUMÉ** (fin de `DemarreurQuete::BOITES_THEMATIQUES`, derrière `kellars_keep` ; libellé « Spirit Queen's Torment » dans `LIBELLES_BOITES`). Dans ce worktree la rotation compte donc 11 entrées : la boîte est à l'index 10. Crypte (`tenebres`) prend l'index 10 dans son worktree, la fusion la range donc à 11 — à épingler par l'orchestrateur, pas ici.
+
+### Correction de source (avant tout code)
+
+Le Dread Warrior est la **carte officielle** (`reference/20_cartes_monstres.md`, p03 : Move 7 · Attack 4 · Defend 4 · Body 3 · Mind 3), « la carte gagne, partout » (René, 2026-10-05). Les **6/3/4/1/3** de la §1 et de la §Lot C ci-dessus sont le paquet de fan périmé : ils ne se portent pas. D'où :
+
+- **Kavra** (sous-boss, quête 3, p. 11 : « stats of a Dread Warrior, with 1 additional Defend die ») : **7 · 4 · 5 · 3 · 3**, `cout` **9** (3 / (1,5 − 5/6) = 4,5 attaques, droite des sous-boss : Ogre champion 7,2 → 11, Doralf 10,5 → 13).
+- **Nelath, la Reine des Esprits** (boss, quête 14, p. 33 : « a Dread Warrior with 6 Body Points ») : **7 · 4 · 4 · 6 · 3**, `cout` **16** (6 / (1,5 − 4/6) = 7,2 attaques, droite des boss : Seigneur 15 → 20 — comme Fellmarak).
+
+### Porté
+
+- **Lot C — `double_sort`** (Q3, capacité nommée) : `MotsClesAdversaires::DOUBLE_SORT`, lu par `MoteurDread::doubleSortDisponible()` ; un second sort, jamais le même, par `MoteurDread::deuxiemeSort()`, avec le même verrou d'usage. Forme nue = chaque tour (Nelath) ; `['premier_tour' => true]` = premier tour de Dread joué (Kavra). « Premier tour » = colonne durable **`instances_monstres.tours_dread_joues`** (migration additive, snapshot `Sauvegarde` aux deux bouts) ; un tour sauté par paralysie ne compte pas.
+- **Kavra** (`kavra_sorciere` : Éclair de Chaos, Boule de Flammes) et **Nelath** (`nelath_reine_des_esprits` : Commandement, Frayeur, Éclair de Chaos, Tempête de feu), `MonstreSeeder`, barks profil `sorciere`, `BestiaireSourceTest` (stats figées), pools de `GabaritQueteSeeder` (Nelath dans « Confrontation finale », Kavra dans « Antre du sous-boss ») : **tirés sous leur thème** (`ThemeSpiritQueenTest`).
+- **Lot I-b — potion de fortune** : `Potion de fortune` (hors marché, `prix_base` 0 — le livret ne donne aucun prix), effet `tirage_de_combat` résolu en tête de `MoteurPotions::boire()` (blanc = `soin_pv_body_de`, crâne = effet de la **Potion de bataille** lu au catalogue, noir = `perte_pv_body` 1, source `SOURCE_BREUVAGE`). La **table des brasseurs** (boîte `spirit_queen`) la donne par objet NOMMÉ (`MoteurMobilier::carteDepuisEntree()`). Vocabulaire : `MotsClesEquipement::TIRAGE_DE_COMBAT`, `PERTE_PV_BODY`, `TIRAGE_POTION`.
+- **Thème** : `spirit_queen` en fin de rotation ; `BOITES_INCOMPLETES` reste vide ; la rencontre finale tire Nelath et le sous-boss tire Kavra.
+
+### Non porté (écrit, pas oublié)
+
+- **Lot F — terrains** (sol meuble, courant bonus, vents) : non porté. Le sol meuble change la **parité** du jet de déplacement et crée un **état durable** (enlisé, un seul dé ensuite) : ni `MoteurSables` (un saut, pas une marche) ni `MotsClesTerrain` ne le portent. Le courant bonus (+2 cases à la première entrée) est un **gain** de budget dépendant du chemin : le Dijkstra pondéré (`Grille::parcoursPondere()`) n'accepte pas de coût négatif, et `DeplacementHeros` publie des destinations déjà décidées. Les vents exigent un **choix de direction** du joueur (sous-menu, option de manette, état en attente). Aucun terrain `spirit_queen` n'entre donc au donjon.
+- **Lot I-a — coffre piégé qui lance un sort de Dread** : non porté. `MoteurDread` résout chaque sort contre un **lanceur-monstre** (`ciblesDuSort`, `monstresDuSort`, `lanceur_id` du Bâton Ancien) ; un piège n'en a pas. Il n'existe pas non plus de `MotsClesPiege` dans le dépôt : les clés d'effet de piège ne sont pas un vocabulaire fermé, et je n'ai pas créé de registre partiel.
+- **Non portés, scriptés dans une quête** : la sorcière de la quête 12 (Fear + Ball of Flame, premier tour double, non nommée) ; le piège Sommeil de la quête 4 (deux héros, portes secrètes) ; la quête 12 (tourbillons) et la fouille garantie.
+- **Hors chantier** : alliés joués par un joueur (Q2) ; parchemin de *Tempest* (Q5). **Écartés** : fournaise et gargouille désamorçable (salle dangereuse), Nelath « sauvée ».
+
+### Décisions à trancher (René)
+
+- **Budgets.** Aucune limite d'usage n'est écrite par le livret ; le budget du palier s'applique (précédent Fellmarak). Conséquence mesurée : **Kavra** lance ses deux sorts au premier tour, puis n'a plus d'usage ; **Nelath** lance deux sorts au premier tour, un au second, puis plus rien. Le texte semble illimité : c'est une exception au budget à décider, pas une règle à coder.
+- **Repli de pool.** Un thème sans sous-boss propre dans le pool « Antre » (`first_light`) peut tirer **Kavra** par le repli « pool entier ». C'est la préférence sans filtre déjà voulue (même chose pour le Yéti de l'Horreur des glaces). À trancher si René veut l'exclure.
+
+### À jouer à la fusion
+
+- Migration : `2026_10_23_200000_tours_dread_joues_sur_instances_monstres` (colonne additive).
+- Seeders : `MonstreSeeder` (Kavra, Nelath), `ObjetSeeder` (Potion de fortune), `MobilierSeeder` (Table des brasseurs), `GabaritQueteSeeder` (pools). `docker compose restart queue queue-jeu` après le PHP.
+- Gel : vérifier qu'aucun groupe **non figé** (`groupes.theme_bestiaire` NULL) n'a joué ; sinon, migration de gel comme `2026_10_08_150000_figer_theme_bestiaire_des_groupes_existants`.
+
+### Tests
+
+`SpiritQueenKavraNelathTest` (5 : deux sorts au premier tour, second tour à un sort, Nelath à deux par tour, témoin sans capacité, déclaration), `ThemeSpiritQueenTest` (7 : rang de la boîte, campagne figée, Kavra et Nelath, statistiques, coûts mesurés, tirage sous le thème, préférence sans filtre), `SpiritQueenPotionFortuneTest` (6 : blanc, crâne, noir, fiole consommée, table nommée, hors marché). Régression : `AdversairesNommesTest`, `SorciersNommesTest`, `BestiaireSourceTest`, `ObjetsFonctionnelsTest`, `ThemeBestiaireLibelleTest`, `BarksArchetypesTest`, `GuideTest`, thèmes Telor/Morcar/Witch Lord, `EquilibrageRencontreTest`, `TerrainCarteTest`.
+
+Mutations (lecteur retiré, test tombé, fichier restauré octet pour octet) : `double_sort` coupé → 2 échecs ; `premier_tour` ignoré → 1 ; compteur toujours « premier » → 1 ; `$sauf` ignoré (même sort relancé) → 1 ; tirage de la potion coupé → 3 ; perte de Body coupée → 1 ; objet nommé du mobilier coupé → 1 ; buff posé sous le nom de la fiole → 1.

@@ -194,6 +194,16 @@ final class MotsClesAdversaires
     public const ATTAQUE_MIND = 'attaque_mind';
 
     /**
+     * DOUBLE SORT (Spirit Queen's Torment : Kavra « On her first turn only, she may cast both spells simultaneously »,
+     * G0053 p. 11 ; Nelath « She may cast two spells in a single turn », p. 33). Un SECOND sort de Dread au même tour,
+     * jamais le même sort ; la règle générale « un sort par tour » ne bouge pas pour les autres. Paramétrée :
+     *  - nue : chaque tour (Nelath) ;
+     *  - `['premier_tour' => true]` : au premier tour de Dread joué seulement (Kavra).
+     * Lue à UN point, `MoteurDread::doubleSortDisponible()`, appelé par `jouerTourDreadBrut()`.
+     */
+    public const DOUBLE_SORT = 'double_sort';
+
+    /**
      * @var array<string, array{lecteur: string, libelle: string}>
      */
     public const CAPACITES = [
@@ -268,6 +278,10 @@ final class MotsClesAdversaires
         self::ATTAQUE_MIND => [
             'lecteur' => 'App\Partie\ResolveurTour::attaqueMindMonstre',
             'libelle' => 'Attaque l\'esprit d\'un héros en vue : chaque crâne de ses dés de combat = 1 Mind perdu',
+        ],
+        self::DOUBLE_SORT => [
+            'lecteur' => 'App\Partie\MoteurDread::doubleSortDisponible',
+            'libelle' => 'Lance deux sorts de Dread au même tour (jamais le même), au premier tour seulement si elle le précise',
         ],
     ];
 

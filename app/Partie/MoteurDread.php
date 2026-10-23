@@ -458,6 +458,13 @@ final class MoteurDread
         $nomMonstre = $instance->nomAffiche();
         $acteur = ['type' => 'monstre', 'id' => $instance->id, 'nom' => $nomMonstre];
 
+        // PREMIER TOUR DE DREAD (`double_sort` { premier_tour }, Kavra : « On her first turn only, she may cast
+        // both spells simultaneously », G0053 p. 11). Lu AVANT d'être compté, puis compté : la colonne est durable
+        // (snapshot compris), jamais un cache. Un tour sauté par paralysie ou sommeil n'entre pas ici, donc ne
+        // compte pas : c'est le premier tour où le sorcier AGIT.
+        $premierTour = (int) $instance->tours_dread_joues === 0;
+        $instance->update(['tours_dread_joues' => (int) $instance->tours_dread_joues + 1]);
+
         // Collecte les actions Dread jouées ce tour (régénération + action principale).
         $actions = [];
 
@@ -543,6 +550,14 @@ final class MoteurDread
                 }
 
                 $actions[] = $this->lancerSortDread($groupe, $quete, $instance, $sortChoisi, $cibles, $enVue, $acteur);
+
+                // DOUBLE SORT (`double_sort`, Q3 tranchée le 2026-10-15 : capacité NOMMÉE par instance). La règle
+                // générale « un sort par tour » ne bouge pas : seul un sorcier qui porte la capacité en lance un second,
+                // et jamais le même sort.
+                if ($this->doubleSortDisponible($instance, $premierTour)
+                    && ($second = $this->deuxiemeSort($groupe, $quete, $instance, $cibles, $sortChoisi, $acteur)) !== null) {
+                    $actions[] = $second;
+                }
 
                 return $this->fusionnerActions($actions);
             }
@@ -922,6 +937,68 @@ final class MoteurDread
         return $payload;
     }
 
+    /**
+     * Le sorcier peut-il lancer UN SECOND sort de Dread à ce tour ? Lecteur de la capacité `double_sort`
+     * (`App\Engine\MotsClesAdversaires::DOUBLE_SORT`), testé dans les deux sens par `AdversairesNommesTest`.
+     *
+     * Deux formes, lues sur la même clé : une capacité NUE (Nelath, « may cast two spells in a single turn »,
+     * G0053 p. 33) tient à chaque tour ; `['premier_tour' => true]` (Kavra, « On her first turn only », p. 11)
+     * ne tient qu'au premier tour de Dread joué, `$premierTour`. Une quatrième forme n'existe pas : une clé
+     * paramétrée sans `premier_tour` vaut la capacité nue.
+     */
+    public function doubleSortDisponible(InstanceMonstre $instance, bool $premierTour): bool
+    {
+        if (! $instance->aCapacite('double_sort')) {
+            return false;
+        }
+
+        $parametre = $instance->capaciteParametree('double_sort');
+
+        if (is_array($parametre) && ($parametre['premier_tour'] ?? false) === true) {
+            return $premierTour;
+        }
+
+        return true;
+    }
+
+    /**
+     * Le second sort du double sort : un AUTRE sort du répertoire, choisi par le même score que le premier, avec
+     * le même verrou d'usage (un sort se paie un usage du budget, à volonté compris). `null` si rien ne se lance
+     * — le premier sort reste seul, sans rien à rattraper.
+     *
+     * ⚠ La liste des cibles en vue est RECALCULÉE : le premier sort peut avoir déplacé le sorcier (Fuite,
+     * Patinage, Repoussement), et un second sort qui viserait depuis l'ancienne case mentirait.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>|null
+     */
+    private function deuxiemeSort(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        Collection $cibles,
+        SortDread $premier,
+        array $acteur,
+    ): ?array {
+        $instance->refresh();
+        $enVue = $this->ciblesEnVue($quete, $instance, $cibles);
+        $sortAVolonte = $this->sortAVolonte($instance);
+        $usagesRestants = $this->usagesRestants($instance, $quete);
+
+        $second = $this->choisirSort($groupe, $quete, $instance, $cibles, $enVue, sauf: $premier->nom);
+
+        if ($second === null || ($usagesRestants <= 0 && $second->nom !== $sortAVolonte)) {
+            return null;
+        }
+
+        if ($second->nom !== $sortAVolonte) {
+            $this->consommerUsage($instance, $quete, $second);
+        }
+
+        return $this->lancerSortDread($groupe, $quete, $instance, $second, $cibles, $enVue, $acteur);
+    }
+
     // ------------------------------------------------------------------
     // Internals — sélection du sort
     // ------------------------------------------------------------------
@@ -939,8 +1016,11 @@ final class MoteurDread
         InstanceMonstre $instance,
         Collection $cibles,
         Collection $enVue,
+        ?string $sauf = null,
     ): ?SortDread {
+        // `$sauf` : le sort déjà lancé à ce tour, qu'un double sort ne relance pas (`deuxiemeSort()`).
         $sortsDisponibles = $this->sortsDisponibles($instance, $quete)
+            ->reject(fn (SortDread $s) => $sauf !== null && $s->nom === $sauf)
             ->filter(fn (SortDread $s) => $this->sortUtilisable($s, $quete, $instance, $cibles, $enVue))
             ->values();
 

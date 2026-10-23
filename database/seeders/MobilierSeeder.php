@@ -86,6 +86,18 @@ class MobilierSeeder extends Seeder
             // l'échelle ≈ 0,9, soit ≈ 2,8 × 1,7 réelles. Remplace le 2×1 de la mesure d'origine.
             ['nom' => 'Table', 'nom_anglais' => 'Table', 'largeur' => 3, 'hauteur' => 2, 'difficulte_destruction' => 1, 'fouillable' => false, 'bloque_vue' => false],
 
+            // ===== Spirit Queen's Torment (G0053 p. 13, quête 4, note B ; boîte `spirit_queen`, thème allumé le 2026-10-23) =====
+            // « The Orc and Goblins have been brewing strange concoctions on this table; three potions can be found. » Le
+            // livret ne donne ni emprise ni destruction à cette table : emprise et difficulté de la Table de base, par
+            // analogie de meuble (⚠ non trouvé pour cette pièce). Les trois potions ne sont pas comptées : chaque fouille tire
+            // UNE carte, la potion de fortune a un poids sur trois (le livret ne dit pas combien de fouilles la vident).
+            ['nom' => 'Table des brasseurs', 'nom_anglais' => 'Table', 'largeur' => 3, 'hauteur' => 2, 'difficulte_destruction' => 1, 'fouillable' => true, 'bloque_vue' => false,
+                'boite' => 'spirit_queen',
+                'effet' => ['fouille' => [
+                    ['issue' => 'objet', 'poids' => 1, 'objet' => 'Potion de fortune'],
+                    ['issue' => 'rien', 'poids' => 2],
+                ]]],
+
             // Le coffre est le contenant à butin par excellence : c'est celui qui
             // paie le plus souvent, et le seul à pouvoir rendre un objet rare.
             ['nom' => 'Coffre', 'nom_anglais' => 'Chest', 'largeur' => 1, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => false,

@@ -522,6 +522,28 @@ final class MotsClesEquipement
      * fouille). ⚠ Mécanique **de nous** : toutes les potions officielles
      * soignent un montant annoncé. `MoteurPotions`.
      */
+    /**
+     * TIRAGE AU DÉ DE COMBAT (Spirit Queen's Torment, quête 4, G0053 p. 13 : « If a hero drinks one, they roll 1 combat die.
+     * A different effect takes place for each roll result. On a white shield: they roll 1 red die and restore that many Body
+     * Points. On a skull: they immediately take on the effects of a Potion of Battle. On a black shield: they lose 1 Body
+     * Point. ») — la potion de fortune. Valeur : une table `face → effet`, où `potion: 'Nom'` désigne l'effet d'une AUTRE
+     * potion du catalogue (lu, jamais recopié). Lu UNE fois, en tête de `MoteurPotions::boire()`, qui résout la face et
+     * continue avec l'effet tiré.
+     */
+    public const TIRAGE_DE_COMBAT = 'tirage_de_combat';
+
+    /**
+     * PERTE DE BODY à qui boit (Spirit Queen's Torment, potion de fortune, « on a black shield: they lose 1 Body Point »).
+     * Valeur : le nombre de PV de Body perdus. Lu par `MoteurPotions::boire()`, qui passe par `MoteurDegats::infligerAHeros()`.
+     */
+    public const PERTE_PV_BODY = 'perte_pv_body';
+
+    /**
+     * Sous-clé d'une face de `TIRAGE_DE_COMBAT` : « immediately take on the effects of a Potion of Battle » (G0053 p. 13).
+     * Valeur : le NOM d'une autre potion du catalogue, dont l'effet est lu (jamais recopié). Lue par `MoteurPotions::tirerFortune()`.
+     */
+    public const TIRAGE_POTION = 'potion';
+
     public const SOIN_PV_BODY_DE = 'soin_pv_body_de';
 
     /** Soin d'un montant fixe de PV Mind. `MoteurPotions`. */
@@ -1091,6 +1113,9 @@ final class MotsClesEquipement
      * @var list<string>
      */
     public const ACTIVES = [
+        self::TIRAGE_DE_COMBAT,
+        self::PERTE_PV_BODY,
+        self::TIRAGE_POTION,
         self::DES_ATTAQUE,
         self::DES_DEFENSE,
         self::ATTAQUE_DIAGONALE,
@@ -1271,6 +1296,8 @@ final class MotsClesEquipement
      * @var array<string, string>
      */
     public const LIBELLES = [
+        self::TIRAGE_DE_COMBAT => 'Effet tiré au dé de combat en la buvant',
+        self::PERTE_PV_BODY => 'Fait perdre %s PV de Body à qui la boit',
         // --- Combat
         self::DES_ATTAQUE => '%s dé(s) d\'attaque',
         self::DES_DEFENSE => '%s dé(s) de défense',

@@ -142,6 +142,12 @@ final class MoteurDegats
     public const SOURCE_EAU_BENITE = 'eau_benite';
 
     /**
+     * BREUVAGE (potion de fortune, Spirit Queen's Torment, G0053 p. 13 : « on a black shield: they lose 1 Body Point »).
+     * Un dégât qu'on se donne en buvant : ni un coup reçu (hors `ReactionEffet::SOURCES_REACTIVES`), ni un piège.
+     */
+    public const SOURCE_BREUVAGE = 'breuvage';
+
+    /**
      * Faveur « Hold the Line » (Hopekins Rest, Wizards of Morcar) — 1 dégât
      * FIXE, non résistable (la carte ne mentionne aucune défense), sur un
      * monstre qui quitte les 8 cases autour du porteur. Voir
