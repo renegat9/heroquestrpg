@@ -48,7 +48,9 @@ reason, and the two must never drift.
   GM reaction to a hero's spell — Dispel, Dissipation, Break, Mirror Magic; also
   `Monstre::estImmobile()` for a figure that never moves — placed in a ROOM only, off any door's
   forecourt, floor of playable cells held: `AssembleurCarte::casesPourFiguresFixes()` and
-  `parvis()`).
+  `parvis()`; since 2026-10-23: `Grille::sontAdjacentes()` for EVERY contact — orthogonal,
+  diagonals only where a card or a text names them, `$diagonales` — garde-fou
+  `ContactOrthogonalTest`, → `docs/regles/combat-et-tour.md`).
   Two copies of a rule too simple to notice drifting is this project's most repeated defect.
 - **`sortBy([$f, $g])` is never a multi-key sort** — Laravel reads a callable there as a
   *comparator*, and it never errors. It bit twice. → `docs/regles/sorts-dread.md`

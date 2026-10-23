@@ -85,7 +85,7 @@ final class MenuMoteur
         $adjacentes = [];
 
         foreach ((array) ($carte->grille['glace'] ?? []) as $cellule) {
-            if (abs((int) $cellule['x'] - $x) + abs((int) $cellule['y'] - $y) === 1) {
+            if (Grille::sontAdjacentes((int) $cellule['x'], (int) $cellule['y'], $x, $y)) {
                 $adjacentes[] = ['x' => (int) $cellule['x'], 'y' => (int) $cellule['y']];
             }
         }
@@ -119,7 +119,7 @@ final class MenuMoteur
             $ix = (int) $instance->position_x;
             $iy = (int) $instance->position_y;
 
-            if (abs($ix - $px) + abs($iy - $py) !== 1) {
+            if (! Grille::sontAdjacentes($ix, $iy, $px, $py)) {
                 continue;
             }
 
@@ -174,11 +174,12 @@ final class MenuMoteur
 
         for ($dy = 0; $dy < $e['h']; $dy++) {
             for ($dx = 0; $dx < $e['l']; $dx++) {
-                $ex = abs(((int) $instance->position_x + $dx) - $hx);
-                $ey = abs(((int) $instance->position_y + $dy) - $hy);
-
-                // Tchebychev (8 voisins) pour une arme longue, Manhattan (4) sinon.
-                if (($diagonale ? max($ex, $ey) : $ex + $ey) === 1) {
+                // Point de passage unique : `$diagonale` (arme longue) ouvre les
+                // 8 cases, sinon le contact reste orthogonal.
+                if (Grille::sontAdjacentes(
+                    (int) $instance->position_x + $dx, (int) $instance->position_y + $dy,
+                    $hx, $hy, $diagonale,
+                )) {
                     return true;
                 }
             }
@@ -1997,8 +1998,11 @@ final class MenuMoteur
                 ->where('jetons_rejeton', '>', 0)
                 ->with('personnage')
                 ->get()
-                ->filter(fn ($p) => abs((int) $p->position_x - (int) $etat->position_x)
-                    + abs((int) $p->position_y - (int) $etat->position_y) <= 1);
+                ->filter(fn ($p) => (int) $p->personnage_id === (int) $etat->personnage_id
+                    || Grille::sontAdjacentes(
+                        (int) $p->position_x, (int) $p->position_y,
+                        (int) $etat->position_x, (int) $etat->position_y,
+                    ));
 
             foreach ($porteurs as $porteur) {
                 $soi = (int) $porteur->personnage_id === (int) $etat->personnage_id;
@@ -2028,8 +2032,10 @@ final class MenuMoteur
                 ->filter(fn ($e) => $e->personnage !== null
                     && ! $e->tombe
                     && $e->position_x !== null
-                    && abs((int) $e->position_x - (int) $etat->position_x) <= 1
-                    && abs((int) $e->position_y - (int) $etat->position_y) <= 1
+                    && ((int) $e->personnage_id === (int) $etat->personnage_id || Grille::sontAdjacentes(
+                        (int) $e->position_x, (int) $e->position_y,
+                        (int) $etat->position_x, (int) $etat->position_y,
+                    ))
                     && $this->sorts->entravesLiberables($e->personnage)->isNotEmpty())
                 ->values();
 
@@ -2042,8 +2048,10 @@ final class MenuMoteur
                 ->filter(fn ($e) => $e->personnage !== null
                     && ! $e->tombe
                     && $e->position_x !== null
-                    && abs((int) $e->position_x - (int) $etat->position_x) <= 1
-                    && abs((int) $e->position_y - (int) $etat->position_y) <= 1
+                    && ((int) $e->personnage_id === (int) $etat->personnage_id || Grille::sontAdjacentes(
+                        (int) $e->position_x, (int) $e->position_y,
+                        (int) $etat->position_x, (int) $etat->position_y,
+                    ))
                     && $this->sorts->liensDe($e->personnage) !== null)
                 ->values();
 
@@ -2090,8 +2098,10 @@ final class MenuMoteur
                     ->with('personnage')
                     ->get()
                     ->filter(fn ($e) => $e->position_x !== null
-                        && abs((int) $e->position_x - (int) $etat->position_x) <= 1
-                        && abs((int) $e->position_y - (int) $etat->position_y) <= 1
+                        && Grille::sontAdjacentes(
+                            (int) $e->position_x, (int) $e->position_y,
+                            (int) $etat->position_x, (int) $etat->position_y,
+                        )
                         && $e->personnage !== null
                         && (int) $e->personnage->pv_body < (int) $e->personnage->pv_body_max)
                     ->sortBy(fn ($e) => (int) $e->personnage->pv_body)
@@ -2159,8 +2169,10 @@ final class MenuMoteur
                 ->with('personnage')
                 ->get()
                 ->filter(fn ($e) => $e->position_x !== null
-                    && abs((int) $e->position_x - (int) $etat->position_x)
-                        + abs((int) $e->position_y - (int) $etat->position_y) === 1);
+                    && Grille::sontAdjacentes(
+                        (int) $e->position_x, (int) $e->position_y,
+                        (int) $etat->position_x, (int) $etat->position_y,
+                    ));
 
             foreach ($allies as $allie) {
                 // §2.17 — un tombé n'occupe PAS sa case (règle assumée : on
@@ -2345,8 +2357,10 @@ final class MenuMoteur
                 ->get()
                 ->filter(fn ($e) => $e->personnage !== null && $e->position_x !== null
                     && ! MaledictionLoupGarou::estEnLoup($e->personnage)
-                    && abs((int) $e->position_x - (int) $etat->position_x)
-                        + abs((int) $e->position_y - (int) $etat->position_y) === 1);
+                    && Grille::sontAdjacentes(
+                        (int) $e->position_x, (int) $e->position_y,
+                        (int) $etat->position_x, (int) $etat->position_y,
+                    ));
 
             if ($voisins->isNotEmpty()) {
                 $sacPublie = fn ($lignes) => $lignes->map(fn ($l) => [
@@ -2564,8 +2578,10 @@ final class MenuMoteur
                 ->whereNotNull('position_x')
                 ->with('mercenaire')
                 ->get()
-                ->filter(fn (GroupeMercenaire $c) => abs((int) $c->position_x - (int) $etat->position_x)
-                    + abs((int) $c->position_y - (int) $etat->position_y) === 1);
+                ->filter(fn (GroupeMercenaire $c) => Grille::sontAdjacentes(
+                    (int) $c->position_x, (int) $c->position_y,
+                    (int) $etat->position_x, (int) $etat->position_y,
+                ));
 
             foreach ($captifs as $captif) {
                 $options[] = [

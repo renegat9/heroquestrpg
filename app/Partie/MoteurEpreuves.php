@@ -85,10 +85,11 @@ final class MoteurEpreuves
                 continue;
             }
 
-            $dx = (int) $entree['x'] - $x;
-            $dy = (int) $entree['y'] - $y;
+            // « À (x, y) OU SUR (x, y) » : la case elle-même compte, que le point
+            // de passage `Grille::sontAdjacentes()` ne retient pas.
+            $surLaCase = (int) $entree['x'] === $x && (int) $entree['y'] === $y;
 
-            if (abs($dx) + abs($dy) > 1) {
+            if (! $surLaCase && ! Grille::sontAdjacentes((int) $entree['x'], (int) $entree['y'], $x, $y)) {
                 continue;
             }
 

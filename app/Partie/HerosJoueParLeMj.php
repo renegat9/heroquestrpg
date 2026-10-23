@@ -224,14 +224,11 @@ final class HerosJoueParLeMj
     /**
      * Le contact d'un profil entre deux cases : orthogonal, sauf le loup-garou (« as a giant wolf », `diagonales`). La
      * même distinction que `ResolveurTour::heroAuContact()` — UN seul prédicat pour la garde de marche, le coup au
-     * contact et le choix de la cible de tir.
+     * contact et le choix de la cible de tir, et c'est le point de passage `Grille::sontAdjacentes()`.
      */
     private function enContact(ControleMj $controle, int $ax, int $ay, int $bx, int $by): bool
     {
-        $dx = abs($ax - $bx);
-        $dy = abs($ay - $by);
-
-        return $controle->diagonales ? max($dx, $dy) === 1 : $dx + $dy === 1;
+        return Grille::sontAdjacentes($ax, $ay, $bx, $by, $controle->diagonales);
     }
 
     /** L'arme que le héros tient dans la main droite (la seule qu'un coup de MJ emploie), ou `null` = mains nues. */

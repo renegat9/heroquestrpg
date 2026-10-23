@@ -676,12 +676,29 @@ final class Grille
         return ($this->cases[$y][$x] ?? 'm') !== 's';
     }
 
-    public function sontAdjacentes(int $x1, int $y1, int $x2, int $y2, bool $diagonales = false): bool
+    /**
+     * LE point de passage du CONTACT entre deux cases : figures, portes,
+     * leviers, pièges, mobilier, glace, parade, errant… Deux cases sont au
+     * contact quand elles sont ORTHOGONALEMENT voisines — devant, derrière, à
+     * côté, JAMAIS en diagonale. Source : livret de règles 2021, p. 10 — « you
+     * may attack any monster that you are adjacent to (next to, in front of,
+     * or behind, not diagonal) ».
+     *
+     * Les diagonales ne comptent QUE là où une carte ou un texte les nomme, et
+     * seulement par `$diagonales = true` : le Fauchard, le Loup, le Croc-sabre
+     * (« can attack diagonally »), les armes longues (`attaque_diagonale`), la
+     * frappe balayée, Hold the Line (« the 8 spaces »), l'embuscade des
+     * Dreadshifters (« the 8 squares surrounding this object »). Le déplacement
+     * reste orthogonal pour tout le monde. Ni le champ de vision ni le
+     * brouillard ne passent par ici : ce ne sont pas des contacts. Une seconde
+     * formule de contact en ligne dans `app/` fait échouer
+     * `ContactOrthogonalTest` (garde-fou « un seul point de passage »).
+     *
+     * Ne pas réécrire la formule ailleurs : `abs(...) + abs(...) === 1` est une
+     * copie, et c'est exactement le défaut que ce point évite.
+     */
+    public static function sontAdjacentes(int $x1, int $y1, int $x2, int $y2, bool $diagonales = false): bool
     {
-        // Par défaut ORTHOGONAL (doc 03 §12). `$diagonales` sert aux figures
-        // dont la carte dit « can attack diagonally » — le Fauchard, le Loup,
-        // le Croc-sabre — et n'ouvre QUE le test d'attaque : le déplacement,
-        // lui, reste orthogonal pour tout le monde.
         if ($diagonales) {
             return max(abs($x1 - $x2), abs($y1 - $y2)) === 1;
         }
@@ -718,7 +735,7 @@ final class Grille
     public function adjacenteAEmprise(int $x, int $y, int $l, int $h, int $tx, int $ty, bool $diagonales = false): bool
     {
         foreach ($this->cellulesEmprise($x, $y, $l, $h) as $c) {
-            if ($this->sontAdjacentes($c['x'], $c['y'], $tx, $ty, $diagonales)) {
+            if (self::sontAdjacentes($c['x'], $c['y'], $tx, $ty, $diagonales)) {
                 return true;
             }
         }

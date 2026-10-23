@@ -3160,8 +3160,14 @@ final class ResolveurTour
             ]);
         }
 
-        if (abs((int) $porteur->position_x - (int) $etat->position_x)
-            + abs((int) $porteur->position_y - (int) $etat->position_y) > 1) {
+        // Soi-même OU un compagnon au contact (orthogonal) : `sontAdjacentes()`
+        // ne retient pas la case propre, d'où la comparaison d'identité.
+        $surSoi = (int) $porteur->personnage_id === (int) $etat->personnage_id;
+
+        if (! $surSoi && ! Grille::sontAdjacentes(
+            (int) $porteur->position_x, (int) $porteur->position_y,
+            (int) $etat->position_x, (int) $etat->position_y,
+        )) {
             throw ValidationException::withMessages([
                 'option_id' => 'Trop loin : on arrache un rejeton sur soi ou sur un compagnon au contact.',
             ]);
@@ -3343,8 +3349,9 @@ final class ResolveurTour
                 continue;
             }
 
-            $auContact = $heros->contains(fn ($h) => abs((int) $h->position_x - $x)
-                + abs((int) $h->position_y - $y) === 1);
+            $auContact = $heros->contains(fn ($h) => Grille::sontAdjacentes(
+                (int) $h->position_x, (int) $h->position_y, $x, $y,
+            ));
 
             if (! $auContact) {
                 $instance->update(['position_x' => $x, 'position_y' => $y]);
@@ -3445,8 +3452,9 @@ final class ResolveurTour
         }
 
         foreach ($chemin as $index => $case) {
-            $adjacent = $gardiens->contains(fn (InstanceMonstre $i) => abs((int) $i->position_x - (int) $case['x'])
-                + abs((int) $i->position_y - (int) $case['y']) === 1);
+            $adjacent = $gardiens->contains(fn (InstanceMonstre $i) => Grille::sontAdjacentes(
+                (int) $i->position_x, (int) $i->position_y, (int) $case['x'], (int) $case['y'],
+            ));
 
             if (! $adjacent) {
                 continue;
@@ -7273,8 +7281,10 @@ final class ResolveurTour
 
         $encoreAdjacent = $allieEtat !== null && $allieEtat->personnage !== null
             && $allieEtat->position_x !== null && $etat->position_x !== null
-            && abs((int) $allieEtat->position_x - (int) $etat->position_x)
-                + abs((int) $allieEtat->position_y - (int) $etat->position_y) === 1;
+            && Grille::sontAdjacentes(
+                (int) $allieEtat->position_x, (int) $allieEtat->position_y,
+                (int) $etat->position_x, (int) $etat->position_y,
+            );
 
         if (! $encoreAdjacent) {
             throw ValidationException::withMessages(['parametres' => 'Cet allié ne peut plus participer à l\'échange.']);
@@ -7644,8 +7654,10 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Aucun allié tombé à relever.']);
         }
 
-        $adjacent = abs((int) $etat->position_x - (int) $cible->position_x)
-            + abs((int) $etat->position_y - (int) $cible->position_y) === 1;
+        $adjacent = Grille::sontAdjacentes(
+            (int) $etat->position_x, (int) $etat->position_y,
+            (int) $cible->position_x, (int) $cible->position_y,
+        );
 
         if (! $adjacent) {
             throw ValidationException::withMessages(['option_id' => 'L\'allié tombé doit être sur une case adjacente.']);
@@ -8618,8 +8630,10 @@ final class ResolveurTour
      */
     private function frapperEntreMonstres(Quete $quete, InstanceMonstre $sbire, InstanceMonstre $cible): array
     {
-        $contact = abs((int) $sbire->position_x - (int) $cible->position_x)
-            + abs((int) $sbire->position_y - (int) $cible->position_y) === 1;
+        $contact = Grille::sontAdjacentes(
+            (int) $sbire->position_x, (int) $sbire->position_y,
+            (int) $cible->position_x, (int) $cible->position_y,
+        );
 
         if (! $contact) {
             $plateau = $this->grille($quete, exceptInstanceId: (int) $sbire->id);
@@ -8635,8 +8649,10 @@ final class ResolveurTour
                 $arrivee = $chemin[min(count($chemin), $pas) - 1];
                 $sbire->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
 
-                $contact = abs((int) $arrivee['x'] - (int) $cible->position_x)
-                    + abs((int) $arrivee['y'] - (int) $cible->position_y) === 1;
+                $contact = Grille::sontAdjacentes(
+                    (int) $arrivee['x'], (int) $arrivee['y'],
+                    (int) $cible->position_x, (int) $cible->position_y,
+                );
             }
         }
 
@@ -9062,8 +9078,10 @@ final class ResolveurTour
             ->where('etat', 'actif')->where('revele', true)->first();
 
         if ($instance === null || $instance->position_x === null
-            || abs((int) $instance->position_x - (int) $etat->position_x)
-             + abs((int) $instance->position_y - (int) $etat->position_y) !== 1) {
+            || ! Grille::sontAdjacentes(
+                (int) $instance->position_x, (int) $instance->position_y,
+                (int) $etat->position_x, (int) $etat->position_y,
+            )) {
             throw ValidationException::withMessages(['option_id' => 'Aucune créature à votre contact ici.']);
         }
 
@@ -10203,7 +10221,7 @@ final class ResolveurTour
         $ix = (int) $instance->position_x;
         $iy = (int) $instance->position_y;
 
-        if (abs($ix - $px) + abs($iy - $py) !== 1) {
+        if (! Grille::sontAdjacentes($ix, $iy, $px, $py)) {
             throw ValidationException::withMessages(['option_id' => 'La créature n\'est plus à votre contact.']);
         }
 
@@ -10704,6 +10722,11 @@ final class ResolveurTour
      * (voisines, diagonales comprises), il frappe aussitôt — `frappeDuSurgissement()`
      * — sauf défi du Chevalier en attente ; sinon il joue au tour des monstres.
      * null si aucune place libre autour du héros.
+     *
+     * Exception ÉCRITE au contact orthogonal (chantier 2026-10-23) : la carte
+     * 2024 dit « on any square adjacent OR DIAGONAL to you », donc la pose et la
+     * frappe immédiate gardent les huit cases (`heroAuContact(…, true)`). Ce
+     * n'est pas un test de contact à aligner sur `Grille::sontAdjacentes()`.
      *
      * SANS PLAFOND : sa carte revient sous le paquet comme les autres, elle doit
      * donc mordre à chaque fois.
@@ -11543,11 +11566,12 @@ final class ResolveurTour
 
         for ($dy = 0; $dy < $e['h']; $dy++) {
             for ($dx = 0; $dx < $e['l']; $dx++) {
-                $ex = abs(((int) $instance->position_x + $dx) - $hx);
-                $ey = abs(((int) $instance->position_y + $dy) - $hy);
-
-                // Tchebychev (8 voisins) pour une arme longue, Manhattan (4) sinon.
-                if (($diagonale ? max($ex, $ey) : $ex + $ey) === 1) {
+                // Point de passage unique : `$diagonale` (arme longue) ouvre les
+                // 8 cases, sinon le contact reste orthogonal.
+                if (Grille::sontAdjacentes(
+                    (int) $instance->position_x + $dx, (int) $instance->position_y + $dy,
+                    $hx, $hy, $diagonale,
+                )) {
                     return true;
                 }
             }
@@ -12855,11 +12879,12 @@ final class ResolveurTour
         $voit = fn (int $x, int $y, EtatPersonnageQuete $c): bool => $grille->ligneDeVue(
             $x, $y, (int) $c->position_x, (int) $c->position_y, figuresBloquent: true,
         );
-        // ⚠ MÊME notion de contact que `heroAuContact()` — Manhattan = 1. Une
-        // définition plus large ferait reculer le monstre sur une case que le
-        // moteur considère encore au contact : il tirerait quand même en mêlée.
+        // ⚠ MÊME notion de contact que `heroAuContact()` — orthogonal, par le
+        // point de passage `Grille::sontAdjacentes()`. Une définition plus large
+        // ferait reculer le monstre sur une case que le moteur considère encore
+        // au contact : il tirerait quand même en mêlée.
         $colle = fn (int $x, int $y): bool => $cibles->contains(
-            fn (EtatPersonnageQuete $c) => abs($x - (int) $c->position_x) + abs($y - (int) $c->position_y) === 1,
+            fn (EtatPersonnageQuete $c) => Grille::sontAdjacentes($x, $y, (int) $c->position_x, (int) $c->position_y),
         );
         // Distance à l'ennemi le PLUS PROCHE : c'est elle qu'on maximise, pas la
         // somme — s'éloigner d'un héros en se collant à un autre n'est pas fuir.
@@ -14068,6 +14093,11 @@ final class ResolveurTour
      * figurer dans `des.modificateurs` avec le nom de son porteur, pas
      * seulement sa somme.
      *
+     * Voisin = AU CONTACT ORTHOGONAL (devant, derrière, à côté), pas en
+     * diagonale : `Grille::sontAdjacentes()`, le point de passage unique du
+     * contact (livret 2021, p. 10). Un allié en diagonale ne porte donc plus
+     * sa Bannière ni son Cri — le détail est dans docs/regles/combat-et-tour.md.
+     *
      * @return list<array{nom: string, valeur: int}>
      */
     private function detailChezLesVoisins(Quete $quete, EtatPersonnageQuete $cible, string $mecanique): array
@@ -14080,9 +14110,10 @@ final class ResolveurTour
             ->whereNotNull('position_x')
             ->with('personnage')
             ->get()
-            ->filter(fn (EtatPersonnageQuete $voisin) => abs((int) $voisin->position_x - (int) $cible->position_x)
-                    <= 1
-                && abs((int) $voisin->position_y - (int) $cible->position_y) <= 1) as $voisin) {
+            ->filter(fn (EtatPersonnageQuete $voisin) => Grille::sontAdjacentes(
+                (int) $voisin->position_x, (int) $voisin->position_y,
+                (int) $cible->position_x, (int) $cible->position_y,
+            )) as $voisin) {
             if ($voisin->personnage === null) {
                 continue;
             }
@@ -14385,8 +14416,10 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Position inconnue.']);
         }
 
-        $contact = abs((int) $etat->position_x - (int) $captif->position_x)
-            + abs((int) $etat->position_y - (int) $captif->position_y) === 1;
+        $contact = Grille::sontAdjacentes(
+            (int) $etat->position_x, (int) $etat->position_y,
+            (int) $captif->position_x, (int) $captif->position_y,
+        );
 
         if (! $contact) {
             throw ValidationException::withMessages(['option_id' => 'Ce captif n\'est pas à ton contact.']);

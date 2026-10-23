@@ -820,8 +820,9 @@ final class MoteurDread
      * diagonale pour `attaque_diagonale` : le Bloomrot Scion « has a sweeping attack that targets
      * all heroes adjacent and diagonal to it »). Sans lui, cette méthode refaisait sa propre
      * adjacence — orthogonale seulement — et un balayage diagonal n'aurait touché personne :
-     * deux copies d'une règle, dont une qui ignore la diagonale. Le repli (liste vide) garde
-     * l'ancien calcul pour tout appelant qui ne la fournit pas.
+     * deux copies d'une règle, dont une qui ignore la diagonale. Le repli (liste vide) passe
+     * lui aussi par le point de passage (`Grille::sontAdjacentes()`), orthogonal, pour tout
+     * appelant qui ne la fournit pas.
      *
      * @param  Collection<int, EtatPersonnageQuete>  $cibles
      * @param  Collection<int, EtatPersonnageQuete>|null  $adjacents
@@ -838,8 +839,10 @@ final class MoteurDread
         // `$quete` : lu pour le flanc du tacticien — la méthode l'utilisait sans jamais le définir.
         $quete = $instance->quete;
         $adjacents ??= $cibles->filter(function (EtatPersonnageQuete $c) use ($instance) {
-            return abs((int) $instance->position_x - (int) $c->position_x)
-                + abs((int) $instance->position_y - (int) $c->position_y) === 1;
+            return Grille::sontAdjacentes(
+                (int) $instance->position_x, (int) $instance->position_y,
+                (int) $c->position_x, (int) $c->position_y,
+            );
         });
 
         $resultats = [];
@@ -1669,13 +1672,16 @@ final class MoteurDread
 
     /**
      * Un héros est-il au contact ? MÊME notion qu'ailleurs dans le moteur —
-     * Manhattan = 1, orthogonal strict.
+     * Orthogonal strict : le point de passage `Grille::sontAdjacentes()`.
      *
      * @param  Collection<int, EtatPersonnageQuete>  $cibles
      */
     private function auContact(InstanceMonstre $instance, Collection $cibles): bool
     {
-        return $cibles->contains(fn (EtatPersonnageQuete $c) => $this->distance($instance, $c) === 1);
+        return $cibles->contains(fn (EtatPersonnageQuete $c) => Grille::sontAdjacentes(
+            (int) $instance->position_x, (int) $instance->position_y,
+            (int) $c->position_x, (int) $c->position_y,
+        ));
     }
 
     /** Distance de Manhattan entre une créature et un héros. */
@@ -2028,8 +2034,10 @@ final class MoteurDread
         return $quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get()
             ->filter(fn (InstanceMonstre $m) => $m->id !== $instance->id
                 && $m->position_x !== null
-                && abs((int) $m->position_x - (int) $instance->position_x)
-                    + abs((int) $m->position_y - (int) $instance->position_y) === 1
+                && Grille::sontAdjacentes(
+                    (int) $m->position_x, (int) $m->position_y,
+                    (int) $instance->position_x, (int) $instance->position_y,
+                )
                 && in_array($sort->nom, $this->repertoireDe($m), true))
             ->count();
     }
@@ -3714,8 +3722,10 @@ final class MoteurDread
             return null;
         }
 
-        $porteur = $cibles->first(fn (EtatPersonnageQuete $c) => abs((int) $c->position_x - (int) $instance->position_x)
-            + abs((int) $c->position_y - (int) $instance->position_y) === 1);
+        $porteur = $cibles->first(fn (EtatPersonnageQuete $c) => Grille::sontAdjacentes(
+            (int) $c->position_x, (int) $c->position_y,
+            (int) $instance->position_x, (int) $instance->position_y,
+        ));
 
         if ($porteur === null) {
             return null; // personne au contact : il avance, il n'accroche pas
@@ -3908,8 +3918,10 @@ final class MoteurDread
             return null;
         }
 
-        $porteur = $cibles->first(fn (EtatPersonnageQuete $c) => abs((int) $c->position_x - (int) $instance->position_x)
-            + abs((int) $c->position_y - (int) $instance->position_y) === 1);
+        $porteur = $cibles->first(fn (EtatPersonnageQuete $c) => Grille::sontAdjacentes(
+            (int) $c->position_x, (int) $c->position_y,
+            (int) $instance->position_x, (int) $instance->position_y,
+        ));
 
         if ($porteur === null || $porteur->personnage === null) {
             return null; // personne au contact : tour normal (il attaquera)
@@ -4017,8 +4029,10 @@ final class MoteurDread
             ->where('revele', true)
             ->whereKeyNot($assaillant->id)
             ->get()
-            ->contains(fn (InstanceMonstre $autre) => abs((int) $autre->position_x - (int) $cible->position_x)
-                + abs((int) $autre->position_y - (int) $cible->position_y) === 1);
+            ->contains(fn (InstanceMonstre $autre) => Grille::sontAdjacentes(
+                (int) $autre->position_x, (int) $autre->position_y,
+                (int) $cible->position_x, (int) $cible->position_y,
+            ));
     }
 
     /**
@@ -4297,7 +4311,7 @@ final class MoteurDread
 
         foreach ($voisines as $v) {
             if ($legale($v['x'], $v['y'])
-                && abs($v['x'] - $c['x']) + abs($v['y'] - $c['y']) === 1
+                && Grille::sontAdjacentes((int) $v['x'], (int) $v['y'], (int) $c['x'], (int) $c['y'])
                 && ! ($v['x'] === $lx && $v['y'] === $ly)) {
                 return ['cases' => [['x' => $c['x'], 'y' => $c['y']], ['x' => $v['x'], 'y' => $v['y']]]];
             }
@@ -5486,8 +5500,10 @@ final class MoteurDread
 
         // Cherche un allié adjacent.
         foreach ($allies as $allieEtat) {
-            if (abs((int) $etat->position_x - (int) $allieEtat->position_x)
-                + abs((int) $etat->position_y - (int) $allieEtat->position_y) === 1) {
+            if (Grille::sontAdjacentes(
+                (int) $etat->position_x, (int) $etat->position_y,
+                (int) $allieEtat->position_x, (int) $allieEtat->position_y,
+            )) {
                 return [$allieEtat->personnage, $allieEtat, true];
             }
         }

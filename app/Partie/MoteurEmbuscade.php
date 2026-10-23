@@ -104,6 +104,11 @@ final class MoteurEmbuscade
     /**
      * Les Dreadshifters déguisés dont l'un des 8 voisins vient d'être foulé.
      *
+     * Les HUIT cases sont ÉCRITES : carte Dreadshifter « the first time a hero
+     * moves into the 8 squares surrounding this object », et livret Wizards of
+     * Morcar (G1504 p. 4, « any of the 8 squares surrounding »). Exception au contact
+     * orthogonal, donc `sontAdjacentes(…, true)`.
+     *
      * @param  list<array{x: int, y: int}>  $casesFoulees
      * @return Collection<int, InstanceMonstre>
      */
@@ -120,7 +125,7 @@ final class MoteurEmbuscade
                 }
 
                 foreach ($casesFoulees as $c) {
-                    if (max(abs((int) $c['x'] - (int) $i->position_x), abs((int) $c['y'] - (int) $i->position_y)) === 1) {
+                    if (Grille::sontAdjacentes((int) $c['x'], (int) $c['y'], (int) $i->position_x, (int) $i->position_y, true)) {
                         return true;
                     }
                 }

@@ -662,10 +662,10 @@ final class MoteurReactions
 
         for ($dy = 0; $dy < $emprise['h']; $dy++) {
             for ($dx = 0; $dx < $emprise['l']; $dx++) {
-                $ex = abs(((int) $instance->position_x + $dx) - (int) $etat->position_x);
-                $ey = abs(((int) $instance->position_y + $dy) - (int) $etat->position_y);
-
-                if ($ex + $ey === 1) {
+                if (Grille::sontAdjacentes(
+                    (int) $instance->position_x + $dx, (int) $instance->position_y + $dy,
+                    (int) $etat->position_x, (int) $etat->position_y,
+                )) {
                     return $instance;
                 }
             }
@@ -857,8 +857,10 @@ final class MoteurReactions
                 continue;
             }
 
-            if (abs((int) $etat->position_x - (int) $etatVictime->position_x)
-                + abs((int) $etat->position_y - (int) $etatVictime->position_y) !== 1) {
+            if (! Grille::sontAdjacentes(
+                (int) $etat->position_x, (int) $etat->position_y,
+                (int) $etatVictime->position_x, (int) $etatVictime->position_y,
+            )) {
                 continue;
             }
 

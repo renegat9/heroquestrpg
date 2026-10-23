@@ -148,7 +148,7 @@ final class MoteurPortes
             }
 
             $embrasure = Grille::caseEmbrasure($porte, $salles);
-            if (abs($embrasure['x'] - $x) + abs($embrasure['y'] - $y) === 1) {
+            if (Grille::sontAdjacentes((int) $embrasure['x'], (int) $embrasure['y'], $x, $y)) {
                 $trouvees[] = ['index' => $index, 'porte' => $porte];
             }
         }
@@ -223,7 +223,7 @@ final class MoteurPortes
         $adjacents = [];
 
         foreach ((array) ($carte->grille['leviers'] ?? []) as $levier) {
-            if (abs((int) $levier['x'] - $x) + abs((int) $levier['y'] - $y) === 1) {
+            if (Grille::sontAdjacentes((int) $levier['x'], (int) $levier['y'], $x, $y)) {
                 $levierId = (string) ($levier['levier_id'] ?? '');
 
                 $adjacents[] = [
@@ -289,7 +289,7 @@ final class MoteurPortes
 
         $reveles = $this->revelerSecretes(
             $groupe, $carte, $personnage,
-            fn (array $porte) => abs((int) $porte['x'] - $x) + abs((int) $porte['y'] - $y) === 1,
+            fn (array $porte) => Grille::sontAdjacentes((int) $porte['x'], (int) $porte['y'], $x, $y),
             'talent',
         );
 

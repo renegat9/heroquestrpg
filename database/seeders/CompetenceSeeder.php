@@ -109,13 +109,13 @@ class CompetenceSeeder extends Seeder
         'nain' => [
             ['categorie' => 'Mine', 'icone' => 'visibility', 'noeuds' => [
                 ['nom' => 'Œil du mineur', 'type' => 'passif',
-                    'description' => "Les pièges cachés des cases voisines se révèlent d'eux-mêmes quand tu arrives.",
+                    'description' => "Les pièges cachés des cases voisines (pas en diagonale) se révèlent d'eux-mêmes quand tu arrives.",
                     'effet' => ['mecanique' => 'detection_pieges_adjacents', 'automatique' => true]],
                 ['nom' => 'Désamorçage', 'type' => 'actif',
                     'description' => 'Tu peux tenter de neutraliser un piège détecté à ton contact, par un jet de Body.',
                     'effet' => ['mecanique' => 'desamorcer_piege', 'jet' => 'body']],
                 ['nom' => 'Parler à la pierre', 'type' => 'passif',
-                    'description' => "Les portes secrètes des cases voisines se révèlent d'elles-mêmes, sans jet ni action.",
+                    'description' => "Les portes secrètes des cases voisines (pas en diagonale) se révèlent d'elles-mêmes, sans jet ni action.",
                     'effet' => ['mecanique' => 'detection_portes_secretes']],
                 // POUVOIR FINAL (lot B, 2026-10-23) : le sort, à son coût — l'action.
                 ['nom' => 'Tunnelier', 'type' => 'actif', 'cout' => 2,
@@ -285,7 +285,7 @@ class CompetenceSeeder extends Seeder
                     'description' => 'Une fois par tour, tu lances un second sort dans le même tour.',
                     'effet' => ['mecanique' => 'sort_supplementaire_par_tour', 'frequence' => 'une_fois_par_tour']],
                 ['nom' => 'Hymne protecteur', 'type' => 'passif', 'cout' => 2,
-                    'description' => '+1 dé de défense à chaque héros qui se tient à ton contact — jamais à toi.',
+                    'description' => '+1 dé de défense à chaque héros qui se tient à ton contact (pas en diagonale) — jamais à toi.',
                     'effet' => ['mecanique' => 'bonus_des_defense_allie_adjacent', 'valeur' => 1]],
             ]],
             ['categorie' => 'Verbe', 'icone' => 'record_voice_over', 'noeuds' => [
@@ -293,7 +293,7 @@ class CompetenceSeeder extends Seeder
                     'description' => '+1 dé de Mind sur les jets sociaux fondés sur la peur.',
                     'effet' => ['mecanique' => 'avantage_jet_mind', 'valeur' => 1, 'contexte' => 'social_peur']],
                 ['nom' => 'Ballade apaisante', 'type' => 'actif',
-                    'description' => 'Une fois par quête, en action, rends 1d6 PV de Body à un compagnon à ton contact.',
+                    'description' => 'Une fois par quête, en action, rends 1d6 PV de Body à un compagnon à ton contact (pas en diagonale).',
                     'effet' => ['mecanique' => 'soin_allie', 'frequence' => 'une_fois_par_quete']],
                 ['nom' => 'Mot qui blesse', 'type' => 'passif',
                     'description' => "Les monstres à ton contact attaquent avec 1 dé d'attaque en moins.",
@@ -543,15 +543,15 @@ class CompetenceSeeder extends Seeder
                     'description' => '+1 dé de Mind sur les jets sociaux fondés sur la peur.',
                     'effet' => ['mecanique' => 'avantage_jet_mind', 'valeur' => 1, 'contexte' => 'social_peur']],
                 ['nom' => 'Bannière', 'type' => 'passif',
-                    'description' => '+1 dé de défense à chaque héros qui se tient à ton contact — jamais à toi.',
+                    'description' => '+1 dé de défense à chaque héros qui se tient à ton contact (pas en diagonale) — jamais à toi.',
                     'effet' => ['mecanique' => 'bonus_des_defense_allie_adjacent', 'valeur' => 1]],
                 ['nom' => 'Appel au ralliement', 'type' => 'actif',
-                    'description' => 'Une fois par quête, en action, rends 1d6 PV de Body à un compagnon à ton contact.',
+                    'description' => 'Une fois par quête, en action, rends 1d6 PV de Body à un compagnon à ton contact (pas en diagonale).',
                     'effet' => ['mecanique' => 'soin_allie', 'frequence' => 'une_fois_par_quete']],
                 // POUVOIR FINAL (phase 2, lot A, 2026-10-23) : miroir côté attaque de la Bannière. Le dé est
                 // compté dans `frapper()` pour l'attaquant qui se tient au contact du porteur, jamais pour lui.
                 ['nom' => 'Cri de ralliement', 'type' => 'passif', 'cout' => 2,
-                    'description' => "+1 dé d'attaque à chaque héros qui se tient à ton contact, pour chacune de ses attaques — jamais à toi.",
+                    'description' => "+1 dé d'attaque à chaque héros qui se tient à ton contact (pas en diagonale), pour chacune de ses attaques — jamais à toi.",
                     'effet' => ['mecanique' => 'bonus_des_attaque_allie_adjacent', 'valeur' => 1]],
             ]],
             ['categorie' => 'Croisade', 'icone' => 'swords', 'noeuds' => [
@@ -632,7 +632,7 @@ class CompetenceSeeder extends Seeder
                     'description' => 'Tu peux tenter de neutraliser un piège détecté à ton contact, par un jet de Body.',
                     'effet' => ['mecanique' => 'desamorcer_piege', 'jet' => 'body']],
                 ['nom' => 'Lecture des lieux', 'type' => 'passif',
-                    'description' => "Les portes secrètes des cases voisines se révèlent d'elles-mêmes, sans jet ni action.",
+                    'description' => "Les portes secrètes des cases voisines (pas en diagonale) se révèlent d'elles-mêmes, sans jet ni action.",
                     'effet' => ['mecanique' => 'detection_portes_secretes']],
                 // POUVOIR FINAL (lot B, 2026-10-23) : une fouille négative est refaite. Décidé dans `ResolveurTour::piocherAvecFlair()`.
                 ['nom' => 'Flair du pisteur', 'type' => 'passif', 'cout' => 2,
@@ -750,7 +750,7 @@ class CompetenceSeeder extends Seeder
             // vers le DECK DE TRÉSOR et les pièges.
             ['nom' => 'Chasseur de trésor', 'type' => 'passif', 'description' => "Chaque fois qu'une carte de fouille te rapporte de l'or, tu en trouves 25 de plus.", 'effet' => ['mecanique' => 'bonus_or_tresor', 'valeur' => 25]],
             ['nom' => 'Sixième sens', 'type' => 'actif', 'description' => "Une fois par tour, quand tu tires une carte de piège, remets-la sous le paquet et tire-en une autre.", 'effet' => ['mecanique' => 'repiocher_carte_piege', 'frequence' => 'une_fois_par_tour']],
-            ['nom' => 'Sens du piège', 'type' => 'passif', 'description' => "Une fois par tour, en arrivant sur une case voisine d'un piège, tu en es averti. Le piège reste caché et ne se déclenche pas.", 'effet' => ['mecanique' => 'alerte_pieges_adjacents', 'frequence' => 'une_fois_par_tour']],
+            ['nom' => 'Sens du piège', 'type' => 'passif', 'description' => "Une fois par tour, en arrivant sur une case voisine (pas en diagonale) d'un piège, tu en es averti. Le piège reste caché et ne se déclenche pas.", 'effet' => ['mecanique' => 'alerte_pieges_adjacents', 'frequence' => 'une_fois_par_tour']],
         ],
     ];
 

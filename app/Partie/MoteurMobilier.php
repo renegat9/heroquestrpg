@@ -709,7 +709,7 @@ final class MoteurMobilier
 
         [$a, $b] = [$cases[0], $cases[1]];
 
-        if (abs($a['x'] - $b['x']) + abs($a['y'] - $b['y']) !== 1) {
+        if (! Grille::sontAdjacentes((int) $a['x'], (int) $a['y'], (int) $b['x'], (int) $b['y'])) {
             throw new RuntimeException('Les deux cases d\'un mur magique doivent être orthogonalement contiguës.');
         }
 
@@ -752,7 +752,7 @@ final class MoteurMobilier
 
         for ($dx = 0; $dx < (int) ($entree['l'] ?? 1); $dx++) {
             for ($dy = 0; $dy < (int) ($entree['h'] ?? 1); $dy++) {
-                if (abs($ox + $dx - $x) + abs($oy + $dy - $y) === 1) {
+                if (Grille::sontAdjacentes($ox + $dx, $oy + $dy, $x, $y)) {
                     return true;
                 }
             }

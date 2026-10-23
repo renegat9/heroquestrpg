@@ -78,7 +78,7 @@ Dix pouvoirs de combat et de conditions, chacun au 4e rang de SA colonne (`cout 
 - *Bouclier du serment* : sans condition de bouclier, comme Roc (« comme 6 », validé par René), bien que le nom parle d'un bouclier. Une ligne à ajouter si René le veut autrement.
 - *Texte du tour sauté* : `monstre_saute_tour` dit désormais « passe son tour », et non « pris dans la tempête », puisque la condition ne garde pas sa source. Tempête perd sa couleur dans le fil, pas dans ses effets.
 
-**Dette relevée, non tranchée.** Le contact entre HÉROS n'est pas une seule règle dans le code. `ResolveurTour::detailChezLesVoisins()` (Bannière, Cri de ralliement, soin d'allié) compte les huit cases voisines (Chebyshev), alors que `MoteurReactions::proposerAuVoisin()` (Parade au bouclier) exige l'orthogonal, comme le contact des monstres. Le Cri reprend la règle de la Bannière pour rester son miroir : un seul point à changer le jour où René tranche.
+**Dette tranchée (René, 2026-10-23).** Le contact entre héros comptait huit cases (Bannière, Cri de ralliement, soin d'allié, Regard qui glace voisin), alors que la Parade et le contact des monstres étaient orthogonaux. **Le contact est orthogonal, partout**, par un seul point de passage, `Grille::sontAdjacentes()`. Bannière, Cri de ralliement, Regard qui glace (porté par un voisin) et soin d'allié ne comptent plus un allié en diagonale. Source, détail et garde-fou : `docs/regles/combat-et-tour.md`, section « Le contact est orthogonal, partout ».
 
 **Données.** `CompetenceSeeder` ajoute dix nœuds (`updateOrCreate`, aucune ligne existante modifiée) : `db:seed` les pose sans toucher aux personnages. Aucune migration.
 

@@ -1561,7 +1561,7 @@ final class MoteurPieges
             $groupe,
             $carte,
             $personnage,
-            fn (array $entree) => abs((int) $entree['x'] - $x) + abs((int) $entree['y'] - $y) === 1,
+            fn (array $entree) => Grille::sontAdjacentes((int) $entree['x'], (int) $entree['y'], $x, $y),
             'oeil_du_mineur',
         );
 
@@ -1618,7 +1618,7 @@ final class MoteurPieges
             if (! in_array($entree['etat'] ?? null, self::ETATS_CONNUS_ARMES, true)) {
                 continue;
             }
-            if (abs((int) $entree['x'] - $x) + abs((int) $entree['y'] - $y) !== 1) {
+            if (! Grille::sontAdjacentes((int) $entree['x'], (int) $entree['y'], $x, $y)) {
                 continue;
             }
 
@@ -1899,7 +1899,7 @@ final class MoteurPieges
             if (($entree['etat'] ?? null) !== self::ETAT_CACHE) {
                 continue;
             }
-            if (abs((int) $entree['x'] - $x) + abs((int) $entree['y'] - $y) !== 1) {
+            if (! Grille::sontAdjacentes((int) $entree['x'], (int) $entree['y'], $x, $y)) {
                 continue;
             }
 
