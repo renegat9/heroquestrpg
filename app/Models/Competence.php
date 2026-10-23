@@ -30,6 +30,9 @@ class Competence extends Model
         'categorie_icone',
         'colonne',
         'rang',
+        // Coût en points de compétence (1, ou 2 pour le pouvoir final — docs/regles/talents-et-capacites.md,
+        // « Pouvoirs finaux »). 0 pour une capacité de carte, qui ne coûte rien.
+        'cout',
         'prerequis_id',
     ];
 
@@ -40,6 +43,7 @@ class Competence extends Model
             'innee' => 'boolean',
             'colonne' => 'integer',
             'rang' => 'integer',
+            'cout' => 'integer',
         ];
     }
 

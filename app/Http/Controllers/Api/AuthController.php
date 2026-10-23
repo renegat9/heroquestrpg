@@ -125,7 +125,7 @@ class AuthController extends Controller
         $joueur = Auth::guard('joueur')->user();
 
         $personnages = $joueur->personnages()
-            ->with(['competences:competences.id,competences.nom,competences.effet', 'sorts', 'groupeActif', 'inventaire.objet'])
+            ->with(['competences:competences.id,competences.nom,competences.description,competences.cout,competences.rang,competences.effet', 'sorts', 'groupeActif', 'inventaire.objet'])
             ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id', 'or',
                 'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max',
                 'attribut_body', 'attribut_mind', 'des_attaque', 'des_defense',
@@ -251,10 +251,16 @@ class AuthController extends Controller
                             // sans nom ni description ne disait pas QUOI était disponible. Le front
                             // les joignait au catalogue ; un autre client (ou un catalogue pas encore
                             // chargé) lisait un statut orphelin. Le serveur publie l'entrée complète.
-                            ->map(fn ($c) => ['id' => $c->id, 'nom' => $c->nom, 'description' => $c->description]
+                            // `cout` et `rang` (2026-10-22) : le pouvoir final se reconnaît à son rang, et son coût
+                            // de 2 points se lit sur la fiche sans que la manette le recalcule.
+                            ->map(fn ($c) => ['id' => $c->id, 'nom' => $c->nom, 'description' => $c->description,
+                                'cout' => (int) $c->cout, 'rang' => $c->rang]
                                 + app(Talents::class)->fiche($p, $etatQuete, $c))
                             ->values()
                             ->all(),
+                        // La DÉCISION d'achat de chaque case de la grille de sa classe (2026-10-22, docs/contrat-api.md,
+                        // « Le pouvoir final et le `cout` ») : `achetable` et `raison`, jamais recalculés par la manette.
+                        'achats' => app(Talents::class)->achats($p),
                         // Équipement réel (fiche/sac) : arme(s) + armure nommées,
                         // sac général à part — doc 01 §7 (emplacements). Chaque
                         // pièce ÉQUIPÉE porte son inventaire_id (pour déséquiper) ;

@@ -123,7 +123,8 @@ class Personnage extends Model
 
     /**
      * Points de compétence disponibles — JAMAIS stockés, toujours dérivés
-     * (contrat) : 1 point par niveau gagné, moins les nœuds ACHETÉS.
+     * (contrat) : 1 point par niveau gagné, moins le COÛT des nœuds ACHETÉS
+     * (1 par rang ordinaire, 2 pour le pouvoir final — `pointsDepenses()`).
      *
      * ⚠ « achetés », pas « acquis » : les capacités de carte `innee` vivent
      * dans le MÊME pivot (`CapacitesInnees::attribuer()` les y attache à la
@@ -141,7 +142,20 @@ class Personnage extends Model
      */
     public function pointsCompetence(): int
     {
-        return max(0, ((int) $this->niveau - 1) - $this->competences()->where('innee', false)->count());
+        return max(0, ((int) $this->niveau - 1) - $this->pointsDepenses());
+    }
+
+    /**
+     * Points de compétence DÉPENSÉS : la somme des `cout` des nœuds ACHETÉS. Un
+     * rang ordinaire coûte 1, le pouvoir final 2 (docs/regles/talents-et-capacites.md,
+     * « Pouvoirs finaux »). Les capacités `innee` ne comptent pas : elles ne coûtent rien.
+     *
+     * ⚠ Point de passage unique de la somme : `pointsCompetence()`, le score de
+     * puissance (`ScorePuissance`) et la publication (`/api/moi`) la lisent ici.
+     */
+    public function pointsDepenses(): int
+    {
+        return (int) $this->competences()->where('innee', false)->sum('competences.cout');
     }
 
     /** Lignes d'inventaire (équipé + sac + consommables). */

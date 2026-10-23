@@ -129,6 +129,8 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
                 <span class="ti"><MSym :n="statutIcone(c)" fill :size="16" /></span>
                 <div class="tbody">
                     <div class="tn">{{ c.nom }}</div>
+                    <!-- Le pouvoir final (4e rang, 2026-10-22) coûte 2 points : le coût est publié, et la fiche le dit. -->
+                    <div v-if="c.rang === 4" class="tfin">Pouvoir final · coûte {{ c.cout }} points</div>
                     <div v-if="c.description" class="tdesc">{{ c.description }}</div>
                     <!-- Une capacité épuisée RESTE affichée, grisée, avec la
                          règle qui la ferme : la cacher ferait croire au joueur
@@ -203,6 +205,7 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
     font-size: 12px; font-weight: 600; line-height: 1.35; color: var(--danger);
 }
 .talent-item .traison .msym { flex: none; margin-top: 1px; }
+.talent-item .tfin { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold); margin-top: 1px; }
 
 .talent-disponible .tpuce { color: var(--ok); border-color: currentColor; }
 /* Grisé, jamais caché — et le nom reste lisible : le joueur doit pouvoir

@@ -14,7 +14,7 @@
 // textes — `description`, la phrase de jeu, et `avantage`, le chiffre dérivé de
 // l'effet — pour qu'on décide sans ouvrir le guide.
 //
-// Tap sur un nœud disponible → POST acquerirCompetence (maj optimiste, puis
+// Tap sur un nœud disponible → POST acquerirCompetence (puis
 // re-GET /moi ; 422 affiché et état rétabli). Quand le dernier point est
 // dépensé : sceau « Progression scellée » (maquette).
 import { computed, onMounted, ref } from 'vue';
@@ -92,21 +92,17 @@ const heros = computed(() => {
     };
 });
 
-/* ---- grille + points (maj optimiste : points_competence est dérivé
-   serveur = (niveau − 1) − nœuds acquis, donc −1 par acquisition) ---- */
-const acquisOptimistes = ref([]);
-const points = computed(() => Math.max(
-    0,
-    (monPerso.value?.points_competence ?? 0) - acquisOptimistes.value.length,
-));
+/* ---- grille + points. Le SOLDE et la DÉCISION d'achat viennent du serveur
+   (/moi : points_competence, achats[]) : aucune mise à jour optimiste, qui
+   recalculerait le solde ici. Après chaque achat, /moi est relu. ---- */
+const points = computed(() => monPerso.value?.points_competence ?? 0);
 const grille = computed(() => {
     const p = monPerso.value;
     if (!p) return { colonnes: [], innees: [] };
-    const acquis = [...(p.competences ?? []), ...acquisOptimistes.value];
-    return competencesVersGrille(store.state.competences, p.classe, acquis, points.value);
+    return competencesVersGrille(store.state.competences, p.classe, p.competences ?? [], p.achats ?? []);
 });
 
-/* ---- acquisition : optimiste, puis re-GET /moi ; 422 affiché ---- */
+/* ---- acquisition : POST, puis re-GET /moi ; 422 affiché ---- */
 const enAttente = ref(null); // competence_id en cours d'acquisition
 const erreurAction = ref('');
 const aAcquis = ref(false); // au moins un nœud scellé sur cet écran
@@ -148,7 +144,6 @@ async function acquerir(noeud, element = null) {
     if (noeud.etat !== 'dispo' || enAttente.value || !monPerso.value) return;
     erreurAction.value = '';
     enAttente.value = noeud.id;
-    acquisOptimistes.value = [...acquisOptimistes.value, noeud.id];
     try {
         await api.acquerirCompetence(props.groupe, {
             personnage_id: monPerso.value.id,
@@ -158,10 +153,8 @@ async function acquerir(noeud, element = null) {
         aAcquis.value = true;
         const r = await api.moi(); // source de vérité : niveau/points/acquis frais
         store.setJoueur(r.joueur, r.personnages ?? r.joueur?.personnages ?? []);
-        acquisOptimistes.value = [];
     } catch (e) {
-        acquisOptimistes.value = acquisOptimistes.value.filter((id) => id !== noeud.id);
-        erreurAction.value = e.message; // 422 : prérequis, points, classe…
+        erreurAction.value = e.message; // 422 : la raison que le serveur a publiée (prérequis, solde)
     } finally {
         enAttente.value = null;
     }
@@ -170,9 +163,8 @@ async function acquerir(noeud, element = null) {
 /* sceau final : plus de point après au moins une acquisition */
 const scelle = computed(() => aAcquis.value && points.value === 0 && !enAttente.value);
 
-const verrouLibelle = (n) => (n.verrou === 'prerequis'
-    ? `Prérequis : ${n.prerequisNom ?? 'la ligne du dessus'}`
-    : 'Aucun point de compétence disponible');
+// La phrase d'une case fermée est écrite par le serveur (`achats[].raison`) : prérequis ou solde.
+const verrouLibelle = (n) => n.raison ?? 'Case fermée.';
 </script>
 
 <template>
@@ -252,11 +244,13 @@ const verrouLibelle = (n) => (n.verrou === 'prerequis'
                                     />
                                     <button
                                         class="tuile"
-                                        :class="['st-' + n.etat, { busy: enAttente === n.id }]"
+                                        :class="['st-' + n.etat, { busy: enAttente === n.id, pf: n.pouvoirFinal }]"
                                         @click="taper(n)"
                                     >
                                         <span class="ti"><MSym :n="n.ic" fill /></span>
+                                        <span v-if="n.pouvoirFinal" class="tfin">Pouvoir final</span>
                                         <span class="tn">{{ n.nom }}</span>
+                                        <span class="tc">{{ n.cout }} pt{{ n.cout > 1 ? 's' : '' }}</span>
                                         <span class="tb">
                                             <MSym
                                                 :n="n.etat === 'acquis' ? 'check' : (n.etat === 'dispo' ? 'add' : 'lock')"
@@ -310,6 +304,12 @@ const verrouLibelle = (n) => (n.verrou === 'prerequis'
                             <span class="type-tag" :class="'tp-' + detail.type">
                                 <MSym :n="TYPES_COMPETENCE[detail.type].ic" :size="11" />
                                 {{ TYPES_COMPETENCE[detail.type].l }}
+                            </span>
+                            <span v-if="detail.pouvoirFinal" class="fx-tag">
+                                <MSym n="workspace_premium" :size="11" fill /> Pouvoir final
+                            </span>
+                            <span class="fx-tag">
+                                <MSym n="hub" :size="11" fill /> Coûte {{ detail.cout }} point{{ detail.cout > 1 ? 's' : '' }}
                             </span>
                             <span v-if="detail.avantage" class="fx-tag">
                                 <MSym :n="detail.ic" :size="11" fill /> {{ detail.avantage }}
@@ -427,6 +427,11 @@ const verrouLibelle = (n) => (n.verrou === 'prerequis'
 .lvlup-screen .tuile .tb { position: absolute; top: 5px; right: 5px; width: 16px; height: 16px; border-radius: 50%;
   border: 1.5px solid var(--stone-600); display: grid; place-items: center; }
 .lvlup-screen .tuile .tb .msym { font-size: 10px; color: transparent; }
+
+.lvlup-screen .tuile .tfin { font-size: 8.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--gold); line-height: 1.1; }
+.lvlup-screen .tuile .tc { font-size: 9.5px; font-weight: 700; color: var(--ink-500); line-height: 1.1; }
+.lvlup-screen .tuile.pf { box-shadow: inset 0 0 0 1px oklch(0.62 0.08 80 / 0.35); }
 
 .lvlup-screen .tuile.st-acquis { border-color: oklch(0.62 0.08 80 / 0.55); background: linear-gradient(180deg, oklch(0.24 0.02 90 / 0.4), var(--stone-850)); }
 .lvlup-screen .tuile.st-acquis .ti { background: linear-gradient(150deg, var(--gold), var(--ember-deep)); color: var(--stone-950); }

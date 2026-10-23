@@ -18,6 +18,16 @@ use Illuminate\Database\Seeder;
  * tout ce qui existait. Neuf cases pour quatre à sept points, c'est le choix
  * qui redevient un choix : on descend une colonne, on renonce à une autre.
  *
+ * LE POUVOIR FINAL (René, 2026-10-22) : une colonne peut porter un 4e rang, à
+ * `cout => 2`, qui exige le rang 3 de la même colonne. Le niveau n'est jamais remis
+ * à zéro entre deux campagnes : à partir du niveau 10, la grille (9 points) est
+ * pleine et chaque niveau donne un point qu'on ne peut plus dépenser. C'est la
+ * seule case « plus forte » de la grille — une exception ASSUMÉE à « la chaîne est
+ * un ordre d'acquisition, pas une montée en puissance », justifiée par son coût.
+ * Une colonne sans 4e rang reste valide. Le coût de chaque nœud (`cout`, 1 par
+ * défaut) est une donnée de la ligne : `Personnage::pointsDepenses()` en fait la
+ * somme, `Talents::achats()` la décision d'achat.
+ *
  * Les trois nœuds d'une colonne sont des effets DIFFÉRENTS du même domaine, et
  * non le même chiffre qui grossit (décision de René) : la chaîne est un ordre
  * d'acquisition, pas une montée en puissance.
@@ -36,7 +46,9 @@ use Illuminate\Database\Seeder;
 class CompetenceSeeder extends Seeder
 {
     /**
-     * Les 36 colonnes : `classe => [ [categorie, icone, noeuds[3]] ×3 ]`.
+     * Les 36 colonnes : `classe => [ [categorie, icone, noeuds[3 ou 4]] ×3 ]`.
+     * Le 4e rang (le pouvoir final, `cout => 2`) n'existe que dans les colonnes qui
+     * le portent — une colonne sans 4e rang reste valide (docs/regles/talents-et-capacites.md).
      *
      * @var array<string, list<array{categorie: string, icone: string, noeuds: list<array<string, mixed>>}>>
      */
@@ -55,6 +67,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Sang qui bout', 'type' => 'actif',
                     'description' => 'Une fois par tour, abattre ta cible te rend ton action : tu frappes une seconde fois.',
                     'effet' => ['mecanique' => 'attaque_supplementaire_apres_kill', 'frequence' => 'une_fois_par_tour']],
+                ['nom' => 'Représailles sauvages', 'type' => 'actif', 'cout' => 2,
+                    'description' => 'Une fois par tour, quand un monstre à ton contact te blesse, tu le frappes sur-le-champ en riposte.',
+                    'effet' => ['mecanique' => 'riposte', 'frequence' => 'une_fois_par_tour']],
             ]],
             ['categorie' => 'Carrure', 'icone' => 'fitness_center', 'noeuds' => [
                 ['nom' => 'Carrure', 'type' => 'passif',
@@ -66,6 +81,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Colosse', 'type' => 'passif',
                     'description' => '+1 à ton attribut Body : un dé de plus à chacun de tes jets de Body.',
                     'effet' => ['mecanique' => 'bonus_attribut_body', 'valeur' => 1]],
+                ['nom' => 'Increvable', 'type' => 'actif', 'cout' => 2,
+                    'description' => 'Une fois par quête, quand tes PV de Body tomberaient à 0, ils tombent à 1 à la place.',
+                    'effet' => ['mecanique' => 'plancher_pv', 'frequence' => 'une_fois_par_quete']],
             ]],
             ['categorie' => 'Terreur', 'icone' => 'sentiment_very_dissatisfied', 'noeuds' => [
                 ['nom' => 'Intimidation', 'type' => 'passif',
@@ -121,6 +139,10 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Ancré', 'type' => 'passif',
                     'description' => '+1 à ton attribut Body : un dé de plus à chacun de tes jets de Body.',
                     'effet' => ['mecanique' => 'bonus_attribut_body', 'valeur' => 1]],
+                // POUVOIR FINAL REPORTÉ (phase 2, 2026-10-22) : son effet `annule_degats` n'a de lecteur que
+                // pour la technique réactive du Moine (Torrent Tournoyant, `reaction: true`). Un nœud ACHETÉ avec
+                // cette mécanique serait muet — une promesse non tenue. Il faut d'abord un lecteur (offre au porteur,
+                // une fois par quête), puis le nœud. Voir docs/regles/talents-et-capacites.md, « Pouvoirs finaux ».
             ]],
         ],
 
@@ -143,6 +165,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Chant runique', 'type' => 'passif',
                     'description' => 'Quand un de tes sorts abat un monstre, il reste disponible : tu pourras le relancer.',
                     'effet' => ['mecanique' => 'garde_sort_qui_tue']],
+                ['nom' => 'Trame elfique', 'type' => 'passif', 'cout' => 2,
+                    'description' => 'Une fois par tour, tu lances un second sort dans le même tour.',
+                    'effet' => ['mecanique' => 'sort_supplementaire_par_tour', 'frequence' => 'une_fois_par_tour']],
             ]],
             ['categorie' => 'Œil', 'icone' => 'my_location', 'noeuds' => [
                 ['nom' => 'Sens aiguisés', 'type' => 'passif',
@@ -165,6 +190,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Fuite gracieuse', 'type' => 'actif',
                     'description' => 'Une fois par tour, scinde ton déplacement : une partie avant ton action, le reste après.',
                     'effet' => ['mecanique' => 'deplacement_scinde', 'frequence' => 'une_fois_par_tour']],
+                ['nom' => "Pas de l'ombre", 'type' => 'passif', 'cout' => 2,
+                    'description' => "Tu traverses sans t'arrêter les cases occupées par les monstres.",
+                    'effet' => ['mecanique' => 'franchit_figures']],
             ]],
         ],
 
@@ -182,6 +210,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Puissance brute', 'type' => 'passif',
                     'description' => '+1 dégât à chaque sort offensif qui a passé la défense de sa cible.',
                     'effet' => ['mecanique' => 'bonus_degats_sort', 'valeur' => 1]],
+                ['nom' => 'Archimage', 'type' => 'passif', 'cout' => 2,
+                    'description' => 'Quand un de tes sorts abat un monstre, il reste disponible : tu pourras le relancer.',
+                    'effet' => ['mecanique' => 'garde_sort_qui_tue']],
             ]],
             ['categorie' => 'Érudition', 'icone' => 'lightbulb', 'noeuds' => [
                 ['nom' => 'Érudition', 'type' => 'passif',
@@ -208,6 +239,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Corps entraîné', 'type' => 'passif',
                     'description' => '+1 PV de Body maximum, pour survivre au corps-à-corps que tu viens de choisir.',
                     'effet' => ['mecanique' => 'bonus_pv_body_max', 'valeur' => 1]],
+                ['nom' => 'Bâton de bataille', 'type' => 'passif', 'cout' => 2,
+                    'description' => "+1 dé d'attaque à chacun de tes coups, sans condition ni seuil de PV.",
+                    'effet' => ['mecanique' => 'bonus_des_attaque', 'valeur' => 1]],
             ]],
         ],
 
@@ -225,6 +259,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Second couplet', 'type' => 'passif',
                     'description' => 'Une fois par tour, tu lances un second sort dans le même tour.',
                     'effet' => ['mecanique' => 'sort_supplementaire_par_tour', 'frequence' => 'une_fois_par_tour']],
+                ['nom' => 'Hymne protecteur', 'type' => 'passif', 'cout' => 2,
+                    'description' => '+1 dé de défense à chaque héros qui se tient à ton contact — jamais à toi.',
+                    'effet' => ['mecanique' => 'bonus_des_defense_allie_adjacent', 'valeur' => 1]],
             ]],
             ['categorie' => 'Verbe', 'icone' => 'record_voice_over', 'noeuds' => [
                 ['nom' => 'Beau parleur', 'type' => 'passif',
@@ -247,6 +284,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Havresac de ménestrel', 'type' => 'passif',
                     'description' => '+2 emplacements dans ton sac à dos, pour porter le butin de la troupe.',
                     'effet' => ['mecanique' => 'bonus_capacite_sac', 'valeur' => 2]],
+                ['nom' => 'Pas de bal', 'type' => 'actif', 'cout' => 2,
+                    'description' => 'Une fois par tour, scinde ton déplacement : une partie avant ton action, le reste après.',
+                    'effet' => ['mecanique' => 'deplacement_scinde', 'frequence' => 'une_fois_par_tour']],
             ]],
         ],
 
@@ -264,6 +304,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Sève tenace', 'type' => 'passif',
                     'description' => "Tu résistes aux conditions Empoisonné et Envenimé, d'où qu'elles viennent.",
                     'effet' => ['mecanique' => 'resistance_condition', 'condition_nom' => ['Empoisonné', 'Envenimé']]],
+                ['nom' => "Peau d'écorce", 'type' => 'passif', 'cout' => 2,
+                    'description' => "Chaque coup que tu subis t'inflige 1 dégât de moins, sans jamais descendre sous zéro.",
+                    'effet' => ['mecanique' => 'reduction_degats', 'valeur' => 1]],
             ]],
             ['categorie' => 'Communion', 'icone' => 'self_improvement', 'noeuds' => [
                 ['nom' => 'Communion', 'type' => 'actif',
@@ -276,6 +319,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Verbe ancien', 'type' => 'actif',
                     'description' => "Quand un sort ennemi allait te frapper, un jet de Mind l'annule avant qu'il porte.",
                     'effet' => ['mecanique' => 'annuler_effet_magique', 'jet' => 'mind']],
+                ['nom' => 'Grand cercle', 'type' => 'passif', 'cout' => 2,
+                    'description' => 'Une fois par tour, le grand cercle te laisse lancer un second sort dans le même tour.',
+                    'effet' => ['mecanique' => 'sort_supplementaire_par_tour', 'frequence' => 'une_fois_par_tour']],
             ]],
             ['categorie' => 'Sentier', 'icone' => 'forest', 'noeuds' => [
                 ['nom' => 'Pas de la forêt', 'type' => 'passif',
@@ -287,6 +333,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Regard de la bête', 'type' => 'passif',
                     'description' => '+1 dé de Mind sur les jets de perception et de repérage.',
                     'effet' => ['mecanique' => 'avantage_jet_mind', 'valeur' => 1, 'contexte' => 'perception']],
+                ['nom' => 'Passage sylvestre', 'type' => 'passif', 'cout' => 2,
+                    'description' => "Tu traverses sans t'arrêter les cases occupées par les monstres.",
+                    'effet' => ['mecanique' => 'franchit_figures']],
             ]],
         ],
 
@@ -304,6 +353,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Prix du pacte', 'type' => 'actif',
                     'description' => 'En action, paie 1 PV de Body pour rendre un sort épuisé de nouveau lançable.',
                     'effet' => ['mecanique' => 'sacrifice_pv_pour_sort']],
+                ['nom' => 'Pacte scellé', 'type' => 'passif', 'cout' => 2,
+                    'description' => 'Quand un de tes sorts abat un monstre, il reste disponible : tu pourras le relancer.',
+                    'effet' => ['mecanique' => 'garde_sort_qui_tue']],
             ]],
             ['categorie' => 'Malédiction', 'icone' => 'coronavirus', 'noeuds' => [
                 ['nom' => 'Contresort', 'type' => 'actif',
@@ -326,6 +378,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Chair impie', 'type' => 'passif',
                     'description' => "Les dégâts de feu ne t'atteignent plus, quelle qu'en soit la source.",
                     'effet' => ['mecanique' => 'resistance_degats_type', 'type_degat' => 'feu']],
+                ['nom' => 'Sang contre puissance', 'type' => 'actif', 'cout' => 2,
+                    'description' => "En action, perds jusqu'à 2 PV de Body pour attaquer immédiatement, avec autant de dés d'attaque supplémentaires que de PV perdus. Une fois par quête.",
+                    'effet' => ['mecanique' => 'sacrifice_pv_pour_des', 'max' => 2, 'frequence' => 'une_fois_par_quete']],
             ]],
         ],
 
@@ -343,6 +398,10 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Fuite calculée', 'type' => 'actif',
                     'description' => 'Une fois par tour, scinde ton déplacement : une partie avant ton action, le reste après.',
                     'effet' => ['mecanique' => 'deplacement_scinde', 'frequence' => 'une_fois_par_tour']],
+                // POUVOIR FINAL REPORTÉ (phase 2, 2026-10-22) : son effet `annule_degats` n'a de lecteur que
+                // pour la technique réactive du Moine (Torrent Tournoyant, `reaction: true`). Un nœud ACHETÉ avec
+                // cette mécanique serait muet — une promesse non tenue. Il faut d'abord un lecteur (offre au porteur,
+                // une fois par quête), puis le nœud. Voir docs/regles/talents-et-capacites.md, « Pouvoirs finaux ».
             ]],
             ['categorie' => 'Lame', 'icone' => 'content_cut', 'noeuds' => [
                 ['nom' => 'Coup bas', 'type' => 'passif',
@@ -354,6 +413,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Coup de grâce', 'type' => 'actif',
                     'description' => 'Une fois par tour, abattre ta cible te rend ton action : tu frappes une seconde fois.',
                     'effet' => ['mecanique' => 'attaque_supplementaire_apres_kill', 'frequence' => 'une_fois_par_tour']],
+                ['nom' => 'Frappe à la jointure', 'type' => 'passif', 'cout' => 2,
+                    'description' => 'Chacune de tes attaques : le monstre frappé lance 1 dé de défense de moins contre toi.',
+                    'effet' => ['mecanique' => 'ignore_defense_monstre', 'valeur' => 1]],
             ]],
             ['categorie' => 'Butin', 'icone' => 'sell', 'noeuds' => [
                 ['nom' => 'Doigts de fée', 'type' => 'actif',
@@ -365,6 +427,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Receleur', 'type' => 'passif',
                     'description' => "L'étal du marché baisse ses prix de 15 % pour toute la compagnie.",
                     'effet' => ['mecanique' => 'remise_marche', 'valeur' => 15]],
+                ['nom' => 'Main leste', 'type' => 'passif', 'cout' => 2,
+                    'description' => 'Le mobilier que tu fouilles rend un butin plus rare : 2 niveaux de mieux sur la table.',
+                    'effet' => ['mecanique' => 'rarete_butin_amelioree', 'valeur' => 2]],
             ]],
         ],
 
@@ -382,6 +447,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Peau de fer', 'type' => 'passif',
                     'description' => "Chaque coup que tu subis t'inflige 1 dégât de moins, sans jamais descendre sous zéro.",
                     'effet' => ['mecanique' => 'reduction_degats', 'valeur' => 1]],
+                ['nom' => 'Corps de diamant', 'type' => 'actif', 'cout' => 2,
+                    'description' => 'Une fois par quête, quand tes PV de Body tomberaient à 0, ils tombent à 1 à la place.',
+                    'effet' => ['mecanique' => 'plancher_pv', 'frequence' => 'une_fois_par_quete']],
             ]],
             ['categorie' => 'Vent', 'icone' => 'air', 'noeuds' => [
                 ['nom' => 'Course du vent', 'type' => 'passif',
@@ -393,6 +461,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Souffle retenu', 'type' => 'passif',
                     'description' => '+1 dé de défense contre les attaques à distance qui te visent.',
                     'effet' => ['mecanique' => 'bonus_des_defense_contre_distance', 'valeur' => 1]],
+                ['nom' => 'Pied de plume', 'type' => 'passif', 'cout' => 2,
+                    'description' => 'Racines entravantes et chausse-trappes ne coupent plus ta course, et le terrain gênant (sable, toile, jungle) ne te coûte plus rien de plus.',
+                    'effet' => ['mecanique' => 'ignore_terrain_entravant']],
             ]],
             ['categorie' => 'Méditation', 'icone' => 'lightbulb', 'noeuds' => [
                 ['nom' => 'Méditation', 'type' => 'passif',
@@ -421,6 +492,10 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Rempart', 'type' => 'passif',
                     'description' => "Chaque coup que tu subis t'inflige 1 dégât de moins, sans jamais descendre sous zéro.",
                     'effet' => ['mecanique' => 'reduction_degats', 'valeur' => 1]],
+                // POUVOIR FINAL REPORTÉ (phase 2, 2026-10-22) : son effet `annule_degats` n'a de lecteur que
+                // pour la technique réactive du Moine (Torrent Tournoyant, `reaction: true`). Un nœud ACHETÉ avec
+                // cette mécanique serait muet — une promesse non tenue. Il faut d'abord un lecteur (offre au porteur,
+                // une fois par quête), puis le nœud. Voir docs/regles/talents-et-capacites.md, « Pouvoirs finaux ».
             ]],
             ['categorie' => 'Prestance', 'icone' => 'groups', 'noeuds' => [
                 ['nom' => 'Prestance', 'type' => 'passif',
@@ -443,6 +518,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Barda du croisé', 'type' => 'passif',
                     'description' => '+2 emplacements dans ton sac à dos, pour porter le butin de la troupe.',
                     'effet' => ['mecanique' => 'bonus_capacite_sac', 'valeur' => 2]],
+                ['nom' => 'Champion du royaume', 'type' => 'actif', 'cout' => 2,
+                    'description' => 'Une fois par tour, abattre ta cible te rend ton action : tu frappes une seconde fois.',
+                    'effet' => ['mecanique' => 'attaque_supplementaire_apres_kill', 'frequence' => 'une_fois_par_tour']],
             ]],
         ],
 
@@ -460,6 +538,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Soif de sang', 'type' => 'actif',
                     'description' => 'Une fois par tour, abattre ta cible te rend ton action : tu frappes une seconde fois.',
                     'effet' => ['mecanique' => 'attaque_supplementaire_apres_kill', 'frequence' => 'une_fois_par_tour']],
+                ['nom' => 'Coups qui brisent', 'type' => 'passif', 'cout' => 2,
+                    'description' => 'Tes coups brisent la garde : le monstre frappé lance 1 dé de défense de moins contre toi.',
+                    'effet' => ['mecanique' => 'ignore_defense_monstre', 'valeur' => 1]],
             ]],
             ['categorie' => 'Carcasse', 'icone' => 'favorite', 'noeuds' => [
                 ['nom' => 'Carcasse', 'type' => 'passif',
@@ -482,6 +563,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Poigne brute', 'type' => 'deblocage',
                     'description' => 'Débloque les armures lourdes : la plate, que ta carte te refusait.',
                     'effet' => ['mecanique' => 'acces_equipement', 'tags' => ['armure_lourde']]],
+                ['nom' => 'Percée', 'type' => 'passif', 'cout' => 2,
+                    'description' => "Tu traverses sans t'arrêter les cases occupées par les monstres.",
+                    'effet' => ['mecanique' => 'franchit_figures']],
             ]],
         ],
 
@@ -521,6 +605,9 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Barda', 'type' => 'passif',
                     'description' => '+2 emplacements dans ton sac à dos, pour rapporter davantage du donjon.',
                     'effet' => ['mecanique' => 'bonus_capacite_sac', 'valeur' => 2]],
+                ['nom' => 'Constitution de voyageur', 'type' => 'passif', 'cout' => 2,
+                    'description' => "Tu résistes aux conditions Empoisonné et Envenimé, d'où qu'elles viennent.",
+                    'effet' => ['mecanique' => 'resistance_condition', 'condition_nom' => ['Empoisonné', 'Envenimé']]],
             ]],
         ],
     ];
@@ -625,6 +712,8 @@ class CompetenceSeeder extends Seeder
                             'categorie_icone' => $colonne['icone'],
                             'colonne' => $indexColonne + 1,
                             'rang' => $indexRang + 1,
+                            // Coût en points : 1 par rang, 2 pour le pouvoir final (`cout` posé sur le nœud).
+                            'cout' => $noeud['cout'] ?? 1,
                             // Le prérequis se DÉDUIT de la position : le nœud
                             // juste au-dessus, dans la même colonne. Nommé à la
                             // main, rien n'empêchait une chaîne de traverser
@@ -654,6 +743,8 @@ class CompetenceSeeder extends Seeder
                         'colonne' => null,
                         'rang' => null,
                         'prerequis_id' => null,
+                        // Capacité de carte : ne coûte aucun point (exclue de `Personnage::pointsDepenses()`).
+                        'cout' => 0,
                     ],
                 );
             }

@@ -1197,38 +1197,40 @@ export function effetVersListe(effet) {
 }
 
 /**
- * Catalogue (GET /api/competences) + personnage (/moi enrichi) → la GRILLE de
- * talents du héros : 3 colonnes (ses catégories) × 3 lignes.
+ * Catalogue (GET /api/competences) + héros (/moi enrichi) → la GRILLE de talents
+ * du héros : 3 colonnes (ses catégories) × 3 lignes, plus le POUVOIR FINAL (4e
+ * rang, 2026-10-22) là où la colonne en porte un.
  *
- * Acquérir une ligne exige celle du dessus, DANS LA MÊME COLONNE (René,
- * 2026-08-23). L'état de chaque case reste celui d'avant — `acquis` /
- * `dispo` (prérequis tenu + point disponible) / `verrouille` (verrou =
- * 'prerequis' ou 'points') —, seule la disposition change.
+ * ⚠ La DÉCISION d'achat vient du serveur : `achats` (`GET /api/moi`, forme
+ * `[{id, cout, achetable, raison}]`, `Talents::achats()`). Ce module n'en dérive
+ * plus rien — ni le prérequis, ni le solde, ni le verrou. L'état d'une case est
+ * `acquis` (présent dans `acquis`), `dispo` (achetable) ou `verrouille` ; son
+ * `raison` est la phrase que le serveur écrit pour une case fermée.
  *
  * ⚠ Le texte affiché vient ENTIÈREMENT du serveur : `description` (la phrase de
- * jeu) et `avantage` (le chiffre, dérivé de `effet` par `MotsClesTalent`).
- * L'ancienne table `EFFETS_PASSIFS` était keyée sur des noms de COLONNES du
- * personnage (`pv_body_max`), alors qu'un `effet` de compétence porte une
- * `mecanique` : elle ne produisait donc JAMAIS la moindre puce, et tous les
- * talents s'affichaient sans un seul chiffre. Elle sert encore aux gains de
- * `.niveau.monte`, qui eux sont bien keyés par colonne.
+ * jeu), `avantage` (le chiffre, dérivé de `effet` par `MotsClesTalent`), `cout`
+ * (1, ou 2 pour le pouvoir final) et la `raison` d'une case fermée.
  *
- * Les capacités de CARTE (`innee`) sont rendues à part : elles ne s'achètent
- * pas, les mettre dans la grille laisserait croire qu'elles coûtent un point.
+ * Les capacités de CARTE (`innee`) sont rendues à part : elles ne s'achètent pas.
  *
+ * @param {Array} catalogue  GET /api/competences
+ * @param {string} classe
+ * @param {Array} acquis     ids (ou objets {id}) des nœuds acquis — `competences` de /moi
+ * @param {Array} achats     `achats` de /moi
  * @returns {{colonnes: Array, innees: Array}}
  */
-export function competencesVersGrille(catalogue, classe, acquis = [], points = 0) {
+export function competencesVersGrille(catalogue, classe, acquis = [], achats = []) {
     const cls = (classe ?? '').toLowerCase();
     const noeuds = (catalogue ?? []).filter((c) => (c.classe ?? '').toLowerCase() === cls);
-    const parId = new Map(noeuds.map((n) => [n.id, n]));
     // ids acquis : tolère une liste d'ids ou d'objets {id}.
     const acquisSet = new Set((acquis ?? []).map((c) => (typeof c === 'object' ? c.id : c)));
+    const decisions = new Map((achats ?? []).map((a) => [a.id, a]));
 
     const habiller = (n) => {
         const type = TYPES_COMPETENCE[(n.type ?? '').toLowerCase()] ? n.type.toLowerCase() : 'passif';
         const estAcquis = acquisSet.has(n.id);
-        const prerequisOk = n.prerequis_id == null || acquisSet.has(n.prerequis_id);
+        const decision = decisions.get(n.id) ?? null;
+        const achetable = !estAcquis && decision?.achetable === true;
 
         return {
             id: n.id,
@@ -1236,18 +1238,18 @@ export function competencesVersGrille(catalogue, classe, acquis = [], points = 0
             description: n.description ?? null,
             avantage: n.avantage ?? '',
             // La mécanique sert au seul aiguillage du client : les nœuds qui
-            // ouvrent un domaine de magie exigent `element` dans le POST. Elle
-            // remplace la regex sur le NOM du nœud, qui ne connaissait que les
-            // trois libellés historiques.
+            // ouvrent un domaine de magie exigent `element` dans le POST.
             mecanique: n.effet?.mecanique ?? null,
             type,
             rang: n.rang ?? null,
+            // Le rang 4 est le pouvoir final : une étiquette de présentation, lue du rang.
+            pouvoirFinal: n.rang === 4,
+            // Le coût publié par le serveur — jamais recalculé ici.
+            cout: n.cout ?? 1,
             ic: n.avantage_icone || TYPES_COMPETENCE[type]?.ic || 'hub',
-            etat: estAcquis ? 'acquis' : (prerequisOk && points > 0 ? 'dispo' : 'verrouille'),
-            verrou: estAcquis || (prerequisOk && points > 0)
-                ? null
-                : (prerequisOk ? 'points' : 'prerequis'),
-            prerequisNom: n.prerequis_id != null ? (parId.get(n.prerequis_id)?.nom ?? null) : null,
+            etat: estAcquis ? 'acquis' : (achetable ? 'dispo' : 'verrouille'),
+            // La phrase de la case fermée, décidée par le serveur (prérequis, solde).
+            raison: estAcquis ? null : (decision?.raison ?? null),
         };
     };
 

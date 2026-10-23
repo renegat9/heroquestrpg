@@ -1080,11 +1080,9 @@ final class MoteurReactions
             }
         }
 
-        // …et une capacité « once per quest » se marque comme dépensée.
+        // …et une capacité se marque comme dépensée DANS SA FENÊTRE (quête ou tour, selon sa cadence).
         if (isset($attente['capacite'])) {
-            $utilisees = (array) ($etat->capacites_utilisees ?? []);
-            $utilisees[] = (string) $attente['capacite'];
-            $etat->update(['capacites_utilisees' => array_values(array_unique($utilisees))]);
+            $this->capacites->marquerDepensee($heros, $etat, (string) $attente['capacite']);
         }
 
         $payload = [
@@ -1373,9 +1371,7 @@ final class MoteurReactions
         }
 
         if (isset($attente['capacite'])) {
-            $utilisees = (array) ($etat->capacites_utilisees ?? []);
-            $utilisees[] = (string) $attente['capacite'];
-            $etat->update(['capacites_utilisees' => array_values(array_unique($utilisees))]);
+            $this->capacites->marquerDepensee($heros, $etat, (string) $attente['capacite']);
         }
 
         // UN SEUL résolveur pour la frappe ET son météore : la file des météores vit sur l'instance du résolveur.
@@ -1606,9 +1602,7 @@ final class MoteurReactions
         }
 
         if (isset($attente['capacite'])) {
-            $utilisees = (array) ($etat->capacites_utilisees ?? []);
-            $utilisees[] = (string) $attente['capacite'];
-            $etat->update(['capacites_utilisees' => array_values(array_unique($utilisees))]);
+            $this->capacites->marquerDepensee($heros, $etat, (string) $attente['capacite']);
         }
 
         return [

@@ -747,3 +747,125 @@ it('detection_pieges_adjacents — l\'Œil du mineur se lit par MÉCANIQUE, plus
 
     expect($pieges->possedeOeilDuMineur($ctx['heros']->fresh()))->toBeTrue();
 });
+
+// ============================================================================
+// POUVOIRS FINAUX (René, 2026-10-22) — les trois couples que la grille n'avait
+// pas encore prouvés en jeu : la riposte par TOUR, le plancher de PV hors
+// chevalier, le bonus d'attaque SANS condition. Plus la fiche du second sort.
+// ============================================================================
+
+it('riposte — Représailles sauvages ne riposte qu\'une fois par TOUR, et se rouvre au tour suivant', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'barbare', 'pv_body_max' => 20, 'pv_body' => 20]);
+    $heros = $ctx['heros'];
+    $ctx['instance']->update(['pv_body' => 50]); // le monstre survit à deux ripostes
+    donnerTalent($heros, 'Représailles sauvages');
+
+    $coup = ['monstre' => 'Gobelin', 'instance_id' => $ctx['instance']->id];
+    $frapper = fn () => app(MoteurDegats::class)->infligerAHeros(
+        $heros->fresh(), 1, MoteurDegats::SOURCE_ATTAQUE_MONSTRE, $coup,
+    );
+    $attente = fn () => $ctx['etatHeros']->fresh()->reaction_en_attente;
+
+    // 1. Premier coup du tour : la riposte est proposée, et on la joue.
+    $frapper();
+    expect($attente()['action'] ?? null)->toBe('riposte');
+
+    desFiges(array_fill(0, 20, 1)); // crânes : la riposte porte
+    $this->postJson('/api/groupes/table-1/reaction', ['personnage_id' => $heros->id, 'accepte' => true])
+        ->assertOk();
+
+    // La dépense va dans la fenêtre DU TOUR, et non dans celle de la quête.
+    expect((array) $ctx['etatHeros']->fresh()->capacites_tour)->toContain('Représailles sauvages')
+        ->and((array) $ctx['etatHeros']->fresh()->capacites_utilisees)->not->toContain('Représailles sauvages');
+
+    // 2. Deuxième coup DANS LE MÊME TOUR : plus de riposte, et la fiche le dit.
+    $frapper();
+    expect($attente())->toBeNull();
+
+    $noeud = App\Models\Competence::where('classe', 'barbare')->where('nom', 'Représailles sauvages')->firstOrFail();
+    expect(app(Talents::class)->fiche($heros->fresh(), $ctx['etatHeros']->fresh(), $noeud)['raison'])
+        ->toBe('Déjà utilisée ce tour');
+
+    // 3. Le tour suivant remet le compteur à zéro (ouvrirNouveauTour) : la riposte revient.
+    $ctx['etatHeros']->fresh()->update(['capacites_tour' => null]);
+    $frapper();
+    expect($attente()['action'] ?? null)->toBe('riposte');
+});
+
+it('plancher_pv — Increvable laisse le barbare debout à 1 PV, une fois par QUÊTE', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'barbare']);
+    $heros = $ctx['heros'];
+    donnerTalent($heros, 'Increvable');
+
+    // ⚠ Les PV se posent APRÈS le démarrage : il soigne le héros à son maximum de classe,
+    // qui n'est pas celui qu'on a demandé (cf. Frénésie, CompetencesEffetsTest).
+    $heros->update(['pv_body' => 3]);
+    $coup = ['monstre' => 'Gobelin', 'instance_id' => $ctx['instance']->id];
+
+    // ⚠ La chaîne achetée porte aussi *Cuir tanné* (rang 2 de la colonne : −1 par coup). Un coup de 4
+    // n'en retient que 3 : c'est un coup mortel, et c'est le seul cas où le plancher doit se proposer.
+    app(MoteurDegats::class)->infligerAHeros($heros->fresh(), 4, MoteurDegats::SOURCE_ATTAQUE_MONSTRE, $coup);
+    expect($ctx['etatHeros']->fresh()->reaction_en_attente['action'] ?? null)->toBe('plancher_pv');
+
+    $this->postJson('/api/groupes/table-1/reaction', ['personnage_id' => $heros->id, 'accepte' => true])
+        ->assertOk();
+    expect((int) $heros->fresh()->pv_body)->toBe(1);
+
+    // Une seconde chute dans la MÊME quête : la capacité est épuisée, rien ne se propose.
+    $heros->fresh()->update(['pv_body' => 3]);
+    app(MoteurDegats::class)->infligerAHeros($heros->fresh(), 4, MoteurDegats::SOURCE_ATTAQUE_MONSTRE, $coup);
+
+    expect($ctx['etatHeros']->fresh()->reaction_en_attente)->toBeNull()
+        ->and((int) $heros->fresh()->pv_body)->toBe(0);
+});
+
+it('bonus_des_attaque SANS condition — le Bâton de bataille ajoute un dé à pleine vie, une seule fois', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien', 'niveau' => 6]);
+    $heros = $ctx['heros'];
+
+    // Par la vraie route : la colonne d'abord (3 points), puis le pouvoir final (2 points).
+    foreach (['Cuir d\'apprenti', 'Escrime de fortune', 'Corps entraîné'] as $rang) {
+        $this->postJson('/api/groupes/table-1/competences', [
+            'personnage_id' => $heros->id,
+            'competence_id' => App\Models\Competence::where('classe', 'magicien')->where('nom', $rang)->value('id'),
+        ])->assertCreated();
+    }
+    // La colonne se RECALCULE à l'achat (classe + nœuds + équipement) : on lit la base recalculée,
+    // pas le 3 posé par le helper de test.
+    app(App\Partie\Equipement::class)->recalculerCombat($heros->fresh());
+    $avant = (int) $heros->fresh()->des_attaque;
+
+    $this->postJson('/api/groupes/table-1/competences', [
+        'personnage_id' => $heros->id,
+        'competence_id' => App\Models\Competence::where('classe', 'magicien')->where('nom', 'Bâton de bataille')->value('id'),
+    ])->assertCreated();
+
+    // Le bonus entre dans la COLONNE des dés d'attaque : +1, et une seule fois.
+    $apres = (int) $heros->fresh()->des_attaque;
+    expect($apres)->toBe($avant + 1);
+
+    // Au combat, le dé est déjà dans la colonne : frapper ne le rajoute pas une seconde fois.
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
+    desFiges(array_fill(0, 24, 4));
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.des_attaque_effectifs', $apres);
+});
+
+it('sort_supplementaire_par_tour — la fiche dit « Déjà utilisée ce tour » une fois le second sort lancé', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
+    $heros = $ctx['heros'];
+    donnerTalent($heros, 'Réserve arcanique');
+    $noeud = App\Models\Competence::where('classe', 'magicien')->where('nom', 'Réserve arcanique')->firstOrFail();
+    $talents = app(Talents::class);
+
+    expect($talents->fiche($heros->fresh(), $ctx['etatHeros']->fresh(), $noeud)['raison'])->toBeNull();
+
+    // Le second sort du tour se dépense par le drapeau partagé avec les potions : la fiche le lit aussi.
+    $ctx['etatHeros']->fresh()->update(['bonus_sort_utilise' => true]);
+
+    expect($talents->fiche($heros->fresh(), $ctx['etatHeros']->fresh(), $noeud)['raison'])
+        ->toBe('Déjà utilisée ce tour');
+});

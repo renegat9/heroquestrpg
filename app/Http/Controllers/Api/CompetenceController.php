@@ -12,6 +12,7 @@ use App\Models\Personnage;
 use App\Partie\Equipement;
 use App\Partie\EtatGroupe;
 use App\Partie\MoteurSorts;
+use App\Partie\Talents;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,8 +25,10 @@ use Illuminate\Validation\ValidationException;
  * Arbres de compétences (doc 01 §6, contrat docs/contrat-api.md) :
  * catalogue + acquisition d'un nœud à la montée de niveau.
  *
- * Les points ne sont JAMAIS stockés : points = (niveau − 1) − nb de nœuds
- * acquis (Personnage::pointsCompetence). À l'acquisition, les effets
+ * Les points ne sont JAMAIS stockés : points = (niveau − 1) − Σ cout des nœuds
+ * non innés acquis (Personnage::pointsCompetence). Le coût d'un nœud est 1, ou 2
+ * pour le pouvoir final (docs/regles/talents-et-capacites.md, « Pouvoirs finaux »).
+ * À l'acquisition, les effets
  * passifs CHIFFRÉS du nœud sont appliqués aux colonnes du personnage ;
  * les nœuds `actif`/`deblocage` (et les passifs conditionnels ou lus à la
  * volée, comme l'Œil du mineur par MoteurPieges) sont seulement enregistrés
@@ -77,7 +80,7 @@ class CompetenceController extends Controller
                 ->orderBy('rang')
                 ->orderBy('id')
                 ->get(['id', 'classe', 'nom', 'description', 'type', 'effet', 'innee',
-                    'categorie', 'categorie_icone', 'colonne', 'rang', 'prerequis_id'])
+                    'categorie', 'categorie_icone', 'colonne', 'rang', 'cout', 'prerequis_id'])
                 ->map(fn (Competence $c) => [
                     'id' => $c->id,
                     'classe' => $c->classe,
@@ -89,6 +92,8 @@ class CompetenceController extends Controller
                     'categorie_icone' => $c->categorie_icone,
                     'colonne' => $c->colonne,
                     'rang' => $c->rang,
+                    // Points que coûte l'achat (1, 2 pour le pouvoir final) ; 0 pour une capacité de carte.
+                    'cout' => (int) $c->cout,
                     'effet' => $c->effet,
                     'avantage' => $c->avantage(),
                     'avantage_icone' => $c->avantageIcone(),
@@ -147,16 +152,20 @@ class CompetenceController extends Controller
             ]);
         }
 
-        if ($competence->prerequis_id !== null
-            && ! $personnage->competences()->whereKey($competence->prerequis_id)->exists()) {
+        // Prérequis, puis solde en points : LA décision que publie `achats[]` de /api/moi. Le refus et la case
+        // grisée partagent donc la même phrase, et un nœud qui n'est pas une case de la grille (capacité de carte)
+        // n'a pas de décision d'achat du tout.
+        $decision = collect(app(Talents::class)->achats($personnage))->firstWhere('id', $competence->id);
+
+        if ($decision === null) {
             throw ValidationException::withMessages([
-                'competence_id' => 'Prérequis manquant : acquérez d\'abord le nœud du dessus dans cette colonne.',
+                'competence_id' => 'Cette capacité de carte ne s\'achète pas : elle vient avec la figurine.',
             ]);
         }
 
-        if ($personnage->pointsCompetence() < 1) {
+        if (! $decision['achetable']) {
             throw ValidationException::withMessages([
-                'competence_id' => 'Aucun point de compétence disponible (1 par niveau gagné).',
+                'competence_id' => (string) $decision['raison'],
             ]);
         }
 

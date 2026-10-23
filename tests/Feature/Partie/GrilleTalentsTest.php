@@ -31,7 +31,7 @@ beforeEach(function () {
     $this->seed(CompetenceSeeder::class);
 });
 
-it('donne à chaque classe une grille COMPLÈTE de 3 colonnes × 3 lignes', function () {
+it('donne à chaque classe une grille COMPLÈTE de 3 colonnes × 3 lignes, plus son pouvoir final', function () {
     $parClasse = Competence::where('innee', false)->get()->groupBy('classe');
 
     expect($parClasse->keys()->sort()->values()->all())->toBe([
@@ -40,23 +40,49 @@ it('donne à chaque classe une grille COMPLÈTE de 3 colonnes × 3 lignes', func
     ]);
 
     foreach ($parClasse as $classe => $noeuds) {
-        // ⚠ EXACTEMENT neuf, et plus un plancher : la dette « le barbare seul à
-        // 4 nœuds » (2026-08-22) est soldée par la refonte, et un plancher
-        // laisserait revenir une classe plus pauvre que les autres sans que rien
-        // ne le signale.
-        expect($noeuds->count())->toBe(9, "La classe {$classe} a {$noeuds->count()} nœuds au lieu de 9.");
+        // ⚠ Neuf cases de base, et UNE par pouvoir final (le 4e rang, 2026-10-22) :
+        // le compte se DÉDUIT des rangs présents, il n'est plus fixé à neuf. Un
+        // plancher, lui, laisserait revenir une classe plus pauvre sans que rien ne
+        // le signale — d'où l'égalité exacte.
+        $finals = $noeuds->where('rang', 4)->count();
+        expect($noeuds->count())->toBe(9 + $finals, "La classe {$classe} a {$noeuds->count()} nœuds, pas 9 + {$finals} pouvoir(s) final(s).");
 
         foreach ([1, 2, 3] as $colonne) {
-            $rangs = $noeuds->where('colonne', $colonne)->sortBy('rang')->values();
+            $rangs = $noeuds->where('colonne', $colonne)->sortBy('rang')->values()->pluck('rang')->all();
 
-            expect($rangs->pluck('rang')->all())
-                ->toBe([1, 2, 3], "La colonne {$colonne} de {$classe} n'a pas ses trois lignes.");
+            // Trois rangs, ou quatre quand la colonne porte son pouvoir final — jamais un trou.
+            expect(in_array($rangs, [[1, 2, 3], [1, 2, 3, 4]], true))
+                ->toBeTrue("La colonne {$colonne} de {$classe} n'a pas des rangs continus : ".implode(',', $rangs).'.');
+
+            $rangs = $noeuds->where('colonne', $colonne)->sortBy('rang')->values();
 
             // Une seule catégorie par colonne, et elle est nommée.
             expect($rangs->pluck('categorie')->unique()->all())->toHaveCount(1);
             expect((string) $rangs->first()->categorie)->not->toBe('');
             expect((string) $rangs->first()->categorie_icone)->not->toBe('');
         }
+    }
+});
+
+it('fait coûter 2 points au pouvoir final, 1 à chaque rang ordinaire, et 0 à une capacité de carte', function () {
+    foreach (Competence::where('innee', false)->get() as $noeud) {
+        $attendu = (int) $noeud->rang === 4 ? 2 : 1;
+
+        expect((int) $noeud->cout)->toBe($attendu, "{$noeud->classe} / {$noeud->nom} : coût {$noeud->cout}, attendu {$attendu}.");
+    }
+
+    foreach (Competence::where('innee', true)->get() as $carte) {
+        expect((int) $carte->cout)->toBe(0, "{$carte->nom} : une capacité de carte ne coûte aucun point.");
+    }
+});
+
+it('exige pour le pouvoir final le rang 3 de SA colonne, et seulement celui-là', function () {
+    foreach (Competence::where('innee', false)->where('rang', 4)->get() as $final) {
+        $parent = Competence::find($final->prerequis_id);
+
+        expect($parent)->not->toBeNull("{$final->classe} / {$final->nom} : pouvoir final sans prérequis.");
+        expect([$parent->classe, (int) $parent->colonne, (int) $parent->rang])
+            ->toBe([$final->classe, (int) $final->colonne, 3], "{$final->classe} / {$final->nom} : le prérequis n'est pas le rang 3 de sa colonne.");
     }
 });
 
@@ -217,9 +243,15 @@ it('publie la grille sur /api/competences, catégories et avantages compris', fu
     expect($carrure['categorie'])->toBe('Carrure')
         ->and($carrure['colonne'])->toBe(2)
         ->and($carrure['rang'])->toBe(1)
+        ->and($carrure['cout'])->toBe(1)
         ->and($carrure['prerequis_id'])->toBeNull()
         ->and($carrure['avantage'])->toBe('+1 PV de Body maximum')
         ->and($carrure['innee'])->toBeFalse();
+
+    // Le pouvoir final publie son coût de 2 — c'est ce que la manette affiche sur la case.
+    $final = collect($catalogue)->firstWhere(fn ($c) => $c['classe'] === 'barbare' && $c['nom'] === 'Représailles sauvages');
+    expect($final['rang'])->toBe(4)
+        ->and($final['cout'])->toBe(2);
 
     // Un nœud conditionnel dit sa condition, un nœud cadencé dit sa cadence.
     $garde = collect($catalogue)->firstWhere(fn ($c) => $c['classe'] === 'nain' && $c['nom'] === 'Garde tenace');

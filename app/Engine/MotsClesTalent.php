@@ -381,8 +381,10 @@ final class MotsClesTalent
             'icone' => 'sports_martial_arts',
         ],
         'fouille_complete' => [
+            // Le libellé dit ce que l'effet FAIT : une fouille qui ne rate pas. La fouille ordinaire trouve déjà
+            // pièges et portes secrètes pour tout le monde, donc « en une action » ne décrivait rien de propre.
             'lecteur' => 'App\Partie\ResolveurTour::resoudreJet()',
-            'libelle' => 'fouille pièges et portes secrètes en une action',
+            'libelle' => 'fouille sans risque d\'échec',
             'icone' => 'search',
         ],
         'deplacement_scinde' => [

@@ -15,7 +15,7 @@ Routes protégées par middleware `auth` sauf connexion.
 | Méthode | Route | Corps | Réponse |
 |---|---|---|---|
 | POST | /api/connexion | {identifiant} | {joueur} (nom seul, sans mot de passe) |
-| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes (chacune avec **`depart: {arme, pieces[], des_attaque, des_defense}`** — l'attaque et la défense **avec l'équipement de départ**, décidées par le serveur (`EquipementDepart::valeurs()`, mêmes règles que `recalculerCombat()`), à côté des `des_attaque`/`des_defense` de base à mains nues, 2026-09-24), competences, monstres (chacun avec **`boite`/`boite_libelle`**, 2026-10-09 ; `boite` reste la boîte d'ORIGINE, et `boite_libelle` nomme TOUTES les boîtes où la fiche est imprimée, séparées par « · » — l'Archer elfe et le Guerrier elfe : « The Mage of the Mirror · Rise of the Dread Moon », 2026-10-15, `monstres.boites_partagees`), objets (chacun avec **`avantages: string[]`** — ce que fait la pièce, traduit par le serveur via `MotsClesEquipement::avantages()`, le même texte que le sac ; le front ne retraduit plus la clé ; **`prix_base` est `null` pour un objet HORS MARCHÉ**, 2026-10-16 — parchemin, carte de trésor sans prix, potion de soin : `PhaseMarche::estHorsMarche()`, le prédicat de l'étal. Un prix qu'aucune transaction n'utilise n'est pas publié, et le front n'en affiche aucun), sorts, pieges, **mobiliers** (`{nom, largeur, hauteur, bloque_vue, fouillable, difficulte_destruction, pv_body, defense_dice, attaquable, detruit_par_action, boite_libelle}`) — `detruit_par_action` (2026-10-09) : le **Cocon** de Jungles of Delthrak, détruit par une action d'un héros adjacent, sans jet, décidé par le serveur depuis `effet.detruit_par_action` —, **terrains** (`[{nom, cout_deplacement, avantages: string[], boite, boite_libelle}]`, 2026-10-09 : ce que chaque tuile FAIT, en phrases, traduit par le serveur via `MotsClesTerrain::avantages()` ; une tuile qui ne produit rien dit « sans effet à ce jour » ; une clé non implémentée ne produit aucune phrase), **themes** (`[{cle, libelle}]` = `DemarreurQuete::BOITES_THEMATIQUES`), **cartes**} (catalogues seedés, autres effets bruts mis en forme côté front). `cartes` = les **trois** paquets sources (`config/cartes.php`, **69 cartes** : `equipement` 20 + `potions` 15, photos du matériel officiel Hasbro, + `artefacts` 34) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque, image_url}]}` — `image_url` (2026-10-16) : l'illustration d'une carte de **Dread**, emblème compris, `null` hors de ce paquet (§« Sorts de Dread illustrés ») — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
+| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes (chacune avec **`depart: {arme, pieces[], des_attaque, des_defense}`** — l'attaque et la défense **avec l'équipement de départ**, décidées par le serveur (`EquipementDepart::valeurs()`, mêmes règles que `recalculerCombat()`), à côté des `des_attaque`/`des_defense` de base à mains nues, 2026-09-24), competences (chacune avec **`cout`**, 2026-10-22 : 1 point, 2 pour le pouvoir final, 0 pour une capacité de carte — §« Le pouvoir final et le `cout` »), monstres (chacun avec **`boite`/`boite_libelle`**, 2026-10-09 ; `boite` reste la boîte d'ORIGINE, et `boite_libelle` nomme TOUTES les boîtes où la fiche est imprimée, séparées par « · » — l'Archer elfe et le Guerrier elfe : « The Mage of the Mirror · Rise of the Dread Moon », 2026-10-15, `monstres.boites_partagees`), objets (chacun avec **`avantages: string[]`** — ce que fait la pièce, traduit par le serveur via `MotsClesEquipement::avantages()`, le même texte que le sac ; le front ne retraduit plus la clé ; **`prix_base` est `null` pour un objet HORS MARCHÉ**, 2026-10-16 — parchemin, carte de trésor sans prix, potion de soin : `PhaseMarche::estHorsMarche()`, le prédicat de l'étal. Un prix qu'aucune transaction n'utilise n'est pas publié, et le front n'en affiche aucun), sorts, pieges, **mobiliers** (`{nom, largeur, hauteur, bloque_vue, fouillable, difficulte_destruction, pv_body, defense_dice, attaquable, detruit_par_action, boite_libelle}`) — `detruit_par_action` (2026-10-09) : le **Cocon** de Jungles of Delthrak, détruit par une action d'un héros adjacent, sans jet, décidé par le serveur depuis `effet.detruit_par_action` —, **terrains** (`[{nom, cout_deplacement, avantages: string[], boite, boite_libelle}]`, 2026-10-09 : ce que chaque tuile FAIT, en phrases, traduit par le serveur via `MotsClesTerrain::avantages()` ; une tuile qui ne produit rien dit « sans effet à ce jour » ; une clé non implémentée ne produit aucune phrase), **themes** (`[{cle, libelle}]` = `DemarreurQuete::BOITES_THEMATIQUES`), **cartes**} (catalogues seedés, autres effets bruts mis en forme côté front). `cartes` = les **trois** paquets sources (`config/cartes.php`, **69 cartes** : `equipement` 20 + `potions` 15, photos du matériel officiel Hasbro, + `artefacts` 34) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque, image_url}]}` — `image_url` (2026-10-16) : l'illustration d'une carte de **Dread**, emblème compris, `null` hors de ce paquet (§« Sorts de Dread illustrés ») — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
 | POST | /api/deconnexion | — | 204 |
 | GET | /api/moi | — | {joueur, personnages: [...], boites_bestiaire: [{id, libelle}]} |
 | POST | /api/groupes | {nom, theme, longueur, ton, bestiaire_boites?} | {groupe} + dispatch squelette — `bestiaire_boites` : voir §Bestiaire automatique ou manuel |
@@ -2829,13 +2829,14 @@ Déclencheur : quête `sous_boss` ou `boss_final` **terminée** (victoire). Chaq
 héros actif : **+1 niveau** ; à chaque niveau **pair**, +1 PV max (Body pour
 barbare/nain, Mind pour elfe/magicien — départ playtest). Les **points de
 compétence ne sont pas stockés** : `points_competence = (niveau − 1) −
-nb de nœuds acquis` (dérivé, toujours juste).
+Σ cout des nœuds non innés acquis` (dérivé, toujours juste ; le coût, 1 ou 2,
+est exposé plus bas, §« Le pouvoir final et le `cout` »).
 
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
-| POST | /groupes/{identifiant}/competences | {personnage_id, competence_id} | acquiert une case de la grille (422 : pas son héros, classe différente, prérequis manquant, aucun point) |
-| GET | /api/moi | — | personnages enrichis : `niveau, points_competence, competences: [{id, nom, description, statut, libelle, raison, cadence}]` (voir ci-dessous ; `nom`/`description` ajoutés le 2026-10-10 : une entrée « Disponible » se lit seule) |
-| GET | /api/competences | — | catalogue des grilles : `[{id, classe, nom, description, type, innee, categorie, categorie_icone, colonne, rang, effet, avantage, avantage_icone, prerequis_id}]` |
+| POST | /groupes/{identifiant}/competences | {personnage_id, competence_id} | acquiert une case de la grille (422 : pas son héros, classe différente, déjà acquise, prérequis manquant, **points insuffisants pour son `cout`** — la phrase même de `achats[].raison`) |
+| GET | /api/moi | — | personnages enrichis : `niveau, points_competence, competences: [{id, nom, description, cout, rang, statut, libelle, raison, cadence}], achats: [{id, cout, achetable, raison}]` (voir ci-dessous ; `nom`/`description` ajoutés le 2026-10-10 : une entrée « Disponible » se lit seule ; `cout`, `rang` et `achats` le 2026-10-22) |
+| GET | /api/competences | — | catalogue des grilles : `[{id, classe, nom, description, type, innee, categorie, categorie_icone, colonne, rang, cout, effet, avantage, avantage_icone, prerequis_id}]` |
 
 **La GRILLE de talents** (René, 2026-08-23) — chaque classe a **3 colonnes ×
 3 lignes**. La colonne est une **catégorie propre à la classe** (`categorie`,
@@ -2844,7 +2845,32 @@ acquérir la ligne *n* exige la ligne *n−1* **de la même colonne**. `prerequi
 porte toujours cette règle et ne change pas de sens : le seeder le **calcule**
 depuis `(classe, colonne, rang − 1)` au lieu de le nommer, ce qui rend
 impossible une chaîne traversant deux colonnes. Neuf cases pour 4 à 7 points de
-campagne : on descend une colonne, on renonce à une autre.
+campagne : on descend une colonne, on renonce à une autre. Depuis le 2026-10-22,
+une colonne peut porter un **4e rang**, son pouvoir final (section suivante).
+
+**Le pouvoir final et le `cout`** (René, 2026-10-22 — `docs/regles/talents-et-capacites.md`,
+« Pouvoirs finaux ») : une colonne peut porter un **4e rang** qui coûte **2 points** et
+exige le rang 3 de la même colonne. Les rangs 1 à 3 coûtent **1**. Une colonne sans 4e
+rang reste valide. Le coût est une donnée, `competences.cout`, publiée partout où un
+nœud l'est — `GET /api/competences`, `GET /api/guide`, `GET /api/moi` (`competences[]`) ;
+une capacité de carte (`innee`) publie `cout: 0`, elle ne coûte rien. Les points deviennent
+`points_competence = (niveau − 1) − Σ cout des nœuds non innés acquis`
+(`Personnage::pointsCompetence()`, la seule formule ; `pointsDepenses()` en donne la somme).
+
+⚠ **La décision d'achat est publiée, jamais recalculée.** `GET /api/moi` porte, pour chaque
+héros, `achats: [{id, cout, achetable, raison}]` : une entrée par case de la grille de SA
+classe (les capacités de carte n'y figurent pas). `achetable` vaut `true` quand le prérequis
+est acquis ET que `cout ≤ points_competence`. Sinon `raison` nomme la règle qui ferme la case :
+« Prérequis : {nom du nœud du dessus} » ou « Coûte {cout} point(s) de compétence : il t'en
+reste {points} ». `raison` vaut `null` pour une case achetable et pour une case déjà acquise
+(celle-ci se lit dans `competences[]`). `POST /groupes/{identifiant}/competences` refuse selon
+**la même décision** (`App\Partie\Talents::achats()`, un seul point de passage) : le 422 porte
+la phrase que la case affiche grisée. La manette ne recalcule ni le prérequis ni le solde.
+
+⚠ **Seul ce qu'on ACHÈTE compte.** Une capacité de carte ne coûte rien et n'entre ni dans
+`points_competence` ni dans `achats`. Le score de puissance du groupe (`ScorePuissance`) ajoute
++1 par point dépensé : un pouvoir final vaut donc +2 au budget de rencontre du héros qui l'a
+acheté.
 
 Les **capacités de carte** (`innee: true`) sont **hors grille** — `categorie`,
 `colonne`, `rang` et `prerequis_id` à `null` : elles viennent avec la figurine

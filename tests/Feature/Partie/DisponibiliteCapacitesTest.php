@@ -169,7 +169,8 @@ it('/moi publie la DÉCISION pour chaque nœud, et rien que les clés du contrat
         // Le contrat, DANS LES DEUX SENS : aucune clé promise ne manque, et
         // aucune clé non promise ne s'invite (un ingrédient publié « au cas
         // où » finit toujours par être re-dérivé côté client).
-        expect(array_keys($entree))->toEqualCanonicalizing(['id', 'nom', 'description', 'statut', 'libelle', 'raison', 'cadence'])
+        // `cout` et `rang` (2026-10-22) : le pouvoir final se reconnaît et se paie sans recalcul.
+        expect(array_keys($entree))->toEqualCanonicalizing(['id', 'nom', 'description', 'cout', 'rang', 'statut', 'libelle', 'raison', 'cadence'])
             ->and($entree['statut'])->toBeIn(array_keys(Talents::STATUTS))
             ->and($entree['libelle'])->toBe(Talents::STATUTS[$entree['statut']]);
 

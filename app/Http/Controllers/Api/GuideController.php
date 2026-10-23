@@ -77,10 +77,10 @@ class GuideController extends Controller
             'competences' => Competence::query()
                 ->orderBy('classe')->orderBy('colonne')->orderBy('rang')->orderBy('id')
                 ->get(['id', 'classe', 'nom', 'description', 'type', 'effet', 'prerequis_id', 'innee',
-                    'categorie', 'categorie_icone', 'colonne', 'rang'])
+                    'categorie', 'categorie_icone', 'colonne', 'rang', 'cout'])
                 ->map(fn (Competence $c) => [
                     ...$c->only(['id', 'classe', 'nom', 'description', 'type', 'effet', 'prerequis_id',
-                        'innee', 'categorie', 'categorie_icone', 'colonne', 'rang']),
+                        'innee', 'categorie', 'categorie_icone', 'colonne', 'rang', 'cout']),
                     'avantage' => $c->avantage(),
                     'avantage_icone' => $c->avantageIcone(),
                 ])

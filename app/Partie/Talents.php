@@ -187,6 +187,11 @@ class Talents
             // il n'y a pas d'`EtatPersonnageQuete` où la dépense pourrait
             // s'inscrire, donc pas de capacité à dépenser.
             $compteur !== null && $etat === null => 'Utilisable en quête seulement',
+            // Le second sort du tour se dépense par le DRAPEAU `bonus_sort_utilise`, partagé avec les potions et
+            // les charges (`ResolveurTour::marquerCreneau()`), et non par `capacites_tour` : la fiche lit le même
+            // drapeau que le résolveur, sinon elle annonçait « Disponible » après un second sort déjà lancé.
+            $etat !== null && ($effet['mecanique'] ?? null) === 'sort_supplementaire_par_tour' && (bool) $etat->bonus_sort_utilise
+                => self::EPUISEES['une_fois_par_tour'],
             $compteur !== null && $this->dejaUtilisee($etat, $noeud->nom, $compteur) => self::EPUISEES[$frequence],
             // ⚠ PLAFOND, pas seuil : la capacité s'ouvre quand on est BLESSÉ.
             $plafond !== null && (int) $personnage->pv_body > (int) $plafond => sprintf(
@@ -290,5 +295,80 @@ class Talents
         }
 
         $this->marquerUtilisee($etat, $noeud->nom, $compteur);
+    }
+
+    /**
+     * Marque une capacité NOMMÉE comme dépensée dans la fenêtre QUE SA CARTE DÉCLARE (`effet.frequence`).
+     *
+     * ⚠ Les réactions (`MoteurReactions`) écrivaient toutes dans `capacites_utilisees`, la fenêtre de quête :
+     * une riposte « une fois par tour » ne posait donc jamais son marqueur `capacites_tour`, et ne se limitait
+     * à rien. `fiche()` lit `capacites_tour` pour cette cadence, il ne voyait donc jamais la dépense. Un seul
+     * point de passage pour toutes les réactions, sur le même principe que `consommer()` (qui, lui, passe par
+     * la mécanique). Nom absent de la fiche du héros : repli sur la fenêtre de quête, comme avant.
+     */
+    public function marquerDepensee(Personnage $personnage, EtatPersonnageQuete $etat, string $nom): void
+    {
+        $noeud = $personnage->competences()
+            ->get(['competences.id', 'competences.nom', 'competences.effet'])
+            ->firstWhere('nom', $nom);
+
+        $compteur = self::compteurPour($noeud?->effet['frequence'] ?? null) ?? 'capacites_utilisees';
+
+        $this->marquerUtilisee($etat, $nom, $compteur);
+    }
+
+    /**
+     * LA DÉCISION D'ACHAT de chaque case de la grille de la classe du héros : `[{id, cout, achetable, raison}]`.
+     *
+     * ⚠ Point de passage UNIQUE. La publication (`/api/moi`, `achats[]`) et le refus de `POST …/competences`
+     * lisent ici, si bien qu'une case grisée et un 422 disent la même chose. La manette affiche `achetable` et
+     * `raison` tels quels : elle ne recalcule ni le prérequis ni le solde (docs/contrat-api.md, « Le pouvoir
+     * final et le `cout` »).
+     *
+     * Ordre des refus, celui de l'achat : déjà acquise, puis prérequis, puis points. Une case acquise et une
+     * case achetable ont `raison` nul ; l'état d'une case acquise se lit dans `competences[]`.
+     *
+     * @return list<array{id: int, cout: int, achetable: bool, raison: string|null}>
+     */
+    public function achats(Personnage $personnage): array
+    {
+        $acquis = $personnage->competences()->pluck('competences.id')
+            ->map(fn ($id) => (int) $id)
+            ->flip();
+        $points = $personnage->pointsCompetence();
+
+        // Les capacités de carte (`innee`) sont hors grille : elles ne s'achètent pas.
+        $noeuds = Competence::query()
+            ->where('classe', $personnage->classe)
+            ->where('innee', false)
+            ->orderBy('colonne')->orderBy('rang')->orderBy('id')
+            ->get(['id', 'nom', 'cout', 'prerequis_id']);
+
+        $noms = $noeuds->pluck('nom', 'id');
+
+        return $noeuds->map(function (Competence $noeud) use ($acquis, $points, $noms): array {
+            $cout = (int) $noeud->cout;
+            $estAcquis = $acquis->has((int) $noeud->id);
+
+            $raison = match (true) {
+                $estAcquis => null,
+                $noeud->prerequis_id !== null && ! $acquis->has((int) $noeud->prerequis_id)
+                    => 'Prérequis : '.($noms[$noeud->prerequis_id] ?? 'la ligne du dessus'),
+                $points < $cout => sprintf(
+                    "Coûte %d %s de compétence : il t'en reste %d.",
+                    $cout,
+                    $cout > 1 ? 'points' : 'point',
+                    $points,
+                ),
+                default => null,
+            };
+
+            return [
+                'id' => (int) $noeud->id,
+                'cout' => $cout,
+                'achetable' => ! $estAcquis && $raison === null,
+                'raison' => $raison,
+            ];
+        })->values()->all();
     }
 }

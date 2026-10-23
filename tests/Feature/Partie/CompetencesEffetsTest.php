@@ -286,11 +286,11 @@ it('un jet de Mind sans nœud correspondant au contexte ne reçoit aucun avantag
 });
 
 it('garde le bonus PERMANENT d\'un nœud quand on équipe quoi que ce soit', function () {
-    // ⚠ Aucun nœud du catalogue n'est aujourd'hui dans ce cas — les neuf nœuds à
-    // dés portent tous une `condition`. Le test fabrique donc le premier nœud
-    // permanent à dés, précisément pour que la trappe reste fermée le jour où le
-    // seeder en sèmera un : `recalculerCombat` ÉCRASE la colonne, et tant qu'il
-    // ignorait l'arbre, le premier « équiper » venu effaçait le bonus en silence.
+    // ⚠ Le catalogue a désormais un nœud permanent à dés, le Bâton de bataille
+    // (magicien, 2026-10-22) — couvert en jeu par TalentsEnJeuTest. Ce test-ci
+    // fabrique le sien, pour une raison qui ne change pas : `recalculerCombat`
+    // ÉCRASE la colonne, et tant qu'il ignorait l'arbre, le premier « équiper »
+    // venu effaçait le bonus en silence.
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'barbare']);

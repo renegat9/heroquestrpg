@@ -85,7 +85,7 @@ const talentsParClasse = computed(() => {
     return m;
 });
 
-/* La GRILLE de talents (2026-08-23) : 3 colonnes × 3 lignes par classe. Rendue
+/* La GRILLE de talents (2026-08-23) : 3 colonnes × 3 lignes par classe, plus le pouvoir final (4e rang, 2026-10-22) là où une colonne en porte un. Rendue
    à plat, la page ne disait pas à quoi un joueur RENONCE en descendant une
    colonne — or c'est tout le sujet de la refonte. */
 const grilleParClasse = computed(() => {

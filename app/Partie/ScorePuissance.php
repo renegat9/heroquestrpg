@@ -15,7 +15,12 @@ use App\Models\Personnage;
  * Formule de DÉPART, simple et à régler en playtest (question ouverte 06 §10) :
  *
  *   score = Σ par héros actif [ 2 × niveau + dés d'attaque + dés de défense
- *                               + 1 par objet ÉQUIPÉ (hors sac/consommables) ]
+ *                               + 1 par objet ÉQUIPÉ (hors sac/consommables)
+ *                               + 1 par point de talent DÉPENSÉ ]
+ *
+ * Le dernier terme (2026-10-22, pouvoir final) compte la somme des coûts des nœuds
+ * ACHETÉS (`Personnage::pointsDepenses()`), jamais les capacités de carte. Au niveau 1
+ * il vaut 0 ; au niveau 6 avec 5 points dépensés, +5 par héros.
  *
  * avec un plancher (groupe minimal d'un héros niveau 1 mal équipé).
  * Couvre les trois entrées du doc 06 §2 : nombre de héros (somme), niveaux,
@@ -58,6 +63,7 @@ final class ScorePuissance
         return 2 * (int) $personnage->niveau
             + (int) $personnage->des_attaque
             + (int) $personnage->des_defense
-            + $equipement;
+            + $equipement
+            + $personnage->pointsDepenses();
     }
 }
