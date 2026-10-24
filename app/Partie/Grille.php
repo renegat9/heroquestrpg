@@ -200,9 +200,75 @@ final class Grille
     private array $meubles = [];
 
     /**
+     * PORTAILS — trappes de téléportation (`teleportation: 'contact'`, Mage du
+     * Miroir p. 5 / Kellar's Keep q. 8 note C). Carte « case d'entrée » → « case
+     * jumelle » : y ENTRER, c'est arriver sur la jumelle, à coût nul, et finir là
+     * (« the hero's or monster's turn is over »). Un portail n'est donc JAMAIS un
+     * point de passage ni une case où l'on s'arrête en marchant : `parcoursPondere()`
+     * ne le développe pas, et ne l'atteint que comme arrivée. Posé par
+     * `FabriqueGrille::pour()` — jamais ailleurs.
+     *
+     * @var array<string, string>
+     */
+    private array $portails = [];
+
+    /**
      * @param  list<list<string>>  $cases  m = mur, s = sol
      */
     public function __construct(private readonly array $cases) {}
+
+    /**
+     * Pose les PORTAILS (trappes de téléportation au contact) : `['x,y' => 'x,y']`,
+     * une entrée par case, la jumelle en valeur. Appelé par `FabriqueGrille::pour()`,
+     * seul point de passage du terrain, pour que la manette, le résolveur et le tour
+     * des monstres lisent la même topologie.
+     *
+     * @param  array<string, string>  $paires
+     */
+    public function definirPortails(array $paires): void
+    {
+        $this->portails = $paires;
+    }
+
+    /** Une case est-elle un portail (trappe de téléportation au contact) ? */
+    public function estPortail(int $x, int $y): bool
+    {
+        return isset($this->portails["{$x},{$y}"]);
+    }
+
+    /** La jumelle d'un portail, `null` si la case n'en est pas un. @return array{x: int, y: int}|null */
+    public function jumellePortail(int $x, int $y): ?array
+    {
+        $jumelle = $this->portails["{$x},{$y}"] ?? null;
+
+        if ($jumelle === null) {
+            return null;
+        }
+
+        [$jx, $jy] = array_map(intval(...), explode(',', $jumelle));
+
+        return ['x' => $jx, 'y' => $jy];
+    }
+
+    /**
+     * Les ALLIÉS ne franchissent pas une trappe (décision, non sourcée : le texte ne parle que de héros et
+     * de monstres). Pour eux, chaque case-portail est fermée. Sans cela, un allié arriverait sur la jumelle
+     * sans dé, sans fin de tour et sans annonce : son déplacement pose sa position sur la destination
+     * demandée, sans passer par `ResolveurTour::teleporterSiTunnel()`.
+     */
+    public function fermerPortails(): void
+    {
+        $positions = [];
+
+        foreach (array_keys($this->portails) as $cle) {
+            [$x, $y] = $this->coordonnees($cle);
+            $positions[] = ['x' => $x, 'y' => $y];
+        }
+
+        if ($positions !== []) {
+            $this->obstruer($positions);
+        }
+    }
 
     public static function depuisCarte(Carte $carte): self
     {
@@ -985,7 +1051,7 @@ final class Grille
             return null;
         }
 
-        return $this->reconstruireChemin($resultat['parents'], "{$departX},{$departY}", $cle);
+        return $this->reconstruireChemin($resultat['parents'], "{$departX},{$departY}", $cle, $resultat['entrees']);
     }
 
     /**
@@ -1123,7 +1189,7 @@ final class Grille
                 continue;
             }
 
-            $chemins[$cle] = $this->reconstruireChemin($resultat['parents'], $depart, $cle);
+            $chemins[$cle] = $this->reconstruireChemin($resultat['parents'], $depart, $cle, $resultat['entrees']);
         }
 
         return $chemins;
@@ -1213,6 +1279,9 @@ final class Grille
         $depart = "{$departX},{$departY}";
         $couts = [$depart => 0];
         $parents = [];
+        // Pour chaque PORTAIL franchi à pied, la case d'où on l'a marché : c'est elle qui permet de
+        // reconstruire le chemin jusqu'à l'entrée (la jumelle, elle, est une arrivée seule).
+        $entrees = [];
         $finalisees = [];
 
         $file = new \SplPriorityQueue();
@@ -1235,6 +1304,14 @@ final class Grille
                 break;
             }
 
+            // PORTAIL (trappe de téléportation) : on y ARRIVE, on n'en repart pas. Sa
+            // jumelle n'est atteinte que comme ARRIVÉE (voir la branche « ENTRER » plus
+            // bas), jamais développée à pied. Le DÉPART reste une case d'où l'on sort,
+            // même s'il est lui-même un portail.
+            if ($cle !== $depart && isset($this->portails[$cle])) {
+                continue;
+            }
+
             foreach (self::DIRECTIONS as [$dx, $dy]) {
                 $nx = $x + $dx;
                 $ny = $y + $dy;
@@ -1254,6 +1331,24 @@ final class Grille
                     continue; // hors budget : jamais inséré, jamais une destination possible
                 }
 
+                // ENTRER dans un portail = ARRIVER sur sa jumelle, au même coût, sans
+                // pas de plus. La jumelle n'est une arrivée que si elle est franchissable
+                // (découverte, libre) : le même test que le résolveur refait à l'arrivée.
+                if (isset($this->portails[$ncle])) {
+                    $jumelle = $this->portails[$ncle];
+
+                    if (! isset($finalisees[$jumelle]) && $this->estTraversable(...$this->coordonnees($jumelle))
+                        && $nouveauCout < ($couts[$jumelle] ?? PHP_INT_MAX)) {
+                        $couts[$jumelle] = $nouveauCout;
+                        $parents[$jumelle] = $ncle;
+                        $entrees[$ncle] = $cle;
+                        $sequence++;
+                        $file->insert([...$this->coordonnees($jumelle), $nouveauCout], -($nouveauCout * 1_000_000 + $sequence));
+                    }
+
+                    continue;
+                }
+
                 if ($nouveauCout < ($couts[$ncle] ?? PHP_INT_MAX)) {
                     $couts[$ncle] = $nouveauCout;
                     $parents[$ncle] = $cle;
@@ -1263,7 +1358,7 @@ final class Grille
             }
         }
 
-        return ['couts' => $couts, 'parents' => $parents];
+        return ['couts' => $couts, 'parents' => $parents, 'entrees' => $entrees];
     }
 
     /**
@@ -1273,12 +1368,24 @@ final class Grille
      * jamais entre les deux parcours.
      *
      * @param  array<string, string>  $parents
+     * @param  array<string, string>  $entrees  pour chaque portail franchi à pied, la case d'où on l'a marché
      * @return list<array{x: int, y: int}>
      */
-    private function reconstruireChemin(array $parents, string $depart, string $cible): array
+    private function reconstruireChemin(array $parents, string $depart, string $cible, array $entrees = []): array
     {
         $chemin = [];
         $cle = $cible;
+
+        // Une ARRIVÉE par trappe n'est pas un PAS : le chemin s'achève sur l'ENTRÉE (le portail, marché
+        // à pied), et la jumelle — la destination demandée — est atteinte par la téléportation. Ni sa
+        // marche ni son coût ne sont donc comptés (`coutChemin()` ne voit que les pas réels, le budget
+        // de `parcoursPondere()` pareil). La chaîne reprend ensuite depuis la case d'où l'on a marché.
+        if ($cible !== $depart && isset($parents[$cible]) && (($this->portails[$parents[$cible]] ?? null) === $cible)) {
+            $portail = $parents[$cible];
+            [$px, $py] = array_map(intval(...), explode(',', $portail));
+            $chemin[] = ['x' => $px, 'y' => $py];
+            $cle = $entrees[$portail];
+        }
 
         while ($cle !== $depart) {
             [$x, $y] = array_map(intval(...), explode(',', $cle));
@@ -1287,5 +1394,11 @@ final class Grille
         }
 
         return array_reverse($chemin);
+    }
+
+    /** `"x,y"` → `[x, y]` : la seule conversion de clé de case, pour le parcours et les portails. @return array{0: int, 1: int} */
+    private function coordonnees(string $cle): array
+    {
+        return array_map(intval(...), explode(',', $cle));
     }
 }

@@ -138,6 +138,8 @@ final class DeplacementHeros
     public function grilleAllie(Quete $quete, GroupeMercenaire $allie): Grille
     {
         $grille = FabriqueGrille::pour($quete, exceptMercenaireId: $allie->id, franchitAllies: true);
+        // Un allié ne franchit pas une trappe de téléportation : la case-portail lui est fermée (`Grille::fermerPortails()`).
+        $grille->fermerPortails();
         $grille->obstruer($this->casesInconnues($quete, $this->origineAllie($allie)));
 
         return $grille;

@@ -377,6 +377,12 @@ trait LignesEffetsAutomatiques
         $n = count((array) ($a['chemin'] ?? []));
         $cases = $n.' case'.($n > 1 ? 's' : '');
 
+        // TRAPPE DE TÉLÉPORTATION (EXT-CARTE2) : « any hero or monster landing on one of these squares
+        // immediately moves to the other » — le monstre ressort ailleurs, et son tour s'achève (pas de frappe).
+        if (! empty($a['teleportation']['vers'])) {
+            return [$this->info("{$monstre} avance de {$cases}, entre dans une trappe de téléportation et ressort ailleurs — son tour s'achève")];
+        }
+
         // Draconic Flight (First Light) : chaque jambe dit où elle en est dans le tour — « prend son vol »
         // avant l'action, « achève son vol » après (ou seule, si rien ne s'est joué sur le trajet).
         if (! empty($a['vol']) && $n > 0) {

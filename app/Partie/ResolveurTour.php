@@ -1189,6 +1189,15 @@ final class ResolveurTour
             $y = (int) $derniere['y'];
         }
 
+        // TRAPPE DE TÉLÉPORTATION : une arrivée sur la jumelle ne se marche pas. La grille
+        // (`Grille::parcoursPondere()`) fait s'achever le chemin sur la trappe franchie, et la
+        // destination demandée est la jumelle : la trappe devient l'arrivée à résoudre, et
+        // `teleporterSiTunnel()` pose le héros sur sa jumelle.
+        if ($chemin !== [] && $grille->estPortail((int) end($chemin)['x'], (int) end($chemin)['y'])) {
+            $x = (int) end($chemin)['x'];
+            $y = (int) end($chemin)['y'];
+        }
+
         $controle = $this->pieges->controlerChemin($groupe, $quete->carte, $personnage, $etat, $chemin, $depart);
         $interrompu = $controle['arret'] !== null;
         $arretDur = $controle['dur'] ?? false;
@@ -1224,6 +1233,14 @@ final class ResolveurTour
 
         if ($teleportation !== null) {
             $arrivee = $teleportation;
+        }
+
+        // TRAPPE DE TÉLÉPORTATION : le passage jette son dé (`passageDeTrappe()`, null pour un
+        // tunnel de glace), et la marche s'achève là — « the hero's turn is over » (F7539 p. 15).
+        $passage = $teleportation !== null ? $this->passageDeTrappe($quete, $entreeTunnel) : null;
+
+        if ($passage !== null) {
+            $this->finTourPiegeSol = true;
         }
 
         // Chemin RÉELLEMENT parcouru (jusqu'à l'arrêt éventuel) → pour l'animation
@@ -1272,7 +1289,7 @@ final class ResolveurTour
         // désamorcer puis continuer). Le mouvement restant sera FORFAIT à la
         // première action hors mouvement.
         $couteParcouru = $grille->coutChemin($cheminParcouru);
-        $restantApres = $arretDur ? 0 : max(0, $restant - $couteParcouru);
+        $restantApres = ($arretDur || $passage !== null) ? 0 : max(0, $restant - $couteParcouru);
         $mouvementFini = $arretDur || $restantApres <= 0;
 
         $etat->update([
@@ -1403,6 +1420,23 @@ final class ResolveurTour
         // d'affichage.
         if ($teleportation !== null) {
             $payload['teleportation'] = ['de' => $entreeTunnel, 'vers' => $teleportation];
+        }
+
+        // TRAPPE : le passage est publié tel qu'il s'est joué (le dé, la face, la perte), et la
+        // perte est imputée comme celle du terrain — une source de terrain, jamais une réaction.
+        if ($passage !== null) {
+            $payload['teleportation']['passage'] = $passage + ['retenus' => 0];
+
+            if ($passage['degats'] > 0) {
+                $retenus = $this->degats->infligerAHeros(
+                    $personnage, $passage['degats'], self::SOURCE_DEGATS_TERRAIN, ['terrain' => $passage['nom']],
+                );
+                $payload['teleportation']['passage']['retenus'] = $retenus;
+
+                if ($retenus > 0 && (int) $personnage->fresh()->pv_body === 0) {
+                    $etat->update(['tombe' => true]);
+                }
+            }
         }
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
@@ -4130,7 +4164,7 @@ final class ResolveurTour
     {
         $entree = $this->terrainSur($quete, $x, $y);
 
-        if ($entree === null || ($entree['effet']['teleportation'] ?? false) !== true || $entree['paire_id'] === null) {
+        if ($entree === null || ! in_array($entree['effet']['teleportation'] ?? false, [true, 'contact'], true) || $entree['paire_id'] === null) {
             return null;
         }
 
@@ -4157,6 +4191,39 @@ final class ResolveurTour
         }
 
         return ['x' => $autre['x'], 'y' => $autre['y']];
+    }
+
+    /**
+     * TRAPPE DE TÉLÉPORTATION — le passage (`teleportation: 'contact'`, `degats_au_passage`).
+     * « After a hero moves through it, they roll one combat die. If a skull is rolled, the hero
+     * loses 1 Body Point » (F7539 p. 15 note A ; F4543 p. 22 note C). UN dé de combat, un crâne
+     * fait perdre `degats_au_passage` PV de Body. Un monstre n'en jette aucun.
+     *
+     * Retourne null pour tout ce qui n'est pas une trappe au contact (tunnel de glace compris) : le
+     * dé n'est jeté QUE quand la trappe a réellement porté le héros, jamais sur une simple entrée.
+     *
+     * @param  array{x: int, y: int}  $case  la case de l'entrée (le portail franchi)
+     * @return array{nom: string, jet: string, degats: int}|null
+     */
+    private function passageDeTrappe(Quete $quete, array $case): ?array
+    {
+        $entree = $this->terrainSur($quete, (int) $case['x'], (int) $case['y']);
+
+        if ($entree === null || ($entree['effet']['teleportation'] ?? null) !== 'contact') {
+            return null;
+        }
+
+        $face = match ($this->des->deCombat()) {
+            FaceDeCombat::BouclierBlanc => 'bouclier_blanc',
+            FaceDeCombat::BouclierNoir => 'bouclier_noir',
+            default => 'crane',
+        };
+
+        return [
+            'nom' => (string) $entree['nom'],
+            'jet' => $face,
+            'degats' => $face === 'crane' ? (int) ($entree['effet']['degats_au_passage'] ?? 0) : 0,
+        ];
     }
 
     /**
@@ -12546,6 +12613,14 @@ final class ResolveurTour
             return $marche['brulure'];
         }
 
+        // TRAPPE DE TÉLÉPORTATION : le monstre vient d'être porté sur la jumelle, son tour
+        // s'achève là — « the hero's or monster's turn is over » (F7539 p. 15). Pas de frappe.
+        if ($marche['teleportation'] !== null) {
+            Journal::ajouter($groupe, 'action', $marche['deplacement'], $acteur);
+
+            return $marche['deplacement'];
+        }
+
         $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y, $diagonalesMonstre);
 
         // VOILE D'OMBRE (*Cloak of Shadows*) : « heroes and monsters on the tile
@@ -12754,6 +12829,25 @@ final class ResolveurTour
         // « Remove the tile from the board if a creature ends their turn on
         // it. » Le monstre ne bouge plus après ce point — attaquer ne déplace
         // personne —, donc sa case est bien celle où il finit son tour.
+        // TRAPPE DE TÉLÉPORTATION (monstre) : « Any hero or monster landing on one of these
+        // squares immediately moves to the other trap door square » (F7539 p. 15 note A). Le
+        // monstre qui a MARCHÉ jusqu'à l'entrée est porté sur la jumelle — même test d'arrivée
+        // que le héros (jumelle découverte et libre) —, et son tour s'achève : pas de dé, pas de
+        // frappe (« the hero's or monster's turn is over »).
+        $teleportation = null;
+        $arriveeMonstre = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
+
+        if ($cheminParcouruMonstre !== [] && $grille->estPortail($arriveeMonstre['x'], $arriveeMonstre['y'])) {
+            $jumelle = $grille->jumellePortail($arriveeMonstre['x'], $arriveeMonstre['y']);
+
+            if ($jumelle !== null
+                && $this->salleDecouverte($quete, $quete->sallesDecouvertes(), $jumelle['x'], $jumelle['y'])
+                && $grille->estTraversable($jumelle['x'], $jumelle['y'])) {
+                $teleportation = ['de' => $arriveeMonstre, 'vers' => $jumelle];
+                $instance->update(['position_x' => $jumelle['x'], 'position_y' => $jumelle['y']]);
+            }
+        }
+
         $this->retirerChausseTrappeSous($quete, $instance->position_x, $instance->position_y);
 
         // Animation case-par-case (table) : le trajet du monstre est enregistré
@@ -12771,18 +12865,26 @@ final class ResolveurTour
 
         $brulure = $this->blesserMonstreSurLeChemin($groupe, $quete, $instance, $cheminParcouruMonstre, $acteur);
 
+        $deplacement = [
+            'type' => 'deplacement_monstre',
+            'id' => $instance->id,
+            'monstre' => $nomMonstre,
+            'depart' => $departMonstre,
+            'chemin' => $cheminParcouruMonstre, // animation case-par-case (table)
+            'vers' => ['x' => $instance->position_x, 'y' => $instance->position_y],
+        ];
+
+        // Une téléportation par trappe s'annonce dans le payload même du déplacement : le fil la lit là.
+        if ($teleportation !== null) {
+            $deplacement['teleportation'] = $teleportation;
+        }
+
         return [
             'depart' => $departMonstre,
             'chemin' => $cheminParcouruMonstre,
             'brulure' => $brulure,
-            'deplacement' => [
-                'type' => 'deplacement_monstre',
-                'id' => $instance->id,
-                'monstre' => $nomMonstre,
-                'depart' => $departMonstre,
-                'chemin' => $cheminParcouruMonstre, // animation case-par-case (table)
-                'vers' => ['x' => $instance->position_x, 'y' => $instance->position_y],
-            ],
+            'teleportation' => $teleportation,
+            'deplacement' => $deplacement,
         ];
     }
 

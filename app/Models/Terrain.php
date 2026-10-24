@@ -55,6 +55,10 @@ class Terrain extends Model
         // convient à tout thème », jamais un trou. Les 7 lignes sourcées
         // valent toutes `horreur_des_glaces`.
         'boite',
+        // Boîtes en plus de `boite` (2026-10-23, EXT-CARTE2) : la Trappe de téléportation
+        // est imprimée dans The Mage of the Mirror ET Kellar's Keep. Même patron que
+        // `Monstre::$boites_partagees`.
+        'boites_partagees',
     ];
 
     protected function casts(): array
@@ -64,6 +68,24 @@ class Terrain extends Model
             'bloque_mouvement' => 'boolean',
             'bloque_vue' => 'boolean',
             'effet' => 'array',
+            'boites_partagees' => 'array',
         ];
+    }
+
+    /**
+     * TOUTES les boîtes où ce terrain est imprimé : la boîte d'origine, puis les boîtes partagées.
+     * Liste VIDE = aucune boîte (`boite: null`), donc compatible avec tous les thèmes. C'est ce que
+     * lit `AssembleurCarte::placerTerrains()` — le point de passage unique de « ce thème tire-t-il
+     * ce terrain ? », le même que pour les monstres.
+     *
+     * @return list<string>
+     */
+    public function boites(): array
+    {
+        if ($this->boite === null) {
+            return [];
+        }
+
+        return array_values(array_unique([(string) $this->boite, ...array_map('strval', (array) ($this->boites_partagees ?? []))]));
     }
 }
