@@ -812,10 +812,14 @@ final class MoteurDread
     /**
      * Le SEUIL DE FUITE est-il atteint ? Un seul point de passage (`Mot::TYPE_FUITE` de `sortDisponible()`).
      *
-     *  - Le précédent des Dread (`SEUIL_FUITE`, 25 %) : `pv < max(1, ⌊max × 0,25⌋)`, STRICT.
-     *  - `fuit_si_affaibli` (Skulmar, Kessandria) : `pv ≤ ⌊max / 3⌋`, AU tiers, inclusif. Le précédent y est
-     *    inopérant pour un corps de 3 : son seuil vaut 1, et un monstre vivant a au moins 1 PV, donc la fuite ne
-     *    partirait jamais. Au tiers, le plancher est exact pour un entier (pv ≤ max/3 ⟺ pv ≤ ⌊max/3⌋).
+     *  - Le précédent des Dread (`SEUIL_FUITE`, 25 %) : `pv < max × 0,25`, STRICT, sur la valeur RÉELLE du quart.
+     *    ⚠ Corrigé le 2026-10-23 : le seuil était `max(1, ⌊max × 0,25⌋)`, c'est-à-dire TRONQUÉ avant la comparaison.
+     *    Pour un corps de 4 à 7 le plancher tombait à 1, et un monstre vivant a au moins 1 PV : `pv < 1` n'est jamais
+     *    vrai, la fuite ne partait JAMAIS (signalé par le chantier Witch Lord). Sur la valeur réelle, un corps de 5 à 7
+     *    fuit à 1 PV, et 10 Body fuit à 2 PV (2 < 2,5). Pile au quart (4 Body à 1 PV) : pas STRICTEMENT dessous, donc
+     *    pas de fuite. Un corps de 1 à 3 ne peut jamais être sous le quart en étant vivant : c'est le tiers qui le sert.
+     *  - `fuit_si_affaibli` (Skulmar, Kessandria) : `pv ≤ ⌊max / 3⌋`, AU tiers, inclusif. Au tiers, le plancher est exact
+     *    pour un entier (pv ≤ max/3 ⟺ pv ≤ ⌊max/3⌋).
      *    Le Seigneur Sorcier ne la porte pas : il ne fuit jamais.
      */
     public function seuilFuiteAtteint(InstanceMonstre $instance): bool
@@ -827,7 +831,7 @@ final class MoteurDread
             return $pv <= intdiv($max, 3);
         }
 
-        return $pv < max(1, (int) ($max * self::SEUIL_FUITE));
+        return $pv < $max * self::SEUIL_FUITE;
     }
 
     /**

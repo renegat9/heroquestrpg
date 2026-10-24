@@ -8,6 +8,7 @@ use App\Engine\MotsClesMobilier;
 use App\Models\Carte;
 use App\Models\Mobilier;
 use App\Models\Objet;
+use App\Models\Personnage;
 use RuntimeException;
 
 /**
@@ -580,6 +581,132 @@ final class MoteurMobilier
         }
 
         return $trouves;
+    }
+
+    /**
+     * SALLE DANGEREUSE — LECTEUR de `mobiliers.effet.salle_dangereuse` (`MotsClesMobilier::VOCABULAIRE`) : les meubles
+     * ACTIFS de la salle `$salle` qui frappent au moment `$moment` (`fin_deplacement` pour la forge des nains,
+     * `fin_tour` pour la fournaise). Actif = posé, non détruit, non désarmé.
+     *
+     * Un meuble désarmé ne frappe plus, mais il reste sur la carte : c'est un état DURABLE de la grille (`desarme`,
+     * écrit par `desarmer()`), jamais un cache. Les monstres ne passent pas par ici : `ResolveurTour` ne l'appelle
+     * que pour un HÉROS.
+     *
+     * @return list<array{index: int, entree: array<string, mixed>, nom: string, params: array{moment: string, exempte: ?string, desamorcable: bool}}>
+     */
+    public function salleDangereuseDe(Carte $carte, int $salle, string $moment): array
+    {
+        return array_values(array_filter(
+            $this->dangersDeLaCarte($carte),
+            fn (array $danger) => (int) ($danger['entree']['salle'] ?? -1) === $salle
+                && $danger['params']['moment'] === $moment
+                && $this->frappe($danger['entree']),
+        ));
+    }
+
+    /**
+     * Les meubles à salle dangereuse ACTIFS dont l'emprise touche la case (x, y) — ceux qu'un héros adjacent peut
+     * désamorcer (`MenuMoteur`, la même couture que le piège). Le contact est orthogonal, comme partout
+     * (`Grille::sontAdjacentes()`, via `adjacentAEmprise()`).
+     *
+     * @return list<array{index: int, entree: array<string, mixed>, nom: string, params: array{moment: string, exempte: ?string, desamorcable: bool}}>
+     */
+    public function salleDangereuseAdjacentes(Carte $carte, int $x, int $y): array
+    {
+        return array_values(array_filter(
+            $this->dangersDeLaCarte($carte),
+            fn (array $danger) => $this->frappe($danger['entree']) && $this->adjacentAEmprise($danger['entree'], $x, $y),
+        ));
+    }
+
+    /**
+     * Le meuble à salle dangereuse ACTIF dont l'ancre est exactement la case (x, y), ou `null`. C'est la vérification
+     * de l'option de désamorçage au résolveur : l'option ne porte que l'ancre, jamais un index de tableau.
+     *
+     * @return array{index: int, entree: array<string, mixed>, nom: string, params: array{moment: string, exempte: ?string, desamorcable: bool}}|null
+     */
+    public function salleDangereuseEn(Carte $carte, int $x, int $y): ?array
+    {
+        foreach ($this->dangersDeLaCarte($carte) as $danger) {
+            if ((int) $danger['entree']['x'] === $x && (int) $danger['entree']['y'] === $y && $this->frappe($danger['entree'])) {
+                return $danger;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * La classe épargnée par une salle dangereuse : « except the dwarf » (forge) ; `null` n'épargne personne (fournaise).
+     * Le seul point de passage de cette question.
+     *
+     * @param  array{moment: string, exempte: ?string, desamorcable: bool}  $params
+     */
+    public static function heroEpargne(array $params, Personnage $heros): bool
+    {
+        return $params['exempte'] !== null && $heros->classe === $params['exempte'];
+    }
+
+    /**
+     * Écrit le désarmement d'une salle dangereuse, durablement : la carte (une colonne JSON) porte `desarme`.
+     */
+    public function desarmer(Carte $carte, int $index): void
+    {
+        $grille = $carte->grille;
+
+        if (! isset($grille['mobilier'][$index])) {
+            return;
+        }
+
+        $grille['mobilier'][$index]['desarme'] = true;
+
+        $carte->update(['grille' => $grille]);
+    }
+
+    /** Un meuble frappe-t-il encore ? Ni détruit, ni désarmé. */
+    private function frappe(array $entree): bool
+    {
+        return ! self::estDetruite($entree) && empty($entree['desarme']);
+    }
+
+    /**
+     * Toutes les entrées de la carte dont le type porte une salle dangereuse, avec leurs paramètres normalisés.
+     * Une seule lecture du catalogue par appel (pas une requête par meuble).
+     *
+     * @return array<int, array{index: int, entree: array<string, mixed>, nom: string, params: array{moment: string, exempte: ?string, desamorcable: bool}}>
+     */
+    private function dangersDeLaCarte(Carte $carte): array
+    {
+        $entrees = (array) ($carte->grille['mobilier'] ?? []);
+
+        if ($entrees === []) {
+            return [];
+        }
+
+        $catalogue = Mobilier::query()
+            ->whereIn('id', collect($entrees)->pluck('mobilier_id')->filter()->unique())
+            ->get(['id', 'nom', 'effet'])
+            ->keyBy('id');
+
+        $dangers = [];
+
+        foreach ($entrees as $index => $entree) {
+            $type = $catalogue[$entree['mobilier_id'] ?? 0] ?? null;
+            $params = $type === null ? null : MotsClesMobilier::salleDangereuse((array) $type->effet);
+
+            if ($params === null || MoteurEmbuscade::estFauxMeuble($entree)) {
+                continue;
+            }
+
+            $dangers[(int) $index] = [
+                'index' => (int) $index,
+                'entree' => $entree,
+                'nom' => (string) $type->nom,
+                'params' => $params,
+            ];
+        }
+
+        return $dangers;
     }
 
     /**

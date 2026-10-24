@@ -215,3 +215,29 @@ Lot C de `docs/plan-kellars-keep.md` (+ Bellthor, Witch Lord q. 5). **Une seule 
 **La réserve de thème `reserve_a_son_theme`** (`App\Engine\MotsClesAdversaires::RESERVE_A_SON_THEME`, lecteur `Monstre::reserveASonTheme()`). Pourquoi elle existe : le pool de rencontre se resserre sur le thème SEULEMENT s'il y a des candidats de ce thème, sinon il reste entier. La Première Lumière n'a aucun sous-boss, donc un sous-boss de la Crypte, nommé dans le pool sous-boss partagé, sortirait dans ses campagnes. La réserve filtre le pool AVANT la préférence de thème, sur les trois chemins de `DemarreurQuete::acheterMonstres()` (pool nommé, repli, masse). Chaque créature de la Crypte la porte. `ThemeCryptTest` vérifie qu'aucun de ces monstres ne sort hors de la Crypte, sur toutes les graines et tous les arcs.
 
 **Les écarts de portage** (lisibles dans `docs/plan-crypte-tenebres.md`, « Exécution (2026-10-23) ») : la Mind du Crâne est `0` faute de source ; le saut de la Mare et sa fin de tour suivent les pièges de sol, faute de phrase dans le livret ; les sous-boss n'ont ni le coffre piégé de la quête 4 ni la Couronne de la quête 9 ; Venim n'a pas de taille sourcée (1 × 1).
+
+## Le métamorphe (F4543 p. 25, note A) et l'erratum du Deathspinner (2026-10-23)
+
+**Le métamorphe** (`metamorphe`, lecteur `MoteurSynchroformes::prochaine()`, sous-boss `kellars_keep`, Abomination 6/3/3/2/3). Règle
+du livret : « Every time it is killed, shuffle all the monster cards and take the top card. This is the new form the monster takes.
+[…] The monster can be permanently killed only if the new card drawn matches the monster's most recent form. » Portage :
+- le **paquet** est DÉCLARÉ sur la fiche (`capacites.metamorphe.paquet`), comme la pioche de Qwindrak : les huit cartes 2021 de la
+  boîte de base (reference/20 : Goblin, Skeleton, Orc, Zombie, Mummy, Dread Warrior, Gargoyle, Abomination). **Le Fimir de notre
+  catalogue n'entre pas** : reference/20 le dit « nom 1989 Milton Bradley », sans carte 2021 ;
+- à chaque mort, un tirage UNIFORME (`OubliSorts::indiceAleatoire()`) ; la carte tirée ÉGALE la carte courante (au premier
+  tirage, l'Abomination, sa forme de départ) : mort définitive ; sinon nouvelle forme, à la même place ;
+- la carte courante reste dans `monstre_id`, la règle dans `origine_monstre` (la fiche d'origine la porte) : sans migration ;
+- **pas de `synchro`** : la règle ne dit pas que les sorts actifs cessent (Qwindrak, lui, le dit).
+- **`cout` 16, MESURÉ — lecture d'une créature qui revient.** La méthode mesure une forme (`Body / (1,5 − Défense/6)`) ; ici la
+  créature en a plusieurs. Chaque mort tire une carte égale à celle qui tombe une fois sur huit : **huit morts en espérance** avant
+  la mort définitive. Chaque forme pèse 2,0 attaques en moyenne sur le paquet (Gobelin 0,75 · Squelette 0,86 · Orque 0,86 · Zombie
+  1,0 · Momie 2,4 · Guerrier du Chaos 3,6 · Gargouille 4,5 · Abomination 2,0), soit 8 × 2,0 = **16,0 attaques**, sur la droite des
+  sous-boss (12 + 0,604 × (16,0 − 8,9) = 16,3 ⇒ **16**). Les chiffres sont ceux de notre catalogue, pas ceux des cartes (quatre
+  divergences nommées dans reference/20). La droite ne chiffre pas la répétition : c'est cette lecture qui la porte.
+
+**L'erratum du Deathspinner — non porté, source NON TROUVÉE** (vérifié 2026-10-23). La reine du fléau (q. 3, F9907 p. 17) n'a
+AUCUN mot-clé imprimé : rendu PNG relu, son bloc porte Move 6 dés · Attack 5 · Defend 4 · Body 4 · Mind 4, et une seule capacité
+(*Silencing Snare*). Les trois mots *Spawn*, *Agile*, *Venomous* sont ceux du **Rampant putride (Blightcrawler)**, dont la figurine
+la représente (table « Monsters of the Jungle », F9907 p. 47 ; carte p. 27 de reference/20). Aucune carte Deathspinner dans le
+scan des cartes monstres (`drive/ennemis/ennemies.pdf`, 41 pages, relues). L'erratum est une compilation communautaire, sans
+confirmation officielle (`docs/plan-errata-2021.md` §5), et René a décidé le 2026-10-16 de ne pas les porter. Rien n'est ajouté.

@@ -561,3 +561,40 @@ n'est pas une entité seedée).
 - **Thème** : le rocher n'est posé que sous `kellars_keep`, la brume sous `witch_lord` (`dangers.boite`, « le gabarit dit combien, le thème dit lesquels »). Le tirage est fait **en fin d'assembleur, après les spawns**, et **une seule fois par danger du thème** (posé ou non) : une carte d'un autre thème n'en consomme aucun, et les cartes existantes ne bougent pas.
 - **Non sourcé, écrit comme décision** : la fréquence (`CHANCE_DANGER = 50`) ; les PV de la brume (**⚠ non trouvé** : « destroyed » se lit comme un coup qualifiant) ; la direction de la brume (le livret ne la dit pas) ; le rocher qui passe les monstres sans les toucher ; dégâts **hors** `SOURCES_REACTIVES` (un danger de décor, comme le poison : aucune carte ne dit qu'un héros annule un passage). Écarté : l'« un piège à la fois » de la note B (*Kellar's Keep* q. 3), déjà écarté le 2026-10-23.
 - **Publication** : `EtatGroupe.carte.dangers` (filtrée par le brouillard, `attente` et `detruit` jamais publiés), silhouette **hexagone** `DANGER_ICONE` (`symboles.js`, lue par `DungeonGrid` et `LegendeCarte`), rocher arrêté en bloc plein (`BLOC_ICONE`, comme la Chute de blocs). Contrat : `docs/contrat-api.md` § « Dangers mobiles autonomes ». Aucune image générée (l'orchestrateur).
+
+## SALLES DANGEREUSES ET PORTES À CONDITION (Kellar's Keep, Spirit Queen's Torment — 2026-10-23)
+
+**Salle dangereuse** (`MotsClesMobilier::salle_dangereuse`, lecteur `MoteurMobilier::salleDangereuseDe()`). Deux meubles :
+- **Forge des nains** (F4543 p. 15, quête 4 note D) : « any hero (except the dwarf) who ends their move in his room must
+  immediately roll 1 combat die. If a skull is rolled, the hero loses 1 Body Point. » → `moment: fin_deplacement`,
+  `exempte: nain`, `desamorcable: false`. Frappée par `ResolveurTour::resoudreDeplacement()`, à l'écriture de la position :
+  un héros qui ne fait que traverser la salle ne roule pas.
+- **Fournaise** (G0053 p. 31, quête 13 note A) : « a hero ending their turn in this room must roll 1 combat die […] Monsters
+  are used to the heat and do not take this damage. » → `moment: fin_tour`, `exempte: null`, `desamorcable: true`. Frappée
+  dans la fermeture du tour (`resoudre()`, même point que le coup de corne), jamais à la fin d'un déplacement.
+
+Règles de portage : **un dé par salle et par moment**, quel que soit le nombre de meubles qui la chauffent (« a hero … must roll
+1 combat die », au singulier) ; un crâne = 1 PV de Body, **sans défense** (`MoteurPieges::resoudreDesCombat()`, le dé du piège à
+lances, un seul producteur) ; les monstres ne passent jamais par là. Chaque jet est annoncé par le tampon générique
+(`TamponAnnonces`, type `salle_dangereuse`), même sans crâne. Un héros à 0 PV ne se fait plus frapper.
+
+**Désamorçage de la fournaise** : la même couture que le piège (`ResolveurTour::jetDesamorcage()`, extrait pour que les deux
+partagent le jet — sans outils pour le Nain et l'Explorateur, un jet de Body sinon). Un échec n'a pas d'autre conséquence :
+la fournaise brûle déjà à chaque tour tant qu'elle n'est pas désarmée. L'état `desarme` est écrit dans `cartes.grille.mobilier[i]`.
+**La forge ne se désamorce pas** (le livret n'en parle pas) : aucune option.
+
+**Porte à condition** (`MoteurPortes::VERROU_CONDITION`, `CONDITIONS`). Deux portes, copiées telles quelles dans `verrou` :
+- **Porte verrouillée** (F4543 p. 19 note A) : deux dés rouges, la porte s'ouvre si le total est **strictement inférieur** au
+  Corps de **départ** (`pv_body_max` : « all Body and Mind Points are restored between quests »). Pas d'exemption.
+- **Porte de l'Est** (F4543 p. 25 note D) : « equal to or less than their current number of Mind Points » — **inclusif**, contre
+  l'Esprit **actuel** (`pv_mind`) ; le Nain ne lance **qu'un** dé.
+Un échec ferme le tour (`$finTourPorteCondition`, joint au calcul de créneau à côté de `$finTourPiegeSol` et `$finTourSables`) ;
+la réussite est une interaction libre, comme toute porte, et révèle la salle derrière.
+
+**Placement — jamais le seul chemin** : `AssembleurCarte::marquerPortesDeCondition()` ne pose une porte à condition QUE sur une
+arête de BOUCLE (`boucle`, jamais l'arbre couvrant), au plus UNE par carte, et seulement dans la boîte `kellars_keep` — aucun
+tirage consommé hors de ce thème. C'est la garde de la porte de pierre (`marquerPortesDePierre()`) reprise mot pour mot : une
+condition qu'un héros ne remplit jamais (un Esprit à 0) le laisse passer par l'autre route.
+
+⚠ **Lecture des textes** : la porte verrouillée dit « less than » (strict), la porte de l'Est « equal to or less than » (inclusif) —
+le portage suit les textes, pas une symétrie. Les emprises des deux meubles (1×1) sont des analogies, non mesurées (`MobilierSeeder`).

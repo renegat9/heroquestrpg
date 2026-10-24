@@ -64,6 +64,83 @@ final class MoteurPortes
      */
     public const DES_MINIMUM_PORTE_PIERRE = 2;
 
+    /**
+     * PORTE À CONDITION (Kellar's Keep, F4543 p. 19 note A et p. 25 note D) : `verrou.type === VERROU_CONDITION` sur une
+     * entrée `fermee` ordinaire, comme la porte de pierre. Le héros se tient à côté, lance DEUX dés rouges (UN seul pour le
+     * Nain, quand la condition le dit), et la porte s'ouvre si le total remplit la condition du verrou. Un échec ferme le
+     * tour du héros : « If they fail to open the door, their turn ends » (les deux textes).
+     *
+     * Posée UNIQUEMENT sur une arête de BOUCLE par `AssembleurCarte::marquerPortesDeCondition()`, au plus une par carte — la
+     * même garde que la porte de pierre : les deux salles qu'elle relie sont déjà reliées par l'arbre couvrant, donc une
+     * condition qu'un héros ne remplit jamais le laisse passer par l'autre route. Jamais le seul chemin, par construction.
+     */
+    public const VERROU_CONDITION = 'condition';
+
+    /**
+     * Les deux portes à condition de Kellar's Keep, avec leurs paramètres SOURCÉS. Leur valeur de comparaison suit
+     * l'attribut : le Corps se compare aux Corps de DÉPART (`pv_body_max` — « all Body and Mind Points are restored between
+     * quests », F4543 p. 4, la quête commence à pleine santé), l'Esprit à l'Esprit ACTUEL (`pv_mind`).
+     *
+     * Copiés TELS QUELS dans `verrou` au placement : le résolveur et le menu ne relisent jamais cette table, ils lisent la
+     * porte — une seule copie de la règle, dans la carte.
+     *
+     * @var array<string, array{libelle: string, attribut: string, comparaison: string, des: int, nain_des: ?int}>
+     */
+    public const CONDITIONS = [
+        // F4543 p. 19 (quête 6, « The Great Citadel », note A) : « To open the door, a hero must stand next to it and roll 2
+        // red dice. If they roll less than their starting number of Body Points, the door opens. » Le texte dit « less than » :
+        // STRICT. Aucune exemption du Nain.
+        'porte_verrouillee' => [
+            'libelle' => 'porte verrouillée',
+            'attribut' => 'corps', 'comparaison' => 'strict', 'des' => 2, 'nain_des' => null,
+        ],
+        // F4543 p. 25 (quête 9, « The East Gate », note D) : « roll 2 red dice. That hero may pass through the gate only if the
+        // total number rolled is equal to or less than their current number of Mind Points. […] The dwarf needs to roll only 1
+        // die. » Le texte dit « equal to or less than » : INCLUSIF.
+        'porte_de_l_est' => [
+            'libelle' => "porte de l'Est",
+            'attribut' => 'esprit', 'comparaison' => 'inclusif', 'des' => 2, 'nain_des' => 1,
+        ],
+    ];
+
+    /** La valeur que le jet doit atteindre pour CE héros : ses Corps de départ, ou son Esprit actuel (`CONDITIONS`). */
+    public static function valeurDeComparaison(array $verrou, Personnage $heros): int
+    {
+        return $verrou['attribut'] === 'corps' ? (int) $heros->pv_body_max : (int) $heros->pv_mind;
+    }
+
+    /** Le nombre de dés que lance CE héros : le Nain n'en lance qu'un quand la condition le dit (`nain_des`). */
+    public static function desPourHeros(array $verrou, Personnage $heros): int
+    {
+        return ($verrou['nain_des'] ?? null) !== null && $heros->classe === 'nain'
+            ? (int) $verrou['nain_des']
+            : (int) $verrou['des'];
+    }
+
+    /**
+     * Le total franchit-il la condition ? `strict` : strictement sous la valeur ; `inclusif` : au plus égal. Le seul point de
+     * passage de cette question, lu par le résolveur ET par le libellé du menu.
+     */
+    public static function franchit(array $verrou, int $total, int $valeur): bool
+    {
+        return $verrou['comparaison'] === 'strict' ? $total < $valeur : $total <= $valeur;
+    }
+
+    /**
+     * Le libellé de l'option, DÉCIDÉ ici avec les chiffres du héros : « 2 dés rouges, total inférieur à ton Corps de départ
+     * (8) » — le menu publie la condition, la manette ne la recalcule pas.
+     */
+    public static function libelleCondition(array $verrou, Personnage $heros): string
+    {
+        $des = self::desPourHeros($verrou, $heros);
+        $nombre = $des === 1 ? '1 dé rouge' : "{$des} dés rouges";
+        $valeur = self::valeurDeComparaison($verrou, $heros);
+        $attribut = $verrou['attribut'] === 'corps' ? 'Corps de départ' : 'Esprit actuel';
+        $condition = $verrou['comparaison'] === 'strict' ? "inférieur à ton {$attribut}" : "au plus égal à ton {$attribut}";
+
+        return "{$nombre}, total {$condition} ({$valeur})";
+    }
+
     /** Une porte close sans verrou s'ouvre à la main, sans clé ni levier (E2). */
     public function ouvrableAMain(array $porte): bool
     {
@@ -170,6 +247,21 @@ final class MoteurPortes
             $carte, $x, $y,
             fn (array $porte) => ($porte['etat'] ?? self::ETAT_OUVERTE) !== self::ETAT_OUVERTE
                 && ($porte['verrou']['type'] ?? null) === self::VERROU_PIERRE,
+        );
+    }
+
+    /**
+     * Portes À CONDITION (`verrou.type === VERROU_CONDITION`) non ouvertes, adjacentes à la case (x, y) — même géométrie et
+     * même liste que `portesDePierreAdjacentes()`, avec le filtre de la condition. Lu par le menu ET par le résolveur.
+     *
+     * @return list<array{index: int, porte: array<string, mixed>}>
+     */
+    public function portesConditionAdjacentes(Carte $carte, int $x, int $y): array
+    {
+        return $this->portesAdjacentes(
+            $carte, $x, $y,
+            fn (array $porte) => ($porte['etat'] ?? self::ETAT_OUVERTE) !== self::ETAT_OUVERTE
+                && ($porte['verrou']['type'] ?? null) === self::VERROU_CONDITION,
         );
     }
 

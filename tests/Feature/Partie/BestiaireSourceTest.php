@@ -700,6 +700,8 @@ it('porte les créatures de Kellar\'s Keep et Bellthor telles que leurs livrets 
         'Borokk'                => [7, 4, 4, 3, 3, 'sous_boss', 'kellars_keep', 9],
         'Gragor'                => [7, 4, 4, 3, 3, 'sous_boss', 'kellars_keep', 9],
         'Bellthor'              => [6, 4, 6, 3, 3, 'sous_boss', 'witch_lord',  10],
+        // Le métamorphe (F4543 p. 25 note A) : la forme de départ, l'Abomination (6/3/3/2/3) ; cout = 8 formes × 2,0 attaques.
+        'Métamorphe'            => [6, 3, 3, 2, 3, 'sous_boss', 'kellars_keep', 16],
     ];
 
     foreach ($attendus as $nom => [$mv, $at, $df, $bd, $mi, $tier, $boite, $cout]) {

@@ -50,3 +50,13 @@ nommé dans `MECANIQUES`, confronté aux sorts DANS LES DEUX SENS par `SortsDrea
 **L'acide est une NATURE de plus, et la Mare n'est pas une fosse** (chantier EXT-CRYPTE, 2026-10-23, `App\Engine\TypeDegat::ACIDE`). Sources : le Souffle Acide (`SortDreadSeeder`, carte-sœur de Tempête de feu, Venim) et la Mare d'acide (`PiegeSeeder`, `effet.type_degat` avec `des_combat`). Lecteur : `MoteurSorts::absorbeDegat()`, le même point de passage que le feu et le froid, consulté par les sorts de Dread, les sorts de héros et le terrain, et désormais par `MoteurPieges::declencher()` pour un piège TYPÉ seulement (Fosse, lances et blocs n'en portent pas : rien à intercepter). Aucune pièce du catalogue ne porte encore `immunite_degat: acide` : le lecteur est en place, non alimenté. La valeur `acide` a sa ligne dans la table des valeurs lisibles de `MotsClesEquipement` (sans elle, le remplacement générique la dirait en slug).
 
 ⚠ **Une mare n'est pas un trou** : `effet.mare` (`MoteurPieges::estMare()`) sort un piège persistant et sautable de `estFosse()`. Ni Forme démoniaque, ni Potion de dextérité, ni immobilisation ne s'y appliquent. Une fois déclenchée, elle passe à l'état `mare_acide`, reste armée, connue et sautable, et se déclenche à chaque pas.
+
+## Ajouts du 2026-10-23 (Kellar's Keep, Spirit Queen's Torment)
+
+- **`App\Engine\MotsClesMobilier::VOCABULAIRE['salle_dangereuse']`** — `mobiliers.effet` : `{moment: fin_deplacement|fin_tour,
+  exempte: nain|null, desamorcable: bool}`. Lecteur `MoteurMobilier::salleDangereuseDe()` ; producteur `ResolveurTour::salleDangereuseFrappe()`
+  (deux appelants : le déplacement, la fermeture du tour). Un `moment` hors vocabulaire lève une exception (`MotsClesMobilier::salleDangereuse()`).
+- **`App\Engine\MotsClesAdversaires::CAPACITES['metamorphe']`** — `monstres.capacites` : `{forme_de_depart, paquet}`. Lecteur
+  `MoteurSynchroformes::prochaine()`, à la mort. Tests : `MetamorpheTest` (registre et comportement).
+- **`verrou.type` = `condition`** (`MoteurPortes::VERROU_CONDITION`, paramètres dans `MoteurPortes::CONDITIONS`) : porte fermée
+  dont l'ouverture est un jet de deux dés rouges. Ni `ouvrableAMain()` (un verrou n'est jamais libre), ni clé.

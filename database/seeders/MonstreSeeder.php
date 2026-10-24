@@ -1222,6 +1222,29 @@ class MonstreSeeder extends Seeder
                 'tier' => 'sous_boss', 'boite' => 'kellars_keep', 'cout' => 8,
                 'capacites' => ['passif_jusqua' => ['declencheur' => 'attaque_du_groupe']], 'sorts_dread' => []],
 
+            // MÉTAMORPHE (Kellar's Keep, F4543 p. 25, quête 9, note A : « This monster is a shapechanger and is currently in the form
+            // of an abomination. Every time it is killed, shuffle all the monster cards and take the top card. […] The monster can be
+            // permanently killed only if the new card drawn matches the monster's most recent form. »). Forme de départ : l'Abomination
+            // (carte © 2021, reference/20 : 6/3/3/2/3, aucune capacité). Pas de carte à lui : la carte d'Abomination, puis une carte
+            // TIRÉE à chaque mort (`MoteurSynchroformes::metamorphe()`, `metamorphe` = `forme_de_depart`).
+            // `cout` MESURÉ — lecture d'une créature qui REVIENT (la méthode mesure une forme ; ici il y en a plusieurs) : à chaque mort,
+            // le tirage égale la forme qui tombe une fois sur huit (paquet de base : Gobelin, Squelette, Orque, Zombie, Momie, Guerrier du
+            // Chaos, Gargouille, Abomination) → mort définitive ; en espérance 8 mort(s) avant elle. Chaque forme pèse 2,0 attaques en
+            // moyenne (Gobelin 0,75 · Squelette 0,86 · Orque 0,86 · Zombie 1,0 · Momie 2,4 · Guerrier 3,6 · Gargouille 4,5 · Abomination 2,0,
+            // moyenne 2,0) : 8 × 2,0 = 16,0 attaques. Droite des sous-boss, 12 + 0,604 × (16,0 − 8,9) = 16,3 ⇒ 16. La droite ne chiffre pas
+            // la répétition elle-même : c'est cette lecture, écrite ici, qui la porte.
+            // LE PAQUET est DÉCLARÉ ici, comme la pioche de Qwindrak (`synchroformes`) : les huit cartes 2021 de la boîte de base
+            // (reference/20 : Goblin, Skeleton, Orc, Zombie, Mummy, Dread Warrior, Gargoyle, Abomination). Le Fimir de notre catalogue
+            // (tier base, boîte base) n'a PAS de carte 2021 (reference/20 : « nom 1989 Milton Bradley ») : il n'entre pas dans le paquet.
+            // Chiffres de la pondération : ceux du catalogue (la méthode mesure le jeu que nous jouons).
+            ['nom_base' => 'Métamorphe', 'deplacement' => 6, 'attaque' => 3, 'defense' => 3, 'pv_body' => 2, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'boite' => 'kellars_keep', 'cout' => 16,
+                'capacites' => ['metamorphe' => [
+                    'forme_de_depart' => 'Abomination',
+                    'paquet' => ['Gobelin', 'Squelette', 'Orque', 'Zombie', 'Momie', 'Guerrier du Chaos', 'Gargouille', 'Abomination'],
+                ]],
+                'sorts_dread' => []],
+
             // Gargouille-statue (q. 1 n.C, p. 9) : la Gargouille de base, en LIGNE NOMMÉE (ses capacités diffèrent — une
             // capacité posée sur la Gargouille rendrait toutes les gargouilles des salles en statues). « The gargoyle appears
             // to be a stone statue that does not move. […] If a hero searches for treasure before the trap has been disarmed,

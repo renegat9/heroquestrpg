@@ -29,9 +29,10 @@ use Illuminate\Support\Facades\Http;
  * Le mécanisme est le sort Fuite existant (`MoteurDread::sortDreadFuite()`), déclenché par la capacité
  * `fuit_si_affaibli`. Le Seigneur Sorcier, lui, ne fuit JAMAIS (« there must be no escape for him »).
  *
- * Le précédent (25 %, STRICT) est inopérant pour un corps de 3 : son seuil vaut 1, un monstre vivant a au
- * moins 1 PV. Le test « le précédent reste STRICT » épingle donc la différence, et le test EN JEU prouve que
- * la fuite part réellement.
+ * Le précédent (25 %, STRICT) : corrigé le 2026-10-23 — il comparait à un quart TRONQUÉ (plancher 1), qui ne fuyait
+ * jamais pour un corps de 7 ou moins. Il compare désormais à la valeur réelle du quart ; un corps de 1 à 3 ne peut
+ * pas être sous le quart en étant vivant, et c'est le tiers qui le sert. Les tests « précédent » épinglent le
+ * correctif (5, 6, 7 Body fuient à 1 PV) ; le test EN JEU prouve que la fuite part réellement.
  */
 
 beforeEach(function () {
@@ -134,13 +135,39 @@ it('le Seigneur Sorcier ne fuit JAMAIS : aucune capacité de fuite, aucune Fuite
         ->and($sei->sorts_dread)->not->toContain('Fuite');
 });
 
-it('le précédent des 25 % reste STRICT et inchangé : un Seigneur ogre (10 Body) fuit à 1, pas à 2', function () {
+it('le précédent des 25 % reste STRICT, sur la valeur RÉELLE : un Seigneur ogre (10 Body, quart = 2,5) fuit à 2 (20 %), pas à 3', function () {
+    // Corrigé le 2026-10-23 : l'ancien `pv < max(1, ⌊max × 0,25⌋)` tronquait 2,5 à 2 et retenait la fuite à 1 PV. 2 PV
+    // (20 %) sont STRICTEMENT sous le quart : la règle le dit, le plancher tronqué le refusait.
     $ctx = fuiteScene();
     $ogre = fuitePoser($ctx, 'Seigneur ogre', 6, 4, pv: 10);
     $seuil = fn (int $pv) => app(MoteurDread::class)->seuilFuiteAtteint($ogre->fresh()->forceFill(['pv_body' => $pv])->load('monstre'));
 
-    expect($seuil(2))->toBeFalse()
+    expect($seuil(3))->toBeFalse()
+        ->and($seuil(2))->toBeTrue()
         ->and($seuil(1))->toBeTrue();
+});
+
+it('le précédent des 25 % fuit à 1 PV pour un corps de 5, 6 ou 7 Body (SANS correctif : jamais, le plancher tronqué valait 1)', function (int $corps) {
+    // Le défaut signalé par le chantier Witch Lord : pour un corps de 7 ou moins, `pv < max(1, ⌊max × 0,25⌋)` valait `pv < 1`,
+    // donc JAMAIS vrai pour une créature vivante. Ce test tombe sans le correctif de `seuilFuiteAtteint()`.
+    $ctx = fuiteScene();
+    $fuyard = fuitePoser($ctx, 'Seigneur ogre', 6, 4, pv: $corps);
+    // Le corps MAXIMUM de l'instance est fixé à `$corps` (le helper prend celui du catalogue, 10).
+    $fuyard->forceFill(['pv_body_max' => $corps, 'pv_body' => $corps])->save();
+    $seuil = fn (int $pv) => app(MoteurDread::class)->seuilFuiteAtteint($fuyard->fresh()->forceFill(['pv_body' => $pv])->load('monstre'));
+
+    expect($seuil(1))->toBeTrue("corps de {$corps} : 1 PV est strictement sous le quart")
+        ->and($seuil($corps))->toBeFalse("corps de {$corps} : plein de PV, aucune fuite");
+})->with([5, 6, 7]);
+
+it('pile au quart n\'est PAS strictement sous le quart : un corps de 4 à 1 PV ne fuit pas', function () {
+    $ctx = fuiteScene();
+    $fuyard = fuitePoser($ctx, 'Seigneur ogre', 6, 4, pv: 4);
+    $fuyard->forceFill(['pv_body_max' => 4, 'pv_body' => 4])->save();
+    $seuil = fn (int $pv) => app(MoteurDread::class)->seuilFuiteAtteint($fuyard->fresh()->forceFill(['pv_body' => $pv])->load('monstre'));
+
+    expect($seuil(1))->toBeFalse()   // 1 = 25 % exact : pas strictement sous
+        ->and($seuil(2))->toBeFalse();
 });
 
 // =====================================================================

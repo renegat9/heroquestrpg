@@ -119,6 +119,9 @@ const ICONE_TYPE = {
     // tombait sur `touch_app` comme tant d'autres avant elle (voir les notes
     // ci-dessus, même défaut à chaque type neuf oublié).
     forcer_porte_pierre: 'construction',
+    // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : deux dés rouges contre le Corps de départ ou l'Esprit actuel — un
+    // cadenas qu'on force, distinct de la porte de pierre et de la porte ouverte à la main (`door_open`).
+    forcer_porte_condition: 'lock_open',
     actionner_levier: 'toggle_on',
     // ⚠ `equiper` PARTAGEAIT `swords` avec `attaque` juste au-dessus dans ce
     // même menu — capture `combat-apres-haut.png` (2026-09-18) : « Attaquer »

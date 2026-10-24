@@ -42,7 +42,11 @@ const ouvert = ref(false);
 // aperçu de salle), la seconde par grep une fois le défaut nommé.
 const PIEGE_ETATS = { detecte: 'détecté', fosse_ouverte: 'fosse ouverte', mare_acide: "mare d'acide", desarme: 'désarmé', declenche: 'déclenché', bloc: 'bloc de pierre' };
 const PORTE_ETATS = { ouverte: 'ouverte', fermee: 'fermée', verrouillee: 'verrouillée', secrete: 'secrète' };
-const PORTE_VERROUS = { cle: 'clé requise', monstres_vaincus: 'gardien à vaincre', levier: 'levier à actionner' };
+const PORTE_VERROUS = {
+    cle: 'clé requise', monstres_vaincus: 'gardien à vaincre', levier: 'levier à actionner',
+    // Porte à condition (Kellar's Keep, 2026-10-23) : un jet de deux dés rouges, pas une clé.
+    condition: 'jet à réussir',
+};
 
 /** Héros dont c'est le tour, `null` pendant la phase des monstres. */
 const herosCourant = computed(() => (props.entites ?? [])

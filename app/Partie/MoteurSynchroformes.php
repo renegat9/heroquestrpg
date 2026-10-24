@@ -70,6 +70,12 @@ final class MoteurSynchroformes
      */
     public function prochaine(InstanceMonstre $instance): ?array
     {
+        // LE MÉTAMORPHE (Kellar's Keep, F4543 p. 25 note A) : sa règle vit sur la FICHE D'ORIGINE (`origine_monstre`, comme
+        // celle de Qwindrak) ; un tirage frais à chaque mort, sans pioche stockée. Une figure ordinaire n'en sort jamais.
+        if (($metamorphe = $this->metamorpheDe($instance)) !== null) {
+            return $this->metamorphe($instance, $metamorphe);
+        }
+
         $ligne = $instance->monstre;
         $formes = $instance->formes_a_venir;
 
@@ -244,6 +250,82 @@ final class MoteurSynchroformes
         }
 
         return ['monstre' => $nom, 'instance_id' => (int) $instance->id, 'resultats' => $resultats];
+    }
+
+    /**
+     * La fiche d'ORIGINE de la figure, si elle porte la règle du métamorphe (`capacites.metamorphe`), sinon `null`.
+     * Une figure qui n'a encore jamais changé de forme est sa propre origine : c'est sa fiche courante qui est lue.
+     */
+    private function metamorpheDe(InstanceMonstre $instance): ?Monstre
+    {
+        $fiche = $instance->origine_monstre === null
+            ? $instance->monstre
+            : Monstre::where('nom_base', $instance->origine_monstre)->first();
+
+        return $fiche !== null && isset(((array) ($fiche->capacites ?? []))['metamorphe'])
+            ? $fiche
+            : null;
+    }
+
+    /**
+     * LE MÉTAMORPHE (Kellar's Keep, F4543 p. 25 note A) : « Every time it is killed, shuffle all the monster cards and take the
+     * top card. This is the new form the monster takes. […] The monster can be permanently killed only if the new card drawn
+     * matches the monster's most recent form. »
+     *
+     * À CHAQUE mort : un tirage UNIFORME sur le paquet DÉCLARÉ sur la fiche (`capacites.metamorphe.paquet` : les huit cartes 2021
+     * de la boîte de base, dans l'ordre déclaré, le même hasard que la pioche de Qwindrak, `OubliSorts::indiceAleatoire()`). La carte tirée ÉGALE la forme qui vient de tomber :
+     * mort DÉFINITIVE (`null`). Sinon elle devient la nouvelle forme, à la MÊME place (`infligerAMonstre()` écrit `monstre_id`,
+     * donc un snapshot la rejoue sans rien retirer). Pas de `synchro` : la règle ne dit pas que les sorts actifs cessent.
+     *
+     * ⚠ Une figure du métamorphe garde sa forme de départ (la carte, Abomination) tant qu'elle n'a jamais changé : c'est elle
+     * que le premier tirage doit égaler pour une mort définitive.
+     * ⚠ Paquet vide : la créature meurt normalement — jamais une forme inventée.
+     *
+     * @return array{monstre: Monstre, synchro: bool}|null
+     */
+    private function metamorphe(InstanceMonstre $instance, Monstre $fiche): ?array
+    {
+        // Le paquet est DÉCLARÉ sur la fiche d'origine (`capacites.metamorphe.paquet`), dans l'ordre déclaré : l'indice
+        // tiré tombe toujours sur la même carte pour le même dé. Une carte absente du catalogue est écartée (jamais inventée).
+        $noms = array_values(array_map('strval', (array) (((array) $fiche->capacites)['metamorphe']['paquet'] ?? [])));
+        $paquet = collect($noms)
+            ->map(fn (string $nom) => Monstre::where('nom_base', $nom)->first())
+            ->filter()
+            ->values();
+
+        if ($paquet->isEmpty()) {
+            return null;
+        }
+
+        $formeDeDepart = (string) (((array) $fiche->capacites)['metamorphe']['forme_de_depart'] ?? $fiche->nom_base);
+        $courante = $instance->monstre->nom_base === $fiche->nom_base ? $formeDeDepart : $instance->monstre->nom_base;
+
+        $tire = $paquet[app(OubliSorts::class)->indiceAleatoire(app(LanceurDes::class), $paquet->count())];
+        $definitif = $tire->nom_base === $courante;
+
+        $groupe = $instance->quete?->groupe;
+
+        if ($groupe !== null) {
+            app(TamponAnnonces::class)->annoncer($groupe, [
+                'type' => 'metamorphe_tirage',
+                'monstre' => $instance->nomAffiche(),
+                'carte' => $courante,
+                'tire' => $tire->nom_base,
+                'definitif' => $definitif,
+            ]);
+        }
+
+        if ($definitif) {
+            return null;
+        }
+
+        // L'origine s'écrit AVEC la première forme nouvelle : la fiche d'origine porte la règle pour toutes les suivantes.
+        if ($instance->origine_monstre === null) {
+            $instance->update(['origine_monstre' => $fiche->nom_base]);
+            $instance->unsetRelation('origine');
+        }
+
+        return ['monstre' => $tire, 'synchro' => false];
     }
 
     /**

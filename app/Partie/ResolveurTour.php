@@ -12,6 +12,7 @@ use App\Engine\Des\LanceurDes;
 use App\Engine\DureeEffet;
 use App\Engine\JetCompetence;
 use App\Engine\MotsClesEquipement;
+use App\Engine\MotsClesMobilier;
 use App\Engine\MotsClesSort;
 use App\Engine\MotsClesTalent;
 use App\Engine\ReactionEffet;
@@ -284,6 +285,13 @@ final class ResolveurTour
      */
     private bool $finTourSables = false;
 
+    /**
+     * PORTE À CONDITION MANQUÉE (Kellar's Keep, F4543 p. 19 note A, p. 25 note D) : « If they fail to open the door, their
+     * turn ends. » Posé par `resoudreForcerPorteCondition()` quand le jet n'atteint pas la condition, lu une seule fois dans
+     * le MÊME calcul de créneau que les deux drapeaux ci-dessus — l'ouverture elle-même reste une interaction libre.
+     */
+    private bool $finTourPorteCondition = false;
+
     /** Les sables mouvants — construit avec LE lanceur de ce résolveur, pour que le dé du saut soit le sien. */
     private ?MoteurSables $moteurSables = null;
 
@@ -399,6 +407,7 @@ final class ResolveurTour
         $this->evenementGlace = null;
         $this->finTourPiegeSol = false;
         $this->finTourSables = false;
+        $this->finTourPorteCondition = false;
         // Tampon vidé À L'ENTRÉE aussi : une résolution précédente refusée en
         // cours de route (422) n'a jamais atteint le vidage de la sortie, et ses
         // annonces s'afficheraient sur l'action de quelqu'un d'autre.
@@ -644,6 +653,7 @@ final class ResolveurTour
                 'liberer_captif' => $this->resoudreLibererCaptif($groupe, $quete, $personnage, $option, $parametres, $acteur),
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'forcer_porte_pierre' => $this->resoudreForcerPortePierre($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'forcer_porte_condition' => $this->resoudreForcerPorteCondition($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'oracle_salle' => $this->resoudreOracleSalle($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'lacher_souris' => $this->resoudreLacherSouris($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
@@ -736,7 +746,8 @@ final class ResolveurTour
             // immediately ends » (livret p. 14) sous les trois pièges de sol,
             // et c'est le SEUL et MÊME point de passage qui ferme un tour
             // avant que les deux créneaux ne soient consommés.
-            $creneauEffectif = (($this->evenementGlace['fin_tour'] ?? false) || $this->finTourPiegeSol || $this->finTourSables)
+            $creneauEffectif = (($this->evenementGlace['fin_tour'] ?? false) || $this->finTourPiegeSol || $this->finTourSables
+                || $this->finTourPorteCondition)
                 ? 'tour' : $creneau;
 
             // Consomme le créneau (mouvement/action) ; le tour ne se termine
@@ -755,6 +766,11 @@ final class ResolveurTour
                 if ($corne !== []) {
                     $resultat['coups_de_corne'] = $corne;
                 }
+
+                // SALLE DANGEREUSE, moment « fin de tour » (la fournaise, Spirit Queen's Torment q. 13 note A) : « a hero
+                // ending their turn in this room must roll 1 combat die ». Même point de passage que le coup de corne, et
+                // seul : le tour du héros vient de se fermer ici. Annoncé par le tampon générique (`annonces_automatiques`).
+                $this->salleDangereuseFrappe($groupe, $quete, $personnage, $etat->fresh(), MotsClesMobilier::MOMENT_FIN_TOUR);
 
                 // SILENCING SNARE (Deathspinner, F9907 p. 17) : « may cast Channel Dread at will on
                 // any hero that ENDS THEIR TURN within her line of sight (no action required) » —
@@ -1286,6 +1302,11 @@ final class ResolveurTour
             // hériter d'un choix qui ne le concerne plus.
             'piege_a_ecarter' => $attenteEcart,
         ]);
+
+        // SALLE DANGEREUSE, moment « fin de déplacement » (la forge des nains, Kellar's Keep q. 4 note D) : « any hero who
+        // ends their move in his room must immediately roll 1 combat die ». Le déplacement finit sur `$arrivee`, téléportation
+        // comprise : c'est là, et seulement là, que la forge frappe. Un héros qui ne fait que traverser la salle ne roule pas.
+        $this->salleDangereuseFrappe($groupe, $quete, $personnage, $etat->fresh(), MotsClesMobilier::MOMENT_FIN_DEPLACEMENT);
 
         $payload = [
             'type' => 'deplacement',
@@ -4575,6 +4596,12 @@ final class ResolveurTour
         array $option,
         array $acteur,
     ): array {
+        // FOURNAISE (salle dangereuse, « as if it were a trap ») : même verbe, même jet, même `desamorcage`, mais une
+        // cible qui est un MEUBLE — l'option le dit (`parametres.mobilier`), jamais un piège à cette case.
+        if (isset($option['parametres']['mobilier'])) {
+            return $this->resoudreDesamorcageSalle($groupe, $quete, $personnage, $etat, $option, $acteur);
+        }
+
         $cible = $this->piegeCible($quete, $etat, $option);
 
         if (! $this->pieges->peutDesamorcer($personnage)) {
@@ -4600,35 +4627,8 @@ final class ResolveurTour
             return $this->resoudreDesamorcageLameBalanciere($groupe, $quete, $personnage, $etat, $cible, $option, $acteur);
         }
 
-        // ⚠ DEUX RÉSOLUTIONS, et c'est le dos des cartes qui les sépare (René,
-        // 2026-08-22). Le Nain et l'Explorateur « désamorcent sans outils » et
-        // n'échouent QUE sur un bouclier noir : un dé, une face perdante sur
-        // six. Tout le monde d'autre passe par la trousse à outils et un jet de
-        // Body ordinaire. Leur appliquer le même jet aurait vidé la mention de
-        // sa substance — c'est précisément leur savoir-faire qui est décrit.
-        $sansOutils = in_array($personnage->classe, MoteurPieges::SANS_OUTILS, true);
-
-        if ($sansOutils) {
-            $face = FaceDeCombat::depuisD6($this->des->d6());
-            $reussi = $face !== FaceDeCombat::BouclierNoir;
-            $detailJet = ['methode' => 'sans_outils', 'face' => $face->value];
-        } else {
-            // Plafond de Body (2026-08-24) : un seul endroit décide, même pour
-            // les deux jets historiques — une règle, une implémentation.
-            $difficulte = DifficulteBody::plafonnee($quete, self::DIFFICULTE_DESAMORCAGE);
-
-            $resultat = (new JetCompetence($this->des))
-                ->resoudre((int) $personnage->attribut_body, $difficulte);
-            $reussi = $resultat->estReussi();
-            $detailJet = [
-                'methode' => 'trousse',
-                'attribut' => 'body',
-                'difficulte' => $difficulte,
-                'des_lances' => (int) $personnage->attribut_body,
-                'issue' => $resultat->issue->value,
-                'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
-            ];
-        }
+        // Le jet lui-même (sans outils ou trousse) : `jetDesamorcage()`, PARTAGÉ avec la fournaise.
+        ['reussi' => $reussi, 'detail' => $detailJet] = $this->jetDesamorcage($personnage, $quete);
 
         if ($reussi) {
             $this->pieges->changerEtat($quete->carte, $cible['index'], MoteurPieges::ETAT_DESARME);
@@ -4667,6 +4667,171 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'jet', $payload, $acteur);
 
         return $payload;
+    }
+
+    /**
+     * LE JET DE DÉSAMORÇAGE, un seul endroit (2026-10-23) : le piège (`resoudreDesamorcage()`) ET la fournaise
+     * (`resoudreDesamorcageSalle()`) passent par lui.
+     *
+     * ⚠ DEUX RÉSOLUTIONS, et c'est le dos des cartes qui les sépare (René, 2026-08-22). Le Nain et l'Explorateur
+     * « désamorcent sans outils » et n'échouent QUE sur un bouclier noir : un dé, une face perdante sur six. Tout le
+     * monde d'autre passe par la trousse à outils et un jet de Body ordinaire.
+     *
+     * @return array{reussi: bool, detail: array<string, mixed>}
+     */
+    private function jetDesamorcage(Personnage $personnage, Quete $quete): array
+    {
+        if (in_array($personnage->classe, MoteurPieges::SANS_OUTILS, true)) {
+            $face = FaceDeCombat::depuisD6($this->des->d6());
+
+            return [
+                'reussi' => $face !== FaceDeCombat::BouclierNoir,
+                'detail' => ['methode' => 'sans_outils', 'face' => $face->value],
+            ];
+        }
+
+        // Plafond de Body (2026-08-24) : un seul endroit décide, même pour les deux jets historiques.
+        $difficulte = DifficulteBody::plafonnee($quete, self::DIFFICULTE_DESAMORCAGE);
+
+        $resultat = (new JetCompetence($this->des))
+            ->resoudre((int) $personnage->attribut_body, $difficulte);
+
+        return [
+            'reussi' => $resultat->estReussi(),
+            'detail' => [
+                'methode' => 'trousse',
+                'attribut' => 'body',
+                'difficulte' => $difficulte,
+                'des_lances' => (int) $personnage->attribut_body,
+                'issue' => $resultat->issue->value,
+                'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
+            ],
+        ];
+    }
+
+    /**
+     * DÉSAMORCER UNE FOURNAISE (salle dangereuse, Spirit Queen's Torment q. 13 note A : « A hero can disarm the furnace
+     * as if it were a trap »). Même couture que le piège : `jetDesamorcage()` pour le jet, et le menu n'offre l'option
+     * qu'à un héros qui peut désamorcer (`MoteurPieges::peutDesamorcer()`). Le résolveur REVALIDE tout sur l'état vivant
+     * (le meuble existe, il frappe encore, il est désarmable, et le héros est à son contact), par la même question que
+     * le menu : `MoteurMobilier::salleDangereuseAdjacentes()`.
+     *
+     * Un échec n'a pas d'autre conséquence qu'un essai raté : la fournaise brûle déjà à chaque tour tant qu'elle n'est
+     * pas désarmée, elle ne se « déclenche » pas à l'essai. Aucune fin de tour forcée (`$finTourPiegeSol` reste à faux).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreDesamorcageSalle(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $x = (int) data_get($option, 'parametres.mobilier.x', -1);
+        $y = (int) data_get($option, 'parametres.mobilier.y', -1);
+
+        $adjacents = ($quete->carte !== null && $etat->position_x !== null)
+            ? $this->mobilier->salleDangereuseAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y)
+            : [];
+
+        $meuble = collect($adjacents)->first(
+            fn (array $danger) => (int) $danger['entree']['x'] === $x && (int) $danger['entree']['y'] === $y,
+        );
+
+        if (! $this->pieges->peutDesamorcer($personnage) || $meuble === null || ! $meuble['params']['desamorcable']) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Aucune fournaise à désamorcer d\'ici, ou vous n\'en êtes pas capable.',
+            ]);
+        }
+
+        $jet = $this->jetDesamorcage($personnage, $quete);
+
+        if ($jet['reussi']) {
+            $this->mobilier->desarmer($quete->carte, (int) $meuble['index']);
+        }
+
+        $payload = [
+            'type' => 'desamorcage_mobilier',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'mobilier' => ['nom' => $meuble['nom'], 'x' => $x, 'y' => $y],
+            'succes' => $jet['reussi'],
+            'desarme' => $jet['reussi'],
+            ...$jet['detail'],
+        ];
+
+        Journal::ajouter($groupe, 'jet', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * SALLE DANGEREUSE — le PRODUCTEUR des coups d'une forge ou d'une fournaise (2026-10-23), un seul pour les deux
+     * moments (`MotsClesMobilier::MOMENT_FIN_DEPLACEMENT` ou `MOMENT_FIN_TOUR`, appelé par les deux seuls points de
+     * passage : `resoudreDeplacement()` et la fermeture du tour dans `resoudre()`).
+     *
+     * Un héros debout qui se trouve DANS la salle d'un meuble actif de ce moment roule UN dé de combat, sans défense :
+     * un crâne = 1 PV de Body (`MoteurPieges::resoudreDesCombat()`, le même dé que le piège à lances). « A hero … must
+     * roll 1 combat die » : singulier PAR SALLE, pas par meuble — une salle, un dé, quel que soit le nombre de meubles
+     * qui la chauffent. La classe épargnée (« except the dwarf ») retire le héros, sans retirer la salle.
+     *
+     * Annoncé par le tampon GÉNÉRIQUE (`TamponAnnonces::annoncer()`) : journalisé ET rendu dans le fil en direct, comme
+     * tout effet automatique qu'aucune action ne retourne. Une case hors de toute salle (un couloir) ne frappe personne.
+     */
+    private function salleDangereuseFrappe(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        ?EtatPersonnageQuete $etat,
+        string $moment,
+    ): void {
+        if ($etat === null || $etat->tombe || $etat->position_x === null || $quete->carte === null) {
+            return;
+        }
+
+        $salle = Salles::indexDe((array) ($quete->carte->grille['salles'] ?? []), (int) $etat->position_x, (int) $etat->position_y);
+
+        if ($salle === null) {
+            return;
+        }
+
+        $frappants = array_values(array_filter(
+            $this->mobilier->salleDangereuseDe($quete->carte, $salle, $moment),
+            fn (array $danger) => ! MoteurMobilier::heroEpargne($danger['params'], $personnage),
+        ));
+
+        // Un héros déjà à 0 PV ne se fait plus frapper : la mort est déjà là.
+        if ($frappants === [] || (int) $personnage->fresh()->pv_body <= 0) {
+            return;
+        }
+
+        $meuble = $frappants[0];
+        $jet = $this->pieges->resoudreDesCombat(1);
+        $subis = $jet['degats'] > 0
+            ? $this->degats->infligerAHeros($personnage, $jet['degats'], MoteurDegats::SOURCE_SALLE_DANGEREUSE, ['mobilier' => $meuble['nom']])
+            : 0;
+        $pvApres = (int) $personnage->fresh()->pv_body;
+        $tombe = $pvApres === 0 && $subis > 0;
+
+        if ($tombe) {
+            $etat->update(['tombe' => true]); // C4 : occupe sa case, relevable
+        }
+
+        app(TamponAnnonces::class)->annoncer($groupe, [
+            'type' => 'salle_dangereuse',
+            'moment' => $moment,
+            'mobilier' => ['nom' => $meuble['nom'], 'x' => (int) $meuble['entree']['x'], 'y' => (int) $meuble['entree']['y']],
+            'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+            'faces' => $jet['faces'],
+            'touches' => $jet['touches'],
+            'degats' => $subis,
+            'pv_body_apres' => $pvApres,
+            'tombe' => $tombe,
+        ], ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom]);
     }
 
     /**
@@ -7998,6 +8163,77 @@ final class ResolveurTour
             'des_lances' => $desBase,
             'faces' => array_map(fn (FaceDeCombat $f) => $f->value, $faces),
             'cranes' => $cranes,
+            'reussi' => $reussi,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * PORTE À CONDITION (Kellar's Keep, F4543 p. 19 note A, p. 25 note D) : le héros au contact lance DEUX dés rouges (UN seul
+     * pour le Nain quand la condition le dit), et la porte s'ouvre si le total remplit la condition du verrou — lue SUR LA
+     * PORTE (`MoteurPortes::franchit()`, `valeurDeComparaison()`, `desPourHeros()`), jamais dans une table. Ouvrir est une
+     * interaction libre ; un jet raté ferme le tour (`$finTourPorteCondition`), « their turn ends ».
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreForcerPorteCondition(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $cible = $quete->carte === null ? null : $this->porteDesignee($option,
+            $this->portes->portesConditionAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y));
+
+        if ($cible === null) {
+            throw ValidationException::withMessages(['option_id' => 'Aucune porte à condition adjacente à forcer.']);
+        }
+
+        $x = (int) $cible['porte']['x'];
+        $y = (int) $cible['porte']['y'];
+        $cote = (string) ($cible['porte']['cote'] ?? 'e');
+        $verrou = (array) $cible['porte']['verrou'];
+
+        $des = MoteurPortes::desPourHeros($verrou, $personnage);
+        $faces = [];
+
+        for ($i = 0; $i < $des; $i++) {
+            $faces[] = $this->des->d6(); // un dé ROUGE : le d6 brut (`DeRouge`), jamais une face de combat
+        }
+
+        $total = array_sum($faces);
+        $valeur = MoteurPortes::valeurDeComparaison($verrou, $personnage);
+        $reussi = MoteurPortes::franchit($verrou, $total, $valeur);
+
+        if ($reussi) {
+            $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], 'porte_condition', $acteur);
+
+            // Comme toute ouverture de porte : la salle derrière se révèle, jamais en attendant qu'un héros y entre.
+            foreach ($this->sallesAdjacentesPorte($quete, $cible['porte']) as $salleAdjacente) {
+                $this->revelerSalle($groupe, $quete, $salleAdjacente, $personnage);
+            }
+        } else {
+            $this->finTourPorteCondition = true;
+        }
+
+        $payload = [
+            'type' => 'forcer_porte_condition',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'porte' => ['x' => $x, 'y' => $y, 'cote' => $cote],
+            'verrou' => $verrou['libelle'] ?? null,
+            'attribut' => $verrou['attribut'],
+            'comparaison' => $verrou['comparaison'],
+            'valeur' => $valeur,
+            'faces' => $faces,
+            'total' => $total,
             'reussi' => $reussi,
         ];
 
@@ -13768,7 +14004,9 @@ final class ResolveurTour
             // ton action (geste libre) » — aucun créneau n'est marqué, `marquerCreneau()` rend la main tout de suite.
             // `tunnelier` et `fouille_tresor_cache` ne sont PAS listés : ils retombent sur `action`, comme le sort
             // qu'ils reprennent et la fouille qu'ils remplacent.
-            'desarmer_embrasement', 'liberer_captif', 'defausse_sables', 'memoire_parfaite' => 'interaction',
+            // `forcer_porte_condition` (Kellar's Keep, 2026-10-23) : ouvrir une porte à condition est GRATUIT, comme
+            // `ouvrir_porte` ; c'est un jet RATÉ qui ferme le tour, par `$finTourPorteCondition`, pas le type.
+            'desarmer_embrasement', 'liberer_captif', 'defausse_sables', 'memoire_parfaite', 'forcer_porte_condition' => 'interaction',
             // `s_ecarter_du_bloc` REJOINT cette liste le 2026-09-24 : le seul
             // choix qu'un héros debout sur un bloc de pierre tombé peut encore
             // faire, et le livret dit que ce choix FERME son tour (p. 14) —

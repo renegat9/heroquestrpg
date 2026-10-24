@@ -163,6 +163,15 @@ final class MoteurDegats
     public const SOURCE_DANGER_MOBILE = 'danger_mobile';
 
     /**
+     * SALLE DANGEREUSE (2026-10-23 — la forge des nains, la fournaise) : la chaleur d'un MEUBLE qui frappe le héros qui
+     * finit son déplacement ou son tour dans sa salle. Ni un piège (une fournaise ne se déclenche pas sous les pas, elle
+     * brûle à chaque tour, et ses désamorçages sont ceux d'un piège, pas son coup), ni un coup de monstre. Hors de
+     * `ReactionEffet::SOURCES_REACTIVES` : aucune carte ne dit qu'on peut annuler la chaleur d'une forge. Lu par
+     * `ResolveurTour::salleDangereuseFrappe()`, seul producteur.
+     */
+    public const SOURCE_SALLE_DANGEREUSE = 'salle_dangereuse';
+
+    /**
      * Applique `$degats` au héros et rend ce qui a RÉELLEMENT été retiré.
      *
      * Le retour n'est pas décoratif : un écouteur peut avoir réduit le coup, et

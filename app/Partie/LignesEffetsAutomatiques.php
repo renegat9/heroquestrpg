@@ -834,4 +834,93 @@ trait LignesEffetsAutomatiques
             ? "{$acteurNom} pressent ".count($pieges)." pièges cachés tout près — {$cases} (Sens du piège ; ils restent cachés)"
             : "{$acteurNom} pressent un piège caché tout près — {$cases} (Sens du piège ; il reste caché)")];
     }
+
+    /**
+     * LA SALLE DANGEREUSE (2026-10-23) : une forge ou une fournaise qui brûle le héros qui finit son déplacement ou son
+     * tour dans sa salle. Dit QUAND (la fin du déplacement, la fin du tour), QUEL meuble, et le dé — un coup muet se
+     * prendrait pour une erreur. La phrase n'emploie aucun article devant le nom du meuble (« — Forge des nains : … »).
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function salleDangereuse(array $a): array
+    {
+        $cible = (string) ($a['personnage']['nom'] ?? 'Un héros');
+        $meuble = (string) ($a['mobilier']['nom'] ?? 'une source de chaleur');
+        $degats = (int) ($a['degats'] ?? 0);
+        $de = (int) ($a['touches'] ?? 0) > 0 ? 'le dé montre un crâne' : 'le dé ne montre aucun crâne';
+
+        $geste = ($a['moment'] ?? null) === 'fin_deplacement'
+            ? "{$cible} termine son déplacement dans une salle chauffée"
+            : "{$cible} termine son tour dans une salle chauffée";
+
+        if ($degats <= 0) {
+            return [['texte' => "{$geste} — {$meuble} : rien, {$de}", 'ton' => 'pare']];
+        }
+
+        $lignes = [['texte' => "{$geste} — {$meuble} : −{$degats} PV de Body ({$de})", 'ton' => 'subit']];
+
+        if (! empty($a['tombe'])) {
+            $lignes[] = ['texte' => "{$cible} s'effondre !", 'ton' => 'chute'];
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * LE DÉSAMORÇAGE D'UNE FOURNAISE (2026-10-23) : le même verbe que le piège (« désamorcer »), avec le jet de sa
+     * procédure réelle. Réussi, la chaleur tombe ; raté, elle reste — et le fil dit pourquoi.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function desamorcageMobilier(array $a, string $acteurNom): array
+    {
+        $meuble = (string) ($a['mobilier']['nom'] ?? 'une source de chaleur');
+        $methode = ($a['methode'] ?? null) === 'sans_outils' ? '1 dé de combat' : 'jet de Body';
+
+        if (! empty($a['succes'])) {
+            return [['texte' => "{$acteurNom} désamorce une source de chaleur ({$meuble}) — {$methode}, réussi", 'ton' => 'succes']];
+        }
+
+        return [['texte' => "{$acteurNom} rate le désamorçage ({$meuble}) — {$methode}, la chaleur reste", 'ton' => 'echec']];
+    }
+
+    /**
+     * LA PORTE À CONDITION (2026-10-23) : deux dés rouges contre la valeur du verrou (le Corps de départ, ou l'Esprit actuel).
+     * Dit le total, la condition, et — quand le jet rate — que le tour s'achève : « their turn ends » (les deux textes).
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function porteCondition(array $a, string $acteurNom): array
+    {
+        $faces = array_map('intval', (array) ($a['faces'] ?? []));
+        $des = count($faces) === 1 ? '1 dé rouge' : count($faces).' dés rouges';
+        $total = (int) ($a['total'] ?? array_sum($faces));
+        $verrou = (string) ($a['verrou'] ?? 'porte');
+        $valeur = (int) ($a['valeur'] ?? 0);
+        $condition = ($a['comparaison'] ?? null) === 'strict' ? "moins que {$valeur}" : "au plus {$valeur}";
+
+        if (! empty($a['reussi'])) {
+            return [['texte' => "{$acteurNom} ouvre la {$verrou} : {$des} font {$total}, {$condition} — elle s'ouvre", 'ton' => 'succes']];
+        }
+
+        return [['texte' => "{$acteurNom} échoue devant la {$verrou} : {$des} font {$total}, il fallait {$condition} — le tour s'achève", 'ton' => 'echec']];
+    }
+
+    /**
+     * LE TIRAGE DU MÉTAMORPHE (2026-10-23) : à chaque mort, la carte tirée au hasard. Une carte qui égale celle qui vient de
+     * tomber, c'est la mort pour de bon ; une autre, c'est sa nouvelle forme (la ligne de changement de forme la dit ensuite).
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function metamorpheTirage(array $a): array
+    {
+        $nom = (string) ($a['monstre'] ?? 'Le métamorphe');
+        $carte = (string) ($a['carte'] ?? '');
+
+        if (! empty($a['definitif'])) {
+            return [['texte' => "{$nom} reprend la forme de {$carte} : il meurt pour de bon", 'ton' => 'mort']];
+        }
+
+        return [['texte' => "{$nom} : la carte tirée est {$a['tire']}, il prend sa forme", 'ton' => 'info']];
+    }
 }

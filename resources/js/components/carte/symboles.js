@@ -126,6 +126,12 @@ export const MOBILIER_ICONES = {
     // First Light (FL-Q p. 7, Healing Hearth) : l'âtre, un bloc dressé contre le
     // mur — la silhouette du meuble haut, pas une icône de pièce ni de feu de camp.
     'Cheminée': 'fireplace',
+    // Kellar's Keep (F4543 p. 15, quête 4, note D) : la forge des nains, un marteau. Distincte du Mur de Feu et de la
+    // Fournaise ci-dessous : une salle qui brûle un héros qui y finit son déplacement (`salle_dangereuse`).
+    'Forge des nains': 'hardware',
+    // Spirit Queen's Torment (G0053 p. 31, quête 13, note A) : la fournaise, une flamme de meuble. Pas `local_fire_department`
+    // (déjà le Mur de Feu) : une chaleur qui brûle le héros qui finit son TOUR dans la salle, désamorçable comme un piège.
+    'Fournaise': 'whatshot',
 };
 export const MOBILIER_ICONE_DEFAUT = 'category';
 

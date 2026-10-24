@@ -353,3 +353,23 @@ tests ne trouvent pas — comme pour Ogre Horde.
 | Q3 | Gretzl ou Gruulob en premier : **non tranché**. | Gruulob est porté depuis le 2026-10-09 ; Gretzl reste à porter. Ne pas lire la décision ci-dessus comme une réponse à Q3. |
 
 > **Réalisé le 2026-10-15 (René)** — les quatre adversaires nommés sont PORTÉS : *Deathspinner* (sous-boss, `filet_silencieux`), *Golem Cœur-de-Forge* (sous-boss, `souffle_du_construit`), *Scion Fleur-Pourrie* (**boss final** du livret, immobile : tourelle pour l'immobilité, Vrilles, sacrifice, balayage diagonal) et *Bakabri le Cruel* (sous-boss, `tir_au_choix` + archétype `bakabri_le_cruel`). *Lightning Bolt* = Éclair de Chaos, confirmé par le livret (p. 41). `cout` mesuré au portage. Vocabulaire `App\Engine\MotsClesAdversaires` ; détail, politiques écrites et éléments non portés (la faille de la q. 14, les traits Spawn/Agile/Venomous de l'erratum pour la Deathspinner) : `docs/regles/bestiaire-et-rencontres.md`. **Seeders à rejouer** : `MonstreSeeder`, `GabaritQueteSeeder`. Migrations : aucune.
+
+## Exécution (2026-10-23) — l'erratum du Deathspinner : NON PORTÉ, source non trouvée (chantier `ext-restes`)
+
+Demande du brief : ajouter *Spawn*, *Agile* et *Venomous* à la reine du fléau, à partir de l'erratum 2021. **Recherche faite, source
+non trouvée — rien n'est ajouté**, comme le brief le prescrit (« si la source manque, n'invente rien et écris-le ») :
+
+- **F9907 p. 17** (bloc *Deathspinner the Blightqueen*, relu sur le rendu PNG, `rendu/F9907_en-us_p09.png`) : Move 6 dés · Attack 5 dés ·
+  Defend 4 dés · Body 4 · Mind 4 ; une seule capacité (*Silencing Snare*). **Aucun mot-clé imprimé.**
+- **F9907 p. 47** (table *Monsters of the Jungle*) : *Spawn. Agile. Venomous.* est la ligne du **Blightcrawler** (Rampant putride), dont
+  la figurine représente la reine (« Use the Blightcrawler miniature to represent her »). La figurine n'est pas la fiche.
+- **Cartes monstres** (`reference/20`, `drive/ennemis/ennemies.pdf`, 41 pages, scans sans couche texte, relues par image) : la carte du
+  Blightcrawler (p. 27) porte les trois mots ; **aucune carte Deathspinner**.
+- **Erratum 2021** : compilation communautaire, sans confirmation officielle (`docs/plan-errata-2021.md` §5). René l'a tranché le
+  2026-10-16 (« ces trois mots restent NON portés, faute de source officielle »). Le brief de ce jour ne reprend pas cette décision :
+  **à trancher par René**, la décision de 2026-10-16 étant la seule trace écrite d'une source.
+
+Conséquence : `reference/18_extensions.md` (ligne « l'erratum 2021 y ajoute Spawn/Agile/Venomous ») et le commentaire du seeder disent
+désormais « source non trouvée ». Aucun test ne change : la divergence est déjà nommée dans `BestiaireSourceTest`.
+
+**Migrations et seeders** : aucun.
