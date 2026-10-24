@@ -182,6 +182,11 @@ export const DANGER_ICONE = 'hexagon';
  * plein pour un losange — cf. DungeonGrid.vue). On teinte donc la case
  * elle-même plutôt que de poser un symbole dessus.
  *
+ * Depuis le 2026-10-24 (symboles des livrets, René : « les vrais symboles des livrets à la place des icônes »), la case
+ * porte AUSSI son PICTOGRAMME, centré : `symbole_url`, publié par le serveur sur l'ancre d'une plaque ou sur une case
+ * isolée. La teinte reste ce qui se lit de loin ; le pictogramme dit DE QUEL terrain il s'agit. Il ne remplace jamais la
+ * teinte, et ne se pose jamais sur une figurine. Sans `symbole_url`, la case est celle d'avant.
+ *
  * Trois catégories, pas sept teintes : le vocabulaire d'EFFET compte sept
  * terrains, mais le joueur n'a besoin de distinguer que trois RISQUES —
  * `danger` (jet de dé de combat exigé au contact ou par tour : Glace
@@ -230,7 +235,8 @@ export const TERRAIN_TEINTE_DEFAUT = 'decor';
  * teinte couvre chaque case, et une seule icône, posée sur la case d'ancre que le SERVEUR désigne (`carte.terrain[].ancre`),
  * porte le nom du terrain. Pas une icône par case : « pas quatre icônes répétées pour une mare ».
  *
- * Les terrains absents de cette table n'ont pas de plaque (une case isolée, comme avant) : `SymbolesCarteTest` confronte
+ * Les terrains absents de cette table n'ont pas d'icône de repli de plaque. Une case isolée (sans groupe) n'en a pas non
+ * plus, et n'affiche rien là où le serveur ne lui publie pas de pictogramme (`symbole_url`). `SymbolesCarteTest` confronte
  * cette table aux terrains à groupe, dans les deux sens.
  */
 export const TERRAIN_ICONES = {

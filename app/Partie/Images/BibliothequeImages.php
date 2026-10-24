@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Partie\Images;
 
 use App\Partie\Audio\BanqueBarks;
+use App\Partie\MoteurDanger;
+use App\Partie\MoteurPieges;
+use App\Partie\MoteurPortes;
 use Illuminate\Support\Str;
 
 /**
@@ -247,6 +250,112 @@ final class BibliothequeImages
         return $largeur > $hauteur
             ? "{$multiple} plus large que haut : son côté le plus long est HORIZONTAL dans l'image, de gauche à droite"
             : "{$multiple} plus haut que large : son côté le plus long est VERTICAL dans l'image, du haut vers le bas";
+    }
+
+    // ---- Symboles de livret : le PICTOGRAMME de chaque case (chantier symboles, 2026-10-24) ----
+
+    /**
+     * Les familles de la carte qui portent un symbole de livret : un dossier par famille sous
+     * `public/images/livrets/`. FERMÉ — un type absent d'ici n'a pas de dossier, donc pas de symbole.
+     * `monstres` viendra en phase 2 (la figurine d'un monstre n'est pas une case de carte).
+     */
+    public const TYPES_SYMBOLE = ['mobiliers', 'terrains', 'pieges', 'portes', 'leviers', 'escalier', 'dangers'];
+
+    /** Clé de la porte de pierre encore fermée (`verrou.type` = `pierre` sur une porte `fermee`). */
+    private const SYMBOLE_PORTE_PIERRE = 'verrou_pierre';
+
+    /**
+     * SYMBOLE DE LIVRET — le pictogramme officiel d'une case, tel qu'il est imprimé sur le livret de quête (René,
+     * 2026-10-24 : « les vrais symboles des livrets à la place des icônes »).
+     *
+     * Un symbole n'est PAS une illustration. Il se dessine SUR la carte, dans la silhouette de sa famille ; l'illustration
+     * reste dans la légende et l'aperçu de salle. Les fichiers vivent DANS le dépôt (René, 2026-10-24), mais le repli reste
+     * obligatoire : le jeu doit rester lisible sans eux.
+     *
+     * ⚠ Absence = `null`, JAMAIS un emblème SVG : `null` veut dire « garde l'icône Material Symbols ». Un emblème ici
+     * prétendrait « symbole manquant » là où aucun n'était attendu, et masquerait l'icône.
+     * ⚠ Le nom du fichier est `Str::slug()` de la clé, comme pour tout le reste de la bibliothèque : `verrou_pierre` se lit
+     * donc dans `verrou-pierre.webp`. Un fichier au nom littéral ne serait jamais servi.
+     * ⚠ Seul le `.webp` est servi : c'est le jumeau que le jeu affiche, un `.png` seul rend `null`.
+     */
+    public function urlSymboleLivret(string $type, string $cle): ?string
+    {
+        $cle = trim($cle);
+
+        if ($cle === '' || ! in_array($type, self::TYPES_SYMBOLE, true)) {
+            return null;
+        }
+
+        $relatif = "livrets/{$type}/".self::slug($cle).'.webp';
+
+        return is_file(public_path("images/{$relatif}")) ? "/images/{$relatif}" : null;
+    }
+
+    /** Mobilier : le symbole du NOM de catalogue (`Forge des nains` → `forge-des-nains`). */
+    public function urlSymboleMobilier(?string $nom): ?string
+    {
+        return $nom === null ? null : $this->urlSymboleLivret('mobiliers', $nom);
+    }
+
+    /**
+     * Terrain : le symbole du NOM de catalogue. Le choix de la case qui le porte (l'ancre d'une plaque, ou une case isolée)
+     * n'est PAS ici : il est décidé par `EtatGroupe::terrain()`, où les ancres sont connues.
+     */
+    public function urlSymboleTerrain(?string $nom): ?string
+    {
+        return $nom === null ? null : $this->urlSymboleLivret('terrains', $nom);
+    }
+
+    /**
+     * Piège : le symbole de son nom, dans les trois états où une ICÔNE se lit sur la case — détecté, désarmé, retenu par
+     * des lianes. Un trou ouvert, une mare d'acide ou un bloc tombé n'en portent pas : la silhouette (trou, bloc) EST la
+     * case, et le client n'affiche aucun glyphe pour ces états. Publier un symbole là serait une clé décorative.
+     */
+    public function urlSymbolePiege(?string $nom, string $etat): ?string
+    {
+        if ($nom === null || ! in_array($etat, [MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_DESARME, MoteurPieges::ETAT_RETIENT], true)) {
+            return null;
+        }
+
+        return $this->urlSymboleLivret('pieges', $nom);
+    }
+
+    /**
+     * Danger mobile : le symbole de son nom TANT QU'IL ROULE. Un rocher arrêté est un bloc plein, obstacle permanent, sans
+     * symbole — exactement comme la Chute de blocs déclenchée.
+     */
+    public function urlSymboleDanger(?string $nom, string $etat): ?string
+    {
+        if ($nom === null || $etat === MoteurDanger::ETAT_BLOC) {
+            return null;
+        }
+
+        return $this->urlSymboleLivret('dangers', $nom);
+    }
+
+    /**
+     * Porte : le symbole de son ÉTAT, une image par état comme `urlPorte()`. La porte de pierre encore fermée a le sien
+     * (`verrou_pierre`) : une fois forcée, elle n'est plus qu'une porte ouverte.
+     */
+    public function urlSymbolePorte(string $etat, ?string $verrou): ?string
+    {
+        $cle = $etat === MoteurPortes::ETAT_FERMEE && $verrou === MoteurPortes::VERROU_PIERRE
+            ? self::SYMBOLE_PORTE_PIERRE
+            : $etat;
+
+        return $this->urlSymboleLivret('portes', $cle);
+    }
+
+    /** Levier : un libellé fixe, puisqu'il n'a pas de table de catalogue (comme `urlLevier()`). */
+    public function urlSymboleLevier(): ?string
+    {
+        return $this->urlSymboleLivret('leviers', 'levier');
+    }
+
+    /** Escalier d'entrée : un libellé fixe, comme `urlSymboleLevier()`. */
+    public function urlSymboleEscalier(): ?string
+    {
+        return $this->urlSymboleLivret('escalier', 'escalier');
     }
 
     // ---- Dynamique (jobs / cache) ----------------------------------------

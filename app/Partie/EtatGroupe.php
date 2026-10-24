@@ -484,7 +484,11 @@ final class EtatGroupe
             'glace' => $this->glace($carte, $cases),
             // DANGERS MOBILES AUTONOMES (2026-10-23) : rocher roulant et brume de la mort, couche `cartes.grille['dangers']`,
             // filtrée par le brouillard (`MoteurDanger::publier()`). Un danger en attente n'est jamais publié.
-            'dangers' => app(MoteurDanger::class)->publier($carte, $cases),
+            // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme du rocher ou de la brume TANT QU'IL ROULE (`urlSymboleDanger`).
+            'dangers' => array_map(
+                fn (array $danger) => [...$danger, 'symbole_url' => app(BibliothequeImages::class)->urlSymboleDanger($danger['nom'], $danger['etat'])],
+                app(MoteurDanger::class)->publier($carte, $cases),
+            ),
             // VOILE D'OMBRE (*Cloak of Shadows*, Wizards of Morcar, 2026-10-08) :
             // couche DÉDIÉE `carte.grille['ombre']`, posée en cours de quête par un
             // sort de héros. Un rectangle par voile avec son COMPTEUR de jetons
@@ -734,6 +738,9 @@ final class EtatGroupe
                     $porte['verrou'] = (string) $p['verrou']['type'];
                 }
 
+                // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme de l'ÉTAT de la porte, la porte de pierre fermée ayant le sien.
+                $porte['symbole_url'] = app(BibliothequeImages::class)->urlSymbolePorte($porte['etat'], $porte['verrou'] ?? null);
+
                 return $porte;
             })
             ->values()
@@ -781,6 +788,8 @@ final class EtatGroupe
                 'etat' => (string) $entree['etat'],
                 'nom' => $noms[$entree['piege_id']] ?? 'Piège',
                 'image_url' => $biblio->urlPiege($entree['piege_id'] ?? null, $noms[$entree['piege_id']] ?? 'Piège'),
+                // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme de son nom, dans les seuls états où une icône se lit (`urlSymbolePiege`).
+                'symbole_url' => $biblio->urlSymbolePiege($noms[$entree['piege_id']] ?? null, (string) $entree['etat']),
                 // LAME BALANÇOIRE (Against the Ogre Horde p. 4-5) : les cases
                 // de la zone, publiées UNIQUEMENT une fois le piège lui-même
                 // connu (même garde que `$connus` ci-dessus) — jamais avant,
@@ -865,6 +874,8 @@ final class EtatGroupe
                     // illustration publiée (2026-08-27), alors qu'une pièce se
                     // fouille et se fracasse comme un piège se désamorce.
                     'image_url' => app(BibliothequeImages::class)->urlMobilier($type?->id, $type?->nom),
+                    // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme du meuble, sur son emprise (`l`×`h`).
+                    'symbole_url' => app(BibliothequeImages::class)->urlSymboleMobilier($type?->nom),
                 ];
             })
             ->values()
@@ -925,6 +936,8 @@ final class EtatGroupe
                 // il est re-validé : il n'a jamais eu besoin du client.
                 'difficulte' => DifficulteBody::plafonnee($quete, (int) ($l['difficulte'] ?? 2)),
                 'image_url' => app(BibliothequeImages::class)->urlLevier(),
+                // SYMBOLE DE LIVRET (2026-10-24) : l'octogone du levier porte son pictogramme.
+                'symbole_url' => app(BibliothequeImages::class)->urlSymboleLevier(),
             ])
             ->values()
             ->all();
@@ -982,7 +995,11 @@ final class EtatGroupe
         for ($dy = 0; $dy < $h; $dy++) {
             for ($dx = 0; $dx < $l; $dx++) {
                 if (($cases[(int) $bloc['y'] + $dy][(int) $bloc['x'] + $dx] ?? 'b') !== 'b') {
-                    return ['x' => (int) $bloc['x'], 'y' => (int) $bloc['y'], 'l' => $l, 'h' => $h];
+                    // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme de l'escalier, posé sur son emprise 2×2.
+                    return [
+                        'x' => (int) $bloc['x'], 'y' => (int) $bloc['y'], 'l' => $l, 'h' => $h,
+                        'symbole_url' => app(BibliothequeImages::class)->urlSymboleEscalier(),
+                    ];
                 }
             }
         }
@@ -1048,7 +1065,17 @@ final class EtatGroupe
             ->values()
             ->all();
 
-        return $this->marquerAncresDePlaques($entrees);
+        // SYMBOLE DE LIVRET (2026-10-24) : une plaque porte son pictogramme sur son ANCRE seulement — une icône par groupe,
+        // comme `TERRAIN_ICONES` — et une case isolée (sans groupe) porte le sien. Les autres cases de la plaque : `null`.
+        // Le choix se fait ici, où les ancres sont connues, et nulle part côté client.
+        $biblio = app(BibliothequeImages::class);
+
+        return array_map(
+            fn (array $entree) => [...$entree, 'symbole_url' => ($entree['groupe_id'] === null || $entree['ancre'])
+                ? $biblio->urlSymboleTerrain($entree['nom'])
+                : null],
+            $this->marquerAncresDePlaques($entrees),
+        );
     }
 
     /**

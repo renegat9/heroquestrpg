@@ -24,10 +24,11 @@
 import { computed, ref } from 'vue';
 import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
+import SymboleCarte from './SymboleCarte.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
-    TERRAIN_TEINTE_DEFAUT, TERRAIN_ICONES, GLACE_ICONE, ESCALIER_ICONE, OMBRE_ICONE, DANGER_ICONE, icone,
+    TERRAIN_TEINTE_DEFAUT, TERRAIN_ICONES, TERRAIN_ICONE_DEFAUT, GLACE_ICONE, ESCALIER_ICONE, OMBRE_ICONE, DANGER_ICONE, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -45,10 +46,16 @@ const parNom = (liste) => Object.values((liste ?? []).reduce((acc, e) => {
     return acc;
 }, {}));
 
+// SYMBOLE D'UN NOM (symboles des livrets, 2026-10-24) : le pictogramme de la PREMIÈRE entrée de ce nom qui en porte un.
+// Pas celui de la première entrée tout court : une plaque ne porte son symbole que sur son ancre, un piège détecté a le sien
+// là où un trou ouvert ne l'a pas. Sans symbole, `null` : la ligne garde sa pastille d'icône, comme avant.
+const symboleDe = (liste, nom) => (liste ?? []).find((e) => e.nom === nom && e.symbole_url)?.symbole_url ?? null;
+
 const pieges = computed(() => parNom(props.carte?.pieges).map((p) => ({
     nom: p.nom,
     ic: icone(PIEGE_ICONES, p.nom, PIEGE_ICONE_DEFAUT),
     img: p.image_url ?? null,
+    symbole: symboleDe(props.carte?.pieges, p.nom),
 })));
 
 const epreuves = computed(() => parNom(props.carte?.epreuves).map((e) => ({
@@ -63,6 +70,7 @@ const meubles = computed(() => parNom(props.carte?.mobilier).map((m) => ({
     nom: m.nom,
     ic: icone(MOBILIER_ICONES, m.nom, MOBILIER_ICONE_DEFAUT),
     img: m.image_url ?? null,
+    symbole: symboleDe(props.carte?.mobilier, m.nom),
     detail: [
         m.bloque_mouvement !== false ? 'bloque le passage' : 'se franchit',
         m.bloque_vue === true ? 'bloque la vue' : 'on voit par-dessus',
@@ -70,6 +78,8 @@ const meubles = computed(() => parNom(props.carte?.mobilier).map((m) => ({
 })));
 
 const leviers = computed(() => (props.carte?.leviers ?? []).length);
+// Le levier n'a qu'une ligne : son pictogramme est celui de la première pose qui en porte un.
+const symboleLevier = computed(() => (props.carte?.leviers ?? []).find((l) => l.symbole_url)?.symbole_url ?? null);
 
 // ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05) : `null` sur une
 // carte assemblée avant ce chantier (campagne en cours) — la légende ne
@@ -81,6 +91,8 @@ const escalier = computed(() => props.carte?.escalier ?? null);
 // céder ne dit pas au groupe si s'acharner vaut le coup.
 const glace = computed(() => (props.carte?.glace ?? []).length);
 const dangers = computed(() => (props.carte?.dangers ?? []).length);
+// Les dangers ont une seule ligne : son pictogramme est celui du premier danger qui roule et en porte un (un rocher arrêté n'en a pas).
+const symboleDanger = computed(() => (props.carte?.dangers ?? []).find((d) => d.symbole_url)?.symbole_url ?? null);
 
 // Voiles d'ombre (*Cloak of Shadows*) : la légende dit ce que la zone FAIT et
 // combien de jetons il reste au plus entamé — un voile qui s'amincit sans qu'on
@@ -107,6 +119,10 @@ const terrains = computed(() => parNom(props.carte?.terrain).map((t) => ({
     // n'en a pas : `null`, et la vignette garde son emblème.
     icone: icone(TERRAIN_ICONES, t.nom, null),
     img: t.image_url ?? null,
+    // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme posé sur la teinte, comme sur la carte (plaque : sur l'ancre ; case
+    // isolée : sur la case). Son icône de repli est celle de la plaque, jamais `null` à ce stade.
+    symbole: symboleDe(props.carte?.terrain, t.nom),
+    iconeSymbole: icone(TERRAIN_ICONES, t.nom, TERRAIN_ICONE_DEFAUT),
     // Le texte DÉCIDÉ par le serveur (`carte.terrain[].avantages`) prime ; le tableau local
     // ne sert plus que de repli à un serveur plus ancien.
     avantages: Array.isArray(t.avantages) && t.avantages.length ? t.avantages.join(' · ') : null,
@@ -137,6 +153,13 @@ const PORTES = [
     ['secrete', 'Passage secret révélé par une fouille'],
 ];
 const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? []).some((p) => p.etat === etat)));
+
+// Le pictogramme d'une ligne de porte : celui de la première porte de cet ÉTAT qui en porte un. La porte de pierre FERMÉE a
+// le sien (`verrou_pierre`, publié par le serveur) : il ne doit pas prêter son dessin à la ligne « Fermée ». Une porte de
+// pierre forcée n'est plus qu'une ouverte, et prend le pictogramme de l'ouverte.
+const estPierreFermee = (p) => p.etat === 'fermee' && p.verrou === 'pierre';
+const symbolePorte = (etat, pierre = false) => (props.carte?.portes ?? [])
+    .find((p) => p.etat === etat && estPierreFermee(p) === pierre && p.symbole_url)?.symbole_url ?? null;
 
 // PORTE DE PIERRE (Against the Ogre Horde p. 4, lot B) : `etat` reste `fermee`
 // (ouvrable à main nue ailleurs), seul `verrou === 'pierre'` la distingue —
@@ -170,10 +193,13 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
             <section v-if="portes.length" class="lg-sect">
                 <div class="lg-sous">Portes</div>
                 <div v-for="[etat, texte] in portes" :key="etat" class="lg-ligne">
-                    <span class="lg-chip lg-porte" :class="etat" /><span>{{ texte }}</span>
+                    <span v-if="symbolePorte(etat)" class="lg-chip lg-symbole lg-symbole-porte"><SymboleCarte :url="symbolePorte(etat)" :icone="etat === 'verrouillee' ? 'lock' : 'door_front'" nom="Porte" /></span>
+                    <span v-else class="lg-chip lg-porte" :class="etat" />
+                    <span>{{ texte }}</span>
                 </div>
                 <div v-if="portePierre" class="lg-ligne">
-                    <span class="lg-chip lg-porte pierre" />
+                    <span v-if="symbolePorte('fermee', true)" class="lg-chip lg-symbole lg-symbole-porte"><SymboleCarte :url="symbolePorte('fermee', true)" icone="construction" nom="Porte de pierre" /></span>
+                    <span v-else class="lg-chip lg-porte pierre" />
                     <span>Porte de pierre — un héros lançant ≥ 2 dés d'attaque de base peut la forcer (2 crânes)</span>
                 </div>
             </section>
@@ -181,7 +207,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
             <section v-if="pieges.length" class="lg-sect">
                 <div class="lg-sous">Pièges</div>
                 <div v-for="p in pieges" :key="p.nom" class="lg-ligne">
-                    <span class="lg-chip lg-piege"><MSym :n="p.ic" fill /></span>
+                    <span class="lg-chip lg-piege" :class="{ 'lg-symbole': p.symbole }"><SymboleCarte :url="p.symbole" :icone="p.ic" :nom="p.nom" /></span>
                     <Vignette class="lg-img" :src="p.img" :icon="p.ic" fill />
                     <span>{{ p.nom }}</span>
                 </div>
@@ -207,7 +233,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
             <section v-if="leviers" class="lg-sect">
                 <div class="lg-sous">Leviers</div>
                 <div class="lg-ligne">
-                    <span class="lg-chip lg-levier"><MSym :n="LEVIER_ICONE" fill /></span>
+                    <span class="lg-chip lg-levier" :class="{ 'lg-symbole': symboleLevier }"><SymboleCarte :url="symboleLevier" :icone="LEVIER_ICONE" nom="Levier" /></span>
                     <span>Ouvre une porte verrouillée — jet de Body, retentable sans limite</span>
                 </div>
             </section>
@@ -215,7 +241,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
             <section v-if="escalier" class="lg-sect">
                 <div class="lg-sous">Escalier d'entrée</div>
                 <div class="lg-ligne">
-                    <span class="lg-chip lg-escalier"><MSym :n="ESCALIER_ICONE" fill /></span>
+                    <span class="lg-chip lg-escalier" :class="{ 'lg-symbole': escalier.symbole_url }"><SymboleCarte :url="escalier.symbole_url" :icone="ESCALIER_ICONE" nom="Escalier d'entrée" /></span>
                     <span>On commence et on finit la quête ici — « Quitter le donjon » n'est proposé qu'à son contact</span>
                 </div>
             </section>
@@ -223,7 +249,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
             <section v-if="dangers" class="lg-sect">
                 <div class="lg-sous">Dangers mobiles</div>
                 <div class="lg-ligne">
-                    <span class="lg-chip lg-danger"><MSym :n="DANGER_ICONE" fill /></span>
+                    <span class="lg-chip lg-danger" :class="{ 'lg-symbole': symboleDanger }"><SymboleCarte :url="symboleDanger" :icone="DANGER_ICONE" nom="Danger mobile" /></span>
                     <span>Avance à chaque tour du MJ et blesse les héros qu'il traverse — arrêté, il barre le passage (bloc plein)</span>
                 </div>
             </section>
@@ -251,7 +277,8 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
             <section v-if="terrains.length" class="lg-sect">
                 <div class="lg-sous">Terrain</div>
                 <div v-for="t in terrains" :key="t.nom" class="lg-ligne">
-                    <span class="lg-chip lg-terrain" :class="`cat-${t.categorie}`" />
+                    <span v-if="t.symbole" class="lg-chip lg-terrain lg-symbole" :class="`cat-${t.categorie}`"><SymboleCarte :url="t.symbole" :icone="t.iconeSymbole" :nom="t.nom" /></span>
+                    <span v-else class="lg-chip lg-terrain" :class="`cat-${t.categorie}`" />
                     <Vignette class="lg-img" :src="t.img" :icon="t.icone ?? 'ac_unit'" fill />
                     <span>{{ t.nom }} <em>— {{ t.avantages ?? TERRAIN_DETAILS[t.categorie] }}</em></span>
                 </div>
@@ -260,7 +287,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
             <section v-if="meubles.length" class="lg-sect">
                 <div class="lg-sous">Mobilier</div>
                 <div v-for="m in meubles" :key="m.nom" class="lg-ligne">
-                    <span class="lg-chip lg-meuble"><MSym :n="m.ic" fill /></span>
+                    <span class="lg-chip lg-meuble" :class="{ 'lg-symbole': m.symbole }"><SymboleCarte :url="m.symbole" :icone="m.ic" :nom="m.nom" /></span>
                     <Vignette class="lg-img" :src="m.img" :icon="m.ic" fill />
                     <span>{{ m.nom }} <em>— {{ m.detail }}</em></span>
                 </div>
@@ -312,6 +339,12 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 
 .lg-chip { flex: none; width: 18px; height: 18px; display: grid; place-items: center; margin-top: 1px; }
 .lg-chip .msym { font-size: 12px; }
+
+/* SYMBOLE DE LIVRET (2026-10-24) : la pastille s'agrandit, pour que le pictogramme (80 % d'elle) reste lisible à côté de
+   l'illustration. Sans symbole, ces règles ne s'appliquent pas et la pastille est celle d'avant. */
+.lg-chip.lg-symbole { width: 24px; height: 24px; }
+/* Une porte n'a pas de pastille de famille (ses états se disent par des barres) : son pictogramme se pose sur un fond sombre. */
+.lg-chip.lg-symbole-porte { background: var(--stone-850); box-shadow: inset 0 0 0 1px oklch(0.4 0.02 255 / 0.5); }
 
 .lg-fig { border-radius: 50%; }
 .lg-fig.heros { background: oklch(0.45 0.06 255); box-shadow: 0 0 0 2px var(--gold); }

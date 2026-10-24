@@ -13,6 +13,7 @@
 import { computed, ref, watch } from 'vue';
 import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
+import SymboleCarte from './SymboleCarte.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, BLOC_ICONE,
@@ -40,7 +41,9 @@ const ouvert = ref(false);
 // 2026-09-24) manquait aux DEUX copies : la première trouvée en capture
 // d'écran (le bloc de pierre n'apparaissait ni sur la carte ni dans cet
 // aperçu de salle), la seconde par grep une fois le défaut nommé.
-const PIEGE_ETATS = { detecte: 'détecté', fosse_ouverte: 'fosse ouverte', mare_acide: "mare d'acide", desarme: 'désarmé', declenche: 'déclenché', bloc: 'bloc de pierre' };
+// `retient` (lianes qui tiennent un héros, Jungles of Delthrak) manquait ici comme dans `store/game.js` : le héros immobilisé
+// n'apparaissait dans aucune liste de l'aperçu. Corrigé 2026-10-24, avec les symboles de livret.
+const PIEGE_ETATS = { detecte: 'détecté', fosse_ouverte: 'fosse ouverte', mare_acide: "mare d'acide", desarme: 'désarmé', declenche: 'déclenché', bloc: 'bloc de pierre', retient: 'retient un héros' };
 const PORTE_ETATS = { ouverte: 'ouverte', fermee: 'fermée', verrouillee: 'verrouillée', secrete: 'secrète' };
 const PORTE_VERROUS = {
     cle: 'clé requise', monstres_vaincus: 'gardien à vaincre', levier: 'levier à actionner',
@@ -112,6 +115,8 @@ const meubles = computed(() => (props.carte?.mobilier ?? [])
         nom: m.nom,
         img: m.image_url ?? null,
         ic: icone(MOBILIER_ICONES, m.nom, MOBILIER_ICONE_DEFAUT),
+        // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme du meuble, à côté de son illustration (il ne la remplace pas).
+        symbole: m.symbole_url ?? null,
         detail: [
             m.bloque_mouvement !== false ? 'bloque le passage' : 'se franchit',
             m.bloque_vue === true ? 'bloque la vue' : 'on voit par-dessus',
@@ -139,6 +144,8 @@ const pieges = computed(() => (props.carte?.pieges ?? [])
         // `bloc` (Chute de blocs déclenchée) prend l'icône du BLOC, pas celle
         // du piège d'origine — même distinction, même raison que DungeonGrid.
         ic: p.etat === 'bloc' ? BLOC_ICONE : icone(PIEGE_ICONES, p.nom, PIEGE_ICONE_DEFAUT),
+        // Le symbole décidé par le serveur (`null` dans les états sans icône, un bloc tombé compris).
+        symbole: p.symbole_url ?? null,
         detail: PIEGE_ETATS[p.etat],
     })));
 
@@ -149,6 +156,7 @@ const leviers = computed(() => (props.carte?.leviers ?? [])
         nom: 'Levier',
         img: l.image_url ?? null,
         ic: LEVIER_ICONE,
+        symbole: l.symbole_url ?? null,
         detail: `jet de Body, difficulté ${l.difficulte ?? 2}`,
     })));
 
@@ -183,6 +191,8 @@ const issues = computed(() => (props.carte?.portes ?? [])
         cle: `d-${d.x}-${d.y}-${d.cote}`,
         etat: d.etat,
         img: d.image_url ?? null,
+        // Le pictogramme de l'ÉTAT (la porte de pierre fermée a le sien, publié par le serveur) ; son repli, l'icône d'une porte.
+        symbole: d.symbole_url ?? null,
         libelle: `Porte ${PORTE_ETATS[d.etat]}`,
         verrou: d.verrou ? (PORTE_VERROUS[d.verrou] ?? d.verrou) : null,
     })));
@@ -237,7 +247,7 @@ const vide = computed(() => figures.value.length <= 1 && meubles.value.length ==
                     <div class="ap-sous">Mobilier</div>
                     <div v-for="m in meubles" :key="m.cle" class="ap-ligne">
                         <Vignette class="ap-img" :src="m.img" :icon="m.ic" fill />
-                        <span class="ap-txt"><b>{{ m.nom }}</b><small>{{ m.detail }}</small></span>
+                        <span class="ap-txt"><b><span v-if="m.symbole" class="ap-symbole"><SymboleCarte :url="m.symbole" :icone="m.ic" :nom="m.nom" /></span>{{ m.nom }}</b><small>{{ m.detail }}</small></span>
                     </div>
                 </section>
 
@@ -257,7 +267,7 @@ const vide = computed(() => figures.value.length <= 1 && meubles.value.length ==
                     <div class="ap-sous">Pièges</div>
                     <div v-for="p in pieges" :key="p.cle" class="ap-ligne">
                         <Vignette class="ap-img" :src="p.img" :icon="p.ic" fill />
-                        <span class="ap-txt"><b>{{ p.nom }}</b><small>{{ p.detail }}</small></span>
+                        <span class="ap-txt"><b><span v-if="p.symbole" class="ap-symbole"><SymboleCarte :url="p.symbole" :icone="p.ic" :nom="p.nom" /></span>{{ p.nom }}</b><small>{{ p.detail }}</small></span>
                     </div>
                 </section>
 
@@ -265,7 +275,7 @@ const vide = computed(() => figures.value.length <= 1 && meubles.value.length ==
                     <div class="ap-sous">Mécanismes</div>
                     <div v-for="l in leviers" :key="l.cle" class="ap-ligne">
                         <Vignette class="ap-img" :src="l.img" :icon="l.ic" fill />
-                        <span class="ap-txt"><b>{{ l.nom }}</b><small>{{ l.detail }}</small></span>
+                        <span class="ap-txt"><b><span v-if="l.symbole" class="ap-symbole"><SymboleCarte :url="l.symbole" :icone="l.ic" :nom="l.nom" /></span>{{ l.nom }}</b><small>{{ l.detail }}</small></span>
                     </div>
                 </section>
 
@@ -274,7 +284,7 @@ const vide = computed(() => figures.value.length <= 1 && meubles.value.length ==
                     <div class="ap-ligne">
                         <Vignette class="ap-img" :icon="ESCALIER_ICONE" fill />
                         <span class="ap-txt">
-                            <b>Escalier</b>
+                            <b><span v-if="escalier.symbole_url" class="ap-symbole"><SymboleCarte :url="escalier.symbole_url" :icone="ESCALIER_ICONE" nom="Escalier d'entrée" /></span>Escalier</b>
                             <small>On commence et on finit la quête ici — « Quitter le donjon » n'est proposé qu'à son contact</small>
                         </span>
                     </div>
@@ -285,7 +295,7 @@ const vide = computed(() => figures.value.length <= 1 && meubles.value.length ==
                     <div v-for="d in issues" :key="d.cle" class="ap-ligne">
                         <Vignette class="ap-img" :src="d.img" icon="door_front" fill />
                         <span class="ap-txt">
-                            <b>{{ d.libelle }}</b>
+                            <b><span v-if="d.symbole" class="ap-symbole"><SymboleCarte :url="d.symbole" icone="door_front" :nom="d.libelle" /></span>{{ d.libelle }}</b>
                             <small v-if="d.verrou">{{ d.verrou }}</small>
                             <!-- La barre reprend la couleur du battant sur la
                                  carte : l'illustration dit CE QUE C'EST, la
@@ -346,6 +356,10 @@ const vide = computed(() => figures.value.length <= 1 && meubles.value.length ==
 .ap-txt small { color: var(--ink-400); font-size: 12.5px; }
 .ap-txt i { color: var(--ink-500); font-family: var(--font-narr); font-size: 12.5px; margin-top: 4px; }
 .ap-tour { color: var(--torch); font-size: 17px; }
+/* SYMBOLE DE LIVRET (2026-10-24) : le pictogramme, à côté du nom — l'illustration reste dans la vignette, jamais à sa place.
+   Sans symbole, la ligne est celle d'avant. */
+.ap-symbole { flex: none; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 5px;
+  background: var(--stone-850); box-shadow: inset 0 0 0 1px oklch(0.4 0.02 255 / 0.5); }
 
 .ap-chip { display: block; width: 72px; height: 6px; margin-top: 5px; border-radius: 2px;
   background: linear-gradient(90deg, #d8a23a, #7a531d); }

@@ -83,9 +83,10 @@ proposition du MJ. » quand ce n'est pas son tour.
                                 "texte": "Effet en jeu — Les gobelins de Gruulob : tous les gobelins de cette quête lancent 1 dé d'attaque de plus."}],
             "image_url": "/img/.../....webp|null"} ,
   "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","b"]],
-            "escalier": {"x": 2, "y": 2, "l": 2, "h": 2},
+            "escalier": {"x": 2, "y": 2, "l": 2, "h": 2, "symbole_url": "/images/livrets/escalier/escalier.webp|null"},
             "portes": [{"x": 4, "y": 3, "cote": "e|s", "etat": "fermee|ouverte|verrouillee|secrete",
-                        "embrasure": {"x": 5, "y": 3}, "verrou": "cle|monstres_vaincus|levier"}]},
+                        "embrasure": {"x": 5, "y": 3}, "verrou": "cle|monstres_vaincus|levier",
+                        "symbole_url": "/images/livrets/portes/fermee.webp|null"}]},
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
      "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false, "en_choc": false,
@@ -2469,6 +2470,19 @@ légende tenue à part se périme au premier symbole ajouté, et ment alors avec
 l'autorité d'une légende. `SymbolesCarteTest` confronte la table au catalogue dans
 les **deux sens** (pièges, épreuves, mobilier) et vérifie que les deux composants
 importent bien le même fichier.
+
+**Symboles de livret — le pictogramme officiel de chaque case** (chantier symboles, René, 2026-10-24 : « les vrais symboles des livrets à la place des icônes »). Chaque famille de la carte peut afficher le PICTOGRAMME imprimé sur le livret de quête, à la place de l'icône Material Symbols. Le serveur publie `symbole_url` (`string|null`, **toujours présent**, `null` par défaut) sur :
+- `carte.mobilier[]` : chaque meuble, d'après son nom de catalogue ;
+- `carte.terrain[]` : **une plaque** (bloc ou motif) porte son symbole sur son **ancre** seulement (une icône par groupe, comme `TERRAIN_ICONES`) ; les autres cases de la plaque portent `null` ; **une case isolée** (sans `groupe_id`) porte le sien ;
+- `carte.pieges[]` : les états `detecte`, `desarme` et `retient` seulement. Un trou ouvert (`fosse_ouverte`), une mare d'acide et un bloc tombé se dessinent sans symbole : la silhouette EST la case ;
+- `carte.portes[]` : par ÉTAT — `fermee`, `ouverte`, `verrouillee`, `secrete`, et `verrou_pierre` pour une porte de pierre encore fermée (une porte de pierre forcée n'est plus qu'une `ouverte`) ;
+- `carte.leviers[]` ;
+- `carte.escalier` : l'objet entier, `null` s'il n'y en a pas ;
+- `carte.dangers[]` : les états `roule` et `actif` seulement. Un rocher arrêté (`bloc`) est un bloc plein, sans symbole, comme la Chute de blocs.
+
+Un fichier par symbole : `public/images/livrets/{type}/{slug}.webp`, `{type}` ∈ `mobiliers`, `terrains`, `pieges`, `portes`, `leviers`, `escalier`, `dangers` (`BibliothequeImages::TYPES_SYMBOLE`, fermé), `{slug}` = `Str::slug()` de la clé : le nom de catalogue (`Forge des nains` → `forge-des-nains`) ou le libellé fixe (`portes/verrou-pierre.webp`, `leviers/levier.webp`, `escalier/escalier.webp`). Seul le `.webp` est servi. **Les symboles sont DANS le dépôt** (René, 2026-10-24) ; le repli reste obligatoire : sans fichier, `symbole_url` vaut `null` et le client garde l'icône d'aujourd'hui — jamais un emblème SVG, qui prétendrait « symbole manquant » là où aucun n'était attendu.
+
+Le client **ne compose aucune URL** : il dessine la `symbole_url` reçue sur la case, ou sur l'étendue (`etendue`) que le serveur désigne pour une plaque. ⚠ Un symbole est un **pictogramme** : il se pose SUR la carte, à l'intérieur de la silhouette de sa famille. Une **illustration** (`image_url`) est une image peinte : elle reste dans la LÉGENDE et l'aperçu de salle, à côté du symbole, jamais à sa place. Hors phase 1, sans symbole : épreuves, mur de glace, voile d'ombre, monstres.
 
 **Le bouton « i »** ouvre la légende sur les deux écrans (coin de la carte à la
 table, en-tête de la feuille de déplacement sur la manette). Elle ne liste que ce

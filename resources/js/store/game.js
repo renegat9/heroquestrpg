@@ -660,6 +660,10 @@ export const PIEGE_ETATS = {
     desarme: 'désarmé',
     declenche: 'déclenché',
     bloc: 'bloc de pierre',
+    // Lianes agrippantes (Jungles of Delthrak p. 4) : publiées par le serveur (`MoteurPieges::ETAT_RETIENT`) et DESSINÉES par
+    // DungeonGrid (`.dg-trap.retient`), mais absentes de cette table : l'écran de table les écartait en silence, et un héros
+    // immobilisé paraissait sur une case vide. Corrigé 2026-10-24, avec les symboles de livret.
+    retient: 'retient un héros',
 };
 
 /** carte.pieges (contrat « Pièges ») → marqueurs [{x, y, etat, nom, titre}]
@@ -674,6 +678,8 @@ export function piegesVersMarqueurs(carte) {
             etat: p.etat,
             nom: p.nom ?? 'Piège',
             titre: `${p.nom ?? 'Piège'} — ${PIEGE_ETATS[p.etat]}`,
+            // SYMBOLE DE LIVRET (2026-10-24) : passé tel quel, décidé par le serveur (`null` quand l'état n'en porte pas).
+            symbole_url: p.symbole_url ?? null,
             // LAME BALANÇOIRE (Against the Ogre Horde) : les cases de sa zone,
             // quand le piège en porte une — passées telles quelles, DungeonGrid
             // les dessine en plus du marqueur principal.
@@ -702,6 +708,8 @@ export function mobilierVersDecor(carte) {
         bloque_mouvement: m.bloque_mouvement !== false,
         bloque_vue: m.bloque_vue === true,
         ic: icone(MOBILIER_ICONES, m.nom, MOBILIER_ICONE_DEFAUT),
+        // SYMBOLE DE LIVRET (2026-10-24) : passé tel quel — le pictogramme du meuble, ou `null` (l'icône `ic`).
+        symbole_url: m.symbole_url ?? null,
         titre: m.nom ?? 'Meuble',
     }));
 }

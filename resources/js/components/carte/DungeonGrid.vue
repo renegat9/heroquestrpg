@@ -15,6 +15,7 @@
 // portes séparées).
 import { computed } from 'vue';
 import MSym from '../ui/MSym.vue';
+import SymboleCarte from './SymboleCarte.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
@@ -112,7 +113,10 @@ const classeTerrain = (x, y) => {
 };
 // PLAQUES (Jungles of Delthrak, 2026-10-24) : UNE icône par groupe (bloc ou motif), sur la case d'ANCRE que le SERVEUR
 // désigne (`carte.terrain[].ancre`). Le client ne recalcule ni le groupe ni le centre : il dessine ce qu'il reçoit.
-const plaques = computed(() => props.terrain.filter((t) => t.ancre));
+// SYMBOLES DE LIVRET (2026-10-24) : une case isolée, sans ancre, a aussi sa plaque dès que le serveur lui publie un
+// `symbole_url` — son pictogramme, centré sur la case. Une case de plaque sans ancre n'a jamais de `symbole_url` : elle
+// n'entre pas ici. Sans symbole, la liste est exactement celle d'avant.
+const plaques = computed(() => props.terrain.filter((t) => t.ancre || t.symbole_url));
 const iconePlaque = (p) => icone(TERRAIN_ICONES, p.nom, TERRAIN_ICONE_DEFAUT);
 // Titre de la case : nom du terrain, ET son surcoût s'il y en a un (Rivière
 // gelée : 2 points pour l'atteindre au lieu de 1, doc 18 §4). Sans ce second
@@ -196,6 +200,10 @@ const doors = computed(() => (props.carte.portes ?? [])
             // — verrou === 'pierre' la distingue, et mérite sa propre teinte
             // plutôt que de se confondre avec une porte ordinaire.
             pierre: p.verrou === 'pierre',
+            // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme de l'état, publié par le serveur. Son icône de repli reste celle
+            // d'aujourd'hui : le verrou (cadenas) ou la pierre (construction), jamais une icône neuve.
+            symbole_url: p.symbole_url ?? null,
+            icone: p.etat === 'verrouillee' ? 'lock' : (p.verrou === 'pierre' && p.etat !== 'ouverte' ? 'construction' : 'door_front'),
             titre: `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,
         };
     }));
@@ -228,7 +236,7 @@ const doors = computed(() => (props.carte.portes ?? [])
                 : { gridColumn: p.x + 1, gridRow: p.y + 1 }"
         >
             <div class="dg-plaque" :title="titreTerrain(p.x, p.y)">
-                <MSym :n="iconePlaque(p)" fill />
+                <SymboleCarte :url="p.symbole_url" :icone="iconePlaque(p)" :nom="p.nom" />
             </div>
         </div>
 
@@ -241,7 +249,12 @@ const doors = computed(() => (props.carte.portes ?? [])
             :style="{ gridColumn: t.x + 1, gridRow: t.y + 1 }"
         >
             <div class="dg-trap" :class="t.etat" :title="t.titre ?? t.nom">
-                <MSym v-if="t.etat !== 'declenche' && t.etat !== 'fosse_ouverte' && t.etat !== 'mare_acide'" :n="iconePiege(t)" fill />
+                <SymboleCarte
+                    v-if="t.etat !== 'declenche' && t.etat !== 'fosse_ouverte' && t.etat !== 'mare_acide'"
+                    :url="t.symbole_url"
+                    :icone="iconePiege(t)"
+                    :nom="t.nom"
+                />
             </div>
         </div>
 
@@ -287,7 +300,7 @@ const doors = computed(() => (props.carte.portes ?? [])
             :style="{ gridColumn: `${f.x + 1} / span ${f.l}`, gridRow: `${f.y + 1} / span ${f.h}` }"
         >
             <div class="dg-furn" :class="{ 'non-bloquant': !f.bloque_mouvement }" :title="f.titre ?? f.nom">
-                <MSym :n="iconeMeuble(f)" fill />
+                <SymboleCarte :url="f.symbole_url" :icone="iconeMeuble(f)" :nom="f.nom" />
             </div>
         </div>
 
@@ -301,7 +314,7 @@ const doors = computed(() => (props.carte.portes ?? [])
             :style="{ gridColumn: `${stairs.x + 1} / span ${stairs.l}`, gridRow: `${stairs.y + 1} / span ${stairs.h}` }"
         >
             <div class="dg-stairs" title="Escalier d'entrée — on commence et on finit la quête ici">
-                <MSym :n="ESCALIER_ICONE" fill />
+                <SymboleCarte :url="stairs.symbole_url" :icone="ESCALIER_ICONE" nom="Escalier d'entrée" />
             </div>
         </div>
 
@@ -317,7 +330,7 @@ const doors = computed(() => (props.carte.portes ?? [])
                 :class="['dg-danger', d.etat === 'bloc' ? 'bloc' : 'mouvement']"
                 :title="d.etat === 'bloc' ? `${d.nom} — arrêté : le passage est bloqué pour le reste de la quête` : `${d.nom} — en mouvement`"
             >
-                <MSym :n="d.etat === 'bloc' ? BLOC_ICONE : DANGER_ICONE" fill />
+                <SymboleCarte :url="d.symbole_url" :icone="d.etat === 'bloc' ? BLOC_ICONE : DANGER_ICONE" :nom="d.nom" />
             </div>
         </div>
 
@@ -368,7 +381,7 @@ const doors = computed(() => (props.carte.portes ?? [])
                 class="dg-lever"
                 :title="`Levier — jet de Body${l.difficulte ? ` (difficulté ${l.difficulte})` : ''}`"
             >
-                <MSym :n="LEVIER_ICONE" fill />
+                <SymboleCarte :url="l.symbole_url" :icone="LEVIER_ICONE" nom="Levier" />
             </div>
         </div>
 
@@ -380,9 +393,19 @@ const doors = computed(() => (props.carte.portes ?? [])
             class="dg-door-holder"
             :style="{ gridColumn: d.x + 1, gridRow: d.y + 1 }"
         >
-            <div class="dg-door" :class="[`cote-${d.cote}`, d.etat, { pierre: d.pierre && d.etat !== 'ouverte' }]" :title="d.titre">
-                <MSym v-if="d.cadenas" n="lock" fill class="dg-door-lock" />
-                <MSym v-else-if="d.pierre && d.etat !== 'ouverte'" n="construction" fill class="dg-door-lock" />
+            <!-- Porte à PICTO (symboles des livrets, 2026-10-24) : le pictogramme REMPLACE le battant, qui n'a que 30 % de
+                 sa case en largeur — un dessin y serait illisible à 22 px. Le verrou et la pierre ne s'ajoutent pas au picto
+                 (il dit déjà l'état). -->
+            <div
+                class="dg-door"
+                :class="[`cote-${d.cote}`, d.etat, { pierre: d.pierre && d.etat !== 'ouverte', 'avec-symbole': d.symbole_url }]"
+                :title="d.titre"
+            >
+                <SymboleCarte v-if="d.symbole_url" :url="d.symbole_url" :icone="d.icone" :nom="d.titre" />
+                <template v-else>
+                    <MSym v-if="d.cadenas" n="lock" fill class="dg-door-lock" />
+                    <MSym v-else-if="d.pierre && d.etat !== 'ouverte'" n="construction" fill class="dg-door-lock" />
+                </template>
             </div>
         </div>
 
@@ -514,7 +537,10 @@ const doors = computed(() => (props.carte.portes ?? [])
 /* ⚠ `position` + `z-index` (2026-10-24) : sans eux, le fond de `.dg-cell` (positionnée) RECOUVRAIT l'icône — aucune plaque
    n'en montrait une, sur la table comme sur la manette. Même pile que le mobilier (`.dg-furn-holder`). */
 .dg-plaque-holder { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+/* La boîte de la plaque est celle de son holder (l'étendue, ou la case d'ancre) : un PICTOGRAMME s'y centre à 80 % (SymboleCarte).
+   Sans picto, le glyphe Material se centre dans la même boîte, comme avant. */
 .dg-plaque {
+  width: 100%; height: 100%; display: grid; place-items: center;
   font-size: calc(var(--dg-icone) * 1.6);
   line-height: 1;
   color: oklch(0.96 0.02 90 / 0.92);
@@ -722,6 +748,12 @@ const doors = computed(() => (props.carte.portes ?? [])
    les rend déjà sans rien de spécial ici) : violet, pour qu'un raccourci
    trouvé se distingue d'une porte ordinaire. */
 .dg-door.secrete { background: linear-gradient(150deg, #b18ad8, #5b3f7a); }
+
+/* PORTE À PICTO (symboles des livrets, 2026-10-24) : le pictogramme REMPLACE le battant. Le battant n'a que 30 % de sa case
+   en largeur ; un dessin tenu dans cette bande serait illisible à 22 px. La porte garde donc sa place, centrée dans la case
+   d'embrasure (10 % de marge), mais sans le fond doré ni le cadre : c'est le dessin qui dit l'état. Déclaré APRÈS TOUTES les
+   règles d'état ci-dessus (`.secrete` compris), à spécificité égale, pour les emporter. */
+.dg-door.avec-symbole { inset: 10%; background: none; box-shadow: none; display: grid; place-items: center; }
 
 .dg-door-lock { color: #f0d79a; font-size: 0.6em; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); }
 
