@@ -94,6 +94,27 @@ it('donne une teinte à chaque TERRAIN du catalogue, et pas une de plus', functi
         ->and(array_diff($declarees, $catalogue))->toBe([], 'teintes orphelines');
 });
 
+it('donne une icône à chaque PLAQUE de terrain — bloc ou motif — et pas une de plus', function () {
+    // Jungles of Delthrak (2026-10-24) : un terrain en bloc ou en motif se lit comme UNE plaque, qui porte UNE icône
+    // (`TERRAIN_ICONES`, posée sur la case d'ancre publiée par le serveur). Dans les deux sens : une plaque sans icône
+    // retomberait en silence sur le repli ; une icône sans plaque ne désignerait rien.
+    $this->seed(TerrainSeeder::class);
+
+    $plaques = Terrain::query()
+        ->where(fn ($q) => $q->whereNotNull('motif')->orWhere('largeur', '>', 1)->orWhere('hauteur', '>', 1))
+        ->pluck('nom')->all();
+    $declarees = iconesDeclarees('TERRAIN_ICONES');
+
+    expect($plaques)->not->toBe([], 'aucune plaque au catalogue : le test serait vide')
+        ->and(array_diff($plaques, $declarees))->toBe([], 'plaques sans icône')
+        ->and(array_diff($declarees, $plaques))->toBe([], 'icônes orphelines');
+
+    // Le rendu lit CETTE table, et ne la redéclare pas.
+    $rendu = file_get_contents(base_path('resources/js/components/carte/DungeonGrid.vue'));
+    expect(str_contains($rendu, 'TERRAIN_ICONES'))->toBeTrue('DungeonGrid ne lit pas TERRAIN_ICONES')
+        ->and(str_contains($rendu, 'const TERRAIN_ICONES = {'))->toBeFalse('DungeonGrid redéclare la table des plaques');
+});
+
 it('couvre chaque ÉTAT DE PORTE par une illustration, et pas un de plus', function () {
     // ⚠ Les états viennent de `MoteurPortes::ETAT_*` et le contrat les publie
     // tels quels. Un état ajouté au moteur sans entrée de config retomberait en

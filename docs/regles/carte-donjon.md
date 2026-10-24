@@ -619,3 +619,64 @@ condition qu'un héros ne remplit jamais (un Esprit à 0) le laisse passer par l
 
 ⚠ **Lecture des textes** : la porte verrouillée dit « less than » (strict), la porte de l'Est « equal to or less than » (inclusif) —
 le portage suit les textes, pas une symétrie. Les emprises des deux meubles (1×1) sont des analogies, non mesurées (`MobilierSeeder`).
+
+## TERRAINS EN PLAQUES — blocs fixes et motifs tirés (Jungles of Delthrak, 2026-10-24)
+
+Demande de René (2026-10-24), après comparaison avec la carte de la quête 1 (F9907 p. 13, PDF p07) : « ajuste pour pouvoir
+mettre des terrains à plusieurs cases. La statue bloque la ligne de vue. La jungle et la toile pourraient avoir différents
+patterns tirés au hasard ? ». Contrat : `docs/contrat-api.md` § « PLAQUES DE TERRAIN ». Migration `2026_10_24_150000_terrains_multicases`
+(additive : `largeur`, `hauteur`, `motif`).
+
+**Ce que le livret montre, et ce qu'on en porte** (rendus relus à l'image, PDF p07, p09, p13, p15, p16, p20, p21, p25 ; symboles p. 51) :
+
+- **Mare = bloc 2×2** : le bassin rond de la quête 1 (F9907 p. 13) et le symbole « Pool of Water » (p. 51) occupent deux cases de côté.
+- **Brasier = bloc 2×2** : le symbole « Bonfire » (p. 51) est un socle de la MÊME taille que « Pool of Water » et « Crystal Cluster »
+  (2×2). ⚠ Le brief posait le 2×2 sur la quête 1, où les cases **terracotta** sont des **Grasping Vines** (pièges, même couleur que
+  le symbole p. 51), pas des brasiers : la source du 2×2 est donc le SYMBOLE, pas la carte.
+- **Statue = une case** (symbole p. 51, petit carré), bloque la vue (texte p. 4-5) — et le passage, comme tout meuble
+  (`reference/17_mobilier.md` §3). Ni fouillable ni destructible : aucune source ne le dit.
+- **Jungle, Toile, Sable = plaques.** `App\Engine\FormesTerrain::MOTIFS['plaque']` : neuf formes, chacune avec sa source écrite.
+  Une ligne horizontale de **trois** n'est relevée que pour le SABLE (F9907 p. 29, PDF p15) ; une ligne de trois de jungle ou de
+  toile n'apparaît sur aucun rendu consulté — elle est pourtant tirée, grâce au sable. Non retenu : un 3×3 ou un anneau de huit
+  autour d'un cocon (la case centrale est masquée par l'objet) ; le L de trois ne figure que dans une orientation.
+  ⚠ **Le Sable change de traitement** (il était une case isolée) : il se prête au même traitement, et le livret le montre en
+  plaques (carré 2×2 p. 25, ligne de trois p. 29). Signalé ici parce que le brief demandait de ne pas le changer sans le dire.
+
+**Une pose est ENTIÈRE ou n'est pas** (`AssembleurCarte::placerTerrains()`, `positionsDeTerrain()`). Un bloc (`largeur`×`hauteur`)
+ou un motif (`motif`) tient sur du sol LIBRE de SA salle, hors salle 0, hors parvis (porte, levier, épreuve). Une moitié de bloc ou de
+plaque n'est jamais posée : la pose est abandonnée, sans repli. Le stockage reste PAR CASE dans `cartes.grille['terrain']`, avec un
+`groupe_id` commun (`bloc-N` ou `motif-N`, sur le patron de `paire_id`).
+
+**Le plancher de jouabilité ne compte que ce qu'on ne peut pas TENIR** (René, 2026-10-24, précision au brief). Seuls les terrains
+**interdits d'arrêt** (Mare, Brasier : 4 cases pour un bloc 2×2) et les terrains **bloquant le mouvement** retirent des cases au
+plancher `CASES_JOUABLES_MINIMUM`. Une plaque de **Jungle, de Toile ou de Sable** se franchit ET se tient : elle ne retire AUCUNE case
+libre, quelle que soit sa taille. Épinglé par deux tests (`TerrainPlaquesTest`) : une plaque de quatre cases est posée dans une salle de
+4×2 (huit cases, plancher 6) sur 80 graines ; la Mare, dans cette même salle, n'est jamais posée.
+
+**Le tirage du motif est consommé AVANT toute vérification** (comme le tirage de densité des meubles, §2.12 ter) : la suite PRNG ne
+dépend ni de la place restante dans la salle, ni du plancher. `>> 15` : bits de poids fort, comme `melanger()` et les bandes de sable.
+Une carte sans plaque (The Frozen Horror, le thème de glace) consomme exactement les mêmes tirages qu'avant.
+
+**`terrains.min/max` compte des UNITÉS, pas des cases.** Une case isolée, un bloc ou un motif comptent pour UN. Les gabarits ne sont
+pas modifiés : `min 1..2` veut toujours dire une à deux poses. ⚠ Conséquence assumée : une quête de Delthrak peut recevoir une plaque de
+quatre cases là où elle recevait quatre cases isolées.
+
+**UN JET PAR BRASIER TRAVERSÉ, pas par case du bloc** (« Any creature who moves through the bonfire must roll 1 combat die »,
+F9907 p. 4-5). `ResolveurTour::saignerSurRiviere()` — le lecteur que le héros ET le monstre empruntent — retient les groupes déjà joués
+pendant CE trajet : le premier jet est celui de la case d'entrée. Une case SANS `groupe_id` (Rivière gelée, carte ancienne) lance comme
+avant. Une immunité au feu (Anneau de Feu) n'est consultée qu'UNE fois par brasier, donc une seule charge. « May not end their turn
+occupying the same space as it » vaut pour chaque case du bloc : `interdit_arret` est déjà posé case par case par `FabriqueGrille::pour()`.
+
+**Publication et rendu.** `EtatGroupe::terrain()` publie `groupe_id` et `ancre` ; `ancre` est vrai sur UNE case par groupe — celle du
+groupe la plus proche du centre de sa boîte, parmi les cases VISIBLES (`marquerAncresDePlaques()`). `DungeonGrid.vue` dessine UNE icône
+par plaque (`TERRAIN_ICONES`, `symboles.js`), jamais une icône par case. Le client ne recalcule ni le groupe, ni le centre, ni la forme.
+La légende reprend la même icône pour le nom. ⚠ Rendu NON VÉRIFIÉ À L'ÉCRAN dans ce chantier (aucune pile lancée depuis le worktree) :
+la lisibilité à 38 px reste à regarder en partie réelle.
+
+**Une carte assemblée AVANT ce chantier** n'a pas de `groupe_id` : chaque case se lit et se joue comme avant. Aucune migration de carte.
+Les terrains des cartes en cours gardent leur forme ; seule la prochaine carte assemblée pose des plaques.
+
+**Mutations relevées** (`TerrainPlaquesTest`, une à la fois, restaurées après) : retirer le comptage par groupe (`saignerSurRiviere()`)
+fait tomber TROIS tests — le brasier 2×2 du héros, celui du monstre, deux brasiers distincts ; réduire le bloc à une case
+(`positionsDeTerrain()`) fait tomber TROIS tests — la Mare refusée au plancher, le bloc entier, et les cartes réelles de Delthrak
+(une Mare posée hors de son bloc y est détectée).

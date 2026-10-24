@@ -47,6 +47,11 @@ class Terrain extends Model
         'nom',
         'nom_anglais',
         'cout_deplacement',
+        // Emprise en plaque (2026-10-24, Jungles of Delthrak) : un BLOC FIXE `largeur`×`hauteur` (Mare, Brasier : 2×2) ou
+        // un MOTIF tiré parmi `App\Engine\FormesTerrain` (`motif`, Jungle/Toile/Sable). Défauts 1×1 et `null` = une case.
+        'largeur',
+        'hauteur',
+        'motif',
         'bloque_mouvement',
         'bloque_vue',
         'effet',
@@ -65,6 +70,8 @@ class Terrain extends Model
     {
         return [
             'cout_deplacement' => 'integer',
+            'largeur' => 'integer',
+            'hauteur' => 'integer',
             'bloque_mouvement' => 'boolean',
             'bloque_vue' => 'boolean',
             'effet' => 'array',

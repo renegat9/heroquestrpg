@@ -4394,7 +4394,18 @@ case dans `se_deplacer.parametres.destinations` (1 + 1 + 1 + 1 au lieu de 1 + 2 
 druide aux Ronces complices), jamais l'ingrédient. Les monstres **Agile** l'ignorent côté moteur
 (`Grille::autoriserFranchissement()`).
 
-- **Mare** (*Pool of Water*) : passage sans arrêt ; à la fouille de trésor d'une salle qui en
+**PLAQUES DE TERRAIN (2026-10-24, René : « des terrains à plusieurs cases »).** Un BLOC FIXE (Mare et Brasier,
+2×2) ou un MOTIF tiré (Jungle, Toile, Sable : une forme de la liste fermée `App\Engine\FormesTerrain`) reste publié
+**case par case** dans `carte.terrain[]`, avec deux champs de plus, tous deux décidés par le serveur :
+- `groupe_id` (`string|null`) : les cases d'une même plaque partagent le même identifiant (`bloc-N` ou `motif-N`,
+  unique dans la carte, sur le patron de `paire_id`). `null` pour une case isolée — et pour toute carte assemblée
+  avant ce chantier, qui n'a pas de groupe : elle se lit exactement comme avant.
+- `ancre` (`bool`) : **UNE case par groupe** porte `true` — celle du groupe, parmi les cases VISIBLES, la plus proche
+  du centre de sa boîte. C'est là que la table et la manette dessinent l'icône unique de la plaque (`TERRAIN_ICONES`,
+  `symboles.js`). Le client ne recalcule ni le groupe, ni l'ancre, ni la forme : il DESSINE ce qu'il reçoit.
+Les deux champs sont publiés pour toute entrée (`null`/`false` hors plaque), sans clé optionnelle.
+
+- **Mare** (*Pool of Water*) : BLOC 2×2 (une plaque, une icône) ; passage sans arrêt ; à la fouille de trésor d'une salle qui en
   contient une, option **`boire_mare`** (`type: boire_mare`, créneau d'action,
   `parametres: {soin, terrain}`), offerte au même endroit et sous les mêmes conditions que
   `fouiller_tresor`, **seulement si le héros a perdu au moins 1 Body**. Elle dépense la fouille
@@ -4409,8 +4420,10 @@ druide aux Ronces complices), jamais l'ingrédient. Les monstres **Agile** l'ign
   `MoteurCheminee` (lue par le menu ET le résolveur, jamais recopiée). Payload
   `{type: "soin_cheminee", salle, personnage, soin, pv_body_apres}`, annoncé au journal, sans scène
   de table (comme la Mare).
-- **Brasier** (*Bonfire*) : passage sans arrêt ; **toute créature** qui le traverse lance 1 dé de
-  combat, un crâne = −1 Body (nature `feu`). Héros : `payload.terrain_jets[]`
+- **Brasier** (*Bonfire*) : BLOC 2×2 (une plaque) ; passage sans arrêt ; **toute créature** qui le traverse
+  lance **1 dé de combat PAR BRASIER traversé pendant un déplacement** (un par `groupe_id`, jamais un par case du
+  bloc — « Any creature who moves through the bonfire must roll 1 combat die »), un crâne = −1 Body (nature `feu`).
+  Héros : `payload.terrain_jets[]`
   (`{terrain, x, y, face, degats}`, un par jet, dégâts nuls compris) et, s'il y a eu dégât,
   `payload.terrain` (`{nom, chute, fin_tour, degats}`). Monstre : action `terrain_monstre`
   `{monstre, id, degats, jets[], pv_body, vaincu}`. Les alliés mercenaires ne brûlent pas

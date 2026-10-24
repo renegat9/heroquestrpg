@@ -270,6 +270,15 @@ class MobilierSeeder extends Seeder
                 'fouillable' => false, 'bloque_vue' => true, 'boite' => 'jungles_delthrak',
                 'effet' => ['detruit_par_action' => true]],
 
+            // STATUE (*Jungles of Delthrak*, F9907 p. 4-5 — « Each statue is a relic heralding dire times. The statue blocks
+            // line of sight. » — et le symbole du livret, p. 51 : un petit carré, donc UNE case). Bloque la vue et le passage
+            // comme tout meuble (`bloque_mouvement`, imposé à tout le catalogue — `reference/17_mobilier.md` §3).
+            // ⚠ Ni fouillable, ni destructible : le livret ne dit RIEN de plus (aucun butin, aucune difficulté, aucun PV), donc
+            // aucune valeur n'est inventée — `difficulte_destruction` et `pv_body` restent `null` (indestructible). Un pilier, pas
+            // une figure : aucune voix, aucune image générée. Non adossée : aucune source ne la dit collée à un mur.
+            ['nom' => 'Statue', 'nom_anglais' => 'Statue', 'largeur' => 1, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => true, 'boite' => 'jungles_delthrak'],
+
             // ===== Kellar's Keep (livret F4543 p. 15, quête 4 « The Dwarven Forge », note D) =====
             // FORGE DES NAINS (« dwarven forge ») : « Burning embers blast out of the forge, threatening any hero in
             // the room except the dwarf. Any hero (except the dwarf) who ends their move in his room must immediately

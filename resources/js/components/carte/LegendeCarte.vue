@@ -27,7 +27,7 @@ import Vignette from '../ui/Vignette.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
-    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, ESCALIER_ICONE, OMBRE_ICONE, DANGER_ICONE, icone,
+    TERRAIN_TEINTE_DEFAUT, TERRAIN_ICONES, GLACE_ICONE, ESCALIER_ICONE, OMBRE_ICONE, DANGER_ICONE, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -103,6 +103,9 @@ const TERRAIN_DETAILS = {
 const terrains = computed(() => parNom(props.carte?.terrain).map((t) => ({
     nom: t.nom,
     categorie: icone(TERRAIN_TEINTES, t.nom, TERRAIN_TEINTE_DEFAUT),
+    // L'icône de la PLAQUE (bloc ou motif), la même que sur la carte — la légende relie le symbole au nom. Une case isolée
+    // n'en a pas : `null`, et la vignette garde son emblème.
+    icone: icone(TERRAIN_ICONES, t.nom, null),
     img: t.image_url ?? null,
     // Le texte DÉCIDÉ par le serveur (`carte.terrain[].avantages`) prime ; le tableau local
     // ne sert plus que de repli à un serveur plus ancien.
@@ -249,7 +252,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
                 <div class="lg-sous">Terrain</div>
                 <div v-for="t in terrains" :key="t.nom" class="lg-ligne">
                     <span class="lg-chip lg-terrain" :class="`cat-${t.categorie}`" />
-                    <Vignette class="lg-img" :src="t.img" icon="ac_unit" fill />
+                    <Vignette class="lg-img" :src="t.img" :icon="t.icone ?? 'ac_unit'" fill />
                     <span>{{ t.nom }} <em>— {{ t.avantages ?? TERRAIN_DETAILS[t.categorie] }}</em></span>
                 </div>
             </section>

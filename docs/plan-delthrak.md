@@ -373,3 +373,37 @@ Conséquence : `reference/18_extensions.md` (ligne « l'erratum 2021 y ajoute Sp
 désormais « source non trouvée ». Aucun test ne change : la divergence est déjà nommée dans `BestiaireSourceTest`.
 
 **Migrations et seeders** : aucun.
+
+## Exécution (2026-10-24) — terrains en plaques et statue (chantier TERRAINS-MULTICASES)
+
+Demande de René (2026-10-24), après comparaison avec la carte de la quête 1 (F9907 p. 13, PDF p07) : terrains à plusieurs cases, motifs
+tirés au hasard pour la jungle et la toile, et la statue qui bloque la ligne de vue. Fait ; règles en vigueur dans
+`docs/regles/carte-donjon.md` (« TERRAINS EN PLAQUES »), contrat dans `docs/contrat-api.md` (« PLAQUES DE TERRAIN »).
+
+**Constats sur les sources** (rendus relus à l'image, pas seulement le texte) :
+- **Mare = bloc 2×2** : confirmé (bassin rond de la quête 1, symbole p. 51).
+- **Brasier = bloc 2×2, mais la source est le SYMBOLE** : « Bonfire » p. 51 a la taille du « Pool of Water » et du « Crystal Cluster ».
+  La quête 1 ne montre aucun brasier : ses cases terracotta sont des **Grasping Vines** (pièges, même vignette p. 51).
+- **Statue = une case** (symbole p. 51) ; ajoutée au catalogue, bloque la vue et le passage, sans fouille ni destruction.
+- **Jungle, toile et sable = plaques** : neuf formes relevées (une case ; deux et trois en ligne ; carré 2×2 ; L de trois ; bande de quatre
+  horizontale et verticale). Une ligne horizontale de **trois** n'est relevée que pour le **sable** (p. 29). Non retenus : un 3×3 et un
+  anneau de huit autour d'un cocon (case centrale masquée).
+- **Le Sable change de traitement** (case isolée → plaque) : il se prête au même traitement dans le livret. Signalé, car le brief demandait
+  de ne pas le changer sans le dire.
+
+**Décisions prises** :
+- Le plancher ne compte que les terrains interdits d'arrêt (Mare, Brasier) et ceux qui bloquent le mouvement (précision de René du
+  2026-10-24) : une plaque de jungle, de toile ou de sable ne retire aucune case au plancher. Épinglé par `TerrainPlaquesTest`.
+- Un brasier se paie UN jet par traversée, par plaque (`groupe_id`), pas par case — « Any creature who moves through the bonfire ».
+- `terrains.min/max` compte des unités (une case, un bloc ou un motif = un). Les gabarits ne bougent pas.
+- La pose est entière ou n'est pas ; jamais sur la salle de départ, ni sur un parvis.
+
+**Migrations et seeders à jouer** (après `./image-tools/sauvegarder.sh`) :
+- Migration `2026_10_24_150000_terrains_multicases` : colonnes `terrains.largeur`, `hauteur` (défaut 1) et `motif` (nullable), et les
+  valeurs des lignes existantes (Mare et Brasier 2×2 ; Sable, Toile, Jungle en plaque). Aucune carte déjà assemblée n'est touchée.
+- Seeders : `TerrainSeeder` (mêmes valeurs, `updateOrCreate`) et `MobilierSeeder` (la Statue, nouvelle ligne).
+
+**Non tranché, à trancher par René** :
+- Le Brasier est un bloc 2×2 d'après le symbole du livret, faute de carte qui le montre : confirmer ou ramener à une case.
+- Le 3×3 et l'anneau de huit (cocon masqué) : une plaque pleine de jungle, ou deux objets ? Non porté.
+- Le rendu des plaques n'a pas été regardé à l'écran dans ce chantier (aucune pile lancée depuis le worktree) : la lisibilité à 38 px reste à vérifier.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\FormesTerrain;
 use App\Models\Danger;
 use App\Models\Epreuve;
 use App\Models\GabaritQuete;
@@ -3179,7 +3180,21 @@ final class AssembleurCarte
         $max = max($min, (int) data_get($structure, 'terrains.max', $min));
         $voulues = $prng->entre($min, $max);
 
+        // `terrains.min/max` compte des UNITÉS, pas des cases (René, Jungles of Delthrak, 2026-10-24) : une case isolée,
+        // un bloc fixe (Mare, Brasier) ou un motif (Jungle, Toile, Sable) comptent pour UN. Compter les cases aurait laissé
+        // une plaque de quatre cases consommer le budget de quatre poses. Les terrains sans plaque ne changent pas.
+        $unites = 0;
+        $numeroGroupe = 0;
+
         if ($voulues > 0 && $ordinaires->isNotEmpty()) {
+            // Cases libres de chaque salle, par « x,y » : une plaque entière doit tenir sur du sol LIBRE de sa salle.
+            $libresParSalle = [];
+            foreach ($parSalle as $i => $entree) {
+                foreach ($entree['libres'] as $position) {
+                    $libresParSalle[$i]["{$position['x']},{$position['y']}"] = true;
+                }
+            }
+
             // Pool global mélangé de tous les couples (salle, case) — même
             // logique que `placerPieges()` : garder les salles en tête
             // biaiserait la distribution vers les premières salles de l'arbre.
@@ -3192,7 +3207,7 @@ final class AssembleurCarte
             $pool = $prng->melanger($pool);
 
             foreach ($pool as $candidate) {
-                if (count($terrains) >= $voulues) {
+                if ($unites >= $voulues) {
                     break;
                 }
 
@@ -3204,37 +3219,83 @@ final class AssembleurCarte
                 $type = $ordinaires[$prng->suivant() % $ordinaires->count()];
                 $i = $candidate['salle'];
 
-                if ($this->terrainCasseraitConnexite($type, $parSalle[$i], $cle, $bloquantesParSalle[$i] ?? [])) {
-                    continue; // cette pose isolerait une case : abandon, PAS de repli
-                }
+                // LA FORME de la pose, ancrée sur la case tirée : une case, un bloc fixe ou un motif. Le tirage du motif est
+                // consommé ICI, AVANT toute vérification : la suite PRNG ne dépend ni de la place qui reste dans la salle ni
+                // du plancher (§2.12 ter — même précaution que le tirage de densité des meubles).
+                $positions = $this->positionsDeTerrain($type, $candidate, $prng);
+                $estPlaque = $type->motif !== null || count($positions) > 1;
+                $sansArret = ! empty($type->effet['interdit_arret']);
+                $libresSalle = $libresParSalle[$i] ?? [];
 
-                // « Connexe » ne veut pas dire « jouable » (§2.12 ter) : une Mare
-                // ou un Brasier ne coupe rien — on les traverse —, mais personne
-                // ne peut FINIR son tour dessus, c'est donc une case de moins
-                // pour les quatre héros et ce qu'ils combattent. Le plancher se
-                // tient sur les cases RESTANTES de la salle (mobilier bloquant
-                // et terrains sans arrêt déjà posés retirés), jamais sur un
-                // plafond de nombre ; on abandonne la pose plutôt que de la forcer.
-                if (! empty($type->effet['interdit_arret'])) {
-                    if (isset($parvis[$cle])) {
-                        continue; // devant une porte, un levier ou une épreuve : on n'y agirait plus
+                // Une pose est ENTIÈRE ou n'est pas : chaque case libre, dans LA salle, hors de toute autre couche. Une plaque,
+                // ou un terrain qu'on ne peut pas tenir, reste hors PARVIS : on n'y agirait plus (« jamais un parvis »).
+                $valide = true;
+                foreach ($positions as $position) {
+                    $case = "{$position['x']},{$position['y']}";
+
+                    if (! isset($libresSalle[$case]) || isset($occupeesGlobal[$case])) {
+                        $valide = false;
+                        break;
                     }
 
-                    $prises =count($bloquantesParSalle[$i] ?? []) + ($sansArretParSalle[$i] ?? 0);
+                    if (($estPlaque || $sansArret) && isset($parvis[$case])) {
+                        $valide = false; // devant une porte, un levier ou une épreuve : on n'y agirait plus
+                        break;
+                    }
+                }
 
-                    if (count($parSalle[$i]['interieur']) - $prises - 1 < self::CASES_JOUABLES_MINIMUM) {
-                        continue;
+                // « Connexe ne veut pas dire JOUABLE » (§2.12 ter). Ne retirent des cases au plancher que ce qu'on ne peut pas
+                // TENIR (interdit d'arrêt : Mare, Brasier) et ce qui BLOQUE le mouvement. Une plaque de Jungle, de Toile ou de
+                // Sable se franchit ET se tient : elle ne retire AUCUNE case libre, quelle que soit sa taille (René, 2026-10-24).
+                if ($valide && ($sansArret || $type->bloque_mouvement)) {
+                    $prises = count($bloquantesParSalle[$i] ?? []) + ($sansArretParSalle[$i] ?? 0);
+
+                    if (count($parSalle[$i]['interieur']) - $prises - count($positions) < self::CASES_JOUABLES_MINIMUM) {
+                        $valide = false;
+                    }
+                }
+
+                // Connexité depuis UN seul seuil, la pose entière comptée comme mur. Un terrain qui ne bloque pas ne coupe rien.
+                if ($valide && $type->bloque_mouvement) {
+                    $valide = ! $this->groupeCasseraitConnexite(
+                        $type,
+                        $parSalle[$i],
+                        array_map(fn (array $p) => "{$p['x']},{$p['y']}", $positions),
+                        $bloquantesParSalle[$i] ?? [],
+                    );
+                }
+
+                if (! $valide) {
+                    continue; // abandon, PAS de repli : on ne pose jamais une moitié de bloc ni une moitié de plaque
+                }
+
+                $groupe = null;
+                if ($estPlaque) {
+                    $numeroGroupe++;
+                    $groupe = ($type->motif !== null ? 'motif-' : 'bloc-').$numeroGroupe;
+                }
+
+                foreach ($positions as $position) {
+                    $case = "{$position['x']},{$position['y']}";
+                    $entree = ['x' => $position['x'], 'y' => $position['y'], 'terrain_id' => (int) $type->id];
+
+                    if ($groupe !== null) {
+                        $entree['groupe_id'] = $groupe;
                     }
 
-                    $sansArretParSalle[$i] = ($sansArretParSalle[$i] ?? 0) + 1;
+                    $terrains[] = $entree;
+                    $occupeesGlobal[$case] = true;
+
+                    if ($type->bloque_mouvement) {
+                        $bloquantesParSalle[$i][$case] = true;
+                    }
                 }
 
-                if ($type->bloque_mouvement) {
-                    $bloquantesParSalle[$i][$cle] = true;
+                if ($sansArret) {
+                    $sansArretParSalle[$i] = ($sansArretParSalle[$i] ?? 0) + count($positions);
                 }
 
-                $terrains[] = ['x' => $candidate['x'], 'y' => $candidate['y'], 'terrain_id' => (int) $type->id];
-                $occupeesGlobal[$cle] = true;
+                $unites++;
             }
         }
 
@@ -3670,6 +3731,23 @@ final class AssembleurCarte
      */
     private function terrainCasseraitConnexite(Terrain $type, array $entreeSalle, string $cle, array $bloquantesAvant): bool
     {
+        return $this->groupeCasseraitConnexite($type, $entreeSalle, [$cle], $bloquantesAvant);
+    }
+
+    /**
+     * Poser `$type` sur TOUTES les cases de `$cles` (une plaque ou un bloc entier) casserait-il la connexité de la salle ?
+     * Un seul point de passage : la pose d'une case isolée et celle d'une plaque passent par ici (même BFS depuis un seul
+     * seuil, jamais multi-sources).
+     *
+     * Un terrain qui ne bloque pas le mouvement ne peut par construction rien isoler — retour immédiat. Sans seuil identifié
+     * pour cette salle, refuse par prudence : on ne peut pas PROUVER la connexité sans point de départ.
+     *
+     * @param  array{interieur: list<array{x: int, y: int}>, libres: list<array{x: int, y: int}>, seuils: list<array{x: int, y: int}>}  $entreeSalle
+     * @param  list<string>  $cles  les cases de la pose, « x,y »
+     * @param  array<string, true>  $bloquantesAvant  cases déjà bloquantes dans CETTE salle (terrain déjà posé + mobilier bloquant)
+     */
+    private function groupeCasseraitConnexite(Terrain $type, array $entreeSalle, array $cles, array $bloquantesAvant): bool
+    {
         if (! $type->bloque_mouvement) {
             return false;
         }
@@ -3679,9 +3757,45 @@ final class AssembleurCarte
         }
 
         $occupeesApres = $bloquantesAvant;
-        $occupeesApres[$cle] = true;
+        foreach ($cles as $cle) {
+            $occupeesApres[$cle] = true;
+        }
 
         return ! $this->salleResteConnexe($entreeSalle['interieur'], $entreeSalle['seuils'], $occupeesApres);
+    }
+
+    /**
+     * Les cases qu'occuperait une pose de `$type` ancrée sur `$ancre`, son coin haut-gauche.
+     *
+     *  - Un MOTIF (`motif`) : une forme tirée au PRNG parmi `FormesTerrain::formesDe()`. Le tirage est TOUJOURS consommé,
+     *    même si la forme ne tient pas ensuite — sans quoi la suite diverge selon la place restante dans la salle.
+     *    `>> 15` : bits de poids FORT, comme `melanger()` et les bandes de sable (le modulo direct d'un LCG est périodique).
+     *  - Un BLOC FIXE (`largeur` × `hauteur`, Mare et Brasier) : toujours le même rectangle, sans tirage.
+     *  - Sinon UNE case, sans tirage — le chemin des terrains d'avant les plaques, inchangé.
+     *
+     * @param  array{x: int, y: int}  $ancre
+     * @return list<array{x: int, y: int}>
+     */
+    private function positionsDeTerrain(Terrain $type, array $ancre, PrngLineaire $prng): array
+    {
+        if ($type->motif !== null) {
+            $formes = FormesTerrain::formesDe($type->motif);
+            $forme = $formes[($prng->suivant() >> 15) % count($formes)];
+
+            return array_map(
+                fn (array $d) => ['x' => $ancre['x'] + $d[0], 'y' => $ancre['y'] + $d[1]],
+                $forme['cases'],
+            );
+        }
+
+        $positions = [];
+        for ($dx = 0; $dx < max(1, (int) $type->largeur); $dx++) {
+            for ($dy = 0; $dy < max(1, (int) $type->hauteur); $dy++) {
+                $positions[] = ['x' => $ancre['x'] + $dx, 'y' => $ancre['y'] + $dy];
+            }
+        }
+
+        return $positions;
     }
 
     /**

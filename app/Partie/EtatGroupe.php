@@ -1000,7 +1000,7 @@ final class EtatGroupe
      * brouillard répond directement à « cette case est-elle vue ? ».
      *
      * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
-     * @return list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string, entravant: bool, interdit_arret: bool, image_url: ?string}>
+     * @return list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string, groupe_id: ?string, ancre: bool, entravant: bool, interdit_arret: bool, image_url: ?string}>
      */
     private function terrain(Carte $carte, array $cases): array
     {
@@ -1012,7 +1012,7 @@ final class EtatGroupe
             ->get(['id', 'nom', 'cout_deplacement', 'bloque_mouvement', 'bloque_vue', 'effet'])
             ->keyBy('id');
 
-        return $visibles
+        $entrees = $visibles
             ->map(function (array $entree) use ($catalogue) {
                 $type = $catalogue[$entree['terrain_id']] ?? null;
 
@@ -1021,6 +1021,9 @@ final class EtatGroupe
                     'y' => (int) $entree['y'],
                     'terrain_id' => (int) $entree['terrain_id'],
                     'nom' => $type?->nom ?? 'Terrain',
+                    // Plaque (bloc ou motif, 2026-10-24) : le groupe commun aux cases d'une même pose ; `null` hors plaque.
+                    // `ancre` est posé ensuite par `marquerAncresDePlaques()`, sur UNE case par groupe.
+                    'groupe_id' => isset($entree['groupe_id']) ? (string) $entree['groupe_id'] : null,
                     'cout_deplacement' => (int) ($type?->cout_deplacement ?? 1),
                     // Deux propriétés INDÉPENDANTES (comme le mobilier, doc 17
                     // §portage / doc 18 §4) : ne jamais les refusionner.
@@ -1044,6 +1047,54 @@ final class EtatGroupe
             })
             ->values()
             ->all();
+
+        return $this->marquerAncresDePlaques($entrees);
+    }
+
+    /**
+     * PLAQUES DE TERRAIN (Jungles of Delthrak, 2026-10-24) : UNE icône par groupe, posée sur UNE case que le serveur désigne.
+     *
+     * `ancre` vaut `true` sur la case du groupe la plus proche du centre de sa boîte, PARMI LES CASES VISIBLES (le brouillard
+     * a déjà filtré). La table et la manette dessinent l'icône là où la décision est publiée — elles ne recalculent ni le
+     * centre ni le groupe. Une case sans groupe porte `ancre: false`. Égalité : la première case dans l'ordre de la carte.
+     *
+     * @param  list<array<string, mixed>>  $entrees
+     * @return list<array<string, mixed>>
+     */
+    private function marquerAncresDePlaques(array $entrees): array
+    {
+        $parGroupe = [];
+
+        foreach ($entrees as $index => $entree) {
+            $entrees[$index]['ancre'] = false;
+
+            if ($entree['groupe_id'] !== null) {
+                $parGroupe[$entree['groupe_id']][] = $index;
+            }
+        }
+
+        foreach ($parGroupe as $indices) {
+            $xs = array_map(fn (int $i) => $entrees[$i]['x'], $indices);
+            $ys = array_map(fn (int $i) => $entrees[$i]['y'], $indices);
+            $cx = (min($xs) + max($xs)) / 2;
+            $cy = (min($ys) + max($ys)) / 2;
+
+            $meilleur = $indices[0];
+            $distance = INF;
+
+            foreach ($indices as $index) {
+                $d = abs($entrees[$index]['x'] - $cx) + abs($entrees[$index]['y'] - $cy);
+
+                if ($d < $distance) {
+                    $distance = $d;
+                    $meilleur = $index;
+                }
+            }
+
+            $entrees[$meilleur]['ancre'] = true;
+        }
+
+        return $entrees;
     }
 
     /**

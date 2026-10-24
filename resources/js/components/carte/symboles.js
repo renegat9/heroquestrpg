@@ -132,6 +132,9 @@ export const MOBILIER_ICONES = {
     // Spirit Queen's Torment (G0053 p. 31, quête 13, note A) : la fournaise, une flamme de meuble. Pas `local_fire_department`
     // (déjà le Mur de Feu) : une chaleur qui brûle le héros qui finit son TOUR dans la salle, désamorçable comme un piège.
     'Fournaise': 'whatshot',
+    // Jungles of Delthrak (F9907 p. 4-5, 2026-10-24) : la Statue, un pilier de pierre — elle bloque la vue et le passage
+    // comme un pilier, et le livret la dessine comme une relique de pierre. Une seule case, aucune fouille.
+    'Statue': 'account_balance',
 };
 export const MOBILIER_ICONE_DEFAUT = 'category';
 
@@ -218,6 +221,25 @@ export const TERRAIN_TEINTES = {
     'Sables mouvants': 'sables',
 };
 export const TERRAIN_TEINTE_DEFAUT = 'decor';
+
+/**
+ * PLAQUE DE TERRAIN (2026-10-24, Jungles of Delthrak) → icône Material Symbols, UNE PAR GROUPE.
+ *
+ * Un bloc (Mare, Brasier : 2×2) ou un motif (Jungle, Toile, Sable : une forme du livret) se lit comme UNE plaque : la
+ * teinte couvre chaque case, et une seule icône, posée sur la case d'ancre que le SERVEUR désigne (`carte.terrain[].ancre`),
+ * porte le nom du terrain. Pas une icône par case : « pas quatre icônes répétées pour une mare ».
+ *
+ * Les terrains absents de cette table n'ont pas de plaque (une case isolée, comme avant) : `SymbolesCarteTest` confronte
+ * cette table aux terrains à groupe, dans les deux sens.
+ */
+export const TERRAIN_ICONES = {
+    'Mare': 'water',
+    'Brasier': 'local_fire_department',
+    'Sable entravant': 'landscape',
+    'Toile entravante': 'pest_control',
+    'Jungle entravante': 'forest',
+};
+export const TERRAIN_ICONE_DEFAUT = 'texture';
 
 /**
  * ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05) — le repère du

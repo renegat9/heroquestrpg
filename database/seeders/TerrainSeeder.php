@@ -192,17 +192,22 @@ class TerrainSeeder extends Seeder
             // lèvent, jamais la Rivière gelée. ⚠ Aucun ne bloque ni mouvement ni
             // vue : un terrain gênant ralentit, il ne barre rien.
             [
+                // EN PLAQUE (2026-10-24) : `motif` tire une forme relevée sur le livret (`App\Engine\FormesTerrain`, sources écrites
+                // là-bas). Le sable se prête au même traitement que la jungle : carré 2×2 (F9907 p. 25), ligne de trois (p. 29).
                 'nom' => 'Sable entravant', 'nom_anglais' => 'Hindering sand',
+                'largeur' => 1, 'hauteur' => 1, 'motif' => 'plaque',
                 'cout_deplacement' => 2, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'jungles_delthrak',
                 'effet' => ['entravant' => true],
             ],
             [
                 'nom' => 'Toile entravante', 'nom_anglais' => 'Hindering web',
+                'largeur' => 1, 'hauteur' => 1, 'motif' => 'plaque',
                 'cout_deplacement' => 2, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'jungles_delthrak',
                 'effet' => ['entravant' => true],
             ],
             [
                 'nom' => 'Jungle entravante', 'nom_anglais' => 'Hindering jungle',
+                'largeur' => 1, 'hauteur' => 1, 'motif' => 'plaque',
                 'cout_deplacement' => 2, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'jungles_delthrak',
                 'effet' => ['entravant' => true],
             ],
@@ -225,7 +230,10 @@ class TerrainSeeder extends Seeder
             // instead of drawing from the treasure deck. The pool of water does
             // not block line of sight. »
             [
+                // BLOC 2×2 (2026-10-24) : le socle « Basin » qui porte l'eau — rond, deux cases de côté, sur la quête 1
+                // (F9907 p. 13, PDF p07 : la mare en haut à droite) et sur le symbole « Pool of Water » (p. 51, PDF p26).
                 'nom' => 'Mare', 'nom_anglais' => 'Pool of Water',
+                'largeur' => 2, 'hauteur' => 2, 'motif' => null,
                 'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'jungles_delthrak',
                 'effet' => ['interdit_arret' => true, 'soin_a_la_fouille' => 1],
             ],
@@ -244,7 +252,12 @@ class TerrainSeeder extends Seeder
             // froid et ne l'arrête pas. « Any CREATURE » : le monstre brûle comme le
             // héros (`ResolveurTour::blesserMonstreSurLeChemin()`), à la différence de la rivière.
             [
+                // BLOC 2×2 (2026-10-24) : le symbole « Bonfire » du livret (p. 51, PDF p26) est un socle de la MÊME taille que
+                // « Pool of Water » et « Crystal Cluster », donc deux cases de côté. Sourcé par ce symbole : sur la quête 1 les
+                // cases terracotta (F9907 p. 13) sont des Grasping Vines (pièges, même symbole p. 51), pas des brasiers.
+                // UN jet par brasier TRAVERSÉ pendant un déplacement (`ResolveurTour::saignerSurRiviere()`, par `groupe_id`).
                 'nom' => 'Brasier', 'nom_anglais' => 'Bonfire',
+                'largeur' => 2, 'hauteur' => 2, 'motif' => null,
                 'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'jungles_delthrak',
                 'effet' => [
                     'interdit_arret' => true,

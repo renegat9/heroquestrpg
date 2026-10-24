@@ -523,6 +523,11 @@ l'amas de cristal, l'a été sur la carte de la quête 1 de Delthrak (« valide 
 | Coffre du Dread | G1504 p. 35, quêtes 7-8, salles B | des coffres d'une case | 1×1 — juste |
 | Amas de cristal | F9907 p. 13, quête 1, salle B | le cristal posé sur son socle (« Basin »), dessiné sur 2×2 cases — comme la Mare seule de la même carte | **2×2** (était 1×1) |
 | Cocon | F9907 p. 5 | des tuiles d'une case | 1×1 — juste |
+| Statue | F9907 p. 4-5 (texte : « Each statue is a relic heralding dire times. The statue blocks line of sight. ») et symbole p. 51 | un petit carré sur la planche de composants | **1×1, bloque la vue ET le passage** — ajoutée au catalogue le 2026-10-24 (`MobilierSeeder`, `boite: jungles_delthrak`). Ni fouillable ni destructible : le livret ne dit rien de plus. |
+
+Les **plaques de terrain** (Mare, Brasier : blocs 2×2 ; Jungle, Toile, Sable : motifs) ne sont pas du mobilier, mais elles
+suivent la même logique d'emprise : leurs formes et leurs sources sont dans `App\Engine\FormesTerrain` et
+`docs/regles/carte-donjon.md` (« TERRAINS EN PLAQUES »).
 
 Les trois murs de sort (Pierre, Glace, Feu) se posent case par case en cours de partie : 1×1 par construction.
 Test : `MobilierTroisCasesTest` (les huit emprises, la migration aller-retour, et les invariants de placement étendus

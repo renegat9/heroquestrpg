@@ -18,7 +18,8 @@ import MSym from '../ui/MSym.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
-    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, BLOC_ICONE, ESCALIER_ICONE, OMBRE_ICONE, DANGER_ICONE, icone,
+    TERRAIN_TEINTE_DEFAUT, TERRAIN_ICONES, TERRAIN_ICONE_DEFAUT,
+    GLACE_ICONE, BLOC_ICONE, ESCALIER_ICONE, OMBRE_ICONE, DANGER_ICONE, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -109,6 +110,10 @@ const classeTerrain = (x, y) => {
     const t = terrainDe(x, y);
     return t ? `terrain-${icone(TERRAIN_TEINTES, t.nom, TERRAIN_TEINTE_DEFAUT)}` : null;
 };
+// PLAQUES (Jungles of Delthrak, 2026-10-24) : UNE icône par groupe (bloc ou motif), sur la case d'ANCRE que le SERVEUR
+// désigne (`carte.terrain[].ancre`). Le client ne recalcule ni le groupe ni le centre : il dessine ce qu'il reçoit.
+const plaques = computed(() => props.terrain.filter((t) => t.ancre));
+const iconePlaque = (p) => icone(TERRAIN_ICONES, p.nom, TERRAIN_ICONE_DEFAUT);
 // Titre de la case : nom du terrain, ET son surcoût s'il y en a un (Rivière
 // gelée : 2 points pour l'atteindre au lieu de 1, doc 18 §4). Sans ce second
 // membre, une case grisée sur la manette n'a QUE la teinte « danger » pour
@@ -209,6 +214,20 @@ const doors = computed(() => (props.carte.portes ?? [])
             @click="emit('cell', c.x, c.y)"
         >
             <slot name="cell" :x="c.x" :y="c.y" />
+        </div>
+
+        <!-- plaques de terrain (Jungles of Delthrak, 2026-10-24) : UNE icône par groupe, sur la case d'ancre publiée — jamais
+             une icône par case (« pas quatre icônes répétées pour une mare »). Transparente au pointeur : le toucher de la
+             manette atteint toujours la case dessous. -->
+        <div
+            v-for="(p, i) in plaques"
+            :key="`pl-${p.x}-${p.y}-${i}`"
+            class="dg-plaque-holder"
+            :style="{ gridColumn: p.x + 1, gridRow: p.y + 1 }"
+        >
+            <div class="dg-plaque" :title="titreTerrain(p.x, p.y)">
+                <MSym :n="iconePlaque(p)" fill />
+            </div>
         </div>
 
 
@@ -468,6 +487,17 @@ const doors = computed(() => (props.carte.portes ?? [])
     repeating-linear-gradient(-45deg, oklch(0.82 0.11 85 / 0.30) 0 3px, transparent 3px 7px),
     radial-gradient(circle at 50% 50%, oklch(0.24 0.05 70), oklch(0.37 0.08 82));
   box-shadow: inset 0 0 0 1px oklch(0.82 0.11 85 / 0.6);
+}
+
+/* ---- plaque de terrain (Jungles of Delthrak, 2026-10-24) : UNE icône par bloc ou motif, sur la case d'ancre du serveur.
+   Centrée dans sa case, à la taille des glyphes du donjon (lisible à 38 px sur la manette) ; `pointer-events: none` :
+   le toucher de la manette tombe sur la case, jamais sur l'icône. ---- */
+.dg-plaque-holder { display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.dg-plaque {
+  font-size: calc(var(--dg-icone) * 1.6);
+  line-height: 1;
+  color: oklch(0.96 0.02 90 / 0.92);
+  text-shadow: 0 0 3px oklch(0.10 0.01 255 / 0.9), 0 0 1px oklch(0.10 0.01 255);
 }
 
 /* ---- surcouche manette (accessibilité / départ / occupants) ---- */

@@ -3755,6 +3755,9 @@ final class ResolveurTour
                 'nom' => (string) $type->nom,
                 'effet' => (array) $type->effet,
                 'paire_id' => $entree['paire_id'] ?? null,
+                // Plaque (bloc ou motif, 2026-10-24) : le groupe commun aux cases d'une même pose — un Brasier ne se paie
+                // qu'UNE fois par déplacement (`saignerSurRiviere()`). `null` pour une case isolée.
+                'groupe_id' => isset($entree['groupe_id']) ? (string) $entree['groupe_id'] : null,
             ];
         }
 
@@ -4098,6 +4101,13 @@ final class ResolveurTour
      * un dé lancé sans effet est aussi une information que la table doit voir
      * (« effet automatique que rien n'annonce »).
      *
+     * ⚠ PAR PLAQUE, pas par case (2026-10-24) : « Any creature who moves through
+     * the bonfire » vise LE brasier, et le socle de deux cases de côté n'en est
+     * qu'un. Un groupe (`groupe_id`) n'est lancé qu'UNE fois par trajet : le
+     * premier jet est celui de la case d'entrée, et `terrain_jets` le publie à
+     * cette case. Une case SANS groupe (terrain d'avant les plaques) lance comme
+     * avant — un test épingle les deux comportements.
+     *
      * @param  list<array{x: int, y: int}>  $cheminParcouru
      * @return array{degats: int, jets: list<array{terrain: string, x: int, y: int, face: string, degats: int}>}
      */
@@ -4105,6 +4115,11 @@ final class ResolveurTour
     {
         $total = 0;
         $jets = [];
+        // UN JET PAR PLAQUE TRAVERSÉE (2026-10-24, Jungles of Delthrak) : un bloc ou un motif de Brasier se franchit en UN
+        // seul jet pendant le déplacement, pas une fois par case du bloc. Les groupes déjà joués sont retenus ICI, pour CE
+        // trajet seulement — un déplacement suivant rejoue le brasier. Une case sans `groupe_id` (terrain d'avant les plaques,
+        // Rivière gelée) compte toujours pour elle-même : son comportement ne change pas.
+        $groupesJoues = [];
 
         foreach ($cheminParcouru as $case) {
             $entree = $this->terrainSur($quete, (int) $case['x'], (int) $case['y']);
@@ -4117,6 +4132,14 @@ final class ResolveurTour
 
             if (($effet['recurrent'] ?? null) !== null || ($effet['fin_tour'] ?? false)) {
                 continue; // Chambre forte / Glissière : déjà couvertes ailleurs
+            }
+
+            if (($entree['groupe_id'] ?? null) !== null) {
+                if (isset($groupesJoues[$entree['groupe_id']])) {
+                    continue; // ce brasier a déjà été traversé pendant CE déplacement : un seul jet
+                }
+
+                $groupesJoues[$entree['groupe_id']] = true;
             }
 
             // « Monsters suffer neither movement penalties nor damage from the
