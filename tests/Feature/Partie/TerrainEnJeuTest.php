@@ -616,6 +616,10 @@ it('le Tunnel de glace téléporte vers son autre extrémité quand la sortie es
         // Le décompte de points dépensés porte sur le trajet MARCHÉ (2 cases),
         // pas sur le saut : la téléportation n'est pas un pas de plus.
         ->and($resultat['distance'])->toBe(2);
+
+    // Et le fil le DIT (2026-10-24) : sans cette ligne, le héros disparaissait d'une salle sans un mot.
+    $texte = implode(' | ', array_column((new \App\Partie\JournalCombat)->depuisResultat($resultat, 'Testeur'), 'texte'));
+    expect($texte)->toContain('tunnel de glace');
 });
 
 it('ne téléporte JAMAIS vers une salle NON DÉCOUVERTE — le héros reste sur l\'entrée', function () {

@@ -223,11 +223,13 @@ Lot C de `docs/plan-kellars-keep.md` (+ Bellthor, Witch Lord q. 5). **Une seule 
   Summon Specters*, une fois par quête chacun). Quatre capacités à usage unique (`reactions_defense` : `terreur`,
   `consomme_magie`, `reflexion`, `realite_decalee`) — détail dans `docs/regles/sorts-dread.md` §« Magrian ».
 - **`reserve_a_son_theme`** : Magrian n'est tiré que sous `dread_moon` (jamais en repli hors de sa boîte).
-- **`cout` MESURÉ** — méthode de ce document : attaques d'un héros à 3 dés pour l'abattre = `Body / (1,5 − Défense/6)` =
-  5 / (1,5 − 4/6) = 6,0, puis droite des boss (Seigneur 15 → 20, pente 0,5) : 20 + 0,5 × (6,0 − 15) = 15,5 → **16**, comme Venim.
-  ⚠ **Mesure non valable pour un éthéré** : seuls les boucliers noirs blessent (1/6), et un héros à 3 dés ne fait aucun dégât net
-  contre une défense de 4. Les stats du livret sont gardées ; l'écart est À TRANCHER PAR RENÉ (`docs/plan-dread-moon.md`, Exécution).
-- **L'Ombre du Dread** (Dread Wraith générique, D3 déclaré) n'est plus dans le pool de la rencontre finale : Magrian la remplace.
+- **`cout` 20, MESURÉ** (René, 2026-10-24 : « laisse Magrian comme il est dans le livret » puis « ajuste son coût ») — la
+  méthode de Qwindrak, en attaques d'un héros à 3 dés : base `5 / (1,5 − 4/6)` = 6,0 ; *Consume Magic* +2 Body (+2,4) et un sort
+  de héros perdu (+1) ; *Reflection*, le coup fatal renvoyé (+1) ; *Terror*, une attaque perdue (+1) ; trois lancers de sort au
+  budget de boss (+3 — *Shift Reality* lance dans ce budget). N = 14,4, droite des boss : 20 + 0,5 × (14,4 − 15) = 19,7 ⇒ **20**.
+  L'éthéré est compté À L'ACHAT, en plus (`coutEffectif()`, ×2 : 40) — avec les stats du livret (Défense 4), il ne tombe à
+  l'arme qu'à 5 dés d'attaque et plus, sinon par la magie.
+- **L'Ombre du Dread est RETIRÉE du catalogue** (René, 2026-10-24 : « si l'Ombre du Dread n'est mentionnée nulle part, enlève-la ») : remplacée par Magrian dans la rencontre finale, elle n'avait plus aucun rôle. Migration `2026_10_24_100000_retirer_ombre_du_dread` (la ligne n'est supprimée que si aucune instance ne la référence), archétype `spectre_effroi` et voix retirés. Sa divergence de Défense (D3, 2026-09-04) part avec elle : **Magrian garde les stats du livret, Defend 4 compris** (René, 2026-10-24 : « laisse Magrian comme il est dans le livret ») — éthéré, il ne tombe à l'arme qu'à 5 dés d'attaque et plus, sinon par la magie ; l'éthéré est compté à l'achat par `DemarreurQuete::coutEffectif()`.
   Ligne de bestiaire conservée, sans rôle dans les pools (un sous-boss de 17 à l'achat déplacerait les rencontres de la boîte).
 - **Non porté** (écrit, `docs/plan-dread-moon.md`) : l'image-miroir de la première rencontre (salles C et D), le soin de la salle C,
   l'empowerment de la quête — règles d'une seule quête.

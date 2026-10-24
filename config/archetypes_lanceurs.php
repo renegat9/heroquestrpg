@@ -83,23 +83,10 @@ return [
 
     // MAGRIAN, LE DREAD WRAITH (Rise of the Dread Moon, quête 10, F6646 p. 33 : « Dread Wraith Magrian is ethereal and can
     // cast each of the following Dread spells once per quest: Dreadlights, Channel Dread, Fear, and Summon Specters »).
-    // Même répertoire que l'Ombre (`spectre_effroi`), mais un archétype À SON NOM : la rencontre finale tire ses boss par
-    // archétype, et l'Ombre n'entre plus dans ce pool (chantier EXT-MAGRIAN, 2026-10-23).
+    // Le répertoire de l'ancienne Ombre du Dread (`spectre_effroi`, retiré avec elle le 2026-10-24), sous un archétype À SON
+    // NOM : la rencontre finale tire ses boss par archétype.
     'magrian' => [
         'porteur' => 'Magrian, le Dread Wraith (Rise of the Dread Moon, quête 10, p. 33)',
-        'sorts' => [
-            'Feux de l\'Effroi',
-            'Canaliser l\'Effroi',
-            'Frayeur',
-            'Invocation de spectres',
-        ],
-    ],
-
-    'spectre_effroi' => [
-        'porteur' => 'Ombre du Dread',
-        // « éthéré, connaît *Dreadlights, Channel Dread, Fear, Summon
-        // Specters*, chacun 1 fois par quête ». Le seul répertoire officiel qui
-        // couvre les trois familles à la fois : marquer, blesser, appeler.
         'sorts' => [
             'Feux de l\'Effroi',
             'Canaliser l\'Effroi',

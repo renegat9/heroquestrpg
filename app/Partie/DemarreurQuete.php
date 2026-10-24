@@ -784,7 +784,7 @@ final class DemarreurQuete
      * ⚠ Une éthérée ne se blesse à l'arme que sur un **bouclier noir** (1/6) au
      * lieu d'un crâne (3/6), pendant qu'elle pare toujours sur 1/6 : les dégâts
      * nets valent (attaque − défense)/6 au lieu de (3·attaque − défense)/6.
-     * Mesuré sur l'Ombre du Dread à 5 dés d'attaque, cela la rend **6 fois** plus
+     * Mesuré sur le Dread Wraith (l'Ombre du Dread, aujourd'hui Magrian) à 5 dés d'attaque, cela le rend **6 fois** plus
      * longue à abattre qu'un bloc de stats identique non éthéré.
      *
      * ⚠ On ne facture pourtant PAS ×6, et c'est délibéré : le livret excepte

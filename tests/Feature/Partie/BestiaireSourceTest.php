@@ -86,8 +86,6 @@ it('porte les créatures d\'extension telles que les livrets les chiffrent', fun
         'Assassin' => [10, 5, 3, 2, 3],
         'Garde-mage' => [8, 4, 4, 3, 3],
         'Spectre' => [8, 3, 3, 1, 0],
-        // ⚠ Defend **3** et non 4 : voir la divergence DÉCLARÉE plus bas.
-        'Ombre du Dread' => [9, 6, 3, 5, 5],
         // The Mage of the Mirror
         'Guerrier elfe' => [6, 4, 3, 3, 2],
         'Loup géant' => [9, 6, 3, 5, 1],
@@ -143,17 +141,12 @@ it('déclare ses DIVERGENCES de stat, une par une, avec leur raison', function (
     // signaler. Une divergence déclarée est un arbitrage ; une divergence
     // silencieuse est un bug qui a l'air d'une donnée.
     $divergences = [
-        'Ombre du Dread' => [
-            'livret' => [9, 6, 4, 5, 5],   // Dread Wraith, Rise of the Dread Moon
-            'chez_nous' => [9, 6, 3, 5, 5],
-            'raison' => 'Éthérée : une arme ne la blesse que sur un bouclier noir (1/6) '
-                .'contre autant de dés qui parent sur 1/6, donc les dégâts nets valent '
-                .'(attaque − défense)/6. À 4 de défense elle était mathématiquement '
-                .'invulnérable aux armes en dessous de 5 dés, et encore 30 tours à 5. '
-                .'À 3 elle retombe dans la fourchette du Seigneur (15 tours à 5 dés). '
-                .'Arbitrage de René, 2026-09-04.',
-        ],
+        // Vide depuis le 2026-10-24 : la seule divergence déclarée (Défense 3 du Dread Wraith, René 2026-09-04) est partie avec
+        // l'Ombre du Dread, retirée du catalogue ; Magrian garde le livret (« laisse Magrian comme il est dans le livret »).
     ];
+
+    // Aucune divergence déclarée à ce jour : le jour où il en faut une, elle s'ajoute ci-dessus, avec sa raison.
+    expect($divergences)->toBe([]);
 
     foreach ($divergences as $nom => $ecart) {
         expect(statsDe($nom))->toBe($ecart['chez_nous'], "{$nom} : la divergence déclarée n'est plus celle du catalogue");

@@ -3352,6 +3352,11 @@ final class JournalCombat
             } else {
                 $lignes[] = $this->info("{$acteurNom} : le dé du passage ne fait pas de crâne — aucun mal");
             }
+        } elseif (! empty($a['teleportation']['vers'])) {
+            // TUNNEL DE GLACE (Frozen Horror) : la même téléportation, sans dé de passage. Elle était MUETTE jusqu'au
+            // 2026-10-24 — le héros disparaissait d'une salle pour reparaître dans une autre sans qu'aucune ligne le dise
+            // (règle dure : un effet automatique que rien n'annonce est injouable).
+            $lignes[] = $this->info("{$acteurNom} s'engouffre dans un tunnel de glace et ressort à l'autre bout");
         }
 
         foreach ((array) ($a['terrain_jets'] ?? []) as $jet) {

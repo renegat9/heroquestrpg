@@ -151,8 +151,7 @@ return [
         'Spectre' => 'spectre',
         'Assassin' => 'tueur',
         'Garde-mage' => 'sorcier',
-        'Ombre du Dread' => 'spectre',
-        // Magrian, le Dread Wraith (boss final, Rise of the Dread Moon) : la voix du Dread Wraith, comme l'Ombre.
+        // Magrian, le Dread Wraith (boss final, Rise of the Dread Moon) : la voix des spectres.
         'Magrian' => 'spectre',
         'Sir Ragnar' => 'champion',
         // The Mage of the Mirror

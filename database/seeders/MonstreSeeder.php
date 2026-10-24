@@ -333,33 +333,16 @@ class MonstreSeeder extends Seeder
             ['nom_base' => 'Garde-mage', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 3,
                 'tier' => 'sous_boss', 'boite' => 'dread_moon', 'cout' => 8, 'capacites' => [], 'sorts_dread' => [],
                 'archetype_lanceur' => 'garde_magus'],
-            // « éthéré, connaît *Dreadlights, Channel Dread, Fear, Summon
-            // Specters*, chacun 1 fois par quête » : le seul répertoire officiel
-            // qui couvre les trois familles — marquer, blesser, appeler.
-            // ⚠ **DIVERGENCE ASSUMÉE du livret** (René, 2026-09-04) : Defend **3**
-            // là où le Dread Wraith de Rise of the Dread Moon est chiffré à 4.
-            // Elle est ÉTHÉRÉE, donc une arme ne la blesse que sur un bouclier
-            // noir (1/6) contre autant de dés qui parent sur 1/6 : les dégâts
-            // nets valent (attaque − défense)/6. À 4 de défense, un groupe à 3
-            // dés d'attaque ne pouvait PAS l'abattre — jamais, à aucun niveau
-            // réaliste (30 tours encore à 5 dés). À 3, elle redevient un boss :
-            // 15 tours à 5 dés d'attaque, 10 à 6 — exactement la fourchette du
-            // Seigneur. La divergence est DÉCLARÉE dans `BestiaireSourceTest`
-            // plutôt que dissimulée : c'est le seul écart de stat que nous nous
-            // accordions sur une créature sourcée.
-            // DÉCISION (chantier EXT-MAGRIAN, 2026-10-23) : l'Ombre n'est PLUS le boss final de la boîte — Magrian la remplace
-            // (ligne suivante). Elle reste le Dread Wraith GÉNÉRIQUE du livret, sans rôle dans les pools de rencontre : ni boss
-            // final, ni sous-boss (ajouter un sous-boss de 17 à l'achat changerait les rencontres de la boîte — à trancher).
-            ['nom_base' => 'Ombre du Dread', 'deplacement' => 9, 'attaque' => 6, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 5,
-                'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 17, 'capacites' => ['ethere'], 'sorts_dread' => [],
-                'archetype_lanceur' => 'spectre_effroi'],
+            // L'« Ombre du Dread » (Dread Wraith GÉNÉRIQUE, boss final de la boîte jusqu'au 2026-10-23) est RETIRÉE du
+            // catalogue le 2026-10-24 (René : « si l'Ombre du Dread n'est mentionnée nulle part, enlève-la ») : Magrian, le
+            // Dread Wraith NOMMÉ du livret, l'a remplacée dans la rencontre finale, et elle n'avait plus aucun rôle. La ligne
+            // est supprimée de la base par la migration `2026_10_24_100000_retirer_ombre_du_dread` (seulement si aucune
+            // instance ne la référence). Sa divergence de Défense (D3, René 2026-09-04) part avec elle : Magrian garde le livret.
 
             // SIR RAGNAR (boss, quête 9, p. 31 — docs/plan-dread-moon.md lot I,
             // porté AVEC Ogre Horde comme René l'a tranché le 2026-10-04).
-            // Stats relues M/A/D/B/Mi : 5/5/5/4/4 (même ordre que Magrian/
-            // l'Ombre du Dread ci-dessus — confirmé par recoupement : « 9/6/4/5/5 »
-            // de Magrian donne M9 A6 D4 B5 Mi5, exactement les valeurs DÉJÀ
-            // seedées de l'Ombre du Dread avant divergence assumée de Défense).
+            // Stats relues M/A/D/B/Mi : 5/5/5/4/4 (même ordre que Magrian,
+            // ci-dessous — « 9/6/4/5/5 » de Magrian donne M9 A6 D4 B5 Mi5).
             // Règle propre, verbatim : « The first time Sir Ragnar's Body
             // Points are reduced to 0, they are instead reduced to 1 » — PAS
             // le mot-clé `phases` (aucune nouvelle statistique, aucune
@@ -372,8 +355,10 @@ class MonstreSeeder extends Seeder
 
             // MAGRIAN, LE DREAD WRAITH (boss FINAL de Rise of the Dread Moon, quête 10, F6646 p. 33 — chantier EXT-MAGRIAN,
             // 2026-10-23). Stats relues sur le RENDU PNG (p. 33) et sur le tableau p. 36 : Move 9 · Attack 6 · Defend 4 ·
-            // Body 5 · Mind 5. La défense du livret est 4 ; celle de l'Ombre ci-dessus est 3 (divergence déclarée, qui reste la
-            // sienne). Éthéré (`ethere`). Quatre capacités à usage unique sans action, chacune lue sur UNE couture :
+            // Body 5 · Mind 5 — les stats du LIVRET, Defend 4 compris (René, 2026-10-24 : « laisse Magrian comme il est dans le
+            // livret »). ⚠ Éthéré, une arme ne le blesse que sur un bouclier noir (1/6) contre autant de dés qui parent sur 1/6 :
+            // un groupe à moins de 5 dés d'attaque ne l'abat qu'avec la magie — c'est voulu. L'ancienne Ombre du Dread (D3,
+            // divergence du 2026-09-04) est retirée ; la divergence part avec elle. Éthéré (`ethere`). Quatre capacités à usage unique sans action, chacune lue sur UNE couture :
             //  - *Terror* (début du tour d'un héros) → `terreur` ; *Consume Magic* (au sort d'un héros qui vise le camp du MJ)
             //    → `consomme_magie` ; *Reflection* (au coup qui l'achèverait) → `reflexion` ; *Shift Reality* (début du tour du
             //    MJ) → `realite_decalee`. Toutes dans `reactions_defense`, registre `MotsClesReactionMj` (testé dans les deux sens).
@@ -381,13 +366,15 @@ class MonstreSeeder extends Seeder
             // (`config/archetypes_lanceurs.php`, répertoire nommé par le livret, p. 33). La salle C (soin de 1 PV par tour, la
             // Reine) et l'image-miroir de la première rencontre (« in C or D ») sont des règles d'UNE quête : écartées
             // (`docs/plan-dread-moon.md`, décision du 2026-10-23).
-            // `cout` MESURÉ (méthode de `docs/regles/bestiaire-et-rencontres.md`) : 5 / (1,5 − 4/6) = 6,0 attaques d'un héros à
-            // 3 dés, sur la droite des boss (Seigneur 15 → 20, pente 0,5) : 20 + 0,5 × (6,0 − 15) = 15,5 → 16, comme Venim.
-            // ⚠ Cette mesure ne vaut pas telle quelle pour un ÉTHÉRÉ : seuls les boucliers noirs (1/6) blessent, et un héros à
-            // 3 dés ne fait aucun dégât net contre une défense de 4 — raison de la divergence de l'Ombre (D3). Magrian garde les
-            // stats du livret ; cet écart est À TRANCHER PAR RENÉ (`docs/plan-dread-moon.md`), non décidé ici.
+            // `cout` MESURÉ (René, 2026-10-24 : « ajuste son coût » ; méthode de `docs/regles/bestiaire-et-rencontres.md`, celle de
+            // Qwindrak), en attaques d'un héros à 3 dés : base 5 / (1,5 − 4/6) = 6,0 ; Consume Magic rend 2 Body (2 / 0,833 = +2,4)
+            // et annule le sort d'une action de héros (+1) ; Reflection renvoie le coup fatal (+1) ; Terror prive un héros d'une
+            // attaque (+1) ; ses sorts, 3 lancers au budget de boss (`MoteurDread::USAGES_BOSS`), +3 — Shift Reality lance dans ce
+            // même budget, il n'en ajoute pas. N = 14,4, sur la droite des boss (Seigneur 15 → 20, pente 0,5) : 20 + 0,5 × (14,4 − 15)
+            // = 19,7 ⇒ **20** (était 16, sa seule base). L'éthéré est compté À L'ACHAT, en plus : `DemarreurQuete::coutEffectif()`
+            // le multiplie par `RATIO_COUT_ETHERE` (2) — 40 dans le budget de la rencontre finale.
             ['nom_base' => 'Magrian', 'deplacement' => 9, 'attaque' => 6, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 5,
-                'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 16,
+                'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 20,
                 'capacites' => ['ethere', 'reserve_a_son_theme',
                     'reactions_defense' => ['terreur', 'consomme_magie', 'reflexion', 'realite_decalee']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'magrian'],
@@ -418,7 +405,7 @@ class MonstreSeeder extends Seeder
             // l'archemage**, boss final de la quête 9 de la boîte — Move 8 ·
             // Attack 4 · Defend 4 · Body 4 · Mind 9 (Mage of the Mirror p. 30,
             // doc 18). Le catalogue porte le TYPE et l'IA l'habille : « Sinestra »
-            // est un nom propre, comme « Magrian » l'est pour l'Ombre du Dread.
+            // est un nom propre, comme « Magrian » l'est pour le Dread Wraith.
             //
             // ⚠ **Mind 9**, la plus haute valeur du bestiaire : une archimage
             // ne s'endort pas. C'est la fiche qui le dit, pas nous.

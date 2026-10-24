@@ -564,6 +564,8 @@ n'est pas une entité seedée).
 
 ## TRAPPES DE TÉLÉPORTATION — un portail au contact (EXT-CARTE2, 2026-10-23)
 
+⚠ **Le TUNNEL DE GLACE (Frozen Horror) téléportait SANS RIEN DIRE** jusqu'au 2026-10-24 : le payload portait `teleportation`, mais `JournalCombat::jetsDeTerrain()` ne le lisait que pour une trappe (avec dé de passage). Le fil dit désormais « X s'engouffre dans un tunnel de glace et ressort à l'autre bout » — test dans `TerrainEnJeuTest`.
+
 **Sources** : *The Mage of the Mirror* F7539 p. 5 (composant : « two visually unconnected rooms via an unseen tunnel. When landing on one trap door, a hero moves instantly to the other »), p. 15 note A ; *Kellar's Keep* F4543 p. 22 note C. Le texte est **le même** dans les deux boîtes : « Any hero or monster landing on one of these squares immediately moves to the other trap door square […] After a hero moves through it, they roll one combat die. If a skull is rolled, the hero loses 1 Body Point. After moving from one trap door square to the other, the hero's or monster's turn is over. » Aucun paramètre ne diffère : **une ligne** de catalogue (`terrains`, « Trappe de téléportation », `boite: mage_du_miroir`, `boites_partagees: [kellars_keep]`), un seul lecteur.
 
 - **Un PORTAIL, pas un tunnel** : `effet.teleportation: 'contact'`. Le Tunnel de glace garde `teleportation: true` (arrivée seule : « traverser n'est pas s'arrêter »). **Deux valeurs, deux moments** : ne jamais les confondre dans une nouvelle tuile.

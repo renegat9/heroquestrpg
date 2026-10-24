@@ -420,3 +420,9 @@ ajoutait un concurrent au tirage de sous-boss de la boîte et déplaçait les re
 **Vérifié** : `MagrianTest` (9 tests en jeu, dés figés) ; mutations de chaque lecteur (chaque test échoue sans son lecteur,
 et la levée de fin de tour est couverte par son propre test) ; registre `ReactionsMjTest` dans les deux sens ;
 `BestiaireSourceTest` (fiche de Magrian, *Deflect* sur les trois phases de Gruzbella).
+
+## Correctifs du 2026-10-24 (René : « apporte les corrections, si l'Ombre du Dread n'est mentionnée nulle part enlève-la »)
+
+- **L'Ombre du Dread est retirée du catalogue** (seeder, archétype `spectre_effroi`, voix, tests ; migration `2026_10_24_100000_retirer_ombre_du_dread`, gardée par l'absence d'instance qui la référence — 0 sur la vraie base).
+- **Magrian garde les stats du livret, Defend 4 compris** (René, 2026-10-24 : « laisse Magrian comme il est dans le livret ») : la question « à trancher par René » de l'exécution du 2026-10-23 est close. Éthéré, il ne tombe à l'arme qu'à 5 dés d'attaque et plus, sinon par la magie.
+- **Son `cout` passe de 16 à 20** (René : « ajuste son coût ») : la mesure ne comptait que sa base (6,0 attaques) ; ses quatre capacités et ses trois lancers de sort la portent à 14,4 attaques, lues sur la droite des boss. Calcul complet dans `MonstreSeeder`. L'éthéré reste compté à l'achat (×2 : 40 dans le budget de la rencontre finale, où le boss entre toujours).

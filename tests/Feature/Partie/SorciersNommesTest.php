@@ -134,10 +134,9 @@ it('remplit un POOL d\'archétypes dans chaque gabarit à rencontre finale', fun
             ->pluck('nom_base')->all();
 
         // ⚠ Une créature RETIRÉE DES POOLS par décision écrite a le même droit, nommée ici avec sa raison (retirer un contenu
-        // est un choix écrit, jamais une omission). L'Ombre du Dread (Dread Wraith générique, Rise of the Dread Moon) n'est plus
-        // le boss final de sa boîte : Magrian la remplace dans « Confrontation finale » (chantier EXT-MAGRIAN, 2026-10-23). Sa
-        // ligne de bestiaire est conservée, sans rôle dans les pools (`docs/plan-dread-moon.md`, Exécution).
-        $retiresParDecision = ['Ombre du Dread'];
+        // est un choix écrit, jamais une omission). Vide depuis le 2026-10-24 : l'Ombre du Dread, seule créature qui y figurait
+        // (remplacée par Magrian dans « Confrontation finale »), a été retirée du catalogue sur décision de René.
+        $retiresParDecision = [];
 
         // ⚠ Une PHASE qui n'est pas la première d'une chaîne a aussi le droit
         // d'être inatteignable À L'ACHAT (chantier monstre à phases,
@@ -280,13 +279,13 @@ it('fait venir du THÈME les quelques FORTS, sans toucher à la masse de faibles
 
 it('facture PLUS CHER une créature éthérée, à tous les paliers', function () {
     // ⚠ Une éthérée ne se blesse à l'arme que sur un bouclier noir (1/6) au lieu
-    // d'un crâne (3/6) : mesurée sur l'Ombre du Dread à 5 dés d'attaque, elle
+    // d'un crâne (3/6) : mesurée sur le Dread Wraith à 5 dés d'attaque, elle
     // tient SIX fois plus longtemps qu'un bloc identique non éthéré. Son prix
     // doit le dire (René, 2026-09-04), sans quoi le budget de rencontre la paie
     // au tarif d'un monstre ordinaire et lui adjoint une escorte complète.
     $demarreur = app(DemarreurQuete::class);
 
-    $ombre = Monstre::where('nom_base', 'Ombre du Dread')->firstOrFail();
+    $ombre = Monstre::where('nom_base', 'Magrian')->firstOrFail();
     $liche = Monstre::where('nom_base', 'Liche')->firstOrFail();
 
     expect($demarreur->coutEffectif($ombre))
