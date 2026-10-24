@@ -218,6 +218,36 @@ trait LignesEffetsAutomatiques
         ]];
     }
 
+    /**
+     * SOURIS FAMILIÈRE (The Crypt of Perpetual Darkness, chantier EXT-CRYPTE, 2026-10-23) : la souris file derrière la
+     * porte. Le message nomme ce qui se trouve dans la salle DERRIÈRE — c'est l'information que le livret promet.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function lacherSouris(array $a, string $acteurNom): array
+    {
+        $monstres = array_values(array_map('strval', (array) ($a['monstres'] ?? [])));
+        $meubles = array_values(array_map('strval', (array) ($a['meubles'] ?? [])));
+
+        $lignes = [[
+            'texte' => "{$acteurNom} lâche la souris familière devant une porte close : elle file derrière, sans l'ouvrir",
+            'ton' => 'info',
+        ]];
+
+        $lignes[] = ['texte' => 'Derrière : '
+            .($monstres === [] ? 'aucun monstre' : count($monstres).' monstre'.(count($monstres) > 1 ? 's' : '').' ('.implode(', ', $monstres).')')
+            .', '
+            .($meubles === [] ? 'aucun meuble' : count($meubles).' meuble'.(count($meubles) > 1 ? 's' : '').' ('.implode(', ', $meubles).')'),
+            'ton' => 'info',
+        ];
+
+        if (! empty($a['souris_epuisee'])) {
+            $lignes[] = ['texte' => 'La souris a fini son message : elle s\'enfuit et se brise', 'ton' => 'info'];
+        }
+
+        return $lignes;
+    }
+
     /** @return list<array{texte: string, ton: string}> */
     private function detacherRejetons(array $a, string $acteurNom): array
     {

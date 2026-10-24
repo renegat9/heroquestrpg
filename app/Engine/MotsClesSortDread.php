@@ -400,7 +400,7 @@ final class MotsClesSortDread
         ],
         'type_degat' => [
             'lecteur' => 'App\Partie\MoteurSorts::absorbeDegat',
-            'libelle' => 'Nature du dégât (feu, froid) — lue par les protections',
+            'libelle' => 'Nature du dégât (feu, froid, acide) — lue par les protections',
         ],
         'zone' => [
             'lecteur' => 'App\Partie\MoteurDread::casesDeZone',

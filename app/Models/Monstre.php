@@ -127,6 +127,18 @@ class Monstre extends Model
     }
 
     /**
+     * RÉSERVÉ À SON THÈME (`reserve_a_son_theme`, chantier EXT-CRYPTE, 2026-10-23) : ne se tire JAMAIS hors de sa boîte,
+     * même quand le pool de la rencontre n'a aucun autre candidat du thème. Lu par
+     * `DemarreurQuete::acheterMonstres()`. Voir `App\Engine\MotsClesAdversaires`.
+     */
+    public function reserveASonTheme(): bool
+    {
+        $capacites = (array) ($this->capacites ?? []);
+
+        return in_array('reserve_a_son_theme', $capacites, true) || array_key_exists('reserve_a_son_theme', $capacites);
+    }
+
+    /**
      * IMMUNITÉ TOTALE aux effets de sort (`immunite_sorts`) — Guardian Effigy : « immune to
      * all spell effects ». Lu aux points de passage des sorts qui atteignent un monstre :
      * le menu des sorts de héros (`MoteurSorts::ciblesLegales()`), les sorts de zone et de

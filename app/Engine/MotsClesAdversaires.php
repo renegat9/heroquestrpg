@@ -57,6 +57,14 @@ final class MotsClesAdversaires
     public const APPARAIT_A_LA_VUE = 'apparait_a_la_vue';
 
     /**
+     * RÉSERVÉ À SON THÈME (chantier EXT-CRYPTE, 2026-10-23) : la créature ne se tire JAMAIS hors de sa boîte, même
+     * quand le pool de la rencontre ne contient aucun autre candidat du thème — un pool partagé ferait sinon fuir
+     * ses sous-boss dans les campagnes d'une boîte sans sous-boss (la Première Lumière). Lu par
+     * `DemarreurQuete::acheterMonstres()` (filtre de pool, AVANT la préférence de thème), via `Monstre::reserveASonTheme()`.
+     */
+    public const RESERVE_A_SON_THEME = 'reserve_a_son_theme';
+
+    /**
      * SILENCING SNARE (Deathspinner, F9907 p. 17) : « may cast Channel Dread at will on
      * any hero that ends their turn within her line of sight (no action required). She
      * cannot use this ability if she would not be able to take her action ». Paramétrée :
@@ -223,6 +231,10 @@ final class MotsClesAdversaires
             'lecteur' => 'App\Partie\MoteurTourelle::apparitionsEnVue',
             'libelle' => 'Paraît dès qu\'un héros le voit, et fait feu aussitôt',
         ],
+        self::RESERVE_A_SON_THEME => [
+            'lecteur' => 'App\Models\Monstre::reserveASonTheme',
+            'libelle' => 'Tirée seulement sous son propre thème, jamais en repli hors de sa boîte',
+        ],
         self::FILET_SILENCIEUX => [
             'lecteur' => 'App\Partie\AdversairesDelthrak::filetsSilencieux',
             'libelle' => 'Filet silencieux : Canaliser l\'Effroi sur tout héros qui finit son tour en sa vue (sans action)',
@@ -293,13 +305,9 @@ final class MotsClesAdversaires
      * @var array<string, string>
      */
     public const SANS_DONNEE = [
-        self::APPARAIT_A_LA_VUE => 'Le Dread Skull (The Crypt of Perpetual Darkness, G1798 p. 5 et q. 9 p. 23) est la seule '
-            .'carte à la porter, et cette boîte n\'est pas un thème actif (plan-crypte-tenebres.md, Q5 différée) : aucune '
-            .'boîte existante ne peut accueillir proprement une figure de palier base à pose cachée — en bestiaire '
-            .'automatique le tier `base` se tire dans TOUTES les boîtes, et le crâne y serait acheté comme un sbire '
-            .'ordinaire. Le semer est la première étape du portage de la Crypte ; le mécanisme est déjà prêt '
-            .'(MoteurTourelle::apparitionsEnVue, testé en jeu avec une ligne de catalogue de test).',
-        self::INVULNERABLE_CASSE_ARME => 'Les quatre statues d\'orcs (Return of the Witch Lord q. 10, p. 27) ne sont PAS '
+        // `APPARAIT_A_LA_VUE` n'est plus ici (2026-10-23) : le Crâne du Dread (`MonstreSeeder`, boîte
+        // `crypte_tenebres`, tier `sous_boss`) la porte, et `MoteurTourelle::apparitionsEnVue()` la lit en jeu.
+        self::INVULNERABLE_CASSE_ARME =>'Les quatre statues d\'orcs (Return of the Witch Lord q. 10, p. 27) ne sont PAS '
             .'semées : elles « bloquent totalement le couloir » — c\'est une règle de CARTE (un obstacle sur le passage), '
             .'et une figure du bestiaire ne se pose qu\'en salle (`AssembleurCarte::casesPourFiguresFixes()`) : les semer '
             .'en couloir créerait une seconde règle de placement, les semer en salle leur retirerait leur sens. La forme '

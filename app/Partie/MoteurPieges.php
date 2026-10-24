@@ -85,11 +85,20 @@ final class MoteurPieges
      */
     public const ETAT_FOSSE_OUVERTE = 'fosse_ouverte';
 
+    /**
+     * MARE D'ACIDE déclenchée (*Acid Pool Trap*, The Crypt of Perpetual Darkness, G1798 p. 5) : « The acid
+     * remains on the ground and affects any hero who moves onto it. » Persistante, armée, connue, sautable,
+     * jamais désarmable — comme une fosse ouverte, mais ce n'est PAS un trou : son libellé et sa légende ne
+     * disent pas « y marcher fait tomber », et `estFosse()` l'exclut (`effet.mare`), donc ni Forme
+     * démoniaque ni immobilisation ne s'y appliquent. Chantier EXT-CRYPTE, 2026-10-23.
+     */
+    public const ETAT_MARE = 'mare_acide';
+
     /** États d'un piège qui se déclenche encore quand on marche dessus. */
-    public const ETATS_ARMES = [self::ETAT_CACHE, self::ETAT_DETECTE, self::ETAT_FOSSE_OUVERTE];
+    public const ETATS_ARMES = [self::ETAT_CACHE, self::ETAT_DETECTE, self::ETAT_FOSSE_OUVERTE, self::ETAT_MARE];
 
     /** États d'un piège ARMÉ que le groupe CONNAÎT : ceux qu'on saute, qu'on évite. */
-    public const ETATS_CONNUS_ARMES = [self::ETAT_DETECTE, self::ETAT_FOSSE_OUVERTE];
+    public const ETATS_CONNUS_ARMES = [self::ETAT_DETECTE, self::ETAT_FOSSE_OUVERTE, self::ETAT_MARE];
 
     /**
      * BLOC PERMANENT (Chute de blocs déclenchée, livret p. 14, 2026-09-24) :
@@ -564,6 +573,17 @@ final class MoteurPieges
             $degats = (int) data_get($piege?->effet, 'degats_pv_body', 1);
         }
 
+        // NATURE du dégât (`effet.type_degat`, la Mare d'acide) : la MÊME couture que le feu, le froid et les
+        // sorts de Dread — `MoteurSorts::absorbeDegat()`, consultée AVANT d'infliger. Un piège sans
+        // `type_degat` (Fosse, Piège à lances, Chute de blocs) n'appelle pas le lecteur : rien à intercepter.
+        $typeDegat = data_get($piege?->effet, 'type_degat');
+        $absorbe = $degats > 0 && $typeDegat !== null
+            && $this->sorts->absorbeDegat($personnage, (string) $typeDegat);
+
+        if ($absorbe) {
+            $degats = 0;
+        }
+
         $subis = $this->degats->infligerAHeros(
             $personnage, $degats, MoteurDegats::SOURCE_PIEGE, ['piege' => $piege?->nom],
         );
@@ -581,6 +601,8 @@ final class MoteurPieges
         // de tous ; usage unique sinon : consommé définitivement.
         $blocPermanent = (bool) data_get($piege?->effet, 'bloc_permanent', false);
         $persistant = $piege?->usage === 'persistant';
+        // Mare d'acide : persistante, mais pas un trou (`effet.mare`, voir `ETAT_MARE`).
+        $mare = $this->estMare($piege);
 
         // LIANES AGRIPPANTES, sur un crâne : « suffer 1 Body Point of damage and
         // are held in place by the vines » — `effet.retient` nomme la condition
@@ -597,6 +619,7 @@ final class MoteurPieges
             $blocPermanent => self::ETAT_BLOC,
             $retenu => self::ETAT_RETIENT,
             $esquiveSurBouclier => self::ETAT_DETECTE,
+            $mare => self::ETAT_MARE,
             $persistant => self::ETAT_FOSSE_OUVERTE,
             default => self::ETAT_DECLENCHE,
         };
@@ -633,6 +656,10 @@ final class MoteurPieges
             // La même clé que les pièges de coffre : le fil dit « X est
             // Immobilisé » sans nouveau texte (`JournalCombat::piegeDeclenche()`).
             'condition_appliquee' => $retenu ? $nomRetient : null,
+            // Le lecteur de nature a-t-il intercepté le coup (immunité d'acide, de feu…) ? Publié : un coup
+            // absorbé qui ne se dit pas ressemble à un piège muet.
+            'absorbe' => $absorbe,
+            'type_degat' => $typeDegat,
         ];
 
         if ($faces !== null) {
@@ -1833,7 +1860,17 @@ final class MoteurPieges
      */
     public function estFosse(?Piege $piege): bool
     {
-        return $piege?->usage === 'persistant' && $this->estFranchissable($piege);
+        return $piege?->usage === 'persistant' && $this->estFranchissable($piege) && ! $this->estMare($piege);
+    }
+
+    /**
+     * Une MARE (`effet.mare`) : persistante et sautable comme une fosse, mais ce n'est pas un trou. Exclue de
+     * `estFosse()` — Forme démoniaque, Potion de dextérité, Spiderstep et l'immobilisation parlent de la
+     * FOSSE seule (*Acid Pool Trap*, G1798 p. 5 : « Acid pools … can be jumped », jamais « fall »).
+     */
+    public function estMare(?Piege $piege): bool
+    {
+        return (bool) data_get($piege?->effet, 'mare', false);
     }
 
     /**

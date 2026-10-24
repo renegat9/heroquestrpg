@@ -879,7 +879,17 @@ final class DemarreurQuete
         // Rencontre finale : `database/seeders/GabaritQueteSeeder.php`, pool `creatures` du boss. Ni les portes du MJ, ni la carte de
         // pierre, ni la fouille « un piège à la fois » ne sont portées (`docs/plan-kellars-keep.md`, décision du 2026-10-23).
         'kellars_keep',
-        // Allumée le 2026-10-23 (René, « Oui » : le thème Spirit Queen's Torment entre dans la rotation), modulo 10 → 11, à la FIN
+        // Allumée le 2026-10-23 (René, « Oui » — Q5 de `docs/plan-crypte-tenebres.md`, tranchée le même jour), modulo
+        // 10 → 11 : entrée 10, À LA FIN (une boîte ajoutée se met derrière, jamais devant). Le thème CONTIENT le
+        // répertoire du livret G1798 : boss = VENIM LE DRAGON, quête 10 p. 25 (archétype `venim_dragon`, pool « Confrontation
+        // finale » de `GabaritQueteSeeder` ; sous le thème le pool se réduit à lui). Sous-boss = Sorcière des Marais,
+        // Squelette de minotaure, Buubhealxea (reine gobeline), Roi Archaloneus, Momie-naine, Kedrick Gilbane et le Crâne du
+        // Dread (tourelle) : nommés au pool sous-boss, chacun avec la capacité `reserve_a_son_theme` — jamais tiré HORS de la
+        // Crypte, même quand le pool n'a aucun autre candidat (la Première Lumière n'a aucun sous-boss : sans la réserve, un
+        // pool partagé ferait fuir ces sous-boss dans ses campagnes). Ce qui ne se porte pas : `docs/plan-crypte-tenebres.md`,
+        // « Exécution (2026-10-23) ».
+        'crypte_tenebres',
+        // Allumée le 2026-10-23 (René, « Oui » : le thème Spirit Queen's Torment entre dans la rotation), modulo 11 → 12 (entrée 11, derrière crypte_tenebres allumée le même jour), à la FIN
         // comme toute boîte ajoutée après coup (l'ordre EST la rotation, jamais réordonné). Les campagnes déjà commencées ne
         // bougent pas : leur thème est FIGÉ dans `groupes.theme_bestiaire`. Rencontre finale : NELATH, LA REINE DES ESPRITS (boss,
         // archétype `nelath_reine_des_esprits`, pool « Confrontation finale ») ; sous-boss : KAVRA (archétype `kavra_sorciere`,
@@ -1011,6 +1021,9 @@ final class DemarreurQuete
         'kellars_keep' => "Kellar's Keep",
         // reference/18_extensions.md ligne 1376 : « Spirit Queen's Torment (2023) » — l'année appartient au titre de section.
         'spirit_queen' => "Spirit Queen's Torment",
+        // reference/18_extensions.md l. 1785 : « The Crypt of Perpetual Darkness (2024/2025, Joe Manganiello's) » — le
+        // titre de section, année comprise comme pour First Light. Thème allumé le 2026-10-23.
+        'crypte_tenebres' => "The Crypt of Perpetual Darkness (2024/2025, Joe Manganiello's)",
     ];
 
     /**
@@ -1232,6 +1245,10 @@ final class DemarreurQuete
                     // Bestiaire MANUEL : un FILTRE, avant toute préférence —
                     // une boîte non cochée n'entre jamais (2026-09-28).
                     ->filter(fn (Monstre $m) => $bestiaire->autorise($m->boites()))
+                    // RÉSERVÉE À SON THÈME (`reserve_a_son_theme`, chantier EXT-CRYPTE, 2026-10-23) : jamais en repli
+                    // hors de sa boîte, même quand le pool n'en a aucun autre. AVANT la préférence de thème plus bas :
+                    // sans cela, un sous-boss de la Crypte ferait sortir la Première Lumière, qui n'en a aucun.
+                    ->filter(fn (Monstre $m) => ! $m->reserveASonTheme() || $bestiaire->contient($m->boites()))
                     // ⚠ Une FIGURE IMMOBILE (déplacement 0 : Guardian Effigy, Bloomrot Scion) ne
                     // s'achète que si la carte a une case SÛRE pour elle (`spawn_figures_fixes`) :
                     // une figure qui ne bougera plus, posée sur le seul parvis d'une porte ou au
@@ -1273,6 +1290,7 @@ final class DemarreurQuete
             // une quête de démarrer.
             $final ??= Monstre::query()->where('tier', $tierFinal)->orderByDesc('cout')->orderBy('id')->get()
                 ->first(fn (Monstre $m) => $bestiaire->autorise($m->boites())
+                    && (! $m->reserveASonTheme() || $bestiaire->contient($m->boites()))
                     && ($figuresFixesPossibles || ! $m->estImmobile()));
 
             if ($final !== null) {
@@ -1298,6 +1316,8 @@ final class DemarreurQuete
             ->whereNull('variante_distance_de')
             ->orderBy('cout')->orderBy('id')->get()
             ->filter(fn (Monstre $m) => $bestiaire->autorise($m->boites()))
+            // `reserve_a_son_theme` s'applique à la masse aussi : une créature réservée ne sort jamais hors de sa boîte.
+            ->filter(fn (Monstre $m) => ! $m->reserveASonTheme() || $bestiaire->contient($m->boites()))
             ->reject(fn (Monstre $m) => ! $figuresFixesPossibles && $m->estImmobile())
             ->values();
         $faibles = $base->filter(fn (Monstre $m) => (int) $m->cout <= $seuil)->values();       // coût croissant

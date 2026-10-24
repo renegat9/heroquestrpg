@@ -302,6 +302,19 @@ return [
             // quête que le donjon généré n'a pas.
             ['carte' => 'The Hearthkin Horn', 'paquet' => 'First Light', 'objet' => 'Cor des Hearthkin'],
 
+            // The Crypt of Perpetual Darkness (G1798, chantier EXT-CRYPTE, 2026-10-23) : SOURCE = LE LIVRET (texte
+            // imprimé p. 4, « Artifact Cards » ; quête 2 note B, quête 5 note C pour la souris), pas une des 59
+            // photos. Trois pièces portées, chacune avec sa ou ses clauses :
+            // « Dragon Spear » — 3 dés, 4 contre un dragon, diagonale, interdite au magicien : PORTÉE en entier.
+            ['carte' => 'Dragon Spear', 'paquet' => 'The Crypt of Perpetual Darkness', 'objet' => 'Lance du Dragon'],
+            // « Crown of Shadows » — « 1 extra Defend die » PORTÉ ; « allows you to see normally in darkness » ÉCARTÉ
+            // (aucun lecteur sans l'obscurité magique de l'antre de Venim, écartée le 2026-10-23) : écart écrit dans
+            // `docs/regles/artefacts.md`. La carte reste portée : sa moitié de défense est jouable.
+            ['carte' => 'Crown of Shadows', 'paquet' => 'The Crypt of Perpetual Darkness', 'objet' => 'Couronne des Ténèbres'],
+            // « Wizard's familiar » (le livret ne la nomme qu'en texte : quête 2 note B, « a mouse ») — objet à charge
+            // unique de la campagne, trouvé en fouillant (carte de trésor `DeckFouille::cartesCrypte()`).
+            ['carte' => "Wizard's familiar (mouse)", 'paquet' => 'The Crypt of Perpetual Darkness', 'objet' => 'Souris familière'],
+
             // « Bone Battleaxe » / « Bone Longsword » (Against the Ogre Horde
             // p. 8, p. 13, quête 4 note C, lot B 2026-10-02) : MÊME raison que
             // le Cor des Hearthkin juste au-dessus — source = livret de
@@ -483,6 +496,9 @@ return [
             ['carte' => 'Chill', 'paquet' => 'Frozen Horror', 'sort_dread' => 'Morsure de Froid'],
             ['carte' => 'Channel Dread', 'paquet' => 'Dread Moon / Delthrak', 'sort_dread' => "Canaliser l'Effroi"],
             ['carte' => 'Ice Storm', 'paquet' => 'Frozen Horror', 'sort_dread' => 'Tempête de Glace'],
+            // Carte-sœur de Firestorm (The Crypt of Perpetual Darkness, G1798 p. 25 : « Firestorm but with
+            // acid damage ») — texte du LIVRET, pas une carte photographiée : aucune photo ne la remplace.
+            ['carte' => 'Breathe Acid', 'paquet' => 'The Crypt of Perpetual Darkness', 'sort_dread' => 'Souffle acide'],
 
             // ---- Contrôle ----
             ['carte' => 'Sleep', 'paquet' => 'Base', 'sort_dread' => 'Sommeil'],

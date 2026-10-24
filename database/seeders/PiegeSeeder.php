@@ -258,6 +258,31 @@ class PiegeSeeder extends Seeder
                     'retient' => 'Immobilisé',
                     'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
                 ]],
+
+            // MARE D'ACIDE (*Acid Pool Trap*, The Crypt of Perpetual Darkness, G1798 p. 5 — texte intégral) :
+            // « Acid pools burn the skin of any hero who comes into contact with it. As a hero, if you move onto
+            // this trap square, Zargon puts an acid pool under your hero figure, and you must roll 1 combat die.
+            // On a skull, you suffer 1 Body Point of damage. The acid remains on the ground and affects any hero
+            // who moves onto it. Acid pools cannot be disarmed but can be jumped. »
+            // - `des_combat: 1` : un dé de combat, un crâne = 1 PV de Body, SANS jet de défense (`declencher()`).
+            // - `type_degat: acide` : NATURE lue par `MoteurSorts::absorbeDegat()` (`declencher()`). Aucune pièce
+            //   du catalogue ne porte encore `immunite_degat: acide` : le lecteur est en place, pas alimenté.
+            // - `usage: persistant` + `mare: true` : la mare reste au sol et se déclenche à CHAQUE pas (état
+            //   `mare_acide`). `mare` la sort de `estFosse()` : une mare n'est pas un trou.
+            // - `desarmable: 'non'` (« cannot be disarmed ») ; `franchissable` (« can be jumped ») : le saut de la
+            //   Fosse des ténèbres, son précédent le plus proche. Le livret ne chiffre pas ce saut (⚠ non trouvé).
+            // - FIN DE TOUR : aucune phrase du livret ne la ferme ; elle la ferme comme tout piège de sol armé
+            //   (`controlerChemin()`, précédent le plus proche). Choix signalé, pas une citation.
+            // - Boîte `crypte_tenebres` : thème ALLUMÉ le 2026-10-23 (décision de René) — `AssembleurCarte::placerPieges()`
+            //   ne la pose que sous la Crypte.
+            ['nom' => "Mare d'acide", 'detectable' => true, 'desarmable' => 'non', 'usage' => 'persistant',
+                'boite' => 'crypte_tenebres',
+                'effet' => [
+                    'des_combat' => 1,
+                    'type_degat' => 'acide',
+                    'mare' => true,
+                    'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
+                ]],
         ];
 
         foreach ($pieges as $piege) {

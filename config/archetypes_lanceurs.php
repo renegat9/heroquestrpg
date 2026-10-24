@@ -271,6 +271,61 @@ return [
     ],
 
     // ------------------------------------------------------------------
+    // The Crypt of Perpetual Darkness (G1798, chantier EXT-CRYPTE, 2026-10-23) — répertoires NOMMÉS par le
+    // livret, chacun à la page citée. Tous les sorts existent au catalogue (`SortDreadSeeder`).
+    // ------------------------------------------------------------------
+    'sorciere_des_marais' => [
+        'porteur' => 'Sorcière des Marais (The Crypt of Perpetual Darkness, quête 3 note C, p. 11 : « the Dread sorcerer represents a swamp hag »)',
+        'sorts' => [
+            'Éclair de Chaos',
+            'Commandement',
+            'Sommeil',
+            'Tourmente',
+            'Rouille',
+            'Fuite',
+        ],
+    ],
+
+    'buubhealxea_reine_gobeline' => [
+        'porteur' => 'Buubhealxea, reine gobeline (The Crypt of Perpetual Darkness, quête 5 note E, p. 15)',
+        'sorts' => [
+            'Commandement',
+            'Frayeur',
+            'Fuite',
+        ],
+    ],
+
+    'archaloneus_roi_momie' => [
+        'porteur' => 'Roi Archaloneus (The Crypt of Perpetual Darkness, quête 6 note B, p. 17 : « King Archaloneus, a powerful mummy lord »)',
+        'sorts' => [
+            'Sommeil',
+            'Rouille',
+            'Commandement',
+        ],
+    ],
+
+    'kedrick_gilbane' => [
+        'porteur' => 'Kedrick Gilbane (The Crypt of Perpetual Darkness, quête 9 note C, p. 23 : « the Dread knight Kedrick Gilbane »)',
+        'sorts' => [
+            'Nuée d\'Effroi',
+            'Frayeur',
+            'Tempête de feu',
+            'Commandement',
+        ],
+    ],
+
+    'venim_dragon' => [
+        'porteur' => 'Venim le Dragon (The Crypt of Perpetual Darkness, quête 10, p. 25 : « Venim has the following spells »)',
+        'sorts' => [
+            'Nuée d\'Effroi',
+            'Frayeur',
+            'Commandement',
+            'Sommeil',
+            'Souffle acide',
+        ],
+    ],
+
+    // ------------------------------------------------------------------
     // Archétypes DE NOUS — aucune carte ne les décrit ; seuls leurs sorts
     // sont sourcés. Ils existaient avant le passage aux cartes officielles
     // et gardent leurs porteurs.

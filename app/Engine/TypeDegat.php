@@ -27,6 +27,13 @@ namespace App\Engine;
  *    chemins qui blessent un héros (tir ami, sort de Dread, terrain). Porté à
  *    son tour — c'est ce qui a rendu l'Anneau de Chaleur portable
  *    (`config/cartes.php`).
+ *  - **`acide`** (chantier EXT-CRYPTE, 2026-10-23) : sources = Souffle Acide
+ *    (Dread, `SortDreadSeeder`, carte-sœur de Tempête de feu, Venim) et la Mare
+ *    d'acide (`PiegeSeeder`, déclenchée par un pas). Lecteur = le même
+ *    `MoteurSorts::absorbeDegat()` ; la Mare le consulte dans
+ *    `MoteurPieges::declencher()`, couture des pièges. Aucune pièce du catalogue
+ *    ne porte encore `immunite_degat: acide` : le lecteur est en place, pas
+ *    alimenté.
  *
  * Un sort SANS `type_degat` est neutre : il ne déclenche ni immunité ni
  * interdiction de régénération. C'est le cas de tous les autres.
@@ -39,8 +46,11 @@ final class TypeDegat
     /** Froid — sources et lecteur depuis le 2026-09-04 (Morsure de Froid). */
     public const FROID = 'froid';
 
+    /** Acide — sources depuis le 2026-10-23 (Souffle Acide, Mare d'acide). */
+    public const ACIDE = 'acide';
+
     /** @var list<string> */
-    public const TOUS = [self::FEU, self::FROID];
+    public const TOUS = [self::FEU, self::FROID, self::ACIDE];
 
     /**
      * Natures dont AUCUNE source n'existe encore dans les catalogues. Un

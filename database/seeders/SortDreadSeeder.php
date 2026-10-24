@@ -83,6 +83,24 @@ class SortDreadSeeder extends Seeder
                     'hors_couloir' => true,
                 ]],
 
+            // SOUFFLE ACIDE (« Breathe Acid », The Crypt of Perpetual Darkness, G1798 p. 25, Venim) :
+            // « Firestorm but with acid damage ». Carte-sœur de Tempête de feu (décision de René du
+            // 2026-10-15, Q3 du plan) : même mécanique, une donnée de plus — `type_degat: acide` au lieu
+            // de `feu`. Pas de brûlure : `MoteurDread::blesserMonstre()` ne marque `brule` que le feu.
+            // Lecteur de la nature : `MoteurSorts::absorbeDegat()`, comme pour Tempête de feu.
+            ['nom' => 'Souffle acide', 'palier' => 'sous_boss', 'type' => Mot::TYPE_DEGATS,
+                'effet' => [
+                    'zone' => Mot::ZONE_SALLE,
+                    'degats_fixes' => 3,
+                    'resistance' => Mot::RESISTANCE_DES_ROUGES,
+                    'des_resistance' => 2,
+                    'defense_applicable' => false,
+                    'type_degat' => 'acide',
+                    'touche_monstres' => true,
+                    'epargne_lanceur' => true,
+                    'hors_couloir' => true,
+                ]],
+
             // « horizontal, vertical, or diagonal […] until it strikes a wall or
             // closed door. 2 Body Points on all heroes or monsters in its path. »
             // Le lecteur existait déjà : `App\Partie\Rayon`, écrit pour le

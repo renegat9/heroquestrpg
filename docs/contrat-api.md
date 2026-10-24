@@ -338,7 +338,7 @@ lieu d'interroger `apercu` case par case.
 que le joueur ne sache déjà ; ce qui est caché n'est **ni présent, ni absent, ni plus cher** :
 - un **piège caché** est une case ORDINAIRE — publiée si atteignable, au coût normal, sans
   champ ni marqueur, et le trajet ne le contourne pas (la forme de la route le trahirait).
-  Seuls les pièges CONNUS (`detecte`, `fosse_ouverte`, `desarme`, `declenche`, `retient` —
+  Seuls les pièges CONNUS (`detecte`, `fosse_ouverte`, `mare_acide`, `desarme`, `declenche`, `retient` —
   ceux de `EtatGroupe.carte.pieges`) infléchissent le chemin ;
 - un **passage secret non découvert** est un mur (porte non ouverte, embrasure close — la
   carte la peint en roche) ;
@@ -874,7 +874,7 @@ La perte est appliquée au geste RÉSOLU, dans la même transaction que le dépl
 
 **Le menu d'une seconde frappe en attente** (2026-10-22, correction du même jour). Tant que la frappe est armée,
 le menu n'ouvre que ce que le résolveur accepte pendant elle : le reste du menu (mouvement, `jeter`,
-`desarmer_embrasement`, `utiliser_objet`, `ouvrir_porte`, `oracle_salle`, `liberer_captif`, `battre_en_retraite`,
+`desarmer_embrasement`, `utiliser_objet`, `ouvrir_porte`, `oracle_salle`, `lacher_souris`, `liberer_captif`, `battre_en_retraite`,
 `quitter_donjon`, `attendre`) et les seules options `type: "attaque"` (l'arme, la Furie, le poing nu). Ne sont PAS
 offerts : toute option de créneau `action` qui n'est pas une frappe (`frappe_balayee`, `rayon_{direction}`,
 `toucher_brasier`, les sorts, la fouille, `relever`…), et, dans `utiliser_objet`, toute entrée `cout: "action"`
@@ -1691,7 +1691,7 @@ toutes deux sont fermées.
   `objet_perdu` (via `annonces_automatiques`), `sbire_controle`
   (`tour_sbires`), `captif_libere`, `captif_repris`, `commandement_*`,
   `soin_allie`, `concentration`, `sacrifice_sort`, `s_ecarter_du_bloc`, `retraite`,
-  `sortie`, `poussee`, `ouvrir_porte`, `oracle_salle`, `detacher_rejetons`,
+  `sortie`, `poussee`, `ouvrir_porte`, `oracle_salle`, `lacher_souris`, `detacher_rejetons`,
   `briser_glace`, `deplacement_allie`, `attente_allie`, `pieges_detectes` /
   `portes_secretes_revelees` (`methode: "clairvoyance"` seule : la fouille et
   l'Œil du mineur se disent déjà).
@@ -2080,7 +2080,11 @@ de la quête.
   couloir (`AssembleurCarte::CHANCE_VOIE_UNIQUE`). Un couloir à voie unique ne
   reçoit **jamais** de Chute de blocs : tombée, elle fermerait le passage à
   jamais.
-- **EtatGroupe.carte** gagne `pieges: [{x, y, etat: "detecte|fosse_ouverte|desarme|declenche|bloc",
+- **`mare_acide`** (The Crypt of Perpetual Darkness, G1798 p. 5, chantier EXT-CRYPTE 2026-10-23) : la Mare d'acide
+  déclenchée reste au sol, armée, connue et sautable — elle se déclenche à CHAQUE pas (`MoteurPieges::ETAT_MARE`), et
+  n'est PAS une fosse : son libellé et sa légende ne disent pas « y marcher fait tomber », elle ne reçoit ni
+  l'immobilisation (`immobilise: false`) ni les protections contre les fosses. Publiée sous son propre état.
+- **EtatGroupe.carte** gagne `pieges: [{x, y, etat: "detecte|fosse_ouverte|mare_acide|desarme|declenche|bloc",
   nom, zone?: [{x, y}]}]` — les pièges **cachés n'y figurent jamais** (la table ne les montre
   pas). EtatGroupe.entites héros gagne `niveau`. `zone` (Lame balançoire
   seulement, voir plus bas) n'est publié que sous les **mêmes règles de
@@ -2733,6 +2737,13 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
     tout autre type de verrou (§Symboles de la carte et légende) — aucune
     illustration dédiée, elle reste une porte `fermee` ordinaire tant qu'elle
     n'est pas ouverte.
+- **Souris familière, option `lacher_souris`** (The Crypt of Perpetual Darkness, G1798 quête 2 note B, chantier
+  EXT-CRYPTE 2026-10-23 ; icône `pets`) : offerte sur CHAQUE porte fermée adjacente (id `lacher_souris_{x}_{y}_{cote}`,
+  `parametres.porte`) tant qu'un héros porte une souris utilisable (`Equipement::ligneSouris()`, un objet `charges: 1`).
+  Interaction LIBRE, comme la Bénédiction de l'Oracle : la porte reste close, et la salle derrière se DÉCOUVRE sans
+  que `revelerSalle()` ne réveille ses dormants (la différence avec l'Oracle, écrite). Le message nomme les monstres et
+  les meubles de la salle derrière. Une charge est dépensée ; la souris se brise à zéro (journalisé). Réponse
+  `{type: "lacher_souris", porte, salles_revelees, monstres, meubles, souris_epuisee}`.
 - **Bénédiction de l'Oracle, option (a)** (First Light, FL-Q p. 6, lot C
   2026-09-30) : option `oracle_salle` (id `oracle_salle_{x}_{y}_{cote}`),
   offerte **à la place** de — et en plus de — `ouvrir_porte` sur CHAQUE porte

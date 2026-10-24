@@ -1002,6 +1002,20 @@ final class MotsClesEquipement
     public const FRANCHIT_FOSSES_REVELEES = 'franchit_fosses_revelees';
 
     /**
+     * SOURIS FAMILIÈRE (*The Crypt of Perpetual Darkness*, G1798 p. 9 note B ; quête 5 p. 15 note C) : « A hero can
+     * release the mouse in front of any closed door in any quest to receive a telepathic message about what
+     * monsters and furniture lie behind the door (if any). When the mouse is used once in this way, it scurries
+     * off. » — la porte NE S'OUVRE PAS, et les monstres ne se réveillent pas : la salle derrière se découvre
+     * (brouillard levé pour cette salle seulement) et se décrit au journal. Charge UNIQUE, totale pour la
+     * campagne (`objets.effet.charges` : une ligne d'inventaire, jamais rechargée).
+     * Précédent : la Bénédiction de l'Oracle (`ResolveurTour::resoudreOracleSalle()`), dont la révélation
+     * SANS ouverture est le même chemin — avec cette différence écrite : l'Oracle réveille les dormants (`revelerSalle`),
+     * la souris ne les réveille pas.
+     * Lecteur : `App\Partie\ResolveurTour::resoudreLacherSouris()`, offerte par `MenuMoteur` (type `lacher_souris`).
+     */
+    public const LACHER_DERRIERE_PORTE = 'lacher_derriere_porte';
+
+    /**
      * Cases de déplacement en PLUS, SANS condition de boîte — « You may also
      * add 2 squares to your movement roll » (*Bracers of the Wild*, p. 50).
      *
@@ -1199,6 +1213,7 @@ final class MotsClesEquipement
         self::IGNORE_TERRAIN_ENTRAVANT,
         self::FRANCHIT_FOSSES_REVELEES,
         self::BONUS_DEPLACEMENT_INCONDITIONNEL,
+        self::LACHER_DERRIERE_PORTE,
         self::DES_ATTAQUE_AU_CONTACT,
         self::APPELLE_ALLIE,
         self::VALEUR_MARCHANDE,
@@ -1347,6 +1362,7 @@ final class MotsClesEquipement
         self::FRANCHIT_MOBILIER => 'Traverse le mobilier (sans s\'y arrêter)',
         self::IGNORE_TERRAIN_ENTRAVANT => 'Ignore le terrain gênant',
         self::FRANCHIT_FOSSES_REVELEES => 'Traverse les fosses déjà révélées',
+        self::LACHER_DERRIERE_PORTE => 'Se lâche devant une porte fermée : révèle la salle derrière, sans l\'ouvrir',
         'de_deplacement_supplementaire' => '+%s dé de déplacement',
         'deplacement_multiplie' => 'Déplacement ×%s',
         'franchit_figures' => 'Traverse les figurines',
@@ -1601,6 +1617,9 @@ final class MotsClesEquipement
         'distance' => 'à distance',
         'feu' => 'feu',
         'froid' => 'froid',
+        // Acide (Souffle Acide, Mare d'acide — chantier EXT-CRYPTE, 2026-10-23) : sans cette entrée,
+        // une valeur `acide` tomberait sur le remplacement générique, « slug déguisé en phrase ».
+        'acide' => 'acide',
         'poison' => 'poison',
     ];
 

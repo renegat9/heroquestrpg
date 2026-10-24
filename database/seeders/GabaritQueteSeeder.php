@@ -267,6 +267,11 @@ class GabaritQueteSeeder extends Seeder
                             // sorcier, Éclair de Chaos + Boule de Flammes, double sort au premier tour seulement. Boîte `spirit_queen`
                             // (thème allumé le 2026-10-23) : son archétype se tire sous ce thème, la préférence de boîte le désigne.
                             'kavra_sorciere',
+                            // LES QUATRE LANCEURS NOMMÉS DE THE CRYPT OF PERPETUAL DARKNESS (thème allumé le 2026-10-23) :
+                            // Sorcière des Marais (quête 3), Buubhealxea (quête 5), Roi Archaloneus (quête 6), Kedrick
+                            // Gilbane (quête 9). Chacun porte `reserve_a_son_theme` : jamais tiré hors de la Crypte, même
+                            // quand ce pool n'a aucun autre candidat du thème (`DemarreurQuete::acheterMonstres()`).
+                            'sorciere_des_marais', 'buubhealxea_reine_gobeline', 'archaloneus_roi_momie', 'kedrick_gilbane',
                         ],
                         // ⚠ …et les ONZE brutes du palier, qui n'ont pas de
                         // répertoire et ne pouvaient donc pas être nommées.
@@ -301,6 +306,10 @@ class GabaritQueteSeeder extends Seeder
                             // vue) et le GOLEM Cœur-de-Forge (q. 6 — un souffle de salle, une fois).
                             // Aucune n'a de répertoire de sorcier : elles se nomment en créatures.
                             'Effigie gardienne', 'Deathspinner la Reine du Fléau', 'Golem Cœur-de-Forge',
+                            // LA CRYPTE, sous-boss sans répertoire (thème allumé le 2026-10-23) : le Squelette de minotaure
+                            // (quête 4), la Momie-naine (quête 8) et le CRÂNE DU DREAD (tourelle, quête 9 note A) — réservés à
+                            // leur thème (`reserve_a_son_theme`), comme l'Effigie gardienne, tourelle de la même famille.
+                            'Squelette de minotaure', 'Momie-naine', 'Crâne du Dread',
                             // LA LÉGION DU WITCH LORD (*Return of the Witch Lord*, chantier 2026-10-23) : les sous-boss du
                             // thème `witch_lord`. Skulmar (chef de la Légion, q. 7), Kessandria (reine sorcière, q. 9 —
                             // sous-boss par le précédent des lieutenants de Morcar), la Garde du Dread (q. 9-10), le
@@ -443,6 +452,12 @@ class GabaritQueteSeeder extends Seeder
                             // (thème allumé le 2026-10-23) : son archétype se tire sous ce thème. Sa résolution
                             // « sauvée » est ÉCARTÉE (René, 2026-10-23) : elle meurt à 0 Body comme tout boss.
                             'nelath_reine_des_esprits',
+                            // VENIM LE DRAGON (The Crypt of Perpetual Darkness, quête 10 — chantier EXT-CRYPTE, 2026-10-23) :
+                            // le boss final de sa boîte, répertoire NOMMÉ par le livret (« Venim has the following spells »,
+                            // p. 25) → archétype `venim_dragon`, qui inclut Souffle acide. Le thème est ALLUMÉ (le 2026-10-23,
+                            // `BOITES_THEMATIQUES`, index 10) : sous lui, le pool se réduit à Venim
+                            // (`DemarreurQuete::acheterMonstres()`) ; ailleurs, `reserve_a_son_theme` le garde hors de tout pool.
+                            'venim_dragon',
                         ],
                         // Les bosses sans répertoire : ils frappent, c'est tout,
                         // et c'est une lecture du combat final aussi.

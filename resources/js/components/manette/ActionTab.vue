@@ -113,6 +113,8 @@ const ICONE_TYPE = {
     memoire_parfaite: 'history_edu',
     fouille_tresor_cache: 'diamond',
     ouvrir_porte: 'door_open',
+    // Souris familière (The Crypt of Perpetual Darkness, chantier EXT-CRYPTE 2026-10-23) : se lâche devant une porte close.
+    lacher_souris: 'pets',
     // PORTE DE PIERRE (Against the Ogre Horde p. 4, lot B) : sans entrée ici,
     // tombait sur `touch_app` comme tant d'autres avant elle (voir les notes
     // ci-dessus, même défaut à chaque type neuf oublié).
@@ -272,6 +274,7 @@ function creneauConsomme(option) {
         case 'saut_sables':
             return !!moi.a_deplace;
         case 'ouvrir_porte':
+        case 'lacher_souris':
         case 'sortie':
         case 'objet_libre':
         case 'retraite':

@@ -224,7 +224,10 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         // Cor des Hearthkin (First Light, lot C) : n'ouvre aucune action de
         // combat, mais invoque bel et bien quelque chose — la même logique
         // que `activable` plus haut, par un autre chemin.
-        'invoque_squelettes_hearthkin'];
+        'invoque_squelettes_hearthkin',
+        // Souris familière (The Crypt of Perpetual Darkness, quête 2 note B, chantier EXT-CRYPTE 2026-10-23) :
+        // se lâche devant une porte fermée — lue par `ResolveurTour::lacherSouris()`.
+        'lacher_derriere_porte'];
 
     foreach (Objet::where('categorie', 'outil')->get() as $outil) {
         expect(array_intersect($utilesOutils, array_keys((array) $outil->effet)))

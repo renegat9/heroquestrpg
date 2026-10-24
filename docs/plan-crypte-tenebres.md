@@ -331,3 +331,63 @@ Critère (René, 2026-10-23 : « retirer ce qui ne devrait pas être implanté d
 | La vision dans le noir de la *Crown of Shadows* | D | Sans obscurité magique, elle n'aurait **aucun lecteur** (règle « pas de clé décorative ») : la Couronne se porte avec son dé de défense seul, et l'écart s'écrit au seeder le jour du portage. |
 
 **Reste à porter** : lot B (mare d'acide ; les vignes agrippantes sont déjà en service), lot C (Dread Skull : la tourelle est construite, il manque la ligne du monstre), lot D (la Couronne avec son dé de défense, la Lance du Dragon), lot E (les sept adversaires nommés, `TypeDegat` `acide` et Souffle Acide, Q3), lot G (la souris familière), et dans le lot I les portes scellées et l'objet de quête qui sert de clé. La Q5 (thème propre) reste différée.
+
+## Exécution (2026-10-23)
+
+> Chantier EXT-CRYPTE, worktree `heroquestrpg-crypte` (branche `ext-crypte`). Ce qui suit est un **compte rendu daté** :
+> les règles en vigueur vivent dans `docs/regles/` (`artefacts.md`, `vocabulaires-effets.md`, `bestiaire-et-rencontres.md`).
+
+**Q5 — TRANCHÉE le 2026-10-23 par René (« Oui ») : le thème `crypte_tenebres` est ALLUMÉ.** Entrée 10 de
+`DemarreurQuete::BOITES_THEMATIQUES`, à la fin (une boîte ajoutée se met derrière, jamais devant), avec son libellé
+officiel dans `LIBELLES_BOITES` (« The Crypt of Perpetual Darkness (2024/2025, Joe Manganiello's) »). Rencontre finale :
+**Venim le Dragon**, boss de la quête 10 (`GabaritQueteSeeder`, pool « Confrontation finale », archétype `venim_dragon`).
+Le test `ThemeCryptTest` épingle l'index 10. L'ordre de rotation n'est pas changé pour les autres boîtes.
+
+**Ce qui est porté, lot par lot** (le texte du lot reste au-dessus, non modifié) :
+
+- **Lot A** — aucune correction à `reference/18` : les sept blocs de stats relus dans les pages `pNN.txt` concordent.
+- **Lot B — Mare d'acide** (p. 5) : `PiegeSeeder`, `effet.type_degat: acide`, `des_combat: 1`, `desarmable: non`,
+  `usage: persistant`, `mare: true`, `franchissable` comme la Fosse des ténèbres. `MoteurPieges::declencher()` consulte
+  `absorbeDegat()` pour un piège typé ; l'état `mare_acide` reste armé et se déclenche à chaque pas ; `estFosse()` l'exclut.
+  Annonce : « X est protégé : le coup (nature acide) est absorbé ». Front : libellés, légende, icône, contrat.
+- **Lot C — Dread Skull** (p. 5, quête 9 note A) : ligne `Crâne du Dread` (1 Body, 0 Défense, tir de 2 dés, Move 0,
+  Mind 0 non sourcé), `tier sous_boss`, `cout 8` (plancher : mesure 0,67 attaque), `tourelle` + `apparait_a_la_vue`,
+  salle seulement (`estImmobile()`). Il entre au pool sous-boss (`creatures`), comme l'Effigie gardienne.
+- **Lot D — artefacts** (p. 4, texte imprimé) : **Lance du Dragon** (3 dés, 4 contre un dragon nommé, diagonale,
+  `classe_interdite: magicien`). **Couronne des Ténèbres** : dé de défense porté, **vision dans le noir ÉCARTÉE**
+  (`artefacts.md`). Les deux pièces entrent au coffre d'artefact par leur boîte, comme Urdyn et la Cuirasse.
+- **Lot E — les sept adversaires** (pages imprimées 11 à 25) : Sorcière des Marais, Squelette de minotaure, Buubhealxea,
+  Roi Archaloneus, Momie-naine, Kedrick Gilbane (sous-boss, cout 8) ; **Venim le Dragon** (boss, cout 16). Coûts
+  MESURÉS (`bestiaire-et-rencontres.md`). Voix dans `config/barks.php`. Répertoires dans `config/archetypes_lanceurs.php`.
+  Venim est une cible valide de la Lance (`des_attaque_contre`).
+- **Lot G — la souris familière** (quête 2 note B, quête 5 note C) : objet `charges: 1` (total sur la ligne d'inventaire),
+  trouvée par une **carte de fouille** de la Crypte (`DeckFouille::cartesCrypte()`, une seule au sac à la fois), se lâche
+  devant une porte close adjacente (option `lacher_souris`, icône `pets`, contrat à jour). **Effet** : la salle derrière se
+  découvre (brouillard levé pour cette salle seulement, `marquerSalleDecouverte()`), la porte reste close, **aucun monstre
+  n'est réveillé** (écart avec la Bénédiction de l'Oracle, qui passe par `revelerSalle()`). Le message nomme les monstres et
+  les meubles de la salle derrière. Précédent suivi : l'Oracle pour le geste, la fouille à carte propre pour la place.
+
+**Réserve de thème (décision du chantier, nécessaire à l'allumage).** Les sous-boss de la Crypte ne peuvent pas entrer
+dans le pool sous-boss partagé sans fuir : ce pool se resserre sur le thème seulement s'il y a des candidats du thème, et
+la Première Lumière n'a aucun sous-boss. D'où la capacité `reserve_a_son_theme` (`MotsClesAdversaires`, lue par
+`Monstre::reserveASonTheme()` dans `DemarreurQuete::acheterMonstres()`, sur les trois chemins de tirage). Elle s'applique
+avant la préférence de thème. `ThemeCryptTest` vérifie qu'aucun sous-boss ni Venim ne sort hors de la Crypte, sur toutes
+les graines et tous les arcs.
+
+**Non porté, et pourquoi** (critère du 2026-10-23 : ce qui n'existe que dans le script d'une quête ou d'une salle n'entre pas) :
+
+- **Obscurité magique de l'antre de Venim** (lot F) et **vision dans le noir** de la Couronne : écartées.
+- **Vander l'elfe** (lot H) : écarté, PNJ de scénario.
+- **Glissade vers la case X** (lot I, quête 10 note A) : écartée, note d'une seule quête.
+- **Scènes de coffre scénarisées** : quête 4 note C (coffre à aiguille empoisonnée ; le squelette de minotaure frappe
+  « immédiatement » celui qui fouille le troisième coffre) ; quête 9 note C (la Couronne n'est trouvée qu'après la mort
+  de Gilbane). Non portées : elles dépendent d'une salle précise, le donjon généré n'en a pas. La Couronne entre au coffre
+  d'artefact par sa boîte, comme les autres pièces ; le squelette, lui, est au pool sous-boss sans sa scène.
+- **Huile d'immunité à l'acide** (quête 10, note A, « a hero who searches the crypt ») : non portée. Pas de prix imprimé
+  (`⚠ non trouvé`), une seule salle de quête. Conséquence : le lecteur d'acide est en place mais aucune pièce du catalogue
+  ne donne l'immunité.
+- **Fin de tour de la Mare** : le livret ne la ferme pas ; elle la ferme comme tout piège de sol armé (précédent). Choix
+  signalé, à trancher si René le veut autrement.
+- **Saut de la Mare** : même jet que la Fosse des ténèbres (`body`, difficulté 2, détectée). Le livret ne le chiffre pas.
+- **Matière de la Lance et de la Couronne** (Rouille) : non dite par le livret, `metallique: false` par défaut. À trancher.
+- **Mind du Crâne** : non donné par le livret, 0 par défaut.

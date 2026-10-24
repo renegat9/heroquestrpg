@@ -8,6 +8,7 @@ use App\Models\GabaritQuete;
 use App\Models\Groupe;
 use App\Models\Inventaire;
 use App\Models\Objet;
+use App\Models\Personnage;
 use App\Models\Quete;
 use App\Partie\Aleatoire\PrngLineaire;
 use App\Partie\AssembleurCarte;
@@ -185,7 +186,7 @@ final class DeckFouille
         $salles = (array) data_get($carte, 'salles', []);
         $nbSalles = count($salles);
 
-        $deck = $prng->melanger($this->cartes($composition, $nbSalles, $bestiaire));
+        $deck = $prng->melanger($this->cartes($composition, $nbSalles, $bestiaire, $this->sourisDetenue($groupe)));
         // ⚠ QUÊTE À BOSS : le coffre va dans SA salle (René, 2026-09-12 : « quand
         // la mission est de tuer le boss, il faudrait avoir un coffre dans sa
         // salle, contenant trésor ou artefact »).
@@ -363,7 +364,7 @@ final class DeckFouille
      * @param  array<string, mixed>  $composition
      * @return list<array<string, mixed>>
      */
-    private function cartes(array $composition, int $nbSalles, ?BestiaireGroupe $bestiaire = null): array
+    private function cartes(array $composition, int $nbSalles, ?BestiaireGroupe $bestiaire = null, bool $sourisDetenue = false): array
     {
         $nombres = (array) data_get($composition, 'cartes', []);
         $orDefaut = max(1, (int) data_get($composition, 'or', 25));
@@ -408,6 +409,13 @@ final class DeckFouille
             $deck = [...$deck, ...$this->cartesDelthrak()];
         }
 
+        // THE CRYPT OF PERPETUAL DARKNESS (thème allumé le 2026-10-23) : la SOURIS FAMILIÈRE, trouvée en fouillant (quête 2
+        // note B ; quête 5 note C) — même patron que Morcar et Delthrak : le THÈME dit si la carte rejoint le deck. Une
+        // seule souris au sac à la fois : un groupe qui en porte déjà une ne retombe pas dessus (`$sourisDetenue`).
+        if (($bestiaire?->contient('crypte_tenebres') ?? false) && ! $sourisDetenue) {
+            $deck = [...$deck, ...$this->cartesCrypte()];
+        }
+
         // Le deck doit rester PLUS GRAND que le nombre de salles : sinon la
         // dernière fouille est déductible (« il ne reste qu'une carte, c'est
         // forcément le piège »). On complète en « rien ».
@@ -416,6 +424,33 @@ final class DeckFouille
         }
 
         return $deck;
+    }
+
+    /**
+     * Le groupe porte-t-il déjà une souris familière utilisable (`Equipement::ligneSouris()`) ? Lu à la construction du
+     * deck : la carte de la souris n'y entre alors pas (une seule souris au sac à la fois).
+     */
+    private function sourisDetenue(Groupe $groupe): bool
+    {
+        $equipement = app(Equipement::class);
+
+        return $groupe->personnages()->get()
+            ->contains(fn (Personnage $personnage) => $equipement->ligneSouris($personnage) !== null);
+    }
+
+    /**
+     * La SOURIS FAMILIÈRE (The Crypt of Perpetual Darkness, G1798 quête 2 note B ; quête 5 note C — « a mouse trying to get at
+     * an old piece of cheese », « release the mouse … »). Une carte de trésor qui donne l'objet au sac : `issue: objet`, comme
+     * les trésors de Delthrak. Absent du catalogue → la carte ne rejoint pas le deck (aucun prix ni or n'est sourcé pour la
+     * remplacer, « ⚠ non trouvé »).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function cartesCrypte(): array
+    {
+        $id = Objet::where('nom', 'Souris familière')->value('id');
+
+        return $id === null ? [] : [['issue' => 'objet', 'objet_id' => $id, 'carte' => 'familiar_mouse']];
     }
 
     /**

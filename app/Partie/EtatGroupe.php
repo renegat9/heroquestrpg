@@ -751,6 +751,9 @@ final class EtatGroupe
                 // Fosse OUVERTE (2026-09-27) : un trou déjà déclenché, distinct
                 // d'un piège détecté intact — publiée sous son propre état.
                 MoteurPieges::ETAT_FOSSE_OUVERTE,
+                // Mare d'acide (chantier EXT-CRYPTE, 2026-10-23) : reste au sol, armée et connue — publiée
+                // sous son propre état, pour que la carte ne la dessine pas comme une fosse.
+                MoteurPieges::ETAT_MARE,
                 // Bloc permanent (Chute de blocs) : DOIT rester visible pour
                 // toujours, sinon la table et la manette dessineraient un
                 // passage libre là où le moteur bloque déjà le mouvement et la

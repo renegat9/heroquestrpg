@@ -655,6 +655,8 @@ export const PIEGE_ETATS = {
     // Fosse DÉCLENCHÉE (2026-09-27) : le trou reste, armé et sautable — mais
     // plus jamais confondue avec un piège détecté intact.
     fosse_ouverte: 'fosse ouverte',
+    // Mare d'acide (The Crypt of Perpetual Darkness, chantier EXT-CRYPTE 2026-10-23) : reste au sol, se déclenche à chaque pas.
+    mare_acide: "mare d'acide",
     desarme: 'désarmé',
     declenche: 'déclenché',
     bloc: 'bloc de pierre',

@@ -46,6 +46,10 @@ it('recense les 29 cartes de dread_spells.pdf, portées et non portées', functi
         // …et les trois cartes d'*Against the Ogre Horde* (Mind Lock, Dominate, Mind Burst, F9528 p. 10-11),
         // comptées à part dans `SortsOgreHordeTest` : un autre paquet, pas des cartes de `dread_spells.pdf`.
         ->reject(fn ($c) => (string) $c['paquet'] === 'Against the Ogre Horde')
+        // …et *Breathe Acid* (The Crypt of Perpetual Darkness, G1798 p. 25, « Firestorm but with acid damage ») :
+        // une carte du LIVRET, pas de `dread_spells.pdf` — même règle que les deux paquets ci-dessus (chantier
+        // EXT-CRYPTE, 2026-10-23).
+        ->reject(fn ($c) => (string) $c['paquet'] === 'The Crypt of Perpetual Darkness')
         ->values();
 
     expect($cartes)->toHaveCount(29);

@@ -731,3 +731,22 @@ it('porte les créatures de Kellar\'s Keep et Bellthor telles que leurs livrets 
     }
 });
 
+
+it('porte les créatures de The Crypt of Perpetual Darkness telles que le livret les chiffre (G1798, pages imprimées)', function () {
+    // Stats relues sur le TEXTE du livret, chacune à sa page imprimée (chantier EXT-CRYPTE, 2026-10-23). Le Crâne du
+    // Dread n'a ni mouvement ni Mind au livret : 0 par défaut, et l'écart est écrit au seeder (`MonstreSeeder`).
+    $livrets = [
+        'Sorcière des Marais' => [4, 2, 3, 2, 3],          // p. 11, quête 3 note C (« the Dread sorcerer represents a swamp hag »)
+        'Squelette de minotaure' => [6, 3, 3, 2, 0],        // p. 13, quête 4 note C
+        'Buubhealxea, reine gobeline' => [8, 3, 3, 3, 2],   // p. 15, quête 5 note E
+        'Roi Archaloneus' => [6, 4, 4, 4, 3],               // p. 17, quête 6 note B
+        'Momie-naine' => [5, 4, 5, 4, 0],                   // p. 21, quête 8 note C
+        'Kedrick Gilbane' => [7, 5, 5, 4, 4],               // p. 23, quête 9 note C
+        'Venim le Dragon' => [7, 5, 5, 4, 4],               // p. 25, quête 10
+        'Crâne du Dread' => [0, 2, 0, 1, 0],                // p. 5 (composants) et p. 23 note A : 2 dés, 1 Body, 0 Défense
+    ];
+
+    foreach ($livrets as $nom => $attendu) {
+        expect(statsDe($nom))->toBe($attendu, "{$nom} : bloc de stats");
+    }
+});

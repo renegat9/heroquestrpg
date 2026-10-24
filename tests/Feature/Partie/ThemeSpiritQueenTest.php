@@ -62,13 +62,13 @@ function achatsSpiritQueenDuGabarit(string $theme, string $gabarit, int $graine)
     );
 }
 
-it('la boîte est ALLUMÉE : rangée à la FIN de la rotation, derrière kellars_keep, avec son libellé', function () {
+it('la boîte est ALLUMÉE : entrée 11 de la rotation, derrière crypte_tenebres, avec son libellé', function () {
     $themes = DemarreurQuete::BOITES_THEMATIQUES;
     $position = array_search('spirit_queen', $themes, true);
 
-    expect($position)->not->toBeFalse()
-        ->and($themes[$position - 1])->toBe('kellars_keep', 'une boîte ajoutée après coup se met À LA FIN : l\'ordre EST la rotation')
-        ->and($position)->toBe(count($themes) - 1, 'elle est la dernière entrée')
+    // Allumée le même jour que la Crypte (entrée 10) : une boîte ajoutée après coup se met derrière, jamais devant.
+    expect($position)->toBe(11, 'l\'ordre EST la rotation')
+        ->and($themes[$position - 1])->toBe('crypte_tenebres')
         ->and(array_unique($themes))->toHaveCount(count($themes), 'aucun thème en double')
         ->and(DemarreurQuete::LIBELLES_BOITES['spirit_queen'])->toBe("Spirit Queen's Torment")
         ->and(array_key_exists('spirit_queen', DemarreurQuete::BOITES_INCOMPLETES))->toBeFalse('une boîte allumée n\'est pas désactivée');
