@@ -189,6 +189,10 @@ export const TERRAIN_TEINTES = {
     'Rivière gelée': 'danger',
     'Chambre forte de glace': 'danger',
     'Tunnel de glace': 'passage',
+    // Trappe de téléportation (EXT-CARTE2, 2026-10-23) : même famille que le tunnel — on n'y
+    // jette pas de dé pour la traverser, on en ressort ailleurs. Son dé de passage et sa fin de
+    // tour se lisent dans le texte du guide (`avantages`), pas dans la teinte.
+    'Trappe de téléportation': 'passage',
     'Glace magique': 'decor',
     'Rebord de crevasse': 'decor',
     // Jungles of Delthrak (lots B et D, 2026-10-09) : trois teintes de plus

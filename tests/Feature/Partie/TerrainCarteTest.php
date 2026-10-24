@@ -158,8 +158,9 @@ it('a un catalogue cohérent : cout_deplacement >= 1, effet non vide (vocabulair
     $terrains = Terrain::query()->get();
 
     // 7 de The Frozen Horror + 5 de Jungles of Delthrak (2026-10-09) + les Sables mouvants de
-    // The Mage of the Mirror (2026-10-15).
-    expect($terrains)->toHaveCount(13);
+    // The Mage of the Mirror (2026-10-15) + la Trappe de téléportation, The Mage of the Mirror
+    // ET Kellar's Keep (EXT-CARTE2, 2026-10-23).
+    expect($terrains)->toHaveCount(14);
 
     foreach ($terrains as $t) {
         expect($t->cout_deplacement)->toBeGreaterThanOrEqual(1, "cout_deplacement de {$t->nom}")
@@ -199,7 +200,7 @@ it('reste seedé SANS purge (clé sur nom) : re-semer garde les mêmes identifia
 
     $idApres = Terrain::where('nom', 'Glace glissante')->value('id');
     expect($idApres)->toBe($idAvant)
-        ->and(Terrain::query()->count())->toBe(13);
+        ->and(Terrain::query()->count())->toBe(14);
 });
 
 // ---------------------------------------------------------------------

@@ -124,13 +124,31 @@ final class MotsClesTerrain
             'libelle' => 'inflige ses dégâts à chaque tour passé dessus',
         ],
 
-        // Tunnel de glace — paires de téléportation (`paire_id`, posé par
-        // `AssembleurCarte::placerTerrains()`, hors périmètre de ce fichier).
-        // Résolu sur la case d'ARRIVÉE déjà déterminée, jamais dans une salle
-        // NON DÉCOUVERTE, jamais sur une sortie occupée par une figure.
+        // Paires de téléportation (`paire_id`, posées par
+        // `AssembleurCarte::placerTerrains()`). DEUX valeurs, deux moments :
+        //  - `true` — TUNNEL DE GLACE : résolu sur la case d'ARRIVÉE déjà
+        //    déterminée (traverser n'est pas s'arrêter) ;
+        //  - `'contact'` — TRAPPE DE TÉLÉPORTATION (Mage du Miroir p. 5, Kellar's
+        //    Keep q. 8 note C) : la trappe se joue AU CONTACT. Elle est un PORTAIL
+        //    (`FabriqueGrille::pour()` le pose, `Grille::parcoursPondere()` ne le
+        //    traverse jamais) : on y entre, on arrive sur sa jumelle, à coût nul,
+        //    et le chemin s'arrête sur l'entrée.
+        // Dans les deux cas : jamais dans une salle NON DÉCOUVERTE, jamais sur
+        // une sortie occupée par une figure (`teleporterSiTunnel()`).
         'teleportation' => [
             'lecteur' => 'App\Partie\ResolveurTour::teleporterSiTunnel()',
             'libelle' => 'téléporte vers son autre extrémité',
+        ],
+
+        // TRAPPE DE TÉLÉPORTATION — « After a hero moves through it, they roll one
+        // combat die. If a skull is rolled, the hero loses 1 Body Point » (F7539
+        // p. 15 note A ; F4543 p. 22 note C). La VALEUR est le nombre de PV de
+        // Body perdus sur un crâne ; le passage jette UN dé de combat (sourcé).
+        // Lu par `ResolveurTour::passageDeTrappe()`, une fois la téléportation
+        // acquise. Les monstres, eux, ne jettent rien.
+        'degats_au_passage' => [
+            'lecteur' => 'App\Partie\ResolveurTour::passageDeTrappe()',
+            'libelle' => 'au passage, un dé de combat : un crâne fait perdre {valeur} PV de Body',
         ],
 
         // Rivière gelée (2026-10-04) — « Monsters suffer neither movement

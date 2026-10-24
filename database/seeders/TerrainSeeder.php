@@ -289,6 +289,23 @@ class TerrainSeeder extends Seeder
                     'enlise' => 2,
                 ],
             ],
+            // Trappe de téléportation (Trap Doors) — deux boîtes, UNE ligne (`boites_partagees`).
+            // Sources : F7539 p. 5 (« Trap Doors x2 » : « When landing on one trap door, a hero moves
+            // instantly to the other trap door »), F7539 p. 15 note A (« Any hero or monster landing on
+            // one of these squares immediately moves to the other trap door square. [...] After a hero
+            // moves through it, they roll one combat die. If a skull is rolled, the hero loses 1 Body
+            // Point. After moving from one trap door square to the other, the hero's or monster's turn
+            // is over. »), F4543 p. 22 note C (texte identique). Le passage est AU CONTACT (`'contact'` :
+            // un portail, `Grille::parcoursPondere()`), contrairement au Tunnel de glace (arrivée seule).
+            // Coût 1 : la case se foule comme une case ordinaire — le livret ne lui donne aucun coût. Ne
+            // bloque ni le mouvement (on y entre, on en sort par la jumelle) ni la vue (le livret ne le dit
+            // pas). Le DÉ et la fin de tour sont lus par `ResolveurTour::passageDeTrappe()`.
+            [
+                'nom' => 'Trappe de téléportation', 'nom_anglais' => 'Trap Door',
+                'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false,
+                'boite' => 'mage_du_miroir', 'boites_partagees' => ['kellars_keep'],
+                'effet' => ['teleportation' => 'contact', 'degats_au_passage' => 1],
+            ],
         ];
 
         foreach ($terrains as $terrain) {

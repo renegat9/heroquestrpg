@@ -3324,6 +3324,22 @@ final class JournalCombat
             $lignes[] = $this->info("{$acteurNom} passe outre : ".implode(' et ', (array) $a['franchit']));
         }
 
+        // TRAPPE DE TÉLÉPORTATION (EXT-CARTE2) : le franchissement, la jumelle, le dé de passage, et la fin
+        // de tour — un effet automatique qui ne se dirait pas ferait croire à un héros disparu.
+        if (! empty($a['teleportation']['vers']) && ! empty($a['teleportation']['passage'])) {
+            $passage = (array) $a['teleportation']['passage'];
+            $lignes[] = $this->info("{$acteurNom} franchit une trappe de téléportation et ressort ailleurs — son tour s'achève");
+
+            if (($passage['jet'] ?? null) === 'crane' && (int) ($passage['degats'] ?? 0) > 0) {
+                $retenus = (int) ($passage['retenus'] ?? 0);
+                $lignes[] = $retenus > 0
+                    ? ['texte' => "{$acteurNom} : un crâne au passage — −{$retenus} PV de Body", 'ton' => 'degats']
+                    : $this->info("{$acteurNom} : un crâne au passage, mais aucun PV perdu");
+            } else {
+                $lignes[] = $this->info("{$acteurNom} : le dé du passage ne fait pas de crâne — aucun mal");
+            }
+        }
+
         foreach ((array) ($a['terrain_jets'] ?? []) as $jet) {
             $terrain = (string) ($jet['terrain'] ?? 'Terrain');
             $degats = (int) ($jet['degats'] ?? 0);

@@ -217,6 +217,7 @@ final class FabriqueGrille
         $terrain = (array) ($carte->grille['terrain'] ?? []);
         $couts = [];
         $sansArret = [];
+        $portailsParPaire = [];
         if ($terrain !== []) {
             $typesTerrain = Terrain::query()
                 ->whereIn('id', array_values(array_unique(array_column($terrain, 'terrain_id'))))
@@ -277,6 +278,14 @@ final class FabriqueGrille
                 // `MoteurSables`, pas par un déplacement.
                 if (isset($effetTerrain['saut_par_dessus'])) {
                     $sansArret[] = $case;
+                }
+                // TRAPPE DE TÉLÉPORTATION (`teleportation: 'contact'`, Mage du Miroir
+                // p. 5 ; Kellar's Keep q. 8 note C) : une case du PORTAIL, jumelée à
+                // sa case-sœur par `paire_id`, posée en fin de méthode. Le tunnel de
+                // glace (`teleportation: true`) n'en est pas un : il se résout à
+                // l'arrivée seulement, comme avant.
+                if (($effetTerrain['teleportation'] ?? null) === 'contact' && ! empty($entree['paire_id'])) {
+                    $portailsParPaire[(string) $entree['paire_id']][] = "{$case['x']},{$case['y']}";
                 }
             }
         }
@@ -345,6 +354,17 @@ final class FabriqueGrille
         $grille->occulter($opaques);
         $grille->definirCoutsDeplacement($couts);
         $grille->interdireArret($sansArret);
+
+        // Portails (trappes de téléportation) : chaque paire, deux cases qui pointent
+        // l'une vers l'autre. Une paire incomplète (une seule case) n'en est pas une.
+        $portails = [];
+        foreach ($portailsParPaire as $paire) {
+            if (count($paire) === 2) {
+                $portails[$paire[0]] = $paire[1];
+                $portails[$paire[1]] = $paire[0];
+            }
+        }
+        $grille->definirPortails($portails);
 
         return $grille;
     }

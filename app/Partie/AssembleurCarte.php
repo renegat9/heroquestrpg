@@ -132,6 +132,9 @@ final class AssembleurCarte
      */
     private const NOM_TERRAIN_SABLES = 'Sables mouvants';
 
+    /** Nom du terrain « Trappe de téléportation » — identifie l'entrée de catalogue à poser PAR PAIRES (portails). */
+    private const NOM_TERRAIN_TRAPPE = 'Trappe de téléportation';
+
     /**
      * @param  int  $chancePassageSecret  probabilité (en %) qu'une salle soit
      *                                    cachée derrière une porte secrète —
@@ -2998,8 +3001,11 @@ final class AssembleurCarte
     ): array {
         // Un terrain « boîté » ne se pose que si sa boîte est un THÈME de la
         // campagne (tirée en auto, cochée en manuel) ; `null` partout.
+        // Une boîte partagée (`boites_partagees`, EXT-CARTE2) ouvre le terrain à CHACUNE de ses boîtes :
+        // la Trappe de téléportation sort sous le thème Mage du Miroir comme sous Kellar's Keep.
         $catalogue = Terrain::query()->orderBy('id')->get()
-            ->filter(fn (Terrain $t) => $t->boite === null || ($bestiaire?->contient($t->boite) ?? false))
+            ->filter(fn (Terrain $t) => $t->boites() === []
+                || collect($t->boites())->contains(fn (string $boite) => $bestiaire?->contient($boite) ?? false))
             ->values();
 
         if ($catalogue->isEmpty()) {
@@ -3110,7 +3116,12 @@ final class AssembleurCarte
 
         $tunnel = $catalogue->firstWhere('nom', self::NOM_TERRAIN_TUNNEL);
         $sables = $catalogue->firstWhere('nom', self::NOM_TERRAIN_SABLES);
-        $ordinaires = $catalogue->reject(fn (Terrain $t) => ($tunnel !== null && $t->is($tunnel)) || ($sables !== null && $t->is($sables)))->values();
+        // La trappe n'est JAMAIS tirée seule dans le pool ordinaire : une case sans sa jumelle ne serait
+        // qu'un piège de passage absurde. Elle n'existe que par paires, plus bas (`$trappe`).
+        $trappe = $catalogue->firstWhere('nom', self::NOM_TERRAIN_TRAPPE);
+        $ordinaires = $catalogue->reject(fn (Terrain $t) => ($tunnel !== null && $t->is($tunnel))
+            || ($sables !== null && $t->is($sables))
+            || ($trappe !== null && $t->is($trappe)))->values();
 
         $min = (int) data_get($structure, 'terrains.min', 0);
         $max = max($min, (int) data_get($structure, 'terrains.max', $min));
@@ -3266,7 +3277,176 @@ final class AssembleurCarte
             }
         }
 
+        // TRAPPES DE TÉLÉPORTATION (Mage du Miroir p. 5 ; Kellar's Keep q. 8 note C ; EXT-CARTE2, 2026-10-23).
+        // Des PAIRES de portails (`teleportation: 'contact'`), posées EN DERNIER : une carte sans ce
+        // thème ne consomme aucun tirage de plus, les graines existantes ne bougent pas. Règles de POSE
+        // (testées par `TrappesGenerationTest`) :
+        //  1. DEUX SALLES DISTINCTES : la trappe relie deux salles « visually unconnected » (F7539 p. 5) ;
+        //  2. jamais la salle 0 (le départ), jamais la salle qui contient l'OBJECTIF (mobilier `objectif`) ;
+        //  3. chaque extrémité ATTEIGNABLE depuis le départ SANS franchir une porte verrouillée, secrète, de
+        //     pierre ou à levier : une trappe qui atteindrait une salle derrière un verrou la contournerait ;
+        //  4. aucune extrémité sur un PARVIS (porte, levier, épreuve) ;
+        //  5. plancher de jouabilité (`CASES_JOUABLES_MINIMUM`) et connexité de la salle, chaque extrémité
+        //     posée comme MUR (`paireTrappePosable()`) — un portail ne se traverse pas à pied.
+        // Un candidat refusé est abandonné, jamais remplacé (ni forcé) : moins de paires, pas une route coupée.
+        if ($trappe !== null) {
+            $minPaires = (int) data_get($structure, 'terrains.trappes.min', 0);
+            $maxPaires = max($minPaires, (int) data_get($structure, 'terrains.trappes.max', $minPaires));
+            $vouluesPaires = $prng->entre($minPaires, $maxPaires);
+
+            // Accessibilité SANS verrou : BFS depuis le départ, cases bloquantes et portes verrouillées,
+            // secrètes, de pierre ou à levier (embrasure comprise) tenues fermées.
+            $bloqueesAcces = [];
+            foreach ($bloquantesParSalle as $bloquees) {
+                foreach (array_keys($bloquees) as $cleBloquee) {
+                    [$bx, $by] = array_map(intval(...), explode(',', (string) $cleBloquee));
+                    $bloqueesAcces[] = ['x' => $bx, 'y' => $by];
+                }
+            }
+
+            foreach ($portes as $porte) {
+                $fermeeAuVerrou = in_array($porte['etat'] ?? null, [MoteurPortes::ETAT_VERROUILLEE, MoteurPortes::ETAT_SECRETE], true)
+                    || ! empty($porte['verrou']);
+
+                if ($fermeeAuVerrou) {
+                    $bloqueesAcces[] = Grille::caseEmbrasure($porte, $salles);
+                }
+            }
+
+            // Origine : une case LIBRE de la salle de départ. Une porte verrouillée posée sur le mur de la salle 0
+            // a sa case d'embrasure DANS la salle 0 : partir de cette case-là franchirait le verrou par l'autre côté.
+            $cleBloquees = [];
+            foreach ($bloqueesAcces as $bloquee) {
+                $cleBloquees["{$bloquee['x']},{$bloquee['y']}"] = true;
+            }
+
+            $origineAcces = null;
+            foreach ($this->interieur($cases, $salles[0]) as $candidat) {
+                if (! isset($cleBloquees["{$candidat['x']},{$candidat['y']}"])) {
+                    $origineAcces = $candidat;
+
+                    break;
+                }
+            }
+            $accessibles = $origineAcces === null
+                ? []
+                : $this->atteignablesDepuis($cases, $bloqueesAcces, [$origineAcces['x'], $origineAcces['y']]);
+
+            // Les salles où se tient l'OBJECTIF ne reçoivent aucune extrémité (règle 2).
+            $salleObjectif = [];
+            foreach ($mobilier as $meuble) {
+                if (! empty($meuble['objectif']) && isset($meuble['salle'])) {
+                    $salleObjectif[(int) $meuble['salle']] = true;
+                }
+            }
+
+            // Pool des candidats : cases libres d'une salle (jamais la 0), hors objectif, hors parvis,
+            // accessibles sans verrou, pas déjà prises. Mélangé UNE fois : le tirage ne dépend ni des rejets.
+            $pool = [];
+            foreach ($parSalle as $i => $entree) {
+                if (isset($salleObjectif[$i])) {
+                    continue;
+                }
+
+                foreach ($entree['libres'] as $position) {
+                    $cle = "{$position['x']},{$position['y']}";
+
+                    if (! isset($occupeesGlobal[$cle]) && ! isset($parvis[$cle]) && isset($accessibles[$cle])) {
+                        $pool[] = [...$position, 'salle' => $i];
+                    }
+                }
+            }
+            $pool = $prng->melanger($pool);
+
+            $paires = 0;
+
+            while ($paires < $vouluesPaires && count($pool) >= 2) {
+                $a = array_shift($pool);
+                $indexB = null;
+
+                foreach ($pool as $index => $candidat) {
+                    if ($candidat['salle'] !== $a['salle']) {
+                        $indexB = $index;
+
+                        break;
+                    }
+                }
+
+                if ($indexB === null) {
+                    continue; // plus aucune AUTRE salle pour ce candidat : il est écarté
+                }
+
+                $b = $pool[$indexB];
+
+                if (! $this->paireTrappePosable($a, $b, $parSalle, $bloquantesParSalle, $sansArretParSalle)) {
+                    continue; // paire refusée : `$a` est écarté, `$b` reste candidat
+                }
+
+                unset($pool[$indexB]);
+                $paireId = 'trappe-'.($paires + 1);
+                $terrains[] = ['x' => $a['x'], 'y' => $a['y'], 'terrain_id' => (int) $trappe->id, 'paire_id' => $paireId];
+                $terrains[] = ['x' => $b['x'], 'y' => $b['y'], 'terrain_id' => (int) $trappe->id, 'paire_id' => $paireId];
+
+                // Un portail est un MUR pour le parcours des paires suivantes (on n'y marche pas) : il est
+                // retenu comme bloquant de SA salle, pour que la connexité d'une paire ultérieure le voie.
+                foreach ([$a, $b] as $extremite) {
+                    $cleExtremite = "{$extremite['x']},{$extremite['y']}";
+                    $occupeesGlobal[$cleExtremite] = true;
+                    $bloquantesParSalle[$extremite['salle']][$cleExtremite] = true;
+                }
+
+                $paires++;
+            }
+        }
+
         return $terrains;
+    }
+
+    /**
+     * Une PAIRE de trappes de téléportation peut-elle être posée sur ces deux cases ? (EXT-CARTE2) — les
+     * règles de `placerTerrains()` qui ne dépendent que de la paire : salles DISTINCTES, plancher de
+     * jouabilité tenu dans chacune, et connexité de chacune avec SON extrémité posée comme mur. Les règles
+     * d'accès sans verrou, d'objectif et de parvis sont filtrées AVANT, dans le pool.
+     *
+     * Une extrémité coûte une case où l'on ne finit pas à pied (elle n'est jamais une case d'arrêt en
+     * marchant), exactement comme une Mare : `count(interieur) - prises - 1` (`CASES_JOUABLES_MINIMUM`).
+     *
+     * @param  array{x: int, y: int, salle: int}  $a
+     * @param  array{x: int, y: int, salle: int}  $b
+     * @param  array<int, array{interieur: list<array{x: int, y: int}>, libres: list<array{x: int, y: int}>, seuils: list<array{x: int, y: int}>}>  $parSalle
+     * @param  array<int, array<string, true>>  $bloquantesParSalle
+     * @param  array<int, int>  $sansArretParSalle
+     */
+    private function paireTrappePosable(array $a, array $b, array $parSalle, array $bloquantesParSalle, array $sansArretParSalle): bool
+    {
+        if ($a['salle'] === $b['salle'] || ! isset($parSalle[$a['salle']], $parSalle[$b['salle']])) {
+            return false;
+        }
+
+        foreach ([$a, $b] as $extremite) {
+            $i = $extremite['salle'];
+            $cle = "{$extremite['x']},{$extremite['y']}";
+            $entree = $parSalle[$i];
+
+            // Sans seuil identifié, on ne peut pas PROUVER la connexité : refus par prudence.
+            if ($entree['seuils'] === []) {
+                return false;
+            }
+
+            $prises = count($bloquantesParSalle[$i] ?? []) + ($sansArretParSalle[$i] ?? 0);
+
+            if (count($entree['interieur']) - $prises - 1 < self::CASES_JOUABLES_MINIMUM) {
+                return false;
+            }
+
+            $occupees = ($bloquantesParSalle[$i] ?? []) + [$cle => true];
+
+            if (! $this->salleResteConnexe($entree['interieur'], $entree['seuils'], $occupees)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

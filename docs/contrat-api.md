@@ -310,6 +310,17 @@ lieu d'interroger `apercu` case par case.
   CONNU** (le `cout` est celui du trajet que le héros prendra, pas du plus court : même
   `DeplacementHeros::chemin()` que l'aperçu). Le **Tunnel de glace** publie sa case d'ENTRÉE
   (la téléportation se joue à l'arrivée, `rep.teleportation`).
+  **Trappe de téléportation** (EXT-CARTE2, 2026-10-23 ; `teleportation: 'contact'`) : c'est un PORTAIL,
+  pas un tunnel. La marche ne le traverse jamais : entrer dans une trappe, c'est arriver sur sa JUMELLE,
+  à coût nul, et y finir son mouvement. La jumelle figure donc parmi les destinations, son `chemin` s'achève
+  sur la case d'ENTRÉE (le `cout` publié est celui de cette entrée), et la trappe elle-même n'est jamais
+  une destination. Une jumelle occupée ou non découverte n'est pas une destination. Au passage, le
+  payload de déplacement porte `teleportation: {de, vers, passage?}` où `passage = {nom, jet, degats,
+  retenus}` (`jet` : la face du dé de combat jeté, `degats` : PV perdus sur un crâne, `retenus` : PV
+  réellement retirés) ; la marche s'arrête là (`deplacement_restant = 0`). Un monstre qui entre dans une
+  trappe est porté sur la jumelle et son payload `deplacement` porte `teleportation: {de, vers}` : son
+  tour s'achève, sans frappe, et il ne jette aucun dé. Un ALLIÉ (mercenaire) ne franchit pas une trappe :
+  sa grille lui ferme la case-portail (`Grille::fermerPortails()`) — décision, non sourcée.
 - **Elle remplace les drapeaux de mouvement d'`entites[]`** (2026-10-15) : `franchit_figures`,
   `ignore_terrain_entravant`, `franchit_mobilier` et `traverse_roche` (celui de l'aperçu de trajet
   reste) — des décisions qui ne voyageaient que pour que la manette cesse de les re-déduire — ne sont plus publiés, plus aucun écran ne les lisant
