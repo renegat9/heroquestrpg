@@ -342,7 +342,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 
 /* SYMBOLE DE LIVRET (2026-10-24) : la pastille s'agrandit, pour que le pictogramme (80 % d'elle) reste lisible à côté de
    l'illustration. Sans symbole, ces règles ne s'appliquent pas et la pastille est celle d'avant. */
-.lg-chip.lg-symbole { width: 24px; height: 24px; }
+.lg-chip.lg-symbole { position: relative; overflow: hidden; width: 24px; height: 24px; }
 /* Une porte n'a pas de pastille de famille (ses états se disent par des barres) : son pictogramme se pose sur un fond sombre. */
 .lg-chip.lg-symbole-porte { background: var(--stone-850); box-shadow: inset 0 0 0 1px oklch(0.4 0.02 255 / 0.5); }
 

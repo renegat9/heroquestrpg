@@ -83,20 +83,25 @@ def references_fond(img, generique=False):
     return refs
 
 
-def alpha_du_trait(img, generique=False):
-    """Force du trait, de 0 (fond) à 255 (trait) : distance au fond le plus proche."""
+def alpha_du_trait(img, generique=False, seuil=None):
+    """Force du trait, de 0 (fond) à 255 (trait) : distance au fond le plus proche.
+
+    `seuil` (manifeste, par symbole) remplace le seuil bas. Sur un papier MARBRÉ, la marbrure reste sous ce seuil et devient
+    du papier ; le trait, lui, est loin du fond et reste plein. C'est ce qui a effacé la tache grise de la bibliothèque."""
+    bas = SEUIL_BAS if seuil is None else seuil
+    haut = SEUIL_HAUT if seuil is None else seuil + (SEUIL_HAUT - SEUIL_BAS)
     refs = references_fond(img, generique)
     raw = img.tobytes()
     sortie = bytearray(len(raw) // 3)
     for i in range(0, len(raw), 3):
         r, g, b = raw[i], raw[i + 1], raw[i + 2]
         d = min(((r - c[0]) ** 2 + (g - c[1]) ** 2 + (b - c[2]) ** 2) ** 0.5 for c in refs)
-        if d <= SEUIL_BAS:
+        if d <= bas:
             a = 0
-        elif d >= SEUIL_HAUT:
+        elif d >= haut:
             a = 255
         else:
-            a = round((d - SEUIL_BAS) / (SEUIL_HAUT - SEUIL_BAS) * 255)
+            a = round((d - bas) / (haut - bas) * 255)
         sortie[i // 3] = a
     return Image.frombytes('L', img.size, bytes(sortie))
 
@@ -172,7 +177,7 @@ def extraire_un(doc, entree, racine_livrets):
     rotation = int(entree.get('rotation', 0)) % 360
     if rotation:
         img = img.rotate(-rotation, expand=True)   # PIL tourne à gauche ; la rotation du manifeste est horaire
-    alpha = alpha_du_trait(img, generique=not entree.get('couleur'))
+    alpha = alpha_du_trait(img, generique=not entree.get('couleur'), seuil=entree.get('seuil'))
     if entree.get('couleur'):
         rgba = mettre_en_couleur(img, alpha)
     else:

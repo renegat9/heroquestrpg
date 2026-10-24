@@ -300,7 +300,15 @@ const doors = computed(() => (props.carte.portes ?? [])
             :style="{ gridColumn: `${f.x + 1} / span ${f.l}`, gridRow: `${f.y + 1} / span ${f.h}` }"
         >
             <div class="dg-furn" :class="{ 'non-bloquant': !f.bloque_mouvement }" :title="f.titre ?? f.nom">
-                <SymboleCarte :url="f.symbole_url" :icone="iconeMeuble(f)" :nom="f.nom" />
+                <!-- pictogramme tourné de 90° quand le serveur le décide (`symbole_rotation`) : le meuble est posé couché alors que son dessin est debout -->
+                <SymboleCarte
+                    :url="f.symbole_url"
+                    :icone="iconeMeuble(f)"
+                    :nom="f.nom"
+                    :tourne="f.symbole_rotation ?? 0"
+                    :l="f.l"
+                    :h="f.h"
+                />
             </div>
         </div>
 
@@ -402,10 +410,10 @@ const doors = computed(() => (props.carte.portes ?? [])
                 :title="d.titre"
             >
                 <SymboleCarte v-if="d.symbole_url" :url="d.symbole_url" :icone="d.icone" :nom="d.titre" />
-                <template v-else>
-                    <MSym v-if="d.cadenas" n="lock" fill class="dg-door-lock" />
-                    <MSym v-else-if="d.pierre && d.etat !== 'ouverte'" n="construction" fill class="dg-door-lock" />
-                </template>
+                <!-- Le livret dessine la porte VERROUILLÉE exactement comme la fermée (même cadre) : sans badge, le verrou
+                     disparaîtrait dès qu'il y a un pictogramme. Un petit cadenas dans le coin de la case, lisible à 24 px. -->
+                <MSym v-if="d.cadenas" n="lock" fill class="dg-door-lock" :class="{ 'dg-door-lock--badge': d.symbole_url }" />
+                <MSym v-else-if="!d.symbole_url && d.pierre && d.etat !== 'ouverte'" n="construction" fill class="dg-door-lock" />
             </div>
         </div>
 
@@ -540,6 +548,7 @@ const doors = computed(() => (props.carte.portes ?? [])
 /* La boîte de la plaque est celle de son holder (l'étendue, ou la case d'ancre) : un PICTOGRAMME s'y centre à 80 % (SymboleCarte).
    Sans picto, le glyphe Material se centre dans la même boîte, comme avant. */
 .dg-plaque {
+  position: relative; overflow: hidden;
   width: 100%; height: 100%; display: grid; place-items: center;
   font-size: calc(var(--dg-icone) * 1.6);
   line-height: 1;
@@ -582,7 +591,7 @@ const doors = computed(() => (props.carte.portes ?? [])
 .dg-trial .msym { transform: rotate(-45deg); font-size: var(--dg-icone); }
 .dg-trial.tentee { background: var(--stone-700); color: var(--ink-400); box-shadow: none; opacity: 0.75; }
 
-.dg-trap { position: absolute; inset: 12%; border-radius: 5px; display: grid; place-items: center; }
+.dg-trap { position: absolute; inset: 12%; border-radius: 5px; display: grid; place-items: center; overflow: hidden; }
 .dg-trap .msym { font-size: var(--dg-icone); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
 /* DÉTECTÉ = jamais déclenché (René, 2026-09-27) : SEMI-TRANSPARENT — le piège
    est encore sous le sol, on le devine ; le trou ouvert, lui, est plein. */
@@ -639,7 +648,7 @@ const doors = computed(() => (props.carte.portes ?? [])
    ni l'autre. Il ne s'estompe jamais : contrairement à l'épreuve, le forcer est
    retentable sans limite, donc un levier déjà tenté reste une action valable. */
 .dg-lever-holder { position: relative; display: grid; place-items: center; pointer-events: none; z-index: 2; }
-.dg-lever { width: 56%; height: 56%; display: grid; place-items: center;
+.dg-lever { position: relative; overflow: hidden; width: 56%; height: 56%; display: grid; place-items: center;
   clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
   color: var(--stone-950); background: oklch(0.72 0.13 235);
   box-shadow: 0 0 5px oklch(0.72 0.13 235 / 0.5); }
@@ -650,7 +659,7 @@ const doors = computed(() => (props.carte.portes ?? [])
    habillage discret disparaît sur les 22px de la manette. Un meuble bloquant
    doit se lire comme un obstacle, pas comme une décoration. */
 .dg-furn-holder { position: relative; pointer-events: none; z-index: 2; }
-.dg-furn { position: absolute; inset: 5%; border-radius: 4px; display: grid; place-items: center;
+.dg-furn { position: absolute; inset: 5%; border-radius: 4px; display: grid; place-items: center; overflow: hidden;
   background: linear-gradient(150deg, oklch(0.32 0.05 55), oklch(0.22 0.045 50));
   box-shadow: inset 0 0 0 1px oklch(0.5 0.06 55 / 0.55), 0 1px 3px oklch(0 0 0 / 0.5);
   color: oklch(0.85 0.05 70); }
@@ -663,7 +672,7 @@ const doors = computed(() => (props.carte.portes ?? [])
    par là ». Une pastille dorée centrée porte l'icône, assez petite pour
    laisser voir les héros qui s'y tiennent (au départ comme à l'extraction). */
 .dg-stairs-holder { position: relative; pointer-events: none; z-index: 1; }
-.dg-stairs { position: absolute; inset: 4%; border-radius: 6px; display: grid; place-items: center;
+.dg-stairs { position: absolute; inset: 4%; border-radius: 6px; display: grid; place-items: center; overflow: hidden;
   background: oklch(0.6 0.03 85 / 0.14);
   box-shadow: inset 0 0 0 1.5px oklch(0.78 0.14 80 / 0.5); }
 .dg-stairs .msym { font-size: calc(var(--dg-icone) * 1.6); color: oklch(0.82 0.13 80);
@@ -672,7 +681,7 @@ const doors = computed(() => (props.carte.portes ?? [])
 /* ---- dangers mobiles autonomes (2026-10-23) : un HEXAGONE de braise sombre quand le danger est en mouvement ; une fois le
    rocher arrêté, il reprend le BLOC PLEIN de la Chute de blocs (même obstacle permanent, même lecture). ---- */
 .dg-danger-holder { position: relative; pointer-events: none; z-index: 2; }
-.dg-danger { position: absolute; inset: 12%; display: grid; place-items: center; border-radius: 8px;
+.dg-danger { position: absolute; inset: 12%; display: grid; place-items: center; border-radius: 8px; overflow: hidden;
   background: oklch(0.38 0.13 25 / 0.85); color: oklch(0.9 0.07 60); }
 .dg-danger.bloc { inset: 5%; border-radius: 4px; background: oklch(0.42 0.03 60); color: oklch(0.86 0.03 70); }
 .dg-danger .msym { font-size: var(--dg-icone); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
@@ -719,7 +728,7 @@ const doors = computed(() => (props.carte.portes ?? [])
    plus étroit en hauteur) — pour que l'œil retrouve, même sans lire le
    libellé, LEQUEL des quatre murs de la case est percé. */
 .dg-door-holder { position: relative; pointer-events: none; z-index: 3; display: grid; place-items: center; }
-.dg-door { position: absolute; border-radius: 3px;
+.dg-door { position: absolute; border-radius: 3px; overflow: hidden;
   background: linear-gradient(150deg, #d8a23a, #7a531d);
   box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.6), 0 1px 3px oklch(0 0 0 / 0.55);
   display: grid; place-items: center; }
@@ -756,6 +765,10 @@ const doors = computed(() => (props.carte.portes ?? [])
 .dg-door.avec-symbole { inset: 10%; background: none; box-shadow: none; display: grid; place-items: center; }
 
 .dg-door-lock { color: #f0d79a; font-size: 0.6em; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); }
+/* Cadenas d'une porte À PICTO : un badge dans le coin de la case (le pictogramme occupe le centre). Taille liée à la case
+   comme les autres glyphes (`--dg-icone`), jamais en `vw` ni en `em` d'une police héritée. */
+.dg-door-lock--badge { position: absolute; right: 0; bottom: 0; font-size: calc(var(--dg-icone) * 1.1); padding: 1px;
+  border-radius: 4px; background: oklch(0.14 0.01 255 / 0.88); box-shadow: 0 0 0 1px oklch(0.85 0.1 85 / 0.6); }
 
 /* ---- FLIP figurines (table, animate) : glissement d'une case ----
    ⚠ Viser `.fig` EXPLICITEMENT, et par `:deep()`. Le TransitionGroup pose ses

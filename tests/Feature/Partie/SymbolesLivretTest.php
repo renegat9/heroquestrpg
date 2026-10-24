@@ -357,3 +357,57 @@ it('LIT chaque état de piège que le serveur publie, dans la table de la carte 
         }
     }
 });
+
+// =====================================================================
+// 5. LA ROTATION — décidée par le serveur (`symbole_rotation`), jamais par le client (correctifs symboles, 2026-10-24)
+// =====================================================================
+
+it('tourne le pictogramme quand le meuble est posé à l\'envers de son catalogue, et seulement alors', function () {
+    // Le râtelier se dessine DEBOUT au catalogue (1×3) ; l'assembleur le pose aussi couché (3×1). Un carré ne se tourne jamais.
+    $raclette = Mobilier::where('nom', "Râtelier d'armes")->firstOrFail();
+    $bibliotheque = Mobilier::where('nom', 'Bibliothèque')->firstOrFail();
+    $table = Mobilier::where('nom', 'Table')->firstOrFail();
+    $coffre = Mobilier::where('nom', 'Coffre')->firstOrFail();
+
+    expect(\App\Partie\MoteurMobilier::rotationSymbole(1, 3, $raclette))->toBe(0)           // debout, comme au catalogue
+        ->and(\App\Partie\MoteurMobilier::rotationSymbole(3, 1, $raclette))->toBe(90)       // couché : la transposée
+        ->and(\App\Partie\MoteurMobilier::rotationSymbole(3, 1, $bibliotheque))->toBe(0)    // couchée, comme au catalogue
+        ->and(\App\Partie\MoteurMobilier::rotationSymbole(1, 3, $bibliotheque))->toBe(90)   // dressée : la transposée
+        ->and(\App\Partie\MoteurMobilier::rotationSymbole(2, 3, $table))->toBe(90)          // table 3×2 dressée
+        ->and(\App\Partie\MoteurMobilier::rotationSymbole(3, 2, $table))->toBe(0)           // table 3×2 couchée
+        ->and(\App\Partie\MoteurMobilier::rotationSymbole(1, 1, $coffre))->toBe(0);         // un carré se lit dans les deux sens
+});
+
+it('publie symbole_rotation sur CHAQUE meuble : le râtelier couché tourne, le même debout et le carré non', function () {
+    symbolesDossierJetable();
+    $quete = symbolesQuete();
+    $grille = $quete->carte->grille;
+    $raclette = Mobilier::where('nom', "Râtelier d'armes")->value('id');
+    $coffre = Mobilier::where('nom', 'Coffre')->value('id');
+    $a = symbolesCaseDepart($grille, 1, 1);
+    $b = symbolesCaseDepart($grille, 3, 1);
+    $c = symbolesCaseDepart($grille, 1, 4);
+
+    // `salle => 0` : la salle de départ est toujours découverte, donc ces meubles sont publiés.
+    symbolesPoserCouches($quete, [
+        'mobilier' => [
+            ['x' => $a['x'], 'y' => $a['y'], 'mobilier_id' => $raclette, 'l' => 1, 'h' => 3, 'salle' => 0],
+            ['x' => $b['x'], 'y' => $b['y'], 'mobilier_id' => $raclette, 'l' => 3, 'h' => 1, 'salle' => 0],
+            ['x' => $c['x'], 'y' => $c['y'], 'mobilier_id' => $coffre, 'l' => 1, 'h' => 1, 'salle' => 0],
+        ],
+    ]);
+
+    $meubles = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('carte.mobilier');
+
+    foreach ($meubles as $meuble) {
+        expect(array_key_exists('symbole_rotation', $meuble))->toBeTrue('meuble publié sans symbole_rotation');
+    }
+
+    $parEmprise = collect($meubles)->mapWithKeys(fn (array $m) => ["{$m['nom']} {$m['l']}x{$m['h']}" => $m['symbole_rotation']]);
+
+    expect($parEmprise->all())->toBe([
+        "Râtelier d'armes 1x3" => 0,
+        "Râtelier d'armes 3x1" => 90,
+        'Coffre 1x1' => 0,
+    ]);
+});

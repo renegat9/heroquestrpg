@@ -842,7 +842,7 @@ final class EtatGroupe
 
         $catalogue = Mobilier::query()
             ->whereIn('id', $visibles->pluck('mobilier_id')->filter()->unique())
-            ->get(['id', 'nom', 'bloque_mouvement', 'bloque_vue', 'pv_body', 'defense_dice'])
+            ->get(['id', 'nom', 'largeur', 'hauteur', 'bloque_mouvement', 'bloque_vue', 'pv_body', 'defense_dice'])
             ->keyBy('id');
 
         return $visibles
@@ -876,6 +876,11 @@ final class EtatGroupe
                     'image_url' => app(BibliothequeImages::class)->urlMobilier($type?->id, $type?->nom),
                     // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme du meuble, sur son emprise (`l`×`h`).
                     'symbole_url' => app(BibliothequeImages::class)->urlSymboleMobilier($type?->nom),
+                    // ROTATION du pictogramme (2026-10-24) : décidée ici, pas dans le client. 90 quand le meuble est posé
+                    // couché alors que son catalogue le dessine debout (ou l'inverse) — voir MoteurMobilier::rotationSymbole().
+                    'symbole_rotation' => $type === null
+                        ? 0
+                        : MoteurMobilier::rotationSymbole((int) $entree['l'], (int) $entree['h'], $type),
                 ];
             })
             ->values()

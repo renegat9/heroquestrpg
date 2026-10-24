@@ -725,6 +725,22 @@ final class MoteurMobilier
     }
 
     /**
+     * Rotation, en degrés (0 ou 90), du PICTOGRAMME d'un meuble posé : la décision du serveur, publiée telle quelle
+     * (`symbole_rotation`), jamais re-dérivée côté client.
+     *
+     * L'image du livret dessine le meuble dans le sens de son CATALOGUE (`largeur`×`hauteur`). `AssembleurCarte` pose
+     * une pièce couchée ou debout au hasard (`tenterPoseMobilier()`) : un râtelier 1×3 peut donc se trouver posé 3×1,
+     * et son dessin resterait debout, hors de sa silhouette. On le tourne quand l'emprise POSÉE est la transposée de
+     * celle du catalogue, et qu'elle n'est pas carrée — un carré se pose et se lit pareil dans les deux sens.
+     */
+    public static function rotationSymbole(int $l, int $h, Mobilier $type): int
+    {
+        $transposee = $l === (int) $type->hauteur && $h === (int) $type->largeur;
+
+        return $transposee && $l !== $h ? 90 : 0;
+    }
+
+    /**
      * Inflige `$degats` au meuble d'index `$index`, et le détruit à 0 PV —
      * `detruire()` pose le MÊME drapeau `detruit` que le jet de Body, lu par
      * la boucle UNIQUE de `FabriqueGrille::pour()` : la pièce cesse de bloquer

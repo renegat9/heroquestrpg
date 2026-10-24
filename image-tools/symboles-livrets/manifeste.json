@@ -125,15 +125,17 @@
       "cadre": [
         613,
         567,
-        668,
-        589
+        665.8,
+        587.2
       ],
       "rotation": 0,
       "emprise": [
         3,
         1
       ],
-      "source": "F2847 p. 33 (PDF 17), « Bookcase »"
+      "seuil": 50,
+      "source": "F2847 p. 33 (PDF 17), « Bookcase »",
+      "note": "papier marbré à droite du meuble : une tache grise du parchemin entrait dans le symbole (vérifié à l'écran, 2026-10-24). Cadre resserré sur le contour (665,1 pt) et seuil bas relevé à 50 : le trait reste plein, la marbrure devient du papier"
     },
     {
       "type": "mobiliers",

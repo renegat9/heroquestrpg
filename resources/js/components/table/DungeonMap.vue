@@ -122,8 +122,11 @@ const gridStyle = computed(() => {
         gap: '3px',
         width: `${largeurCarte}px`,
         height: `${hauteurCarte}px`,
-        gridTemplateColumns: `repeat(${c}, 1fr)`,
-        gridTemplateRows: `repeat(${r}, 1fr)`,
+        // `minmax(0, 1fr)` et non `1fr` : une piste `1fr` ne descend jamais sous la taille minimale de son contenu. Une image
+        // DANS LE FLUX a fait grossir une rangée de la table (73 → 119 px, sous une plaque de Sable) ; le symbole est désormais
+        // posé en absolu (SymboleCarte), et la piste reste bornée à zéro par sécurité, pour tout contenu futur.
+        gridTemplateColumns: `repeat(${c}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${r}, minmax(0, 1fr))`,
         transform: `translate(${centrer(largeurVue, largeurCarte, cibleXPx.value - decalageX.value)}px, ${centrer(hauteurVue, hauteurCarte, cibleYPx.value - decalageY.value)}px)`,
         // Pendant le glissé : suit le doigt SANS délai. Sinon : transition douce
         // (recentrage automatique au changement de tour, ou bouton Recentrer).

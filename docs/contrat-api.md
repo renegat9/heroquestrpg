@@ -2472,7 +2472,7 @@ les **deux sens** (pièges, épreuves, mobilier) et vérifie que les deux compos
 importent bien le même fichier.
 
 **Symboles de livret — le pictogramme officiel de chaque case** (chantier symboles, René, 2026-10-24 : « les vrais symboles des livrets à la place des icônes »). Chaque famille de la carte peut afficher le PICTOGRAMME imprimé sur le livret de quête, à la place de l'icône Material Symbols. Le serveur publie `symbole_url` (`string|null`, **toujours présent**, `null` par défaut) sur :
-- `carte.mobilier[]` : chaque meuble, d'après son nom de catalogue ;
+- `carte.mobilier[]` : chaque meuble, d'après son nom de catalogue, avec **`symbole_rotation`** (`0` ou `90`, **toujours présent**) : l'image du livret dessine le meuble dans le sens de son CATALOGUE (`largeur`×`hauteur`), et la pose le couche ou le dresse au hasard. `90` quand l'emprise POSÉE (`l`×`h`) est la transposée de celle du catalogue ET qu'elle n'est pas carrée (un râtelier 1×3 posé 3×1), `0` sinon. Le client tourne le pictogramme de 90° dans son emprise ; il ne décide jamais de la rotation ;
 - `carte.terrain[]` : **une plaque** (bloc ou motif) porte son symbole sur son **ancre** seulement (une icône par groupe, comme `TERRAIN_ICONES`) ; les autres cases de la plaque portent `null` ; **une case isolée** (sans `groupe_id`) porte le sien ;
 - `carte.pieges[]` : les états `detecte`, `desarme` et `retient` seulement. Un trou ouvert (`fosse_ouverte`), une mare d'acide et un bloc tombé se dessinent sans symbole : la silhouette EST la case ;
 - `carte.portes[]` : par ÉTAT — `fermee`, `ouverte`, `verrouillee`, `secrete`, et `verrou_pierre` pour une porte de pierre encore fermée (une porte de pierre forcée n'est plus qu'une `ouverte`) ;
@@ -2593,7 +2593,7 @@ achète *Colosse*, il descend quand le costaud s'en va.
   réussite.
 
 - **EtatGroupe.carte** gagne `mobilier: [{x, y, l, h, nom, bloque_mouvement,
-  bloque_vue, pv_body, defense_dice, pv_restants}]` — l'ancre `(x, y)` est le
+  bloque_vue, pv_body, defense_dice, pv_restants, symbole_url, symbole_rotation}]` (`symbole_rotation` : voir §Symboles de livret) — l'ancre `(x, y)` est le
   coin haut-gauche de l'emprise (l×h), même convention que `cellulesEmprise()`.
   Contrairement aux pièges, un meuble n'a pas d'état « caché » : il est
   simplement soumis au même **brouillard de guerre** que le reste de la salle

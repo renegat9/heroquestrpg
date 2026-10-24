@@ -102,6 +102,12 @@ it('un symbole absent dit pourquoi ; un symbole extrait dit d’où il vient', f
         expect(in_array($s['rotation'], [0, 90, 180, 270], true))->toBeTrue("rotation inconnue : « {$s['nom_catalogue']} »");
         expect($s['emprise'])->toHaveCount(2);
         expect(trim($s['source']))->not->toBe('', "source absente : « {$s['nom_catalogue']} »");
+
+        // Un seuil bas RELEVÉ (papier marbré, `extraire.py`) doit dépasser le défaut (28) sans atteindre la couleur du trait.
+        if (array_key_exists('seuil', $s)) {
+            expect($s['seuil'])->toBeGreaterThan(28, "seuil sans effet : « {$s['nom_catalogue']} »");
+            expect($s['seuil'])->toBeLessThan(100, "seuil qui efface le trait : « {$s['nom_catalogue']} »");
+        }
     }
 });
 

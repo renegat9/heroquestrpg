@@ -51,6 +51,7 @@ garde ses couleurs : `"couleur": true`. Sans fichier, l'affichage garde l'icône
 | `rotation` | degrés, **horaires**, appliqués au rendu (0, 90, 180, 270) |
 | `emprise` | `[largeur, hauteur]` en cases : le symbole est posé sur ce rapport (transparent autour) |
 | `couleur` | `true` = garder les couleurs du livret |
+| `seuil` | optionnel, défaut `28` : seuil bas de la force du trait. Le relever (`50` pour la bibliothèque) efface une marbrure du papier sans toucher au trait, sans rogner le cadre |
 | `source` | « F2847 p. 33 (PDF 17), « Tables » » — livret, page imprimée, légende |
 | `note` | écart à signaler (même symbole qu'un autre, rotation, etc.) |
 | `natif` | `{"xref": N, "boite_px": [x0, y0, x1, y1]}` : une case prise dans le **raster embarqué** `N`, à sa résolution native (sans rendu de page) |

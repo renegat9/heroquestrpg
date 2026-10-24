@@ -358,7 +358,7 @@ const vide = computed(() => figures.value.length <= 1 && meubles.value.length ==
 .ap-tour { color: var(--torch); font-size: 17px; }
 /* SYMBOLE DE LIVRET (2026-10-24) : le pictogramme, à côté du nom — l'illustration reste dans la vignette, jamais à sa place.
    Sans symbole, la ligne est celle d'avant. */
-.ap-symbole { flex: none; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 5px;
+.ap-symbole { position: relative; overflow: hidden; flex: none; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 5px;
   background: var(--stone-850); box-shadow: inset 0 0 0 1px oklch(0.4 0.02 255 / 0.5); }
 
 .ap-chip { display: block; width: 72px; height: 6px; margin-top: 5px; border-radius: 2px;

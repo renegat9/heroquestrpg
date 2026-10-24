@@ -184,3 +184,36 @@ it('publie une silhouette pour les DANGERS mobiles, lue par le rendu ET par la l
     expect(file_get_contents(base_path('resources/js/components/carte/DungeonGrid.vue')))->toContain('dangers: { type: Array')
         ->and(file_get_contents(base_path('resources/js/components/carte/LegendeCarte.vue')))->toContain('props.carte?.dangers');
 });
+
+it('le front TOURNE le pictogramme que le serveur décide, et la table transporte le champ jusqu\'au rendu', function () {
+    // Le client ne calcule jamais la rotation : il lit `symbole_rotation`. La table reconstruit ses meubles champ par champ
+    // (`mobilierVersDecor`) : sans ce champ, le râtelier posé couché retomberait debout, sur la table seulement.
+    $jeu = file_get_contents(base_path('resources/js/store/game.js'));
+    $grille = file_get_contents(base_path('resources/js/components/carte/DungeonGrid.vue'));
+    $symbole = file_get_contents(base_path('resources/js/components/carte/SymboleCarte.vue'));
+
+    expect(str_contains($jeu, 'symbole_rotation: m.symbole_rotation ?? 0'))->toBeTrue('mobilierVersDecor ne transporte pas symbole_rotation')
+        ->and(str_contains($grille, ':tourne="f.symbole_rotation ?? 0"'))->toBeTrue('DungeonGrid ne passe pas la rotation au pictogramme')
+        ->and(str_contains($symbole, 'rotate(90deg)'))->toBeTrue('SymboleCarte ne sait pas tourner un dessin');
+});
+
+it('une IMAGE ne fait jamais la taille d\'une case ni d\'une rangée : posée en absolu, et la table ne dimensionne plus ses colonnes en 1fr', function () {
+    // Une image dans le flux gonflait la piste qui la portait (une rangée de la table passait de 73 à 119 px) ; une piste
+    // `1fr` ne descend jamais sous la taille minimale de son contenu. Les deux défauts se lisent dans la source.
+    $symbole = file_get_contents(base_path('resources/js/components/carte/SymboleCarte.vue'));
+    $carte = file_get_contents(base_path('resources/js/components/table/DungeonMap.vue'));
+
+    expect(str_contains($symbole, 'position: absolute'))->toBeTrue('le pictogramme entre dans le flux de la grille')
+        ->and(str_contains($carte, 'repeat(${c}, 1fr)'))->toBeFalse('la table redimensionne ses colonnes en 1fr')
+        ->and(str_contains($carte, 'repeat(${c}, minmax(0, 1fr))'))->toBeTrue('colonnes de la table sans minimum nul')
+        ->and(str_contains($carte, 'repeat(${r}, minmax(0, 1fr))'))->toBeTrue('rangées de la table sans minimum nul');
+});
+
+it('le cadenas d\'une porte verrouillée se voit AUSSI avec un pictogramme : le livret dessine verrouillée comme fermée', function () {
+    // `verrouillee.webp` a le cadre de `fermee` (manifeste) : sans badge, le verrou disparaîtrait dès qu'il y a un pictogramme.
+    $grille = file_get_contents(base_path('resources/js/components/carte/DungeonGrid.vue'));
+
+    expect(str_contains($grille, 'v-if="d.cadenas"'))->toBeTrue('le cadenas n\'est plus rendu')
+        // La LIAISON du template, pas la classe : la règle CSS porte le même nom et survivrait à la suppression du badge.
+        ->and(str_contains($grille, "'dg-door-lock--badge': d.symbole_url"))->toBeTrue('aucun badge de cadenas sur une porte à pictogramme');
+});

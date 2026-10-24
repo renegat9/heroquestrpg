@@ -710,6 +710,9 @@ export function mobilierVersDecor(carte) {
         ic: icone(MOBILIER_ICONES, m.nom, MOBILIER_ICONE_DEFAUT),
         // SYMBOLE DE LIVRET (2026-10-24) : passé tel quel — le pictogramme du meuble, ou `null` (l'icône `ic`).
         symbole_url: m.symbole_url ?? null,
+        // ROTATION DÉCIDÉE PAR LE SERVEUR (correctifs symboles, 2026-10-24) : transportée telle quelle, comme `symbole_url`.
+        // Un converseur qui la laisse tomber rendrait le râtelier posé couché avec son dessin debout.
+        symbole_rotation: m.symbole_rotation ?? 0,
         titre: m.nom ?? 'Meuble',
     }));
 }
