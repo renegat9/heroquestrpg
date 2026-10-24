@@ -212,6 +212,14 @@ final class MotsClesAdversaires
     public const DOUBLE_SORT = 'double_sort';
 
     /**
+     * LE MÉTAMORPHE (Kellar's Keep, F4543 p. 25, quête 9, note A) : « Every time it is killed, shuffle all the monster cards
+     * and take the top card. This is the new form the monster takes. […] The monster can be permanently killed only if the
+     * new card drawn matches the monster's most recent form. » Paramètre : `forme_de_depart` (la carte dont il sort, Abomination).
+     * Lu à UN point, la mort (`MoteurSynchroformes::prochaine()`), la même couture que les synchroformes de Qwindrak.
+     */
+    public const METAMORPHE = 'metamorphe';
+
+    /**
      * @var array<string, array{lecteur: string, libelle: string}>
      */
     public const CAPACITES = [
@@ -294,6 +302,11 @@ final class MotsClesAdversaires
         self::DOUBLE_SORT => [
             'lecteur' => 'App\Partie\MoteurDread::doubleSortDisponible',
             'libelle' => 'Lance deux sorts de Dread au même tour (jamais le même), au premier tour seulement si elle le précise',
+        ],
+        self::METAMORPHE => [
+            'lecteur' => 'App\Partie\MoteurSynchroformes::prochaine',
+            'libelle' => 'Se métamorphose à chaque mort : une carte tirée au hasard sur le paquet de base devient sa forme ; '
+                .'elle ne meurt pour de bon que si la carte tirée est celle qui vient de tomber',
         ],
     ];
 

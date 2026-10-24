@@ -342,3 +342,16 @@ La brume de la mort de la quête 3 (note A, F4193 p. 13) est portée **dans la m
 - **Tests** : `tests/Feature/Partie/DangerMobileTest.php` (brume qui passe sur le héros sans dé ; jamais sur un héros ; Lame au contact, arme ordinaire sans effet, contact exigé ; Tempête en cible seule ; pas de pose hors `witch_lord`).
 - **Migrations et seeders à jouer** : `migrate` (table `dangers`), `db:seed` (`DangerSeeder`).
 - **Reste** : les portes à condition et le reste du lot E de cette boîte (non tranchés, hors de ce chantier).
+
+## Exécution (2026-10-23) — le seuil de fuite à 25 % (chantier `ext-restes`)
+
+Le défaut signalé ici (« le précédent est inopérant pour tout corps ≤ 7 — constat existant, NON modifié ici, à signaler ») est **corrigé
+à la racine** dans `MoteurDread::seuilFuiteAtteint()`. Cause : `pv < max(1, ⌊max × 0,25⌋)` tronquait le quart AVANT la comparaison ;
+pour un corps de 4 à 7, le plancher valait 1, et un monstre vivant a au moins 1 PV : la fuite ne partait jamais. Désormais
+`pv < max × 0,25` (strict, valeur réelle) : un corps de 5 à 7 fuit à 1 PV ; **10 Body fuit à 2 PV** (2 < 2,5), et non plus à 1 —
+c'était le seul comportement changé pour un corps supérieur à 7 (le test du Seigneur ogre épinglait l'arrondi tronqué, il est mis à
+jour). 4 Body à 1 PV (pile au quart) ne fuit pas : la règle est strictement « sous le quart ». Un corps de 1 à 3 ne peut pas être
+sous le quart en étant vivant : c'est le tiers (`fuit_si_affaibli`, décision Q3) qui le sert.
+
+Tests : `FuiteAffaibliTest.php` (le précédent : 5, 6, 7 Body à 1 PV ; 10 Body à 2 PV ; 4 Body pile au quart). Mutation : ancienne
+formule restaurée → quatre tests tombent. Règle : `docs/regles/sorts-dread.md`, paragraphe « La fuite au tiers ».

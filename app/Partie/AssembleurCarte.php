@@ -358,6 +358,10 @@ final class AssembleurCarte
         // haut en bas.
         $portes = $this->marquerPortesDePierre($portes, $suivant, $bestiaire);
 
+        // PORTES À CONDITION (Kellar's Keep, 2026-10-23) : même garde que la porte de pierre (une arête de BOUCLE, jamais le
+        // seul chemin), et AUCUN tirage hors de ce thème — les autres donjons gardent leur suite PRNG.
+        $portes = $this->marquerPortesDeCondition($portes, $suivant, $bestiaire);
+
         // Salles à garantir un coffre (2026-09-18, brief coffre) : appelé ICI
         // — $salles/$aretesSortie/$portes ont exactement la forme que porte le
         // carte final pour ces trois clés, et ne bougent plus ensuite (locker
@@ -1045,6 +1049,54 @@ final class AssembleurCarte
         $bouts = $jonctions[$choisie];
         $idx = $bouts[$prng->suivant() % count($bouts)];
         $portes[$idx]['verrou'] = ['type' => MoteurPortes::VERROU_PIERRE];
+
+        return $portes;
+    }
+
+    /**
+     * PORTES À CONDITION (Kellar's Keep, F4543 p. 19 note A, p. 25 note D) : deux dés rouges contre la valeur du héros, la
+     * porte s'ouvre si la condition est remplie (`MoteurPortes::CONDITIONS`, copiées telles quelles dans `verrou`).
+     *
+     * Garde IDENTIQUE à la porte de pierre (qu'elle reprend) : UNE arête de BOUCLE (`boucle`, jamais l'arbre couvrant), et au
+     * plus UNE par carte. Les deux salles qu'elle relie restent reliées par l'arbre couvrant : une condition qu'un héros
+     * ne remplit jamais le laisse passer par l'autre route, jamais « bloqué à jamais devant l'unique chemin ».
+     *
+     * ⚠ HORS de la boîte `kellars_keep`, AUCUN tirage n'est consommé (ni le PRNG `$suivant()`) : les autres donjons gardent
+     * exactement leur suite (la garde précède le premier tirage, à la différence de `marquerPortesDePierre()`).
+     *
+     * @param  list<array<string, mixed>>  $portes
+     * @return list<array<string, mixed>>
+     */
+    private function marquerPortesDeCondition(array $portes, \Closure $suivant, ?BestiaireGroupe $bestiaire): array
+    {
+        if (! ($bestiaire?->contient('kellars_keep') ?? false)) {
+            return $portes;
+        }
+
+        $prng = new PrngLineaire($suivant());
+
+        $jonctions = [];
+        foreach ($portes as $idx => $porte) {
+            if (empty($porte['boucle'])
+                || ($porte['etat'] ?? MoteurPortes::ETAT_OUVERTE) !== MoteurPortes::ETAT_FERMEE
+                || ($porte['verrou']['type'] ?? null) !== null) {
+                continue;
+            }
+            $jonctions[(int) ($porte['jonction'] ?? -1)][] = $idx;
+        }
+
+        if ($jonctions === []) {
+            return $portes; // aucune boucle disponible sur cette carte : aucune porte à condition
+        }
+
+        $cles = array_keys($jonctions);
+        $bouts = $jonctions[$cles[$prng->suivant() % count($cles)]];
+        $idx = $bouts[$prng->suivant() % count($bouts)];
+
+        $types = array_keys(MoteurPortes::CONDITIONS);
+        $nom = $types[$prng->suivant() % count($types)];
+
+        $portes[$idx]['verrou'] = ['type' => MoteurPortes::VERROU_CONDITION, 'nom' => $nom, ...MoteurPortes::CONDITIONS[$nom]];
 
         return $portes;
     }

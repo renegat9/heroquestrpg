@@ -345,7 +345,7 @@ Le Dread Warrior est la **carte officielle** (`reference/20_cartes_monstres.md`,
 - **Lot F — terrains** (sol meuble, courant bonus, vents) : non porté. Le sol meuble change la **parité** du jet de déplacement et crée un **état durable** (enlisé, un seul dé ensuite) : ni `MoteurSables` (un saut, pas une marche) ni `MotsClesTerrain` ne le portent. Le courant bonus (+2 cases à la première entrée) est un **gain** de budget dépendant du chemin : le Dijkstra pondéré (`Grille::parcoursPondere()`) n'accepte pas de coût négatif, et `DeplacementHeros` publie des destinations déjà décidées. Les vents exigent un **choix de direction** du joueur (sous-menu, option de manette, état en attente). Aucun terrain `spirit_queen` n'entre donc au donjon.
 - **Lot I-a — coffre piégé qui lance un sort de Dread** : non porté. `MoteurDread` résout chaque sort contre un **lanceur-monstre** (`ciblesDuSort`, `monstresDuSort`, `lanceur_id` du Bâton Ancien) ; un piège n'en a pas. Il n'existe pas non plus de `MotsClesPiege` dans le dépôt : les clés d'effet de piège ne sont pas un vocabulaire fermé, et je n'ai pas créé de registre partiel.
 - **Non portés, scriptés dans une quête** : la sorcière de la quête 12 (Fear + Ball of Flame, premier tour double, non nommée) ; le piège Sommeil de la quête 4 (deux héros, portes secrètes) ; la quête 12 (tourbillons) et la fouille garantie.
-- **Hors chantier** : alliés joués par un joueur (Q2) ; parchemin de *Tempest* (Q5). **Écartés** : fournaise et gargouille désamorçable (salle dangereuse), Nelath « sauvée ».
+- **Hors chantier** : alliés joués par un joueur (Q2) ; parchemin de *Tempest* (Q5). **Hors chantier** : la fournaise (portée par le chantier « salle dangereuse », avec la forge des nains). **Écartés** : la gargouille désamorçable, Nelath « sauvée ».
 
 ### Décisions à trancher (René)
 
@@ -363,3 +363,21 @@ Le Dread Warrior est la **carte officielle** (`reference/20_cartes_monstres.md`,
 `SpiritQueenKavraNelathTest` (5 : deux sorts au premier tour, second tour à un sort, Nelath à deux par tour, témoin sans capacité, déclaration), `ThemeSpiritQueenTest` (7 : rang de la boîte, campagne figée, Kavra et Nelath, statistiques, coûts mesurés, tirage sous le thème, préférence sans filtre), `SpiritQueenPotionFortuneTest` (6 : blanc, crâne, noir, fiole consommée, table nommée, hors marché). Régression : `AdversairesNommesTest`, `SorciersNommesTest`, `BestiaireSourceTest`, `ObjetsFonctionnelsTest`, `ThemeBestiaireLibelleTest`, `BarksArchetypesTest`, `GuideTest`, thèmes Telor/Morcar/Witch Lord, `EquilibrageRencontreTest`, `TerrainCarteTest`.
 
 Mutations (lecteur retiré, test tombé, fichier restauré octet pour octet) : `double_sort` coupé → 2 échecs ; `premier_tour` ignoré → 1 ; compteur toujours « premier » → 1 ; `$sauf` ignoré (même sort relancé) → 1 ; tirage de la potion coupé → 3 ; perte de Body coupée → 1 ; objet nommé du mobilier coupé → 1 ; buff posé sous le nom de la fiole → 1.
+
+## Exécution (2026-10-23) — la fournaise (chantier `ext-restes`)
+
+**Portée.** La décision de René du 2026-10-23 GARDE la fournaise (« Reste à porter : lot F sans la gargouille […] fournaise
+désamorçable ») ; le « écartés » de l'exécution Spirit Queen était une erreur de lecture, corrigée à la fusion. Elle est portée comme
+**une seule mécanique avec la forge des nains** (`kellars_keep`). Le livret l'appelle « furniture » (G0053 p. 31 note A) : c'est un
+MEUBLE, générique (un donjon généré peut en poser), pas une règle propre à la quête 13.
+
+- `Fournaise` (`MobilierSeeder`, boîte `spirit_queen`) : `effet.salle_dangereuse` = `{moment: fin_tour, exempte: null, desamorcable: true}`.
+  Frappe le héros qui finit son tour dans la salle, un dé de combat, un crâne = 1 PV, jamais les monstres. Règles :
+  `docs/regles/carte-donjon.md` § « SALLES DANGEREUSES ».
+- **Désamorçage** comme un piège : option `desamorcage` avec `parametres.mobilier`, jet partagé avec le piège (`ResolveurTour::jetDesamorcage()`).
+- **Non porté, écrit** : la gargouille désamorçable « comme un piège » (q. 13 note C), écartée avec la fournaise par la décision ci-dessus ;
+  les terrains (sol meuble, courant bonus, vents) et l'insubstantialité, déjà écartés par `EXT-SPIRIT`.
+
+**Migrations** : aucune. **Seeder** : `MobilierSeeder` (une ligne). **Image** : `images:generer` puis `webp.sh`.
+**Tests** : `SalleDangereuseTest.php` (fournaise : fin de tour, hors salle, nain frappé, une salle un dé, à 1 PV, désamorçage durable,
+désamorçage raté, menu et résolveur refusant un héros sans outil, option hors de portée, annonce).

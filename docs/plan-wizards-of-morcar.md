@@ -502,3 +502,11 @@ récompense, car on ne suit pas l'histoire réelle. »** Conséquences, appliqu�
 - Le choix du type d'arme ou du répertoire, s'il était en attente à la victoire, reste accepté par sa route (ce n'est pas un
   tour de Hopekins) ; la manette affiche encore le bouton « Prêt » après la victoire, qui répond désormais le message du
   serveur au lieu de partir. Masquer ce bouton côté front n'est pas fait.
+
+## Exécution (2026-10-23) — « Prêt » après la victoire : déjà corrigé, vérifié (chantier `ext-restes`)
+
+La note du 2026-10-16 (« la manette affiche encore le bouton « Prêt » après la victoire… Masquer ce bouton côté front n'est pas
+fait ») est **périmée**. Corrigée le même jour dans le commit `18ee278` (« Fin de campagne verrouillée… ») : le serveur publie la
+décision (`EtatGroupe` → `groupe.depart_possible`, `groupe.depart_motif`, au hub seulement), `ManetteView` et `TableView` masquent
+« Prêt » et « Lancer la quête » sur `depart_possible === false` et affichent le motif. Testé par `FinDeCampagneTest` (D : /etat publie
+le départ refusé après la victoire finale, fenêtre annulée comprise). Aucun changement ce jour.

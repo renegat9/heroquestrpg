@@ -1579,7 +1579,7 @@ voit son mouvement stoppé net).
   lance *Channel Dread* **à volonté** sur tout héros terminant son tour en
   ligne de vue. *Porté le 2026-10-15* : `filet_silencieux`, sous-boss
   `jungles_delthrak`, `cout` 10 ; « Movement 6 dice » imprimé, lu 6 cases ;
-  l'erratum 2021 y ajoute Spawn/Agile/Venomous — non porté, nommé
+  **source non trouvée** (2026-10-23) : le bloc imprimé (F9907 p. 17, rendu relu) n'a aucun mot-clé ; Spawn/Agile/Venomous sont ceux du Blightcrawler, dont la figurine la représente (p. 47) — non porté, à trancher par René
   (`docs/regles/bestiaire-et-rencontres.md`).
 - **Stone Sentry** (squelettes reskinnés, quête 6) — Move 6 · Attack 3 ·
   Defend 2 · Body 2 · Mind 0 ; version à distance lance des rochers (3 dés

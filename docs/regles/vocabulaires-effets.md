@@ -63,3 +63,12 @@ fenêtre — tandis que les coups, rayons et balayages lisent le prédicat exact
 **Réactions du MJ — clés ajoutées (2026-10-23)** : `consomme_magie`, `redirige_attaque`, `reflexion`, `terreur`,
 `realite_decalee` (`MotsClesReactionMj::CAPACITES`, lecteurs dans `docs/regles/sorts-dread.md` §« Magrian »). Le registre
 `NON_IMPLEMENTEES` est vide : il reste là pour une réaction que le livret NOMME et que le moteur ne joue pas encore.
+## Ajouts du 2026-10-23 (Kellar's Keep, Spirit Queen's Torment)
+
+- **`App\Engine\MotsClesMobilier::VOCABULAIRE['salle_dangereuse']`** — `mobiliers.effet` : `{moment: fin_deplacement|fin_tour,
+  exempte: nain|null, desamorcable: bool}`. Lecteur `MoteurMobilier::salleDangereuseDe()` ; producteur `ResolveurTour::salleDangereuseFrappe()`
+  (deux appelants : le déplacement, la fermeture du tour). Un `moment` hors vocabulaire lève une exception (`MotsClesMobilier::salleDangereuse()`).
+- **`App\Engine\MotsClesAdversaires::CAPACITES['metamorphe']`** — `monstres.capacites` : `{forme_de_depart, paquet}`. Lecteur
+  `MoteurSynchroformes::prochaine()`, à la mort. Tests : `MetamorpheTest` (registre et comportement).
+- **`verrou.type` = `condition`** (`MoteurPortes::VERROU_CONDITION`, paramètres dans `MoteurPortes::CONDITIONS`) : porte fermée
+  dont l'ouverture est un jet de deux dés rouges. Ni `ouvrableAMain()` (un verrou n'est jamais libre), ni clé.

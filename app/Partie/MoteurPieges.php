@@ -724,10 +724,13 @@ final class MoteurPieges
      * (`declencher()`) et de la carte « Poison »/« Magical Trap » du deck de
      * trésor (`declencherEphemere()`). Extrait le 2026-10-06 (Wizards of
      * Morcar) pour que les deux producteurs du même jet ne divergent jamais.
+     * Public depuis le 2026-10-23 : la SALLE DANGEREUSE (forge, fournaise,
+     * `ResolveurTour::salleDangereuseFrappe()`) lance le même dé, un seul
+     * jet de combat sans défense dans tout le moteur.
      *
      * @return array{degats: int, faces: list<string>|null, touches: int|null}
      */
-    private function resoudreDesCombat(int $nbDesCombat): array
+    public function resoudreDesCombat(int $nbDesCombat): array
     {
         if ($nbDesCombat <= 0) {
             return ['degats' => 0, 'faces' => null, 'touches' => null];

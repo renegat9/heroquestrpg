@@ -149,6 +149,20 @@ function fixturesDesTypesAnnonces(): array
         'boire_mare' => ['soin' => 1],
         'soin_cheminee' => ['soin' => 1],
         'detruire_par_action' => ['mobilier' => 'Cocon'],
+        // SALLE DANGEREUSE (2026-10-23) : la forge des nains et la fournaise, et leur désamorçage.
+        'salle_dangereuse' => [
+            'moment' => 'fin_tour', 'mobilier' => ['nom' => 'Fournaise', 'x' => 4, 'y' => 5],
+            'personnage' => ['id' => 3, 'nom' => 'Grom'], 'faces' => ['crane'], 'touches' => 1,
+            'degats' => 1, 'pv_body_apres' => 2, 'tombe' => false,
+        ],
+        'desamorcage_mobilier' => ['mobilier' => ['nom' => 'Fournaise', 'x' => 4, 'y' => 5], 'succes' => true, 'methode' => 'trousse'],
+        // MÉTAMORPHE (Kellar's Keep, 2026-10-23) : le tirage à la mort, une nouvelle forme.
+        'metamorphe_tirage' => ['monstre' => 'Le Métamorphe', 'carte' => 'Abomination', 'tire' => 'Gobelin', 'definitif' => false],
+        // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : deux dés rouges contre le Corps de départ.
+        'forcer_porte_condition' => [
+            'verrou' => 'porte verrouillée', 'faces' => [3, 4], 'total' => 7, 'valeur' => 8,
+            'comparaison' => 'strict', 'attribut' => 'corps', 'reussi' => true,
+        ],
         'actionner_levier' => ['jet' => ['issue' => 'echec', 'succes' => 0, 'difficulte' => 2]],
         'forcer_porte_pierre' => ['reussi' => true, 'cranes' => 2],
         'ouvrir_porte' => ['cause' => 'main', 'porte' => $porte],

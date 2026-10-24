@@ -298,6 +298,9 @@ class GabaritQueteSeeder extends Seeder
                             // Borokk (q. 9, attaque de l'esprit) et Bellthor (Witch Lord q. 5, éveil quand tout le groupe est dans
                             // sa salle) — tous les trois sous-boss, nommés en créatures : aucun répertoire de sorts.
                             'Squelette-roi nain', 'Borokk', 'Bellthor',
+                            // Le MÉTAMORPHE (F4543 p. 25 note A, 2026-10-23) : sous-boss sans répertoire, qui revient à chaque mort
+                            // (sa règle est sur la fiche, `capacites.metamorphe`) — la rencontre le tire comme les trois autres.
+                            'Métamorphe',
                             // MINOTAURE (Wizards of Morcar, 2026-10-08) : brute sans
                             // répertoire (coup de corne), « Brak-Fellorn » du livret.
                             'Minotaure',

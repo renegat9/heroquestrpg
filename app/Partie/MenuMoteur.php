@@ -2262,6 +2262,33 @@ final class MenuMoteur
                 }
             }
 
+            // FOURNAISE (salle dangereuse désarmable, Spirit Queen's Torment q. 13 note A : « A hero can disarm the furnace
+            // as if it were a trap ») : la MÊME couture que le piège — un héros qui peut désamorcer, au contact du meuble,
+            // reçoit l'option `desamorcage`, résolue par `ResolveurTour::resoudreDesamorcageSalle()`. Le libellé suit la
+            // procédure réelle (`jetDesamorcage()`) : un dé de combat pour le Nain et l'Explorateur, un jet de Body sinon.
+            if ($etat !== null && $etat->position_x !== null && $quete->carte !== null && $this->pieges->peutDesamorcer($personnage)) {
+                $sansOutils = in_array($personnage->classe, MoteurPieges::SANS_OUTILS, true);
+
+                foreach ($this->mobilier->salleDangereuseAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y) as $meuble) {
+                    if (! $meuble['params']['desamorcable']) {
+                        continue; // la forge des nains : aucun désamorçage dans son texte
+                    }
+
+                    $x = (int) $meuble['entree']['x'];
+                    $y = (int) $meuble['entree']['y'];
+
+                    $options[] = [
+                        'id' => "desamorcer_{$x}_{$y}",
+                        'libelle' => $sansOutils
+                            ? "Désamorcer {$meuble['nom']} — 1 dé de combat (seul le bouclier noir rate)"
+                            : "Désamorcer {$meuble['nom']} — jet de Body",
+                        'type' => 'desamorcage',
+                        ...($sansOutils ? [] : ['jet' => ['attribut' => 'body', 'difficulte' => ResolveurTour::DIFFICULTE_DESAMORCAGE]]),
+                        'parametres' => ['mobilier' => ['x' => $x, 'y' => $y]],
+                    ];
+                }
+            }
+
             // Équiper / ranger une pièce en pleine quête (doc 01 §149) = action
             // du tour. Depuis 2026-09-18 (René, doc contrat-api « Équiper,
             // ranger et attaquer passent au sous-choix ») CHAQUE geste est
@@ -2532,7 +2559,11 @@ final class MenuMoteur
             // SOURIS FAMILIÈRE (chantier EXT-CRYPTE, 2026-10-23) : une ligne d'inventaire, lue par le SEUL point de
             // passage `Equipement::ligneSouris()` — celui que le résolveur relit pour la consommer.
             $ligneSouris = $this->equipement->ligneSouris($personnage);
+            // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : offerte à tout héros au contact (le jet n'échoue pas « d'avance » :
+            // un échec ferme seulement le tour). Lue par le menu ET par `resoudreForcerPorteCondition()`.
+            $conditions = $this->portes->portesConditionAdjacentes($quete->carte, $px, $py);
             $offertes = array_unique(array_merge(
+                array_column($conditions, 'index'),
                 array_column($ouvrables, 'index'),
                 (bool) $personnage->benediction_oracle ? array_column($closes, 'index') : [],
                 $ligneSouris !== null ? array_column($closes, 'index') : [],
@@ -2709,6 +2740,22 @@ final class MenuMoteur
                             'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                         ];
                     }
+                }
+
+                // PORTE À CONDITION (Kellar's Keep, F4543 p. 19 note A, p. 25 note D) : deux dés rouges contre la valeur du verrou,
+                // le libellé DÉCIDÉ ici avec les chiffres du héros (`MoteurPortes::libelleCondition()`). Une option PAR porte,
+                // comme `ouvrir_porte`, et le résolveur revalide la même question (adjacence, porte fermée, verrou).
+                foreach ($conditions as $porteCondition) {
+                    $p = $porteCondition['porte'];
+                    $cote = (string) ($p['cote'] ?? 'e');
+                    $verrou = (array) $p['verrou'];
+                    $suffixe = $this->suffixeDirectionPorte($quete, $p, $px, $py, $plusieurs);
+                    $options[] = [
+                        'id' => "forcer_porte_condition_{$p['x']}_{$p['y']}_{$cote}",
+                        'libelle' => 'Forcer la '.$verrou['libelle'].$suffixe.' — '.MoteurPortes::libelleCondition($verrou, $personnage),
+                        'type' => 'forcer_porte_condition',
+                        'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
+                    ];
                 }
 
                 // MOBILIER DESTRUCTIBLE — l'obstacle qu'on fracasse (2026-08-24).

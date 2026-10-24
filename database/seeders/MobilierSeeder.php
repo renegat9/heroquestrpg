@@ -270,6 +270,30 @@ class MobilierSeeder extends Seeder
                 'fouillable' => false, 'bloque_vue' => true, 'boite' => 'jungles_delthrak',
                 'effet' => ['detruit_par_action' => true]],
 
+            // ===== Kellar's Keep (livret F4543 p. 15, quête 4 « The Dwarven Forge », note D) =====
+            // FORGE DES NAINS (« dwarven forge ») : « Burning embers blast out of the forge, threatening any hero in
+            // the room except the dwarf. Any hero (except the dwarf) who ends their move in his room must immediately
+            // roll 1 combat die. If a skull is rolled, the hero loses 1 Body Point. »
+            // Frappe à la FIN DU DÉPLACEMENT, exempte le Nain, ne se désamorce PAS (le texte n'en dit rien), et ne vise
+            // que les héros. ⚠ Emprise 1×1 NON mesurée (le livret ne chiffre pas la tuile) : repli par analogie, comme
+            // la Caisse de ravitaillement. ⚠ `bloque_vue` : convention « mobilier bas », non sourcée.
+            // Vocabulaire et lecteur : `MotsClesMobilier::VOCABULAIRE['salle_dangereuse']`, `MoteurMobilier::salleDangereuseDe()`.
+            ['nom' => 'Forge des nains', 'nom_anglais' => 'Dwarven forge', 'largeur' => 1, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => false, 'boite' => 'kellars_keep',
+                'effet' => ['salle_dangereuse' => ['moment' => 'fin_deplacement', 'exempte' => 'nain', 'desamorcable' => false]]],
+
+            // ===== Spirit Queen's Torment (livret G0053 p. 31, quête 13 « The Tower of Fire », note A) =====
+            // FOURNAISE (« furnace ») : « The furniture in each of these rooms represents a large furnace, radiating
+            // heat. A hero can disarm the furnace as if it were a trap. Until this is done, a hero ending their turn in
+            // this room must roll 1 combat die, taking 1 Body Point of damage if they roll a skull. Monsters are used to
+            // the heat and do not take this damage. »
+            // Le livret l'appelle « furniture » : c'est un MEUBLE. Frappe à la FIN DU TOUR, se désamorce « comme un
+            // piège » (jet de Body, couture `desamorcer_piege`), ne frappe pas les monstres. ⚠ Emprise 1×1 NON mesurée :
+            // repli par analogie. ⚠ `bloque_vue` : convention « mobilier bas », non sourcée.
+            ['nom' => 'Fournaise', 'nom_anglais' => 'Furnace', 'largeur' => 1, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => false, 'boite' => 'spirit_queen',
+                'effet' => ['salle_dangereuse' => ['moment' => 'fin_tour', 'exempte' => null, 'desamorcable' => true]]],
+
             // ===== Wizards of Morcar (livret G1504 p. 2-3/35/39, lot A) =====
             // HAUT AUTEL (« High Altar ») : « The High Altar may be attacked
             // using normal combat and has 6 Body Points. It rolls four dice

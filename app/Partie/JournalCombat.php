@@ -79,6 +79,13 @@ final class JournalCombat
         // DANGERS MOBILES AUTONOMES (2026-10-23) : rocher roulant et brume de la mort, tous jouent au tour du MJ.
         'danger_chute' => true, 'danger_roule' => true, 'danger_avance' => true, 'danger_detruit' => true, 'danger_sans_effet' => true,
         'fouille_mobilier' => true, 'boire_mare' => true, 'soin_cheminee' => true, 'detruire_par_action' => true,
+        // SALLE DANGEREUSE (2026-10-23) : la forge des nains (fin de déplacement) et la fournaise (fin de tour) brûlent le
+        // héros dans sa salle — annoncé par le tampon générique ; son désamorçage est une action du héros.
+        'salle_dangereuse' => true, 'desamorcage_mobilier' => true,
+        // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : deux dés rouges contre le Corps de départ ou l'Esprit actuel.
+        'forcer_porte_condition' => true,
+        // MÉTAMORPHE (Kellar's Keep, 2026-10-23) : le tirage fait à chaque mort — une nouvelle forme, ou la mort pour de bon.
+        'metamorphe_tirage' => true,
         'actionner_levier' => true, 'forcer_porte_pierre' => true, 'ouvrir_porte' => true,
         'oracle_salle' => true, 'lacher_souris' => true, 'poussee' => true, 'briser_glace' => true,
         'detacher_rejetons' => true, 's_ecarter_du_bloc' => true, 'retraite' => true,
@@ -991,6 +998,9 @@ final class JournalCombat
             // COCON (Jungles of Delthrak p. 4) : une action, aucun jet, l'obstacle
             // disparaît du plateau.
             'detruire_par_action' => [$this->info("{$acteurNom} détruit : ".($a['mobilier'] ?? 'un obstacle'))],
+            // SALLE DANGEREUSE : la chaleur d'une forge ou d'une fournaise qui brûle le héros dans sa salle, et son désamorçage.
+            'salle_dangereuse' => $this->salleDangereuse($a),
+            'desamorcage_mobilier' => $this->desamorcageMobilier($a, $acteurNom),
             'piege_esquive' => $this->piegeEsquive($a, $acteurNom),
             'jet' => $this->jet($a, $acteurNom),
             'desamorcage' => $this->desamorcage($a, $acteurNom),
@@ -1052,6 +1062,10 @@ final class JournalCombat
                     : "{$acteurNom} pousse la porte de pierre — {$a['cranes']} crâne(s), elle ne cède pas",
                 'ton' => ! empty($a['reussi']) ? 'succes' : 'echec',
             ]],
+            // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : le jet dit son total et la condition, et un échec dit qu'il clôt le tour.
+            'forcer_porte_condition' => $this->porteCondition($a, $acteurNom),
+            // MÉTAMORPHE : le tirage à la mort (la carte tirée, ou la mort pour de bon).
+            'metamorphe_tirage' => $this->metamorpheTirage($a),
             'piege_declenche' => $this->piegeDeclenche($a, $acteurNom),
             // PIÈGES MAGIQUES (Wizards of Morcar, lot 1b) : cinq événements,
             // chacun annoncé — jeton posé, explosion, téléportation, ouragan,

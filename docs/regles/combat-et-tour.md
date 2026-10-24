@@ -174,3 +174,16 @@ Une figure à `passif_jusqua` avec `intouchable_jusqua` (la gargouille-statue, B
 
 **Un dé est tiré avant les dés de l'esprit**, dans la même requête (`attendre` → tour des monstres) : observé en test, `PassifKellarsTest` impose donc un dé blanc en tête de file. Source NON IDENTIFIÉE — ni `gestesPassifs()` ni `attaqueMindMonstre()` ne tirent de dé avant les leurs. Tirage existant, non modifié ici : à identifier avant de conclure qu'un test de dés ailleurs se décale.
 
+
+## Trois points de passage ajoutés (2026-10-23 — salle dangereuse, porte à condition, désamorçage partagé)
+
+- **Fin de déplacement** : `ResolveurTour::resoudreDeplacement()` appelle `salleDangereuseFrappe(…, MOMENT_FIN_DEPLACEMENT)` juste
+  après l'écriture de la position — la forge. **Fin de tour** : la fermeture du tour dans `resoudre()` appelle
+  `salleDangereuseFrappe(…, MOMENT_FIN_TOUR)` à côté du coup de corne — la fournaise. Les deux seuls appelants. Les tours perdus
+  (sommeil, commandement, possession, `consommerTourPerdu()`) ferment le tour par une écriture directe de `a_joue` : ils ne
+  roulent pas, comme ils ne déclenchent aucun coup de corne.
+- **Porte à condition** : `forcer_porte_condition` est une interaction libre (`creneauOption()`) ; un jet raté pose
+  `$finTourPorteCondition`, lu dans le même calcul de `$creneauEffectif` que `$finTourPiegeSol` et `$finTourSables` — un seul
+  endroit qui ferme un tour par drapeau.
+- **Désamorçage** : `jetDesamorcage()` est le seul jet de désamorçage (Nain et Explorateur sans outils, trousse sinon) ; le piège
+  et la fournaise l'appellent. Le menu et le résolveur lisent la même question : `salleDangereuseAdjacentes()`.

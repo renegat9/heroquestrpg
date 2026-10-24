@@ -137,8 +137,9 @@ return [
         'Liche' => 'mort_vivant',
         'Sorcier des Tempêtes' => 'sorcier',
         // Kellar's Keep (2026-10-23) : le squelette-roi, la gargouille-statue et la gardienne, le sorcier Borokk, Gragor ;
-        // Witch Lord : Bellthor (une gargouille).
+        // Witch Lord : Bellthor (une gargouille). Le Métamorphe : la voix de sa forme de départ, l'Abomination.
         'Squelette-roi nain' => 'mort_vivant',
+        'Métamorphe' => 'demon',
         'Gargouille-statue' => 'demon',
         'Gargouille gardienne' => 'construct',
         'Borokk' => 'sorcier',

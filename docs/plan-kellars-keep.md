@@ -338,7 +338,7 @@ Le rocher roulant de la quête 3 (note A, F4543 p. 12-13) est porté, **avec** l
 - **Tests** : `tests/Feature/Partie/DangerMobileTest.php` (registre dans les deux sens, lecteurs nommés, trajet réel, sans défense par comptage de dés, bloc qui bloque mouvement, placement qui ne coupe jamais l'accès sur 60 graines, publication sous brouillard). `SymbolesCarteTest` : silhouette lue par le rendu ET la légende.
 - **Migrations et seeders à jouer** (orchestrateur, après sauvegarde) : `migrate` (table `dangers`), `db:seed` (`DangerSeeder`). Aucune donnée existante n'est modifiée.
 
-## Exécution (2026-10-23) — trappes appariées, lot E (chantier EXT-CARTE2, non committé)
+## Exécution (2026-10-23) — trappes appariées, lot E (chantier EXT-CARTE2)
 
 - **Porté — trappes appariées** (*Trap doors*, F4543 p. 3 ; quête 8 note C, p. 22) : la même trappe que le Mage du Miroir, **une seule ligne** (`boite: mage_du_miroir`, `boites_partagees: [kellars_keep]`). Le texte est identique à celui du Mage, point par point : aucun paramètre ne diffère. Règles, pose et lecteurs : `docs/regles/carte-donjon.md` § « TRAPPES DE TÉLÉPORTATION ». Le plan parlait d'un mot-clé neuf `teleporte_vers` : **remplacé** par `teleportation: 'contact'`, qui existait déjà (le Tunnel de glace porte la même clé), avec une valeur de plus.
 - **Dégât et fin de tour** : suivent le texte, pas la fosse — un dé de combat, crâne = 1 PV, fin de tour du héros **comme du monstre** (`degats_au_passage: 1`, `ResolveurTour::passageDeTrappe()`, `AssembleurCarte::paireTrappePosable()`).
@@ -347,3 +347,41 @@ Le rocher roulant de la quête 3 (note A, F4543 p. 12-13) est porté, **avec** l
 - **Décisions prises sans René** : mêmes que le plan du Mage (terrain, `'contact'`, 0 à 1 paire par gabarit non sourcé, coût de case 1) ; la pose exige deux salles distinctes, toutes deux accessibles sans verrou.
 - **Tests** : `TrappeTeleportationTest` (11), `TrappesGenerationTest` (7 — les deux boîtes passent par la même règle), `TerrainCarteTest` (catalogue 14). Alliés : la case-portail leur est fermée (`Grille::fermerPortails()`, décision non sourcée, partagée avec le plan du Mage). Mutations : passage désactivé (2 tombent), portails non posés (4), portail traversable à pied (4), monstre non téléporté (1), pool sans accès sans verrou (1).
 - **Migrations et seeders à jouer** (orchestrateur, après sauvegarde) : `migrate` (colonne `terrains.boites_partagees`), `db:seed` (`TerrainSeeder`, `GabaritQueteSeeder`). Aucune donnée existante n'est modifiée ; la trappe n'apparaît qu'après le seed. Redémarrer `queue` et `queue-jeu`.
+## Exécution (2026-10-23) — salle dangereuse, portes à condition, métamorphe (chantier `ext-restes`, worktree `heroquestrpg-restes`)
+
+Ce qui est porté, et où :
+
+- **Lot E — la forge des nains** (F4543 p. 15, quête 4 note D) : mobilier `Forge des nains` (boîte `kellars_keep`), vocabulaire
+  `salle_dangereuse` (`MotsClesMobilier`), lecteur `MoteurMobilier::salleDangereuseDe()`, producteur `ResolveurTour::salleDangereuseFrappe()`,
+  frappe à la FIN DU DÉPLACEMENT, exempte le Nain, ne se désamorce pas. Règles : `docs/regles/carte-donjon.md` § « SALLES DANGEREUSES ».
+- **Lot E — portes à condition** (F4543 p. 19 note A, p. 25 note D — les pages des notes sont les doubles pages 18-19 et 24-25 ; le
+  texte lu dit « less than » pour la porte verrouillée et « equal to or less than » pour la porte de l'Est : le portage suit le texte,
+  pas la symétrie annoncée par le plan). `verrou.type = condition`, `MoteurPortes::CONDITIONS`, menu `forcer_porte_condition`, résolveur
+  `resoudreForcerPorteCondition()`, drapeau `$finTourPorteCondition`.
+- **Lot D — le métamorphe** (F4543 p. 25 note A) : fiche `Métamorphe` (sous-boss, forme de départ Abomination), règle sur la fiche
+  d'origine (`capacites.metamorphe`), lecteur `MoteurSynchroformes::prochaine()` (même point que les synchroformes de Qwindrak, sans
+  pioche stockée). `cout` 16 mesuré par lecture de la répétition (8 formes en espérance × 2,0 attaques, `docs/regles/bestiaire-et-rencontres.md`).
+
+**Décisions prises sans René** (à relire) :
+
+1. **Le paquet du métamorphe** est DÉCLARÉ sur la fiche : les huit cartes 2021 de la boîte de base. Le Fimir de notre catalogue
+   (tier base, boîte base) n'a pas de carte 2021 (reference/20) : il est exclu. Un filtre sur `tier`/`boite` l'aurait inclus.
+2. **Une salle, un dé** : deux meubles chauffants dans une salle ne donnent pas deux coups à un héros (« a hero … must roll 1 combat die »).
+3. **Forge : exemption du seul Nain** (classe `nain`) — l'Explorateur est nain de race, pas la classe « the dwarf » du texte.
+4. **Fournaise** : un désamorçage raté n'a aucune autre conséquence (pas de déclenchement : elle brûle déjà). Les tours perdus (sommeil,
+   commandement, possession) ne roulent pas, comme ils ne déclenchent pas de coup de corne.
+5. **Porte à condition** : placée UNIQUEMENT sur une arête de boucle, au plus une par carte — la garde de la porte de pierre, reprise.
+   Un échec ferme le tour et se retente à la manche suivante ; la réussite est une interaction libre.
+6. **Emprises** 1 × 1 des deux meubles et `bloque_vue` : analogies (le livret ne les mesure pas), écrites en commentaire du seeder.
+7. **Pas de scène de table** pour `salle_dangereuse`, `forcer_porte_condition`, `desamorcage_mobilier`, `metamorphe_tirage` : le fil les dit,
+   comme le coup de corne (`coups_de_corne`), qui n'en a pas non plus.
+
+**Non porté** (écrit) : trappes appariées (`teleporte_vers`, lot E, prochaine vague) ; Ograk (habillage seul, entrée par porte du MJ écartée
+le 2026-10-23) ; carte de pierre et portes secrètes du MJ (écartées le 2026-10-23).
+
+**Migrations** : aucune (`desarme` vit dans `cartes.grille` ; `origine_monstre` existe déjà). **Seeders à jouer** (après sauvegarde,
+tous en `updateOrCreate`) : `MobilierSeeder` (Forge des nains, Fournaise), `MonstreSeeder` (Métamorphe), `GabaritQueteSeeder` (pool sous-boss
+de Kellar's). **Images** : `images:generer` pour les trois nouveaux noms, puis `image-tools/webp.sh`.
+
+**Tests** : `tests/Feature/Partie/SalleDangereuseTest.php` (24, dont le registre des deux sens et les deux gardes de la résolution) ;
+`PorteConditionTest.php` (18) ; `MetamorpheTest.php` (9) ; `FuiteAffaibliTest.php` (le précédent des 25 % corrigé, voir `docs/plan-witch-lord.md`).

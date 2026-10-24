@@ -4717,3 +4717,56 @@ pour la rencontre (`capacites_reactives_utilisees`, colonne du snapshot) ; le vo
 Rendu : **sans nouveau code front** — les phrases sont dans `JournalCombat` (`reaction_monstre`, `reactions_mj`),
 `LignesEffetsAutomatiques` (entrées de journal), `SceneDeTable` (défense réactive) ; le compendium
 (`resources/js/compendium.js`) porte les libellés des cinq clés.
+## Kellar's Keep & Spirit Queen — salle dangereuse, portes à condition, métamorphe (2026-10-23, chantier EXT-RESTES)
+
+Source : livret F4543 (Kellar's Keep, q. 4 note D p. 15 ; q. 6 note A p. 19 ; q. 9 notes A et D p. 25) et livret G0053 (Spirit
+Queen's Torment, q. 13 note A p. 31). Règles en vigueur : `docs/regles/carte-donjon.md`, `docs/regles/combat-et-tour.md`,
+`docs/regles/bestiaire-et-rencontres.md`.
+
+### Menu — `POST /choix`
+
+- **Désamorcer une fournaise** : une option `type: "desamorcage"` (la MÊME que le piège), avec
+  `parametres: {mobilier: {x, y}}` au lieu de `parametres.piege`. `jet: {attribut: "body", difficulte}` n'est publié que pour
+  un héros qui lance un jet de Body ; un Nain ou un Explorateur (« sans outils ») reçoit le libellé « 1 dé de combat (seul le
+  bouclier noir rate) » sans `jet`. Présente si le héros peut désamorcer (`MoteurPieges::peutDesamorcer()`) et est au contact
+  orthogonal du meuble ; le résolveur revalide la même question sur l'état vivant. **Jamais** pour la forge des nains.
+- **Forcer une porte à condition** : `type: "forcer_porte_condition"`, `id: "forcer_porte_condition_{x}_{y}_{cote}"`,
+  `parametres: {porte: {x, y, cote}}`. Le libellé porte le seuil chiffré (« 2 dés rouges, total inférieur à ton Corps de départ
+  (8) »). Interaction libre : ouvrir ne ferme pas le tour, un jet raté le ferme. Icône manette : `lock_open`.
+
+### Résultat d'action
+
+- `desamorcage_mobilier` : `{type, option_id, libelle, mobilier: {nom, x, y}, succes, desarme, methode: "trousse"|"sans_outils",
+  …détail du jet}`. Journalisé `jet`. Un échec ne frappe pas et ne ferme pas le tour.
+- `forcer_porte_condition` : `{type, option_id, libelle, porte: {x, y, cote}, verrou, attribut: "corps"|"esprit",
+  comparaison: "strict"|"inclusif", valeur, faces: [d6…], total, reussi}`. `faces` a UN élément pour le Nain devant la porte de
+  l'Est, DEUX sinon. `reussi: true` révèle la salle derrière la porte.
+
+### Annonces — `annonces_automatiques` (tampon générique, `TamponAnnonces::annoncer()`)
+
+| `type` | Payload | Quand |
+|---|---|---|
+| `salle_dangereuse` | `{moment: "fin_deplacement"\|"fin_tour", mobilier: {nom, x, y}, personnage: {id, nom}, faces, touches, degats, pv_body_apres, tombe}` | un héros finit son déplacement (forge) ou son tour (fournaise) DANS la salle : un dé de combat, un crâne = 1 PV. Une salle = un dé, quel que soit le nombre de meubles. Annoncé même sans crâne. |
+| `metamorphe_tirage` | `{monstre, carte, tire, definitif}` | à chaque mort du métamorphe : la carte tirée ; `definitif: true` quand elle égale la carte qui vient de tomber (mort pour de bon) |
+
+`JournalCombat::TYPES` déclare `salle_dangereuse`, `desamorcage_mobilier`, `forcer_porte_condition`, `metamorphe_tirage` ; le test
+`AnnoncesEffetsAutomatiquesTest` les confronte aux sources dans les deux sens. La table ne rend pas de scène pour ces types : le
+fil les dit, comme pour le coup de corne (`coups_de_corne`).
+
+### Carte — `EtatGroupe.carte.portes[].verrou`
+
+- Nouvelle valeur : `"condition"` (porte à condition, Kellar's Keep). Son état reste `fermee` : c'est un jet, pas une clé. La
+  manette affiche le libellé de l'option, jamais le type du verrou seul (`ApercuSalle` le traduit en « jet à réussir »).
+- Une porte à condition ne se pose que sur une arête de BOUCLE, au plus une par carte (`AssembleurCarte::marquerPortesDeCondition()`).
+
+### Meubles — `mobiliers.effet.salle_dangereuse` (vocabulaire `MotsClesMobilier`)
+
+`{moment: "fin_deplacement"|"fin_tour", exempte: "nain"|null, desamorcable: bool}`. Une cellule active (posée, non détruite,
+non désarmée) ; l'état `desarme: true` est écrit dans `cartes.grille.mobilier[i]` (durable, jamais en cache).
+
+### Fiche — `monstres.capacites.metamorphe`
+
+`{forme_de_depart: "Abomination", paquet: ["Gobelin", "Squelette", "Orque", "Zombie", "Momie", "Guerrier du Chaos", "Gargouille",
+"Abomination"]}` : le paquet déclaré (les huit cartes 2021 de la boîte de base, ordre déclaré). La forme courante reste dans
+`instances_monstres.monstre_id`, l'origine dans `origine_monstre` (sans migration). Un changement de forme se dit par
+`changement_phase` comme toute forme, sans `synchro` : les sorts actifs ne cessent pas.
