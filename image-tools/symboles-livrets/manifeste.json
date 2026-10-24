@@ -1,0 +1,1053 @@
+{
+  "version": 1,
+  "symboles": [
+    {
+      "type": "mobiliers",
+      "cle": "table",
+      "nom_catalogue": "Table",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        416,
+        738,
+        470,
+        772
+      ],
+      "rotation": 0,
+      "emprise": [
+        3,
+        2
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Tables »"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "table-des-brasseurs",
+      "nom_catalogue": "Table des brasseurs",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        416,
+        738,
+        470,
+        772
+      ],
+      "rotation": 0,
+      "emprise": [
+        3,
+        2
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Tables »",
+      "note": "même symbole que Table : le livret ne dessine pas de table des brasseurs"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "coffre",
+      "nom_catalogue": "Coffre",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        416,
+        785,
+        438,
+        802
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Chests » (1 des 3)"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "trone",
+      "nom_catalogue": "Trône",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        615,
+        660,
+        636,
+        684
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Throne »"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "etabli-dalchimiste",
+      "nom_catalogue": "Établi d'alchimiste",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        613,
+        624,
+        667,
+        657
+      ],
+      "rotation": 0,
+      "emprise": [
+        3,
+        2
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Alchemist's bench »"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "tombeau",
+      "nom_catalogue": "Tombeau",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        613,
+        735,
+        668,
+        768
+      ],
+      "rotation": 0,
+      "emprise": [
+        3,
+        2
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Tomb » (couché, 3×2)"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "bibliotheque",
+      "nom_catalogue": "Bibliothèque",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        613,
+        567,
+        668,
+        589
+      ],
+      "rotation": 0,
+      "emprise": [
+        3,
+        1
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Bookcase »"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "ratelier-darmes",
+      "nom_catalogue": "Râtelier d'armes",
+      "livret": "F7539_en-us_avalon-hill-heroquest-the-mage-of-the-mirror-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 20,
+      "cadre": [
+        700,
+        160,
+        724,
+        218
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        3
+      ],
+      "source": "F7539 p. 39 (PDF 20), « Weapons Rack » (vertical, 1×3)",
+      "note": "F2847 le dessine horizontal ; celui-ci est vertical comme le catalogue"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "armoire",
+      "nom_catalogue": "Armoire",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        613,
+        712,
+        667,
+        732
+      ],
+      "rotation": 0,
+      "emprise": [
+        3,
+        1
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Cupboard »"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "cheminee",
+      "nom_catalogue": "Cheminée",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        613,
+        682,
+        668,
+        706
+      ],
+      "rotation": 0,
+      "emprise": [
+        3,
+        1
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Fireplace »"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "caisse-de-ravitaillement",
+      "nom_catalogue": "Caisse de ravitaillement",
+      "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
+      "page": 5,
+      "cadre": [
+        358.5,
+        317,
+        384,
+        352
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "F9528 p. 5 (PDF 5), « Supply Crate »"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "amas-de-cristal",
+      "nom_catalogue": "Amas de cristal",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 26,
+      "cadre": [
+        687,
+        144,
+        748,
+        206
+      ],
+      "rotation": 0,
+      "emprise": [
+        2,
+        2
+      ],
+      "source": "F9907 p. 51 (PDF 26), « Crystal Cluster »"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "cocon",
+      "nom_catalogue": "Cocon",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 26,
+      "cadre": [
+        613,
+        217,
+        666,
+        272
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "F9907 p. 51 (PDF 26), « Cocoons » (1 des 3)"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "statue",
+      "nom_catalogue": "Statue",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 26,
+      "cadre": [
+        626,
+        88,
+        654,
+        123
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F9907 p. 51 (PDF 26), « Statue »",
+      "note": "même dessin que la Statue de Kellar’s Keep (F4543 p. 4-5)"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "forge-des-nains",
+      "nom_catalogue": "Forge des nains",
+      "livret": "F4543_en-us_avalon-hill-heroquest-kellars-keep-expansion-ages-14-and-up.pdf",
+      "page": 3,
+      "cadre": [
+        304,
+        566,
+        372,
+        595
+      ],
+      "rotation": 0,
+      "emprise": [
+        3,
+        1
+      ],
+      "source": "F4543 p. 4-5 (PDF 3), « The Weapons Forge »"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "fournaise",
+      "nom_catalogue": "Fournaise",
+      "livret": "G0053_en-us_avalon-hill-heroquest-spirit-queen-s-torment-quest-pack-requires-heroquest-game-system-to-play.pdf",
+      "page": 16,
+      "cadre": [
+        220.8,
+        126.3,
+        240.5,
+        181.5
+      ],
+      "rotation": 90,
+      "emprise": [
+        3,
+        1
+      ],
+      "source": "G0053 p. 31 (PDF 16), salle « A C » (quête 13, « The Tower of Fire »)",
+      "note": "la structure de briques de la salle A C, tournée de 90° pour l’emprise 3×1"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "haut-autel",
+      "nom_catalogue": "Haut Autel",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 20,
+      "cadre": [
+        328.5,
+        340.0,
+        373.5,
+        368.5
+      ],
+      "rotation": 0,
+      "emprise": [
+        2,
+        1
+      ],
+      "source": "G1504 p. 39 (PDF 20), salle E (l’autel, carte de la quête 10)",
+      "note": "dessin au trait de la carte, déjà horizontal (2×1)"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "coffre-du-dread",
+      "nom_catalogue": "Coffre du Dread",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 18,
+      "cadre": [
+        88.5,
+        160,
+        103.5,
+        176.5
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "G1504 p. 35 (PDF 18), salle B (« Dread Chests »)",
+      "note": "coffre d’une case, dessin au trait de la carte de la quête 7 & 8"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "mur-de-pierre",
+      "nom_catalogue": "Mur de Pierre",
+      "absent": "figurine posée par le sort : G1504 p. 6, « Magical Barriers » — le livret ne donne aucune icône de carte"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "mur-de-glace",
+      "nom_catalogue": "Mur de Glace",
+      "absent": "figurine posée par le sort : G1504 p. 6, « Magical Barriers » — le livret ne donne aucune icône de carte"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "mur-de-feu",
+      "nom_catalogue": "Mur de Feu",
+      "absent": "figurine posée par le sort : G1504 p. 6, « Magical Barriers » — le livret ne donne aucune icône de carte"
+    },
+    {
+      "type": "terrains",
+      "cle": "glace-glissante",
+      "nom_catalogue": "Glace glissante",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 20,
+      "cadre": [
+        687.3,
+        279.2,
+        708.5,
+        298.2
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "F5815 p. 39 (PDF 20), « Slippery Ice »",
+      "note": "une case du motif"
+    },
+    {
+      "type": "terrains",
+      "cle": "glissiere-de-glace",
+      "nom_catalogue": "Glissière de glace",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 20,
+      "cadre": [
+        564.5,
+        282,
+        585,
+        301
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "F5815 p. 39 (PDF 20), « Ice Slide »",
+      "note": "une case de la bande"
+    },
+    {
+      "type": "terrains",
+      "cle": "riviere-gelee",
+      "nom_catalogue": "Rivière gelée",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 20,
+      "cadre": [
+        564.5,
+        314.5,
+        585,
+        337.5
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "F5815 p. 39 (PDF 20), « Icy River »",
+      "note": "une case de la bande"
+    },
+    {
+      "type": "terrains",
+      "cle": "tunnel-de-glace",
+      "nom_catalogue": "Tunnel de glace",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 20,
+      "cadre": [
+        701.5,
+        581,
+        717,
+        602
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "F5815 p. 39 (PDF 20), « Ice Tunnels »",
+      "note": "une case du motif"
+    },
+    {
+      "type": "terrains",
+      "cle": "chambre-forte-de-glace",
+      "nom_catalogue": "Chambre forte de glace",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 20,
+      "cadre": [
+        543.4,
+        65.5,
+        564.8,
+        85
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "F5815 p. 39 (PDF 20), « Ice Vault » (3×2)",
+      "note": "une case du motif"
+    },
+    {
+      "type": "terrains",
+      "cle": "glace-magique",
+      "nom_catalogue": "Glace magique",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 20,
+      "cadre": [
+        700.5,
+        524.5,
+        714,
+        540.5
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "F5815 p. 39 (PDF 20), « Magic Ice »",
+      "note": "une case du motif"
+    },
+    {
+      "type": "terrains",
+      "cle": "rebord-de-crevasse",
+      "nom_catalogue": "Rebord de crevasse",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 20,
+      "cadre": [
+        654.3,
+        211.5,
+        672.5,
+        230.5
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "F5815 p. 39 (PDF 20), « Ice Ledge »",
+      "note": "la case centrale, où se trouve la crevasse"
+    },
+    {
+      "type": "terrains",
+      "cle": "sable-entravant",
+      "nom_catalogue": "Sable entravant",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 3,
+      "cadre": [
+        308.1,
+        238.8,
+        428.8,
+        355.6
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "natif": {
+        "xref": 337,
+        "boite_px": [
+          10,
+          46,
+          32,
+          66
+        ]
+      },
+      "source": "F9907 p. 4-5 (PDF 3), « Hindering Terrain Tiles » (sable, raster natif)",
+      "note": "une case prise dans le raster embarqué (86×84 px natifs pour les trois tuiles)"
+    },
+    {
+      "type": "terrains",
+      "cle": "toile-entravante",
+      "nom_catalogue": "Toile entravante",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 3,
+      "cadre": [
+        308.1,
+        238.8,
+        428.8,
+        355.6
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "natif": {
+        "xref": 337,
+        "boite_px": [
+          52,
+          36,
+          72,
+          56
+        ]
+      },
+      "source": "F9907 p. 4-5 (PDF 3), « Hindering Terrain Tiles » (toile, raster natif)",
+      "note": "une case prise dans le raster embarqué (86×84 px natifs pour les trois tuiles)"
+    },
+    {
+      "type": "terrains",
+      "cle": "jungle-entravante",
+      "nom_catalogue": "Jungle entravante",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 3,
+      "cadre": [
+        308.1,
+        238.8,
+        428.8,
+        355.6
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "natif": {
+        "xref": 337,
+        "boite_px": [
+          26,
+          12,
+          50,
+          36
+        ]
+      },
+      "source": "F9907 p. 4-5 (PDF 3), « Hindering Terrain Tiles » (jungle, raster natif)",
+      "note": "une case prise dans le raster embarqué (86×84 px natifs pour les trois tuiles)"
+    },
+    {
+      "type": "terrains",
+      "cle": "mare",
+      "nom_catalogue": "Mare",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 26,
+      "cadre": [
+        752,
+        72,
+        807,
+        138
+      ],
+      "rotation": 0,
+      "emprise": [
+        2,
+        2
+      ],
+      "source": "F9907 p. 51 (PDF 26), « Pool of Water »"
+    },
+    {
+      "type": "terrains",
+      "cle": "brasier",
+      "nom_catalogue": "Brasier",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 26,
+      "cadre": [
+        675.5,
+        73.5,
+        732,
+        131.5
+      ],
+      "rotation": 0,
+      "emprise": [
+        2,
+        2
+      ],
+      "source": "F9907 p. 51 (PDF 26), « Bonfire »"
+    },
+    {
+      "type": "terrains",
+      "cle": "sables-mouvants",
+      "nom_catalogue": "Sables mouvants",
+      "livret": "F7539_en-us_avalon-hill-heroquest-the-mage-of-the-mirror-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 20,
+      "cadre": [
+        796,
+        569,
+        815.5,
+        589.5
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "F7539 p. 39 (PDF 20), « Quicksand »",
+      "note": "une case de la bande de sable"
+    },
+    {
+      "type": "terrains",
+      "cle": "trappe-de-teleportation",
+      "nom_catalogue": "Trappe de téléportation",
+      "livret": "F4543_en-us_avalon-hill-heroquest-kellars-keep-expansion-ages-14-and-up.pdf",
+      "page": 3,
+      "cadre": [
+        342,
+        721,
+        368,
+        747
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F4543 p. 4-5 (PDF 3), « Trap Doors »"
+    },
+    {
+      "type": "pieges",
+      "cle": "fosse",
+      "nom_catalogue": "Fosse",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        416,
+        706,
+        439,
+        731
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Pit traps » (1 des 4)"
+    },
+    {
+      "type": "pieges",
+      "cle": "piege-a-lances",
+      "nom_catalogue": "Piège à lances",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        416,
+        674,
+        431,
+        694
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Spear traps » (1 des 7)"
+    },
+    {
+      "type": "pieges",
+      "cle": "chute-de-blocs",
+      "nom_catalogue": "Chute de blocs",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        127,
+        780,
+        149,
+        802
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Falling-block traps » (1 des 4)"
+    },
+    {
+      "type": "pieges",
+      "cle": "aiguille-empoisonnee",
+      "nom_catalogue": "Aiguille empoisonnée",
+      "absent": "piège éphémère de meuble (fouille) : aucun livret ne le dessine sur la carte"
+    },
+    {
+      "type": "pieges",
+      "cle": "fiole-de-poison",
+      "nom_catalogue": "Fiole de poison",
+      "absent": "piège éphémère de l’établi (fouille) : aucun livret ne le dessine sur la carte"
+    },
+    {
+      "type": "pieges",
+      "cle": "piege-de-coffre",
+      "nom_catalogue": "Piège de coffre",
+      "absent": "piège éphémère du coffre (fouille) : aucun livret ne le dessine sur la carte"
+    },
+    {
+      "type": "pieges",
+      "cle": "lame-balancoire",
+      "nom_catalogue": "Lame balançoire",
+      "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
+      "page": 4,
+      "cadre": [
+        352,
+        612,
+        382,
+        650
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F9528 p. 4 (PDF 4), « Swinging Blade Trap »"
+    },
+    {
+      "type": "pieges",
+      "cle": "fosse-des-tenebres",
+      "nom_catalogue": "Fosse des ténèbres",
+      "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
+      "page": 5,
+      "cadre": [
+        82,
+        318,
+        118,
+        354
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F9528 p. 5 (PDF 5), « Pit of Darkness »"
+    },
+    {
+      "type": "pieges",
+      "cle": "piege-de-teleportation",
+      "nom_catalogue": "Piège de téléportation",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 3,
+      "cadre": [
+        684.0,
+        386.0,
+        713.0,
+        413.0
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "G1504 p. 5 (PDF 3), « Magic Reference Chart » (disque « B »)",
+      "note": "symbole à disques blancs marqué A/B dans la carte de référence ; un seul des deux est repris"
+    },
+    {
+      "type": "pieges",
+      "cle": "piege-de-louragan",
+      "nom_catalogue": "Piège de l'ouragan",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 3,
+      "cadre": [
+        634.5,
+        397.0,
+        667.8,
+        431.3
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "G1504 p. 5 (PDF 3), « Magic Reference Chart » (Hurricane)"
+    },
+    {
+      "type": "pieges",
+      "cle": "piege-dembrasement",
+      "nom_catalogue": "Piège d'embrasement",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 22,
+      "cadre": [
+        756,
+        478,
+        788,
+        506
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "G1504 p. 43 (PDF 22), « Fireburst Trap » (1 des 6)"
+    },
+    {
+      "type": "pieges",
+      "cle": "poison",
+      "nom_catalogue": "Poison",
+      "absent": "carte de trésor, piège éphémère (ouverture du trésor), jamais posé sur la carte : aucun livret ne le dessine"
+    },
+    {
+      "type": "pieges",
+      "cle": "piege-de-lianes",
+      "nom_catalogue": "Piège de lianes",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 26,
+      "cadre": [
+        616,
+        147,
+        667,
+        200
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "F9907 p. 51 (PDF 26), « Grasping Vines »"
+    },
+    {
+      "type": "pieges",
+      "cle": "mare-dacide",
+      "nom_catalogue": "Mare d'acide",
+      "livret": "G1798_en-us_avalon-hill-heroquest-joe-manganiello-s-the-crypt-of-perpetual-darkness-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 3,
+      "cadre": [
+        776,
+        549,
+        852,
+        628
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "couleur": true,
+      "source": "G1798 p. 4-5 (PDF 3), « Acid Pool Traps » (tuile)"
+    },
+    {
+      "type": "portes",
+      "cle": "fermee",
+      "nom_catalogue": "fermee",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        416,
+        811,
+        440,
+        827
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Doors » (1 des 20)"
+    },
+    {
+      "type": "portes",
+      "cle": "ouverte",
+      "nom_catalogue": "ouverte",
+      "absent": "aucun livret ne dessine une porte ouverte"
+    },
+    {
+      "type": "portes",
+      "cle": "verrouillee",
+      "nom_catalogue": "verrouillee",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        416,
+        811,
+        440,
+        827
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Doors »",
+      "note": "même symbole que fermee : le livret ne dessine aucun verrou ; le front ajoute le cadenas"
+    },
+    {
+      "type": "portes",
+      "cle": "secrete",
+      "nom_catalogue": "secrete",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        416,
+        595,
+        438,
+        619
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Secret doors » (1 des 4)"
+    },
+    {
+      "type": "portes",
+      "cle": "verrou-pierre",
+      "nom_catalogue": "verrou pierre",
+      "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
+      "page": 4,
+      "cadre": [
+        210,
+        623,
+        263,
+        652
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F9528 p. 4 (PDF 4), « Stone Doorway »"
+    },
+    {
+      "type": "leviers",
+      "cle": "levier",
+      "nom_catalogue": "levier",
+      "absent": "aucun livret ne dessine de levier : le texte le décrit (F9907 p. 14, F6646 p. 11) sans symbole"
+    },
+    {
+      "type": "escalier",
+      "cle": "escalier",
+      "nom_catalogue": "escalier",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        416,
+        626,
+        458,
+        666
+      ],
+      "rotation": 0,
+      "emprise": [
+        2,
+        2
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Stairs »"
+    },
+    {
+      "type": "dangers",
+      "cle": "rocher-roulant",
+      "nom_catalogue": "Rocher roulant",
+      "livret": "F4543_en-us_avalon-hill-heroquest-kellars-keep-expansion-ages-14-and-up.pdf",
+      "page": 3,
+      "cadre": [
+        324,
+        359,
+        351,
+        386
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F4543 p. 4-5 (PDF 3), « Giant Stone Boulder »"
+    },
+    {
+      "type": "dangers",
+      "cle": "brume-de-la-mort",
+      "nom_catalogue": "Brume de la mort",
+      "livret": "F4193_en-us_avalon-hill-heroquest-return-of-the-witch-lord-quest-pack-for-ages-14-and-up.pdf",
+      "page": 3,
+      "cadre": [
+        325,
+        429,
+        350,
+        453
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F4193 p. 4-5 (PDF 3), « Death Mist »"
+    }
+  ]
+}
