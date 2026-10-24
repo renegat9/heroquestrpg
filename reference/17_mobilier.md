@@ -504,3 +504,26 @@ Ce qui manque est **exclusivement** la troisième pièce — un catalogue `mobil
 (nom, emprise, fouillable), une méthode `placerMobilier()` dans `AssembleurCarte`, la
 boucle d'occupation correspondante dans `FabriqueGrille`, et le rendu front — pas une
 nouvelle géométrie ni un nouveau modèle de fouille.
+
+## Meubles d'extension — emprises mesurées sur les livrets (René, 2026-10-24)
+
+« Assure-toi que tous les meubles sont corrects, surtout leur affichage sur la carte » — « je parle dans les livrets ».
+Chaque meuble d'extension a été cherché sur la carte de sa quête et sur la planche de composants de son livret
+(rendus PNG hors dépôt, `~/heroquest-livrets`). Trois tailles étaient des replis 1×1 non mesurés, corrigés par la
+migration `2026_10_24_120000_emprises_mobilier_extensions` (aucune carte déjà assemblée n'est touchée) ; un quatrième,
+l'amas de cristal, l'a été sur la carte de la quête 1 de Delthrak (« valide une vraie carte pour Delthrak »).
+
+| Meuble | Source | Ce que montre le livret | Chez nous |
+|---|---|---|---|
+| Forge des nains | F4543 p. 15, quête 4, salle D | la forge est la pièce de la **cheminée**, 1 case sur 3, dressée contre le mur | **3×1, adossée, bloque la vue** (était 1×1) |
+| Fournaise | G0053 p. 31, quête 13, salles A | « The furniture in each of these rooms represents a large furnace » : une cheminée, un tombeau, des établis — de grands meubles, jamais une case | **3×1, adossée, bloque la vue** — lecture « cheminée », la même que la forge (était 1×1) |
+| Haut Autel | G1504 p. 4 (tuile Altar/Heart Coffer) et p. 39, quête 10, salle E | une tuile deux fois plus longue que les tuiles d'une case ; l'autel dessiné sur 2 cases, contre le mur | **2×1, adossé** (était 1×1) |
+| Table des brasseurs | G0053 p. 13, quête 4, salle B | la pièce de l'établi d'alchimiste, fioles comprises | 3×2 — juste |
+| Caisse de ravitaillement | F9528 p. 5 | « one of these chests » : un coffre coloré | 1×1 — juste |
+| Coffre du Dread | G1504 p. 35, quêtes 7-8, salles B | des coffres d'une case | 1×1 — juste |
+| Amas de cristal | F9907 p. 13, quête 1, salle B | le cristal posé sur son socle (« Basin »), dessiné sur 2×2 cases — comme la Mare seule de la même carte | **2×2** (était 1×1) |
+| Cocon | F9907 p. 5 | des tuiles d'une case | 1×1 — juste |
+
+Les trois murs de sort (Pierre, Glace, Feu) se posent case par case en cours de partie : 1×1 par construction.
+Test : `MobilierTroisCasesTest` (les huit emprises, la migration aller-retour, et les invariants de placement étendus
+à `kellars_keep`, `spirit_queen` et `wizards_of_morcar`).

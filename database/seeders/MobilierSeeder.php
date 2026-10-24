@@ -238,11 +238,11 @@ class MobilierSeeder extends Seeder
             // TERRAIN inédit (« ne jamais finir son tour ici », « jet au
             // franchissement sans bloquer ») — un chantier séparé, nommé ici
             // plutôt qu'omis, voir le rapport du chantier.
-            // ⚠ Emprise NON mesurée indépendamment (aucun livret ne la
-            // chiffre) : 1×1 par analogie avec les autres pièces de décor de
-            // cette taille — même repli que la Caisse de ravitaillement
-            // ci-dessus, pas une mesure.
-            ['nom' => 'Amas de cristal', 'nom_anglais' => 'Crystal Cluster', 'largeur' => 1, 'hauteur' => 1,
+            // EMPRISE MESURÉE (2026-10-24, F9907 p. 13, quête 1, salle B) : le
+            // cristal posé sur son socle « Basin » est dessiné sur 2×2 cases —
+            // comme la Mare seule, en haut à droite de la même carte (était 1×1,
+            // repli non mesuré).
+            ['nom' => 'Amas de cristal', 'nom_anglais' => 'Crystal Cluster', 'largeur' => 2, 'hauteur' => 2,
                 'fouillable' => false, 'bloque_vue' => true, 'pv_body' => 6, 'defense_dice' => 0, 'boite' => 'jungles_delthrak'],
 
             // COCON (« Cocoon Tiles », p. 4) : « These tiles represent cocoons,
@@ -275,11 +275,12 @@ class MobilierSeeder extends Seeder
             // the room except the dwarf. Any hero (except the dwarf) who ends their move in his room must immediately
             // roll 1 combat die. If a skull is rolled, the hero loses 1 Body Point. »
             // Frappe à la FIN DU DÉPLACEMENT, exempte le Nain, ne se désamorce PAS (le texte n'en dit rien), et ne vise
-            // que les héros. ⚠ Emprise 1×1 NON mesurée (le livret ne chiffre pas la tuile) : repli par analogie, comme
-            // la Caisse de ravitaillement. ⚠ `bloque_vue` : convention « mobilier bas », non sourcée.
+            // que les héros. EMPRISE MESURÉE SUR LA CARTE (2026-10-24, F4543 p. 15) : la forge de la salle D est dessinée avec
+            // la pièce de la CHEMINÉE — 1 case sur 3, dressée contre le mur. Elle en prend donc l'emprise et la convention
+            // (3×1, adossée, bloque la vue), comme la Cheminée ci-dessus (était 1×1, repli non mesuré).
             // Vocabulaire et lecteur : `MotsClesMobilier::VOCABULAIRE['salle_dangereuse']`, `MoteurMobilier::salleDangereuseDe()`.
-            ['nom' => 'Forge des nains', 'nom_anglais' => 'Dwarven forge', 'largeur' => 1, 'hauteur' => 1,
-                'fouillable' => false, 'bloque_vue' => false, 'boite' => 'kellars_keep',
+            ['nom' => 'Forge des nains', 'nom_anglais' => 'Dwarven forge', 'largeur' => 3, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => true, 'adosse_au_mur' => true, 'boite' => 'kellars_keep',
                 'effet' => ['salle_dangereuse' => ['moment' => 'fin_deplacement', 'exempte' => 'nain', 'desamorcable' => false]]],
 
             // ===== Spirit Queen's Torment (livret G0053 p. 31, quête 13 « The Tower of Fire », note A) =====
@@ -288,10 +289,12 @@ class MobilierSeeder extends Seeder
             // this room must roll 1 combat die, taking 1 Body Point of damage if they roll a skull. Monsters are used to
             // the heat and do not take this damage. »
             // Le livret l'appelle « furniture » : c'est un MEUBLE. Frappe à la FIN DU TOUR, se désamorce « comme un
-            // piège » (jet de Body, couture `desamorcer_piege`), ne frappe pas les monstres. ⚠ Emprise 1×1 NON mesurée :
-            // repli par analogie. ⚠ `bloque_vue` : convention « mobilier bas », non sourcée.
-            ['nom' => 'Fournaise', 'nom_anglais' => 'Furnace', 'largeur' => 1, 'hauteur' => 1,
-                'fouillable' => false, 'bloque_vue' => false, 'boite' => 'spirit_queen',
+            // piège » (jet de Body, couture `desamorcer_piege`), ne frappe pas les monstres. EMPRISE MESURÉE SUR LA CARTE
+            // (2026-10-24, G0053 p. 31) : les « furnaces » des salles A sont figurées par de GRANDS meubles — une cheminée
+            // (1×3 contre le mur), un tombeau, des établis —, jamais par une case seule. Lecture retenue : l'emprise de la
+            // cheminée (3×1, adossée, bloque la vue), la même que la forge des nains (était 1×1, repli non mesuré).
+            ['nom' => 'Fournaise', 'nom_anglais' => 'Furnace', 'largeur' => 3, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => true, 'adosse_au_mur' => true, 'boite' => 'spirit_queen',
                 'effet' => ['salle_dangereuse' => ['moment' => 'fin_tour', 'exempte' => null, 'desamorcable' => true]]],
 
             // ===== Wizards of Morcar (livret G1504 p. 2-3/35/39, lot A) =====
@@ -306,8 +309,11 @@ class MobilierSeeder extends Seeder
             // la précise explicitement dans un sens ou l'autre) ; `false` par
             // défaut, comme le Coffre/Trône/Tombeau (mobilier bas), jamais une
             // supposition.
-            ['nom' => 'Haut Autel', 'nom_anglais' => 'High Altar', 'largeur' => 1, 'hauteur' => 1,
-                'fouillable' => false, 'bloque_vue' => false, 'pv_body' => 6, 'defense_dice' => 4, 'boite' => 'wizards_of_morcar'],
+            // EMPRISE MESURÉE (2026-10-24) : la tuile « Altar / Heart Coffer » (G1504 p. 4, composants) fait deux fois la
+            // longueur des tuiles d'une case posées à côté (clé, piège Fireburst), et la carte de la quête 10 (p. 39)
+            // dessine l'autel sur 2 cases de large, contre le mur de la salle E : 2×1, adossé (était 1×1).
+            ['nom' => 'Haut Autel', 'nom_anglais' => 'High Altar', 'largeur' => 2, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => false, 'adosse_au_mur' => true, 'pv_body' => 6, 'defense_dice' => 4, 'boite' => 'wizards_of_morcar'],
 
             // COFFRE DU DREAD (« Dread Chest ») : « These are the Dread
             // Chests. They have 1 Body Point and can be attacked but take no

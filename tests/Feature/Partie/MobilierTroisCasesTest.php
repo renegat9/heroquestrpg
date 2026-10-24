@@ -191,6 +191,43 @@ it('la migration du 2026-10-16 pose les six emprises décidées, et son retour r
         ->and(tailleCatalogue('Établi d\'alchimiste'))->toBe([3, 2]);
 });
 
+it('pose les emprises des meubles d\'EXTENSION mesurées sur les cartes des livrets (2026-10-24)', function () {
+    // [largeur, hauteur, bloque la vue, adossé au mur] — chaque valeur relue sur la carte ou la planche de composants.
+    $attendus = [
+        'Forge des nains' => [3, 1, true, true],      // F4543 p. 15 : la pièce de la cheminée, contre le mur de la salle D
+        'Fournaise' => [3, 1, true, true],            // G0053 p. 31 : de grands meubles, lecture « cheminée » retenue
+        'Haut Autel' => [2, 1, false, true],          // G1504 p. 4 (tuile de 2 cases) et p. 39 (contre le mur de la salle E)
+        'Table des brasseurs' => [3, 2, false, false], // G0053 p. 13 : la pièce de l'établi d'alchimiste
+        'Caisse de ravitaillement' => [1, 1, false, false], // F9528 p. 5 : « one of these chests »
+        'Coffre du Dread' => [1, 1, false, false],    // G1504 p. 35 : des coffres d'une case
+        'Amas de cristal' => [2, 2, true, false],     // F9907 p. 13 (quête 1, salle B) : sur son socle de 2×2, bloque la vue
+        'Cocon' => [1, 1, true, false],               // F9907 p. 5 : des tuiles d'une case, bloquent la vue
+    ];
+
+    foreach ($attendus as $nom => $valeurs) {
+        $m = Mobilier::where('nom', $nom)->firstOrFail();
+        expect([(int) $m->largeur, (int) $m->hauteur, (bool) $m->bloque_vue, (bool) $m->adosse_au_mur])
+            ->toBe($valeurs, "{$nom} : emprise mesurée sur le livret");
+    }
+});
+
+it('la migration du 2026-10-24 pose les quatre emprises mesurées, et son retour rend les replis 1×1', function () {
+    $migration = require database_path('migrations/2026_10_24_120000_emprises_mobilier_extensions.php');
+
+    $migration->down();
+    expect(tailleCatalogue('Forge des nains'))->toBe([1, 1])
+        ->and(tailleCatalogue('Fournaise'))->toBe([1, 1])
+        ->and(tailleCatalogue('Haut Autel'))->toBe([1, 1])
+        ->and(tailleCatalogue('Amas de cristal'))->toBe([1, 1]);
+
+    $migration->up();
+    expect(tailleCatalogue('Forge des nains'))->toBe([3, 1])
+        ->and(tailleCatalogue('Fournaise'))->toBe([3, 1])
+        ->and(tailleCatalogue('Haut Autel'))->toBe([2, 1])
+        ->and(tailleCatalogue('Amas de cristal'))->toBe([2, 2])
+        ->and((bool) Mobilier::where('nom', 'Haut Autel')->value('adosse_au_mur'))->toBeTrue();
+});
+
 // =====================================================================
 // 3. UNE QUÊTE EN COURS GARDE SES EMPRISES — relire le catalogue ne les change pas
 // =====================================================================
@@ -234,13 +271,15 @@ it('une carte assemblée AVANT garde sa table (2×1) et son tombeau (1×2) : le 
 // 4. LA GÉNÉRATION — sur des dizaines de graines, sous chaque bestiaire
 // =====================================================================
 
-it('ne laisse JAMAIS une salle sous le plancher de cases jouables, ni un groupe coupé de son seuil, et tient l\'adossement de tout meuble mural, sur 60 graines et 4 bestiaires', function () {
+it('ne laisse JAMAIS une salle sous le plancher de cases jouables, ni un groupe coupé de son seuil, et tient l\'adossement de tout meuble mural, sur 60 graines et 7 bestiaires', function () {
     $minimum = (new ReflectionClassConstant(AssembleurCarte::class, 'CASES_JOUABLES_MINIMUM'))->getValue();
     $murales = Mobilier::where('adosse_au_mur', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
     $idCheminee = (int) Mobilier::where('nom', 'Cheminée')->value('id');
     $compte = ['trois' => 0, 'six' => 0, 'murales' => 0, 'cheminees' => 0];
 
-    foreach ([null, 'first_light', 'jungles_delthrak', 'horreur_des_glaces'] as $boite) {
+    // + kellars_keep, spirit_queen et wizards_of_morcar (2026-10-24) : la forge, la fournaise (3×1 adossées) et le haut
+    // autel (2×1 adossé) passent par les mêmes invariants que les meubles du jeu de base.
+    foreach ([null, 'first_light', 'jungles_delthrak', 'horreur_des_glaces', 'kellars_keep', 'spirit_queen', 'wizards_of_morcar'] as $boite) {
         foreach (range(1, 60) as $graine) {
             $carte = assemblerAvecBoite($graine, $boite);
             $cases = $carte['cases'];
