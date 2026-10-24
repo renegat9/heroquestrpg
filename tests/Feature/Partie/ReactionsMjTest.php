@@ -196,8 +196,9 @@ it('chaque lecteur déclaré existe ET nomme sa clé dans son propre fichier', f
     }
 });
 
-it('nomme ce qui n\'est PAS porté, et aucune donnée ne l\'emploie (Deflect, Consume Magic)', function () {
-    expect(array_keys(Mot::NON_IMPLEMENTEES))->toBe(['redirige_attaque', 'consomme_magie']);
+it('ne garde AUCUNE dette : Deflect et Consume Magic sont portés (EXT-MAGRIAN, 2026-10-23), et aucune donnée n\'emploie une clé non portée', function () {
+    // Vide par décision : le registre reste là pour une réaction nommée par un livret et non portée (voir le docblock).
+    expect(Mot::NON_IMPLEMENTEES)->toBe([]);
 
     foreach (Mot::NON_IMPLEMENTEES as $cle => $raison) {
         expect($raison)->not->toBeEmpty("{$cle} : la dette n'est pas écrite.");
@@ -210,8 +211,11 @@ it('nomme ce qui n\'est PAS porté, et aucune donnée ne l\'emploie (Deflect, Co
         }
     }
 
-    // Magrian n'est pas semée à un quart de sa fiche : l'Ombre du Dread reste son habillage.
-    expect(Monstre::where('nom_base', 'like', '%Magrian%')->exists())->toBeFalse();
+    // Magrian est semée en entier (chantier EXT-MAGRIAN, 2026-10-23) : chacune de ses réactions est DÉCLARÉE dans le
+    // registre (le sens « déclaré ⊇ porté » est déjà couvert ci-dessus). Sa fiche complète est figée dans BestiaireSourceTest.
+    $magrian = Monstre::where('nom_base', 'Magrian')->firstOrFail();
+
+    expect(array_diff((array) data_get($magrian->capacites, 'reactions_defense', []), array_keys(Mot::CAPACITES)))->toBe([]);
 });
 
 it('porte Dispel dans les TROIS phases de Gretzl et Break dans les TROIS de Gruzbella', function () {

@@ -641,6 +641,35 @@ final class MoteurDegats
             ];
         }
 
+        // REFLECTION (Magrian, Rise of the Dread Moon p. 33) : « Use immediately after Magrian receives damage. Choose
+        // a hero in Magrian's line of sight; that hero takes the damage instead. » Au coup qui achèverait la figure,
+        // comme toute défense à usage unique (politique écrite plus haut). Le coup ENTIER passe au héros, sans jet : la
+        // carte ne parle pas de défense et le jet de Magrian a déjà eu lieu. Le héros est tiré par le point de passage
+        // unique `ReactionsMj::herosQuiEncaisse()`, lu ici par `app()` : `ReactionsMj` dépend de `MoteurDread`, qui
+        // dépend de ce service (même cycle que `MoteurDread` ci-dessus, lu de la même façon).
+        if (($victime = app(ReactionsMj::class)->reflechirCoup($instance)) !== null) {
+            $subis = $this->infligerAHeros(
+                $victime->personnage, $degats, self::SOURCE_ATTAQUE_MONSTRE,
+                ['par' => $instance->nomAffiche(), 'reflexion' => true],
+            );
+            $cible = ['personnage_id' => (int) $victime->personnage->id, 'nom' => $victime->personnage->nom];
+            $this->journaliserDefenseMonstre($instance, 'reflexion', $source, $contexte + ['cible' => $cible]);
+
+            return [
+                'degats' => 0,
+                'pv_body' => (int) $instance->pv_body,
+                'pv_body_max' => $instance->pvBodyMax(),
+                'etat' => 'actif',
+                'vaincu' => false,
+                'changement_phase' => null,
+                'reaction' => 'reflexion',
+                'reflexion_sur' => $cible + ['subis' => $subis],
+                'survie_increvable' => false,
+                'reddition' => false,
+                'or_gagne' => 0,
+            ];
+        }
+
         // LA forme suivante, par le seul point de passage des formes (chaîne des phases OU pioche de
         // Qwindrak) — voir `MoteurSynchroformes`. `synchro` : le changement fait partie de la pioche.
         $chaine = app(MoteurSynchroformes::class)->prochaine($instance);
@@ -957,7 +986,9 @@ final class MoteurDegats
             'source_degats' => $source,
         ] + (isset($contexte['sort']) ? ['sort' => $contexte['sort']] : [])
           // La Vrille que le Scion vient de sacrifier : le fil la NOMME, la table la montre disparaître.
-          + (isset($contexte['sacrifice']) ? ['sacrifice' => $contexte['sacrifice']] : []));
+          + (isset($contexte['sacrifice']) ? ['sacrifice' => $contexte['sacrifice']] : [])
+          // Le héros qui encaisse à la place (Réflexion de Magrian) : le fil le NOMME, la table le montre touché.
+          + (isset($contexte['cible']) ? ['cible' => $contexte['cible']] : []));
     }
 
     /** Annonce une REDDITION (Gruzbella) — une mort qui n'en est pas une. */

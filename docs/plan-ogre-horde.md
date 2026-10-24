@@ -376,3 +376,31 @@ p. 31, 35, 37). Ce que le plan prévoyait et ce qui a été fait :
 > **Réalisé le 2026-10-15 (René)** — le *Guardian Effigy* est semé (« Effigie gardienne », sous-boss `horde_ogre`, `cout` 8) sur le patron TOURELLE : immobile (`deplacement: 0`), fait feu chaque tour sur un héros en ligne de vue aux mêmes 3 dés, immunité TOTALE aux sorts (menu, zone, rayon, Dread), placée en SALLE seulement, hors parvis, plancher de cases jouables tenu. `docs/regles/bestiaire-et-rencontres.md`, `docs/regles/carte-donjon.md` §2.12 quater. Ajoutée au pool `rencontre_finale.creatures` du gabarit « Antre du sous-boss ».
 
 > **Addendum (René, 2026-10-16)** — *Mind Burst* : écart de crânes **bruts**, sans boucliers, comme le livret. La question laissée ouverte ci-dessus est tranchée.
+
+## Exécution (2026-10-23) — le *Deflect* de Gruzbella
+
+> Ajout daté (chantier EXT-MAGRIAN). Règle en vigueur : `docs/regles/sorts-dread.md` §« Magrian » (réactions du MJ) ;
+> contrat : `docs/contrat-api.md` §« Magrian (Rise of the Dread Moon) et le Deflect de Gruzbella ».
+
+Le *Deflect* (F9528 p. 25 : « Use when Gruzbella would be the target of an attack. You can instead direct the attack to any
+one hero in Gruzbella's surrounding 10 squares. ») est porté : `redirige_attaque`, sur les **trois phases** (la capacité est
+une seule fois pour toute la rencontre, comme *Resilience* et *Break*).
+
+- **Où** : `ResolveurTour::frapper()`, AVANT le jet, sur la décision `ReactionsMj::deflechirAttaque()`. Le coup part vers le héros
+  désigné, qui répond avec SA défense : c'est `HerosJoueParLeMj::frapperUnHeros()` (le chemin de la Domination), dont la volée est
+  celle que l'attaquant a déjà calculée (`$desEffectifs` : bonus et plafond de *Fear* compris). La frappe s'achève comme une frappe
+  ordinaire (buffs, météore, arme lancée, journal) — sauf que la figure ne reçoit rien : elle n'a pas été touchée, elle ne se réveille pas.
+- **Quand** (politique écrite) : le résultat du jet n'est pas encore connu quand la carte se joue (« would be the target »). La
+  politique de la Résilience est donc transposée : seulement si les dés d'attaque **pourraient** achever la figure (dés ≥ Body restant),
+  et s'il existe un héros à 10 cases au plus, autre que l'auteur du coup. Sans cible valable, rien ne se détourne.
+- **Qui** : le plus blessé des héros désignés — le même point de passage que la *Reflection* (`ReactionsMj::herosQuiEncaisse()`).
+- **Distance** : géométrique, en cases orthogonales (Manhattan, comme `MoteurDread::distance()`). `Grille::distance()` n'a pas été
+  retenue : c'est un parcours, qui rend `null` dès que la case d'arrivée est occupée par le héros visé.
+- **Annonce** : l'attaque porte `reaction_monstre: "redirige_attaque"`, `detournee_de` et `cible` = le héros ; la phrase du fil est dans
+  `JournalCombat` (`reaction_monstre`), la défense réactive de la table dans `SceneDeTable`.
+
+**Non porté** : rien de la capacité elle-même. **Question ouverte** : le *Deflect* d'un coup de tir (`tirADistance`) et d'une arme
+lancée (`lancer`) suit la même voie, faute de règle contraire dans le livret ; à confirmer par René si un cas le contredit.
+
+**Vérifié** : `MagrianTest` (deux tests *Deflect* en jeu : détournement une seule fois, et refus quand le coup ne peut pas achever
+la figure) ; `BestiaireSourceTest` (Deflect présent sur les trois phases) ; `ReactionsMjTest` (registre dans les deux sens).

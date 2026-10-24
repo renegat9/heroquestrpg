@@ -385,6 +385,52 @@ final class MoteurDread
         'Endormi' => MoteurSorts::MONSTRE_ENDORMI,
     ];
 
+    /**
+     * SHIFT REALITY (Magrian, Rise of the Dread Moon p. 33) : « Use at the start of Zargon's turn. Magrian casts one
+     * Dread spell it knows. » Une fois par rencontre (capacité `realite_decalee`, `reactions_defense`), jouée au début du
+     * tour du MJ par `ResolveurTour::phaseMonstres()`, avant les créatures. Le sort passe par le chemin ordinaire des
+     * sorts de Dread (`choisirSort()` puis `lancerSortDread()`) et paie son budget comme tout lancer, sauf s'il est
+     * « à volonté ». Aucun sort utilisable ce tour-ci : la capacité n'est pas dépensée et ne fait rien.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @return list<array<string, mixed>>
+     */
+    public function realiteDecalee(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Collection $cibles): array
+    {
+        if (! $instance->reactionDisponible(\App\Engine\MotsClesReactionMj::REALITE_DECALEE)
+            || $instance->controle_par !== null
+            || $this->sorts->monstreA($instance, MoteurSorts::MONSTRE_ENDORMI)
+            || $this->sorts->monstreA($instance, MoteurSorts::MONSTRE_PARALYSE)) {
+            return [];
+        }
+
+        $enVue = $this->ciblesEnVue($quete, $instance, $cibles);
+        $sort = $this->choisirSort($groupe, $quete, $instance, $cibles, $enVue);
+
+        if ($sort === null) {
+            return [];
+        }
+
+        $instance->consommerReaction(\App\Engine\MotsClesReactionMj::REALITE_DECALEE);
+
+        if ($sort->nom !== $this->sortAVolonte($instance)) {
+            $this->consommerUsage($instance, $quete, $sort);
+        }
+
+        $acteur = ['type' => 'monstre', 'id' => $instance->id, 'nom' => $instance->nomAffiche()];
+        $annonce = [
+            'type' => 'reaction_monstre',
+            'instance_id' => (int) $instance->id,
+            'nom' => $instance->nomAffiche(),
+            'mecanique' => \App\Engine\MotsClesReactionMj::REALITE_DECALEE,
+            'sort' => $sort->nom,
+        ];
+
+        Journal::ajouter($groupe, 'combat', $annonce);
+
+        return [$annonce, $this->lancerSortDread($groupe, $quete, $instance, $sort, $cibles, $enVue, $acteur)];
+    }
+
     public function jouerTourDread(
         Groupe $groupe,
         Quete $quete,

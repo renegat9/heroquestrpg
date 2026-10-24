@@ -363,3 +363,60 @@ Critère (René, 2026-10-23 : « retirer ce qui ne devrait pas être implanté d
 
 - **Lot H, la *Plaza*, écarté** : une salle sans murs qui s'étend dans les couloirs change le modèle de carte lui-même (salles, seuils, murs en arêtes — `docs/regles/carte-donjon.md`) ; elle ne s'intègre pas à la génération sans un chantier de topologie que rien d'autre ne réclame.
 - Le reste du plan est inchangé : Magrian (`MotsClesReactionMj::NON_IMPLEMENTEES`) reste le gros morceau à porter de la boîte.
+
+## Exécution (2026-10-23) — Magrian, le lot I
+
+> Ajout daté (chantier EXT-MAGRIAN). Règles en vigueur : `docs/regles/sorts-dread.md` §« Magrian » ;
+> bestiaire : `docs/regles/bestiaire-et-rencontres.md` ; contrat : `docs/contrat-api.md` §« Magrian (Rise of the Dread Moon)
+> et le Deflect de Gruzbella ».
+
+**Porté** — Magrian, le Dread Wraith (F6646 p. 33, stats relues sur le rendu : **9/6/4/5/5**, éthéré, sorts *Dreadlights,
+Channel Dread, Fear, Summon Specters* une fois par quête chacun = archétype `magrian`). Ses quatre capacités, chacune à usage
+unique et sans action, sur UNE couture :
+
+| Capacité (texte du livret) | Couture | Clé (`MotsClesReactionMj`) |
+|---|---|---|
+| *Consume Magic* — annule le sort qu'un héros vient de lancer, +2 Body | `ReactionsMj::auSortDeHeros()` (sort qui prend le camp du MJ) | `consomme_magie` |
+| *Terror* — intouchable par sorts et coups pour le tour d'un héros | `ResolveurTour::ouvrirTourDesHeros()` (pose), `marquerCreneau()` (levée), `MoteurSorts::terrorisePour()` (prédicat unique) | `terreur` |
+| *Reflection* — le coup qui l'achèverait retombe sur un héros en vue | `MoteurDegats::infligerAMonstreBrut()`, au coup fatal | `reflexion` |
+| *Shift Reality* — un sort Dread de son répertoire, début du tour du MJ | `ResolveurTour::phaseMonstres()` → `MoteurDread::realiteDecalee()` | `realite_decalee` |
+
+**Porté aussi, pour Gruzbella** — le *Deflect* (F9528 p. 25) : `redirige_attaque`, lu par `ResolveurTour::frapper()` AVANT le jet
+(voir `docs/plan-ogre-horde.md` §« Exécution (2026-10-23) »). Le choix du héros qui encaisse à la place (10 cases pour le
+*Deflect*, en vue pour la *Reflection*) est UN point de passage : `ReactionsMj::herosQuiEncaisse()`.
+
+**Non porté, écrit** (décision du 2026-10-23 : ce qui n'existe que dans une quête précise n'entre pas) :
+- l'**image-miroir** de la première rencontre (« the first time the heroes encounter Magrian (in C or D) ») : c'est une structure
+  à deux rencontres liée aux salles C et D de la quête 10 ;
+- la **salle C** (« Magrian heals 1 Body Point as it draws energy from the Queen », à chaque tour) : règle d'une seule salle ;
+- l'**empowerment** de la quête (« monsters in this quest roll one additional Attack die ») : règle d'une seule quête.
+
+**Décisions tranchées seul** (par le précédent le plus proche, à réviser par René si besoin) :
+- *Reflection* suit la politique écrite des défenses à usage unique (Résilience) : elle ne se déclenche qu'au **coup qui
+  achèverait** la figure, et non à la première blessure. Le coup ENTIER passe au héros, sans jet (le jet de Magrian a déjà eu lieu).
+- *Consume Magic* ne vise que les sorts qui prennent le camp du MJ (la politique existante de la couture), alors que la carte
+  dit « a spell » sans restriction : annuler un soin serait gaspiller la carte.
+- *Deflect* est décidé AVANT le jet (« would be the target ») ; faute de connaître le résultat, la politique de la Résilience est
+  transposée : il ne sort que si les dés d'attaque **pourraient** achever la figure (dés ≥ Body restant). Le héros désigné
+  est le plus blessé des héros à 10 cases (distance géométrique en cases orthogonales, comme `MoteurDread::distance()`) ;
+  **l'auteur du coup est exclu** (« any one hero » : une frappe ne se rend pas à son auteur).
+- *Terror* : posée sur le premier héros (ordre de la liste des états) qui a une figure capable en vue, au début de la phase
+  des héros ; liée à ce héros (`habillage.terreur_de`), levée à la fin de SON tour.
+- *Shift Reality* : le premier sort du répertoire encore disponible, dans l'ordre du répertoire ; sans sort utilisable, la
+  capacité n'est pas dépensée.
+
+**L'Ombre du Dread** (Dread Wraith générique, D3 déclaré) : n'est PLUS le boss final — Magrian la remplace dans le pool
+`rencontre_finale.archetypes` de « Confrontation finale » (l'archétype `spectre_effroi` en sort). Elle reste une ligne de
+bestiaire, **sans rôle dans les pools** : ni boss final, ni sous-boss. Essai écarté : la passer en `sous_boss` (cout 17)
+ajoutait un concurrent au tirage de sous-boss de la boîte et déplaçait les rencontres — à trancher par René.
+
+**Questions pour René** (non tranchées ici) :
+1. **Défense 4 et éthéré.** Magrian garde la défense du livret (4), et la mesure de `cout` (`Body / (1,5 − Défense/6)` = 6,0,
+   soit 16) ne vaut pas pour un éthéré : seuls les boucliers noirs blessent (1/6), donc un héros à 3 dés ne fait aucun
+   dégât net contre une défense de 4. Les quatre héros à 5 dés (≈ 0,67 dégât net par tour) l'abattent en une dizaine de tours ;
+   un groupe de héros à 3 dés ne le peut pas. Garder le livret, ou la divergence de l'Ombre (D3) ?
+2. **Le rôle de l'Ombre** : sous-boss (et alors quel `cout` ?) ou simple ligne sans pool ?
+
+**Vérifié** : `MagrianTest` (9 tests en jeu, dés figés) ; mutations de chaque lecteur (chaque test échoue sans son lecteur,
+et la levée de fin de tour est couverte par son propre test) ; registre `ReactionsMjTest` dans les deux sens ;
+`BestiaireSourceTest` (fiche de Magrian, *Deflect* sur les trois phases de Gruzbella).

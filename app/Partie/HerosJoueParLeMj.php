@@ -319,8 +319,13 @@ final class HerosJoueParLeMj
         array $contexte = [],
         ?Monstre $forme = null,
         bool $tirADistance = false,
+        ?int $desEffectifs = null,
     ): array {
-        if ($forme !== null) {
+        // `$desEffectifs` (le *Deflect* de Gruzbella) : la volée que le HÉROS a déjà calculée pour son attaque, bonus
+        // et plafond de *Fear* compris — ne jamais la recalculer ici, sinon le coup détourné perdrait ses bonus.
+        if ($desEffectifs !== null) {
+            $des = max(0, $desEffectifs);
+        } elseif ($forme !== null) {
             // « Désigné » (*Dreadlights*) : toute créature en gagne un contre le héros qui le porte.
             $des = max(0, (int) $forme->attaque + $this->dread->bonusAttaqueContre($victime));
         } else {

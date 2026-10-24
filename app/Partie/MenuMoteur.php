@@ -229,6 +229,8 @@ final class MenuMoteur
             ->reject(fn (InstanceMonstre $i) => $ombre->contientMonstre($quete, $i))
             // PASSIF INTOUCHABLE (Kellar's Keep lot C) : une figure qu'on ne peut pas encore blesser n'est la cible d'aucune arme.
             ->reject(fn (InstanceMonstre $i) => app(MoteurDormants::class)->estIntouchable($i))
+            // TERROR (Magrian) : intouchable pour le héros dont c'est le tour — le même prédicat que `ResolveurTour::frapper()`.
+            ->reject(fn (InstanceMonstre $i) => app(MoteurSorts::class)->terrorisePour($i, $personnage))
             ->values();
 
         $adjacents = $actives->filter(fn (InstanceMonstre $i) => $i->position_x !== null
@@ -1877,6 +1879,7 @@ final class MenuMoteur
                     ->get()
                     ->reject(fn (InstanceMonstre $i) => app(MoteurOmbre::class)->contientMonstre($quete, $i))
                     ->reject(fn (InstanceMonstre $i) => app(MoteurDormants::class)->estIntouchable($i))
+                    ->reject(fn (InstanceMonstre $i) => app(MoteurSorts::class)->terrorisePour($i, $personnage))
                     ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
                         && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $diagonales))
                     ->count();

@@ -1810,6 +1810,14 @@ final class ResolveurTour
             ]);
         }
 
+        // TERROR (Magrian, Rise of the Dread Moon p. 33) : « For the remainder of that hero's turn, Magrian cannot be the
+        // target of spells or attacks. » Même prédicat que le menu (`MoteurSorts::terrorisePour()`) : deux gardes, un seul prédicat.
+        if ($this->sorts->terrorisePour($instance, $personnage)) {
+            throw ValidationException::withMessages([
+                'option_id' => "{$instance->nomAffiche()} est terrorisé : {$personnage->nom} ne peut pas le frapper pendant ce tour.",
+            ]);
+        }
+
         // ÉVEIL PAR ATTAQUE (Kellar's Keep q. 5 n.B : « until one of the skeletons has been attacked ») : frapper une
         // figure `attaque_du_groupe` éveille toute sa salle, qui jouera au tour suivant du MJ. Annoncé avant le coup.
         // Par le TAMPON d'annonces : le fil en direct se bâtit sur le RÉSULTAT, et un éveil que rien ne rend n'existe qu'à la
@@ -2093,6 +2101,43 @@ final class ResolveurTour
         // chemin (`sortDegats`), donc ne sont pas concernés ici.
         $ethere = $this->dread->aCapacite($instance, 'ethere')
             && ($armePrincipale?->rarete ?? null) !== 'unique';
+
+        // DÉTOURNEMENT (*Deflect* de Gruzbella, clé `redirige_attaque`, Against the Ogre Horde p. 25) : « Use when Gruzbella would be the target
+        // of an attack. You can instead direct the attack to any one hero in Gruzbella's surrounding 10 squares. » Décidé
+        // ICI, avant le jet et avant toute défense (politique écrite dans `ReactionsMj::deflechirAttaque()`) : le coup
+        // part vers le héros désigné, qui répond avec SA défense — le chemin de la Domination, `frapperUnHeros()`. La
+        // frappe s'achève comme une frappe ordinaire (buffs consommés, météore, arme lancée, journal), sauf que la figure
+        // ne reçoit rien : elle n'a pas été touchée, donc elle ne se réveille pas et ne saigne pas.
+        if (($detournee = $this->reactionsMj->deflechirAttaque($quete, $instance, $personnage, $desAttaqueEffectifs)) !== null) {
+            $corps = app(HerosJoueParLeMj::class)->frapperUnHeros(
+                $personnage,
+                $detournee->personnage,
+                $detournee,
+                ['detournee_de' => $instance->nomAffiche()],
+                null,
+                $tirADistance,
+                $desAttaqueEffectifs,
+            );
+
+            $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAINE_ATTAQUE);
+
+            $payload = [
+                'type' => 'attaque',
+                ...$corps,
+                'detournee_de' => ['instance_id' => (int) $instance->id, 'nom' => $instance->nomAffiche()],
+                'reaction_monstre' => \App\Engine\MotsClesReactionMj::REDIRIGE_ATTAQUE,
+                ...$meta,
+            ];
+
+            if ($lancer) {
+                $payload['lancer'] = $this->consommerArmeLancee($personnage, $ligneArme);
+            }
+
+            Journal::ajouter($groupe, 'combat', $payload, $acteur);
+            $this->meteoreDu($instance, $personnage);
+
+            return $payload;
+        }
 
         $relanceFace = $this->relanceParFace($armePrincipale, $meta);
 
@@ -2692,7 +2737,9 @@ final class ResolveurTour
                 // IMMUNITÉS AUX SORTS (`MoteurSorts::sortRefuseSur()`, l'échelle totale → famille → sources) :
                 // le rayon d'un SORT passe sans l'atteindre — pas la technique du Moine, qui n'est pas un
                 // sort. Dite dans le résultat (`immunise`), jamais passée sous silence.
-                if ($sortMagique && $sort !== null && $this->sorts->sortRefuseSur($instance->monstre->immunitesSorts(), $sort)) {
+                // TERROR (Magrian) : le rayon passe aussi sans elle — `terrorisePour()`, le prédicat du menu.
+                if ($sortMagique && $sort !== null && ($this->sorts->sortRefuseSur($instance->monstre->immunitesSorts(), $sort)
+                    || $this->sorts->terrorisePour($instance, $lanceur))) {
                     $touches[] = [
                         'type' => 'monstre',
                         'instance_id' => $instance->id,
@@ -3074,6 +3121,8 @@ final class ResolveurTour
             ->reject(fn (InstanceMonstre $i) => app(MoteurOmbre::class)->contientMonstre($quete, $i))
             // PASSIF INTOUCHABLE : une figure qu'on ne peut pas blesser ne se balaie pas non plus.
             ->reject(fn (InstanceMonstre $i) => $this->dormants->estIntouchable($i))
+            // TERROR (Magrian) : ni coup ni balayage pour le héros qui la subit ce tour-ci (même prédicat que le menu).
+            ->reject(fn (InstanceMonstre $i) => $this->sorts->terrorisePour($i, $etat->personnage))
             ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
                 && $this->heroAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $diagonales));
     }
@@ -6754,7 +6803,9 @@ final class ResolveurTour
             // IMMUNITÉS (`MotsClesAdversaires`) : une créature « immune to all spell effects »
             // (Guardian Effigy) ou immunisée à la condition que ce sort poserait (Bloomrot Scion :
             // sommeil, tour perdu) n'est pas touchée — et la salle le SAIT : annoncé, sans jet.
+            // TERROR (Magrian) : la zone du lanceur ne la touche pas non plus, pour le héros qui la lance.
             if ($this->sorts->sortRefuseSur($instance->monstre->immunitesSorts(), $sort)
+                || $this->sorts->terrorisePour($instance, $lanceur)
                 || array_intersect($this->sorts->conditionsPoseesSurMonstre($sort), $instance->monstre->conditionsImmunisees()) !== []) {
                 $touches[] = ['type' => 'monstre', 'instance_id' => $instance->id,
                     'nom' => $instance->nomAffiche(), 'immunise' => true];
@@ -11223,6 +11274,10 @@ final class ResolveurTour
             $actions[] = $payload;
         }
 
+        // TERROR (Magrian) : aucune Terreur ne survit à la phase des héros. Filet au début du tour du MJ, annoncé par
+        // `MoteurSorts::leverTerreurs()` — la levée normale se fait à la fin du tour du héros désigné (`marquerCreneau()`).
+        $this->sorts->leverTerreurs($quete);
+
         // FIREBURST TRAP (Wizards of Morcar, doc 18 §5/§9) : « the beginning
         // of Zargon's turn » — EN TOUT PREMIER, avant le moindre monstre
         // scripté, tout jeton amorcé explose (zone entière, héros ET
@@ -11242,6 +11297,20 @@ final class ResolveurTour
         // marche —, et chacun de leurs gestes est journalisé par `MaledictionLoupGarou::jouerLoups()`.
         foreach (app(MaledictionLoupGarou::class)->jouerLoups($groupe, $quete) as $geste) {
             $actions[] = $geste;
+        }
+
+        // SHIFT REALITY (Magrian, Rise of the Dread Moon p. 33) : « Use at the start of Zargon's turn. Magrian casts one
+        // Dread spell it knows. » Au début du tour du MJ, comme le Fireburst et les dangers : la figure lance UN sort de son
+        // répertoire, une fois par rencontre (`MoteurDread::realiteDecalee()`, qui porte le choix et le budget du sort).
+        $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
+            ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
+            ->values();
+
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+            ->whereNull('controle_par')->with('monstre')->orderBy('id')->get() as $figure) {
+            foreach ($this->dread->realiteDecalee($groupe, $quete, $figure, $cibles) as $geste) {
+                $actions[] = $geste;
+            }
         }
 
         // ⚠ `whereNull('controle_par')` : un sbire enrôlé par la *Baguette d'Os*
@@ -11542,9 +11611,59 @@ final class ResolveurTour
      * ne commence pour lui. Le laisser rouler lui offrirait une libération
      * gratuite pendant qu'il attend d'être relevé.
      */
+    /**
+     * TERROR (Magrian, Rise of the Dread Moon p. 33) : « Use at the start of any one hero's turn. For the remainder of
+     * that hero's turn, Magrian cannot be the target of spells or attacks. » Le MJ la pose au début du tour du PREMIER
+     * héros (ordre de la liste des états) qui a une figure capable de Terror en vue — une fois par rencontre (capacité
+     * `terreur`, `reactions_defense`). Liée à ce héros (`MoteurSorts::poserTerreur()`), levée à la fin de SON tour.
+     * Annoncée : un effet automatique que rien n'annonce est injouable.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function terreurDuDebutDeTour(Groupe $groupe, Quete $quete): array
+    {
+        $figures = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+            ->whereNull('controle_par')->with('monstre')->orderBy('id')->get()
+            ->filter(fn (InstanceMonstre $figure) => $figure->reactionDisponible(\App\Engine\MotsClesReactionMj::TERREUR));
+
+        if ($figures->isEmpty()) {
+            return [];
+        }
+
+        foreach ($quete->etatsPersonnages()->with('personnage')->orderBy('id')->get() as $etat) {
+            if ($etat->personnage === null || $etat->tombe) {
+                continue;
+            }
+
+            foreach ($figures as $figure) {
+                if (! $this->dread->voitLeHeros($quete, $figure, $etat)) {
+                    continue;
+                }
+
+                $this->sorts->poserTerreur($figure, $etat->personnage);
+                $figure->consommerReaction(\App\Engine\MotsClesReactionMj::TERREUR);
+
+                $payload = [
+                    'type' => 'reaction_monstre',
+                    'instance_id' => (int) $figure->id,
+                    'nom' => $figure->nomAffiche(),
+                    'mecanique' => \App\Engine\MotsClesReactionMj::TERREUR,
+                    'cible' => ['personnage_id' => (int) $etat->personnage->id, 'nom' => $etat->personnage->nom],
+                ];
+
+                Journal::ajouter($groupe, 'combat', $payload);
+
+                return [$payload];
+            }
+        }
+
+        return [];
+    }
+
     private function ouvrirTourDesHeros(Groupe $groupe, Quete $quete): array
     {
-        $payloads = [];
+        // TERROR (Magrian) : début du tour du héros désigné, avant toute autre marque de ce début de tour.
+        $payloads = $this->terreurDuDebutDeTour($groupe, $quete);
         foreach ($quete->etatsPersonnages()->with('personnage')->get() as $etat) {
             $personnage = $etat->personnage;
 
@@ -13928,6 +14047,12 @@ final class ResolveurTour
             // phase des monstres — c'est ce qui le distingue de `prochain_tour`.
             if ($etat->personnage !== null) {
                 $this->sorts->expirerBuffs($etat->personnage, DureeEffet::CE_TOUR);
+
+                // TERROR (Magrian) : « for the remainder of that hero's turn » — la Terreur posée pour CE héros tombe avec
+                // son tour, comme le `ce_tour` ci-dessus (une Terreur ne survit jamais à la phase des monstres).
+                if ($etat->quete !== null) {
+                    $this->sorts->leverTerreurs($etat->quete, $etat->personnage);
+                }
 
                 // Le venin couvrait CE tour (« ends at the end of their next turn ») : il
                 // tombe maintenant, pas après la phase des monstres.

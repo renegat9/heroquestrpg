@@ -764,6 +764,12 @@ trait LignesEffetsAutomatiques
             'increvable_une_fois' => "{$nom} s'effondre… et tient debout à 1 PV, une seule fois",
             'sacrifice_de_vrille' => "{$nom} s'effondre… sacrifie ".((string) ($a['sacrifice']['nom'] ?? 'une de ses Vrilles'))." et tient debout à 1 PV",
             'jeton_ombre' => "Le coup est absorbé par un jeton d'ombre — {$nom} ne perd rien",
+            // Magrian (Rise of the Dread Moon p. 33) : le coup qui l'achèverait retombe sur un héros en vue.
+            'reflexion' => "{$nom} renvoie le coup sur ".((string) ($a['cible']['nom'] ?? 'un héros en vue'))." — il ne perd rien, une défense à usage unique vient de jouer",
+            // Terror (p. 33) : intouchable pour le héros dont c'est le tour, jusqu'à la fin de ce tour.
+            'terreur' => "{$nom} est terrorisé : ".((string) ($a['cible']['nom'] ?? 'le héros'))." ne peut ni le frapper ni lui jeter un sort ce tour-ci",
+            // Shift Reality (p. 33) : un sort de Dread de son répertoire, au début du tour du MJ.
+            'realite_decalee' => "{$nom} déforme la réalité et lance ".((string) ($a['sort'] ?? 'un sort de Dread')),
             default => "{$nom} active une défense à usage unique",
         })];
     }

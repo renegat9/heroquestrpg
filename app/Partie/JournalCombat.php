@@ -525,6 +525,10 @@ final class JournalCombat
                 'increvable_une_fois' => 'La créature s\'effondre… et tient debout à 1 PV, une seule fois',
                 'jeton_ombre' => 'Le coup est absorbé par un jeton d\'ombre — la créature ne perd rien',
                 'sacrifice_de_vrille' => 'La créature s\'effondre… sacrifie une de ses Vrilles et tient debout à 1 PV',
+                // *Deflect* (Gruzbella, F9528 p. 25) : l'attaque part vers un autre héros — c'est ce héros que le coup nomme.
+                'redirige_attaque' => 'La créature détourne l\'attaque sur un autre héros — une défense à usage unique vient de jouer',
+                // *Reflection* (Magrian, F6646 p. 33) : le coup qui l'achèverait retombe sur un héros en vue.
+                'reflexion' => 'Le coup est renvoyé sur un héros en vue — la créature ne perd rien',
                 default => 'La créature active une défense à usage unique',
             });
         }
@@ -2450,6 +2454,15 @@ final class JournalCombat
         return match ($r['mecanique'] ?? null) {
             MotsClesReactionMj::ANNULE_SORT_CIBLANT => [
                 'texte' => "{$par} annule {$nomSort} — une capacité à usage unique vient de jouer",
+                'ton' => 'echec',
+            ],
+            // *Consume Magic* (Magrian, F6646 p. 33) : le sort est annulé, et la figure regagne 2 PV de Body (plafonnés).
+            MotsClesReactionMj::CONSOMME_MAGIE => [
+                'texte' => "{$par} annule {$nomSort} — une capacité à usage unique vient de jouer".(
+                    (int) ($r['soin'] ?? 0) > 0
+                        ? " : il regagne {$r['soin']} PV de Corps"
+                        : ' : il est déjà à son maximum de Corps'
+                ),
                 'ton' => 'echec',
             ],
             MotsClesReactionMj::ROMPT_SORT_ACTIF => [

@@ -750,3 +750,23 @@ it('porte les créatures de The Crypt of Perpetual Darkness telles que le livret
         expect(statsDe($nom))->toBe($attendu, "{$nom} : bloc de stats");
     }
 });
+
+it('porte MAGRIAN, le Dread Wraith, EXACTEMENT comme le livret (F6646 p. 33, rendu PNG : 9/6/4/5/5, éthéré, quatre capacités)', function () {
+    $magrian = Monstre::where('nom_base', 'Magrian')->firstOrFail();
+
+    expect([$magrian->deplacement, $magrian->attaque, $magrian->defense, $magrian->pv_body, $magrian->pv_mind])
+        ->toBe([9, 6, 4, 5, 5])
+        ->and($magrian->boite)->toBe('dread_moon')
+        ->and($magrian->tier)->toBe('boss')
+        ->and($magrian->archetype_lanceur)->toBe('magrian')
+        ->and(in_array('ethere', (array) $magrian->capacites, true))->toBeTrue()
+        ->and(data_get($magrian->capacites, 'reactions_defense'))
+        ->toBe(['terreur', 'consomme_magie', 'reflexion', 'realite_decalee']);
+});
+
+it('porte le Deflect de Gruzbella sur ses TROIS phases (F9528 p. 25 : « redirige l\'attaque vers un héros dans ses 10 cases »)', function () {
+    foreach (['Gruzbella Hammerhand', 'Gruzbella Déterminée', 'Gruzbella Imprudente'] as $nom) {
+        expect(in_array('redirige_attaque', (array) data_get(Monstre::where('nom_base', $nom)->firstOrFail()->capacites, 'reactions_defense', []), true))
+            ->toBeTrue("{$nom} : le Deflect manque.");
+    }
+});

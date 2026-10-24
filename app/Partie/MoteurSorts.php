@@ -247,6 +247,14 @@ final class MoteurSorts
      */
     public const MONSTRE_ENCHAINE = 'enchaine';
 
+    /**
+     * *Terror* (Magrian, Rise of the Dread Moon p. 33) : « For the remainder of that hero's turn, Magrian cannot be the
+     * target of spells or attacks. » Posée au début du tour du héros désigné (`ResolveurTour::ouvrirTourDesHeros()`),
+     * et lue par `terrorisePour()` — UN prédicat pour le menu, le résolveur des coups et celui des sorts. Le héros
+     * désigné est porté par `habillage.terreur_de` ; la levée se fait à la fin de SON tour (`levéeTerreurDuHeros()`).
+     */
+    public const MONSTRE_TERRORISE = 'terrorise';
+
     /** @var list<string> */
     public const CONDITIONS_MONSTRE = [
         self::MONSTRE_ENDORMI,
@@ -256,6 +264,7 @@ final class MoteurSorts
         self::MONSTRE_PARALYSE,
         self::MONSTRE_ENFUME,
         self::MONSTRE_ENCHAINE,
+        self::MONSTRE_TERRORISE,
     ];
 
     /**
@@ -2924,6 +2933,53 @@ final class MoteurSorts
         return array_values(array_unique($cles));
     }
 
+    /**
+     * *Terror* (Magrian) : `$instance` est-elle intouchable PAR `$heros` ce tour-ci ? Un seul prédicat pour le MENU
+     * (cibles de coup et de sort), pour `ResolveurTour::frapper()` et pour les sorts du héros : une copie de la règle
+     * dans chacun, et le menu offrirait Magrian à un héros que le résolveur refuserait.
+     */
+    public function terrorisePour(InstanceMonstre $instance, Personnage $heros): bool
+    {
+        return $this->monstreA($instance, self::MONSTRE_TERRORISE)
+            && (int) data_get($instance->habillage, 'terreur_de') === (int) $heros->id;
+    }
+
+    /**
+     * Pose la *Terror* de `$instance` pour le tour de `$heros` : une condition à durée `true` (jusqu'à levée), et le
+     * héros désigné dans `habillage.terreur_de` — c'est ce qui la fait tomber à la fin de SON tour, et non à une
+     * autre. Annoncée par l'appelant (la pose est un effet automatique).
+     */
+    public function poserTerreur(InstanceMonstre $instance, Personnage $heros): void
+    {
+        $habillage = $instance->habillage ?? [];
+        $habillage['conditions'][self::MONSTRE_TERRORISE] = true;
+        $habillage['terreur_de'] = (int) $heros->id;
+        $instance->update(['habillage' => $habillage]);
+    }
+
+    /**
+     * Lève la *Terror* qui vise `$heros` (fin de SON tour), ou toutes les Terreurs restantes si `$heros` est `null` (filet
+     * au début du tour du MJ : aucune Terreur ne survit à la phase des héros). Annoncé : un effet qui s'arrête en silence
+     * est aussi muet qu'un effet qui commence en silence.
+     */
+    public function leverTerreurs(Quete $quete, ?Personnage $heros = null): void
+    {
+        foreach ($quete->instancesMonstres()->get() as $instance) {
+            $vise = $heros === null
+                ? $this->monstreA($instance, self::MONSTRE_TERRORISE)
+                : $this->terrorisePour($instance, $heros);
+
+            if (! $vise) {
+                continue;
+            }
+
+            $habillage = $instance->habillage;
+            unset($habillage['conditions'][self::MONSTRE_TERRORISE], $habillage['terreur_de']);
+            $instance->update(['habillage' => $habillage]);
+            $this->annoncerFinConditionMonstre($quete, $instance, self::MONSTRE_TERRORISE);
+        }
+    }
+
     public function retirerConditionMonstre(InstanceMonstre $instance, string $cle): void
     {
         if (! $this->monstreA($instance, $cle)) {
@@ -3055,6 +3111,7 @@ final class MoteurSorts
         self::MONSTRE_PARALYSE => 'paralysé',
         self::MONSTRE_ENFUME => 'noyé dans la fumée',
         self::MONSTRE_ENCHAINE => 'enchaîné',
+        self::MONSTRE_TERRORISE => 'terrorisé (intouchable pour le héros dont c\'est le tour)',
     ];
 
     /** Le mot français d'une condition de monstre — le seul point de passage. */
@@ -3558,8 +3615,13 @@ final class MoteurSorts
                     // jamais ce que le résolveur refuserait.
                     // Une figure INTOUCHABLE (passif de Kellar's Keep, `MoteurDormants`) n'est la cible d'aucun sort qui la
                     // blesserait : elle compte comme l'immunité TOTALE, premier barreau de l'échelle (fusion du 2026-10-23).
+                    // TERROR (Magrian) : la liste n'est pas bâtie par héros. Or la fenêtre d'une Terreur est EXACTEMENT le tour
+                    // du héros qu'elle vise, pendant lequel nul autre ne joue : une figure terrorisée y compte donc comme
+                    // immunisée totale. Le contrôle exact par héros reste `terrorisePour()` (coups, rayons, balayage, menu).
                     'immunites' => array_merge($i->monstre->immunitesSorts(), [
-                        'totale' => $i->monstre->immuniseAuxSorts() || app(MoteurDormants::class)->estIntouchable($i),
+                        'totale' => $i->monstre->immuniseAuxSorts()
+                            || app(MoteurDormants::class)->estIntouchable($i)
+                            || $this->monstreA($i, self::MONSTRE_TERRORISE),
                     ]),
                     'conditions_immunisees' => $i->monstre->conditionsImmunisees(),
                 ];

@@ -51,6 +51,44 @@ final class MotsClesReactionMj
     public const ROMPT_SORT_ACTIF = 'rompt_sort_actif';
 
     /**
+     * *Consume Magic* (Magrian, Rise of the Dread Moon p. 33) : « Use immediately after a hero casts a spell
+     * on their turn. The spell is canceled. Magrian regains 2 Body Points. » Une seule fois, sans action.
+     * Lue à la couture des sorts de héros, comme *Dispel* — mais sans cible : elle vise le sort lui-même,
+     * celui qui prend le camp du MJ, et non une figure qui serait la cible.
+     */
+    public const CONSOMME_MAGIE = 'consomme_magie';
+
+    /**
+     * *Deflect* (Gruzbella, Against the Ogre Horde p. 25) : « Use when Gruzbella would be the target of an
+     * attack. You can instead direct the attack to any one hero in Gruzbella's surrounding 10 squares. » Une
+     * ATTAQUE détournée vers un héros : c'est `ResolveurTour::frapper()` qui la lit (le choix de la cible), et
+     * le héros visé frappe avec sa propre défense (`HerosJoueParLeMj::frapperUnHeros()`).
+     */
+    public const REDIRIGE_ATTAQUE = 'redirige_attaque';
+
+    /**
+     * *Reflection* (Magrian, Rise of the Dread Moon p. 33) : « Use immediately after Magrian receives damage.
+     * Choose a hero in Magrian's line of sight; that hero takes the damage instead. » Lue au point de passage
+     * des dégâts d'un monstre, `MoteurDegats::infligerAMonstreBrut()`, au coup qui achèverait sinon la figure
+     * (politique écrite de la Résilience : jamais gaspillée sur une égratignure).
+     */
+    public const REFLEXION = 'reflexion';
+
+    /**
+     * *Terror* (Magrian, Rise of the Dread Moon p. 33) : « Use at the start of any one hero's turn. For the
+     * remainder of that hero's turn, Magrian cannot be the target of spells or attacks. » Posée au début du
+     * tour d'un héros (`ResolveurTour::ouvrirTourDesHeros()`), levée à la fin de SON tour.
+     */
+    public const TERREUR = 'terreur';
+
+    /**
+     * *Shift Reality* (Magrian, Rise of the Dread Moon p. 33) : « Use at the start of Zargon's turn. Magrian
+     * casts one Dread spell it knows. » Lue au début du tour du MJ (`ResolveurTour::phaseMonstres()`), par
+     * `MoteurDread::realiteDecalee()`, qui lance un sort de son répertoire par le chemin des sorts de Dread.
+     */
+    public const REALITE_DECALEE = 'realite_decalee';
+
+    /**
      * @var array<string, array{lecteur: string, libelle: string}>
      */
     public const CAPACITES = [
@@ -66,24 +104,35 @@ final class MotsClesReactionMj
             'lecteur' => 'App\Partie\ReactionsMj::apresSortDeHeros',
             'libelle' => 'Met fin aux effets du sort qui vient de la prendre pour cible (Break de Gruzbella)',
         ],
+        self::CONSOMME_MAGIE => [
+            'lecteur' => 'App\Partie\ReactionsMj::consommerMagie',
+            'libelle' => 'Annule le sort d\'un héros qui frappe le camp du MJ, et rend 2 PV de Body (Consume Magic de Magrian)',
+        ],
+        self::REDIRIGE_ATTAQUE => [
+            'lecteur' => 'App\Partie\ResolveurTour::frapper',
+            'libelle' => 'Détourne l\'attaque qui la vise vers un héros dans ses 10 cases (Deflect de Gruzbella)',
+        ],
+        self::REFLEXION => [
+            'lecteur' => 'App\Partie\MoteurDegats::infligerAMonstreBrut',
+            'libelle' => 'Renvoie sur un héros en vue le coup qui l\'achèverait (Reflection de Magrian)',
+        ],
+        self::TERREUR => [
+            'lecteur' => 'App\Partie\ResolveurTour::ouvrirTourDesHeros',
+            'libelle' => 'La rend intouchable par sorts et coups pour le tour d\'un héros (Terror de Magrian)',
+        ],
+        self::REALITE_DECALEE => [
+            'lecteur' => 'App\Partie\MoteurDread::realiteDecalee',
+            'libelle' => 'Lance un sort de Dread de son répertoire au début du tour du MJ (Shift Reality de Magrian)',
+        ],
     ];
 
     /**
-     * Les réactions que les livrets NOMMENT et que ce moteur ne sait pas jouer —
-     * une dette écrite, jamais un oubli. Aucune donnée ne doit les employer
-     * (`ReactionsMjTest`), et chacune dit exactement ce qui lui manque.
+     * Les réactions que les livrets NOMMENT et que ce moteur ne sait pas encore jouer — une dette écrite, jamais
+     * un oubli. Vide depuis le chantier EXT-MAGRIAN (2026-10-23) : *Deflect* et *Consume Magic* y sont portés,
+     * et les quatre capacités de Magrian aussi. Le registre reste là : une nouvelle réaction nommée par un livret
+     * et non portée s'y écrit, avec ce qui lui manque, plutôt que de disparaître.
      *
      * @var array<string, string>
      */
-    public const NON_IMPLEMENTEES = [
-        'redirige_attaque' => '*Deflect* (Gruzbella, Against the Ogre Horde p. 25) : « Use when Gruzbella would be '
-            .'the target of an ATTACK » — une ATTAQUE, pas un sort : elle se joue à `ResolveurTour::frapper()` '
-            .'(le choix de la cible), non à la couture des sorts, et suppose de faire frapper un héros par un autre '
-            .'avec les dés de l\'attaquant et la défense de la nouvelle victime.',
-        'consomme_magie' => '*Consume Magic* (Magrian, Rise of the Dread Moon p. 33) : annule N\'IMPORTE QUEL sort '
-            .'qu\'un héros vient de lancer et rend 2 Body à Magrian — la couture sait déjà annuler ; ce qui manque '
-            .'est Magrian lui-même, créature nommée non semée (ses trois autres capacités — *Terror*, *Reflection*, '
-            .'*Shift Reality* — et son leurre d\'image-miroir n\'ont aucun lecteur : le semer à un quart de sa fiche '
-            .'trahirait la source).',
-    ];
+    public const NON_IMPLEMENTEES = [];
 }

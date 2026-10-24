@@ -207,9 +207,15 @@ const CAPACITES = {
     // 2026-10-04 → 10-08 : mobilier attaquable, monstres à phases, Morcar.
     attaque_diagonale: 'Attaque en diagonale',
     s_accroche: 'S\'accroche (jeton sur le héros au contact, qui le ralentit)',
-    reactions_defense: 'Réaction en défense (ignore les dégâts d\'un coup, une fois)',
+    reactions_defense: 'Réactions à usage unique, une fois par rencontre (sans action)',
     recompense_reddition: 'Vaincu, s\'incline et verse une rançon à la bourse commune',
     increvable_une_fois: 'Increvable une fois (tombe à 1 PV au lieu de 0)',
+    // Rise of the Dread Moon, Magrian (F6646 p. 33) et Against the Ogre Horde, Deflect (F9528 p. 25) — chantier EXT-MAGRIAN.
+    terreur: 'Terror : intouchable par les sorts et les coups du héros dont c\'est le tour',
+    consomme_magie: 'Consume Magic : annule le sort d\'un héros, et rend 2 PV de Corps',
+    reflexion: 'Reflection : le coup qui l\'achèverait retombe sur un héros en vue',
+    redirige_attaque: 'Deflect : détourne l\'attaque vers un héros à 10 cases',
+    realite_decalee: 'Shift Reality : lance un sort de Dread au début du tour du MJ',
     // Jungles of Delthrak (2026-10-09) : Gretzl et Gruulob tirent à distance, au choix.
     tir_au_choix: 'Tir au choix : tire à distance sur place, frappe au contact',
     sorts_uniques: 'Sorts du Dread (chacun une seule fois par quête)',

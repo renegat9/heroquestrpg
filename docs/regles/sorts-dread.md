@@ -233,3 +233,29 @@ fois pour voir le test tomber).
 - **Le budget n'est pas levé par la capacité** (précédent Fellmarak : le livret n'écrit aucune limite, le budget de palier s'applique). Conséquence : Kavra (sous-boss, 2 usages) lance ses deux sorts au premier tour puis n'a plus rien ; Nelath (boss, 3 usages) en lance deux, puis un, puis plus rien. À trancher par René.
 - **Les deux sorts sont annoncés** : chacun est un `sort_dread` signé du lanceur, aplati dans le tour des monstres (`phaseMonstres()`), donc dans le fil comme dans la table.
 - Testé EN JEU : `SpiritQueenKavraNelathTest` (premier tour à deux sorts différents, second tour à un sort avec budget relevé à la main, Nelath à deux par tour, témoin à un sort sans la capacité).
+
+## Magrian (Rise of the Dread Moon) et le Deflect (chantier EXT-MAGRIAN, 2026-10-23)
+
+Les réactions du MJ (`ReactionsMj`, vocabulaire `MotsClesReactionMj`) passent de trois capacités de monstre à **huit** clés. Chacune se
+dépense une fois pour la rencontre, et chacune a son lecteur nommé dans le fichier qui la porte :
+
+- **`consomme_magie`** (*Consume Magic*) — branche « capacité gratuite » de `auSortDeHeros()`, après *Dispel* de Gretzl :
+  annule le sort d'un héros qui vise le camp du MJ (un sort sans cible monstre n'est pas une réaction), et rend 2 PV de Body
+  plafonnés au maximum de la figure. Sans réserve de vue ni de sommeil : « no action required ».
+- **`redirige_attaque`** (*Deflect*, Gruzbella) — `ResolveurTour::frapper()`, avant le jet, `ReactionsMj::deflechirAttaque()` :
+  ne sort que si les dés d'attaque pourraient achever la figure, vers un héros à 10 cases au plus, autre que l'auteur.
+- **`reflexion`** (*Reflection*, Magrian) — `MoteurDegats::infligerAMonstreBrut()`, AU COUP FATAL (après la Résilience et
+  l'Increvable, comme toute défense à usage unique) : le coup entier passe à un héros en vue, sans jet.
+- **`terreur`** (*Terror*, Magrian) — posée au début de la phase des héros (`ouvrirTourDesHeros()`) sur le premier héros qui
+  voit une figure capable ; liée à ce héros, levée à la fin de SON tour (`marquerCreneau()`) et au début du tour du MJ
+  (filet). Prédicat unique : `MoteurSorts::terrorisePour()`, lu par le menu, `frapper()`, le rayon, la zone et le balayage.
+- **`realite_decalee`** (*Shift Reality*, Magrian) — début du tour du MJ, `phaseMonstres()` → `MoteurDread::realiteDecalee()` :
+  le premier sort de Dread du répertoire encore disponible, par le chemin ordinaire (`choisirSort()`, `lancerSortDread()`).
+
+**Le choix d'un héros qui encaisse à la place** — *Deflect* (10 cases) et *Reflection* (en vue) — est UN point de passage :
+`ReactionsMj::herosQuiEncaisse()`. Il désigne le plus blessé, jamais l'auteur du coup pour le *Deflect*, et la distance est
+géométrique en cases orthogonales (`Grille::distance()` n'est pas utilisée : c'est un parcours qui rend `null` dès que la case
+visée est occupée).
+
+Contrat : `docs/contrat-api.md` §« Magrian (Rise of the Dread Moon) et le Deflect de Gruzbella ». Décisions et questions
+ouvertes : `docs/plan-dread-moon.md` §« Exécution (2026-10-23) », `docs/plan-ogre-horde.md` §« Exécution (2026-10-23) ».

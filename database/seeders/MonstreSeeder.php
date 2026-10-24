@@ -347,6 +347,9 @@ class MonstreSeeder extends Seeder
             // Seigneur. La divergence est DÉCLARÉE dans `BestiaireSourceTest`
             // plutôt que dissimulée : c'est le seul écart de stat que nous nous
             // accordions sur une créature sourcée.
+            // DÉCISION (chantier EXT-MAGRIAN, 2026-10-23) : l'Ombre n'est PLUS le boss final de la boîte — Magrian la remplace
+            // (ligne suivante). Elle reste le Dread Wraith GÉNÉRIQUE du livret, sans rôle dans les pools de rencontre : ni boss
+            // final, ni sous-boss (ajouter un sous-boss de 17 à l'achat changerait les rencontres de la boîte — à trancher).
             ['nom_base' => 'Ombre du Dread', 'deplacement' => 9, 'attaque' => 6, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 5,
                 'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 17, 'capacites' => ['ethere'], 'sorts_dread' => [],
                 'archetype_lanceur' => 'spectre_effroi'],
@@ -367,24 +370,27 @@ class MonstreSeeder extends Seeder
             ['nom_base' => 'Sir Ragnar', 'deplacement' => 5, 'attaque' => 5, 'defense' => 5, 'pv_body' => 4, 'pv_mind' => 4,
                 'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 14, 'capacites' => ['increvable_une_fois'], 'sorts_dread' => []],
 
-            // ⚠ Magrian, le Dread Wraith (boss final, quête 10, p. 33) reste
-            // NON semée comme créature nommée distincte : ses QUATRE
-            // capacités à usage unique sans action (*Terror*, *Consume
-            // Magic*, *Reflection*, *Shift Reality*) dépassent encore le
-            // vocabulaire `reactions_defense` (`MotsClesReactionMj`).
-            // *Consume Magic* (annule un sort qu'un héros vient de lancer,
-            // +2 Body) serait la seule à entrer à la couture « le MJ réagit au
-            // sort d'un héros » (2026-10-15) — mais Magrian n'en aurait alors
-            // qu'UNE sur quatre : *Terror* (intouchable le reste du tour d'un
-            // héros), *Reflection* (redirige un coup APRÈS l'avoir subi) et
-            // *Shift Reality* (un sort en DÉBUT de tour du MJ) n'ont aucun point
-            // de passage, et son leurre d'image-miroir aucune mécanique. Le semer
-            // à un quart de sa fiche trahirait la source ; le nom de la dette est
-            // `MotsClesReactionMj::NON_IMPLEMENTEES`.
-            // L'« Ombre du Dread » ci-dessus reste son habillage, exactement
-            // comme avant ce chantier (`docs/plan-dread-moon.md` lot I le dit
-            // explicitement : « Magrian redevient un sous-boss nommé » une
-            // fois CES patrons-là construits, pas celui des phases).
+            // MAGRIAN, LE DREAD WRAITH (boss FINAL de Rise of the Dread Moon, quête 10, F6646 p. 33 — chantier EXT-MAGRIAN,
+            // 2026-10-23). Stats relues sur le RENDU PNG (p. 33) et sur le tableau p. 36 : Move 9 · Attack 6 · Defend 4 ·
+            // Body 5 · Mind 5. La défense du livret est 4 ; celle de l'Ombre ci-dessus est 3 (divergence déclarée, qui reste la
+            // sienne). Éthéré (`ethere`). Quatre capacités à usage unique sans action, chacune lue sur UNE couture :
+            //  - *Terror* (début du tour d'un héros) → `terreur` ; *Consume Magic* (au sort d'un héros qui vise le camp du MJ)
+            //    → `consomme_magie` ; *Reflection* (au coup qui l'achèverait) → `reflexion` ; *Shift Reality* (début du tour du
+            //    MJ) → `realite_decalee`. Toutes dans `reactions_defense`, registre `MotsClesReactionMj` (testé dans les deux sens).
+            // Ses sorts : *Dreadlights, Channel Dread, Fear, Summon Specters*, « once per quest » chacun — l'archétype `magrian`
+            // (`config/archetypes_lanceurs.php`, répertoire nommé par le livret, p. 33). La salle C (soin de 1 PV par tour, la
+            // Reine) et l'image-miroir de la première rencontre (« in C or D ») sont des règles d'UNE quête : écartées
+            // (`docs/plan-dread-moon.md`, décision du 2026-10-23).
+            // `cout` MESURÉ (méthode de `docs/regles/bestiaire-et-rencontres.md`) : 5 / (1,5 − 4/6) = 6,0 attaques d'un héros à
+            // 3 dés, sur la droite des boss (Seigneur 15 → 20, pente 0,5) : 20 + 0,5 × (6,0 − 15) = 15,5 → 16, comme Venim.
+            // ⚠ Cette mesure ne vaut pas telle quelle pour un ÉTHÉRÉ : seuls les boucliers noirs (1/6) blessent, et un héros à
+            // 3 dés ne fait aucun dégât net contre une défense de 4 — raison de la divergence de l'Ombre (D3). Magrian garde les
+            // stats du livret ; cet écart est À TRANCHER PAR RENÉ (`docs/plan-dread-moon.md`), non décidé ici.
+            ['nom_base' => 'Magrian', 'deplacement' => 9, 'attaque' => 6, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 5,
+                'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 16,
+                'capacites' => ['ethere', 'reserve_a_son_theme',
+                    'reactions_defense' => ['terreur', 'consomme_magie', 'reflexion', 'realite_decalee']],
+                'sorts_dread' => [], 'archetype_lanceur' => 'magrian'],
 
             // ---- The Mage of the Mirror (doc 18) ----
             // L'archer elfe est la seconde créature à distance du bestiaire :
@@ -490,12 +496,7 @@ class MonstreSeeder extends Seeder
             // fois pour toute la rencontre) ET *Break* (« met fin à un sort
             // actif sur elle », `rompt_sort_actif`, portée le 2026-10-15 par la
             // couture « le MJ réagit au sort d'un héros » —
-            // `ReactionsMj::apresSortDeHeros()`). *Deflect* (« redirige
-            // l'attaque vers un héros dans ses 10 cases ») reste DÉLIBÉRÉMENT
-            // absente plutôt que déclarée sans lecteur : c'est une ATTAQUE qu'elle
-            // détourne, pas un sort — elle appartient au choix de la cible de
-            // `ResolveurTour::frapper()`, un autre point de passage
-            // (`MotsClesReactionMj::NON_IMPLEMENTEES`). Vaincue (dernière phase à 0 Body),
+            // `ReactionsMj::apresSortDeHeros()`). *Deflect* (« redirige l'attaque vers un héros dans ses 10 cases ») est PORTÉ (chantier EXT-MAGRIAN, 2026-10-23) : `redirige_attaque`, lu par `ResolveurTour::frapper()` AVANT le jet (`ReactionsMj::deflechirAttaque()`) ; le coup part vers un héros, qui répond avec sa propre défense. Vaincue (dernière phase à 0 Body),
             // « elle s'incline » : `recompense_reddition` crédite 1000 po au
             // groupe au lieu d'une mort — ELLE N'EST PAS maléfique (p. 2).
             // `cout` : somme des attaques-à-3-dés par phase (10 + 7,5 + 3,75
@@ -503,15 +504,15 @@ class MonstreSeeder extends Seeder
             // partage la résistance totale.
             ['nom_base' => 'Gruzbella Hammerhand', 'deplacement' => 5, 'attaque' => 4, 'defense' => 6, 'pv_body' => 5, 'pv_mind' => 4,
                 'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
-                'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif']],
+                'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif', 'redirige_attaque']],
                 'sorts_dread' => [], 'phase_suivante' => 'Gruzbella Déterminée'],
             ['nom_base' => 'Gruzbella Déterminée', 'deplacement' => 7, 'attaque' => 5, 'defense' => 5, 'pv_body' => 5, 'pv_mind' => 4,
                 'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
-                'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif']],
+                'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif', 'redirige_attaque']],
                 'sorts_dread' => [], 'phase_suivante' => 'Gruzbella Imprudente'],
             ['nom_base' => 'Gruzbella Imprudente', 'deplacement' => 8, 'attaque' => 6, 'defense' => 1, 'pv_body' => 5, 'pv_mind' => 4,
                 'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
-                'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif'], 'recompense_reddition' => ['or' => 1000]],
+                'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif', 'redirige_attaque'], 'recompense_reddition' => ['or' => 1000]],
                 'sorts_dread' => [], 'phase_suivante' => null],
 
             // SPAWN OF THE PIT (q. 1, p. 21), SOUS-BOSS (Q7). 2 formes, stats

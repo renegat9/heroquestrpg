@@ -477,6 +477,8 @@ final class SceneDeTable
                 'increvable_une_fois' => 'tient debout à 1 PV',
                 'jeton_ombre' => 'le coup est absorbé par un jeton d\'ombre',
                 'sacrifice_de_vrille' => 'sacrifie une Vrille et tient debout à 1 PV',
+                'redirige_attaque' => 'détourne l\'attaque sur un autre héros',
+                'reflexion' => 'renvoie le coup sur un héros en vue',
                 default => $mecanique,
             }],
         ];

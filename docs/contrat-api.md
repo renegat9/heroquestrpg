@@ -4663,3 +4663,46 @@ dans la branche de `ouvrirNouveauTour()` : la quête continue, Zargon joue encor
 
 - Présente seulement dans la branche « donjon nettoyé » (où `tour_monstres` n'existe pas) : la liste des payloads
   `danger_*` joués ce tour. Dans les autres cas les mouvements passent par `tour_monstres` (la phase des monstres).
+
+## Magrian (Rise of the Dread Moon) et le Deflect de Gruzbella — réactions nouvelles (chantier EXT-MAGRIAN, 2026-10-23)
+
+**Contrat ajouté avant le payload**, comme la règle l'exige. Toutes ces réactions sont à usage unique, sans action,
+pour la rencontre (`capacites_reactives_utilisees`, colonne du snapshot) ; le vocabulaire est fermé
+(`MotsClesReactionMj::CAPACITES`, testé dans les deux sens).
+
+- **`reactions_mj[]`** (*Le MJ réagit au sort d'un héros*) — nouvelle `mecanique` **`"consomme_magie"`** (*Consume Magic*),
+  `issue: "annule"` : le sort est annulé (`sort_annule: true`, sans effet) et le porteur regagne des PV de Body.
+  Champ ajouté : **`soin`** (entier) = PV de Body réellement regagnés, plafonnés au maximum de la figure (`0` si elle y
+  est déjà). Politique : la capacité ne vise que le sort qui prend le camp du MJ (un sort sans cible monstre n'est pas
+  une réaction), quel que soit le monstre visé ; elle n'exige ni vue, ni éveil.
+
+- **`reaction_monstre`** (valeur d'une action qui blesse une figure, et entrée de journal `type: "reaction_monstre"`) —
+  deux valeurs nouvelles :
+  - **`"redirige_attaque"`** (*Deflect* de Gruzbella) : l'action est une `attaque` de HÉROS dont la **cible est un HÉROS** :
+    `cible: {personnage_id, nom}`, `personnage` (l'attaquant), `touches`, `boucliers`, `degats`, `pv_body_apres` (du héros
+    frappé), `cible_tombee`, et **`detournee_de: {instance_id, nom}`** (la figure qui a détourné le coup). Le héros frappé
+    répond avec SA défense (`HerosJoueParLeMj::frapperUnHeros()`, la même frappe que la Domination).
+  - **`"reflexion"`** (*Reflection* de Magrian) : le coup qui l'aurait achevée retombe sur un héros en vue. L'action
+    d'attaque porte `degats: 0` et `pv_body_apres` de la figure **inchangé**. L'entrée de journal `reaction_monstre`
+    (`mecanique: "reflexion"`) porte **`cible: {personnage_id, nom}`** : c'est elle qui nomme le héros touché, et les
+    dégâts qu'il subit sont ceux du coup, sans jet de défense.
+
+- **Événements `reaction_monstre` de début de tour** :
+  - **`mecanique: "terreur"`** (*Terror*) — posée au début du tour du PREMIER héros (ordre de la liste des états) qui a
+    une figure en vue capable de Terror, `cible: {personnage_id, nom}`. Pour CE tour seulement, la figure est
+    intouchable par les sorts et les coups de ce héros : le menu ne propose pas la cible (`ciblesPourArme`,
+    `ciblesBalayees`, `genererBrut`, liste des sorts), et le résolveur refuse (`frapper()`, rayon, zone). Levée à la fin
+    de SON tour (« Terminer le tour ») : un événement `condition_terminee` (`condition: "terrorisé…"`,
+    `pourquoi: "la durée est écoulée"`) l'annonce. Un filet au début du tour du MJ lève toute Terreur restante.
+    État durable : `habillage.conditions.terrorise` (libellé `terrorisé (intouchable pour le héros dont c'est le tour)`)
+    et `habillage.terreur_de` (identifiant du héros désigné).
+  - **`mecanique: "realite_decalee"`** (*Shift Reality*) — au début du tour du MJ, avant les créatures : `sort` = le nom
+    du sort de Dread lancé (le premier de son répertoire encore disponible, dans l'ordre du répertoire). Le sort qui suit
+    est un `sort_dread` ordinaire, qui paie son budget (sauf « à volonté »). Sans sort utilisable, rien n'est dépensé.
+
+- **`attaque`** — champ **`detournee_de`** `{instance_id, nom}` uniquement sur une frappe détournée (voir
+  `redirige_attaque` ci-dessus). Le fil de combat le lit via la phrase de `reaction_monstre`.
+
+Rendu : **sans nouveau code front** — les phrases sont dans `JournalCombat` (`reaction_monstre`, `reactions_mj`),
+`LignesEffetsAutomatiques` (entrées de journal), `SceneDeTable` (défense réactive) ; le compendium
+(`resources/js/compendium.js`) porte les libellés des cinq clés.

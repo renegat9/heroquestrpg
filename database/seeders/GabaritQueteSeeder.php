@@ -404,7 +404,10 @@ class GabaritQueteSeeder extends Seeder
                         // de passage, comme partout ailleurs.
                         'archetypes' => [
                             'seigneur_du_chaos', 'necromancien', 'maitre_tempetes',
-                            'spectre_effroi', 'archimage_elfe', 'horreur_glacee',
+                            // MAGRIAN, LE DREAD WRAITH (boss FINAL de Rise of the Dread Moon, quête 10 — chantier EXT-MAGRIAN, 2026-10-23) : son
+                            // archétype À SON NOM remplace celui de l'Ombre (qui n'entre plus ici : sous-boss de la boîte). Réservé à
+                            // son thème (`reserve_a_son_theme`) : jamais tiré hors de Rise of the Dread Moon.
+                            'magrian', 'archimage_elfe', 'horreur_glacee',
                             // GRETZL LA PORTE-FLÉAU (Jungles of Delthrak, chantier
                             // monstre à phases 2026-10-04) : premier boss du thème
                             // `jungles_delthrak`, resté sans boss depuis le premier

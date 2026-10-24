@@ -133,6 +133,12 @@ it('remplit un POOL d\'archétypes dans chaque gabarit à rencontre finale', fun
         $desactivees = Monstre::whereIn('boite', array_keys(DemarreurQuete::BOITES_INCOMPLETES))
             ->pluck('nom_base')->all();
 
+        // ⚠ Une créature RETIRÉE DES POOLS par décision écrite a le même droit, nommée ici avec sa raison (retirer un contenu
+        // est un choix écrit, jamais une omission). L'Ombre du Dread (Dread Wraith générique, Rise of the Dread Moon) n'est plus
+        // le boss final de sa boîte : Magrian la remplace dans « Confrontation finale » (chantier EXT-MAGRIAN, 2026-10-23). Sa
+        // ligne de bestiaire est conservée, sans rôle dans les pools (`docs/plan-dread-moon.md`, Exécution).
+        $retiresParDecision = ['Ombre du Dread'];
+
         // ⚠ Une PHASE qui n'est pas la première d'une chaîne a aussi le droit
         // d'être inatteignable À L'ACHAT (chantier monstre à phases,
         // 2026-10-04) : Gruzbella Déterminée/Imprudente, Spawn of the Pit
@@ -156,7 +162,8 @@ it('remplit un POOL d\'archétypes dans chaque gabarit à rencontre finale', fun
 
         $orphelins = Monstre::where('tier', $tier)->pluck('nom_base')
             ->reject(fn ($n) => in_array($n, $atteignables, true) || in_array($n, $desactivees, true)
-                || in_array($n, $phasesSuivantes, true) || in_array($n, $formesDePioche, true))
+                || in_array($n, $phasesSuivantes, true) || in_array($n, $formesDePioche, true)
+                || in_array($n, $retiresParDecision, true))
             ->values()->all();
 
         expect($orphelins)->toBe([],

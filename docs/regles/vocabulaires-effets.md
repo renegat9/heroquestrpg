@@ -50,3 +50,16 @@ nommé dans `MECANIQUES`, confronté aux sorts DANS LES DEUX SENS par `SortsDrea
 **L'acide est une NATURE de plus, et la Mare n'est pas une fosse** (chantier EXT-CRYPTE, 2026-10-23, `App\Engine\TypeDegat::ACIDE`). Sources : le Souffle Acide (`SortDreadSeeder`, carte-sœur de Tempête de feu, Venim) et la Mare d'acide (`PiegeSeeder`, `effet.type_degat` avec `des_combat`). Lecteur : `MoteurSorts::absorbeDegat()`, le même point de passage que le feu et le froid, consulté par les sorts de Dread, les sorts de héros et le terrain, et désormais par `MoteurPieges::declencher()` pour un piège TYPÉ seulement (Fosse, lances et blocs n'en portent pas : rien à intercepter). Aucune pièce du catalogue ne porte encore `immunite_degat: acide` : le lecteur est en place, non alimenté. La valeur `acide` a sa ligne dans la table des valeurs lisibles de `MotsClesEquipement` (sans elle, le remplacement générique la dirait en slug).
 
 ⚠ **Une mare n'est pas un trou** : `effet.mare` (`MoteurPieges::estMare()`) sort un piège persistant et sautable de `estFosse()`. Ni Forme démoniaque, ni Potion de dextérité, ni immobilisation ne s'y appliquent. Une fois déclenchée, elle passe à l'état `mare_acide`, reste armée, connue et sautable, et se déclenche à chaque pas.
+
+**Une Terreur dure le tour d'UN héros, et non un nombre de tours (chantier EXT-MAGRIAN, 2026-10-23).** *Terror* (Magrian,
+F6646 p. 33 : « For the remainder of that hero's turn, Magrian cannot be the target of spells or attacks ») n'est ni `ce_tour` (un
+buff de héros), ni un compte à rebours en tours du MJ (`poserConditionMonstre($cle, $n)`). La condition `terrorise` est donc
+posée à `true` et LIÉE au héros qui la subit (`habillage.terreur_de`) ; elle tombe à la fin de SON tour (`marquerCreneau()`,
+là où `ce_tour` expire), et un filet au début du tour du MJ lève toute Terreur qui aurait survécu. Une condition à durée
+« jusqu'à la fin du tour du héros » n'a pas de compteur : sans liaison au héros, elle tiendrait aussi les tours des autres.
+La liste de sorts (`ciblesMonstres`) la compte comme immunité totale — exact, puisque seul le héros désigné agit pendant sa
+fenêtre — tandis que les coups, rayons et balayages lisent le prédicat exact par héros (`terrorisePour()`).
+
+**Réactions du MJ — clés ajoutées (2026-10-23)** : `consomme_magie`, `redirige_attaque`, `reflexion`, `terreur`,
+`realite_decalee` (`MotsClesReactionMj::CAPACITES`, lecteurs dans `docs/regles/sorts-dread.md` §« Magrian »). Le registre
+`NON_IMPLEMENTEES` est vide : il reste là pour une réaction que le livret NOMME et que le moteur ne joue pas encore.

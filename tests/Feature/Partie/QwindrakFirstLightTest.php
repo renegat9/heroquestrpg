@@ -828,8 +828,10 @@ it('seul un HÉROS déclenche le météore : `meteoreDu()` n\'a que deux appelan
         $appelants[] = end($fonctions[1]);
     }
 
-    // Trois appels : `frapper()` en a deux (la voie Vindication et le retour standard), `sousReactionMj()` un.
-    expect(collect($appelants)->sort()->values()->all())->toBe(['frapper', 'frapper', 'sousReactionMj'])
+    // Quatre appels : `frapper()` en a TROIS (la voie Vindication, le retour standard, et la frappe DÉTOURNÉE par le Deflect
+    // de Gruzbella, chantier EXT-MAGRIAN 2026-10-23 : une attaque de héros résolue contre une figure vaut météore, qu'elle
+    // touche ou non), `sousReactionMj()` un. Un allié n'y figure toujours pas.
+    expect(collect($appelants)->sort()->values()->all())->toBe(['frapper', 'frapper', 'frapper', 'sousReactionMj'])
         ->and(substr_count($source, 'function resoudreAttaqueAllie('))->toBe(1); // les alliés existent : la garde compte
 });
 

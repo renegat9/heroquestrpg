@@ -19,8 +19,8 @@ use Illuminate\Support\Collection;
  * `MoteurReactions` ne parle qu'aux héros : il pose une offre sur un canal privé et
  * attend la réponse d'un téléphone. Ici c'est le MJ qui réagit, sans joueur à
  * consulter — la résolution est SYNCHRONE, dans la requête du héros qui lance, et
- * c'est le MOTEUR qui décide (le MJ IA ne choisit jamais une mécanique). Quatre
- * cartes y sont branchées, par un seul point d'entrée :
+ * c'est le MOTEUR qui décide (le MJ IA ne choisit jamais une mécanique). Cinq
+ * réactions y sont branchées, par un seul point d'entrée :
  *
  *  - *Dispel* de Gretzl (capacité, `annule_sort_ciblant`) : annule le sort qui la
  *    prend pour cible, sans jet ;
@@ -29,7 +29,17 @@ use Illuminate\Support\Collection;
  *  - *Mirror Magic* (sort de Dread `renvoie`) : le sort qui visait le lanceur du
  *    MJ retombe sur le héros qui l'a lancé ;
  *  - *Break* de Gruzbella (capacité, `rompt_sort_actif`) : défait, APRÈS l'effet,
- *    ce que le sort a posé sur elle.
+ *    ce que le sort a posé sur elle ;
+ *  - *Consume Magic* de Magrian (capacité, `consomme_magie`, EXT-MAGRIAN 2026-10-23) :
+ *    annule le sort qui prend le camp du MJ, et rend 2 PV de Body à Magrian.
+ *
+ * Deux autres réactions de Magrian et de Gruzbella ne passent PAS par cette couture,
+ * parce qu'elles ne se jouent pas sur un sort : le *Deflect* (`redirige_attaque`, lu par
+ * `ResolveurTour::frapper()` avant le jet, `deflechirAttaque()`), et la *Reflection*
+ * (`reflexion`, lue au coup fatal par `MoteurDegats`, `reflechirCoup()`). Les deux
+ * partagent le choix du héros qui encaisse, `herosQuiEncaisse()`. Les capacités de
+ * début de tour (*Terror*, *Shift Reality*) se posent dans `ouvrirTourDesHeros()` et
+ * `phaseMonstres()`.
  *
  * ## Où, et quand
  *
@@ -85,6 +95,20 @@ final class ReactionsMj
     /** *Break* : le sort a pris, puis ses effets sont levés. */
     public const ISSUE_ROMPU = 'rompu';
 
+    /** *Deflect* : l'attaque part vers un autre héros (`ResolveurTour::frapper()`, le coup n'atteint pas la figure). */
+    public const ISSUE_DETOURNE = 'detourne';
+
+    /** *Consume Magic* rend 2 PV de Body au porteur (« Magrian regains 2 Body Points », p. 33). */
+    private const SOIN_CONSUME_MAGIC = 2;
+
+    /** Portée de *Deflect* : « any one hero in Gruzbella's surrounding 10 squares » (F9528 p. 25). */
+    private const PORTEE_DETOURNEMENT = 10;
+
+    /** Les deux portées du point de passage unique `herosQuiEncaisse()`. */
+    public const PORTEE_DIX_CASES = 'dix_cases';
+
+    public const PORTEE_EN_VUE = 'en_vue';
+
     public function __construct(
         private readonly LanceurDes $des,
         private readonly MoteurSorts $sorts,
@@ -113,8 +137,94 @@ final class ReactionsMj
         }
 
         return $this->annulerSortCiblant($visees)
+            ?? $this->consommerMagie($quete)
             ?? $this->renvoyer($quete, $visees, $cibleUnique)
             ?? $this->dissiper($quete, $lanceur, $etat, $visees);
+    }
+
+    /**
+     * *Deflect* (Gruzbella, Against the Ogre Horde p. 25) — « Use when Gruzbella would be the target of an attack.
+     * You can instead direct the attack to any one hero in Gruzbella's surrounding 10 squares. »
+     *
+     * Décidé AVANT le jet, dans `ResolveurTour::frapper()` : c'est le seul moment où la carte se joue (« would be
+     * the target »). Le résultat du jet n'est donc pas encore connu : la politique écrite de la Résilience (ne
+     * jamais gaspiller sur une égratignure) est transposée ainsi — la capacité ne sort que pour un coup qui
+     * POURRAIT achever la figure (dés d'attaque ≥ Body restant), et seulement s'il existe un héros à 10 cases
+     * au plus, autre que l'auteur du coup. Sans cible valable, rien ne se détourne et la capacité reste intacte.
+     *
+     * Rend le héros qui reçoit l'attaque (sa défense répond, `HerosJoueParLeMj::frapperUnHeros()`), ou `null`.
+     */
+    public function deflechirAttaque(Quete $quete, InstanceMonstre $cible, Personnage $agresseur, int $desAttaque): ?EtatPersonnageQuete
+    {
+        if (! $this->capaciteJouable($cible, Mot::REDIRIGE_ATTAQUE) || $desAttaque < (int) $cible->pv_body) {
+            return null;
+        }
+
+        $victime = $this->herosQuiEncaisse($quete, $cible, self::PORTEE_DIX_CASES, (int) $agresseur->id);
+
+        if ($victime === null) {
+            return null;
+        }
+
+        $cible->consommerReaction(Mot::REDIRIGE_ATTAQUE);
+
+        return $victime;
+    }
+
+    /**
+     * *Reflection* (Magrian, Rise of the Dread Moon p. 33) — « Use immediately after Magrian receives damage.
+     * Choose a hero in Magrian's line of sight; that hero takes the damage instead. »
+     *
+     * Appelée par `MoteurDegats::infligerAMonstreBrut()` AU COUP QUI ACHÈVERAIT la figure, après la Résilience et
+     * l'Increvable : c'est la politique écrite des défenses à usage unique (`MoteurDegats`). Le héros est tiré par
+     * le même point de passage que le *Deflect* (`herosQuiEncaisse()`), en vue du porteur ; l'auteur du coup y
+     * figure, la carte ne l'exclut pas. La capacité est dépensée.
+     */
+    public function reflechirCoup(InstanceMonstre $porteur): ?EtatPersonnageQuete
+    {
+        $quete = $porteur->quete;
+
+        if ($quete === null || ! $this->capaciteJouable($porteur, Mot::REFLEXION)) {
+            return null;
+        }
+
+        $victime = $this->herosQuiEncaisse($quete, $porteur, self::PORTEE_EN_VUE, null);
+
+        if ($victime === null) {
+            return null;
+        }
+
+        $porteur->consommerReaction(Mot::REFLEXION);
+
+        return $victime;
+    }
+
+    /**
+     * LE POINT DE PASSAGE UNIQUE du héros qui encaisse À LA PLACE de la figure — *Deflect* et *Reflection* y lisent
+     * le même choix, jamais une seconde copie. Portée `dix_cases` (distance géométrique en cases orthogonales, au plus
+     * `PORTEE_DETOURNEMENT`) ou `en_vue` (`MoteurDread::voitLeHeros()`, la ligne de vue des sorts
+     * de Dread). Ne désigne que des héros debout, et jamais `$exclu`. Le PLUS BLESSÉ (Body le plus bas, puis le plus
+     * ancien) : décision de portage, écrite ici une fois, qu'aucun appelant ne refait.
+     */
+    public function herosQuiEncaisse(Quete $quete, InstanceMonstre $porteur, string $portee, ?int $exclu): ?EtatPersonnageQuete
+    {
+        $candidats = $quete->etatsPersonnages()->with('personnage')->orderBy('id')->get()
+            ->filter(function (EtatPersonnageQuete $etat) use ($porteur, $portee, $exclu, $quete): bool {
+                if ($etat->personnage === null || $etat->tombe || (int) $etat->personnage->id === $exclu) {
+                    return false;
+                }
+
+                return match ($portee) {
+                    // Géométrique, en cases orthogonales (Manhattan, comme `MoteurDread::distance()`) : « surrounding 10
+                    // squares ». Pas un parcours : une case occupée par le héros visé ne doit pas rendre la portée nulle.
+                    self::PORTEE_DIX_CASES => abs((int) $porteur->position_x - (int) $etat->position_x)
+                        + abs((int) $porteur->position_y - (int) $etat->position_y) <= self::PORTEE_DETOURNEMENT,
+                    self::PORTEE_EN_VUE => $this->dread->voitLeHeros($quete, $porteur, $etat),
+                    default => throw new \LogicException("Portée de redirection inconnue : {$portee}."),
+                };
+            });
+
+        return $candidats->sortBy(fn (EtatPersonnageQuete $etat) => (int) $etat->personnage->pv_body)->first();
     }
 
     /**
@@ -212,6 +322,39 @@ final class ReactionsMj
             $visee->consommerReaction(Mot::ANNULE_SORT_CIBLANT);
 
             return $this->decision(self::ISSUE_ANNULE, Mot::ANNULE_SORT_CIBLANT, $visee);
+        }
+
+        return null;
+    }
+
+    /**
+     * *Consume Magic* (Magrian, Rise of the Dread Moon p. 33) — « Use immediately after a hero casts a spell on their
+     * turn. The spell is canceled. Magrian regains 2 Body Points. »
+     *
+     * Clé `consomme_magie` (`MotsClesReactionMj::CONSOMME_MAGIE`). Capacité GRATUITE et sans cible : elle vaut pour le sort qui prend le camp du MJ (`$visees` non vide, politique
+     * de `auSortDeHeros()`), quel que soit le monstre visé, et la figure qui la porte n'a besoin ni d'être visée ni
+     * d'être en vue — la carte ne le demande pas. Aucune réserve de sommeil ni de paralysie (« no action required »).
+     * Le soin est plafonné au maximum de la figure ; la décision dit ce qui a réellement été regagné.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function consommerMagie(Quete $quete): ?array
+    {
+        $porteurs = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+            ->whereNull('controle_par')->with('monstre')->orderBy('id')->get();
+
+        foreach ($porteurs as $porteur) {
+            if (! $this->capaciteJouable($porteur, Mot::CONSOMME_MAGIE)) {
+                continue;
+            }
+
+            $avant = (int) $porteur->pv_body;
+            $apres = min($porteur->pvBodyMax(), $avant + self::SOIN_CONSUME_MAGIC);
+
+            $porteur->update(['pv_body' => $apres]);
+            $porteur->consommerReaction(Mot::CONSOMME_MAGIE);
+
+            return $this->decision(self::ISSUE_ANNULE, Mot::CONSOMME_MAGIE, $porteur, null, ['soin' => $apres - $avant]);
         }
 
         return null;

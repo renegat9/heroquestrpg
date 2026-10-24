@@ -122,8 +122,13 @@ it('la Crypte n\'a AUCUN monstre de tier base, et chacune de ses créatures est 
         expect($m->reserveASonTheme())->toBeTrue($m->nom_base);
     }
 
-    // Et hors de la Crypte, rien ne porte la réserve : la capacité ne fuit pas vers les autres boîtes.
-    expect(Monstre::where('boite', '!=', CRYPTE_THEME)->get()->filter(fn (Monstre $m) => $m->reserveASonTheme())->count())->toBe(0);
+    // Et hors de la Crypte, la réserve ne fuit pas : elle ne porte QUE les créatures qu'on a déclarées réservées à leur boîte.
+    // Magrian (Rise of the Dread Moon, chantier EXT-MAGRIAN, 2026-10-23) est la seule : réservée à `dread_moon`, jamais à la Crypte.
+    $reservesHorsCrypte = Monstre::where('boite', '!=', CRYPTE_THEME)->get()
+        ->filter(fn (Monstre $m) => $m->reserveASonTheme())
+        ->pluck('nom_base')->sort()->values()->all();
+
+    expect($reservesHorsCrypte)->toBe(['Magrian']);
 });
 
 it('l\'escorte d\'une campagne de la Crypte vient du jeu de base, comme celle de toute boîte sans base', function () {

@@ -215,3 +215,21 @@ Lot C de `docs/plan-kellars-keep.md` (+ Bellthor, Witch Lord q. 5). **Une seule 
 **La réserve de thème `reserve_a_son_theme`** (`App\Engine\MotsClesAdversaires::RESERVE_A_SON_THEME`, lecteur `Monstre::reserveASonTheme()`). Pourquoi elle existe : le pool de rencontre se resserre sur le thème SEULEMENT s'il y a des candidats de ce thème, sinon il reste entier. La Première Lumière n'a aucun sous-boss, donc un sous-boss de la Crypte, nommé dans le pool sous-boss partagé, sortirait dans ses campagnes. La réserve filtre le pool AVANT la préférence de thème, sur les trois chemins de `DemarreurQuete::acheterMonstres()` (pool nommé, repli, masse). Chaque créature de la Crypte la porte. `ThemeCryptTest` vérifie qu'aucun de ces monstres ne sort hors de la Crypte, sur toutes les graines et tous les arcs.
 
 **Les écarts de portage** (lisibles dans `docs/plan-crypte-tenebres.md`, « Exécution (2026-10-23) ») : la Mind du Crâne est `0` faute de source ; le saut de la Mare et sa fin de tour suivent les pièges de sol, faute de phrase dans le livret ; les sous-boss n'ont ni le coffre piégé de la quête 4 ni la Couronne de la quête 9 ; Venim n'a pas de taille sourcée (1 × 1).
+
+## Magrian, le Dread Wraith — boss final de Rise of the Dread Moon (chantier EXT-MAGRIAN, 2026-10-23)
+
+- **Fiche** (F6646 p. 33, relue sur le rendu PNG ; tableau p. 36 identique) : Move 9 · Attack 6 · Defend 4 · Body 5 · Mind 5,
+  éthéré (`ethere`). Boîte `dread_moon`, tier `boss`, archétype `magrian` (répertoire *Dreadlights, Channel Dread, Fear,
+  Summon Specters*, une fois par quête chacun). Quatre capacités à usage unique (`reactions_defense` : `terreur`,
+  `consomme_magie`, `reflexion`, `realite_decalee`) — détail dans `docs/regles/sorts-dread.md` §« Magrian ».
+- **`reserve_a_son_theme`** : Magrian n'est tiré que sous `dread_moon` (jamais en repli hors de sa boîte).
+- **`cout` MESURÉ** — méthode de ce document : attaques d'un héros à 3 dés pour l'abattre = `Body / (1,5 − Défense/6)` =
+  5 / (1,5 − 4/6) = 6,0, puis droite des boss (Seigneur 15 → 20, pente 0,5) : 20 + 0,5 × (6,0 − 15) = 15,5 → **16**, comme Venim.
+  ⚠ **Mesure non valable pour un éthéré** : seuls les boucliers noirs blessent (1/6), et un héros à 3 dés ne fait aucun dégât net
+  contre une défense de 4. Les stats du livret sont gardées ; l'écart est À TRANCHER PAR RENÉ (`docs/plan-dread-moon.md`, Exécution).
+- **L'Ombre du Dread** (Dread Wraith générique, D3 déclaré) n'est plus dans le pool de la rencontre finale : Magrian la remplace.
+  Ligne de bestiaire conservée, sans rôle dans les pools (un sous-boss de 17 à l'achat déplacerait les rencontres de la boîte).
+- **Non porté** (écrit, `docs/plan-dread-moon.md`) : l'image-miroir de la première rencontre (salles C et D), le soin de la salle C,
+  l'empowerment de la quête — règles d'une seule quête.
+- **Gruzbella Hammerhand** (trois phases) : `redirige_attaque` (*Deflect*) rejoint `ignore_degats_attaque` et `rompt_sort_actif`
+  sur les trois phases. Le `cout` de Gruzbella ne change pas (23).
