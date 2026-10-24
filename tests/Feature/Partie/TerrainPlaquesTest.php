@@ -635,6 +635,32 @@ it('publie groupe_id et UNE ancre par groupe, ne publie que les cases sous un br
         ->and($isolee[0]['ancre'])->toBeFalse('une case isolée ne porte pas d\'icône de plaque');
 });
 
+it('publie l\'ÉTENDUE d\'une plaque rectangulaire sur son ancre (icône centrée), et rien pour un L', function () {
+    // Vérification à l'écran du 2026-10-24 : sans étendue, l'icône d'une Mare 2×2 tombait dans le coin haut-gauche du bloc.
+    $methode = new ReflectionMethod(EtatGroupe::class, 'marquerAncresDePlaques');
+    $methode->setAccessible(true);
+
+    $entrees = [];
+
+    foreach ([[1, 1], [2, 1], [1, 2], [2, 2]] as [$x, $y]) {
+        $entrees[] = ['x' => $x, 'y' => $y, 'groupe_id' => 'bloc-1'];
+    }
+
+    foreach ([[6, 1], [6, 2], [7, 2]] as [$x, $y]) {
+        $entrees[] = ['x' => $x, 'y' => $y, 'groupe_id' => 'motif-1'];   // un L de trois : son rectangle 2×2 n'est pas plein
+    }
+
+    $entrees[] = ['x' => 9, 'y' => 9, 'groupe_id' => null];
+
+    $sortie = $methode->invoke(app(EtatGroupe::class), $entrees);
+    $ancres = array_values(array_filter($sortie, fn (array $e) => $e['ancre']));
+
+    expect($ancres)->toHaveCount(2)
+        ->and($ancres[0]['etendue'])->toBe(['x' => 1, 'y' => 1, 'l' => 2, 'h' => 2], 'le bloc 2×2 se centre sur ses quatre cases')
+        ->and($ancres[1]['etendue'])->toBeNull('un L garde son icône sur la case d\'ancre')
+        ->and(array_filter($sortie, fn (array $e) => ! $e['ancre'] && $e['etendue'] !== null))->toBe([], 'l\'étendue ne vit que sur l\'ancre');
+});
+
 it('désigne l\'ancre au centre de la boîte du groupe, et la première case à égalité', function () {
     $methode = new ReflectionMethod(EtatGroupe::class, 'marquerAncresDePlaques');
     $methode->setAccessible(true);

@@ -223,7 +223,9 @@ const doors = computed(() => (props.carte.portes ?? [])
             v-for="(p, i) in plaques"
             :key="`pl-${p.x}-${p.y}-${i}`"
             class="dg-plaque-holder"
-            :style="{ gridColumn: p.x + 1, gridRow: p.y + 1 }"
+            :style="p.etendue
+                ? { gridColumn: `${p.etendue.x + 1} / span ${p.etendue.l}`, gridRow: `${p.etendue.y + 1} / span ${p.etendue.h}` }
+                : { gridColumn: p.x + 1, gridRow: p.y + 1 }"
         >
             <div class="dg-plaque" :title="titreTerrain(p.x, p.y)">
                 <MSym :n="iconePlaque(p)" fill />
@@ -462,11 +464,28 @@ const doors = computed(() => (props.carte.portes ?? [])
 /* Jungles of Delthrak : `gene` (terrain gênant, hachure vert-brun), `eau` (la
    Mare, teinte d'eau), `feu` (le Brasier, hachure orangée). Même principe que
    `danger` : la hachure porte l'information en niveaux de gris. */
-.dg-cell.terrain-gene {
+/* Les trois terrains gênants avaient UNE teinte commune (`gene`) : sur la carte, jungle, toile et sable étaient
+   identiques (vérification sur une vraie quête, 2026-10-24). Une teinte chacun, toujours lisible en niveaux de gris
+   par son MOTIF : hachure simple (jungle), fils fins croisés pâles (toile), mouchetis (sable). La hachure croisée
+   épaisse reste aux Sables mouvants : « ne se traverse pas à pied ». */
+.dg-cell.terrain-jungle {
   background:
-    repeating-linear-gradient(45deg, oklch(0.72 0.10 110 / 0.26) 0 3px, transparent 3px 8px),
-    linear-gradient(150deg, oklch(0.31 0.06 120), oklch(0.23 0.05 115));
-  box-shadow: inset 0 0 0 1px oklch(0.72 0.10 110 / 0.45);
+    repeating-linear-gradient(45deg, oklch(0.72 0.14 140 / 0.30) 0 3px, transparent 3px 8px),
+    linear-gradient(150deg, oklch(0.33 0.09 145), oklch(0.24 0.07 140));
+  box-shadow: inset 0 0 0 1px oklch(0.72 0.14 140 / 0.5);
+}
+.dg-cell.terrain-toile {
+  background:
+    repeating-linear-gradient(30deg, oklch(0.90 0.01 260 / 0.30) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(-30deg, oklch(0.90 0.01 260 / 0.22) 0 1px, transparent 1px 7px),
+    linear-gradient(150deg, oklch(0.32 0.01 260), oklch(0.22 0.01 260));
+  box-shadow: inset 0 0 0 1px oklch(0.85 0.01 260 / 0.45);
+}
+.dg-cell.terrain-sable {
+  background:
+    radial-gradient(oklch(0.88 0.08 85 / 0.40) 1px, transparent 1.6px) 0 0 / 6px 6px,
+    linear-gradient(150deg, oklch(0.44 0.08 78), oklch(0.33 0.06 72));
+  box-shadow: inset 0 0 0 1px oklch(0.85 0.09 85 / 0.5);
 }
 .dg-cell.terrain-eau {
   background: linear-gradient(150deg, oklch(0.36 0.09 215), oklch(0.26 0.07 220));
@@ -492,7 +511,9 @@ const doors = computed(() => (props.carte.portes ?? [])
 /* ---- plaque de terrain (Jungles of Delthrak, 2026-10-24) : UNE icône par bloc ou motif, sur la case d'ancre du serveur.
    Centrée dans sa case, à la taille des glyphes du donjon (lisible à 38 px sur la manette) ; `pointer-events: none` :
    le toucher de la manette tombe sur la case, jamais sur l'icône. ---- */
-.dg-plaque-holder { display: flex; align-items: center; justify-content: center; pointer-events: none; }
+/* ⚠ `position` + `z-index` (2026-10-24) : sans eux, le fond de `.dg-cell` (positionnée) RECOUVRAIT l'icône — aucune plaque
+   n'en montrait une, sur la table comme sur la manette. Même pile que le mobilier (`.dg-furn-holder`). */
+.dg-plaque-holder { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 .dg-plaque {
   font-size: calc(var(--dg-icone) * 1.6);
   line-height: 1;

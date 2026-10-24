@@ -209,9 +209,10 @@ export const TERRAIN_TEINTES = {
     // (sable, toile, jungle : coûte 2 points), `eau` (la Mare : on la
     // traverse, on n'y finit pas, on y boit en fouillant) et `feu` (le
     // Brasier : on le traverse, un dé de combat, un crâne fait mal).
-    'Sable entravant': 'gene',
-    'Toile entravante': 'gene',
-    'Jungle entravante': 'gene',
+    // ⚠ Une teinte CHACUN depuis le 2026-10-24 : sous la teinte commune `gene`, les trois étaient identiques sur la carte.
+    'Sable entravant': 'sable',
+    'Toile entravante': 'toile',
+    'Jungle entravante': 'jungle',
     'Mare': 'eau',
     'Brasier': 'feu',
     // The Mage of the Mirror (F7539 p. 29, 2026-10-15) : les SABLES MOUVANTS, le seul terrain

@@ -1000,7 +1000,7 @@ final class EtatGroupe
      * brouillard répond directement à « cette case est-elle vue ? ».
      *
      * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
-     * @return list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string, groupe_id: ?string, ancre: bool, entravant: bool, interdit_arret: bool, image_url: ?string}>
+     * @return list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string, groupe_id: ?string, ancre: bool, etendue: ?array{x: int, y: int, l: int, h: int}, entravant: bool, interdit_arret: bool, image_url: ?string}>
      */
     private function terrain(Carte $carte, array $cases): array
     {
@@ -1057,6 +1057,7 @@ final class EtatGroupe
      * `ancre` vaut `true` sur la case du groupe la plus proche du centre de sa boîte, PARMI LES CASES VISIBLES (le brouillard
      * a déjà filtré). La table et la manette dessinent l'icône là où la décision est publiée — elles ne recalculent ni le
      * centre ni le groupe. Une case sans groupe porte `ancre: false`. Égalité : la première case dans l'ordre de la carte.
+     * `etendue` (sur l'ancre seulement) : le rectangle des cases visibles du groupe s'il est PLEIN, où l'icône se centre.
      *
      * @param  list<array<string, mixed>>  $entrees
      * @return list<array<string, mixed>>
@@ -1067,6 +1068,7 @@ final class EtatGroupe
 
         foreach ($entrees as $index => $entree) {
             $entrees[$index]['ancre'] = false;
+            $entrees[$index]['etendue'] = null;
 
             if ($entree['groupe_id'] !== null) {
                 $parGroupe[$entree['groupe_id']][] = $index;
@@ -1092,6 +1094,16 @@ final class EtatGroupe
             }
 
             $entrees[$meilleur]['ancre'] = true;
+
+            // ÉTENDUE (2026-10-24) : quand les cases VISIBLES remplissent leur rectangle (bloc 2×2, bande, ligne), l'icône se
+            // CENTRE sur tout le rectangle — sans quoi elle tombait dans le coin haut-gauche d'une Mare. Une forme qui ne
+            // le remplit pas (un L) garde l'icône sur sa case d'ancre : un centre de boîte y tomberait hors de la plaque.
+            $l = max($xs) - min($xs) + 1;
+            $h = max($ys) - min($ys) + 1;
+
+            if (count($indices) === $l * $h) {
+                $entrees[$meilleur]['etendue'] = ['x' => min($xs), 'y' => min($ys), 'l' => $l, 'h' => $h];
+            }
         }
 
         return $entrees;

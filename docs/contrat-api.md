@@ -4403,7 +4403,11 @@ druide aux Ronces complices), jamais l'ingrédient. Les monstres **Agile** l'ign
 - `ancre` (`bool`) : **UNE case par groupe** porte `true` — celle du groupe, parmi les cases VISIBLES, la plus proche
   du centre de sa boîte. C'est là que la table et la manette dessinent l'icône unique de la plaque (`TERRAIN_ICONES`,
   `symboles.js`). Le client ne recalcule ni le groupe, ni l'ancre, ni la forme : il DESSINE ce qu'il reçoit.
-Les deux champs sont publiés pour toute entrée (`null`/`false` hors plaque), sans clé optionnelle.
+- `etendue` (`{x, y, l, h}|null`, 2026-10-24) : sur la case d'ANCRE seulement, le rectangle que couvrent les cases VISIBLES
+  du groupe QUAND elles le remplissent entièrement (un bloc 2×2, une bande, deux cases en ligne) — la table et la manette
+  y CENTRENT l'icône, au lieu de la poser dans le coin du bloc. `null` pour une forme qui ne remplit pas son rectangle
+  (un L) : l'icône reste sur la case d'ancre. `null` sur toute autre case.
+Les trois champs sont publiés pour toute entrée (`null`/`false` hors plaque), sans clé optionnelle.
 
 - **Mare** (*Pool of Water*) : BLOC 2×2 (une plaque, une icône) ; passage sans arrêt ; à la fouille de trésor d'une salle qui en
   contient une, option **`boire_mare`** (`type: boire_mare`, créneau d'action,

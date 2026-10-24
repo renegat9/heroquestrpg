@@ -680,3 +680,11 @@ Les terrains des cartes en cours gardent leur forme ; seule la prochaine carte a
 fait tomber TROIS tests — le brasier 2×2 du héros, celui du monstre, deux brasiers distincts ; réduire le bloc à une case
 (`positionsDeTerrain()`) fait tomber TROIS tests — la Mare refusée au plancher, le bloc entier, et les cartes réelles de Delthrak
 (une Mare posée hors de son bloc y est détectée).
+
+**Affichage des plaques, corrigé après vérification à l'écran (2026-10-24).** Une quête Delthrak réelle, capturée sur la table et
+la manette, a montré trois défauts que les tests ne voyaient pas : (1) **aucune icône de plaque n'apparaissait** — `.dg-plaque-holder`
+n'avait ni `position` ni `z-index`, et le fond de `.dg-cell` (positionnée) la recouvrait ; même pile que le mobilier désormais ;
+(2) **jungle, toile et sable partageaient la teinte `gene`** et étaient identiques à l'écran — une teinte chacun (`jungle` hachure
+verte, `toile` fils fins pâles, `sable` mouchetis ocre ; la hachure croisée épaisse reste aux Sables mouvants) ; (3) **l'icône d'un
+bloc 2×2 tombait dans son coin** — le serveur publie `etendue` sur l'ancre quand les cases visibles remplissent leur rectangle, et
+l'icône s'y centre (`docs/contrat-api.md`). Leçon : un rendu se vérifie à l'écran, un test de payload ne voit pas une icône masquée.
