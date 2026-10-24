@@ -55,13 +55,13 @@ function creaturesCrypte(?string $tier = null): array
         ->pluck('nom_base')->all();
 }
 
-it('ouvre la Crypte comme thème, À LA FIN de la rotation, avec son libellé officiel', function () {
+it('ouvre la Crypte comme thème, en entrée 10 de la rotation (Spirit Queen derrière elle), avec son libellé', function () {
     $boites = DemarreurQuete::BOITES_THEMATIQUES;
 
     expect(array_search(CRYPTE_THEME, $boites, true))->toBe(10)
-        ->and(collect($boites)->last())->toBe(CRYPTE_THEME)
+        ->and($boites[9])->toBe('kellars_keep')
         ->and(array_keys(DemarreurQuete::BOITES_INCOMPLETES))->not->toContain(CRYPTE_THEME)
-        ->and(DemarreurQuete::LIBELLES_BOITES[CRYPTE_THEME])->toBe("The Crypt of Perpetual Darkness (2024/2025, Joe Manganiello's)");
+        ->and(DemarreurQuete::LIBELLES_BOITES[CRYPTE_THEME])->toBe('The Crypt of Perpetual Darkness');
 });
 
 it('tire VENIM comme rencontre finale de TOUT groupe de la Crypte, à toute position d\'arc', function () {

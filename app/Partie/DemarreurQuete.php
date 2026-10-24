@@ -1021,9 +1021,9 @@ final class DemarreurQuete
         'kellars_keep' => "Kellar's Keep",
         // reference/18_extensions.md ligne 1376 : « Spirit Queen's Torment (2023) » — l'année appartient au titre de section.
         'spirit_queen' => "Spirit Queen's Torment",
-        // reference/18_extensions.md l. 1785 : « The Crypt of Perpetual Darkness (2024/2025, Joe Manganiello's) » — le
-        // titre de section, année comprise comme pour First Light. Thème allumé le 2026-10-23.
-        'crypte_tenebres' => "The Crypt of Perpetual Darkness (2024/2025, Joe Manganiello's)",
+        // reference/18_extensions.md l. 1785 : « The Crypt of Perpetual Darkness (2024/2025, Joe Manganiello's) » — comme
+        // pour First Light, l'année et la mention d'édition appartiennent au titre de section, jamais au nom de la boîte.
+        'crypte_tenebres' => 'The Crypt of Perpetual Darkness',
     ];
 
     /**
