@@ -615,16 +615,18 @@ it('un jeton OVALE d\'une figure 1×2 posée VERTICALE publie la forme « ovale 
 
 it('un jeton ROND reste rond sur une figure 1×2 : forme « rond », jamais tourné', function () {
     symbolesDossierJetable();
-    // Ogre guerrier : figure 1×2 au catalogue, mais jeton ROND au livret (`cles` → ogre-warrior, absent de `ovales`).
-    symbolesPoser('monstres/ogre-warrior.webp');
-    symbolesPoserMonstre(symbolesQuete(), 'Ogre guerrier');
+    // Horreur des Glaces : figure 1×2 au catalogue (son texte la nomme grand monstre), mais jeton ROND au livret
+    // (`cles` → frozen-horror, absent de `ovales`). Avant le 2026-10-29, l'Ogre guerrier tenait ce rôle ; il n'a plus qu'une case.
+    symbolesPoser('monstres/frozen-horror.webp');
+    symbolesPoserMonstre(symbolesQuete(), 'Horreur des Glaces');
 
-    $figure = symbolesFigureMonstre('Ogre guerrier');
+    $figure = symbolesFigureMonstre('Horreur des Glaces');
 
-    expect($figure['symbole_forme'])->toBe('rond')
+    expect($figure['emprise'])->toBe(['l' => 1, 'h' => 2])
+        ->and($figure['symbole_forme'])->toBe('rond')
         ->and($figure['symbole_rotation'])->toBe(0);
 
-    unlink(public_path('images/livrets/monstres/ogre-warrior.webp'));
+    unlink(public_path('images/livrets/monstres/frozen-horror.webp'));
 });
 
 it('la règle de rotation : 90 pour un ovale vertical, 0 à plat, carré, ou rond — et la forme ne se lit que dans la config', function () {

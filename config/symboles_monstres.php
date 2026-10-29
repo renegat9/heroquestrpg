@@ -72,7 +72,9 @@ return [
         'Serpent géant' => 'serpent', // Serpent, légende Delthrak (F9907 PDF 6) ; jeton OVALE
         'Singe géant' => 'giant-ape', // Giant Ape, légende Delthrak (F9907 PDF 6) ; jeton OVALE
         'Minotaure' => 'minotaur', // Minotaur, planche « Design Your Own » du Wizards of Morcar (G1504 PDF 22) ; jeton OVALE
-        'Horreur des Glaces' => 'frozen-horror', // Frozen Horror, planche « Design Your Own » (F5815 PDF 20) ; jeton ROND au livret
+        'Horreur des Glaces' => 'frozen-horror', // Frozen Horror, planche « Design Your Own » (F5815 PDF 20) ; jeton ROND au livret, qui ne dessine aucun ovale — figure 1×2 par son texte (F5815 PDF 6)
+        'Rampant putride' => 'blightcrawler', // Blightcrawler, légende Delthrak (F9907 PDF 6), stats du Monster Chart p. 47 ; jeton OVALE
+        'Deathspinner la Reine du Fléau' => 'blightcrawler', // « Use the Blightcrawler miniature » (F9907 PDF 9) ; jeton OVALE
     ],
 
     // Monstres dont le jeton est un OVALE 2:1 (figure 1×2 au livret) : le serveur publie `symbole_forme` = 'ovale'.
@@ -84,6 +86,8 @@ return [
         'Serpent géant',
         'Singe géant',
         'Minotaure',
+        'Rampant putride',
+        'Deathspinner la Reine du Fléau',
         // Dragon : jeton du « Quest Map Guide » de First Light (p. 9), scan de René — « l'icône semble bonne » (2026-10-29).
         'Dragon',
     ],
@@ -100,7 +104,6 @@ return [
         'Champion' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Crâne du Dread' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Cultiste du Dread' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Deathspinner la Reine du Fléau' => 'figurine Blightcrawler (« Use the Blightcrawler miniature », F9907 PDF 9) : jeton OVALE au livret, figure 1×1 au catalogue. Non extrait : l’emprise est une règle de déplacement, à trancher',
         'Demonape' => 'Gretzl (F9907 PDF 18) : aucune figurine renvoyée dans le texte',
         'Demonspider' => 'Gretzl (F9907 PDF 18) : aucune figurine renvoyée dans le texte',
         'Doralf' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
@@ -124,7 +127,6 @@ return [
         'Métamorphe' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Nexrael' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Qwindrak the Warlock' => '« Replace Qwindrak with the Dragon miniature » (First Light PDF 9) : la forme de sorcier n’a pas de jeton propre isolé ; la forme de dragon a le sien (Dragon)',
-        'Rampant putride' => 'figure Blightcrawler (légende Delthrak PDF 6) : jeton OVALE au livret, figure 1×1 au catalogue. Non extrait : l’emprise est une règle de déplacement, à trancher ; identité non confirmée',
         'Rejeton putride' => 'à reprendre, non rond : Spawnling de Delthrak (F9907 PDF 7), une tuile carrée et non un disque',
         'Roi Archaloneus' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Scion Fleur-Pourrie' => 'Bloomrot Scion (F9907 PDF 20) : aucune figurine renvoyée dans le texte',

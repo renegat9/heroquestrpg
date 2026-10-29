@@ -1653,6 +1653,28 @@
     },
     {
       "type": "monstres",
+      "cle": "blightcrawler",
+      "nom_catalogue": "Blightcrawler",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 6,
+      "cadre": [
+        708.91,
+        473.05,
+        755.79,
+        564.63
+      ],
+      "rotation": 90,
+      "ovale": [
+        732.35,
+        518.84,
+        19.53,
+        38.16
+      ],
+      "source": "F9907 p. 10-11 (PDF 6), légende « Blightcrawler »",
+      "note": "centre mesuré (2026-10-29), axes repris du Serpent et du Singe géant de la même rangée : les pattes débordent de l'ovale à gauche et faussent la boîte ; page couchée : rotation 90 (horaire). Catalogue « Rampant putride » et « Deathspinner la Reine du Fléau » (même figurine)"
+    },
+    {
+      "type": "monstres",
       "cle": "minotaur",
       "nom_catalogue": "Minotaur",
       "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
@@ -1692,7 +1714,7 @@
         18.5
       ],
       "source": "F7539 p. 13 (PDF 7), légende « Ogre »",
-      "note": "jeton ROND au livret (rapport 1,05), figure 1×2 au catalogue (René, 2026-10-04) : écart à trancher, emprise inchangée"
+      "note": "jeton ROND au livret (rapport 1,05), du diamètre d'une case : figure 1×1 au catalogue depuis le 2026-10-29 (René)"
     },
     {
       "type": "monstres",
@@ -1713,7 +1735,7 @@
         17.2
       ],
       "source": "F5815 p. 39 (PDF 20), planche « Design Your Own Quest Adventures » : Frozen Horror",
-      "note": "jeton ROND au livret (rapport 1,13), figure 1×2 au catalogue : écart à trancher, emprise inchangée"
+      "note": "jeton ROND au livret (rapport 1,13) : ce livret ne dessine aucun ovale ; la figure reste 1×2 au catalogue, car le texte la nomme grand monstre (F5815 PDF 6)"
     },
     {
       "type": "monstres",

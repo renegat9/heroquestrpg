@@ -652,12 +652,35 @@ it('route au budget de rencontre, plutôt que d\'interdire le palier, la créatu
     expect($maxBase)->toBeLessThan($minSousBoss, 'les paliers se chevauchent en coût');
 });
 
-it("donne leurs 2 cases à l'Ogre ET au Loup géant de The Mage of the Mirror", function () {
-    // Le livret nomme le Loup géant grande figurine ; l'Ogre garde aussi ses
-    // 2 cases (René, 2026-10-04 — `docs/plan-correctifs-2026-10-04.md` C3).
-    foreach (['Ogre', 'Loup géant'] as $nom) {
-        expect(Monstre::where('nom_base', $nom)->firstOrFail()->grandeTaille())->toBeTrue($nom);
+it('donne 2 cases à chaque figure dont le livret dessine un jeton OVALE, et à elles seules — sauf exception nommée', function () {
+    // René, 2026-10-29. Un livret qui dessine des ovales les réserve aux figures de 2 cases : sur la carte de
+    // l'Ogre Horde (F9528 PDF 36), chaque ovale d'ogre couvre exactement 2 cases, chaque rond une seule. D'où
+    // l'Ogre (Mage of the Mirror) et l'Ogre guerrier ramenés à 1 case (jetons ronds à côté d'ovales, dans la
+    // même légende), et le Blightcrawler (Rampant putride, Deathspinner) passé à 2. Le Loup géant est en plus
+    // nommé grand monstre par son texte (F7539 PDF 6). Les jetons OVALES sont la liste `ovales` de
+    // `config/symboles_monstres.php`, que `SymbolesMonstresTest` confronte aux fichiers et au manifeste.
+    $exceptions = [
+        // Son livret ne dessine AUCUN ovale (la planche « Design Your Own » le fait seulement plus grand) ;
+        // son texte le nomme : « When a monster takes up more than one square (the Frozen Horror in this
+        // quest pack, for instance) » (F5815 PDF 6).
+        'Horreur des Glaces',
+    ];
+    $ovales = config('symboles_monstres.ovales');
+
+    foreach ($ovales as $nom) {
+        expect(Monstre::where('nom_base', $nom)->firstOrFail()->emprise())->toBe(['l' => 1, 'h' => 2], "{$nom} : jeton ovale");
     }
+
+    $grandes = Monstre::all()->filter(fn (Monstre $m) => $m->grandeTaille())->pluck('nom_base')->sort()->values()->all();
+    $sansOvale = array_values(array_diff($grandes, $ovales));
+    sort($exceptions);
+
+    expect($sansOvale)->toBe($exceptions, 'une figure de 2 cases sans jeton ovale doit être une exception nommée');
+
+    foreach (['Ogre', 'Ogre guerrier'] as $nom) {
+        expect(Monstre::where('nom_base', $nom)->firstOrFail()->grandeTaille())->toBeFalse("{$nom} : jeton rond, une case");
+    }
+    expect(Monstre::where('nom_base', 'Loup géant')->firstOrFail()->grandeTaille())->toBeTrue();
 });
 
 it('déclare `attaque_diagonale` sur l\'Assassin, la Vrille et le Scion Fleur-Pourrie, et nulle part ailleurs', function () {

@@ -422,6 +422,11 @@ Grande figurine : les Ogres (Warrior/Champion/Commander/Lord) occupent
 vraisemblablement 2 cases comme dans le jeu de base (règle générique
 « Large Monsters » ci-dessous s'applique), mais ⚠ non confirmé
 explicitement pour chaque profil dans ce livret.
+**Mesuré le 2026-10-29 sur les jetons** : Champion, Commander et Lord ont un
+jeton OVALE (légende PDF 19) qui couvre exactement 2 cases sur la carte de
+quête (PDF 36) ; l'Ogre Warrior a un jeton ROND d'une case. Catalogue :
+Ogre guerrier 1×1, les trois autres 1×2 (René,
+`docs/regles/bestiaire-et-rencontres.md`).
 
 ### 3. Nouveaux objets, artefacts, sorts
 
@@ -852,7 +857,10 @@ adjacente en ligne de vue, 1 seul dé si la cible est adjacente.
   gargouille standard mais connaît *command* et *firestorm* (Mage of the
   Mirror, p. 29, note C).
 
-Grande figurine : non précisé explicitement pour ces profils.
+Grande figurine : non précisé explicitement pour ces profils. Le texte ne
+nomme que le Loup géant (« the giant wolf in this quest pack, for instance »,
+p. 6), dont la légende dessine un jeton OVALE ; l'Ogre y a un jeton ROND d'une
+case. Catalogue : Loup géant 1×2, Ogre 1×1 (René, 2026-10-29).
 
 ### 3. Nouveaux objets, artefacts, sorts
 
@@ -1562,6 +1570,11 @@ Delthrak, p. 47) :
 | Skeleton Archer | 6 | 2 (1 adj.) | 2 | 1 | 0 | Ranged |
 | Skullblight | 6 | 3 | 2 | 2 | 0 | Entangling Roots |
 | Spawnling | 3 | 0 | 0 | 1 | 0 | Venomous, Agile |
+
+Taille des figures (légende PDF 6) : Blightcrawler, Giant Ape et Serpent ont un
+jeton OVALE de 2 cases, les autres un jeton rond (le Spawnling, une tuile
+carrée). Catalogue : Rampant putride (Blightcrawler) et Deathspinner (même
+figurine) 1×2 depuis le 2026-10-29 (René).
 
 **5 mots-clés de capacité** définis en pages 48-49 : **Spawn** (le monstre
 crée un Spawnling adjacent OU déplace tous ses Spawnlings actifs, en

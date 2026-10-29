@@ -198,6 +198,8 @@ it('un jeton OVALE est une figure 1×2 du catalogue, porte un fichier 2:1 — et
             $fichiersOvales[] = $fichier->getFilenameWithoutExtension();
         }
     }
+    // Deux noms peuvent partager une figurine (Rampant putride et Deathspinner : le Blightcrawler).
+    $cles = array_values(array_unique($cles));
     sort($cles);
     sort($fichiersOvales);
     expect($fichiersOvales)->toBe($cles, 'un jeton 2:1 n\'est déclaré par aucun nom de `ovales`, ou un nom de `ovales` n\'a pas de jeton 2:1');
@@ -205,7 +207,7 @@ it('un jeton OVALE est une figure 1×2 du catalogue, porte un fichier 2:1 — et
 
 it('le manifeste marque `ovale` exactement les jetons de `ovales` (et seulement eux)', function () {
     $this->seed(MonstreSeeder::class);
-    $attendus = array_map(fn (string $nom) => cleJetonDe($nom), config('symboles_monstres.ovales'));
+    $attendus = array_values(array_unique(array_map(fn (string $nom) => cleJetonDe($nom), config('symboles_monstres.ovales'))));
     $marques = [];
 
     foreach (manifesteDesJetons() as $jeton) {

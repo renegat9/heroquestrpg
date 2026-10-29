@@ -251,12 +251,13 @@ class MonstreSeeder extends Seeder
                 'capacites' => ['deux_attaques'],
                 'sorts_dread' => []],
 
-            // ----- Grande figurine multi-cases (3.9) -----
-            // `grande_taille` : emprise 1×2 (deux cases). Adjacence/ligne de vue/
-            // déplacement raisonnent sur l'emprise (moteur Grille).
             // Aligné sur la fiche officielle de *The Mage of the Mirror* (doc 18).
+            // UNE case (René, 2026-10-29, qui revient sur ses 2 cases du 2026-10-04) : la légende du livret
+            // (F7539 PDF 7) le dessine en jeton ROND, du diamètre d'une case, à côté du Loup géant OVALE de
+            // 2 cases — et le texte ne nomme que le loup comme grand monstre (« the giant wolf in this quest
+            // pack, for instance », F7539 PDF 6). La règle de lecture est tenue par `BestiaireSourceTest`.
             ['nom_base' => 'Ogre', 'deplacement' => 4, 'attaque' => 6, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 2,
-                'tier' => 'sous_boss', 'boite' => 'mage_du_miroir', 'cout' => 10, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'tier' => 'sous_boss', 'boite' => 'mage_du_miroir', 'cout' => 10,
                 'capacites' => [], 'sorts_dread' => []],
 
             // ================= CRÉATURES DES EXTENSIONS OFFICIELLES =================
@@ -395,8 +396,8 @@ class MonstreSeeder extends Seeder
             ['nom_base' => 'Guerrier elfe', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 3, 'pv_mind' => 2,
                 'tier' => 'base', 'boite' => 'mage_du_miroir', 'boites_partagees' => ['dread_moon'], 'cout' => 5, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Loup géant', 'deplacement' => 9, 'attaque' => 6, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 1,
-                // `grande_taille` : le livret nomme le Loup géant grande figurine ;
-                // l'Ogre garde aussi ses 2 cases (René, 2026-10-04).
+                // `grande_taille` : le livret nomme le Loup géant grande figurine
+                // (F7539 PDF 6), et sa légende le dessine en jeton OVALE de 2 cases.
                 'tier' => 'sous_boss', 'boite' => 'mage_du_miroir', 'cout' => 11, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['charge'], 'sorts_dread' => []],
             // ⚠ Le lanceur de l'*Invocation de loups* (René, 2026-09-04 : « on
@@ -429,7 +430,10 @@ class MonstreSeeder extends Seeder
             // (saignement automatique + interdiction d'attaquer tant qu'il tient).
             ['nom_base' => 'Yéti', 'deplacement' => 8, 'attaque' => 3, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 2,
                 'tier' => 'sous_boss', 'boite' => 'horreur_des_glaces', 'cout' => 9, 'capacites' => ['etreinte'], 'sorts_dread' => []],
-            // Boss de sa boîte. Grande figurine, comme l'ogre.
+            // Boss de sa boîte. Grande figurine : « When a monster takes up more than one square (the Frozen
+            // Horror in this quest pack, for instance) » (F5815 PDF 6). ⚠ Son jeton est ROND : ce livret ne
+            // dessine AUCUN ovale (sa planche « Design Your Own » le fait seulement plus grand que les autres),
+            // c'est le texte qui donne la taille — l'exception nommée de `BestiaireSourceTest`.
             // « connaît 6 sorts Dread fixes (*Chill, Ice Storm, Ice Wall, Mind
             // Freeze, Skate, Soothe*) + 6 au choix du MJ » (Frozen Horror
             // p. 37). Trois des six ne sont pas portés — voir l'archétype.
@@ -443,8 +447,11 @@ class MonstreSeeder extends Seeder
             // elle est générique (`boite: null`) et définie en tête de
             // méthode, avec Gobelin archer et Archer squelette — voir
             // `$orqueArcher` plus haut.
+            // L'Ogre guerrier tient sur UNE case (René, 2026-10-29) : jeton ROND du diamètre d'une case dans la
+            // légende (F9528 PDF 19) et sur les cartes de quête, où les trois autres ogres sont des OVALES qui
+            // couvrent exactement 2 cases (carte PDF 36).
             ['nom_base' => 'Ogre guerrier', 'deplacement' => 6, 'attaque' => 5, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 1,
-                'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 10, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 10,
                 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Ogre champion', 'deplacement' => 6, 'attaque' => 5, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 1,
                 'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 11, 'grande_taille' => ['l' => 1, 'h' => 2],
@@ -692,8 +699,11 @@ class MonstreSeeder extends Seeder
                 'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 5, 'capacites' => ['racines_entravantes'], 'sorts_dread' => []],
             ['nom_base' => 'Raptor', 'deplacement' => 8, 'attaque' => 3, 'defense' => 2, 'pv_body' => 2, 'pv_mind' => 3,
                 'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 5, 'capacites' => ['tacticien'], 'sorts_dread' => []],
+            // Le Blightcrawler du Monster Chart (p. 47 : 7/4/4/3/4, Spawn, Agile, Venomous). Deux cases (René,
+            // 2026-10-29) : la légende (F9907 PDF 6) le dessine en jeton OVALE, de la taille exacte de ceux du
+            // Serpent et du Singe géant, et le livret a sa règle « When a monster takes up 2 squares » (PDF 4).
             ['nom_base' => 'Rampant putride', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 4,
-                'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 11,
+                'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 11, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['agile', 'venimeux', 'spawn' => ['creature' => 'Rejeton putride']],
                 'sorts_dread' => []],
             ['nom_base' => 'Serpent géant', 'deplacement' => 8, 'attaque' => 4, 'defense' => 3, 'pv_body' => 6, 'pv_mind' => 3,
@@ -837,8 +847,9 @@ class MonstreSeeder extends Seeder
             // Blightcrawler dont elle emprunte la figurine) — l'erratum n'est pas un livret et le bloc
             // imprimé n'en porte aucun ; les trois mots ont déjà leur lecteur (`agile`, `venimeux`,
             // `spawn`), une ligne les ajouterait si René le décide.
+            // Deux cases, comme la figurine Blightcrawler qui la représente (René, 2026-10-29 ; voir le Rampant putride).
             ['nom_base' => 'Deathspinner la Reine du Fléau', 'deplacement' => 6, 'attaque' => 5, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 4,
-                'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 10,
+                'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 10, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['filet_silencieux' => ['sort' => 'Canaliser l\'Effroi']], 'sorts_dread' => []],
 
             // GOLEM CŒUR-DE-FORGE (« Forgeheart Golem », quête 6, zone A, p. 23) : Move 8 · Attack 5 ·
@@ -913,7 +924,7 @@ class MonstreSeeder extends Seeder
             // and may cast Ball of Flame at will. »
             //  - grande_taille : la figurine occupe 2 cases (photo de la
             //    figurine + symbole de carte ovale 2 cases de large, FL-Q
-            //    p. 9) — même emprise que l'Ogre et tous les autres grands
+            //    p. 9) — même emprise que l'Ogre champion et tous les autres grands
             //    monstres du catalogue (`['l' => 1, 'h' => 2]`, purement
             //    géométrique, `AssembleurCarte`/`FabriqueGrille` ne
             //    distinguent pas largeur et hauteur).

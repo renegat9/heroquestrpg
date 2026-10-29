@@ -18,9 +18,10 @@ use Database\Seeders\TuileSeeder;
 use Illuminate\Support\Facades\Http;
 
 /*
- * Grandes figurines / monstres multi-cases (Phase 2, 3.9). L'Ogre a une emprise
- * 1×2 : il est attaquable au contact de l'une de ses deux cases, et à la phase
- * des monstres il frappe un héros adjacent à son emprise.
+ * Grandes figurines / monstres multi-cases (Phase 2, 3.9). L'Ogre champion a une emprise
+ * 1×2 (l'Ogre de Mage of the Mirror, sujet d'origine de ce fichier, n'a plus qu'une case
+ * depuis le 2026-10-29 : jeton rond au livret) : il est attaquable au contact de l'une de
+ * ses deux cases, et à la phase des monstres il frappe un héros adjacent à son emprise.
  *
  * Dés tous à 4 (bouclier blanc) → aucun dégât : les attaques ont lieu mais
  * restent déterministes (personne ne tombe).
@@ -38,8 +39,8 @@ beforeEach(function () {
     ]);
 });
 
-it('expose une emprise 1×2 pour l Ogre (1×1 par défaut sinon)', function () {
-    $ogre = Monstre::where('nom_base', 'Ogre')->firstOrFail();
+it('expose une emprise 1×2 pour l Ogre champion (1×1 par défaut sinon)', function () {
+    $ogre = Monstre::where('nom_base', 'Ogre champion')->firstOrFail();
     $gobelin = Monstre::where('nom_base', 'Gobelin')->first();
 
     expect($ogre->emprise())->toBe(['l' => 1, 'h' => 2])
@@ -51,8 +52,8 @@ it('expose une emprise 1×2 pour l Ogre (1×1 par défaut sinon)', function () {
     }
 });
 
-it('offre et résout l attaque de l Ogre via le contact de sa case BASSE seule', function () {
-    $ctx = demarrerQueteAvecMonstre('Ogre');
+it('offre et résout l attaque de l Ogre champion via le contact de sa case BASSE seule', function () {
+    $ctx = demarrerQueteAvecMonstre('Ogre champion');
     $instance = $ctx['instance'];
     $etat = $ctx['etatHeros'];
     $quete = $ctx['quete'];
@@ -99,8 +100,8 @@ it('offre et résout l attaque de l Ogre via le contact de sa case BASSE seule',
         ->assertJsonPath('resultat.type', 'attaque');
 });
 
-it('fait attaquer l Ogre, à la phase des monstres, un héros adjacent à son emprise', function () {
-    $ctx = demarrerQueteAvecMonstre('Ogre');
+it('fait attaquer l Ogre champion, à la phase des monstres, un héros adjacent à son emprise', function () {
+    $ctx = demarrerQueteAvecMonstre('Ogre champion');
 
     desFiges(array_fill(0, 200, 4)); // boucliers blancs : aucun dégât
 
@@ -113,15 +114,15 @@ it('fait attaquer l Ogre, à la phase des monstres, un héros adjacent à son em
         ->values();
 
     expect($attaques)->toHaveCount(1)
-        ->and($attaques[0]['monstre'])->toBe('Ogre');
+        ->and($attaques[0]['monstre'])->toBe('Ogre champion');
 });
 
 it('expose l emprise du monstre dans l état du groupe', function () {
-    $ctx = demarrerQueteAvecMonstre('Ogre');
+    $ctx = demarrerQueteAvecMonstre('Ogre champion');
 
     $etat = app(EtatGroupe::class)->payload($ctx['groupe']->fresh());
 
-    $ogre = collect(data_get($etat, 'entites', []))->firstWhere('nom', 'Ogre');
+    $ogre = collect(data_get($etat, 'entites', []))->firstWhere('nom', 'Ogre champion');
 
     expect($ogre)->not->toBeNull()
         ->and($ogre['emprise'])->toBe(['l' => 1, 'h' => 2]);
