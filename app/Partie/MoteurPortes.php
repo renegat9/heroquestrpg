@@ -103,6 +103,24 @@ final class MoteurPortes
         ],
     ];
 
+    /**
+     * ROTATION du pictogramme d'une porte (`symbole_rotation`, `0` ou `90`) — la décision du serveur, publiée telle quelle
+     * (René, 2026-10-24 : « la porte devrait être retournée de 90 degrés quand elle est reliée à l'est ou à l'ouest »).
+     *
+     * Le dessin du livret est une porte de MUR HORIZONTAL : son battant est couché, et la porte relie la case du NORD à
+     * celle du SUD (F2847 p. 33 ; la pierre de F9528 p. 4 est dessinée de même). Une porte qui relie l'EST et l'OUEST,
+     * percée dans un mur VERTICAL, se tourne donc de 90°. On lit les deux cases de la JONCTION (`casesPorte()`), et non le
+     * nom de l'arête : elles ne partagent pas la même colonne exactement quand la porte relie l'est et l'ouest.
+     *
+     * @param  array{x: int, y: int, cote?: string}  $porte
+     */
+    public static function rotationSymbole(array $porte): int
+    {
+        [$a, $b] = Grille::casesPorte($porte);
+
+        return $a['x'] !== $b['x'] ? 90 : 0;
+    }
+
     /** La valeur que le jet doit atteindre pour CE héros : ses Corps de départ, ou son Esprit actuel (`CONDITIONS`). */
     public static function valeurDeComparaison(array $verrou, Personnage $heros): int
     {

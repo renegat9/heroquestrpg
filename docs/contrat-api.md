@@ -86,7 +86,7 @@ proposition du MJ. » quand ce n'est pas son tour.
             "escalier": {"x": 2, "y": 2, "l": 2, "h": 2, "symbole_url": "/images/livrets/escalier/escalier.webp|null"},
             "portes": [{"x": 4, "y": 3, "cote": "e|s", "etat": "fermee|ouverte|verrouillee|secrete",
                         "embrasure": {"x": 5, "y": 3}, "verrou": "cle|monstres_vaincus|levier",
-                        "symbole_url": "/images/livrets/portes/fermee.webp|null"}]},
+                        "symbole_url": "/images/livrets/portes/fermee.webp|null", "symbole_rotation": "0|90"}]},
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
      "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false, "en_choc": false,
@@ -2473,16 +2473,16 @@ importent bien le même fichier.
 
 **Symboles de livret — le pictogramme officiel de chaque case** (chantier symboles, René, 2026-10-24 : « les vrais symboles des livrets à la place des icônes »). Chaque famille de la carte peut afficher le PICTOGRAMME imprimé sur le livret de quête, à la place de l'icône Material Symbols. Le serveur publie `symbole_url` (`string|null`, **toujours présent**, `null` par défaut) sur :
 - `carte.mobilier[]` : chaque meuble, d'après son nom de catalogue, avec **`symbole_rotation`** (`0` ou `90`, **toujours présent**) : l'image du livret dessine le meuble dans le sens de son CATALOGUE (`largeur`×`hauteur`), et la pose le couche ou le dresse au hasard. `90` quand l'emprise POSÉE (`l`×`h`) est la transposée de celle du catalogue ET qu'elle n'est pas carrée (un râtelier 1×3 posé 3×1), `0` sinon. Le client tourne le pictogramme de 90° dans son emprise ; il ne décide jamais de la rotation ;
-- `carte.terrain[]` : **une plaque** (bloc ou motif) porte son symbole sur son **ancre** seulement (une icône par groupe, comme `TERRAIN_ICONES`) ; les autres cases de la plaque portent `null` ; **une case isolée** (sans `groupe_id`) porte le sien ;
+- `carte.terrain[]` : **case par case**, selon la famille de la plaque (décidé par `EtatGroupe::terrain()`). **Une case isolée** (sans `groupe_id`) porte le sien. **Une plaque répétée** (`motif` du catalogue : Jungle, Toile, Sable) porte le sien sur **chaque case** (René, 2026-10-24 : « l'icône doit se répéter sur chaque case ») ; son `etendue` est `null`. **Un bloc fixe** (Mare, Brasier : `motif` nul) ne porte son dessin que sur son **ancre**, et ce dessin couvre l'emprise entière (`etendue`), comme un meuble sur sa silhouette ; les autres cases portent `null` ;
 - `carte.pieges[]` : les états `detecte`, `desarme` et `retient` seulement. Un trou ouvert (`fosse_ouverte`), une mare d'acide et un bloc tombé se dessinent sans symbole : la silhouette EST la case ;
-- `carte.portes[]` : par ÉTAT — `fermee`, `ouverte`, `verrouillee`, `secrete`, et `verrou_pierre` pour une porte de pierre encore fermée (une porte de pierre forcée n'est plus qu'une `ouverte`) ;
+- `carte.portes[]` : par ÉTAT — `fermee`, `ouverte`, `verrouillee`, `secrete`, et `verrou_pierre` pour une porte de pierre encore fermée (une porte de pierre forcée n'est plus qu'une `ouverte`) ; chaque porte porte aussi **`symbole_rotation`** (`0` ou `90`, **toujours présent**) : le dessin du livret est une porte de mur HORIZONTAL (battant couché, nord-sud). `90` quand la porte relie l'EST et l'OUEST (percée dans un mur vertical), `0` au nord-sud. La décision se lit sur les deux cases de la jonction (`Grille::casesPorte()`, `MoteurPortes::rotationSymbole()`) ; le client tourne le battant comme un meuble (`SymboleCarte`, `tourne`), il ne la recalcule jamais ;
 - `carte.leviers[]` ;
 - `carte.escalier` : l'objet entier, `null` s'il n'y en a pas ;
 - `carte.dangers[]` : les états `roule` et `actif` seulement. Un rocher arrêté (`bloc`) est un bloc plein, sans symbole, comme la Chute de blocs.
 
 Un fichier par symbole : `public/images/livrets/{type}/{slug}.webp`, `{type}` ∈ `mobiliers`, `terrains`, `pieges`, `portes`, `leviers`, `escalier`, `dangers` (`BibliothequeImages::TYPES_SYMBOLE`, fermé), `{slug}` = `Str::slug()` de la clé : le nom de catalogue (`Forge des nains` → `forge-des-nains`) ou le libellé fixe (`portes/verrou-pierre.webp`, `leviers/levier.webp`, `escalier/escalier.webp`). Seul le `.webp` est servi. **Les symboles sont DANS le dépôt** (René, 2026-10-24) ; le repli reste obligatoire : sans fichier, `symbole_url` vaut `null` et le client garde l'icône d'aujourd'hui — jamais un emblème SVG, qui prétendrait « symbole manquant » là où aucun n'était attendu.
 
-Le client **ne compose aucune URL** : il dessine la `symbole_url` reçue sur la case, ou sur l'étendue (`etendue`) que le serveur désigne pour une plaque. ⚠ Un symbole est un **pictogramme** : il se pose SUR la carte, à l'intérieur de la silhouette de sa famille. Une **illustration** (`image_url`) est une image peinte : elle reste dans la LÉGENDE et l'aperçu de salle, à côté du symbole, jamais à sa place. Hors phase 1, sans symbole : épreuves, mur de glace, voile d'ombre, monstres.
+Le client **ne compose aucune URL** : il dessine la `symbole_url` reçue sur la case (tournée de `symbole_rotation` pour le battant d'une porte), ou sur l'étendue (`etendue`) qu'un bloc fixe reçoit de son ancre. ⚠ Un symbole est un **pictogramme** : il se pose SUR la carte, à l'intérieur de la silhouette de sa famille. Une **illustration** (`image_url`) est une image peinte : elle reste dans la LÉGENDE et l'aperçu de salle, à côté du symbole, jamais à sa place. Hors phase 1, sans symbole : épreuves, mur de glace, voile d'ombre, monstres.
 
 **Le bouton « i »** ouvre la légende sur les deux écrans (coin de la carte à la
 table, en-tête de la feuille de déplacement sur la manette). Elle ne liste que ce
@@ -4415,11 +4415,12 @@ druide aux Ronces complices), jamais l'ingrédient. Les monstres **Agile** l'ign
   unique dans la carte, sur le patron de `paire_id`). `null` pour une case isolée — et pour toute carte assemblée
   avant ce chantier, qui n'a pas de groupe : elle se lit exactement comme avant.
 - `ancre` (`bool`) : **UNE case par groupe** porte `true` — celle du groupe, parmi les cases VISIBLES, la plus proche
-  du centre de sa boîte. C'est là que la table et la manette dessinent l'icône unique de la plaque (`TERRAIN_ICONES`,
-  `symboles.js`). Le client ne recalcule ni le groupe, ni l'ancre, ni la forme : il DESSINE ce qu'il reçoit.
+  du centre de sa boîte. C'est là que se pose l'icône de REPLI d'une plaque sans pictogramme (`TERRAIN_ICONES`,
+  `symboles.js`), et le dessin d'un bloc fixe. Le client ne recalcule ni le groupe, ni l'ancre, ni la forme : il DESSINE ce qu'il reçoit.
 - `etendue` (`{x, y, l, h}|null`, 2026-10-24) : sur la case d'ANCRE seulement, le rectangle que couvrent les cases VISIBLES
-  du groupe QUAND elles le remplissent entièrement (un bloc 2×2, une bande, deux cases en ligne) — la table et la manette
-  y CENTRENT l'icône, au lieu de la poser dans le coin du bloc. `null` pour une forme qui ne remplit pas son rectangle
+  du groupe QUAND elles le remplissent entièrement (un bloc 2×2, une bande, deux cases en ligne). Deux usages, décidés ici :
+  le **dessin d'un bloc fixe** s'étend sur ce rectangle, et l'**icône de repli** s'y centre. `null` sur un **motif qui porte
+  son pictogramme sur chaque case** (chaque case dessine le sien) ; `null` pour une forme qui ne remplit pas son rectangle
   (un L) : l'icône reste sur la case d'ancre. `null` sur toute autre case.
 Les trois champs sont publiés pour toute entrée (`null`/`false` hors plaque), sans clé optionnelle.
 

@@ -83,6 +83,52 @@ def references_fond(img, generique=False):
     return refs
 
 
+POUSSIERE_RELATIVE = 0.002   # une composante de moins de 0,2 % de la plus grande est de la poussière, pas un dessin
+
+
+def retirer_poussiere(alpha):
+    """Efface les COMPOSANTES CONNEXES minuscules du trait : la poussière du papier et les éclats d'encre que le rognage
+    prendrait pour du dessin (secrete : quinze taches de moins de 8 px à l'intérieur de la porte, 2026-10-24).
+
+    OPT-IN par symbole (`"poussiere": true` dans le manifeste), jamais global : un pointillé ou une hachure faite de petites
+    composantes y perdrait son dessin (`trone`, `mare-dacide`, `escalier` changeaient entièrement, mesuré le 2026-10-24).
+    Une composante est comptée à la même force que `rogner()` (> 13). Le seuil est RELATIF à la plus grande composante,
+    donc indépendant de la résolution. Un morceau d'un AUTRE symbole qui touche le cadre n'est pas de la poussière : il se
+    coupe dans le cadre (manifeste), jamais ici — il pèse 18 % d'un battant."""
+    largeur, hauteur = alpha.size
+    donnees = bytearray(alpha.tobytes())
+    vus = bytearray(largeur * hauteur)
+    composantes = []
+    for i0 in range(largeur * hauteur):
+        if vus[i0] or donnees[i0] <= 13:
+            continue
+        vus[i0] = 1
+        pile, membres = [i0], []
+        while pile:
+            j = pile.pop()
+            membres.append(j)
+            y, x = divmod(j, largeur)
+            for ny in (y - 1, y, y + 1):
+                if ny < 0 or ny >= hauteur:
+                    continue
+                for nx in (x - 1, x, x + 1):
+                    if nx < 0 or nx >= largeur:
+                        continue
+                    k = ny * largeur + nx
+                    if not vus[k] and donnees[k] > 13:
+                        vus[k] = 1
+                        pile.append(k)
+        composantes.append(membres)
+    if not composantes:
+        return alpha
+    plus_grande = max(len(membres) for membres in composantes)
+    for membres in composantes:
+        if len(membres) < plus_grande * POUSSIERE_RELATIVE:
+            for j in membres:
+                donnees[j] = 0
+    return Image.frombytes('L', alpha.size, bytes(donnees))
+
+
 def alpha_du_trait(img, generique=False, seuil=None):
     """Force du trait, de 0 (fond) à 255 (trait) : distance au fond le plus proche.
 
@@ -178,6 +224,8 @@ def extraire_un(doc, entree, racine_livrets):
     if rotation:
         img = img.rotate(-rotation, expand=True)   # PIL tourne à gauche ; la rotation du manifeste est horaire
     alpha = alpha_du_trait(img, generique=not entree.get('couleur'), seuil=entree.get('seuil'))
+    if entree.get('poussiere'):
+        alpha = retirer_poussiere(alpha)
     if entree.get('couleur'):
         rgba = mettre_en_couleur(img, alpha)
     else:

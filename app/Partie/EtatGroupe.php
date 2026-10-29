@@ -708,7 +708,7 @@ final class EtatGroupe
      * rien à publier — la case fait tout le travail que le déguisement
      * faisait à la main. Voir `carte()` pour le détail.
      *
-     * @return list<array{x: int, y: int, cote: string, etat: string, embrasure: array{x: int, y: int}, verrou?: string, image_url?: ?string}>
+     * @return list<array{x: int, y: int, cote: string, etat: string, embrasure: array{x: int, y: int}, verrou?: string, image_url?: ?string, symbole_url: ?string, symbole_rotation: int}>
      */
     private function portes(Carte $carte): array
     {
@@ -740,6 +740,10 @@ final class EtatGroupe
 
                 // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme de l'ÉTAT de la porte, la porte de pierre fermée ayant le sien.
                 $porte['symbole_url'] = app(BibliothequeImages::class)->urlSymbolePorte($porte['etat'], $porte['verrou'] ?? null);
+
+                // ROTATION du pictogramme (2026-10-24) : 90 quand la porte relie l'est et l'ouest, 0 au nord-sud — décidée
+                // ici, lue par `SymboleCarte` (`tourne`), jamais recalculée côté client. Toujours présente.
+                $porte['symbole_rotation'] = MoteurPortes::rotationSymbole($p);
 
                 return $porte;
             })
@@ -1022,7 +1026,7 @@ final class EtatGroupe
      * brouillard répond directement à « cette case est-elle vue ? ».
      *
      * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
-     * @return list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string, groupe_id: ?string, ancre: bool, etendue: ?array{x: int, y: int, l: int, h: int}, entravant: bool, interdit_arret: bool, image_url: ?string}>
+     * @return list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string, groupe_id: ?string, ancre: bool, etendue: ?array{x: int, y: int, l: int, h: int}, entravant: bool, interdit_arret: bool, image_url: ?string, symbole_url: ?string}>
      */
     private function terrain(Carte $carte, array $cases): array
     {
@@ -1031,7 +1035,7 @@ final class EtatGroupe
 
         $catalogue = Terrain::query()
             ->whereIn('id', $visibles->pluck('terrain_id')->filter()->unique())
-            ->get(['id', 'nom', 'cout_deplacement', 'bloque_mouvement', 'bloque_vue', 'effet'])
+            ->get(['id', 'nom', 'cout_deplacement', 'bloque_mouvement', 'bloque_vue', 'effet', 'motif'])
             ->keyBy('id');
 
         $entrees = $visibles
@@ -1070,26 +1074,38 @@ final class EtatGroupe
             ->values()
             ->all();
 
-        // SYMBOLE DE LIVRET (2026-10-24) : une plaque porte son pictogramme sur son ANCRE seulement — une icône par groupe,
-        // comme `TERRAIN_ICONES` — et une case isolée (sans groupe) porte le sien. Les autres cases de la plaque : `null`.
-        // Le choix se fait ici, où les ancres sont connues, et nulle part côté client.
+        // SYMBOLE DE LIVRET (2026-10-24, répétition sur chaque case : René). Trois cas, décidés ici où les groupes sont connus :
+        //  - une case ISOLÉE (sans groupe) porte le sien ;
+        //  - une PLAQUE RÉPÉTÉE (`motif` : Jungle, Toile, Sable) porte le sien sur CHAQUE case, à l'intérieur de sa teinte ;
+        //  - un BLOC FIXE (Mare, Brasier : `motif` nul, un seul dessin du livret) ne porte son dessin que sur son ANCRE, et
+        //    ce dessin couvre l'emprise entière (`etendue`), comme un meuble sur sa silhouette — pas quatre petits bassins.
+        // Sans fichier, rien n'est publié : la plaque garde son icône Material unique sur l'ancre (repli inchangé, `etendue`
+        // compris). Le client dessine ce qu'il reçoit ; il ne sait ni quelle est la famille, ni quelle case porte le dessin.
         $biblio = app(BibliothequeImages::class);
 
-        return array_map(
-            fn (array $entree) => [...$entree, 'symbole_url' => ($entree['groupe_id'] === null || $entree['ancre'])
-                ? $biblio->urlSymboleTerrain($entree['nom'])
-                : null],
-            $this->marquerAncresDePlaques($entrees),
-        );
+        return array_map(function (array $entree) use ($catalogue, $biblio) {
+            $image = $biblio->urlSymboleTerrain($entree['nom']);
+            $repetee = $entree['groupe_id'] !== null && ($catalogue[$entree['terrain_id']] ?? null)?->motif !== null;
+            $portee = $image !== null && ($entree['groupe_id'] === null || $repetee || $entree['ancre']);
+
+            return [
+                ...$entree,
+                'symbole_url' => $portee ? $image : null,
+                // Un motif qui porte son dessin sur chaque case n'a plus d'étendue : celle-ci ne sert plus qu'à l'icône de repli.
+                'etendue' => $repetee && $image !== null ? null : $entree['etendue'],
+            ];
+        }, $this->marquerAncresDePlaques($entrees));
     }
 
     /**
-     * PLAQUES DE TERRAIN (Jungles of Delthrak, 2026-10-24) : UNE icône par groupe, posée sur UNE case que le serveur désigne.
+     * PLAQUES DE TERRAIN (Jungles of Delthrak, 2026-10-24) : UNE case par groupe est l'ANCRE, qui porte l'icône de REPLI (sans
+     * pictogramme) et le dessin d'un bloc fixe. Les pictogrammes, eux, sont posés case par case par `terrain()`.
      *
      * `ancre` vaut `true` sur la case du groupe la plus proche du centre de sa boîte, PARMI LES CASES VISIBLES (le brouillard
      * a déjà filtré). La table et la manette dessinent l'icône là où la décision est publiée — elles ne recalculent ni le
      * centre ni le groupe. Une case sans groupe porte `ancre: false`. Égalité : la première case dans l'ordre de la carte.
-     * `etendue` (sur l'ancre seulement) : le rectangle des cases visibles du groupe s'il est PLEIN, où l'icône se centre.
+     * `etendue` (sur l'ancre seulement) : le rectangle des cases visibles du groupe s'il est PLEIN ; `terrain()` le retire
+     * pour un motif qui porte son pictogramme sur chaque case.
      *
      * @param  list<array<string, mixed>>  $entrees
      * @return list<array<string, mixed>>

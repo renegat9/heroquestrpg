@@ -47,8 +47,9 @@ const parNom = (liste) => Object.values((liste ?? []).reduce((acc, e) => {
 }, {}));
 
 // SYMBOLE D'UN NOM (symboles des livrets, 2026-10-24) : le pictogramme de la PREMIÈRE entrée de ce nom qui en porte un.
-// Pas celui de la première entrée tout court : une plaque ne porte son symbole que sur son ancre, un piège détecté a le sien
-// là où un trou ouvert ne l'a pas. Sans symbole, `null` : la ligne garde sa pastille d'icône, comme avant.
+// Pas celui de la première entrée tout court : une case sans pictogramme (un bloc fixe hors de son ancre, un piège détecté
+// là où un trou ouvert ne l'a pas) n'en a pas. Le dessin est le même pour toutes les cases d'un nom : le premier qui en
+// porte un suffit. Sans symbole, `null` : la ligne garde sa pastille d'icône, comme avant.
 const symboleDe = (liste, nom) => (liste ?? []).find((e) => e.nom === nom && e.symbole_url)?.symbole_url ?? null;
 
 const pieges = computed(() => parNom(props.carte?.pieges).map((p) => ({

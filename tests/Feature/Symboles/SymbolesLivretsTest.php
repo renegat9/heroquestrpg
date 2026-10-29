@@ -55,6 +55,22 @@ it('chaque entrée a un type connu, une clé unique par type, et une clé = Str:
     }
 });
 
+it('chaque clé FONCTIONNELLE du manifeste est lue par l\'outil, et aucune clé inconnue ne s\'y glisse', function () {
+    // Une clé du manifeste sans lecteur serait une clé décorative : l'outil croirait la prendre en compte, et ne le ferait pas.
+    // `source`, `note` et `nom_catalogue` sont de la DOCUMENTATION (lue par l'humain et par ce test), permises sans lecteur.
+    $outil = file_get_contents(base_path('image-tools/symboles-livrets/extraire.py'));
+    $lues = ['type', 'cle', 'livret', 'page', 'cadre', 'rotation', 'emprise', 'couleur', 'seuil', 'poussiere', 'natif', 'absent'];
+    $documentaires = ['nom_catalogue', 'source', 'note'];
+
+    foreach ($lues as $cle) {
+        expect(str_contains($outil, "'{$cle}'"))->toBeTrue("la clé « {$cle} » du manifeste n'est lue par aucun code de extraire.py");
+    }
+
+    foreach (manifesteSymboles() as $s) {
+        expect(array_diff(array_keys($s), [...$lues, ...$documentaires]))->toBe([], "clé inconnue dans {$s['type']}/{$s['cle']}");
+    }
+});
+
 it('le catalogue semé et le manifeste se recouvrent exactement, dans les deux sens', function () {
     $this->seed([MobilierSeeder::class, TerrainSeeder::class, PiegeSeeder::class, DangerSeeder::class]);
 

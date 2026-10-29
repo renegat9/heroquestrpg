@@ -183,9 +183,10 @@ export const DANGER_ICONE = 'hexagon';
  * elle-même plutôt que de poser un symbole dessus.
  *
  * Depuis le 2026-10-24 (symboles des livrets, René : « les vrais symboles des livrets à la place des icônes »), la case
- * porte AUSSI son PICTOGRAMME, centré : `symbole_url`, publié par le serveur sur l'ancre d'une plaque ou sur une case
- * isolée. La teinte reste ce qui se lit de loin ; le pictogramme dit DE QUEL terrain il s'agit. Il ne remplace jamais la
- * teinte, et ne se pose jamais sur une figurine. Sans `symbole_url`, la case est celle d'avant.
+ * porte AUSSI son PICTOGRAMME, posé PAR-DESSUS la teinte : `symbole_url`, publié par le serveur case par case — sur chaque
+ * case d'un motif répété, sur l'ancre d'un bloc fixe (un seul dessin, étendu sur son emprise), sur une case isolée. La
+ * teinte reste ce qui se lit de loin ; le pictogramme dit DE QUEL terrain il s'agit. Il ne remplace jamais la teinte, et
+ * reste SOUS les figurines et les marqueurs. Sans `symbole_url`, la case est celle d'avant.
  *
  * Trois catégories, pas sept teintes : le vocabulaire d'EFFET compte sept
  * terrains, mais le joueur n'a besoin de distinguer que trois RISQUES —
@@ -229,11 +230,12 @@ export const TERRAIN_TEINTES = {
 export const TERRAIN_TEINTE_DEFAUT = 'decor';
 
 /**
- * PLAQUE DE TERRAIN (2026-10-24, Jungles of Delthrak) → icône Material Symbols, UNE PAR GROUPE.
+ * PLAQUE DE TERRAIN (2026-10-24, Jungles of Delthrak) → icône Material Symbols de REPLI, UNE PAR GROUPE.
  *
- * Un bloc (Mare, Brasier : 2×2) ou un motif (Jungle, Toile, Sable : une forme du livret) se lit comme UNE plaque : la
- * teinte couvre chaque case, et une seule icône, posée sur la case d'ancre que le SERVEUR désigne (`carte.terrain[].ancre`),
- * porte le nom du terrain. Pas une icône par case : « pas quatre icônes répétées pour une mare ».
+ * Un bloc (Mare, Brasier : 2×2) ou un motif (Jungle, Toile, Sable : une forme du livret) se lit comme UNE plaque. Quand le
+ * livret a un pictogramme pour le terrain, le serveur le pose case par case (`symbole_url`, voir plus haut) et cette icône
+ * ne se voit pas. Sans fichier, la plaque garde UNE icône, posée sur l'ancre que le SERVEUR désigne (`carte.terrain[].ancre`),
+ * et qui porte le nom du terrain : pas une icône par case, « pas quatre icônes répétées pour une mare ».
  *
  * Les terrains absents de cette table n'ont pas d'icône de repli de plaque. Une case isolée (sans groupe) n'en a pas non
  * plus, et n'affiche rien là où le serveur ne lui publie pas de pictogramme (`symbole_url`). `SymbolesCarteTest` confronte

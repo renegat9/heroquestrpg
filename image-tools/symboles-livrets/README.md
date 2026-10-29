@@ -52,6 +52,7 @@ garde ses couleurs : `"couleur": true`. Sans fichier, l'affichage garde l'icône
 | `emprise` | `[largeur, hauteur]` en cases : le symbole est posé sur ce rapport (transparent autour) |
 | `couleur` | `true` = garder les couleurs du livret |
 | `seuil` | optionnel, défaut `28` : seuil bas de la force du trait. Le relever (`50` pour la bibliothèque) efface une marbrure du papier sans toucher au trait, sans rogner le cadre |
+| `poussiere` | optionnel, `true` : retire les **composantes connexes** de moins de 0,2 % de la plus grande (poussière du papier, éclats d'encre). **Opt-in par symbole**, jamais global : un pointillé ou une hachure faite de petites composantes y perdrait son dessin (`trone`, `mare-dacide` et `escalier` changeaient entièrement, mesuré le 2026-10-24). Seul `portes/secrete` l'utilise |
 | `source` | « F2847 p. 33 (PDF 17), « Tables » » — livret, page imprimée, légende |
 | `note` | écart à signaler (même symbole qu'un autre, rotation, etc.) |
 | `natif` | `{"xref": N, "boite_px": [x0, y0, x1, y1]}` : une case prise dans le **raster embarqué** `N`, à sa résolution native (sans rendu de page) |
@@ -81,6 +82,20 @@ reprendre » quand le symbole existe mais n'est pas encore isolé.
   repère d'affichage (celui de `get_pixmap(clip=…)`).
 - **Le voisin.** Le rognage se fait au trait : une fenêtre qui touche un texte ou une photo
   les emporte. Un cadre qui touche son bord est à revoir.
+- **Le voisin qui touche le cadre, sur une page où les symboles s'empilent** (portes du
+  Game System, F2847 p. 33) : chaque porte est à 12 pt de la suivante, et le cadre de
+  `fermee`/`verrouillee` en prenait le HAUT (2 912 px, 18 % du battant — un second battant
+  au bas de l'image, constaté le 2026-10-24). Le cadre s'arrête désormais entre les deux :
+  `[416, 812, 440, 823.2]`, le battant allant de 814,0 à 822,3 pt, la porte suivante
+  commençant à 825,1 pt. Mesure : `connected components` du rendu, avant de rogner.
+- **La poussière n'est pas du bruit partout.** Une composante minuscule est du bruit dans
+  une porte (`secrete` : quinze taches de 8 px au plus), mais un pointillé ou une hachure
+  pour un autre symbole. D'où l'option `poussiere` par entrée, et non un filtre global :
+  le filtre global changeait `trone`, `mare-dacide` et `escalier` entièrement.
+- **Le sens d'une porte n'entre pas dans le manifeste.** Le dessin du livret est un battant
+  COUCHÉ (porte de mur horizontal, nord-sud), donc `rotation: 0`. La porte qui relie l'est et
+  l'ouest est tournée par le SERVEUR (`symbole_rotation: 90`, `MoteurPortes::rotationSymbole()`) :
+  ne pas tourner l'image ici, le catalogue reste dans le sens du livret.
 - **Les tuiles en couleur** (Frozen Horror, Delthrak, Mage) ne sont pas des traits : elles
   gardent leurs couleurs (`couleur: true`) et leur cadre doit tenir dans la tuile.
 - **Les symboles à 2 orientations** : la `rotation` met le dessin dans le sens de l'emprise du

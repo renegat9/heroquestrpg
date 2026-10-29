@@ -260,7 +260,7 @@ it('publie l\'URL du symbole quand le fichier existe, pour chaque famille', func
         ->and($carte['escalier']['symbole_url'])->toBe('/images/livrets/escalier/escalier.webp');
 });
 
-it('une PLAQUE porte son symbole sur son ANCRE seulement ; une case isolée porte le sien', function () {
+it('un BLOC FIXE porte son symbole sur son ANCRE seulement ; une case isolée porte le sien', function () {
     symbolesDossierJetable();
     symbolesPoser('terrains/mare.webp');
     symbolesPoser('terrains/glace-glissante.webp');
@@ -410,4 +410,87 @@ it('publie symbole_rotation sur CHAQUE meuble : le râtelier couché tourne, le 
         "Râtelier d'armes 3x1" => 90,
         'Coffre 1x1' => 0,
     ]);
+});
+
+it('une PORTE publie symbole_rotation : 90 entre l\'est et l\'ouest, 0 au nord-sud, et la clé est toujours là', function () {
+    // René (2026-10-24) : « la porte devrait être retournée de 90 degrés quand elle est reliée à l'est ou à l'ouest ». Le
+    // dessin du livret est une porte de mur HORIZONTAL (battant couché, nord-sud) : la décision se lit sur les deux cases
+    // de la jonction, pas sur une supposition. Une porte ouverte n'a pas de dessin, mais sa rotation reste publiée.
+    symbolesDossierJetable();
+    symbolesPoser('portes/fermee.webp');
+    $quete = symbolesQuete();
+    $a = symbolesCaseDepart($quete->carte->grille, 1, 1);
+
+    $carte = new Carte(['grille' => ['portes' => [
+        ['x' => $a['x'], 'y' => $a['y'], 'cote' => 'e', 'etat' => 'fermee'],        // relie (x,y) à (x+1,y) : est-ouest
+        ['x' => $a['x'] + 2, 'y' => $a['y'], 'cote' => 's', 'etat' => 'fermee'],    // relie (x,y) à (x,y+1) : nord-sud
+        ['x' => $a['x'], 'y' => $a['y'] + 2, 'cote' => 'e', 'etat' => 'ouverte'],   // ouverte : sans dessin, rotation publiée
+    ]]]);
+
+    $methode = new ReflectionMethod(EtatGroupe::class, 'portes');
+    $methode->setAccessible(true);
+    $portes = $methode->invoke(app(EtatGroupe::class), $carte);
+
+    expect(array_column($portes, 'symbole_rotation'))->toBe([90, 0, 90]);
+});
+
+it('une plaque RÉPÉTÉE (motif) porte son pictogramme sur CHAQUE case ; un BLOC FIXE ne le porte que sur son ancre, étendu sur son emprise', function () {
+    // René (2026-10-24) : « pour les terrains, l'icône doit se répéter sur chaque case ». La Mare, elle, n'a qu'UN dessin (le
+    // socle 2×2 du livret) : étendu sur ses quatre cases, pas quatre petits bassins.
+    symbolesDossierJetable();
+    symbolesPoser('terrains/jungle-entravante.webp');
+    symbolesPoser('terrains/mare.webp');
+    $quete = symbolesQuete();
+    $grille = $quete->carte->grille;
+    $jungle = Terrain::where('nom', 'Jungle entravante')->value('id');
+    $mare = Terrain::where('nom', 'Mare')->value('id');
+    $a = symbolesCaseDepart($grille, 1, 1);
+    $b = symbolesCaseDepart($grille, 1, 3);
+
+    symbolesPoserCouches($quete, ['terrain' => [
+        ['x' => $a['x'], 'y' => $a['y'], 'terrain_id' => $jungle, 'groupe_id' => 'motif-1'],
+        ['x' => $a['x'] + 1, 'y' => $a['y'], 'terrain_id' => $jungle, 'groupe_id' => 'motif-1'],
+        ['x' => $a['x'] + 2, 'y' => $a['y'], 'terrain_id' => $jungle, 'groupe_id' => 'motif-1'],
+        ['x' => $b['x'], 'y' => $b['y'], 'terrain_id' => $mare, 'groupe_id' => 'bloc-1'],
+        ['x' => $b['x'] + 1, 'y' => $b['y'], 'terrain_id' => $mare, 'groupe_id' => 'bloc-1'],
+        ['x' => $b['x'], 'y' => $b['y'] + 1, 'terrain_id' => $mare, 'groupe_id' => 'bloc-1'],
+        ['x' => $b['x'] + 1, 'y' => $b['y'] + 1, 'terrain_id' => $mare, 'groupe_id' => 'bloc-1'],
+    ]]);
+
+    $terrain = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('carte.terrain');
+    $motif = array_values(array_filter($terrain, fn (array $e) => $e['groupe_id'] === 'motif-1'));
+    $bloc = array_values(array_filter($terrain, fn (array $e) => $e['groupe_id'] === 'bloc-1'));
+    $dessines = array_values(array_filter($bloc, fn (array $e) => $e['symbole_url'] !== null));
+
+    expect(array_column($motif, 'symbole_url'))->toBe(array_fill(0, 3, '/images/livrets/terrains/jungle-entravante.webp'), 'un motif porte son dessin sur chaque case')
+        ->and(array_column($motif, 'etendue'))->toBe([null, null, null], 'un motif répété n\'a plus d\'étendue')
+        ->and($dessines)->toHaveCount(1, 'un bloc fixe n\'a qu\'un dessin')
+        ->and($dessines[0]['ancre'])->toBeTrue('le dessin du bloc se pose sur son ancre')
+        ->and($dessines[0]['symbole_url'])->toBe('/images/livrets/terrains/mare.webp')
+        ->and($dessines[0]['etendue'])->toBe(['x' => $b['x'], 'y' => $b['y'], 'l' => 2, 'h' => 2], 'le dessin couvre l\'emprise 2×2');
+});
+
+it('sans fichier, une plaque répétée garde son icône Material UNIQUE sur l\'ancre, et l\'étendu de son repli ne bouge pas', function () {
+    // Le repli du livret est un droit : sans pictogramme, rien n'est publié case par case. La ligne de trois garde son
+    // étendue : l'icône de repli se centre sur la ligne, comme avant le chantier.
+    symbolesDossierJetable();
+    $quete = symbolesQuete();
+    $jungle = Terrain::where('nom', 'Jungle entravante')->value('id');
+    $a = symbolesCaseDepart($quete->carte->grille, 1, 1);
+
+    symbolesPoserCouches($quete, ['terrain' => [
+        ['x' => $a['x'], 'y' => $a['y'], 'terrain_id' => $jungle, 'groupe_id' => 'motif-1'],
+        ['x' => $a['x'] + 1, 'y' => $a['y'], 'terrain_id' => $jungle, 'groupe_id' => 'motif-1'],
+        ['x' => $a['x'] + 2, 'y' => $a['y'], 'terrain_id' => $jungle, 'groupe_id' => 'motif-1'],
+    ]]);
+
+    $motif = array_values(array_filter(
+        $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('carte.terrain'),
+        fn (array $e) => $e['groupe_id'] === 'motif-1',
+    ));
+    $ancres = array_values(array_filter($motif, fn (array $e) => $e['ancre']));
+
+    expect(array_column($motif, 'symbole_url'))->toBe([null, null, null])
+        ->and($ancres)->toHaveCount(1, 'une icône par groupe')
+        ->and($ancres[0]['etendue'])->toBe(['x' => $a['x'], 'y' => $a['y'], 'l' => 3, 'h' => 1], 'le repli centre son icône sur la ligne');
 });

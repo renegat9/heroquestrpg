@@ -95,8 +95,8 @@ it('donne une teinte à chaque TERRAIN du catalogue, et pas une de plus', functi
 });
 
 it('donne une icône à chaque PLAQUE de terrain — bloc ou motif — et pas une de plus', function () {
-    // Jungles of Delthrak (2026-10-24) : un terrain en bloc ou en motif se lit comme UNE plaque, qui porte UNE icône
-    // (`TERRAIN_ICONES`, posée sur la case d'ancre publiée par le serveur). Dans les deux sens : une plaque sans icône
+    // Jungles of Delthrak (2026-10-24) : un terrain en bloc ou en motif se lit comme UNE plaque, qui porte une icône de REPLI
+    // (`TERRAIN_ICONES`, posée sur la case d'ancre publiée par le serveur, sans pictogramme). Dans les deux sens : une plaque sans icône
     // retomberait en silence sur le repli ; une icône sans plaque ne désignerait rien.
     $this->seed(TerrainSeeder::class);
 
@@ -216,4 +216,17 @@ it('le cadenas d\'une porte verrouillée se voit AUSSI avec un pictogramme : le 
     expect(str_contains($grille, 'v-if="d.cadenas"'))->toBeTrue('le cadenas n\'est plus rendu')
         // La LIAISON du template, pas la classe : la règle CSS porte le même nom et survivrait à la suppression du badge.
         ->and(str_contains($grille, "'dg-door-lock--badge': d.symbole_url"))->toBeTrue('aucun badge de cadenas sur une porte à pictogramme');
+});
+
+it('le front TOURNE le battant d\'une PORTE que le serveur décide, et pose les marqueurs de case AU-DESSUS des plaques', function () {
+    // La rotation d'une porte suit la même voie que celle d'un meuble : publiée, transportée, puis lue par `SymboleCarte`.
+    // Les marqueurs d'une case (départ, monstre, initiale d'allié de la manette) sont dans une couche plus haute que les
+    // plaques : sans elle, le pictogramme d'un terrain recouvre le marqueur. Les deux z-index se lisent dans la source.
+    $grille = file_get_contents(base_path('resources/js/components/carte/DungeonGrid.vue'));
+
+    expect(str_contains($grille, 'symbole_rotation: p.symbole_rotation ?? 0'))->toBeTrue('la porte ne transporte pas sa rotation jusqu\'au rendu')
+        ->and(str_contains($grille, ':tourne="d.symbole_rotation"'))->toBeTrue('le battant d\'une porte n\'est pas tourné')
+        ->and(str_contains($grille, '<div v-if="$slots.cell" class="dg-cell-marques">'))->toBeTrue('les marqueurs de case ne sont pas dans leur couche')
+        ->and(preg_match('/\.dg-cell-marques \{[^}]*z-index: 3/', $grille))->toBe(1, 'la couche des marqueurs ne passe pas au-dessus des plaques')
+        ->and(preg_match('/\.dg-plaque-holder \{[^}]*z-index: 2/', $grille))->toBe(1, 'les plaques ne sont plus à z 2 : la comparaison serait fausse');
 });

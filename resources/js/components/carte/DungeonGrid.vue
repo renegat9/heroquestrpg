@@ -111,11 +111,10 @@ const classeTerrain = (x, y) => {
     const t = terrainDe(x, y);
     return t ? `terrain-${icone(TERRAIN_TEINTES, t.nom, TERRAIN_TEINTE_DEFAUT)}` : null;
 };
-// PLAQUES (Jungles of Delthrak, 2026-10-24) : UNE icône par groupe (bloc ou motif), sur la case d'ANCRE que le SERVEUR
-// désigne (`carte.terrain[].ancre`). Le client ne recalcule ni le groupe ni le centre : il dessine ce qu'il reçoit.
-// SYMBOLES DE LIVRET (2026-10-24) : une case isolée, sans ancre, a aussi sa plaque dès que le serveur lui publie un
-// `symbole_url` — son pictogramme, centré sur la case. Une case de plaque sans ancre n'a jamais de `symbole_url` : elle
-// n'entre pas ici. Sans symbole, la liste est exactement celle d'avant.
+// PLAQUES (Jungles of Delthrak, 2026-10-24) : une case de terrain entre ici dès qu'elle porte un pictogramme (`symbole_url`),
+// ou, sans pictogramme, quand elle est l'ANCRE qui porte l'icône de repli. Le SERVEUR décide case par case : une plaque
+// RÉPÉTÉE (motif) porte son pictogramme sur chaque case ; un BLOC FIXE (Mare, Brasier) le porte sur son ancre seulement,
+// étendu sur son emprise (`etendue`). Le client ne recalcule ni le groupe, ni l'ancre, ni la famille : il dessine ce qu'il reçoit.
 const plaques = computed(() => props.terrain.filter((t) => t.ancre || t.symbole_url));
 const iconePlaque = (p) => icone(TERRAIN_ICONES, p.nom, TERRAIN_ICONE_DEFAUT);
 // Titre de la case : nom du terrain, ET son surcoût s'il y en a un (Rivière
@@ -203,6 +202,9 @@ const doors = computed(() => (props.carte.portes ?? [])
             // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme de l'état, publié par le serveur. Son icône de repli reste celle
             // d'aujourd'hui : le verrou (cadenas) ou la pierre (construction), jamais une icône neuve.
             symbole_url: p.symbole_url ?? null,
+            // ROTATION du battant décidée par le serveur (2026-10-24) : 90 quand la porte relie l'est et l'ouest. `SymboleCarte`
+            // l'applique comme aux meubles ; le client ne la recalcule pas.
+            symbole_rotation: p.symbole_rotation ?? 0,
             icone: p.etat === 'verrouillee' ? 'lock' : (p.verrou === 'pierre' && p.etat !== 'ouverte' ? 'construction' : 'door_front'),
             titre: `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,
         };
@@ -221,11 +223,15 @@ const doors = computed(() => (props.carte.portes ?? [])
             :title="titreTerrain(c.x, c.y)"
             @click="emit('cell', c.x, c.y)"
         >
-            <slot name="cell" :x="c.x" :y="c.y" />
+            <!-- Ce qu'une case PORTE (marqueurs de la manette : départ, monstre, initiale d'allié) se pose dans une couche AU-DESSUS
+                 des plaques de terrain (z 2) : sans elle, le pictogramme d'une plaque recouvrait l'initiale d'un allié. -->
+            <div v-if="$slots.cell" class="dg-cell-marques">
+                <slot name="cell" :x="c.x" :y="c.y" />
+            </div>
         </div>
 
-        <!-- plaques de terrain (Jungles of Delthrak, 2026-10-24) : UNE icône par groupe, sur la case d'ancre publiée — jamais
-             une icône par case (« pas quatre icônes répétées pour une mare »). Transparente au pointeur : le toucher de la
+        <!-- plaques de terrain (Jungles of Delthrak, 2026-10-24) : le pictogramme de chaque case d'un motif, le dessin d'un bloc
+             fixe étendu sur son emprise, ou l'icône de repli de l'ancre (« pas quatre bassins pour une mare »). Transparente au pointeur : le toucher de la
              manette atteint toujours la case dessous. -->
         <div
             v-for="(p, i) in plaques"
@@ -409,7 +415,7 @@ const doors = computed(() => (props.carte.portes ?? [])
                 :class="[`cote-${d.cote}`, d.etat, { pierre: d.pierre && d.etat !== 'ouverte', 'avec-symbole': d.symbole_url }]"
                 :title="d.titre"
             >
-                <SymboleCarte v-if="d.symbole_url" :url="d.symbole_url" :icone="d.icone" :nom="d.titre" />
+                <SymboleCarte v-if="d.symbole_url" :url="d.symbole_url" :icone="d.icone" :nom="d.titre" :tourne="d.symbole_rotation" />
                 <!-- Le livret dessine la porte VERROUILLÉE exactement comme la fermée (même cadre) : sans badge, le verrou
                      disparaîtrait dès qu'il y a un pictogramme. Un petit cadenas dans le coin de la case, lisible à 24 px. -->
                 <MSym v-if="d.cadenas" n="lock" fill class="dg-door-lock" :class="{ 'dg-door-lock--badge': d.symbole_url }" />
@@ -539,12 +545,17 @@ const doors = computed(() => (props.carte.portes ?? [])
   box-shadow: inset 0 0 0 1px oklch(0.82 0.11 85 / 0.6);
 }
 
-/* ---- plaque de terrain (Jungles of Delthrak, 2026-10-24) : UNE icône par bloc ou motif, sur la case d'ancre du serveur.
-   Centrée dans sa case, à la taille des glyphes du donjon (lisible à 38 px sur la manette) ; `pointer-events: none` :
-   le toucher de la manette tombe sur la case, jamais sur l'icône. ---- */
+/* ---- plaque de terrain (Jungles of Delthrak, 2026-10-24) : le pictogramme de chaque case d'un motif, ou le dessin d'un bloc
+   fixe sur son emprise ; l'icône de repli (sans fichier) reste UNIQUE, sur l'ancre. Centrée dans sa case, à la taille des
+   glyphes du donjon (lisible à 38 px sur la manette) ; `pointer-events: none` : le toucher de la manette tombe sur la case,
+   jamais sur l'icône. ---- */
 /* ⚠ `position` + `z-index` (2026-10-24) : sans eux, le fond de `.dg-cell` (positionnée) RECOUVRAIT l'icône — aucune plaque
    n'en montrait une, sur la table comme sur la manette. Même pile que le mobilier (`.dg-furn-holder`). */
 .dg-plaque-holder { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+/* Les marqueurs d'une case (`#cell`) : une couche qui couvre la case, AU-DESSUS des plaques (z 2). Contrôle négatif (page de
+   contrôle, 2026-10-24) : sans elle, le pictogramme d'une plaque de Jungle recouvre le marqueur d'un allié posé dessus.
+   Le toucher reste celui de la case : la couche ne coupe rien, elle ne fait que peindre par-dessus. */
+.dg-cell-marques { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; }
 /* La boîte de la plaque est celle de son holder (l'étendue, ou la case d'ancre) : un PICTOGRAMME s'y centre à 80 % (SymboleCarte).
    Sans picto, le glyphe Material se centre dans la même boîte, comme avant. */
 .dg-plaque {

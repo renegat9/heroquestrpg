@@ -913,9 +913,9 @@
       "page": 17,
       "cadre": [
         416,
-        811,
+        812,
         440,
-        827
+        823.2
       ],
       "rotation": 0,
       "emprise": [
@@ -938,9 +938,9 @@
       "page": 17,
       "cadre": [
         416,
-        811,
+        812,
         440,
-        827
+        823.2
       ],
       "rotation": 0,
       "emprise": [
@@ -967,7 +967,9 @@
         1,
         1
       ],
-      "source": "F2847 p. 33 (PDF 17), « Secret doors » (1 des 4)"
+      "poussiere": true,
+      "source": "F2847 p. 33 (PDF 17), « Secret doors » (1 des 4)",
+      "note": "quinze taches de poussière du papier dans la base de la porte, retirées (poussiere) ; le battant est seul"
     },
     {
       "type": "portes",
