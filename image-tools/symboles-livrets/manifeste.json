@@ -1393,6 +1393,130 @@
         11.43
       ],
       "source": "F9907 p. 21 (PDF 11), « Wandering Monster in the Quest: Skullblight »"
+    },
+    {
+      "type": "monstres",
+      "cle": "gargoyle",
+      "nom_catalogue": "Gargoyle",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 7,
+      "cadre": [
+        178.23,
+        298.75,
+        202.81,
+        323.33
+      ],
+      "rotation": 0,
+      "disque": [
+        190.52,
+        311.04,
+        10.24
+      ],
+      "source": "F2847 p. 13 (PDF 7), carte, lettre B : « a gargoyle that appears to be a stone statue »"
+    },
+    {
+      "type": "monstres",
+      "cle": "orc-archer",
+      "nom_catalogue": "Orc Archer",
+      "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
+      "page": 19,
+      "cadre": [
+        345.29,
+        403.82,
+        393.05,
+        451.58
+      ],
+      "rotation": 0,
+      "disque": [
+        369.17,
+        427.7,
+        19.9
+      ],
+      "source": "F9528 p. 19 (PDF 19), légende « Orc Archer »",
+      "note": "disque mesuré hors de la flèche (qui déborde en haut à droite) ; contrôlé sur la planche de jetons"
+    },
+    {
+      "type": "monstres",
+      "cle": "goblin-archer",
+      "nom_catalogue": "Goblin Archer",
+      "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
+      "page": 19,
+      "cadre": [
+        346.97,
+        483.37,
+        397.13,
+        533.53
+      ],
+      "rotation": 0,
+      "disque": [
+        372.05,
+        508.45,
+        20.9
+      ],
+      "source": "F9528 p. 19 (PDF 19), légende « Goblin Archer »",
+      "note": "disque estimé à partir de l’enveloppe verte, flèche exclue : rayon approximatif, à revérifier à l’œil"
+    },
+    {
+      "type": "monstres",
+      "cle": "skeleton-archer",
+      "nom_catalogue": "Skeleton Archer",
+      "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
+      "page": 19,
+      "cadre": [
+        345.51,
+        320.37,
+        390.67,
+        365.53
+      ],
+      "rotation": 0,
+      "disque": [
+        368.09,
+        342.95,
+        18.82
+      ],
+      "source": "F9528 p. 19 (PDF 19), légende « Skeleton Archer »",
+      "note": "disque mesuré hors de la flèche (qui déborde en haut à droite) ; contrôlé sur la planche de jetons"
+    },
+    {
+      "type": "monstres",
+      "cle": "blightweaver",
+      "nom_catalogue": "Blightweaver",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 6,
+      "cadre": [
+        780.61,
+        338.84,
+        825.47,
+        383.7
+      ],
+      "rotation": 0,
+      "disque": [
+        803.04,
+        361.27,
+        18.69
+      ],
+      "source": "F9907 (PDF 6), légende « Blightweaver »"
+    },
+    {
+      "type": "monstres",
+      "cle": "morcar-sorcerer",
+      "nom_catalogue": "Morcar sorcerer",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 19,
+      "cadre": [
+        852.88,
+        488.09,
+        884.82,
+        520.03
+      ],
+      "rotation": 90,
+      "disque": [
+        868.85,
+        504.06,
+        13.31
+      ],
+      "source": "G1504 p. 37 (PDF 19), « Wandering Monsters in the Quest: Take a turn with one of the Sorcerers »",
+      "note": "étiquette verticale (rotation 90) : le jeton tourne avec son texte ; anneau de 26 pt, le plus grand des livrets lus"
     }
   ]
 }
