@@ -537,11 +537,13 @@ it('publie l\'URL du jeton quand le fichier existe, et la retire avec lui', func
     symbolesDossierJetable();
     symbolesPoserMonstre(symbolesQuete(), 'Gobelin');
 
-    // Un FAUX fichier, jamais une vraie image : seule son existence compte pour l'accesseur.
-    symbolesPoser('monstres/gobelin.webp');
-    expect(symbolesSymboleMonstre('Gobelin'))->toBe('/images/livrets/monstres/gobelin.webp');
+    // Un FAUX fichier, jamais une vraie image : seule son existence compte pour l'accesseur. La clé vient de la table
+    // des correspondances (`config/symboles_monstres.php` : le Gobelin y porte le jeton « goblin » du livret), sinon du slug.
+    $cle = config('symboles_monstres.cles.Gobelin') ?? \Illuminate\Support\Str::slug('Gobelin');
+    symbolesPoser("monstres/{$cle}.webp");
+    expect(symbolesSymboleMonstre('Gobelin'))->toBe("/images/livrets/monstres/{$cle}.webp");
 
-    unlink(public_path('images/livrets/monstres/gobelin.webp'));
+    unlink(public_path("images/livrets/monstres/{$cle}.webp"));
     expect(symbolesSymboleMonstre('Gobelin'))->toBeNull();
 });
 
