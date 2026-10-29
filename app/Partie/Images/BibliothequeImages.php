@@ -255,11 +255,11 @@ final class BibliothequeImages
     // ---- Symboles de livret : le PICTOGRAMME de chaque case (chantier symboles, 2026-10-24) ----
 
     /**
-     * Les familles de la carte qui portent un symbole de livret : un dossier par famille sous
-     * `public/images/livrets/`. FERMÉ — un type absent d'ici n'a pas de dossier, donc pas de symbole.
-     * `monstres` viendra en phase 2 (la figurine d'un monstre n'est pas une case de carte).
+     * Les familles qui portent un symbole de livret : un dossier par famille sous `public/images/livrets/`. FERMÉ — un type
+     * absent d'ici n'a pas de dossier, donc pas de symbole. `monstres` est le JETON de la figurine (une tête dans un cercle),
+     * pas un pictogramme de case : voir `urlSymboleMonstre()`.
      */
-    public const TYPES_SYMBOLE = ['mobiliers', 'terrains', 'pieges', 'portes', 'leviers', 'escalier', 'dangers'];
+    public const TYPES_SYMBOLE = ['mobiliers', 'terrains', 'pieges', 'portes', 'leviers', 'escalier', 'dangers', 'monstres'];
 
     /** Clé de la porte de pierre encore fermée (`verrou.type` = `pierre` sur une porte `fermee`). */
     private const SYMBOLE_PORTE_PIERRE = 'verrou_pierre';
@@ -356,6 +356,21 @@ final class BibliothequeImages
     public function urlSymboleEscalier(): ?string
     {
         return $this->urlSymboleLivret('escalier', 'escalier');
+    }
+
+    /**
+     * JETON DE MONSTRE (chantier jetons, 2026-10-29) : le jeton imprimé sur le livret (une tête dans un cercle), dessiné
+     * à 100 % du jeton de la figurine. Une figure du catalogue porte son propre jeton ; une VARIANTE nommée (Gragor, Borokk)
+     * pointe vers le jeton de sa figure, et `config/symboles_monstres.php` (`cles`, par nom de catalogue) le dit. Un monstre
+     * absent de cette table a pour clé le slug de son `nom_base`.
+     *
+     * ⚠ Absence = `null` : le client garde l'apparence actuelle du jeton. Un fichier qui n'existe pas n'est jamais publié.
+     */
+    public function urlSymboleMonstre(string $nomBase): ?string
+    {
+        $cles = (array) config('symboles_monstres.cles', []);
+
+        return $this->urlSymboleLivret('monstres', $cles[$nomBase] ?? $nomBase);
     }
 
     // ---- Dynamique (jobs / cache) ----------------------------------------

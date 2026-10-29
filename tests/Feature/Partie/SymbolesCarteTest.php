@@ -218,15 +218,41 @@ it('le cadenas d\'une porte verrouillée se voit AUSSI avec un pictogramme : le 
         ->and(str_contains($grille, "'dg-door-lock--badge': d.symbole_url"))->toBeTrue('aucun badge de cadenas sur une porte à pictogramme');
 });
 
-it('le front TOURNE le battant d\'une PORTE que le serveur décide, et pose les marqueurs de case AU-DESSUS des plaques', function () {
+it('le front TOURNE le battant d\'une PORTE que le serveur décide, et pose les JETONS de figure AU-DESSUS des plaques', function () {
     // La rotation d'une porte suit la même voie que celle d'un meuble : publiée, transportée, puis lue par `SymboleCarte`.
-    // Les marqueurs d'une case (départ, monstre, initiale d'allié de la manette) sont dans une couche plus haute que les
-    // plaques : sans elle, le pictogramme d'un terrain recouvre le marqueur. Les deux z-index se lisent dans la source.
+    // Les figures (héros, alliés, monstres) sont dans une couche plus haute que les plaques : sans elle, le pictogramme d'un
+    // terrain recouvrirait le jeton. Les deux z-index se lisent dans la source.
     $grille = file_get_contents(base_path('resources/js/components/carte/DungeonGrid.vue'));
 
     expect(str_contains($grille, 'symbole_rotation: p.symbole_rotation ?? 0'))->toBeTrue('la porte ne transporte pas sa rotation jusqu\'au rendu')
         ->and(str_contains($grille, ':tourne="d.symbole_rotation"'))->toBeTrue('le battant d\'une porte n\'est pas tourné')
-        ->and(str_contains($grille, '<div v-if="$slots.cell" class="dg-cell-marques">'))->toBeTrue('les marqueurs de case ne sont pas dans leur couche')
-        ->and(preg_match('/\.dg-cell-marques \{[^}]*z-index: 3/', $grille))->toBe(1, 'la couche des marqueurs ne passe pas au-dessus des plaques')
+        ->and(str_contains($grille, 'class="ent-holder dg-jeton-holder"'))->toBeTrue('les figures ne sont pas dans leur couche de jetons')
+        ->and(preg_match('/\.dg-jeton-holder \{[^}]*z-index: 4/', $grille))->toBe(1, 'les jetons ne passent pas au-dessus des plaques')
         ->and(preg_match('/\.dg-plaque-holder \{[^}]*z-index: 2/', $grille))->toBe(1, 'les plaques ne sont plus à z 2 : la comparaison serait fausse');
+});
+
+it('une figure est UN jeton posé par DungeonGrid, sur la table comme sur la manette : aucun second rendu, aucune superposition', function () {
+    $table = file_get_contents(base_path('resources/js/components/table/DungeonMap.vue'));
+    $manette = file_get_contents(base_path('resources/js/components/manette/DeplacementSheet.vue'));
+    $grille = file_get_contents(base_path('resources/js/components/carte/DungeonGrid.vue'));
+
+    expect(str_contains($table, 'class="fig'))->toBeFalse('la table redessine ses figures hors de DungeonGrid')
+        ->and(str_contains($manette, '#cell'))->toBeFalse('la manette superpose encore des marqueurs sur la case')
+        ->and(substr_count($grille, 'function disposerJetons('))->toBe(1, 'le placement des jetons a plus d\'un point de passage')
+        ->and(str_contains($table, ':figures="entities"'))->toBeTrue('la table ne confie pas ses figures au socle')
+        ->and(str_contains($manette, ':figures="figures"'))->toBeTrue('la manette ne confie pas ses figures au socle')
+        ->and(str_contains($grille, 'class="jeton"'))->toBeTrue('le jeton n\'a pas son gabarit unique')
+        ->and(str_contains($grille, '<Vignette'))->toBeTrue('le jeton n\'affiche pas ses images par Vignette');
+});
+
+it('le jeton du MONSTRE est transporté par le converseur de figures, et le pictogramme passe AVANT le portrait', function () {
+    // `symbole_url` est décidé par le serveur (monstres de `EtatGroupe`) : le converseur de figures doit le transporter, et
+    // le jeton le montrer en premier, sinon le livret ne serait jamais dessiné là où le portrait tenait sa place.
+    $jeu = file_get_contents(base_path('resources/js/store/game.js'));
+    $grille = file_get_contents(base_path('resources/js/components/carte/DungeonGrid.vue'));
+
+    expect(str_contains($jeu, 'symbole_url: e.symbole_url ?? null'))->toBeTrue('entitesVersFigurines ne transporte pas le jeton du monstre')
+        ->and(str_contains($grille, 'image: p.f.symbole_url ?? (props.portraits ? p.f.img : null)'))->toBeTrue('le jeton ne montre pas le pictogramme du monstre en premier')
+        // La manette n'a pas de portrait à 38 px (règle du 2026-09-11) : `portraits` est le seul interrupteur.
+        ->and(str_contains($grille, 'icone: props.portraits ? (p.f.ic ?? null) : null'))->toBeTrue('l\'icône de classe échappe au réglage des portraits');
 });

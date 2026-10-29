@@ -348,7 +348,8 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 .lg-chip.lg-symbole-porte { background: var(--stone-850); box-shadow: inset 0 0 0 1px oklch(0.4 0.02 255 / 0.5); }
 
 .lg-fig { border-radius: 50%; }
-.lg-fig.heros { background: oklch(0.45 0.06 255); box-shadow: 0 0 0 2px var(--gold); }
+/* Mêmes teintes que l'ANNEAU des jetons (DungeonGrid, `.jeton.*`). Le héros n'a d'or que lorsque c'est son tour. */
+.lg-fig.heros { background: oklch(0.45 0.06 255); }
 .lg-fig.monstre { background: oklch(0.55 0.16 25 / 0.85); }
 .lg-fig.allie { background: oklch(0.55 0.14 260 / 0.85); }
 .lg-fig.captif { background: oklch(0.78 0.13 80 / 0.9); }

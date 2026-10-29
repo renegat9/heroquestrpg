@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Models\Carte;
+use App\Models\InstanceMonstre;
+use App\Models\Monstre;
 use App\Models\Mobilier;
 use App\Models\Piege;
 use App\Models\Quete;
@@ -137,11 +139,11 @@ it('ne sert QUE le .webp : un .png seul ne donne aucun symbole', function () {
 
 it('ne sert jamais un type hors du vocabulaire fermé, ni une clé vide, ni une traversée de dossier', function () {
     symbolesDossierJetable();
-    symbolesPoser('monstres/gobelin.webp');     // phase 2 : pas encore un type de symbole
+    symbolesPoser('bestiaire/gobelin.webp');    // hors du vocabulaire : un dossier qui existe ne fait pas un type
     symbolesPoser('mobiliers/table.webp');
     $biblio = app(BibliothequeImages::class);
 
-    expect($biblio->urlSymboleLivret('monstres', 'gobelin'))->toBeNull()
+    expect($biblio->urlSymboleLivret('bestiaire', 'gobelin'))->toBeNull()
         ->and($biblio->urlSymboleLivret('../mobiliers', 'table'))->toBeNull()
         ->and($biblio->urlSymboleLivret('mobiliers', '  '))->toBeNull()
         ->and($biblio->urlSymboleLivret('mobiliers', 'Table'))->toBe('/images/livrets/mobiliers/table.webp');
@@ -493,4 +495,78 @@ it('sans fichier, une plaque répétée garde son icône Material UNIQUE sur l\'
     expect(array_column($motif, 'symbole_url'))->toBe([null, null, null])
         ->and($ancres)->toHaveCount(1, 'une icône par groupe')
         ->and($ancres[0]['etendue'])->toBe(['x' => $a['x'], 'y' => $a['y'], 'l' => 3, 'h' => 1], 'le repli centre son icône sur la ligne');
+});
+
+// =====================================================================
+// 3. LE JETON DE MONSTRE — `symbole_url` sur chaque figure révélée (chantier jetons, 2026-10-29)
+// =====================================================================
+
+/** Une figure du catalogue posée et révélée sur une case de la salle de départ. */
+function symbolesPoserMonstre(Quete $quete, string $nomBase, int $dx = 2, int $dy = 1): InstanceMonstre
+{
+    $catalogue = Monstre::where('nom_base', $nomBase)->firstOrFail();
+    $case = symbolesCaseDepart($quete->carte->grille, $dx, $dy);
+
+    return InstanceMonstre::create([
+        'quete_id' => $quete->id, 'monstre_id' => $catalogue->id,
+        'pv_body' => $catalogue->pv_body, 'pv_body_max' => $catalogue->pv_body, 'pv_mind' => $catalogue->pv_mind,
+        'position_x' => $case['x'], 'position_y' => $case['y'], 'etat' => 'actif', 'revele' => true,
+    ]);
+}
+
+/** Le `symbole_url` de la figure de ce nom, tel que l'ÉTAT le publie dans `entites` — jamais relu depuis la base. */
+function symbolesSymboleMonstre(string $nomBase): ?string
+{
+    $entites = test()->getJson('/api/groupes/table-1/etat')->assertOk()->json('entites');
+    $figure = collect($entites)->first(fn (array $e) => $e['type'] === 'monstre' && $e['nom_base'] === $nomBase);
+
+    expect($figure)->not->toBeNull("aucune figure {$nomBase} publiée : le test serait vide")
+        ->and(array_key_exists('symbole_url', $figure))->toBeTrue('symbole_url absent de la figure publiée');
+
+    return $figure['symbole_url'];
+}
+
+it('publie symbole_url sur chaque figure révélée, et null tant qu\'il n\'y a pas de fichier', function () {
+    symbolesDossierJetable();
+    symbolesPoserMonstre(symbolesQuete(), 'Gobelin');
+
+    expect(symbolesSymboleMonstre('Gobelin'))->toBeNull();
+});
+
+it('publie l\'URL du jeton quand le fichier existe, et la retire avec lui', function () {
+    symbolesDossierJetable();
+    symbolesPoserMonstre(symbolesQuete(), 'Gobelin');
+
+    // Un FAUX fichier, jamais une vraie image : seule son existence compte pour l'accesseur.
+    symbolesPoser('monstres/gobelin.webp');
+    expect(symbolesSymboleMonstre('Gobelin'))->toBe('/images/livrets/monstres/gobelin.webp');
+
+    unlink(public_path('images/livrets/monstres/gobelin.webp'));
+    expect(symbolesSymboleMonstre('Gobelin'))->toBeNull();
+});
+
+it('rend à une VARIANTE le jeton de sa figure, par la clé de config/symboles_monstres.php (nom de catalogue → clé)', function () {
+    symbolesDossierJetable();
+    config()->set('symboles_monstres.cles', ['Gobelin' => 'guerrier-du-chaos']);
+    symbolesPoser('monstres/guerrier-du-chaos.webp');
+    symbolesPoserMonstre(symbolesQuete(), 'Gobelin');
+
+    expect(symbolesSymboleMonstre('Gobelin'))->toBe('/images/livrets/monstres/guerrier-du-chaos.webp')
+        // Une figure absente de la table garde la clé de son nom de catalogue : ici aucun fichier, donc `null`.
+        ->and(app(BibliothequeImages::class)->urlSymboleMonstre('Squelette'))->toBeNull();
+
+    unlink(public_path('images/livrets/monstres/guerrier-du-chaos.webp'));
+});
+
+it('ne publie RIEN d\'une figure non révélée, même quand son jeton existe', function () {
+    symbolesDossierJetable();
+    $cachee = symbolesPoserMonstre(symbolesQuete(), 'Gobelin');
+    $cachee->update(['revele' => false]);
+    symbolesPoser('monstres/gobelin.webp');
+
+    $entites = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('entites');
+
+    expect(collect($entites)->where('type', 'monstre')->pluck('id')->all())->not->toContain($cachee->id);
+
+    unlink(public_path('images/livrets/monstres/gobelin.webp'));
 });

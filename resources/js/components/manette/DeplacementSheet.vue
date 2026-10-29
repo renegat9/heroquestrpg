@@ -15,6 +15,7 @@
 // éclaire exactement cette liste, rien d'autre. Aucun parcours, aucun miroir.
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useApi } from '../../composables/useApi';
+import { entitesVersFigurines } from '../../store/game.js';
 import DungeonGrid from '../carte/DungeonGrid.vue';
 import LegendeCarte from '../carte/LegendeCarte.vue';
 import MSym from '../ui/MSym.vue';
@@ -22,6 +23,8 @@ import MSym from '../ui/MSym.vue';
 const props = defineProps({
     carte: { type: Object, required: true },   // { largeur, hauteur, cases, portes }
     entites: { type: Array, default: () => [] }, // [{type, id, x, y, ...}]
+    // Ordre de jeu publié (`EtatGroupe.initiative`) : sert à savoir qui joue, pour l'anneau or du jeton.
+    initiative: { type: Array, default: () => [] },
     depart: { type: Object, required: true },    // { x, y } du héros
     // Non requis dès que `casesEcart` est fourni (voir plus bas) : ce mode-là
     // n'a pas d'allonce à annoncer, juste au plus deux cases déjà décidées.
@@ -86,24 +89,11 @@ const accessibles = computed(() => {
     return new Set(props.destinations.map((d) => cle(d.x, d.y)));
 });
 
-/** Rendu d'une figure présente sur une case : 'monstre' (icône dédiée) sauf
- *  pour un allié — hérité, mercenaire, ou monstre enrôlé par la Baguette d'Os
- *  (`controle_par`), qui n'est plus un ennemi ce tour-ci et se peint comme sur
- *  la table. Un monstre que ce héros peut franchir (mobilité de combat) reste un
- *  MONSTRE à l'écran : seule sa capacité à bloquer a changé, et le serveur l'a déjà
- *  tranchée dans `destinations`. */
-function silhouetteDe(x, y) {
-    const ent = occupantDe(x, y);
-    return (ent?.type === 'monstre' && ! ent?.controle_par) ? 'monstre' : 'allie';
-}
-
-// Surcouche par case (au-dessus du terrain rendu par DungeonGrid) : départ,
-// occupant (monstre/allié) ou case accessible ; null = terrain nu.
-// Les occupants ne servent qu'au DESSIN : qui bloque, qui se traverse, se décide
-// côté serveur et se lit dans `destinations` (une case occupée n'y figure jamais).
+// Surcouche par case (au-dessus du terrain rendu par DungeonGrid) : la case du départ, la case VISÉE, les cases du trajet,
+// une case accessible ; null = terrain nu. Les OCCUPANTS ne se peignent plus ici : le jeton de chaque figure les porte
+// (`figures` ci-dessous). Qui bloque, qui se traverse, se décide côté serveur et se lit dans `destinations`.
 function surcouche(x, y) {
     if (x === props.depart.x && y === props.depart.y) return 'depart';
-    if (occupantDe(x, y)) return silhouetteDe(x, y);
     // Trajet prévu : la case VISÉE d'abord (elle est aussi dans le chemin), puis
     // les cases traversées — elles restent accessibles, on ne fait que dire
     // « le héros passera par là ».
@@ -112,36 +102,11 @@ function surcouche(x, y) {
     return accessibles.value.has(cle(x, y)) ? 'accessible' : null;
 }
 
-/** L'entité debout sur cette case, s'il y en a une. */
-function occupantDe(x, y) {
-    return props.entites.find((e) => e.x === x && e.y === y
-        && ! (e.type === 'heros' && e.tombe)
-        && ! (e.type === 'monstre' && ((e.etat ?? 'actif') !== 'actif' || (e.pv_body ?? 1) <= 0)));
-}
-
-/** TROIS PREMIÈRES LETTRES du compagnon (René, 2026-09-11 : « peux-tu mettre
- *  les 3 premières lettres des joueurs pour les identifier » — une initiale
- *  seule ne se rattachait pas assez vite à un nom autour de la table).
- *
- *  ⚠ Pas de portrait : à 38 px une illustration devient une tache. C'est la
- *  leçon des images de carte, qui vivent dans la LÉGENDE et jamais sur la
- *  grille, parce que la silhouette est ce qu'on lit d'un coup d'œil.
- *
- *  ⚠ Trois lettres ne tiennent pas dans un disque : la pastille est un
- *  RECTANGLE arrondi, et la graisse compense la petite taille. */
-function initialeDe(x, y) {
-    const nom = (occupantDe(x, y)?.nom ?? '').trim();
-    return nom ? nom.slice(0, 3).toUpperCase() : '';
-}
-
-/** ⚠ Deux héros peuvent porter le MÊME nom (constaté en partie : deux
- *  « Thrakor »), donc l'initiale seule ne suffit pas à les distinguer. La
- *  teinte se dérive de l'`id`, stable d'un tour à l'autre — deux compagnons
- *  homonymes restent alors deux figurines différentes à l'œil. */
-function teinteDe(x, y) {
-    const id = occupantDe(x, y)?.id;
-    return id == null ? null : { '--dep-allie-h': `${(Number(id) * 47) % 360}` };
-}
+/** Les figures de la carte, en JETONS : la MÊME forme que la table (`entitesVersFigurines`), donc le même rendu. Une figure
+ *  sur une case partagée (un héros tombé sous un allié, par exemple) porte son propre jeton, décalé DANS la case
+ *  (`DungeonGrid`, `disposerJetons`) : rien n'est plus superposé ni masqué. Un héros tombé reste sur sa case — il est
+ *  seulement estompé (`.jeton.tombe`). */
+const figures = computed(() => entitesVersFigurines(props.entites, props.initiative));
 
 // APERÇU DU TRAJET (René, 2026-09-17 : « que la figure utilise le vrai
 // chemin »). Un tap ne part plus tout droit : il demande au SERVEUR la route
@@ -388,18 +353,7 @@ onMounted(async () => {
 
             <div class="dep-carte">
                 <div ref="grilleRef" class="dep-scroll" @scroll.passive="mesurer">
-                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :furniture="carte.mobilier ?? []" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :shadow="carte.ombre ?? []" :dangers="carte.dangers ?? []" :stairs="carte.escalier ?? null" :cell-class="surcouche" :grid-style="gridStyle" @cell="toucher">
-                    <template #cell="{ x, y }">
-                        <MSym v-if="surcouche(x, y) === 'depart'" n="person" :size="14" fill />
-                        <MSym v-else-if="surcouche(x, y) === 'monstre'" n="pets" :size="13" fill />
-                        <span
-                            v-else-if="surcouche(x, y) === 'allie' && initialeDe(x, y)"
-                            class="dep-initiale"
-                            :style="teinteDe(x, y)"
-                            :title="occupantDe(x, y)?.nom"
-                        >{{ initialeDe(x, y) }}</span>
-                    </template>
-                    </DungeonGrid>
+                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :furniture="carte.mobilier ?? []" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :shadow="carte.ombre ?? []" :dangers="carte.dangers ?? []" :stairs="carte.escalier ?? null" :cell-class="surcouche" :figures="figures" :portraits="false" :grid-style="gridStyle" @cell="toucher" />
                 </div>
 
                 <!-- Croix de direction : le pendant du zoom. Le doigt sert à
@@ -541,21 +495,6 @@ onMounted(async () => {
    revient au bord quand elle DÉPASSE (scroll jusqu'à la salle la plus à droite). */
 .dep-scroll { overflow: auto; flex: 1; min-width: 0; border-radius: var(--r-md); background: var(--stone-950); padding: 8px;
   display: flex; justify-content: safe center; align-items: safe center; }
-/* Départ/occupants : centrer l'icône dans la case (DungeonGrid gère le reste). */
+/* Cases : centrer le contenu (les jetons de figure se posent par DungeonGrid). */
 .dep-scroll .dg-cell { display: grid; place-items: center; }
-
-/* Initiale d'un compagnon (René, 2026-09-11). Pleine case, fond teinté par
-   `--dep-allie-h` (dérivé de l'id) pour séparer deux homonymes, et un contour
-   sombre pour que la lettre tienne sur n'importe quelle teinte. */
-.dep-initiale {
-  display: grid; place-items: center; width: 100%; height: 100%;
-  /* Rectangle arrondi, pas un disque : trois lettres dans un cercle de 38 px
-     obligeraient à descendre sous 8 px pour tenir dans la corde. */
-  border-radius: 6px;
-  font-weight: 800; font-size: 11px; line-height: 1; letter-spacing: -0.04em;
-  color: oklch(0.98 0 0);
-  background: oklch(0.52 0.15 var(--dep-allie-h, 260));
-  box-shadow: inset 0 0 0 1.5px oklch(0.16 0.012 255 / 0.85);
-  text-shadow: 0 1px 2px oklch(0.16 0.012 255 / 0.9);
-}
 </style>

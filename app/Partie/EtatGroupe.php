@@ -1500,6 +1500,9 @@ final class EtatGroupe
                 'nom_base' => $i->monstre->nom_base,
                 // Portrait de boss dynamique si généré, sinon image du catalogue.
                 'image_url' => app(BibliothequeImages::class)->urlMonstre($i->id, $i->monstre_id, $i->monstre->nom_base),
+                // JETON de la figurine (livret, une tête dans un cercle) : `null` sans fichier, et le client garde alors
+                // l'apparence du jeton d'aujourd'hui. Toujours présent, comme `symbole_url` des couches de carte.
+                'symbole_url' => app(BibliothequeImages::class)->urlSymboleMonstre($i->monstre->nom_base),
                 'x' => $i->position_x,
                 'y' => $i->position_y,
                 // Emprise (3.9) : grandes figurines multi-cases (1×1 par défaut).

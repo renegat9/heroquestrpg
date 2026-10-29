@@ -596,8 +596,9 @@ export function estCourant(entite, initiative) {
     return cur.entite === type && cur.id === entite.id;
 }
 
-/** entites (contrat) → figurines [{x, y, k, l, ic, hp?, cur?, cond?}]
- *  pour DungeonMap (cond = pictogramme d'état discret sur le jeton). */
+/** entites (contrat) → figurines [{id, type, nom, x, y, ew, eh, k, l, ic, img, symbole_url, hp?, cur?, elite?, cond?}].
+ *  UNE forme pour la table (DungeonMap) et la manette (DeplacementSheet) : DungeonGrid en fait un jeton par figure. `cond`
+ *  = pictogramme d'état discret sur le jeton. */
 export function entitesVersFigurines(entites, initiative) {
     return (entites ?? [])
         .filter((e) => e.type !== 'monstre' || ((e.etat ?? 'actif') === 'actif' && e.pv_body > 0))
@@ -606,6 +607,8 @@ export function entitesVersFigurines(entites, initiative) {
             // déplacement (TransitionGroup FLIP) et le fondu de sortie (mort).
             id: e.id,
             type: e.type,
+            // Nom complet : le `title` du jeton (la carte n'a pas de tooltip pour la manette, mais la table en a un).
+            nom: e.nom ?? null,
             x: e.x,
             y: e.y,
             // Un monstre ENRÔLÉ (Baguette d'Os) se lit comme un allié tant que
@@ -613,7 +616,7 @@ export function entitesVersFigurines(entites, initiative) {
             // ses propres congénères, sans rien pour l'expliquer.
             // CAPTIF (mission « secourir », chantier 3b, 2026-10-04) : ni
             // allié ni ennemi tant qu'il n'est pas libéré — sa propre teinte
-            // (`.fig.captif`, TableView.vue), jamais confondu avec un monstre.
+            // (anneau `.jeton.captif`, DungeonGrid.vue), jamais confondu avec un monstre.
             k: e.type === 'heros' ? 'hero'
                 : (e.type === 'captif' ? 'captif' : ((e.type === 'allie' || e.controle_par) ? 'ally' : 'foe')),
             l: labelCourt(e.nom),
@@ -623,6 +626,15 @@ export function entitesVersFigurines(entites, initiative) {
                     ? (e.animal ? 'pets' : 'handshake')
                     : 'sentiment_very_dissatisfied')),
             img: e.image_url ?? null,
+            // JETON du monstre (livret, chantier jetons 2026-10-29) : décidé par le serveur, `null` sans fichier — le jeton
+            // garde alors son portrait. Jamais composé ici.
+            symbole_url: e.symbole_url ?? null,
+            // Héros tombé : il reste sur sa case (on peut être dessous un allié), estompé.
+            tombe: e.type === 'heros' && !!e.tombe,
+            // ⚠ Deux héros peuvent porter le MÊME nom (constaté en partie : deux « Thrakor ») : sur un jeton sans portrait, le
+            // libellé seul ne les distingue pas. La teinte du fond se dérive de l'id — stable d'un tour à l'autre —, l'anneau
+            // reste celui de la famille.
+            teinte: (e.type === 'heros' || e.type === 'allie') ? (Number(e.id) * 47) % 360 : null,
             hp: (e.type === 'monstre' || e.type === 'allie' || e.type === 'captif') ? e.pv_body : undefined,
             cur: estCourant(e, initiative),
             elite: e.type === 'monstre' ? !!e.elite : false,

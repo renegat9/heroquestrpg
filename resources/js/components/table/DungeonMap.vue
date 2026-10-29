@@ -8,7 +8,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import DungeonGrid from '../carte/DungeonGrid.vue';
 import MSym from '../ui/MSym.vue';
-import Vignette from '../ui/Vignette.vue';
 
 /** Densité de référence (cases visibles à l'écran, quelle que soit la taille
  *  réelle de la carte) — garde le même « zoom » perçu. */
@@ -18,7 +17,7 @@ const LIGNES_VUE = 9;
 const props = defineProps({
     /** Carte du contrat : { largeur, hauteur, cases, portes }. */
     carte: { type: Object, required: true },
-    /** Figurines : [{ x, y, k, l, ic, hp?, cur?, tgt?, cond?, ew?, eh? }]. */
+    /** Figurines : la forme de `entitesVersFigurines()` (store/game.js), rendue en jetons par DungeonGrid. */
     entities: { type: Array, required: true },
     /** Pièges visibles : [{ x, y, etat, nom, titre }] — voir piegesVersMarqueurs(). */
     traps: { type: Array, default: () => [] },
@@ -210,37 +209,10 @@ function finGeste(e, permettreTap) {
         @pointerup="(e) => finGeste(e, true)"
         @pointercancel="(e) => finGeste(e, false)"
     >
-        <DungeonGrid :carte="carte" :traps="traps" :furniture="furniture" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :shadow="carte.ombre ?? []" :dangers="carte.dangers ?? []" :stairs="carte.escalier ?? null" :grid-style="gridStyle" animate>
-            <!-- Figurines (héros / monstres / alliés) — enfants directs de la
-                 grille : FLIP de glissement case-par-case, fondu à la mort.
-                 `data-fig-*` : seule façon pour `debutGeste()` de savoir, au
-                 pointerdown, QUELLE figurine (le cas échéant) est visée. -->
-            <div
-                v-for="e in entities"
-                :key="`ent-${e.k}-${e.id}`"
-                class="ent-holder"
-                :data-fig-id="e.id"
-                :data-fig-type="e.type"
-                :style="{
-                    gridColumn: `${e.x + 1} / span ${e.ew ?? 1}`,
-                    gridRow: `${e.y + 1} / span ${e.eh ?? 1}`,
-                }"
-            >
-                <div class="fig" :class="[e.k, { cur: e.cur, tgt: e.tgt, elite: e.elite }]">
-                    <Vignette v-if="e.img || e.ic" :src="e.img" :icon="e.ic" fill />
-                    <template v-else>{{ e.l }}</template>
-                    <div v-if="e.elite" class="elite-badge" title="Élite">
-                        <MSym n="star" fill />
-                    </div>
-                    <div v-if="e.hp" class="hp">
-                        <i v-for="p in e.hp" :key="p" />
-                    </div>
-                    <div v-if="e.cond" class="cond" :class="e.cond.t ? `b-${e.cond.t}` : null" :title="e.cond.titre">
-                        <MSym :n="e.cond.ic" fill />
-                    </div>
-                </div>
-            </div>
-        </DungeonGrid>
+        <!-- Les figurines (héros, alliés, captifs, monstres) sont des JETONS posés par DungeonGrid — le même rendu que sur la
+             manette. `figures-cliquables` : un toucher sur un jeton ouvre sa fiche (`debutGeste()` lit `.ent-holder`). -->
+        <DungeonGrid :carte="carte" :traps="traps" :furniture="furniture" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :shadow="carte.ombre ?? []" :dangers="carte.dangers ?? []" :stairs="carte.escalier ?? null" :figures="entities" figures-cliquables :grid-style="gridStyle" animate />
+
 
         <!-- « Recentrer » : seulement quand la vue a été écartée à la main —
              en permanence, il concurrencerait le seul signal qui doit compter

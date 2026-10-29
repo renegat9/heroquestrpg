@@ -94,7 +94,7 @@ proposition du MJ. » quand ce n'est pas son tour.
      "faveurs": [{"cle": "deadeye", "libelle": "Deadeye", "effet": "Les figures (héros et monstres) ne bloquent pas votre ligne de vue…"}],
      "...": "ou null — mode ESCORTÉ de la mission « secourir », voir ci-dessous"},
     {"type": "monstre", "id": 9, "nom": "<habillage IA ou nom_base>", "nom_base": "<type catalogue>", "x": 5, "y": 4,
-     "pv_body": 2, "pv_body_max": 2, "etat": "actif"},
+     "pv_body": 2, "pv_body_max": 2, "etat": "actif", "symbole_url": "/images/livrets/monstres/<cle>.webp|null"},
     {"type": "captif", "id": 3, "nom": "Gothar", "x": 7, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "image_url": "/images/..."}
   ],
@@ -2480,9 +2480,11 @@ importent bien le même fichier.
 - `carte.escalier` : l'objet entier, `null` s'il n'y en a pas ;
 - `carte.dangers[]` : les états `roule` et `actif` seulement. Un rocher arrêté (`bloc`) est un bloc plein, sans symbole, comme la Chute de blocs.
 
-Un fichier par symbole : `public/images/livrets/{type}/{slug}.webp`, `{type}` ∈ `mobiliers`, `terrains`, `pieges`, `portes`, `leviers`, `escalier`, `dangers` (`BibliothequeImages::TYPES_SYMBOLE`, fermé), `{slug}` = `Str::slug()` de la clé : le nom de catalogue (`Forge des nains` → `forge-des-nains`) ou le libellé fixe (`portes/verrou-pierre.webp`, `leviers/levier.webp`, `escalier/escalier.webp`). Seul le `.webp` est servi. **Les symboles sont DANS le dépôt** (René, 2026-10-24) ; le repli reste obligatoire : sans fichier, `symbole_url` vaut `null` et le client garde l'icône d'aujourd'hui — jamais un emblème SVG, qui prétendrait « symbole manquant » là où aucun n'était attendu.
+Un fichier par symbole : `public/images/livrets/{type}/{slug}.webp`, `{type}` ∈ `mobiliers`, `terrains`, `pieges`, `portes`, `leviers`, `escalier`, `dangers`, `monstres` (`BibliothequeImages::TYPES_SYMBOLE`, fermé), `{slug}` = `Str::slug()` de la clé : le nom de catalogue (`Forge des nains` → `forge-des-nains`) ou le libellé fixe (`portes/verrou-pierre.webp`, `leviers/levier.webp`, `escalier/escalier.webp`). Seul le `.webp` est servi. **Les symboles sont DANS le dépôt** (René, 2026-10-24) ; le repli reste obligatoire : sans fichier, `symbole_url` vaut `null` et le client garde l'icône d'aujourd'hui — jamais un emblème SVG, qui prétendrait « symbole manquant » là où aucun n'était attendu.
 
-Le client **ne compose aucune URL** : il dessine la `symbole_url` reçue sur la case (tournée de `symbole_rotation` pour le battant d'une porte), ou sur l'étendue (`etendue`) qu'un bloc fixe reçoit de son ancre. ⚠ Un symbole est un **pictogramme** : il se pose SUR la carte, à l'intérieur de la silhouette de sa famille. Une **illustration** (`image_url`) est une image peinte : elle reste dans la LÉGENDE et l'aperçu de salle, à côté du symbole, jamais à sa place. Hors phase 1, sans symbole : épreuves, mur de glace, voile d'ombre, monstres.
+Le client **ne compose aucune URL** : il dessine la `symbole_url` reçue sur la case (tournée de `symbole_rotation` pour le battant d'une porte), ou sur l'étendue (`etendue`) qu'un bloc fixe reçoit de son ancre. ⚠ Un symbole est un **pictogramme** : il se pose SUR la carte, à l'intérieur de la silhouette de sa famille. Une **illustration** (`image_url`) est une image peinte : elle reste dans la LÉGENDE et l'aperçu de salle, à côté du symbole, jamais à sa place. Hors phase 1, sans symbole : épreuves, mur de glace, voile d'ombre. Les **monstres** n'ont pas un pictogramme de case mais un **jeton** (ci-dessous).
+
+**Jeton de monstre** (chantier jetons, 2026-10-29). `entites[]` où `type: "monstre"` porte `symbole_url` (`string|null`, **toujours présent**) : le jeton imprimé sur le livret (une tête dans un cercle), décidé par `BibliothequeImages::urlSymboleMonstre($nom_base)`. Sa clé vient de `config/symboles_monstres.php` (`cles`, par NOM DE CATALOGUE : une variante nommée — Gragor, Borokk — pointe vers le jeton de sa figure) ; un monstre absent de cette table a pour clé le slug de son `nom_base`. Sans fichier, `null` : le jeton garde son apparence d'aujourd'hui (portrait ou icône). Quand le champ est là, le client dessine l'image à 100 % du jeton, avec l'anneau de la famille par-dessus. Un monstre non révélé n'est pas publié du tout : son jeton ne fuit pas plus que sa position.
 
 **Le bouton « i »** ouvre la légende sur les deux écrans (coin de la carte à la
 table, en-tête de la feuille de déplacement sur la manette). Elle ne liste que ce

@@ -2,9 +2,9 @@
 // GRILLE DE DONJON PARTAGÉE — socle commun à la carte TABLE (narrateur) et à la
 // mini-carte MANETTE (déplacement), pour qu'elles rendent le TERRAIN de façon
 // IDENTIQUE : cases (mur / sol / brouillard), portes et marqueurs de pièges.
-// Chaque parent ajoute sa couche propre — figurines animées + caméra côté
-// table ; surbrillance des cases accessibles + tap côté manette — via les
-// slots/props ci-dessous.
+// LES FIGURES (héros, alliés, captifs, monstres) sont des JETONS posés ici, sur les deux écrans (prop `figures`).
+// Chaque parent ajoute sa propre part — caméra et glissé côté table ; surbrillance des cases accessibles + tap
+// côté manette — via les props ci-dessous.
 //
 // La porte VIT sur une arête (`{x,y,cote}`, identité et verrous côté serveur —
 // voir `MoteurPortes`), mais elle BLOQUE et se DESSINE désormais sur une case,
@@ -15,6 +15,7 @@
 // portes séparées).
 import { computed } from 'vue';
 import MSym from '../ui/MSym.vue';
+import Vignette from '../ui/Vignette.vue';
 import SymboleCarte from './SymboleCarte.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
@@ -77,6 +78,17 @@ const props = defineProps({
     stairs: { type: Object, default: null },
     /** Anime le déplacement des enfants (FLIP sur les figurines) — table. */
     animate: { type: Boolean, default: false },
+    /** Figurines (héros, alliés, captifs, monstres), forme de `entitesVersFigurines()` (store/game.js) :
+     *  {id, type, nom, x, y, ew, eh, k, l, ic, img, symbole_url, hp?, cur?, elite?, cond?}. Chacune est UN JETON rond :
+     *  la place que chaque jeton occupe dans sa case est décidée par `disposerJetons()`, ici et nulle part ailleurs. */
+    figures: { type: Array, default: () => [] },
+    /** La table tape une figure pour ouvrir sa fiche : les jetons reçoivent alors le toucher. La manette ne le veut pas
+     *  (un toucher sur une figure tombe sur sa CASE, comme avant). */
+    figuresCliquables: { type: Boolean, default: false },
+    /** Le jeton montre le PORTRAIT (et l'icône de classe) quand il en a un. La table, grande, le veut ; la manette, à 38 px,
+     *  non : une illustration y devient une tache, et seuls les trois premières lettres se lisent (docs, 2026-09-11). Le
+     *  pictogramme de monstre (`symbole_url`) reste dans les deux cas : il est dessiné pour être lu petit. */
+    portraits: { type: Boolean, default: true },
 });
 const emit = defineEmits(['cell']);
 
@@ -209,6 +221,89 @@ const doors = computed(() => (props.carte.portes ?? [])
             titre: `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,
         };
     }));
+
+// ---- JETONS DE FIGURE (chantier jetons, 2026-10-29) ------------------------------------------------------------------
+// Une figure est un JETON ROND, ~70 % de son emprise, centré : le terrain de la case se voit dans les coins. Deux figures
+// sur une même case : deux jetons plus petits, décalés DANS la case (2 : diagonale ; 3 et plus : une grille k×k, quadrants
+// pour 3 et 4). Toute figure de la carte passe par ce point de passage — ni la table ni la manette ne superposent plus rien.
+const JETON_SEUL = 0.7;   // fraction du côté de l'emprise, pour une figure seule
+const JETON_DUO = 0.46;   // deux figures sur une case
+const JETON_GROUPE = 0.86; // plus de deux : la grille k×k se partage 86 % du côté
+const CENTRES_DUO = [[0.25, 0.25], [0.75, 0.75]];
+
+/**
+ * Pose les jetons d'UNE case (ou d'une emprise). `membres` partagent l'ancre (x, y) ; la boîte du groupe est la plus
+ * grande emprise. Rend, par jeton, son placement en POURCENTAGE de la boîte — l'emprise du groupe. Les glyphes, eux, se
+ * dimensionnent sur le jeton (`cqw`, dans le style), jamais sur la case.
+ */
+function disposerJetons(membres) {
+    const n = membres.length;
+    const bw = Math.max(...membres.map((f) => f.ew ?? 1));
+    const bh = Math.max(...membres.map((f) => f.eh ?? 1));
+    const cote = Math.min(bw, bh);
+    let diametre;
+    let centres;
+    if (n === 1) {
+        diametre = JETON_SEUL * cote;
+        centres = [[0.5, 0.5]];
+    } else if (n === 2) {
+        diametre = JETON_DUO * cote;
+        centres = CENTRES_DUO;
+    } else {
+        const k = Math.ceil(Math.sqrt(n));
+        diametre = (JETON_GROUPE / k) * cote;
+        centres = Array.from({ length: n }, (_, i) => [((i % k) + 0.5) / k, (Math.floor(i / k) + 0.5) / k]);
+    }
+    return membres.map((f, i) => {
+        const [fx, fy] = centres[i];
+        const cx = fx * bw;
+        const cy = fy * bh;
+        return {
+            f,
+            bw,
+            bh,
+            // Placement en % de la boîte : la boîte est l'emprise posée, donc le % suit la case, jamais un pixel.
+            jeton: {
+                left: `${((cx - diametre / 2) / bw) * 100}%`,
+                top: `${((cy - diametre / 2) / bh) * 100}%`,
+                width: `${(diametre / bw) * 100}%`,
+                height: `${(diametre / bh) * 100}%`,
+            },
+        };
+    });
+}
+
+/** Les figures de la carte, une fois posées : une entrée par jeton, avec la boîte de son groupe (ancre commune). */
+const jetonsPlaces = computed(() => {
+    const parCase = new Map();
+    for (const f of props.figures) {
+        // Une figure sans case connue n'est pas posée : rien à deviner pour elle (ni (0,0), ni la marge).
+        if (!Number.isInteger(f.x) || !Number.isInteger(f.y)) continue;
+        const cle = `${f.x},${f.y}`;
+        if (!parCase.has(cle)) parCase.set(cle, []);
+        parCase.get(cle).push(f);
+    }
+
+    const out = [];
+    for (const membres of parCase.values()) {
+        for (const p of disposerJetons(membres)) {
+            out.push({
+                key: `fig-${p.f.type}-${p.f.id}`,
+                f: p.f,
+                holder: {
+                    gridColumn: `${p.f.x + 1} / span ${p.bw}`,
+                    gridRow: `${p.f.y + 1} / span ${p.bh}`,
+                },
+                jeton: p.f.teinte != null ? { ...p.jeton, '--jeton-teinte': String(p.f.teinte) } : p.jeton,
+                // Ce que le jeton montre : le pictogramme du monstre d'abord ; le portrait et l'icône de classe seulement
+                // là où les portraits sont voulus (la table). Sinon, les trois lettres.
+                image: p.f.symbole_url ?? (props.portraits ? p.f.img : null),
+                icone: props.portraits ? (p.f.ic ?? null) : null,
+            });
+        }
+    }
+    return out;
+});
 </script>
 
 <template>
@@ -222,13 +317,7 @@ const doors = computed(() => (props.carte.portes ?? [])
             :style="{ gridColumn: c.x + 1, gridRow: c.y + 1 }"
             :title="titreTerrain(c.x, c.y)"
             @click="emit('cell', c.x, c.y)"
-        >
-            <!-- Ce qu'une case PORTE (marqueurs de la manette : départ, monstre, initiale d'allié) se pose dans une couche AU-DESSUS
-                 des plaques de terrain (z 2) : sans elle, le pictogramme d'une plaque recouvrait l'initiale d'un allié. -->
-            <div v-if="$slots.cell" class="dg-cell-marques">
-                <slot name="cell" :x="c.x" :y="c.y" />
-            </div>
-        </div>
+        ></div>
 
         <!-- plaques de terrain (Jungles of Delthrak, 2026-10-24) : le pictogramme de chaque case d'un motif, le dessin d'un bloc
              fixe étendu sur son emprise, ou l'icône de repli de l'ancre (« pas quatre bassins pour une mare »). Transparente au pointeur : le toucher de la
@@ -423,8 +512,35 @@ const doors = computed(() => (props.carte.portes ?? [])
             </div>
         </div>
 
-        <!-- couche propre au parent (figurines animées de la table) -->
-        <slot />
+        <!-- FIGURES (héros, alliés, captifs, monstres) : un JETON rond par figure, placé par `disposerJetons()`. Enfants DIRECTS
+             du TransitionGroup : le glissement case par case (table) les suit, et la classe `ent-holder` reste celle que
+             DungeonMap lit au toucher. Toujours la dernière couche : une figure passe au-dessus d'une porte ou d'un voile. -->
+        <div
+            v-for="p in jetonsPlaces"
+            :key="p.key"
+            class="ent-holder dg-jeton-holder"
+            :class="{ 'dg-jeton-cliquable': figuresCliquables }"
+            :data-fig-id="p.f.id"
+            :data-fig-type="p.f.type"
+            :style="p.holder"
+        >
+            <div
+                class="jeton"
+                :class="[p.f.k, { cur: p.f.cur, elite: p.f.elite, tombe: p.f.tombe, teintee: p.f.teinte != null && !p.image && !p.icone }]"
+                :style="p.jeton"
+                :title="p.f.nom"
+            >
+                <!-- Ce que le jeton MONTRE (décidé en `jetonsPlaces`) : le pictogramme de monstre, le portrait (table), l'icône,
+                     ou les trois premières lettres (la manette, à 38 px : pas de portrait — voir `portraits`). -->
+                <Vignette v-if="p.image || p.icone" :src="p.image" :icon="p.icone ?? 'help'" :size="null" fill />
+                <span v-else class="jeton-lettres">{{ p.f.l }}</span>
+                <div v-if="p.f.elite" class="jeton-elite" title="Élite"><MSym n="star" fill /></div>
+                <div v-if="p.f.hp" class="jeton-pv"><i v-for="n in p.f.hp" :key="n" /></div>
+                <div v-if="p.f.cond" class="jeton-cond" :class="p.f.cond.t ? `b-${p.f.cond.t}` : null" :title="p.f.cond.titre">
+                    <MSym :n="p.f.cond.ic" fill />
+                </div>
+            </div>
+        </div>
     </TransitionGroup>
 </template>
 
@@ -552,10 +668,6 @@ const doors = computed(() => (props.carte.portes ?? [])
 /* ⚠ `position` + `z-index` (2026-10-24) : sans eux, le fond de `.dg-cell` (positionnée) RECOUVRAIT l'icône — aucune plaque
    n'en montrait une, sur la table comme sur la manette. Même pile que le mobilier (`.dg-furn-holder`). */
 .dg-plaque-holder { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-/* Les marqueurs d'une case (`#cell`) : une couche qui couvre la case, AU-DESSUS des plaques (z 2). Contrôle négatif (page de
-   contrôle, 2026-10-24) : sans elle, le pictogramme d'une plaque de Jungle recouvre le marqueur d'un allié posé dessus.
-   Le toucher reste celui de la case : la couche ne coupe rien, elle ne fait que peindre par-dessus. */
-.dg-cell-marques { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; }
 /* La boîte de la plaque est celle de son holder (l'étendue, ou la case d'ancre) : un PICTOGRAMME s'y centre à 80 % (SymboleCarte).
    Sans picto, le glyphe Material se centre dans la même boîte, comme avant. */
 .dg-plaque {
@@ -579,9 +691,9 @@ const doors = computed(() => (props.carte.portes ?? [])
   outline: 1px solid oklch(0.78 0.14 75 / 0.6); }
 .dg-cell.visee { background: oklch(0.78 0.16 75 / 0.65); cursor: pointer;
   outline: 2px solid oklch(0.88 0.14 80 / 0.9); }
-.dg-cell.depart { background: linear-gradient(150deg, var(--ember), var(--ember-deep)); color: var(--parch-100); display: grid; place-items: center; }
-.dg-cell.allie { background: oklch(0.55 0.14 260 / 0.5); display: grid; place-items: center; }
-.dg-cell.monstre { background: oklch(0.55 0.16 25 / 0.45); color: var(--danger, #e66); display: grid; place-items: center; }
+/* Départ (la case du héros qui agit) : un LISERÉ, jamais un aplat — le terrain doit rester visible. Les occupants ne se peignent
+   plus sur la case : c'est leur JETON qui les porte (`.jeton`, plus bas). Le manette ancre son défilement sur `.dg-cell.depart`. */
+.dg-cell.depart { box-shadow: inset 0 0 0 2px var(--torch, oklch(0.76 0.155 65)); }
 
 /* ---- pièges (detecte / fosse_ouverte / desarme / declenche / bloc — contrat « Pièges ») ---- */
 .dg-trap-holder { position: relative; pointer-events: none; z-index: 2; }
@@ -781,13 +893,55 @@ const doors = computed(() => (props.carte.portes ?? [])
 .dg-door-lock--badge { position: absolute; right: 0; bottom: 0; font-size: calc(var(--dg-icone) * 1.1); padding: 1px;
   border-radius: 4px; background: oklch(0.14 0.01 255 / 0.88); box-shadow: 0 0 0 1px oklch(0.85 0.1 85 / 0.6); }
 
+/* ---- JETONS DE FIGURE (chantier jetons, 2026-10-29) ----
+   Un jeton = un DISQUE posé en % de son emprise (`disposerJetons()`, qui décide la place) : le terrain de la case se voit
+   dans les coins, et l'anneau porte la FAMILLE (couleurs de la légende) ; or quand c'est son tour. Les couleurs sont celles
+   de `LegendeCarte.vue` (`.lg-fig`) : une même famille, une même couleur, sur les deux écrans. Le jeton ne reçoit le toucher
+   que sur la table (`figuresCliquables`) ; sur la manette, c'est la case qui le reçoit, comme avant. */
+.dg-jeton-holder { position: relative; z-index: 4; pointer-events: none; }
+.dg-jeton-holder.dg-jeton-cliquable .jeton { pointer-events: auto; cursor: pointer; }
+/* Les glyphes se dimensionnent en `cqw` : une fraction de LA LARGEUR DU JETON lui-même (container-type). Un jeton de 16 px
+   (quatre figures sur une case de 38 px) et un jeton de 60 px ont ainsi les mêmes proportions : les trois lettres tiennent
+   dans le disque dans les deux cas. Une taille calculée sur la case laissait « GOT » déborder de son jeton. */
+.jeton { position: absolute; box-sizing: border-box; border-radius: 50%; display: grid; place-items: center; container-type: size;
+  border: 2px solid; box-shadow: 0 1px 3px oklch(0 0 0 / 0.55); pointer-events: none; }
+/* Une image remplit le jeton et en prend le rond (`border-radius: inherit` dans Vignette). */
+.jeton .msym { font-size: 52cqw; }
+.jeton-lettres { font-weight: 800; line-height: 1; letter-spacing: -0.03em; color: inherit;
+  font-size: 34cqw; text-shadow: 0 1px 2px oklch(0 0 0 / 0.8); }
+.jeton.hero { border-color: oklch(0.45 0.06 255); background: oklch(0.45 0.06 255); color: oklch(0.97 0.01 255); }
+.jeton.foe { border-color: oklch(0.55 0.16 25); background: oklch(0.55 0.16 25 / 0.85); color: oklch(0.97 0.01 25); }
+.jeton.ally { border-color: oklch(0.55 0.14 260); background: oklch(0.55 0.14 260 / 0.85); color: oklch(0.97 0.01 260); }
+.jeton.captif { border-color: oklch(0.78 0.13 80); background: oklch(0.78 0.13 80 / 0.9); color: oklch(0.2 0.02 80); }
+/* Homonymes (deux « Thrakor ») : sur un jeton À LETTRES, le fond prend la teinte de l'id — l'anneau reste celui de la famille. */
+.jeton.teintee { background: oklch(0.42 0.09 var(--jeton-teinte, 255)); color: oklch(0.98 0 0); }
+/* Héros tombé : toujours sur sa case, mais estompé — on le voit sans le confondre avec un héros debout. */
+.jeton.tombe { opacity: 0.45; }
+/* Son tour : anneau or et halo, plus un anneau qui bat (une figure « qui joue » se voit de loin). */
+.jeton.cur { border-color: var(--gold, oklch(0.82 0.15 85)); box-shadow: var(--glow-torch, 0 0 6px oklch(0.76 0.155 65 / 0.7)), 0 1px 3px oklch(0 0 0 / 0.55); }
+.jeton.cur::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; pointer-events: none;
+  border: 3px solid oklch(0.76 0.155 65 / 0.7); animation: dg-jeton-pouls 2s ease-in-out infinite; will-change: transform, opacity; }
+@keyframes dg-jeton-pouls { 0%, 100% { transform: scale(1); opacity: 0.55; } 50% { transform: scale(1.18); opacity: 0; } }
+/* Élite : le ★ dans le coin, l'anneau reste celui de la famille. */
+.jeton-elite { position: absolute; top: -6%; right: -6%; z-index: 1; color: var(--gold, oklch(0.82 0.15 85));
+  font-size: 30cqw; line-height: 1; filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.7)); }
+.jeton-elite .msym { font-size: inherit; }
+/* PV de la figure : un point par PV de corps, sous le jeton. */
+.jeton-pv { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); display: flex; gap: 1.5px; }
+.jeton-pv i { width: 4px; height: 4px; border-radius: 1px; background: var(--body-bright, oklch(0.62 0.2 25));
+  border: 0.5px solid oklch(0 0 0 / 0.4); }
+/* Condition (badge) : la couleur vient de `.b-*` (TableView et manette.css), le disque sombre la porte. */
+.jeton-cond { position: absolute; right: -6%; bottom: -6%; padding: 1px; border-radius: 50%; line-height: 1;
+  background: oklch(0.14 0.01 255 / 0.9); font-size: 28cqw; }
+.jeton-cond .msym { font-size: inherit; }
+
 /* ---- FLIP figurines (table, animate) : glissement d'une case ----
-   ⚠ Viser `.fig` EXPLICITEMENT, et par `:deep()`. Le TransitionGroup pose ses
+   ⚠ Viser `.ent-holder` EXPLICITEMENT, et par `:deep()`. Le TransitionGroup pose ses
    classes sur TOUS ses enfants — les 5 040 `.dg-cell` de la grille comme les
    quelques figurines. Un simple `.dg-fig-move` dans un style SCOPÉ faisait donc
    exactement l'inverse de son intention : il tombait sur toutes les cases (qui
-   portent le data-v du composant) et sur aucune figurine (qui arrivent par le
-   `<slot />`, sans attribut de scope — le style de TableView n'est pas scopé).
+   portent le data-v du composant) et sur aucune figurine. La classe `ent-holder`
+   est celle des figurines ; les cases ne la portent pas.
    Coût maximal, effet nul, et une figurine qui n'a jamais glissé.
 
    `:slotted()` ne suffit PAS : il compile en `[data-v-x-s]`, un attribut que le
@@ -796,7 +950,7 @@ const doors = computed(() => (props.carte.portes ?? [])
    ses enfants — d'où la classe pour exclure les cases.
 
    ⚠ Et cette classe DOIT être celle de l'ENFANT DIRECT du TransitionGroup —
-   `.ent-holder`, pas `.fig` qui est à l'intérieur. Vue SONDE l'enfant déplacé
+   `.ent-holder`, pas `.jeton` qui est à l'intérieur. Vue SONDE l'enfant déplacé
    (il lui applique la move-class sur un clone et lit sa transition `transform`) :
    sans transition sur l'enfant direct, il conclut que l'animation est impossible
    et ne pose JAMAIS la classe. Mesuré le 2026-08-23 avec un MutationObserver sur

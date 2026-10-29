@@ -1726,6 +1726,7 @@ const navItems = computed(() => (scene.value === 'marche'
                         v-else-if="feuilleOption && feuilleOption.mode === 'deplacement' && monEntite"
                         :carte="store.state.etat.carte"
                         :entites="store.state.etat.entites ?? []"
+                        :initiative="store.state.etat.initiative ?? []"
                         :depart="feuilleOption.depart ?? { x: monEntite.x, y: monEntite.y }"
                         :portee="feuilleOption.option.parametres?.portee ?? feuilleOption.option.parametres?.portee_base ?? 0"
                         :de="feuilleOption.option.parametres?.de ?? null"
