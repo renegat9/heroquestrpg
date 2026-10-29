@@ -1500,9 +1500,8 @@ final class EtatGroupe
                 'nom_base' => $i->monstre->nom_base,
                 // Portrait de boss dynamique si généré, sinon image du catalogue.
                 'image_url' => app(BibliothequeImages::class)->urlMonstre($i->id, $i->monstre_id, $i->monstre->nom_base),
-                // JETON de la figurine (livret, une tête dans un cercle) : `null` sans fichier, et le client garde alors
-                // l'apparence du jeton d'aujourd'hui. Toujours présent, comme `symbole_url` des couches de carte.
-                'symbole_url' => app(BibliothequeImages::class)->urlSymboleMonstre($i->monstre->nom_base),
+                // JETON de la figurine (livret, une tête dans un cercle) : forme et rotation décidées ici, dans `symboleDeMonstre()`.
+                ...$this->symboleDeMonstre($i),
                 'x' => $i->position_x,
                 'y' => $i->position_y,
                 // Emprise (3.9) : grandes figurines multi-cases (1×1 par défaut).
@@ -1526,6 +1525,25 @@ final class EtatGroupe
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Le JETON d'une figure, décidé ici et jamais dans le client : `symbole_url` (`null` sans fichier : le client garde
+     * l'apparence d'aujourd'hui), `symbole_forme` (`ovale` pour une figure 1×2 au livret, `rond` sinon, `null` sans jeton),
+     * et `symbole_rotation` (0|90 : le jeton ovale se couche quand la figure est posée verticale). Toujours présents.
+     *
+     * @return array{symbole_url: ?string, symbole_forme: ?string, symbole_rotation: int}
+     */
+    private function symboleDeMonstre(InstanceMonstre $i): array
+    {
+        $biblio = app(BibliothequeImages::class);
+        $forme = $biblio->formeSymboleMonstre($i->monstre->nom_base);
+
+        return [
+            'symbole_url' => $biblio->urlSymboleMonstre($i->monstre->nom_base),
+            'symbole_forme' => $forme,
+            'symbole_rotation' => BibliothequeImages::rotationSymboleMonstre($forme, $i->monstre->emprise()),
+        ];
     }
 
     /**

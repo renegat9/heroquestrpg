@@ -26,23 +26,28 @@ const props = defineProps({
     /** L'emprise posée, en cases : le dessin tourné se dimensionne sur elle (en pourcentages du conteneur). */
     l: { type: Number, default: 1 },
     h: { type: Number, default: 1 },
+    /** Part du conteneur que le dessin occupe, en % : 80 pour un pictogramme de case, 100 pour un jeton OVALE qui remplit le sien. */
+    echelle: { type: Number, default: 80 },
 });
 
 const erreur = ref(false);
 watch(() => props.url, () => { erreur.value = false; });
 
-// Dessin tourné de 90° : avant rotation, il mesure en LARGEUR 80 % de la HAUTEUR de l'emprise et en HAUTEUR 80 % de sa
-// LARGEUR. Une fois tourné, il occupe 80 % de chaque côté, au bon rapport : un dessin 1×3 tourné remplit une emprise 3×1.
+// Dessin tourné de 90° : avant rotation, il mesure en LARGEUR `echelle` % de la HAUTEUR de l'emprise et en HAUTEUR `echelle` % de
+// sa LARGEUR. Une fois tourné, il occupe `echelle` % de chaque côté, au bon rapport : un dessin 1×3 tourné remplit une emprise 3×1.
 // Les pourcentages se simplifient (la taille d'une case disparaît), donc le résultat ne dépend pas de la taille de la carte.
+// Un dessin NON tourné garde la taille de la feuille de style (80 %) : `null`, comme avant — seul un jeton ovale pose sa taille.
 const styleTourne = computed(() => {
-    if (props.tourne !== 90) return null;
+    const e = props.echelle;
+
+    if (props.tourne !== 90) return e === 80 ? null : { width: `${e}%`, height: `${e}%` };
 
     const l = Math.max(1, props.l);
     const h = Math.max(1, props.h);
 
     return {
-        width: `${(80 * h) / l}%`,
-        height: `${(80 * l) / h}%`,
+        width: `${(e * h) / l}%`,
+        height: `${(e * l) / h}%`,
         transform: 'translate(-50%, -50%) rotate(90deg)',
     };
 });

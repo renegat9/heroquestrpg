@@ -63,7 +63,7 @@ Une entrée `absent` n'a pas de fichier : c'est une décision écrite, pas un ou
 absence se dit ainsi : « aucun livret ne dessine … », « figurine posée par le sort … », « à
 reprendre » quand le symbole existe mais n'est pas encore isolé.
 
-## Jetons de monstres (phase 2, 2026-10-29)
+## Jetons de monstres (phases 2 et 3, 2026-10-29)
 
 Les cartes de quête nomment chaque monstre errant par une étiquette, « Wandering Monster in this
 Quest: Orc », et posent à côté une **tête dans un anneau vert** : c'est le jeton. Il vit dans
@@ -83,10 +83,18 @@ Quest: Orc », et posent à côté une **tête dans un anneau vert** : c'est le 
   disque : les oreilles de la tête dépassent l'anneau, un masque strictement circulaire les couperait ; une
   poussière du fond, isolée, part. Le fond est la teinte claire la plus fréquente hors de la couronne
   (parchemin beige, papier pâle du Frozen Horror).
+- **L'ovale (phase 3).** `ovale` = `[cx, cy, rx, ry]` : le centre et les DEMI-AXES de l'anneau, en points
+  d'affichage (`cadre` = `[cx±1,2rx, cy±1,2ry]`). Même traitement que le disque (`mettre_en_jeton()`, la distance
+  mesurée en rayons normalisés, un seul point de passage) ; `rotation` (horaire) couche le grand axe à l'horizontale,
+  l'image est rognée puis posée dans un cadre **2:1**, à 512 × 256 (`extraire_ovale()`). Le fichier est TOUJOURS
+  horizontal : c'est le serveur qui décide s'il se couche à l'affichage (`symbole_rotation`, contrat-api).
+  Un ovale va avec une figure 1×2 : `config/symboles_monstres.php` (`ovales`) le déclare par nom de catalogue, et
+  `SymbolesMonstresTest` vérifie la liste dans les deux sens (chaque nom a un fichier 2:1, chaque fichier 2:1 est déclaré).
 - **`rotation`** : une étiquette verticale (pages « rot 0 » des Frozen Horror, Dread Moon, Mage du
   Miroir, Jungles, Telor, Morcar, Ogre Horde, Spirit Queen) se lit de bas en haut, et sa tête tourne avec
   elle : `rotation: 90` (horaire). Le sens se mesure sur le texte (`get_text('dict')`, `line['dir']`, passé
-  dans la matrice de rotation de la page), pas à l'œil.
+  dans la matrice de rotation de la page), pas à l'œil. Une PLANCHE couchée (« Design Your Own », Ogre Horde p. 43,
+  Morcar p. 43, Frozen Horror p. 39, Delthrak p. 26) se lit de la même façon : `rotation: 90`.
 - **Mesure.** Un anneau se trouve par composante verte (`g − r > 30` et `g − b > 15`) près de l'étiquette
   « Wandering ». Le centre et le rayon viennent de la boîte de la composante (`R` = demi-largeur + ½ px).
   L'enveloppe des pixels verts (`g − r > 40`, `g − b > 25`) ne sert qu'aux anneaux coupés. **Quand la tête coupe
@@ -109,14 +117,32 @@ Quest: Orc », et posent à côté une **tête dans un anneau vert** : c'est le 
   claire la plus fréquente, quelle qu'elle soit.
 - **La poussière de la couronne.** Une référence de fond juste ne suffit pas : des taches du papier, proches
   du dessin, restent dans la couronne. Seul ce qui touche le disque est gardé (la tête et ses oreilles).
+- **Un ovale ne se mesure pas au remplissage des moments.** Les armes, cornes et poings qui dépassent gonflent
+  la variance, et la boîte brute du Minotaure fait 28,7 × 43,7 pt contre un corps de 22,2 × 43,9 pt. On lit la
+  BOÎTE DU CORPS après ouverture morphologique (les pointes fines sont écartées), et l'on vérifie à l'œil sur un
+  agrandissement à 600 dpi.
+- **Un seuil de vert ne tient pas une photo.** Le Dragon (planche First Light, un photographié) est fragmenté par le
+  blanc du dessin : la composante verte donne 18 × 18 pt. On mesure la SILHOUETTE sombre remplie (`lum < 165`, trous
+  comblés, ouverture de 3 pt) : le corps fait 44 × 22 pt, cornes et menton dépassent. Mesure à ±1 pt : à revérifier
+  si René photographie la carte de monstre du Dragon.
 
 ### Sources de jetons, et ce qui reste dehors
 
 - **Légendes nommées** (la figure est dessinée avec son nom) : Delthrak PDF 6 (Blightweaver, Goblin Archer,
   Skeleton Archer, Raptor, Skullblight ; Serpent, Giant Ape, Blightcrawler) et Ogre Horde PDF 19 (Orc Archer,
   Goblin Archer, Skeleton Archer, Ogre Warrior ; Ogre Lord, Ogre Champion, Ogre Commander). Les archers et le
-  Blightweaver sont extraits ; les figures **1×2** (Serpent, Giant Ape, Blightcrawler, Ogre Lord, Ogre Champion,
-  Ogre Commander) ont un jeton **ovale** : un disque ne le représente pas, elles restent « à reprendre ».
+  Blightweaver sont des jetons ronds ; les figures **1×2** ont leur OVALE (phase 3) : Ogre Champion, Ogre Commander
+  et Ogre Lord (Ogre Horde PDF 19), Serpent et Giant Ape (Delthrak PDF 6), Giant Wolf (Mage of the Mirror PDF 7).
+- **Planches « Design Your Own »** (dernière page, symboles étiquetés) : Ogre Horde PDF 43 (Ogre Lord, Champion,
+  Commander, Warrior), Delthrak PDF 26, Mage of the Mirror PDF 20, Wizards of Morcar PDF 22 (Minotaur, PDF 22 : le
+  Minotaure a son ovale ici), Frozen Horror PDF 20 (Frozen Horror), First Light PDF 23 (Dragon : ovale horizontal,
+  le seul à ne pas être couché). Ogre Horde PDF 41 : le tableau « Monster Map Symbol » donne les mêmes symboles.
+- **Figures 1×2 dont le livret dessine un jeton ROND** : Ogre (Mage du Miroir, PDF 7 : légende, jeton rond de 1,05),
+  Ogre guerrier (Ogre Horde PDF 19, 37, 41, 43 : rond partout) et Horreur des Glaces (planche Frozen Horror PDF 20,
+  rapport 1,13). Le livret les dessine RONDS, alors que le catalogue les pose 1×2 : ils gardent le jeton rond
+  (`disque`), et l'EMPRISE ne change pas. ⚠ Écart à trancher (René) : figure 1 case au livret, ou 2 au catalogue.
+- **Blightcrawler** (Rampant putride, Deathspinner la Reine du Fléau) : jeton OVALE à la légende Delthrak PDF 6, mais
+  figure 1×1 au catalogue. NON extrait : l'emprise est une règle de déplacement, à trancher, pas un détail d'image.
 - **Carte, sous une lettre** : la gargouille de la quête 3 de base (F2847 PDF 7, lettre B : « a gargoyle that
   appears to be a stone statue ») est un jeton posé sur le plan ; sa note nomme la figure, le jeton est celui-là.
   Les lieutenants de Morcar (« one of the Sorcerers », G1504 PDF 19, quatre sorciers aux statistiques communes)
@@ -139,6 +165,9 @@ Quest: Orc », et posent à côté une **tête dans un anneau vert** : c'est le 
 3. **Ajouter l'entrée** dans `manifeste.json` (ou la modifier), avec `source` et `note`.
 4. **Extraire** : `./image-tools/symboles-livrets.sh --seul type/cle`, puis regarder le `.webp`.
 5. **Tester** : `php artisan test tests/Feature/Symboles` (sqlite, jamais la base de jeu).
+6. **Un jeton de monstre 1×2** : si le livret le dessine en OVALE (2:1, légende ou planche), c'est un `ovale` (mesure
+   « L'ovale », ci-dessus) et son nom de catalogue entre dans `ovales` de `config/symboles_monstres.php`. Si le livret
+   le dessine ROND, c'est un `disque` et l'emprise n'en tient pas compte : l'écart se signale, il ne se corrige pas ici.
 
 ## Pièges déjà payés
 

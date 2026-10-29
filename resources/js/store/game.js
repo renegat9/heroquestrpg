@@ -629,6 +629,10 @@ export function entitesVersFigurines(entites, initiative) {
             // JETON du monstre (livret, chantier jetons 2026-10-29) : décidé par le serveur, `null` sans fichier — le jeton
             // garde alors son portrait. Jamais composé ici.
             symbole_url: e.symbole_url ?? null,
+            // FORME et ROTATION du jeton (phase 3, 2026-10-29) : `ovale` pour une figure 1×2 au livret, `rond` sinon ; `symbole_rotation`
+            // (0|90) couche un ovale posé debout. Décidées par le serveur, transportées telles quelles (`DungeonGrid`, `SymboleCarte`).
+            symbole_forme: e.symbole_forme ?? null,
+            symbole_rotation: e.symbole_rotation ?? 0,
             // Héros tombé : il reste sur sa case (on peut être dessous un allié), estompé.
             tombe: e.type === 'heros' && !!e.tombe,
             // ⚠ Deux héros peuvent porter le MÊME nom (constaté en partie : deux « Thrakor ») : sur un jeton sans portrait, le

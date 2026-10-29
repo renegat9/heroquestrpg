@@ -123,7 +123,7 @@ it('aucun jeton n’est orphelin : chaque .webp de monstres/ sert à un monstre 
     }
 });
 
-it('le manifeste déclare exactement les jetons utilisés, chacun rond : un cadre carré qui entoure le disque', function () {
+it('le manifeste déclare exactement les jetons utilisés : chacun ROND (disque) ou OVALE (ovale), jamais les deux', function () {
     $this->seed(MonstreSeeder::class);
     $utilises = jetonsUtilises();
     $declares = [];
@@ -133,10 +133,25 @@ it('le manifeste déclare exactement les jetons utilisés, chacun rond : un cadr
             continue;
         }
         $declares[] = $jeton['cle'];
-
-        expect(array_key_exists('disque', $jeton))->toBeTrue("jeton « {$jeton['cle']} » sans disque : un jeton est rond");
-        [$cx, $cy, $rayon] = $jeton['disque'];
         [$x0, $y0, $x1, $y1] = $jeton['cadre'];
+
+        expect(array_key_exists('ovale', $jeton) xor array_key_exists('disque', $jeton))
+            ->toBeTrue("jeton « {$jeton['cle']} » : un disque OU un ovale, ni les deux ni aucun");
+
+        if (array_key_exists('ovale', $jeton)) {
+            // Un ovale : son cadre est centré sur l'ellipse, à 1,2 fois ses demi-axes (la couronne 1,15 y tient).
+            [$cx, $cy, $rx, $ry] = $jeton['ovale'];
+            expect($rx)->toBeGreaterThan(0.0, "demi-axe nul : {$jeton['cle']}");
+            expect($ry)->toBeGreaterThan(0.0, "demi-axe nul : {$jeton['cle']}");
+            expect(abs(($x0 + $x1) / 2 - $cx))->toBeLessThan(0.01, "cadre décentré : {$jeton['cle']}");
+            expect(abs(($y0 + $y1) / 2 - $cy))->toBeLessThan(0.01, "cadre décentré : {$jeton['cle']}");
+            expect(abs(($x1 - $x0) / 2 - 1.2 * $rx))->toBeLessThan(0.01, "cadre ≠ 1,2 × rx : {$jeton['cle']}");
+            expect(abs(($y1 - $y0) / 2 - 1.2 * $ry))->toBeLessThan(0.01, "cadre ≠ 1,2 × ry : {$jeton['cle']}");
+
+            continue;
+        }
+
+        [$cx, $cy, $rayon] = $jeton['disque'];
 
         expect(abs(($x1 - $x0) - ($y1 - $y0)))->toBeLessThan(0.01, "cadre non carré : {$jeton['cle']}");
         expect(abs(($x0 + $x1) / 2 - $cx))->toBeLessThan(0.01, "cadre décentré : {$jeton['cle']}");
@@ -151,4 +166,55 @@ it('le manifeste déclare exactement les jetons utilisés, chacun rond : un cadr
     sort($declares);
     sort($utilises);
     expect($declares)->toBe($utilises, 'le manifeste ne déclare pas exactement les jetons du catalogue');
+});
+
+it('un jeton OVALE est une figure 1×2 du catalogue, porte un fichier 2:1 — et chaque fichier 2:1 est déclaré, dans les deux sens', function () {
+    $this->seed(MonstreSeeder::class);
+    $config = config('symboles_monstres');
+    $catalogue = Monstre::query()->get()->keyBy('nom_base');
+    $cles = [];
+
+    foreach ($config['ovales'] as $nom) {
+        expect($catalogue->has($nom))->toBeTrue("« {$nom} » (ovales) n'existe pas au catalogue");
+        expect(array_key_exists($nom, $config['absents']))->toBeFalse("« {$nom} » est à la fois ovale et absent");
+
+        $emprise = $catalogue[$nom]->emprise();
+        expect($emprise['l'] * $emprise['h'])->toBe(2, "« {$nom} » : un jeton ovale est une figure de DEUX cases ({$emprise['l']}×{$emprise['h']})");
+        expect($emprise['l'] === $emprise['h'])->toBeFalse("« {$nom} » : emprise carrée, pas un ovale");
+
+        $cle = cleJetonDe($nom);
+        $cles[] = $cle;
+        $chemin = dossierJetonsMonstres()."/{$cle}.webp";
+        expect(is_file($chemin))->toBeTrue("« {$nom} » (ovales) : monstres/{$cle}.webp absent");
+        [$largeur, $hauteur] = getimagesize($chemin);
+        expect($largeur)->toBe(2 * $hauteur, "« {$nom} » : le jeton ovale n'est pas 2:1 ({$largeur}×{$hauteur})");
+    }
+
+    // Réciproque : chaque fichier 2:1 du dossier est le jeton d'un nom de `ovales`, et réciproquement.
+    $fichiersOvales = [];
+    foreach (File::allFiles(dossierJetonsMonstres()) as $fichier) {
+        [$largeur, $hauteur] = getimagesize($fichier->getPathname());
+        if ($largeur === 2 * $hauteur) {
+            $fichiersOvales[] = $fichier->getFilenameWithoutExtension();
+        }
+    }
+    sort($cles);
+    sort($fichiersOvales);
+    expect($fichiersOvales)->toBe($cles, 'un jeton 2:1 n\'est déclaré par aucun nom de `ovales`, ou un nom de `ovales` n\'a pas de jeton 2:1');
+});
+
+it('le manifeste marque `ovale` exactement les jetons de `ovales` (et seulement eux)', function () {
+    $this->seed(MonstreSeeder::class);
+    $attendus = array_map(fn (string $nom) => cleJetonDe($nom), config('symboles_monstres.ovales'));
+    $marques = [];
+
+    foreach (manifesteDesJetons() as $jeton) {
+        if (array_key_exists('ovale', $jeton)) {
+            $marques[] = $jeton['cle'];
+        }
+    }
+    sort($attendus);
+    sort($marques);
+
+    expect($marques)->toBe($attendus, 'le manifeste et `ovales` ne désignent pas les mêmes jetons ovales');
 });

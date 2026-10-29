@@ -94,7 +94,8 @@ proposition du MJ. » quand ce n'est pas son tour.
      "faveurs": [{"cle": "deadeye", "libelle": "Deadeye", "effet": "Les figures (héros et monstres) ne bloquent pas votre ligne de vue…"}],
      "...": "ou null — mode ESCORTÉ de la mission « secourir », voir ci-dessous"},
     {"type": "monstre", "id": 9, "nom": "<habillage IA ou nom_base>", "nom_base": "<type catalogue>", "x": 5, "y": 4,
-     "pv_body": 2, "pv_body_max": 2, "etat": "actif", "symbole_url": "/images/livrets/monstres/<cle>.webp|null"},
+     "pv_body": 2, "pv_body_max": 2, "etat": "actif", "symbole_url": "/images/livrets/monstres/<cle>.webp|null",
+     "symbole_forme": "ovale|rond|null", "symbole_rotation": "0|90"},
     {"type": "captif", "id": 3, "nom": "Gothar", "x": 7, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "image_url": "/images/..."}
   ],
@@ -2485,6 +2486,8 @@ Un fichier par symbole : `public/images/livrets/{type}/{slug}.webp`, `{type}` �
 Le client **ne compose aucune URL** : il dessine la `symbole_url` reçue sur la case (tournée de `symbole_rotation` pour le battant d'une porte), ou sur l'étendue (`etendue`) qu'un bloc fixe reçoit de son ancre. ⚠ Un symbole est un **pictogramme** : il se pose SUR la carte, à l'intérieur de la silhouette de sa famille. Une **illustration** (`image_url`) est une image peinte : elle reste dans la LÉGENDE et l'aperçu de salle, à côté du symbole, jamais à sa place. Hors phase 1, sans symbole : épreuves, mur de glace, voile d'ombre. Les **monstres** n'ont pas un pictogramme de case mais un **jeton** (ci-dessous).
 
 **Jeton de monstre** (chantier jetons, 2026-10-29). `entites[]` où `type: "monstre"` porte `symbole_url` (`string|null`, **toujours présent**) : le jeton imprimé sur le livret (une tête dans un cercle), décidé par `BibliothequeImages::urlSymboleMonstre($nom_base)`. Sa clé vient de `config/symboles_monstres.php` (`cles`, par NOM DE CATALOGUE : une variante nommée — Gragor, Borokk — pointe vers le jeton de sa figure) ; un monstre absent de cette table a pour clé le slug de son `nom_base`. Sans fichier, `null` : le jeton garde son apparence d'aujourd'hui (portrait ou icône). Quand le champ est là, le client dessine l'image à 100 % du jeton, avec l'anneau de la famille par-dessus. Un monstre non révélé n'est pas publié du tout : son jeton ne fuit pas plus que sa position.
+
+**Jeton OVALE (chantier jetons phase 3, 2026-10-29).** Deux champs, **toujours présents** sur chaque figure de monstre, décidés par le serveur (`EtatGroupe::symboleDeMonstre()`) : `symbole_forme` (`"ovale"` | `"rond"` | `null`) et `symbole_rotation` (`0` | `90`). `ovale` quand le livret dessine le jeton en ovale 2:1 — une figure 1×2 (`config/symboles_monstres.php`, `ovales`, par NOM DE CATALOGUE) ; `rond` pour les autres jetons ; `null` sans fichier, comme `symbole_url`. `symbole_rotation` vaut `90` quand un jeton `ovale` est posé sur une emprise VERTICALE (`h > l`), car le fichier est horizontal ; `0` sinon, et toujours `0` pour un jeton rond. Le client dessine un jeton `ovale` qui couvre 85 % de son emprise dans chaque sens, sur ses deux cases (anneau de la famille par-dessus), tourné de `symbole_rotation` comme un meuble (`SymboleCarte`) ; il ne décide jamais de la forme ni de la rotation. Un jeton `rond` garde le gabarit rond (70 % de la case, centré), y compris sur une figure 1×2.
 
 **Le bouton « i »** ouvre la légende sur les deux écrans (coin de la carte à la
 table, en-tête de la feuille de déplacement sur la manette). Elle ne liste que ce

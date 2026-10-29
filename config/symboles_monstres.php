@@ -4,20 +4,23 @@ declare(strict_types=1);
 
 /*
 |--------------------------------------------------------------------------
-| Jetons de monstres des livrets — phase 2 des symboles (2026-10-29)
+| Jetons de monstres des livrets — phases 2 et 3 des symboles (2026-10-29)
 |--------------------------------------------------------------------------
 | Le jeton d'un monstre est la tête que le livret pose pour lui : une tête dans un anneau. Il vit dans
 | public/images/livrets/monstres/{cle}.webp, extrait par image-tools/symboles-livrets/ (type `monstres`).
 |
 | Le CATALOGUE (MonstreSeeder, noms français) et les LIVRETS (anglais, 2021) ne portent pas toujours le
-| même nom. Deux listes :
+| même nom. Trois listes :
 |  - `cles` : nom de catalogue → clé du jeton, quand le jeton ne porte pas le slug du nom (traduction,
 |    nom de 1989, figurine partagée). Les autres noms prennent Str::slug($nom).
-|  - `absents` : nom de catalogue → RAISON écrite, pour tout monstre sans jeton rond. « à reprendre » :
-|    un jeton existe dans un livret mais n'est pas un disque (figure 1×2, jeton ovale) ou n'est pas
-|    encore isolé ; ce n'est pas un jeton absent.
+|  - `ovales` : noms de catalogue dont le jeton est un OVALE 2:1 (figure 1×2 au livret, phase 3). Le serveur
+|    publie `symbole_forme` d'après cette liste. Chaque nom porte un fichier 2:1, chaque fichier 2:1 est déclaré
+|    ici, et le manifeste le marque `ovale` : SymbolesMonstresTest vérifie les trois dans les deux sens.
+|  - `absents` : nom de catalogue → RAISON écrite, pour tout monstre sans jeton. « à reprendre » : un jeton
+|    existe dans un livret mais n'est pas extrait (emprise qui ne correspond pas, photo illisible) ; ce n'est
+|    pas un jeton absent.
 |
-| Un nom n'est jamais dans les deux listes. Un jeton sans monstre (orphelin) est refusé par
+| Un nom n'est jamais dans `absents` ET dans `cles`/`ovales`. Un jeton sans monstre (orphelin) est refusé par
 | tests/Feature/Symboles/SymbolesMonstresTest.php, dans les deux sens.
 |
 | Sans jeton, l'affichage garde l'icône du monstre : le repli reste le comportement normal.
@@ -40,7 +43,7 @@ return [
         'Gobelin' => 'goblin', // traduction du livret
         'Spectre' => 'specter', // traduction du livret
         'Garde-mage' => 'magus-guard', // traduction du livret (« Garde Magus » dans les textes français)
-        'Ogre guerrier' => 'ogre-warrior', // traduction du livret (Ogre Horde)
+        'Ogre guerrier' => 'ogre-warrior', // traduction du livret (Ogre Horde) ; jeton ROND au livret (légende p. 19, étiquette p. 37)
         'Gremlin des glaces' => 'ice-gremlin', // traduction du livret (Frozen Horror)
         'Ours polaire de guerre' => 'polar-warbear', // traduction du livret (Frozen Horror)
         'Crâne putride' => 'skullblight', // rapprochement : même livret (Delthrak), capacité « racines entravantes » ; le livret écrit Skullblight
@@ -56,10 +59,30 @@ return [
         'Maître des orages' => 'morcar-sorcerer', // lieutenant « Storm Master » (G1504 PDF 15 : « Boroush has all 6 Storm Master spells »)
         'Nécromancien' => 'morcar-sorcerer', // lieutenant « Necromancer » (G1504 PDF 14 : « Fanrax has all 6 Necromancer spells »)
         'Mage de guerre orque' => 'morcar-sorcerer', // lieutenant « Orc Warcaster » (G1504 PDF 16 : « Nyashak has all 6 Orc Warcaster spells »)
+        // Figures 1×2 : la clé est le nom que le livret donne à la figure (légende, planche « Design Your Own »).
+        'Ogre commandant' => 'ogre-commander', // Ogre Commander, légende Ogre Horde (F9528 PDF 19) ; jeton OVALE
+        'Seigneur ogre' => 'ogre-lord', // Ogre Lord, légende Ogre Horde (F9528 PDF 19) ; jeton OVALE
+        'Loup géant' => 'giant-wolf', // Giant Wolf, légende Mage of the Mirror (F7539 PDF 7) ; jeton OVALE
+        'Serpent géant' => 'serpent', // Serpent, légende Delthrak (F9907 PDF 6) ; jeton OVALE
+        'Singe géant' => 'giant-ape', // Giant Ape, légende Delthrak (F9907 PDF 6) ; jeton OVALE
+        'Minotaure' => 'minotaur', // Minotaur, planche « Design Your Own » du Wizards of Morcar (G1504 PDF 22) ; jeton OVALE
+        'Horreur des Glaces' => 'frozen-horror', // Frozen Horror, planche « Design Your Own » (F5815 PDF 20) ; jeton ROND au livret
     ],
 
-    // Monstres sans jeton rond : une raison par nom, lue par SymbolesMonstresTest.
+    // Monstres dont le jeton est un OVALE 2:1 (figure 1×2 au livret) : le serveur publie `symbole_forme` = 'ovale'.
+    'ovales' => [
+        'Ogre champion',
+        'Ogre commandant',
+        'Seigneur ogre',
+        'Loup géant',
+        'Serpent géant',
+        'Singe géant',
+        'Minotaure',
+    ],
+
+    // Monstres sans jeton : une raison par nom, lue par SymbolesMonstresTest.
     'absents' => [
+        'Dragon' => 'jeton retiré (René, 2026-10-29, revue de la planche) : la seule source est la PHOTO du livret First Light, et sa découpe n\'est qu\'un amas de pixels — l\'illustration du catalogue est plus lisible',
         'Archer elfe' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Archimage elfe' => '« Use the elven archmage figure » : figurine sans jeton dans les livrets lus',
         'Artificière' => 'figurine de Dread Sorcerer (« Use the Dread sorcerer figure »), aucun jeton de sorcier dans les livrets lus',
@@ -71,11 +94,10 @@ return [
         'Champion' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Crâne du Dread' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Cultiste du Dread' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Deathspinner la Reine du Fléau' => 'à reprendre, non rond : « Use the Blightcrawler miniature to represent her » (F9907 PDF 9), jeton ovale',
+        'Deathspinner la Reine du Fléau' => 'figurine Blightcrawler (« Use the Blightcrawler miniature », F9907 PDF 9) : jeton OVALE au livret, figure 1×1 au catalogue. Non extrait : l’emprise est une règle de déplacement, à trancher',
         'Demonape' => 'Gretzl (F9907 PDF 18) : aucune figurine renvoyée dans le texte',
         'Demonspider' => 'Gretzl (F9907 PDF 18) : aucune figurine renvoyée dans le texte',
         'Doralf' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Dragon' => 'aucun jeton de dragon dans les livrets lus (figurine « Dragon miniature »)',
         'Dreadshifter' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Fellmarak le Roi Sorcier' => 'figurine de Dread Sorcerer (« Use the Dread sorcerer figure »), aucun jeton de sorcier dans les livrets lus',
         'Festral' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
@@ -89,29 +111,20 @@ return [
         'Gruzbella Hammerhand' => 'aucun jeton : statistiques d’une autre figurine reprises (« Adopt the statistics of … »), aucun jeton propre',
         'Gruzbella Imprudente' => 'aucun jeton : statistiques d’une autre figurine reprises (« Adopt the statistics of … »), aucun jeton propre',
         'Guerrier elfe' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Horreur des Glaces' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Kedrick Gilbane' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Kessandria' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Liche' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Loup géant' => 'figurines de loup géant (« giant wolf figures ») : aucun jeton',
         'Magrian' => 'Magrian, the Dread Wraith (F6646 PDF 17) : aucune figurine renvoyée dans le texte',
-        'Minotaure' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Momie-naine' => 'Arcane Mummy (F9907 PDF 15) : identité non établie, aucune figurine renvoyée',
         'Métamorphe' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Nexrael' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Ogre' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Ogre champion' => 'à reprendre, non rond : figure 1×2, jeton ovale (Ogre Champion, légende Ogre Horde (F9528 PDF 19)) ; un disque ne le tient pas',
-        'Ogre commandant' => 'à reprendre, non rond : figure 1×2, jeton ovale (Ogre Commander, légende Ogre Horde (F9528 PDF 19)) ; un disque ne le tient pas',
-        'Qwindrak the Warlock' => '« Replace Qwindrak with the Dragon miniature » (First Light PDF 9) : aucun jeton de dragon',
-        'Rampant putride' => 'à reprendre, non rond : Blightcrawler, jeton ovale (légende Delthrak PDF 6) ; identité non confirmée',
+        'Qwindrak the Warlock' => '« Replace Qwindrak with the Dragon miniature » (First Light PDF 9) : la forme de sorcier n’a pas de jeton propre isolé ; la forme de dragon a le sien (Dragon)',
+        'Rampant putride' => 'figure Blightcrawler (légende Delthrak PDF 6) : jeton OVALE au livret, figure 1×1 au catalogue. Non extrait : l’emprise est une règle de déplacement, à trancher ; identité non confirmée',
         'Rejeton putride' => 'à reprendre, non rond : Spawnling de Delthrak (F9907 PDF 7), une tuile carrée et non un disque',
         'Roi Archaloneus' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Scion Fleur-Pourrie' => 'Bloomrot Scion (F9907 PDF 20) : aucune figurine renvoyée dans le texte',
         'Seigneur' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Seigneur Sorcier' => 'figurine de Dread Sorcerer (« Use the Dread sorcerer figure »), aucun jeton de sorcier dans les livrets lus',
-        'Seigneur ogre' => 'à reprendre, non rond : figure 1×2, jeton ovale (Ogre Lord, légende Ogre Horde (F9528 PDF 19)) ; un disque ne le tient pas',
-        'Serpent géant' => 'à reprendre, non rond : figure 1×2, jeton ovale (Serpent, légende Delthrak (F9907 PDF 6)) ; un disque ne le tient pas',
-        'Singe géant' => 'à reprendre, non rond : figure 1×2, jeton ovale (Giant Ape, légende Delthrak (F9907 PDF 6)) ; un disque ne le tient pas',
         'Skulmar' => 'figurine de Dread Sorcerer (« Use the Dread sorcerer figure »), aucun jeton de sorcier dans les livrets lus',
         'Sorcier des Tempêtes' => 'figurine de Dread Sorcerer (« Use the Dread sorcerer figure »), aucun jeton de sorcier dans les livrets lus',
         'Sorcier du Dread' => 'figurine de Dread Sorcerer (« Use the Dread sorcerer figure »), aucun jeton de sorcier dans les livrets lus',
@@ -120,7 +133,7 @@ return [
         'Spawn of the Pit déchaîné' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Squelette-roi nain' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Troll' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Venim le Dragon' => 'aucun jeton de dragon dans les livrets lus',
+        'Venim le Dragon' => 'Venim (G1798 PDF 13, « The Dragon Venim’s Lair ») : aucune figurine renvoyée dans le texte ; le jeton « Dragon » (First Light) n’est pas le sien sans texte qui le dise',
         'Vrille' => 'Tendril : un pion de bois (F9907 PDF 20), pas une figurine',
         'Xenloth' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
     ],

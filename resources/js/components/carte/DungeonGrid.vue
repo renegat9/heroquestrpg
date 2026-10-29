@@ -79,8 +79,9 @@ const props = defineProps({
     /** Anime le déplacement des enfants (FLIP sur les figurines) — table. */
     animate: { type: Boolean, default: false },
     /** Figurines (héros, alliés, captifs, monstres), forme de `entitesVersFigurines()` (store/game.js) :
-     *  {id, type, nom, x, y, ew, eh, k, l, ic, img, symbole_url, hp?, cur?, elite?, cond?}. Chacune est UN JETON rond :
-     *  la place que chaque jeton occupe dans sa case est décidée par `disposerJetons()`, ici et nulle part ailleurs. */
+     *  {id, type, nom, x, y, ew, eh, k, l, ic, img, symbole_url, symbole_forme?, symbole_rotation?, hp?, cur?, elite?, cond?}.
+     *  Chacune est UN JETON, rond, ou OVALE pour une figure 1×2 dont le livret dessine un ovale (`symbole_forme`) : la place que
+     *  chaque jeton occupe dans sa case est décidée par `disposerJetons()`, ici et nulle part ailleurs. */
     figures: { type: Array, default: () => [] },
     /** La table tape une figure pour ouvrir sa fiche : les jetons reçoivent alors le toucher. La manette ne le veut pas
      *  (un toucher sur une figure tombe sur sa CASE, comme avant). */
@@ -226,10 +227,24 @@ const doors = computed(() => (props.carte.portes ?? [])
 // Une figure est un JETON ROND, ~70 % de son emprise, centré : le terrain de la case se voit dans les coins. Deux figures
 // sur une même case : deux jetons plus petits, décalés DANS la case (2 : diagonale ; 3 et plus : une grille k×k, quadrants
 // pour 3 et 4). Toute figure de la carte passe par ce point de passage — ni la table ni la manette ne superposent plus rien.
+// OVALE (phase 3, 2026-10-29) : une figure 1×2 dont le livret dessine le jeton en ovale (`symbole_forme` = 'ovale', décidé par le
+// serveur) couvre 85 % de son emprise, sur ses DEUX cases. Le sens vient de l'emprise ; la rotation de l'image, de `symbole_rotation`.
 const JETON_SEUL = 0.7;   // fraction du côté de l'emprise, pour une figure seule
+const JETON_OVALE = 0.85; // figure ovale seule : son petit côté, en fraction du côté de l'emprise (le grand côté le double)
 const JETON_DUO = 0.46;   // deux figures sur une case
 const JETON_GROUPE = 0.86; // plus de deux : la grille k×k se partage 86 % du côté
 const CENTRES_DUO = [[0.25, 0.25], [0.75, 0.75]];
+
+/** Une figure dont le livret dessine le jeton en OVALE. Un ovale sur une emprise carrée n'existe pas : elle reste ronde. */
+const estOvale = (f) => f.symbole_forme === 'ovale' && (f.ew ?? 1) !== (f.eh ?? 1);
+
+/** Un placement (x, y, w, h, en cases) rendu en POURCENTAGE de la boîte du groupe : le % suit la case, jamais un pixel. */
+const enPourcent = (x, y, w, h, bw, bh) => ({
+    left: `${(x / bw) * 100}%`,
+    top: `${(y / bh) * 100}%`,
+    width: `${(w / bw) * 100}%`,
+    height: `${(h / bh) * 100}%`,
+});
 
 /**
  * Pose les jetons d'UNE case (ou d'une emprise). `membres` partagent l'ancre (x, y) ; la boîte du groupe est la plus
@@ -244,7 +259,7 @@ function disposerJetons(membres) {
     let diametre;
     let centres;
     if (n === 1) {
-        diametre = JETON_SEUL * cote;
+        diametre = (estOvale(membres[0]) ? JETON_OVALE : JETON_SEUL) * cote;
         centres = [[0.5, 0.5]];
     } else if (n === 2) {
         diametre = JETON_DUO * cote;
@@ -258,17 +273,20 @@ function disposerJetons(membres) {
         const [fx, fy] = centres[i];
         const cx = fx * bw;
         const cy = fy * bh;
+        if (estOvale(f)) {
+            // Le petit côté vaut `diametre`, le grand le double, dans le sens de l'emprise : une figure posée debout a un jeton debout.
+            const debout = bh > bw;
+            const w = debout ? diametre : 2 * diametre;
+            const h = debout ? 2 * diametre : diametre;
+            return { f, bw, bh, ovale: true, jeton: enPourcent(cx - w / 2, cy - h / 2, w, h, bw, bh) };
+        }
         return {
             f,
             bw,
             bh,
+            ovale: false,
             // Placement en % de la boîte : la boîte est l'emprise posée, donc le % suit la case, jamais un pixel.
-            jeton: {
-                left: `${((cx - diametre / 2) / bw) * 100}%`,
-                top: `${((cy - diametre / 2) / bh) * 100}%`,
-                width: `${(diametre / bw) * 100}%`,
-                height: `${(diametre / bh) * 100}%`,
-            },
+            jeton: enPourcent(cx - diametre / 2, cy - diametre / 2, diametre, diametre, bw, bh),
         };
     });
 }
@@ -290,6 +308,7 @@ const jetonsPlaces = computed(() => {
             out.push({
                 key: `fig-${p.f.type}-${p.f.id}`,
                 f: p.f,
+                ovale: p.ovale,
                 holder: {
                     gridColumn: `${p.f.x + 1} / span ${p.bw}`,
                     gridRow: `${p.f.y + 1} / span ${p.bh}`,
@@ -526,13 +545,24 @@ const jetonsPlaces = computed(() => {
         >
             <div
                 class="jeton"
-                :class="[p.f.k, { cur: p.f.cur, elite: p.f.elite, tombe: p.f.tombe, teintee: p.f.teinte != null && !p.image && !p.icone }]"
+                :class="[p.f.k, { 'jeton-ovale': p.ovale, cur: p.f.cur, elite: p.f.elite, tombe: p.f.tombe, teintee: p.f.teinte != null && !p.image && !p.icone }]"
                 :style="p.jeton"
                 :title="p.f.nom"
             >
                 <!-- Ce que le jeton MONTRE (décidé en `jetonsPlaces`) : le pictogramme de monstre, le portrait (table), l'icône,
-                     ou les trois premières lettres (la manette, à 38 px : pas de portrait — voir `portraits`). -->
-                <Vignette v-if="p.image || p.icone" :src="p.image" :icon="p.icone ?? 'help'" :size="null" fill />
+                     ou les trois premières lettres (la manette, à 38 px : pas de portrait — voir `portraits`). Un jeton OVALE
+                     est un pictogramme tourné comme un meuble : `SymboleCarte` applique `symbole_rotation` sur l'emprise. -->
+                <SymboleCarte
+                    v-if="p.ovale"
+                    :url="p.f.symbole_url"
+                    icone="help"
+                    :nom="p.f.nom"
+                    :tourne="p.f.symbole_rotation ?? 0"
+                    :l="p.f.ew ?? 1"
+                    :h="p.f.eh ?? 1"
+                    :echelle="100"
+                />
+                <Vignette v-else-if="p.image || p.icone" :src="p.image" :icon="p.icone ?? 'help'" :size="null" fill />
                 <span v-else class="jeton-lettres">{{ p.f.l }}</span>
                 <div v-if="p.f.elite" class="jeton-elite" title="Élite"><MSym n="star" fill /></div>
                 <div v-if="p.f.hp" class="jeton-pv"><i v-for="n in p.f.hp" :key="n" /></div>
@@ -895,7 +925,8 @@ const jetonsPlaces = computed(() => {
 
 /* ---- JETONS DE FIGURE (chantier jetons, 2026-10-29) ----
    Un jeton = un DISQUE posé en % de son emprise (`disposerJetons()`, qui décide la place) : le terrain de la case se voit
-   dans les coins, et l'anneau porte la FAMILLE (couleurs de la légende) ; or quand c'est son tour. Les couleurs sont celles
+   dans les coins, et l'anneau porte la FAMILLE (couleurs de la légende) ; or quand c'est son tour. Une figure 1×2 au livret
+   OVALE (`symbole_forme` = 'ovale') prend un ovale sur ses deux cases (`.jeton-ovale`, même `border-radius: 50%`). Les couleurs sont celles
    de `LegendeCarte.vue` (`.lg-fig`) : une même famille, une même couleur, sur les deux écrans. Le jeton ne reçoit le toucher
    que sur la table (`figuresCliquables`) ; sur la manette, c'est la case qui le reçoit, comme avant. */
 .dg-jeton-holder { position: relative; z-index: 4; pointer-events: none; }

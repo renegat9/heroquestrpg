@@ -59,7 +59,7 @@ it('chaque clé FONCTIONNELLE du manifeste est lue par l\'outil, et aucune clé 
     // Une clé du manifeste sans lecteur serait une clé décorative : l'outil croirait la prendre en compte, et ne le ferait pas.
     // `source`, `note` et `nom_catalogue` sont de la DOCUMENTATION (lue par l'humain et par ce test), permises sans lecteur.
     $outil = file_get_contents(base_path('image-tools/symboles-livrets/extraire.py'));
-    $lues = ['type', 'cle', 'livret', 'page', 'cadre', 'rotation', 'emprise', 'couleur', 'seuil', 'poussiere', 'natif', 'absent', 'disque'];
+    $lues = ['type', 'cle', 'livret', 'page', 'cadre', 'rotation', 'emprise', 'couleur', 'seuil', 'poussiere', 'natif', 'absent', 'disque', 'ovale'];
     $documentaires = ['nom_catalogue', 'source', 'note'];
 
     foreach ($lues as $cle) {
@@ -122,6 +122,12 @@ it('un symbole absent dit pourquoi ; un symbole extrait dit d’où il vient', f
         // Un jeton de monstre (`disque`) est rond : son cadre carré et son disque font foi, pas d'emprise (SymbolesMonstresTest).
         if (array_key_exists('disque', $s)) {
             expect($s['disque'])->toHaveCount(3);
+            continue;
+        }
+        // Un jeton OVALE (figure 1×2, phase 3) : quatre valeurs, le centre et les DEMI-AXES de l'anneau, en points d'affichage.
+        if (array_key_exists('ovale', $s)) {
+            expect($s['ovale'])->toHaveCount(4);
+            expect(array_key_exists('emprise', $s))->toBeFalse("« {$s['nom_catalogue']} » : un ovale n'a pas d'emprise, son cadre fait foi");
             continue;
         }
         expect($s['emprise'])->toHaveCount(2);

@@ -6,7 +6,8 @@ Sortie : un .webp par symbole extrait, fond TRANSPARENT, trait recoloré en crè
 sombre pour rester lisible sur le fond sombre de la carte, rogné au plus près, ramené à la
 proportion de l'emprise (un meuble 3×1 garde son 3:1) et à 256 px sur le grand côté.
 Un JETON DE MONSTRE (`disque`, phase 2) n'est pas un trait : c'est une tête dans un anneau, gardée
-en couleurs, détourée en rond (voir `mettre_en_disque`).
+en couleurs, détourée en rond (voir `mettre_en_disque`). Un jeton OVALE (`ovale`, phase 3 : figure 1×2)
+est le même traitement sur une ellipse, ramené à l'horizontale 2:1 et à 512 px (voir `extraire_ovale`).
 
 Lancé par ../symboles-livrets.sh dans un conteneur jetable python:3.12-slim (PyMuPDF + Pillow),
 le dossier des PDF monté EN LECTURE SEULE, ce script hors du dossier des données, `python -I`.
@@ -33,6 +34,7 @@ LISERE = (26, 20, 16)          # liseré sombre autour du trait
 COTE_PX = 256                  # grand côté de sortie
 SEUIL_BAS, SEUIL_HAUT = 28.0, 68.0   # distance au papier : en dessous, transparent ; au-dessus, trait plein
 COURONNE_JETON = 1.15          # jeton de monstre : la couronne va jusqu'à 1,15 R (une oreille dépasse l'anneau)
+COTE_OVALE = 512               # jeton OVALE (figure 1×2, phase 3, 2026-10-29) : 512 × 256, soit 2:1
 TOLERANCE_PARCHEMIN = 40       # couronne seulement : au-delà de cette distance RVB au parchemin, c'est du dessin
 
 
@@ -203,15 +205,17 @@ def ajuster_emprise(rgba, emprise):
     return toile
 
 
-def mettre_a_taille(rgba):
+def mettre_a_taille(rgba, cote=COTE_PX):
     long = max(rgba.size)
-    echelle = COTE_PX / long
+    echelle = cote / long
     cible = (max(1, round(rgba.width * echelle)), max(1, round(rgba.height * echelle)))
     return rgba.resize(cible, Image.LANCZOS)
 
 
-def mettre_en_disque(img, cadre, disque):
-    """Jeton ROND d'un monstre : une tête dans un anneau. `disque` = [cx, cy, R] en points (centre et rayon de l'anneau).
+def mettre_en_jeton(img, cadre, centre, rx, ry):
+    """Jeton de monstre : une tête dans un anneau, ROND (rx = ry) ou OVALE (figure 1×2). `centre`, `rx` et `ry` (demi-axes)
+    sont en points d'affichage. La distance se mesure en RAYONS NORMALISÉS (1 = le bord de l'anneau) : le même code sert au
+    disque et à l'ellipse, un seul point de passage pour le fond, la couronne et le détourage.
 
     Le disque de rayon R garde TOUT, couleurs du livret comprises (anneau vert, tête). La couronne jusqu'à 1,15 R ne
     garde que ce qui s'écarte du fond : les oreilles de la tête dépassent l'anneau, un masque strictement circulaire
@@ -219,12 +223,15 @@ def mettre_en_disque(img, cadre, disque):
     Fond : la teinte claire la plus fréquente hors de la couronne (parchemin beige, papier pâle du Frozen Horror ;
     le texte voisin, sombre et minoritaire, n'emporte pas le compte). Dans la couronne, un pixel proche du fond part,
     sauf s'il est nettement plus sombre (le contour des oreilles, sur un fond clair)."""
-    cx, cy, rayon = disque
+    cx, cy = centre
     x0, y0, x1, y1 = cadre
     w, h = img.size
     sx, sy = w / (x1 - x0), h / (y1 - y0)
-    couronne = rayon * COURONNE_JETON
+    couronne = COURONNE_JETON
     raw = img.tobytes()
+
+    def distance(x, y):
+        return math.hypot((x - cx) / rx, (y - cy) / ry)
 
     def fond_clair(seuil):
         compte = {}
@@ -232,7 +239,7 @@ def mettre_en_disque(img, cadre, disque):
             y = y0 + (j + 0.5) / sy
             for i in range(w):
                 x = x0 + (i + 0.5) / sx
-                if math.hypot(x - cx, y - cy) <= couronne:
+                if distance(x, y) <= couronne:
                     continue
                 k = 3 * (j * w + i)
                 r, g, b = raw[k], raw[k + 1], raw[k + 2]
@@ -255,7 +262,7 @@ def mettre_en_disque(img, cadre, disque):
         y = y0 + (j + 0.5) / sy
         for i in range(w):
             x = x0 + (i + 0.5) / sx
-            d = math.hypot(x - cx, y - cy)
+            d = distance(x, y)
             if d > couronne:
                 continue
             k = 3 * (j * w + i)
@@ -264,7 +271,7 @@ def mettre_en_disque(img, cadre, disque):
             # tombe parfois dans le disque même (un pion sous la lettre B tenait une paroi bordeaux ; mesuré le 2026-10-29).
             if r - g > 40 and r - b > 40:
                 continue
-            if d <= rayon:
+            if d <= 1.0:
                 alpha[j * w + i] = 255
                 continue
             ecart = math.sqrt((r - fond[0]) ** 2 + (g - fond[1]) ** 2 + (b - fond[2]) ** 2)
@@ -288,6 +295,31 @@ def mettre_en_disque(img, cadre, disque):
     return rgba
 
 
+def mettre_en_disque(img, cadre, disque):
+    """Jeton ROND : `disque` = [cx, cy, R] en points (centre et rayon de l'anneau). Le même traitement que l'ovale."""
+    cx, cy, rayon = disque
+    return mettre_en_jeton(img, cadre, (cx, cy), rayon, rayon)
+
+
+def extraire_ovale(img, cadre, entree):
+    """Jeton OVALE d'une figure 1×2 : `ovale` = [cx, cy, rx, ry] en points d'affichage (demi-axes de l'anneau).
+
+    Le détourage se fait dans le repère d'affichage de la page (là où l'on a mesuré l'ovale), puis le jeton est tourné
+    (`rotation`, horaire : une page couchée) pour que son grand axe soit horizontal, rogné au plus près et posé dans un
+    cadre 2:1 (transparent autour). Le fichier est toujours horizontal : le serveur décide s'il faut le tourner à
+    l'affichage (`symbole_rotation`), jamais le client.
+    """
+    cx, cy, rx, ry = entree['ovale']
+    rgba = mettre_en_jeton(img, cadre, (cx, cy), rx, ry)
+    rotation = int(entree.get('rotation', 0)) % 360
+    if rotation:
+        rgba = rgba.rotate(-rotation, expand=True)   # rotation horaire, comme le reste du manifeste
+    rogne = rogner(rgba)
+    if rogne is None:
+        raise ValueError('aucun jeton détecté dans le cadre')
+    return mettre_a_taille(ajuster_emprise(rogne, [2, 1]), COTE_OVALE)
+
+
 def extraire_natif(doc, entree):
     """Raster EMBARQUÉ dans le PDF, à sa résolution native : une case carrée prise dans l'image."""
     natif = entree['natif']
@@ -303,6 +335,8 @@ def extraire_un(doc, entree, racine_livrets):
     cadre = entree['cadre']
     dpi = dpi_pour(cadre)
     img = rendre_cadre(doc, entree['page'], cadre, dpi)
+    if 'ovale' in entree:
+        return extraire_ovale(img, cadre, entree)
     if 'disque' in entree:
         # Jeton rond : le cadre est carré et le disque est centré dedans, donc la rotation (une étiquette verticale
         # tourne sa tête avec son texte) ne déplace pas le disque. Ni rognage, ni emprise.

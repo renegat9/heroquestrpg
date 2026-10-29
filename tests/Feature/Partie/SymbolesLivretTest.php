@@ -572,3 +572,79 @@ it('ne publie RIEN d\'une figure non révélée, même quand son jeton existe', 
 
     unlink(public_path('images/livrets/monstres/gobelin.webp'));
 });
+
+// 4. LA FORME ET LA ROTATION DU JETON (phase 3, chantier jetons, 2026-10-29) — décidées par le serveur, publiées sur chaque figure.
+
+/** La figure de ce nom, telle que l'ÉTAT la publie dans `entites` — jamais relue depuis la base. */
+function symbolesFigureMonstre(string $nomBase): array
+{
+    $entites = test()->getJson('/api/groupes/table-1/etat')->assertOk()->json('entites');
+    $figure = collect($entites)->first(fn (array $e) => $e['type'] === 'monstre' && $e['nom_base'] === $nomBase);
+
+    expect($figure)->not->toBeNull("aucune figure {$nomBase} publiée : le test serait vide");
+
+    return $figure;
+}
+
+it('publie symbole_forme et symbole_rotation sur chaque figure : toujours présents, null et 0 sans fichier', function () {
+    symbolesDossierJetable();
+    symbolesPoserMonstre(symbolesQuete(), 'Gobelin');
+
+    $figure = symbolesFigureMonstre('Gobelin');
+
+    expect(array_key_exists('symbole_forme', $figure))->toBeTrue('symbole_forme absent de la figure publiée')
+        ->and(array_key_exists('symbole_rotation', $figure))->toBeTrue('symbole_rotation absent de la figure publiée')
+        ->and($figure['symbole_forme'])->toBeNull('une figure sans fichier n\'a pas de forme')
+        ->and($figure['symbole_rotation'])->toBe(0);
+});
+
+it('un jeton OVALE d\'une figure 1×2 posée VERTICALE publie la forme « ovale » et la rotation 90', function () {
+    symbolesDossierJetable();
+    // Ogre champion : figure 1×2 au catalogue, et `ovales` de la config. Un FAUX fichier suffit : la forme vient de la config.
+    symbolesPoser('monstres/ogre-champion.webp');
+    symbolesPoserMonstre(symbolesQuete(), 'Ogre champion');
+
+    $figure = symbolesFigureMonstre('Ogre champion');
+
+    expect($figure['symbole_forme'])->toBe('ovale')
+        ->and($figure['symbole_rotation'])->toBe(90, 'un ovale 2:1 posé vertical doit se coucher de 90°')
+        ->and($figure['symbole_url'])->toBe('/images/livrets/monstres/ogre-champion.webp');
+
+    unlink(public_path('images/livrets/monstres/ogre-champion.webp'));
+});
+
+it('un jeton ROND reste rond sur une figure 1×2 : forme « rond », jamais tourné', function () {
+    symbolesDossierJetable();
+    // Ogre guerrier : figure 1×2 au catalogue, mais jeton ROND au livret (`cles` → ogre-warrior, absent de `ovales`).
+    symbolesPoser('monstres/ogre-warrior.webp');
+    symbolesPoserMonstre(symbolesQuete(), 'Ogre guerrier');
+
+    $figure = symbolesFigureMonstre('Ogre guerrier');
+
+    expect($figure['symbole_forme'])->toBe('rond')
+        ->and($figure['symbole_rotation'])->toBe(0);
+
+    unlink(public_path('images/livrets/monstres/ogre-warrior.webp'));
+});
+
+it('la règle de rotation : 90 pour un ovale vertical, 0 à plat, carré, ou rond — et la forme ne se lit que dans la config', function () {
+    $biblio = app(BibliothequeImages::class);
+
+    expect(BibliothequeImages::rotationSymboleMonstre('ovale', ['l' => 1, 'h' => 2]))->toBe(90)
+        ->and(BibliothequeImages::rotationSymboleMonstre('ovale', ['l' => 2, 'h' => 1]))->toBe(0, 'un ovale posé à plat est déjà dans le bon sens')
+        ->and(BibliothequeImages::rotationSymboleMonstre('ovale', ['l' => 1, 'h' => 1]))->toBe(0, 'une figure carrée ne se couche pas')
+        ->and(BibliothequeImages::rotationSymboleMonstre('rond', ['l' => 1, 'h' => 2]))->toBe(0, 'un jeton rond ne tourne jamais')
+        ->and(BibliothequeImages::rotationSymboleMonstre(null, ['l' => 1, 'h' => 2]))->toBe(0);
+
+    // La forme : `ovale` seulement pour un nom de `ovales` dont le fichier existe ; `null` sans fichier.
+    symbolesDossierJetable();
+    symbolesPoser('monstres/ogre-champion.webp');
+    symbolesPoser('monstres/ogre-warrior.webp');
+
+    expect($biblio->formeSymboleMonstre('Ogre champion'))->toBe('ovale')
+        ->and($biblio->formeSymboleMonstre('Ogre guerrier'))->toBe('rond')
+        ->and($biblio->formeSymboleMonstre('Squelette'))->toBeNull('pas de fichier : pas de forme');
+
+    unlink(public_path('images/livrets/monstres/ogre-champion.webp'));
+    unlink(public_path('images/livrets/monstres/ogre-warrior.webp'));
+});

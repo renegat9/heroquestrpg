@@ -256,3 +256,22 @@ it('le jeton du MONSTRE est transporté par le converseur de figures, et le pict
         // La manette n'a pas de portrait à 38 px (règle du 2026-09-11) : `portraits` est le seul interrupteur.
         ->and(str_contains($grille, 'icone: props.portraits ? (p.f.ic ?? null) : null'))->toBeTrue('l\'icône de classe échappe au réglage des portraits');
 });
+
+it('le jeton OVALE : forme et rotation viennent du serveur, DungeonGrid le pose sur son emprise, SymboleCarte le tourne', function () {
+    // Phase 3 (2026-10-29) : `symbole_forme` et `symbole_rotation` sont décidés par le serveur ; le client ne les recalcule pas.
+    $jeu = file_get_contents(base_path('resources/js/store/game.js'));
+    $grille = file_get_contents(base_path('resources/js/components/carte/DungeonGrid.vue'));
+    $symbole = file_get_contents(base_path('resources/js/components/carte/SymboleCarte.vue'));
+
+    expect(str_contains($jeu, 'symbole_forme: e.symbole_forme ?? null'))->toBeTrue('entitesVersFigurines ne transporte pas la forme du jeton')
+        ->and(str_contains($jeu, 'symbole_rotation: e.symbole_rotation ?? 0'))->toBeTrue('entitesVersFigurines ne transporte pas la rotation du jeton')
+        ->and(str_contains($grille, ':tourne="p.f.symbole_rotation ?? 0"'))->toBeTrue('le jeton ovale ne lit pas la rotation publiée')
+        ->and(str_contains($grille, ':echelle="100"'))->toBeTrue('le jeton ovale ne remplit pas son ellipse')
+        ->and(str_contains($grille, "f.symbole_forme === 'ovale'"))->toBeTrue('la forme ovale n\'est pas lue sur le champ publié')
+        // Un ovale ne se pose jamais sur une emprise carrée : il reste rond.
+        ->and(str_contains($grille, '(f.ew ?? 1) !== (f.eh ?? 1)'))->toBeTrue('un ovale sur une emprise carrée n\'est pas écarté')
+        ->and(str_contains($grille, 'const JETON_OVALE = 0.85'))->toBeTrue('le jeton ovale n\'occupe pas 85 % de son emprise')
+        ->and(str_contains($symbole, 'echelle: { type: Number, default: 80 }'))->toBeTrue('SymboleCarte n\'accepte pas d\'échelle')
+        // La rotation vient de SymboleCarte, le mécanisme des meubles : DungeonGrid ne recopie jamais la transformation.
+        ->and(str_contains($grille, 'rotate(90deg)'))->toBeFalse('DungeonGrid recopie la rotation au lieu de réutiliser SymboleCarte');
+});

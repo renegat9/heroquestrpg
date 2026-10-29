@@ -1518,6 +1518,202 @@
       ],
       "source": "G1504 p. 37 (PDF 19), « Wandering Monsters in the Quest: Take a turn with one of the Sorcerers »",
       "note": "étiquette verticale (rotation 90) : le jeton tourne avec son texte ; anneau de 26 pt, le plus grand des livrets lus"
+    },
+    {
+      "type": "monstres",
+      "cle": "ogre-champion",
+      "nom_catalogue": "Ogre Champion",
+      "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
+      "page": 19,
+      "cadre": [
+        274.09,
+        444.77,
+        326.79,
+        542.55
+      ],
+      "rotation": 90,
+      "ovale": [
+        300.44,
+        493.66,
+        21.96,
+        40.74
+      ],
+      "source": "F9528 p. 19 (PDF 19), légende « Ogre Champion »",
+      "note": "corps mesuré (boîte après ouverture morphologique : les armes qui dépassent sont écartées) ; page couchée : rotation 90 (horaire)"
+    },
+    {
+      "type": "monstres",
+      "cle": "ogre-commander",
+      "nom_catalogue": "Ogre Commander",
+      "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
+      "page": 19,
+      "cadre": [
+        276.17,
+        333.33,
+        327.87,
+        428.23
+      ],
+      "rotation": 90,
+      "ovale": [
+        302.02,
+        380.78,
+        21.54,
+        39.54
+      ],
+      "source": "F9528 p. 19 (PDF 19), légende « Ogre Commander »",
+      "note": "corps mesuré (boîte après ouverture) ; page couchée : rotation 90 (horaire). Catalogue « Ogre commandant »"
+    },
+    {
+      "type": "monstres",
+      "cle": "ogre-lord",
+      "nom_catalogue": "Ogre Lord",
+      "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
+      "page": 19,
+      "cadre": [
+        271.42,
+        544.67,
+        326.86,
+        642.73
+      ],
+      "rotation": 90,
+      "ovale": [
+        299.14,
+        593.7,
+        23.1,
+        40.86
+      ],
+      "source": "F9528 p. 19 (PDF 19), légende « Ogre Lord »",
+      "note": "corps mesuré (boîte après ouverture) ; page couchée : rotation 90 (horaire). Catalogue « Seigneur ogre »"
+    },
+    {
+      "type": "monstres",
+      "cle": "giant-wolf",
+      "nom_catalogue": "Giant Wolf",
+      "livret": "F7539_en-us_avalon-hill-heroquest-the-mage-of-the-mirror-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 7,
+      "cadre": [
+        698.1,
+        250.0,
+        746.78,
+        343.16
+      ],
+      "rotation": 90,
+      "ovale": [
+        722.44,
+        296.58,
+        20.28,
+        38.82
+      ],
+      "source": "F7539 p. 13 (PDF 7), légende « Giant Wolf »",
+      "note": "corps mesuré (boîte après ouverture) ; page couchée : rotation 90 (horaire). Catalogue « Loup géant »"
+    },
+    {
+      "type": "monstres",
+      "cle": "serpent",
+      "nom_catalogue": "Serpent",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 6,
+      "cadre": [
+        708.95,
+        562.88,
+        755.61,
+        654.6
+      ],
+      "rotation": 90,
+      "ovale": [
+        732.28,
+        608.74,
+        19.44,
+        38.22
+      ],
+      "source": "F9907 p. 10-11 (PDF 6), légende « Serpent »",
+      "note": "corps mesuré (boîte après ouverture) ; page couchée : rotation 90 (horaire). Catalogue « Serpent géant »"
+    },
+    {
+      "type": "monstres",
+      "cle": "giant-ape",
+      "nom_catalogue": "Giant Ape",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 6,
+      "cadre": [
+        708.88,
+        383.1,
+        755.96,
+        474.54
+      ],
+      "rotation": 90,
+      "ovale": [
+        732.42,
+        428.82,
+        19.62,
+        38.1
+      ],
+      "source": "F9907 p. 10-11 (PDF 6), légende « Giant Ape »",
+      "note": "corps mesuré (boîte après ouverture) ; page couchée : rotation 90 (horaire). Catalogue « Singe géant »"
+    },
+    {
+      "type": "monstres",
+      "cle": "minotaur",
+      "nom_catalogue": "Minotaur",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 22,
+      "cadre": [
+        706.58,
+        309.26,
+        733.22,
+        361.94
+      ],
+      "rotation": 90,
+      "ovale": [
+        719.9,
+        335.6,
+        11.1,
+        21.95
+      ],
+      "source": "G1504 p. 43 (PDF 22), planche « Design Your Own Quest Adventures » : Minotaur",
+      "note": "corps mesuré à la main sur le rendu à 600 dpi (l’arme et le poing dépassent) ; planche couchée : rotation 90 (horaire). Catalogue « Minotaure »"
+    },
+    {
+      "type": "monstres",
+      "cle": "ogre",
+      "nom_catalogue": "Ogre",
+      "livret": "F7539_en-us_avalon-hill-heroquest-the-mage-of-the-mirror-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 7,
+      "cadre": [
+        700.94,
+        381.16,
+        745.34,
+        425.56
+      ],
+      "rotation": 90,
+      "disque": [
+        723.14,
+        403.36,
+        18.5
+      ],
+      "source": "F7539 p. 13 (PDF 7), légende « Ogre »",
+      "note": "jeton ROND au livret (rapport 1,05), figure 1×2 au catalogue (René, 2026-10-04) : écart à trancher, emprise inchangée"
+    },
+    {
+      "type": "monstres",
+      "cle": "frozen-horror",
+      "nom_catalogue": "Frozen Horror",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 20,
+      "cadre": [
+        580.82,
+        454.14,
+        622.1,
+        495.42
+      ],
+      "rotation": 90,
+      "disque": [
+        601.46,
+        474.78,
+        17.2
+      ],
+      "source": "F5815 p. 39 (PDF 20), planche « Design Your Own Quest Adventures » : Frozen Horror",
+      "note": "jeton ROND au livret (rapport 1,13), figure 1×2 au catalogue : écart à trancher, emprise inchangée"
     }
   ]
 }

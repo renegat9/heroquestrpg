@@ -373,6 +373,33 @@ final class BibliothequeImages
         return $this->urlSymboleLivret('monstres', $cles[$nomBase] ?? $nomBase);
     }
 
+    /**
+     * FORME du jeton d'un monstre (chantier jetons, phase 3, 2026-10-29) : `ovale` quand le livret le dessine en ovale 2:1
+     * (figure 1×2, `config('symboles_monstres.ovales')`), `rond` sinon, `null` sans jeton. Décidée par la CONFIG et non par
+     * le fichier : un fichier se lit sans être ouvert, et un test pose de faux fichiers. SymbolesMonstresTest vérifie la
+     * liste dans les deux sens (chaque nom listé porte un fichier 2:1 ; chaque fichier 2:1 est déclaré).
+     */
+    public function formeSymboleMonstre(string $nomBase): ?string
+    {
+        if ($this->urlSymboleMonstre($nomBase) === null) {
+            return null;
+        }
+
+        return in_array($nomBase, (array) config('symboles_monstres.ovales', []), true) ? 'ovale' : 'rond';
+    }
+
+    /**
+     * ROTATION du jeton OVALE, en degrés (0 ou 90) : la décision du serveur, publiée telle quelle (`symbole_rotation`). Le
+     * fichier est horizontal (2:1) ; une figure posée VERTICALE (emprise `h` > `l`) couche son jeton de 90°, et le client le
+     * tourne comme un meuble (`SymboleCarte`), sans jamais le recalculer. Un jeton rond ne tourne jamais, ni une figure carrée.
+     *
+     * @param  array{l: int, h: int}  $emprise
+     */
+    public static function rotationSymboleMonstre(?string $forme, array $emprise): int
+    {
+        return $forme === 'ovale' && $emprise['h'] > $emprise['l'] ? 90 : 0;
+    }
+
     // ---- Dynamique (jobs / cache) ----------------------------------------
 
     public function relatifDyn(string $sousType, int|string $id): string
