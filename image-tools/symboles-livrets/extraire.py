@@ -5,6 +5,8 @@ Entrée : manifeste.json (coordonnées seulement — aucun pixel de livret n'ent
 Sortie : un .webp par symbole extrait, fond TRANSPARENT, trait recoloré en crème avec un liseré
 sombre pour rester lisible sur le fond sombre de la carte, rogné au plus près, ramené à la
 proportion de l'emprise (un meuble 3×1 garde son 3:1) et à 256 px sur le grand côté.
+Un JETON DE MONSTRE (`disque`, phase 2) n'est pas un trait : c'est une tête dans un anneau, gardée
+en couleurs, détourée en rond (voir `mettre_en_disque`).
 
 Lancé par ../symboles-livrets.sh dans un conteneur jetable python:3.12-slim (PyMuPDF + Pillow),
 le dossier des PDF monté EN LECTURE SEULE, ce script hors du dossier des données, `python -I`.
@@ -15,6 +17,7 @@ Usage : python -I extraire.py --livrets DOSSIER --manifeste FICHIER --sortie DOS
 import argparse
 import io
 import json
+import math
 import os
 import sys
 
@@ -29,6 +32,8 @@ CREME = (239, 230, 216)        # #efe6d8 — le trait, comme convenu avec l'affi
 LISERE = (26, 20, 16)          # liseré sombre autour du trait
 COTE_PX = 256                  # grand côté de sortie
 SEUIL_BAS, SEUIL_HAUT = 28.0, 68.0   # distance au papier : en dessous, transparent ; au-dessus, trait plein
+COURONNE_JETON = 1.15          # jeton de monstre : la couronne va jusqu'à 1,15 R (une oreille dépasse l'anneau)
+TOLERANCE_PARCHEMIN = 40       # couronne seulement : au-delà de cette distance RVB au parchemin, c'est du dessin
 
 
 def charger_manifeste(chemin):
@@ -205,6 +210,80 @@ def mettre_a_taille(rgba):
     return rgba.resize(cible, Image.LANCZOS)
 
 
+def mettre_en_disque(img, cadre, disque):
+    """Jeton ROND d'un monstre : une tête dans un anneau. `disque` = [cx, cy, R] en points (centre et rayon de l'anneau).
+
+    Le disque de rayon R garde TOUT, couleurs du livret comprises (anneau vert, tête). La couronne jusqu'à 1,15 R ne
+    garde que ce qui s'écarte du fond : les oreilles de la tête dépassent l'anneau, un masque strictement circulaire
+    les couperait. Hors de la couronne, rien — le fond et le texte voisin disparaissent.
+    Fond : la teinte claire la plus fréquente hors de la couronne (parchemin beige, papier pâle du Frozen Horror ;
+    le texte voisin, sombre et minoritaire, n'emporte pas le compte). Dans la couronne, un pixel proche du fond part,
+    sauf s'il est nettement plus sombre (le contour des oreilles, sur un fond clair)."""
+    cx, cy, rayon = disque
+    x0, y0, x1, y1 = cadre
+    w, h = img.size
+    sx, sy = w / (x1 - x0), h / (y1 - y0)
+    couronne = rayon * COURONNE_JETON
+    raw = img.tobytes()
+
+    def fond_clair(seuil):
+        compte = {}
+        for j in range(h):
+            y = y0 + (j + 0.5) / sy
+            for i in range(w):
+                x = x0 + (i + 0.5) / sx
+                if math.hypot(x - cx, y - cy) <= couronne:
+                    continue
+                k = 3 * (j * w + i)
+                r, g, b = raw[k], raw[k + 1], raw[k + 2]
+                if (r + g + b) / 3 >= seuil:
+                    cle = (r // 8, g // 8, b // 8)
+                    compte[cle] = compte.get(cle, 0) + 1
+        return compte
+
+    # Le fond : la teinte claire la plus fréquente hors de la couronne (parchemin, papier pâle du Frozen Horror).
+    compte = fond_clair(150) or fond_clair(110)
+    if not compte:
+        raise ValueError('aucun fond autour du jeton : cadre trop serré')
+    teinte = max(compte, key=compte.get)
+    fond = (teinte[0] * 8 + 4, teinte[1] * 8 + 4, teinte[2] * 8 + 4)
+    lum_fond = sum(fond) / 3
+
+    alpha = bytearray(w * h)
+    couronne_gardee = []
+    for j in range(h):
+        y = y0 + (j + 0.5) / sy
+        for i in range(w):
+            x = x0 + (i + 0.5) / sx
+            d = math.hypot(x - cx, y - cy)
+            if d > couronne:
+                continue
+            if d <= rayon:
+                alpha[j * w + i] = 255
+                continue
+            k = 3 * (j * w + i)
+            r, g, b = raw[k], raw[k + 1], raw[k + 2]
+            ecart = math.sqrt((r - fond[0]) ** 2 + (g - fond[1]) ** 2 + (b - fond[2]) ** 2)
+            # Du dessin dans la couronne : ce qui s'écarte du fond, ou ce qui est nettement plus sombre (contour des oreilles).
+            if ecart > TOLERANCE_PARCHEMIN or (r + g + b) / 3 < lum_fond - 40:
+                couronne_gardee.append(j * w + i)
+    # Seul le dessin qui TOUCHE le disque reste (la tête, ses oreilles) : une poussière du fond, isolée, part.
+    voisins_gardes = set(couronne_gardee)
+    pile = [j * w + i for j in range(h) for i in range(w) if alpha[j * w + i] == 255]
+    while pile:
+        p = pile.pop()
+        y, x = divmod(p, w)
+        for ny in (y - 1, y, y + 1):
+            for nx in (x - 1, x, x + 1):
+                q = ny * w + nx
+                if 0 <= ny < h and 0 <= nx < w and q in voisins_gardes and alpha[q] == 0:
+                    alpha[q] = 255
+                    pile.append(q)
+    rgba = img.convert('RGBA')
+    rgba.putalpha(Image.frombytes('L', img.size, bytes(alpha)))
+    return rgba
+
+
 def extraire_natif(doc, entree):
     """Raster EMBARQUÉ dans le PDF, à sa résolution native : une case carrée prise dans l'image."""
     natif = entree['natif']
@@ -220,6 +299,13 @@ def extraire_un(doc, entree, racine_livrets):
     cadre = entree['cadre']
     dpi = dpi_pour(cadre)
     img = rendre_cadre(doc, entree['page'], cadre, dpi)
+    if 'disque' in entree:
+        # Jeton rond : le cadre est carré et le disque est centré dedans, donc la rotation (une étiquette verticale
+        # tourne sa tête avec son texte) ne déplace pas le disque. Ni rognage, ni emprise.
+        rotation = int(entree.get('rotation', 0)) % 360
+        if rotation:
+            img = img.rotate(-rotation)
+        return mettre_a_taille(mettre_en_disque(img, cadre, entree['disque']))
     rotation = int(entree.get('rotation', 0)) % 360
     if rotation:
         img = img.rotate(-rotation, expand=True)   # PIL tourne à gauche ; la rotation du manifeste est horaire
