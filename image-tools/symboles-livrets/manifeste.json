@@ -1052,6 +1052,347 @@
         1
       ],
       "source": "F4193 p. 4-5 (PDF 3), « Death Mist »"
+    },
+    {
+      "type": "monstres",
+      "cle": "abomination",
+      "nom_catalogue": "Abomination",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 6,
+      "cadre": [
+        223.68,
+        846.51,
+        251.44,
+        874.27
+      ],
+      "rotation": 0,
+      "disque": [
+        237.56,
+        860.39,
+        11.57
+      ],
+      "source": "F2847 p. 11 (PDF 6), « Wandering Monster in this Quest: Abomination »"
+    },
+    {
+      "type": "monstres",
+      "cle": "dread-warrior",
+      "nom_catalogue": "Dread Warrior",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 15,
+      "cadre": [
+        219.78,
+        846.6,
+        250.16,
+        876.98
+      ],
+      "rotation": 0,
+      "disque": [
+        234.97,
+        861.79,
+        12.66
+      ],
+      "source": "F2847 p. 29 (PDF 15), « Wandering Monster in this Quest: Dread Warrior »"
+    },
+    {
+      "type": "monstres",
+      "cle": "mummy",
+      "nom_catalogue": "Mummy",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 9,
+      "cadre": [
+        237.08,
+        847.92,
+        263.0,
+        873.84
+      ],
+      "rotation": 0,
+      "disque": [
+        250.04,
+        860.88,
+        10.8
+      ],
+      "source": "F2847 p. 17 (PDF 9), « Wandering Monster in this Quest: Mummy »"
+    },
+    {
+      "type": "monstres",
+      "cle": "orc",
+      "nom_catalogue": "Orc",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 3,
+      "cadre": [
+        249.82,
+        848.12,
+        276.9,
+        875.2
+      ],
+      "rotation": 0,
+      "disque": [
+        263.36,
+        861.66,
+        11.28
+      ],
+      "source": "F2847 p. 5 (PDF 3), « Wandering Monster in this Quest: Orc »"
+    },
+    {
+      "type": "monstres",
+      "cle": "skeleton",
+      "nom_catalogue": "Skeleton",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 14,
+      "cadre": [
+        237.64,
+        849.57,
+        262.4,
+        874.33
+      ],
+      "rotation": 0,
+      "disque": [
+        250.02,
+        861.95,
+        10.32
+      ],
+      "source": "F2847 p. 27 (PDF 14), « Wandering Monster in this Quest: Skeleton »"
+    },
+    {
+      "type": "monstres",
+      "cle": "zombie",
+      "nom_catalogue": "Zombie",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 7,
+      "cadre": [
+        240.83,
+        849.11,
+        265.31,
+        873.59
+      ],
+      "rotation": 0,
+      "disque": [
+        253.07,
+        861.35,
+        10.2
+      ],
+      "source": "F2847 p. 13 (PDF 7), « Wandering Monster in this Quest: Zombie »"
+    },
+    {
+      "type": "monstres",
+      "cle": "goblin",
+      "nom_catalogue": "Goblin",
+      "livret": "G0053_en-us_avalon-hill-heroquest-spirit-queen-s-torment-quest-pack-requires-heroquest-game-system-to-play.pdf",
+      "page": 5,
+      "cadre": [
+        849.95,
+        451.4,
+        875.39,
+        476.84
+      ],
+      "rotation": 90,
+      "disque": [
+        862.67,
+        464.12,
+        10.6
+      ],
+      "source": "G0053 p. 9 (PDF 5), « Wandering Monster in this Quest: Goblin »",
+      "note": "rayon mesuré à l’enveloppe verte (l’anneau est coupé en haut et en bas par la tête) ; contrôlé sur la planche de jetons"
+    },
+    {
+      "type": "monstres",
+      "cle": "assassin",
+      "nom_catalogue": "Assassin",
+      "livret": "F6646_en-us_avalon-hill-heroquest-rise-of-the-dread-moon-quest-pack-requires-heroquest-game-system-14.pdf",
+      "page": 14,
+      "cadre": [
+        844.81,
+        455.23,
+        872.97,
+        483.39
+      ],
+      "rotation": 90,
+      "disque": [
+        858.89,
+        469.31,
+        11.73
+      ],
+      "source": "F6646 p. 27 (PDF 14), « Wandering Monster in this Quest: Assassin »"
+    },
+    {
+      "type": "monstres",
+      "cle": "specter",
+      "nom_catalogue": "Specter",
+      "livret": "F6646_en-us_avalon-hill-heroquest-rise-of-the-dread-moon-quest-pack-requires-heroquest-game-system-14.pdf",
+      "page": 13,
+      "cadre": [
+        841.03,
+        450.06,
+        875.27,
+        484.3
+      ],
+      "rotation": 90,
+      "disque": [
+        858.15,
+        467.18,
+        14.27
+      ],
+      "source": "F6646 p. 25 (PDF 13), « Wandering Monster in this Quest: Specter »"
+    },
+    {
+      "type": "monstres",
+      "cle": "golem",
+      "nom_catalogue": "Golem",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 18,
+      "cadre": [
+        854.31,
+        443.19,
+        890.79,
+        479.67
+      ],
+      "rotation": 90,
+      "disque": [
+        872.55,
+        461.43,
+        15.2
+      ],
+      "source": "G1504 p. 35 (PDF 18), « Wandering Monsters in the Quest: Golem »"
+    },
+    {
+      "type": "monstres",
+      "cle": "magus-guard",
+      "nom_catalogue": "Magus Guard",
+      "livret": "F6646_en-us_avalon-hill-heroquest-rise-of-the-dread-moon-quest-pack-requires-heroquest-game-system-14.pdf",
+      "page": 11,
+      "cadre": [
+        839.55,
+        463.04,
+        875.67,
+        499.16
+      ],
+      "rotation": 90,
+      "disque": [
+        857.61,
+        481.1,
+        15.05
+      ],
+      "source": "F6646 p. 21 (PDF 11), « Wandering Monster in this Quest: Magus Guard »"
+    },
+    {
+      "type": "monstres",
+      "cle": "ogre-warrior",
+      "nom_catalogue": "Ogre Warrior",
+      "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
+      "page": 37,
+      "cadre": [
+        413.26,
+        433.6,
+        443.04,
+        463.38
+      ],
+      "rotation": 90,
+      "disque": [
+        428.15,
+        448.49,
+        12.41
+      ],
+      "source": "F9528 p. 37 (PDF 37), « Wandering Monster: Ogre Warrior »"
+    },
+    {
+      "type": "monstres",
+      "cle": "raptor",
+      "nom_catalogue": "Raptor",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 13,
+      "cadre": [
+        849.5,
+        424.54,
+        879.0,
+        454.04
+      ],
+      "rotation": 90,
+      "disque": [
+        864.25,
+        439.29,
+        12.29
+      ],
+      "source": "F9907 p. 25 (PDF 13), « Wandering Monsters in the Quest: 2 Raptors »"
+    },
+    {
+      "type": "monstres",
+      "cle": "yeti",
+      "nom_catalogue": "Yeti",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 14,
+      "cadre": [
+        847.47,
+        435.11,
+        875.33,
+        462.97
+      ],
+      "rotation": 90,
+      "disque": [
+        861.4,
+        449.04,
+        11.61
+      ],
+      "source": "F5815 p. 27 (PDF 14), « Wandering Monsters in this quest: 2 Yeti »"
+    },
+    {
+      "type": "monstres",
+      "cle": "ice-gremlin",
+      "nom_catalogue": "Ice Gremlin",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 15,
+      "cadre": [
+        844.31,
+        441.48,
+        874.19,
+        471.36
+      ],
+      "rotation": 90,
+      "disque": [
+        859.25,
+        456.42,
+        12.45
+      ],
+      "source": "F5815 p. 29 (PDF 15), « Wandering Monsters in this quest: 3 Ice Gremlins »"
+    },
+    {
+      "type": "monstres",
+      "cle": "polar-warbear",
+      "nom_catalogue": "Polar Warbear",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 17,
+      "cadre": [
+        848.57,
+        472.04,
+        873.15,
+        496.62
+      ],
+      "rotation": 90,
+      "disque": [
+        860.86,
+        484.33,
+        10.24
+      ],
+      "source": "F5815 p. 33 (PDF 17), « Wandering Monsters in these quests: 2 Polar Warbears »"
+    },
+    {
+      "type": "monstres",
+      "cle": "skullblight",
+      "nom_catalogue": "Skullblight",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 11,
+      "cadre": [
+        851.02,
+        438.96,
+        878.46,
+        466.4
+      ],
+      "rotation": 90,
+      "disque": [
+        864.74,
+        452.68,
+        11.43
+      ],
+      "source": "F9907 p. 21 (PDF 11), « Wandering Monster in the Quest: Skullblight »"
     }
   ]
 }

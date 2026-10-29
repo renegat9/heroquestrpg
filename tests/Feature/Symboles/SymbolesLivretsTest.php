@@ -59,7 +59,7 @@ it('chaque clé FONCTIONNELLE du manifeste est lue par l\'outil, et aucune clé 
     // Une clé du manifeste sans lecteur serait une clé décorative : l'outil croirait la prendre en compte, et ne le ferait pas.
     // `source`, `note` et `nom_catalogue` sont de la DOCUMENTATION (lue par l'humain et par ce test), permises sans lecteur.
     $outil = file_get_contents(base_path('image-tools/symboles-livrets/extraire.py'));
-    $lues = ['type', 'cle', 'livret', 'page', 'cadre', 'rotation', 'emprise', 'couleur', 'seuil', 'poussiere', 'natif', 'absent'];
+    $lues = ['type', 'cle', 'livret', 'page', 'cadre', 'rotation', 'emprise', 'couleur', 'seuil', 'poussiere', 'natif', 'absent', 'disque'];
     $documentaires = ['nom_catalogue', 'source', 'note'];
 
     foreach ($lues as $cle) {
@@ -115,9 +115,16 @@ it('un symbole absent dit pourquoi ; un symbole extrait dit d’où il vient', f
         expect($s['livret'])->toEndWith('.pdf');
         expect($s['page'])->toBeGreaterThanOrEqual(1);
         expect($s['cadre'])->toHaveCount(4);
-        expect(in_array($s['rotation'], [0, 90, 180, 270], true))->toBeTrue("rotation inconnue : « {$s['nom_catalogue']} »");
-        expect($s['emprise'])->toHaveCount(2);
         expect(trim($s['source']))->not->toBe('', "source absente : « {$s['nom_catalogue']} »");
+
+        expect(in_array($s['rotation'], [0, 90, 180, 270], true))->toBeTrue("rotation inconnue : « {$s['nom_catalogue']} »");
+
+        // Un jeton de monstre (`disque`) est rond : son cadre carré et son disque font foi, pas d'emprise (SymbolesMonstresTest).
+        if (array_key_exists('disque', $s)) {
+            expect($s['disque'])->toHaveCount(3);
+            continue;
+        }
+        expect($s['emprise'])->toHaveCount(2);
 
         // Un seuil bas RELEVÉ (papier marbré, `extraire.py`) doit dépasser le défaut (28) sans atteindre la couleur du trait.
         if (array_key_exists('seuil', $s)) {

@@ -56,11 +56,73 @@ garde ses couleurs : `"couleur": true`. Sans fichier, l'affichage garde l'icône
 | `source` | « F2847 p. 33 (PDF 17), « Tables » » — livret, page imprimée, légende |
 | `note` | écart à signaler (même symbole qu'un autre, rotation, etc.) |
 | `natif` | `{"xref": N, "boite_px": [x0, y0, x1, y1]}` : une case prise dans le **raster embarqué** `N`, à sa résolution native (sans rendu de page) |
+| `disque` | **jetons de monstres seulement** : `[cx, cy, R]`, centre et rayon **extérieur** de l'anneau, en points d'affichage. Le jeton est ROND : pas d'`emprise`, pas de rognage (voir « Jetons de monstres ») |
 | `absent` | à la place de `livret`/`cadre` : la **raison** de l'absence |
 
 Une entrée `absent` n'a pas de fichier : c'est une décision écrite, pas un oubli. Une
 absence se dit ainsi : « aucun livret ne dessine … », « figurine posée par le sort … », « à
 reprendre » quand le symbole existe mais n'est pas encore isolé.
+
+## Jetons de monstres (phase 2, 2026-10-29)
+
+Les cartes de quête nomment chaque monstre errant par une étiquette, « Wandering Monster in this
+Quest: Orc », et posent à côté une **tête dans un anneau vert** : c'est le jeton. Il vit dans
+`public/images/livrets/monstres/{cle}.webp` (commité, même régime que les symboles de carte).
+
+- **`nom_catalogue` d'un jeton = le nom que le livret donne à la figure** (2021 : `Orc`, `Dread Warrior`,
+  `Ice Gremlin`…). Il ne suit PAS le catalogue français : `cle = Str::slug(nom)` reste la règle, et le
+  lien catalogue → fichier est écrit dans `config/symboles_monstres.php`.
+- **`config/symboles_monstres.php`** : `cles` (nom de catalogue → clé, quand la clé n'est pas le slug du
+  nom : traduction, nom de 1989, figurine partagée) et `absents` (nom → raison). Un nom absent des deux
+  reçoit `Str::slug(nom)`. `SymbolesMonstresTest` vérifie tout **dans les deux sens** : chaque monstre a un
+  jeton ou une raison, chaque clé pointe sur un catalogue et un fichier, chaque `.webp` sert un monstre, et
+  le manifeste déclare exactement les jetons utilisés.
+- **Le disque.** `disque` = `[cx, cy, R]` ; `cadre` = le carré `[cx±1,2R, cy±1,2R]`. Le disque de rayon R garde
+  **tout** (couleurs du livret : anneau vert, tête). La couronne jusqu'à 1,15 R ne garde que ce qui
+  s'écarte du fond, ou ce qui est nettement plus sombre (le contour), et seulement s'il **touche** le
+  disque : les oreilles de la tête dépassent l'anneau, un masque strictement circulaire les couperait ; une
+  poussière du fond, isolée, part. Le fond est la teinte claire la plus fréquente hors de la couronne
+  (parchemin beige, papier pâle du Frozen Horror).
+- **`rotation`** : une étiquette verticale (pages « rot 0 » des Frozen Horror, Dread Moon, Mage du
+  Miroir, Jungles, Telor, Morcar, Ogre Horde, Spirit Queen) se lit de bas en haut, et sa tête tourne avec
+  elle : `rotation: 90` (horaire). Le sens se mesure sur le texte (`get_text('dict')`, `line['dir']`, passé
+  dans la matrice de rotation de la page), pas à l'œil.
+- **Mesure.** Un anneau se trouve par composante verte (`g − r > 30` et `g − b > 15`) près de l'étiquette
+  « Wandering ». Le centre et le rayon viennent de la boîte de la composante (`R` = demi-largeur + ½ px).
+  L'enveloppe des pixels verts (`g − r > 40`, `g − b > 25`) ne sert qu'aux anneaux coupés. **Quand la tête coupe
+  l'anneau en haut et en bas** (Goblin de Spirit Queen, p. 5), la composante est un arc, non carré : le
+  rayon est alors mesuré à l'enveloppe des pixels verts (`note` dans le manifeste).
+
+### Pièges payés (jetons)
+
+- **Deux repères, encore.** Les rectangles de `search_for` et de `get_text('words')` sont dans le repère
+  NON pivoté. Pour les pages `/Rotate 90`, `page.rotation_matrix` les ramène à l'affichage (vérifié sur
+  Kellar's Keep p. 5 : « Wandering Monster » tombe à x 298–401, y 877–891) ; `transformation_matrix`, non.
+- **L'ordre des mots, pas la géométrie.** Une étiquette verticale ne se regroupe pas par ses coordonnées
+  (le filtre « même ligne » tronquait « Wandering » seul). Les mots se suivent dans l'ordre de `get_text`.
+- **Un Goblin de First Light (G0978) fait ~6 pt**, un Goblin de Spirit Queen ~20 pt : un filtre de taille
+  fixe les rate. Les tailles sont relatives à la page.
+- **Les étiquettes à deux noms** (« If the hero is disguised, Specter ; if not, Magus Guard », Dread Moon,
+  PDF 10 et 12) n'ont pas de jeton propre : on prend l'anneau de l'étiquette à un seul nom (Magus Guard, PDF 11).
+- **Le Frozen Horror n'a pas de parchemin** : le fond y est gris pâle. Une référence « beige » ne trouve rien
+  (« aucun parchemin autour du jeton », trois erreurs avant la correction) : le fond est désormais la teinte
+  claire la plus fréquente, quelle qu'elle soit.
+- **La poussière de la couronne.** Une référence de fond juste ne suffit pas : des taches du papier, proches
+  du dessin, restent dans la couronne. Seul ce qui touche le disque est gardé (la tête et ses oreilles).
+
+### Ce qui n'est PAS extrait (à reprendre)
+
+- **Légendes nommées** : Delthrak p. 6 (PDF) — Serpent, Blightcrawler, Giant Ape, Raptor, Skullblight,
+  Goblin Archer, Skeleton Archer, Blightweaver ; Ogre Horde p. 19 (PDF) — Ogre Lord, Ogre Warrior, Goblin
+  Archer, Ogre Champion, Ogre Commander, Orc Archer, Skeleton Archer, Gargoyle. Les noms sont **tournés** et
+  les anneaux **coupés** par la tête : la mesure automatique ne les tient pas encore. Une absence dans
+  `config/symboles_monstres.php` dit « à reprendre » pour chacun.
+- **Les noms renvoyés par le texte** (« Use the Gargoyle figure to represent Kavra ») : le jeton de la figure
+  renvoyée doit exister d'abord (la gargouille est dans la légende Ogre Horde).
+- **Hors catalogue** : Werewolf, Thief, Mercenary Swordsman, Arcane Mummy, Stone Sentry, Elite Dread Warrior :
+  un jeton existe, aucun monstre du catalogue ne le porte, donc rien n'est extrait (un jeton sans monstre serait
+  décoratif). **Spawnling** : le texte en fait une tuile posée sur la carte du héros ; le « Rejeton putride »
+  du catalogue n'est pas rapproché, à confirmer.
 
 ## Ajouter un symbole
 
@@ -112,3 +174,7 @@ reprendre » quand le symbole existe mais n'est pas encore isolé.
 chaque absence, et présence des `.webp` quand le dossier n'est pas vide (il se tait sinon : le
 repli sur l'icône est le comportement normal). Un dernier test refuse tout fichier qui ne soit
 pas `.webp` dans `public/images/livrets/`.
+
+`tests/Feature/Symboles/SymbolesMonstresTest.php` : la couverture des jetons de monstres **dans les deux
+sens** (catalogue semé `MonstreSeeder` ↔ `config/symboles_monstres.php` ↔ `monstres/*.webp` ↔ manifeste), et la
+forme de chaque jeton (cadre carré qui entoure le disque, couronne 1,15 R tenue dans le cadre).
