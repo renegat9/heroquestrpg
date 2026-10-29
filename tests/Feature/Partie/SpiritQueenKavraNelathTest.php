@@ -28,6 +28,8 @@ use Illuminate\Support\Facades\Http;
  *  - Un sorcier sans la capacité (le Sorcier du Dread générique) reste à UN sort par tour : la règle générale ne bouge pas.
  *  - Budget : chaque sort se paie un usage du budget du palier (précédent Fellmarak). Les tests qui vérifient la
  *    CADENCE relèvent le budget à la main, pour que le budget ne masque pas la règle testée.
+ *  - Nelath lance CHAQUE SORT DE SA LISTE UNE FOIS (`sorts_uniques`, René 2026-10-29) : quatre sorts, deux tours à deux
+ *    sorts, puis plus rien — joué en entier, budget armé par le vrai `reinitialiserUsagesInstance()`.
  *
  * Tests en jeu, par les vraies routes (`POST /choix` puis `GenererMenu`), dés injectés. Chaque cas de preuve dit,
  * dans son commentaire, ce que l'ancien code faisait (un seul sort par tour, sans relecture de la capacité).
@@ -116,6 +118,32 @@ it('Nelath lance DEUX sorts à CHAQUE tour (capacité nue) : le premier tour com
         ->and(sortsLancesAuTour($second))->each->toBeIn(config('archetypes_lanceurs.nelath_reine_des_esprits.sorts'));
 });
 
+it('Nelath lance ses QUATRE sorts une fois chacun : deux au premier tour, deux au second, aucun au troisième', function () {
+    // Avant le 2026-10-29, le budget du boss (3) l'arrêtait à deux puis un sort. Le budget est armé par le VRAI
+    // `reinitialiserUsagesInstance()` (le helper pose Nelath après le démarrage de la quête, sur une instance déjà armée).
+    $ctx = demarrerQueteAvecMonstre('Nelath, la Reine des Esprits', ['pv_mind' => 20, 'pv_mind_max' => 20]);
+    app(\App\Partie\MoteurDread::class)->reinitialiserUsagesInstance($ctx['instance']->fresh()->load('monstre'), $ctx['quete']);
+    $repertoire = config('archetypes_lanceurs.nelath_reine_des_esprits.sorts');
+
+    expect((int) $ctx['instance']->fresh()->usages_dread)->toBe(count($repertoire), 'budget = son répertoire');
+
+    desFiges(array_fill(0, 600, 4));
+
+    $premier = sortsLancesAuTour(attendreUnTour($ctx));
+    $second = sortsLancesAuTour(attendreUnTour($ctx));
+    $troisieme = sortsLancesAuTour(attendreUnTour($ctx));
+
+    $lances = [...$premier, ...$second];
+    sort($lances);
+    sort($repertoire);
+
+    expect($premier)->toHaveCount(2, 'premier tour : deux sorts')
+        ->and($second)->toHaveCount(2, 'second tour : les deux autres')
+        ->and($lances)->toBe($repertoire, 'chacun des quatre sorts, une fois')
+        ->and($troisieme)->toBe([], 'troisième tour : plus aucun sort')
+        ->and((int) $ctx['instance']->fresh()->usages_dread)->toBe(0);
+});
+
 it('un sorcier SANS double_sort reste à UN sort par tour : la règle générale ne bouge pas', function () {
     // Témoin : le Sorcier du Dread générique (sous-boss, répertoire de cinq sorts, aucune capacité `double_sort`).
     $ctx = demarrerQueteAvecMonstre('Sorcier du Dread', ['pv_mind' => 20, 'pv_mind_max' => 20]);
@@ -143,5 +171,5 @@ it('la CAPACITÉ est déclarée sur les deux fiches, et sur aucune autre', funct
     expect(Monstre::where('nom_base', 'Kavra')->firstOrFail()->capacites)
         ->toBe(['double_sort' => ['premier_tour' => true]])
         ->and(Monstre::where('nom_base', 'Nelath, la Reine des Esprits')->firstOrFail()->capacites)
-        ->toBe(['double_sort']);
+        ->toBe(['double_sort', 'sorts_uniques']);
 });

@@ -205,7 +205,7 @@ final class MotsClesAdversaires
      * DOUBLE SORT (Spirit Queen's Torment : Kavra « On her first turn only, she may cast both spells simultaneously »,
      * G0053 p. 11 ; Nelath « She may cast two spells in a single turn », p. 33). Un SECOND sort de Dread au même tour,
      * jamais le même sort ; la règle générale « un sort par tour » ne bouge pas pour les autres. Paramétrée :
-     *  - nue : chaque tour (Nelath) ;
+     *  - nue : chaque tour (Nelath — qui porte aussi `sorts_uniques` : chaque sort de sa liste une fois, 2026-10-29) ;
      *  - `['premier_tour' => true]` : au premier tour de Dread joué seulement (Kavra).
      * Lue à UN point, `MoteurDread::doubleSortDisponible()`, appelé par `jouerTourDreadBrut()`.
      */

@@ -267,7 +267,7 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
         'attaque_diagonale',
         // Wizards of Morcar, les Sorciers du Dread (G1504 p. 10) : « Each spell may
         // only be used once per quest » — `MoteurDread::reinitialiserUsagesInstance()`
-        // / `sortsLancables()` / `consommerUsage()`.
+        // / `sortsLancables()` / `consommerUsage()`. Aussi Nelath (René, 2026-10-29).
         'sorts_uniques',
         // Wizards of Morcar, vague 2B : l'embuscade du Dreadshifter
         // (`MoteurEmbuscade`, déclencheur de la carte) et le coup de corne du

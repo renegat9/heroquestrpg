@@ -1304,10 +1304,12 @@ class MonstreSeeder extends Seeder
             // Defend 4 · Body 3 · Mind 3), « la carte gagne, partout » (René, 2026-10-05) — les 6/3/4/1/3 du paquet de fan
             // de `docs/plan-spirit-queen.md` (2026-10-04) sont périmés et ne se portent pas.
             //
-            // Aucune limite d'usage n'est écrite par le livret : le budget du palier s'applique (`USAGES_SOUS_BOSS` 2 pour
-            // le sous-boss, `USAGES_BOSS` 3 pour Nelath), comme pour Fellmarak. ⚠ Conséquence mesurée au code : Kavra
-            // lance ses deux sorts au premier tour et n'a plus d'usage ensuite ; Nelath, deux sorts au premier tour puis un
-            // au second, puis plus rien. À trancher par René (`docs/plan-spirit-queen.md` §Exécution).
+            // Aucune limite d'usage n'est écrite par le livret. Kavra garde le budget de son palier (`USAGES_SOUS_BOSS` 2),
+            // comme Fellmarak : ses deux sorts partent au premier tour, le seul où sa carte lui en donne deux.
+            // Nelath lance CHAQUE SORT DE SA LISTE UNE FOIS (`sorts_uniques`, la règle des sorciers de Morcar ; René,
+            // 2026-10-29, option 2) : 4 sorts, donc deux tours complets à deux sorts. Le budget du palier (3) la laissait
+            // à 2 puis 1 puis plus rien, et son double sort ne servait qu'une fois. `sorts_uniques` n'apporte rien
+            // d'autre ici : son répertoire n'a ni invocation ni réaction, et elle est déjà au palier boss.
             //
             // `cout` MESURÉ (docs/regles/bestiaire-et-rencontres.md, attaques d'un héros à 3 dés = Body / (1,5 − Défense/6)) :
             // Kavra 3 / (1,5 − 5/6) = 4,5 attaques, sur la droite des SOUS-BOSS (Ogre champion 7,2 → 11 ; Doralf 10,5 → 13,
@@ -1320,7 +1322,7 @@ class MonstreSeeder extends Seeder
                 'archetype_lanceur' => 'kavra_sorciere'],
             ['nom_base' => 'Nelath, la Reine des Esprits', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 3,
                 'tier' => 'boss', 'boite' => 'spirit_queen', 'cout' => 16,
-                'capacites' => ['double_sort'], 'sorts_dread' => [],
+                'capacites' => ['double_sort', 'sorts_uniques'], 'sorts_dread' => [],
                 'archetype_lanceur' => 'nelath_reine_des_esprits'],
         ];
 
