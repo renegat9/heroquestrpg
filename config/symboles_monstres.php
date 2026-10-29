@@ -30,6 +30,12 @@ return [
 
     // Jetons reliés par une correspondance écrite (source entre parenthèses ; « traduction » = même figure).
     'cles' => [
+        'Artificière' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
+        'Fellmarak le Roi Sorcier' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
+        'Seigneur Sorcier' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
+        'Skulmar' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
+        'Sorcier des Tempêtes' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
+        'Sorcier du Dread' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
         'Fimir' => 'abomination', // nom de 1989 ; le livret 2021 nomme ce jeton Abomination
         'Guerrier du Chaos' => 'dread-warrior', // nom de 1989 (Chaos Warrior) ; le livret 2021 nomme ce jeton Dread Warrior
         'Sir Ragnar' => 'dread-warrior', // « Use the Dread Warrior miniature to represent him » (F6646 PDF 16) ; la quête 2 de base (F2847 PDF 4) met la figurine de Dread sorcerer : retenu le texte de la quête 9, dont le bloc de statistiques est celui du catalogue
@@ -78,14 +84,14 @@ return [
         'Serpent géant',
         'Singe géant',
         'Minotaure',
+        // Dragon : jeton du « Quest Map Guide » de First Light (p. 9), scan de René — « l'icône semble bonne » (2026-10-29).
+        'Dragon',
     ],
 
     // Monstres sans jeton : une raison par nom, lue par SymbolesMonstresTest.
     'absents' => [
-        'Dragon' => 'jeton retiré (René, 2026-10-29, revue de la planche) : la seule source est la PHOTO du livret First Light, et sa découpe n\'est qu\'un amas de pixels — l\'illustration du catalogue est plus lisible',
         'Archer elfe' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Archimage elfe' => '« Use the elven archmage figure » : figurine sans jeton dans les livrets lus',
-        'Artificière' => 'figurine de Dread Sorcerer (« Use the Dread sorcerer figure »), aucun jeton de sorcier dans les livrets lus',
         'Bakabri le Cruel' => '« Use the Goblin Warlock miniature » (F9907 PDF 21) : aucun jeton de Goblin Warlock',
         'Bellthor' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Buubhealxea, reine gobeline' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
@@ -99,7 +105,6 @@ return [
         'Demonspider' => 'Gretzl (F9907 PDF 18) : aucune figurine renvoyée dans le texte',
         'Doralf' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Dreadshifter' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Fellmarak le Roi Sorcier' => 'figurine de Dread Sorcerer (« Use the Dread sorcerer figure »), aucun jeton de sorcier dans les livrets lus',
         'Festral' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Garde du Dread' => 'Elite Dread Warrior (G1504 PDF 13) : le texte ne relie pas la garde à ce jeton',
         'Gargouille gardienne' => 'aucun jeton : « guardian gargoyle » n’est nommé dans les livrets lus',
@@ -124,10 +129,6 @@ return [
         'Roi Archaloneus' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Scion Fleur-Pourrie' => 'Bloomrot Scion (F9907 PDF 20) : aucune figurine renvoyée dans le texte',
         'Seigneur' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Seigneur Sorcier' => 'figurine de Dread Sorcerer (« Use the Dread sorcerer figure »), aucun jeton de sorcier dans les livrets lus',
-        'Skulmar' => 'figurine de Dread Sorcerer (« Use the Dread sorcerer figure »), aucun jeton de sorcier dans les livrets lus',
-        'Sorcier des Tempêtes' => 'figurine de Dread Sorcerer (« Use the Dread sorcerer figure »), aucun jeton de sorcier dans les livrets lus',
-        'Sorcier du Dread' => 'figurine de Dread Sorcerer (« Use the Dread sorcerer figure »), aucun jeton de sorcier dans les livrets lus',
         'Sorcière des Marais' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Spawn of the Pit' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Spawn of the Pit déchaîné' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',

@@ -1714,6 +1714,49 @@
       ],
       "source": "F5815 p. 39 (PDF 20), planche « Design Your Own Quest Adventures » : Frozen Horror",
       "note": "jeton ROND au livret (rapport 1,13), figure 1×2 au catalogue : écart à trancher, emprise inchangée"
+    },
+    {
+      "type": "monstres",
+      "cle": "dragon",
+      "nom_catalogue": "Dragon",
+      "livret": "drive/first-light-regles2/first_light_questbook_rules_part2.pdf",
+      "page": 2,
+      "cadre": [
+        119.4,
+        340.7,
+        256.2,
+        422.3
+      ],
+      "rotation": 0,
+      "ovale": [
+        187.8,
+        381.5,
+        57.0,
+        34.0
+      ],
+      "source": "First Light, livret de quêtes p. 9 « Quest Map Guide » (scan de René, first_light_questbook_rules_part2.pdf, page 2), jeton étiqueté « Dragon »",
+      "note": "René, 2026-10-29 : « l'icône semble bonne » dans ce document — remplace la découpe illisible de la photo du livret."
+    },
+    {
+      "type": "monstres",
+      "cle": "dread-sorcerer",
+      "nom_catalogue": "Dread Sorcerer",
+      "livret": "drive/first-light-regles2/first_light_questbook_rules_part2.pdf",
+      "page": 2,
+      "cadre": [
+        268.4,
+        542.8,
+        342.8,
+        617.2
+      ],
+      "rotation": 0,
+      "disque": [
+        305.6,
+        580.0,
+        31.0
+      ],
+      "source": "First Light, livret de quêtes p. 9 « Quest Map Guide » (même scan, page 2), jeton étiqueté « Dread Sorcerer »",
+      "note": "Rayon à l'anneau vert, pas à l'enveloppe : l'enveloppe englobait le texte des étiquettes voisines (« Abomination », « Dread Sorcerer »)."
     }
   ]
 }
