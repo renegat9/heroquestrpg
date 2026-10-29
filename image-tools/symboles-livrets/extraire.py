@@ -258,11 +258,15 @@ def mettre_en_disque(img, cadre, disque):
             d = math.hypot(x - cx, y - cy)
             if d > couronne:
                 continue
+            k = 3 * (j * w + i)
+            r, g, b = raw[k], raw[k + 1], raw[k + 2]
+            # Un rouge franc n'est jamais le dessin d'un jeton : c'est une paroi ou un sceau de la carte voisine, qui
+            # tombe parfois dans le disque même (un pion sous la lettre B tenait une paroi bordeaux ; mesuré le 2026-10-29).
+            if r - g > 40 and r - b > 40:
+                continue
             if d <= rayon:
                 alpha[j * w + i] = 255
                 continue
-            k = 3 * (j * w + i)
-            r, g, b = raw[k], raw[k + 1], raw[k + 2]
             ecart = math.sqrt((r - fond[0]) ** 2 + (g - fond[1]) ** 2 + (b - fond[2]) ** 2)
             # Du dessin dans la couronne : ce qui s'écarte du fond, ou ce qui est nettement plus sombre (contour des oreilles).
             if ecart > TOLERANCE_PARCHEMIN or (r + g + b) / 3 < lum_fond - 40:

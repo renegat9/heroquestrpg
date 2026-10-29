@@ -110,19 +110,23 @@ Quest: Orc », et posent à côté une **tête dans un anneau vert** : c'est le 
 - **La poussière de la couronne.** Une référence de fond juste ne suffit pas : des taches du papier, proches
   du dessin, restent dans la couronne. Seul ce qui touche le disque est gardé (la tête et ses oreilles).
 
-### Ce qui n'est PAS extrait (à reprendre)
+### Sources de jetons, et ce qui reste dehors
 
-- **Légendes nommées** : Delthrak p. 6 (PDF) — Serpent, Blightcrawler, Giant Ape, Raptor, Skullblight,
-  Goblin Archer, Skeleton Archer, Blightweaver ; Ogre Horde p. 19 (PDF) — Ogre Lord, Ogre Warrior, Goblin
-  Archer, Ogre Champion, Ogre Commander, Orc Archer, Skeleton Archer, Gargoyle. Les noms sont **tournés** et
-  les anneaux **coupés** par la tête : la mesure automatique ne les tient pas encore. Une absence dans
-  `config/symboles_monstres.php` dit « à reprendre » pour chacun.
-- **Les noms renvoyés par le texte** (« Use the Gargoyle figure to represent Kavra ») : le jeton de la figure
-  renvoyée doit exister d'abord (la gargouille est dans la légende Ogre Horde).
-- **Hors catalogue** : Werewolf, Thief, Mercenary Swordsman, Arcane Mummy, Stone Sentry, Elite Dread Warrior :
-  un jeton existe, aucun monstre du catalogue ne le porte, donc rien n'est extrait (un jeton sans monstre serait
-  décoratif). **Spawnling** : le texte en fait une tuile posée sur la carte du héros ; le « Rejeton putride »
-  du catalogue n'est pas rapproché, à confirmer.
+- **Légendes nommées** (la figure est dessinée avec son nom) : Delthrak PDF 6 (Blightweaver, Goblin Archer,
+  Skeleton Archer, Raptor, Skullblight ; Serpent, Giant Ape, Blightcrawler) et Ogre Horde PDF 19 (Orc Archer,
+  Goblin Archer, Skeleton Archer, Ogre Warrior ; Ogre Lord, Ogre Champion, Ogre Commander). Les archers et le
+  Blightweaver sont extraits ; les figures **1×2** (Serpent, Giant Ape, Blightcrawler, Ogre Lord, Ogre Champion,
+  Ogre Commander) ont un jeton **ovale** : un disque ne le représente pas, elles restent « à reprendre ».
+- **Carte, sous une lettre** : la gargouille de la quête 3 de base (F2847 PDF 7, lettre B : « a gargoyle that
+  appears to be a stone statue ») est un jeton posé sur le plan ; sa note nomme la figure, le jeton est celui-là.
+  Les lieutenants de Morcar (« one of the Sorcerers », G1504 PDF 19, quatre sorciers aux statistiques communes)
+  partagent un seul jeton : `morcar-sorcerer`.
+- **Les parois rouges de la carte** : le rouge franc n'est jamais du dessin, il est retiré dans le disque comme
+  dans la couronne (une paroi bordeaux, sous la lettre B, restait dans le cercle).
+- **Spawnling** (étiquette « Wandering Monster in the Quest », Delthrak PDF 7) n'est pas extrait : son fond est une **tuile carrée**, pas un disque. « Rejeton putride » reste donc « à reprendre ».
+- **Hors catalogue** : Werewolf, Thief, Mercenary Swordsman, Arcane Mummy, Stone Sentry, Elite Dread Warrior,
+  Reservoir Guardian : un jeton existe, aucun monstre du catalogue ne le porte, donc rien n'est extrait (un jeton
+  sans monstre serait décoratif).
 
 ## Ajouter un symbole
 
