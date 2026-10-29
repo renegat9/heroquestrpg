@@ -1426,14 +1426,14 @@
         393.05,
         451.58
       ],
-      "rotation": 0,
+      "rotation": 90,
       "disque": [
         369.17,
         427.7,
         19.9
       ],
       "source": "F9528 p. 19 (PDF 19), légende « Orc Archer »",
-      "note": "disque mesuré hors de la flèche (qui déborde en haut à droite) ; contrôlé sur la planche de jetons"
+      "note": "disque mesuré hors de la flèche (qui déborde en haut à droite) ; contrôlé sur la planche de jetons Page de légende imprimée à l'horizontale : jeton redressé de 90° (horaire), signalé par René le 2026-10-29."
     },
     {
       "type": "monstres",
@@ -1447,14 +1447,14 @@
         397.13,
         533.53
       ],
-      "rotation": 0,
+      "rotation": 90,
       "disque": [
         372.05,
         508.45,
         20.9
       ],
       "source": "F9528 p. 19 (PDF 19), légende « Goblin Archer »",
-      "note": "disque estimé à partir de l’enveloppe verte, flèche exclue : rayon approximatif, à revérifier à l’œil"
+      "note": "disque estimé à partir de l’enveloppe verte, flèche exclue : rayon approximatif, à revérifier à l’œil Page de légende imprimée à l'horizontale : jeton redressé de 90° (horaire), signalé par René le 2026-10-29."
     },
     {
       "type": "monstres",
@@ -1468,14 +1468,14 @@
         390.67,
         365.53
       ],
-      "rotation": 0,
+      "rotation": 90,
       "disque": [
         368.09,
         342.95,
         18.82
       ],
       "source": "F9528 p. 19 (PDF 19), légende « Skeleton Archer »",
-      "note": "disque mesuré hors de la flèche (qui déborde en haut à droite) ; contrôlé sur la planche de jetons"
+      "note": "disque mesuré hors de la flèche (qui déborde en haut à droite) ; contrôlé sur la planche de jetons Page de légende imprimée à l'horizontale : jeton redressé de 90° (horaire), signalé par René le 2026-10-29."
     },
     {
       "type": "monstres",
@@ -1489,13 +1489,14 @@
         825.47,
         383.7
       ],
-      "rotation": 0,
+      "rotation": 90,
       "disque": [
         803.04,
         361.27,
         18.69
       ],
-      "source": "F9907 (PDF 6), légende « Blightweaver »"
+      "source": "F9907 (PDF 6), légende « Blightweaver »",
+      "note": "Page de légende imprimée à l'horizontale : jeton redressé de 90° (horaire), signalé par René le 2026-10-29."
     },
     {
       "type": "monstres",
