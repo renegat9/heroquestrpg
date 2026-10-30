@@ -84,6 +84,9 @@ final class JournalCombat
         'salle_dangereuse' => true, 'desamorcage_mobilier' => true,
         // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : deux dés rouges contre le Corps de départ ou l'Esprit actuel.
         'forcer_porte_condition' => true,
+        // GRILLE DE FER (Mage of the Mirror, 2026-10-29) : la même phrase que la porte à condition — elle dit le verrou (« la grille
+        // de fer »), le total, la condition, et l'échec qui achève le tour.
+        'forcer_grille' => true,
         // MÉTAMORPHE (Kellar's Keep, 2026-10-23) : le tirage fait à chaque mort — une nouvelle forme, ou la mort pour de bon.
         'metamorphe_tirage' => true,
         'actionner_levier' => true, 'forcer_porte_pierre' => true, 'ouvrir_porte' => true,
@@ -1065,6 +1068,7 @@ final class JournalCombat
             ]],
             // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : le jet dit son total et la condition, et un échec dit qu'il clôt le tour.
             'forcer_porte_condition' => $this->porteCondition($a, $acteurNom),
+            'forcer_grille' => $this->porteCondition($a, $acteurNom),
             // MÉTAMORPHE : le tirage à la mort (la carte tirée, ou la mort pour de bon).
             'metamorphe_tirage' => $this->metamorpheTirage($a),
             'piege_declenche' => $this->piegeDeclenche($a, $acteurNom),
@@ -3011,6 +3015,13 @@ final class JournalCombat
                 default => "{$acteurNom} fouille en vain",
             })],
         };
+
+        // CLÉ DE LAITON (Mage of the Mirror, F7539 quête 7 note C) : la PREMIÈRE fouille du râtelier qui la porte la donne EN PLUS de sa
+        // table (`cle_de_laiton`, posé par `ResolveurTour::resoudreFouilleMobilier()`). Le fil le dit, sinon la clé entre dans le sac
+        // sans que personne ne l'ait trouvée.
+        if (isset($a['cle_de_laiton']['objet']['nom'])) {
+            $lignes[] = ['texte' => "{$acteurNom} trouve aussi une {$a['cle_de_laiton']['objet']['nom']}", 'ton' => 'tresor'];
+        }
 
         // SIXIÈME SENS (Explorateur) : la carte de piège remise sous le paquet. Elle ne se
         // disait que dans la réponse HTTP (`carte_ecartee`) — ni au fil, ni au rejeu.

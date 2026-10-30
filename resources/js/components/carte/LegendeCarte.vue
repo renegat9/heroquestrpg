@@ -170,6 +170,8 @@ const symbolePorte = (etat, pierre = false) => (props.carte?.portes ?? [])
 // sans cette ligne dédiée elle se lirait, à tort, comme une porte fermée
 // ORDINAIRE dans la légende générique ci-dessus.
 const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.verrou === 'pierre'));
+// GRILLE DE FER (Mage of the Mirror, 2026-10-29) : `verrou === 'grille'`, publié par le serveur (comme la pierre).
+const grilleDeFer = computed(() => (props.carte?.portes ?? []).some((p) => p.verrou === 'grille'));
 </script>
 
 <template>
@@ -209,6 +211,11 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
                 <div v-if="porteMiroir" class="lg-ligne">
                     <span class="lg-chip lg-porte miroir" />
                     <span>Miroir — un passage secret trouvé ; il s'ouvre comme une porte</span>
+                </div>
+                <!-- GRILLE DE FER (Mage of the Mirror, 2026-10-29) : une clé la lève, sinon deux dés rouges sous le Corps de départ. -->
+                <div v-if="grilleDeFer" class="lg-ligne">
+                    <span class="lg-chip lg-porte grille" />
+                    <span>Grille de fer — une clé la lève, ou deux dés rouges sous le Corps de départ (elle bloque aussi la vue)</span>
                 </div>
             </section>
 
@@ -368,6 +375,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 .lg-porte.secrete { background: linear-gradient(90deg, #b18ad8, #5b3f7a); }
 .lg-porte.miroir { background: linear-gradient(90deg, #f4f8fc, #9fb3c8 55%, #5d7189); }
 .lg-porte.pierre { background: linear-gradient(90deg, oklch(0.55 0.01 255), oklch(0.32 0.01 255)); }
+.lg-porte.grille { background: repeating-linear-gradient(90deg, oklch(0.42 0.02 60) 0 3px, oklch(0.22 0.01 60) 3px 7px); }
 
 .lg-piege { border-radius: 4px; color: var(--warn, oklch(0.82 0.16 75));
   background: oklch(0.78 0.15 75 / 0.14); box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.55); }

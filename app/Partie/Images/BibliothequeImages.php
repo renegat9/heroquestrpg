@@ -264,6 +264,9 @@ final class BibliothequeImages
     /** Clé de la porte de pierre encore fermée (`verrou.type` = `pierre` sur une porte `fermee`). */
     private const SYMBOLE_PORTE_PIERRE = 'verrou_pierre';
 
+    /** Clé de la grille de fer encore fermée (`verrou.type` = `grille` sur une porte `fermee`) — symbole à extraire (`verrou-grille`). */
+    private const SYMBOLE_PORTE_GRILLE = 'verrou_grille';
+
     /**
      * SYMBOLE DE LIVRET — le pictogramme officiel d'une case, tel qu'il est imprimé sur le livret de quête (René,
      * 2026-10-24 : « les vrais symboles des livrets à la place des icônes »).
@@ -343,9 +346,11 @@ final class BibliothequeImages
      */
     public function urlSymbolePorte(string $etat, ?string $verrou, ?string $habillage = null): ?string
     {
+        // La grille de fer fermée a SON symbole (`verrou_grille`), jamais celui de la porte fermée (lot F des restes).
         $cle = match (true) {
             $habillage === MoteurPortes::HABILLAGE_MIROIR && $etat !== MoteurPortes::ETAT_OUVERTE => MoteurPortes::HABILLAGE_MIROIR,
             $etat === MoteurPortes::ETAT_FERMEE && $verrou === MoteurPortes::VERROU_PIERRE => self::SYMBOLE_PORTE_PIERRE,
+            $etat === MoteurPortes::ETAT_FERMEE && $verrou === MoteurPortes::VERROU_GRILLE => self::SYMBOLE_PORTE_GRILLE,
             default => $etat,
         };
 

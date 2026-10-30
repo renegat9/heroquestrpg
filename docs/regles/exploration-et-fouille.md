@@ -439,3 +439,15 @@ La fouille du trésor réveille les figures `fouille_de_la_salle` de la salle (`
 
 **Une table de meuble ne tire que les pièces admises par le thème du groupe** (2026-10-29). `MoteurMobilier::tirerButin()` reçoit `BestiaireGroupe::duGroupe($groupe)->boites`, le même prédicat que l'artefact du coffre (`DeckFouille::choisirArtefact()`) et que l'étal (`PhaseMarche`). Trois portes, une règle : (1) une entrée `piege` dont la LIGNE du piège est boîtée hors thème sort du tableau AVANT le tirage pondéré, et les autres entrées gardent leur poids ; (2) une entrée `objet` NOMMÉE boîtée hors thème sort du tableau aussi ; (3) le vivier d'une entrée à CATÉGORIE ne retient que les objets sans boîte ou de boîte jouée (`whereNull('boite')->orWhereIn('boite', $boites)`). **Conséquence voulue : les potions boîtées de Delthrak (*Potion de sang de serpent*…) et de Morcar (*Potion de résistance au feu*, *Potion de prédisposition magique*…) ne tombent plus des meubles hors de leur thème.** Échec fermé : sans thème passé, seules les pièces sans boîte sont admises. Tests : `MobilierBoiteTest`, `PiegeCoffreSortDreadTest`.
 
+
+## OBJET NOMMÉ DONNÉ PAR UN MEUBLE, UNE SEULE FOIS — la clé de laiton (Mage of the Mirror, lot F, 2026-10-29)
+
+- **Le râtelier qui porte la clé** (`grille.mobilier[i].objet_fixe = "Clé de laiton"`, posé par `AssembleurCarte::placerMobilier()`) :
+  la **première** fouille de ce meuble (`fouille_par` vide, lu AVANT `marquerFouille()`) donne la clé EN PLUS de sa table ordinaire, sous
+  `cle_de_laiton`. Patron de la caisse de ravitaillement (butin fixe au premier fouilleur, sans tirage) ; la différence : la clé s'ajoute
+  à la table, elle ne la remplace pas (quête 7 note C : un râtelier donne « a tool kit » ET « a brass key »).
+- **Hors butin aléatoire** : la clé est de rareté `unique` (exclue par `TirageButin` et par tout tirage de meuble), de catégorie `tresor`
+  (exclue de l'étal par `PhaseMarche`), et porte `hors_marche` (ni étal, ni revente). Aucune table `effet.fouille` ne la nomme.
+- **Fin de quête** : `objet_de_quete` (`MotsClesEquipement::OBJET_DE_QUETE`) — la clé quitte le sac à `terminerQuete()` et à
+  `echouerQuete()`, par `Equipement::purgerObjetsDeQuete()`. Aucun autre objet n'a ce drapeau.
+- Règle complète, placement et tests : `docs/regles/carte-donjon.md` § « LA GRILLE DE FER ».

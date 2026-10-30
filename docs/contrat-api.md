@@ -4893,3 +4893,57 @@ Les autres annonces passent par le type `deplacement` existant : `enlisement_sol
   `etat_personnage_quete.vent_choix` (`2026_10_29_160000`). Trois tuiles et deux gabarits de clés sont posés par `TerrainSeeder` et
   `GabaritQueteSeeder` (`updateOrCreate` : aucune ligne existante n'est réécrite).
 - Gabarits : `structure.terrains` gagne `courants`, `sol_meuble`, `courants_porteurs`, `vents` (`min`/`max` 0..1 aux quatre gabarits).
+
+## Mage of the Mirror — grille de fer et clé de laiton (2026-10-29, lot F du plan restes)
+
+Source : livret F7539 (*The Mage of the Mirror*) — p. 4 (« Portcullises x4 » : « Heroes and monsters cannot see through a
+portcullis until it is opened »), p. 6 (« Brass Key » : « used to open a portcullis in several quests »), quête 7 notes C-D (la
+clé dans le râtelier d'armes de la salle C, la grille en salle D), quête 10 note G (« a hero must roll less than their Body Points
+on two red dice to force the portcullis open. Each hero may try once per turn »). Décisions : `docs/plan-restes-extensions-2026-10-29.md`,
+lot F, F1 (la force vaut pour toute grille) et F2 (la clé quitte le sac en fin de quête). Règles en vigueur :
+`docs/regles/carte-donjon.md` (« LA GRILLE DE FER »), `docs/regles/exploration-et-fouille.md`.
+
+### Menu — `POST /choix`
+
+- **Forcer la grille** : `type: "forcer_grille"`, `id: "forcer_grille_{x}_{y}_{cote}"`, `parametres: {porte: {x, y, cote}}`. Une
+  option PAR grille fermée adjacente (case d'embrasure à distance 1) ; jamais après son ouverture. Le libellé porte le seuil chiffré
+  (« Forcer la grille de fer — 2 dés rouges, total inférieur à ton Corps de départ (8) »). Interaction libre ; un jet raté ferme le
+  tour (« their turn ends », décision du plan restes : la quête 10 dit seulement « once per turn »). Icône manette : `fence`.
+- **Ouvrir la grille avec la clé** : l'option `ouvrir_porte_{x}_{y}_{cote}` existante, libellée « Ouvrir la grille de fer (clé) ».
+  Offerte seulement si le héros porte la « Clé de laiton » (`MoteurPortes::possedeCle()`, le lecteur de la porte à clé). Ni jet ni tour
+  fermé. La clé reste au sac jusqu'à la fin de la quête (F2).
+
+### Résultat d'action
+
+- `forcer_grille` : même forme que `forcer_porte_condition` — `{type: "forcer_grille", option_id, libelle, porte: {x, y, cote},
+  verrou: "grille de fer", attribut: "corps", comparaison: "strict", valeur, faces: [d6, d6], total, reussi}`. `valeur` est le Corps
+  de DÉPART (`pv_body_max`, comme la porte à condition de Kellar's Keep, F4543 p. 19 : « their starting number of Body Points »).
+  `reussi: true` ouvre la grille et révèle la salle derrière (cause journalisée `force_grille`).
+- `ouvrir_porte` : `cause: "cle"`, inchangé.
+
+### Fouille — le râtelier qui porte la clé
+
+- `fouille_mobilier` : la PREMIÈRE fouille du râtelier (aucun héros ne l'a encore fouillé) donne sa table ordinaire ET la clé :
+  `cle_de_laiton: {objet: {id, nom, …}, …rangement}`, à côté du butin de la table (`objet`). Les fouilles suivantes ne la donnent
+  plus. Le fil dit « X trouve aussi une Clé de laiton ». La clé est hors marché, de rareté `unique` : aucune table de butin ne la tire.
+
+### Carte — `EtatGroupe.carte.portes[]`
+
+- Nouvelle valeur : `verrou: "grille"` (état `fermee` : elle bloque le passage ET la vue, comme toute porte non ouverte).
+  Publiée SOUS LE BROUILLARD comme toute porte : `EtatGroupe::portes()` ne la publie que si l'une de ses deux cases est connue.
+- `symbole_url` : `null` tant que `public/images/livrets/portes/verrou-grille.webp` n'existe pas (aucun symbole de herse dans le
+  manifeste) — la manette et la table gardent l'icône `fence`, et la légende une ligne sans pictogramme.
+- Une grille ne se pose que sur une arête de BOUCLE, au plus une par carte, sous le thème `mage_du_miroir` seul
+  (`AssembleurCarte::marquerPortesDeGrille()`). La salle du râtelier qui porte la clé est atteignable sans franchir la grille ni
+  aucun autre verrou (`AssembleurCarte::salleDeLaCle()`).
+
+### Annonces
+
+- `JournalCombat::TYPES` déclare `forcer_grille` : la même phrase que `forcer_porte_condition` (le verrou, le total, la condition,
+  l'échec qui achève le tour). `porte_ouverte` reste écrit seul, comme toute ouverture (l'action la dit déjà).
+
+### Fin de quête — la clé quitte le sac
+
+- À `terminerQuete()` (victoire et vote de sortie, ses deux chemins) et à `echouerQuete()` : les lignes d'inventaire dont l'objet
+  porte l'effet `objet_de_quete` (`MotsClesEquipement::OBJET_DE_QUETE`) sont retirées, pour chaque héros du groupe
+  (`Equipement::purgerObjetsDeQuete()`). Aucun champ publié : l'inventaire se relit après la fin de quête.
