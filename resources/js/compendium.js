@@ -263,7 +263,10 @@ export function effetVersChips(effet) {
     // pas ignorées — le repli générique en aurait fait du JSON brut.
     const RENDUES_A_PART = new Set(['des_attaque_contre', 'attaque_double_contre']);
     const RENDUES_A_PART_2 = new Set(['zone_lames', 'reaction']);
-    const IGNORE = new Set(['sort_id', 'sort_nom', ...NON_IMPLEMENTES, ...RENDUES_A_PART, ...RENDUES_A_PART_2]);
+    // Pièges du plan des restes (2026-10-29) : des valeurs STRUCTURÉES que le repli générique rendait « [object Object] »
+    // (vu à l'écran dans le guide le 2026-10-30), et deux clés qu'il rendait en mot brut (« mare : oui »).
+    const RENDUES_A_PART_3 = new Set(['saut_long', 'dans_la_fosse', 'mare', 'sort_dread']);
+    const IGNORE = new Set(['sort_id', 'sort_nom', ...NON_IMPLEMENTES, ...RENDUES_A_PART, ...RENDUES_A_PART_2, ...RENDUES_A_PART_3]);
     const chips = [];
 
     // Clauses CONDITIONNELLES des artefacts : « 4 dés contre Squelette,
@@ -282,6 +285,24 @@ export function effetVersChips(effet) {
     }
     if (effet.reaction && effet.reaction.action === 'annule_degats') {
         chips.push({ texte: 'Réaction : annule les dégâts subis (sans dépenser d\'action)' });
+    }
+    // FOSSE LONGUE : le saut « par le bout » et l'état du héros tombé au fond.
+    if (effet.saut_long && typeof effet.saut_long === 'object') {
+        const face = { bouclier_noir: 'un bouclier noir', bouclier_blanc: 'un bouclier blanc', crane: 'un crâne' }[effet.saut_long.face] ?? humaniser(effet.saut_long.face);
+        chips.push({ texte: `Saut par le bout : un dé de combat, réussi sur ${face}` });
+    }
+    if (effet.dans_la_fosse && typeof effet.dans_la_fosse === 'object') {
+        const malus = effet.dans_la_fosse.malus_des_combat ?? 1;
+        const sortie = (effet.dans_la_fosse.sortie_sur ?? []).join(' ou ');
+        chips.push({ texte: `Au fond : ${malus} dé de combat de moins en attaque et en défense${sortie ? ` ; on en sort sur ${sortie} au dé rouge` : ''}` });
+    }
+    // MARE (d'acide) : elle reste au sol, armée — ce n'est pas une fosse qu'on referme.
+    if (effet.mare === true) {
+        chips.push({ texte: 'Reste au sol, armée, après chaque passage' });
+    }
+    // Un piège qui LANCE un sort de Dread (coffre piégé de Spirit Queen's Torment).
+    if (typeof effet.sort_dread === 'string') {
+        chips.push({ texte: `Lance le sort de Dread « ${effet.sort_dread} » sur le fouilleur, qui y résiste de ses dés rouges` });
     }
     // Un piège de lianes ESQUIVÉ par un bouclier blanc : son « sans défense » serait faux.
     const esquivable = effet.esquive_sur_bouclier === true;
