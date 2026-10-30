@@ -1054,9 +1054,23 @@ final class MoteurSorts
      * elle-même à la dernière. Le SEUL point de passage de cette règle — la lecture
      * (`ResolveurTour::resoudreParchemin()`) comme la relance de *Vision du futur*
      * (`MoteurReactions::depenserSourceRelance()`) s'en servent (2026-10-08).
+     *
+     * PARCHEMIN À PLUSIEURS USAGES (Prophecy of Telor, G0052 PDF 15 et 17 : « modified to
+     * be cast three times before the scroll crumbles to dust », 2026-10-29) : il porte
+     * `effet.charges` et passe par `MoteurCharges`, le modèle de l'arc à quatre flèches —
+     * une charge par lecture, l'exemplaire détruit (et annoncé) à la dernière. Pas de
+     * second compteur : `inventaire.charges` EST le restant de cet exemplaire.
      */
     public function consommerParchemin(Inventaire $ligne): void
     {
+        $charges = app(MoteurCharges::class);
+
+        if ($charges->restantes($ligne) !== null) {
+            $charges->consommer($ligne);
+
+            return;
+        }
+
         if ((int) $ligne->quantite > 1) {
             $ligne->decrement('quantite');
 
@@ -1384,12 +1398,17 @@ final class MoteurSorts
         // cohabiter deux économies contraires dans une même liste — un sort
         // s'épuise et revient à la quête suivante, un parchemin est DÉTRUIT.
         $parchemins = [];
+        $usagesRestants = [];
 
         foreach ($personnage->inventaire()->with('objet')->orderBy('id')->get() as $ligne) {
             $sort = Sort::find(data_get($ligne->objet?->effet, 'sort_id'));
 
             if ($sort === null) {
                 continue;
+            }
+
+            if (($restantes = app(MoteurCharges::class)->restantes($ligne)) !== null) {
+                $usagesRestants[$ligne->id] = $restantes;
             }
 
             // VISION DU FUTUR : se joue APRÈS un jet, jamais en lisant une carte —
@@ -1465,6 +1484,19 @@ final class MoteurSorts
                 ['inventaire_id' => $ligne->id],
                 ciblesDangers: $ciblesDangers,
             );
+        }
+
+        // PARCHEMIN À PLUSIEURS USAGES (2026-10-29) : l'entrée dit ce qu'il reste à CET
+        // exemplaire, quelle que soit la forme de l'entrée (cible, direction, emplacement).
+        // Sans cela, un parchemin modifié et un parchemin ordinaire du même sort portent
+        // le même libellé, et le joueur ne sait pas lequel il entame.
+        foreach ($parchemins as $i => $entree) {
+            $restantes = $usagesRestants[(int) ($entree['inventaire_id'] ?? 0)] ?? null;
+
+            if ($restantes !== null) {
+                $parchemins[$i]['nom'] = ($entree['nom'] ?? $entree['libelle'] ?? 'Parchemin')
+                    .' ('.$restantes.' usage'.($restantes > 1 ? 's' : '').' restant'.($restantes > 1 ? 's' : '').')';
+            }
         }
 
         // Même règle que les sorts connus : un parchemin dont la cible manque

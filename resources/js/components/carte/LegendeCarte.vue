@@ -153,7 +153,10 @@ const PORTES = [
     ['verrouillee', 'Verrouillée — clé, gardien à vaincre ou levier'],
     ['secrete', 'Passage secret révélé par une fouille'],
 ];
-const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? []).some((p) => p.etat === etat)));
+// Un MIROIR (habillage, 2026-10-29) a sa propre ligne : il ne doit pas faire paraître la ligne « Fermée » à lui seul.
+const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? [])
+    .some((p) => p.etat === etat && !(p.habillage === 'miroir' && p.etat !== 'ouverte'))));
+const porteMiroir = computed(() => (props.carte?.portes ?? []).some((p) => p.habillage === 'miroir' && p.etat !== 'ouverte'));
 
 // Le pictogramme d'une ligne de porte : celui de la première porte de cet ÉTAT qui en porte un. La porte de pierre FERMÉE a
 // le sien (`verrou_pierre`, publié par le serveur) : il ne doit pas prêter son dessin à la ligne « Fermée ». Une porte de
@@ -202,6 +205,10 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
                     <span v-if="symbolePorte('fermee', true)" class="lg-chip lg-symbole lg-symbole-porte"><SymboleCarte :url="symbolePorte('fermee', true)" icone="construction" nom="Porte de pierre" /></span>
                     <span v-else class="lg-chip lg-porte pierre" />
                     <span>Porte de pierre — un héros lançant ≥ 2 dés d'attaque de base peut la forcer (2 crânes)</span>
+                </div>
+                <div v-if="porteMiroir" class="lg-ligne">
+                    <span class="lg-chip lg-porte miroir" />
+                    <span>Miroir — un passage secret trouvé ; il s'ouvre comme une porte</span>
                 </div>
             </section>
 
@@ -359,6 +366,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 .lg-porte.ouverte { background: none; box-shadow: inset 0 0 0 1px #f0d79a; }
 .lg-porte.verrouillee { background: linear-gradient(90deg, #b98a3a, #6a4a1c); }
 .lg-porte.secrete { background: linear-gradient(90deg, #b18ad8, #5b3f7a); }
+.lg-porte.miroir { background: linear-gradient(90deg, #f4f8fc, #9fb3c8 55%, #5d7189); }
 .lg-porte.pierre { background: linear-gradient(90deg, oklch(0.55 0.01 255), oklch(0.32 0.01 255)); }
 
 .lg-piege { border-radius: 4px; color: var(--warn, oklch(0.82 0.16 75));

@@ -2578,9 +2578,12 @@ final class MenuMoteur
                 $suffixe = $this->suffixeDirectionPorte($quete, $p, $px, $py, $plusieurs);
 
                 if ($this->portes->ouvrableAMain($p) || $avecCle) {
+                    // MIROIR (Mage of the Mirror, 2026-10-29) : un passage secret habillé — même option, son nom à lui.
+                    $objet = ($p['habillage'] ?? null) === MoteurPortes::HABILLAGE_MIROIR ? 'le miroir' : 'la porte';
+
                     $options[] = [
                         'id' => "ouvrir_porte_{$p['x']}_{$p['y']}_{$cote}",
-                        'libelle' => 'Ouvrir la porte'.$suffixe.($avecCle ? ' (clé)' : ''),
+                        'libelle' => "Ouvrir {$objet}".$suffixe.($avecCle ? ' (clé)' : ''),
                         'type' => 'ouvrir_porte',
                         'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                     ];

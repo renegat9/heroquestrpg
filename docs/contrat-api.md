@@ -86,6 +86,7 @@ proposition du MJ. » quand ce n'est pas son tour.
             "escalier": {"x": 2, "y": 2, "l": 2, "h": 2, "symbole_url": "/images/livrets/escalier/escalier.webp|null"},
             "portes": [{"x": 4, "y": 3, "cote": "e|s", "etat": "fermee|ouverte|verrouillee|secrete",
                         "embrasure": {"x": 5, "y": 3}, "verrou": "cle|monstres_vaincus|levier",
+                        "habillage": "miroir|null",
                         "symbole_url": "/images/livrets/portes/fermee.webp|null", "symbole_rotation": "0|90"}]},
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
@@ -95,7 +96,7 @@ proposition du MJ. » quand ce n'est pas son tour.
      "...": "ou null — mode ESCORTÉ de la mission « secourir », voir ci-dessous"},
     {"type": "monstre", "id": 9, "nom": "<habillage IA ou nom_base>", "nom_base": "<type catalogue>", "x": 5, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "etat": "actif", "symbole_url": "/images/livrets/monstres/<cle>.webp|null",
-     "symbole_forme": "ovale|rond|null", "symbole_rotation": "0|90"},
+     "symbole_forme": "ovale|carre|rond|null", "symbole_rotation": "0|90"},
     {"type": "captif", "id": 3, "nom": "Gothar", "x": 7, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "image_url": "/images/..."}
   ],
@@ -511,7 +512,7 @@ options claires » (doc 13 §3.1). C'est la leçon du ciblage, un cran plus haut
 | option | liste | entrée |
 |---|---|---|
 | `lancer_sort` (`type: sort`) | `parametres.sorts[]` | `{cle, sort_id, nom, element, sort_type, disponible, description, cibles?, mode?, porte?, case?}` — **`description`** (2026-10-09) : ce que le sort FAIT, tiré du catalogue (`sorts.description`) et décidé par le serveur, sur CHAQUE entrée — la manette l'affiche sans rien recomposer (verdict Morcar § 5 : Voile de Brume n'était décrit nulle part) |
-| `lire_parchemin` (`type: parchemin`) | `parametres.parchemins[]` | idem + `inventaire_id` (et `description`, idem) ; un parchemin de sort à emplacement (mur, Clairvoyance, voile) porte les MÊMES entrées que le sort connu, `mode` et `cases`/`salle` compris (2026-10-08) |
+| `lire_parchemin` (`type: parchemin`) | `parametres.parchemins[]` | idem + `inventaire_id` (et `description`, idem) ; un parchemin de sort à emplacement (mur, Clairvoyance, voile) porte les MÊMES entrées que le sort connu, `mode` et `cases`/`salle` compris (2026-10-08) ; un parchemin **à plusieurs usages** (`effet.charges`, Prophecy of Telor, 2026-10-29) suffixe son `nom` de « (N usages restants) » — décidé par le serveur, le reste de CET exemplaire (`MoteurCharges::restantes()`) ; chaque lecture dépense une charge, réussie ou non, et le résultat porte `charges_depensees` comme tout objet à charges |
 | `utiliser_objet` (`type: objet_libre`) | `parametres.objets[]` | `{cle, inventaire_id, nom, detail, cout: gratuit\|action, quantite, cibles?}` |
 | `se_concentrer` · `sacrifier_pour_sort` | `parametres.sorts[]` | `{cle, sort_id, nom, …}` |
 
@@ -2489,6 +2490,8 @@ Le client **ne compose aucune URL** : il dessine la `symbole_url` reçue sur la 
 
 **Jeton OVALE (chantier jetons phase 3, 2026-10-29).** Deux champs, **toujours présents** sur chaque figure de monstre, décidés par le serveur (`EtatGroupe::symboleDeMonstre()`) : `symbole_forme` (`"ovale"` | `"rond"` | `null`) et `symbole_rotation` (`0` | `90`). `ovale` quand le livret dessine le jeton en ovale 2:1 — une figure 1×2 (`config/symboles_monstres.php`, `ovales`, par NOM DE CATALOGUE) ; `rond` pour les autres jetons ; `null` sans fichier, comme `symbole_url`. `symbole_rotation` vaut `90` quand un jeton `ovale` est posé sur une emprise VERTICALE (`h > l`), car le fichier est horizontal ; `0` sinon, et toujours `0` pour un jeton rond. Le client dessine un jeton `ovale` qui couvre 85 % de son emprise dans chaque sens, sur ses deux cases (anneau de la famille par-dessus), tourné de `symbole_rotation` comme un meuble (`SymboleCarte`) ; il ne décide jamais de la forme ni de la rotation. Un jeton `rond` garde le gabarit rond (70 % de la case, centré), y compris sur une figure 1×2.
 
+**Jeton CARRÉ (2026-10-29, plan des restes lot D).** `symbole_forme` vaut `"carre"` pour une figure que le livret représente par une **tuile carrée** et non par une tête dans un anneau : le *Spawnling* de Delthrak (`Rejeton putride`, F9907 PDF 7). Décidé par `config('symboles_monstres.carres')`, lu par `BibliothequeImages::formeSymboleMonstre()` ; le client arrondit à peine les coins (`.jeton-carre`) au lieu d'un disque. `symbole_rotation` reste 0. Sans fichier, `symbole_forme` vaut `null` comme pour les autres formes.
+
 **Le bouton « i »** ouvre la légende sur les deux écrans (coin de la carte à la
 table, en-tête de la feuille de déplacement sur la manette). Elle ne liste que ce
 qui est **sur cette carte** : une légende qui décrit sept pièges quand la salle en
@@ -2697,6 +2700,7 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
   plus AUCUNE entrée pour ce cas, il n'y a plus rien à comparer — la porte
   secrète non trouvée est rigoureusement indiscernable d'un mur, y compris en
   comptant les entrées.
+- **MIROIR — l'habillage du passage secret** (The Mage of the Mirror, F7539 PDF 3, René 2026-10-29) : `carte.portes[].habillage` (`"miroir"|null`, **toujours présent**). Sous le thème `mage_du_miroir`, `AssembleurCarte` le pose sur toute porte secrète à sa création, et la carte le garde : le serveur le lit sur la PORTE, jamais sur le thème. Aucune règle neuve — il se trouve, s'ouvre et se franchit comme tout passage secret, et n'est publié qu'une fois révélé, comme lui. Le menu dit « Ouvrir le miroir » au lieu de « Ouvrir la porte » (même option `ouvrir_porte`). `symbole_url` d'un miroir non ouvert cherche `portes/miroir.webp` et ne prête JAMAIS le dessin de la porte fermée : les cartes du livret ne le dessinent pas (elles écrivent « MIR », F7539 PDF 17), donc il vaut `null` et le client peint une teinte d'argent (`DungeonGrid`, ligne dédiée de la légende). Ouvert, c'est un passage ouvert ordinaire.
 - Une fois la fouille réussie, `MoteurPortes::revelerSecretes()` passe l'entrée à
   `{etat: "fermee", revele: true}` — **pas** `"ouverte"` (arbitrage de René,
   2026-09-11 : « un passage secret trouvé devrait l'afficher comme une porte

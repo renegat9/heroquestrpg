@@ -254,3 +254,28 @@ une scène que le livret ne place que dans une seule quête.
 | B1, C1, D1, E1, F1, F2, G1, I1, J1 | **Recommandation retenue**, telle qu'écrite au §2. |
 | H1 | **Les quatre terrains des tours sont portés** : courants contraires, sol meuble, **courant porteur** et **vents de couloir** — pas de report pour H3 et H4. Le courant porteur demande un parcours qui porte « bonus déjà pris » dans son état ; les vents, un choix de direction en attente côté héros et un choix du moteur pour Zargon. |
 | A | Feu vert pour le ménage : images orphelines effacées après sauvegarde, branches fusionnées supprimées. |
+
+## 4. Exécution
+
+### Exécution — lots A à D (2026-10-29, orchestrateur, branche `restes-petits`)
+
+- **A — ménage** : sauvegarde `2026-10-29-2048`, puis `images:purger-orphelines --supprimer` (11 fichiers, 14,6 Mo) ; branches
+  `pouvoirs-finaux`, `pouvoirs-finaux-2`, `qwindrak-wip` supprimées (entièrement dans `main`).
+- **B — parchemins modifiés** : trois lignes `Parchemin modifié : Soin du Corps|Éclair|Eau de Guérison` (`effet.charges` 3/3/2,
+  `rare`, `boite: prophecy_telor`, `prix_base` 0 faute de prix au livret). `MoteurSorts::consommerParchemin()` passe par
+  `MoteurCharges` quand le parchemin a des charges ; `MoteurCharges::detruire()` ne brise que l'exemplaire entamé d'une pile ;
+  `resoudreParchemin()` journalise la lecture AVANT la consommation (le bris s'écrit après) ; le menu suffixe « (N usages
+  restants) ». Le Grimoire ne tire un parchemin boîté que sous son thème (`epreuveParchemin()`). Le même filtre sur le vivier des
+  meubles est confié au chantier du lot E (propriétaire de `MoteurMobilier`). Tests : `ParcheminsModifiesTest` (8),
+  `SortsFonctionnelsTest` mis à jour ; mutations : charges, thème, pile — chacune fait tomber au moins un test.
+- **C — miroirs** : `MoteurPortes::HABILLAGE_MIROIR`, posé par `AssembleurCarte` sur toute porte secrète créée sous le thème
+  `mage_du_miroir`, publié `carte.portes[].habillage` (toujours présent), « Ouvrir le miroir » au menu, teinte d'argent et ligne de
+  légende au client. **Tranché seul** : aucun symbole de livret — les cartes écrivent « MIR » (F7539 PDF 17) et les images de la
+  p. 5 sont des miroirs DE QUÊTE (la princesse, l'arc elfique). Tests : `MiroirsTest` (6) ; mutations : assemblage, symbole, menu.
+- **D — jetons** : forme `carre` (config `carres`, `BibliothequeImages::formeSymboleMonstre()`, `.jeton-carre`, clé `carre` du
+  manifeste et de `extraire.py`) ; jeton `spawnling.webp` (F9907 PDF 7, la tuile de la légende du monstre errant, la même que
+  celles posées sur la carte) pour le **Rejeton putride**. Tests : `SymbolesMonstresTest` (+2), `SymbolesLivretsTest`.
+  ⚠ **Correction du plan** : la tuile du **Golem Cœur-de-Forge** n'est PAS carrée. Mesurée le 2026-10-29 : un RECTANGLE 1×2
+  (F9907 PDF 12, l'image des notes de la quête 6 et la tuile posée dans la salle A de la carte, une colonne sur deux cases). Par
+  la règle de René (« l'emprise d'une figure suit son jeton de livret »), il devrait occuper DEUX cases ; il en occupe une
+  aujourd'hui (`grande_taille` nul). **Question posée à René, rien changé** (0 instance de Golem en base ce jour).

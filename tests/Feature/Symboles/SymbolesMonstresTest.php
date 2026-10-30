@@ -123,7 +123,7 @@ it('aucun jeton n’est orphelin : chaque .webp de monstres/ sert à un monstre 
     }
 });
 
-it('le manifeste déclare exactement les jetons utilisés : chacun ROND (disque) ou OVALE (ovale), jamais les deux', function () {
+it('le manifeste déclare exactement les jetons utilisés : chacun ROND (disque), OVALE (ovale) ou CARRÉ (carre), un seul', function () {
     $this->seed(MonstreSeeder::class);
     $utilises = jetonsUtilises();
     $declares = [];
@@ -135,8 +135,15 @@ it('le manifeste déclare exactement les jetons utilisés : chacun ROND (disque)
         $declares[] = $jeton['cle'];
         [$x0, $y0, $x1, $y1] = $jeton['cadre'];
 
-        expect(array_key_exists('ovale', $jeton) xor array_key_exists('disque', $jeton))
-            ->toBeTrue("jeton « {$jeton['cle']} » : un disque OU un ovale, ni les deux ni aucun");
+        $formes = (int) array_key_exists('ovale', $jeton) + (int) array_key_exists('disque', $jeton) + (int) ! empty($jeton['carre']);
+        expect($formes)->toBe(1, "jeton « {$jeton['cle']} » : un disque, un ovale OU un carré — ni deux, ni aucun");
+
+        if (! empty($jeton['carre'])) {
+            // Une TUILE carrée (2026-10-29) : le cadre EST la tuile, bord à bord.
+            expect(abs(($x1 - $x0) - ($y1 - $y0)))->toBeLessThan(0.01, "tuile non carrée : {$jeton['cle']}");
+
+            continue;
+        }
 
         if (array_key_exists('ovale', $jeton)) {
             // Un ovale : son cadre est centré sur l'ellipse, à 1,2 fois ses demi-axes (la couronne 1,15 y tient).
@@ -219,4 +226,46 @@ it('le manifeste marque `ovale` exactement les jetons de `ovales` (et seulement 
     sort($marques);
 
     expect($marques)->toBe($attendus, 'le manifeste et `ovales` ne désignent pas les mêmes jetons ovales');
+});
+
+it('un jeton CARRÉ est une figure d\'une case, porte un fichier carré, et le manifeste le marque `carre` — dans les deux sens', function () {
+    $this->seed(MonstreSeeder::class);
+    $config = config('symboles_monstres');
+    $catalogue = Monstre::query()->get()->keyBy('nom_base');
+    $attendus = [];
+
+    foreach ($config['carres'] as $nom) {
+        expect($catalogue->has($nom))->toBeTrue("« {$nom} » (carres) n'existe pas au catalogue");
+        expect(array_key_exists($nom, $config['absents']))->toBeFalse("« {$nom} » est à la fois carré et absent");
+        expect(in_array($nom, $config['ovales'], true))->toBeFalse("« {$nom} » est à la fois carré et ovale");
+        expect($catalogue[$nom]->emprise())->toBe(['l' => 1, 'h' => 1], "« {$nom} » : une tuile carrée est une figure d'UNE case");
+
+        $cle = cleJetonDe($nom);
+        $attendus[] = $cle;
+        $chemin = dossierJetonsMonstres()."/{$cle}.webp";
+        expect(is_file($chemin))->toBeTrue("« {$nom} » (carres) : monstres/{$cle}.webp absent");
+        [$largeur, $hauteur] = getimagesize($chemin);
+        expect($largeur)->toBe($hauteur, "« {$nom} » : la tuile n'est pas carrée ({$largeur}×{$hauteur})");
+    }
+
+    $marques = [];
+    foreach (manifesteDesJetons() as $jeton) {
+        if (! empty($jeton['carre'])) {
+            $marques[] = $jeton['cle'];
+        }
+    }
+
+    $attendus = array_values(array_unique($attendus));
+    sort($attendus);
+    sort($marques);
+    expect($marques)->toBe($attendus, 'le manifeste et `carres` ne désignent pas les mêmes tuiles carrées');
+});
+
+it('publie la forme `carre` pour le Rejeton putride, `rond` pour un jeton ordinaire', function () {
+    $this->seed(MonstreSeeder::class);
+    $biblio = app(App\Partie\Images\BibliothequeImages::class);
+
+    expect($biblio->formeSymboleMonstre('Rejeton putride'))->toBe('carre')
+        ->and($biblio->urlSymboleMonstre('Rejeton putride'))->toBe('/images/livrets/monstres/spawnling.webp')
+        ->and($biblio->formeSymboleMonstre('Gobelin'))->toBe('rond');
 });

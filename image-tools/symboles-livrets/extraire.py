@@ -7,7 +7,8 @@ sombre pour rester lisible sur le fond sombre de la carte, rogné au plus près,
 proportion de l'emprise (un meuble 3×1 garde son 3:1) et à 256 px sur le grand côté.
 Un JETON DE MONSTRE (`disque`, phase 2) n'est pas un trait : c'est une tête dans un anneau, gardée
 en couleurs, détourée en rond (voir `mettre_en_disque`). Un jeton OVALE (`ovale`, phase 3 : figure 1×2)
-est le même traitement sur une ellipse, ramené à l'horizontale 2:1 et à 512 px (voir `extraire_ovale`).
+est le même traitement sur une ellipse, ramené à l'horizontale 2:1 et à 512 px (voir `extraire_ovale`). Un jeton CARRÉ
+(`carre`, une tuile de figure) est pris bord à bord, sans détourage.
 
 Lancé par ../symboles-livrets.sh dans un conteneur jetable python:3.12-slim (PyMuPDF + Pillow),
 le dossier des PDF monté EN LECTURE SEULE, ce script hors du dossier des données, `python -I`.
@@ -344,6 +345,14 @@ def extraire_un(doc, entree, racine_livrets):
         if rotation:
             img = img.rotate(-rotation)
         return mettre_a_taille(mettre_en_disque(img, cadre, entree['disque']))
+    if entree.get('carre'):
+        # Jeton CARRÉ (2026-10-29) : une TUILE de figure (le Spawnling de Delthrak), pas une tête dans un anneau. Le cadre
+        # EST la tuile, bord à bord : gardée telle quelle, en couleurs, sans détourage ni rognage.
+        rotation = int(entree.get('rotation', 0)) % 360
+        if rotation:
+            img = img.rotate(-rotation, expand=True)
+        # Carré EXACT : le rendu d'un cadre de 20 pt tombe parfois à un pixel près (255×256).
+        return img.resize((COTE_PX, COTE_PX), Image.LANCZOS).convert('RGBA')
     rotation = int(entree.get('rotation', 0)) % 360
     if rotation:
         img = img.rotate(-rotation, expand=True)   # PIL tourne à gauche ; la rotation du manifeste est horaire

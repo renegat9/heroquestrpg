@@ -5680,11 +5680,15 @@ final class ResolveurTour
 
         // Consommé dans TOUS les cas (S1) — échec = parchemin gaspillé. Un seul
         // point de passage pour cette règle : la relance de Vision du futur s'en sert aussi.
-        $this->sorts->consommerParchemin($ligne);
+        // ⚠ Journalisé AVANT : un parchemin à plusieurs usages qui s'effrite à sa dernière
+        // lecture écrit « … est épuisé et se brise » (`MoteurCharges`) — après la lecture,
+        // pas avant (2026-10-29).
         $payload['consomme'] = true;
         $payload['gaspille'] = ! $reussi;
 
         Journal::ajouter($groupe, $reussi && $sort->type === 'degats' ? 'combat' : 'action', $payload, $acteur);
+
+        $this->sorts->consommerParchemin($ligne);
 
         return $payload;
     }
@@ -11030,11 +11034,18 @@ final class ResolveurTour
      *
      * ⚠ Le talent « Œil du prix » n'entre PAS ici : il ne décale que le butin du
      * MOBILIER que son porteur fouille (`resoudreFouilleMobilier()`), jamais une épreuve.
+     *
+     * ⚠ Un parchemin BOÎTÉ ne sort que sous son thème (les parchemins modifiés de
+     * Prophecy of Telor, 2026-10-29) : même prédicat que l'étal et les artefacts
+     * (`DeckFouille::choisirArtefact()`), `boite = null` reste tirable partout.
      */
     private function epreuveParchemin(Quete $quete, Personnage $personnage): array
     {
+        $boites = BestiaireGroupe::duGroupe($quete->groupe)->boites;
+
         $objet = TirageButin::objetSelonRarete(
-            Objet::query()->where('categorie', 'parchemin')->where('rarete', '!=', 'unique'),
+            Objet::query()->where('categorie', 'parchemin')->where('rarete', '!=', 'unique')
+                ->where(fn ($q) => $q->whereNull('boite')->orWhereIn('boite', $boites)),
             $this->niveauMoyenDuButin($this->herosEngages($quete)),
         );
 

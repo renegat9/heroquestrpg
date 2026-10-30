@@ -212,6 +212,9 @@ const doors = computed(() => (props.carte.portes ?? [])
             // — verrou === 'pierre' la distingue, et mérite sa propre teinte
             // plutôt que de se confondre avec une porte ordinaire.
             pierre: p.verrou === 'pierre',
+            // MIROIR (Mage of the Mirror, 2026-10-29) : un passage secret habillé, décidé par le serveur (`habillage`). Les cartes
+            // du livret ne le dessinent pas : une teinte argentée tant qu'il est fermé, puis un passage ouvert comme un autre.
+            miroir: p.habillage === 'miroir' && p.etat !== 'ouverte',
             // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme de l'état, publié par le serveur. Son icône de repli reste celle
             // d'aujourd'hui : le verrou (cadenas) ou la pierre (construction), jamais une icône neuve.
             symbole_url: p.symbole_url ?? null,
@@ -219,7 +222,9 @@ const doors = computed(() => (props.carte.portes ?? [])
             // l'applique comme aux meubles ; le client ne la recalcule pas.
             symbole_rotation: p.symbole_rotation ?? 0,
             icone: p.etat === 'verrouillee' ? 'lock' : (p.verrou === 'pierre' && p.etat !== 'ouverte' ? 'construction' : 'door_front'),
-            titre: `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,
+            titre: p.habillage === 'miroir'
+                ? `Miroir ${p.etat === 'ouverte' ? 'ouvert' : 'fermé'} — passage secret`
+                : `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,
         };
     }));
 
@@ -309,6 +314,8 @@ const jetonsPlaces = computed(() => {
                 key: `fig-${p.f.type}-${p.f.id}`,
                 f: p.f,
                 ovale: p.ovale,
+                // TUILE CARRÉE (le Spawnling de Delthrak, 2026-10-29) : décidée par le serveur (`symbole_forme` = 'carre').
+                carre: !p.ovale && p.f.symbole_forme === 'carre' && !!p.f.symbole_url,
                 holder: {
                     gridColumn: `${p.f.x + 1} / span ${p.bw}`,
                     gridRow: `${p.f.y + 1} / span ${p.bh}`,
@@ -520,7 +527,7 @@ const jetonsPlaces = computed(() => {
                  (il dit déjà l'état). -->
             <div
                 class="dg-door"
-                :class="[`cote-${d.cote}`, d.etat, { pierre: d.pierre && d.etat !== 'ouverte', 'avec-symbole': d.symbole_url }]"
+                :class="[`cote-${d.cote}`, d.etat, { pierre: d.pierre && d.etat !== 'ouverte', miroir: d.miroir, 'avec-symbole': d.symbole_url }]"
                 :title="d.titre"
             >
                 <SymboleCarte v-if="d.symbole_url" :url="d.symbole_url" :icone="d.icone" :nom="d.titre" :tourne="d.symbole_rotation" />
@@ -545,7 +552,7 @@ const jetonsPlaces = computed(() => {
         >
             <div
                 class="jeton"
-                :class="[p.f.k, { 'jeton-ovale': p.ovale, cur: p.f.cur, elite: p.f.elite, tombe: p.f.tombe, teintee: p.f.teinte != null && !p.image && !p.icone }]"
+                :class="[p.f.k, { 'jeton-ovale': p.ovale, 'jeton-carre': p.carre, cur: p.f.cur, elite: p.f.elite, tombe: p.f.tombe, teintee: p.f.teinte != null && !p.image && !p.icone }]"
                 :style="p.jeton"
                 :title="p.f.nom"
             >
@@ -911,6 +918,10 @@ const jetonsPlaces = computed(() => {
    trouvé se distingue d'une porte ordinaire. */
 .dg-door.secrete { background: linear-gradient(150deg, #b18ad8, #5b3f7a); }
 
+/* MIROIR (Mage of the Mirror, 2026-10-29) : un passage secret habillé en miroir. Le livret ne le dessine pas (« MIR ») :
+   une teinte d'argent poli, distincte du violet du passage secret ordinaire. */
+.dg-door.miroir { background: linear-gradient(150deg, #f4f8fc, #9fb3c8 55%, #5d7189); }
+
 /* PORTE À PICTO (symboles des livrets, 2026-10-24) : le pictogramme REMPLACE le battant. Le battant n'a que 30 % de sa case
    en largeur ; un dessin tenu dans cette bande serait illisible à 22 px. La porte garde donc sa place, centrée dans la case
    d'embrasure (10 % de marge), mais sans le fond doré ni le cadre : c'est le dessin qui dit l'état. Déclaré APRÈS TOUTES les
@@ -936,6 +947,8 @@ const jetonsPlaces = computed(() => {
    dans le disque dans les deux cas. Une taille calculée sur la case laissait « GOT » déborder de son jeton. */
 .jeton { position: absolute; box-sizing: border-box; border-radius: 50%; display: grid; place-items: center; container-type: size;
   border: 2px solid; box-shadow: 0 1px 3px oklch(0 0 0 / 0.55); pointer-events: none; }
+/* TUILE CARRÉE (`symbole_forme` = 'carre', 2026-10-29) : le livret pose une tuile, pas un disque — coins à peine arrondis. */
+.jeton.jeton-carre { border-radius: 12%; }
 /* Une image remplit le jeton et en prend le rond (`border-radius: inherit` dans Vignette). */
 .jeton .msym { font-size: 52cqw; }
 .jeton-lettres { font-weight: 800; line-height: 1; letter-spacing: -0.03em; color: inherit;

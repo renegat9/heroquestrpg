@@ -336,12 +336,18 @@ final class BibliothequeImages
     /**
      * Porte : le symbole de son ÉTAT, une image par état comme `urlPorte()`. La porte de pierre encore fermée a le sien
      * (`verrou_pierre`) : une fois forcée, elle n'est plus qu'une porte ouverte.
+     *
+     * Un MIROIR encore fermé (`MoteurPortes::HABILLAGE_MIROIR`, 2026-10-29) cherche le sien (`portes/miroir`) et ne prête
+     * jamais le dessin de la porte fermée : les cartes du livret ne le dessinent pas (« MIR », F7539 PDF 17), donc sans
+     * fichier il vaut `null` et le client garde sa teinte de miroir. Ouvert, c'est un passage ouvert comme un autre.
      */
-    public function urlSymbolePorte(string $etat, ?string $verrou): ?string
+    public function urlSymbolePorte(string $etat, ?string $verrou, ?string $habillage = null): ?string
     {
-        $cle = $etat === MoteurPortes::ETAT_FERMEE && $verrou === MoteurPortes::VERROU_PIERRE
-            ? self::SYMBOLE_PORTE_PIERRE
-            : $etat;
+        $cle = match (true) {
+            $habillage === MoteurPortes::HABILLAGE_MIROIR && $etat !== MoteurPortes::ETAT_OUVERTE => MoteurPortes::HABILLAGE_MIROIR,
+            $etat === MoteurPortes::ETAT_FERMEE && $verrou === MoteurPortes::VERROU_PIERRE => self::SYMBOLE_PORTE_PIERRE,
+            default => $etat,
+        };
 
         return $this->urlSymboleLivret('portes', $cle);
     }
@@ -375,7 +381,8 @@ final class BibliothequeImages
 
     /**
      * FORME du jeton d'un monstre (chantier jetons, phase 3, 2026-10-29) : `ovale` quand le livret le dessine en ovale 2:1
-     * (figure 1×2, `config('symboles_monstres.ovales')`), `rond` sinon, `null` sans jeton. Décidée par la CONFIG et non par
+     * (figure 1×2, `config('symboles_monstres.ovales')`), `carre` pour une tuile carrée (`symboles_monstres.carres`), `rond`
+     * sinon, `null` sans jeton. Décidée par la CONFIG et non par
      * le fichier : un fichier se lit sans être ouvert, et un test pose de faux fichiers. SymbolesMonstresTest vérifie la
      * liste dans les deux sens (chaque nom listé porte un fichier 2:1 ; chaque fichier 2:1 est déclaré).
      */
@@ -385,7 +392,12 @@ final class BibliothequeImages
             return null;
         }
 
-        return in_array($nomBase, (array) config('symboles_monstres.ovales', []), true) ? 'ovale' : 'rond';
+        return match (true) {
+            in_array($nomBase, (array) config('symboles_monstres.ovales', []), true) => 'ovale',
+            // TUILE carrée (le Spawnling de Delthrak, 2026-10-29) : une case au livret, pas une tête dans un anneau.
+            in_array($nomBase, (array) config('symboles_monstres.carres', []), true) => 'carre',
+            default => 'rond',
+        };
     }
 
     /**

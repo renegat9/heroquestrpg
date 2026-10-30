@@ -43,6 +43,16 @@ final class MoteurPortes
     public const ETAT_SECRETE = 'secrete';
 
     /**
+     * MIROIR (The Mage of the Mirror, F7539 PDF 3 : « These standing mirrors are secret portals that lead to great treasure
+     * and hidden rooms ») — un HABILLAGE du passage secret, pas une règle (René, 2026-10-29, plan des restes lot C) : sous le
+     * thème `mage_du_miroir`, `AssembleurCarte` pose `habillage` sur la porte secrète au moment où il la crée, et la carte le
+     * garde. Elle se trouve, s'ouvre et se franchit exactement comme tout passage secret ; seuls son nom (menu, légende) et
+     * son dessin changent. Les cartes du livret ne la dessinent pas : elles l'écrivent « MIR » (F7539 PDF 17) — d'où aucun
+     * symbole de livret, la teinte du client fait le repli.
+     */
+    public const HABILLAGE_MIROIR = 'miroir';
+
+    /**
      * PORTE DE PIERRE (Against the Ogre Horde, livret F9528 p. 4, lot B) :
      * `verrou.type` sur une entrée `fermee` ordinaire — même modèle que
      * `cle`/`levier`/`monstres_vaincus` — jamais ouvrable à main nue

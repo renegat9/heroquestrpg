@@ -708,7 +708,7 @@ final class EtatGroupe
      * rien à publier — la case fait tout le travail que le déguisement
      * faisait à la main. Voir `carte()` pour le détail.
      *
-     * @return list<array{x: int, y: int, cote: string, etat: string, embrasure: array{x: int, y: int}, verrou?: string, image_url?: ?string, symbole_url: ?string, symbole_rotation: int}>
+     * @return list<array{x: int, y: int, cote: string, etat: string, embrasure: array{x: int, y: int}, verrou?: string, image_url?: ?string, habillage: ?string, symbole_url: ?string, symbole_rotation: int}>
      */
     private function portes(Carte $carte): array
     {
@@ -738,8 +738,12 @@ final class EtatGroupe
                     $porte['verrou'] = (string) $p['verrou']['type'];
                 }
 
+                // MIROIR (Mage of the Mirror, 2026-10-29) : l'habillage décidé à l'assemblage et gardé par la carte
+                // (`MoteurPortes::HABILLAGE_MIROIR`). Toujours présent, `null` pour une porte ordinaire.
+                $porte['habillage'] = isset($p['habillage']) ? (string) $p['habillage'] : null;
+
                 // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme de l'ÉTAT de la porte, la porte de pierre fermée ayant le sien.
-                $porte['symbole_url'] = app(BibliothequeImages::class)->urlSymbolePorte($porte['etat'], $porte['verrou'] ?? null);
+                $porte['symbole_url'] = app(BibliothequeImages::class)->urlSymbolePorte($porte['etat'], $porte['verrou'] ?? null, $porte['habillage']);
 
                 // ROTATION du pictogramme (2026-10-24) : 90 quand la porte relie l'est et l'ouest, 0 au nord-sud — décidée
                 // ici, lue par `SymboleCarte` (`tourne`), jamais recalculée côté client. Toujours présente.

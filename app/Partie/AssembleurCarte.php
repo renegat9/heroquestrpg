@@ -296,6 +296,12 @@ final class AssembleurCarte
                 ? ['etat' => MoteurPortes::ETAT_SECRETE]
                 : $this->specPorte($portesSpec, $indexArete);
 
+            // MIROIR (Mage of the Mirror, 2026-10-29) : sous ce thème, tout passage secret est un miroir. Décidé ICI, gardé
+            // par la carte : la publication et le menu le lisent sur la porte, jamais sur le thème.
+            if (($spec['etat'] ?? null) === MoteurPortes::ETAT_SECRETE && ($bestiaire?->contient('mage_du_miroir') ?? false)) {
+                $spec['habillage'] = MoteurPortes::HABILLAGE_MIROIR;
+            }
+
             // ⚠ Tiré pour CHAQUE arête, mitoyenne comprise (où il ne change
             // rien) : consommer le PRNG dans les deux branches garde la suite
             // des nombres identique quelle que soit la géométrie — même règle
@@ -1628,6 +1634,9 @@ final class AssembleurCarte
             }
             if ($porte['etat'] === 'secrete') {
                 $porte['revele'] = false;
+            }
+            if (isset($spec['habillage'])) {
+                $porte['habillage'] = (string) $spec['habillage'];
             }
         }
 
