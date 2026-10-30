@@ -217,6 +217,8 @@ final class FabriqueGrille
         $terrain = (array) ($carte->grille['terrain'] ?? []);
         $couts = [];
         $sansArret = [];
+        $arretsSurImpair = [];
+        $bonusEntrees = [];
         $portailsParPaire = [];
         if ($terrain !== []) {
             $typesTerrain = Terrain::query()
@@ -278,6 +280,17 @@ final class FabriqueGrille
                 // `MoteurSables`, pas par un déplacement.
                 if (isset($effetTerrain['saut_par_dessus'])) {
                     $sansArret[] = $case;
+                }
+                // SOL MEUBLE (`arret_sur_impair`, Spirit Queen q. 10 note B, lot H des restes, 2026-10-29) : la case d'ARRÊT d'un
+                // dé de déplacement impair. Posée ici, activée par `DeplacementHeros::grille()` pour le seul héros qu'un dé fige.
+                if (isset($effetTerrain['arret_sur_impair'])) {
+                    $arretsSurImpair[] = $case;
+                }
+
+                // COURANT PORTEUR (`bonus_entree`, Spirit Queen q. 11 note C, lot H des restes, 2026-10-29) : la valeur est le gain
+                // de points de déplacement, pris une fois à la première entrée. Lu ici, activé par `DeplacementHeros::grille()`.
+                if (isset($effetTerrain['bonus_entree'])) {
+                    $bonusEntrees[] = [...$case, 'gain' => (int) $effetTerrain['bonus_entree']];
                 }
                 // TRAPPE DE TÉLÉPORTATION (`teleportation: 'contact'`, Mage du Miroir
                 // p. 5 ; Kellar's Keep q. 8 note C) : une case du PORTAIL, jumelée à
@@ -354,6 +367,8 @@ final class FabriqueGrille
         $grille->occulter($opaques);
         $grille->definirCoutsDeplacement($couts);
         $grille->interdireArret($sansArret);
+        $grille->definirArretsSurImpair($arretsSurImpair);
+        $grille->definirBonusEntrees($bonusEntrees);
 
         // Portails (trappes de téléportation) : chaque paire, deux cases qui pointent
         // l'une vers l'autre. Une paire incomplète (une seule case) n'en est pas une.

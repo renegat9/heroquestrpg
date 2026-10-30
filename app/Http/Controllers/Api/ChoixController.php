@@ -103,6 +103,10 @@ class ChoixController extends Controller
             // par `resoudreEquipement()` : deux pièces du même sac peuvent
             // avoir des slots utiles différents.
             'parametres.emplacement' => ['sometimes', Rule::in(['arme_principale', 'arme_secondaire'])],
+            // POUSSÉE PAR LE VENT (*The Tower of Air*, q. 12, lot H des restes, 2026-10-29) : la direction du choix, une des quatre
+            // cardinales. ⚠ Borne large ici — la vraie liste blanche est `parametres.directions` de l'option du dernier menu, revalidée
+            // par `ResolveurTour::resoudrePousserVent()` contre `etat.vent_choix` et la géométrie du moment.
+            'parametres.direction' => ['sometimes', Rule::in(['e', 'o', 's', 'n'])],
             // Jeter une PILE (doc 01 §7) : combien d'exemplaires. ⚠ La borne
             // haute n'est PAS ici — elle dépend de la ligne en base, que
             // `resoudreJeter()` relit et compare. Ce `min:1` n'empêche que

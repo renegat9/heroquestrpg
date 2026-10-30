@@ -262,6 +262,49 @@ final class MotsClesTerrain
             ],
             'libelle' => 'un saut raté enlise le héros : il abandonne {valeur} objets de son choix (à défaut, il tombe), son tour s\'achève, et il ressort de l\'autre côté à son tour suivant',
         ],
+
+        // SOL MEUBLE (*Spirit Queen's Torment* q. 10 note B, p. 13, lot H des restes, 2026-10-29) : « When a hero moves into or
+        // through this room, if the result of the movement dice is odd, they become stuck in the first square of their movement
+        // and take 1 Body Point of damage. » La VALEUR est le nombre de PV de Body perdus à l'enlisement. Le DÉ est le d6 de
+        // déplacement du tour (`Deplacement::calculer()`, `detail_deplacement_tour['des'][0]`) : nos héros marchent de base + 1d6,
+        // le livret en lance deux, mais « the movement dice » qui « are odd » est bien le dé qui décide de la marche.
+        // Lu EN DEUX points : `FabriqueGrille::pour()` pose la case d'arrêt (on y entre, on n'en repart pas — la première case de
+        // la salle), `ResolveurTour::resoudreDeplacement()` enlise le héros qui s'y arrête. Un dé pair libère (`DeplacementHeros`).
+        'arret_sur_impair' => [
+            'lecteur' => [
+                'App\Partie\FabriqueGrille::pour()',
+                'App\Partie\ResolveurTour::resoudreDeplacement()',
+            ],
+            'libelle' => 'un dé de déplacement IMPAIR arrête le héros sur sa première case : {valeur} PV de Body, et il ne repart qu\'à un dé PAIR',
+        ],
+
+        // COURANT PORTEUR (*Spirit Queen's Torment* q. 11 note C, p. 14, lot H des restes, 2026-10-29) : « A hero may move 2 extra
+        // squares when they first enter this area. » La VALEUR est le gain de points de déplacement, pris UNE fois par déplacement, à la
+        // première entrée depuis l'extérieur (`Grille::statutApres()`). Lu en deux points : `FabriqueGrille::pour()` (les cases, qui
+        // ne sont que des cases de sol pour un monstre) et `Grille::gainDuTrajet()` (le budget du héros, le même calcul que le
+        // résolveur et l'aperçu). Le coût de la case reste celui du sol : le courant AIDE, il ne coûte pas moins.
+        'bonus_entree' => [
+            'lecteur' => [
+                'App\Partie\FabriqueGrille::pour()',
+                'App\Partie\Grille::gainDuTrajet()',
+            ],
+            'libelle' => 'un héros qui y entre gagne {valeur} cases de déplacement, une seule fois par déplacement',
+        ],
+
+        // VENT DE COULOIR (*The Tower of Air* q. 12, p. 15, lot H des restes, 2026-10-29) : bouclier (blanc ou noir) — le HÉROS
+        // choisit la direction de sa poussée (`MoteurVents`, liste blanche décidée au dé et revalidée au choix). La VALEUR est le
+        // nombre de cases. Lu par `ResolveurTour::ventDeFinDeMouvement()`, qui tire le dé et pose le choix.
+        'pousse_heros' => [
+            'lecteur' => 'App\Partie\ResolveurTour::ventDeFinDeMouvement()',
+            'libelle' => 'tu choisis la direction de ta poussée : {valeur} cases',
+        ],
+
+        // VENT DE COULOIR — crâne : ZARGON choisit la direction (`MoteurVents::directionDeZargon()`, le monstre vivant le plus proche,
+        // égalité E, O, S, N) et la poussée est immédiate. La VALEUR est le nombre de cases. Même lecteur que `pousse_heros`.
+        'pousse_zargon' => [
+            'lecteur' => 'App\Partie\ResolveurTour::ventDeFinDeMouvement()',
+            'libelle' => 'Zargon te pousse de {valeur} cases, dans la direction qu\'il choisit',
+        ],
     ];
 
     /**

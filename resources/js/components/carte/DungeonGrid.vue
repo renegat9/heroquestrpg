@@ -700,6 +700,35 @@ const jetonsPlaces = computed(() => {
   box-shadow: inset 0 0 0 1px oklch(0.82 0.11 85 / 0.6);
 }
 
+/* Spirit Queen's Torment (lot H des restes, 2026-10-29) : `courant` — les courants contraires d'une salle entière. Hachure
+   HORIZONTALE bleu-cyan : le sens du flux se lit en niveaux de gris comme une rayure, à la différence de la hachure oblique
+   de la jungle et du brasier. */
+.dg-cell.terrain-meuble {
+  background:
+    radial-gradient(oklch(0.55 0.07 65 / 0.45) 1.2px, transparent 2px) 0 0 / 5px 5px,
+    linear-gradient(150deg, oklch(0.36 0.07 60), oklch(0.26 0.05 55));
+  box-shadow: inset 0 0 0 1px oklch(0.55 0.07 65 / 0.55);
+}
+.dg-cell.terrain-porteur {
+  background:
+    radial-gradient(oklch(0.85 0.10 205 / 0.55) 1.4px, transparent 2px) 0 0 / 7px 7px,
+    linear-gradient(150deg, oklch(0.34 0.08 215), oklch(0.25 0.06 220));
+  box-shadow: inset 0 0 0 1px oklch(0.80 0.10 205 / 0.6);
+}
+.dg-cell.terrain-vent {
+  background:
+    repeating-linear-gradient(60deg, oklch(0.84 0.03 240 / 0.34) 0 2px, transparent 2px 8px),
+    repeating-linear-gradient(-60deg, oklch(0.84 0.03 240 / 0.26) 0 2px, transparent 2px 8px),
+    linear-gradient(150deg, oklch(0.30 0.03 240), oklch(0.22 0.02 245));
+  box-shadow: inset 0 0 0 1px oklch(0.84 0.03 240 / 0.5);
+}
+.dg-cell.terrain-courant {
+  background:
+    repeating-linear-gradient(0deg, oklch(0.80 0.10 215 / 0.34) 0 2px, transparent 2px 7px),
+    linear-gradient(150deg, oklch(0.34 0.08 220), oklch(0.25 0.06 225));
+  box-shadow: inset 0 0 0 1px oklch(0.78 0.11 215 / 0.55);
+}
+
 /* ---- plaque de terrain (Jungles of Delthrak, 2026-10-24) : le pictogramme de chaque case d'un motif, ou le dessin d'un bloc
    fixe sur son emprise ; l'icône de repli (sans fichier) reste UNIQUE, sur l'ancre. Centrée dans sa case, à la taille des
    glyphes du donjon (lisible à 38 px sur la manette) ; `pointer-events: none` : le toucher de la manette tombe sur la case,

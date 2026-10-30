@@ -1444,6 +1444,9 @@ final class EtatGroupe
                     // (`MoteurSables::publier()`). Sans elle, un héros immobile sur une case de
                     // sable n'est qu'une figurine bloquée dont rien ne dit la cause.
                     'enlise' => MoteurSables::publier($etat),
+                    // SOL MEUBLE (lot H des restes, 2026-10-29) : enlisé par un dé impair, jusqu'à un dé pair. Un booléen : la
+                    // manette et la table l'affichent, le dé du tour dit le reste (`DeplacementHeros::bloqueParSolMeuble()`).
+                    'enlise_sol' => (bool) ($etat?->enlise_sol ?? false),
                     // Réaction HORS TOUR en attente de décision (Dark Wings,
                     // Twisting Torrent). Exposée ici en plus du broadcast privé
                     // `.reaction.proposee` : une manette rechargée au mauvais

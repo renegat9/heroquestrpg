@@ -137,6 +137,25 @@ final class AssembleurCarte
     private const NOM_TERRAIN_TRAPPE = 'Trappe de téléportation';
 
     /**
+     * POSES PAR SALLE (lot H des restes, Spirit Queen's Torment, 2026-10-29) : nom du terrain => clé du gabarit qui dit
+     * COMBIEN de salles entières il couvre (`structure.terrains.<clé>.min/max`). Chaque salle tirée reçoit TOUTES ses
+     * cases libres, en une plaque `salle-N`. Le thème dit LESQUELS (`boite`) : sans lui, aucun tirage n'est consommé.
+     *
+     * @var array<string, string>
+     */
+    private const POSES_PAR_SALLE = [
+        'Courant contraire' => 'courants',
+        'Sol meuble' => 'sol_meuble',
+        'Courant porteur' => 'courants_porteurs',
+    ];
+
+    /**
+     * VENT DE COULOIR (*Spirit Queen's Torment* q. 12, lot H des restes) : pose `couloirs` — toutes les cases de couloir libres, ou
+     * aucune (`structure.terrains.vents`). Nom du terrain, pour l'identifier au catalogue.
+     */
+    private const NOM_TERRAIN_VENT = 'Vent de couloir';
+
+    /**
      * @param  int  $chancePassageSecret  probabilité (en %) qu'une salle soit
      *                                    cachée derrière une porte secrète —
      *                                    le compteur de pitié du groupe, qui
@@ -3518,6 +3537,89 @@ final class AssembleurCarte
                 }
 
                 $paires++;
+            }
+        }
+
+        // POSES PAR SALLE (lot H des restes, Spirit Queen's Torment, 2026-10-29) : une SALLE ENTIÈRE, toutes ses cases libres,
+        // une plaque `salle-N` (jamais la salle de départ : `$parSalle` l'exclut). Posées EN FIN de méthode, après les trappes :
+        // une carte sans le thème ne consomme aucun tirage de plus. Une salle déjà couverte par une autre pose n'en reçoit pas
+        // une seconde (ses cases sont prises). Sans parvis ni plancher : un courant ne bloque rien et se tient.
+        $numeroSalle = 0;
+
+        foreach (self::POSES_PAR_SALLE as $nomTerrain => $cleGabarit) {
+            $type = $catalogue->firstWhere('nom', $nomTerrain);
+
+            if ($type === null) {
+                continue; // pas de thème qui le porte : aucun tirage consommé
+            }
+
+            $minSalles = (int) data_get($structure, "terrains.{$cleGabarit}.min", 0);
+            $maxSalles = max($minSalles, (int) data_get($structure, "terrains.{$cleGabarit}.max", $minSalles));
+            $vouluesSalles = $prng->entre($minSalles, $maxSalles);
+
+            if ($vouluesSalles < 1) {
+                continue;
+            }
+
+            $posees = 0;
+
+            foreach ($prng->melanger(array_keys($parSalle)) as $i) {
+                if ($posees >= $vouluesSalles) {
+                    break;
+                }
+
+                $positions = array_values(array_filter(
+                    $parSalle[$i]['libres'],
+                    fn (array $p) => ! isset($occupeesGlobal["{$p['x']},{$p['y']}"]),
+                ));
+
+                if ($positions === []) {
+                    continue;
+                }
+
+                $numeroSalle++;
+
+                foreach ($positions as $position) {
+                    $terrains[] = [
+                        'x' => $position['x'],
+                        'y' => $position['y'],
+                        'terrain_id' => (int) $type->id,
+                        'groupe_id' => "salle-{$numeroSalle}",
+                    ];
+                    $occupeesGlobal["{$position['x']},{$position['y']}"] = true;
+                }
+
+                $posees++;
+            }
+        }
+
+        // VENTS DE COULOIR (Spirit Queen q. 12, lot H des restes, 2026-10-29) : pose `couloirs` — TOUTES les cases de couloir LIBRES de
+        // la carte (une case hors de toute salle), ou aucune : le gabarit `vents` dit SI (0 ou 1). Sans groupe : chaque case est
+        // isolée. Une case déjà tenue par une autre couche (porte, piège, meuble, épreuve, levier, terrain) reste à sa couche.
+        // Posé en fin de méthode : une carte sans le thème ne consomme aucun tirage de plus.
+        $vent = $catalogue->firstWhere('nom', self::NOM_TERRAIN_VENT);
+
+        if ($vent !== null) {
+            $minVents = (int) data_get($structure, 'terrains.vents.min', 0);
+            $maxVents = max($minVents, (int) data_get($structure, 'terrains.vents.max', $minVents));
+
+            if ($prng->entre($minVents, $maxVents) > 0) {
+                foreach ($cases as $y => $ligne) {
+                    foreach ($ligne as $x => $c) {
+                        if ($c !== 's' || Salles::indexDe($salles, $x, $y) !== null) {
+                            continue;
+                        }
+
+                        $cle = "{$x},{$y}";
+
+                        if (isset($interdites[$cle]) || isset($occupeesGlobal[$cle])) {
+                            continue;
+                        }
+
+                        $terrains[] = ['x' => $x, 'y' => $y, 'terrain_id' => (int) $vent->id];
+                        $occupeesGlobal[$cle] = true;
+                    }
+                }
             }
         }
 

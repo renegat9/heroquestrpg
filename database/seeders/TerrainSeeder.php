@@ -319,6 +319,64 @@ class TerrainSeeder extends Seeder
                 'boite' => 'mage_du_miroir', 'boites_partagees' => ['kellars_keep'],
                 'effet' => ['teleportation' => 'contact', 'degats_au_passage' => 1],
             ],
+
+            // ===== Spirit Queen's Torment (livret G0053, quête 11 « The Tower of Water », p. 14) — lot H des restes (2026-10-29) =====
+            // Boîte `spirit_queen` : `placerTerrains()` ne la pose que sous ce thème, jamais dans la salle de départ.
+
+            // COURANTS CONTRAIRES (q. 11 note B, p. 14) : « Currents in these rooms press against the heroes. Each square in
+            // these rooms takes 2 movement points to traverse. Monsters are unaffected. » — SALLE ENTIÈRE (`pose: salle`).
+            // Le coût 2 est lu par le parcours pondéré ; « Monsters are unaffected » est déjà la clé `ignore_par_monstres`
+            // (la Rivière gelée : « Monsters suffer neither movement penalties… »), lue par `FabriqueGrille::pour()` selon
+            // qui marche — les monstres paient 1, les héros et les alliés 2. Aucune clé nouvelle. Pas d'arrêt interdit, pas de
+            // blocage : une salle de courants ne retire aucune case au plancher de jouabilité.
+            [
+                'nom' => 'Courant contraire', 'nom_anglais' => 'Current',
+                'cout_deplacement' => 2, 'bloque_mouvement' => false, 'bloque_vue' => false,
+                'boite' => 'spirit_queen', 'pose' => 'salle',
+                'effet' => ['ignore_par_monstres' => true],
+            ],
+
+            // SOL MEUBLE (q. 10 note B, p. 13 : « Zargon, tell the heroes that the floor of this room is loose earth. When a hero
+            // moves into or through this room, if the result of the movement dice is odd, they become stuck in the first square
+            // of their movement and take 1 Body Point of damage. Once stuck, a hero may only roll 1 die for movement, and they only
+            // move if the result of the die is an even number. ») — SALLE ENTIÈRE (`pose: salle`). Coût 1 : on y marche. La clé
+            // `arret_sur_impair` (valeur = PV de Body perdus) porte la règle, lue par `FabriqueGrille::pour()` (la case d'arrêt) et
+            // par `ResolveurTour::resoudreDeplacement()` (l'enlisement). « Une fois bloqué… un dé » : chez nous le d6 est déjà UN
+            // dé, la base n'en est pas un — la trace est dans `DeplacementHeros::bloqueParSolMeuble()`.
+            [
+                'nom' => 'Sol meuble', 'nom_anglais' => 'Loose earth',
+                'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false,
+                'boite' => 'spirit_queen', 'pose' => 'salle',
+                'effet' => ['arret_sur_impair' => 1],
+            ],
+
+            // COURANT PORTEUR (q. 11 note C, p. 14 : « Currents in these rooms or halls make it easier for heroes to swim. A hero may
+            // move 2 extra squares when they first enter this area. ») — SALLE ENTIÈRE (`pose: salle`), le livret dit « rooms or halls » :
+            // les COULOIRS ne sont pas posés (écart nommé au rapport : une zone de couloir se découpe et son dosage n'est pas sourcé).
+            // Coût 1 : le sol ordinaire. Le gain (2) est lu par `FabriqueGrille::pour()` et compté par `Grille::gainDuTrajet()`.
+            [
+                'nom' => 'Courant porteur', 'nom_anglais' => 'Helping current',
+                'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false,
+                'boite' => 'spirit_queen', 'pose' => 'salle',
+                'effet' => ['bonus_entree' => 2],
+            ],
+
+            // VENT DE COULOIR (q. 12, p. 15 : « Strong air currents move through the hallways. When a hero ends their movement in a
+            // hallway, they must roll 1 combat die. If the roll result is a shield, they move 2 additional squares in the direction of
+            // their choice. If the roll result is a skull, they move 2 squares in the direction of Zargon's choice. ») — POSE `couloirs` :
+            // chaque case de couloir libre de la carte, SANS groupe (case isolée). La face du dé se lit dans `sur` (le vocabulaire des
+            // faces de combat, comme la glace) : bouclier BLANC ou NOIR = « a shield » (le livret G0978 écrit « either a black or white
+            // shield » quand il veut les deux) ; crâne = Zargon. La distance (2) est la même pour les deux issues.
+            [
+                'nom' => 'Vent de couloir', 'nom_anglais' => 'Strong air current',
+                'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false,
+                'boite' => 'spirit_queen', 'pose' => 'couloirs',
+                'effet' => ['sur' => [
+                    'bouclier_blanc' => ['pousse_heros' => 2],
+                    'bouclier_noir' => ['pousse_heros' => 2],
+                    'crane' => ['pousse_zargon' => 2],
+                ]],
+            ],
         ];
 
         foreach ($terrains as $terrain) {

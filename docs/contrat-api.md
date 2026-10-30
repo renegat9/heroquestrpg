@@ -4821,3 +4821,75 @@ non désarmée) ; l'état `desarme: true` est écrit dans `cartes.grille.mobilie
 "Abomination"]}` : le paquet déclaré (les huit cartes 2021 de la boîte de base, ordre déclaré). La forme courante reste dans
 `instances_monstres.monstre_id`, l'origine dans `origine_monstre` (sans migration). Un changement de forme se dit par
 `changement_phase` comme toute forme, sans `synchro` : les sorts actifs ne cessent pas.
+
+## Spirit Queen's Torment — les terrains des tours (lot H des restes, livret G0053 p. 13-15, 2026-10-29)
+
+Quatre terrains, tous `boite = spirit_queen` (posés seulement sous ce thème, jamais dans la salle de départ). Trois se posent sur
+une SALLE ENTIÈRE (`terrains.pose = "salle"`), le vent sur chaque couloir (`pose = "couloirs"`). Aucun ne bloque ni la marche ni la
+vue : le plancher de jouabilité et la connectivité n'en sont pas touchés. Les illustrations ne sont pas générées ici.
+
+### Carte — `EtatGroupe.carte.terrain[]` (inchangé en forme)
+
+Les quatre tuiles sortent dans la liste existante, `nom` et `avantages` lus du catalogue. Une salle entière est une PLAQUE (`groupe_id`
+`salle-N`, `ancre` sur une case) : une icône de repli (`TERRAIN_ICONES`). Un couloir est une case ISOLÉE, sans groupe : la teinte seule.
+
+| Tuile | Teinte (`TERRAIN_TEINTES`) | Icône de plaque | Pose | Coût |
+|---|---|---|---|---|
+| Courant contraire | `courant` (rayure horizontale) | `waves` | salle | 2 (monstres : 1) |
+| Sol meuble | `meuble` (mouchetis brun) | `landslide` | salle | 1 |
+| Courant porteur | `porteur` (pointillé) | `surfing` | salle | 1 (+2 cases à la première entrée) |
+| Vent de couloir | `vent` (chevrons) | — | couloirs | 1 |
+
+### Déplacement — `se_deplacer` et `apercu` (inchangés en forme, valeurs nouvelles)
+
+- `se_deplacer.parametres.destinations[].cout` : les points DÉPENSÉS (un courant porteur ne réduit jamais le coût ; il ajoute au
+  budget). Une destination peut être atteignable grâce au courant : elle figure dans la liste, rien d'autre ne change côté manette.
+- **Aperçu** (`POST …/apercu`, `ResolveurTour::apercuDeplacement()`) : deux champs ajoutés. `bonus_courant` (int, les points gagnés par
+  le trajet sur un courant porteur, pris une fois) et `enlise_sol` (bool, CE pas enlise le héros sur le sol meuble). `restant_apres`
+  tient compte du gain : `max(0, restant + bonus_courant − cout)`. `atteignable` est faux si le héros est enlisé et que son dé est impair.
+- **Dé impair sur le sol meuble** : `se_deplacer` n'est pas offert (`destinations` vide) à un héros enlisé dont le dé est impair ; à
+  un héros NON enlisé, la salle ne se traverse pas — la première case de sol meuble est la dernière case atteignable de la direction.
+
+### Héros — `entites[]` (carte de l'état de groupe)
+
+- `enlise_sol` (bool) : le héros est enlisé dans le sol meuble. Durable (`etat_personnage_quete.enlise_sol`, migration
+  `2026_10_29_150000`). Il ne sort qu'à un dé de déplacement PAIR (il marche alors de base + d6). Badge `enlise_sol` dans `game.js`.
+
+### Choix — `pousser_vent` (menu forcé)
+
+Après un bouclier (blanc ou noir) à la fin d'un mouvement sur un couloir venté, le menu ne propose QUE les directions décidées au
+dé, une option par direction :
+
+```
+{ "id": "pousser_vent_e", "libelle": "Se laisser porter vers l'est (2 cases)", "type": "pousser_vent", "creneau": "interaction",
+  "parametres": { "direction": "e", "cases": 2, "directions": ["e", "o"] } }
+```
+
+- Directions : `e`, `o`, `s`, `n` (ordre fixe E, O, S, N). `parametres.directions` est la liste BLANCHE décidée au dé ; le résolveur la
+  revalide contre `etat.vent_choix` ET contre la géométrie du moment (`MoteurVents::directions()`) : une figure entrée sur la
+  trajectoire entre-temps annule la direction (422).
+- `POST …/choix` : `{option_id: "pousser_vent_e", parametres: {direction: "e"}}`. `direction` est déclaré dans la whitelist du
+  contrôleur (`parametres.direction`, `in: e, o, s, n`) : sans cette déclaration, il est retiré avant le résolveur.
+- État durable : `etat_personnage_quete.vent_choix` (json `{x, y, cases, directions}`, migration `2026_10_29_160000`), porté par le
+  snapshot (`Sauvegarde`, `??` pour les anciens).
+
+### Déplacement — `payload.vent` (le dé de combat à la fin du mouvement)
+
+`payload.vent` = `{face: "bouclier" | "crane", etat: "choix" | "zargon" | "sans_effet", cases, directions?, direction?, depart?, vers, pieges, degats, terrain_jets}`.
+`etat: "zargon"` : la poussée a eu lieu, `payload.vers` est alors la case d'arrivée réelle. `etat: "choix"` : un choix est ouvert.
+
+### Annonces — `JournalCombat::TYPES`
+
+| `type` | Payload | Quand |
+|---|---|---|
+| `pousser_vent` | `{direction, cases, depart, vers, terrain_jets, pieges_declenches, degats}` | le choix du héros, résolu (`kind: jet`) |
+
+Les autres annonces passent par le type `deplacement` existant : `enlisement_sol` (`{etat: "enlise"|"degage", terrain, degats}`),
+`bonus_courant` (entier : « profite du courant porteur : +N cases »), `vent` (ci-dessus).
+
+### Compatibilité
+
+- Migrations additives : `terrains.pose` (`2026_10_29_140000`), `etat_personnage_quete.enlise_sol` (`2026_10_29_150000`),
+  `etat_personnage_quete.vent_choix` (`2026_10_29_160000`). Trois tuiles et deux gabarits de clés sont posés par `TerrainSeeder` et
+  `GabaritQueteSeeder` (`updateOrCreate` : aucune ligne existante n'est réécrite).
+- Gabarits : `structure.terrains` gagne `courants`, `sol_meuble`, `courants_porteurs`, `vents` (`min`/`max` 0..1 aux quatre gabarits).

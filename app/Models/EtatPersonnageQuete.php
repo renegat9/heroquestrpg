@@ -59,6 +59,14 @@ class EtatPersonnageQuete extends Model
         // à un round entier (« on the hero's next turn, the hero climbs out »).
         // Voir App\Partie\MoteurSables et `MenuMoteur::generer()`.
         'enlise',
+        // SOL MEUBLE (*Spirit Queen's Torment* q. 10 note B, lot H des restes, 2026-10-29) : le héros ENLISÉ par un dé de
+        // déplacement impair sur le sol meuble. Un BOOLÉEN, en colonne : il survit au round et à une reprise, et ne sort
+        // qu'à un dé de déplacement pair. Voir App\Partie\DeplacementHeros::bloqueParSolMeuble().
+        'enlise_sol',
+        // VENTS DE COULOIR (*Spirit Queen's Torment* q. 12, lot H des restes, 2026-10-29) : le choix de poussée EN ATTENTE après un dé
+        // de bouclier — {x, y, cases, directions}. En COLONNE : un téléphone rechargé retrouve le choix. Voir
+        // App\Partie\ResolveurTour::pousserDuVent() et `MenuMoteur::generer()`.
+        'vent_choix',
         // MIND LOCK (*Against the Ogre Horde* p. 10) : le héros GELÉ par un Sorcier du Dread —
         // {lanceur_id, sort, cartes}, les cartes qu'il tient encore (un tour perdu chacune).
         // En COLONNE, jamais en cache : il traverse la phase des monstres, le round suivant
@@ -144,6 +152,8 @@ class EtatPersonnageQuete extends Model
             'reaction_en_attente' => 'array',
             'piege_a_ecarter' => 'array',
             'enlise' => 'array',
+            'enlise_sol' => 'boolean',
+            'vent_choix' => 'array',
             'verrou_mental' => 'array',
             'capacites_utilisees' => 'array',
             'capacites_tour' => 'array',

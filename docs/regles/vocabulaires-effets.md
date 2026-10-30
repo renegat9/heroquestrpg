@@ -82,3 +82,9 @@ lue par aucun code (le déclenchement est déjà porté par `declencheur: ouvert
 une valeur déjà en base passe par une migration, et c'est un choix de René. Le test vérifie aussi qu'elle reste sans lecteur.
 Une clé NOUVELLE (`sort_dread`, 2026-10-29) n'entre dans le catalogue qu'après son lecteur : `MoteurPieges::declencherEphemere()`
 → `MoteurDread::lancerSortDePiege()`.
+
+**Les terrains des tours (lot H des restes, 2026-10-29)** — quatre clés ajoutées au vocabulaire fermé `MotsClesTerrain`, chacune lue par une
+couture déclarée : `arret_sur_impair` (dé de déplacement impair : arrêt sur la première case de sol meuble, valeur = PV de Body),
+`bonus_entree` (courant porteur : gain de cases, pris une fois par déplacement), `pousse_heros` et `pousse_zargon` (dans `sur` par face du dé
+de combat : le héros choisit / Zargon choisit, valeur = cases). Une option `pousser_vent` a rejoint `JournalCombat::TYPES` (annoncée) et
+`ResolveurTour::creneauOption()` (`interaction`). Détail : `carte-donjon.md`, section « LES TERRAINS DES TOURS ».

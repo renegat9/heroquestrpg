@@ -306,3 +306,82 @@ Chantier RESTES-COFFRE (worktree `restes-coffre`). Décision E1 appliquée : **l
 **Tests** : `MotsClesPiegeTest` (5), `PiegeCoffreSortDreadTest` (14, dont quatre de câblage passant par `resoudreFouilleMobilier()` et `fracasserMobilier()`), `MobilierBoiteTest` (7). Régression ciblée, douze suites : 246 passés. Mutations, une par lecteur neuf, toutes attrapées : sort non résolu (6 échecs), `sort_dread` non lu (7 en jeu, 1 au registre), filtre du piège (6), filtre de l'objet nommé (1), vivier par catégorie (1), absorption typée retirée du point de passage (1), fil sans le sort (1), boîtes non transmises à la fouille (1) et à la destruction (1). Restauration vérifiée octet pour octet.
 
 **Suite complète** (une seule fois, en parallèle, 982 s) : 2 997 verts sur 2 999, 129 683 assertions. Les deux rouges venaient de ce chantier, pas d'une régression : le nouveau piège n'avait ni icône dans `symboles.js` (`SymbolesCarteTest`, « pièges sans icône propre ») ni entrée dans `image-tools/symboles-livrets/manifeste.json` (`SymbolesLivretsTest`, « le type pieges ne couvre pas exactement le catalogue »). Corrigé : icône `auto_awesome` (ni la flamme de la Fournaise, `whatshot`, ni celle du Piège d'embrasement), entrée « absent » sur le patron du Piège de coffre. Rejoués : les trois suites de symboles (32 verts), le lot ciblé du chantier (58 verts), le front reconstruit (`npm run build`, sortie 0).
+
+### Exécution — lot H (2026-10-29)
+
+Chantier RESTES-TOURS (worktree `restes-tours`, branche non commitée). Décision de René du 2026-10-29 : **les quatre terrains sont
+portés** (« tout intégrer »), y compris le courant porteur et les vents. Ordre H1 → H2 → H3 → H4, chacun vert avant le suivant.
+
+**Porté**
+
+- **H1 — Courant contraire** : tuile `pose: salle`, coût 2, clé EXISTANTE `ignore_par_monstres` (la Rivière gelée) — les monstres
+  paient 1, héros et alliés 2. Aucune clé nouvelle. Pas d'annonce : c'est un coût, il se lit dans les destinations.
+- **H2 — Sol meuble** : clé `arret_sur_impair` (valeur = PV de Body). Le dé de déplacement compté est le PREMIER d6 du tour
+  (`detail_deplacement_tour.des[0]`). Impair : arrêt sur la première case de la salle (1 PV, enlisement durable `enlise_sol`) ; un
+  enlisé ne sort qu'à un dé pair (base + d6). Monstres et alliés jamais arrêtés. Annoncé (`enlisement_sol`), publié (`entites[].enlise_sol`).
+- **H3 — Courant porteur** : clé `bonus_entree` (gain de 2 cases). Parcours pondéré généralisé sur des ÉTATS (case, statut du bonus) —
+  le Dijkstra ne reçoit jamais de coût négatif. Gain pris une fois par déplacement, à la première entrée depuis l'extérieur ; l'entrée
+  se paie sur le budget normal ; un héros qui part dans le courant n'y gagne rien. `restant_apres` et `bonus_courant` tiennent compte du
+  gain du trajet PARCOURU. Annoncé (« profite du courant porteur : +N cases »).
+- **H4 — Vents de couloir** : clés `pousse_heros` (bouclier) et `pousse_zargon` (crâne), dans `sur` par face du dé de combat. Dé tiré à la
+  FIN d'un mouvement sur un couloir venté. Bouclier : choix EN ATTENTE `etat.vent_choix`, menu forcé `pousser_vent_{e|o|s|n}`, liste
+  blanche décidée au dé et revalidée au choix (`MoteurVents`). Crâne : Zargon pousse vers le monstre vivant le plus proche (égalité
+  E, O, S, N). Pièges via `controlerChemin()`, rivière via `saignerSurRiviere()`.
+
+**Décisions tranchées seul (écrites dans `docs/regles/carte-donjon.md`, section « LES TERRAINS DES TOURS »)**
+
+- Dé de mouvement = le premier d6 ; dé annulé ou mouvement fixe ne compte pas ; « only roll 1 die » sans effet chez nous (le d6 est déjà UN dé).
+- Bouclier = blanc OU noir (G0978 : « either a black or white shield » pour dire les deux ; sans couleur, « a shield »).
+- Gain du courant porteur : une fois par déplacement (un gain cumulé donnerait un déplacement sans borne — mutation testée).
+- Poussée : deux cases au plus, arrêt AVANT mur, meuble, porte fermée, portail, brouillard, figure ; fin sur une case d'arrêt ; partielle
+  permise ; ordre fixe E, O, S, N.
+- Pose : `salle` = toutes les cases libres d'une salle tirée (jamais la salle 0) ; `couloirs` = toutes les cases libres de couloir, ou aucune
+  (gabarit `vents` 0..1). Dosage NON sourcé, écrit comme tel.
+
+**Écarts nommés (à trancher par René si besoin)**
+
+- **Courant porteur sur les salles seulement** : le livret dit « rooms or halls » ; un couloir se découpe en zones et son dosage n'est pas sourcé.
+- **Une poussée ne déclenche ni la glace, ni le sol meuble, ni le courant** : ils règlent une MARCHE. Pièges et rivière/brasier, oui.
+- **Aucun dégât propre au vent** : une poussée ne blesse que par les règles existantes (piège, rivière, brasier).
+
+**Migrations et seeders à jouer (orchestrateur, après sauvegarde)**
+
+- Migrations (additives) : `2026_10_29_140000_terrains_pose` (colonne `terrains.pose`), `2026_10_29_150000_enlise_sol_sur_etat_personnage_quete`
+  (booléen), `2026_10_29_160000_vent_choix_sur_etat_personnage_quete` (JSON).
+- Seeders : `TerrainSeeder` (quatre lignes NOUVELLES : Courant contraire, Sol meuble, Courant porteur, Vent de couloir — aucune ligne
+  existante réécrite) ; `GabaritQueteSeeder` (clés `courants`, `sol_meuble`, `courants_porteurs`, `vents`, min 0 / max 1, aux quatre gabarits
+  qui portent des terrains).
+- `docker compose restart queue queue-jeu` après le PHP.
+- Gel : aucun changement de thème. `spirit_queen` est déjà allumé (2026-10-23) et `groupes.theme_bestiaire` reste tel quel ; les nouvelles
+  tuiles n'apparaissent que dans les cartes ASSEMBLÉES après le déploiement, sous ce thème (les cartes déjà posées ne changent pas).
+
+**Images** : aucune illustration générée. `image-tools/symboles-livrets/manifeste.json` reçoit quatre entrées `absent`, avec la raison
+(G0053 décrit ces terrains dans le texte des notes, sans pictogramme imprimé). Teintes (`symboles.js`) et icônes de plaque sont posées ;
+l'orchestrateur décidera des illustrations.
+
+**Contrat** : `docs/contrat-api.md`, section « Spirit Queen's Torment — les terrains des tours (lot H des restes) ». ⚠ Écart de
+processus : la section a été rédigée APRÈS le code des champs (`enlise_sol`, `bonus_courant`, `pousser_vent`, `vent`) ; le champ `direction`
+a même été oublié de la whitelist du contrôleur et corrigé par les tests (`VentsDeCouloirTest`).
+
+**Tests** (Pest, sqlite jetable)
+
+- `CourantsContrairesTest` (6), `SolMeubleTest` (10), `CourantPorteurTest` (9), `VentsDeCouloirTest` (12) — routes réelles, dés injectés.
+- `CourantPorteurGrilleTest` (8) et `MoteurVentsTest` (12) — sans base de données.
+- Régression ciblée : 290 verts (déplacement, grille, monstres, portes, sables, trappes, rivière). Terrains, menus, annonces : 229 tests,
+  dont 1 rouge corrigé (fixture `pousser_vent` manquante au registre des annonces), puis vert.
+- Suite complète, une fois, en parallèle : **3029 verts, 1 rouge** — `SymbolesLivretsTest` (le catalogue doit couvrir le manifeste des
+  symboles de livret). Corrigé par quatre entrées `absent` motivées ; le fichier repasse vert (24/24 avec `SymbolesCarteTest`).
+- Comptes fixés à 18 tuiles (`TerrainCarteTest`) : c'est le catalogue, pas une régression.
+- Mutations (un lecteur retiré à la fois, le test qui tombe) : M1 monstres paient le courant contraire ; M2 arrêt retiré du parcours ;
+  M3 activation du sol retirée ; M4 arrêt à l'arrivée retiré (enlisement) ; M5 activation du courant porteur retirée ; M6 gain cumulé
+  (la recherche n'en sort plus : détection dure) ; M7 budget du résolveur ignoré ; M8 reste sans gain ; M9 lecture du courant retirée ;
+  M10 Zargon sans distance ; M11 revalidation géométrique retirée ; M12 figure d'arrêt retirée (et M12b, alliés) ; M13 dé de vent retiré ;
+  M15 bouclier noir compté comme crâne. Toutes tombent.
+
+**Non porté / ouvert**
+
+- Rendu NON VÉRIFIÉ À L'ÉCRAN (teintes `courant`, `porteur`, `meuble`, `vent` à 38 px ; icônes `waves`, `surfing`, `landslide`, `air`).
+  Build front OK.
+- Couloirs pour le courant porteur (écart nommé ci-dessus).
+- Illustrations : aucune générée (orchestrateur).
+- `git status` du dépôt de production : non vide, mais DÉJÀ non vide au démarrage (dix images de la pile de ménage A) ; rien écrit par ce chantier.

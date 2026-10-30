@@ -89,6 +89,7 @@ final class JournalCombat
         'actionner_levier' => true, 'forcer_porte_pierre' => true, 'ouvrir_porte' => true,
         'oracle_salle' => true, 'lacher_souris' => true, 'poussee' => true, 'briser_glace' => true,
         'detacher_rejetons' => true, 's_ecarter_du_bloc' => true, 'retraite' => true,
+        'pousser_vent' => true,
         'sortie' => true, 'jet_en_attente' => true, 'reaction' => true, 'objet_detruit' => true,
         // Sables mouvants (F7539 p. 29) : le saut, l'abandon d'un objet, la sortie.
         'saut_sables' => true, 'defausse_sables' => true, 'sortie_sables' => true,
@@ -1181,6 +1182,7 @@ final class JournalCombat
             'concentration', 'sacrifice_sort' => $this->sortRecupere($a, $acteurNom),
             'tunnelier' => $this->tunnelier($acteurNom),
             's_ecarter_du_bloc' => $this->ecartDuBloc($a, $acteurNom),
+            'pousser_vent' => $this->poussePeVent($a, $acteurNom),
             // SABLES MOUVANTS (F7539 p. 29) : un saut raté enlise, un objet quitte le sac, un héros
             // peut tomber — autant d'effets automatiques qu'aucune autre ligne ne dirait.
             'saut_sables' => $this->sautSables($a, $acteurNom),
@@ -3370,6 +3372,75 @@ final class JournalCombat
             // (règle dure : un effet automatique que rien n'annonce est injouable).
             $lignes[] = $this->info("{$acteurNom} s'engouffre dans un tunnel de glace et ressort à l'autre bout");
         }
+
+        foreach ((array) ($a['terrain_jets'] ?? []) as $jet) {
+            $terrain = (string) ($jet['terrain'] ?? 'Terrain');
+            $degats = (int) ($jet['degats'] ?? 0);
+
+            $lignes[] = $degats > 0
+                ? ['texte' => "{$acteurNom} traverse : {$terrain} — −{$degats} PV", 'ton' => 'degats']
+                : $this->info("{$acteurNom} traverse : {$terrain} — aucun mal");
+        }
+
+        // COURANT PORTEUR (*Spirit Queen's Torment* q. 11 note C, lot H des restes, 2026-10-29) : le gain pris à la première entrée,
+        // dit en cases. Un bonus qui ne se dirait pas ferait croire à un déplacement plus long que la carte.
+        if (! empty($a['bonus_courant'])) {
+            $gain = (int) $a['bonus_courant'];
+            $lignes[] = $this->info("{$acteurNom} profite du courant porteur : +{$gain} cases de déplacement ce tour");
+        }
+
+        // VENTS DE COULOIR (*The Tower of Air* q. 12, lot H des restes, 2026-10-29) : le dé de combat à la fin du mouvement, et ce
+        // qu'il décide — un choix qui s'ouvre, ou Zargon qui pousse. Un souffle muet ferait croire à un héros déplacé sans raison.
+        if (! empty($a['vent'])) {
+            $vent = (array) $a['vent'];
+            $nomCases = (int) ($vent['cases'] ?? 2);
+
+            if (($vent['face'] ?? null) === 'bouclier') {
+                $lignes[] = match ($vent['etat'] ?? null) {
+                    'choix' => $this->info("{$acteurNom} sent le vent : un bouclier — il choisit vers où il se pousse ({$nomCases} cases)"),
+                    default => $this->info("{$acteurNom} sent le vent : un bouclier, mais aucune case où il peut le pousser"),
+                };
+            } elseif (($vent['etat'] ?? null) === 'zargon') {
+                $direction = (string) ($vent['direction'] ?? 'e');
+                $lignes[] = $this->info("Zargon pousse {$acteurNom} de {$nomCases} cases vers ".MoteurVents::NOMS[$direction].' — un crâne du vent');
+            } else {
+                $lignes[] = $this->info("Zargon ne trouve aucune case où pousser {$acteurNom} : le vent retombe");
+            }
+        }
+
+        // SOL MEUBLE (*Spirit Queen's Torment* q. 10 note B, lot H des restes, 2026-10-29) : un dé de déplacement IMPAIR enlise le
+        // héros sur sa première case (1 PV de Body) ; un dé PAIR le dégage. Un enlisement muet ferait croire à un héros planté sans
+        // raison : c'est un effet automatique, il s'annonce.
+        if (! empty($a['enlisement_sol'])) {
+            $enlisement = (array) $a['enlisement_sol'];
+            $terrain = (string) ($enlisement['terrain'] ?? 'le sol meuble');
+
+            if (($enlisement['etat'] ?? null) === 'degage') {
+                $lignes[] = $this->info("{$acteurNom} se dégage de {$terrain} : son dé de déplacement est pair");
+            } else {
+                $degats = (int) ($enlisement['degats'] ?? 0);
+
+                $lignes[] = [
+                    'texte' => "{$acteurNom} s'enlise dans {$terrain} : son dé de déplacement est impair, sa marche s'arrête ici"
+                        .($degats > 0 ? " — −{$degats} PV" : ' — aucun mal'),
+                    'ton' => $degats > 0 ? 'degats' : 'echec',
+                ];
+            }
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * Le CHOIX du héros après un bouclier de vent (lot H des restes) : la direction, les cases, les pièges et jets de la poussée.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function poussePeVent(array $a, string $acteurNom): array
+    {
+        $direction = (string) ($a['direction'] ?? 'e');
+        $lignes = [$this->info("{$acteurNom} se laisse porter vers ".MoteurVents::NOMS[$direction].' par le vent — '.(int) ($a['cases'] ?? 2).' cases')];
 
         foreach ((array) ($a['terrain_jets'] ?? []) as $jet) {
             $terrain = (string) ($jet['terrain'] ?? 'Terrain');

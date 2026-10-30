@@ -1428,6 +1428,34 @@ final class MenuMoteur
             ];
         }
 
+        // VENTS DE COULOIR (*The Tower of Air* q. 12, lot H des restes, 2026-10-29) : un bouclier a posé un CHOIX EN ATTENTE — la
+        // direction de la poussée. Menu forcé, comme la chute de blocs : seules les directions décidées au dé sont offertes
+        // (`etat.vent_choix`, liste blanche que le résolveur revalide). Un téléphone rechargé retrouve ce choix.
+        if ($etat !== null && $etat->vent_choix !== null) {
+            $vent = (array) $etat->vent_choix;
+            $cases = (int) ($vent['cases'] ?? 2);
+            $directions = array_values(array_map('strval', (array) ($vent['directions'] ?? [])));
+            $options = [];
+
+            foreach ($directions as $direction) {
+                $options[] = [
+                    'id' => "pousser_vent_{$direction}",
+                    'libelle' => 'Se laisser porter vers '.MoteurVents::NOMS[$direction]." ({$cases} cases)",
+                    'type' => 'pousser_vent',
+                    'parametres' => [
+                        'direction' => $direction,
+                        'cases' => $cases,
+                        'directions' => $directions,
+                    ],
+                ];
+            }
+
+            return [
+                'situation' => 'Un souffle de vent vous saisit dans le couloir : choisissez vers où il vous pousse.',
+                'options' => $this->avecCreneaux($options),
+            ];
+        }
+
         $aJoue = (bool) ($etat?->a_joue ?? false);
         $aDeplace = $aJoue || (bool) ($etat?->a_deplace ?? false);
         $aAgi = $aJoue || (bool) ($etat?->a_agi ?? false);
