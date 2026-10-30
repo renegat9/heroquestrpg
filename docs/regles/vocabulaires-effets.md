@@ -72,3 +72,13 @@ fenêtre — tandis que les coups, rayons et balayages lisent le prédicat exact
   `MoteurSynchroformes::prochaine()`, à la mort. Tests : `MetamorpheTest` (registre et comportement).
 - **`verrou.type` = `condition`** (`MoteurPortes::VERROU_CONDITION`, paramètres dans `MoteurPortes::CONDITIONS`) : porte fermée
   dont l'ouverture est un jet de deux dés rouges. Ni `ouvrableAMain()` (un verrou n'est jamais libre), ni clé.
+
+**Vocabulaire fermé des PIÈGES (chantier RESTES-COFFRE, 2026-10-29)** — `App\Engine\MotsClesPiege::VOCABULAIRE`. Jusqu'ici
+les clés de `pieges.effet` n'étaient déclarées NULLE PART : n'importe quelle ligne de `PiegeSeeder` pouvait porter une clé
+que plus rien ne lisait, sans une erreur. Le registre en déclare dix-huit, chacune avec son lecteur nommé (`Classe::méthode()`,
+qui doit exister, et dont le fichier écrit la clé). `MotsClesPiegeTest` le teste DANS LES DEUX SENS contre les lignes semées
+(branches `aleatoire` comprises). **Une seule dette, nommée** : `SANS_LECTEUR['detection']` — semée par les pièges de coffre,
+lue par aucun code (le déclenchement est déjà porté par `declencheur: ouverture_tresor`). Elle n'est pas retirée en silence : retirer
+une valeur déjà en base passe par une migration, et c'est un choix de René. Le test vérifie aussi qu'elle reste sans lecteur.
+Une clé NOUVELLE (`sort_dread`, 2026-10-29) n'entre dans le catalogue qu'après son lecteur : `MoteurPieges::declencherEphemere()`
+→ `MoteurDread::lancerSortDePiege()`.

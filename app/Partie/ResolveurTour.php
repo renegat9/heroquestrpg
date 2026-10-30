@@ -10058,7 +10058,8 @@ final class ResolveurTour
         // FLAIR DU PISTEUR (lot B) : un résultat négatif de la table se refait ici aussi, au même point de tirage.
         [$carte, $ecartee] = $this->piocherAvecFlair(
             $personnage, $etat,
-            fn (): array => $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles),
+            // Boîtes du thème du groupe (2026-10-29) : une pièce boîtée hors thème ne sort jamais de cette table.
+            fn (): array => $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles, BestiaireGroupe::duGroupe($groupe)->boites),
         );
 
         if ($ecartee !== null) {
@@ -11177,6 +11178,7 @@ final class ResolveurTour
 
         $carte = $this->mobilier->tirerButin(
             $type, $niveauMoyen, $this->equipement->tagsAccessiblesAux($herosEngages),
+            BestiaireGroupe::duGroupe($groupe)->boites,
         );
 
         // ⚠ Le butin est NICHÉ sous `butin`, jamais fusionné à plat : le payload

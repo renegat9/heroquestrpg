@@ -105,6 +105,11 @@ class MobilierSeeder extends Seeder
                     ['issue' => 'tresor', 'poids' => 4, 'or' => [25, 60]],
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['consommable']],
                     ['issue' => 'objet', 'poids' => 1, 'categories' => ['arme', 'armure']],
+                    // Spirit Queen's Torment (G0053 quête 2, note C, p. 5 ; quête 6, note B, p. 9) : un coffre peut porter
+                    // un piège magique qui lance Boule de Flammes sur le fouilleur. Poids 1 : CHOIX DE JEU (⚠ non trouvé :
+                    // aucun livret ne donne de fréquence). N'entre dans la table que sous le thème `spirit_queen` — la
+                    // boîte est portée par la LIGNE du piège (`pieges.boite`), lue par `MoteurMobilier::tirerButin()`.
+                    ['issue' => 'piege', 'poids' => 1, 'piege' => 'Piège de Boule de Flammes'],
                     ['issue' => 'rien', 'poids' => 3],
                 ]]],
 

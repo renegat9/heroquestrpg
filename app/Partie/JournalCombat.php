@@ -3218,6 +3218,18 @@ final class JournalCombat
             return $lignes;
         }
 
+        // PIÈGE PORTEUR D'UN SORT DE DREAD (« Piège de Boule de Flammes », Spirit Queen's Torment) : la ligne du piège, puis le
+        // sort qu'il a lancé, rendu par le lecteur des sorts de Dread (en-tête, une ligne par victime, dés rouges compris). Les
+        // dégâts ne sont PAS redits ici : ils sont dans la victime du sort.
+        if (! empty($a['sort_dread'])) {
+            $nomCible = $a['personnage']['nom'] ?? $acteurNom;
+
+            return [
+                ['texte' => (($a['piege']['nom'] ?? 'Un piège')." se déclenche sur {$nomCible} !"), 'ton' => 'subit'],
+                ...$this->sortDread((array) $a['sort_dread'], $nomCible),
+            ];
+        }
+
         $nom = $a['personnage']['nom'] ?? $acteurNom;
         $piege = $a['piege']['nom'] ?? 'Un piège';
         $degats = (int) ($a['degats'] ?? 0);
