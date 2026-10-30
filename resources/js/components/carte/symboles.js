@@ -25,6 +25,9 @@
  */
 export const PIEGE_ICONES = {
     'Fosse': 'vertical_align_bottom',
+    // Fosse longue (*The Mage of the Mirror* p. 6, 2026-10-29) : deux cases de fosse, chacune avec la même flèche descendante
+    // que la Fosse — elle en est une, en deux cases. Le symbole 2 × 1 du livret ne tient pas dans une case (voir le manifeste).
+    'Fosse longue': 'vertical_align_bottom',
     'Piège à lances': 'north',
     'Chute de blocs': 'landslide',
     'Piège de coffre': 'lock',

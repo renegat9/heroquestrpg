@@ -781,6 +781,12 @@ final class MoteurSorts
         //    sépare cette carte de *Cloud of Dread*, qui, elle, supprime la
         //    défense. Appliqué EN DERNIER, sinon un bonus posté après lui
         //    relèverait la valeur que la carte vient de brider.
+        //
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : un héros DANS la fosse défend avec un dé de combat de moins, jamais
+        // moins d'un. Lu ICI, le SEUL calcul de la défense des héros — l'attaque de monstre, la frappe de zone et les sorts de
+        // Dread y passent tous. L'état de quête se lit sur le héros (`malusDesCombatDuHeros()`), qui ne reçoit que lui.
+        $des = MoteurFosseLongue::appliquerMalus($des, MoteurFosseLongue::malusDesCombatDuHeros($personnage));
+
         $plafond = $this->plafondDefense($personnage);
 
         if ($plafond !== null) {

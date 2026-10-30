@@ -41,6 +41,7 @@ final class JournalCombat
     use LignesEffetsAutomatiques;
     use LignesSorciersDuDread;
     use LignesSablesMouvants;
+    use LignesFosseLongue;
     use LignesMaledictionLoup;
 
     /**
@@ -96,6 +97,8 @@ final class JournalCombat
         'sortie' => true, 'jet_en_attente' => true, 'reaction' => true, 'objet_detruit' => true,
         // Sables mouvants (F7539 p. 29) : le saut, l'abandon d'un objet, la sortie.
         'saut_sables' => true, 'defausse_sables' => true, 'sortie_sables' => true,
+        // Fosse longue (F7539 p. 6) : se hisser hors du trou, un dé rouge. Le saut par le bout est un `franchissement`.
+        'sortie_fosse' => true,
         // ---- Les pièges
         'piege_declenche' => true, 'piege_ignore' => true, 'piege_esquive' => true,
         'piege_amorce' => true, 'piege_explosion' => true, 'piege_teleporte' => true,
@@ -1008,7 +1011,10 @@ final class JournalCombat
             'piege_esquive' => $this->piegeEsquive($a, $acteurNom),
             'jet' => $this->jet($a, $acteurNom),
             'desamorcage' => $this->desamorcage($a, $acteurNom),
-            'franchissement' => $this->issueSimple($a, $acteurNom, 'franchit la fosse', 'chute dans la fosse'),
+            // Le saut PAR LE BOUT d'une fosse longue (`saut: long`, F7539 p. 6) se dit à part : il ne se saute pas, il se traverse.
+            'franchissement' => ($a['saut'] ?? null) === 'long'
+                ? $this->issueSimple($a, $acteurNom, 'franchit la fosse longue par le bout', 'tombe dans la fosse longue')
+                : $this->issueSimple($a, $acteurNom, 'franchit la fosse', 'chute dans la fosse'),
             'relever' => [$this->info(($a['libelle'] ?? "{$acteurNom} relève un compagnon"))],
             // RELÈVEMENT STORY (Jungles of Delthrak, F9907 p. 5) : un héros à terre regagne
             // 1 point de Corps et se relève à l'ouverture du round. Sans cette ligne, le
@@ -1192,6 +1198,8 @@ final class JournalCombat
             'saut_sables' => $this->sautSables($a, $acteurNom),
             'defausse_sables' => $this->defausseSables($a, $acteurNom),
             'sortie_sables' => $this->sortieSables($a, $acteurNom),
+            // FOSSE LONGUE (p. 6) : se hisser hors du trou, ou n'y pas parvenir — un dé rouge, 5 ou 6.
+            'sortie_fosse' => $this->sortieFosse($a, $acteurNom),
             'retraite' => $this->vote($a, $acteurNom, 'propose de battre en retraite'),
             'sortie' => $this->vote($a, $acteurNom, 'propose de quitter le donjon'),
             'poussee' => $this->poussee($a, $acteurNom),
@@ -3269,6 +3277,15 @@ final class JournalCombat
 
         if (! empty($a['condition_appliquee'])) {
             $lignes[] = ['texte' => "{$nom} est ".$a['condition_appliquee'], 'ton' => 'echec'];
+        }
+
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : la chute RETIENT le héros dans le trou. Le fil le dit, avec le
+        // malus et le seuil de sortie publiés par la décision (`MoteurPieges::declencher()`) — un effet automatique muet
+        // est injouable.
+        if (! empty($a['dans_la_fosse'])) {
+            $sur = implode(' ou ', (array) $a['dans_la_fosse']['sortie_sur']);
+            $lignes[] = ['texte' => "{$nom} reste dans la fosse : {$a['dans_la_fosse']['malus_des_combat']} dé de combat de moins, "
+                ."et un dé rouge de {$sur} pour se hisser dehors", 'ton' => 'echec'];
         }
 
         // LIANES AGRIPPANTES : le héros est TENU — et il faut dire COMMENT en

@@ -4538,6 +4538,38 @@ table en tirent un badge. Il survit au round et au snapshot (`Sauvegarde`).
 
 Les trois types sont dans `JournalCombat::TYPES` (le fil dit le saut, l'abandon, la sortie).
 
+## The Mage of the Mirror — la fosse longue (livret F7539 p. 6, 2026-10-29, lot G)
+
+Source : « Long Pit Trap », relue au livret — le saut par le bout (`at least three squares of movement left`,
+un dé de combat, bouclier noir), la chute (2 PV de Body), la sortie « on a subsequent turn… a 5 or 6 on a red die »,
+le malus « one less combat die when attacking or defending (but never less than one die) ». Mesure : deux cases.
+
+- **Carte** : `cartes.grille.pieges[]` porte DEUX entrées `{x, y, piege_id, etat, groupe_id}`, liées par
+  `groupe_id` (`fosse-longue-1`). Pas de champ publié nouveau : chaque case se publie comme un piège ordinaire
+  (`pieges[]`, états `detecte` / `fosse_ouverte`). Une fosse se découvre d'un bloc : une case détectée, c'est
+  les deux (`MoteurPieges::changerEtat()`).
+- **Option de saut** : `type: "franchissement"`, `parametres: {piege: {x, y}, vers: {x, y}, cout: 3, saut: "long"}`,
+  `creneau: mouvement`, id `franchir_long_{x}_{y}` (`x, y` = la case de bout abordée). Le saut court
+  (`franchir_…`) n'est jamais offert quand sa réception tomberait dans la même fosse
+  (`MoteurFosseLongue::sautCourtAtterritSurLaFosse()`).
+- **Résultat** (`franchissement`, `saut: "long"`) : `des_lances: 1`, `faces: [face]`, `face_requise`, `succes`,
+  `franchi`, et `vers` (la réception) ou `declenchement` (la chute, un `piege_declenche` avec `dans_la_fosse`).
+- **Chute** (`piege_declenche`) : `dans_la_fosse: {malus_des_combat, sortie_sur}` (la décision, lue au catalogue) ou
+  `null`. Le fil dit « reste dans la fosse : N dé de combat de moins, et un dé rouge de 5 ou 6 pour se hisser dehors ».
+- **État durable** : `etat_personnage_quete.dans_la_fosse` (colonne JSON `{x, y, piege_id}`, jamais en cache). La
+  publication l'exprime en décision : `entites[].dans_la_fosse` = `{nom, malus_des_combat, sortie_sur}` ou `null`.
+  Un héros n'est « dans la fosse » que si sa position est la case de la colonne (`MoteurFosseLongue::estEnFosse()`).
+- **Menu d'un héros dans la fosse** : pas de `se_deplacer`, pas de saut ; une option `sortie_fosse` par case libre qui
+  touche sa case (`id` `sortir_fosse_{x}_{y}`, `parametres: {vers: {x, y}, sortie_sur: [5, 6]}`, `creneau: mouvement`).
+  Les actions (attaque, sort, objet) restent offertes, avec le malus.
+- **Résultat de sortie** (`sortie_fosse`) : `{de, sortie_sur, succes, vers, depart, piege}`. Un dé rouge (d6). La sortie
+  prend le déplacement du tour, réussie ou non ; un succès pose le héros sur `vers` et efface la colonne.
+- **Malus** : un dé de combat de moins, en ATTAQUE (`ResolveurTour::frapper()`) comme en DÉFENSE
+  (`MoteurSorts::desDefenseHerosDetail()`), jamais sous un dé (`MoteurFosseLongue::appliquerMalus()`).
+
+Le type `sortie_fosse` est dans `JournalCombat::TYPES` (le fil dit la sortie, réussie ou non) ; le saut est un
+`franchissement`, et sa chute est un `piege_declenche`.
+
 ## Garanties
 
 - **Le moteur fait autorité** : `choix` valide l'option contre le dernier menu

@@ -99,6 +99,8 @@ const ICONE_TYPE = {
     saut_sables: 'sprint',
     defausse_sables: 'delete_forever',
     sortie_sables: 'move_up',
+    // FOSSE LONGUE (F7539 p. 6, 2026-10-29) : se hisser hors du trou, un dé rouge — une flèche vers le haut, sortie d'un puits.
+    sortie_fosse: 'vertical_align_top',
     sort: 'auto_awesome',
     parchemin: 'description',
     // Ajoutés le 2026-09-01 : sans entrée ici, ils tombaient sur `touch_app`.
@@ -280,6 +282,7 @@ function creneauConsomme(option) {
         case 'deplacement':
         case 'franchissement':
         case 'saut_sables':
+        case 'sortie_fosse':
             return !!moi.a_deplace;
         case 'ouvrir_porte':
         case 'lacher_souris':

@@ -1447,6 +1447,10 @@ final class EtatGroupe
                     // SOL MEUBLE (lot H des restes, 2026-10-29) : enlisé par un dé impair, jusqu'à un dé pair. Un booléen : la
                     // manette et la table l'affichent, le dé du tour dit le reste (`DeplacementHeros::bloqueParSolMeuble()`).
                     'enlise_sol' => (bool) ($etat?->enlise_sol ?? false),
+                    // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : le héros TOMBÉ DANS le trou — `null` hors de la fosse ;
+                    // sinon la DÉCISION (le malus de dé de combat, le seuil de sortie) et le nom du trou. Sans elle, un
+                    // héros immobile au fond d'une fosse n'est qu'une figurine dont rien ne dit la cause.
+                    'dans_la_fosse' => MoteurFosseLongue::publier($etat),
                     // Réaction HORS TOUR en attente de décision (Dark Wings,
                     // Twisting Torrent). Exposée ici en plus du broadcast privé
                     // `.reaction.proposee` : une manette rechargée au mauvais

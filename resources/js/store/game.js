@@ -533,6 +533,19 @@ export function badgesFigure(entite) {
         });
     }
 
+    // FOSSE LONGUE (F7539 p. 6, 2026-10-29) : le héros TOMBÉ DANS le trou, publié par le serveur (`entites[].dans_la_fosse`
+    // = {nom, malus_des_combat, sortie_sur}). Il dure jusqu'à ce qu'il se hisse dehors : même badge propre que l'enlisement.
+    if (entite?.dans_la_fosse) {
+        badges.unshift({
+            nom: 'dans_la_fosse',
+            t: 'poison',
+            l: `Dans la ${entite.dans_la_fosse.nom.toLowerCase()} — ${entite.dans_la_fosse.malus_des_combat} dé de combat de moins ; `
+                + `se hisse sur un dé rouge de ${entite.dans_la_fosse.sortie_sur.join(' ou ')}`,
+            ic: 'vertical_align_bottom',
+            d: null,
+        });
+    }
+
     if (jetons > 0) {
         badges.unshift({
             nom: 'rejetons',

@@ -627,6 +627,20 @@ final class MoteurPieges
         };
         $this->changerEtat($carte, $index, $nouvelEtat);
 
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : « On a subsequent turn, the hero must roll a 5 or 6 on a red die
+        // to climb out of the pit. » La chute RETIENT le héros dans le trou — état DURABLE (colonne `dans_la_fosse`, jamais le
+        // cache), posé ici pour TOUTE chute dans cette fosse, par le petit côté comme par le grand. Le seuil et le malus se
+        // lisent au catalogue (`MoteurFosseLongue`), jamais recopiés dans la colonne.
+        $retientDansLaFosse = data_get($piege?->effet, 'dans_la_fosse') !== null;
+
+        if ($retientDansLaFosse) {
+            $etat->update(['dans_la_fosse' => [
+                'x' => (int) $entree['x'],
+                'y' => (int) $entree['y'],
+                'piege_id' => (int) $piege?->id,
+            ]]);
+        }
+
         if ($retenu) {
             $this->noterRetenu($carte, $index, (int) $personnage->id);
         }
@@ -662,6 +676,12 @@ final class MoteurPieges
             // absorbé qui ne se dit pas ressemble à un piège muet.
             'absorbe' => $absorbe,
             'type_degat' => $typeDegat,
+            // La chute retient le héros dans le trou (Fosse longue) : le fil le DIT, avec la DÉCISION (le malus, le seuil de
+            // sortie) lue au catalogue — sinon le malus serait muet. `null` pour toute autre chute.
+            'dans_la_fosse' => $retientDansLaFosse ? [
+                'malus_des_combat' => (int) data_get($piege?->effet, 'dans_la_fosse.malus_des_combat', 0),
+                'sortie_sur' => array_map('intval', (array) data_get($piege?->effet, 'dans_la_fosse.sortie_sur', [])),
+            ] : null,
         ];
 
         if ($faces !== null) {
@@ -1698,10 +1718,21 @@ final class MoteurPieges
         return $carte->grille['pieges'][$index] ?? null;
     }
 
+    /**
+     * Change l'état d'un piège — et, pour une FOSSE LONGUE (deux cases liées par `groupe_id`), de TOUTES ses cases : une
+     * fosse ouverte l'est d'un bloc, jamais à moitié (`MoteurFosseLongue::groupeDe()`, le même lien que le terrain).
+     */
     public function changerEtat(Carte $carte, int $index, string $etat): void
     {
         $grille = $carte->grille;
-        $grille['pieges'][$index]['etat'] = $etat;
+        $groupe = $grille['pieges'][$index]['groupe_id'] ?? null;
+
+        foreach ($grille['pieges'] as $i => $entree) {
+            if ($i === $index || ($groupe !== null && ($entree['groupe_id'] ?? null) === $groupe)) {
+                $grille['pieges'][$i]['etat'] = $etat;
+            }
+        }
+
         $carte->update(['grille' => $grille]);
     }
 
