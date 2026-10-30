@@ -41,6 +41,7 @@ final class JournalCombat
     use LignesEffetsAutomatiques;
     use LignesSorciersDuDread;
     use LignesSablesMouvants;
+    use LignesFosseLongue;
     use LignesMaledictionLoup;
 
     /**
@@ -84,14 +85,20 @@ final class JournalCombat
         'salle_dangereuse' => true, 'desamorcage_mobilier' => true,
         // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : deux dés rouges contre le Corps de départ ou l'Esprit actuel.
         'forcer_porte_condition' => true,
+        // GRILLE DE FER (Mage of the Mirror, 2026-10-29) : la même phrase que la porte à condition — elle dit le verrou (« la grille
+        // de fer »), le total, la condition, et l'échec qui achève le tour.
+        'forcer_grille' => true,
         // MÉTAMORPHE (Kellar's Keep, 2026-10-23) : le tirage fait à chaque mort — une nouvelle forme, ou la mort pour de bon.
         'metamorphe_tirage' => true,
         'actionner_levier' => true, 'forcer_porte_pierre' => true, 'ouvrir_porte' => true,
         'oracle_salle' => true, 'lacher_souris' => true, 'poussee' => true, 'briser_glace' => true,
         'detacher_rejetons' => true, 's_ecarter_du_bloc' => true, 'retraite' => true,
+        'pousser_vent' => true,
         'sortie' => true, 'jet_en_attente' => true, 'reaction' => true, 'objet_detruit' => true,
         // Sables mouvants (F7539 p. 29) : le saut, l'abandon d'un objet, la sortie.
         'saut_sables' => true, 'defausse_sables' => true, 'sortie_sables' => true,
+        // Fosse longue (F7539 p. 6) : se hisser hors du trou, un dé rouge. Le saut par le bout est un `franchissement`.
+        'sortie_fosse' => true,
         // ---- Les pièges
         'piege_declenche' => true, 'piege_ignore' => true, 'piege_esquive' => true,
         'piege_amorce' => true, 'piege_explosion' => true, 'piege_teleporte' => true,
@@ -1013,7 +1020,10 @@ final class JournalCombat
             'piege_esquive' => $this->piegeEsquive($a, $acteurNom),
             'jet' => $this->jet($a, $acteurNom),
             'desamorcage' => $this->desamorcage($a, $acteurNom),
-            'franchissement' => $this->issueSimple($a, $acteurNom, 'franchit la fosse', 'chute dans la fosse'),
+            // Le saut PAR LE BOUT d'une fosse longue (`saut: long`, F7539 p. 6) se dit à part : il ne se saute pas, il se traverse.
+            'franchissement' => ($a['saut'] ?? null) === 'long'
+                ? $this->issueSimple($a, $acteurNom, 'franchit la fosse longue par le bout', 'tombe dans la fosse longue')
+                : $this->issueSimple($a, $acteurNom, 'franchit la fosse', 'chute dans la fosse'),
             'relever' => [$this->info(($a['libelle'] ?? "{$acteurNom} relève un compagnon"))],
             // RELÈVEMENT STORY (Jungles of Delthrak, F9907 p. 5) : un héros à terre regagne
             // 1 point de Corps et se relève à l'ouverture du round. Sans cette ligne, le
@@ -1073,6 +1083,7 @@ final class JournalCombat
             ]],
             // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : le jet dit son total et la condition, et un échec dit qu'il clôt le tour.
             'forcer_porte_condition' => $this->porteCondition($a, $acteurNom),
+            'forcer_grille' => $this->porteCondition($a, $acteurNom),
             // MÉTAMORPHE : le tirage à la mort (la carte tirée, ou la mort pour de bon).
             'metamorphe_tirage' => $this->metamorpheTirage($a),
             'piege_declenche' => $this->piegeDeclenche($a, $acteurNom),
@@ -1190,11 +1201,14 @@ final class JournalCombat
             'concentration', 'sacrifice_sort' => $this->sortRecupere($a, $acteurNom),
             'tunnelier' => $this->tunnelier($acteurNom),
             's_ecarter_du_bloc' => $this->ecartDuBloc($a, $acteurNom),
+            'pousser_vent' => $this->poussePeVent($a, $acteurNom),
             // SABLES MOUVANTS (F7539 p. 29) : un saut raté enlise, un objet quitte le sac, un héros
             // peut tomber — autant d'effets automatiques qu'aucune autre ligne ne dirait.
             'saut_sables' => $this->sautSables($a, $acteurNom),
             'defausse_sables' => $this->defausseSables($a, $acteurNom),
             'sortie_sables' => $this->sortieSables($a, $acteurNom),
+            // FOSSE LONGUE (p. 6) : se hisser hors du trou, ou n'y pas parvenir — un dé rouge, 5 ou 6.
+            'sortie_fosse' => $this->sortieFosse($a, $acteurNom),
             'retraite' => $this->vote($a, $acteurNom, 'propose de battre en retraite'),
             'sortie' => $this->vote($a, $acteurNom, 'propose de quitter le donjon'),
             'poussee' => $this->poussee($a, $acteurNom),
@@ -3052,6 +3066,13 @@ final class JournalCombat
             })],
         };
 
+        // CLÉ DE LAITON (Mage of the Mirror, F7539 quête 7 note C) : la PREMIÈRE fouille du râtelier qui la porte la donne EN PLUS de sa
+        // table (`cle_de_laiton`, posé par `ResolveurTour::resoudreFouilleMobilier()`). Le fil le dit, sinon la clé entre dans le sac
+        // sans que personne ne l'ait trouvée.
+        if (isset($a['cle_de_laiton']['objet']['nom'])) {
+            $lignes[] = ['texte' => "{$acteurNom} trouve aussi une {$a['cle_de_laiton']['objet']['nom']}", 'ton' => 'tresor'];
+        }
+
         // SIXIÈME SENS (Explorateur) : la carte de piège remise sous le paquet. Elle ne se
         // disait que dans la réponse HTTP (`carte_ecartee`) — ni au fil, ni au rejeu.
         // ⚠ La branche « errant » ne naît plus : un monstre errant tiré reste tiré
@@ -3260,6 +3281,18 @@ final class JournalCombat
             return $lignes;
         }
 
+        // PIÈGE PORTEUR D'UN SORT DE DREAD (« Piège de Boule de Flammes », Spirit Queen's Torment) : la ligne du piège, puis le
+        // sort qu'il a lancé, rendu par le lecteur des sorts de Dread (en-tête, une ligne par victime, dés rouges compris). Les
+        // dégâts ne sont PAS redits ici : ils sont dans la victime du sort.
+        if (! empty($a['sort_dread'])) {
+            $nomCible = $a['personnage']['nom'] ?? $acteurNom;
+
+            return [
+                ['texte' => (($a['piege']['nom'] ?? 'Un piège')." se déclenche sur {$nomCible} !"), 'ton' => 'subit'],
+                ...$this->sortDread((array) $a['sort_dread'], $nomCible),
+            ];
+        }
+
         $nom = $a['personnage']['nom'] ?? $acteurNom;
         $piege = $a['piege']['nom'] ?? 'Un piège';
         $degats = (int) ($a['degats'] ?? 0);
@@ -3286,6 +3319,15 @@ final class JournalCombat
 
         if (! empty($a['condition_appliquee'])) {
             $lignes[] = ['texte' => "{$nom} est ".$a['condition_appliquee'], 'ton' => 'echec'];
+        }
+
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : la chute RETIENT le héros dans le trou. Le fil le dit, avec le
+        // malus et le seuil de sortie publiés par la décision (`MoteurPieges::declencher()`) — un effet automatique muet
+        // est injouable.
+        if (! empty($a['dans_la_fosse'])) {
+            $sur = implode(' ou ', (array) $a['dans_la_fosse']['sortie_sur']);
+            $lignes[] = ['texte' => "{$nom} reste dans la fosse : {$a['dans_la_fosse']['malus_des_combat']} dé de combat de moins, "
+                ."et un dé rouge de {$sur} pour se hisser dehors", 'ton' => 'echec'];
         }
 
         // LIANES AGRIPPANTES : le héros est TENU — et il faut dire COMMENT en
@@ -3400,6 +3442,75 @@ final class JournalCombat
             // (règle dure : un effet automatique que rien n'annonce est injouable).
             $lignes[] = $this->info("{$acteurNom} s'engouffre dans un tunnel de glace et ressort à l'autre bout");
         }
+
+        foreach ((array) ($a['terrain_jets'] ?? []) as $jet) {
+            $terrain = (string) ($jet['terrain'] ?? 'Terrain');
+            $degats = (int) ($jet['degats'] ?? 0);
+
+            $lignes[] = $degats > 0
+                ? ['texte' => "{$acteurNom} traverse : {$terrain} — −{$degats} PV", 'ton' => 'degats']
+                : $this->info("{$acteurNom} traverse : {$terrain} — aucun mal");
+        }
+
+        // COURANT PORTEUR (*Spirit Queen's Torment* q. 11 note C, lot H des restes, 2026-10-29) : le gain pris à la première entrée,
+        // dit en cases. Un bonus qui ne se dirait pas ferait croire à un déplacement plus long que la carte.
+        if (! empty($a['bonus_courant'])) {
+            $gain = (int) $a['bonus_courant'];
+            $lignes[] = $this->info("{$acteurNom} profite du courant porteur : +{$gain} cases de déplacement ce tour");
+        }
+
+        // VENTS DE COULOIR (*The Tower of Air* q. 12, lot H des restes, 2026-10-29) : le dé de combat à la fin du mouvement, et ce
+        // qu'il décide — un choix qui s'ouvre, ou Zargon qui pousse. Un souffle muet ferait croire à un héros déplacé sans raison.
+        if (! empty($a['vent'])) {
+            $vent = (array) $a['vent'];
+            $nomCases = (int) ($vent['cases'] ?? 2);
+
+            if (($vent['face'] ?? null) === 'bouclier') {
+                $lignes[] = match ($vent['etat'] ?? null) {
+                    'choix' => $this->info("{$acteurNom} sent le vent : un bouclier — il choisit vers où il se pousse ({$nomCases} cases)"),
+                    default => $this->info("{$acteurNom} sent le vent : un bouclier, mais aucune case où il peut le pousser"),
+                };
+            } elseif (($vent['etat'] ?? null) === 'zargon') {
+                $direction = (string) ($vent['direction'] ?? 'e');
+                $lignes[] = $this->info("Zargon pousse {$acteurNom} de {$nomCases} cases vers ".MoteurVents::NOMS[$direction].' — un crâne du vent');
+            } else {
+                $lignes[] = $this->info("Zargon ne trouve aucune case où pousser {$acteurNom} : le vent retombe");
+            }
+        }
+
+        // SOL MEUBLE (*Spirit Queen's Torment* q. 10 note B, lot H des restes, 2026-10-29) : un dé de déplacement IMPAIR enlise le
+        // héros sur sa première case (1 PV de Body) ; un dé PAIR le dégage. Un enlisement muet ferait croire à un héros planté sans
+        // raison : c'est un effet automatique, il s'annonce.
+        if (! empty($a['enlisement_sol'])) {
+            $enlisement = (array) $a['enlisement_sol'];
+            $terrain = (string) ($enlisement['terrain'] ?? 'le sol meuble');
+
+            if (($enlisement['etat'] ?? null) === 'degage') {
+                $lignes[] = $this->info("{$acteurNom} se dégage de {$terrain} : son dé de déplacement est pair");
+            } else {
+                $degats = (int) ($enlisement['degats'] ?? 0);
+
+                $lignes[] = [
+                    'texte' => "{$acteurNom} s'enlise dans {$terrain} : son dé de déplacement est impair, sa marche s'arrête ici"
+                        .($degats > 0 ? " — −{$degats} PV" : ' — aucun mal'),
+                    'ton' => $degats > 0 ? 'degats' : 'echec',
+                ];
+            }
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * Le CHOIX du héros après un bouclier de vent (lot H des restes) : la direction, les cases, les pièges et jets de la poussée.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function poussePeVent(array $a, string $acteurNom): array
+    {
+        $direction = (string) ($a['direction'] ?? 'e');
+        $lignes = [$this->info("{$acteurNom} se laisse porter vers ".MoteurVents::NOMS[$direction].' par le vent — '.(int) ($a['cases'] ?? 2).' cases')];
 
         foreach ((array) ($a['terrain_jets'] ?? []) as $jet) {
             $terrain = (string) ($jet['terrain'] ?? 'Terrain');

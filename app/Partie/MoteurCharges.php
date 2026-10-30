@@ -117,7 +117,15 @@ final class MoteurCharges
         $porteur = $ligne->personnage()->first();
 
         app(TamponCharges::class)->detruit($ligne);
-        $ligne->delete();
+
+        // ⚠ Une PILE (deux parchemins modifiés identiques, 2026-10-29) : les charges sont
+        // celles de l'exemplaire EN COURS. Il se brise seul ; le suivant repart neuf
+        // (`null` = jamais entamé). Supprimer la ligne aurait détruit toute la pile.
+        if ((int) $ligne->quantite > 1) {
+            $ligne->update(['quantite' => (int) $ligne->quantite - 1, 'charges' => null]);
+        } else {
+            $ligne->delete();
+        }
 
         $groupe = $porteur?->groupeActif;
 

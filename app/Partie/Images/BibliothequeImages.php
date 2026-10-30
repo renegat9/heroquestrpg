@@ -264,6 +264,9 @@ final class BibliothequeImages
     /** Clé de la porte de pierre encore fermée (`verrou.type` = `pierre` sur une porte `fermee`). */
     private const SYMBOLE_PORTE_PIERRE = 'verrou_pierre';
 
+    /** Clé de la grille de fer encore fermée (`verrou.type` = `grille` sur une porte `fermee`) : la herse de F7539 PDF 3 (`verrou-grille`). */
+    private const SYMBOLE_PORTE_GRILLE = 'verrou_grille';
+
     /**
      * SYMBOLE DE LIVRET — le pictogramme officiel d'une case, tel qu'il est imprimé sur le livret de quête (René,
      * 2026-10-24 : « les vrais symboles des livrets à la place des icônes »).
@@ -336,12 +339,20 @@ final class BibliothequeImages
     /**
      * Porte : le symbole de son ÉTAT, une image par état comme `urlPorte()`. La porte de pierre encore fermée a le sien
      * (`verrou_pierre`) : une fois forcée, elle n'est plus qu'une porte ouverte.
+     *
+     * Un MIROIR encore fermé (`MoteurPortes::HABILLAGE_MIROIR`, 2026-10-29) cherche le sien (`portes/miroir`) et ne prête
+     * jamais le dessin de la porte fermée : les cartes du livret ne le dessinent pas (« MIR », F7539 PDF 17), donc sans
+     * fichier il vaut `null` et le client garde sa teinte de miroir. Ouvert, c'est un passage ouvert comme un autre.
      */
-    public function urlSymbolePorte(string $etat, ?string $verrou): ?string
+    public function urlSymbolePorte(string $etat, ?string $verrou, ?string $habillage = null): ?string
     {
-        $cle = $etat === MoteurPortes::ETAT_FERMEE && $verrou === MoteurPortes::VERROU_PIERRE
-            ? self::SYMBOLE_PORTE_PIERRE
-            : $etat;
+        // La grille de fer fermée a SON symbole (`verrou_grille`), jamais celui de la porte fermée (lot F des restes).
+        $cle = match (true) {
+            $habillage === MoteurPortes::HABILLAGE_MIROIR && $etat !== MoteurPortes::ETAT_OUVERTE => MoteurPortes::HABILLAGE_MIROIR,
+            $etat === MoteurPortes::ETAT_FERMEE && $verrou === MoteurPortes::VERROU_PIERRE => self::SYMBOLE_PORTE_PIERRE,
+            $etat === MoteurPortes::ETAT_FERMEE && $verrou === MoteurPortes::VERROU_GRILLE => self::SYMBOLE_PORTE_GRILLE,
+            default => $etat,
+        };
 
         return $this->urlSymboleLivret('portes', $cle);
     }
@@ -375,7 +386,8 @@ final class BibliothequeImages
 
     /**
      * FORME du jeton d'un monstre (chantier jetons, phase 3, 2026-10-29) : `ovale` quand le livret le dessine en ovale 2:1
-     * (figure 1×2, `config('symboles_monstres.ovales')`), `rond` sinon, `null` sans jeton. Décidée par la CONFIG et non par
+     * (figure 1×2, `config('symboles_monstres.ovales')`), `tuile` pour une figure que le livret pose en tuile (`symboles_monstres.tuiles`), `rond`
+     * sinon, `null` sans jeton. Décidée par la CONFIG et non par
      * le fichier : un fichier se lit sans être ouvert, et un test pose de faux fichiers. SymbolesMonstresTest vérifie la
      * liste dans les deux sens (chaque nom listé porte un fichier 2:1 ; chaque fichier 2:1 est déclaré).
      */
@@ -385,7 +397,12 @@ final class BibliothequeImages
             return null;
         }
 
-        return in_array($nomBase, (array) config('symboles_monstres.ovales', []), true) ? 'ovale' : 'rond';
+        return match (true) {
+            in_array($nomBase, (array) config('symboles_monstres.ovales', []), true) => 'ovale',
+            // TUILE (le Spawnling, le Golem de Delthrak, 2026-10-29) : le livret pose une tuile, pas une tête dans un anneau.
+            in_array($nomBase, (array) config('symboles_monstres.tuiles', []), true) => 'tuile',
+            default => 'rond',
+        };
     }
 
     /**
@@ -397,7 +414,8 @@ final class BibliothequeImages
      */
     public static function rotationSymboleMonstre(?string $forme, array $emprise): int
     {
-        return $forme === 'ovale' && $emprise['h'] > $emprise['l'] ? 90 : 0;
+        // Une TUILE de deux cases (le Golem, 2026-10-29) se couche comme un ovale : fichier 2:1, figure posée debout → 90.
+        return in_array($forme, ['ovale', 'tuile'], true) && $emprise['h'] > $emprise['l'] ? 90 : 0;
     }
 
     // ---- Dynamique (jobs / cache) ----------------------------------------

@@ -189,3 +189,15 @@ Une figure à `passif_jusqua` avec `intouchable_jusqua` (la gargouille-statue, B
   et la fournaise l'appellent. Le menu et le résolveur lisent la même question : `salleDangereuseAdjacentes()`.
 
 **Un ancrage « objet porté, début du tour du porteur » (lot I, 2026-10-29).** Premier déclencheur automatique par tour lié à une pièce portée : `MoteurFardeau::debutDeTour()`, appelé depuis `MenuMoteur` sur la garde du voile d'ombre (`! tombe`, `! a_joue`, `estSonTour`). Une fois par manche (marqueur `capacites_tour`, durable), posé avant le jet ; le porteur tombé ne lance pas ; le résultat est annoncé au journal, au fil (`TamponAnnonces`, type `fardeau_porteur`) et à la table (scène `genre: fardeau`, diffusée hors résolution). Option de menu nouvelle : `lancer_sort_dread` (type `lancer_sort_dread`, action), offerte au porteur — détail au contrat et dans `sorts-dread.md`.
+
+## Le déplacement des terrains des tours — lot H des restes (2026-10-29)
+
+- **Un dé impair sur le sol meuble** ferme la marche à la première case de la salle ; un héros enlisé ne se libère qu'à un dé PAIR, et
+  dans ce cas il marche de base + d6 (`DeplacementHeros::bloqueParSolMeuble()`, `solMeubleArrete()`). `se_deplacer` n'est pas offert à un
+  enlisé au dé impair : le menu et le résolveur lisent la même liste vide.
+- **Le courant porteur** ajoute 2 points au budget, une fois par déplacement, à la première entrée depuis l'extérieur. Le gain est dans le
+  reste du tour (`deplacement_restant`), publié (`bonus_courant`) et annoncé. Le coût des destinations reste celui des points dépensés.
+- **Le vent de couloir** se déclenche à la FIN d'un mouvement (pas en passant). Bouclier : `pousser_vent_{direction}` en menu forcé, creneau
+  `interaction` (aucun créneau consommé). Crâne : poussée immédiate, décidée par `MoteurVents::directionDeZargon()`. Une poussée ne tire
+  aucun dé de déplacement et ne chaîne aucun dé de vent.
+- Le détail des règles, les écarts assumés et les tests sont dans `docs/regles/carte-donjon.md`, section « LES TERRAINS DES TOURS ».

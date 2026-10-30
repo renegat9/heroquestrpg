@@ -441,10 +441,18 @@ final class Sauvegarde
                     // SABLES MOUVANTS (F7539 p. 29) : un héros enlisé le reste d'un round à l'autre —
                     // l'oublier le ferait sortir des sables sans avoir payé ni attendu.
                     'enlise' => $e->enlise,
+                    // SOL MEUBLE (lot H des restes, 2026-10-29) : un héros enlisé par le sol meuble le reste d'un tour à l'autre,
+                    // jusqu'à un dé pair — l'oublier le ferait marcher sans avoir attendu le dé.
+                    'enlise_sol' => (bool) $e->enlise_sol,
+                    // VENTS DE COULOIR (lot H des restes, 2026-10-29) : un choix de poussée en attente survit à une reprise.
+                    'vent_choix' => $e->vent_choix,
                     // MIND LOCK (F9528 p. 10) : le héros gelé le reste d'un round à l'autre, et
                     // les cartes qu'il tient reviennent à SON Sorcier — l'oublier le libérerait
                     // sans qu'il ait rendu une carte ni tenté de briser l'emprise.
                     'verrou_mental' => $e->verrou_mental,
+                    // FOSSE LONGUE (p. 6) : un héros tombé dans la fosse y reste d'un round à l'autre — l'oublier le
+                    // ferait sortir sans avoir tenté de se hisser, et lui rendrait son dé de combat.
+                    'dans_la_fosse' => $e->dans_la_fosse,
                 ])->values()->all(),
             'heros' => $this->herosActifs($groupe)
                 ->map(fn (Personnage $p) => $this->serialiserHeros($p))->values()->all(),
@@ -698,10 +706,16 @@ final class Sauvegarde
                 'monstres_vaincus' => $etat['monstres_vaincus'] ?? 0,
                 // `??` : un snapshot antérieur au 2026-10-15 ne porte pas l'enlisement.
                 'enlise' => $etat['enlise'] ?? null,
+                // `??` : un snapshot antérieur au 2026-10-29 ne porte pas le sol meuble (aucun héros enlisé alors).
+                'enlise_sol' => (bool) ($etat['enlise_sol'] ?? false),
+                // `??` : un snapshot antérieur au 2026-10-29 ne porte pas de choix de vent. Écrit seulement s'il y en a un.
+                ...(($etat['vent_choix'] ?? null) !== null ? ['vent_choix' => $etat['vent_choix']] : []),
                 // `??` : un snapshot antérieur au 2026-10-16 ne porte pas le Verrou mental. Écrit
                 // seulement s'il y en a un : `app` lit le code en direct, et une reprise ne doit pas
                 // dépendre d'une colonne que la migration n'a pas encore créée quand personne n'est gelé.
                 ...(($etat['verrou_mental'] ?? null) !== null ? ['verrou_mental' => $etat['verrou_mental']] : []),
+                // `??` : un snapshot antérieur au 2026-10-29 ne porte pas la Fosse longue. Même garde que le Verrou mental.
+                ...(($etat['dans_la_fosse'] ?? null) !== null ? ['dans_la_fosse' => $etat['dans_la_fosse']] : []),
             ]);
         }
     }

@@ -283,6 +283,59 @@ class PiegeSeeder extends Seeder
                     'mare' => true,
                     'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
                 ]],
+
+            // ===== Spirit Queen's Torment (G0053, boîte `spirit_queen`) =====
+            // Quête 2, note C, p. 5 : « The treasure chest has a magical trap. If a hero searches for treasure before the
+            // trap is disarmed, the Dread spell Ball of Flame is cast on that hero. The trap may be disarmed normally. »
+            // Quête 6, note B, p. 9 : « Each of these chests is trapped. If a hero searches for treasure before the trap is
+            // disarmed, the Dread spell Ball of Flame is cast on that hero. The trap may be disarmed normally. »
+            // ÉPHÉMÈRE comme le Piège de coffre (`declencheur: ouverture_tresor`) : déclenché par la fouille, jamais posé.
+            // `sort_dread` NOMME le sort ; ses chiffres (2 PV fixes, 2 dés rouges) sont lus au catalogue, jamais recopiés ici
+            // (`MoteurPieges::declencherEphemere()` → `MoteurDread::lancerSortDePiege()`).
+            // Le « may be disarmed normally » n'est pas porté : aucun geste de désamorçage n'existe pour un coffre aujourd'hui
+            // (le menu ne le propose qu'à la fournaise), donc le piège part à la fouille, comme le Piège de coffre.
+            // `boite: spirit_queen` : E1 (décision de René, 2026-10-29) — ce piège n'existe que sous ce thème.
+            ['nom' => 'Piège de Boule de Flammes', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'unique',
+                'boite' => 'spirit_queen',
+                'effet' => [
+                    'declencheur' => 'ouverture_tresor',
+                    'sort_dread' => 'Boule de Flammes',
+                ]],
+
+            // ===== The Mage of the Mirror (F7539 p. 6, « Long Pit Trap », lot G, 2026-10-29) =====
+            // Texte intégral, relu au livret : « If a hero wants to jump over this pit the long way, they must have at least
+            // three squares of movement left after they move next to the pit. The hero then rolls one combat die. A black
+            // shield means the hero has jumped across safely, using up three squares of movement. The hero can continue to
+            // move if they have more movement left. Any result other than a black shield means the hero falls into the pit,
+            // suffering 2 Body Points of damage. On a subsequent turn, the hero must roll a 5 or 6 on a red die to climb out
+            // of the pit. While in the pit, the hero rolls one less combat die when attacking or defending (but never less
+            // than one die). Note: These traps can be jumped across the short side, the same as regular pit traps. »
+            //
+            // MESURE (planche « Design Your Own Quest Adventures », F7539 p. 39 = PDF 20, rendu 200 dpi) : une Pit Trap fait
+            // 54 × 52 px, la Long Pit Trap 106 × 52 px — 2,04 : 1, donc DEUX cases de long et UNE de large. La pose
+            // (`AssembleurCarte::placerFosseLongue()`) pose donc DEUX entrées de grille, liées par `groupe_id`.
+            //
+            // - `degats_pv_body: 2` : « suffering 2 Body Points of damage » — lu par `MoteurPieges::declencher()`.
+            // - `franchissable` : LE PETIT CÔTÉ, « the same as regular pit traps » — le saut ordinaire de la Fosse, tel quel
+            //   (`ResolveurTour::resoudreFranchissement()`, réutilisé, aucun second saut).
+            // - `saut_long: {face}` : LE GRAND CÔTÉ — le saut par le bout, un dé de combat, la face qui réussit (lue par
+            //   `MoteurFosseLongue::sautsLongs()`). Coût : les deux cases de fosse plus la réception = 3 (le livret).
+            // - `dans_la_fosse` : la chute RETIENT le héros (`sortie_sur`, un dé rouge, lu par `MoteurFosseLongue::resoudreSortie()`),
+            //   et lui retire `malus_des_combat` dé de combat, en attaque comme en défense, jamais sous 1 (lu par
+            //   `MoteurFosseLongue::malusDesCombat()` au point de passage de `frapper()` et de `desDefenseHerosDetail()`).
+            // - `usage: persistant` : le trou reste (`fosse_ouverte`), comme la Fosse. `estFosse()` le désigne donc : Forme
+            //   démoniaque et Potion de dextérité s'y appliquent, comme à toute fosse (le livret ne dit pas le contraire).
+            // - `desarmable: oui` : ⚠ NON TROUVÉ dans le livret pour cette fosse précise. Elle suit la Fosse ordinaire (la note
+            //   « the same as regular pit traps ») — décision signalée, pas une citation.
+            // - Boîte `mage_du_miroir` : n'est posée que sous ce thème (`AssembleurCarte::placerFosseLongue()`).
+            ['nom' => 'Fosse longue', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'persistant',
+                'boite' => 'mage_du_miroir',
+                'effet' => [
+                    'degats_pv_body' => 2,
+                    'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
+                    'saut_long' => ['face' => 'bouclier_noir'],
+                    'dans_la_fosse' => ['sortie_sur' => [5, 6], 'malus_des_combat' => 1],
+                ]],
         ];
 
         foreach ($pieges as $piege) {

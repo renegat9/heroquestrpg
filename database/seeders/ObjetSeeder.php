@@ -1030,6 +1030,13 @@ class ObjetSeeder extends Seeder
                     'crane' => ['potion' => 'Potion de bataille'],     // « immediately take on the effects of a Potion of Battle »
                     'bouclier_noir' => ['perte_pv_body' => 1],         // « they lose 1 Body Point »
                 ], 'hors_marche' => true]],
+            // CLÉ DE LAITON (Mage of the Mirror, F7539 p. 6, « Brass Key » : « This key is used to open a portcullis in several
+            // quests. The brass key tile is given to the hero who finds the key. ») — aucun prix imprimé : `prix_base` 0 (⚠ non
+            // trouvé), `hors_marche` (ni à l'étal, ni revendable), rareté `unique` (jamais tirée dans une table de butin), et QUITTE
+            // le sac en fin de quête (`objet_de_quete`, F2 du plan restes 2026-10-29). Elle se trouve dans un râtelier : la première
+            // fouille de celui-ci la donne (`ResolveurTour::resoudreFouilleMobilier()`, `objet_fixe` posé par l'assembleur).
+            ['nom' => 'Clé de laiton', 'categorie' => 'tresor', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'sac',
+                'boite' => 'mage_du_miroir', 'effet' => ['hors_marche' => true, 'objet_de_quete' => true]],
             ['nom' => 'Potion de soin mineur', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body' => 2, 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de vitesse', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
@@ -1207,6 +1214,40 @@ class ObjetSeeder extends Seeder
                         'sort_id' => $sort->id,
                         'sort_nom' => $sort->nom,
                         'difficulte_non_lanceur' => $sort->difficulte_parchemin,
+                    ],
+                ],
+            );
+        }
+
+        // ----- Parchemins MODIFIÉS de Prophecy of Telor (2026-10-29, plan des restes lot B) -----
+        // G0052 PDF 15, quête 11 note D : « one Heal Body spell scroll that seems to have been
+        // modified by a high mage, allowing it to be cast three times before the scroll crumbles
+        // to dust » ; note F : « one Lightning Bolt spell scroll, modified to be cast three times
+        // before the scroll crumbles to dust » ; PDF 17, quête 13 note D : « one Water of Healing
+        // spell scroll that has been modified to be cast twice before crumbling to dust ».
+        // `charges` = le compte du livret, lu par `MoteurCharges` via `MoteurSorts::consommerParchemin()`.
+        // `boite` : ils ne sortent du butin que sous le thème Telor (René, B1) ; `rare` (René, B1).
+        // `prix_base` 0 : le livret ne donne aucun prix, et un parchemin est hors marché.
+        foreach (['Soin du Corps' => 3, 'Éclair' => 3, 'Eau de Guérison' => 2] as $nomSort => $usages) {
+            $sort = Sort::where('nom', $nomSort)->first();
+
+            if ($sort === null) {
+                continue;
+            }
+
+            Objet::updateOrCreate(
+                ['nom' => "Parchemin modifié : {$sort->nom}"],
+                [
+                    'categorie' => 'parchemin',
+                    'rarete' => 'rare',
+                    'prix_base' => 0,
+                    'emplacement' => 'consommable',
+                    'boite' => 'prophecy_telor',
+                    'effet' => [
+                        'sort_id' => $sort->id,
+                        'sort_nom' => $sort->nom,
+                        'difficulte_non_lanceur' => $sort->difficulte_parchemin,
+                        'charges' => $usages,
                     ],
                 ],
             );

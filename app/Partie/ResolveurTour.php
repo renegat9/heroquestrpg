@@ -288,11 +288,12 @@ final class ResolveurTour
     private bool $finTourSables = false;
 
     /**
-     * PORTE À CONDITION MANQUÉE (Kellar's Keep, F4543 p. 19 note A, p. 25 note D) : « If they fail to open the door, their
-     * turn ends. » Posé par `resoudreForcerPorteCondition()` quand le jet n'atteint pas la condition, lu une seule fois dans
-     * le MÊME calcul de créneau que les deux drapeaux ci-dessus — l'ouverture elle-même reste une interaction libre.
+     * PORTE FORCÉE MANQUÉE (Kellar's Keep, F4543 p. 19 note A, p. 25 note D ; grille de fer, F7539 quête 10 note G, avec la
+     * même fin de tour — décision du plan restes 2026-10-29) : « If they fail to open the door, their turn ends. » Posé par
+     * `resoudreForcerPorte()` quand le jet n'atteint pas la condition, lu une seule fois dans le MÊME calcul de créneau que
+     * les deux drapeaux ci-dessus — l'ouverture elle-même reste une interaction libre.
      */
-    private bool $finTourPorteCondition = false;
+    private bool $finTourPorteForcee = false;
 
     /** Les sables mouvants — construit avec LE lanceur de ce résolveur, pour que le dé du saut soit le sien. */
     private ?MoteurSables $moteurSables = null;
@@ -300,6 +301,14 @@ final class ResolveurTour
     private function sables(): MoteurSables
     {
         return $this->moteurSables ??= new MoteurSables($this->des, $this->equipement);
+    }
+
+    /** La fosse longue (sortie sur dé rouge) — construite avec LE lanceur de ce résolveur, comme les sables. */
+    private ?MoteurFosseLongue $moteurFosse = null;
+
+    private function fosse(): MoteurFosseLongue
+    {
+        return $this->moteurFosse ??= new MoteurFosseLongue($this->des);
     }
 
     /**
@@ -409,7 +418,7 @@ final class ResolveurTour
         $this->evenementGlace = null;
         $this->finTourPiegeSol = false;
         $this->finTourSables = false;
-        $this->finTourPorteCondition = false;
+        $this->finTourPorteForcee = false;
         // Tampon vidé À L'ENTRÉE aussi : une résolution précédente refusée en
         // cours de route (422) n'a jamais atteint le vidage de la sortie, et ses
         // annonces s'afficheraient sur l'action de quelqu'un d'autre.
@@ -657,7 +666,8 @@ final class ResolveurTour
                 'liberer_captif' => $this->resoudreLibererCaptif($groupe, $quete, $personnage, $option, $parametres, $acteur),
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'forcer_porte_pierre' => $this->resoudreForcerPortePierre($groupe, $quete, $personnage, $etat, $option, $acteur),
-                'forcer_porte_condition' => $this->resoudreForcerPorteCondition($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'forcer_porte_condition' => $this->resoudreForcerPorte($groupe, $quete, $personnage, $etat, $option, $acteur, MoteurPortes::VERROU_CONDITION),
+                'forcer_grille' => $this->resoudreForcerPorte($groupe, $quete, $personnage, $etat, $option, $acteur, MoteurPortes::VERROU_GRILLE),
                 'oracle_salle' => $this->resoudreOracleSalle($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'lacher_souris' => $this->resoudreLacherSouris($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
@@ -704,11 +714,15 @@ final class ResolveurTour
                 // `MenuMoteur::generer()`, qui n'offre plus que cette option
                 // tant que `etat_personnage_quete.piege_a_ecarter` est posé.
                 's_ecarter_du_bloc' => $this->resoudreEcartDuBloc($groupe, $etat, $option, $parametres, $acteur),
+                // VENTS DE COULOIR (lot H des restes, 2026-10-29) : la poussée choisie après un bouclier — voir `resoudrePousserVent()`.
+                'pousser_vent' => $this->resoudrePousserVent($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 // SABLES MOUVANTS (F7539 p. 29) : le saut, la défausse forcée, la sortie — voir
                 // `MoteurSables`. Le menu d'un héros enlisé n'offre que les deux dernières.
                 'saut_sables' => $this->resoudreSautSables($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'defausse_sables' => $this->resoudreDefausseSables($groupe, $personnage, $etat, $option, $parametres, $acteur),
                 'sortie_sables' => $this->resoudreSortieSables($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // FOSSE LONGUE (p. 6) : se hisser hors du trou, un dé rouge. Le saut par le bout passe par `franchissement`.
+                'sortie_fosse' => $this->fosse()->resoudreSortie($groupe, $quete, $personnage, $etat, $option, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
@@ -751,7 +765,7 @@ final class ResolveurTour
             // et c'est le SEUL et MÊME point de passage qui ferme un tour
             // avant que les deux créneaux ne soient consommés.
             $creneauEffectif = (($this->evenementGlace['fin_tour'] ?? false) || $this->finTourPiegeSol || $this->finTourSables
-                || $this->finTourPorteCondition)
+                || $this->finTourPorteForcee)
                 ? 'tour' : $creneau;
 
             // Consomme le créneau (mouvement/action) ; le tour ne se termine
@@ -1000,11 +1014,11 @@ final class ResolveurTour
      * aussi pourquoi il ne rejoue NI les troncatures NI `controlerChemin()` :
      * un trajet écourté à l'écran dirait « il y a quelque chose ici ».
      *
-     * @return array{atteignable: bool, raison: ?string, chemin: list<array{x: int, y: int}>, cout: int, restant: int, restant_apres: int, pieges: list<array{x: int, y: int, nom: string, etat: string}>, traverse_roche: bool}
+     * @return array{atteignable: bool, raison: ?string, chemin: list<array{x: int, y: int}>, cout: int, restant: int, restant_apres: int, enlise_sol: bool, bonus_courant: int, pieges: list<array{x: int, y: int, nom: string, etat: string}>, traverse_roche: bool}
      */
     public function apercuDeplacement(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, int $x, int $y): array
     {
-        $vide = ['chemin' => [], 'cout' => 0, 'pieges' => [], 'traverse_roche' => false];
+        $vide = ['chemin' => [], 'cout' => 0, 'pieges' => [], 'traverse_roche' => false, 'enlise_sol' => false, 'bonus_courant' => 0];
 
         $base = (int) $personnage->deplacement_base + $this->equipement->bonusDeplacementActif($personnage, $quete);
         $totalTour = $etat->deplacement_tour ?? $base;
@@ -1012,6 +1026,12 @@ final class ResolveurTour
 
         if ($this->sorts->deplacementInterdit($personnage)) {
             return [...$vide, 'atteignable' => false, 'raison' => 'Impossible de bouger : tu es immobilisé.',
+                'restant' => $restant, 'restant_apres' => $restant];
+        }
+
+        if (DeplacementHeros::bloqueParSolMeuble($etat)) {
+            return [...$vide, 'atteignable' => false,
+                'raison' => 'Enlisé dans le sol meuble : le dé de déplacement de ce tour est impair, tu ne bouges pas.',
                 'restant' => $restant, 'restant_apres' => $restant];
         }
 
@@ -1038,7 +1058,9 @@ final class ResolveurTour
         // que la résolution, sinon l'aperçu annoncerait un trajet payable que le
         // choix refuserait ensuite.
         $cout = $grille->coutChemin($chemin);
-        $trop = $cout > $restant;
+        // COURANT PORTEUR (lot H des restes, 2026-10-29) : le trajet gagne ce qu'il traverse de courant porteur, pris une fois.
+        $gain = $grille->gainDuTrajet((int) $etat->position_x, (int) $etat->position_y, $chemin);
+        $trop = $cout > $restant + $gain;
 
         return [
             'atteignable' => ! $trop,
@@ -1046,7 +1068,12 @@ final class ResolveurTour
             'chemin' => array_map(fn (array $c) => ['x' => (int) $c['x'], 'y' => (int) $c['y']], $chemin),
             'cout' => $cout,
             'restant' => $restant,
-            'restant_apres' => $trop ? $restant : max(0, $restant - $cout),
+            'restant_apres' => $trop ? $restant : max(0, $restant + $gain - $cout),
+            'bonus_courant' => $gain,
+            // SOL MEUBLE (lot H des restes, 2026-10-29) : CE pas t'enlise ici (dé impair, première case de sol meuble) — la
+            // décision est prise par `FabriqueGrille`/`Grille`, pas recalculée par la manette.
+            'enlise_sol' => ! $etat->enlise_sol && DeplacementHeros::solMeubleArrete($etat)
+                && $grille->estArretSurImpair($x, $y),
             'pieges' => $this->deplacement->piegesConnusSur($quete, $chemin),
             // TRAVERSER LA PIERRE (décision de René, 2026-10-09) : le trajet
             // franchit-il de la ROCHE ? Décidé ici, sur la grille même que la
@@ -1118,6 +1145,14 @@ final class ResolveurTour
             ]);
         }
 
+        // SOL MEUBLE (lot H des restes, 2026-10-29) : enlisé, et le dé du tour IMPAIR → il ne bouge pas. Le menu ne propose
+        // déjà plus `se_deplacer` (`DeplacementHeros::destinations()` vide) : ce refus n'est que la garde du résolveur.
+        if (DeplacementHeros::bloqueParSolMeuble($etat)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Enlisé dans le sol meuble : le dé de déplacement de ce tour est impair, tu ne bouges pas.',
+            ]);
+        }
+
         // Traverser la Pierre : tant que le buff tient (ce tour), la roche et
         // les portes closes ne barrent plus le chemin de CE héros — c'est
         // `DeplacementHeros::grille()` qui le sait.
@@ -1150,8 +1185,11 @@ final class ResolveurTour
         // cases n'est plus son coût dès qu'une case pondérée s'y trouve —
         // `coutChemin()` fait la somme réelle des points qu'il consommerait.
         $distance = $grille->coutChemin($chemin);
+        // COURANT PORTEUR (lot H des restes, 2026-10-29) : un trajet qui traverse le courant porteur peut dépasser les points
+        // restants de son gain — le même calcul que l'aperçu (`apercuDeplacement()`), jamais un second.
+        $gainTrajet = $grille->gainDuTrajet((int) $etat->position_x, (int) $etat->position_y, $chemin);
 
-        if ($distance > $restant) {
+        if ($distance > $restant + $gainTrajet) {
             throw ValidationException::withMessages([
                 'parametres' => "Destination hors de portée : {$distance} points de déplacement pour {$restant} restants.",
             ]);
@@ -1308,15 +1346,48 @@ final class ResolveurTour
         // normale conservent les points restants (on pourra se redéplacer /
         // désamorcer puis continuer). Le mouvement restant sera FORFAIT à la
         // première action hors mouvement.
+        // SOL MEUBLE (`arret_sur_impair`, Spirit Queen q. 10 note B, lot H des restes, 2026-10-29) : un dé de déplacement IMPAIR
+        // arrête le héros sur la première case de sol meuble qu'il entre — `FabriqueGrille::pour()` n'a laissé aucune autre case
+        // de la salle à atteindre. L'arrivée RÉELLE décide (un piège ou une racine qui arrête avant la case n'enlise pas). Un dé
+        // PAIR libère un héros enlisé, qui marche ce tour de base + d6. `$enlisementSol` est publié, puis annoncé (`JournalCombat`).
+        $enliseSol = (bool) $etat->enlise_sol;
+        $enlisementSol = null;
+        $arretSol = ! $etat->enlise_sol
+            && DeplacementHeros::solMeubleArrete($etat)
+            && ((int) $arrivee['x'] !== $depart['x'] || (int) $arrivee['y'] !== $depart['y'])
+            && $grille->estArretSurImpair((int) $arrivee['x'], (int) $arrivee['y']);
+
+        if ($arretSol) {
+            $entreeSol = $this->terrainSur($quete, (int) $arrivee['x'], (int) $arrivee['y']) ?? [];
+            $perteSol = (int) (($entreeSol['effet']['arret_sur_impair'] ?? 1));
+            $nomSol = (string) ($entreeSol['nom'] ?? 'Sol meuble');
+
+            $retenusSol = $this->degats->infligerAHeros($personnage, $perteSol, self::SOURCE_DEGATS_TERRAIN, ['terrain' => $nomSol]);
+            $enliseSol = true;
+            $enlisementSol = ['etat' => 'enlise', 'terrain' => $nomSol, 'degats' => $retenusSol];
+
+            if ($retenusSol > 0 && (int) $personnage->fresh()->pv_body === 0) {
+                $etat->update(['tombe' => true]);
+            }
+        } elseif ($etat->enlise_sol && ! DeplacementHeros::solMeubleArrete($etat)) {
+            $enliseSol = false;
+            $enlisementSol = ['etat' => 'degage', 'terrain' => 'Sol meuble', 'degats' => 0];
+        }
+
         $couteParcouru = $grille->coutChemin($cheminParcouru);
-        $restantApres = ($arretDur || $passage !== null) ? 0 : max(0, $restant - $couteParcouru);
-        $mouvementFini = $arretDur || $restantApres <= 0;
+        // Le courant porteur NE SE PREND QUE sur le trajet réellement parcouru : un piège qui arrête avant la case ne donne rien.
+        $gainParcouru = $grille->gainDuTrajet($depart['x'], $depart['y'], $cheminParcouru);
+        // L'enlisement arrête la marche sur la case : la salle n'a rien de plus à offrir ce tour.
+        $restantApres = ($arretDur || $passage !== null || $arretSol) ? 0 : max(0, $restant + $gainParcouru - $couteParcouru);
+        $mouvementFini = $arretDur || $restantApres <= 0 || $arretSol;
 
         $etat->update([
             'position_x' => $arrivee['x'],
             'position_y' => $arrivee['y'],
             'deplacement_restant' => $restantApres,
             'a_deplace' => $mouvementFini,
+            // SOL MEUBLE (lot H des restes, 2026-10-29) : enlisé par ce pas, dégagé par un dé pair, ou inchangé.
+            'enlise_sol' => $enliseSol,
             // Chute de blocs : posé si le héros doit s'écarter (colonne, pas
             // cache — voir la migration `piege_a_ecarter`) ; sinon explicitement
             // effacé, un menu régénéré après tunnel/téléportation ne doit pas
@@ -1461,6 +1532,38 @@ final class ResolveurTour
                 if ($retenus > 0 && (int) $personnage->fresh()->pv_body === 0) {
                     $etat->update(['tombe' => true]);
                 }
+            }
+        }
+
+        // SOL MEUBLE : publié tel qu'il s'est joué (enlisé et ses PV, ou dégagé), pour que le fil le dise.
+        if ($enlisementSol !== null) {
+            $payload['enlisement_sol'] = $enlisementSol;
+        }
+
+        // COURANT PORTEUR : le gain pris sur le trajet réel, publié pour que le fil dise « +N cases » (un gain qui ne se dirait pas
+        // ferait croire à un déplacement plus long que la carte).
+        if ($gainParcouru > 0) {
+            $payload['bonus_courant'] = $gainParcouru;
+        }
+
+        // VENTS DE COULOIR (*The Tower of Air*, q. 12, lot H des restes, 2026-10-29) : un dé de combat à la FIN du mouvement sur un
+        // couloir venté. Bouclier : un choix EN ATTENTE (`vent_choix`, menu forcé). Crâne : Zargon pousse, la position publiée est
+        // alors celle de la poussée, et ses pièges et jets de terrain rejoignent ceux du mouvement.
+        $vent = $this->ventDeFinDeMouvement($groupe, $quete, $personnage, $etat, $arrivee, $depart);
+
+        if ($vent !== null) {
+            $payload['vent'] = $vent;
+
+            if (($vent['etat'] ?? null) === 'zargon') {
+                $payload['vers'] = $vent['vers'];
+            }
+
+            if (($vent['pieges'] ?? []) !== []) {
+                $payload['pieges_declenches'] = array_values([...(array) ($payload['pieges_declenches'] ?? []), ...$vent['pieges']]);
+            }
+
+            if (($vent['terrain_jets'] ?? []) !== []) {
+                $payload['terrain_jets'] = array_values([...(array) ($payload['terrain_jets'] ?? []), ...$vent['terrain_jets']]);
             }
         }
 
@@ -2075,6 +2178,13 @@ final class ResolveurTour
             : max(0, max($desArme, $desArmeContre)
                 + $bonusAttaque + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc
                 + $bonusTier + $bonusElan + $bonusCri + $desBonus + $bonusArmeExperte);
+
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : « While in the pit, the hero rolls one less combat die when attacking
+        // or defending (but never less than one die). » Le malus se lit ICI, au point de passage de TOUTE frappe du héros (attaque
+        // du menu, Furie, frappe balayée, riposte) ; `appliquerMalus()` tient le plancher d'un dé. Il précède le plafond de Frayeur.
+        $desAttaqueEffectifs = MoteurFosseLongue::appliquerMalus(
+            $desAttaqueEffectifs, MoteurFosseLongue::malusDesCombat($etat),
+        );
 
         // ⚠ Le plafond s'applique EN DERNIER, sur le total. Un malus s'ajoutait
         // à la somme et pouvait être compensé par un bonus ; un plafond, non —
@@ -5194,38 +5304,72 @@ final class ResolveurTour
         array $option,
         array $acteur,
     ): array {
-        $cible = $this->piegeCible($quete, $etat, $option);
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : le saut PAR LE BOUT a sa propre liste (`MoteurFosseLongue`) — son
+        // coût (trois cases), sa réception et sa case de chute y sont lus, jamais recalculés ici. Le dé de saut, la chute
+        // et l'annonce qui suivent sont COMMUNS aux deux sauts.
+        $longue = ($option['parametres']['saut'] ?? null) === 'long';
+        $saut = null;
+        $cout = self::COUT_FRANCHISSEMENT;
 
-        // BOTTES DE LIÈVRE : « To jump over one discovered trap per turn, roll
-        // anything but a black shield on 1 combat die. »
-        //
-        // ⚠ Deux règles dans une phrase, et il fallait les deux : la CIBLE
-        // s'élargit de « une fosse » à tout piège découvert, et le JET cesse
-        // d'être un test de Body à difficulté. N'en porter qu'une aurait donné
-        // des bottes qui ne servent presque jamais (la moitié des pièges du
-        // catalogue ne sont pas des fosses) ou qui sautent tout sans risque.
-        $bottes = $this->bottesDeSaut($personnage, $etat, $option);
+        if ($longue) {
+            $saut = MoteurFosseLongue::sautLongLegal($quete, $personnage, $etat, $option);
 
-        if ($bottes === null && ! $this->pieges->estFranchissable($cible['piege'])) {
-            throw ValidationException::withMessages([
-                'option_id' => 'Ce piège ne se saute pas : il faut le désamorcer.',
-            ]);
+            if ($saut === null) {
+                throw ValidationException::withMessages([
+                    'option_id' => 'Impossible de sauter par le bout de la fosse : il faut une fosse connue, deux cases de '
+                        .'déplacement de plus, et une case libre de l\'autre côté.',
+                ]);
+            }
+
+            $cout = (int) $saut['cout'];
+            $cible = ['x' => $saut['coule']['x'], 'y' => $saut['coule']['y'], 'index' => $saut['index'], 'piege' => Piege::find($saut['piege_id'])];
+            $bottes = null;
+        } else {
+            $cible = $this->piegeCible($quete, $etat, $option);
+
+            // BOTTES DE LIÈVRE : « To jump over one discovered trap per turn, roll
+            // anything but a black shield on 1 combat die. »
+            //
+            // ⚠ Deux règles dans une phrase, et il fallait les deux : la CIBLE
+            // s'élargit de « une fosse » à tout piège découvert, et le JET cesse
+            // d'être un test de Body à difficulté. N'en porter qu'une aurait donné
+            // des bottes qui ne servent presque jamais (la moitié des pièges du
+            // catalogue ne sont pas des fosses) ou qui sautent tout sans risque.
+            $bottes = $this->bottesDeSaut($personnage, $etat, $option);
+
+            if ($bottes === null && ! $this->pieges->estFranchissable($cible['piege'])) {
+                throw ValidationException::withMessages([
+                    'option_id' => 'Ce piège ne se saute pas : il faut le désamorcer.',
+                ]);
+            }
+
+            // Un saut ordinaire qui atterrirait sur une AUTRE case de la même fosse longue n'est pas un saut au-dessus d'UN
+            // piège : c'est le saut par le bout, et il se prend par le bout (`MoteurFosseLongue::sautCourtAtterritSurLaFosse()`).
+            if (MoteurFosseLongue::sautCourtAtterritSurLaFosse($quete->carte, $cible['x'], $cible['y'], (int) $etat->position_x, (int) $etat->position_y)) {
+                throw ValidationException::withMessages([
+                    'option_id' => 'Ce saut atterrirait dans la même fosse : il faut la prendre par le bout.',
+                ]);
+            }
         }
 
         // Sauter FAIT PARTIE DU MOUVEMENT (E3) : le saut se paie sur les points
-        // de déplacement restants du tour (héros → fosse → réception = 2 cases).
+        // de déplacement restants du tour (héros → fosse → réception = 2 cases ;
+        // le saut par le bout, deux cases de fosse + la réception = 3).
         $totalTour = (int) ($etat->deplacement_tour ?? $personnage->deplacement_base);
         ['restant' => $restant] = $this->pointsDeplacement($personnage, $etat, $totalTour);
 
-        if ($restant < self::COUT_FRANCHISSEMENT) {
+        if ($restant < $cout) {
             throw ValidationException::withMessages([
-                'option_id' => 'Pas assez de déplacement restant pour sauter par-dessus le piège.',
+                'option_id' => $longue
+                    ? "Pas assez de déplacement restant pour sauter par le bout de la fosse ({$cout} cases)."
+                    : 'Pas assez de déplacement restant pour sauter par-dessus le piège.',
             ]);
         }
 
         // Case de réception : le prolongement de l'élan, de l'autre côté de
-        // la fosse (héros → fosse → réception, alignés).
-        $arrivee = [
+        // la fosse (héros → fosse → réception, alignés) ; pour le saut par le
+        // bout, celle que la liste a déjà vérifiée.
+        $arrivee = $longue ? $saut['vers'] : [
             'x' => 2 * $cible['x'] - (int) $etat->position_x,
             'y' => 2 * $cible['y'] - (int) $etat->position_y,
         ];
@@ -5270,6 +5414,23 @@ final class ResolveurTour
                 'succes' => $franchi,
                 'franchi' => $franchi,
             ];
+        } elseif ($longue) {
+            // FOSSE LONGUE (p. 6) : « The hero then rolls one combat die. A black shield means the hero has jumped across
+            // safely » — le MÊME dé et la même face que le saut des sables (`MoteurSables::resoudreSaut()`), la face étant
+            // celle du catalogue (`saut_long.face`). Jamais un jet de Body : le petit côté, lui, reste le saut ordinaire.
+            $requise = FaceDeCombat::tryFrom((string) $saut['face'])
+                ?? throw new \LogicException('Une fosse longue doit déclarer saut_long.face (une face de FaceDeCombat).');
+            $face = $this->des->desCombat(1)[0];
+            $franchi = $face === $requise;
+
+            $payload += [
+                'saut' => 'long',
+                'face_requise' => $requise->value,
+                'des_lances' => 1,
+                'faces' => [$face->value],
+                'succes' => $franchi,
+                'franchi' => $franchi,
+            ];
         } else {
             $difficulteSaut = DifficulteBody::plafonnee($quete, self::DIFFICULTE_FRANCHISSEMENT);
 
@@ -5302,9 +5463,9 @@ final class ResolveurTour
         }
 
         if ($franchi) {
-            // Saut réussi : on paie les 2 cases ; s'il reste des points, le héros
+            // Saut réussi : on paie les cases du saut (2, ou 3 par le bout) ; s'il reste des points, le héros
             // peut CONTINUER son mouvement après avoir sauté (E1/E3).
-            $restantApres = max(0, $restant - self::COUT_FRANCHISSEMENT);
+            $restantApres = max(0, $restant - $cout);
 
             $etat->update([
                 'position_x' => $arrivee['x'],
@@ -5347,7 +5508,7 @@ final class ResolveurTour
             // dégât, ni tour clos. Il garde ce qui lui restait de déplacement,
             // moins le saut déjà payé.
             if (($declenchement['type'] ?? null) === 'piege_esquive') {
-                $restantApres = max(0, $restant - self::COUT_FRANCHISSEMENT);
+                $restantApres = max(0, $restant - $cout);
 
                 $etat->update(['deplacement_restant' => $restantApres, 'a_deplace' => $restantApres <= 0]);
                 $payload['deplacement_restant'] = $restantApres;
@@ -5509,6 +5670,197 @@ final class ResolveurTour
             'bloc' => (array) ($option['parametres']['bloc'] ?? []),
             'vers' => ['x' => $x, 'y' => $y],
             'sens' => (string) ($choisie['sens'] ?? ''),
+        ];
+
+        Journal::ajouter($groupe, 'jet', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * VENTS DE COULOIR (*Spirit Queen's Torment* q. 12 « The Tower of Air », livret G0053 p. 15 ; lot H des restes, 2026-10-29) :
+     * un héros qui TERMINE son mouvement sur un couloir venté lance UN dé de combat. Bouclier (blanc ou noir) : il choisit la
+     * direction de sa poussée de 2 cases (`pousse_heros`, un CHOIX EN ATTENTE : `etat.vent_choix`). Crâne : Zargon la choisit
+     * (`pousse_zargon`, déterministe, `MoteurVents::directionDeZargon()`) et la poussée est immédiate. Le dé se lit dans `sur` de la
+     * tuile, jamais un nom de face en dur. Un seul dé par déplacement : la poussée n'enchaîne pas un second dé, même sur un autre vent.
+     * Le monstre ne lance rien : « when a HERO ends their movement ».
+     *
+     * Retourne la trace publiée (`payload['vent']`), ou null si la case n'est pas un vent.
+     *
+     * @param  array{x: int, y: int}  $arrivee
+     * @param  array{x: int, y: int}  $depart
+     * @return array<string, mixed>|null
+     */
+    private function ventDeFinDeMouvement(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $arrivee, array $depart): ?array
+    {
+        if ((int) $arrivee['x'] === (int) $depart['x'] && (int) $arrivee['y'] === (int) $depart['y']) {
+            return null; // rien n'a été parcouru : on ne termine pas un mouvement
+        }
+
+        if ($etat->tombe) {
+            return null; // un héros à terre (un piège du trajet l'a abattu) ne choisit ni ne subit plus de poussée
+        }
+
+        $entree = $this->terrainSur($quete, (int) $arrivee['x'], (int) $arrivee['y']);
+        $sur = (array) ($entree['effet']['sur'] ?? []);
+
+        $casesHeros = (int) ($sur['bouclier_blanc']['pousse_heros'] ?? $sur['bouclier_noir']['pousse_heros'] ?? 0);
+        $casesZargon = (int) ($sur['crane']['pousse_zargon'] ?? 0);
+
+        if ($casesHeros < 1 && $casesZargon < 1) {
+            return null; // pas un vent : une case de sol, ou une tuile d'un autre registre
+        }
+
+        $face = match ($this->des->deCombat()) {
+            FaceDeCombat::BouclierBlanc => 'bouclier_blanc',
+            FaceDeCombat::BouclierNoir => 'bouclier_noir',
+            default => 'crane',
+        };
+
+        $vers = ['x' => (int) $arrivee['x'], 'y' => (int) $arrivee['y']];
+        $grille = $this->deplacement->grille($quete, $personnage);
+        $vents = app(MoteurVents::class);
+
+        // BOUCLIER : le héros choisit. La liste blanche est décidée ICI, au dé, et revalidée au choix.
+        if ($face !== 'crane') {
+            $directions = $vents->directions($grille, $vers['x'], $vers['y'], $casesHeros);
+
+            if ($directions === []) {
+                return ['face' => 'bouclier', 'etat' => 'sans_effet', 'vers' => $vers];
+            }
+
+            $etat->update(['vent_choix' => ['x' => $vers['x'], 'y' => $vers['y'], 'cases' => $casesHeros, 'directions' => $directions]]);
+
+            return ['face' => 'bouclier', 'etat' => 'choix', 'cases' => $casesHeros, 'directions' => $directions, 'vers' => $vers];
+        }
+
+        // CRÂNE : Zargon choisit, sur les seuls monstres VIVANTS (actifs et posés sur la carte).
+        $monstres = $quete->instancesMonstres()->where('etat', 'actif')->whereNotNull('position_x')->get()
+            ->map(fn ($instance) => ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y])
+            ->values()->all();
+
+        $direction = $vents->directionDeZargon($grille, $vers['x'], $vers['y'], $casesZargon, $monstres);
+
+        if ($direction === null) {
+            return ['face' => 'crane', 'etat' => 'sans_effet', 'vers' => $vers];
+        }
+
+        $poussee = $this->pousserDuVent($groupe, $quete, $personnage, $etat, $vers, $direction, $casesZargon);
+
+        return [
+            'face' => 'crane',
+            'etat' => 'zargon',
+            'direction' => $direction,
+            'cases' => $casesZargon,
+            'depart' => $vers,
+            'vers' => $poussee['vers'],
+            'pieges' => $poussee['pieges'],
+            'degats' => $poussee['degats'],
+            'terrain_jets' => $poussee['jets'],
+        ];
+    }
+
+    /**
+     * LA POUSSÉE, appliquée une fois (VENTS DE COULOIR, lot H des restes) : la géométrie vient de `MoteurVents::poussee()`, les
+     * règles des cases traversées sont les NÔTRES — un piège se déclenche au pas (`controlerChemin()`), une rivière ou un
+     * brasier blesse (`saignerSurRiviere()`). Glace, sol meuble et courant ne s'appliquent PAS à une poussée : ils règlent une
+     * MARCHE (un dé de déplacement, une glissière, un budget). Écart nommé dans `docs/regles/carte-donjon.md`.
+     *
+     * @param  array{x: int, y: int}  $depart
+     * @return array{vers: array{x: int, y: int}, pieges: list<array<string, mixed>>, degats: int, jets: list<array<string, mixed>>}
+     */
+    private function pousserDuVent(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $depart, string $direction, int $cases): array
+    {
+        $grille = $this->deplacement->grille($quete, $personnage);
+        $poussee = app(MoteurVents::class)->poussee($grille, (int) $depart['x'], (int) $depart['y'], $direction, $cases);
+
+        if ($poussee === null) {
+            return ['vers' => $depart, 'pieges' => [], 'degats' => 0, 'jets' => []];
+        }
+
+        // Les pièges de la trajectoire : la règle existante, au pas (`MoteurPieges::controlerChemin()`).
+        $controle = $this->pieges->controlerChemin($groupe, $quete->carte, $personnage, $etat, $poussee['pas'], $depart);
+        $arret = $controle['arret'] ?? null;
+
+        $parcouru = $poussee['pas'];
+        $vers = $poussee['fin'];
+
+        if ($arret !== null) {
+            $index = null;
+            foreach ($parcouru as $i => $case) {
+                if ((int) $case['x'] === (int) $arret['x'] && (int) $case['y'] === (int) $arret['y']) {
+                    $index = $i;
+                    break;
+                }
+            }
+            $parcouru = $index === null ? $parcouru : array_slice($parcouru, 0, $index + 1);
+            $vers = ['x' => (int) $arret['x'], 'y' => (int) $arret['y']];
+        }
+
+        if (($controle['attente_ecart'] ?? null) !== null) {
+            $etat->update(['piege_a_ecarter' => $controle['attente_ecart']]);
+        }
+
+        // Rivière, brasier : la même lecture que la marche (un jet par case, un crâne fait mal).
+        ['degats' => $degatsTerrain, 'jets' => $jets] = $this->saignerSurRiviere($quete, $parcouru, $personnage);
+        $retenus = 0;
+
+        if ($degatsTerrain > 0) {
+            $nomTerrain = (string) ($jets[array_key_first(array_filter($jets, fn (array $j) => $j['degats'] > 0))]['terrain'] ?? 'Terrain');
+            $retenus = $this->degats->infligerAHeros($personnage, $degatsTerrain, self::SOURCE_DEGATS_TERRAIN, ['terrain' => $nomTerrain]);
+        }
+
+        $etat->update(['position_x' => $vers['x'], 'position_y' => $vers['y']]);
+
+        if ($retenus > 0 && (int) $personnage->fresh()->pv_body === 0) {
+            $etat->update(['tombe' => true]);
+        }
+
+        return ['vers' => $vers, 'pieges' => (array) ($controle['declenchements'] ?? []), 'degats' => $retenus, 'jets' => $jets];
+    }
+
+    /**
+     * LE CHOIX DU HÉROS après un bouclier (VENTS DE COULOIR, lot H des restes) : l'option `pousser_vent` du menu forcé. La
+     * direction est revalidée deux fois — contre la liste BLANCHE décidée au dé (`etat.vent_choix`) et contre la géométrie
+     * de maintenant : une case occupée entre-temps n'est jamais une poussée.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudrePousserVent(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $parametres, array $acteur): array
+    {
+        $vent = (array) $etat->vent_choix;
+
+        if ($vent === []) {
+            throw ValidationException::withMessages(['parametres' => 'Aucun vent ne te pousse en ce moment.']);
+        }
+
+        $direction = (string) ($parametres['direction'] ?? '');
+        $cases = (int) ($vent['cases'] ?? 0);
+
+        if (! in_array($direction, (array) ($vent['directions'] ?? []), true)
+            || ! in_array($direction, app(MoteurVents::class)->directions($this->deplacement->grille($quete, $personnage), (int) $vent['x'], (int) $vent['y'], $cases), true)) {
+            throw ValidationException::withMessages(['parametres' => 'Cette direction ne fait pas partie de celles où le vent peut te pousser.']);
+        }
+
+        $depart = ['x' => (int) $vent['x'], 'y' => (int) $vent['y']];
+        $etat->update(['vent_choix' => null]);
+
+        $poussee = $this->pousserDuVent($groupe, $quete, $personnage, $etat, $depart, $direction, $cases);
+
+        $payload = [
+            'type' => 'pousser_vent',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'direction' => $direction,
+            'cases' => $cases,
+            'depart' => $depart,
+            'vers' => $poussee['vers'],
+            'pieges_declenches' => $poussee['pieges'],
+            'degats' => $poussee['degats'],
+            'terrain_jets' => $poussee['jets'],
         ];
 
         Journal::ajouter($groupe, 'jet', $payload, $acteur);
@@ -5802,11 +6154,15 @@ final class ResolveurTour
 
         // Consommé dans TOUS les cas (S1) — échec = parchemin gaspillé. Un seul
         // point de passage pour cette règle : la relance de Vision du futur s'en sert aussi.
-        $this->sorts->consommerParchemin($ligne);
+        // ⚠ Journalisé AVANT : un parchemin à plusieurs usages qui s'effrite à sa dernière
+        // lecture écrit « … est épuisé et se brise » (`MoteurCharges`) — après la lecture,
+        // pas avant (2026-10-29).
         $payload['consomme'] = true;
         $payload['gaspille'] = ! $reussi;
 
         Journal::ajouter($groupe, $reussi && $sort->type === 'degats' ? 'combat' : 'action', $payload, $acteur);
+
+        $this->sorts->consommerParchemin($ligne);
 
         return $payload;
     }
@@ -8328,7 +8684,7 @@ final class ResolveurTour
         $verrou = (array) ($cible['porte']['verrou'] ?? []);
 
         if (! $aMain
-            && (($verrou['type'] ?? null) !== 'cle' || ! $this->portes->possedeCle($personnage, $verrou))) {
+            && (! in_array($verrou['type'] ?? null, MoteurPortes::VERROUS_A_CLE, true) || ! $this->portes->possedeCle($personnage, $verrou))) {
             throw ValidationException::withMessages(['option_id' => 'La clé requise est absente de l\'inventaire.']);
         }
 
@@ -8438,25 +8794,37 @@ final class ResolveurTour
      * PORTE À CONDITION (Kellar's Keep, F4543 p. 19 note A, p. 25 note D) : le héros au contact lance DEUX dés rouges (UN seul
      * pour le Nain quand la condition le dit), et la porte s'ouvre si le total remplit la condition du verrou — lue SUR LA
      * PORTE (`MoteurPortes::franchit()`, `valeurDeComparaison()`, `desPourHeros()`), jamais dans une table. Ouvrir est une
-     * interaction libre ; un jet raté ferme le tour (`$finTourPorteCondition`), « their turn ends ».
+     * interaction libre ; un jet raté ferme le tour (`$finTourPorteForcee`), « their turn ends ».
      *
      * @param  array<string, mixed>  $option
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
-    private function resoudreForcerPorteCondition(
+    private function resoudreForcerPorte(
         Groupe $groupe,
         Quete $quete,
         Personnage $personnage,
         EtatPersonnageQuete $etat,
         array $option,
         array $acteur,
+        string $verrou,
     ): array {
-        $cible = $quete->carte === null ? null : $this->porteDesignee($option,
-            $this->portes->portesConditionAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y));
+        // UN geste pour la porte à condition ET la grille de fer (`$verrou` = `MoteurPortes::VERROU_*`) : seules changent la liste
+        // des portes offertes et la cause journalisée. Le jet, la comparaison et la fin de tour ne se copient pas.
+        $grille = $verrou === MoteurPortes::VERROU_GRILLE;
+        $cible = null;
+
+        if ($quete->carte !== null) {
+            $adjacentes = $grille
+                ? $this->portes->portesGrilleAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y)
+                : $this->portes->portesConditionAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y);
+            $cible = $this->porteDesignee($option, $adjacentes);
+        }
 
         if ($cible === null) {
-            throw ValidationException::withMessages(['option_id' => 'Aucune porte à condition adjacente à forcer.']);
+            throw ValidationException::withMessages(['option_id' => $grille
+                ? 'Aucune grille de fer adjacente à forcer.'
+                : 'Aucune porte à condition adjacente à forcer.']);
         }
 
         $x = (int) $cible['porte']['x'];
@@ -8476,14 +8844,14 @@ final class ResolveurTour
         $reussi = MoteurPortes::franchit($verrou, $total, $valeur);
 
         if ($reussi) {
-            $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], 'porte_condition', $acteur);
+            $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], $grille ? 'force_grille' : 'porte_condition', $acteur);
 
             // Comme toute ouverture de porte : la salle derrière se révèle, jamais en attendant qu'un héros y entre.
             foreach ($this->sallesAdjacentesPorte($quete, $cible['porte']) as $salleAdjacente) {
                 $this->revelerSalle($groupe, $quete, $salleAdjacente, $personnage);
             }
         } else {
-            $this->finTourPorteCondition = true;
+            $this->finTourPorteForcee = true;
         }
 
         $payload = [
@@ -8499,6 +8867,11 @@ final class ResolveurTour
             'total' => $total,
             'reussi' => $reussi,
         ];
+
+        // La grille de fer dit son propre geste (`forcer_grille`) : même payload, type distinct — le menu, le fil et la manette le lisent.
+        if ($grille) {
+            $payload = ['type' => 'forcer_grille'] + $payload;
+        }
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
@@ -10180,7 +10553,8 @@ final class ResolveurTour
         // FLAIR DU PISTEUR (lot B) : un résultat négatif de la table se refait ici aussi, au même point de tirage.
         [$carte, $ecartee] = $this->piocherAvecFlair(
             $personnage, $etat,
-            fn (): array => $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles),
+            // Boîtes du thème du groupe (2026-10-29) : une pièce boîtée hors thème ne sort jamais de cette table.
+            fn (): array => $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles, BestiaireGroupe::duGroupe($groupe)->boites),
         );
 
         if ($ecartee !== null) {
@@ -10188,6 +10562,18 @@ final class ResolveurTour
         }
 
         $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat, duDeck: false);
+
+        // CLÉ DE LAITON (Mage of the Mirror, F7539 quête 7 note C : « The first hero to search for treasure in this room finds a
+        // tool kit in the weapons rack. […] This hero also finds a brass key. ») : le PREMIER qui fouille le râtelier qui la porte
+        // reçoit la clé EN PLUS de sa table, sans tirage. `$premierAuMeuble` est lu avant `marquerFouille()` : le râtelier ne la
+        // rend plus jamais. Même patron que la caisse de ravitaillement, plus haut. Sous sa propre clé — `appliquerButin()` a déjà
+        // rempli `objet` avec le butin de la table.
+        $objetFixe = (string) ($meuble['entree']['objet_fixe'] ?? '');
+        $objetFixeId = $objetFixe !== '' && $premierAuMeuble ? (int) (Objet::where('nom', $objetFixe)->value('id') ?? 0) : 0;
+
+        if ($objetFixeId > 0) {
+            $payload['cle_de_laiton'] = $this->remettreButin(['objet_id' => $objetFixeId], $personnage, 'objet');
+        }
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
@@ -11152,11 +11538,18 @@ final class ResolveurTour
      *
      * ⚠ Le talent « Œil du prix » n'entre PAS ici : il ne décale que le butin du
      * MOBILIER que son porteur fouille (`resoudreFouilleMobilier()`), jamais une épreuve.
+     *
+     * ⚠ Un parchemin BOÎTÉ ne sort que sous son thème (les parchemins modifiés de
+     * Prophecy of Telor, 2026-10-29) : même prédicat que l'étal et les artefacts
+     * (`DeckFouille::choisirArtefact()`), `boite = null` reste tirable partout.
      */
     private function epreuveParchemin(Quete $quete, Personnage $personnage): array
     {
+        $boites = BestiaireGroupe::duGroupe($quete->groupe)->boites;
+
         $objet = TirageButin::objetSelonRarete(
-            Objet::query()->where('categorie', 'parchemin')->where('rarete', '!=', 'unique'),
+            Objet::query()->where('categorie', 'parchemin')->where('rarete', '!=', 'unique')
+                ->where(fn ($q) => $q->whereNull('boite')->orWhereIn('boite', $boites)),
             $this->niveauMoyenDuButin($this->herosEngages($quete)),
         );
 
@@ -11299,6 +11692,7 @@ final class ResolveurTour
 
         $carte = $this->mobilier->tirerButin(
             $type, $niveauMoyen, $this->equipement->tagsAccessiblesAux($herosEngages),
+            BestiaireGroupe::duGroupe($groupe)->boites,
         );
 
         // ⚠ Le butin est NICHÉ sous `butin`, jamais fusionné à plat : le payload
@@ -12392,6 +12786,9 @@ final class ResolveurTour
         // Les alliés APPELÉS (Raptor du Fangwarden Armlet) ne survivent à aucune
         // quête, échouée ou non.
         app(AlliesInvoques::class)->purger($groupe);
+
+        // OBJETS DE QUÊTE (F2 du plan restes, 2026-10-29) : la clé de laiton quitte le sac à la fin de la quête, échec compris.
+        $this->equipement->purgerObjetsDeQuete($groupe);
 
         GroupeMercenaire::where('groupe_id', $groupe->id)
             ->where(function ($q) {
@@ -14322,7 +14719,8 @@ final class ResolveurTour
     {
         return match ($type) {
             // `saut_sables` : franchir les sables mouvants fait partie du MOUVEMENT, comme sauter une fosse.
-            'deplacement', 'franchissement', 'saut_sables' => 'mouvement',
+            // `sortie_fosse` : se hisser hors du trou EST le déplacement du tour (Fosse longue, p. 6).
+            'deplacement', 'franchissement', 'saut_sables', 'sortie_fosse' => 'mouvement',
             // Ouvrir une porte / actionner un levier = interaction LIBRE (E2) :
             // ne consomme ni le déplacement ni l'action — on s'arrête devant la
             // porte, on l'ouvre, puis on continue son mouvement s'il reste des points.
@@ -14371,8 +14769,10 @@ final class ResolveurTour
             // `tunnelier` et `fouille_tresor_cache` ne sont PAS listés : ils retombent sur `action`, comme le sort
             // qu'ils reprennent et la fouille qu'ils remplacent.
             // `forcer_porte_condition` (Kellar's Keep, 2026-10-23) : ouvrir une porte à condition est GRATUIT, comme
-            // `ouvrir_porte` ; c'est un jet RATÉ qui ferme le tour, par `$finTourPorteCondition`, pas le type.
-            'desarmer_embrasement', 'liberer_captif', 'defausse_sables', 'memoire_parfaite', 'forcer_porte_condition' => 'interaction',
+            // `ouvrir_porte` ; c'est un jet RATÉ qui ferme le tour, par `$finTourPorteForcee`, pas le type.
+            'desarmer_embrasement', 'liberer_captif', 'defausse_sables', 'memoire_parfaite', 'forcer_porte_condition', 'forcer_grille' => 'interaction',
+            // Pousser par le vent (lot H des restes) : la suite du mouvement, pas une action — elle ne consomme aucun créneau.
+            'pousser_vent' => 'interaction',
             // `s_ecarter_du_bloc` REJOINT cette liste le 2026-09-24 : le seul
             // choix qu'un héros debout sur un bloc de pierre tombé peut encore
             // faire, et le livret dit que ce choix FERME son tour (p. 14) —
@@ -15068,6 +15468,10 @@ final class ResolveurTour
         // dormants (« completes two quests without its assistance »).
         app(AlliesInvoques::class)->purger($groupe);
         $objetsReveilles = app(AlliesInvoques::class)->terminerQuete($groupe, $quete);
+
+        // OBJETS DE QUÊTE (F2 du plan restes, 2026-10-29) : la clé de laiton ne sert qu'à la grille de cette carte, elle quitte le
+        // sac à la fin de la quête, victoire ou retrait (`MotsClesEquipement::OBJET_DE_QUETE`, un seul lecteur : Equipement).
+        $this->equipement->purgerObjetsDeQuete($groupe);
 
         // ENTRETIEN des mercenaires survivants (même chantier, décision de
         // René : « 10 po par mercenaire et par quête, pour TOUS les groupes »)

@@ -86,6 +86,7 @@ proposition du MJ. » quand ce n'est pas son tour.
             "escalier": {"x": 2, "y": 2, "l": 2, "h": 2, "symbole_url": "/images/livrets/escalier/escalier.webp|null"},
             "portes": [{"x": 4, "y": 3, "cote": "e|s", "etat": "fermee|ouverte|verrouillee|secrete",
                         "embrasure": {"x": 5, "y": 3}, "verrou": "cle|monstres_vaincus|levier",
+                        "habillage": "miroir|null",
                         "symbole_url": "/images/livrets/portes/fermee.webp|null", "symbole_rotation": "0|90"}]},
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
@@ -95,7 +96,7 @@ proposition du MJ. » quand ce n'est pas son tour.
      "...": "ou null — mode ESCORTÉ de la mission « secourir », voir ci-dessous"},
     {"type": "monstre", "id": 9, "nom": "<habillage IA ou nom_base>", "nom_base": "<type catalogue>", "x": 5, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "etat": "actif", "symbole_url": "/images/livrets/monstres/<cle>.webp|null",
-     "symbole_forme": "ovale|rond|null", "symbole_rotation": "0|90"},
+     "symbole_forme": "ovale|tuile|rond|null", "symbole_rotation": "0|90"},
     {"type": "captif", "id": 3, "nom": "Gothar", "x": 7, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "image_url": "/images/..."}
   ],
@@ -512,7 +513,7 @@ options claires » (doc 13 §3.1). C'est la leçon du ciblage, un cran plus haut
 |---|---|---|
 | `lancer_sort` (`type: sort`) | `parametres.sorts[]` | `{cle, sort_id, nom, element, sort_type, disponible, description, cibles?, mode?, porte?, case?}` — **`description`** (2026-10-09) : ce que le sort FAIT, tiré du catalogue (`sorts.description`) et décidé par le serveur, sur CHAQUE entrée — la manette l'affiche sans rien recomposer (verdict Morcar § 5 : Voile de Brume n'était décrit nulle part) |
 | `lancer_sort_dread` (`type: lancer_sort_dread`, **2026-10-29**, Talisman du Savoir maudit) | `parametres.sorts[]` | `{cle: "sort_dread:{nom}", nom, zone: "rayon"\|"salle", cibles: [{instance_id, nom}]}` — offert AU PORTEUR d'un objet portant `sorts_dread_porteur`, en action ; ne sont listés que les sorts **encore jouables** (une fois par quête, `capacites_utilisees` `sort_dread_porteur:{nom}`) et qui ont une cible légale (`SortsDreadPorteur::entrees()`). **Rayon** (`zone: rayon`, Éclair de Chaos) : `cibles` = les figures alignées sur une des huit directions, jusqu'au mur ou à la porte close ; le choix envoie `parametres.cible_id` (liste blanche revalidée) et le serveur en tire la direction. **Salle** (`zone: salle`, Tempête de feu) : `cibles: []` — rien à désigner, la salle entière, et l'option se joue sans troisième niveau. Jamais offert en couloir (`hors_couloir`) ni à une figure immunisée aux sorts. Le libellé du menu : « Lancer un sort de Dread » (icône `auto_fix_high`). **Résultat** : `{type: "sort_dread_porteur", option_id, sort, zone, personnage, personnage_id, touches: [{type: "monstre", instance_id, nom, degats, vaincu, changement_phase, reaction_monstre, reddition_monstre} \| {…, immunise: true}], mind_gagne, pv_mind}` — +1 PV de Mind au lancer, plafonné au maximum du porteur (`mind_gagne` dit le gain réel, `0` si le porteur est déjà au plafond) ; journalisé en `combat`, fil (`JournalCombat::TYPES`) et scène `genre: "sort"` de la table. |
-| `lire_parchemin` (`type: parchemin`) | `parametres.parchemins[]` | idem + `inventaire_id` (et `description`, idem) ; un parchemin de sort à emplacement (mur, Clairvoyance, voile) porte les MÊMES entrées que le sort connu, `mode` et `cases`/`salle` compris (2026-10-08) |
+| `lire_parchemin` (`type: parchemin`) | `parametres.parchemins[]` | idem + `inventaire_id` (et `description`, idem) ; un parchemin de sort à emplacement (mur, Clairvoyance, voile) porte les MÊMES entrées que le sort connu, `mode` et `cases`/`salle` compris (2026-10-08) ; un parchemin **à plusieurs usages** (`effet.charges`, Prophecy of Telor, 2026-10-29) suffixe son `nom` de « (N usages restants) » — décidé par le serveur, le reste de CET exemplaire (`MoteurCharges::restantes()`) ; chaque lecture dépense une charge, réussie ou non, et le résultat porte `charges_depensees` comme tout objet à charges |
 | `utiliser_objet` (`type: objet_libre`) | `parametres.objets[]` | `{cle, inventaire_id, nom, detail, cout: gratuit\|action, quantite, cibles?}` |
 | `se_concentrer` · `sacrifier_pour_sort` | `parametres.sorts[]` | `{cle, sort_id, nom, …}` |
 
@@ -2490,6 +2491,8 @@ Le client **ne compose aucune URL** : il dessine la `symbole_url` reçue sur la 
 
 **Jeton OVALE (chantier jetons phase 3, 2026-10-29).** Deux champs, **toujours présents** sur chaque figure de monstre, décidés par le serveur (`EtatGroupe::symboleDeMonstre()`) : `symbole_forme` (`"ovale"` | `"rond"` | `null`) et `symbole_rotation` (`0` | `90`). `ovale` quand le livret dessine le jeton en ovale 2:1 — une figure 1×2 (`config/symboles_monstres.php`, `ovales`, par NOM DE CATALOGUE) ; `rond` pour les autres jetons ; `null` sans fichier, comme `symbole_url`. `symbole_rotation` vaut `90` quand un jeton `ovale` est posé sur une emprise VERTICALE (`h > l`), car le fichier est horizontal ; `0` sinon, et toujours `0` pour un jeton rond. Le client dessine un jeton `ovale` qui couvre 85 % de son emprise dans chaque sens, sur ses deux cases (anneau de la famille par-dessus), tourné de `symbole_rotation` comme un meuble (`SymboleCarte`) ; il ne décide jamais de la forme ni de la rotation. Un jeton `rond` garde le gabarit rond (70 % de la case, centré), y compris sur une figure 1×2.
 
+**Jeton TUILE (2026-10-29, plan des restes lot D).** `symbole_forme` vaut `"tuile"` pour une figure que le livret représente par une **tuile** et non par une tête dans un anneau : le *Spawnling* de Delthrak (`Rejeton putride`, F9907 PDF 7, une case, fichier carré) et le **Golem Cœur-de-Forge** (F9907 PDF 12, **deux cases**, fichier 2:1 — son emprise est passée à 1×2, René 2026-10-29). Décidé par `config('symboles_monstres.tuiles')`, lu par `BibliothequeImages::formeSymboleMonstre()`. `symbole_rotation` suit la règle de l'ovale : `90` pour une tuile de deux cases posée debout, `0` sinon. Le client pose une tuile de deux cases comme un ovale (sur ses deux cases) et n'arrondit que ses coins (`.jeton-tuile`). Sans fichier, `symbole_forme` vaut `null` comme pour les autres formes.
+
 **Le bouton « i »** ouvre la légende sur les deux écrans (coin de la carte à la
 table, en-tête de la feuille de déplacement sur la manette). Elle ne liste que ce
 qui est **sur cette carte** : une légende qui décrit sept pièges quand la salle en
@@ -2698,6 +2701,7 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
   plus AUCUNE entrée pour ce cas, il n'y a plus rien à comparer — la porte
   secrète non trouvée est rigoureusement indiscernable d'un mur, y compris en
   comptant les entrées.
+- **MIROIR — l'habillage du passage secret** (The Mage of the Mirror, F7539 PDF 3, René 2026-10-29) : `carte.portes[].habillage` (`"miroir"|null`, **toujours présent**). Sous le thème `mage_du_miroir`, `AssembleurCarte` le pose sur toute porte secrète à sa création, et la carte le garde : le serveur le lit sur la PORTE, jamais sur le thème. Aucune règle neuve — il se trouve, s'ouvre et se franchit comme tout passage secret, et n'est publié qu'une fois révélé, comme lui. Le menu dit « Ouvrir le miroir » au lieu de « Ouvrir la porte » (même option `ouvrir_porte`). `symbole_url` d'un miroir non ouvert cherche `portes/miroir.webp` et ne prête JAMAIS le dessin de la porte fermée : les cartes du livret ne le dessinent pas (elles écrivent « MIR », F7539 PDF 17), donc il vaut `null` et le client peint une teinte d'argent (`DungeonGrid`, ligne dédiée de la légende). Ouvert, c'est un passage ouvert ordinaire.
 - Une fois la fouille réussie, `MoteurPortes::revelerSecretes()` passe l'entrée à
   `{etat: "fermee", revele: true}` — **pas** `"ouverte"` (arbitrage de René,
   2026-09-11 : « un passage secret trouvé devrait l'afficher comme une porte
@@ -2822,7 +2826,17 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
       (« Flèche cachée » / « Trou peu profond »), `degats` (ce qui a été réellement
       perdu) et `fin_de_tour: true` ;
     - piège **nommé** (un meuble : aiguille du tombeau, fiole de l'établi) ou
-      « Piège de coffre » : effet du catalogue, d6 (1 PV ou Empoisonné).
+      « Piège de coffre » : effet du catalogue, d6 (1 PV ou Empoisonné) ;
+    - **piège porteur d'un sort de Dread** (`effet.sort_dread` — « Piège de Boule de Flammes »,
+      Spirit Queen's Torment, boîte `spirit_queen`) : le sort du CATALOGUE est lancé sur le fouilleur,
+      au point de passage de tout sort de Dread (défenses, dés rouges, `MoteurDegats`). Le payload
+      `piege_declenche` porte `sort_dread: {type: "sort_dread", sort, lanceur: {nom: "Le piège"},
+      resultats: [...]}` — une victime, avec `degats`, `pv_body_apres`, `cible_tombee`, `des_rouges`
+      et `degats_bruts`, ou `absorbe: true` ; `degats` reprend la perte RÉELLE, et `fin_de_tour: true`.
+      Aucun `lanceur_id` : le Bâton Ancien ne renvoie rien à un piège, et ne le propose donc pas.
+  - Une table de meuble (`effet.fouille`) ne retient, à chaque fouille, que les pièces admises par le
+    thème du groupe : un piège (`pieges.boite`) ou un objet (`objets.boite`) d'une autre boîte n'y
+    entre jamais, et les autres entrées gardent leur poids.
 
   - `rien`.
 
@@ -4525,6 +4539,38 @@ table en tirent un badge. Il survit au round et au snapshot (`Sauvegarde`).
 
 Les trois types sont dans `JournalCombat::TYPES` (le fil dit le saut, l'abandon, la sortie).
 
+## The Mage of the Mirror — la fosse longue (livret F7539 p. 6, 2026-10-29, lot G)
+
+Source : « Long Pit Trap », relue au livret — le saut par le bout (`at least three squares of movement left`,
+un dé de combat, bouclier noir), la chute (2 PV de Body), la sortie « on a subsequent turn… a 5 or 6 on a red die »,
+le malus « one less combat die when attacking or defending (but never less than one die) ». Mesure : deux cases.
+
+- **Carte** : `cartes.grille.pieges[]` porte DEUX entrées `{x, y, piege_id, etat, groupe_id}`, liées par
+  `groupe_id` (`fosse-longue-1`). Pas de champ publié nouveau : chaque case se publie comme un piège ordinaire
+  (`pieges[]`, états `detecte` / `fosse_ouverte`). Une fosse se découvre d'un bloc : une case détectée, c'est
+  les deux (`MoteurPieges::changerEtat()`).
+- **Option de saut** : `type: "franchissement"`, `parametres: {piege: {x, y}, vers: {x, y}, cout: 3, saut: "long"}`,
+  `creneau: mouvement`, id `franchir_long_{x}_{y}` (`x, y` = la case de bout abordée). Le saut court
+  (`franchir_…`) n'est jamais offert quand sa réception tomberait dans la même fosse
+  (`MoteurFosseLongue::sautCourtAtterritSurLaFosse()`).
+- **Résultat** (`franchissement`, `saut: "long"`) : `des_lances: 1`, `faces: [face]`, `face_requise`, `succes`,
+  `franchi`, et `vers` (la réception) ou `declenchement` (la chute, un `piege_declenche` avec `dans_la_fosse`).
+- **Chute** (`piege_declenche`) : `dans_la_fosse: {malus_des_combat, sortie_sur}` (la décision, lue au catalogue) ou
+  `null`. Le fil dit « reste dans la fosse : N dé de combat de moins, et un dé rouge de 5 ou 6 pour se hisser dehors ».
+- **État durable** : `etat_personnage_quete.dans_la_fosse` (colonne JSON `{x, y, piege_id}`, jamais en cache). La
+  publication l'exprime en décision : `entites[].dans_la_fosse` = `{nom, malus_des_combat, sortie_sur}` ou `null`.
+  Un héros n'est « dans la fosse » que si sa position est la case de la colonne (`MoteurFosseLongue::estEnFosse()`).
+- **Menu d'un héros dans la fosse** : pas de `se_deplacer`, pas de saut ; une option `sortie_fosse` par case libre qui
+  touche sa case (`id` `sortir_fosse_{x}_{y}`, `parametres: {vers: {x, y}, sortie_sur: [5, 6]}`, `creneau: mouvement`).
+  Les actions (attaque, sort, objet) restent offertes, avec le malus.
+- **Résultat de sortie** (`sortie_fosse`) : `{de, sortie_sur, succes, vers, depart, piege}`. Un dé rouge (d6). La sortie
+  prend le déplacement du tour, réussie ou non ; un succès pose le héros sur `vers` et efface la colonne.
+- **Malus** : un dé de combat de moins, en ATTAQUE (`ResolveurTour::frapper()`) comme en DÉFENSE
+  (`MoteurSorts::desDefenseHerosDetail()`), jamais sous un dé (`MoteurFosseLongue::appliquerMalus()`).
+
+Le type `sortie_fosse` est dans `JournalCombat::TYPES` (le fil dit la sortie, réussie ou non) ; le saut est un
+`franchissement`, et sa chute est un `piege_declenche`.
+
 ## Garanties
 
 - **Le moteur fait autorité** : `choix` valide l'option contre le dernier menu
@@ -4808,3 +4854,130 @@ non désarmée) ; l'état `desarme: true` est écrit dans `cartes.grille.mobilie
 "Abomination"]}` : le paquet déclaré (les huit cartes 2021 de la boîte de base, ordre déclaré). La forme courante reste dans
 `instances_monstres.monstre_id`, l'origine dans `origine_monstre` (sans migration). Un changement de forme se dit par
 `changement_phase` comme toute forme, sans `synchro` : les sorts actifs ne cessent pas.
+
+## Spirit Queen's Torment — les terrains des tours (lot H des restes, livret G0053 p. 13-15, 2026-10-29)
+
+Quatre terrains, tous `boite = spirit_queen` (posés seulement sous ce thème, jamais dans la salle de départ). Trois se posent sur
+une SALLE ENTIÈRE (`terrains.pose = "salle"`), le vent sur chaque couloir (`pose = "couloirs"`). Aucun ne bloque ni la marche ni la
+vue : le plancher de jouabilité et la connectivité n'en sont pas touchés. Les illustrations ne sont pas générées ici.
+
+### Carte — `EtatGroupe.carte.terrain[]` (inchangé en forme)
+
+Les quatre tuiles sortent dans la liste existante, `nom` et `avantages` lus du catalogue. Une salle entière est une PLAQUE (`groupe_id`
+`salle-N`, `ancre` sur une case) : une icône de repli (`TERRAIN_ICONES`). Un couloir est une case ISOLÉE, sans groupe : la teinte seule.
+
+| Tuile | Teinte (`TERRAIN_TEINTES`) | Icône de plaque | Pose | Coût |
+|---|---|---|---|---|
+| Courant contraire | `courant` (rayure horizontale) | `waves` | salle | 2 (monstres : 1) |
+| Sol meuble | `meuble` (mouchetis brun) | `landslide` | salle | 1 |
+| Courant porteur | `porteur` (pointillé) | `surfing` | salle | 1 (+2 cases à la première entrée) |
+| Vent de couloir | `vent` (chevrons) | — | couloirs | 1 |
+
+### Déplacement — `se_deplacer` et `apercu` (inchangés en forme, valeurs nouvelles)
+
+- `se_deplacer.parametres.destinations[].cout` : les points DÉPENSÉS (un courant porteur ne réduit jamais le coût ; il ajoute au
+  budget). Une destination peut être atteignable grâce au courant : elle figure dans la liste, rien d'autre ne change côté manette.
+- **Aperçu** (`POST …/apercu`, `ResolveurTour::apercuDeplacement()`) : deux champs ajoutés. `bonus_courant` (int, les points gagnés par
+  le trajet sur un courant porteur, pris une fois) et `enlise_sol` (bool, CE pas enlise le héros sur le sol meuble). `restant_apres`
+  tient compte du gain : `max(0, restant + bonus_courant − cout)`. `atteignable` est faux si le héros est enlisé et que son dé est impair.
+- **Dé impair sur le sol meuble** : `se_deplacer` n'est pas offert (`destinations` vide) à un héros enlisé dont le dé est impair ; à
+  un héros NON enlisé, la salle ne se traverse pas — la première case de sol meuble est la dernière case atteignable de la direction.
+
+### Héros — `entites[]` (carte de l'état de groupe)
+
+- `enlise_sol` (bool) : le héros est enlisé dans le sol meuble. Durable (`etat_personnage_quete.enlise_sol`, migration
+  `2026_10_29_150000`). Il ne sort qu'à un dé de déplacement PAIR (il marche alors de base + d6). Badge `enlise_sol` dans `game.js`.
+
+### Choix — `pousser_vent` (menu forcé)
+
+Après un bouclier (blanc ou noir) à la fin d'un mouvement sur un couloir venté, le menu ne propose QUE les directions décidées au
+dé, une option par direction :
+
+```
+{ "id": "pousser_vent_e", "libelle": "Se laisser porter vers l'est (2 cases)", "type": "pousser_vent", "creneau": "interaction",
+  "parametres": { "direction": "e", "cases": 2, "directions": ["e", "o"] } }
+```
+
+- Directions : `e`, `o`, `s`, `n` (ordre fixe E, O, S, N). `parametres.directions` est la liste BLANCHE décidée au dé ; le résolveur la
+  revalide contre `etat.vent_choix` ET contre la géométrie du moment (`MoteurVents::directions()`) : une figure entrée sur la
+  trajectoire entre-temps annule la direction (422).
+- `POST …/choix` : `{option_id: "pousser_vent_e", parametres: {direction: "e"}}`. `direction` est déclaré dans la whitelist du
+  contrôleur (`parametres.direction`, `in: e, o, s, n`) : sans cette déclaration, il est retiré avant le résolveur.
+- État durable : `etat_personnage_quete.vent_choix` (json `{x, y, cases, directions}`, migration `2026_10_29_160000`), porté par le
+  snapshot (`Sauvegarde`, `??` pour les anciens).
+
+### Déplacement — `payload.vent` (le dé de combat à la fin du mouvement)
+
+`payload.vent` = `{face: "bouclier" | "crane", etat: "choix" | "zargon" | "sans_effet", cases, directions?, direction?, depart?, vers, pieges, degats, terrain_jets}`.
+`etat: "zargon"` : la poussée a eu lieu, `payload.vers` est alors la case d'arrivée réelle. `etat: "choix"` : un choix est ouvert.
+
+### Annonces — `JournalCombat::TYPES`
+
+| `type` | Payload | Quand |
+|---|---|---|
+| `pousser_vent` | `{direction, cases, depart, vers, terrain_jets, pieges_declenches, degats}` | le choix du héros, résolu (`kind: jet`) |
+
+Les autres annonces passent par le type `deplacement` existant : `enlisement_sol` (`{etat: "enlise"|"degage", terrain, degats}`),
+`bonus_courant` (entier : « profite du courant porteur : +N cases »), `vent` (ci-dessus).
+
+### Compatibilité
+
+- Migrations additives : `terrains.pose` (`2026_10_29_140000`), `etat_personnage_quete.enlise_sol` (`2026_10_29_150000`),
+  `etat_personnage_quete.vent_choix` (`2026_10_29_160000`). Trois tuiles et deux gabarits de clés sont posés par `TerrainSeeder` et
+  `GabaritQueteSeeder` (`updateOrCreate` : aucune ligne existante n'est réécrite).
+- Gabarits : `structure.terrains` gagne `courants`, `sol_meuble`, `courants_porteurs`, `vents` (`min`/`max` 0..1 aux quatre gabarits).
+
+## Mage of the Mirror — grille de fer et clé de laiton (2026-10-29, lot F du plan restes)
+
+Source : livret F7539 (*The Mage of the Mirror*) — p. 4 (« Portcullises x4 » : « Heroes and monsters cannot see through a
+portcullis until it is opened »), p. 6 (« Brass Key » : « used to open a portcullis in several quests »), quête 7 notes C-D (la
+clé dans le râtelier d'armes de la salle C, la grille en salle D), quête 10 note G (« a hero must roll less than their Body Points
+on two red dice to force the portcullis open. Each hero may try once per turn »). Décisions : `docs/plan-restes-extensions-2026-10-29.md`,
+lot F, F1 (la force vaut pour toute grille) et F2 (la clé quitte le sac en fin de quête). Règles en vigueur :
+`docs/regles/carte-donjon.md` (« LA GRILLE DE FER »), `docs/regles/exploration-et-fouille.md`.
+
+### Menu — `POST /choix`
+
+- **Forcer la grille** : `type: "forcer_grille"`, `id: "forcer_grille_{x}_{y}_{cote}"`, `parametres: {porte: {x, y, cote}}`. Une
+  option PAR grille fermée adjacente (case d'embrasure à distance 1) ; jamais après son ouverture. Le libellé porte le seuil chiffré
+  (« Forcer la grille de fer — 2 dés rouges, total inférieur à ton Corps de départ (8) »). Interaction libre ; un jet raté ferme le
+  tour (« their turn ends », décision du plan restes : la quête 10 dit seulement « once per turn »). Icône manette : `fence`.
+- **Ouvrir la grille avec la clé** : l'option `ouvrir_porte_{x}_{y}_{cote}` existante, libellée « Ouvrir la grille de fer (clé) ».
+  Offerte seulement si le héros porte la « Clé de laiton » (`MoteurPortes::possedeCle()`, le lecteur de la porte à clé). Ni jet ni tour
+  fermé. La clé reste au sac jusqu'à la fin de la quête (F2).
+
+### Résultat d'action
+
+- `forcer_grille` : même forme que `forcer_porte_condition` — `{type: "forcer_grille", option_id, libelle, porte: {x, y, cote},
+  verrou: "grille de fer", attribut: "corps", comparaison: "strict", valeur, faces: [d6, d6], total, reussi}`. `valeur` est le Corps
+  de DÉPART (`pv_body_max`, comme la porte à condition de Kellar's Keep, F4543 p. 19 : « their starting number of Body Points »).
+  `reussi: true` ouvre la grille et révèle la salle derrière (cause journalisée `force_grille`).
+- `ouvrir_porte` : `cause: "cle"`, inchangé.
+
+### Fouille — le râtelier qui porte la clé
+
+- `fouille_mobilier` : la PREMIÈRE fouille du râtelier (aucun héros ne l'a encore fouillé) donne sa table ordinaire ET la clé :
+  `cle_de_laiton: {objet: {id, nom, …}, …rangement}`, à côté du butin de la table (`objet`). Les fouilles suivantes ne la donnent
+  plus. Le fil dit « X trouve aussi une Clé de laiton ». La clé est hors marché, de rareté `unique` : aucune table de butin ne la tire.
+
+### Carte — `EtatGroupe.carte.portes[]`
+
+- Nouvelle valeur : `verrou: "grille"` (état `fermee` : elle bloque le passage ET la vue, comme toute porte non ouverte).
+  Publiée SOUS LE BROUILLARD comme toute porte : `EtatGroupe::portes()` ne la publie que si l'une de ses deux cases est connue.
+- `symbole_url` : `/images/livrets/portes/verrou-grille.webp` tant que la grille est fermée — la herse du livret (F7539 PDF 3, à côté
+  de « Portcullises x4 », extraite par l'orchestrateur le 2026-10-29). Ouverte, c'est un passage ouvert ordinaire. Sans fichier, `null`
+  et l'icône `fence` reste le repli.
+- Une grille ne se pose que sur une arête de BOUCLE, au plus une par carte, sous le thème `mage_du_miroir` seul
+  (`AssembleurCarte::marquerPortesDeGrille()`). La salle du râtelier qui porte la clé est atteignable sans franchir la grille ni
+  aucun autre verrou (`AssembleurCarte::salleDeLaCle()`).
+
+### Annonces
+
+- `JournalCombat::TYPES` déclare `forcer_grille` : la même phrase que `forcer_porte_condition` (le verrou, le total, la condition,
+  l'échec qui achève le tour). `porte_ouverte` reste écrit seul, comme toute ouverture (l'action la dit déjà).
+
+### Fin de quête — la clé quitte le sac
+
+- À `terminerQuete()` (victoire et vote de sortie, ses deux chemins) et à `echouerQuete()` : les lignes d'inventaire dont l'objet
+  porte l'effet `objet_de_quete` (`MotsClesEquipement::OBJET_DE_QUETE`) sont retirées, pour chaque héros du groupe
+  (`Equipement::purgerObjetsDeQuete()`). Aucun champ publié : l'inventaire se relit après la fin de quête.

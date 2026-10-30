@@ -163,6 +163,11 @@ function fixturesDesTypesAnnonces(): array
             'verrou' => 'porte verrouillée', 'faces' => [3, 4], 'total' => 7, 'valeur' => 8,
             'comparaison' => 'strict', 'attribut' => 'corps', 'reussi' => true,
         ],
+        // Grille de fer (Mage of the Mirror, 2026-10-29) : la même phrase, un échec pour voir la fin de tour.
+        'forcer_grille' => [
+            'verrou' => 'grille de fer', 'faces' => [5, 4], 'total' => 9, 'valeur' => 8,
+            'comparaison' => 'strict', 'attribut' => 'corps', 'reussi' => false,
+        ],
         'actionner_levier' => ['jet' => ['issue' => 'echec', 'succes' => 0, 'difficulte' => 2]],
         'forcer_porte_pierre' => ['reussi' => true, 'cranes' => 2],
         'ouvrir_porte' => ['cause' => 'main', 'porte' => $porte],
@@ -184,9 +189,14 @@ function fixturesDesTypesAnnonces(): array
         'danger_sans_effet' => ['danger' => 'Brume de la mort', 'heros' => 'Albrecht', 'arme' => 'Dague', 'x' => 7, 'y' => 4],
         'detacher_rejetons' => ['cible' => $cible, 'retires' => 1, 'restants' => 1],
         's_ecarter_du_bloc' => ['vers' => ['x' => 2, 'y' => 3]],
+        // VENTS DE COULOIR (lot H des restes, 2026-10-29) : le choix du héros après un bouclier — la direction, les cases, la poussée.
+        'pousser_vent' => ['direction' => 'e', 'cases' => 2, 'depart' => ['x' => 4, 'y' => 0], 'vers' => ['x' => 6, 'y' => 0], 'terrain_jets' => []],
         'saut_sables' => ['terrain' => 'Sables mouvants', 'faces' => ['crane'], 'face_requise' => 'bouclier_noir', 'franchi' => false, 'a_defausser' => 2],
         'defausse_sables' => ['terrain' => 'Sables mouvants', 'objet' => 'Fiole', 'restantes' => 1],
         'sortie_sables' => ['terrain' => 'Sables mouvants', 'vers' => ['x' => 2, 'y' => 3]],
+        // Fosse longue (lot G, 2026-10-29) : se hisser hors du trou, un dé rouge — resté dans le trou ici.
+        'sortie_fosse' => ['piege' => 'Fosse longue', 'de' => 4, 'sortie_sur' => [5, 6], 'succes' => false,
+            'depart' => ['x' => 3, 'y' => 3], 'vers' => ['x' => 2, 'y' => 3]],
         'retraite' => ['vote' => ['id' => 1]],
         'sortie' => ['vote' => ['id' => 1]],
         'jet_en_attente' => ['personnage' => 'Albrecht'],

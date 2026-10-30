@@ -275,9 +275,13 @@ jeton rond une seule ; les légendes donnent le petit axe d'un ovale égal au ra
   « Design Your Own » la fait seulement plus grande que les autres, et la carte de la quête 10 la pose sur une case), mais son texte
   la nomme : « When a monster takes up more than one square (the Frozen Horror in this quest pack, for instance) » (F5815 PDF 6).
   Le texte bat la forme du jeton.
+- **Golem Cœur-de-Forge** : **1×2** (René, 2026-10-29 : « Oui passe à 2 cases »). Le livret ne lui dessine pas de jeton mais sa
+  TUILE (« Use the Forgeheart Golem's tile », F9907 PDF 12) : posée dans la salle A de la carte de la quête 6, elle couvre une
+  colonne sur deux cases. Une tuile de deux cases compte comme un ovale. Migration `2026_10_29_200000_golem_coeur_de_forge_deux_cases`.
 
 La règle est un registre testé dans les deux sens (`BestiaireSourceTest`) : chaque nom de `config('symboles_monstres.ovales')` est
-1×2, et chaque figure de 2 cases est dans `ovales` ou dans la liste d'exceptions du test. Migration
+1×2, chaque nom de `tuiles` a l'emprise de son fichier (carré : une case, 2:1 : deux), et chaque figure de 2 cases est dans
+`ovales`, dans les tuiles de deux cases ou dans la liste d'exceptions du test. Migration
 `2026_10_29_100000_emprises_figures_selon_jetons`.
 ⚠ **L'emprise se lit dans le catalogue à chaque tour** (`Monstre::emprise()`), pas sur l'instance — à l'inverse du mobilier, dont
 chaque pièce garde l'emprise figée à sa pose. Changer la taille d'un monstre change celle de ses figures déjà posées : avant une

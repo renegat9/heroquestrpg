@@ -1433,6 +1433,34 @@ final class MenuMoteur
             ];
         }
 
+        // VENTS DE COULOIR (*The Tower of Air* q. 12, lot H des restes, 2026-10-29) : un bouclier a posé un CHOIX EN ATTENTE — la
+        // direction de la poussée. Menu forcé, comme la chute de blocs : seules les directions décidées au dé sont offertes
+        // (`etat.vent_choix`, liste blanche que le résolveur revalide). Un téléphone rechargé retrouve ce choix.
+        if ($etat !== null && $etat->vent_choix !== null) {
+            $vent = (array) $etat->vent_choix;
+            $cases = (int) ($vent['cases'] ?? 2);
+            $directions = array_values(array_map('strval', (array) ($vent['directions'] ?? [])));
+            $options = [];
+
+            foreach ($directions as $direction) {
+                $options[] = [
+                    'id' => "pousser_vent_{$direction}",
+                    'libelle' => 'Se laisser porter vers '.MoteurVents::NOMS[$direction]." ({$cases} cases)",
+                    'type' => 'pousser_vent',
+                    'parametres' => [
+                        'direction' => $direction,
+                        'cases' => $cases,
+                        'directions' => $directions,
+                    ],
+                ];
+            }
+
+            return [
+                'situation' => 'Un souffle de vent vous saisit dans le couloir : choisissez vers où il vous pousse.',
+                'options' => $this->avecCreneaux($options),
+            ];
+        }
+
         $aJoue = (bool) ($etat?->a_joue ?? false);
         $aDeplace = $aJoue || (bool) ($etat?->a_deplace ?? false);
         $aAgi = $aJoue || (bool) ($etat?->a_agi ?? false);
@@ -1466,7 +1494,11 @@ final class MenuMoteur
         $offreDeplacement = false;
         $destinations = null;
 
-        if (! $aDeplace && ! $this->sorts->deplacementInterdit($personnage)) {
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : un héros DANS la fosse ne marche pas, ne saute pas : il se hisse
+        // (`optionsSortie()`, plus bas). Sa position et sa colonne `dans_la_fosse` disent la même case (`estEnFosse()`).
+        $enFosse = $etat !== null && MoteurFosseLongue::estEnFosse($etat);
+
+        if (! $aDeplace && ! $enFosse && ! $this->sorts->deplacementInterdit($personnage)) {
             $portee = $this->deplacementDuTour($personnage, $etat);
 
             // Déplacement FRACTIONNÉ (E1) : si le héros a DÉJÀ entamé son
@@ -1521,6 +1553,14 @@ final class MenuMoteur
             ];
         }
 
+        // FOSSE LONGUE (p. 6) : le héros dans le trou se hisse, un dé rouge. C'est SA sortie de la fosse, offerte seulement
+        // tant que le déplacement du tour n'est pas pris (`optionsSortie()` le revérifie).
+        if ($etat !== null && $enFosse) {
+            foreach (MoteurFosseLongue::optionsSortie($quete, $personnage, $etat) as $sortie) {
+                $options[] = $sortie;
+            }
+        }
+
         // Pièges DÉTECTÉS adjacents (doc 10 §4) — partagés entre créneaux :
         // Franchir une fosse = DÉPLACEMENT, Désamorcer = ACTION.
         $detectes = ($etat !== null && $etat->position_x !== null && $quete->carte !== null)
@@ -1529,7 +1569,7 @@ final class MenuMoteur
 
         // Sauter par-dessus une fosse fait partie du MOUVEMENT (E3) : l'option
         // n'apparaît que s'il reste assez de points pour payer le saut.
-        if (! $aDeplace && $this->pointsRestants($personnage, $etat) >= ResolveurTour::COUT_FRANCHISSEMENT) {
+        if (! $aDeplace && ! $enFosse && $this->pointsRestants($personnage, $etat) >= ResolveurTour::COUT_FRANCHISSEMENT) {
             // BOTTES DE LIÈVRE : « To jump over one discovered trap per turn,
             // roll anything but a black shield on 1 combat die. »
             //
@@ -1544,6 +1584,14 @@ final class MenuMoteur
                 : null;
 
             foreach ($detectes as $adjacent) {
+                // FOSSE LONGUE : un saut ordinaire qui retomberait dans la MÊME fosse n'existe pas — c'est le saut par le
+                // bout, offert plus bas. Le résolveur refuse la même chose (`sautCourtAtterritSurLaFosse()`, un seul prédicat).
+                if ($etat !== null && MoteurFosseLongue::sautCourtAtterritSurLaFosse(
+                    $quete->carte, $adjacent['x'], $adjacent['y'], (int) $etat->position_x, (int) $etat->position_y,
+                )) {
+                    continue;
+                }
+
                 $nomPiege = $adjacent['piege']?->nom ?? 'Piège';
 
                 if ($bottes !== null) {
@@ -1597,12 +1645,20 @@ final class MenuMoteur
             }
         }
 
+        // SAUTER PAR LE BOUT D'UNE FOSSE LONGUE (F7539 p. 6) : même créneau que le saut ordinaire (MOUVEMENT), à trois
+        // cases de déplacement au moins. La liste vient de `MoteurFosseLongue::sautsLongs()`, relue par le résolveur.
+        if (! $aDeplace && ! $enFosse && $etat !== null) {
+            foreach (MoteurFosseLongue::optionsSautLong($quete, $personnage, $etat, $this->pointsRestants($personnage, $etat)) as $saut) {
+                $options[] = $saut;
+            }
+        }
+
         // SAUTER PAR-DESSUS LES SABLES MOUVANTS (F7539 p. 29) : un saut est du
         // MOUVEMENT, comme celui d'une fosse — offert seulement depuis une case voisine,
         // avec une case de réception libre en face et de quoi payer les cases traversées.
         // La liste vient de `MoteurSables::sauts()`, que le résolveur relit pour
         // revalider : le menu ne propose jamais ce que le résolveur refusera.
-        if (! $aDeplace && $etat !== null && ! $this->sorts->deplacementInterdit($personnage)) {
+        if (! $aDeplace && ! $enFosse && $etat !== null && ! $this->sorts->deplacementInterdit($personnage)) {
             foreach (app(MoteurSables::class)->optionsDeSaut($quete, $personnage, $etat, $this->pointsRestants($personnage, $etat)) as $saut) {
                 $options[] = $saut;
             }
@@ -2570,7 +2626,8 @@ final class MenuMoteur
             $pierres = (! $aAgi && (int) $personnage->des_attaque >= MoteurPortes::DES_MINIMUM_PORTE_PIERRE)
                 ? $this->portes->portesDePierreAdjacentes($quete->carte, $px, $py)
                 : [];
-            $cleDuHeros = fn (array $p): bool => ($p['verrou']['type'] ?? null) === 'cle'
+            // Les verrous qu'une CLÉ ouvre : la porte à clé ET la grille de fer (`MoteurPortes::VERROUS_A_CLE`, une liste).
+            $cleDuHeros = fn (array $p): bool => in_array($p['verrou']['type'] ?? null, MoteurPortes::VERROUS_A_CLE, true)
                 && $this->portes->possedeCle($personnage, $p['verrou']);
             $ouvrables = array_filter(
                 $closes,
@@ -2582,8 +2639,11 @@ final class MenuMoteur
             // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : offerte à tout héros au contact (le jet n'échoue pas « d'avance » :
             // un échec ferme seulement le tour). Lue par le menu ET par `resoudreForcerPorteCondition()`.
             $conditions = $this->portes->portesConditionAdjacentes($quete->carte, $px, $py);
+            // GRILLE DE FER (Mage of the Mirror, 2026-10-29) : compte dans les portes offertes, pour que le libellé nomme la direction.
+            $grilles = $this->portes->portesGrilleAdjacentes($quete->carte, $px, $py);
             $offertes = array_unique(array_merge(
                 array_column($conditions, 'index'),
+                array_column($grilles, 'index'),
                 array_column($ouvrables, 'index'),
                 (bool) $personnage->benediction_oracle ? array_column($closes, 'index') : [],
                 $ligneSouris !== null ? array_column($closes, 'index') : [],
@@ -2598,9 +2658,17 @@ final class MenuMoteur
                 $suffixe = $this->suffixeDirectionPorte($quete, $p, $px, $py, $plusieurs);
 
                 if ($this->portes->ouvrableAMain($p) || $avecCle) {
+                    // Même option, le nom de ce qu'on ouvre : un MIROIR (passage secret habillé, Mage of the Mirror) ou une
+                    // GRILLE DE FER (lot F des restes), 2026-10-29.
+                    $objet = match (true) {
+                        ($p['habillage'] ?? null) === MoteurPortes::HABILLAGE_MIROIR => 'le miroir',
+                        ($p['verrou']['type'] ?? null) === MoteurPortes::VERROU_GRILLE => 'la grille de fer',
+                        default => 'la porte',
+                    };
+
                     $options[] = [
                         'id' => "ouvrir_porte_{$p['x']}_{$p['y']}_{$cote}",
-                        'libelle' => 'Ouvrir la porte'.$suffixe.($avecCle ? ' (clé)' : ''),
+                        'libelle' => "Ouvrir {$objet}".$suffixe.($avecCle ? ' (clé)' : ''),
                         'type' => 'ouvrir_porte',
                         'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                     ];
@@ -2774,6 +2842,23 @@ final class MenuMoteur
                         'id' => "forcer_porte_condition_{$p['x']}_{$p['y']}_{$cote}",
                         'libelle' => 'Forcer la '.$verrou['libelle'].$suffixe.' — '.MoteurPortes::libelleCondition($verrou, $personnage),
                         'type' => 'forcer_porte_condition',
+                        'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
+                    ];
+                }
+
+                // GRILLE DE FER (Mage of the Mirror, F7539 quête 10 note G ; décision F1 du plan restes, 2026-10-29) : la voie FORCE,
+                // deux dés rouges sous le Corps de départ — le test de la porte à condition (`MoteurPortes::FORCE_GRILLE`), une option
+                // PAR grille adjacente. La voie CLÉ n'a pas d'option ici : c'est `ouvrir_porte` « (clé) », offert plus haut quand le
+                // héros porte la clé. Une grille fermée ne s'ouvre pas à la main : le menu n'offre que ce que le résolveur accepte.
+                foreach ($grilles as $grille) {
+                    $p = $grille['porte'];
+                    $cote = (string) ($p['cote'] ?? 'e');
+                    $verrou = (array) $p['verrou'];
+                    $suffixe = $this->suffixeDirectionPorte($quete, $p, $px, $py, $plusieurs);
+                    $options[] = [
+                        'id' => "forcer_grille_{$p['x']}_{$p['y']}_{$cote}",
+                        'libelle' => 'Forcer la '.$verrou['libelle'].$suffixe.' — '.MoteurPortes::libelleCondition($verrou, $personnage),
+                        'type' => 'forcer_grille',
                         'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                     ];
                 }
@@ -3108,10 +3193,16 @@ final class MenuMoteur
             ));
         }
 
+        // FOSSE LONGUE (p. 6) : le héros dans le trou le DIT — la décision (seuil de sortie, malus) vient de `publier()`.
+        $fosse = $enFosse && $etat !== null ? MoteurFosseLongue::publier($etat) : null;
+
         return [
             'situation' => $situationSecondeFrappe ?? ($aJoue
                 ? 'Tour terminé — au tour des autres héros.'
-                : 'Vous progressez dans le donjon.'.$this->consigneRassemblement($quete, $peutSortir, $rassemblement)),
+                : ($fosse !== null
+                    ? 'Vous êtes tombé dans la '.strtolower($fosse['nom']).' : un dé rouge de '
+                        .implode(' ou ', $fosse['sortie_sur']).' pour vous hisser dehors, et un dé de combat de moins tant que vous y êtes.'
+                    : 'Vous progressez dans le donjon.'.$this->consigneRassemblement($quete, $peutSortir, $rassemblement))),
             'options' => $this->avecCreneaux($options, $perteDeplacement, $secondeFrappeEnAttente),
         ];
     }

@@ -521,6 +521,31 @@ export function badgesFigure(entite) {
         });
     }
 
+    // SOL MEUBLE (*Spirit Queen's Torment* q. 10 note B, 2026-10-29) : le héros ENLISÉ par un dé de déplacement impair
+    // (`entites[].enlise_sol`, publié par le serveur). Il ne sort qu'à un dé pair : pas une condition à durée, un état.
+    if (entite?.enlise_sol) {
+        badges.unshift({
+            nom: 'enlise_sol',
+            t: 'poison',
+            l: 'Enlisé dans le sol meuble — un dé de déplacement pair le libère',
+            ic: 'landslide',
+            d: null,
+        });
+    }
+
+    // FOSSE LONGUE (F7539 p. 6, 2026-10-29) : le héros TOMBÉ DANS le trou, publié par le serveur (`entites[].dans_la_fosse`
+    // = {nom, malus_des_combat, sortie_sur}). Il dure jusqu'à ce qu'il se hisse dehors : même badge propre que l'enlisement.
+    if (entite?.dans_la_fosse) {
+        badges.unshift({
+            nom: 'dans_la_fosse',
+            t: 'poison',
+            l: `Dans la ${entite.dans_la_fosse.nom.toLowerCase()} — ${entite.dans_la_fosse.malus_des_combat} dé de combat de moins ; `
+                + `se hisse sur un dé rouge de ${entite.dans_la_fosse.sortie_sur.join(' ou ')}`,
+            ic: 'vertical_align_bottom',
+            d: null,
+        });
+    }
+
     if (jetons > 0) {
         badges.unshift({
             nom: 'rejetons',

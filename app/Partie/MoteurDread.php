@@ -2041,7 +2041,7 @@ final class MoteurDread
     public function degatsInfliges(
         SortDread $sort,
         Quete $quete,
-        InstanceMonstre $instance,
+        ?InstanceMonstre $instance,
         ?Personnage $personnage,
         int $pvCible = 0,
         ?int $desDefenseMonstre = null,
@@ -2067,7 +2067,8 @@ final class MoteurDread
 
         if ($resistance === Mot::RESISTANCE_PALIERS_D6) {
             $de = $this->des->d6();
-            $bonus = $this->bonusLanceursAdjacents($sort, $quete, $instance);
+            // Un piège n'a pas de monstres adjacents qui le renforcent (`$instance` nul) : bonus nul.
+            $bonus = $instance === null ? 0 : $this->bonusLanceursAdjacents($sort, $quete, $instance);
             $total = $de + $bonus;
 
             return [
@@ -2212,55 +2213,7 @@ final class MoteurDread
             : null;
 
         foreach ($victimes as $cible) {
-            $personnage = $cible->personnage;
-
-            // Anneau de Feu : la carte vise « Fire OR CHAOS FIRE spells » — les
-            // sorts de Dread comptent donc autant que ceux des héros. Même
-            // lecteur des deux côtés, pour qu'un anneau ne protège pas d'un feu
-            // sur deux. Il absorbe pour SA victime seulement : une tempête qui
-            // balaie la salle ne s'éteint pas parce qu'un héros la pare.
-            // Potion of Magic Resistance (Wizards of Morcar) : annule le sort
-            // QUELLE QUE SOIT sa nature — vérifiée en second, après l'immunité
-            // typée, pour la même raison qu'elle était lue en second côté
-            // équipement (un talent/une charge permanente avant une ressource
-            // qui se consomme).
-            if ($this->sorts->absorbeDegat($personnage, $typeDegat)
-                || $this->sorts->annuleProchainSortDegats($personnage)) {
-                $resultats[] = [
-                    'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
-                    'absorbe' => true,
-                    'degats' => 0,
-                ];
-
-                continue;
-            }
-
-            $calcul = $this->degatsInfliges($sort, $quete, $instance, $personnage, (int) $personnage->pv_body);
-
-            $subis = $this->degats->infligerAHeros(
-                $personnage, $calcul['degats'], MoteurDegats::SOURCE_SORT_DREAD,
-                // `lanceur_id` et `des_degats` : le *Bâton Ancien* renvoie CE
-                // sort-là à CE lanceur-là. Sans les deux, la réaction ne saurait
-                // ni qui viser ni avec quelle force.
-                [
-                    'sort' => $sort->nom,
-                    'lanceur_id' => (int) $instance->id,
-                    'des_degats' => (int) data_get($sort->effet, 'des_degats', $calcul['degats']),
-                ],
-            );
-            $this->sorts->reveillerHeros($personnage);
-
-            if ((int) $personnage->pv_body === 0 && $subis > 0) {
-                $cible->update(['tombe' => true]);
-            }
-
-            $resultats[] = [
-                'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
-                'degats' => $subis,
-                'pv_body_apres' => (int) $personnage->pv_body,
-                'cible_tombee' => (int) $personnage->pv_body === 0 && $subis > 0,
-                ...$calcul['detail'],
-            ];
+            $resultats[] = $this->frapperHerosDeSort($quete, $instance, $sort, $cible, $typeDegat);
         }
 
         $collateraux = [];
@@ -2318,6 +2271,108 @@ final class MoteurDread
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
         return $payload;
+    }
+
+    /**
+     * SORT DE DREAD LANCÉ PAR UN PIÈGE — « the Dread spell Ball of Flame is cast on that hero » (Spirit Queen's Torment,
+     * G0053 quête 2, note C, p. 5 ; quête 6, note B, p. 9). Le piège n'est pas un monstre : ni lanceur, ni budget d'usage,
+     * ni action. Une seule cible, le fouilleur. L'EFFET est lu au catalogue (`SortDreadSeeder`), jamais recopié dans la ligne
+     * du piège : `$nomSort` NOMME le sort, rien d'autre.
+     *
+     * La frappe passe par `frapperHerosDeSort()`, le point que tout sort de Dread emprunte : une défense, une réaction ou une
+     * réduction valent donc pour le piège comme pour un monstre. Le Bâton Ancien n'est pas proposé — aucun lanceur à qui
+     * renvoyer le sort.
+     *
+     * Seuls les sorts à DÉGÂTS ont un lecteur ici. Un autre type LÈVE une exception : une donnée qui ne peut pas être jouée
+     * ne doit jamais passer pour une règle appliquée. Le registre (`MotsClesPiege`) et `PiegeCoffreSortDreadTest` le vérifient.
+     *
+     * @return array<string, mixed>  payload `sort_dread`, de la forme de celui d'un monstre, signé du piège
+     */
+    public function lancerSortDePiege(Quete $quete, string $nomSort, EtatPersonnageQuete $cible, string $nomPiege): array
+    {
+        $sort = SortDread::query()->where('nom', $nomSort)->first()
+            ?? throw new \LogicException("Piège « {$nomPiege} » : le sort de Dread « {$nomSort} » est absent du catalogue.");
+
+        if ($sort->type !== Mot::TYPE_DEGATS) {
+            throw new \LogicException("Piège « {$nomPiege} » : « {$nomSort} » n'est pas un sort de dégâts, et aucun piège ne le lance aujourd'hui.");
+        }
+
+        return [
+            'type' => 'sort_dread',
+            'sort' => $sort->nom,
+            'lanceur' => ['nom' => 'Le piège'],
+            'resultats' => [
+                $this->frapperHerosDeSort($quete, null, $sort, $cible, data_get($sort->effet, 'type_degat')),
+            ],
+        ];
+    }
+
+    /**
+     * UN HÉROS FRAPPÉ PAR UN SORT DE DREAD — le point de passage unique de la frappe d'un héros, pour le sort d'un MONSTRE
+     * (`sortDreadDegats()`) comme pour le sort d'un PIÈGE (`lancerSortDePiege()`). Une seule résolution : défenses (Anneau de
+     * Feu, Potion de résistance à la magie), dés rouges (`degatsInfliges()`), interceptions de `MoteurDegats::infligerAHeros()`
+     * (réductions, réactions hors tour), réveil, chute. Extrait le 2026-10-29 : la boucle vivait dans `sortDreadDegats()` seule.
+     *
+     * `$instance` vaut `null` pour un piège, qui n'a pas de lanceur : pas de `lanceur_id` (le Bâton Ancien n'a rien à renvoyer,
+     * `MoteurReactions::deposerReflet()` le constate) et pas de bonus de lanceurs adjacents (paliers d6 seulement).
+     *
+     * @return array<string, mixed>  une entrée de `resultats` : `absorbe`, ou `degats` + `pv_body_apres` + `cible_tombee` + détail
+     */
+    private function frapperHerosDeSort(
+        Quete $quete,
+        ?InstanceMonstre $instance,
+        SortDread $sort,
+        EtatPersonnageQuete $cible,
+        ?string $typeDegat,
+    ): array {
+        $personnage = $cible->personnage;
+
+        // Anneau de Feu : la carte vise « Fire OR CHAOS FIRE spells » — les
+        // sorts de Dread comptent donc autant que ceux des héros. Même
+        // lecteur des deux côtés, pour qu'un anneau ne protège pas d'un feu
+        // sur deux. Il absorbe pour SA victime seulement : une tempête qui
+        // balaie la salle ne s'éteint pas parce qu'un héros la pare.
+        // Potion of Magic Resistance (Wizards of Morcar) : annule le sort
+        // QUELLE QUE SOIT sa nature — vérifiée en second, après l'immunité
+        // typée, pour la même raison qu'elle était lue en second côté
+        // équipement (un talent/une charge permanente avant une ressource
+        // qui se consomme).
+        if ($this->sorts->absorbeDegat($personnage, $typeDegat)
+            || $this->sorts->annuleProchainSortDegats($personnage)) {
+            return [
+                'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
+                'absorbe' => true,
+                'degats' => 0,
+            ];
+        }
+
+        $calcul = $this->degatsInfliges($sort, $quete, $instance, $personnage, (int) $personnage->pv_body);
+
+        $subis = $this->degats->infligerAHeros(
+            $personnage, $calcul['degats'], MoteurDegats::SOURCE_SORT_DREAD,
+            // `lanceur_id` et `des_degats` : le *Bâton Ancien* renvoie CE
+            // sort-là à CE lanceur-là. Sans les deux, la réaction ne saurait
+            // ni qui viser ni avec quelle force. Un piège n'a pas de lanceur :
+            // `lanceur_id` est nul, et la réaction n'est simplement pas offerte.
+            [
+                'sort' => $sort->nom,
+                'lanceur_id' => $instance === null ? null : (int) $instance->id,
+                'des_degats' => (int) data_get($sort->effet, 'des_degats', $calcul['degats']),
+            ],
+        );
+        $this->sorts->reveillerHeros($personnage);
+
+        if ((int) $personnage->pv_body === 0 && $subis > 0) {
+            $cible->update(['tombe' => true]);
+        }
+
+        return [
+            'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
+            'degats' => $subis,
+            'pv_body_apres' => (int) $personnage->pv_body,
+            'cible_tombee' => (int) $personnage->pv_body === 0 && $subis > 0,
+            ...$calcul['detail'],
+        ];
     }
 
     /**

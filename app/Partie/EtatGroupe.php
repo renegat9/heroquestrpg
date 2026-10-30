@@ -708,7 +708,7 @@ final class EtatGroupe
      * rien à publier — la case fait tout le travail que le déguisement
      * faisait à la main. Voir `carte()` pour le détail.
      *
-     * @return list<array{x: int, y: int, cote: string, etat: string, embrasure: array{x: int, y: int}, verrou?: string, image_url?: ?string, symbole_url: ?string, symbole_rotation: int}>
+     * @return list<array{x: int, y: int, cote: string, etat: string, embrasure: array{x: int, y: int}, verrou?: string, image_url?: ?string, habillage: ?string, symbole_url: ?string, symbole_rotation: int}>
      */
     private function portes(Carte $carte): array
     {
@@ -738,8 +738,12 @@ final class EtatGroupe
                     $porte['verrou'] = (string) $p['verrou']['type'];
                 }
 
+                // MIROIR (Mage of the Mirror, 2026-10-29) : l'habillage décidé à l'assemblage et gardé par la carte
+                // (`MoteurPortes::HABILLAGE_MIROIR`). Toujours présent, `null` pour une porte ordinaire.
+                $porte['habillage'] = isset($p['habillage']) ? (string) $p['habillage'] : null;
+
                 // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme de l'ÉTAT de la porte, la porte de pierre fermée ayant le sien.
-                $porte['symbole_url'] = app(BibliothequeImages::class)->urlSymbolePorte($porte['etat'], $porte['verrou'] ?? null);
+                $porte['symbole_url'] = app(BibliothequeImages::class)->urlSymbolePorte($porte['etat'], $porte['verrou'] ?? null, $porte['habillage']);
 
                 // ROTATION du pictogramme (2026-10-24) : 90 quand la porte relie l'est et l'ouest, 0 au nord-sud — décidée
                 // ici, lue par `SymboleCarte` (`tourne`), jamais recalculée côté client. Toujours présente.
@@ -1440,6 +1444,13 @@ final class EtatGroupe
                     // (`MoteurSables::publier()`). Sans elle, un héros immobile sur une case de
                     // sable n'est qu'une figurine bloquée dont rien ne dit la cause.
                     'enlise' => MoteurSables::publier($etat),
+                    // SOL MEUBLE (lot H des restes, 2026-10-29) : enlisé par un dé impair, jusqu'à un dé pair. Un booléen : la
+                    // manette et la table l'affichent, le dé du tour dit le reste (`DeplacementHeros::bloqueParSolMeuble()`).
+                    'enlise_sol' => (bool) ($etat?->enlise_sol ?? false),
+                    // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : le héros TOMBÉ DANS le trou — `null` hors de la fosse ;
+                    // sinon la DÉCISION (le malus de dé de combat, le seuil de sortie) et le nom du trou. Sans elle, un
+                    // héros immobile au fond d'une fosse n'est qu'une figurine dont rien ne dit la cause.
+                    'dans_la_fosse' => MoteurFosseLongue::publier($etat),
                     // Réaction HORS TOUR en attente de décision (Dark Wings,
                     // Twisting Torrent). Exposée ici en plus du broadcast privé
                     // `.reaction.proposee` : une manette rechargée au mauvais

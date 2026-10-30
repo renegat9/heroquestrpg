@@ -159,8 +159,9 @@ it('a un catalogue cohérent : cout_deplacement >= 1, effet non vide (vocabulair
 
     // 7 de The Frozen Horror + 5 de Jungles of Delthrak (2026-10-09) + les Sables mouvants de
     // The Mage of the Mirror (2026-10-15) + la Trappe de téléportation, The Mage of the Mirror
-    // ET Kellar's Keep (EXT-CARTE2, 2026-10-23).
-    expect($terrains)->toHaveCount(14);
+    // ET Kellar's Keep (EXT-CARTE2, 2026-10-23) + le Courant contraire, le Sol meuble, le Courant porteur et le Vent de couloir de
+    // Spirit Queen (lot H, 2026-10-29).
+    expect($terrains)->toHaveCount(18);
 
     foreach ($terrains as $t) {
         expect($t->cout_deplacement)->toBeGreaterThanOrEqual(1, "cout_deplacement de {$t->nom}")
@@ -200,7 +201,7 @@ it('reste seedé SANS purge (clé sur nom) : re-semer garde les mêmes identifia
 
     $idApres = Terrain::where('nom', 'Glace glissante')->value('id');
     expect($idApres)->toBe($idAvant)
-        ->and(Terrain::query()->count())->toBe(14);
+        ->and(Terrain::query()->count())->toBe(18);
 });
 
 // ---------------------------------------------------------------------
@@ -616,7 +617,7 @@ it('pose un terrain boite=null sous N\'IMPORTE QUEL thème — convient à tout,
         // peut légitimement mélanger l'universel et le thématique. Pour tout
         // AUTRE thème (ou aucun), rien d'autre que l'universel ne doit passer
         // le filtre.
-        if (! in_array($theme, ['horreur_des_glaces', 'jungles_delthrak'], true)) {
+        if (! in_array($theme, ['horreur_des_glaces', 'jungles_delthrak', 'spirit_queen'], true)) {
             foreach ($carte['terrain'] as $entree) {
                 expect($entree['terrain_id'])->toBe($idUniversel, 'thème « '.($theme ?? 'null').' »');
             }

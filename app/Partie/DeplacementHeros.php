@@ -103,12 +103,62 @@ final class DeplacementHeros
             $grille->franchirMobilier();
         }
 
-        $position = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first(['position_x', 'position_y']);
-        $origine = $position?->position_x === null ? null : ['x' => (int) $position->position_x, 'y' => (int) $position->position_y];
+        $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+        $origine = $etat?->position_x === null || $etat === null ? null : ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+
+        // SOL MEUBLE (`arret_sur_impair`, Spirit Queen q. 10 note B, lot H des restes, 2026-10-29) : un dé de déplacement IMPAIR
+        // arrête le héros sur la première case de sol meuble qu'il foule. Un héros DÉJÀ enlisé ne se re-fige pas : son dé
+        // impair le bloque tout entier (`bloqueParSolMeuble()`, qui vide les destinations), son dé pair le libère.
+        if ($etat !== null && ! $etat->enlise_sol && self::solMeubleArrete($etat)) {
+            $grille->activerArretSurImpair();
+        }
+
+        // COURANT PORTEUR (lot H des restes, 2026-10-29) : « a hero may move 2 extra squares when they first enter this area » —
+        // le héros seul le prend. La grille d'un monstre ou d'un allié ne l'active jamais (`Grille::activerBonusEntree()`).
+        $grille->activerBonusEntree();
 
         $grille->obstruer($this->casesInconnues($quete, $origine));
 
         return $grille;
+    }
+
+    /**
+     * LE DÉ DE DÉPLACEMENT QUI COMPTE CE TOUR (lot H des restes, 2026-10-29) : le PREMIER d6 du jet du tour, tel que
+     * `MenuMoteur::deplacementDuTour()` l'a persisté (`detail_deplacement_tour['des'][0]`). `null` quand il ne compte pas :
+     *  - jet absent (mouvement FIXE de la carte officielle : aucun dé) ;
+     *  - dé ANNULÉ (armure lourde, « 1 red die only for movement » : le seul dé ne compte plus, `deAnnule` ne le retire pas
+     *    de la trace) — un dé qui ne compte pas ne fige ni ne libère personne ;
+     *  - jet « sans menace » : la valeur 4 est publiée, et elle est paire.
+     * Les bottes elfiques ajoutent des dés SANS changer celui-ci : la parité porte sur le d6, comme Évanescence (`effetsDuJet()`).
+     */
+    public static function deDeplacementQuiCompte(EtatPersonnageQuete $etat): ?int
+    {
+        $detail = (array) ($etat->detail_deplacement_tour ?? []);
+
+        if (! empty($detail['de_annule'])) {
+            return null;
+        }
+
+        $de = $detail['des'][0] ?? null;
+
+        return is_numeric($de) ? (int) $de : null;
+    }
+
+    /** Le dé de déplacement du tour est-il IMPAIR ? — le sol meuble, s'il y a, arrête la marche. */
+    public static function solMeubleArrete(EtatPersonnageQuete $etat): bool
+    {
+        $de = self::deDeplacementQuiCompte($etat);
+
+        return $de !== null && $de % 2 === 1;
+    }
+
+    /**
+     * Un héros ENLISÉ (sol meuble) dont le dé du tour est IMPAIR ne bouge pas ce tour : « they only move if the result of the die
+     * is an even number ». Un dé PAIR le libère (`ResolveurTour::resoudreDeplacement()` efface l'état, il marche de base + d6).
+     */
+    public static function bloqueParSolMeuble(EtatPersonnageQuete $etat): bool
+    {
+        return (bool) $etat->enlise_sol && self::solMeubleArrete($etat);
     }
 
     /**
@@ -293,7 +343,9 @@ final class DeplacementHeros
      */
     public function chemin(Quete $quete, Personnage $personnage, Grille $grille, int $departX, int $departY, int $x, int $y, int $restant): ?array
     {
-        $chemin = $grille->chemin($departX, $departY, $x, $y);
+        // Le budget (`$restant`) entre dans le calcul : un courant porteur peut rendre une case payable qu'un chemin
+        // « moins cher » en points, sans bonus, ne rendrait pas.
+        $chemin = $grille->chemin($departX, $departY, $x, $y, $restant);
 
         return $this->cheminSansPiegeConnu($quete, $personnage, $grille, $chemin, $departX, $departY, $x, $y, $restant, $this->pieges($quete));
     }
@@ -359,9 +411,11 @@ final class DeplacementHeros
 
         $evitement = $this->grille($quete, $personnage);
         $evitement->obstruer($connus);
-        $detour = $evitement->chemin($departX, $departY, $x, $y);
+        $detour = $evitement->chemin($departX, $departY, $x, $y, $restant);
 
-        return ($detour !== null && $detour !== [] && $evitement->coutChemin($detour) <= $restant)
+        // Payable : son coût tient dans les points restants, bonus de courant porteur compris (le même calcul que la résolution).
+        return ($detour !== null && $detour !== []
+            && $evitement->coutChemin($detour) <= $restant + $evitement->gainDuTrajet($departX, $departY, $detour))
             ? $detour
             : $chemin;
     }
@@ -477,6 +531,11 @@ final class DeplacementHeros
     public function destinations(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, int $budget): array
     {
         if ($etat->position_x === null || $etat->position_y === null || $budget < 1 || $quete->carte === null) {
+            return [];
+        }
+
+        // Enlisé par le sol meuble et dé impair : pas une case, pas même celle d'à côté (`bloqueParSolMeuble()`).
+        if (self::bloqueParSolMeuble($etat)) {
             return [];
         }
 

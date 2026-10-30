@@ -652,6 +652,10 @@ it('le tirage des pièges de sol est un registre testé dans les deux sens', fun
         ->get()
         ->reject(fn (Piege $p) => data_get($p->effet, 'declencheur') === 'ouverture_tresor')
         ->reject(fn (Piege $p) => data_get($p->effet, 'zone_lames') !== null)
+        // Fosse longue (lot G, 2026-10-29) : deux cases liées, posée par `placerFosseLongue()` seule — exclue du vivier
+        // générique, comme la Lame balançoire. Elle reste un piège de sol du catalogue, mais la liste attendue ci-dessous ne
+        // décrit que ce vivier : elle n'y figure donc pas, et c'est voulu.
+        ->reject(fn (Piege $p) => data_get($p->effet, 'saut_long') !== null)
         ->reject(fn (Piege $p) => (bool) data_get($p->effet, 'teleportation', false))
         ->reject(fn (Piege $p) => in_array(data_get($p->effet, 'declencheur'), ['hurricane', 'fireburst_differe'], true))
         ->pluck('nom')

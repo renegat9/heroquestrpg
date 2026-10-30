@@ -90,12 +90,17 @@ const ICONE_TYPE = {
     // (`BLOC_ICONE` dans symboles.js), pour qu'un joueur qui vient de VOIR le
     // bloc tombé reconnaisse l'action qui en parle.
     s_ecarter_du_bloc: 'square',
+    // VENTS DE COULOIR (*The Tower of Air* q. 12, lot H des restes, 2026-10-29) : après un bouclier de vent, le héros choisit la
+    // direction de sa poussée — une option par direction légale, décidée par le serveur (`parametres.directions`).
+    pousser_vent: 'air',
     // SABLES MOUVANTS (F7539 p. 29, 2026-10-15) : sauter, abandonner un objet, se hisser dehors.
     // Chacun a SON glyphe — le menu d'un héros enlisé n'en porte qu'un à la fois, mais celui du
     // saut côtoie `franchissement` (`moving`) au bord d'une fosse.
     saut_sables: 'sprint',
     defausse_sables: 'delete_forever',
     sortie_sables: 'move_up',
+    // FOSSE LONGUE (F7539 p. 6, 2026-10-29) : se hisser hors du trou, un dé rouge — une flèche vers le haut, sortie d'un puits.
+    sortie_fosse: 'vertical_align_top',
     sort: 'auto_awesome',
     // Sort de Dread du porteur (Talisman du Savoir maudit, 2026-10-29) : un sort du maître du donjon, lancé par le héros.
     // Une baguette qui ouvre une sorcellerie — distincte du sort de héros (`auto_awesome`) et de l'éclair de la rune.
@@ -125,6 +130,8 @@ const ICONE_TYPE = {
     // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : deux dés rouges contre le Corps de départ ou l'Esprit actuel — un
     // cadenas qu'on force, distinct de la porte de pierre et de la porte ouverte à la main (`door_open`).
     forcer_porte_condition: 'lock_open',
+    // GRILLE DE FER (Mage of the Mirror, 2026-10-29) : une herse qu'on force à deux dés rouges — ni le cadenas ni la porte.
+    forcer_grille: 'fence',
     actionner_levier: 'toggle_on',
     // ⚠ `equiper` PARTAGEAIT `swords` avec `attaque` juste au-dessus dans ce
     // même menu — capture `combat-apres-haut.png` (2026-09-18) : « Attaquer »
@@ -279,6 +286,7 @@ function creneauConsomme(option) {
         case 'deplacement':
         case 'franchissement':
         case 'saut_sables':
+        case 'sortie_fosse':
             return !!moi.a_deplace;
         case 'ouvrir_porte':
         case 'lacher_souris':

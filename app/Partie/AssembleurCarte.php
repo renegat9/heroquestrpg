@@ -137,6 +137,25 @@ final class AssembleurCarte
     private const NOM_TERRAIN_TRAPPE = 'Trappe de téléportation';
 
     /**
+     * POSES PAR SALLE (lot H des restes, Spirit Queen's Torment, 2026-10-29) : nom du terrain => clé du gabarit qui dit
+     * COMBIEN de salles entières il couvre (`structure.terrains.<clé>.min/max`). Chaque salle tirée reçoit TOUTES ses
+     * cases libres, en une plaque `salle-N`. Le thème dit LESQUELS (`boite`) : sans lui, aucun tirage n'est consommé.
+     *
+     * @var array<string, string>
+     */
+    private const POSES_PAR_SALLE = [
+        'Courant contraire' => 'courants',
+        'Sol meuble' => 'sol_meuble',
+        'Courant porteur' => 'courants_porteurs',
+    ];
+
+    /**
+     * VENT DE COULOIR (*Spirit Queen's Torment* q. 12, lot H des restes) : pose `couloirs` — toutes les cases de couloir libres, ou
+     * aucune (`structure.terrains.vents`). Nom du terrain, pour l'identifier au catalogue.
+     */
+    private const NOM_TERRAIN_VENT = 'Vent de couloir';
+
+    /**
      * @param  int  $chancePassageSecret  probabilité (en %) qu'une salle soit
      *                                    cachée derrière une porte secrète —
      *                                    le compteur de pitié du groupe, qui
@@ -296,6 +315,12 @@ final class AssembleurCarte
                 ? ['etat' => MoteurPortes::ETAT_SECRETE]
                 : $this->specPorte($portesSpec, $indexArete);
 
+            // MIROIR (Mage of the Mirror, 2026-10-29) : sous ce thème, tout passage secret est un miroir. Décidé ICI, gardé
+            // par la carte : la publication et le menu le lisent sur la porte, jamais sur le thème.
+            if (($spec['etat'] ?? null) === MoteurPortes::ETAT_SECRETE && ($bestiaire?->contient('mage_du_miroir') ?? false)) {
+                $spec['habillage'] = MoteurPortes::HABILLAGE_MIROIR;
+            }
+
             // ⚠ Tiré pour CHAQUE arête, mitoyenne comprise (où il ne change
             // rien) : consommer le PRNG dans les deux branches garde la suite
             // des nombres identique quelle que soit la géométrie — même règle
@@ -379,6 +404,13 @@ final class AssembleurCarte
         // atterrir dessus (même raison que les seuils), et placerPieges() en
         // reçoit donc la liste ci-dessous.
         $leviers = $this->placerLeviers($structure, $cases, $salles, $portes, $n, $indexPorteParentParArete, $suivant);
+
+        // GRILLE DE FER (Mage of the Mirror, 2026-10-29) : même garde que la porte à condition (une arête de BOUCLE, au plus une par
+        // carte), sous le seul thème `mage_du_miroir`. Posée APRÈS les leviers — son tirage ne décale donc pas leur pose, qui reste
+        // celle de tout donjon (LeviersPosesTest) — et AVANT les pièges, pour qu'une trappe n'atterrisse jamais sur son embrasure.
+        // Hors de ce thème, `marquerPortesDeGrille()` ne tire rien.
+        $portes = $this->marquerPortesDeGrille($portes, $suivant, $bestiaire);
+
         $pieges = $this->placerPieges($structure, $milieuxCouloirs, $milieuxVoieUnique, $cases, $salles, $portes, $leviers, $suivant, $bestiaire);
 
         // LAME BALANÇOIRE (Against the Ogre Horde, lot B) : à PART du tirage
@@ -409,7 +441,11 @@ final class AssembleurCarte
             }
         }
 
-        $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant, $sallesCoffreAGarantir, $bestiaire, $nomElementObjectif);
+        // CLÉ DE LAITON (Mage of the Mirror, 2026-10-29) : la salle d'un râtelier qui la porte, choisie AVANT le mobilier pour être
+        // réservée comme `$sallesCoffreAGarantir` l'est. Null hors d'une carte à grille : aucun tirage consommé.
+        $salleDeLaCle = $this->salleDeLaCle($portes, $cases, $salles, $suivant);
+
+        $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant, $sallesCoffreAGarantir, $bestiaire, $nomElementObjectif, $salleDeLaCle);
 
         // ⚠ APRÈS les pièges ET le mobilier, et ce n'est pas un détail d'ordre :
         // une épreuve doit savoir quelles salles contiennent un piège (l'Autel
@@ -422,6 +458,11 @@ final class AssembleurCarte
         // — ne jamais atterrir sous une couche déjà posée, où elle serait soit
         // invisible, soit contradictoire (quel effet gagne ?).
         $terrain = $this->placerTerrains($structure, $cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $suivant, $bestiaire);
+
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6, 2026-10-29) : deux cases de fosse liées, sous le thème SEULEMENT. Posée
+        // après le terrain (elle évite ce qui est déjà posé) et AVANT les dangers, qui voient la fosse comme du décor. Hors du
+        // thème, `placerFosseLongue()` rend `[]` sans aucun tirage : les cartes existantes ne bougent pas.
+        $pieges = [...$pieges, ...$this->placerFosseLongue($cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $terrain, $suivant, $bestiaire)];
 
         // DANGERS MOBILES AUTONOMES (2026-10-23 — rocher roulant, brume de la mort) : posés EN DERNIER, après les spawns,
         // pour qu'aucun tirage existant ne soit décalé. Hors de leur thème : aucun tirage (voir `placerDangers()`).
@@ -516,6 +557,13 @@ final class AssembleurCarte
      * à quelle fréquence le rocher ou la brume apparaissent. Un tirage est consommé PAR danger du thème, posé ou non.
      */
     public const CHANCE_DANGER = 50;
+
+    /**
+     * FOSSE LONGUE (*The Mage of the Mirror*, 2026-10-29) : chance, sur 100, qu'une carte du thème `mage_du_miroir` porte
+     * une fosse longue. ⚠ Décision de l'assembleur, NON SOURCÉE : le livret ne dit pas combien de fosses longues une
+     * quête en pose. Au plus UNE par carte (`placerFosseLongue()`).
+     */
+    public const CHANCE_FOSSE_LONGUE = 40;
 
     /** Essais de pose du rocher (cases de départ A tirées au sort) avant de renoncer pour cette quête. */
     private const ESSAIS_ROCHER = 40;
@@ -1103,6 +1151,154 @@ final class AssembleurCarte
     }
 
     /**
+     * GRILLE DE FER (Mage of the Mirror, F7539 p. 4 « Portcullises x4 » ; quête 10 note G ; décision F1 du plan restes, 2026-10-29) :
+     * une grille de fer sur une arête de BOUCLE, au plus une par carte, sous le thème `mage_du_miroir` seulement.
+     *
+     * Garde IDENTIQUE à la porte à condition (qu'elle reprend) : une arête de BOUCLE (`boucle`, jamais l'arbre couvrant), et
+     * `verrou.type` vide sur la porte. Les deux salles qu'elle relie restent reliées par l'arbre couvrant : la voie FORCE (deux
+     * dés rouges sous le Corps de départ) comme la CLÉ (un producteur placé ailleurs, `salleDeLaCle()`) ne peuvent jamais
+     * couper la seule route. Hors du thème, AUCUN tirage n'est consommé (la garde précède le premier tirage).
+     *
+     * @param  list<array<string, mixed>>  $portes
+     * @return list<array<string, mixed>>
+     */
+    private function marquerPortesDeGrille(array $portes, \Closure $suivant, ?BestiaireGroupe $bestiaire): array
+    {
+        if (! ($bestiaire?->contient('mage_du_miroir') ?? false)) {
+            return $portes;
+        }
+
+        $prng = new PrngLineaire($suivant());
+
+        $jonctions = [];
+        foreach ($portes as $idx => $porte) {
+            if (empty($porte['boucle'])
+                || ($porte['etat'] ?? MoteurPortes::ETAT_OUVERTE) !== MoteurPortes::ETAT_FERMEE
+                || ($porte['verrou']['type'] ?? null) !== null) {
+                continue;
+            }
+            $jonctions[(int) ($porte['jonction'] ?? -1)][] = $idx;
+        }
+
+        if ($jonctions === []) {
+            return $portes; // aucune boucle disponible sur cette carte : aucune grille
+        }
+
+        $cles = array_keys($jonctions);
+        $bouts = $jonctions[$cles[$prng->suivant() % count($cles)]];
+        $idx = $bouts[$prng->suivant() % count($bouts)];
+
+        // La force = la porte verrouillée de Kellar's Keep, copiée (`MoteurPortes::FORCE_GRILLE`) ; `objet_id` = la clé du
+        // catalogue, lue par `MoteurPortes::possedeCle()`. Un catalogue sans clé donne `0` : la voie clé reste morte, la force
+        // reste — « si la carte ne peut pas placer la clé, la grille garde seulement la voie force ».
+        $portes[$idx]['verrou'] = [
+            'type' => MoteurPortes::VERROU_GRILLE,
+            ...MoteurPortes::FORCE_GRILLE,
+            'libelle' => 'grille de fer',
+            'objet_id' => (int) (\App\Models\Objet::query()->where('nom', MoteurPortes::CLE_DE_LAITON)->value('id') ?? 0),
+        ];
+
+        return $portes;
+    }
+
+    /**
+     * SALLE DE LA CLÉ DE LAITON (Mage of the Mirror, F7539 p. 6 « the brass key tile is given to the hero who finds the key » ;
+     * quête 7 note C : « This hero also finds a brass key » — dans le râtelier d'armes d'une AUTRE salle que la grille).
+     *
+     * Trois conditions, toutes testées : (1) jamais la salle de départ, ni une salle que la grille sépare (une clé dans la salle
+     * qu'elle ferme ne sert à rien) ; (2) la salle est ATTEIGNABLE depuis le départ SANS franchir un verrou — la grille comprise,
+     * ni porte à pierre, à condition, à levier ou gardien (`accessiblesSansVerrou()`) ; (3) un tirage, pour le choix. Null si
+     * aucune salle ne passe, ou s'il n'y a pas de grille : aucun tirage consommé hors de la boîte.
+     *
+     * @param  list<array<string, mixed>>  $portes
+     * @return int|null  index de la salle, ou null
+     */
+    private function salleDeLaCle(array $portes, array $cases, array $salles, \Closure $suivant): ?int
+    {
+        $grilles = array_values(array_filter($portes, fn (array $p) => ($p['verrou']['type'] ?? null) === MoteurPortes::VERROU_GRILLE));
+
+        if ($grilles === []) {
+            return null;
+        }
+
+        $interdites = [0 => true];
+        foreach ($grilles as $grille) {
+            foreach (Grille::casesPorte($grille) as $case) {
+                $salle = Salles::indexDe($salles, (int) $case['x'], (int) $case['y']);
+
+                if ($salle !== null) {
+                    $interdites[$salle] = true;
+                }
+            }
+        }
+
+        $accessibles = $this->accessiblesSansVerrou($cases, $salles, $portes);
+
+        $candidates = [];
+        foreach ($salles as $i => $salle) {
+            if (isset($interdites[$i])) {
+                continue;
+            }
+
+            foreach ($this->interieur($cases, $salle) as $case) {
+                if (isset($accessibles["{$case['x']},{$case['y']}"])) {
+                    $candidates[] = $i;
+
+                    break;
+                }
+            }
+        }
+
+        if ($candidates === []) {
+            return null;
+        }
+
+        return $candidates[$suivant() % count($candidates)];
+    }
+
+    /**
+     * Les cases ATTEIGNABLES depuis le départ sans franchir un verrou (ensemble « x,y » => true). UN seul test d'accès pour la
+     * trappe de téléportation et la clé de laiton : BFS depuis une case LIBRE de la salle 0, les cases de `$bloquantes` et les
+     * embrasures des portes verrouillées, secrètes, de pierre ou à levier tenues fermées. Une porte verrouillée posée sur le mur
+     * de la salle 0 a sa case d'embrasure DANS la salle 0 : partir de cette case-là franchirait le verrou par l'autre côté.
+     *
+     * @param  list<array{x: int, y: int}>  $bloquantes  cases que le test tient fermées en plus des verrous
+     * @param  list<array<string, mixed>>  $portes
+     * @return array<string, true>
+     */
+    private function accessiblesSansVerrou(array $cases, array $salles, array $portes, array $bloquantes = []): array
+    {
+        $bloqueesAcces = $bloquantes;
+
+        foreach ($portes as $porte) {
+            $fermeeAuVerrou = in_array($porte['etat'] ?? null, [MoteurPortes::ETAT_VERROUILLEE, MoteurPortes::ETAT_SECRETE], true)
+                || ! empty($porte['verrou']);
+
+            if ($fermeeAuVerrou) {
+                $bloqueesAcces[] = Grille::caseEmbrasure($porte, $salles);
+            }
+        }
+
+        $cleBloquees = [];
+        foreach ($bloqueesAcces as $bloquee) {
+            $cleBloquees["{$bloquee['x']},{$bloquee['y']}"] = true;
+        }
+
+        $origineAcces = null;
+        foreach ($this->interieur($cases, $salles[0]) as $candidat) {
+            if (! isset($cleBloquees["{$candidat['x']},{$candidat['y']}"])) {
+                $origineAcces = $candidat;
+
+                break;
+            }
+        }
+
+        return $origineAcces === null
+            ? []
+            : $this->atteignablesDepuis($cases, $bloqueesAcces, [$origineAcces['x'], $origineAcces['y']]);
+    }
+
+    /**
      * Accole les salles-FEUILLES à leur parente PAR DÉFAUT (René, 2026-09-11 :
      * « tu mets toujours une case pour relier 2 salles, mais dans le jeu
      * original il n'y en a pas ») : leurs murs coïncident, et le perçage
@@ -1629,6 +1825,9 @@ final class AssembleurCarte
             if ($porte['etat'] === 'secrete') {
                 $porte['revele'] = false;
             }
+            if (isset($spec['habillage'])) {
+                $porte['habillage'] = (string) $spec['habillage'];
+            }
         }
 
         return $porte;
@@ -2001,6 +2200,10 @@ final class AssembleurCarte
             ->get()
             ->reject(fn (Piege $p) => data_get($p->effet, 'declencheur') === 'ouverture_tresor')
             ->reject(fn (Piege $p) => data_get($p->effet, 'zone_lames') !== null)
+            // FOSSE LONGUE (The Mage of the Mirror p. 6, lot G, 2026-10-29) : DEUX cases liées par `groupe_id`, posées par
+            // `placerFosseLongue()` et par elle seule. Dans ce vivier, elle tomberait en UNE case sans son lien de groupe, sans
+            // le saut par le bout : une fosse de deux cases ne se tire jamais case par case.
+            ->reject(fn (Piege $p) => data_get($p->effet, 'saut_long') !== null)
             // Wizards of Morcar (lot B, 2026-10-06) : les trois pièges
             // magiques ont chacun une pose DÉDIÉE (`placerPiegesMorcar()`,
             // juste après `placerLameBalanciere()`) — le Téléporteur exige
@@ -2183,6 +2386,119 @@ final class AssembleurCarte
 
         // Aucune salle n'offre de pose valide : on renonce, comme toute autre
         // couche — jamais de lame balançoire forcée.
+        return [];
+    }
+
+    /**
+     * FOSSE LONGUE (*The Mage of the Mirror* F7539 p. 6, « Long Pit Trap ») : DEUX cases de fosse, liées par `groupe_id`,
+     * cachées comme la Fosse, sous le thème `mage_du_miroir` SEULEMENT. Au plus une par carte, avec la chance
+     * `CHANCE_FOSSE_LONGUE` (décision de l'assembleur, non sourcée).
+     *
+     * Règles de pose — le patron de `placerLameBalanciere()` :
+     *  - jamais dans la salle de départ (subie au tour 1, pas jouée), jamais sur une case de PORTE ;
+     *  - jamais sur une case déjà prise par une autre couche (`casesDuDecor()` : mobilier, terrain, épreuves, leviers, pièges) ;
+     *  - les deux cases dans LA MÊME salle, en ligne droite, et le plancher `CASES_JOUABLES_MINIMUM` de cases libres
+     *    tenu après la pose (« connexe n'est pas jouable », §2.12 ter) ;
+     *  - AUCUN tirage hors du thème : une carte sans `mage_du_miroir` garde exactement les mêmes nombres qu'avant ;
+     *  - pas de contrôle de connectivité : une fosse ne bloque pas le mouvement, elle fait tomber.
+     *
+     * @return list<array{x: int, y: int, piege_id: int, etat: string, groupe_id: string}>  zéro ou deux entrées
+     */
+    private function placerFosseLongue(
+        array $cases,
+        array $salles,
+        array $portes,
+        array $leviers,
+        array $pieges,
+        array $mobilier,
+        array $epreuves,
+        array $terrain,
+        \Closure $suivant,
+        ?BestiaireGroupe $bestiaire,
+    ): array {
+        if (! ($bestiaire?->contient('mage_du_miroir') ?? false) || count($salles) < 2) {
+            return [];
+        }
+
+        $piege = Piege::query()->orderBy('id')->get()
+            ->first(fn (Piege $p) => $p->boite === 'mage_du_miroir' && data_get($p->effet, 'saut_long') !== null);
+
+        if ($piege === null || $suivant() % 100 >= self::CHANCE_FOSSE_LONGUE) {
+            return [];
+        }
+
+        $prng = new PrngLineaire($suivant());
+        $decor = $this->casesDuDecor($salles, $portes, $mobilier, $pieges, $leviers, $epreuves, $terrain);
+
+        $interdites = [];
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $interdites["{$case['x']},{$case['y']}"] = true;
+            }
+        }
+
+        // Une liste de cases par salle (hors départ), et le pool global mélangé — même patron que la lame.
+        $interieurParSalle = [];
+        $pool = [];
+
+        foreach ($salles as $i => $salle) {
+            if ($i === 0) {
+                continue;
+            }
+
+            $interieurParSalle[$i] = [];
+
+            foreach ($this->interieur($cases, $salle) as $position) {
+                $interieurParSalle[$i]["{$position['x']},{$position['y']}"] = $position;
+                $pool[] = [...$position, 'salle' => $i];
+            }
+        }
+
+        foreach ($prng->melanger($pool) as $candidat) {
+            $i = (int) $candidat['salle'];
+            // Deux orientations (horizontale puis verticale, ou l'inverse) : UN tirage choisit l'ordre, pas chacun des essais.
+            $ordres = $prng->suivant() % 2 === 0 ? [[1, 0], [0, 1]] : [[0, 1], [1, 0]];
+
+            foreach ($ordres as [$dx, $dy]) {
+                $deux = [
+                    ['x' => $candidat['x'], 'y' => $candidat['y']],
+                    ['x' => $candidat['x'] + $dx, 'y' => $candidat['y'] + $dy],
+                ];
+
+                $valide = true;
+
+                foreach ($deux as $case) {
+                    $cle = "{$case['x']},{$case['y']}";
+
+                    if (! isset($interieurParSalle[$i][$cle]) || isset($interdites[$cle]) || isset($decor[$cle])) {
+                        $valide = false;
+                        break;
+                    }
+                }
+
+                // Plancher de cases jouables : les cases LIBRES de la salle, une fois les deux de fosse posées.
+                if ($valide) {
+                    $libres = 0;
+
+                    foreach ($interieurParSalle[$i] as $cle => $_) {
+                        if (! isset($decor[$cle])) {
+                            $libres++;
+                        }
+                    }
+
+                    $valide = $libres - count($deux) >= self::CASES_JOUABLES_MINIMUM;
+                }
+
+                if ($valide) {
+                    return array_map(fn (array $case) => [
+                        'x' => $case['x'], 'y' => $case['y'],
+                        'piege_id' => (int) $piege->id, 'etat' => 'cache', 'groupe_id' => 'fosse-longue-1',
+                    ], $deux);
+                }
+            }
+        }
+
+        // Aucune salle n'offre une pose valide : on renonce, comme toute autre couche — jamais une fosse forcée.
         return [];
     }
 
@@ -2518,7 +2834,7 @@ final class AssembleurCarte
      *                                             ne soit appelée.
      * @return list<array{mobilier_id: int, x: int, y: int, l: int, h: int, salle: int}>
      */
-    private function placerMobilier(array $cases, array $salles, array $portes, array $leviers, array $pieges, \Closure $suivant, array $sallesAGarantirUnCoffre = [], ?BestiaireGroupe $bestiaire = null, ?string $nomElementObjectif = null): array
+    private function placerMobilier(array $cases, array $salles, array $portes, array $leviers, array $pieges, \Closure $suivant, array $sallesAGarantirUnCoffre = [], ?BestiaireGroupe $bestiaire = null, ?string $nomElementObjectif = null, ?int $salleDeLaCle = null): array
     {
         // Boîte : une pièce de mobilier `boite` (ex. la Caisse de
         // ravitaillement, `horde_ogre`) n'entre dans le catalogue QUE si le
@@ -2533,12 +2849,16 @@ final class AssembleurCarte
         // d'une quête ordinaire du thème n'ouvrait sur rien.
         $element = $nomElementObjectif === null ? null : $disponible->firstWhere('nom', $nomElementObjectif);
 
+        // RÂTELIER À CLÉ (Mage of the Mirror, 2026-10-29) : le râtelier d'armes qui porte la clé de laiton, posé à coup sûr dans
+        // `$salleDeLaCle`. Null hors d'une carte à grille : le tirage du mobilier ordinaire n'en est jamais décalé.
+        $rackCle = $salleDeLaCle === null ? null : $disponible->firstWhere('nom', "Râtelier d'armes");
+
         $catalogue = $disponible
             ->reject(fn (Mobilier $m) => in_array($m->nom, self::MOBILIER_POSE_EN_QUETE, true)
                 || in_array($m->nom, MoteurMobilier::ELEMENT_OBJECTIF_FINAL, true))
             ->values();
 
-        if ($catalogue->isEmpty() && $element === null) {
+        if ($catalogue->isEmpty() && $element === null && $rackCle === null) {
             return [];
         }
 
@@ -2623,6 +2943,35 @@ final class AssembleurCarte
                         'x' => $place['x'], 'y' => $place['y'], 'l' => $place['l'], 'h' => $place['h'],
                         'salle' => $i,
                         'objectif' => true,
+                    ];
+                    break;
+                }
+            }
+
+            // RÂTELIER À CLÉ (Mage of the Mirror, F7539 p. 6 ; quête 7 note C) : posé à coup sûr dans la salle de la clé, comme
+            // l'élément-objectif dans la salle du boss — même plancher de cases jouables, huit essais. `objet_fixe` désigne la clé
+            // que la PREMIÈRE fouille du râtelier lui donne (`ResolveurTour::resoudreFouilleMobilier()`).
+            if ($rackCle !== null && $i === $salleDeLaCle) {
+                for ($essai = 0; $essai < 8; $essai++) {
+                    $place = $this->tenterPoseMobilier(
+                        $catalogue->isEmpty() ? collect([$rackCle]) : $catalogue,
+                        $cases, $salle, $interieur, $seuils, $interdites, $occupeesSalle, $prng, $rackCle,
+                    );
+
+                    if ($place === null
+                        || count($interieur) - count($occupeesSalle) - count($place['cellules']) < self::CASES_JOUABLES_MINIMUM) {
+                        continue;
+                    }
+
+                    foreach ($place['cellules'] as $cellule) {
+                        $occupeesSalle["{$cellule['x']},{$cellule['y']}"] = true;
+                    }
+
+                    $mobilier[] = [
+                        'mobilier_id' => $place['mobilier_id'],
+                        'x' => $place['x'], 'y' => $place['y'], 'l' => $place['l'], 'h' => $place['h'],
+                        'salle' => $i,
+                        'objet_fixe' => MoteurPortes::CLE_DE_LAITON,
                     ];
                     break;
                 }
@@ -3407,8 +3756,8 @@ final class AssembleurCarte
             $maxPaires = max($minPaires, (int) data_get($structure, 'terrains.trappes.max', $minPaires));
             $vouluesPaires = $prng->entre($minPaires, $maxPaires);
 
-            // Accessibilité SANS verrou : BFS depuis le départ, cases bloquantes et portes verrouillées,
-            // secrètes, de pierre ou à levier (embrasure comprise) tenues fermées.
+            // Accessibilité SANS verrou (`accessiblesSansVerrou()`, le test que partage la clé de laiton) : cases bloquantes
+            // et portes verrouillées, secrètes, de pierre ou à levier, embrasure comprise, tenues fermées.
             $bloqueesAcces = [];
             foreach ($bloquantesParSalle as $bloquees) {
                 foreach (array_keys($bloquees) as $cleBloquee) {
@@ -3417,33 +3766,7 @@ final class AssembleurCarte
                 }
             }
 
-            foreach ($portes as $porte) {
-                $fermeeAuVerrou = in_array($porte['etat'] ?? null, [MoteurPortes::ETAT_VERROUILLEE, MoteurPortes::ETAT_SECRETE], true)
-                    || ! empty($porte['verrou']);
-
-                if ($fermeeAuVerrou) {
-                    $bloqueesAcces[] = Grille::caseEmbrasure($porte, $salles);
-                }
-            }
-
-            // Origine : une case LIBRE de la salle de départ. Une porte verrouillée posée sur le mur de la salle 0
-            // a sa case d'embrasure DANS la salle 0 : partir de cette case-là franchirait le verrou par l'autre côté.
-            $cleBloquees = [];
-            foreach ($bloqueesAcces as $bloquee) {
-                $cleBloquees["{$bloquee['x']},{$bloquee['y']}"] = true;
-            }
-
-            $origineAcces = null;
-            foreach ($this->interieur($cases, $salles[0]) as $candidat) {
-                if (! isset($cleBloquees["{$candidat['x']},{$candidat['y']}"])) {
-                    $origineAcces = $candidat;
-
-                    break;
-                }
-            }
-            $accessibles = $origineAcces === null
-                ? []
-                : $this->atteignablesDepuis($cases, $bloqueesAcces, [$origineAcces['x'], $origineAcces['y']]);
+            $accessibles = $this->accessiblesSansVerrou($cases, $salles, $portes, $bloqueesAcces);
 
             // Les salles où se tient l'OBJECTIF ne reçoivent aucune extrémité (règle 2).
             $salleObjectif = [];
@@ -3509,6 +3832,89 @@ final class AssembleurCarte
                 }
 
                 $paires++;
+            }
+        }
+
+        // POSES PAR SALLE (lot H des restes, Spirit Queen's Torment, 2026-10-29) : une SALLE ENTIÈRE, toutes ses cases libres,
+        // une plaque `salle-N` (jamais la salle de départ : `$parSalle` l'exclut). Posées EN FIN de méthode, après les trappes :
+        // une carte sans le thème ne consomme aucun tirage de plus. Une salle déjà couverte par une autre pose n'en reçoit pas
+        // une seconde (ses cases sont prises). Sans parvis ni plancher : un courant ne bloque rien et se tient.
+        $numeroSalle = 0;
+
+        foreach (self::POSES_PAR_SALLE as $nomTerrain => $cleGabarit) {
+            $type = $catalogue->firstWhere('nom', $nomTerrain);
+
+            if ($type === null) {
+                continue; // pas de thème qui le porte : aucun tirage consommé
+            }
+
+            $minSalles = (int) data_get($structure, "terrains.{$cleGabarit}.min", 0);
+            $maxSalles = max($minSalles, (int) data_get($structure, "terrains.{$cleGabarit}.max", $minSalles));
+            $vouluesSalles = $prng->entre($minSalles, $maxSalles);
+
+            if ($vouluesSalles < 1) {
+                continue;
+            }
+
+            $posees = 0;
+
+            foreach ($prng->melanger(array_keys($parSalle)) as $i) {
+                if ($posees >= $vouluesSalles) {
+                    break;
+                }
+
+                $positions = array_values(array_filter(
+                    $parSalle[$i]['libres'],
+                    fn (array $p) => ! isset($occupeesGlobal["{$p['x']},{$p['y']}"]),
+                ));
+
+                if ($positions === []) {
+                    continue;
+                }
+
+                $numeroSalle++;
+
+                foreach ($positions as $position) {
+                    $terrains[] = [
+                        'x' => $position['x'],
+                        'y' => $position['y'],
+                        'terrain_id' => (int) $type->id,
+                        'groupe_id' => "salle-{$numeroSalle}",
+                    ];
+                    $occupeesGlobal["{$position['x']},{$position['y']}"] = true;
+                }
+
+                $posees++;
+            }
+        }
+
+        // VENTS DE COULOIR (Spirit Queen q. 12, lot H des restes, 2026-10-29) : pose `couloirs` — TOUTES les cases de couloir LIBRES de
+        // la carte (une case hors de toute salle), ou aucune : le gabarit `vents` dit SI (0 ou 1). Sans groupe : chaque case est
+        // isolée. Une case déjà tenue par une autre couche (porte, piège, meuble, épreuve, levier, terrain) reste à sa couche.
+        // Posé en fin de méthode : une carte sans le thème ne consomme aucun tirage de plus.
+        $vent = $catalogue->firstWhere('nom', self::NOM_TERRAIN_VENT);
+
+        if ($vent !== null) {
+            $minVents = (int) data_get($structure, 'terrains.vents.min', 0);
+            $maxVents = max($minVents, (int) data_get($structure, 'terrains.vents.max', $minVents));
+
+            if ($prng->entre($minVents, $maxVents) > 0) {
+                foreach ($cases as $y => $ligne) {
+                    foreach ($ligne as $x => $c) {
+                        if ($c !== 's' || Salles::indexDe($salles, $x, $y) !== null) {
+                            continue;
+                        }
+
+                        $cle = "{$x},{$y}";
+
+                        if (isset($interdites[$cle]) || isset($occupeesGlobal[$cle])) {
+                            continue;
+                        }
+
+                        $terrains[] = ['x' => $x, 'y' => $y, 'terrain_id' => (int) $vent->id];
+                        $occupeesGlobal[$cle] = true;
+                    }
+                }
             }
         }
 

@@ -153,7 +153,10 @@ const PORTES = [
     ['verrouillee', 'Verrouillée — clé, gardien à vaincre ou levier'],
     ['secrete', 'Passage secret révélé par une fouille'],
 ];
-const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? []).some((p) => p.etat === etat)));
+// Un MIROIR (habillage, 2026-10-29) a sa propre ligne : il ne doit pas faire paraître la ligne « Fermée » à lui seul.
+const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? [])
+    .some((p) => p.etat === etat && !(p.habillage === 'miroir' && p.etat !== 'ouverte'))));
+const porteMiroir = computed(() => (props.carte?.portes ?? []).some((p) => p.habillage === 'miroir' && p.etat !== 'ouverte'));
 
 // Le pictogramme d'une ligne de porte : celui de la première porte de cet ÉTAT qui en porte un. La porte de pierre FERMÉE a
 // le sien (`verrou_pierre`, publié par le serveur) : il ne doit pas prêter son dessin à la ligne « Fermée ». Une porte de
@@ -167,6 +170,8 @@ const symbolePorte = (etat, pierre = false) => (props.carte?.portes ?? [])
 // sans cette ligne dédiée elle se lirait, à tort, comme une porte fermée
 // ORDINAIRE dans la légende générique ci-dessus.
 const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.verrou === 'pierre'));
+// GRILLE DE FER (Mage of the Mirror, 2026-10-29) : `verrou === 'grille'`, publié par le serveur (comme la pierre).
+const grilleDeFer = computed(() => (props.carte?.portes ?? []).some((p) => p.verrou === 'grille'));
 </script>
 
 <template>
@@ -202,6 +207,15 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
                     <span v-if="symbolePorte('fermee', true)" class="lg-chip lg-symbole lg-symbole-porte"><SymboleCarte :url="symbolePorte('fermee', true)" icone="construction" nom="Porte de pierre" /></span>
                     <span v-else class="lg-chip lg-porte pierre" />
                     <span>Porte de pierre — un héros lançant ≥ 2 dés d'attaque de base peut la forcer (2 crânes)</span>
+                </div>
+                <div v-if="porteMiroir" class="lg-ligne">
+                    <span class="lg-chip lg-porte miroir" />
+                    <span>Miroir — un passage secret trouvé ; il s'ouvre comme une porte</span>
+                </div>
+                <!-- GRILLE DE FER (Mage of the Mirror, 2026-10-29) : une clé la lève, sinon deux dés rouges sous le Corps de départ. -->
+                <div v-if="grilleDeFer" class="lg-ligne">
+                    <span class="lg-chip lg-porte grille" />
+                    <span>Grille de fer — une clé la lève, ou deux dés rouges sous le Corps de départ (elle bloque aussi la vue)</span>
                 </div>
             </section>
 
@@ -359,7 +373,9 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 .lg-porte.ouverte { background: none; box-shadow: inset 0 0 0 1px #f0d79a; }
 .lg-porte.verrouillee { background: linear-gradient(90deg, #b98a3a, #6a4a1c); }
 .lg-porte.secrete { background: linear-gradient(90deg, #b18ad8, #5b3f7a); }
+.lg-porte.miroir { background: linear-gradient(90deg, #f4f8fc, #9fb3c8 55%, #5d7189); }
 .lg-porte.pierre { background: linear-gradient(90deg, oklch(0.55 0.01 255), oklch(0.32 0.01 255)); }
+.lg-porte.grille { background: repeating-linear-gradient(90deg, oklch(0.42 0.02 60) 0 3px, oklch(0.22 0.01 60) 3px 7px); }
 
 .lg-piege { border-radius: 4px; color: var(--warn, oklch(0.82 0.16 75));
   background: oklch(0.78 0.15 75 / 0.14); box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.55); }
@@ -414,6 +430,10 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 .lg-terrain.cat-jungle { background: repeating-linear-gradient(45deg, oklch(0.72 0.14 140 / 0.30) 0 2px, transparent 2px 5px), oklch(0.30 0.08 143); box-shadow: inset 0 0 0 1px oklch(0.72 0.14 140 / 0.5); }
 .lg-terrain.cat-toile { background: repeating-linear-gradient(30deg, oklch(0.90 0.01 260 / 0.32) 0 1px, transparent 1px 5px), repeating-linear-gradient(-30deg, oklch(0.90 0.01 260 / 0.24) 0 1px, transparent 1px 5px), oklch(0.28 0.01 260); box-shadow: inset 0 0 0 1px oklch(0.85 0.01 260 / 0.45); }
 .lg-terrain.cat-sable { background: radial-gradient(oklch(0.88 0.08 85 / 0.45) 1px, transparent 1.6px) 0 0 / 5px 5px, oklch(0.40 0.07 78); box-shadow: inset 0 0 0 1px oklch(0.85 0.09 85 / 0.5); }
+.lg-terrain.cat-meuble { background: radial-gradient(oklch(0.55 0.07 65 / 0.5) 1.2px, transparent 2px) 0 0 / 5px 5px, oklch(0.30 0.06 58); box-shadow: inset 0 0 0 1px oklch(0.55 0.07 65 / 0.6); }
+.lg-terrain.cat-porteur { background: radial-gradient(oklch(0.85 0.10 205 / 0.55) 1.4px, transparent 2px) 0 0 / 6px 6px, oklch(0.31 0.07 218); box-shadow: inset 0 0 0 1px oklch(0.80 0.10 205 / 0.6); }
+.lg-terrain.cat-vent { background: repeating-linear-gradient(60deg, oklch(0.84 0.03 240 / 0.36) 0 2px, transparent 2px 6px), oklch(0.27 0.03 242); box-shadow: inset 0 0 0 1px oklch(0.84 0.03 240 / 0.55); }
+.lg-terrain.cat-courant { background: repeating-linear-gradient(0deg, oklch(0.80 0.10 215 / 0.36) 0 2px, transparent 2px 5px), oklch(0.30 0.07 222); box-shadow: inset 0 0 0 1px oklch(0.78 0.11 215 / 0.6); }
 .lg-terrain.cat-eau { background: oklch(0.32 0.08 217); box-shadow: inset 0 0 0 1px oklch(0.75 0.11 215 / 0.55); }
 .lg-terrain.cat-feu { background: oklch(0.34 0.10 40); box-shadow: inset 0 0 0 1px oklch(0.80 0.16 60 / 0.6); }
 .lg-terrain.cat-sables {

@@ -652,7 +652,7 @@ it('route au budget de rencontre, plutôt que d\'interdire le palier, la créatu
     expect($maxBase)->toBeLessThan($minSousBoss, 'les paliers se chevauchent en coût');
 });
 
-it('donne 2 cases à chaque figure dont le livret dessine un jeton OVALE, et à elles seules — sauf exception nommée', function () {
+it('donne 2 cases à chaque figure dont le livret dessine un jeton OVALE ou une TUILE de 2 cases, et à elles seules — sauf exception nommée', function () {
     // René, 2026-10-29. Un livret qui dessine des ovales les réserve aux figures de 2 cases : sur la carte de
     // l'Ogre Horde (F9528 PDF 36), chaque ovale d'ogre couvre exactement 2 cases, chaque rond une seule. D'où
     // l'Ogre (Mage of the Mirror) et l'Ogre guerrier ramenés à 1 case (jetons ronds à côté d'ovales, dans la
@@ -671,11 +671,26 @@ it('donne 2 cases à chaque figure dont le livret dessine un jeton OVALE, et à 
         expect(Monstre::where('nom_base', $nom)->firstOrFail()->emprise())->toBe(['l' => 1, 'h' => 2], "{$nom} : jeton ovale");
     }
 
+    // TUILES (2026-10-29) : le livret pose la tuile de la figure ; sa taille DIT l'emprise. Fichier 2:1 = deux cases
+    // (le Golem Cœur-de-Forge, F9907 PDF 12 — René : « Oui passe à 2 cases »), fichier carré = une case (le Spawnling).
+    $tuilesDeDeux = [];
+    foreach (config('symboles_monstres.tuiles') as $nom) {
+        $cle = config('symboles_monstres.cles')[$nom] ?? Illuminate\Support\Str::slug($nom);
+        [$largeur, $hauteur] = getimagesize(public_path("images/livrets/monstres/{$cle}.webp"));
+        $deux = $largeur === 2 * $hauteur;
+        expect(Monstre::where('nom_base', $nom)->firstOrFail()->emprise())
+            ->toBe(['l' => 1, 'h' => $deux ? 2 : 1], "{$nom} : tuile {$largeur}×{$hauteur}");
+        if ($deux) {
+            $tuilesDeDeux[] = $nom;
+        }
+    }
+    expect($tuilesDeDeux)->toContain('Golem Cœur-de-Forge');
+
     $grandes = Monstre::all()->filter(fn (Monstre $m) => $m->grandeTaille())->pluck('nom_base')->sort()->values()->all();
-    $sansOvale = array_values(array_diff($grandes, $ovales));
+    $sansOvale = array_values(array_diff($grandes, $ovales, $tuilesDeDeux));
     sort($exceptions);
 
-    expect($sansOvale)->toBe($exceptions, 'une figure de 2 cases sans jeton ovale doit être une exception nommée');
+    expect($sansOvale)->toBe($exceptions, 'une figure de 2 cases sans jeton ovale ni tuile de 2 cases doit être une exception nommée');
 
     foreach (['Ogre', 'Ogre guerrier'] as $nom) {
         expect(Monstre::where('nom_base', $nom)->firstOrFail()->grandeTaille())->toBeFalse("{$nom} : jeton rond, une case");

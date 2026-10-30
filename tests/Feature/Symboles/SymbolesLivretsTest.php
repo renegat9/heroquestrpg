@@ -59,7 +59,7 @@ it('chaque clé FONCTIONNELLE du manifeste est lue par l\'outil, et aucune clé 
     // Une clé du manifeste sans lecteur serait une clé décorative : l'outil croirait la prendre en compte, et ne le ferait pas.
     // `source`, `note` et `nom_catalogue` sont de la DOCUMENTATION (lue par l'humain et par ce test), permises sans lecteur.
     $outil = file_get_contents(base_path('image-tools/symboles-livrets/extraire.py'));
-    $lues = ['type', 'cle', 'livret', 'page', 'cadre', 'rotation', 'emprise', 'couleur', 'seuil', 'poussiere', 'natif', 'absent', 'disque', 'ovale'];
+    $lues = ['type', 'cle', 'livret', 'page', 'cadre', 'rotation', 'emprise', 'couleur', 'seuil', 'poussiere', 'natif', 'absent', 'disque', 'ovale', 'tuile'];
     $documentaires = ['nom_catalogue', 'source', 'note'];
 
     foreach ($lues as $cle) {
@@ -89,7 +89,7 @@ it('le catalogue semé et le manifeste se recouvrent exactement, dans les deux s
     }
 });
 
-it('les portes couvrent les quatre états du moteur et la porte de pierre ; le levier et l’escalier existent', function () {
+it('les portes couvrent les quatre états du moteur, la porte de pierre et la grille de fer ; le levier et l’escalier existent', function () {
     $portes = collect(manifesteSymboles())->where('type', 'portes')->pluck('nom_catalogue')->all();
     expect($portes)->toEqualCanonicalizing([
         MoteurPortes::ETAT_OUVERTE,
@@ -97,6 +97,7 @@ it('les portes couvrent les quatre états du moteur et la porte de pierre ; le l
         MoteurPortes::ETAT_VERROUILLEE,
         MoteurPortes::ETAT_SECRETE,
         'verrou pierre',
+        'verrou grille', // la herse du Mage du Miroir (F7539 PDF 3), lot F des restes, 2026-10-29
     ]);
 
     $fixes = collect(manifesteSymboles())->whereIn('type', ['leviers', 'escalier'])->pluck('cle')->all();
@@ -128,6 +129,11 @@ it('un symbole absent dit pourquoi ; un symbole extrait dit d’où il vient', f
         if (array_key_exists('ovale', $s)) {
             expect($s['ovale'])->toHaveCount(4);
             expect(array_key_exists('emprise', $s))->toBeFalse("« {$s['nom_catalogue']} » : un ovale n'a pas d'emprise, son cadre fait foi");
+            continue;
+        }
+        // Une TUILE de figure (2026-10-29) : le cadre EST la tuile, pas d'emprise (SymbolesMonstresTest).
+        if (! empty($s['tuile'])) {
+            expect(array_key_exists('emprise', $s))->toBeFalse("« {$s['nom_catalogue']} » : une tuile n'a pas d'emprise, son cadre fait foi");
             continue;
         }
         expect($s['emprise'])->toHaveCount(2);

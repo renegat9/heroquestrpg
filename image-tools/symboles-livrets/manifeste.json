@@ -751,6 +751,12 @@
     },
     {
       "type": "pieges",
+      "cle": "fosse-longue",
+      "nom_catalogue": "Fosse longue",
+      "absent": "figure de DEUX cases (F7539 p. 39, planche « Design Your Own », mesurée 106 × 52 px contre 54 × 52 pour une Fosse : 2,04 : 1) — chaque case de la carte porte la flèche de la Fosse, et un symbole 2 × 1 ne tient pas dans une case"
+    },
+    {
+      "type": "pieges",
       "cle": "fiole-de-poison",
       "nom_catalogue": "Fiole de poison",
       "absent": "piège éphémère de l’établi (fouille) : aucun livret ne le dessine sur la carte"
@@ -760,6 +766,12 @@
       "cle": "piege-de-coffre",
       "nom_catalogue": "Piège de coffre",
       "absent": "piège éphémère du coffre (fouille) : aucun livret ne le dessine sur la carte"
+    },
+    {
+      "type": "pieges",
+      "cle": "piege-de-boule-de-flammes",
+      "nom_catalogue": "Piège de Boule de Flammes",
+      "absent": "piège éphémère du coffre (fouille), Spirit Queen's Torment G0053 quêtes 2 et 6 : aucun livret ne le dessine sur la carte"
     },
     {
       "type": "pieges",
@@ -989,6 +1001,26 @@
         1
       ],
       "source": "F9528 p. 4 (PDF 4), « Stone Doorway »"
+    },
+    {
+      "type": "portes",
+      "cle": "verrou-grille",
+      "nom_catalogue": "verrou grille",
+      "livret": "F7539_en-us_avalon-hill-heroquest-the-mage-of-the-mirror-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 3,
+      "cadre": [
+        355.0,
+        73.5,
+        383.5,
+        88.0
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F7539 p. 4 (PDF 3), « Portcullises x4 » : le symbole de la grille de fer, à côté du texte",
+      "note": "mesuré le 2026-10-29 (lot F du plan des restes) : un cadre de porte barré de cinq points"
     },
     {
       "type": "leviers",
@@ -1675,6 +1707,40 @@
     },
     {
       "type": "monstres",
+      "cle": "spawnling",
+      "nom_catalogue": "Spawnling",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 7,
+      "cadre": [
+        838.76,
+        443.1,
+        858.74,
+        463.08
+      ],
+      "rotation": 90,
+      "tuile": true,
+      "source": "F9907 p. 12-13 (PDF 7), « Wandering Monster in the Quest: Spawnling » (tuile carrée)",
+      "note": "tuile mesurée (2026-10-29), la 2e des trois de la légende : la même que celles posées sur la carte de la quête 1 ; page couchée : rotation 90 (horaire)"
+    },
+    {
+      "type": "monstres",
+      "cle": "forgeheart-golem",
+      "nom_catalogue": "Forgeheart Golem",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 12,
+      "cadre": [
+        281.2,
+        336.8,
+        302.8,
+        374.2
+      ],
+      "rotation": 90,
+      "tuile": true,
+      "source": "F9907 p. 22-23 (PDF 12), quête 6 note A, « Use the Forgeheart Golem's tile » : la tuile posée dans la salle A",
+      "note": "tuile mesurée (2026-10-29), une colonne sur deux cases ; page couchée : rotation 90 (horaire), ramenée à l'horizontale 2:1"
+    },
+    {
+      "type": "monstres",
       "cle": "minotaur",
       "nom_catalogue": "Minotaur",
       "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
@@ -1779,6 +1845,30 @@
       ],
       "source": "First Light, livret de quêtes p. 9 « Quest Map Guide » (même scan, page 2), jeton étiqueté « Dread Sorcerer »",
       "note": "Rayon à l'anneau vert, pas à l'enveloppe : l'enveloppe englobait le texte des étiquettes voisines (« Abomination », « Dread Sorcerer »)."
+    },
+    {
+      "type": "terrains",
+      "cle": "courant-contraire",
+      "nom_catalogue": "Courant contraire",
+      "absent": "G0053 (Spirit Queen's Torment) : le terrain est décrit par le TEXTE d'une note de carte, sans pictogramme imprimé à ce jour. q. 11 note B, p. 14 : « Currents in these rooms press against the heroes » — une salle entière, pas une icône. Un pictogramme n'a donc rien à extraire ; s'il en paraît un, l'extraire comme les autres (orchestrateur)."
+    },
+    {
+      "type": "terrains",
+      "cle": "courant-porteur",
+      "nom_catalogue": "Courant porteur",
+      "absent": "G0053 (Spirit Queen's Torment) : le terrain est décrit par le TEXTE d'une note de carte, sans pictogramme imprimé à ce jour. q. 11 note C, p. 14 : « Currents in these rooms or halls make it easier for heroes to swim » — une salle entière, pas une icône. Un pictogramme n'a donc rien à extraire ; s'il en paraît un, l'extraire comme les autres (orchestrateur)."
+    },
+    {
+      "type": "terrains",
+      "cle": "sol-meuble",
+      "nom_catalogue": "Sol meuble",
+      "absent": "G0053 (Spirit Queen's Torment) : le terrain est décrit par le TEXTE d'une note de carte, sans pictogramme imprimé à ce jour. q. 10 note B, p. 13 : « the floor of this room is loose earth » — une salle entière, pas une icône. Un pictogramme n'a donc rien à extraire ; s'il en paraît un, l'extraire comme les autres (orchestrateur)."
+    },
+    {
+      "type": "terrains",
+      "cle": "vent-de-couloir",
+      "nom_catalogue": "Vent de couloir",
+      "absent": "G0053 (Spirit Queen's Torment) : le terrain est décrit par le TEXTE d'une note de carte, sans pictogramme imprimé à ce jour. q. 12, p. 15 : « Strong air currents move through the hallways » — la case de couloir n'a pas de pictogramme imprimé. Un pictogramme n'a donc rien à extraire ; s'il en paraît un, l'extraire comme les autres (orchestrateur)."
     }
   ]
 }

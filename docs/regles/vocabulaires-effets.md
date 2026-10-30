@@ -73,4 +73,20 @@ fenêtre — tandis que les coups, rayons et balayages lisent le prédicat exact
 - **`verrou.type` = `condition`** (`MoteurPortes::VERROU_CONDITION`, paramètres dans `MoteurPortes::CONDITIONS`) : porte fermée
   dont l'ouverture est un jet de deux dés rouges. Ni `ouvrableAMain()` (un verrou n'est jamais libre), ni clé.
 
+**Vocabulaire fermé des PIÈGES (chantier RESTES-COFFRE, 2026-10-29)** — `App\Engine\MotsClesPiege::VOCABULAIRE`. Jusqu'ici
+les clés de `pieges.effet` n'étaient déclarées NULLE PART : n'importe quelle ligne de `PiegeSeeder` pouvait porter une clé
+que plus rien ne lisait, sans une erreur. Le registre en déclare dix-huit, chacune avec son lecteur nommé (`Classe::méthode()`,
+qui doit exister, et dont le fichier écrit la clé). `MotsClesPiegeTest` le teste DANS LES DEUX SENS contre les lignes semées
+(branches `aleatoire` comprises). **Une seule dette, nommée** : `SANS_LECTEUR['detection']` — semée par les pièges de coffre,
+lue par aucun code (le déclenchement est déjà porté par `declencheur: ouverture_tresor`). Elle n'est pas retirée en silence : retirer
+une valeur déjà en base passe par une migration, et c'est un choix de René. Le test vérifie aussi qu'elle reste sans lecteur.
+Une clé NOUVELLE (`sort_dread`, 2026-10-29) n'entre dans le catalogue qu'après son lecteur : `MoteurPieges::declencherEphemere()`
+→ `MoteurDread::lancerSortDePiege()`.
+
+**Les terrains des tours (lot H des restes, 2026-10-29)** — quatre clés ajoutées au vocabulaire fermé `MotsClesTerrain`, chacune lue par une
+couture déclarée : `arret_sur_impair` (dé de déplacement impair : arrêt sur la première case de sol meuble, valeur = PV de Body),
+`bonus_entree` (courant porteur : gain de cases, pris une fois par déplacement), `pousse_heros` et `pousse_zargon` (dans `sur` par face du dé
+de combat : le héros choisit / Zargon choisit, valeur = cases). Une option `pousser_vent` a rejoint `JournalCombat::TYPES` (annoncée) et
+`ResolveurTour::creneauOption()` (`interaction`). Détail : `carte-donjon.md`, section « LES TERRAINS DES TOURS ».
+
 **Trois clés de malédiction, et une source (lot I du plan des restes, 2026-10-29).** `MotsClesEquipement::INAMOVIBLE` (`inamovible`, lu par `Equipement::retirable()` : une pièce portée ne se retire pas), `FARDEAU_DEBUT_DE_TOUR` (`fardeau_debut_de_tour`, paramètres fermés dans `FARDEAU_PARAMETRES`, lue par `MoteurFardeau::debutDeTour()` au menu du porteur) et `SORTS_DREAD_PORTEUR` (`sorts_dread_porteur`, liste de NOMS de sorts de Dread, lue par `SortsDreadPorteur`). Source de dégâts `MoteurDegats::SOURCE_FARDEAU` (`fardeau`), hors `SOURCES_REACTIVES`. Le point de passage des salles est partagé : `Salles::couloirDe()` (le couloir où se tient une case) sert la Nuée d'Effroi comme le fardeau. Le compteur des sorts du porteur est `capacites_utilisees` (`sort_dread_porteur:{nom}`), la même colonne que `frequence`. Détail : `artefacts.md` §« Le Talisman du Savoir maudit ».

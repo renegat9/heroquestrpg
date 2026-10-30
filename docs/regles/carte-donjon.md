@@ -117,6 +117,8 @@ test dans les deux sens (`TerrainEnJeuTest`).
 **Le passage secret est une case de ROCHE qui devient une PORTE dans la même case** (René, 2026-09-11). Non découvert : sa case est peinte `'m'` dans `carte.cases`, et la porte **n'a aucune entrée** dans `portes[]` — indiscernable d'un mur, y compris en comptant les entrées. ⚠ Ceci **REMPLACE** le déguisement `etat: 'mur'` du 2026-09-10, supprimé : la « distinction résiduelle assumée » d'alors (un mur de roche n'a pas d'entrée dans `portes`, ce mur-là en avait une) **disparaît**. Découvert : porte **fermée** dans la même case, à ouvrir. C'est du code retiré, pas ajouté.
 ⚠ **Un monstre n'apparaît QUE sur une case vide** (René, 2026-09-11, après avoir joué : « les monstres ne devraient pas apparaître dans les meubles et les portes fermées », puis « spawn seulement dans les cases vides »). Le défaut était une **asymétrie de signature**, pas un calcul faux : `spawnsHeros($cases, $salle, $portes)` recevait les portes et évitait donc les embrasures, tandis que `spawnsMonstres($cases, $salles)` ne recevait **rien de tel** — il ne pouvait pas éviter ce qu'on ne lui donnait pas. Et `interieur()` ne teste qu'une chose : « est-ce du sol ». ⚠ Les spawns sont pourtant calculés **après** la pose de toutes les couches : la donnée était disponible, simplement pas transmise, et `DemarreurQuete` pose ensuite la créature **sans re-valider**.
 
+**Sous le thème Mage du Miroir, le passage secret est un MIROIR** (René, 2026-10-29, plan des restes lot C ; F7539 PDF 3 : « These standing mirrors are secret portals that lead to great treasure and hidden rooms »). Un **habillage**, pas une règle : `AssembleurCarte` pose `habillage: 'miroir'` (`MoteurPortes::HABILLAGE_MIROIR`) sur toute porte secrète créée sous ce thème, et la carte le garde — la publication et le menu lisent la PORTE, jamais le thème (une campagne qui changerait de thème ne repeindrait pas ses cartes). Il se trouve, s'ouvre, se franchit et paie exactement comme tout passage secret ; le menu dit « Ouvrir le miroir ». ⚠ **Aucun symbole de livret** : les cartes du livret ne dessinent pas le miroir, elles l'écrivent « MIR » (F7539 PDF 17), et les images de la p. 5 sont des miroirs DE QUÊTE (la princesse, l'arc elfique). Un miroir fermé ne prête donc jamais le symbole de la porte fermée (`BibliothequeImages::urlSymbolePorte()` cherche `portes/miroir`, absent → `null`) : le client le peint d'une teinte d'argent, avec sa ligne de légende. Tests : `MiroirsTest`.
+
 ⚠ `casesDuDecor()` est le **point de passage unique** qui recense ce qui occupe une case — embrasures, mobilier (son **emprise entière** `l`×`h`, pas seulement son ancre), pièges, leviers, épreuves, terrain. Deux recensements divergeraient au premier ajout de couche, et une couche neuve oubliée là se verrait **en partie**, sous la forme d'un monstre dans une table. ⚠ Le filtre s'applique **avant** le calcul de la réserve de cases libres (§2.12 bis), sinon on réserverait des cases déjà prises et une salle meublée se remplirait quand même à ras bord.
 
 **§2.12 ter — une salle doit rester JOUABLE, pas seulement connexe** (René,
@@ -620,6 +622,56 @@ condition qu'un héros ne remplit jamais (un Esprit à 0) le laisse passer par l
 ⚠ **Lecture des textes** : la porte verrouillée dit « less than » (strict), la porte de l'Est « equal to or less than » (inclusif) —
 le portage suit les textes, pas une symétrie. Les emprises des deux meubles (1×1) sont des analogies, non mesurées (`MobilierSeeder`).
 
+## LA GRILLE DE FER — une porte qui se force ou s'ouvre à la clé (Mage of the Mirror, lot F, 2026-10-29)
+
+**Sources** : *The Mage of the Mirror* F7539 p. 4 (« Portcullises x4 » : « Some of these massive iron gates open when the heroes
+spring a certain trap, while others are unlocked by the brass key or forced open by brute strength. Heroes and monsters cannot
+see through a portcullis until it is opened. »), p. 6 (« Brass Key » : « used to open a portcullis in several quests. The brass
+key tile is given to the hero who finds the key. »), quête 7 notes C-D (la clé dans le râtelier d'armes de la salle C, la grille
+en salle D : « The portcullis does not open unless a hero has the brass key from room "C." »), quête 10 note G (« a hero must roll
+less than their Body Points on two red dice to force the portcullis open. Each hero may try once per turn until the portcullis
+opens. »). Décisions : `docs/plan-restes-extensions-2026-10-29.md`, lot F (F1 : la force vaut pour TOUTE grille ; F2 : la clé quitte
+le sac en fin de quête). Contrat : `docs/contrat-api.md` § « Mage of the Mirror — grille de fer et clé de laiton ».
+
+**Un état de porte de plus, pas une couche** : `verrou.type = MoteurPortes::VERROU_GRILLE` sur une entrée `fermee`, sur le patron exact
+de la porte à condition (`VERROU_CONDITION`) et de la porte de pierre (`VERROU_PIERRE`). Close, elle bloque le passage **et la vue** :
+c'est déjà le cas de toute porte non ouverte (`Grille::definirPortes()`, `bloqueVue()`) ; la grille n'a donc pas de règle de vue propre.
+
+**Placement — jamais le seul chemin.** `AssembleurCarte::marquerPortesDeGrille()` ne pose une grille QUE sur une arête de BOUCLE (`boucle`,
+jamais l'arbre couvrant), au plus UNE par carte, et SEULEMENT sous le thème `mage_du_miroir` (la garde précède le premier tirage : hors de
+ce thème, la suite PRNG ne bouge pas). `GrilleDeFerTest` vérifie, sur 60 graines, qu'ôter la grille ne coupe aucune salle.
+
+**La voie FORCE (F1)** : le héros au contact lance DEUX dés rouges ; un total strictement sous son Corps de DÉPART (`pv_body_max`) ouvre
+la grille. Le seuil se lit sur `MoteurPortes::FORCE_GRILLE`, copie de la porte verrouillée de Kellar's Keep (F4543 p. 19 note A : « roll
+2 red dice. If they roll less than their **starting** number of Body Points, the door opens. If they fail to open the door, their turn
+ends. ») — même mécanique, donc même choix : le DÉPART, pas l'actuel. Un échec **ferme le tour** (`finTourPorteForcee`), comme la porte à
+condition : la quête 10 dit seulement « once per turn », lecture compatible, retenue celle du précédent le plus proche. Pas d'exemption du
+Nain (le livret n'en parle pas). Le menu n'offre `forcer_grille` qu'à une grille adjacente et close. `ResolveurTour::resoudreForcerPorte()`
+est le SEUL point de passage du jet, partagé avec la porte à condition ; seule change la liste des portes offertes.
+
+**La voie CLÉ** : le lecteur existant — `verrou.type` dans `MoteurPortes::VERROUS_A_CLE` (`cle` et `grille`) et `MoteurPortes::possedeCle()` —,
+avec `verrou.objet_id` = la « Clé de laiton » du catalogue. Option `ouvrir_porte` « (clé) », ni jet ni tour fermé.
+
+**Le producteur de la clé (la première fouille d'un râtelier d'armes)** : `AssembleurCarte::salleDeLaCle()` choisit UNE salle — jamais la salle
+de départ ni une salle que la grille sépare — ATTEIGNABLE depuis le départ SANS franchir un verrou (la grille, la pierre, la condition, un
+levier, un gardien, une porte secrète) : `accessiblesSansVerrou()`, le test que la trappe de téléportation partage. Un râtelier garanti
+(`objet_fixe: "Clé de laiton"`, comme l'élément-objectif dans la salle du boss) y est posé. `ResolveurTour::resoudreFouilleMobilier()` donne la
+clé à la PREMIÈRE fouille de ce râtelier (`$premierAuMeuble`), EN PLUS de sa table ordinaire (quête 7 note C : « finds a tool kit in the
+weapons rack. […] This hero also finds a brass key. »). Si aucune salle ne passe, la grille garde seulement la voie force.
+
+**Fin de quête (F2)** : la clé quitte le sac à `terminerQuete()` et à `echouerQuete()` (`Equipement::purgerObjetsDeQuete()`, lecteur de
+`MotsClesEquipement::OBJET_DE_QUETE`). ⚠ Écart de lecture, noté et non tranché ici : la quête 4 note B dit « take the brass key tile back »
+au moment où la grille s'ouvre ; le plan (F2) garde la clé jusqu'à la fin de la quête. La clé ne sert qu'à CETTE carte : le choix ne change
+pas la jouabilité, il ne change que le moment où le sac la rend.
+
+**Symbole** : aucun symbole de herse dans `image-tools/symboles-livrets/manifeste.json`. `BibliothequeImages::urlSymbolePorte()` rend `null`
+pour une grille (clé `verrou_grille`, non extraite) : la manette et la table gardent l'icône Material `fence`. Sans fichier, le repli est
+l'icône — jamais le symbole de la porte fermée.
+
+**Non testé, nommé** : la pose d'une clé quand la salle candidate est pleine (le râtelier cède au plancher de cases jouables) ; la quête
+double (écartée) ; la Bénédiction de l'Oracle et la souris familière, qui révèlent la salle derrière une grille comme derrière une porte
+close (même liste que la porte de pierre, par précédent).
+
 ## TERRAINS EN PLAQUES — blocs fixes et motifs tirés (Jungles of Delthrak, 2026-10-24)
 
 Demande de René (2026-10-24), après comparaison avec la carte de la quête 1 (F9907 p. 13, PDF p07) : « ajuste pour pouvoir
@@ -688,3 +740,157 @@ n'avait ni `position` ni `z-index`, et le fond de `.dg-cell` (positionnée) la r
 verte, `toile` fils fins pâles, `sable` mouchetis ocre ; la hachure croisée épaisse reste aux Sables mouvants) ; (3) **l'icône d'un
 bloc 2×2 tombait dans son coin** — le serveur publie `etendue` sur l'ancre quand les cases visibles remplissent leur rectangle, et
 l'icône s'y centre (`docs/contrat-api.md`). Leçon : un rendu se vérifie à l'écran, un test de payload ne voit pas une icône masquée.
+
+## LES TERRAINS DES TOURS — lot H des restes (Spirit Queen's Torment, livret G0053 p. 13-15, 2026-10-29)
+
+Quatre terrains, tous `boite = spirit_queen` (`TerrainSeeder`), posés seulement sous ce thème et jamais dans la salle de départ.
+Aucun ne bloque la marche ni la vue : le plancher de jouabilité (`CASES_JOUABLES_MINIMUM`) et la connectivité ne sont pas en jeu.
+Sources : quête 10 note B (sol meuble, p. 13), quête 11 notes B et C (courants, p. 14), quête 12 (vents, p. 15) — relues au texte.
+
+**La POSE** (`terrains.pose`, migration `2026_10_29_140000`) : `salle` = toutes les cases LIBRES d'une salle tirée (une plaque
+`salle-N`, jamais la salle 0), `couloirs` = chaque case de couloir libre de la carte (hors de toute salle), SANS groupe. Le gabarit dit
+COMBIEN (`structure.terrains.<clé>.min/max`, clés `courants`, `sol_meuble`, `courants_porteurs` pour les salles ; `vents` pour les
+couloirs) ; le thème dit LESQUELS. Placé EN FIN de `placerTerrains()` : une carte sans le thème ne consomme aucun tirage de plus.
+Une case déjà tenue par une autre couche (porte, piège, meuble, épreuve, levier, terrain) reste à sa couche.
+
+**Dosage non sourcé, écrit comme tel** : le nombre de salles par carte (0..1 pour chaque clé) et le choix « tous les couloirs
+ou aucun » (`vents` 0..1) sont des valeurs de gabarit, pas du livret. Le livret dit « these rooms » et « the hallways » ; il ne dit pas
+combien de salles d'une quête sont couvertes.
+
+### H1 — Courant contraire (q. 11 note B)
+
+« Each square in these rooms takes 2 movement points to traverse. Monsters are unaffected. » Le coût 2 est le `cout_deplacement` ; le
+« monsters are unaffected » est la clé EXISTANTE `ignore_par_monstres` (la Rivière gelée), lue en un seul point, `FabriqueGrille::pour()`.
+Aucune clé nouvelle : la règle était déjà tenue. Les **alliés** (mercenaires) paient le coût : ils sont du côté des héros, et le texte
+n'exempte que les monstres. Test : `CourantsContrairesTest` (4 tests) ; mutation : le lecteur retiré fait tomber le test des monstres.
+
+### H2 — Sol meuble (q. 10 note B) — `arret_sur_impair` (valeur = PV de Body)
+
+« If the result of the movement dice is odd, they become stuck in the first square of their movement and take 1 Body Point of damage.
+Once stuck, a hero may only roll 1 die for movement, and they only move if the result of the die is an even number. »
+
+Traduction de nos dés (écart assumé : base de classe + 1d6, le livret lance deux dés rouges sans base) :
+- **« the movement dice » = le PREMIER d6 du jet du tour** (`detail_deplacement_tour.des[0]`, `DeplacementHeros::deDeplacementQuiCompte()`).
+  Les bottes elfiques ajoutent des dés sans changer celui-ci (comme Évanescence). Un dé ANNULÉ (armure lourde) ou un mouvement FIXE ne compte
+  pas : ni arrêt, ni libération. Le jet « sans menace » (4) est pair.
+- **Arrêt** : une marche qui ENTRE dans le sol meuble sur un dé impair s'arrête sur la PREMIÈRE case de sol meuble. Elle fonctionne comme
+  un portail (`Grille::parcoursPondere()`) : on y entre, on n'en repart pas. Un héros qui part DÉJÀ dans la salle n'avance que d'une case de
+  plus dans la salle, s'il en a le coût ; il sort librement vers l'extérieur.
+- **Dégât** : 1 PV de Body (`arret_sur_impair`), source `terrain`, annoncé (`enlisement_sol`). La case d'arrivée RÉELLE décide : un piège ou une
+  racine qui arrête avant la case n'enlise pas.
+- **Durée** : `etat_personnage_quete.enlise_sol` (colonne, migration `2026_10_29_150000`, porté par le snapshot). Un enlisé dont le dé est
+  IMPAIR ne bouge pas ce tour (`destinations` vides, `resoudreDeplacement` refuse) ; un enlisé dont le dé est PAIR se dégage et marche de
+  base + d6 : il marche du tour, et l'état tombe au premier pas. « Only roll 1 die » n'a aucun effet chez nous : le d6 est déjà UN dé, la base
+  n'en est pas un. Le dé pair ne « coûte » rien de plus.
+- **Ce qui ne s'applique pas** : un monstre et un allié ne sont jamais arrêtés (« When a HERO moves »). Une poussée de vent n'est pas une
+  marche : elle ne tire aucun dé de déplacement et n'enlise personne. Un héros enlisé qui ne se déplace pas reste enlisé jusqu'à son
+  prochain pas.
+- Test : `SolMeubleTest` (10 tests, routes réelles). Mutations : case d'arrêt retirée du parcours, activation retirée, arrêt à l'arrivée
+  retiré — chacune fait tomber le test correspondant.
+
+### H3 — Courant porteur (q. 11 note C) — `bonus_entree` (valeur = gain en cases)
+
+« Currents in these rooms or halls make it easier for heroes to swim. A hero may move 2 extra squares when they first enter this area. »
+
+Un GAIN de budget, pas un coût négatif (le Dijkstra refuse les arêtes négatives). Le parcours porte un STATUT du bonus par case :
+`D` (pas encore entré dans un courant porteur), `P<gain>` (bonus pris pendant CE déplacement), `S` (le héros part déjà dans un courant :
+il n'y gagne rien). Une clé de `couts`, `parents` et `entrees` est un ÉTAT (`case|statut`), jamais une case seule.
+- **Une fois par déplacement** : le gain est pris à la première entrée depuis l'extérieur. Deux courants traversés de suite ne donnent
+  que 2 points : le texte dit « when they first enter this area », et un gain cumulé donnerait un déplacement sans borne (la recherche
+  n'en sortirait pas — mutation testée).
+- **L'entrée se paie sur le budget NORMAL** ; le gain n'est crédité qu'une fois dans la case. Le budget d'un état est `budget + gain(statut)`.
+- **Le reste du tour** : `restant_apres = restant + gain(trajet PARCOURU) − coût(trajet parcouru)`. Un piège qui arrête avant la case ne donne
+  rien. Le gain se publie (`payload.bonus_courant`, « profite du courant porteur : +N cases »).
+- **La meilleure route** pour une case : celle qui laisse le plus de points restants (coût − gain minimal, puis coût minimal). Le budget ne
+  filtre les états que s'il existe un courant sur la carte : sans courant, `chemin()` et `casesAtteignables()` rendent exactement ce qu'ils
+  rendaient. Un refus hors budget reste « hors de portée » (le plus court chemin est rendu), jamais « inaccessible ».
+- **Monstres et alliés** : leur grille n'active jamais le gain (`Grille::activerBonusEntree()` n'est appelé que par `DeplacementHeros::grille()`).
+- **Écart nommé** : le livret dit « rooms or halls » ; seules les SALLES portent le courant porteur. Un couloir est un chemin, son dosage n'est
+  pas sourcé, et une zone de couloir se découpe. À trancher si René le veut.
+- Tests : `CourantPorteurGrilleTest` (8 tests, sans base) et `CourantPorteurTest` (9 tests, routes et aperçu). Mutations : activation
+  retirée, budget du résolveur ignoré, reste sans gain, lecteur retiré, gain cumulé (explosion détectée).
+
+### H4 — Vents de couloir (q. 12 note, p. 15) — `pousse_heros` / `pousse_zargon`, dans `sur` par face
+
+« Strong air currents move through the hallways. When a hero ends their movement in a hallway, they must roll 1 combat die. If the roll
+result is a shield, they move 2 additional squares in the direction of their choice. If the roll result is a skull, they move 2 squares
+in the direction of Zargon's choice. »
+
+- **Le dé** : UN dé de combat, tiré quand le mouvement SE TERMINE sur un couloir venté (`ResolveurTour::ventDeFinDeMouvement()`). Ni en
+  passant, ni pour un monstre. Un seul dé par déplacement : la poussée n'enchaîne pas un second dé, même sur un autre vent.
+- **Bouclier = blanc OU noir** : le livret G0978 écrit « either a black or white shield » quand il veut les deux ; sans couleur, c'est « a shield ».
+  Le moteur les lit sous la même clé (`sur.bouclier_blanc` et `sur.bouclier_noir` → `pousse_heros`).
+- **Le HÉROS choisit** (bouclier) : un choix EN ATTENTE, `etat.vent_choix` (colonne, migration `2026_10_29_160000`), menu FORCÉ. Une option
+  par direction légale ; la liste blanche est décidée AU DÉ et revalidée au choix contre la géométrie du moment. Creneau `interaction` :
+  la poussée est la suite du mouvement, elle ne consomme aucun créneau.
+- **Zargon choisit** (crâne) : déterministe, `MoteurVents::directionDeZargon()` — la direction dont la case d'arrivée est la plus proche d'un
+  MONSTRE VIVANT (distance de Manhattan, égalité E, O, S, N). Sans monstre vivant : la première direction légale dans cet ordre. Immédiat.
+- **La géométrie** (`MoteurVents::poussee()`, règles TRANCHÉES) : 2 cases au plus, une à une. La poussée s'arrête AVANT un mur, un meuble, une
+  porte fermée, un portail, une case inconnue (brouillard) et toute figure — héros, monstre, allié (`estOccupeeParFigure`). Elle FINIT sur la
+  dernière case où l'on peut s'arrêter (`arretInterdit` : Mare, Brasier se traversent sans y finir). Une poussée partielle est légale ; une
+  direction sans aucune case d'arrêt n'est jamais offerte. Ordre fixe E, O, S, N.
+- **Les cases traversées** : les pièges se déclenchent au pas (`MoteurPieges::controlerChemin()`, la règle existante ; un arrêt dur termine la
+  poussée ; une chute de blocs ouvre le choix d'écart). La rivière et le brasier blessent (`saignerSurRiviere()`, un jet par case).
+  **Écarts nommés** : la glace (arrêt, chute), le sol meuble et le courant ne s'appliquent PAS à une poussée — ils règlent une MARCHE (un dé de
+  déplacement, une glissière, un budget). Une poussée ne tire aucun dé de déplacement.
+- **Dosage** : chaque case de couloir LIBRE de la carte porte le vent (le livret : « all the hallways »), ou aucune (gabarit `vents` 0..1).
+  Un couloir est une case hors de toute salle. Un couloir occupé par une porte, un piège, un meuble, une épreuve ou un levier garde sa couche.
+- Test : `VentsDeCouloirTest` (12 tests, routes réelles) et `MoteurVentsTest` (12 tests, sans base). Mutations : Zargon sans distance, revalidation
+  retirée, figure qui n'arrête pas, dé retiré, bouclier noir compté comme crâne — chacune fait tomber son test.
+
+### Lecteurs et registre
+
+`App\Engine\MotsClesTerrain` gagne `arret_sur_impair`, `bonus_entree`, `pousse_heros`, `pousse_zargon`. Chaque clé est lue par une couture
+déclarée ; `TerrainEnJeuTest` confronte le registre au catalogue dans les deux sens. Les faces de dé restent le registre fermé de
+`FaceDeCombat` (`bouclier_blanc`, `bouclier_noir`, `crane`), jamais un mot du vocabulaire terrain.
+
+## FOSSE LONGUE — un trou de deux cases, un saut par le bout (The Mage of the Mirror F7539 p. 6, lot G, 2026-10-29)
+
+Source : « Long Pit Trap », texte intégral relu au livret (saut par le bout, dé de combat, bouclier noir, chute de 2 PV, sortie
+« on a subsequent turn… a 5 or 6 on a red die », malus « one less combat die when attacking or defending (but never less than
+one die) », et « These traps can be jumped across the short side, the same as regular pit traps »). **Mesure** : planche « Design
+Your Own Quest Adventures » (F7539 p. 39, PDF 20, rendu 200 dpi) — une Pit Trap fait 54 × 52 px, la Long Pit Trap 106 × 52 px,
+soit 2,04 : 1 : **deux cases de long, une de large**. Rendu d'un script de mesure, dans le scratchpad.
+
+- **Donnée** : `Fosse longue` (`boite: mage_du_miroir`, `usage: persistant`, `degats_pv_body: 2`, `franchissable` = le petit côté,
+  `saut_long: {face: bouclier_noir}`, `dans_la_fosse: {sortie_sur: [5, 6], malus_des_combat: 1}`). `desarmable: oui` est
+  **⚠ non trouvé** pour cette fosse précise : elle suit la Fosse ordinaire, décision signalée.
+- **Vocabulaire** : `MotsClesPiege` porte `saut_long` et `dans_la_fosse` ; le premier lecteur de chacune la LIT
+  (`MoteurFosseLongue::sautsLongs()`, `MoteurPieges::declencher()`).
+- **Pose** (`AssembleurCarte::placerFosseLongue()`) : après le terrain, avant les dangers. Thème `mage_du_miroir` SEULEMENT, et
+  hors de ce thème aucun tirage (`CHANCE_FOSSE_LONGUE` = 40, décision non sourcée). Au plus une par carte ; **deux entrées de
+  grille**, liées par `groupe_id` (`fosse-longue-1`) ; même salle, hors salle de départ, hors cases de porte, plancher
+  `CASES_JOUABLES_MINIMUM` tenu. Pas de contrôle de connectivité : un trou ne bloque pas le mouvement, il fait tomber.
+- **Une fosse se découvre d'un bloc** : `MoteurPieges::changerEtat()` change TOUTES les cases d'un même `groupe_id`.
+- **Le saut par le bout** (`MoteurFosseLongue::sautsLongs()`, une seule liste pour le menu et le résolveur) : le héros est
+  adjacent à un BOUT, la case est une fosse CONNUE, la fosse se prolonge dans le sens de l'élan, la réception est libre, sans
+  porte et sans case armée. Coût **3** (deux cases de fosse et la réception) ; un dé de combat ; bouclier noir = atterrissage,
+  la suite du mouvement reste. Sinon le héros tombe dans la **première case libre** de la ligne. Il est offert à trois cases de
+  déplacement, jamais à deux.
+- **Le petit côté** : le saut ordinaire de la Fosse (`franchissable`, jet de Body), réutilisé. `ResolveurTour::resoudreFranchissement()`
+  et le menu refusent ce saut quand sa réception tomberait dans la MÊME fosse (`sautCourtAtterritSurLaFosse()`) : c'est le saut
+  par le bout qui s'y prend, jamais un saut court par-dessus une fosse qu'on longe.
+- **La chute** (`MoteurPieges::declencher()`) : 2 PV de Body par le catalogue ; la fosse reste ouverte (`fosse_ouverte`, les deux
+  cases) ; la colonne `etat_personnage_quete.dans_la_fosse` retient le héros (`{x, y, piege_id}`, jamais en cache). Le tour
+  s'achève, comme pour tout piège de sol. La chute se dit au fil avec la décision (`dans_la_fosse` du payload).
+- **La sortie** (option `sortie_fosse`, une par case libre qui touche la fosse) : un d6 « rouge », 5 ou 6 pour se hisser sur la
+  case choisie. **La sortie prend le déplacement du tour**, réussie ou non ; l'action reste disponible. Dans la fosse, le menu
+  n'offre ni marche ni saut (`MenuMoteur`, `$enFosse`).
+- **Le malus** : un dé de combat de moins, en ATTAQUE (`ResolveurTour::frapper()`) comme en DÉFENSE
+  (`MoteurSorts::desDefenseHerosDetail()`), par `MoteurFosseLongue::appliquerMalus()` — jamais sous un dé, et le plafond de
+  Frayeur reste le dernier mot. Un héros n'est « dans la fosse » que si sa position est la case de la colonne (`estEnFosse()`).
+
+**Ce que le livret ne dit pas, tranché et écrit** : (1) toute chute dans cette fosse, par le petit côté ou en marchant dedans,
+a les mêmes effets (2 PV, le héros reste) — le livret ne décrit que le grand côté ; (2) la sortie se fait sur une case LIBRE qui
+touche la fosse, au choix du héros, jamais sur une case piégée armée ; (3) le coût de la sortie est tout le déplacement du tour
+(le livret ne le chiffre pas) ; (4) la découverte d'une case découvre la fosse entière (un seul piège, deux cases) ; (5) la sortie
+n'appelle pas la détection de l'Œil du mineur (un pas hors de la fosse ne passe pas par `controlerChemin()`) ; (6) la chance de
+pose, 40 %, n'est pas sourcée.
+
+**Non traité, nommé** : un héros dans la fosse que la carte déplace de force (*Hurricane*, *Commandé*) n'est plus « dans la
+fosse » dès que sa position change (`estEnFosse()` compare la case), mais la colonne garde la trace jusqu'à la prochaine chute ;
+les monstres qui attaquent un héros dans la fosse suivent les règles ordinaires (le livret ne dit rien de plus).
+
+**Symbole** : le symbole 2 × 1 du livret ne tient pas dans une case. Chaque case porte la flèche de la Fosse
+(`PIEGE_ICONES['Fosse longue']`) ; le manifeste déclare l'absence avec sa mesure. Le contrat : `docs/contrat-api.md` §« The Mage
+of the Mirror — la fosse longue ».

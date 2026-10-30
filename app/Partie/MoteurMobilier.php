@@ -9,6 +9,7 @@ use App\Models\Carte;
 use App\Models\Mobilier;
 use App\Models\Objet;
 use App\Models\Personnage;
+use App\Models\Piege;
 use RuntimeException;
 
 /**
@@ -184,11 +185,15 @@ final class MoteurMobilier
      *
      * @return array<string, mixed>
      */
-    public function tirerButin(Mobilier $type, int $niveauMoyen = 1, array $tagsAccessibles = []): array
+    public function tirerButin(Mobilier $type, int $niveauMoyen = 1, array $tagsAccessibles = [], array $boitesDuTheme = []): array
     {
+        // THÈME DU GROUPE (2026-10-29) : une pièce BOÎTÉE ne sort que sous sa boîte — `BestiaireGroupe::duGroupe($groupe)->boites`,
+        // le même prédicat que l'artefact du coffre (`DeckFouille::choisirArtefact()`). Une entrée boîtée hors thème n'existe pas
+        // pour CE tirage : elle sort du tableau AVANT le tirage pondéré, pour que les autres entrées gardent leur poids. Sans
+        // `$boitesDuTheme`, seules les pièces SANS boîte restent admises (échec fermé).
         $table = array_values(array_filter(
             (array) ($type->effet['fouille'] ?? []),
-            fn ($e) => is_array($e) && (int) ($e['poids'] ?? 0) > 0,
+            fn ($e) => is_array($e) && (int) ($e['poids'] ?? 0) > 0 && $this->admisParLeTheme($e, $boitesDuTheme),
         ));
 
         if ($table === []) {
@@ -208,16 +213,43 @@ final class MoteurMobilier
             }
         }
 
-        return $this->carteDepuisEntree($entree, $niveauMoyen, $tagsAccessibles);
+        return $this->carteDepuisEntree($entree, $niveauMoyen, $tagsAccessibles, $boitesDuTheme);
+    }
+
+    /**
+     * Une entrée de table est-elle admise sous le thème de ce groupe ? Un PIÈGE nommé ou un OBJET nommé porte sa boîte sur
+     * SA ligne du catalogue (`pieges.boite`, `objets.boite`) : il n'entre dans la table que si cette boîte est jouée. Une
+     * entrée sans nom, ou dont la ligne n'existe pas, reste admise (fail open, comme partout ici). Les entrées à CATÉGORIE
+     * ne sont pas filtrées ici : leur vivier l'est (`carteDepuisEntree()`), pièce par pièce.
+     *
+     * @param  array<string, mixed>  $entree
+     * @param  list<string>  $boitesDuTheme
+     */
+    private function admisParLeTheme(array $entree, array $boitesDuTheme): bool
+    {
+        if (($entree['issue'] ?? null) === 'piege') {
+            $boite = Piege::query()->where('nom', (string) ($entree['piege'] ?? ''))->value('boite');
+
+            return $boite === null || in_array($boite, $boitesDuTheme, true);
+        }
+
+        if (($entree['issue'] ?? null) === 'objet' && isset($entree['objet'])) {
+            $boite = Objet::query()->where('nom', (string) $entree['objet'])->value('boite');
+
+            return $boite === null || in_array($boite, $boitesDuTheme, true);
+        }
+
+        return true;
     }
 
     /**
      * Traduit une entrée de table en carte de butin.
      *
      * @param  array<string, mixed>  $entree
+     * @param  list<string>  $boitesDuTheme  boîtes jouées par le groupe — une pièce boîtée hors de ces boîtes n'est jamais tirée
      * @return array<string, mixed>
      */
-    private function carteDepuisEntree(array $entree, int $niveauMoyen, array $tagsAccessibles = []): array
+    private function carteDepuisEntree(array $entree, int $niveauMoyen, array $tagsAccessibles = [], array $boitesDuTheme = []): array
     {
         $issue = (string) ($entree['issue'] ?? 'rien');
 
@@ -252,6 +284,7 @@ final class MoteurMobilier
         if ($issue === 'objet' && isset($entree['objet'])) {
             // OBJET NOMMÉ (potion de fortune, Spirit Queen's Torment, G0053 p. 13) : la table désigne la pièce, elle ne tire
             // pas dans une catégorie. Le catalogue la donne telle quelle, sans tirage de rareté.
+            // Le thème est filtré en amont, DANS LA TABLE (`admisParLeTheme()`) : un seul point de passage, pas de copie ici.
             $nomme = Objet::query()->where('nom', (string) $entree['objet'])->first();
 
             return $nomme === null
@@ -265,7 +298,10 @@ final class MoteurMobilier
             // Un meuble qui en distribuerait viderait cette règle.
             $vivier = Objet::query()
                 ->whereIn('categorie', (array) ($entree['categories'] ?? []))
-                ->where('rarete', '!=', 'unique');
+                ->where('rarete', '!=', 'unique')
+                // THÈME (2026-10-29) : un objet BOÎTÉ ne sort du butin que sous sa boîte — les potions de Delthrak et de
+                // Morcar ne tombent plus des meubles hors de leur thème. Même prédicat que `DeckFouille::choisirArtefact()`.
+                ->where(fn ($q) => $q->whereNull('boite')->orWhereIn('boite', $boitesDuTheme));
 
             // ⚠ On écarte ce que PERSONNE sur place ne peut utiliser (décision
             // de René, 2026-08-17). Trois potions sont réservées au Barbare,

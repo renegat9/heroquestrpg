@@ -174,6 +174,9 @@ const PORTE_VERROUS = {
     // porte reste un battant `fermee` ordinaire tant qu'elle n'est pas
     // ouverte, seul ce libellé au survol la distingue.
     pierre: 'porte de pierre — 2 crânes',
+    // GRILLE DE FER (Mage of the Mirror, F7539 quête 10 note G, 2026-10-29) : close, elle bloque aussi la vue. Une clé la lève,
+    // sinon deux dés rouges sous le Corps de départ.
+    grille: 'grille de fer — clé, ou 2 dés rouges',
 };
 
 // Portes (René, 2026-09-11 : « la porte doit être centrale à sa case,
@@ -212,14 +215,23 @@ const doors = computed(() => (props.carte.portes ?? [])
             // — verrou === 'pierre' la distingue, et mérite sa propre teinte
             // plutôt que de se confondre avec une porte ordinaire.
             pierre: p.verrou === 'pierre',
+            // MIROIR (Mage of the Mirror, 2026-10-29) : un passage secret habillé, décidé par le serveur (`habillage`). Les cartes
+            // du livret ne le dessinent pas : une teinte argentée tant qu'il est fermé, puis un passage ouvert comme un autre.
+            miroir: p.habillage === 'miroir' && p.etat !== 'ouverte',
+            // GRILLE DE FER : un battant à barreaux, badgé d'une herse ; `p.verrou` est le type publié par le serveur.
+            grille: p.verrou === 'grille',
             // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme de l'état, publié par le serveur. Son icône de repli reste celle
             // d'aujourd'hui : le verrou (cadenas) ou la pierre (construction), jamais une icône neuve.
             symbole_url: p.symbole_url ?? null,
             // ROTATION du battant décidée par le serveur (2026-10-24) : 90 quand la porte relie l'est et l'ouest. `SymboleCarte`
             // l'applique comme aux meubles ; le client ne la recalcule pas.
             symbole_rotation: p.symbole_rotation ?? 0,
-            icone: p.etat === 'verrouillee' ? 'lock' : (p.verrou === 'pierre' && p.etat !== 'ouverte' ? 'construction' : 'door_front'),
-            titre: `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,
+            icone: p.etat === 'verrouillee' ? 'lock'
+                : (p.verrou === 'grille' && p.etat !== 'ouverte' ? 'fence'
+                    : (p.verrou === 'pierre' && p.etat !== 'ouverte' ? 'construction' : 'door_front')),
+            titre: p.habillage === 'miroir'
+                ? `Miroir ${p.etat === 'ouverte' ? 'ouvert' : 'fermé'} — passage secret`
+                : `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,
         };
     }));
 
@@ -235,8 +247,9 @@ const JETON_DUO = 0.46;   // deux figures sur une case
 const JETON_GROUPE = 0.86; // plus de deux : la grille k×k se partage 86 % du côté
 const CENTRES_DUO = [[0.25, 0.25], [0.75, 0.75]];
 
-/** Une figure dont le livret dessine le jeton en OVALE. Un ovale sur une emprise carrée n'existe pas : elle reste ronde. */
-const estOvale = (f) => f.symbole_forme === 'ovale' && (f.ew ?? 1) !== (f.eh ?? 1);
+/** Une figure dont le livret dessine le jeton en OVALE — ou pose une TUILE de deux cases (le Golem, 2026-10-29), qui s'étend
+ *  de la même façon sur ses deux cases. Sur une emprise carrée, ni l'un ni l'autre ne s'allonge. */
+const estOvale = (f) => ['ovale', 'tuile'].includes(f.symbole_forme) && (f.ew ?? 1) !== (f.eh ?? 1);
 
 /** Un placement (x, y, w, h, en cases) rendu en POURCENTAGE de la boîte du groupe : le % suit la case, jamais un pixel. */
 const enPourcent = (x, y, w, h, bw, bh) => ({
@@ -309,6 +322,9 @@ const jetonsPlaces = computed(() => {
                 key: `fig-${p.f.type}-${p.f.id}`,
                 f: p.f,
                 ovale: p.ovale,
+                // TUILE (le Spawnling, le Golem de Delthrak, 2026-10-29) : décidée par le serveur (`symbole_forme` = 'tuile') —
+                // coins droits au lieu d'un disque ou d'un ovale ; une tuile de deux cases est posée comme un ovale.
+                tuile: p.f.symbole_forme === 'tuile' && !!p.f.symbole_url,
                 holder: {
                     gridColumn: `${p.f.x + 1} / span ${p.bw}`,
                     gridRow: `${p.f.y + 1} / span ${p.bh}`,
@@ -520,7 +536,7 @@ const jetonsPlaces = computed(() => {
                  (il dit déjà l'état). -->
             <div
                 class="dg-door"
-                :class="[`cote-${d.cote}`, d.etat, { pierre: d.pierre && d.etat !== 'ouverte', 'avec-symbole': d.symbole_url }]"
+                :class="[`cote-${d.cote}`, d.etat, { pierre: d.pierre && d.etat !== 'ouverte', miroir: d.miroir, grille: d.grille && d.etat !== 'ouverte', 'avec-symbole': d.symbole_url }]"
                 :title="d.titre"
             >
                 <SymboleCarte v-if="d.symbole_url" :url="d.symbole_url" :icone="d.icone" :nom="d.titre" :tourne="d.symbole_rotation" />
@@ -528,6 +544,7 @@ const jetonsPlaces = computed(() => {
                      disparaîtrait dès qu'il y a un pictogramme. Un petit cadenas dans le coin de la case, lisible à 24 px. -->
                 <MSym v-if="d.cadenas" n="lock" fill class="dg-door-lock" :class="{ 'dg-door-lock--badge': d.symbole_url }" />
                 <MSym v-else-if="!d.symbole_url && d.pierre && d.etat !== 'ouverte'" n="construction" fill class="dg-door-lock" />
+                <MSym v-else-if="!d.symbole_url && d.grille && d.etat !== 'ouverte'" n="fence" fill class="dg-door-lock" />
             </div>
         </div>
 
@@ -545,7 +562,7 @@ const jetonsPlaces = computed(() => {
         >
             <div
                 class="jeton"
-                :class="[p.f.k, { 'jeton-ovale': p.ovale, cur: p.f.cur, elite: p.f.elite, tombe: p.f.tombe, teintee: p.f.teinte != null && !p.image && !p.icone }]"
+                :class="[p.f.k, { 'jeton-ovale': p.ovale, 'jeton-tuile': p.tuile, cur: p.f.cur, elite: p.f.elite, tombe: p.f.tombe, teintee: p.f.teinte != null && !p.image && !p.icone }]"
                 :style="p.jeton"
                 :title="p.f.nom"
             >
@@ -689,6 +706,35 @@ const jetonsPlaces = computed(() => {
     repeating-linear-gradient(-45deg, oklch(0.82 0.11 85 / 0.30) 0 3px, transparent 3px 7px),
     radial-gradient(circle at 50% 50%, oklch(0.24 0.05 70), oklch(0.37 0.08 82));
   box-shadow: inset 0 0 0 1px oklch(0.82 0.11 85 / 0.6);
+}
+
+/* Spirit Queen's Torment (lot H des restes, 2026-10-29) : `courant` — les courants contraires d'une salle entière. Hachure
+   HORIZONTALE bleu-cyan : le sens du flux se lit en niveaux de gris comme une rayure, à la différence de la hachure oblique
+   de la jungle et du brasier. */
+.dg-cell.terrain-meuble {
+  background:
+    radial-gradient(oklch(0.55 0.07 65 / 0.45) 1.2px, transparent 2px) 0 0 / 5px 5px,
+    linear-gradient(150deg, oklch(0.36 0.07 60), oklch(0.26 0.05 55));
+  box-shadow: inset 0 0 0 1px oklch(0.55 0.07 65 / 0.55);
+}
+.dg-cell.terrain-porteur {
+  background:
+    radial-gradient(oklch(0.85 0.10 205 / 0.55) 1.4px, transparent 2px) 0 0 / 7px 7px,
+    linear-gradient(150deg, oklch(0.34 0.08 215), oklch(0.25 0.06 220));
+  box-shadow: inset 0 0 0 1px oklch(0.80 0.10 205 / 0.6);
+}
+.dg-cell.terrain-vent {
+  background:
+    repeating-linear-gradient(60deg, oklch(0.84 0.03 240 / 0.34) 0 2px, transparent 2px 8px),
+    repeating-linear-gradient(-60deg, oklch(0.84 0.03 240 / 0.26) 0 2px, transparent 2px 8px),
+    linear-gradient(150deg, oklch(0.30 0.03 240), oklch(0.22 0.02 245));
+  box-shadow: inset 0 0 0 1px oklch(0.84 0.03 240 / 0.5);
+}
+.dg-cell.terrain-courant {
+  background:
+    repeating-linear-gradient(0deg, oklch(0.80 0.10 215 / 0.34) 0 2px, transparent 2px 7px),
+    linear-gradient(150deg, oklch(0.34 0.08 220), oklch(0.25 0.06 225));
+  box-shadow: inset 0 0 0 1px oklch(0.78 0.11 215 / 0.55);
 }
 
 /* ---- plaque de terrain (Jungles of Delthrak, 2026-10-24) : le pictogramme de chaque case d'un motif, ou le dessin d'un bloc
@@ -898,6 +944,12 @@ const jetonsPlaces = computed(() => {
    donc plus, voir le `v-if` du template. */
 .dg-door.pierre { background: linear-gradient(150deg, oklch(0.55 0.01 255), oklch(0.32 0.01 255)); }
 
+/* GRILLE DE FER (Mage of the Mirror, 2026-10-29) : des barreaux verticaux sur fond sombre — ni la pierre (gris uni) ni le bois
+   doré du verrou. Close, elle bloque aussi la vue : le battant reste opaque. Teinte fixe, pas une couleur par état. */
+.dg-door.grille {
+    background: repeating-linear-gradient(90deg, oklch(0.42 0.02 60) 0 3px, oklch(0.22 0.01 60) 3px 7px);
+}
+
 /* Ouverte : le battant s'efface, un simple cadre marque encore l'embrasure —
    la case elle-même redevient un sol ordinaire, praticable et transparente
    (`Grille::estTraversable()`/`ligneDeVue()`), donc rien ne doit plus la
@@ -910,6 +962,10 @@ const jetonsPlaces = computed(() => {
    les rend déjà sans rien de spécial ici) : violet, pour qu'un raccourci
    trouvé se distingue d'une porte ordinaire. */
 .dg-door.secrete { background: linear-gradient(150deg, #b18ad8, #5b3f7a); }
+
+/* MIROIR (Mage of the Mirror, 2026-10-29) : un passage secret habillé en miroir. Le livret ne le dessine pas (« MIR ») :
+   une teinte d'argent poli, distincte du violet du passage secret ordinaire. */
+.dg-door.miroir { background: linear-gradient(150deg, #f4f8fc, #9fb3c8 55%, #5d7189); }
 
 /* PORTE À PICTO (symboles des livrets, 2026-10-24) : le pictogramme REMPLACE le battant. Le battant n'a que 30 % de sa case
    en largeur ; un dessin tenu dans cette bande serait illisible à 22 px. La porte garde donc sa place, centrée dans la case
@@ -936,6 +992,9 @@ const jetonsPlaces = computed(() => {
    dans le disque dans les deux cas. Une taille calculée sur la case laissait « GOT » déborder de son jeton. */
 .jeton { position: absolute; box-sizing: border-box; border-radius: 50%; display: grid; place-items: center; container-type: size;
   border: 2px solid; box-shadow: 0 1px 3px oklch(0 0 0 / 0.55); pointer-events: none; }
+/* TUILE (`symbole_forme` = 'tuile', 2026-10-29) : le livret pose une tuile, pas un disque — coins à peine arrondis. Déclarée
+   après la règle de l'ovale, qu'elle emporte pour une tuile de deux cases. */
+.jeton.jeton-tuile { border-radius: 8%; }
 /* Une image remplit le jeton et en prend le rond (`border-radius: inherit` dans Vignette). */
 .jeton .msym { font-size: 52cqw; }
 .jeton-lettres { font-weight: 800; line-height: 1; letter-spacing: -0.03em; color: inherit;

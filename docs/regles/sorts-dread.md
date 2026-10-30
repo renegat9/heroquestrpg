@@ -261,4 +261,12 @@ visée est occupée).
 Contrat : `docs/contrat-api.md` §« Magrian (Rise of the Dread Moon) et le Deflect de Gruzbella ». Décisions et questions
 ouvertes : `docs/plan-dread-moon.md` §« Exécution (2026-10-23) », `docs/plan-ogre-horde.md` §« Exécution (2026-10-23) ».
 
+**Un sort de Dread lancé par un PIÈGE, sans lanceur** (chantier RESTES-COFFRE, 2026-10-29 — *Ball of Flame* sur le fouilleur d'un
+coffre piégé, G0053 quête 2 note C et quête 6 note B). `MoteurDread::lancerSortDePiege()` : une seule cible, le fouilleur ; l'effet
+est LU AU CATALOGUE (`SortDreadSeeder`), le nom seul voyage avec le piège (`effet.sort_dread`). La frappe passe par
+`frapperHerosDeSort()`, extrait de `sortDreadDegats()` : une seule résolution pour un monstre comme pour un piège. Un `lanceur_id`
+absent veut dire qu'aucune réaction « renvoie le sort » n'est offerte (le Bâton Ancien n'a personne à qui renvoyer le coup).
+Seuls les sorts à dégâts ont un lecteur ici. Détail, et ce qui n'est pas porté (désamorçage des coffres) :
+`docs/regles/exploration-et-fouille.md` §« Coffre piégé d'un sort de Dread ».
+
 **Le porteur lance un sort du maître du donjon (lot I, 2026-10-29).** Le talisman maudit porte deux sorts de Dread (Prophecy of Telor p. 10) : Éclair de Chaos (rayon, 2 PV, sans défense) et Tempête de feu (salle, 3 PV moins les succès de 2 dés rouges par figure). Le résolveur LIT l'effet au catalogue : le rayon passe par la couture du rayon du héros (`ResolveurTour::projeterRayon()`, avec l'immunité aux sorts de Dread en argument), la salle par le calcul de dégâts du MJ (`MoteurDread::degatsInfliges()`, rendu public pour cela). Le porteur ne frappe que des monstres ; une figure immunisée n'est jamais touchée. Une fois par quête et par sort, +1 PV de Mind à chaque lancer, plafonné au maximum. Décision et écarts : `artefacts.md`, §« Sorts de Dread lancés par le porteur ».

@@ -165,6 +165,8 @@ final class MoteurPieges
         private readonly BibliothequeNarration $narration,
         private readonly AnnoncesTalents $annonces,
         private readonly Equipement $equipement,
+        // Le SORT de Dread d'un piège (`effet.sort_dread`) se résout au point de passage des sorts de Dread (2026-10-29).
+        private readonly MoteurDread $dread,
     ) {}
 
     /**
@@ -625,6 +627,20 @@ final class MoteurPieges
         };
         $this->changerEtat($carte, $index, $nouvelEtat);
 
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : « On a subsequent turn, the hero must roll a 5 or 6 on a red die
+        // to climb out of the pit. » La chute RETIENT le héros dans le trou — état DURABLE (colonne `dans_la_fosse`, jamais le
+        // cache), posé ici pour TOUTE chute dans cette fosse, par le petit côté comme par le grand. Le seuil et le malus se
+        // lisent au catalogue (`MoteurFosseLongue`), jamais recopiés dans la colonne.
+        $retientDansLaFosse = data_get($piege?->effet, 'dans_la_fosse') !== null;
+
+        if ($retientDansLaFosse) {
+            $etat->update(['dans_la_fosse' => [
+                'x' => (int) $entree['x'],
+                'y' => (int) $entree['y'],
+                'piege_id' => (int) $piege?->id,
+            ]]);
+        }
+
         if ($retenu) {
             $this->noterRetenu($carte, $index, (int) $personnage->id);
         }
@@ -660,6 +676,12 @@ final class MoteurPieges
             // absorbé qui ne se dit pas ressemble à un piège muet.
             'absorbe' => $absorbe,
             'type_degat' => $typeDegat,
+            // La chute retient le héros dans le trou (Fosse longue) : le fil le DIT, avec la DÉCISION (le malus, le seuil de
+            // sortie) lue au catalogue — sinon le malus serait muet. `null` pour toute autre chute.
+            'dans_la_fosse' => $retientDansLaFosse ? [
+                'malus_des_combat' => (int) data_get($piege?->effet, 'dans_la_fosse.malus_des_combat', 0),
+                'sortie_sur' => array_map('intval', (array) data_get($piege?->effet, 'dans_la_fosse.sortie_sur', [])),
+            ] : null,
         ];
 
         if ($faces !== null) {
@@ -878,6 +900,9 @@ final class MoteurPieges
      * grille (contrairement aux pièges de salle). Mêmes dégâts/chute que
      * declencher(), journal + narration.
      *
+     * `effet.sort_dread` (« Piège de Boule de Flammes », Spirit Queen's Torment) : le sort du catalogue frappe le fouilleur
+     * par `MoteurDread::lancerSortDePiege()`, et le payload le porte sous `sort_dread`. Un piège sans cette clé ne change pas.
+     *
      * `$narrer: false` quand l'APPELANT narre déjà l'action englobante — cas de
      * la fouille de trésor, dont ChoixController dispatche la narration : sans
      * ça, un coffre piégé en produisait deux (et deux appels TTS).
@@ -905,16 +930,31 @@ final class MoteurPieges
         // défense — le résolveur éphémère générique ne sait viser qu'une
         // victime ; la salle entière reste le privilège de la version posée
         // sur la grille (`explosionsFireburstEnAttente()`).
+        // SORT DE DREAD porté par le piège (`effet.sort_dread`, « Piège de Boule de Flammes ») : le sort du CATALOGUE frappe
+        // le fouilleur au point de passage de tout sort de Dread — `MoteurDread::lancerSortDePiege()`, qui applique les
+        // dégâts. Ni dé de combat ni montant fixe ici : la perte réelle est celle que le sort publie.
+        $sortDread = (string) data_get($piege?->effet, 'sort_dread', '');
+        $sortLance = $sortDread === '' ? null : $this->dread->lancerSortDePiege(
+            $etat->quete, $sortDread, $etat, (string) ($piege?->nom ?? 'Piège'),
+        );
+
         $nbDesCombat = (int) data_get($issue, 'des_combat', 0);
         $jetDesCombat = $this->resoudreDesCombat($nbDesCombat);
 
-        $degats = $nbDesCombat > 0 ? $jetDesCombat['degats'] : (int) data_get($issue, 'degats_pv_body', 0);
-        $subis = $this->degats->infligerAHeros(
-            $personnage, $degats, MoteurDegats::SOURCE_PIEGE, ['piege' => $piege?->nom, 'coffre' => true],
-        );
-        $pvApres = (int) $personnage->pv_body;
+        if ($sortLance !== null) {
+            $resultatSort = (array) ($sortLance['resultats'][0] ?? []);
+            $degats = (int) ($resultatSort['degats'] ?? 0);
+            $tombe = (bool) ($resultatSort['cible_tombee'] ?? false);
+            $pvApres = (int) $personnage->pv_body;
+        } else {
+            $degats = $nbDesCombat > 0 ? $jetDesCombat['degats'] : (int) data_get($issue, 'degats_pv_body', 0);
+            $subis = $this->degats->infligerAHeros(
+                $personnage, $degats, MoteurDegats::SOURCE_PIEGE, ['piege' => $piege?->nom, 'coffre' => true],
+            );
+            $pvApres = (int) $personnage->pv_body;
 
-        $tombe = $pvApres === 0 && $subis > 0;
+            $tombe = $pvApres === 0 && $subis > 0;
+        }
 
         // Carte PIÈGE du deck de trésor : elle coûte le reste du tour (trou où
         // l'on chute, volée de flèches qui cloue sur place), comme au plateau.
@@ -937,6 +977,12 @@ final class MoteurPieges
             'fin_de_tour' => true,
             'condition_appliquee' => $conditionAppliquee,
         ];
+
+        // Le sort lancé par le piège, publié tel quel (même forme que celui d'un monstre) : le fil le rend par
+        // `JournalCombat::piegeDeclenche()`. Un piège sans `sort_dread` ne porte pas la clé.
+        if ($sortLance !== null) {
+            $payload['sort_dread'] = $sortLance;
+        }
 
         if ($jetDesCombat['faces'] !== null) {
             $payload['faces'] = $jetDesCombat['faces'];
@@ -1672,10 +1718,21 @@ final class MoteurPieges
         return $carte->grille['pieges'][$index] ?? null;
     }
 
+    /**
+     * Change l'état d'un piège — et, pour une FOSSE LONGUE (deux cases liées par `groupe_id`), de TOUTES ses cases : une
+     * fosse ouverte l'est d'un bloc, jamais à moitié (`MoteurFosseLongue::groupeDe()`, le même lien que le terrain).
+     */
     public function changerEtat(Carte $carte, int $index, string $etat): void
     {
         $grille = $carte->grille;
-        $grille['pieges'][$index]['etat'] = $etat;
+        $groupe = $grille['pieges'][$index]['groupe_id'] ?? null;
+
+        foreach ($grille['pieges'] as $i => $entree) {
+            if ($i === $index || ($groupe !== null && ($entree['groupe_id'] ?? null) === $groupe)) {
+                $grille['pieges'][$i]['etat'] = $etat;
+            }
+        }
+
         $carte->update(['grille' => $grille]);
     }
 

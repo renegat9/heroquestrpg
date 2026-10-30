@@ -25,11 +25,18 @@
  */
 export const PIEGE_ICONES = {
     'Fosse': 'vertical_align_bottom',
+    // Fosse longue (*The Mage of the Mirror* p. 6, 2026-10-29) : deux cases de fosse, chacune avec la même flèche descendante
+    // que la Fosse — elle en est une, en deux cases. Le symbole 2 × 1 du livret ne tient pas dans une case (voir le manifeste).
+    'Fosse longue': 'vertical_align_bottom',
     'Piège à lances': 'north',
     'Chute de blocs': 'landslide',
     'Piège de coffre': 'lock',
     'Aiguille empoisonnée': 'vaccines',
     'Fiole de poison': 'coronavirus',
+    // Spirit Queen's Torment (lot E, 2026-10-29) : un coffre piégé qui lance Boule de Flammes. `auto_awesome` (l'étincelle
+    // magique), et non la flamme de la Fournaise (`whatshot`) ni celle du Piège d'embrasement (`local_fire_department`).
+    // Éphémère : jamais posé sur la carte, seule la légende le montre.
+    'Piège de Boule de Flammes': 'auto_awesome',
     // The Crypt of Perpetual Darkness (chantier EXT-CRYPTE, 2026-10-23) : une flaque d'acide, « science » (l'alchimie),
     // distincte de la fosse (un trou) et du feu. Persistante, elle se dessine avec la fosse ouverte — voir `DungeonGrid.vue`.
     "Mare d'acide": 'science',
@@ -226,6 +233,20 @@ export const TERRAIN_TEINTES = {
     // sont simples : la croix est ce qui dit « ça ne se traverse pas à pied », même en niveaux
     // de gris). On le franchit d'un saut, une option du menu ; le serveur décide quand.
     'Sables mouvants': 'sables',
+    // Spirit Queen's Torment (livret G0053 q. 11 note B, lot H des restes, 2026-10-29) : les COURANTS CONTRAIRES, une salle
+    // entière. `courant` : hachure HORIZONTALE bleu-cyan — le sens du flux se lit en niveaux de gris comme une rayure.
+    // Un coût (2 points), pas un jet : la teinte ne dit pas « danger ».
+    'Courant contraire': 'courant',
+    // Sol meuble (q. 10 note B, lot H des restes, 2026-10-29) : une salle de terre meuble. `meuble` : hachure en mouchetis
+    // BRUN, la même terre que le sable en plus sombre — l'enlisement se lit à l'arrêt, pas au jet : pas une teinte « danger ».
+    'Sol meuble': 'meuble',
+    // Courant porteur (q. 11 note C, lot H des restes, 2026-10-29) : une salle où l'on nage plus loin. `porteur` : pointillé
+    // bleu-cyan, distinct de la rayure du courant contraire (le même liquide, un effet inverse).
+    'Courant porteur': 'porteur',
+    // Vent de couloir (q. 12 p. 15, lot H des restes, 2026-10-29) : une case de couloir qui POUSSE. `vent` : hachure en chevrons
+    // gris-bleu, le sens du souffle — distinct de la rayure du courant contraire et du pointillé du courant porteur. Une case
+    // isolée (pose couloirs, sans groupe) : pas d'icône de plaque.
+    'Vent de couloir': 'vent',
 };
 export const TERRAIN_TEINTE_DEFAUT = 'decor';
 
@@ -247,6 +268,10 @@ export const TERRAIN_ICONES = {
     'Sable entravant': 'landscape',
     'Toile entravante': 'pest_control',
     'Jungle entravante': 'forest',
+    // Courant contraire (salle entière, `pose: salle`) : l'icône de repli de la plaque, posée sur son ancre.
+    'Courant contraire': 'waves',
+    'Sol meuble': 'landslide',
+    'Courant porteur': 'surfing',
 };
 export const TERRAIN_ICONE_DEFAUT = 'texture';
 

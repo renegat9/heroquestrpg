@@ -431,7 +431,17 @@ it('donne un parchemin par sort, chacun résoluble et de difficulté synchronis�
     $sorts = Sort::all();
     $parchemins = Objet::where('categorie', 'parchemin')->get();
 
-    expect($parchemins)->toHaveCount($sorts->count());
+    // Un parchemin ORDINAIRE par sort ; en plus, les trois parchemins MODIFIÉS de Telor
+    // (`effet.charges`, 2026-10-29), qui pointent un sort déjà couvert.
+    $ordinaires = $parchemins->filter(fn (Objet $p) => ! isset($p->effet['charges']));
+    $modifies = $parchemins->filter(fn (Objet $p) => isset($p->effet['charges']));
+
+    expect($ordinaires)->toHaveCount($sorts->count())
+        ->and($modifies->pluck('nom')->sort()->values()->all())->toBe([
+            'Parchemin modifié : Eau de Guérison',
+            'Parchemin modifié : Soin du Corps',
+            'Parchemin modifié : Éclair',
+        ]);
 
     foreach ($parchemins as $parchemin) {
         $effet = (array) $parchemin->effet;

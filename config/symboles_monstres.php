@@ -16,6 +16,9 @@ declare(strict_types=1);
 |  - `ovales` : noms de catalogue dont le jeton est un OVALE 2:1 (figure 1×2 au livret, phase 3). Le serveur
 |    publie `symbole_forme` d'après cette liste. Chaque nom porte un fichier 2:1, chaque fichier 2:1 est déclaré
 |    ici, et le manifeste le marque `ovale` : SymbolesMonstresTest vérifie les trois dans les deux sens.
+|  - `tuiles` : noms de catalogue dont le livret pose une TUILE et non une tête dans un anneau (le Spawnling,
+|    le Golem Cœur-de-Forge de Delthrak) : `symbole_forme` = 'tuile', fichier carré pour une figure d'une case,
+|    2:1 pour une figure de deux cases, manifeste marqué `tuile` — même contrôle dans les deux sens que les ovales.
 |  - `absents` : nom de catalogue → RAISON écrite, pour tout monstre sans jeton. « à reprendre » : un jeton
 |    existe dans un livret mais n'est pas extrait (emprise qui ne correspond pas, photo illisible) ; ce n'est
 |    pas un jeton absent.
@@ -75,6 +78,8 @@ return [
         'Horreur des Glaces' => 'frozen-horror', // Frozen Horror, planche « Design Your Own » (F5815 PDF 20) ; jeton ROND au livret, qui ne dessine aucun ovale — figure 1×2 par son texte (F5815 PDF 6)
         'Rampant putride' => 'blightcrawler', // Blightcrawler, légende Delthrak (F9907 PDF 6), stats du Monster Chart p. 47 ; jeton OVALE
         'Deathspinner la Reine du Fléau' => 'blightcrawler', // « Use the Blightcrawler miniature » (F9907 PDF 9) ; jeton OVALE
+        'Rejeton putride' => 'spawnling', // Spawnling, légende du monstre errant de la quête 1 de Delthrak (F9907 PDF 7) ; TUILE carrée
+        'Golem Cœur-de-Forge' => 'forgeheart-golem', // « Use the Forgeheart Golem's tile » (F9907 PDF 12) ; TUILE 1×2 posée salle A
     ],
 
     // Monstres dont le jeton est un OVALE 2:1 (figure 1×2 au livret) : le serveur publie `symbole_forme` = 'ovale'.
@@ -90,6 +95,14 @@ return [
         'Deathspinner la Reine du Fléau',
         // Dragon : jeton du « Quest Map Guide » de First Light (p. 9), scan de René — « l'icône semble bonne » (2026-10-29).
         'Dragon',
+    ],
+
+    // Monstres que le livret pose en TUILE (pas une tête dans un anneau) : le serveur publie `symbole_forme` = 'tuile'
+    // (2026-10-29). Fichier carré pour une figure d'une case, 2:1 pour deux cases ; le manifeste le marque `tuile`.
+    'tuiles' => [
+        'Rejeton putride',
+        // Golem : tuile d'une case sur deux (F9907 PDF 12), emprise passée à 1×2 (René, 2026-10-29 : « Oui passe à 2 cases »).
+        'Golem Cœur-de-Forge',
     ],
 
     // Monstres sans jeton : une raison par nom, lue par SymbolesMonstresTest.
@@ -111,7 +124,6 @@ return [
         'Festral' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Garde du Dread' => 'Elite Dread Warrior (G1504 PDF 13) : le texte ne relie pas la garde à ce jeton',
         'Gargouille gardienne' => 'aucun jeton : « guardian gargoyle » n’est nommé dans les livrets lus',
-        'Golem Cœur-de-Forge' => 'représenté par sa tuile (« Use the Forgeheart Golem’s tile », F9907 PDF 12)',
         'Gretzl la Porte-Fléau' => 'Gretzl (F9907 PDF 18) : aucune figurine renvoyée dans le texte',
         'Gruulob, Forme Démoniaque' => 'Gruulob (F9907 PDF 14) : statistiques reprises, aucune figurine renvoyée',
         'Gruulob, Sorcier Gobelin Corrompu' => 'Gruulob (F9907 PDF 14) : statistiques reprises, aucune figurine renvoyée',
@@ -127,7 +139,6 @@ return [
         'Métamorphe' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Nexrael' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Qwindrak the Warlock' => '« Replace Qwindrak with the Dragon miniature » (First Light PDF 9) : la forme de sorcier n’a pas de jeton propre isolé ; la forme de dragon a le sien (Dragon)',
-        'Rejeton putride' => 'à reprendre, non rond : Spawnling de Delthrak (F9907 PDF 7), une tuile carrée et non un disque',
         'Roi Archaloneus' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Scion Fleur-Pourrie' => 'Bloomrot Scion (F9907 PDF 20) : aucune figurine renvoyée dans le texte',
         'Seigneur' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
