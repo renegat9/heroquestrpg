@@ -259,7 +259,7 @@ AUCUN mot-clé imprimé : rendu PNG relu, son bloc porte Move 6 dés · Attack 5
 (*Silencing Snare*). Les trois mots *Spawn*, *Agile*, *Venomous* sont ceux du **Rampant putride (Blightcrawler)**, dont la figurine
 la représente (table « Monsters of the Jungle », F9907 p. 47 ; carte p. 27 de reference/20). Aucune carte Deathspinner dans le
 scan des cartes monstres (`drive/ennemis/ennemies.pdf`, 41 pages, relues). L'erratum est une compilation communautaire, sans
-confirmation officielle (`docs/plan-errata-2021.md` §5), et René a décidé le 2026-10-16 de ne pas les porter. Rien n'est ajouté.
+confirmation officielle (`docs/plan-errata-2021.md` §5), et René a décidé le 2026-10-16 de ne pas les porter. Rien n'est ajouté. **Clos le 2026-10-29** (René : « Oublie l'erratum du Deathspinner ») : le sujet est abandonné, on ne le rouvre pas.
 
 ## L'emprise d'une figure suit son jeton de livret (René, 2026-10-29)
 

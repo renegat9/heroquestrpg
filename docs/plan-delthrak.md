@@ -407,3 +407,5 @@ tirés au hasard pour la jungle et la toile, et la statue qui bloque la ligne de
 - Le Brasier est un bloc 2×2 d'après le symbole du livret, faute de carte qui le montre : confirmer ou ramener à une case.
 - Le 3×3 et l'anneau de huit (cocon masqué) : une plaque pleine de jungle, ou deux objets ? Non porté.
 - Le rendu des plaques n'a pas été regardé à l'écran dans ce chantier (aucune pile lancée depuis le worktree) : la lisibilité à 38 px reste à vérifier.
+
+> **Décision de René (2026-10-29)** : « Oublie l'erratum du Deathspinner ». La question de la section « Exécution (2026-10-23) — l'erratum du Deathspinner » est close : rien n'est ajouté, le sujet est abandonné (`docs/plan-restes-extensions-2026-10-29.md` §0).
