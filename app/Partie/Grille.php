@@ -213,6 +213,31 @@ final class Grille
     private array $portails = [];
 
     /**
+     * CASES DU SOL MEUBLE (*Spirit Queen's Torment* q. 10 note B, lot H des restes, 2026-10-29) : `arret_sur_impair`. Une case
+     * d'ARRÊT pour un héros dont le dé de déplacement est IMPAIR (`activerArretSurImpair()`) : on y entre, on n'en repart pas.
+     * Posé par `FabriqueGrille::pour()` — jamais ailleurs — et ACTIVÉ par `DeplacementHeros::grille()`, pour le seul héros
+     * qu'un dé impair fige. Un monstre, un allié et un héros au dé pair marchent sur un sol inchangé.
+     *
+     * @var array<string, true>
+     */
+    private array $arretsSurImpair = [];
+
+    /** Le dé du tour est-il impair (et le héros non enlisé) ? — les cases de `$arretsSurImpair` arrêtent alors la marche. */
+    private bool $arretSurImpairActif = false;
+
+    /**
+     * CASES DU COURANT PORTEUR (*Spirit Queen's Torment* q. 11 note C, lot H des restes, 2026-10-29) : `bonus_entree`. Case =>
+     * points de déplacement donnés à la PREMIÈRE entrée de la case, depuis l'extérieur, pendant un déplacement.
+     * Posé par `FabriqueGrille::pour()`, activé par `DeplacementHeros::grille()` pour le seul héros.
+     *
+     * @var array<string, int>
+     */
+    private array $bonusEntree = [];
+
+    /** Le courant porteur compte-t-il pour ce parcours ? Faux pour un monstre, un allié et toute grille générique. */
+    private bool $bonusActif = false;
+
+    /**
      * @param  list<list<string>>  $cases  m = mur, s = sol
      */
     public function __construct(private readonly array $cases) {}
@@ -225,6 +250,77 @@ final class Grille
      *
      * @param  array<string, string>  $paires
      */
+    /**
+     * Cases du COURANT PORTEUR (`bonus_entree`). Posé par `FabriqueGrille::pour()` — un seul point de lecture de la couche.
+     *
+     * @param  list<array{x: int, y: int, gain: int}>  $entrees
+     */
+    public function definirBonusEntrees(array $entrees): void
+    {
+        foreach ($entrees as $entree) {
+            $this->bonusEntree["{$entree['x']},{$entree['y']}"] = max(1, (int) $entree['gain']);
+        }
+    }
+
+    /**
+     * Le courant porteur compte pour CE parcours (un héros, `DeplacementHeros::grille()`). Sans cet appel, la case n'est qu'une
+     * case de sol ordinaire : un monstre ne reçoit jamais le bonus (« When a HERO moves… »).
+     */
+    public function activerBonusEntree(): void
+    {
+        $this->bonusActif = true;
+    }
+
+    /**
+     * Les points de déplacement GAGNÉS par un trajet (départ exclu) : le gain du courant porteur qu'il traverse, pris une fois
+     * à la première entrée. Le résolveur et l'aperçu s'en servent pour le budget ET pour le reste du tour : un déplacement
+     * qui gagne 2 points lui laisse 2 points de plus, pas un coût négatif.
+     *
+     * @param  list<array{x: int, y: int}>  $chemin
+     */
+    public function gainDuTrajet(int $departX, int $departY, array $chemin): int
+    {
+        $statut = $this->statutDepart("{$departX},{$departY}");
+
+        foreach ($chemin as $case) {
+            $statut = $this->statutApres($statut, "{$case['x']},{$case['y']}");
+        }
+
+        return self::gainDuStatut($statut);
+    }
+
+    /**
+     * Cases du SOL MEUBLE (`arret_sur_impair`). Posé par `FabriqueGrille::pour()` — un seul point de lecture de la couche.
+     *
+     * @param  list<array{x: int, y: int}>  $positions
+     */
+    public function definirArretsSurImpair(array $positions): void
+    {
+        foreach ($positions as $position) {
+            $this->arretsSurImpair["{$position['x']},{$position['y']}"] = true;
+        }
+    }
+
+    /** Cette case est-elle du sol meuble ? (vrai, que le dé soit pair ou impair) */
+    public function estArretSurImpair(int $x, int $y): bool
+    {
+        return isset($this->arretsSurImpair["{$x},{$y}"]);
+    }
+
+    /**
+     * Le dé de déplacement est IMPAIR : le sol meuble arrête la marche. Appelé par `DeplacementHeros::grille()` seulement, jamais
+     * par un monstre ni un allié (« When a HERO moves into or through this room »).
+     */
+    public function activerArretSurImpair(): void
+    {
+        $this->arretSurImpairActif = true;
+    }
+
+    public function arretSurImpairActif(): bool
+    {
+        return $this->arretSurImpairActif;
+    }
+
     public function definirPortails(array $paires): void
     {
         $this->portails = $paires;
@@ -1038,20 +1134,31 @@ final class Grille
      *
      * @return list<array{x: int, y: int}>|null étapes SANS la case de départ
      */
-    public function chemin(int $departX, int $departY, int $arriveeX, int $arriveeY): ?array
+    public function chemin(int $departX, int $departY, int $arriveeX, int $arriveeY, ?int $budget = null): ?array
     {
         if ($departX === $arriveeX && $departY === $arriveeY) {
             return [];
         }
 
-        $resultat = $this->parcoursPondere($departX, $departY, $arriveeX, $arriveeY);
+        // `$budget` (les points RESTANTS du héros) ne filtre les états que s'il existe un courant porteur sur la carte : sinon
+        // le chemin rendu est exactement celui d'avant, et son refus reste « hors de portée » côté résolveur.
         $cle = "{$arriveeX},{$arriveeY}";
+        $budgetEffectif = $this->bonusEntree !== [] ? $budget : null;
+        $resultat = $this->parcoursPondere($departX, $departY, $arriveeX, $arriveeY, $budgetEffectif);
+        $meilleur = self::meilleurEtatParCase($resultat['couts']);
 
-        if (! isset($resultat['parents'][$cle])) {
+        // Hors budget MÊME avec le courant : on rend le plus court chemin, pour que le refus se dise comme partout ailleurs
+        // (« hors de portée », avec le coût) et non « inaccessible ».
+        if (! isset($meilleur[$cle]) && $budgetEffectif !== null) {
+            $resultat = $this->parcoursPondere($departX, $departY, $arriveeX, $arriveeY);
+            $meilleur = self::meilleurEtatParCase($resultat['couts']);
+        }
+
+        if (! isset($meilleur[$cle])) {
             return null;
         }
 
-        return $this->reconstruireChemin($resultat['parents'], "{$departX},{$departY}", $cle, $resultat['entrees']);
+        return $this->reconstruireChemin($resultat['parents'], $this->etatDepart("{$departX},{$departY}"), $meilleur[$cle], $resultat['entrees']);
     }
 
     /**
@@ -1168,9 +1275,10 @@ final class Grille
 
         $depart = "{$departX},{$departY}";
         $resultat = $this->parcoursPondere($departX, $departY, budgetMax: $pas);
+        $etatDepart = $this->etatDepart($depart);
 
         $chemins = [];
-        foreach (array_keys($resultat['couts']) as $cle) {
+        foreach (self::meilleurEtatParCase($resultat['couts']) as $cle => $etat) {
             if ($cle === $depart) {
                 continue;
             }
@@ -1189,7 +1297,7 @@ final class Grille
                 continue;
             }
 
-            $chemins[$cle] = $this->reconstruireChemin($resultat['parents'], $depart, $cle, $resultat['entrees']);
+            $chemins[$cle] = $this->reconstruireChemin($resultat['parents'], $etatDepart, $etat, $resultat['entrees']);
         }
 
         return $chemins;
@@ -1267,7 +1375,14 @@ final class Grille
      * ignorée plutôt que retirée activement — PHP n'offre pas de
      * décrémentation de clé sur `SplPriorityQueue`.
      *
-     * @return array{couts: array<string, int>, parents: array<string, string>}
+     * COURANT PORTEUR (`bonus_entree`, lot H des restes, 2026-10-29) : un état est une CASE et son STATUT de bonus —
+     * « D » (pas encore entré dans un courant porteur), « P<gain> » (bonus pris pendant CE déplacement), « S » (le héros part
+     * DÉJÀ dans un courant : il n'y entre pas, il n'y a rien à prendre). Le coût est toujours positif — c'est le budget
+     * qui gagne `gain` une fois, pas un coût qui devient négatif (le Dijkstra refuse les arêtes négatives). Une clé de
+     * `couts`, `parents` et `entrees` est donc un ÉTAT (« x,y|statut »), jamais une case seule. Sans courant porteur actif,
+     * le statut reste « D » et le parcours est exactement celui d'avant.
+     *
+     * @return array{couts: array<string, int>, parents: array<string, string>, entrees: array<string, string>}
      */
     private function parcoursPondere(
         int $departX,
@@ -1277,38 +1392,48 @@ final class Grille
         ?int $budgetMax = null,
     ): array {
         $depart = "{$departX},{$departY}";
-        $couts = [$depart => 0];
+        $etatDepart = $this->etatDepart($depart);
+        $statutDepart = substr($etatDepart, strlen($depart) + 1);
+
+        // Coût minimal par ÉTAT (case|statut). Parents et entrées sont des états aussi.
+        $couts = [$etatDepart => 0];
         $parents = [];
-        // Pour chaque PORTAIL franchi à pied, la case d'où on l'a marché : c'est elle qui permet de
-        // reconstruire le chemin jusqu'à l'entrée (la jumelle, elle, est une arrivée seule).
+        // Pour chaque PORTAIL franchi à pied, l'état d'où on l'a marché : c'est lui qui permet de reconstruire le chemin
+        // jusqu'à l'entrée (la jumelle, elle, est une arrivée seule).
         $entrees = [];
         $finalisees = [];
 
         $file = new \SplPriorityQueue();
         $sequence = 0;
-        $file->insert([$departX, $departY, 0], 0);
+        $file->insert([$departX, $departY, 0, $statutDepart], 0);
 
         while (! $file->isEmpty()) {
-            [$x, $y, $coutCourant] = $file->extract();
+            [$x, $y, $coutCourant, $statut] = $file->extract();
             $cle = "{$x},{$y}";
+            $etat = "{$cle}|{$statut}";
 
-            // Entrée obsolète : soit déjà finalisée, soit dépassée par un
-            // coût moindre inséré depuis (suppression paresseuse).
-            if (isset($finalisees[$cle]) || $coutCourant > ($couts[$cle] ?? PHP_INT_MAX)) {
+            // Entrée obsolète : soit déjà finalisée, soit dépassée par un coût moindre inséré depuis (suppression paresseuse).
+            if (isset($finalisees[$etat]) || $coutCourant > ($couts[$etat] ?? PHP_INT_MAX)) {
                 continue;
             }
 
-            $finalisees[$cle] = true;
+            $finalisees[$etat] = true;
 
-            if ($cibleX !== null && $x === $cibleX && $y === $cibleY) {
+            // ARRÊT ANTICIPÉ — seulement sans courant porteur : un seul état par case, le premier finalisé est le meilleur.
+            // Avec un courant, le meilleur état d'une case n'est connu qu'à la fin (`meilleurEtatParCase()`).
+            if ($cibleX !== null && $this->bonusEntree === [] && $x === $cibleX && $y === $cibleY) {
                 break;
             }
 
-            // PORTAIL (trappe de téléportation) : on y ARRIVE, on n'en repart pas. Sa
-            // jumelle n'est atteinte que comme ARRIVÉE (voir la branche « ENTRER » plus
-            // bas), jamais développée à pied. Le DÉPART reste une case d'où l'on sort,
-            // même s'il est lui-même un portail.
+            // PORTAIL (trappe de téléportation) : on y ARRIVE, on n'en repart pas. Sa jumelle n'est atteinte que comme
+            // ARRIVÉE (voir la branche « ENTRER » plus bas), jamais développée à pied. Le DÉPART reste une case d'où l'on sort.
             if ($cle !== $depart && isset($this->portails[$cle])) {
+                continue;
+            }
+
+            // SOL MEUBLE (lot H des restes, 2026-10-29) : un dé de déplacement IMPAIR arrête le héros sur la PREMIÈRE case de la
+            // salle — on y ENTRE, on n'en repart pas, exactement comme un portail. Le départ reste une case d'où l'on sort.
+            if ($cle !== $depart && $this->arretSurImpairActif && isset($this->arretsSurImpair[$cle])) {
                 continue;
             }
 
@@ -1317,7 +1442,7 @@ final class Grille
                 $ny = $y + $dy;
                 $ncle = "{$nx},{$ny}";
 
-                if (isset($finalisees[$ncle]) || ! $this->estTraversable($nx, $ny)) {
+                if (! $this->estTraversable($nx, $ny)) {
                     continue;
                 }
 
@@ -1327,33 +1452,41 @@ final class Grille
 
                 $nouveauCout = $coutCourant + $this->coutDeplacement($nx, $ny);
 
-                if ($budgetMax !== null && $nouveauCout > $budgetMax) {
+                // Le pas se paie sur le budget DE CET ÉTAT : entrer dans un courant porteur se paie encore sur le budget
+                // normal, le bonus n'est crédité qu'ensuite (« when they first enter this area », pas avant).
+                if (! $this->dansBudget($nouveauCout, $budgetMax, $statut)) {
                     continue; // hors budget : jamais inséré, jamais une destination possible
                 }
 
-                // ENTRER dans un portail = ARRIVER sur sa jumelle, au même coût, sans
-                // pas de plus. La jumelle n'est une arrivée que si elle est franchissable
-                // (découverte, libre) : le même test que le résolveur refait à l'arrivée.
+                $statutNouveau = $this->statutApres($statut, $ncle);
+                $etatNouveau = "{$ncle}|{$statutNouveau}";
+
+                // ENTRER dans un portail = ARRIVER sur sa jumelle, au même coût, sans pas de plus. La jumelle n'est une
+                // arrivée que si elle est franchissable (découverte, libre) : le même test que le résolveur refait à l'arrivée.
                 if (isset($this->portails[$ncle])) {
                     $jumelle = $this->portails[$ncle];
+                    [$jx, $jy] = $this->coordonnees($jumelle);
+                    $statutJumelle = $this->statutApres($statutNouveau, $jumelle);
+                    $etatJumelle = "{$jumelle}|{$statutJumelle}";
 
-                    if (! isset($finalisees[$jumelle]) && $this->estTraversable(...$this->coordonnees($jumelle))
-                        && $nouveauCout < ($couts[$jumelle] ?? PHP_INT_MAX)) {
-                        $couts[$jumelle] = $nouveauCout;
-                        $parents[$jumelle] = $ncle;
-                        $entrees[$ncle] = $cle;
+                    if (! isset($finalisees[$etatJumelle]) && $this->estTraversable($jx, $jy)
+                        && $this->dansBudget($nouveauCout, $budgetMax, $statutNouveau)
+                        && $nouveauCout < ($couts[$etatJumelle] ?? PHP_INT_MAX)) {
+                        $couts[$etatJumelle] = $nouveauCout;
+                        $parents[$etatJumelle] = $etatNouveau;
+                        $entrees[$etatNouveau] = $etat;
                         $sequence++;
-                        $file->insert([...$this->coordonnees($jumelle), $nouveauCout], -($nouveauCout * 1_000_000 + $sequence));
+                        $file->insert([$jx, $jy, $nouveauCout, $statutJumelle], -($nouveauCout * 1_000_000 + $sequence));
                     }
 
                     continue;
                 }
 
-                if ($nouveauCout < ($couts[$ncle] ?? PHP_INT_MAX)) {
-                    $couts[$ncle] = $nouveauCout;
-                    $parents[$ncle] = $cle;
+                if ($nouveauCout < ($couts[$etatNouveau] ?? PHP_INT_MAX)) {
+                    $couts[$etatNouveau] = $nouveauCout;
+                    $parents[$etatNouveau] = $etat;
                     $sequence++;
-                    $file->insert([$nx, $ny, $nouveauCout], -($nouveauCout * 1_000_000 + $sequence));
+                    $file->insert([$nx, $ny, $nouveauCout, $statutNouveau], -($nouveauCout * 1_000_000 + $sequence));
                 }
             }
         }
@@ -1362,35 +1495,105 @@ final class Grille
     }
 
     /**
-     * Reconstruit un chemin (départ EXCLU, comme `chemin()` le rend) à partir
-     * d'une table de parents (`parcours()` ou `parcoursPondere()`) — cœur
-     * commun aux deux, pour que la façon de remonter la chaîne ne diverge
-     * jamais entre les deux parcours.
-     *
-     * @param  array<string, string>  $parents
-     * @param  array<string, string>  $entrees  pour chaque portail franchi à pied, la case d'où on l'a marché
-     * @return list<array{x: int, y: int}>
+     * L'ÉTAT de départ : la case d'origine et son statut (« S » si elle est déjà dans un courant porteur, « D » sinon).
      */
-    private function reconstruireChemin(array $parents, string $depart, string $cible, array $entrees = []): array
+    private function etatDepart(string $depart): string
     {
-        $chemin = [];
-        $cle = $cible;
+        return "{$depart}|".$this->statutDepart($depart);
+    }
 
-        // Une ARRIVÉE par trappe n'est pas un PAS : le chemin s'achève sur l'ENTRÉE (le portail, marché
-        // à pied), et la jumelle — la destination demandée — est atteinte par la téléportation. Ni sa
-        // marche ni son coût ne sont donc comptés (`coutChemin()` ne voit que les pas réels, le budget
-        // de `parcoursPondere()` pareil). La chaîne reprend ensuite depuis la case d'où l'on a marché.
-        if ($cible !== $depart && isset($parents[$cible]) && (($this->portails[$parents[$cible]] ?? null) === $cible)) {
-            $portail = $parents[$cible];
-            [$px, $py] = array_map(intval(...), explode(',', $portail));
-            $chemin[] = ['x' => $px, 'y' => $py];
-            $cle = $entrees[$portail];
+    /** Statut du bonus au départ — « S » si le héros part DÉJÀ dans un courant porteur, « D » sinon (ou sans courant actif). */
+    private function statutDepart(string $cle): string
+    {
+        if (! $this->bonusActif || $this->bonusEntree === []) {
+            return 'D';
         }
 
-        while ($cle !== $depart) {
-            [$x, $y] = array_map(intval(...), explode(',', $cle));
+        return isset($this->bonusEntree[$cle]) ? 'S' : 'D';
+    }
+
+    /**
+     * Le statut APRÈS un pas sur `$cle` : la PREMIÈRE entrée dans un courant porteur, depuis l'extérieur, prend le bonus
+     * (« P<gain> »). Un statut déjà pris (« P ») ou sans bonus possible (« S ») ne change jamais : une seule prise par déplacement.
+     */
+    private function statutApres(string $statut, string $cle): string
+    {
+        if ($statut !== 'D' || ! $this->bonusActif || ! isset($this->bonusEntree[$cle])) {
+            return $statut;
+        }
+
+        return 'P'.$this->bonusEntree[$cle];
+    }
+
+    /** Les points de déplacement que donne un statut (« P2 » → 2 ; « D », « S » → 0). */
+    private static function gainDuStatut(string $statut): int
+    {
+        return str_starts_with($statut, 'P') ? (int) substr($statut, 1) : 0;
+    }
+
+    /** Un coût tient-il dans le budget de CET état ? (sans budget : toujours) — le gain du statut s'y ajoute. */
+    private function dansBudget(int $cout, ?int $budget, string $statut): bool
+    {
+        return $budget === null || $cout <= $budget + self::gainDuStatut($statut);
+    }
+
+    /**
+     * Pour chaque CASE, l'état qu'un déplacement y finit de la façon la plus avantageuse : le moins de points RESTANTS
+     * dépensés (coût − gain), puis le moins cher. Sans courant porteur, chaque case n'a qu'un état : rien ne change.
+     *
+     * @param  array<string, int>  $couts
+     * @return array<string, string> "x,y" → état « x,y|statut »
+     */
+    private static function meilleurEtatParCase(array $couts): array
+    {
+        $meilleur = [];
+
+        foreach ($couts as $etat => $cout) {
+            [$cle, $statut] = explode('|', (string) $etat, 2);
+            $net = $cout - self::gainDuStatut($statut);
+
+            if (! isset($meilleur[$cle]) || $net < $meilleur[$cle]['net']
+                || ($net === $meilleur[$cle]['net'] && $cout < $meilleur[$cle]['cout'])) {
+                $meilleur[$cle] = ['etat' => $etat, 'net' => $net, 'cout' => $cout];
+            }
+        }
+
+        return array_map(fn (array $m) => $m['etat'], $meilleur);
+    }
+
+    /**
+     * Reconstruit un chemin (départ EXCLU, comme `chemin()` le rend) à partir d'une table de parents d'ÉTATS.
+     * Cœur commun de `chemin()` et `casesAtteignables()` — la façon de remonter la chaîne ne diverge jamais.
+     *
+     * @param  array<string, string>  $parents
+     * @param  array<string, string>  $entrees  pour chaque portail franchi à pied, l'état d'où on l'a marché
+     * @return list<array{x: int, y: int}>
+     */
+    private function reconstruireChemin(array $parents, string $etatDepart, string $etatCible, array $entrees = []): array
+    {
+        $chemin = [];
+        $etat = $etatCible;
+
+        // Une ARRIVÉE par trappe n'est pas un PAS : le chemin s'achève sur l'ENTRÉE (le portail, marché à pied), et la
+        // jumelle — la destination demandée — est atteinte par la téléportation. Ni sa marche ni son coût ne sont donc
+        // comptés. La chaîne reprend ensuite depuis l'état d'où l'on a marché.
+        if ($etat !== $etatDepart && isset($parents[$etat])) {
+            $entree = $parents[$etat];
+            [$cleEntree] = explode('|', $entree, 2);
+            [$cleCible] = explode('|', $etat, 2);
+
+            if (($this->portails[$cleEntree] ?? null) === $cleCible) {
+                [$px, $py] = $this->coordonnees($cleEntree);
+                $chemin[] = ['x' => $px, 'y' => $py];
+                $etat = $entrees[$entree];
+            }
+        }
+
+        while ($etat !== $etatDepart) {
+            [$cle] = explode('|', $etat, 2);
+            [$x, $y] = $this->coordonnees($cle);
             $chemin[] = ['x' => $x, 'y' => $y];
-            $cle = $parents[$cle];
+            $etat = $parents[$etat];
         }
 
         return array_reverse($chemin);

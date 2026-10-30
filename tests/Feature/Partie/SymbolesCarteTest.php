@@ -101,7 +101,9 @@ it('donne une icône à chaque PLAQUE de terrain — bloc ou motif — et pas un
     $this->seed(TerrainSeeder::class);
 
     $plaques = Terrain::query()
-        ->where(fn ($q) => $q->whereNotNull('motif')->orWhere('largeur', '>', 1)->orWhere('hauteur', '>', 1))
+        // Une SALLE ENTIÈRE (`pose: salle`, lot H des restes, 2026-10-29) est une plaque `salle-N` : elle a une icône de repli.
+        // Un couloir (`pose: couloirs`) pose des cases ISOLÉES, sans groupe : il n'en a pas.
+        ->where(fn ($q) => $q->whereNotNull('motif')->orWhere('largeur', '>', 1)->orWhere('hauteur', '>', 1)->orWhere('pose', 'salle'))
         ->pluck('nom')->all();
     $declarees = iconesDeclarees('TERRAIN_ICONES');
 

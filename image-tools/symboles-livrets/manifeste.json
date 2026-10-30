@@ -1779,6 +1779,30 @@
       ],
       "source": "First Light, livret de quêtes p. 9 « Quest Map Guide » (même scan, page 2), jeton étiqueté « Dread Sorcerer »",
       "note": "Rayon à l'anneau vert, pas à l'enveloppe : l'enveloppe englobait le texte des étiquettes voisines (« Abomination », « Dread Sorcerer »)."
+    },
+    {
+      "type": "terrains",
+      "cle": "courant-contraire",
+      "nom_catalogue": "Courant contraire",
+      "absent": "G0053 (Spirit Queen's Torment) : le terrain est décrit par le TEXTE d'une note de carte, sans pictogramme imprimé à ce jour. q. 11 note B, p. 14 : « Currents in these rooms press against the heroes » — une salle entière, pas une icône. Un pictogramme n'a donc rien à extraire ; s'il en paraît un, l'extraire comme les autres (orchestrateur)."
+    },
+    {
+      "type": "terrains",
+      "cle": "courant-porteur",
+      "nom_catalogue": "Courant porteur",
+      "absent": "G0053 (Spirit Queen's Torment) : le terrain est décrit par le TEXTE d'une note de carte, sans pictogramme imprimé à ce jour. q. 11 note C, p. 14 : « Currents in these rooms or halls make it easier for heroes to swim » — une salle entière, pas une icône. Un pictogramme n'a donc rien à extraire ; s'il en paraît un, l'extraire comme les autres (orchestrateur)."
+    },
+    {
+      "type": "terrains",
+      "cle": "sol-meuble",
+      "nom_catalogue": "Sol meuble",
+      "absent": "G0053 (Spirit Queen's Torment) : le terrain est décrit par le TEXTE d'une note de carte, sans pictogramme imprimé à ce jour. q. 10 note B, p. 13 : « the floor of this room is loose earth » — une salle entière, pas une icône. Un pictogramme n'a donc rien à extraire ; s'il en paraît un, l'extraire comme les autres (orchestrateur)."
+    },
+    {
+      "type": "terrains",
+      "cle": "vent-de-couloir",
+      "nom_catalogue": "Vent de couloir",
+      "absent": "G0053 (Spirit Queen's Torment) : le terrain est décrit par le TEXTE d'une note de carte, sans pictogramme imprimé à ce jour. q. 12, p. 15 : « Strong air currents move through the hallways » — la case de couloir n'a pas de pictogramme imprimé. Un pictogramme n'a donc rien à extraire ; s'il en paraît un, l'extraire comme les autres (orchestrateur)."
     }
   ]
 }

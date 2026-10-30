@@ -52,6 +52,9 @@ class Terrain extends Model
         'largeur',
         'hauteur',
         'motif',
+        // Pose (2026-10-29, lot H des restes) : `salle` = toutes les cases libres d'une salle tirée, `couloirs` = chaque
+        // case de couloir de la carte ; `null` = la pose d'avant (une case, un bloc fixe, un motif).
+        'pose',
         'bloque_mouvement',
         'bloque_vue',
         'effet',

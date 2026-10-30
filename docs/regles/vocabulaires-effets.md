@@ -72,3 +72,9 @@ fenêtre — tandis que les coups, rayons et balayages lisent le prédicat exact
   `MoteurSynchroformes::prochaine()`, à la mort. Tests : `MetamorpheTest` (registre et comportement).
 - **`verrou.type` = `condition`** (`MoteurPortes::VERROU_CONDITION`, paramètres dans `MoteurPortes::CONDITIONS`) : porte fermée
   dont l'ouverture est un jet de deux dés rouges. Ni `ouvrableAMain()` (un verrou n'est jamais libre), ni clé.
+
+**Les terrains des tours (lot H des restes, 2026-10-29)** — quatre clés ajoutées au vocabulaire fermé `MotsClesTerrain`, chacune lue par une
+couture déclarée : `arret_sur_impair` (dé de déplacement impair : arrêt sur la première case de sol meuble, valeur = PV de Body),
+`bonus_entree` (courant porteur : gain de cases, pris une fois par déplacement), `pousse_heros` et `pousse_zargon` (dans `sur` par face du dé
+de combat : le héros choisit / Zargon choisit, valeur = cases). Une option `pousser_vent` a rejoint `JournalCombat::TYPES` (annoncée) et
+`ResolveurTour::creneauOption()` (`interaction`). Détail : `carte-donjon.md`, section « LES TERRAINS DES TOURS ».

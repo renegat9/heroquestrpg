@@ -226,6 +226,20 @@ export const TERRAIN_TEINTES = {
     // sont simples : la croix est ce qui dit « ça ne se traverse pas à pied », même en niveaux
     // de gris). On le franchit d'un saut, une option du menu ; le serveur décide quand.
     'Sables mouvants': 'sables',
+    // Spirit Queen's Torment (livret G0053 q. 11 note B, lot H des restes, 2026-10-29) : les COURANTS CONTRAIRES, une salle
+    // entière. `courant` : hachure HORIZONTALE bleu-cyan — le sens du flux se lit en niveaux de gris comme une rayure.
+    // Un coût (2 points), pas un jet : la teinte ne dit pas « danger ».
+    'Courant contraire': 'courant',
+    // Sol meuble (q. 10 note B, lot H des restes, 2026-10-29) : une salle de terre meuble. `meuble` : hachure en mouchetis
+    // BRUN, la même terre que le sable en plus sombre — l'enlisement se lit à l'arrêt, pas au jet : pas une teinte « danger ».
+    'Sol meuble': 'meuble',
+    // Courant porteur (q. 11 note C, lot H des restes, 2026-10-29) : une salle où l'on nage plus loin. `porteur` : pointillé
+    // bleu-cyan, distinct de la rayure du courant contraire (le même liquide, un effet inverse).
+    'Courant porteur': 'porteur',
+    // Vent de couloir (q. 12 p. 15, lot H des restes, 2026-10-29) : une case de couloir qui POUSSE. `vent` : hachure en chevrons
+    // gris-bleu, le sens du souffle — distinct de la rayure du courant contraire et du pointillé du courant porteur. Une case
+    // isolée (pose couloirs, sans groupe) : pas d'icône de plaque.
+    'Vent de couloir': 'vent',
 };
 export const TERRAIN_TEINTE_DEFAUT = 'decor';
 
@@ -247,6 +261,10 @@ export const TERRAIN_ICONES = {
     'Sable entravant': 'landscape',
     'Toile entravante': 'pest_control',
     'Jungle entravante': 'forest',
+    // Courant contraire (salle entière, `pose: salle`) : l'icône de repli de la plaque, posée sur son ancre.
+    'Courant contraire': 'waves',
+    'Sol meuble': 'landslide',
+    'Courant porteur': 'surfing',
 };
 export const TERRAIN_ICONE_DEFAUT = 'texture';
 

@@ -278,3 +278,17 @@ Le client, lui, ne fait qu'une chose : `SymboleCarte` (un seul composant) affich
 - **Écart nommé** : à trois ou quatre figures sur une case de 38 px, un jeton ne fait plus que 16 px ; son identité ne se lit qu'en petites lettres, et la fiche au toucher n'existe pas sur la manette.
 - **Couleur d'allié** : l'allié est BLEU sur la carte et dans la barre d'initiative. Il était vert sur la table, en contradiction avec la légende qui le disait bleu.
 
+
+## Les terrains des tours — lot H des restes (2026-10-29)
+
+- **Le choix de poussée est un MENU FORCÉ, pas une feuille.** Le serveur publie une option par direction légale (`pousser_vent_{e|o|s|n}`,
+  `parametres.directions` = la liste blanche décidée au dé) ; la manette envoie `option.parametres` tel quel (`direction` compris). Aucune
+  direction n'est recalculée côté client. L'icône vient de `ICONE_TYPE` (`pousser_vent: 'air'`) : toute option a son icône.
+- **Le sol meuble** : le badge `enlise_sol` (`game.js`, d'après `entites[].enlise_sol` publié par le serveur) dit l'état ; le dé du tour dit
+  le reste. Le client n'a pas à savoir si un dé est impair : `se_deplacer` est absent ou présent.
+- **Les teintes** `courant`, `porteur`, `meuble`, `vent` (`symboles.js`, `DungeonGrid.vue`, `LegendeCarte.vue`) : une teinte par terrain,
+  lisible en niveaux de gris par sa hachure. `SymbolesCarteTest` les confronte au catalogue dans les deux sens.
+- **Le fil** annonce chaque effet automatique : `enlisement_sol`, `bonus_courant`, le dé de vent (`payload.vent`), le choix et la poussée
+  (`pousser_vent`). Un effet muet serait injouable.
+- ⚠ Rendu NON VÉRIFIÉ À L'ÉCRAN dans ce chantier (pas de partie réelle lancée depuis le worktree) : la lisibilité des quatre hachures à 38 px
+  et l'icône `surfing`/`landslide`/`air` restent à regarder en partie.

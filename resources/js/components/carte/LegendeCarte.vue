@@ -414,6 +414,10 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 .lg-terrain.cat-jungle { background: repeating-linear-gradient(45deg, oklch(0.72 0.14 140 / 0.30) 0 2px, transparent 2px 5px), oklch(0.30 0.08 143); box-shadow: inset 0 0 0 1px oklch(0.72 0.14 140 / 0.5); }
 .lg-terrain.cat-toile { background: repeating-linear-gradient(30deg, oklch(0.90 0.01 260 / 0.32) 0 1px, transparent 1px 5px), repeating-linear-gradient(-30deg, oklch(0.90 0.01 260 / 0.24) 0 1px, transparent 1px 5px), oklch(0.28 0.01 260); box-shadow: inset 0 0 0 1px oklch(0.85 0.01 260 / 0.45); }
 .lg-terrain.cat-sable { background: radial-gradient(oklch(0.88 0.08 85 / 0.45) 1px, transparent 1.6px) 0 0 / 5px 5px, oklch(0.40 0.07 78); box-shadow: inset 0 0 0 1px oklch(0.85 0.09 85 / 0.5); }
+.lg-terrain.cat-meuble { background: radial-gradient(oklch(0.55 0.07 65 / 0.5) 1.2px, transparent 2px) 0 0 / 5px 5px, oklch(0.30 0.06 58); box-shadow: inset 0 0 0 1px oklch(0.55 0.07 65 / 0.6); }
+.lg-terrain.cat-porteur { background: radial-gradient(oklch(0.85 0.10 205 / 0.55) 1.4px, transparent 2px) 0 0 / 6px 6px, oklch(0.31 0.07 218); box-shadow: inset 0 0 0 1px oklch(0.80 0.10 205 / 0.6); }
+.lg-terrain.cat-vent { background: repeating-linear-gradient(60deg, oklch(0.84 0.03 240 / 0.36) 0 2px, transparent 2px 6px), oklch(0.27 0.03 242); box-shadow: inset 0 0 0 1px oklch(0.84 0.03 240 / 0.55); }
+.lg-terrain.cat-courant { background: repeating-linear-gradient(0deg, oklch(0.80 0.10 215 / 0.36) 0 2px, transparent 2px 5px), oklch(0.30 0.07 222); box-shadow: inset 0 0 0 1px oklch(0.78 0.11 215 / 0.6); }
 .lg-terrain.cat-eau { background: oklch(0.32 0.08 217); box-shadow: inset 0 0 0 1px oklch(0.75 0.11 215 / 0.55); }
 .lg-terrain.cat-feu { background: oklch(0.34 0.10 40); box-shadow: inset 0 0 0 1px oklch(0.80 0.16 60 / 0.6); }
 .lg-terrain.cat-sables {

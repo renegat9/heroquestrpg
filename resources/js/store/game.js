@@ -521,6 +521,18 @@ export function badgesFigure(entite) {
         });
     }
 
+    // SOL MEUBLE (*Spirit Queen's Torment* q. 10 note B, 2026-10-29) : le héros ENLISÉ par un dé de déplacement impair
+    // (`entites[].enlise_sol`, publié par le serveur). Il ne sort qu'à un dé pair : pas une condition à durée, un état.
+    if (entite?.enlise_sol) {
+        badges.unshift({
+            nom: 'enlise_sol',
+            t: 'poison',
+            l: 'Enlisé dans le sol meuble — un dé de déplacement pair le libère',
+            ic: 'landslide',
+            d: null,
+        });
+    }
+
     if (jetons > 0) {
         badges.unshift({
             nom: 'rejetons',

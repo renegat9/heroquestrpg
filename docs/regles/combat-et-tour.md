@@ -187,3 +187,15 @@ Une figure à `passif_jusqua` avec `intouchable_jusqua` (la gargouille-statue, B
   endroit qui ferme un tour par drapeau.
 - **Désamorçage** : `jetDesamorcage()` est le seul jet de désamorçage (Nain et Explorateur sans outils, trousse sinon) ; le piège
   et la fournaise l'appellent. Le menu et le résolveur lisent la même question : `salleDangereuseAdjacentes()`.
+
+## Le déplacement des terrains des tours — lot H des restes (2026-10-29)
+
+- **Un dé impair sur le sol meuble** ferme la marche à la première case de la salle ; un héros enlisé ne se libère qu'à un dé PAIR, et
+  dans ce cas il marche de base + d6 (`DeplacementHeros::bloqueParSolMeuble()`, `solMeubleArrete()`). `se_deplacer` n'est pas offert à un
+  enlisé au dé impair : le menu et le résolveur lisent la même liste vide.
+- **Le courant porteur** ajoute 2 points au budget, une fois par déplacement, à la première entrée depuis l'extérieur. Le gain est dans le
+  reste du tour (`deplacement_restant`), publié (`bonus_courant`) et annoncé. Le coût des destinations reste celui des points dépensés.
+- **Le vent de couloir** se déclenche à la FIN d'un mouvement (pas en passant). Bouclier : `pousser_vent_{direction}` en menu forcé, creneau
+  `interaction` (aucun créneau consommé). Crâne : poussée immédiate, décidée par `MoteurVents::directionDeZargon()`. Une poussée ne tire
+  aucun dé de déplacement et ne chaîne aucun dé de vent.
+- Le détail des règles, les écarts assumés et les tests sont dans `docs/regles/carte-donjon.md`, section « LES TERRAINS DES TOURS ».

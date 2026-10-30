@@ -101,7 +101,18 @@ class GabaritQueteSeeder extends Seeder
                         // dit SI (`terrains.boite`), `placerTerrains()` abandonne la pose plutôt que de
                         // casser la connectivité d'une salle.
                         'sables' => ['min' => 0, 'max' => 1],
-                        'trappes' => ['min' => 0, 'max' => 1]],
+                        'trappes' => ['min' => 0, 'max' => 1],
+                        // COURANTS CONTRAIRES (Spirit Queen q. 11 B, lot H des restes, 2026-10-29) : COMBIEN de SALLES
+                        // entières. Le thème `spirit_queen` dit SI (`terrains.boite`) ; sans lui, aucun tirage.
+                        'courants' => ['min' => 0, 'max' => 1],
+                        // SOL MEUBLE (Spirit Queen q. 10 note B, lot H des restes, 2026-10-29) : COMBIEN de salles entières. Même
+                        // règle que les courants : le thème dit SI.
+                        'sol_meuble' => ['min' => 0, 'max' => 1],
+                        // COURANT PORTEUR (Spirit Queen q. 11 note C, lot H des restes, 2026-10-29) : COMBIEN de salles entières.
+                        'courants_porteurs' => ['min' => 0, 'max' => 1],
+                        // VENTS DE COULOIR (Spirit Queen q. 12, lot H des restes, 2026-10-29) : 0 ou 1 — la carte a TOUS ses couloirs
+                        // ventés, ou aucun (« strong air currents move through the hallways »). Le thème dit SI (`terrains.boite`).
+                        'vents' => ['min' => 0, 'max' => 1]],
                     // LEVIERS (2026-09-06, phase 6b) : même format que
                     // pieges/epreuves/terrains — le gabarit dit COMBIEN,
                     // `AssembleurCarte::placerLeviers()` choisit LA porte à
@@ -181,7 +192,18 @@ class GabaritQueteSeeder extends Seeder
                         // dit SI (`terrains.boite`), `placerTerrains()` abandonne la pose plutôt que de
                         // casser la connectivité d'une salle.
                         'sables' => ['min' => 0, 'max' => 1],
-                        'trappes' => ['min' => 0, 'max' => 1]],
+                        'trappes' => ['min' => 0, 'max' => 1],
+                        // COURANTS CONTRAIRES (Spirit Queen q. 11 B, lot H des restes, 2026-10-29) : COMBIEN de SALLES
+                        // entières. Le thème `spirit_queen` dit SI (`terrains.boite`) ; sans lui, aucun tirage.
+                        'courants' => ['min' => 0, 'max' => 1],
+                        // SOL MEUBLE (Spirit Queen q. 10 note B, lot H des restes, 2026-10-29) : COMBIEN de salles entières. Même
+                        // règle que les courants : le thème dit SI.
+                        'sol_meuble' => ['min' => 0, 'max' => 1],
+                        // COURANT PORTEUR (Spirit Queen q. 11 note C, lot H des restes, 2026-10-29) : COMBIEN de salles entières.
+                        'courants_porteurs' => ['min' => 0, 'max' => 1],
+                        // VENTS DE COULOIR (Spirit Queen q. 12, lot H des restes, 2026-10-29) : 0 ou 1 — la carte a TOUS ses couloirs
+                        // ventés, ou aucun (« strong air currents move through the hallways »). Le thème dit SI (`terrains.boite`).
+                        'vents' => ['min' => 0, 'max' => 1]],
                     'leviers' => ['min' => 0, 'max' => 1],
                     'butin' => ['or_base' => 50],
                 ],
@@ -331,7 +353,18 @@ class GabaritQueteSeeder extends Seeder
                         // dit SI (`terrains.boite`), `placerTerrains()` abandonne la pose plutôt que de
                         // casser la connectivité d'une salle.
                         'sables' => ['min' => 0, 'max' => 1],
-                        'trappes' => ['min' => 0, 'max' => 1]],
+                        'trappes' => ['min' => 0, 'max' => 1],
+                        // COURANTS CONTRAIRES (Spirit Queen q. 11 B, lot H des restes, 2026-10-29) : COMBIEN de SALLES
+                        // entières. Le thème `spirit_queen` dit SI (`terrains.boite`) ; sans lui, aucun tirage.
+                        'courants' => ['min' => 0, 'max' => 1],
+                        // SOL MEUBLE (Spirit Queen q. 10 note B, lot H des restes, 2026-10-29) : COMBIEN de salles entières. Même
+                        // règle que les courants : le thème dit SI.
+                        'sol_meuble' => ['min' => 0, 'max' => 1],
+                        // COURANT PORTEUR (Spirit Queen q. 11 note C, lot H des restes, 2026-10-29) : COMBIEN de salles entières.
+                        'courants_porteurs' => ['min' => 0, 'max' => 1],
+                        // VENTS DE COULOIR (Spirit Queen q. 12, lot H des restes, 2026-10-29) : 0 ou 1 — la carte a TOUS ses couloirs
+                        // ventés, ou aucun (« strong air currents move through the hallways »). Le thème dit SI (`terrains.boite`).
+                        'vents' => ['min' => 0, 'max' => 1]],
                     // LEVIERS — voir le commentaire du gabarit « Exploration
                     // simple ». Un antre de sous-boss gagne à garder au moins
                     // une antichambre gardée par une porte verrouillée.
@@ -502,7 +535,18 @@ class GabaritQueteSeeder extends Seeder
                     // la boîte de glace n'est pas rallumée).
                     'terrains' => ['min' => 2, 'max' => 4, 'tunnels' => ['min' => 1, 'max' => 2],
                         'sables' => ['min' => 0, 'max' => 1],
-                        'trappes' => ['min' => 0, 'max' => 1]],
+                        'trappes' => ['min' => 0, 'max' => 1],
+                        // COURANTS CONTRAIRES (Spirit Queen q. 11 B, lot H des restes, 2026-10-29) : COMBIEN de SALLES
+                        // entières. Le thème `spirit_queen` dit SI (`terrains.boite`) ; sans lui, aucun tirage.
+                        'courants' => ['min' => 0, 'max' => 1],
+                        // SOL MEUBLE (Spirit Queen q. 10 note B, lot H des restes, 2026-10-29) : COMBIEN de salles entières. Même
+                        // règle que les courants : le thème dit SI.
+                        'sol_meuble' => ['min' => 0, 'max' => 1],
+                        // COURANT PORTEUR (Spirit Queen q. 11 note C, lot H des restes, 2026-10-29) : COMBIEN de salles entières.
+                        'courants_porteurs' => ['min' => 0, 'max' => 1],
+                        // VENTS DE COULOIR (Spirit Queen q. 12, lot H des restes, 2026-10-29) : 0 ou 1 — la carte a TOUS ses couloirs
+                        // ventés, ou aucun (« strong air currents move through the hallways »). Le thème dit SI (`terrains.boite`).
+                        'vents' => ['min' => 0, 'max' => 1]],
                     // LEVIERS — voir le commentaire du gabarit « Exploration
                     // simple ». Le donjon final est le plus grand (7-10
                     // salles) : deux antichambres verrouillées avant la salle

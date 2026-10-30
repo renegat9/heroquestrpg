@@ -90,6 +90,9 @@ const ICONE_TYPE = {
     // (`BLOC_ICONE` dans symboles.js), pour qu'un joueur qui vient de VOIR le
     // bloc tombé reconnaisse l'action qui en parle.
     s_ecarter_du_bloc: 'square',
+    // VENTS DE COULOIR (*The Tower of Air* q. 12, lot H des restes, 2026-10-29) : après un bouclier de vent, le héros choisit la
+    // direction de sa poussée — une option par direction légale, décidée par le serveur (`parametres.directions`).
+    pousser_vent: 'air',
     // SABLES MOUVANTS (F7539 p. 29, 2026-10-15) : sauter, abandonner un objet, se hisser dehors.
     // Chacun a SON glyphe — le menu d'un héros enlisé n'en porte qu'un à la fois, mais celui du
     // saut côtoie `franchissement` (`moving`) au bord d'une fosse.

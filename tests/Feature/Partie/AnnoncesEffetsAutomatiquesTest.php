@@ -184,6 +184,8 @@ function fixturesDesTypesAnnonces(): array
         'danger_sans_effet' => ['danger' => 'Brume de la mort', 'heros' => 'Albrecht', 'arme' => 'Dague', 'x' => 7, 'y' => 4],
         'detacher_rejetons' => ['cible' => $cible, 'retires' => 1, 'restants' => 1],
         's_ecarter_du_bloc' => ['vers' => ['x' => 2, 'y' => 3]],
+        // VENTS DE COULOIR (lot H des restes, 2026-10-29) : le choix du héros après un bouclier — la direction, les cases, la poussée.
+        'pousser_vent' => ['direction' => 'e', 'cases' => 2, 'depart' => ['x' => 4, 'y' => 0], 'vers' => ['x' => 6, 'y' => 0], 'terrain_jets' => []],
         'saut_sables' => ['terrain' => 'Sables mouvants', 'faces' => ['crane'], 'face_requise' => 'bouclier_noir', 'franchi' => false, 'a_defausser' => 2],
         'defausse_sables' => ['terrain' => 'Sables mouvants', 'objet' => 'Fiole', 'restantes' => 1],
         'sortie_sables' => ['terrain' => 'Sables mouvants', 'vers' => ['x' => 2, 'y' => 3]],
