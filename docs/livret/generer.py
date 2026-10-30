@@ -388,8 +388,9 @@ ecrire('''
 ''')
 ecrire('<div class="duo">' +
        fig('10-roster',
-           "Le roster d’un joueur : Grom, engagé et verrouillé sur la campagne en cours, "
-           "n’a pas de bouton de suppression ; Essai, libre et jamais entré en jeu, porte "
+           "Le roster d’un joueur : Grom, engagé dans « La Compagnie du Livret », avec le code du "
+           "groupe, le narrateur actif et <strong>Reprendre la partie</strong>. Un héros engagé ne "
+           "se supprime pas ; seul un héros resté libre, jamais entré en jeu, porte "
            "<strong>Supprimer (créé par erreur)</strong>.") +
        fig('20-table-hub', 'Le hub sur l’écran de table : les deux thèmes de la campagne sous '
                            'le titre — le récit libre et la boîte de bestiaire, figée pour '
@@ -709,10 +710,10 @@ ecrire(fig('77-scene-deplacement',
            "sans un mot pour le dire.", 'fig scene'))
 ecrire('<div class="duo">' +
        fig('31-manette-deplacement',
-           "Un tap ne part plus tout droit : le serveur renvoie le <strong>trajet exact</strong> "
-           "— ici cinq points sur les neuf du tour, quatre restant — et le peint en orange ; seul un second tap, "
-           "ou le bouton <em>Y aller</em>, l'engage. La manette ne recalcule rien, elle affiche "
-           "une décision déjà prise.", 'fig tel') +
+           "Un tap ne part plus tout droit : le serveur renvoie le <strong>trajet exact</strong> — "
+           "ici huit points sur les neuf du tour, un restant — et le peint en surbrillance ; seul un "
+           "second tap, ou le bouton <em>Y aller</em>, l'engage. La manette ne recalcule rien, elle "
+           "affiche une décision déjà prise.", 'fig tel') +
        fig('30-manette-action',
            "Le menu du tour, composé par le moteur — jamais par l'IA — et qui ne s'allonge pas : "
            "depuis le 2026-09-18, <strong>Ranger</strong> reste <strong>une seule option</strong> "
@@ -754,12 +755,13 @@ garde comme s'il coûtait.</p>
 ''')
 ecrire('<div class="duo">' +
        fig('14-manette-sorts',
-           "Le sous-choix d'un sort. « Sommeil » est grisé : déjà lancé, il ne redeviendra "
-           "disponible qu'à la prochaine quête.", 'fig tel') +
+           "Le sous-choix d'un sort, rangé par élément, chacun avec ce qu'il fait, tiré du "
+           "catalogue. Un sort sans cible permise à cet instant n'y paraît pas ; un sort déjà lancé "
+           "y serait grisé jusqu'à la prochaine quête.", 'fig tel') +
        fig('32-manette-combat',
-           "Hors de son tour, Aldric suit le fil du combat : l'Ossement Enchaîné attaque "
-           "Sylvaine, qui pare avec deux boucliers blancs ; le Dévot de l'Étoile Noire frappe "
-           "Borin. Le détail des dés reste complet, coup par coup, jamais résumé.", 'fig tel') +
+           "Hors de son tour, Grom suit le fil du combat : Borin tire sur le Rôdeur des frimas — "
+           "deux crânes contre aucun bouclier noir —, puis le Sommeil l'endort, dés de rupture "
+           "compris. Le détail des dés reste complet, coup par coup, jamais résumé.", 'fig tel') +
        '</div>')
 ecrire('''
 <div class="encadre">
@@ -838,10 +840,11 @@ ecrire('''
 </ul>
 ''')
 ecrire(fig('22-table-donjon',
-           "Un combat à l'entrée du donjon, sur l'escalier lui-même. À gauche, le fil des "
-           "événements donne chaque jet — Aldric terrasse un Écumeur, le Fileur d'Âmes touche "
-           "Borin (−2 PV) ; en haut, la barre d'initiative mêle héros et monstres, sous les deux "
-           "thèmes de la campagne ; à droite, l'état du groupe, Borin déjà entamé (5/7)."))
+           "Quelques tours plus tard : Grom a ouvert deux portes et découvert un Rôdeur des frimas, "
+           "une Vase sépulcrale et un Archer des boursiers. À gauche, le fil des événements donne "
+           "chaque jet — Borin tire sur le Rôdeur (−2 PV), puis le Sommeil l'endort ; en haut, la "
+           "barre d'initiative mêle héros et monstres, sous les deux thèmes de la campagne ; à "
+           "droite, l'état du groupe."))
 fin()
 
 # ============================================= 7. L'ÉQUIPEMENT ============
@@ -908,9 +911,9 @@ ecrire('<div class="duo">' +
        '</div>')
 ecrire('<div class="duo">' +
        fig('13-manette-sac',
-           "L'onglet Sac : Grom porte son Épée large et son Armure de plates, sac à dos "
-           "vide — 0/4. Chaque ligne équipée ouvre par le ⓘ sa feuille de détail complète, "
-           "amélioration de Forge comprise (chapitre 7).", 'fig tel') +
+           "L'onglet Sac : Grom porte son Épée large, sac à dos vide — 0/4. Chaque ligne équipée "
+           "ouvre par le ⓘ sa feuille de détail complète, amélioration de Forge comprise (chapitre "
+           "7).", 'fig tel') +
        fig('12-manette-fiche',
            "La fiche du héros : attributs de jet, points de vie, conditions actives et talents "
            "acquis.", 'fig tel') +
@@ -1348,10 +1351,11 @@ dès le départ, sur l'écran de table comme sur la manette, avec son symbole à
 </ul>
 ''')
 ecrire(fig('21-table-quete',
-           "L'escalier d'entrée sur l'écran de table : le bloc 2×2 en colimaçon, marqué d'un symbole "
-           "doré, au centre de la salle de départ. Les quatre héros y commencent la quête, une figure "
-           "par marche, et c'est par lui qu'on quitte le donjon ; ici, le combat est déjà engagé "
-           "autour de lui. L'objectif reste affiché sous les deux thèmes de la campagne."))
+           "L'escalier d'entrée sur l'écran de table : le bloc 2×2 en colimaçon, au centre de la "
+           "salle de départ. Les quatre héros y commencent la quête, une figure par marche, chacune "
+           "sur son jeton rond — le terrain se voit autour —, et c'est par lui qu'on quitte le "
+           "donjon. Les portes portent le symbole du livret, la porte verrouillée son cadenas. "
+           "L'objectif reste affiché sous les deux thèmes de la campagne."))
 ecrire('''
 <p>Une carte assemblée <em>avant</em> l'arrivée de l'escalier — une campagne en cours — garde le
 comportement d'avant : on y sort de partout. Aucune quête en cours n'est rendue impossible à

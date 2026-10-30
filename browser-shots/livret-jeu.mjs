@@ -65,6 +65,9 @@ if (etape === 'hub') {
     // fil du combat (App\Partie\JournalCombat) — c'est la manette d'un héros
     // qui REGARDE le combat, pas qui le joue. On photographie l'un ou l'autre
     // selon ce que le serveur montre réellement, jamais une mise en scène.
+    // ⚠ Le menu du tour arrive APRÈS le chargement (« Le MJ réfléchit… » le temps que le job le compose) : 2,5 s ne
+    // suffisaient pas toujours, et la capture prenait la manette grisée d'un héros pourtant actif (2026-10-30).
+    await p.locator('.turn-banner.mine').first().waitFor({ timeout: 20000 }).catch(() => {});
     const monTour = await p.locator('.turn-banner.mine').count();
     if (monTour) {
         await snap(p, '30-manette-action', 1000);
