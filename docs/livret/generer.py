@@ -591,8 +591,8 @@ dans les paramètres du narrateur (<strong>5 secondes</strong> par défaut). Ell
 moteur a décidé : l'écran ne calcule rien.</p>
 ''')
 ecrire(fig('70-scene-attaque',
-           "Grom frappe : deux crânes contre un bouclier noir, un dégât — et Crevassier des "
-           "Glaces, qui n'a qu'un point de Body comme tout monstre de base, est terrassé. Les "
+           "Grom frappe : deux crânes contre un bouclier noir, un dégât — et la Brute des "
+           "Profondeurs, qui n'a qu'un point de Body (0/1 PV à l'écran), est terrassée. Les "
            "dés qui comptent sont cerclés de vert."))
 ecrire(fig('71-scene-jet',
            "Un jet d'attribut dit toujours ce qu'il rapporte : deux succès sur les deux requis, la "
@@ -607,9 +607,10 @@ Terreur…) se joue pareil, côté défense seule ; le dé d'un piège de sol au
 la <strong>cible</strong> qui lance : jamais une attaque contre rien.</p>
 ''')
 ecrire(fig('78-scene-resistance',
-           "Boule de Feu : Sylvaine lance ses dés rouges de résistance. Deux 5-6 sur trois "
-           "annulent deux des trois dégâts du sort — même dé, même entourage vert que pour une "
-           "attaque, mais une seule volée : personne ne défend en face.", 'fig scene'))
+           "Boule de Feu : Aldric lance le sort, et c'est la cible, le Colosse des Cryptes, qui "
+           "jette ses dés rouges de résistance. Deux 5-6 sur trois annulent deux des trois dégâts "
+           "du sort — même dé, même entourage vert que pour une attaque, mais une seule volée : "
+           "le lanceur ne jette rien en face.", 'fig scene'))
 
 EPR = CAT['epreuves']
 ecrire('<h3>Les épreuves du donjon</h3>'
@@ -698,11 +699,12 @@ dé comme n'importe quel porteur de plates.</p>
 ''')
 ecrire('<div class="duo">' +
        fig('35-manette-deplacement-plates',
-           "Grom en Armure de plates : le dé tombe (3), mais un ✕ le barre — « le dé ne "
-           "compte pas ». Il n'avance que de sa base, 4 cases.", 'fig tel') +
+           "Grom en Armure de plates : son dé, à 4, est barré d'un ✕ — « le dé ne compte pas ». "
+           "Il n'avance que de sa base, 4 cases.", 'fig tel') +
        fig('36-manette-deplacement-allegee',
-           "Borin porte la même armure, forgée Allégée : le dé compte normalement — 3 + dé 1 "
-           "= 4 cases. Même pièce, même case d'armure ; seule la Forge change la règle.", 'fig tel') +
+           "Borin porte la même armure, forgée Allégée : son dé compte. Aucun monstre actif, donc "
+           "il ne se lance pas et compte 4 : 3 + 4 = 7 points. Même pièce, même case d'armure ; "
+           "seule la Forge change la règle.", 'fig tel') +
        '</div>')
 ecrire(fig('77-scene-deplacement',
            "La table le montre aussi, au moment où le tour commence : le dé rouge, rayé, et la "
@@ -806,8 +808,8 @@ terre perd la quête (voir l'encadré plus bas).</p>
 ''')
 ecrire('<div class="duo">' +
        fig('72-scene-attaque-monstre',
-           "Briseur de Sceaux frappe Grom : trois crânes, un seul bouclier blanc. Les deux "
-           "dégâts l'amènent à zéro.", 'fig scene') +
+           "Le Colosse des Cryptes frappe Grom : trois crânes contre un seul bouclier blanc, deux "
+           "dégâts, et Grom tombe.", 'fig scene') +
        fig('73-scene-chute',
            "La scène suivante le dit : à terre, mais relevable, jamais morte. La chute "
            "s'affiche toujours <em>après</em> le coup qui l'a causée.", 'fig scene') +
@@ -1698,8 +1700,9 @@ ecrire('''
 </div>
 ''')
 ecrire(fig('23-table-bloc',
-           "Le bloc de pierre d'une Chute de blocs, sur l'écran de table : un obstacle plein, "
-           "gris pierre, jamais le trou noir d'une fosse — il bloque le passage et la vue "
+           "Le bloc d'une Chute de blocs déclenchée, sur l'écran de table, après que Borin s'est "
+           "écarté : une case pleine, gris pierre, marquée d'un carré blanc — jamais le trou noir "
+           "d'une fosse. Le bloc bloque le passage et la vue "
            "comme un mur.", 'fig scene'))
 ecrire(fig('37-manette-ecarter',
            "La seule option qui reste au héros debout sur le bloc : s'écarter, en avant ou en "

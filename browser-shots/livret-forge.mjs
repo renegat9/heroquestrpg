@@ -36,7 +36,10 @@ await p.waitForTimeout(2500);
 await p.click('button:has-text("Sac")');
 await p.waitForTimeout(800);
 
-const ligne = p.locator('.item', { hasText: objet }).first();
+// ⚠ `NTH=n` vise la n-ième ligne portant ce nom (défaut 0). Un héros qui PORTE déjà une pièce
+// homonyme (la Épée large de départ du barbare, en main droite) a deux lignes « Épée large » : le
+// `.first()` ouvrait la pièce équipée, non forgée, et la figure 18 le montrait (2026-10-30).
+const ligne = p.locator('.item', { hasText: objet }).nth(Number(process.env.NTH ?? 0));
 await ligne.scrollIntoViewIfNeeded({ timeout: 5000 });
 await ligne.locator('button[title="Voir le détail"]').click({ timeout: 5000 });
 await p.waitForTimeout(900);

@@ -16,6 +16,14 @@ if [ -n "$pids_battement" ]; then
   exit 1
 fi
 
+# SAUVEGARDE D'ABORD — même étape que preparer.sh (René, 2026-09-12) : ce script écrit lui aussi dans la VRAIE base.
+# Elle manquait ici (relevé le 2026-10-30 par la reprise des captures du livret). Non bloquante, comme là-bas.
+if [ -x "$D/../../image-tools/sauvegarder.sh" ]; then
+  "$D/../../image-tools/sauvegarder.sh" >/dev/null 2>&1 \
+    && echo "  ✓ sauvegarde prise avant la campagne" >&2 \
+    || echo "  ⚠ SAUVEGARDE ÉCHOUÉE — on continue, mais sans filet" >&2
+fi
+
 NOM="$1"; THEME="$2"; shift 2
 SUF=$(date +%H%M%S)
 

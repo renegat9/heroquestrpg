@@ -32,6 +32,9 @@ await p.waitForTimeout(2000);
 await p.goto(`${base}/manette/${code}`, { waitUntil: 'networkidle' });
 await p.waitForTimeout(2500);
 try { await p.click('button:has-text("Action")', { timeout: 2000 }); await p.waitForTimeout(600); } catch {}
+// ⚠ Le menu est GRISÉ tant que « Le MJ réfléchit… » : on attend le bandeau « C'est ton tour »
+// (ActionTab.vue) avant tout clic — sinon « Se déplacer » ne répond pas (même défaut que 34).
+await p.locator('.turn-banner.mine').first().waitFor({ timeout: 20000 });
 
 // ⚠ Pendant que « Le MJ réfléchit… » (narration en cours), un événement
 // Reverb peut re-rendre ActionTab et refermer une feuille tout juste ouverte
