@@ -1440,6 +1440,10 @@ final class EtatGroupe
                     // (`MoteurSables::publier()`). Sans elle, un héros immobile sur une case de
                     // sable n'est qu'une figurine bloquée dont rien ne dit la cause.
                     'enlise' => MoteurSables::publier($etat),
+                    // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : le héros TOMBÉ DANS le trou — `null` hors de la fosse ;
+                    // sinon la DÉCISION (le malus de dé de combat, le seuil de sortie) et le nom du trou. Sans elle, un
+                    // héros immobile au fond d'une fosse n'est qu'une figurine dont rien ne dit la cause.
+                    'dans_la_fosse' => MoteurFosseLongue::publier($etat),
                     // Réaction HORS TOUR en attente de décision (Dark Wings,
                     // Twisting Torrent). Exposée ici en plus du broadcast privé
                     // `.reaction.proposee` : une manette rechargée au mauvais

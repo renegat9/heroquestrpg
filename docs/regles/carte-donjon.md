@@ -688,3 +688,54 @@ n'avait ni `position` ni `z-index`, et le fond de `.dg-cell` (positionnée) la r
 verte, `toile` fils fins pâles, `sable` mouchetis ocre ; la hachure croisée épaisse reste aux Sables mouvants) ; (3) **l'icône d'un
 bloc 2×2 tombait dans son coin** — le serveur publie `etendue` sur l'ancre quand les cases visibles remplissent leur rectangle, et
 l'icône s'y centre (`docs/contrat-api.md`). Leçon : un rendu se vérifie à l'écran, un test de payload ne voit pas une icône masquée.
+
+## FOSSE LONGUE — un trou de deux cases, un saut par le bout (The Mage of the Mirror F7539 p. 6, lot G, 2026-10-29)
+
+Source : « Long Pit Trap », texte intégral relu au livret (saut par le bout, dé de combat, bouclier noir, chute de 2 PV, sortie
+« on a subsequent turn… a 5 or 6 on a red die », malus « one less combat die when attacking or defending (but never less than
+one die) », et « These traps can be jumped across the short side, the same as regular pit traps »). **Mesure** : planche « Design
+Your Own Quest Adventures » (F7539 p. 39, PDF 20, rendu 200 dpi) — une Pit Trap fait 54 × 52 px, la Long Pit Trap 106 × 52 px,
+soit 2,04 : 1 : **deux cases de long, une de large**. Rendu d'un script de mesure, dans le scratchpad.
+
+- **Donnée** : `Fosse longue` (`boite: mage_du_miroir`, `usage: persistant`, `degats_pv_body: 2`, `franchissable` = le petit côté,
+  `saut_long: {face: bouclier_noir}`, `dans_la_fosse: {sortie_sur: [5, 6], malus_des_combat: 1}`). `desarmable: oui` est
+  **⚠ non trouvé** pour cette fosse précise : elle suit la Fosse ordinaire, décision signalée.
+- **Vocabulaire** : `MotsClesPiege` porte `saut_long` et `dans_la_fosse` ; le premier lecteur de chacune la LIT
+  (`MoteurFosseLongue::sautsLongs()`, `MoteurPieges::declencher()`).
+- **Pose** (`AssembleurCarte::placerFosseLongue()`) : après le terrain, avant les dangers. Thème `mage_du_miroir` SEULEMENT, et
+  hors de ce thème aucun tirage (`CHANCE_FOSSE_LONGUE` = 40, décision non sourcée). Au plus une par carte ; **deux entrées de
+  grille**, liées par `groupe_id` (`fosse-longue-1`) ; même salle, hors salle de départ, hors cases de porte, plancher
+  `CASES_JOUABLES_MINIMUM` tenu. Pas de contrôle de connectivité : un trou ne bloque pas le mouvement, il fait tomber.
+- **Une fosse se découvre d'un bloc** : `MoteurPieges::changerEtat()` change TOUTES les cases d'un même `groupe_id`.
+- **Le saut par le bout** (`MoteurFosseLongue::sautsLongs()`, une seule liste pour le menu et le résolveur) : le héros est
+  adjacent à un BOUT, la case est une fosse CONNUE, la fosse se prolonge dans le sens de l'élan, la réception est libre, sans
+  porte et sans case armée. Coût **3** (deux cases de fosse et la réception) ; un dé de combat ; bouclier noir = atterrissage,
+  la suite du mouvement reste. Sinon le héros tombe dans la **première case libre** de la ligne. Il est offert à trois cases de
+  déplacement, jamais à deux.
+- **Le petit côté** : le saut ordinaire de la Fosse (`franchissable`, jet de Body), réutilisé. `ResolveurTour::resoudreFranchissement()`
+  et le menu refusent ce saut quand sa réception tomberait dans la MÊME fosse (`sautCourtAtterritSurLaFosse()`) : c'est le saut
+  par le bout qui s'y prend, jamais un saut court par-dessus une fosse qu'on longe.
+- **La chute** (`MoteurPieges::declencher()`) : 2 PV de Body par le catalogue ; la fosse reste ouverte (`fosse_ouverte`, les deux
+  cases) ; la colonne `etat_personnage_quete.dans_la_fosse` retient le héros (`{x, y, piege_id}`, jamais en cache). Le tour
+  s'achève, comme pour tout piège de sol. La chute se dit au fil avec la décision (`dans_la_fosse` du payload).
+- **La sortie** (option `sortie_fosse`, une par case libre qui touche la fosse) : un d6 « rouge », 5 ou 6 pour se hisser sur la
+  case choisie. **La sortie prend le déplacement du tour**, réussie ou non ; l'action reste disponible. Dans la fosse, le menu
+  n'offre ni marche ni saut (`MenuMoteur`, `$enFosse`).
+- **Le malus** : un dé de combat de moins, en ATTAQUE (`ResolveurTour::frapper()`) comme en DÉFENSE
+  (`MoteurSorts::desDefenseHerosDetail()`), par `MoteurFosseLongue::appliquerMalus()` — jamais sous un dé, et le plafond de
+  Frayeur reste le dernier mot. Un héros n'est « dans la fosse » que si sa position est la case de la colonne (`estEnFosse()`).
+
+**Ce que le livret ne dit pas, tranché et écrit** : (1) toute chute dans cette fosse, par le petit côté ou en marchant dedans,
+a les mêmes effets (2 PV, le héros reste) — le livret ne décrit que le grand côté ; (2) la sortie se fait sur une case LIBRE qui
+touche la fosse, au choix du héros, jamais sur une case piégée armée ; (3) le coût de la sortie est tout le déplacement du tour
+(le livret ne le chiffre pas) ; (4) la découverte d'une case découvre la fosse entière (un seul piège, deux cases) ; (5) la sortie
+n'appelle pas la détection de l'Œil du mineur (un pas hors de la fosse ne passe pas par `controlerChemin()`) ; (6) la chance de
+pose, 40 %, n'est pas sourcée.
+
+**Non traité, nommé** : un héros dans la fosse que la carte déplace de force (*Hurricane*, *Commandé*) n'est plus « dans la
+fosse » dès que sa position change (`estEnFosse()` compare la case), mais la colonne garde la trace jusqu'à la prochaine chute ;
+les monstres qui attaquent un héros dans la fosse suivent les règles ordinaires (le livret ne dit rien de plus).
+
+**Symbole** : le symbole 2 × 1 du livret ne tient pas dans une case. Chaque case porte la flèche de la Fosse
+(`PIEGE_ICONES['Fosse longue']`) ; le manifeste déclare l'absence avec sa mesure. Le contrat : `docs/contrat-api.md` §« The Mage
+of the Mirror — la fosse longue ».

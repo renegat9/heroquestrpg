@@ -445,6 +445,9 @@ final class Sauvegarde
                     // les cartes qu'il tient reviennent à SON Sorcier — l'oublier le libérerait
                     // sans qu'il ait rendu une carte ni tenté de briser l'emprise.
                     'verrou_mental' => $e->verrou_mental,
+                    // FOSSE LONGUE (p. 6) : un héros tombé dans la fosse y reste d'un round à l'autre — l'oublier le
+                    // ferait sortir sans avoir tenté de se hisser, et lui rendrait son dé de combat.
+                    'dans_la_fosse' => $e->dans_la_fosse,
                 ])->values()->all(),
             'heros' => $this->herosActifs($groupe)
                 ->map(fn (Personnage $p) => $this->serialiserHeros($p))->values()->all(),
@@ -702,6 +705,8 @@ final class Sauvegarde
                 // seulement s'il y en a un : `app` lit le code en direct, et une reprise ne doit pas
                 // dépendre d'une colonne que la migration n'a pas encore créée quand personne n'est gelé.
                 ...(($etat['verrou_mental'] ?? null) !== null ? ['verrou_mental' => $etat['verrou_mental']] : []),
+                // `??` : un snapshot antérieur au 2026-10-29 ne porte pas la Fosse longue. Même garde que le Verrou mental.
+                ...(($etat['dans_la_fosse'] ?? null) !== null ? ['dans_la_fosse' => $etat['dans_la_fosse']] : []),
             ]);
         }
     }

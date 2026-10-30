@@ -279,3 +279,58 @@ Chantier RESTES-COFFRE (worktree `restes-coffre`). Décision E1 appliquée : **l
 **Tests** : `MotsClesPiegeTest` (5), `PiegeCoffreSortDreadTest` (14, dont quatre de câblage passant par `resoudreFouilleMobilier()` et `fracasserMobilier()`), `MobilierBoiteTest` (7). Régression ciblée, douze suites : 246 passés. Mutations, une par lecteur neuf, toutes attrapées : sort non résolu (6 échecs), `sort_dread` non lu (7 en jeu, 1 au registre), filtre du piège (6), filtre de l'objet nommé (1), vivier par catégorie (1), absorption typée retirée du point de passage (1), fil sans le sort (1), boîtes non transmises à la fouille (1) et à la destruction (1). Restauration vérifiée octet pour octet.
 
 **Suite complète** (une seule fois, en parallèle, 982 s) : 2 997 verts sur 2 999, 129 683 assertions. Les deux rouges venaient de ce chantier, pas d'une régression : le nouveau piège n'avait ni icône dans `symboles.js` (`SymbolesCarteTest`, « pièges sans icône propre ») ni entrée dans `image-tools/symboles-livrets/manifeste.json` (`SymbolesLivretsTest`, « le type pieges ne couvre pas exactement le catalogue »). Corrigé : icône `auto_awesome` (ni la flamme de la Fournaise, `whatshot`, ni celle du Piège d'embrasement), entrée « absent » sur le patron du Piège de coffre. Rejoués : les trois suites de symboles (32 verts), le lot ciblé du chantier (58 verts), le front reconstruit (`npm run build`, sortie 0).
+
+### Exécution — lot G (2026-10-29)
+
+Chantier RESTES-FOSSE (worktree `restes-fosse`, non committé). **Mesure** (planche « Design Your Own Quest
+Adventures », F7539 p. 39 = PDF 20, rendu 200 dpi, composantes orange) : une Pit Trap fait 54 × 52 px, la Long Pit Trap
+106 × 52 px, soit 2,04 : 1 — **deux cases de long, une de large**. Le 1×2 attendu est confirmé.
+
+**Porté**
+- Catalogue (`PiegeSeeder`, `boite: mage_du_miroir`) : `Fosse longue`, `degats_pv_body: 2`, `franchissable` (le petit
+  côté, réutilisé tel quel), `saut_long: {face: bouclier_noir}`, `dans_la_fosse: {sortie_sur: [5, 6], malus_des_combat: 1}`,
+  `usage: persistant`.
+- Vocabulaire fermé `MotsClesPiege` : `saut_long` et `dans_la_fosse`, premiers lecteurs `MoteurFosseLongue::sautsLongs()` et
+  `MoteurPieges::declencher()`.
+- Pose `AssembleurCarte::placerFosseLongue()` : après le terrain, avant les dangers. Thème `mage_du_miroir` seulement, aucun
+  tirage ailleurs ; au plus une par carte (`CHANCE_FOSSE_LONGUE` = 40) ; deux entrées liées par `groupe_id`.
+- **Défaut trouvé par la suite complète, corrigé** : sous le thème, le vivier générique de `placerPieges()` aurait tiré la fosse
+  longue case par case, sans son lien de groupe. Elle en est exclue (`saut_long`), comme la Lame balançoire ; le miroir de
+  `PiegesTest` suit.
+- Saut par le bout (`franchissement`, `saut: long`) : liste unique `MoteurFosseLongue::sautsLongs()` pour le menu et le
+  résolveur ; coût 3 ; un dé de combat ; bouclier noir. Petit côté : le saut ordinaire, refusé quand sa réception tomberait
+  dans la même fosse (menu et résolveur).
+- Chute : colonne `etat_personnage_quete.dans_la_fosse` (migration `2026_10_29_150000_…`), casts et `fillable` du modèle,
+  capture et restauration dans `Sauvegarde`. `MoteurPieges::changerEtat()` propage l'état aux deux cases.
+- Sortie `sortie_fosse` : un d6 rouge, 5 ou 6 ; la sortie prend le déplacement du tour. Dans la fosse : ni marche ni saut.
+- Malus : un dé de combat de moins, en attaque (`ResolveurTour::frapper()`) comme en défense
+  (`MoteurSorts::desDefenseHerosDetail()`), plancher d'un dé (`MoteurFosseLongue::appliquerMalus()`).
+- Publication : `entites[].dans_la_fosse`, `piege_declenche.dans_la_fosse`, situation du menu, badge du store, contrat
+  (`docs/contrat-api.md`, § « la fosse longue »). Annonces : `sortie_fosse` dans `JournalCombat::TYPES` (trait
+  `LignesFosseLongue`), chute annoncée avec malus et seuil, saut par le bout nommé.
+- Front : icône `Fosse longue` (`symboles.js`), glyphe `sortie_fosse` (`ActionTab.vue`), `npm run build` sortie 0.
+- Manifeste : entrée `fosse-longue` en `absent`, avec la mesure en raison (un symbole 2 × 1 ne tient pas dans une case).
+
+**Non porté, et pourquoi.** Le symbole 2 × 1 du livret : chaque case porte la flèche de la Fosse, décision de rendu écrite au
+manifeste. Rien d'autre du lot G n'est écarté.
+
+**Tranché seul** (détail dans `docs/regles/carte-donjon.md`, § FOSSE LONGUE) : la chute est la même par le petit côté ou en
+marchant dedans ; la sortie se fait sur une case libre qui touche la fosse, au choix du héros, jamais sur une case armée ; son
+coût est tout le déplacement du tour ; découvrir une case découvre la fosse ; pas d'Œil du mineur à la sortie ; chance de pose
+40 % non sourcée ; `desarmable: oui` (⚠ non trouvé, suit la Fosse ordinaire).
+
+**Migrations et seeders à jouer** (orchestrateur, après sauvegarde) : `migrate` (colonne additive
+`etat_personnage_quete.dans_la_fosse`) ; `db:seed` (`PiegeSeeder` : une ligne `Fosse longue`, `updateOrCreate`, aucune donnée
+existante modifiée). Redémarrer `queue` et `queue-jeu` (PHP modifié). Les cartes déjà posées ne bougent pas ; le thème
+`mage_du_miroir` est déjà allumé, la liste `BOITES_THEMATIQUES` ne change pas.
+
+**Tests**
+- `FosseLongueTest` : 16 tests, 315 assertions (pose, saut par le bout à trois cases, réussite, chute, petit côté, sortie sur
+  5-6 et sur 1-4, malus en défense et en attaque, plancher d'un dé, paire de cases, garde du catalogue, garde du résolveur).
+- Mutations, un lecteur neuf retiré à la fois (12) : chacune fait tomber au moins un test. Deux ne tombaient pas au premier
+  passage (garde « pas de saut par le bout sans `saut_long` », garde du résolveur contre le saut court dans la même fosse) : deux
+  tests ajoutés, et les deux mutations tombent désormais. Restauration octet pour octet vérifiée à chaque fois.
+- Suite complète, une fois, en parallèle, sqlite `:memory:` : **3015 verts, 130 222 assertions, sortie 0**. Un passage
+  précédent donnait deux rouges (défaut du vivier générique ci-dessus, et fixture `sortie_fosse` absente de
+  `AnnoncesEffetsAutomatiquesTest`), corrigés.
+- Front : `npm run build` sortie 0.

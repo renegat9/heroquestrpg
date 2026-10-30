@@ -300,6 +300,14 @@ final class ResolveurTour
         return $this->moteurSables ??= new MoteurSables($this->des, $this->equipement);
     }
 
+    /** La fosse longue (sortie sur dé rouge) — construite avec LE lanceur de ce résolveur, comme les sables. */
+    private ?MoteurFosseLongue $moteurFosse = null;
+
+    private function fosse(): MoteurFosseLongue
+    {
+        return $this->moteurFosse ??= new MoteurFosseLongue($this->des);
+    }
+
     /**
      * `resultat.type` d'une action SUSPENDUE sur une *Vision du futur* : le jet
      * est tombé, le héros doit répondre AVANT que rien ne s'applique. Lu par
@@ -705,6 +713,8 @@ final class ResolveurTour
                 'saut_sables' => $this->resoudreSautSables($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'defausse_sables' => $this->resoudreDefausseSables($groupe, $personnage, $etat, $option, $parametres, $acteur),
                 'sortie_sables' => $this->resoudreSortieSables($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // FOSSE LONGUE (p. 6) : se hisser hors du trou, un dé rouge. Le saut par le bout passe par `franchissement`.
+                'sortie_fosse' => $this->fosse()->resoudreSortie($groupe, $quete, $personnage, $etat, $option, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
@@ -2071,6 +2081,13 @@ final class ResolveurTour
             : max(0, max($desArme, $desArmeContre)
                 + $bonusAttaque + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc
                 + $bonusTier + $bonusElan + $bonusCri + $desBonus + $bonusArmeExperte);
+
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : « While in the pit, the hero rolls one less combat die when attacking
+        // or defending (but never less than one die). » Le malus se lit ICI, au point de passage de TOUTE frappe du héros (attaque
+        // du menu, Furie, frappe balayée, riposte) ; `appliquerMalus()` tient le plancher d'un dé. Il précède le plafond de Frayeur.
+        $desAttaqueEffectifs = MoteurFosseLongue::appliquerMalus(
+            $desAttaqueEffectifs, MoteurFosseLongue::malusDesCombat($etat),
+        );
 
         // ⚠ Le plafond s'applique EN DERNIER, sur le total. Un malus s'ajoutait
         // à la somme et pouvait être compensé par un bonus ; un plafond, non —
@@ -5186,38 +5203,72 @@ final class ResolveurTour
         array $option,
         array $acteur,
     ): array {
-        $cible = $this->piegeCible($quete, $etat, $option);
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : le saut PAR LE BOUT a sa propre liste (`MoteurFosseLongue`) — son
+        // coût (trois cases), sa réception et sa case de chute y sont lus, jamais recalculés ici. Le dé de saut, la chute
+        // et l'annonce qui suivent sont COMMUNS aux deux sauts.
+        $longue = ($option['parametres']['saut'] ?? null) === 'long';
+        $saut = null;
+        $cout = self::COUT_FRANCHISSEMENT;
 
-        // BOTTES DE LIÈVRE : « To jump over one discovered trap per turn, roll
-        // anything but a black shield on 1 combat die. »
-        //
-        // ⚠ Deux règles dans une phrase, et il fallait les deux : la CIBLE
-        // s'élargit de « une fosse » à tout piège découvert, et le JET cesse
-        // d'être un test de Body à difficulté. N'en porter qu'une aurait donné
-        // des bottes qui ne servent presque jamais (la moitié des pièges du
-        // catalogue ne sont pas des fosses) ou qui sautent tout sans risque.
-        $bottes = $this->bottesDeSaut($personnage, $etat, $option);
+        if ($longue) {
+            $saut = MoteurFosseLongue::sautLongLegal($quete, $personnage, $etat, $option);
 
-        if ($bottes === null && ! $this->pieges->estFranchissable($cible['piege'])) {
-            throw ValidationException::withMessages([
-                'option_id' => 'Ce piège ne se saute pas : il faut le désamorcer.',
-            ]);
+            if ($saut === null) {
+                throw ValidationException::withMessages([
+                    'option_id' => 'Impossible de sauter par le bout de la fosse : il faut une fosse connue, deux cases de '
+                        .'déplacement de plus, et une case libre de l\'autre côté.',
+                ]);
+            }
+
+            $cout = (int) $saut['cout'];
+            $cible = ['x' => $saut['coule']['x'], 'y' => $saut['coule']['y'], 'index' => $saut['index'], 'piege' => Piege::find($saut['piege_id'])];
+            $bottes = null;
+        } else {
+            $cible = $this->piegeCible($quete, $etat, $option);
+
+            // BOTTES DE LIÈVRE : « To jump over one discovered trap per turn, roll
+            // anything but a black shield on 1 combat die. »
+            //
+            // ⚠ Deux règles dans une phrase, et il fallait les deux : la CIBLE
+            // s'élargit de « une fosse » à tout piège découvert, et le JET cesse
+            // d'être un test de Body à difficulté. N'en porter qu'une aurait donné
+            // des bottes qui ne servent presque jamais (la moitié des pièges du
+            // catalogue ne sont pas des fosses) ou qui sautent tout sans risque.
+            $bottes = $this->bottesDeSaut($personnage, $etat, $option);
+
+            if ($bottes === null && ! $this->pieges->estFranchissable($cible['piege'])) {
+                throw ValidationException::withMessages([
+                    'option_id' => 'Ce piège ne se saute pas : il faut le désamorcer.',
+                ]);
+            }
+
+            // Un saut ordinaire qui atterrirait sur une AUTRE case de la même fosse longue n'est pas un saut au-dessus d'UN
+            // piège : c'est le saut par le bout, et il se prend par le bout (`MoteurFosseLongue::sautCourtAtterritSurLaFosse()`).
+            if (MoteurFosseLongue::sautCourtAtterritSurLaFosse($quete->carte, $cible['x'], $cible['y'], (int) $etat->position_x, (int) $etat->position_y)) {
+                throw ValidationException::withMessages([
+                    'option_id' => 'Ce saut atterrirait dans la même fosse : il faut la prendre par le bout.',
+                ]);
+            }
         }
 
         // Sauter FAIT PARTIE DU MOUVEMENT (E3) : le saut se paie sur les points
-        // de déplacement restants du tour (héros → fosse → réception = 2 cases).
+        // de déplacement restants du tour (héros → fosse → réception = 2 cases ;
+        // le saut par le bout, deux cases de fosse + la réception = 3).
         $totalTour = (int) ($etat->deplacement_tour ?? $personnage->deplacement_base);
         ['restant' => $restant] = $this->pointsDeplacement($personnage, $etat, $totalTour);
 
-        if ($restant < self::COUT_FRANCHISSEMENT) {
+        if ($restant < $cout) {
             throw ValidationException::withMessages([
-                'option_id' => 'Pas assez de déplacement restant pour sauter par-dessus le piège.',
+                'option_id' => $longue
+                    ? "Pas assez de déplacement restant pour sauter par le bout de la fosse ({$cout} cases)."
+                    : 'Pas assez de déplacement restant pour sauter par-dessus le piège.',
             ]);
         }
 
         // Case de réception : le prolongement de l'élan, de l'autre côté de
-        // la fosse (héros → fosse → réception, alignés).
-        $arrivee = [
+        // la fosse (héros → fosse → réception, alignés) ; pour le saut par le
+        // bout, celle que la liste a déjà vérifiée.
+        $arrivee = $longue ? $saut['vers'] : [
             'x' => 2 * $cible['x'] - (int) $etat->position_x,
             'y' => 2 * $cible['y'] - (int) $etat->position_y,
         ];
@@ -5262,6 +5313,23 @@ final class ResolveurTour
                 'succes' => $franchi,
                 'franchi' => $franchi,
             ];
+        } elseif ($longue) {
+            // FOSSE LONGUE (p. 6) : « The hero then rolls one combat die. A black shield means the hero has jumped across
+            // safely » — le MÊME dé et la même face que le saut des sables (`MoteurSables::resoudreSaut()`), la face étant
+            // celle du catalogue (`saut_long.face`). Jamais un jet de Body : le petit côté, lui, reste le saut ordinaire.
+            $requise = FaceDeCombat::tryFrom((string) $saut['face'])
+                ?? throw new \LogicException('Une fosse longue doit déclarer saut_long.face (une face de FaceDeCombat).');
+            $face = $this->des->desCombat(1)[0];
+            $franchi = $face === $requise;
+
+            $payload += [
+                'saut' => 'long',
+                'face_requise' => $requise->value,
+                'des_lances' => 1,
+                'faces' => [$face->value],
+                'succes' => $franchi,
+                'franchi' => $franchi,
+            ];
         } else {
             $difficulteSaut = DifficulteBody::plafonnee($quete, self::DIFFICULTE_FRANCHISSEMENT);
 
@@ -5294,9 +5362,9 @@ final class ResolveurTour
         }
 
         if ($franchi) {
-            // Saut réussi : on paie les 2 cases ; s'il reste des points, le héros
+            // Saut réussi : on paie les cases du saut (2, ou 3 par le bout) ; s'il reste des points, le héros
             // peut CONTINUER son mouvement après avoir sauté (E1/E3).
-            $restantApres = max(0, $restant - self::COUT_FRANCHISSEMENT);
+            $restantApres = max(0, $restant - $cout);
 
             $etat->update([
                 'position_x' => $arrivee['x'],
@@ -5339,7 +5407,7 @@ final class ResolveurTour
             // dégât, ni tour clos. Il garde ce qui lui restait de déplacement,
             // moins le saut déjà payé.
             if (($declenchement['type'] ?? null) === 'piege_esquive') {
-                $restantApres = max(0, $restant - self::COUT_FRANCHISSEMENT);
+                $restantApres = max(0, $restant - $cout);
 
                 $etat->update(['deplacement_restant' => $restantApres, 'a_deplace' => $restantApres <= 0]);
                 $payload['deplacement_restant'] = $restantApres;
@@ -14202,7 +14270,8 @@ final class ResolveurTour
     {
         return match ($type) {
             // `saut_sables` : franchir les sables mouvants fait partie du MOUVEMENT, comme sauter une fosse.
-            'deplacement', 'franchissement', 'saut_sables' => 'mouvement',
+            // `sortie_fosse` : se hisser hors du trou EST le déplacement du tour (Fosse longue, p. 6).
+            'deplacement', 'franchissement', 'saut_sables', 'sortie_fosse' => 'mouvement',
             // Ouvrir une porte / actionner un levier = interaction LIBRE (E2) :
             // ne consomme ni le déplacement ni l'action — on s'arrête devant la
             // porte, on l'ouvre, puis on continue son mouvement s'il reste des points.

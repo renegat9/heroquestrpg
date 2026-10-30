@@ -1461,7 +1461,11 @@ final class MenuMoteur
         $offreDeplacement = false;
         $destinations = null;
 
-        if (! $aDeplace && ! $this->sorts->deplacementInterdit($personnage)) {
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : un héros DANS la fosse ne marche pas, ne saute pas : il se hisse
+        // (`optionsSortie()`, plus bas). Sa position et sa colonne `dans_la_fosse` disent la même case (`estEnFosse()`).
+        $enFosse = $etat !== null && MoteurFosseLongue::estEnFosse($etat);
+
+        if (! $aDeplace && ! $enFosse && ! $this->sorts->deplacementInterdit($personnage)) {
             $portee = $this->deplacementDuTour($personnage, $etat);
 
             // Déplacement FRACTIONNÉ (E1) : si le héros a DÉJÀ entamé son
@@ -1516,6 +1520,14 @@ final class MenuMoteur
             ];
         }
 
+        // FOSSE LONGUE (p. 6) : le héros dans le trou se hisse, un dé rouge. C'est SA sortie de la fosse, offerte seulement
+        // tant que le déplacement du tour n'est pas pris (`optionsSortie()` le revérifie).
+        if ($etat !== null && $enFosse) {
+            foreach (MoteurFosseLongue::optionsSortie($quete, $personnage, $etat) as $sortie) {
+                $options[] = $sortie;
+            }
+        }
+
         // Pièges DÉTECTÉS adjacents (doc 10 §4) — partagés entre créneaux :
         // Franchir une fosse = DÉPLACEMENT, Désamorcer = ACTION.
         $detectes = ($etat !== null && $etat->position_x !== null && $quete->carte !== null)
@@ -1524,7 +1536,7 @@ final class MenuMoteur
 
         // Sauter par-dessus une fosse fait partie du MOUVEMENT (E3) : l'option
         // n'apparaît que s'il reste assez de points pour payer le saut.
-        if (! $aDeplace && $this->pointsRestants($personnage, $etat) >= ResolveurTour::COUT_FRANCHISSEMENT) {
+        if (! $aDeplace && ! $enFosse && $this->pointsRestants($personnage, $etat) >= ResolveurTour::COUT_FRANCHISSEMENT) {
             // BOTTES DE LIÈVRE : « To jump over one discovered trap per turn,
             // roll anything but a black shield on 1 combat die. »
             //
@@ -1539,6 +1551,14 @@ final class MenuMoteur
                 : null;
 
             foreach ($detectes as $adjacent) {
+                // FOSSE LONGUE : un saut ordinaire qui retomberait dans la MÊME fosse n'existe pas — c'est le saut par le
+                // bout, offert plus bas. Le résolveur refuse la même chose (`sautCourtAtterritSurLaFosse()`, un seul prédicat).
+                if ($etat !== null && MoteurFosseLongue::sautCourtAtterritSurLaFosse(
+                    $quete->carte, $adjacent['x'], $adjacent['y'], (int) $etat->position_x, (int) $etat->position_y,
+                )) {
+                    continue;
+                }
+
                 $nomPiege = $adjacent['piege']?->nom ?? 'Piège';
 
                 if ($bottes !== null) {
@@ -1592,12 +1612,20 @@ final class MenuMoteur
             }
         }
 
+        // SAUTER PAR LE BOUT D'UNE FOSSE LONGUE (F7539 p. 6) : même créneau que le saut ordinaire (MOUVEMENT), à trois
+        // cases de déplacement au moins. La liste vient de `MoteurFosseLongue::sautsLongs()`, relue par le résolveur.
+        if (! $aDeplace && ! $enFosse && $etat !== null) {
+            foreach (MoteurFosseLongue::optionsSautLong($quete, $personnage, $etat, $this->pointsRestants($personnage, $etat)) as $saut) {
+                $options[] = $saut;
+            }
+        }
+
         // SAUTER PAR-DESSUS LES SABLES MOUVANTS (F7539 p. 29) : un saut est du
         // MOUVEMENT, comme celui d'une fosse — offert seulement depuis une case voisine,
         // avec une case de réception libre en face et de quoi payer les cases traversées.
         // La liste vient de `MoteurSables::sauts()`, que le résolveur relit pour
         // revalider : le menu ne propose jamais ce que le résolveur refusera.
-        if (! $aDeplace && $etat !== null && ! $this->sorts->deplacementInterdit($personnage)) {
+        if (! $aDeplace && ! $enFosse && $etat !== null && ! $this->sorts->deplacementInterdit($personnage)) {
             foreach (app(MoteurSables::class)->optionsDeSaut($quete, $personnage, $etat, $this->pointsRestants($personnage, $etat)) as $saut) {
                 $options[] = $saut;
             }
@@ -3088,10 +3116,16 @@ final class MenuMoteur
             ));
         }
 
+        // FOSSE LONGUE (p. 6) : le héros dans le trou le DIT — la décision (seuil de sortie, malus) vient de `publier()`.
+        $fosse = $enFosse && $etat !== null ? MoteurFosseLongue::publier($etat) : null;
+
         return [
             'situation' => $situationSecondeFrappe ?? ($aJoue
                 ? 'Tour terminé — au tour des autres héros.'
-                : 'Vous progressez dans le donjon.'.$this->consigneRassemblement($quete, $peutSortir, $rassemblement)),
+                : ($fosse !== null
+                    ? 'Vous êtes tombé dans la '.strtolower($fosse['nom']).' : un dé rouge de '
+                        .implode(' ou ', $fosse['sortie_sur']).' pour vous hisser dehors, et un dé de combat de moins tant que vous y êtes.'
+                    : 'Vous progressez dans le donjon.'.$this->consigneRassemblement($quete, $peutSortir, $rassemblement))),
             'options' => $this->avecCreneaux($options, $perteDeplacement, $secondeFrappeEnAttente),
         ];
     }

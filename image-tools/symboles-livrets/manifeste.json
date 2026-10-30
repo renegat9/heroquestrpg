@@ -751,6 +751,12 @@
     },
     {
       "type": "pieges",
+      "cle": "fosse-longue",
+      "nom_catalogue": "Fosse longue",
+      "absent": "figure de DEUX cases (F7539 p. 39, planche « Design Your Own », mesurée 106 × 52 px contre 54 × 52 pour une Fosse : 2,04 : 1) — chaque case de la carte porte la flèche de la Fosse, et un symbole 2 × 1 ne tient pas dans une case"
+    },
+    {
+      "type": "pieges",
       "cle": "fiole-de-poison",
       "nom_catalogue": "Fiole de poison",
       "absent": "piège éphémère de l’établi (fouille) : aucun livret ne le dessine sur la carte"

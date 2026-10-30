@@ -423,6 +423,11 @@ final class AssembleurCarte
         // invisible, soit contradictoire (quel effet gagne ?).
         $terrain = $this->placerTerrains($structure, $cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $suivant, $bestiaire);
 
+        // FOSSE LONGUE (*The Mage of the Mirror* p. 6, 2026-10-29) : deux cases de fosse liées, sous le thème SEULEMENT. Posée
+        // après le terrain (elle évite ce qui est déjà posé) et AVANT les dangers, qui voient la fosse comme du décor. Hors du
+        // thème, `placerFosseLongue()` rend `[]` sans aucun tirage : les cartes existantes ne bougent pas.
+        $pieges = [...$pieges, ...$this->placerFosseLongue($cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $terrain, $suivant, $bestiaire)];
+
         // DANGERS MOBILES AUTONOMES (2026-10-23 — rocher roulant, brume de la mort) : posés EN DERNIER, après les spawns,
         // pour qu'aucun tirage existant ne soit décalé. Hors de leur thème : aucun tirage (voir `placerDangers()`).
         $dangers = $this->placerDangers($cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $terrain, $suivant, $bestiaire);
@@ -516,6 +521,13 @@ final class AssembleurCarte
      * à quelle fréquence le rocher ou la brume apparaissent. Un tirage est consommé PAR danger du thème, posé ou non.
      */
     public const CHANCE_DANGER = 50;
+
+    /**
+     * FOSSE LONGUE (*The Mage of the Mirror*, 2026-10-29) : chance, sur 100, qu'une carte du thème `mage_du_miroir` porte
+     * une fosse longue. ⚠ Décision de l'assembleur, NON SOURCÉE : le livret ne dit pas combien de fosses longues une
+     * quête en pose. Au plus UNE par carte (`placerFosseLongue()`).
+     */
+    public const CHANCE_FOSSE_LONGUE = 40;
 
     /** Essais de pose du rocher (cases de départ A tirées au sort) avant de renoncer pour cette quête. */
     private const ESSAIS_ROCHER = 40;
@@ -2001,6 +2013,10 @@ final class AssembleurCarte
             ->get()
             ->reject(fn (Piege $p) => data_get($p->effet, 'declencheur') === 'ouverture_tresor')
             ->reject(fn (Piege $p) => data_get($p->effet, 'zone_lames') !== null)
+            // FOSSE LONGUE (The Mage of the Mirror p. 6, lot G, 2026-10-29) : DEUX cases liées par `groupe_id`, posées par
+            // `placerFosseLongue()` et par elle seule. Dans ce vivier, elle tomberait en UNE case sans son lien de groupe, sans
+            // le saut par le bout : une fosse de deux cases ne se tire jamais case par case.
+            ->reject(fn (Piege $p) => data_get($p->effet, 'saut_long') !== null)
             // Wizards of Morcar (lot B, 2026-10-06) : les trois pièges
             // magiques ont chacun une pose DÉDIÉE (`placerPiegesMorcar()`,
             // juste après `placerLameBalanciere()`) — le Téléporteur exige
@@ -2183,6 +2199,119 @@ final class AssembleurCarte
 
         // Aucune salle n'offre de pose valide : on renonce, comme toute autre
         // couche — jamais de lame balançoire forcée.
+        return [];
+    }
+
+    /**
+     * FOSSE LONGUE (*The Mage of the Mirror* F7539 p. 6, « Long Pit Trap ») : DEUX cases de fosse, liées par `groupe_id`,
+     * cachées comme la Fosse, sous le thème `mage_du_miroir` SEULEMENT. Au plus une par carte, avec la chance
+     * `CHANCE_FOSSE_LONGUE` (décision de l'assembleur, non sourcée).
+     *
+     * Règles de pose — le patron de `placerLameBalanciere()` :
+     *  - jamais dans la salle de départ (subie au tour 1, pas jouée), jamais sur une case de PORTE ;
+     *  - jamais sur une case déjà prise par une autre couche (`casesDuDecor()` : mobilier, terrain, épreuves, leviers, pièges) ;
+     *  - les deux cases dans LA MÊME salle, en ligne droite, et le plancher `CASES_JOUABLES_MINIMUM` de cases libres
+     *    tenu après la pose (« connexe n'est pas jouable », §2.12 ter) ;
+     *  - AUCUN tirage hors du thème : une carte sans `mage_du_miroir` garde exactement les mêmes nombres qu'avant ;
+     *  - pas de contrôle de connectivité : une fosse ne bloque pas le mouvement, elle fait tomber.
+     *
+     * @return list<array{x: int, y: int, piege_id: int, etat: string, groupe_id: string}>  zéro ou deux entrées
+     */
+    private function placerFosseLongue(
+        array $cases,
+        array $salles,
+        array $portes,
+        array $leviers,
+        array $pieges,
+        array $mobilier,
+        array $epreuves,
+        array $terrain,
+        \Closure $suivant,
+        ?BestiaireGroupe $bestiaire,
+    ): array {
+        if (! ($bestiaire?->contient('mage_du_miroir') ?? false) || count($salles) < 2) {
+            return [];
+        }
+
+        $piege = Piege::query()->orderBy('id')->get()
+            ->first(fn (Piege $p) => $p->boite === 'mage_du_miroir' && data_get($p->effet, 'saut_long') !== null);
+
+        if ($piege === null || $suivant() % 100 >= self::CHANCE_FOSSE_LONGUE) {
+            return [];
+        }
+
+        $prng = new PrngLineaire($suivant());
+        $decor = $this->casesDuDecor($salles, $portes, $mobilier, $pieges, $leviers, $epreuves, $terrain);
+
+        $interdites = [];
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $interdites["{$case['x']},{$case['y']}"] = true;
+            }
+        }
+
+        // Une liste de cases par salle (hors départ), et le pool global mélangé — même patron que la lame.
+        $interieurParSalle = [];
+        $pool = [];
+
+        foreach ($salles as $i => $salle) {
+            if ($i === 0) {
+                continue;
+            }
+
+            $interieurParSalle[$i] = [];
+
+            foreach ($this->interieur($cases, $salle) as $position) {
+                $interieurParSalle[$i]["{$position['x']},{$position['y']}"] = $position;
+                $pool[] = [...$position, 'salle' => $i];
+            }
+        }
+
+        foreach ($prng->melanger($pool) as $candidat) {
+            $i = (int) $candidat['salle'];
+            // Deux orientations (horizontale puis verticale, ou l'inverse) : UN tirage choisit l'ordre, pas chacun des essais.
+            $ordres = $prng->suivant() % 2 === 0 ? [[1, 0], [0, 1]] : [[0, 1], [1, 0]];
+
+            foreach ($ordres as [$dx, $dy]) {
+                $deux = [
+                    ['x' => $candidat['x'], 'y' => $candidat['y']],
+                    ['x' => $candidat['x'] + $dx, 'y' => $candidat['y'] + $dy],
+                ];
+
+                $valide = true;
+
+                foreach ($deux as $case) {
+                    $cle = "{$case['x']},{$case['y']}";
+
+                    if (! isset($interieurParSalle[$i][$cle]) || isset($interdites[$cle]) || isset($decor[$cle])) {
+                        $valide = false;
+                        break;
+                    }
+                }
+
+                // Plancher de cases jouables : les cases LIBRES de la salle, une fois les deux de fosse posées.
+                if ($valide) {
+                    $libres = 0;
+
+                    foreach ($interieurParSalle[$i] as $cle => $_) {
+                        if (! isset($decor[$cle])) {
+                            $libres++;
+                        }
+                    }
+
+                    $valide = $libres - count($deux) >= self::CASES_JOUABLES_MINIMUM;
+                }
+
+                if ($valide) {
+                    return array_map(fn (array $case) => [
+                        'x' => $case['x'], 'y' => $case['y'],
+                        'piege_id' => (int) $piege->id, 'etat' => 'cache', 'groupe_id' => 'fosse-longue-1',
+                    ], $deux);
+                }
+            }
+        }
+
+        // Aucune salle n'offre une pose valide : on renonce, comme toute autre couche — jamais une fosse forcée.
         return [];
     }
 

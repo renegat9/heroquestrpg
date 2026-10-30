@@ -102,6 +102,14 @@ final class MotsClesPiege
             'lecteur' => 'App\Partie\MoteurPieges::declencherEphemere() + App\Partie\MoteurDread::lancerSortDePiege()',
             'libelle' => 'lance sur le fouilleur le sort de Dread NOMMÉ, lu au catalogue (Boule de Flammes)',
         ],
+        'saut_long' => [
+            'lecteur' => 'App\Partie\MoteurFosseLongue::sautsLongs() + App\Partie\MoteurFosseLongue::sautLongLegal()',
+            'libelle' => 'se franchit par le bout : un dé de combat, la face nommée réussit, sinon le héros tombe (Fosse longue)',
+        ],
+        'dans_la_fosse' => [
+            'lecteur' => 'App\Partie\MoteurPieges::declencher() + App\Partie\MoteurFosseLongue::malusDesCombat() + App\Partie\MoteurFosseLongue::resoudreSortie()',
+            'libelle' => 'la chute RETIENT le héros : il se hisse sur le dé rouge nommé, et lance un dé de combat de moins tant qu\'il y est',
+        ],
     ];
 
     /**
