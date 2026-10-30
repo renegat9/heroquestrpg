@@ -254,3 +254,78 @@ une scène que le livret ne place que dans une seule quête.
 | B1, C1, D1, E1, F1, F2, G1, I1, J1 | **Recommandation retenue**, telle qu'écrite au §2. |
 | H1 | **Les quatre terrains des tours sont portés** : courants contraires, sol meuble, **courant porteur** et **vents de couloir** — pas de report pour H3 et H4. Le courant porteur demande un parcours qui porte « bonus déjà pris » dans son état ; les vents, un choix de direction en attente côté héros et un choix du moteur pour Zargon. |
 | A | Feu vert pour le ménage : images orphelines effacées après sauvegarde, branches fusionnées supprimées. |
+
+### Exécution — lot I (2026-10-29)
+
+Chantier RESTES-TALISMAN (worktree `heroquestrpg-talisman`, branche `restes-talisman`, non commité). Les trois mécanismes
+ont été faits un à un, chacun vert avant le suivant, puis la donnée — ordre du projet : vocabulaire, lecteur, test en jeu,
+ligne catalogue. Règles en vigueur : `docs/regles/artefacts.md` §« Le Talisman du Savoir maudit ».
+
+**Fait**
+
+- **Retrait impossible** (`inamovible`) : `Equipement::retirable()`, prédicat unique, lu par le menu (`ranger`,
+  `detailEquipabilite()`), par `/moi` (`retirable` sur chaque pièce portée, lu par `SacTab.vue`), et par
+  `desequiper()`, `equiper()` (occupant), `PhaseMarche` (vente), `DonObjet::donner()`, `MoteurSables::objetsDefaussables()`
+  et la transmutation d'`MoteurPotions`. `docs/contrat-api.md` (routes d'équipement et `/moi`) complété APRÈS le code (voir
+  point 9 ci-dessous).
+- **Fardeau de début de tour** (`fardeau_debut_de_tour`) : `MoteurFardeau::debutDeTour()`, appelé du menu du porteur sur
+  la garde du voile d'ombre. Une fois par manche (marqueur `capacites_tour`), porteur tombé exclu, annoncé au journal, au
+  fil et à la table (`SceneDeTable::fardeau()`, genre `fardeau`, `SceneEvenement.vue`). Salle et couloir :
+  `Salles::couloirDe()`, extrait de `MoteurDread::casesDuCouloir()` (même comportement, une seule copie).
+- **Sorts de Dread du porteur** (`sorts_dread_porteur`) : `SortsDreadPorteur` (entrées, cibles, direction du rayon),
+  `ResolveurTour::resoudreSortDreadPorteur()`, option `lancer_sort_dread` (`ActionTab.vue` : icône `auto_fix_high`,
+  `ManetteView.vue` : feuille). Rayon : `projeterRayon()` gagne une immunité optionnelle ; salle : `MoteurDread::degatsInfliges()`
+  rendu public. Compteur `capacites_utilisees` (`sort_dread_porteur:{nom}`), +1 PV de Mind plafonné.
+- **Ligne catalogue** « Talisman du Savoir maudit » (`ObjetSeeder`, boîte `prophecy_telor`, `unique`), entrée dans
+  `config/cartes.php` (paquet Prophecy of Telor, `carte` suffixée car unique), `CartesSourcesTest` (artefacts 51, portés 50),
+  `GuideTest` (cartes 185, `$sansMaitrise` complété), `AnnoncesEffetsAutomatiquesTest` (exemples des deux types).
+- **Front** compilé (`npm run build`, vite, sans erreur). Icônes : `auto_fix_high` (sort), `nightlight` (fardeau).
+
+**Migrations et seeders à jouer, après sauvegarde** : aucune migration (colonnes existantes : `capacites_tour`,
+`capacites_utilisees`, `pv_mind`). Un seul seeder : `php artisan db:seed --class=ObjetSeeder` (`updateOrCreate`, rien ne
+se purge) — il ajoute la ligne. Puis `docker compose restart queue queue-jeu` (PHP changé). **Jamais `migrate`, jamais
+`partie:purger`** sur la base de production.
+
+**`cout` mesurés** : sans objet (aucun monstre ajouté).
+
+**Thème** : `prophecy_telor` était déjà allumé depuis le 2026-10-23. Aucune campagne ne change de thème ; le talisman ne sort
+au coffre que sous ce thème (testé : `TalismanMauditRegistreTest`).
+
+**Tests** : 39 nouveaux, verts. Pendant le mécanisme 1, `ObjetsFonctionnelsTest` (registre dans les deux sens) et le registre
+des cartes sont restés ROUGES tant que la ligne catalogue n'existait pas : c'est l'effet voulu du registre (une clé déclarée
+sans porteur), ils sont repassés verts à la donnée, dernière étape. `TalismanInamovibleTest` (10), `FardeauPorteurTest` (13), `SortDreadPorteurTest` (11),
+`TalismanMauditRegistreTest` (5). Suite complète, une fois après les corrections des registres : **3012 passés, 0 échec**
+(durée 554 s, 8 processus). Mutations, chacune retirée puis restaurée :
+
+| Lecteur neutralisé | Tests qui tombent |
+|---|---|
+| `Equipement::retirable()` → toujours vrai | 7 sur 10 (retrait, emplacement, menu, sables, transmutation, don, `/moi`) |
+| crochet du fardeau dans `MenuMoteur` | 9 sur 12 |
+| marqueur « une fois par manche » | 1 (« une seule fois par manche ») |
+| contact `Grille::sontAdjacentes()` du fardeau | 1 (compagnon adjacent) |
+| pose de `tombe` à 0 PV | 1 (« à 0 PV, le porteur tombe ») |
+| compteur `capacites_utilisees` du sort | 1 (« une fois par quête ») |
+| immunité du rayon (`projeterRayon`) | 1 (rayon qui épargne l'Effigie) |
+| direction du rayon (`directionVers`) | 4 (menu et Éclair) |
+
+`Salles::couloirDe()` n'a pas reçu de mutation propre : c'est une extraction à comportement constant, couverte par les tests
+de zone existants de la Nuée d'Effroi et par le test « même couloir » du fardeau.
+
+**Non porté, et pourquoi** : rien de la lot I. Restes nommés, pas oubliés :
+- la pose « tombe à 0 PV » reprend un motif écrit à huit endroits (`ResolveurTour` ×4, pièges, Dread) ; un point de
+  passage unique reste à faire, il n'est pas dans ce lot ;
+- le réarmement des sorts à la quête suivante est structurel (état de quête neuf), non joué par une seconde quête.
+
+**Tranché seul** (à relire par René) :
+1. Un compagnon à la fois dans la salle et au contact compte pour les deux bonus (+1 et +2 = +3), le texte dit « and ».
+2. Seuls les compagnons debout comptent dans le jet du fardeau.
+3. Le porteur ne lance ses sorts de Dread que sur des monstres ; une figure immunisée aux sorts n'est jamais touchée.
+4. Le rayon d'Éclair vise une figure alignée (la direction se déduit) et frappe toute la ligne jusqu'au mur ou à la porte.
+5. `prix_base` 800, celui de la carte Talisman of Lore déjà portée ; un artefact `unique` ne se vend pas.
+6. Un héros dont il ne reste que le talisman, aux sables mouvants, sombre (règle existante « plus rien à abandonner »).
+7. Le Gremlin peut voler le talisman tant qu'il est au sac ; porté, il est à l'abri.
+8. Le fardeau est annoncé hors résolution (pas de résultat à porter) : fil par `TamponAnnonces`, table par une scène diffusée
+   directement, comme le fait le voile d'ombre pour le fil.
+9. **Écart à l'ordre « contrat d'abord », relevé** : le contrat (routes d'équipement, `/moi`, scène `fardeau`, option
+   `lancer_sort_dread`) a été complété APRÈS le code de chaque mécanisme, et non avant. Il est à jour avant tout commit ;
+   l'ordre n'a pas été respecté à la lettre.

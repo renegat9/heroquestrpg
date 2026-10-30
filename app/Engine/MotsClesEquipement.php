@@ -1107,6 +1107,45 @@ final class MotsClesEquipement
      */
     public const UNE_PAR_QUETE = 'une_par_quete';
 
+    /**
+     * INAMOVIBLE une fois PORTÉE (*Talisman du Savoir maudit*, Prophecy of Telor p. 10 : « The bearer cannot remove the
+     * talisman. If they try, […] Lose 1 Body Point. »). Équipée, la pièce ne quitte plus son emplacement : ni rangée,
+     * ni donnée, ni jetée, ni vendue, ni échangée, ni transmutée, ni abandonnée aux sables, et un autre objet ne prend
+     * pas son emplacement. Dans le sac, elle reste un objet ordinaire (on peut la refuser avant de la porter). Un seul
+     * prédicat, `Equipement::retirable()`, est lu par le menu ET par chaque résolveur : le menu n'offre jamais ce que
+     * le résolveur refuse. Écart au livret, écrit : la pénalité d'1 PV pour une tentative devient inatteignable.
+     * Lu sur la pièce elle-même (`LUES_SUR_UNE_PIECE`).
+     */
+    public const INAMOVIBLE = 'inamovible';
+
+    /**
+     * FARDEAU DU PORTEUR — ancrage GÉNÉRIQUE « objet porté, début du tour du porteur » (Talisman du Savoir maudit,
+     * Prophecy of Telor p. 10 : « At the beginning of each of the bearer's turns, they roll 2 red dice. If the total roll
+     * is equal to or greater than the bearer's current Mind Points, nothing happens. If the total roll result is less than
+     * the bearer's current Mind Points, they […] lose 1 Body Point. The bearer adds 1 point to their roll total for each
+     * hero in the same room or corridor as them when the roll is made, and 2 points to their total for each hero adjacent
+     * to them. »). Premier déclencheur AUTOMATIQUE par tour lié à un objet porté du moteur.
+     *
+     * Valeur : `FARDEAU_PARAMETRES` (vocabulaire fermé, testé). Lu par `MoteurFardeau::debutDeTour()`, appelé depuis le
+     * menu du porteur (même crochet que le voile d'ombre). Une fois par tour : marqueur durable dans `capacites_tour`.
+     * Un porteur tombé ne lance pas. Compagnon « adjacent » = contact orthogonal (`Grille::sontAdjacentes()`).
+     */
+    public const FARDEAU_DEBUT_DE_TOUR = 'fardeau_debut_de_tour';
+
+    /** Les seuls paramètres de `FARDEAU_DEBUT_DE_TOUR`. Un paramètre inconnu est une faute de catalogue. */
+    public const FARDEAU_PARAMETRES = ['des', 'perte_pv_body', 'compagnon_meme_zone', 'compagnon_adjacent'];
+
+    /**
+     * SORTS DE DREAD DU PORTEUR — le porteur LANCE des sorts du MJ sur les monstres (Talisman du Savoir maudit, Prophecy
+     * of Telor p. 10 : « The bearer of the talisman knows two Dread spells: Lightning Bolt and Firestorm. Each time the
+     * hero casts one of these spells, they gain 1 Mind Point. Each spell may only be cast once per quest. »).
+     *
+     * Valeur : la LISTE des NOMS de sorts de Dread (`SortDreadSeeder`), jamais leurs effets : chaque effet est lu au
+     * catalogue par `SortsDreadPorteur` et `ResolveurTour::resoudreSortDreadPorteur()`. Une fois par quête et par sort
+     * (compteur `capacites_utilisees`, durable), +1 PV de Mind à chaque lancer, plafonné au maximum du porteur.
+     */
+    public const SORTS_DREAD_PORTEUR = 'sorts_dread_porteur';
+
     // ------------------------------------------------------------------- ---
 
     /**
@@ -1220,6 +1259,10 @@ final class MotsClesEquipement
         self::HORS_MARCHE,
         self::RECUPERE_SORT_OU_COMPETENCE,
         self::UNE_PAR_QUETE,
+        // Malédiction du Talisman du Savoir maudit (Prophecy of Telor, 2026-10-29).
+        self::INAMOVIBLE,
+        self::FARDEAU_DEBUT_DE_TOUR,
+        self::SORTS_DREAD_PORTEUR,
     ];
 
     /**
@@ -1275,6 +1318,8 @@ final class MotsClesEquipement
         // Mots-clés d'activation et de charge (toute pièce qui s'utilise)
         self::ACTIVABLE, self::CIBLE, self::CONDITION_APPLIQUEE, self::COUT,
         self::DUREE, self::FREQUENCE, self::CHARGES,
+        // Malédiction portée (lue sur la pièce équipée).
+        self::INAMOVIBLE, self::FARDEAU_DEBUT_DE_TOUR, self::SORTS_DREAD_PORTEUR,
     ];
 
     /** Cette clé est-elle appliquée par le moteur ? */
@@ -1313,6 +1358,11 @@ final class MotsClesEquipement
     public const LIBELLES = [
         self::TIRAGE_DE_COMBAT => 'Effet tiré au dé de combat en la buvant',
         self::PERTE_PV_BODY => 'Fait perdre %s PV de Body à qui la boit',
+        // Malédiction : le libellé dit la règle entière, pour que la carte la montre AVANT qu'on l'équipe.
+        self::INAMOVIBLE => 'Une fois portée, ne peut plus être ni rangée, ni donnée, ni jetée, ni vendue, ni échangée',
+        // Repli : `avantages()` rend cette clé à part (structurée) ; le libellé n'est là que pour le registre.
+        self::FARDEAU_DEBUT_DE_TOUR => 'Au début de son tour, le porteur subit un jet de fardeau',
+        self::SORTS_DREAD_PORTEUR => 'Lance une fois par quête des sorts du maître du donjon (repli : `avantages()` les nomme)',
         // --- Combat
         self::DES_ATTAQUE => '%s dé(s) d\'attaque',
         self::DES_DEFENSE => '%s dé(s) de défense',
@@ -1536,6 +1586,30 @@ final class MotsClesEquipement
             // soi-même » contredisait l'effet, qui vise tous les héros vus ou
             // toute une salle. L'effet dit déjà sa portée ; la ligne se tait.
             if ($cle === 'cible' && (! empty($effet['ramene_heros_au_depart']) || ! empty($effet['controle_monstres']))) {
+                continue;
+            }
+
+            // SORTS DE DREAD DU PORTEUR : les noms viennent du catalogue ; la carte dit lesquels AVANT qu'on la porte.
+            if ($cle === self::SORTS_DREAD_PORTEUR && is_array($valeur) && $valeur !== []) {
+                $lignes[] = 'Lance une fois par quête chacun de ces sorts du maître du donjon : '
+                    .implode(', ', array_map('strval', $valeur)).' (+1 PV de Mind à chaque lancer)';
+
+                continue;
+            }
+
+            // FARDEAU DU PORTEUR : la carte dit le jet entier AVANT qu'on la porte. Les nombres viennent du catalogue.
+            if ($cle === self::FARDEAU_DEBUT_DE_TOUR && is_array($valeur)) {
+                $lignes[] = sprintf(
+                    'Au début de son tour, le porteur lance %d dés rouges : total sous son Mind actuel = %d PV de Body perdu',
+                    (int) ($valeur['des'] ?? 0),
+                    (int) ($valeur['perte_pv_body'] ?? 0),
+                );
+                $lignes[] = sprintf(
+                    '+%d par compagnon dans sa salle ou son couloir, +%d par compagnon adjacent',
+                    (int) ($valeur['compagnon_meme_zone'] ?? 0),
+                    (int) ($valeur['compagnon_adjacent'] ?? 0),
+                );
+
                 continue;
             }
 

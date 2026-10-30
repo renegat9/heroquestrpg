@@ -63,7 +63,9 @@ it('recense exactement les trois sources, sans doublon de carte', function () {
         // artefacts et l'Ancient Dwarven Relic, aucune clause écartée.
         // +3 de The Crypt of Perpetual Darkness (G1798, chantier EXT-CRYPTE, 2026-10-23) : la Lance du Dragon et
         // la Couronne des Ténèbres (texte du livret p. 4), et la Souris familière (quête 2 note B) — SOURCE LIVRET.
-        ->and((array) config('cartes.artefacts.cartes'))->toHaveCount(50)
+        // +1 de Prophecy of Telor (G0052 p. 10, chantier RESTES-TALISMAN, 2026-10-29) : le Talisman du Savoir maudit,
+        // la même carte que le Talisman of Lore, avec les règles de son porteur — source LIVRET, ligne distincte.
+        ->and((array) config('cartes.artefacts.cartes'))->toHaveCount(51)
         // Les parchemins DÉRIVENT d'un sort et n'ont pas de ligne `objets` :
         // ils vivent dans leur propre section, hors des contrôles qui suivent.
         ->and((array) config('cartes.parchemins.cartes'))->toHaveCount(19);
@@ -195,7 +197,8 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // artefacts et le trésor-valeur de la p. 50, chacun lu par un mot-clé.
         // ⚠ Trois de plus le 2026-10-23 (The Crypt of Perpetual Darkness) : la Lance du Dragon, la Couronne des
         // Ténèbres (sa clause « voir dans le noir » ÉCARTÉE, `docs/regles/artefacts.md`) et la Souris familière.
-        ->and($portees('artefacts'))->toBe(49)
+        // ⚠ Un de plus le 2026-10-29 (Prophecy of Telor, Talisman du Savoir maudit, portée malédiction comprise).
+        ->and($portees('artefacts'))->toBe(50)
         // 15 parchemins sur 19 : 11 désignaient un sort que nous avions déjà,
         // trois ont été écrits le 2026-09-04 — Trésor sans Péril, Récupération
         // Psychique, Éclair — et *Warmth* a rejoint la liste le 2026-09-06

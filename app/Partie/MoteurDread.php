@@ -1419,36 +1419,13 @@ final class MoteurDread
      */
     private function casesDuCouloir(Quete $quete, InstanceMonstre $instance): array
     {
-        $salles = (array) ($quete->carte?->grille['salles'] ?? []);
-        $grille = $this->grilleQuete($quete);
-
-        $depart = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
-        $vues = [$depart['x'].':'.$depart['y'] => true];
-        $file = [$depart];
-        $cases = [$depart];
-
-        while ($file !== []) {
-            $courante = array_shift($file);
-
-            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
-                $nx = $courante['x'] + $dx;
-                $ny = $courante['y'] + $dy;
-                $cle = $nx.':'.$ny;
-
-                if (isset($vues[$cle])
-                    || $grille->estRoche($nx, $ny)
-                    || $grille->porteBloqueEntre($courante['x'], $courante['y'], $nx, $ny)
-                    || Salles::indexDe($salles, $nx, $ny) !== null) {
-                    continue;
-                }
-
-                $vues[$cle] = true;
-                $file[] = ['x' => $nx, 'y' => $ny];
-                $cases[] = ['x' => $nx, 'y' => $ny];
-            }
-        }
-
-        return $cases;
+        // Point de passage unique de « le même couloir » : `Salles::couloirDe()` (partagé avec le fardeau du talisman).
+        return Salles::couloirDe(
+            (array) ($quete->carte?->grille['salles'] ?? []),
+            $this->grilleQuete($quete),
+            (int) $instance->position_x,
+            (int) $instance->position_y,
+        );
     }
 
     /**
@@ -2061,7 +2038,7 @@ final class MoteurDread
      *
      * @return array{degats: int, detail: array<string, mixed>}
      */
-    private function degatsInfliges(
+    public function degatsInfliges(
         SortDread $sort,
         Quete $quete,
         InstanceMonstre $instance,

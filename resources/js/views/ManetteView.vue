@@ -599,6 +599,8 @@ watch(() => store.state.menu, () => { feuilles.value = []; });
    retour NOMME la liste : c'est lui qu'affiche le niveau des cibles. */
 const LISTES = {
     lancer_sort: { cle: 'sorts', titre: 'Quel sort lancer ?', retour: 'Retour aux sorts', grouper: true },
+    // Sorts de Dread du porteur (Talisman du Savoir maudit, 2026-10-29) : la liste `parametres.sorts`, comme un sort de héros.
+    lancer_sort_dread: { cle: 'sorts', titre: 'Quel sort de Dread lancer ?', retour: 'Retour aux sorts de Dread' },
     lire_parchemin: { cle: 'parchemins', titre: 'Quel parchemin lire ?', retour: 'Retour aux parchemins' },
     utiliser_objet: { cle: 'objets', titre: 'Quel objet utiliser ?', retour: 'Retour aux objets' },
     se_concentrer: { cle: 'sorts', titre: 'Quel sort récupérer ?', retour: 'Retour aux sorts' },

@@ -187,3 +187,5 @@ Une figure à `passif_jusqua` avec `intouchable_jusqua` (la gargouille-statue, B
   endroit qui ferme un tour par drapeau.
 - **Désamorçage** : `jetDesamorcage()` est le seul jet de désamorçage (Nain et Explorateur sans outils, trousse sinon) ; le piège
   et la fournaise l'appellent. Le menu et le résolveur lisent la même question : `salleDangereuseAdjacentes()`.
+
+**Un ancrage « objet porté, début du tour du porteur » (lot I, 2026-10-29).** Premier déclencheur automatique par tour lié à une pièce portée : `MoteurFardeau::debutDeTour()`, appelé depuis `MenuMoteur` sur la garde du voile d'ombre (`! tombe`, `! a_joue`, `estSonTour`). Une fois par manche (marqueur `capacites_tour`, durable), posé avant le jet ; le porteur tombé ne lance pas ; le résultat est annoncé au journal, au fil (`TamponAnnonces`, type `fardeau_porteur`) et à la table (scène `genre: fardeau`, diffusée hors résolution). Option de menu nouvelle : `lancer_sort_dread` (type `lancer_sort_dread`, action), offerte au porteur — détail au contrat et dans `sorts-dread.md`.

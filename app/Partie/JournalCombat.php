@@ -126,6 +126,11 @@ final class JournalCombat
         'commandement_sans_effet' => true, 'commandement_sans_cible' => true,
         'commandement_deplacement' => true, 'commandement_attaque' => true,
         'ombre_decompte' => true, 'glace_dissipee' => true,
+        // Fardeau du porteur (Talisman du Savoir maudit, Prophecy of Telor p. 10) : jet automatique au début du tour du
+        // porteur, annoncé au fil et à la table (`MoteurFardeau::debutDeTour()`).
+        'fardeau_porteur' => true,
+        // Sort de Dread lancé par le porteur (Talisman du Savoir maudit, 2026-10-29) : `SortsDreadPorteur`, une action.
+        'sort_dread_porteur' => true,
         // Against the Ogre Horde p. 10-11 : le gel de Mind Lock (tour perdu, carte rendue, libération),
         // sa fin à la mort du Sorcier, et les trois gestes du MJ avec un héros DOMINÉ.
         'verrou_mental_tour' => true, 'verrou_mental_leve' => true,
@@ -912,6 +917,7 @@ final class JournalCombat
             // faire, sinon un Feu dépensé ressemblerait à un tour perdu.
             'style' => [$this->info(($a['technique'] ?? 'Une technique').' — '.$acteurNom.' prend sa garde')],
             'rayon' => $this->rayon($a, $acteurNom),
+            'sort_dread_porteur' => $this->sortDreadPorteur($a, $acteurNom),
             'degat_differe' => [[
                 'texte' => "{$acteurNom} embrase ".($a['cible']['nom'] ?? 'la cible')." (−{$a['degats']} PV) — la braise achèvera son œuvre",
                 'ton' => 'degats',
@@ -971,6 +977,9 @@ final class JournalCombat
             // lanceur, et la dissipation — un effet automatique que rien
             // n'annonce est injouable. Le texte est décidé par `MoteurOmbre`.
             'ombre_decompte' => [$this->info((string) ($a['texte'] ?? 'Le voile d\'ombre s\'amincit.'))],
+            // Fardeau du porteur (Talisman du Savoir maudit, 2026-10-29) : le texte est décidé par `MoteurFardeau` (jet,
+            // seuil, perte), comme le voile d'ombre décide le sien. Le fil le lit tel quel.
+            'fardeau_porteur' => [$this->info((string) ($a['texte'] ?? 'Le fardeau du porteur pèse sur lui.'))],
             // Un monstre sous le voile qui ne frappe pas : sans cette ligne il
             // resterait les bras ballants sans qu'on sache pourquoi.
             'monstre_dans_l_ombre' => [$this->info(($a['monstre'] ?? 'Un monstre')." est sous un voile d'ombre — il ne peut pas attaquer")],
@@ -2723,6 +2732,39 @@ final class JournalCombat
      * @param  array<string, mixed>  $a
      * @return list<array{texte: string, ton: string}>
      */
+    /**
+     * Le sort de Dread du porteur (Talisman du Savoir maudit, 2026-10-29) : une ligne d'en-tête, une par figure touchée
+     * (ou immunisée), puis le gain de Mind du lancer.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function sortDreadPorteur(array $a, string $acteurNom): array
+    {
+        $lignes = [$this->info("{$acteurNom} lance {$a['sort']}, un sort du maître du donjon porté par son talisman")];
+
+        foreach ((array) ($a['touches'] ?? []) as $touche) {
+            if (! empty($touche['immunise'])) {
+                $lignes[] = $this->info("{$touche['nom']} est immunisé aux sorts : rien ne le touche");
+
+                continue;
+            }
+
+            $lignes[] = [
+                'texte' => empty($touche['vaincu'])
+                    ? "{$touche['nom']} perd {$touche['degats']} PV de Body"
+                    : "{$touche['nom']} tombe sous le sort !",
+                'ton' => empty($touche['vaincu']) ? 'degats' : 'mort',
+            ];
+        }
+
+        if ((int) ($a['mind_gagne'] ?? 0) > 0) {
+            $lignes[] = $this->info("{$acteurNom} gagne {$a['mind_gagne']} PV de Mind à ce lancer");
+        }
+
+        return $lignes;
+    }
+
     private function rayon(array $a, string $acteurNom): array
     {
         $lignes = [$this->info("{$acteurNom} projette ".($a['technique'] ?? 'un rayon'))];

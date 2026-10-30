@@ -123,13 +123,13 @@ const deborde = computed(() => {
                 <div class="rar">{{ libelleMain(a) }}</div>
             </div>
             <button class="sac-btn ghost det-ic" title="Voir le détail" @click="ouvrirDetail(a, 'Arme équipée', 'swords')"><MSym n="info" :size="18" /></button>
-            <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', a.inventaire_id)">Déséquiper</button>
+            <button v-if="auHub && a.retirable !== false" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', a.inventaire_id)">Déséquiper</button>
         </div>
         <div v-if="equipement.armure" class="item">
             <span class="ic"><MSym n="shield" /></span>
             <div><div class="nm">{{ equipement.armure.nom }}</div><div class="rar">Armure équipée</div></div>
             <button class="sac-btn ghost det-ic" title="Voir le détail" @click="ouvrirDetail(equipement.armure, 'Armure équipée', 'shield')"><MSym n="info" :size="18" /></button>
-            <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.armure.inventaire_id)">Déséquiper</button>
+            <button v-if="auHub && equipement.armure.retirable !== false" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.armure.inventaire_id)">Déséquiper</button>
         </div>
         <!-- Le casque a son propre slot : il se CUMULE avec l'armure de corps.
              `equipement.casque` peut manquer sur une réponse antérieure au
@@ -138,21 +138,22 @@ const deborde = computed(() => {
             <span class="ic"><MSym n="sports_martial_arts" /></span>
             <div><div class="nm">{{ equipement.casque.nom }}</div><div class="rar">Casque équipé</div></div>
             <button class="sac-btn ghost det-ic" title="Voir le détail" @click="ouvrirDetail(equipement.casque, 'Casque équipé', 'sports_martial_arts')"><MSym n="info" :size="18" /></button>
-            <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.casque.inventaire_id)">Déséquiper</button>
+            <button v-if="auHub && equipement.casque.retirable !== false" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.casque.inventaire_id)">Déséquiper</button>
         </div>
         <!-- Talisman (artefact de classe) : cinquième emplacement, cumulatif. -->
         <div v-if="equipement.talisman" class="item">
             <span class="ic"><MSym n="diamond" /></span>
             <div><div class="nm">{{ equipement.talisman.nom }}<span v-if="equipement.talisman.charges" class="sac-charges" :title="`${equipement.talisman.charges.restantes} utilisation(s) restante(s) sur ${equipement.talisman.charges.max}`">{{ equipement.talisman.charges.restantes }}/{{ equipement.talisman.charges.max }}</span></div><div class="rar">Talisman équipé</div></div>
             <button class="sac-btn ghost det-ic" title="Voir le détail" @click="ouvrirDetail(equipement.talisman, 'Talisman équipé', 'diamond')"><MSym n="info" :size="18" /></button>
-            <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.talisman.inventaire_id)">Déséquiper</button>
+            <!-- Malédiction portée (Talisman du Savoir maudit) : le serveur dit `retirable: false`, le bouton ne s'affiche pas. -->
+            <button v-if="auHub && equipement.talisman.retirable !== false" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.talisman.inventaire_id)">Déséquiper</button>
         </div>
         <!-- Bottes : sixième emplacement (2026-09-04), cumulatif lui aussi. -->
         <div v-if="equipement.bottes" class="item">
             <span class="ic"><MSym n="footprint" /></span>
             <div><div class="nm">{{ equipement.bottes.nom }}</div><div class="rar">Bottes équipées</div></div>
             <button class="sac-btn ghost det-ic" title="Voir le détail" @click="ouvrirDetail(equipement.bottes, 'Bottes équipées', 'footprint')"><MSym n="info" :size="18" /></button>
-            <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.bottes.inventaire_id)">Déséquiper</button>
+            <button v-if="auHub && equipement.bottes.retirable !== false" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.bottes.inventaire_id)">Déséquiper</button>
         </div>
         <div v-if="!equipement.armes.length && !equipement.armure && !equipement.casque && !equipement.talisman && !equipement.bottes" class="slots">
             <div class="slot">

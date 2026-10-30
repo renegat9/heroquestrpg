@@ -97,6 +97,9 @@ const ICONE_TYPE = {
     defausse_sables: 'delete_forever',
     sortie_sables: 'move_up',
     sort: 'auto_awesome',
+    // Sort de Dread du porteur (Talisman du Savoir maudit, 2026-10-29) : un sort du maître du donjon, lancé par le héros.
+    // Une baguette qui ouvre une sorcellerie — distincte du sort de héros (`auto_awesome`) et de l'éclair de la rune.
+    lancer_sort_dread: 'auto_fix_high',
     parchemin: 'description',
     // Ajoutés le 2026-09-01 : sans entrée ici, ils tombaient sur `touch_app`.
     objet: 'backpack',
@@ -193,6 +196,7 @@ function metaOption(o) {
         const badge = TYPES_SORT[(type ?? '').toLowerCase()]?.l;
         return [el?.l, badge, 'Sort — 1×/quête'].filter(Boolean).join(' · ');
     }
+    if (o.type === 'lancer_sort_dread') return 'Sort du maître du donjon — 1×/quête par sort · +1 PV de Mind';
     if (o.type === 'parchemin') return 'Parchemin — consommé dans tous les cas';
     if (o.type === 'tunnelier') return 'Action — la pierre s\'ouvre ce tour · 1×/quête';
     if (o.type === 'memoire_parfaite') return 'Geste libre — récupère un sort épuisé · 1×/quête';

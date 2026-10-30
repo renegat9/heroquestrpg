@@ -82,3 +82,81 @@ Source : le LIVRET G1798, texte imprimé p. 4 (« Artifact Cards ») et quête 2
 - **Lance du Dragon** — « roll 3 Attack dice, or roll 4 if attacking a dragon » : `des_attaque: 3`, `des_attaque_contre` (noms : le Dragon et Venim le Dragon) à 4 dés. Le catalogue n'a pas de famille « dragon » : « un dragon » se déclare par la liste de ses noms, comme la Lame des Esprits. « Attack diagonally » : `attaque_diagonale`. « May not be used by the wizard » : `classe_interdite: magicien`, comme la Cuirasse de Peau de Dragon (un tag ne dirait pas la même chose). `metallique` : non sourcé, `false` par défaut (à l'abri de la Rouille) — à trancher.
 - **Couronne des Ténèbres** — ÉCART ÉCRIT. « 1 extra Defend die » : PORTÉ (`des_defense: 1`, slot `casque`, comme la Diadème de braise). « allows you to see normally in darkness, both magical and nonmagical » : ÉCARTÉ. Son seul lecteur possible serait l'obscurité magique de l'antre de Venim, écartée le 2026-10-23 (`docs/plan-crypte-tenebres.md`, lot F) ; sans lecteur, une clé `vision_nocturne` serait une clé décorative. La pièce reste portée : sa moitié de défense est jouable. Écrit aussi au seeder (`ObjetSeeder`) et au registre (`config/cartes.php`).
 - **Souris familière** — « release the mouse in front of any closed door … to receive a telepathic message about what monsters and furniture lie behind the door. When the mouse is used once in this way, it scurries off. » Objet à charge unique : `charges: 1` est un total sur la ligne d'inventaire, jamais rechargé (pas de `frequence`), et l'objet se brise à zéro, journalisé. Trouvée EN FOUILLANT : une carte de trésor propre à la boîte (`DeckFouille::cartesCrypte()`), une seule au sac à la fois. Se lâche devant une porte fermée adjacente (option `lacher_souris`, interaction libre, lecteur `ResolveurTour::resoudreLacherSouris()`). Effet : la salle derrière se découvre (le brouillard n'est levé que pour elle), la porte reste close, et AUCUN monstre ne se réveille. C'est l'écart avec la Bénédiction de l'Oracle, qui passe par `revelerSalle()` et réveille les dormants. Le message nomme les monstres et les meubles de la salle derrière (journal `lacher_souris`).
+
+## Le Talisman du Savoir maudit — Prophecy of Telor, lot I (2026-10-29)
+
+Source : livret G0052 p. 10, « The Remaining Quests » — la même carte que le Talisman of Lore, avec les règles de son
+porteur. `config/cartes.php` : paquet « Prophecy of Telor », nom de carte suffixé (`Talisman of Lore (Prophecy of
+Telor)`, car `carte` est unique dans le registre). **Ligne catalogue DISTINCTE** (plan Telor Q1, retenu) : le Talisman du
+Savoir reste `bonus_pv_mind_max` seul, sans malédiction. Boîte `prophecy_telor` : il ne sort au coffre que sous ce thème
+(filtre de boîte de `DeckFouille::choisirArtefact()`, testé par `TalismanMauditRegistreTest`). `prix_base` 800 : celui de la
+carte Talisman of Lore déjà porté ; un artefact `unique` ne s'achète ni ne se vend, le prix ne sert qu'à l'affichage.
+
+Trois clés, chacune avec son lecteur (`MotsClesEquipement`, testées en jeu) :
+- `inamovible` — `Equipement::retirable()`, le prédicat unique du retrait ;
+- `fardeau_debut_de_tour` — `MoteurFardeau::debutDeTour()`, appelé du menu du porteur (précédent : le voile d'ombre) ;
+- `sorts_dread_porteur` — `SortsDreadPorteur` et `ResolveurTour::resoudreSortDreadPorteur()`.
+
+### Retrait impossible (Q2 du plan Telor, retenu : le menu n'OFFRE pas le retrait)
+
+Une pièce INAMOVIBLE **portée** ne se retire pas. Dans le sac, elle reste un objet ordinaire : on peut la refuser,
+la ranger, la jeter avant de la porter. Écart au livret, écrit : la pénalité d'1 PV pour une tentative de retrait devient
+inatteignable, puisque le menu ne l'offre pas. Chemin par chemin :
+- **ranger** (`desequiper()`, option `ranger`, `DELETE /equipement`) : refusé, et l'option ne liste pas la pièce ;
+- **équiper un autre talisman** dans le même emplacement (l'auto-échange renverrait l'occupant au sac) : refusé, et
+  l'emplacement n'apparaît pas dans `slots_utiles` (`detailEquipabilite()`, lu par le menu et par `/moi`) ;
+- **jeter** : l'option ne porte que le sac (inchangé, déjà refusé) ;
+- **donner** (`DonObjet::donner`) : refusé avec un message qui dit pourquoi (« porté pour toujours »), au lieu de
+  « déséquipe-le » ; **échanger** (`SeanceEchange`) : ne prend que le sac (inchangé) ;
+- **vendre** (`PhaseMarche`) : refusé par la rareté `unique` et, en plus, par le prédicat, dans la boucle de vente ;
+- **transmuter** (*Potion d'alchimie*) : la pièce choisie n'est jamais une pièce inamovible ; la potion prend la pièce
+  ordinaire, ou ne rend rien (cas déjà annoncé) ;
+- **abandonner aux sables** (`objetsDefaussables()`, liste blanche de l'option et du résolveur) : retiré ; un héros qui
+  n'a plus que ce talisman sombre, par la règle existante « plus rien à abandonner ».
+- `/moi` publie `retirable: bool` sur chaque pièce portée (armes, armure, casque, talisman, bottes) ; la manette
+  n'affiche « Déséquiper » que si le serveur dit vrai (`SacTab.vue`).
+
+### Les effets du MJ et les vols : le précédent le plus proche
+
+- **Rouille** : `epargne_artefacts` (« NOT EFFECTIVE AGAINST ARTIFACTS »), donc les pièces `unique` sont épargnées. Le
+  talisman l'est par ce précédent, sans rien écrire.
+- **Vol du Gremlin des glaces** : ne prend que le SAC (`whereNotIn` des emplacements portés). Le talisman porté est à
+  l'abri ; au sac, il peut être volé comme tout artefact. Décision : la malédiction ne commence qu'à l'équipement.
+- Cendres du Phénix (sa propre ligne), casse d'arme (arme en main seulement), usure des bottes (un autre objet) et
+  charges (le talisman n'en a pas) ne visent pas une pièce de ce type.
+
+### Fardeau de début de tour (Prophecy of Telor p. 10, « The Talisman Bearer's Burden »)
+
+- Deux dés rouges. Total ≥ Mind ACTUEL : rien. Total < Mind ACTUEL : 1 PV de Body perdu, par
+  `MoteurDegats::infligerAHeros()` avec `SOURCE_FARDEAU` — non réactive, comme le poison : aucune carte réactive ne
+  pare une pression de début de tour.
+- +1 au total par héros DEBOUT dans la même salle ou le même couloir (`Salles::couloirDe()`, point de passage partagé
+  avec la Nuée d'Effroi et le Souffle du Construit) ; +2 par héros debout au contact orthogonal
+  (`Grille::sontAdjacentes()`). Un compagnon à la fois dans la salle et au contact compte pour les deux : le texte dit
+  « and », pas « or ».
+- **Une fois par manche** : marqueur `fardeau_porteur:{ligne}` dans `capacites_tour` (colonne durable), posé AVANT le jet,
+  de sorte qu'un menu régénéré ne relance rien.
+- Un porteur tombé ne lance pas. À 0 PV de Body, il TOMBE (relevable, il ne meurt pas), par la même pose que le poison
+  (`ResolveurTour::saignerParConditions()`).
+- Annoncé à trois endroits, tous lus sur le même payload : le journal (type `fardeau_porteur`), le fil
+  (`TamponAnnonces`, texte décidé par `MoteurFardeau`), et la table (scène `genre: fardeau`, diffusée au menu car il n'y
+  a pas de résolution ouverte pour la porter).
+- ⚠ Dette nommée : la pose « tombe à 0 PV » reprend le motif déjà écrit à huit endroits (`ResolveurTour` ×4, pièges,
+  Dread). Un point de passage unique reste à faire ; ce lot n'en ajoute pas une neuvième copie sans la nommer.
+
+### Sorts de Dread lancés par le porteur (« Lightning Bolt » et « Firestorm »)
+
+- **Éclair de Chaos** (= Lightning Bolt, `zone: rayon`, 2 PV par `degats_fixes` du catalogue, sans défense) : la cible est une
+  figure alignée sur une des huit directions, à découvert ; le rayon frappe toutes les figures de la ligne jusqu'au mur
+  ou à la porte close (couture du rayon du héros, `projeterRayon()`, avec l'immunité aux sorts de Dread en plus).
+- **Tempête de feu** (= Firestorm, `zone: salle`, `hors_couloir`) : les figures de la SALLE du porteur, et jamais en
+  couloir. 3 PV moins les succès de 2 dés rouges PAR FIGURE (`MoteurDread::degatsInfliges()`, la résistance du
+  catalogue) : le calcul du MJ, un seul.
+- Décisions : le porteur ne frappe que des MONSTRES (« on all heroes or monsters », côté MJ — le porteur n'entame pas ses
+  compagnons) ; une figure immunisée aux sorts (Effigie gardienne) n'est jamais une cible, ni ne subit le rayon.
+- **Une fois par quête et par sort** (`capacites_utilisees`, `sort_dread_porteur:{nom}`) : un sort épuisé n'est plus
+  offert du tout. **+1 PV de Mind à chaque lancer, plafonné au maximum du porteur** (`mind_gagne` publié : 0 au plafond).
+- Action (créneau d'action), jamais offert sous Grésil aveuglant (« no spells cast »), et jamais hors des cibles légales
+  que `SortsDreadPorteur::entrees()` publie : le résolveur revalide la liste blanche et refuse le reste (422).
+- Compteur et gain sont des colonnes de l'état de quête : ils meurent avec la quête. Le réarmement à la quête suivante
+  est donc structurel (un nouvel `etat_personnage_quete`), non testé par une seconde quête jouée.

@@ -709,6 +709,14 @@ final class PhaseMarche
                         throw ValidationException::withMessages(['ventes' => $motif]);
                     }
 
+                    // Une pièce INAMOVIBLE portée ne se vend pas (malédiction, `Equipement::retirable()`) —
+                    // redit ici même si `motifRefusVente()` refuse déjà les uniques : le cas n'est pas une rareté.
+                    if (! app(Equipement::class)->retirable($ligne)) {
+                        throw ValidationException::withMessages([
+                            'ventes' => "« {$ligne->objet?->nom} » est porté pour toujours : il ne se vend pas.",
+                        ]);
+                    }
+
                     $lignesVendues[$vente['inventaire_id']] = $ligne;
                 }
             }

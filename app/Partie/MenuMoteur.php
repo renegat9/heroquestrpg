@@ -1386,6 +1386,11 @@ final class MenuMoteur
                 && $this->ordreDuTour->estSonTour($groupe, (int) $personnage->id)) {
                 app(MoteurOmbre::class)->debutDeTour($groupe, $quete, $personnage, $etat);
                 $quete->unsetRelation('carte');
+
+                // FARDEAU DU PORTEUR (Talisman du Savoir maudit, 2026-10-29) : même crochet, même garde. Le jet peut faire
+                // tomber le porteur : l'état est relu AVANT que le menu ne le lise.
+                app(MoteurFardeau::class)->debutDeTour($groupe, $quete, $personnage, $etat);
+                $etat->refresh();
             }
         }
 
@@ -2340,7 +2345,8 @@ final class MenuMoteur
                         'slots' => $detail['slots_utiles'],
                         'remplace' => $detail['remplace'],
                     ];
-                } elseif (in_array($ligne->emplacement, Equipement::SLOTS, true)) {
+                } elseif (in_array($ligne->emplacement, Equipement::SLOTS, true) && $this->equipement->retirable($ligne)) {
+                    // Une pièce INAMOVIBLE (malédiction portée) ne se range pas : `desequiper()` la refuserait.
                     $piecesARanger[] = [
                         'cle' => "piece:{$ligne->id}",
                         'inventaire_id' => (int) $ligne->id,
@@ -2478,6 +2484,20 @@ final class MenuMoteur
             // TUNNELIER (nain·Mine, lot B) : l'effet du sort, pour ce tour. Un sort d'action : même bloc.
             foreach ($this->sorts->optionTunnelier($personnage, $etat) as $option) {
                 $options[] = $option;
+            }
+
+            // SORTS DE DREAD DU PORTEUR (Talisman du Savoir maudit, 2026-10-29) : le porteur lance un sort du maître du
+            // donjon sur les monstres. Un sort d'action comme les autres : Grésil l'interdit comme tout lancer
+            // (`sortsInterdits`), et `SortsDreadPorteur::entrees()` ne rend que ce que le résolveur acceptera.
+            $sortsDreadPorteur = app(SortsDreadPorteur::class)->entrees($quete, $etat, $personnage);
+
+            if ($sortsDreadPorteur !== [] && ! $sortsInterdits) {
+                $options[] = [
+                    'id' => 'lancer_sort_dread',
+                    'libelle' => 'Lancer un sort de Dread',
+                    'type' => 'lancer_sort_dread',
+                    'parametres' => ['sorts' => $sortsDreadPorteur],
+                ];
             }
         } elseif ($bonusReserveArcaniqueDisponible && ! $sortsInterdits) {
             // Bonus déjà consommé le créneau action normal : seul un second

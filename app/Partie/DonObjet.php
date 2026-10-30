@@ -62,6 +62,14 @@ final class DonObjet
         // Une pièce PORTÉE ne se donne pas directement : la déséquiper d'abord
         // révoque proprement ses dés chez le donneur (Equipement::desequiper),
         // au lieu de les lui laisser en douce.
+        // Une pièce INAMOVIBLE portée ne se donne pas du tout (malédiction) : le message dit pourquoi,
+        // là où « déséquipe-le » promettrait une issue qui n'existe pas.
+        if (! app(Equipement::class)->retirable($ligne)) {
+            throw ValidationException::withMessages([
+                'inventaire_id' => "« {$objet->nom} » est porté pour toujours : il ne se donne pas.",
+            ]);
+        }
+
         if (in_array($ligne->emplacement, Equipement::SLOTS, true)) {
             throw ValidationException::withMessages([
                 'inventaire_id' => "« {$objet->nom} » est équipé : déséquipe-le avant de le donner.",

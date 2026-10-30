@@ -41,7 +41,7 @@ use App\Partie\Images\BibliothequeImages;
 final class SceneDeTable
 {
     /** Genres rendus par le composant de table. Tout autre type reste muet. */
-    public const GENRES = ['attaque', 'piege', 'fouille', 'jet', 'sort', 'salle', 'chute', 'objet', 'deplacement', 'reaction'];
+    public const GENRES = ['attaque', 'piege', 'fouille', 'jet', 'sort', 'salle', 'chute', 'objet', 'deplacement', 'reaction', 'fardeau'];
 
     public function __construct(private readonly BibliothequeImages $images) {}
 
@@ -542,6 +542,8 @@ final class SceneDeTable
             // LIANES ESQUIVÉES (Jungles of Delthrak p. 4) : le piège a jailli, le héros
             // poursuit sa route. Aucun dégât, aucun état — la scène est la SEULE annonce.
             'piege_esquive' => $this->piegeEsquive($a, $acteur),
+            // Sort de Dread du porteur (Talisman du Savoir maudit, 2026-10-29) : une scène de sort, touches dans l'issue.
+            'sort_dread_porteur' => $this->sortDreadPorteur($a, $acteur),
             // PIÈGES MAGIQUES (Wizards of Morcar, lot 1b) : cinq scènes, une par
             // événement — voir `pieceMagique()`.
             'piege_amorce', 'piege_explosion', 'piege_teleporte', 'piege_bourrasque',
@@ -1024,6 +1026,62 @@ final class SceneDeTable
                 'detail' => 'reste armé, désormais connu de tous',
             ]],
             'issue' => ['ton' => 'succes', 'libelle' => $victime->nom.' esquive — aucun dégât'],
+        ];
+    }
+
+    /**
+     * La scène de table du FARDEAU du porteur (Talisman du Savoir maudit, 2026-10-29) : le jet de début de tour. Ce sont
+     * des dés ROUGES, publiés en nombres, sans faces de combat (`jet` nul) ; l'issue est celle que le moteur a décidée
+     * (`perd_pv_body`, `pv_body_perdus`). Émise hors résolution, au menu du porteur : `MoteurFardeau` la diffuse.
+     *
+     * @param  array<string, mixed>  $payload  le payload de `MoteurFardeau::debutDeTour()`
+     * @return array<string, mixed>
+     */
+    public function fardeau(array $payload, Personnage $porteur): array
+    {
+        $total = (int) ($payload['total'] ?? 0);
+        $mind = (int) ($payload['mind'] ?? 0);
+        $pertes = (int) ($payload['pv_body_perdus'] ?? 0);
+
+        return [
+            'genre' => 'fardeau',
+            'titre' => 'Fardeau du porteur',
+            'sous_titre' => $porteur->nom.' — '.(string) ($payload['piece'] ?? 'objet maudit').' pèse à chaque début de tour',
+            'acteurs' => [$this->acteurHeros($porteur, 'acteur')],
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [],
+            'issue' => ($payload['perd_pv_body'] ?? false)
+                ? ['ton' => 'echec', 'libelle' => "{$total} sous son Mind de {$mind} : {$porteur->nom} perd {$pertes} PV de Body"]
+                : ['ton' => 'succes', 'libelle' => "{$total}, à hauteur de son Mind de {$mind} : {$porteur->nom} tient bon"],
+        ];
+    }
+
+    /**
+     * La scène d'un SORT DE DREAD lancé par le porteur (Talisman du Savoir maudit, 2026-10-29) : le sort est le titre, le
+     * porteur l'acteur, et l'issue dit combien de figures il touche. Les touches elles-mêmes restent au fil, comme pour
+     * un sort de héros : la scène montre le lancer, pas une liste.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>
+     */
+    private function sortDreadPorteur(array $a, Personnage $acteur): array
+    {
+        $touchees = collect((array) ($a['touches'] ?? []))->filter(fn ($t) => empty($t['immunise']))->count();
+
+        return [
+            'genre' => 'sort',
+            'titre' => (string) ($a['sort'] ?? 'Sort de Dread'),
+            'sous_titre' => $acteur->nom.' lance un sort du maître du donjon porté par son talisman',
+            'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [],
+            'issue' => $touchees > 0
+                ? ['ton' => 'degats', 'libelle' => $touchees === 1 ? '1 figure touchée' : "{$touchees} figures touchées"]
+                : ['ton' => 'echec', 'libelle' => 'aucune figure touchée'],
         ];
     }
 

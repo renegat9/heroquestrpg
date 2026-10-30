@@ -14,6 +14,7 @@ use App\Engine\JetCompetence;
 use App\Engine\MotsClesEquipement;
 use App\Engine\MotsClesMobilier;
 use App\Engine\MotsClesSort;
+use App\Engine\MotsClesSortDread;
 use App\Engine\MotsClesTalent;
 use App\Engine\ReactionEffet;
 use App\Engine\RegainEffet;
@@ -43,6 +44,7 @@ use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
 use App\Models\Sort;
+use App\Models\SortDread;
 use App\Models\Terrain;
 use App\Partie\Audio\BanqueBarks;
 use App\Partie\Fouille\DeckFouille;
@@ -635,6 +637,8 @@ final class ResolveurTour
                 'desarmer_embrasement' => $this->resoudreDesarmerEmbrasement($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'franchissement' => $this->resoudreFranchissement($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sort' => $this->resoudreSort($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
+                // SORT DE DREAD DU PORTEUR (Talisman du Savoir maudit, 2026-10-29) : le héros lance un sort du MJ. Action.
+                'lancer_sort_dread' => $this->resoudreSortDreadPorteur($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'parchemin' => $this->resoudreParchemin($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'concentration' => $this->resoudreConcentration($groupe, $personnage, $etat, $option, $parametres, $acteur),
                 'sacrifice_sort' => $this->resoudreSacrificePourSort($groupe, $personnage, $option, $parametres, $acteur),
@@ -2784,6 +2788,7 @@ final class ResolveurTour
         string $source,
         bool $sortMagique = false,
         ?Sort $sort = null,
+        ?\Closure $immuniseAuxSorts = null,
     ): array {
         $touches = [];
 
@@ -2793,8 +2798,11 @@ final class ResolveurTour
                 // le rayon d'un SORT passe sans l'atteindre — pas la technique du Moine, qui n'est pas un
                 // sort. Dite dans le résultat (`immunise`), jamais passée sous silence.
                 // TERROR (Magrian) : le rayon passe aussi sans elle — `terrorisePour()`, le prédicat du menu.
-                if ($sortMagique && $sort !== null && ($this->sorts->sortRefuseSur($instance->monstre->immunitesSorts(), $sort)
-                    || $this->sorts->terrorisePour($instance, $lanceur))) {
+                // Un SORT DE DREAD lancé par un héros (`$immuniseAuxSorts`, le même prédicat que la zone du MJ,
+                // `MoteurDread::monstresDuSort()`) : `Monstre::immuniseAuxSorts()` passe sans la toucher.
+                if (($immuniseAuxSorts !== null && $immuniseAuxSorts($instance))
+                    || ($sortMagique && $sort !== null && ($this->sorts->sortRefuseSur($instance->monstre->immunitesSorts(), $sort)
+                    || $this->sorts->terrorisePour($instance, $lanceur)))) {
                     $touches[] = [
                         'type' => 'monstre',
                         'instance_id' => $instance->id,
@@ -5560,6 +5568,120 @@ final class ResolveurTour
         }
 
         Journal::ajouter($groupe, $sort->type === 'degats' ? 'combat' : 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * LE PORTEUR LANCE UN SORT DE DREAD sur les monstres (Talisman du Savoir maudit, Prophecy of Telor p. 10 : « The
+     * bearer of the talisman knows two Dread spells … Each time the hero casts one of these spells, they gain 1 Mind
+     * Point. Each spell may only be cast once per quest. »).
+     *
+     * L'effet est LU AU CATALOGUE (`SortDread::effet`), jamais recopié. Rayon : la couture du rayon du héros
+     * (`projeterRayon()`), avec l'immunité aux sorts de Dread en plus. Salle : le calcul de dégâts DU MJ
+     * (`MoteurDread::degatsInfliges()`, un jet par figure, sa résistance du catalogue) puis la même pose de dégâts sur
+     * un monstre (`infligerAMonstre()`). Cible : la liste blanche de `SortsDreadPorteur::entrees()`, revalidée ici.
+     *
+     * Compteur par quête (`capacites_utilisees`, durable) ; +1 PV de Mind à chaque lancer, plafonné au maximum du
+     * porteur (un gain se borne : « gain 1 Mind Point » ne dépasse jamais le maximum).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreSortDreadPorteur(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        $entree = $this->entreeChoisie($option, $parametres, 'sorts');
+        $nom = (string) $entree['nom'];
+        $sort = SortDread::where('nom', $nom)->firstOrFail();
+        $porteur = app(SortsDreadPorteur::class);
+        $zone = (string) data_get($sort->effet, 'zone');
+        $immune = static fn (InstanceMonstre $m): bool => $m->monstre->immuniseAuxSorts();
+
+        if ($zone === MotsClesSortDread::ZONE_RAYON) {
+            $cibleId = (int) ($parametres['cible_id'] ?? 0);
+
+            if (! collect((array) ($entree['cibles'] ?? []))->contains('instance_id', $cibleId)) {
+                throw ValidationException::withMessages(['cible_id' => 'Cible illégale : ce sort ne vise pas cette figure.']);
+            }
+
+            $cible = $quete->instancesMonstres()->with('monstre')->whereKey($cibleId)->firstOrFail();
+            $direction = $porteur->directionVers($quete, $etat, $cible);
+
+            if ($direction === null) {
+                throw ValidationException::withMessages(['cible_id' => 'Cible illégale : aucun rayon ne l\'atteint.']);
+            }
+
+            $touches = $this->projeterRayon(
+                $groupe, $quete, $etat, $personnage, $direction,
+                (int) data_get($sort->effet, 'degats_fixes', 0), false, $nom, false, null, $immune,
+            );
+        } elseif ($zone === MotsClesSortDread::ZONE_SALLE) {
+            if ($porteur->cibles($quete, $etat, $sort) === null) {
+                throw ValidationException::withMessages(['cible_id' => 'Aucune figure dans cette salle : ce sort n\'a rien à frapper.']);
+            }
+
+            $salles = (array) ($quete->carte?->grille['salles'] ?? []);
+            $salle = Salles::indexDe($salles, (int) $etat->position_x, (int) $etat->position_y);
+            $touches = [];
+
+            foreach ($porteur->figuresAtteignables($quete) as $figure) {
+                if (Salles::indexDe($salles, (int) $figure->position_x, (int) $figure->position_y) !== $salle) {
+                    continue;
+                }
+
+                // Le calcul de dégâts du MJ, le seul qui fasse foi pour un sort de Dread : jet de résistance par figure.
+                $degats = (int) app(MoteurDread::class)->degatsInfliges($sort, $quete, $figure, null, (int) $figure->pv_body)['degats'];
+
+                // UNIQUE point de passage de la mort d'un monstre (un monstre à PHASES y adopte la forme suivante).
+                $resultatMort = $this->degats->infligerAMonstre(
+                    $figure, $degats, MoteurDegats::SOURCE_SORT_HEROS, ['sort' => $nom], $personnage,
+                );
+
+                $touches[] = [
+                    'type' => 'monstre',
+                    'instance_id' => $figure->id,
+                    'nom' => $figure->nomAffiche(),
+                    'degats' => $degats,
+                    'vaincu' => $resultatMort['vaincu'],
+                    'changement_phase' => $resultatMort['changement_phase'],
+                    'reaction_monstre' => $resultatMort['reaction'],
+                    'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
+                ];
+            }
+        } else {
+            throw ValidationException::withMessages(['option_id' => 'Zone de ce sort non prise en charge.']);
+        }
+
+        // +1 PV de Mind à chaque lancer, plafonné au maximum du porteur.
+        $mindAvant = (int) $personnage->pv_mind;
+        $personnage->pv_mind = min((int) $personnage->pv_mind_max, $mindAvant + 1);
+        $personnage->save();
+
+        // Une fois par quête et par sort : le compteur vit dans l'état de quête (durable), il meurt avec la quête.
+        app(Talents::class)->marquerUtilisee($etat, SortsDreadPorteur::COMPTEUR.$nom);
+
+        $payload = [
+            'type' => 'sort_dread_porteur',
+            'option_id' => $option['id'],
+            'sort' => $nom,
+            'zone' => $zone,
+            'personnage' => (string) $personnage->nom,
+            'personnage_id' => (int) $personnage->id,
+            'touches' => $touches,
+            'mind_gagne' => (int) $personnage->pv_mind - $mindAvant,
+            'pv_mind' => (int) $personnage->pv_mind,
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
         return $payload;
     }

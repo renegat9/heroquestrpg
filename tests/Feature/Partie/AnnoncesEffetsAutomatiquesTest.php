@@ -257,6 +257,12 @@ function fixturesDesTypesAnnonces(): array
         'commandement_deplacement' => ['personnage' => 'Grom', 'vers_allié' => 'Albrecht'],
         'commandement_attaque' => ['personnage' => 'Grom', 'cible' => $cible, 'degats' => 1],
         'ombre_decompte' => ['texte' => 'Le voile s\'amincit.'],
+        // Talisman du Savoir maudit (2026-10-29) : le fardeau du porteur et le sort de Dread qu'il lance — textes décidés
+        // par `MoteurFardeau` et `ResolveurTour::resoudreSortDreadPorteur()`, comme leurs payloads réels.
+        'fardeau_porteur' => ['personnage' => 'Albrecht', 'texte' => 'Albrecht sent le talisman se resserrer : 3 sous son Mind de 5 — il perd 1 PV de Body.'],
+        'sort_dread_porteur' => ['sort' => 'Éclair de Chaos', 'zone' => 'rayon', 'personnage' => 'Albrecht',
+            'touches' => [['type' => 'monstre', 'instance_id' => 1, 'nom' => 'Gobelin', 'degats' => 2, 'vaincu' => false]],
+            'mind_gagne' => 1, 'pv_mind' => 3],
         'glace_dissipee' => ['monstre' => 'Gobelin', 'cases' => [['x' => 1, 'y' => 1]]],
         'faveur_hold_the_line' => ['personnage' => 'Grom', 'monstre' => 'Gobelin', 'touche' => true],
         'faveur_peacekeeper' => ['personnage' => 'Grom', 'monstre' => 'Gobelin'],

@@ -417,8 +417,11 @@ final class MoteurSables
      */
     public function objetsDefaussables(Personnage $personnage): array
     {
+        $equipement = app(Equipement::class);
+
         return $personnage->inventaire()->with('objet')->orderBy('id')->get()
-            ->filter(fn (Inventaire $l) => $l->objet !== null && (int) $l->quantite > 0)
+            // Une pièce INAMOVIBLE portée ne va pas aux sables : ni proposée, ni acceptée (`resoudreDefausse()` relit cette liste).
+            ->filter(fn (Inventaire $l) => $l->objet !== null && (int) $l->quantite > 0 && $equipement->retirable($l))
             ->map(fn (Inventaire $l) => [
                 'cle' => "objet:{$l->id}",
                 'inventaire_id' => (int) $l->id,

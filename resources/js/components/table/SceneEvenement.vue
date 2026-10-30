@@ -49,6 +49,8 @@ const ICONE_GENRE = {
     deplacement: 'directions_walk',
     // Réaction hors tour jouée depuis une manette (parade, plancher, riposte).
     reaction: 'shield_with_heart',
+    // Fardeau du porteur (Talisman du Savoir maudit, 2026-10-29) : le jet automatique du début de tour.
+    fardeau: 'nightlight',
 };
 
 /* Les points d'un d6, dans une grille 3×3 lue ligne à ligne. Pure mise en

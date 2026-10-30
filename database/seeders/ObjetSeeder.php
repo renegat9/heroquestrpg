@@ -372,6 +372,24 @@ class ObjetSeeder extends Seeder
             // Dwarven Runestones.
             ['nom' => 'Talisman du Savoir', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 800, 'emplacement' => 'talisman',
                 'effet' => ['bonus_pv_mind_max' => 1]],
+            // TALISMAN DU SAVOIR MAUDIT (Prophecy of Telor, G0052 p. 10, « The Remaining Quests », chantier RESTES-TALISMAN,
+            // 2026-10-29). La MÊME carte que le Talisman du Savoir (Talisman of Lore), avec les règles de son porteur.
+            // Ligne DISTINCTE (plan Telor Q1, retenu par René) : une campagne qui tire le talisman ordinaire ne reçoit pas
+            // la malédiction. Boîte `prophecy_telor` : il ne sort que sous ce thème, par le coffre d'artefact.
+            //  - `bonus_pv_mind_max` : l'effet de la carte (identique au Talisman du Savoir, lu tel quel) ;
+            //  - `inamovible` : « The bearer cannot remove the talisman » (écart : la pénalité d'1 PV est inatteignable) ;
+            //  - `fardeau_debut_de_tour` : « roll 2 red dice at the beginning of each of the bearer's turns » ;
+            //  - `sorts_dread_porteur` : « knows two Dread spells: Lightning Bolt and Firestorm » — nos Éclair de Chaos et
+            //    Tempête de feu (`SortDreadSeeder`).
+            // `prix_base` : celui de la carte Talisman of Lore déjà porté ; un artefact `unique` ne s'achète ni ne se vend.
+            ['nom' => 'Talisman du Savoir maudit', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 800, 'emplacement' => 'talisman',
+                'boite' => 'prophecy_telor',
+                'effet' => [
+                    'bonus_pv_mind_max' => 1,
+                    'inamovible' => true,
+                    'fardeau_debut_de_tour' => ['des' => 2, 'perte_pv_body' => 1, 'compagnon_meme_zone' => 1, 'compagnon_adjacent' => 2],
+                    'sorts_dread_porteur' => ['Éclair de Chaos', 'Tempête de feu'],
+                ]],
             // « This magical cloak […] can be worn only by the wizard, giving
             // them 1 extra Defend die. » Première ARMURE du magicien qui vienne
             // d'une carte : `armure_magicien` est le tag qu'il est seul à

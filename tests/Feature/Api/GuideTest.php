@@ -75,8 +75,10 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
     // (*Ring of Fortitude*) ne pose AUCUNE restriction — « raises a hero's Body
     // Points by 1 », rien de plus. Un talisman sans maîtrise, comme les autres
     // anneaux de cette liste.
-    $sansMaitrise = ['Talisman du Savoir', 'Anneau de Sort', 'Anneau de Feu', 'Brassards',
+    $sansMaitrise = ['Talisman du Savoir', 'Talisman du Savoir maudit', 'Anneau de Sort', 'Anneau de Feu', 'Brassards',
         'Anneau de Vigueur',
+        // ⚠ Talisman du Savoir maudit (Prophecy of Telor, 2026-10-29) : la carte Talisman of Lore ne pose aucune
+        // restriction de classe ; sa malédiction ne se lit pas comme une maîtrise.
         // ⚠ Cape des Ombres et Sceptre de Télékinésie : leurs cartes ne posent
         // AUCUNE restriction de classe — ni « may not be used by the wizard »,
         // ni réservation à un héros. Leur inventer un tag serait une invention.
@@ -177,7 +179,8 @@ it('expose la provenance des cartes, portées et non portées', function () {
     // 2026-10-16) = 180.
     // +4 le 2026-10-23 (The Crypt of Perpetual Darkness, livret G1798, chantier EXT-CRYPTE) : Lance du Dragon,
     // Couronne des Ténèbres, Souris familière (artefacts) et Breathe Acid (sort de Dread) = 184.
-    expect($cartes)->toHaveCount(184);
+    // +1 le 2026-10-29 (Prophecy of Telor, Talisman du Savoir maudit — la même carte, source livret) = 185.
+    expect($cartes)->toHaveCount(185);
 
     // Chaque carte dit si elle est portée, et celles qui ne le sont pas
     // annoncent leur texte de plateau ET la mécanique qui leur manque.

@@ -174,9 +174,11 @@ final class Equipement
         $possibles = $this->slotsPossibles($objet);
 
         return [
+            // Un emplacement tenu par une pièce INAMOVIBLE n'est plus utile : `equiper()` le refuserait.
             'slots_utiles' => array_values(array_filter(
                 $possibles,
-                fn (string $slot) => $this->echangeUtile($occupants[$slot] ?? null, $ligne),
+                fn (string $slot) => $this->echangeUtile($occupants[$slot] ?? null, $ligne)
+                    && (! isset($occupants[$slot]) || $this->retirable($occupants[$slot])),
             )),
             // Carte {slot => nom de l'occupant}, jamais une valeur unique : un
             // héros peut tenir DEUX armes différentes en même temps, et
@@ -189,6 +191,29 @@ final class Equipement
                 ->filter()
                 ->all(),
         ];
+    }
+
+    /**
+     * PEUT-ON retirer cette ligne de son emplacement ? LE prédicat du retrait
+     * (`MotsClesEquipement::INAMOVIBLE`, Prophecy of Telor p. 10). Une pièce
+     * DANS LE SAC se retire toujours : la malédiction ne commence qu'à
+     * l'équipement. Une pièce PORTÉE au slot d'un objet inamovible ne se range
+     * pas, ne se remplace pas, ne se donne pas, ne se jette pas et ne se vend pas.
+     *
+     * Lu par le menu (`MenuMoteur`, `detailEquipabilite()`, `objetsDefaussables()`)
+     * ET par chaque résolveur qui retire une pièce (`desequiper()`, `equiper()`
+     * pour l'occupant, `PhaseMarche::motifRefusVente()`, `DonObjet::donner()`,
+     * la transmutation d'`MoteurPotions`) : le menu n'offre jamais ce que le
+     * résolveur refuse, et les deux ne peuvent pas diverger parce qu'ils lisent la
+     * même réponse.
+     */
+    public function retirable(Inventaire $ligne): bool
+    {
+        if (! in_array($ligne->emplacement, self::SLOTS, true)) {
+            return true;
+        }
+
+        return $ligne->objet === null || empty($ligne->objet->effet[MotsClesEquipement::INAMOVIBLE]);
     }
 
     /**
@@ -224,6 +249,16 @@ final class Equipement
         $this->verifierMains($personnage, $objet, $slot);
         $this->verifierAccesEquipement($personnage, $objet);
 
+        // L'auto-échange renverrait l'occupant au sac : un objet inamovible
+        // occupant ce slot n'en sort pas — c'est un retrait déguisé en équipement.
+        $occupantMaudit = $personnage->inventaire()->where('emplacement', $slot)->with('objet')->first();
+
+        if ($occupantMaudit !== null && ! $this->retirable($occupantMaudit)) {
+            throw ValidationException::withMessages([
+                'emplacement' => "« {$occupantMaudit->objet?->nom} » occupe cet emplacement pour toujours : rien ne le remplace.",
+            ]);
+        }
+
         return DB::transaction(function () use ($personnage, $ligne, $slot) {
             $jaugesAvant = $this->bonusJauges($personnage);
 
@@ -254,6 +289,12 @@ final class Equipement
 
         if (! in_array($ligne->emplacement, self::SLOTS, true)) {
             throw ValidationException::withMessages(['inventaire_id' => 'Cet objet n\'est pas équipé.']);
+        }
+
+        if (! $this->retirable($ligne)) {
+            throw ValidationException::withMessages([
+                'inventaire_id' => "« {$objet->nom} » est porté pour toujours : il ne se range pas.",
+            ]);
         }
 
         if (CapaciteSac::occupation($personnage) + 1 > CapaciteSac::pour($personnage)) {

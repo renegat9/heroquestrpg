@@ -94,6 +94,16 @@ final class MoteurDegats
     public const SOURCE_POISON = 'poison';
 
     /**
+     * FARDEAU DU PORTEUR — le jet de début de tour d'un objet maudit porté (Talisman du Savoir maudit, Prophecy of
+     * Telor p. 10 : « they feel the Talisman tighten its grip and lose 1 Body Point »).
+     *
+     * ⚠ Hors de `SOURCES_REACTIVES`, pour la même raison que le poison : aucune carte réactive ne parle d'une
+     * pression qui s'exerce au début du tour ; le porteur la subit, il ne la pare pas. Lu au même point de passage que
+     * tous les dégâts de héros (`infligerAHeros()`).
+     */
+    public const SOURCE_FARDEAU = 'fardeau';
+
+    /**
      * ÉTREINTE DU YÉTI (The Frozen Horror, doc 18 §2) : « 2 Body Points
      * automatiques (sans jet de défense, sans action possible) à chaque tour
      * suivant du MJ, jusqu'à la mort du héros ou celle du Yéti ». Saigne par

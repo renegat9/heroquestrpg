@@ -49,4 +49,44 @@ final class Salles
     {
         return self::indexDe($salles, $x, $y) === $index;
     }
+
+    /**
+     * Les cases du COULOIR où se tient (x, y) : le réseau de cases hors salle, borné par la roche et les portes
+     * closes (`Grille::porteBloqueEntre()`), départ compris. Point de passage unique de « le même couloir » : lu par
+     * les sorts de zone du MJ (`MoteurDread::casesDuCouloir()` — Nuée d'Effroi, Souffle du Construit) et par le
+     * fardeau du porteur d'un talisman maudit (`MoteurFardeau`). Deux copies de cette inondation auraient divergé.
+     *
+     * @param  array<int|string, array{x: int|string, y: int|string, largeur: int|string, hauteur: int|string}>  $salles
+     * @return list<array{x: int, y: int}>
+     */
+    public static function couloirDe(array $salles, Grille $grille, int $x, int $y): array
+    {
+        $depart = ['x' => $x, 'y' => $y];
+        $vues = [$x.':'.$y => true];
+        $file = [$depart];
+        $cases = [$depart];
+
+        while ($file !== []) {
+            $courante = array_shift($file);
+
+            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                $nx = $courante['x'] + $dx;
+                $ny = $courante['y'] + $dy;
+                $cle = $nx.':'.$ny;
+
+                if (isset($vues[$cle])
+                    || $grille->estRoche($nx, $ny)
+                    || $grille->porteBloqueEntre($courante['x'], $courante['y'], $nx, $ny)
+                    || self::indexDe($salles, $nx, $ny) !== null) {
+                    continue;
+                }
+
+                $vues[$cle] = true;
+                $file[] = ['x' => $nx, 'y' => $ny];
+                $cases[] = ['x' => $nx, 'y' => $ny];
+            }
+        }
+
+        return $cases;
+    }
 }

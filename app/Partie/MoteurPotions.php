@@ -264,6 +264,8 @@ class MoteurPotions
             $or = (int) $effet[MotsClesEquipement::TRANSMUTE_EQUIPEMENT_EN_OR];
             $piece = $buveur->inventaire()->with('objet')->orderBy('id')->get()
                 ->filter(fn ($l) => $l->objet !== null && in_array($l->objet->emplacement, Equipement::SLOTS, true))
+                // Une pièce INAMOVIBLE portée n'est pas une pièce qu'on peut transmuter : `desequiper()` la refuserait.
+                ->filter(fn ($l) => app(Equipement::class)->retirable($l))
                 ->sortBy(fn ($l) => in_array($l->emplacement, Equipement::SLOTS, true) ? 0 : 1)
                 ->first();
 

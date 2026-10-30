@@ -292,6 +292,7 @@ class AuthController extends Controller
                                     'avantages' => $this->avantagesDeLExemplaire($l),
                                     'charges' => $this->chargesDeLExemplaire($l),
                                     'emplacement' => $l->emplacement,
+                                    'retirable' => app(Equipement::class)->retirable($l),
                                     'bouclier' => (bool) ($l->objet->effet['incompatible_deux_mains'] ?? false),
                                     'deux_mains' => (bool) ($l->objet->effet['deux_mains'] ?? false),
                                     // Les dés de CETTE arme : avec deux armes en
@@ -307,6 +308,7 @@ class AuthController extends Controller
                             'armure' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'armure' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
+                                    'retirable' => app(Equipement::class)->retirable($l),
                                     'avantages' => $this->avantagesDeLExemplaire($l),
                                     'charges' => $this->chargesDeLExemplaire($l)]
                                     + $this->detailForge($forge, $l, $peutForgerIci, $gratuite),
@@ -318,14 +320,18 @@ class AuthController extends Controller
                             'casque' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'casque' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
+                                    'retirable' => app(Equipement::class)->retirable($l),
                                     'avantages' => $this->avantagesDeLExemplaire($l),
                                     'charges' => $this->chargesDeLExemplaire($l)]
                                     + $this->detailForge($forge, $l, $peutForgerIci, $gratuite),
                             ),
                             // Talisman (artefact de classe) : cinquième slot.
+                            // `retirable` : la décision du serveur (malédiction portée, `Equipement::retirable()`) —
+                            // la manette n'affiche « Déséquiper » que si elle est vraie, elle ne la recalcule pas.
                             'talisman' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'talisman' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
+                                    'retirable' => app(Equipement::class)->retirable($l),
                                     'avantages' => $this->avantagesDeLExemplaire($l),
                                     'charges' => $this->chargesDeLExemplaire($l)]
                                     + $this->detailForge($forge, $l, $peutForgerIci, $gratuite),
@@ -337,6 +343,7 @@ class AuthController extends Controller
                             'bottes' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'bottes' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
+                                    'retirable' => app(Equipement::class)->retirable($l),
                                     'avantages' => $this->avantagesDeLExemplaire($l),
                                     'charges' => $this->chargesDeLExemplaire($l)]
                                     + $this->detailForge($forge, $l, $peutForgerIci, $gratuite),

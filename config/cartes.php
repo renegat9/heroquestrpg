@@ -169,6 +169,9 @@ return [
             ['carte' => "Orc's Bane", 'objet' => 'Fléau des Orques'],
             ['carte' => 'Spirit Blade', 'objet' => 'Lame des Esprits'],
             ['carte' => 'Talisman of Lore', 'objet' => 'Talisman du Savoir'],
+            // La MÊME carte, dans sa source LIVRET (Prophecy of Telor p. 10, « The Remaining Quests ») : son porteur a des
+            // règles, et une ligne distincte (plan Telor Q1). Le nom de carte est suffixé : `carte` est unique par registre.
+            ['carte' => 'Talisman of Lore (Prophecy of Telor)', 'paquet' => 'Prophecy of Telor', 'objet' => 'Talisman du Savoir maudit'],
             ['carte' => 'Amulet of the North', 'objet' => 'Amulette du Nord'],
             ['carte' => 'Elven Bracers', 'objet' => 'Brassards elfiques'],
             ['carte' => 'Elven Bow of Vindication', 'objet' => 'Arc elfique de Vindication'],
