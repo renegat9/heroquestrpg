@@ -381,7 +381,7 @@ final class BibliothequeImages
 
     /**
      * FORME du jeton d'un monstre (chantier jetons, phase 3, 2026-10-29) : `ovale` quand le livret le dessine en ovale 2:1
-     * (figure 1×2, `config('symboles_monstres.ovales')`), `carre` pour une tuile carrée (`symboles_monstres.carres`), `rond`
+     * (figure 1×2, `config('symboles_monstres.ovales')`), `tuile` pour une figure que le livret pose en tuile (`symboles_monstres.tuiles`), `rond`
      * sinon, `null` sans jeton. Décidée par la CONFIG et non par
      * le fichier : un fichier se lit sans être ouvert, et un test pose de faux fichiers. SymbolesMonstresTest vérifie la
      * liste dans les deux sens (chaque nom listé porte un fichier 2:1 ; chaque fichier 2:1 est déclaré).
@@ -394,8 +394,8 @@ final class BibliothequeImages
 
         return match (true) {
             in_array($nomBase, (array) config('symboles_monstres.ovales', []), true) => 'ovale',
-            // TUILE carrée (le Spawnling de Delthrak, 2026-10-29) : une case au livret, pas une tête dans un anneau.
-            in_array($nomBase, (array) config('symboles_monstres.carres', []), true) => 'carre',
+            // TUILE (le Spawnling, le Golem de Delthrak, 2026-10-29) : le livret pose une tuile, pas une tête dans un anneau.
+            in_array($nomBase, (array) config('symboles_monstres.tuiles', []), true) => 'tuile',
             default => 'rond',
         };
     }
@@ -409,7 +409,8 @@ final class BibliothequeImages
      */
     public static function rotationSymboleMonstre(?string $forme, array $emprise): int
     {
-        return $forme === 'ovale' && $emprise['h'] > $emprise['l'] ? 90 : 0;
+        // Une TUILE de deux cases (le Golem, 2026-10-29) se couche comme un ovale : fichier 2:1, figure posée debout → 90.
+        return in_array($forme, ['ovale', 'tuile'], true) && $emprise['h'] > $emprise['l'] ? 90 : 0;
     }
 
     // ---- Dynamique (jobs / cache) ----------------------------------------

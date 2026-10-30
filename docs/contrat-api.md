@@ -96,7 +96,7 @@ proposition du MJ. » quand ce n'est pas son tour.
      "...": "ou null — mode ESCORTÉ de la mission « secourir », voir ci-dessous"},
     {"type": "monstre", "id": 9, "nom": "<habillage IA ou nom_base>", "nom_base": "<type catalogue>", "x": 5, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "etat": "actif", "symbole_url": "/images/livrets/monstres/<cle>.webp|null",
-     "symbole_forme": "ovale|carre|rond|null", "symbole_rotation": "0|90"},
+     "symbole_forme": "ovale|tuile|rond|null", "symbole_rotation": "0|90"},
     {"type": "captif", "id": 3, "nom": "Gothar", "x": 7, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "image_url": "/images/..."}
   ],
@@ -2490,7 +2490,7 @@ Le client **ne compose aucune URL** : il dessine la `symbole_url` reçue sur la 
 
 **Jeton OVALE (chantier jetons phase 3, 2026-10-29).** Deux champs, **toujours présents** sur chaque figure de monstre, décidés par le serveur (`EtatGroupe::symboleDeMonstre()`) : `symbole_forme` (`"ovale"` | `"rond"` | `null`) et `symbole_rotation` (`0` | `90`). `ovale` quand le livret dessine le jeton en ovale 2:1 — une figure 1×2 (`config/symboles_monstres.php`, `ovales`, par NOM DE CATALOGUE) ; `rond` pour les autres jetons ; `null` sans fichier, comme `symbole_url`. `symbole_rotation` vaut `90` quand un jeton `ovale` est posé sur une emprise VERTICALE (`h > l`), car le fichier est horizontal ; `0` sinon, et toujours `0` pour un jeton rond. Le client dessine un jeton `ovale` qui couvre 85 % de son emprise dans chaque sens, sur ses deux cases (anneau de la famille par-dessus), tourné de `symbole_rotation` comme un meuble (`SymboleCarte`) ; il ne décide jamais de la forme ni de la rotation. Un jeton `rond` garde le gabarit rond (70 % de la case, centré), y compris sur une figure 1×2.
 
-**Jeton CARRÉ (2026-10-29, plan des restes lot D).** `symbole_forme` vaut `"carre"` pour une figure que le livret représente par une **tuile carrée** et non par une tête dans un anneau : le *Spawnling* de Delthrak (`Rejeton putride`, F9907 PDF 7). Décidé par `config('symboles_monstres.carres')`, lu par `BibliothequeImages::formeSymboleMonstre()` ; le client arrondit à peine les coins (`.jeton-carre`) au lieu d'un disque. `symbole_rotation` reste 0. Sans fichier, `symbole_forme` vaut `null` comme pour les autres formes.
+**Jeton TUILE (2026-10-29, plan des restes lot D).** `symbole_forme` vaut `"tuile"` pour une figure que le livret représente par une **tuile** et non par une tête dans un anneau : le *Spawnling* de Delthrak (`Rejeton putride`, F9907 PDF 7, une case, fichier carré) et le **Golem Cœur-de-Forge** (F9907 PDF 12, **deux cases**, fichier 2:1 — son emprise est passée à 1×2, René 2026-10-29). Décidé par `config('symboles_monstres.tuiles')`, lu par `BibliothequeImages::formeSymboleMonstre()`. `symbole_rotation` suit la règle de l'ovale : `90` pour une tuile de deux cases posée debout, `0` sinon. Le client pose une tuile de deux cases comme un ovale (sur ses deux cases) et n'arrondit que ses coins (`.jeton-tuile`). Sans fichier, `symbole_forme` vaut `null` comme pour les autres formes.
 
 **Le bouton « i »** ouvre la légende sur les deux écrans (coin de la carte à la
 table, en-tête de la feuille de déplacement sur la manette). Elle ne liste que ce

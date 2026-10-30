@@ -860,8 +860,11 @@ class MonstreSeeder extends Seeder
             // 5 or 6 rolled, the damage is reduced by 1 point. » — « once as an action » →
             // `souffle_du_construit` (`degats` 2, `des_rouges` 2 : les chiffres de la carte), lu par
             // `AdversairesDelthrak::souffle()`. Le Golem « Wizards of Morcar » (5/4/5/3/0) est une autre fiche.
+            // EMPRISE 1×2 (René, 2026-10-29 : « Oui passe à 2 cases ») : « Use the Forgeheart Golem's tile » — la tuile
+            // posée dans la salle A de la carte (F9907 PDF 12) couvre une colonne sur DEUX cases ; l'emprise suit le jeton
+            // du livret (`docs/regles/bestiaire-et-rencontres.md`). Migration `2026_10_29_200000_golem_coeur_de_forge_deux_cases`.
             ['nom_base' => 'Golem Cœur-de-Forge', 'deplacement' => 8, 'attaque' => 5, 'defense' => 5, 'pv_body' => 5, 'pv_mind' => 0,
-                'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 11,
+                'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 11, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['souffle_du_construit' => ['degats' => 2, 'des_rouges' => 2]], 'sorts_dread' => []],
 
             // SCION FLEUR-POURRIE (« Bloomrot Scion », quête 14 voie B, p. 39 — BOSS FINAL du livret) :

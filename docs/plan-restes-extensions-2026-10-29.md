@@ -91,7 +91,7 @@ Deux cas récupérables, tous deux représentés par une **tuile carrée** dans 
 - **Golem Cœur-de-Forge** (« Use the Forgeheart Golem's tile », F9907 PDF 12) — taille de la
   tuile à mesurer avant tout (une tuile 2×2 changerait aussi son emprise : à soumettre à René).
 
-Geste : une forme `carre` à côté de `rond` et `ovale` (`symbole_forme`, contrat d'abord),
+Geste : une forme `tuile` (d'abord écrite `carre`) à côté de `rond` et `ovale` (`symbole_forme`, contrat d'abord),
 extraction des deux tuiles, test.
 
 Écarté d'office : mettre l'**illustration** du monstre en guise de jeton. La règle de la carte
@@ -272,10 +272,12 @@ une scène que le livret ne place que dans une seule quête.
   `mage_du_miroir`, publié `carte.portes[].habillage` (toujours présent), « Ouvrir le miroir » au menu, teinte d'argent et ligne de
   légende au client. **Tranché seul** : aucun symbole de livret — les cartes écrivent « MIR » (F7539 PDF 17) et les images de la
   p. 5 sont des miroirs DE QUÊTE (la princesse, l'arc elfique). Tests : `MiroirsTest` (6) ; mutations : assemblage, symbole, menu.
-- **D — jetons** : forme `carre` (config `carres`, `BibliothequeImages::formeSymboleMonstre()`, `.jeton-carre`, clé `carre` du
-  manifeste et de `extraire.py`) ; jeton `spawnling.webp` (F9907 PDF 7, la tuile de la légende du monstre errant, la même que
-  celles posées sur la carte) pour le **Rejeton putride**. Tests : `SymbolesMonstresTest` (+2), `SymbolesLivretsTest`.
-  ⚠ **Correction du plan** : la tuile du **Golem Cœur-de-Forge** n'est PAS carrée. Mesurée le 2026-10-29 : un RECTANGLE 1×2
-  (F9907 PDF 12, l'image des notes de la quête 6 et la tuile posée dans la salle A de la carte, une colonne sur deux cases). Par
-  la règle de René (« l'emprise d'une figure suit son jeton de livret »), il devrait occuper DEUX cases ; il en occupe une
-  aujourd'hui (`grande_taille` nul). **Question posée à René, rien changé** (0 instance de Golem en base ce jour).
+- **D — jetons** : forme `tuile` (config `tuiles`, `BibliothequeImages::formeSymboleMonstre()`, `.jeton-tuile`, clé `tuile`
+  du manifeste et de `extraire.py`) pour les figures que le livret pose en TUILE et non en tête dans un anneau :
+  le **Rejeton putride** (`spawnling.webp`, F9907 PDF 7, la tuile de la légende du monstre errant, celle posée sur la carte)
+  et le **Golem Cœur-de-Forge** (`forgeheart-golem.webp`, F9907 PDF 12). Tests : `SymbolesMonstresTest`, `SymbolesLivretsTest`,
+  `BestiaireSourceTest`.
+  ⚠ **Correction du plan** : la tuile du Golem n'est PAS carrée — mesurée le 2026-10-29, une colonne sur DEUX cases (la tuile
+  posée dans la salle A de la carte de la quête 6, et l'image des notes, 2:1). **Décision de René (2026-10-29) : « Oui passe à
+  2 cases »** → emprise 1×2 (`MonstreSeeder`, migration `2026_10_29_200000_golem_coeur_de_forge_deux_cases` ; 0 instance de
+  Golem en base ce jour). La règle des emprises devient « ovale OU tuile de deux cases » (`BestiaireSourceTest`).

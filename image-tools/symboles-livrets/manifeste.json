@@ -1686,9 +1686,26 @@
         463.08
       ],
       "rotation": 90,
-      "carre": true,
+      "tuile": true,
       "source": "F9907 p. 12-13 (PDF 7), « Wandering Monster in the Quest: Spawnling » (tuile carrée)",
       "note": "tuile mesurée (2026-10-29), la 2e des trois de la légende : la même que celles posées sur la carte de la quête 1 ; page couchée : rotation 90 (horaire)"
+    },
+    {
+      "type": "monstres",
+      "cle": "forgeheart-golem",
+      "nom_catalogue": "Forgeheart Golem",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 12,
+      "cadre": [
+        281.2,
+        336.8,
+        302.8,
+        374.2
+      ],
+      "rotation": 90,
+      "tuile": true,
+      "source": "F9907 p. 22-23 (PDF 12), quête 6 note A, « Use the Forgeheart Golem's tile » : la tuile posée dans la salle A",
+      "note": "tuile mesurée (2026-10-29), une colonne sur deux cases ; page couchée : rotation 90 (horaire), ramenée à l'horizontale 2:1"
     },
     {
       "type": "monstres",
