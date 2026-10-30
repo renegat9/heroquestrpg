@@ -584,14 +584,16 @@ it("l'échec (echouerQuete) purge aussi la clé du sac", function () {
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Publication : une grille close n'a PAS le symbole de la porte close (il n'est pas encore extrait : repli sur l'icône).
+// Publication : une grille close a SON symbole (la herse, F7539 PDF 3), jamais celui de la porte close.
 // ---------------------------------------------------------------------------------------------------------------------
 
-it("le symbole de la porte close ne s'applique pas à la grille de fer", function () {
+it("le symbole de la porte close ne s'applique pas à la grille de fer : elle a la herse du livret", function () {
     $biblio = app(BibliothequeImages::class);
 
-    expect($biblio->urlSymbolePorte('fermee', null))->not->toBeNull();
-    expect($biblio->urlSymbolePorte('fermee', MoteurPortes::VERROU_GRILLE))->toBeNull();
+    expect($biblio->urlSymbolePorte('fermee', null))->toBe('/images/livrets/portes/fermee.webp');
+    expect($biblio->urlSymbolePorte('fermee', MoteurPortes::VERROU_GRILLE))->toBe('/images/livrets/portes/verrou-grille.webp');
+    // Ouverte, c'est un passage ouvert ordinaire (aucun livret ne dessine une porte ouverte).
+    expect($biblio->urlSymbolePorte('ouverte', MoteurPortes::VERROU_GRILLE))->toBeNull();
 });
 
 // ---------------------------------------------------------------------------------------------------------------------

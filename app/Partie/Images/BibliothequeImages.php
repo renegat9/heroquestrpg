@@ -264,7 +264,7 @@ final class BibliothequeImages
     /** Clé de la porte de pierre encore fermée (`verrou.type` = `pierre` sur une porte `fermee`). */
     private const SYMBOLE_PORTE_PIERRE = 'verrou_pierre';
 
-    /** Clé de la grille de fer encore fermée (`verrou.type` = `grille` sur une porte `fermee`) — symbole à extraire (`verrou-grille`). */
+    /** Clé de la grille de fer encore fermée (`verrou.type` = `grille` sur une porte `fermee`) : la herse de F7539 PDF 3 (`verrou-grille`). */
     private const SYMBOLE_PORTE_GRILLE = 'verrou_grille';
 
     /**

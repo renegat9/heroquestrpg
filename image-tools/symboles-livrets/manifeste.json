@@ -997,6 +997,26 @@
       "source": "F9528 p. 4 (PDF 4), « Stone Doorway »"
     },
     {
+      "type": "portes",
+      "cle": "verrou-grille",
+      "nom_catalogue": "verrou grille",
+      "livret": "F7539_en-us_avalon-hill-heroquest-the-mage-of-the-mirror-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 3,
+      "cadre": [
+        355.0,
+        73.5,
+        383.5,
+        88.0
+      ],
+      "rotation": 0,
+      "emprise": [
+        1,
+        1
+      ],
+      "source": "F7539 p. 4 (PDF 3), « Portcullises x4 » : le symbole de la grille de fer, à côté du texte",
+      "note": "mesuré le 2026-10-29 (lot F du plan des restes) : un cadre de porte barré de cinq points"
+    },
+    {
       "type": "leviers",
       "cle": "levier",
       "nom_catalogue": "levier",

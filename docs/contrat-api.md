@@ -4931,8 +4931,9 @@ lot F, F1 (la force vaut pour toute grille) et F2 (la clé quitte le sac en fin 
 
 - Nouvelle valeur : `verrou: "grille"` (état `fermee` : elle bloque le passage ET la vue, comme toute porte non ouverte).
   Publiée SOUS LE BROUILLARD comme toute porte : `EtatGroupe::portes()` ne la publie que si l'une de ses deux cases est connue.
-- `symbole_url` : `null` tant que `public/images/livrets/portes/verrou-grille.webp` n'existe pas (aucun symbole de herse dans le
-  manifeste) — la manette et la table gardent l'icône `fence`, et la légende une ligne sans pictogramme.
+- `symbole_url` : `/images/livrets/portes/verrou-grille.webp` tant que la grille est fermée — la herse du livret (F7539 PDF 3, à côté
+  de « Portcullises x4 », extraite par l'orchestrateur le 2026-10-29). Ouverte, c'est un passage ouvert ordinaire. Sans fichier, `null`
+  et l'icône `fence` reste le repli.
 - Une grille ne se pose que sur une arête de BOUCLE, au plus une par carte, sous le thème `mage_du_miroir` seul
   (`AssembleurCarte::marquerPortesDeGrille()`). La salle du râtelier qui porte la clé est atteignable sans franchir la grille ni
   aucun autre verrou (`AssembleurCarte::salleDeLaCle()`).

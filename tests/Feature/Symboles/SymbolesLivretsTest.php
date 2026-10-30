@@ -89,7 +89,7 @@ it('le catalogue semé et le manifeste se recouvrent exactement, dans les deux s
     }
 });
 
-it('les portes couvrent les quatre états du moteur et la porte de pierre ; le levier et l’escalier existent', function () {
+it('les portes couvrent les quatre états du moteur, la porte de pierre et la grille de fer ; le levier et l’escalier existent', function () {
     $portes = collect(manifesteSymboles())->where('type', 'portes')->pluck('nom_catalogue')->all();
     expect($portes)->toEqualCanonicalizing([
         MoteurPortes::ETAT_OUVERTE,
@@ -97,6 +97,7 @@ it('les portes couvrent les quatre états du moteur et la porte de pierre ; le l
         MoteurPortes::ETAT_VERROUILLEE,
         MoteurPortes::ETAT_SECRETE,
         'verrou pierre',
+        'verrou grille', // la herse du Mage du Miroir (F7539 PDF 3), lot F des restes, 2026-10-29
     ]);
 
     $fixes = collect(manifesteSymboles())->whereIn('type', ['leviers', 'escalier'])->pluck('cle')->all();
