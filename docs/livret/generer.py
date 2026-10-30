@@ -937,6 +937,30 @@ ecrire('<h4>Potions et consommables</h4>'
 table_objets(par('consommable', ('commun', 'peu_commun', 'rare')))
 
 ecrire('''
+<div class="encadre avert">
+  <h4>Le Talisman du Savoir maudit (Prophecy of Telor)</h4>
+  <p>Un artefact qu'on <strong>choisit</strong> d'équiper, en connaissant sa carte — et qu'on ne
+  peut plus ôter : une fois au cou, aucun écran ne propose de le ranger, le donner, le jeter ou le
+  vendre. Il garde le +1 au Mind maximum du Talisman du Savoir, et il en fait payer le prix :</p>
+  <ul>
+    <li><strong>Le fardeau</strong> : au début de chacun de ses tours, le porteur lance deux dés
+        rouges. Un total <strong>sous son Mind actuel</strong> lui coûte 1 PV de Body. Ses
+        compagnons l'aident : +1 par héros debout dans la même salle ou le même couloir, +2 de plus
+        par héros à son contact. La table annonce chaque jet.</li>
+    <li><strong>Deux sorts de Dread</strong> : <em>Éclair de Chaos</em> et <em>Tempête de feu</em>,
+        une fois chacun par quête, contre les monstres. Chaque lancer lui rend 1 PV de Mind.</li>
+  </ul>
+  <p>Il ne sort d'un coffre que sous le thème <em>Prophecy of Telor</em>. Le Talisman du Savoir
+  ordinaire, lui, reste ce qu'il est.</p>
+</div>
+<div class="encadre">
+  <h4>La clé de laiton (The Mage of the Mirror)</h4>
+  <p>Un <strong>objet de quête</strong> : la première fouille d'un râtelier d'armes la donne en
+  plus de son butin, et elle ouvre la grille de fer de la même carte (<a href="#ch10">chapitre 10</a>).
+  Elle ne s'achète ni ne se revend, et elle <strong>quitte le sac à la fin de la quête</strong>,
+  gagnée ou perdue.</p>
+</div>
+
 <h3>La Forge du Nain</h3>
 <p>Un Nain qui a acquis le nœud <strong>Forge</strong> améliore <strong>définitivement</strong>
 une pièce d'équipement — arme ou armure, jamais un artefact — contre de l'or de la bourse
@@ -1043,7 +1067,16 @@ elfe) le lit automatiquement ; un <strong>non-lanceur</strong> doit réussir un
 « Parchemin » des tableaux ci-dessus — 1 pour les mineurs, 3 pour les plus puissants. Un échec
 gaspille le parchemin.</p>
 <p>C'est ce qui donne un goût de magie au barbare, et une vraie raison de monter son Mind.
-Les parchemins ne se fabriquent jamais : on les trouve, ou on les achète.</p>
+Les parchemins ne se fabriquent ni ne s'achètent : <strong>on les trouve</strong> — dans une
+bibliothèque, sur un établi d'alchimiste, dans un grimoire à demi calciné.</p>
+<div class="encadre">
+  <h4>Les parchemins modifiés de Prophecy of Telor</h4>
+  <p>Sous ce thème seulement, un haut mage a retouché trois parchemins : <strong>Soin du Corps</strong>
+  et <strong>Éclair</strong> se lisent <strong>trois fois</strong>, <strong>Eau de Guérison</strong>
+  <strong>deux fois</strong>, avant de tomber en poussière. Chaque lecture en use une, réussie ou
+  non ; le menu dit combien il en reste (« 2 usages restants »), et la table annonce le parchemin
+  qui s'effrite à la dernière. Deux exemplaires identiques dans le sac s'usent l'un après l'autre.</p>
+</div>
 ''')
 
 ecrire('<h3>Les répertoires de classe</h3>'
@@ -1277,6 +1310,25 @@ ecrire('''
 pas une simple arête entre deux salles. Un <strong>levier</strong> posé quelque part dans le
 donjon commande certaines portes verrouillées — mais rien n'indique lequel ouvre laquelle :
 il faut l'actionner pour le savoir, et on peut réessayer sans limite.</p>
+<h4>Les portes particulières des boîtes</h4>
+<p>Certaines boîtes posent une porte qui ne s'ouvre pas à la main. Elle est toujours placée sur
+une <strong>boucle</strong> du donjon — deux salles déjà reliées par un autre chemin — et jamais
+plus d'une par carte : elle offre un raccourci, elle ne ferme jamais la route de l'objectif.</p>
+<ul>
+  <li><strong>La porte de pierre</strong> (<em>Against the Ogre Horde</em>) : un héros qui lance au
+      moins deux dés d'attaque de base peut tenter de la forcer ; deux crânes l'ouvrent.</li>
+  <li><strong>La porte à condition</strong> (<em>Kellar's Keep</em>) : on lance deux dés rouges —
+      un seul pour le nain, quand la porte le dit — contre son Corps ou son Mind ; un échec finit le
+      tour.</li>
+  <li><strong>La grille de fer</strong> (<em>The Mage of the Mirror</em>) : on ne voit pas à travers
+      tant qu'elle est fermée. La <strong>clé de laiton</strong>, trouvée au râtelier d'une autre
+      salle, la lève ; sinon un héros la force avec <strong>deux dés rouges sous son Corps de
+      départ</strong>, et un échec finit son tour.</li>
+  <li><strong>Le miroir</strong> (<em>The Mage of the Mirror</em>) : sous ce thème, un passage secret
+      trouvé est un miroir — « des portails secrets vers de grands trésors et des salles cachées ».
+      Il se cherche, s'ouvre et se franchit exactement comme un passage secret ; la carte le peint
+      d'argent, et le menu dit « Ouvrir le miroir ».</li>
+</ul>
 
 <h3>L'escalier d'entrée</h3>
 <p>Chaque quête commence et finit à un <strong>escalier en colimaçon</strong>, posé au centre
@@ -1385,6 +1437,12 @@ EFFET_TER = {
  'Jungle entravante': "terrain gênant : coûte <strong>2 points</strong> pour y entrer, héros et monstres compris",
  'Mare': "on la traverse sans s'y arrêter. Dans une salle qui en a une, on peut <strong>boire</strong> au lieu de fouiller : 1 PV de Body rendu, si l'on en a perdu un",
  'Brasier': "on le traverse sans s'y arrêter. Un dé de combat par case franchie : un crâne fait perdre 1 PV de Body, par le feu — les monstres en subissent autant",
+ 'Sables mouvants': "on les saute d'un dé de combat (bouclier noir) ; sinon on s'enlise, et l'on abandonne deux objets de son choix pour s'en tirer au tour suivant",
+ 'Trappe de téléportation': "deux trappes reliées : on entre dans l'une, on ressort par l'autre — un dé de combat au passage, un crâne coûte 1 PV, et le tour s'arrête",
+ 'Courant contraire': "une <strong>salle entière</strong> : chaque case coûte <strong>2 points</strong> aux héros ; les monstres passent au coût normal",
+ 'Sol meuble': "une <strong>salle entière</strong> : un dé de déplacement <strong>impair</strong> arrête le héros sur la première case et lui coûte 1 PV ; enlisé, il ne repart que sur un dé pair",
+ 'Courant porteur': "une <strong>salle entière</strong> : <strong>+2 cases</strong> la première fois qu'un héros y entre pendant son déplacement",
+ 'Vent de couloir': "<strong>tous les couloirs</strong> : qui y finit son déplacement lance un dé de combat — sur un bouclier, le vent le porte de 2 cases où il veut ; sur un crâne, où le maître du jeu veut, vers le monstre le plus proche",
 }
 ecrire('<h3>Le terrain</h3>'
        '<p>Certaines boîtes posent un terrain qui change le déplacement lui-même. '
@@ -1418,6 +1476,25 @@ ecrire('''
         crâne fait perdre 1 PV et <strong>immobilise</strong> le héros, jusqu'à ce qu'une action
         « Détruire les entraves » le libère — celle du héros ou d'un voisin, et elle retire le
         piège.</li>
+  </ul>
+</div>
+''')
+ecrire('''
+<div class="encadre">
+  <h4>Les tours de la Spirit Queen</h4>
+  <p>Sous le thème <em>Spirit Queen's Torment</em>, le donjon reprend les quatre tours élémentaires du
+  livret. Trois terrains couvrent une <strong>salle entière</strong> — le courant contraire, le sol
+  meuble, le courant porteur — et le vent souffle dans <strong>tous les couloirs</strong> d'une carte,
+  ou dans aucun. Aucun ne bloque ni le passage ni la vue.</p>
+  <ul>
+    <li>Le <strong>dé qui compte</strong> pour le sol meuble est le d6 du déplacement (la base de la
+        classe n'est pas un dé). Un héros enlisé dont le dé est impair ne bouge pas ce tour ; un dé
+        pair le libère, et il marche normalement.</li>
+    <li>Le <strong>courant porteur</strong> ne réduit jamais un coût : il ajoute deux cases au budget,
+        une fois par déplacement. La manette en tient compte dans les cases qu'elle propose.</li>
+    <li>Le <strong>vent</strong> ne pousse jamais à travers un mur, une porte fermée ou une figure : il
+        s'arrête avant. Sur un bouclier, la manette propose les directions possibles ; sur un crâne,
+        le maître du jeu choisit.</li>
   </ul>
 </div>
 ''')
@@ -1509,6 +1586,16 @@ ecrire('''
   un artefact qui ne ferait rien nulle part n'est pas une récompense.</p>
 </div>
 ''')
+ecrire('''
+<div class="encadre">
+  <h4>Ce qu'une boîte réserve à son thème</h4>
+  <p>Un objet propre à une boîte — potions de Delthrak ou de Morcar, parchemins modifiés de Telor,
+  artefacts de l'Horreur des Glaces — <strong>ne sort que sous son thème</strong> : au marché, au
+  coffre désigné, dans les meubles qu'on fouille. Sous <em>Spirit Queen's Torment</em>, un coffre peut
+  cacher un <strong>piège de Boule de Flammes</strong> : le sort de Dread part sur celui qui le
+  fouille, et il y résiste de ses dés rouges, comme si un sorcier l'avait lancé.</p>
+</div>
+''')
 JUNGLE_ART = [o for o in OBJ if o.get('boite') == 'jungles_delthrak' and o['rarete'] == 'unique']
 ecrire('<h3>Les artefacts de Jungles of Delthrak</h3>'
        "<p>Cinq artefacts viennent de cette boîte. Ils suivent les règles de tout artefact — au "
@@ -1573,6 +1660,9 @@ EFFET_PIEGE = {
  "Piège de l'ouragan": "<strong>introuvable</strong>, en couloir seulement : repousse tous les héros du couloir à l'opposé, jusqu'à 8 cases ou jusqu'au premier mur, meuble ou piège.",
  "Piège d'embrasement": "<strong>introuvable</strong> ; il s'amorce en silence puis <strong>explose au début du tour du maître du jeu</strong>, sur toute la salle ou le couloir, héros et monstres — dégâts de feu, 3 dés d'attaque, défense normale. On le désarme en défaussant une <em>Tempête</em> ou un sort d'Eau.",
  'Poison': "à l'ouverture : 1 dé de combat, sans défense",
+ 'Mare d\'acide': "un dé de combat de dégâts d'<strong>acide</strong> ; elle reste au sol, armée, et se saute d'un jet de Body (difficulté 2) une fois détectée",
+ 'Piège de Boule de Flammes': "un coffre piégé : la fouille lance le sort de Dread <strong>Boule de Flammes</strong> sur le fouilleur, qui y résiste de ses dés rouges",
+ 'Fosse longue': "une fosse de <strong>deux cases</strong>. Par le petit côté, elle se saute comme la Fosse ; par le bout, il faut <strong>3 cases de déplacement</strong> et un <strong>bouclier noir</strong>. Qui tombe perd 2 PV et reste au fond : un dé de combat de moins en attaque et en défense, jusqu'à en sortir sur un 5 ou un 6 au dé rouge",
  'Piège de lianes': "un bouclier blanc l'esquive et le héros continue ; un crâne fait perdre 1 PV et <strong>immobilise</strong> (voir <a href=\"#ch10\">chapitre 10</a>)",
 }
 ecrire('<table><thead><tr><th class="vig"></th><th>Piège</th><th class="n">Désamorçable</th>'
@@ -1773,6 +1863,14 @@ suivantes ne s'atteignent qu'en jeu.</p>
       mentale, mais une défense de Gargouille.</li>
 </ul>
 
+<h3>Les grandes figures</h3>
+<p>Une créature occupe <strong>deux cases</strong> quand son livret la dessine ainsi sur ses cartes de
+quête : un jeton <strong>ovale</strong> (l'Ogre champion, le Minotaure, le Dragon, le Loup géant…) ou une
+<strong>tuile</strong> de deux cases (le <em>Golem Cœur-de-Forge</em> de Delthrak). Un jeton rond ou une
+tuile carrée — le <em>Rejeton putride</em> — tient sur une case. Seule exception, nommée par son texte :
+l'<em>Horreur des Glaces</em> occupe deux cases avec un jeton rond. Sur la carte, chaque créature porte le
+jeton de son livret quand il existe.</p>
+
 <h3>Les cinq Sorciers du Dread</h3>
 <p><em>Wizards of Morcar</em> apporte cinq sorciers, chacun avec <strong>six sorts</strong> qui lui sont
 propres. La règle de leur carte : un sorcier lance <strong>un sort par tour, à la place de son
@@ -1793,10 +1891,11 @@ leurs six sorts.</p>
   <h4>Le thème de campagne</h4>
   <p>Chaque campagne se fige, à son premier lancement, sur le <strong>thème</strong> d'une boîte
   d'extension : Rise of the Dread Moon, The Mage of the Mirror, Against the Ogre Horde, Jungles
-  of Delthrak, The Frozen Horror, First Light, et désormais <strong>Wizards of Morcar</strong>.
-  C'est lui qui décide quelles créatures et quels pièges de boîte peuplent ses donjons : Haut
-  Autel, Coffre du Dread, pièges magiques et trésors de Morcar n'apparaissent que sous ce
-  thème. Une campagne <em>en cours</em> ne change jamais de thème en route.</p>
+  of Delthrak, The Frozen Horror, First Light, Wizards of Morcar, Prophecy of Telor, Return of the
+  Witch Lord, Kellar's Keep, Spirit Queen's Torment et The Crypt of Perpetual Darkness — ou sur
+  plusieurs boîtes cochées à la main. C'est lui qui décide quelles créatures, quels pièges, quels
+  terrains et quels objets de boîte peuplent ses donjons. Une campagne <em>en cours</em> ne change
+  jamais de thème en route.</p>
 </div>
 
 <h3>Les sorts de Dread</h3>

@@ -1054,7 +1054,7 @@ final class SceneDeTable
             'objets' => [],
             'issue' => ($payload['perd_pv_body'] ?? false)
                 ? ['ton' => 'echec', 'libelle' => "{$total} sous son Mind de {$mind} : {$porteur->nom} perd {$pertes} PV de Body"]
-                : ['ton' => 'succes', 'libelle' => "{$total}, à hauteur de son Mind de {$mind} : {$porteur->nom} tient bon"],
+                : ['ton' => 'succes', 'libelle' => "{$total}, pas sous son Mind de {$mind} : {$porteur->nom} tient bon"],
         ];
     }
 

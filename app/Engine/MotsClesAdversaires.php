@@ -324,7 +324,8 @@ final class MotsClesAdversaires
             .'semées : elles « bloquent totalement le couloir » — c\'est une règle de CARTE (un obstacle sur le passage), '
             .'et une figure du bestiaire ne se pose qu\'en salle (`AssembleurCarte::casesPourFiguresFixes()`) : les semer '
             .'en couloir créerait une seconde règle de placement, les semer en salle leur retirerait leur sens. La forme '
-            .'(invulnérable, arme brisée sauf exemptée) est construite et testée en jeu (`ImmunitesSelectivesTest`).',
+            .'(invulnérable, arme brisée sauf exemptée) est construite et testée en jeu (`ImmunitesSelectivesTest`). '
+            .'Statues ÉCARTÉES pour de bon par René le 2026-10-29 (plan des restes, J1) : une scène d\'une seule quête.',
     ];
 
     /** Les clés que ce vocabulaire déclare. @return list<string> */

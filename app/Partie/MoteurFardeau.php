@@ -202,7 +202,7 @@ final class MoteurFardeau
     private function texte(string $nom, int $total, int $mind, bool $perd, int $pertes, bool $tombe): string
     {
         if (! $perd) {
-            return "{$nom} tient bon : {$total}, à hauteur de son Mind de {$mind}.";
+            return "{$nom} tient bon : {$total}, pas sous son Mind de {$mind}.";
         }
 
         return "{$nom} sent le talisman se resserrer : {$total} sous son Mind de {$mind} — il perd {$pertes} PV de Body"

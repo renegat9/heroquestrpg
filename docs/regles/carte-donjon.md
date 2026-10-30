@@ -753,6 +753,11 @@ COMBIEN (`structure.terrains.<clé>.min/max`, clés `courants`, `sol_meuble`, `c
 couloirs) ; le thème dit LESQUELS. Placé EN FIN de `placerTerrains()` : une carte sans le thème ne consomme aucun tirage de plus.
 Une case déjà tenue par une autre couche (porte, piège, meuble, épreuve, levier, terrain) reste à sa couche.
 
+⚠ **Un terrain à POSE PROPRE n'entre jamais dans le pool ordinaire** (correctif du 2026-10-30, vu à l'écran sur une partie de
+test) : `terrains.pose` non nul les écarte des `$ordinaires` de `placerTerrains()`, comme le tunnel, les sables et les trappes. Sans
+ce filtre, la pose ordinaire semait aussi une case isolée de courant contraire, de sol meuble, et même de vent au milieu d'une salle.
+Les tests du lot H ne le voyaient pas : ils assemblaient avec un pool ordinaire vide. Test : `TerrainsAPoseProprePoolTest`.
+
 **Dosage non sourcé, écrit comme tel** : le nombre de salles par carte (0..1 pour chaque clé) et le choix « tous les couloirs
 ou aucun » (`vents` 0..1) sont des valeurs de gabarit, pas du livret. Le livret dit « these rooms » et « the hallways » ; il ne dit pas
 combien de salles d'une quête sont couvertes.

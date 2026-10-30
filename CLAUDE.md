@@ -50,7 +50,10 @@ reason, and the two must never drift.
   forecourt, floor of playable cells held: `AssembleurCarte::casesPourFiguresFixes()` and
   `parvis()`; since 2026-10-23: `Grille::sontAdjacentes()` for EVERY contact — orthogonal,
   diagonals only where a card or a text names them, `$diagonales` — garde-fou
-  `ContactOrthogonalTest`, → `docs/regles/combat-et-tour.md`).
+  `ContactOrthogonalTest`, → `docs/regles/combat-et-tour.md`; since 2026-10-29:
+  `Equipement::retirable()` for every way a piece leaves a hero — unequip, give, sell,
+  discard, transmute, quicksand — and `MoteurSorts::consommerParchemin()` for every scroll
+  use, reading and *Vision du futur* alike, charges included).
   Two copies of a rule too simple to notice drifting is this project's most repeated defect.
 - **`sortBy([$f, $g])` is never a multi-key sort** — Laravel reads a callable there as a
   *comparator*, and it never errors. It bit twice. → `docs/regles/sorts-dread.md`

@@ -153,17 +153,20 @@ const PORTES = [
     ['verrouillee', 'Verrouillée — clé, gardien à vaincre ou levier'],
     ['secrete', 'Passage secret révélé par une fouille'],
 ];
-// Un MIROIR (habillage, 2026-10-29) a sa propre ligne : il ne doit pas faire paraître la ligne « Fermée » à lui seul.
+// Une porte SPÉCIALE encore close — porte de pierre, grille de fer (`verrou`), miroir (`habillage`) — a sa propre ligne et son
+// propre dessin : elle ne fait pas paraître une ligne générique à elle seule, et ne lui prête jamais son pictogramme (vu à
+// l'écran le 2026-10-30 : la herse aurait pu illustrer la ligne « Fermée »). Ouverte, c'est un passage ouvert comme un autre.
+const estSpeciale = (p) => p.etat !== 'ouverte' && (['pierre', 'grille'].includes(p.verrou) || p.habillage === 'miroir');
 const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? [])
-    .some((p) => p.etat === etat && !(p.habillage === 'miroir' && p.etat !== 'ouverte'))));
+    .some((p) => p.etat === etat && !estSpeciale(p))));
 const porteMiroir = computed(() => (props.carte?.portes ?? []).some((p) => p.habillage === 'miroir' && p.etat !== 'ouverte'));
 
-// Le pictogramme d'une ligne de porte : celui de la première porte de cet ÉTAT qui en porte un. La porte de pierre FERMÉE a
-// le sien (`verrou_pierre`, publié par le serveur) : il ne doit pas prêter son dessin à la ligne « Fermée ». Une porte de
-// pierre forcée n'est plus qu'une ouverte, et prend le pictogramme de l'ouverte.
-const estPierreFermee = (p) => p.etat === 'fermee' && p.verrou === 'pierre';
-const symbolePorte = (etat, pierre = false) => (props.carte?.portes ?? [])
-    .find((p) => p.etat === etat && estPierreFermee(p) === pierre && p.symbole_url)?.symbole_url ?? null;
+// Le pictogramme d'une ligne de porte : celui de la première porte de cet ÉTAT qui en porte un, portes spéciales exclues.
+const symbolePorte = (etat) => (props.carte?.portes ?? [])
+    .find((p) => p.etat === etat && !estSpeciale(p) && p.symbole_url)?.symbole_url ?? null;
+// Le pictogramme d'une porte spéciale close (`verrou_pierre`, `verrou_grille`), publié par le serveur.
+const symboleVerrou = (verrou) => (props.carte?.portes ?? [])
+    .find((p) => p.etat === 'fermee' && p.verrou === verrou && p.symbole_url)?.symbole_url ?? null;
 
 // PORTE DE PIERRE (Against the Ogre Horde p. 4, lot B) : `etat` reste `fermee`
 // (ouvrable à main nue ailleurs), seul `verrou === 'pierre'` la distingue —
@@ -204,7 +207,7 @@ const grilleDeFer = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
                     <span>{{ texte }}</span>
                 </div>
                 <div v-if="portePierre" class="lg-ligne">
-                    <span v-if="symbolePorte('fermee', true)" class="lg-chip lg-symbole lg-symbole-porte"><SymboleCarte :url="symbolePorte('fermee', true)" icone="construction" nom="Porte de pierre" /></span>
+                    <span v-if="symboleVerrou('pierre')" class="lg-chip lg-symbole lg-symbole-porte"><SymboleCarte :url="symboleVerrou('pierre')" icone="construction" nom="Porte de pierre" /></span>
                     <span v-else class="lg-chip lg-porte pierre" />
                     <span>Porte de pierre — un héros lançant ≥ 2 dés d'attaque de base peut la forcer (2 crânes)</span>
                 </div>
@@ -214,7 +217,8 @@ const grilleDeFer = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
                 </div>
                 <!-- GRILLE DE FER (Mage of the Mirror, 2026-10-29) : une clé la lève, sinon deux dés rouges sous le Corps de départ. -->
                 <div v-if="grilleDeFer" class="lg-ligne">
-                    <span class="lg-chip lg-porte grille" />
+                    <span v-if="symboleVerrou('grille')" class="lg-chip lg-symbole lg-symbole-porte"><SymboleCarte :url="symboleVerrou('grille')" icone="fence" nom="Grille de fer" /></span>
+                    <span v-else class="lg-chip lg-porte grille" />
                     <span>Grille de fer — une clé la lève, ou deux dés rouges sous le Corps de départ (elle bloque aussi la vue)</span>
                 </div>
             </section>

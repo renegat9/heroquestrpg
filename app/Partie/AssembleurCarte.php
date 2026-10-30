@@ -3521,9 +3521,13 @@ final class AssembleurCarte
         // La trappe n'est JAMAIS tirée seule dans le pool ordinaire : une case sans sa jumelle ne serait
         // qu'un piège de passage absurde. Elle n'existe que par paires, plus bas (`$trappe`).
         $trappe = $catalogue->firstWhere('nom', self::NOM_TERRAIN_TRAPPE);
+        // ⚠ Un terrain à POSE PROPRE (`terrains.pose` : une salle entière, ou les couloirs — les terrains des tours, lot H) ne
+        // se tire jamais ici non plus : sa règle de pose vit plus bas. Vu à l'écran le 2026-10-30 : sans ce filtre, le pool
+        // ordinaire semait une case isolée de courant contraire, de sol meuble, et même de vent AU MILIEU D'UNE SALLE.
         $ordinaires = $catalogue->reject(fn (Terrain $t) => ($tunnel !== null && $t->is($tunnel))
             || ($sables !== null && $t->is($sables))
-            || ($trappe !== null && $t->is($trappe)))->values();
+            || ($trappe !== null && $t->is($trappe))
+            || $t->pose !== null)->values();
 
         $min = (int) data_get($structure, 'terrains.min', 0);
         $max = max($min, (int) data_get($structure, 'terrains.max', $min));
