@@ -2825,7 +2825,17 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
       (« Flèche cachée » / « Trou peu profond »), `degats` (ce qui a été réellement
       perdu) et `fin_de_tour: true` ;
     - piège **nommé** (un meuble : aiguille du tombeau, fiole de l'établi) ou
-      « Piège de coffre » : effet du catalogue, d6 (1 PV ou Empoisonné).
+      « Piège de coffre » : effet du catalogue, d6 (1 PV ou Empoisonné) ;
+    - **piège porteur d'un sort de Dread** (`effet.sort_dread` — « Piège de Boule de Flammes »,
+      Spirit Queen's Torment, boîte `spirit_queen`) : le sort du CATALOGUE est lancé sur le fouilleur,
+      au point de passage de tout sort de Dread (défenses, dés rouges, `MoteurDegats`). Le payload
+      `piege_declenche` porte `sort_dread: {type: "sort_dread", sort, lanceur: {nom: "Le piège"},
+      resultats: [...]}` — une victime, avec `degats`, `pv_body_apres`, `cible_tombee`, `des_rouges`
+      et `degats_bruts`, ou `absorbe: true` ; `degats` reprend la perte RÉELLE, et `fin_de_tour: true`.
+      Aucun `lanceur_id` : le Bâton Ancien ne renvoie rien à un piège, et ne le propose donc pas.
+  - Une table de meuble (`effet.fouille`) ne retient, à chaque fouille, que les pièces admises par le
+    thème du groupe : un piège (`pieges.boite`) ou un objet (`objets.boite`) d'une autre boîte n'y
+    entre jamais, et les autres entrées gardent leur poids.
 
   - `rien`.
 

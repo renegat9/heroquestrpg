@@ -281,3 +281,28 @@ une scène que le livret ne place que dans une seule quête.
   posée dans la salle A de la carte de la quête 6, et l'image des notes, 2:1). **Décision de René (2026-10-29) : « Oui passe à
   2 cases »** → emprise 1×2 (`MonstreSeeder`, migration `2026_10_29_200000_golem_coeur_de_forge_deux_cases` ; 0 instance de
   Golem en base ce jour). La règle des emprises devient « ovale OU tuile de deux cases » (`BestiaireSourceTest`).
+
+### Exécution — lot E (2026-10-29)
+
+Chantier RESTES-COFFRE (worktree `restes-coffre`). Décision E1 appliquée : **le piège n'existe que sous le thème `spirit_queen`** (`pieges.boite`). Aucune migration : `PiegeSeeder` et `MobilierSeeder` seulement, en `updateOrCreate`.
+
+**Porté**
+- Vocabulaire fermé `App\Engine\MotsClesPiege` : dix-huit clés, chacune avec son lecteur nommé. `MotsClesPiegeTest` les teste dans les deux sens contre les lignes semées (branches `aleatoire` comprises), et exige que le PREMIER lecteur LISE la clé (`data_get`, `effet[]`, `issue[]`) : une simple écriture de payload ne suffit pas. Dette nommée : `detection` (`SANS_LECTEUR`), semée et lue par aucun code, non retirée (une migration sur une valeur en base est une décision de René).
+- Sort lancé par un piège : `MoteurDread::lancerSortDePiege()` (sorts de dégâts seulement). La frappe est extraite de `sortDreadDegats()` dans `frapperHerosDeSort()`, le point de passage commun ; `degatsInfliges()` accepte un lanceur nul. Pas de `lanceur_id` : le Bâton Ancien ne propose rien.
+- Donnée : `Piège de Boule de Flammes` (`boite: spirit_queen`, `sort_dread: 'Boule de Flammes'`, `declencheur: ouverture_tresor`), et une entrée `issue: piege` de poids 1 dans la table du Coffre.
+- **Filtre de thème dans les tables de meuble** (demande de l'orchestrateur) : `MoteurMobilier::tirerButin()` reçoit `BestiaireGroupe::duGroupe($groupe)->boites` aux deux points d'appel (fouille, destruction de meuble). Une entrée `piege` ou un objet NOMMÉ boîté hors thème sort du tableau avant le tirage pondéré ; le vivier d'une entrée à catégorie ne retient que les objets sans boîte ou de boîte jouée. **Conséquence voulue : les potions boîtées de Delthrak (*Potion de sang de serpent*) et de Morcar (*Potion de résistance au feu*, *Potion de prédisposition magique*, *Potion de résistance à la magie*) ne tombent plus des meubles hors de leur thème.**
+- Annonce : `JournalCombat::piegeDeclenche()`, branche `sort_dread` (aucun type d'action nouveau, `JournalCombat::TYPES` inchangé). Contrat : `docs/contrat-api.md`.
+
+**Non porté, et pourquoi**
+- « May be disarmed normally » : un coffre n'a aucun geste de désamorçage avant fouille (seule la fournaise en a un). Le piège part à la fouille, comme le Piège de coffre.
+- Sort de piège non-dégâts : exception explicite (aucun piège n'en lance aujourd'hui).
+- Voie `paliers_d6` d'un sort de piège : le garde `$instance === null` est écrit, mais aucun test ne la joue (aucun piège porteur de paliers).
+
+**Tranché seul**
+- Nom « Piège de Boule de Flammes », poids 1 (⚠ non trouvé : aucun livret ne donne de fréquence), lanceur affiché « Le piège ».
+- Le filtre couvre aussi les objets NOMMÉS, au-delà du vivier demandé : une seule copie, dans `MoteurMobilier::admisParLeTheme()`.
+- Attribution de la note B (p. 9) à la quête 6 par la mise en page (la page n'est pas rendue sur l'hôte).
+
+**Tests** : `MotsClesPiegeTest` (5), `PiegeCoffreSortDreadTest` (14, dont quatre de câblage passant par `resoudreFouilleMobilier()` et `fracasserMobilier()`), `MobilierBoiteTest` (7). Régression ciblée, douze suites : 246 passés. Mutations, une par lecteur neuf, toutes attrapées : sort non résolu (6 échecs), `sort_dread` non lu (7 en jeu, 1 au registre), filtre du piège (6), filtre de l'objet nommé (1), vivier par catégorie (1), absorption typée retirée du point de passage (1), fil sans le sort (1), boîtes non transmises à la fouille (1) et à la destruction (1). Restauration vérifiée octet pour octet.
+
+**Suite complète** (une seule fois, en parallèle, 982 s) : 2 997 verts sur 2 999, 129 683 assertions. Les deux rouges venaient de ce chantier, pas d'une régression : le nouveau piège n'avait ni icône dans `symboles.js` (`SymbolesCarteTest`, « pièges sans icône propre ») ni entrée dans `image-tools/symboles-livrets/manifeste.json` (`SymbolesLivretsTest`, « le type pieges ne couvre pas exactement le catalogue »). Corrigé : icône `auto_awesome` (ni la flamme de la Fournaise, `whatshot`, ni celle du Piège d'embrasement), entrée « absent » sur le patron du Piège de coffre. Rejoués : les trois suites de symboles (32 verts), le lot ciblé du chantier (58 verts), le front reconstruit (`npm run build`, sortie 0).

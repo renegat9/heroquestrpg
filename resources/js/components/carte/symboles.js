@@ -30,6 +30,10 @@ export const PIEGE_ICONES = {
     'Piège de coffre': 'lock',
     'Aiguille empoisonnée': 'vaccines',
     'Fiole de poison': 'coronavirus',
+    // Spirit Queen's Torment (lot E, 2026-10-29) : un coffre piégé qui lance Boule de Flammes. `auto_awesome` (l'étincelle
+    // magique), et non la flamme de la Fournaise (`whatshot`) ni celle du Piège d'embrasement (`local_fire_department`).
+    // Éphémère : jamais posé sur la carte, seule la légende le montre.
+    'Piège de Boule de Flammes': 'auto_awesome',
     // The Crypt of Perpetual Darkness (chantier EXT-CRYPTE, 2026-10-23) : une flaque d'acide, « science » (l'alchimie),
     // distincte de la fosse (un trou) et du feu. Persistante, elle se dessine avec la fosse ouverte — voir `DungeonGrid.vue`.
     "Mare d'acide": 'science',

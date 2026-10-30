@@ -283,6 +283,24 @@ class PiegeSeeder extends Seeder
                     'mare' => true,
                     'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
                 ]],
+
+            // ===== Spirit Queen's Torment (G0053, boîte `spirit_queen`) =====
+            // Quête 2, note C, p. 5 : « The treasure chest has a magical trap. If a hero searches for treasure before the
+            // trap is disarmed, the Dread spell Ball of Flame is cast on that hero. The trap may be disarmed normally. »
+            // Quête 6, note B, p. 9 : « Each of these chests is trapped. If a hero searches for treasure before the trap is
+            // disarmed, the Dread spell Ball of Flame is cast on that hero. The trap may be disarmed normally. »
+            // ÉPHÉMÈRE comme le Piège de coffre (`declencheur: ouverture_tresor`) : déclenché par la fouille, jamais posé.
+            // `sort_dread` NOMME le sort ; ses chiffres (2 PV fixes, 2 dés rouges) sont lus au catalogue, jamais recopiés ici
+            // (`MoteurPieges::declencherEphemere()` → `MoteurDread::lancerSortDePiege()`).
+            // Le « may be disarmed normally » n'est pas porté : aucun geste de désamorçage n'existe pour un coffre aujourd'hui
+            // (le menu ne le propose qu'à la fournaise), donc le piège part à la fouille, comme le Piège de coffre.
+            // `boite: spirit_queen` : E1 (décision de René, 2026-10-29) — ce piège n'existe que sous ce thème.
+            ['nom' => 'Piège de Boule de Flammes', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'unique',
+                'boite' => 'spirit_queen',
+                'effet' => [
+                    'declencheur' => 'ouverture_tresor',
+                    'sort_dread' => 'Boule de Flammes',
+                ]],
         ];
 
         foreach ($pieges as $piege) {

@@ -763,6 +763,12 @@
     },
     {
       "type": "pieges",
+      "cle": "piege-de-boule-de-flammes",
+      "nom_catalogue": "Piège de Boule de Flammes",
+      "absent": "piège éphémère du coffre (fouille), Spirit Queen's Torment G0053 quêtes 2 et 6 : aucun livret ne le dessine sur la carte"
+    },
+    {
+      "type": "pieges",
       "cle": "lame-balancoire",
       "nom_catalogue": "Lame balançoire",
       "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
