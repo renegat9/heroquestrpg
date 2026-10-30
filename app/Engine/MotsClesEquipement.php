@@ -1085,6 +1085,13 @@ final class MotsClesEquipement
     public const HORS_MARCHE = 'hors_marche';
 
     /**
+     * OBJET DE QUÊTE (Mage of the Mirror, F7539 p. 6, « Brass Key » : « used to open a portcullis in several quests ») : il quitte
+     * le sac à la FIN de la quête, victoire ou échec — une clé ne sert qu'à la carte où elle a été trouvée. Lu par un seul point,
+     * `Equipement::purgerObjetsDeQuete()`, appelé par `ResolveurTour::terminerQuete()` et `echouerQuete()`.
+     */
+    public const OBJET_DE_QUETE = 'objet_de_quete';
+
+    /**
      * Récupère UN sort de héros ou UNE compétence déjà utilisés —
      * *Potion of Elder Wisdom* : « recover any 1 hero spell or skill you have
      * used ». Le buveur reçoit d'abord le premier sort épuisé, à défaut la
@@ -1218,6 +1225,7 @@ final class MotsClesEquipement
         self::APPELLE_ALLIE,
         self::VALEUR_MARCHANDE,
         self::HORS_MARCHE,
+        self::OBJET_DE_QUETE,
         self::RECUPERE_SORT_OU_COMPETENCE,
         self::UNE_PAR_QUETE,
     ];
@@ -1422,6 +1430,7 @@ final class MotsClesEquipement
         self::UNE_PAR_QUETE => 'Une seule par héros et par quête',
         self::VALEUR_MARCHANDE => 'Se revend %s pièces d\'or (valeur entière)',
         self::HORS_MARCHE => 'Carte de trésor sans prix : ni à l\'étal, ni revendable',
+        self::OBJET_DE_QUETE => 'Objet de quête : retiré du sac à la fin de la quête',
         // ⚠ « S'active à volonté » précédait « Cadence : une fois par quête » sur
         // la même ligne. La clé dit seulement que l'objet se DÉCLENCHE.
         'activable' => 'Pouvoir à déclencher',

@@ -2550,7 +2550,8 @@ final class MenuMoteur
             $pierres = (! $aAgi && (int) $personnage->des_attaque >= MoteurPortes::DES_MINIMUM_PORTE_PIERRE)
                 ? $this->portes->portesDePierreAdjacentes($quete->carte, $px, $py)
                 : [];
-            $cleDuHeros = fn (array $p): bool => ($p['verrou']['type'] ?? null) === 'cle'
+            // Les verrous qu'une CLÉ ouvre : la porte à clé ET la grille de fer (`MoteurPortes::VERROUS_A_CLE`, une liste).
+            $cleDuHeros = fn (array $p): bool => in_array($p['verrou']['type'] ?? null, MoteurPortes::VERROUS_A_CLE, true)
                 && $this->portes->possedeCle($personnage, $p['verrou']);
             $ouvrables = array_filter(
                 $closes,
@@ -2562,8 +2563,11 @@ final class MenuMoteur
             // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : offerte à tout héros au contact (le jet n'échoue pas « d'avance » :
             // un échec ferme seulement le tour). Lue par le menu ET par `resoudreForcerPorteCondition()`.
             $conditions = $this->portes->portesConditionAdjacentes($quete->carte, $px, $py);
+            // GRILLE DE FER (Mage of the Mirror, 2026-10-29) : compte dans les portes offertes, pour que le libellé nomme la direction.
+            $grilles = $this->portes->portesGrilleAdjacentes($quete->carte, $px, $py);
             $offertes = array_unique(array_merge(
                 array_column($conditions, 'index'),
+                array_column($grilles, 'index'),
                 array_column($ouvrables, 'index'),
                 (bool) $personnage->benediction_oracle ? array_column($closes, 'index') : [],
                 $ligneSouris !== null ? array_column($closes, 'index') : [],
@@ -2580,7 +2584,8 @@ final class MenuMoteur
                 if ($this->portes->ouvrableAMain($p) || $avecCle) {
                     $options[] = [
                         'id' => "ouvrir_porte_{$p['x']}_{$p['y']}_{$cote}",
-                        'libelle' => 'Ouvrir la porte'.$suffixe.($avecCle ? ' (clé)' : ''),
+                        'libelle' => (($p['verrou']['type'] ?? null) === MoteurPortes::VERROU_GRILLE ? 'Ouvrir la grille de fer' : 'Ouvrir la porte')
+                            .$suffixe.($avecCle ? ' (clé)' : ''),
                         'type' => 'ouvrir_porte',
                         'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                     ];
@@ -2754,6 +2759,23 @@ final class MenuMoteur
                         'id' => "forcer_porte_condition_{$p['x']}_{$p['y']}_{$cote}",
                         'libelle' => 'Forcer la '.$verrou['libelle'].$suffixe.' — '.MoteurPortes::libelleCondition($verrou, $personnage),
                         'type' => 'forcer_porte_condition',
+                        'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
+                    ];
+                }
+
+                // GRILLE DE FER (Mage of the Mirror, F7539 quête 10 note G ; décision F1 du plan restes, 2026-10-29) : la voie FORCE,
+                // deux dés rouges sous le Corps de départ — le test de la porte à condition (`MoteurPortes::FORCE_GRILLE`), une option
+                // PAR grille adjacente. La voie CLÉ n'a pas d'option ici : c'est `ouvrir_porte` « (clé) », offert plus haut quand le
+                // héros porte la clé. Une grille fermée ne s'ouvre pas à la main : le menu n'offre que ce que le résolveur accepte.
+                foreach ($grilles as $grille) {
+                    $p = $grille['porte'];
+                    $cote = (string) ($p['cote'] ?? 'e');
+                    $verrou = (array) $p['verrou'];
+                    $suffixe = $this->suffixeDirectionPorte($quete, $p, $px, $py, $plusieurs);
+                    $options[] = [
+                        'id' => "forcer_grille_{$p['x']}_{$p['y']}_{$cote}",
+                        'libelle' => 'Forcer la '.$verrou['libelle'].$suffixe.' — '.MoteurPortes::libelleCondition($verrou, $personnage),
+                        'type' => 'forcer_grille',
                         'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                     ];
                 }

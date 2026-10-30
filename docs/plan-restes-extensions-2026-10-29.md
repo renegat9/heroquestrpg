@@ -254,3 +254,48 @@ une scène que le livret ne place que dans une seule quête.
 | B1, C1, D1, E1, F1, F2, G1, I1, J1 | **Recommandation retenue**, telle qu'écrite au §2. |
 | H1 | **Les quatre terrains des tours sont portés** : courants contraires, sol meuble, **courant porteur** et **vents de couloir** — pas de report pour H3 et H4. Le courant porteur demande un parcours qui porte « bonus déjà pris » dans son état ; les vents, un choix de direction en attente côté héros et un choix du moteur pour Zargon. |
 | A | Feu vert pour le ménage : images orphelines effacées après sauvegarde, branches fusionnées supprimées. |
+
+### Exécution — lot F (2026-10-29)
+
+Chantier RESTES-GRILLES, worktree `heroquestrpg-grilles` (branche `restes-grilles`), **non commité**. Décisions suivies : F1 (la force vaut pour toute grille) et F2 (la clé quitte le sac en fin de quête). Ni le passage secret, ni les miroirs, ni les jetons de monstres : ces chantiers restent à l'orchestrateur.
+
+**Porté**
+- **Grille de fer** : `MoteurPortes::VERROU_GRILLE`, verrou d'une porte `fermee` (patron de la porte à condition). Posée par `AssembleurCarte::marquerPortesDeGrille()` : une arête de **boucle** seulement, au plus une par carte, sous le thème `mage_du_miroir` seul. La pose se fait **après** `placerLeviers()` et **avant** `placerPieges()` : une trappe ne doit jamais atterrir sur son embrasure, et les leviers gardent leur suite PRNG. Close, la grille bloque passage et vue par le comportement existant des portes non ouvertes.
+- **Voie force (F1)** : deux dés rouges, total strictement sous le Corps de **départ** (`MoteurPortes::FORCE_GRILLE`, copie de la porte verrouillée de Kellar's Keep, F4543 p. 19 note A). Échec = fin de tour. Un seul point de passage pour le jet, `ResolveurTour::resoudreForcerPorte()`, partagé avec la porte à condition.
+- **Voie clé** : `grille` ajouté à `MoteurPortes::VERROUS_A_CLE`, avec le lecteur existant `possedeCle()` ; option `ouvrir_porte` « (clé) ».
+- **Clé de laiton** (catalogue, `ObjetSeeder`) : catégorie `tresor`, rareté `unique`, `hors_marche`, `objet_de_quete`, `prix_base` 0 (⚠ non trouvé : aucun prix imprimé).
+- **Producteur** : un râtelier d'armes garanti dans une salle atteignable **sans franchir aucun verrou** (`AssembleurCarte::salleDeLaCle()`, qui s'appuie sur `accessiblesSansVerrou()`, extrait de la BFS de la trappe : un seul test d'accès pour les deux). La **première** fouille de ce râtelier donne la clé **en plus** de sa table (`objet_fixe`, puis `cle_de_laiton` dans le payload) : F7539 quête 7 note C.
+- **F2** : `MotsClesEquipement::OBJET_DE_QUETE` et `Equipement::purgerObjetsDeQuete()`, appelé par `terminerQuete()` (victoire et vote de sortie) et `echouerQuete()`.
+- **Publié, dessiné, annoncé** : contrat (`docs/contrat-api.md`, « Mage of the Mirror — grille de fer et clé de laiton ») ; `verrou: "grille"` publié sous le brouillard comme toute porte ; option `forcer_grille` avec icône manette `fence` ; rendu `DungeonGrid.vue` (classe, badge, teinte de barreaux) ; ligne de légende `LegendeCarte.vue` ; phrase du fil (`JournalCombat::TYPES`, dispatch, ligne de fouille « trouve aussi une Clé de laiton »).
+
+**Fichiers** : `app/Engine/MotsClesEquipement.php` ; `app/Partie/{AssembleurCarte,Equipement,JournalCombat,MenuMoteur,MoteurPortes,ResolveurTour}.php` ; `app/Partie/Images/BibliothequeImages.php` ; `database/seeders/ObjetSeeder.php` ; `resources/js/components/carte/{DungeonGrid,LegendeCarte}.vue` ; `resources/js/components/manette/ActionTab.vue` ; `docs/{contrat-api.md,regles/carte-donjon.md,regles/exploration-et-fouille.md}` ; `tests/Feature/Partie/AnnoncesEffetsAutomatiquesTest.php` (fixture `forcer_grille`) ; nouveau `tests/Feature/Partie/GrilleDeFerTest.php`.
+
+**Migrations et seeders à jouer** (orchestrateur, après sauvegarde) : **aucune migration** (aucune colonne ajoutée : l'état vit dans la grille JSON de la carte et dans l'inventaire existant). **Seeder** : `ObjetSeeder`, pour la « Clé de laiton » (`updateOrCreate`, rien n'est purgé). Redémarrer `queue` et `queue-jeu` (PHP modifié). `npm run build` passe ; aucune dépendance ajoutée.
+
+**Symbole de livret : non extrait.** Le symbole de herse existe dans le livret (page imprimée 4, à côté de « Portcullises x4 » ; planche « Design your own quest », page imprimée 39), mais `image-tools/symboles-livrets/manifeste.json` n'a aucune entrée pour lui. L'icône Material `fence` reste, comme le prévoit le brief. Clé réservée : `portes/verrou-grille.webp` (`BibliothequeImages::urlSymbolePorte()`), à extraire par l'orchestrateur ; la grille n'emprunte jamais le symbole de la porte fermée.
+
+**Tests**
+- `GrilleDeFerTest` : **24 tests**. Génération sur 60 graines (une grille au plus, sur une boucle, sous le thème seul, clé atteignable sans verrou, retirer la grille ne coupe aucune salle, la clé est posée sur au moins une graine : le taux exact n'est pas mesuré) ; force réussie et ratée aux dés injectés ; seuil = Corps de départ (Corps actuel à 2, seuil à 8) ; menu adjacent, fermé, ouvert ; clé : ouverture sans jet, clé gardée au sac ; producteur : première fouille seulement ; hors marché et unique ; ligne de vue close puis ouverte ; purge F2 (victoire, échec, autres objets gardés) ; symbole ; salle de départ exclue ; phrases du fil (clé, grille ouverte, grille échouée) ; créneau d'interaction libre.
+- Suite complète, passage 1 : 2992 verts et **1 rouge**, `LeviersPosesTest` « Actionner le levier ». Cause : ma grille tirait le PRNG **avant** les leviers sous le thème mage, ce qui décalait leur pose ; la carte prédite par le test ne correspondait plus au donjon démarré. Sur HEAD propre, le test passe 5/5. **Corrigé** en posant la grille après `placerLeviers()`.
+- Suite complète, passage 2 (après correction) : 2993 verts, 131 001 assertions, code 0.
+- Suite complète, passage final (après l'ajout de quatre tests de régression) : **2997 verts**, 131 015 assertions, code 0, 995 s.
+- **Mutations** : chaque lecteur neuf retiré une fois, le fichier restauré, le diff vérifié identique au départ. 20 mutations, **20 font tomber au moins un test** :
+  - M01 clé (résolveur) : 1 ; M02 clé (menu) : 1 ; M03 candidats de la force : 3 ; M04 Corps actuel au lieu du départ : 2 (dont `PorteConditionTest`, lecteur partagé) ; M05 producteur (première fouille) : 1 ; M06 purge à la victoire : 1 ; M07 purge à l'échec : 1 ; M08 purge sans effet : 3 ; M09 thème retiré : 1 ; M10 boucle retirée : 2 ; M11 symbole : 1 ; M12 râtelier désactivé : 1 ; M13 salle de la clé aveugle aux verrous : 1 ; M14 exclusion de la salle de départ et des salles de la grille : 1 ; M15 phrase de la clé : 1 ; M16 `TYPES` `forcer_grille` : 2 (registre) ; M17 phrase de la grille : 1 ; M18 créneau d'interaction : 1 ; M19 liste des grilles adjacentes : 4 ; M20 `objet_de_quete` du catalogue : 4.
+  - Quatre de ces lecteurs (M14, M15, M17, M18) ne faisaient tomber aucun test à l'origine. Quatre tests ont été ajoutés pour les couvrir. Pour M17, mon premier passage n'exécutait que le registre des annonces, pas `GrilleDeFerTest` : relancé sur les deux fichiers.
+
+**Non porté et écarts**
+- **Clé reprise à l'ouverture** : la quête 4 note B dit « take the brass key tile back » au moment où la grille s'ouvre. Le plan (F2) garde la clé jusqu'à la fin de quête. Écart noté dans `docs/regles/carte-donjon.md` ; il ne change pas la jouabilité, seulement le moment où le sac rend la clé.
+- **Piège qui ouvre une grille** : écarté (décision du 2026-10-23). **Citations corrigées** : la note est en **quête 4, note A** (page imprimée 21 : « the portcullis in this room rises »), et non en quête 6. Les lignes correspondantes de `plan-restes-extensions-2026-10-29.md` (§ lot F, « quête 6 ») et de `plan-mage-du-miroir.md` (lot D, « Exécution ») portent la même erreur. Les grilles se trouvent aux quêtes 4 (notes A-B), 5 (note D), 7 (note D) et 10 (note G) ; la clé aux quêtes 4 (C), 5 (B), 7 (C) et 9 (A). Les plans datés ne sont pas réécrits : la correction est consignée ici.
+- **Quête double 9-10** : écartée. La note G (quête 10) ne sert ici qu'à la force de toute grille (F1).
+- **Scène animée de table** : aucune, comme pour la porte à condition. Le fil journal dit le jet et l'ouverture.
+- **Thème** : rien n'est allumé ni éteint ; `mage_du_miroir` était déjà actif.
+- **Bénédiction de l'Oracle et souris familière** : elles révèlent la salle derrière une grille comme derrière une porte close (même liste que la porte de pierre, par précédent).
+
+**Tranché seul (à relire par René)**
+1. Seuil = Corps **de départ** : précédent Kellar's Keep (« starting number of Body Points ») ; le livret Mage dit seulement « their Body Points ».
+2. Échec = **fin de tour** : précédent de la porte à condition ; la quête 10 dit « once per turn », lecture compatible.
+3. Râtelier d'armes comme porteur de clé (quête 7 note C : « weapons rack ») ; la clé **s'ajoute** à sa table, comme « a tool kit » dans la même note.
+4. Salle de la clé : ni la salle de départ, ni une salle que la grille sépare.
+5. `rarete unique`, `categorie tresor` et `hors_marche` : la clé sort des tirages et de l'étal sans nouveau lecteur.
+6. `objet_id` du verrou résolu **au placement** : si le catalogue n'est pas seedé, la voie clé reste morte et la force reste.
+7. Prix 0 (⚠ non trouvé), comme la Potion de fortune.

@@ -1012,6 +1012,13 @@ class ObjetSeeder extends Seeder
                     'crane' => ['potion' => 'Potion de bataille'],     // « immediately take on the effects of a Potion of Battle »
                     'bouclier_noir' => ['perte_pv_body' => 1],         // « they lose 1 Body Point »
                 ], 'hors_marche' => true]],
+            // CLÉ DE LAITON (Mage of the Mirror, F7539 p. 6, « Brass Key » : « This key is used to open a portcullis in several
+            // quests. The brass key tile is given to the hero who finds the key. ») — aucun prix imprimé : `prix_base` 0 (⚠ non
+            // trouvé), `hors_marche` (ni à l'étal, ni revendable), rareté `unique` (jamais tirée dans une table de butin), et QUITTE
+            // le sac en fin de quête (`objet_de_quete`, F2 du plan restes 2026-10-29). Elle se trouve dans un râtelier : la première
+            // fouille de celui-ci la donne (`ResolveurTour::resoudreFouilleMobilier()`, `objet_fixe` posé par l'assembleur).
+            ['nom' => 'Clé de laiton', 'categorie' => 'tresor', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'sac',
+                'boite' => 'mage_du_miroir', 'effet' => ['hors_marche' => true, 'objet_de_quete' => true]],
             ['nom' => 'Potion de soin mineur', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body' => 2, 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de vitesse', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',

@@ -286,11 +286,12 @@ final class ResolveurTour
     private bool $finTourSables = false;
 
     /**
-     * PORTE À CONDITION MANQUÉE (Kellar's Keep, F4543 p. 19 note A, p. 25 note D) : « If they fail to open the door, their
-     * turn ends. » Posé par `resoudreForcerPorteCondition()` quand le jet n'atteint pas la condition, lu une seule fois dans
-     * le MÊME calcul de créneau que les deux drapeaux ci-dessus — l'ouverture elle-même reste une interaction libre.
+     * PORTE FORCÉE MANQUÉE (Kellar's Keep, F4543 p. 19 note A, p. 25 note D ; grille de fer, F7539 quête 10 note G, avec la
+     * même fin de tour — décision du plan restes 2026-10-29) : « If they fail to open the door, their turn ends. » Posé par
+     * `resoudreForcerPorte()` quand le jet n'atteint pas la condition, lu une seule fois dans le MÊME calcul de créneau que
+     * les deux drapeaux ci-dessus — l'ouverture elle-même reste une interaction libre.
      */
-    private bool $finTourPorteCondition = false;
+    private bool $finTourPorteForcee = false;
 
     /** Les sables mouvants — construit avec LE lanceur de ce résolveur, pour que le dé du saut soit le sien. */
     private ?MoteurSables $moteurSables = null;
@@ -407,7 +408,7 @@ final class ResolveurTour
         $this->evenementGlace = null;
         $this->finTourPiegeSol = false;
         $this->finTourSables = false;
-        $this->finTourPorteCondition = false;
+        $this->finTourPorteForcee = false;
         // Tampon vidé À L'ENTRÉE aussi : une résolution précédente refusée en
         // cours de route (422) n'a jamais atteint le vidage de la sortie, et ses
         // annonces s'afficheraient sur l'action de quelqu'un d'autre.
@@ -653,7 +654,8 @@ final class ResolveurTour
                 'liberer_captif' => $this->resoudreLibererCaptif($groupe, $quete, $personnage, $option, $parametres, $acteur),
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'forcer_porte_pierre' => $this->resoudreForcerPortePierre($groupe, $quete, $personnage, $etat, $option, $acteur),
-                'forcer_porte_condition' => $this->resoudreForcerPorteCondition($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'forcer_porte_condition' => $this->resoudreForcerPorte($groupe, $quete, $personnage, $etat, $option, $acteur, MoteurPortes::VERROU_CONDITION),
+                'forcer_grille' => $this->resoudreForcerPorte($groupe, $quete, $personnage, $etat, $option, $acteur, MoteurPortes::VERROU_GRILLE),
                 'oracle_salle' => $this->resoudreOracleSalle($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'lacher_souris' => $this->resoudreLacherSouris($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
@@ -747,7 +749,7 @@ final class ResolveurTour
             // et c'est le SEUL et MÊME point de passage qui ferme un tour
             // avant que les deux créneaux ne soient consommés.
             $creneauEffectif = (($this->evenementGlace['fin_tour'] ?? false) || $this->finTourPiegeSol || $this->finTourSables
-                || $this->finTourPorteCondition)
+                || $this->finTourPorteForcee)
                 ? 'tour' : $creneau;
 
             // Consomme le créneau (mouvement/action) ; le tour ne se termine
@@ -8206,7 +8208,7 @@ final class ResolveurTour
         $verrou = (array) ($cible['porte']['verrou'] ?? []);
 
         if (! $aMain
-            && (($verrou['type'] ?? null) !== 'cle' || ! $this->portes->possedeCle($personnage, $verrou))) {
+            && (! in_array($verrou['type'] ?? null, MoteurPortes::VERROUS_A_CLE, true) || ! $this->portes->possedeCle($personnage, $verrou))) {
             throw ValidationException::withMessages(['option_id' => 'La clé requise est absente de l\'inventaire.']);
         }
 
@@ -8316,25 +8318,37 @@ final class ResolveurTour
      * PORTE À CONDITION (Kellar's Keep, F4543 p. 19 note A, p. 25 note D) : le héros au contact lance DEUX dés rouges (UN seul
      * pour le Nain quand la condition le dit), et la porte s'ouvre si le total remplit la condition du verrou — lue SUR LA
      * PORTE (`MoteurPortes::franchit()`, `valeurDeComparaison()`, `desPourHeros()`), jamais dans une table. Ouvrir est une
-     * interaction libre ; un jet raté ferme le tour (`$finTourPorteCondition`), « their turn ends ».
+     * interaction libre ; un jet raté ferme le tour (`$finTourPorteForcee`), « their turn ends ».
      *
      * @param  array<string, mixed>  $option
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
-    private function resoudreForcerPorteCondition(
+    private function resoudreForcerPorte(
         Groupe $groupe,
         Quete $quete,
         Personnage $personnage,
         EtatPersonnageQuete $etat,
         array $option,
         array $acteur,
+        string $verrou,
     ): array {
-        $cible = $quete->carte === null ? null : $this->porteDesignee($option,
-            $this->portes->portesConditionAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y));
+        // UN geste pour la porte à condition ET la grille de fer (`$verrou` = `MoteurPortes::VERROU_*`) : seules changent la liste
+        // des portes offertes et la cause journalisée. Le jet, la comparaison et la fin de tour ne se copient pas.
+        $grille = $verrou === MoteurPortes::VERROU_GRILLE;
+        $cible = null;
+
+        if ($quete->carte !== null) {
+            $adjacentes = $grille
+                ? $this->portes->portesGrilleAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y)
+                : $this->portes->portesConditionAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y);
+            $cible = $this->porteDesignee($option, $adjacentes);
+        }
 
         if ($cible === null) {
-            throw ValidationException::withMessages(['option_id' => 'Aucune porte à condition adjacente à forcer.']);
+            throw ValidationException::withMessages(['option_id' => $grille
+                ? 'Aucune grille de fer adjacente à forcer.'
+                : 'Aucune porte à condition adjacente à forcer.']);
         }
 
         $x = (int) $cible['porte']['x'];
@@ -8354,14 +8368,14 @@ final class ResolveurTour
         $reussi = MoteurPortes::franchit($verrou, $total, $valeur);
 
         if ($reussi) {
-            $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], 'porte_condition', $acteur);
+            $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], $grille ? 'force_grille' : 'porte_condition', $acteur);
 
             // Comme toute ouverture de porte : la salle derrière se révèle, jamais en attendant qu'un héros y entre.
             foreach ($this->sallesAdjacentesPorte($quete, $cible['porte']) as $salleAdjacente) {
                 $this->revelerSalle($groupe, $quete, $salleAdjacente, $personnage);
             }
         } else {
-            $this->finTourPorteCondition = true;
+            $this->finTourPorteForcee = true;
         }
 
         $payload = [
@@ -8377,6 +8391,11 @@ final class ResolveurTour
             'total' => $total,
             'reussi' => $reussi,
         ];
+
+        // La grille de fer dit son propre geste (`forcer_grille`) : même payload, type distinct — le menu, le fil et la manette le lisent.
+        if ($grille) {
+            $payload = ['type' => 'forcer_grille'] + $payload;
+        }
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
@@ -10066,6 +10085,18 @@ final class ResolveurTour
         }
 
         $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat, duDeck: false);
+
+        // CLÉ DE LAITON (Mage of the Mirror, F7539 quête 7 note C : « The first hero to search for treasure in this room finds a
+        // tool kit in the weapons rack. […] This hero also finds a brass key. ») : le PREMIER qui fouille le râtelier qui la porte
+        // reçoit la clé EN PLUS de sa table, sans tirage. `$premierAuMeuble` est lu avant `marquerFouille()` : le râtelier ne la
+        // rend plus jamais. Même patron que la caisse de ravitaillement, plus haut. Sous sa propre clé — `appliquerButin()` a déjà
+        // rempli `objet` avec le butin de la table.
+        $objetFixe = (string) ($meuble['entree']['objet_fixe'] ?? '');
+        $objetFixeId = $objetFixe !== '' && $premierAuMeuble ? (int) (Objet::where('nom', $objetFixe)->value('id') ?? 0) : 0;
+
+        if ($objetFixeId > 0) {
+            $payload['cle_de_laiton'] = $this->remettreButin(['objet_id' => $objetFixeId], $personnage, 'objet');
+        }
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
@@ -12271,6 +12302,9 @@ final class ResolveurTour
         // quête, échouée ou non.
         app(AlliesInvoques::class)->purger($groupe);
 
+        // OBJETS DE QUÊTE (F2 du plan restes, 2026-10-29) : la clé de laiton quitte le sac à la fin de la quête, échec compris.
+        $this->equipement->purgerObjetsDeQuete($groupe);
+
         GroupeMercenaire::where('groupe_id', $groupe->id)
             ->where(function ($q) {
                 $q->where('etat', '!=', 'actif')
@@ -14249,8 +14283,8 @@ final class ResolveurTour
             // `tunnelier` et `fouille_tresor_cache` ne sont PAS listés : ils retombent sur `action`, comme le sort
             // qu'ils reprennent et la fouille qu'ils remplacent.
             // `forcer_porte_condition` (Kellar's Keep, 2026-10-23) : ouvrir une porte à condition est GRATUIT, comme
-            // `ouvrir_porte` ; c'est un jet RATÉ qui ferme le tour, par `$finTourPorteCondition`, pas le type.
-            'desarmer_embrasement', 'liberer_captif', 'defausse_sables', 'memoire_parfaite', 'forcer_porte_condition' => 'interaction',
+            // `ouvrir_porte` ; c'est un jet RATÉ qui ferme le tour, par `$finTourPorteForcee`, pas le type.
+            'desarmer_embrasement', 'liberer_captif', 'defausse_sables', 'memoire_parfaite', 'forcer_porte_condition', 'forcer_grille' => 'interaction',
             // `s_ecarter_du_bloc` REJOINT cette liste le 2026-09-24 : le seul
             // choix qu'un héros debout sur un bloc de pierre tombé peut encore
             // faire, et le livret dit que ce choix FERME son tour (p. 14) —
@@ -14946,6 +14980,10 @@ final class ResolveurTour
         // dormants (« completes two quests without its assistance »).
         app(AlliesInvoques::class)->purger($groupe);
         $objetsReveilles = app(AlliesInvoques::class)->terminerQuete($groupe, $quete);
+
+        // OBJETS DE QUÊTE (F2 du plan restes, 2026-10-29) : la clé de laiton ne sert qu'à la grille de cette carte, elle quitte le
+        // sac à la fin de la quête, victoire ou retrait (`MotsClesEquipement::OBJET_DE_QUETE`, un seul lecteur : Equipement).
+        $this->equipement->purgerObjetsDeQuete($groupe);
 
         // ENTRETIEN des mercenaires survivants (même chantier, décision de
         // René : « 10 po par mercenaire et par quête, pour TOUS les groupes »)

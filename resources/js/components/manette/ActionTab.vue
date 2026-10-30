@@ -122,6 +122,8 @@ const ICONE_TYPE = {
     // PORTE À CONDITION (Kellar's Keep, 2026-10-23) : deux dés rouges contre le Corps de départ ou l'Esprit actuel — un
     // cadenas qu'on force, distinct de la porte de pierre et de la porte ouverte à la main (`door_open`).
     forcer_porte_condition: 'lock_open',
+    // GRILLE DE FER (Mage of the Mirror, 2026-10-29) : une herse qu'on force à deux dés rouges — ni le cadenas ni la porte.
+    forcer_grille: 'fence',
     actionner_levier: 'toggle_on',
     // ⚠ `equiper` PARTAGEAIT `swords` avec `attaque` juste au-dessus dans ce
     // même menu — capture `combat-apres-haut.png` (2026-09-18) : « Attaquer »

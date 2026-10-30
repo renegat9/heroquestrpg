@@ -163,6 +163,11 @@ function fixturesDesTypesAnnonces(): array
             'verrou' => 'porte verrouillée', 'faces' => [3, 4], 'total' => 7, 'valeur' => 8,
             'comparaison' => 'strict', 'attribut' => 'corps', 'reussi' => true,
         ],
+        // Grille de fer (Mage of the Mirror, 2026-10-29) : la même phrase, un échec pour voir la fin de tour.
+        'forcer_grille' => [
+            'verrou' => 'grille de fer', 'faces' => [5, 4], 'total' => 9, 'valeur' => 8,
+            'comparaison' => 'strict', 'attribut' => 'corps', 'reussi' => false,
+        ],
         'actionner_levier' => ['jet' => ['issue' => 'echec', 'succes' => 0, 'difficulte' => 2]],
         'forcer_porte_pierre' => ['reussi' => true, 'cranes' => 2],
         'ouvrir_porte' => ['cause' => 'main', 'porte' => $porte],

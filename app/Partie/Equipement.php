@@ -8,6 +8,7 @@ use App\Engine\MotsClesEquipement;
 use App\Models\ClasseHeros;
 use App\Models\Competence;
 use App\Models\EtatPersonnageQuete;
+use App\Models\Groupe;
 use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Personnage;
@@ -1308,5 +1309,24 @@ final class Equipement
         }
 
         return $ligne->objet;
+    }
+
+    /**
+     * FIN DE QUÊTE (victoire OU échec) : les objets de QUÊTE du groupe quittent le sac — ceux dont l'effet porte
+     * `MotsClesEquipement::OBJET_DE_QUETE` (la clé de laiton, F7539 p. 6 : « used to open a portcullis in several quests » —
+     * une clé ne sert qu'à la carte où elle est trouvée). Lecture du vocabulaire fermé, un seul point de passage : le
+     * résolveur l'appelle à `terminerQuete()` et `echouerQuete()`, rien d'autre. Rend le nombre de lignes retirées.
+     */
+    public function purgerObjetsDeQuete(Groupe $groupe): int
+    {
+        $lignes = Inventaire::query()
+            ->whereIn('personnage_id', $groupe->personnages()->pluck('personnages.id'))
+            ->with('objet')
+            ->get()
+            ->filter(fn (Inventaire $ligne) => array_key_exists(MotsClesEquipement::OBJET_DE_QUETE, (array) $ligne->objet?->effet));
+
+        Inventaire::query()->whereKey($lignes->pluck('id'))->delete();
+
+        return $lignes->count();
     }
 }

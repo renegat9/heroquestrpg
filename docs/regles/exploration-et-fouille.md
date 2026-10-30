@@ -425,3 +425,15 @@ Les tables de meuble (`MoteurMobilier::tirerButin()`) ne passent pas par le paqu
 
 La fouille du trésor réveille les figures `fouille_de_la_salle` de la salle (`ResolveurTour::resoudreFouilleTresor()`, annoncé par le tampon d'annonces). ÉCART DE CALENDRIER écrit : la statue du livret attaque « immediately » ; la nôtre joue au tour suivant du MJ.
 
+
+## OBJET NOMMÉ DONNÉ PAR UN MEUBLE, UNE SEULE FOIS — la clé de laiton (Mage of the Mirror, lot F, 2026-10-29)
+
+- **Le râtelier qui porte la clé** (`grille.mobilier[i].objet_fixe = "Clé de laiton"`, posé par `AssembleurCarte::placerMobilier()`) :
+  la **première** fouille de ce meuble (`fouille_par` vide, lu AVANT `marquerFouille()`) donne la clé EN PLUS de sa table ordinaire, sous
+  `cle_de_laiton`. Patron de la caisse de ravitaillement (butin fixe au premier fouilleur, sans tirage) ; la différence : la clé s'ajoute
+  à la table, elle ne la remplace pas (quête 7 note C : un râtelier donne « a tool kit » ET « a brass key »).
+- **Hors butin aléatoire** : la clé est de rareté `unique` (exclue par `TirageButin` et par tout tirage de meuble), de catégorie `tresor`
+  (exclue de l'étal par `PhaseMarche`), et porte `hors_marche` (ni étal, ni revente). Aucune table `effet.fouille` ne la nomme.
+- **Fin de quête** : `objet_de_quete` (`MotsClesEquipement::OBJET_DE_QUETE`) — la clé quitte le sac à `terminerQuete()` et à
+  `echouerQuete()`, par `Equipement::purgerObjetsDeQuete()`. Aucun autre objet n'a ce drapeau.
+- Règle complète, placement et tests : `docs/regles/carte-donjon.md` § « LA GRILLE DE FER ».

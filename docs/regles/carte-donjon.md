@@ -620,6 +620,56 @@ condition qu'un héros ne remplit jamais (un Esprit à 0) le laisse passer par l
 ⚠ **Lecture des textes** : la porte verrouillée dit « less than » (strict), la porte de l'Est « equal to or less than » (inclusif) —
 le portage suit les textes, pas une symétrie. Les emprises des deux meubles (1×1) sont des analogies, non mesurées (`MobilierSeeder`).
 
+## LA GRILLE DE FER — une porte qui se force ou s'ouvre à la clé (Mage of the Mirror, lot F, 2026-10-29)
+
+**Sources** : *The Mage of the Mirror* F7539 p. 4 (« Portcullises x4 » : « Some of these massive iron gates open when the heroes
+spring a certain trap, while others are unlocked by the brass key or forced open by brute strength. Heroes and monsters cannot
+see through a portcullis until it is opened. »), p. 6 (« Brass Key » : « used to open a portcullis in several quests. The brass
+key tile is given to the hero who finds the key. »), quête 7 notes C-D (la clé dans le râtelier d'armes de la salle C, la grille
+en salle D : « The portcullis does not open unless a hero has the brass key from room "C." »), quête 10 note G (« a hero must roll
+less than their Body Points on two red dice to force the portcullis open. Each hero may try once per turn until the portcullis
+opens. »). Décisions : `docs/plan-restes-extensions-2026-10-29.md`, lot F (F1 : la force vaut pour TOUTE grille ; F2 : la clé quitte
+le sac en fin de quête). Contrat : `docs/contrat-api.md` § « Mage of the Mirror — grille de fer et clé de laiton ».
+
+**Un état de porte de plus, pas une couche** : `verrou.type = MoteurPortes::VERROU_GRILLE` sur une entrée `fermee`, sur le patron exact
+de la porte à condition (`VERROU_CONDITION`) et de la porte de pierre (`VERROU_PIERRE`). Close, elle bloque le passage **et la vue** :
+c'est déjà le cas de toute porte non ouverte (`Grille::definirPortes()`, `bloqueVue()`) ; la grille n'a donc pas de règle de vue propre.
+
+**Placement — jamais le seul chemin.** `AssembleurCarte::marquerPortesDeGrille()` ne pose une grille QUE sur une arête de BOUCLE (`boucle`,
+jamais l'arbre couvrant), au plus UNE par carte, et SEULEMENT sous le thème `mage_du_miroir` (la garde précède le premier tirage : hors de
+ce thème, la suite PRNG ne bouge pas). `GrilleDeFerTest` vérifie, sur 60 graines, qu'ôter la grille ne coupe aucune salle.
+
+**La voie FORCE (F1)** : le héros au contact lance DEUX dés rouges ; un total strictement sous son Corps de DÉPART (`pv_body_max`) ouvre
+la grille. Le seuil se lit sur `MoteurPortes::FORCE_GRILLE`, copie de la porte verrouillée de Kellar's Keep (F4543 p. 19 note A : « roll
+2 red dice. If they roll less than their **starting** number of Body Points, the door opens. If they fail to open the door, their turn
+ends. ») — même mécanique, donc même choix : le DÉPART, pas l'actuel. Un échec **ferme le tour** (`finTourPorteForcee`), comme la porte à
+condition : la quête 10 dit seulement « once per turn », lecture compatible, retenue celle du précédent le plus proche. Pas d'exemption du
+Nain (le livret n'en parle pas). Le menu n'offre `forcer_grille` qu'à une grille adjacente et close. `ResolveurTour::resoudreForcerPorte()`
+est le SEUL point de passage du jet, partagé avec la porte à condition ; seule change la liste des portes offertes.
+
+**La voie CLÉ** : le lecteur existant — `verrou.type` dans `MoteurPortes::VERROUS_A_CLE` (`cle` et `grille`) et `MoteurPortes::possedeCle()` —,
+avec `verrou.objet_id` = la « Clé de laiton » du catalogue. Option `ouvrir_porte` « (clé) », ni jet ni tour fermé.
+
+**Le producteur de la clé (la première fouille d'un râtelier d'armes)** : `AssembleurCarte::salleDeLaCle()` choisit UNE salle — jamais la salle
+de départ ni une salle que la grille sépare — ATTEIGNABLE depuis le départ SANS franchir un verrou (la grille, la pierre, la condition, un
+levier, un gardien, une porte secrète) : `accessiblesSansVerrou()`, le test que la trappe de téléportation partage. Un râtelier garanti
+(`objet_fixe: "Clé de laiton"`, comme l'élément-objectif dans la salle du boss) y est posé. `ResolveurTour::resoudreFouilleMobilier()` donne la
+clé à la PREMIÈRE fouille de ce râtelier (`$premierAuMeuble`), EN PLUS de sa table ordinaire (quête 7 note C : « finds a tool kit in the
+weapons rack. […] This hero also finds a brass key. »). Si aucune salle ne passe, la grille garde seulement la voie force.
+
+**Fin de quête (F2)** : la clé quitte le sac à `terminerQuete()` et à `echouerQuete()` (`Equipement::purgerObjetsDeQuete()`, lecteur de
+`MotsClesEquipement::OBJET_DE_QUETE`). ⚠ Écart de lecture, noté et non tranché ici : la quête 4 note B dit « take the brass key tile back »
+au moment où la grille s'ouvre ; le plan (F2) garde la clé jusqu'à la fin de la quête. La clé ne sert qu'à CETTE carte : le choix ne change
+pas la jouabilité, il ne change que le moment où le sac la rend.
+
+**Symbole** : aucun symbole de herse dans `image-tools/symboles-livrets/manifeste.json`. `BibliothequeImages::urlSymbolePorte()` rend `null`
+pour une grille (clé `verrou_grille`, non extraite) : la manette et la table gardent l'icône Material `fence`. Sans fichier, le repli est
+l'icône — jamais le symbole de la porte fermée.
+
+**Non testé, nommé** : la pose d'une clé quand la salle candidate est pleine (le râtelier cède au plancher de cases jouables) ; la quête
+double (écartée) ; la Bénédiction de l'Oracle et la souris familière, qui révèlent la salle derrière une grille comme derrière une porte
+close (même liste que la porte de pierre, par précédent).
+
 ## TERRAINS EN PLAQUES — blocs fixes et motifs tirés (Jungles of Delthrak, 2026-10-24)
 
 Demande de René (2026-10-24), après comparaison avec la carte de la quête 1 (F9907 p. 13, PDF p07) : « ajuste pour pouvoir

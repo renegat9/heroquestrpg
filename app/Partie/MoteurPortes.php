@@ -77,6 +77,38 @@ final class MoteurPortes
     public const VERROU_CONDITION = 'condition';
 
     /**
+     * GRILLE DE FER (Mage of the Mirror, F7539 p. 4 « Portcullises x4 », quête 4 note B, quête 7 note D, quête 10 note G) :
+     * `verrou.type` sur une entrée `fermee` ordinaire, comme la porte à condition. Close, elle bloque le passage ET la vue
+     * (« Heroes and monsters cannot see through a portcullis until it is opened » — c'est déjà le cas de toute porte non
+     * ouverte, `Grille::definirPortes()`). Deux voies d'ouverture :
+     *  - la CLÉ : le héros au contact porte la « Clé de laiton » (`possedeCle()`, lecteur existant, `verrou.objet_id`) ;
+     *  - la FORCE : deux dés rouges, total strictement sous le Corps de DÉPART (`FORCE_GRILLE`, précédent sourcé de la porte
+     *    verrouillée de Kellar's Keep, F4543 p. 19 note A : « their starting number of Body Points »). Un échec ferme le tour.
+     *
+     * Posée UNIQUEMENT sur une arête de BOUCLE par `AssembleurCarte::marquerPortesDeGrille()`, au plus une par carte, sous le
+     * thème `mage_du_miroir` : jamais le seul chemin, par construction.
+     */
+    public const VERROU_GRILLE = 'grille';
+
+    /** Le nom du catalogue de la clé d'une grille (F7539 p. 6, « Brass Key »). Hors marché, unique, jamais dans le butin. */
+    public const CLE_DE_LAITON = 'Clé de laiton';
+
+    /**
+     * Les verrous qu'une CLÉ ouvre (`possedeCle()`, `ouvrir_porte` « (clé) »). Une seule liste : le menu et le résolveur la lisent.
+     */
+    public const VERROUS_A_CLE = ['cle', self::VERROU_GRILLE];
+
+    /**
+     * La FORCE d'une grille : les paramètres de la porte verrouillée de Kellar's Keep, copiés tels quels — deux dés rouges,
+     * strictement sous le Corps de départ, pas d'exemption. Une seule copie de la règle : `franchit()` et
+     * `valeurDeComparaison()` la lisent, comme pour la porte à condition. Pas une entrée de `CONDITIONS` : `CONDITIONS` est tiré
+     * au sort par `marquerPortesDeCondition()`, et y ajouter une ligne décalerait le tirage des donjons de Kellar's Keep.
+     *
+     * @var array{libelle: string, attribut: string, comparaison: string, des: int, nain_des: ?int}
+     */
+    public const FORCE_GRILLE = self::CONDITIONS['porte_verrouillee'];
+
+    /**
      * Les deux portes à condition de Kellar's Keep, avec leurs paramètres SOURCÉS. Leur valeur de comparaison suit
      * l'attribut : le Corps se compare aux Corps de DÉPART (`pv_body_max` — « all Body and Mind Points are restored between
      * quests », F4543 p. 4, la quête commence à pleine santé), l'Esprit à l'Esprit ACTUEL (`pv_mind`).
@@ -280,6 +312,21 @@ final class MoteurPortes
             $carte, $x, $y,
             fn (array $porte) => ($porte['etat'] ?? self::ETAT_OUVERTE) !== self::ETAT_OUVERTE
                 && ($porte['verrou']['type'] ?? null) === self::VERROU_CONDITION,
+        );
+    }
+
+    /**
+     * Grilles de fer NON ouvertes adjacentes à la case (x, y) — même géométrie et même liste que `portesConditionAdjacentes()`.
+     * Lu par le menu (option `forcer_grille`) ET par le résolveur : une grille ne se force que depuis une case où elle est listée.
+     *
+     * @return list<array{index: int, porte: array<string, mixed>}>
+     */
+    public function portesGrilleAdjacentes(Carte $carte, int $x, int $y): array
+    {
+        return $this->portesAdjacentes(
+            $carte, $x, $y,
+            fn (array $porte) => ($porte['etat'] ?? self::ETAT_OUVERTE) !== self::ETAT_OUVERTE
+                && ($porte['verrou']['type'] ?? null) === self::VERROU_GRILLE,
         );
     }
 
