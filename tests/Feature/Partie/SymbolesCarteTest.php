@@ -269,7 +269,9 @@ it('le jeton OVALE : forme et rotation viennent du serveur, DungeonGrid le pose 
         ->and(str_contains($jeu, 'symbole_rotation: e.symbole_rotation ?? 0'))->toBeTrue('entitesVersFigurines ne transporte pas la rotation du jeton')
         ->and(str_contains($grille, ':tourne="p.f.symbole_rotation ?? 0"'))->toBeTrue('le jeton ovale ne lit pas la rotation publiée')
         ->and(str_contains($grille, ':echelle="100"'))->toBeTrue('le jeton ovale ne remplit pas son ellipse')
-        ->and(str_contains($grille, "f.symbole_forme === 'ovale'"))->toBeTrue('la forme ovale n\'est pas lue sur le champ publié')
+        // Une TUILE de deux cases (le Golem, 2026-10-29) se pose comme un ovale : la même lecture du champ publié.
+        ->and(str_contains($grille, "['ovale', 'tuile'].includes(f.symbole_forme)"))->toBeTrue('la forme ovale n\'est pas lue sur le champ publié')
+        ->and(str_contains($grille, "p.f.symbole_forme === 'tuile'"))->toBeTrue('la forme tuile n\'est pas lue sur le champ publié')
         // Un ovale ne se pose jamais sur une emprise carrée : il reste rond.
         ->and(str_contains($grille, '(f.ew ?? 1) !== (f.eh ?? 1)'))->toBeTrue('un ovale sur une emprise carrée n\'est pas écarté')
         ->and(str_contains($grille, 'const JETON_OVALE = 0.85'))->toBeTrue('le jeton ovale n\'occupe pas 85 % de son emprise')
