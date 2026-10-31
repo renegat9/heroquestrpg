@@ -73,13 +73,14 @@ it('les méchants du jeu de base portent leur répertoire et leur immunité tels
         ->and((array) config('archetypes_lanceurs.balur_mage_du_feu.sorts'))->toHaveCount(6)
         ->and($balur->archetype_lanceur)->toBe('balur_mage_du_feu');
 
-    // Grak : trois sorts, un par tour (le budget de son palier borne le reste, divergence nommée).
-    expect((array) config('archetypes_lanceurs.grak.sorts'))->toBe(['Frayeur', 'Sommeil', 'Tourmente']);
+    // Grak : trois sorts, chacun une fois, un par tour (`sorts_uniques`, 2026-10-31).
+    expect((array) config('archetypes_lanceurs.grak.sorts'))->toBe(['Frayeur', 'Sommeil', 'Tourmente'])
+        ->and((array) Monstre::where('nom_base', 'Grak')->firstOrFail()->capacites)->toBe(['sorts_uniques']);
 
-    // Le Seigneur Sorcier de Barak Tor : cinq sorts, et AUCUNE immunité écrite (écart nommé, sans la Lame des Esprits).
+    // Le Seigneur Sorcier de Barak Tor : cinq sorts, chacun une fois, Frayeur deux fois ; AUCUNE immunité écrite (écart nommé).
     $witch = Monstre::where('nom_base', 'Seigneur Sorcier de Barak Tor')->firstOrFail();
     expect((array) config('archetypes_lanceurs.seigneur_sorcier_barak_tor.sorts'))->toHaveCount(5)
-        ->and((array) $witch->capacites)->toBe([])
+        ->and((array) $witch->capacites)->toBe(['sorts_uniques' => ['Frayeur' => 2]])
         ->and($witch->tier)->toBe('boss');
 });
 

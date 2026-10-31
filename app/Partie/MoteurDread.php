@@ -249,12 +249,13 @@ final class MoteurDread
         // SORCIERS DE MORCAR (`sorts_uniques`) : « At the beginning of a new
         // quest, each Sorcerer in that quest starts with a full set of six
         // spells » — le budget est le RÉPERTOIRE ENTIER (un usage par sort,
-        // chaque sort une seule fois), et la liste des sorts déjà lancés repart
-        // à vide. Remplace le budget par palier, qui ne dit pas QUEL sort est
-        // dépensé.
+        // chaque sort une seule fois ; `budgetSortsUniques()` compte le nombre
+        // écrit pour un sort nommé, Barak Tor « can cast fear twice »), et la
+        // liste des sorts déjà lancés repart à vide. Remplace le budget par
+        // palier, qui ne dit pas QUEL sort est dépensé.
         if ($this->aCapacite($instance, 'sorts_uniques')) {
             $instance->update([
-                'usages_dread' => count($this->repertoireDe($instance)),
+                'usages_dread' => $this->budgetSortsUniques($instance),
                 'sorts_dread_lances' => [],
                 'invocation_dread_utilisee' => false,
                 'fuite_dread_utilisee' => false,
@@ -343,15 +344,38 @@ final class MoteurDread
         $maj = ['usages_dread' => max(0, (int) $instance->usages_dread - 1)];
 
         // « Each spell may only be used once per quest » : on retient QUEL sort
-        // est parti, pas seulement combien.
+        // est parti, pas seulement combien. UN NOM PAR LANCER, sans dédoublonner :
+        // un sort qu'un livret donne deux fois (`['Frayeur' => 2]`) doit se voir
+        // deux fois (`sortsLancables()` compte).
         if ($sort !== null && $this->aCapacite($instance, 'sorts_uniques')) {
-            $maj['sorts_dread_lances'] = array_values(array_unique([
+            $maj['sorts_dread_lances'] = [
                 ...(array) ($instance->sorts_dread_lances ?? []),
                 $sort->nom,
-            ]));
+            ];
         }
 
         $instance->update($maj);
+    }
+
+    /**
+     * Combien de fois CE sort peut partir pour ce sorcier : UNE fois (la règle de `sorts_uniques`), ou le nombre que
+     * le livret écrit pour lui (`['Frayeur' => 2]`, Seigneur Sorcier de Barak Tor). Ne lit que la forme paramétrée :
+     * la forme nue, « chacun une fois », est une liste et ne porte aucun nombre.
+     */
+    private function lancersPermis(InstanceMonstre $instance, string $sort): int
+    {
+        $parametre = $instance->capaciteParametree('sorts_uniques');
+
+        return is_array($parametre) ? max(1, (int) ($parametre[$sort] ?? 1)) : 1;
+    }
+
+    /** Le budget d'un sorcier `sorts_uniques` : la somme de ce que chacun de ses sorts peut lancer. */
+    private function budgetSortsUniques(InstanceMonstre $instance): int
+    {
+        return array_sum(array_map(
+            fn (string $sort) => $this->lancersPermis($instance, $sort),
+            $this->repertoireDe($instance),
+        ));
     }
 
     // ------------------------------------------------------------------
@@ -1857,9 +1881,10 @@ final class MoteurDread
 
     /**
      * Les noms que ce Sorcier peut encore LANCER : son répertoire moins ce que la
-     * quête lui a fait oublier (`Unlearn`) ET moins ce qu'il a déjà lancé
-     * (`sorts_uniques` — chaque sort une seule fois par quête). Distinct de
-     * {@see self::sortsOubliables()} : un sort déjà lancé est épuisé, mais on
+     * quête lui a fait oublier (`Unlearn`) ET moins ce qu'il a épuisé
+     * (`sorts_uniques` — chaque sort une seule fois par quête, sauf le nombre que
+     * le livret écrit pour lui, `lancersPermis()`). Distinct de
+     * {@see self::sortsOubliables()} : un sort épuisé ne se lance plus, mais on
      * peut encore le faire OUBLIER (la carte héros ne le sait pas).
      *
      * @return list<string>
@@ -1869,7 +1894,11 @@ final class MoteurDread
         $noms = $this->sortsOubliables($instance, $quete);
 
         if ($this->aCapacite($instance, 'sorts_uniques')) {
-            $noms = array_values(array_diff($noms, (array) ($instance->sorts_dread_lances ?? [])));
+            $lances = array_count_values((array) ($instance->sorts_dread_lances ?? []));
+            $noms = array_values(array_filter(
+                $noms,
+                fn (string $nom) => ($lances[$nom] ?? 0) < $this->lancersPermis($instance, $nom),
+            ));
         }
 
         // Un sort dont la dernière carte a quitté la main (défaussée, ou prêtée à un héros gelé) ne se

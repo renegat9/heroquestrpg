@@ -218,6 +218,8 @@ return [
         // chef de légion, une reine sorcière, et le Seigneur final, voix de boss.
         'Cavalier-esprit' => 'mort_vivant',
         'Garde du Dread' => 'demon',
+        // First Light (quête 9, PDF 18) : le général de Qwindrak, un Guerrier du Dread — la voix de sa famille.
+        'Abraxus' => 'demon',
         'Skulmar' => 'champion',
         'Kessandria' => 'sorcier',
         'Seigneur Sorcier' => 'boss',

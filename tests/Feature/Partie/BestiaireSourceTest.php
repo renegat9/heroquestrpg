@@ -118,7 +118,9 @@ it('porte les créatures d\'extension telles que les livrets les chiffrent', fun
         'Fellmarak le Roi Sorcier' => [8, 5, 4, 6, 6],
         // Return of the Witch Lord (F4193, chantier 2026-10-23) — lues sur le livret, `reference/18` §Witch Lord.
         'Cavalier-esprit' => [8, 4, 4, 3, 3],   // p. 11
-        'Garde du Dread' => [8, 4, 6, 3, 3],    // p. 25
+        'Garde du Dread' => [8, 4, 6, 3, 3],    // p. 25 (et First Light, quête 4, PDF 11 : même bloc, rendu PNG relu)
+        // First Light (quête 9, PDF 18) : le général de Qwindrak a SON bloc, relu sur le rendu PNG (l'OCR lisait « 5 a »).
+        'Abraxus' => [8, 4, 5, 3, 3],
         'Skulmar' => [8, 5, 6, 3, 4],           // p. 21
         'Kessandria' => [6, 4, 6, 3, 4],        // p. 25
         'Seigneur Sorcier' => [10, 5, 6, 4, 5], // p. 27 (relevé par rapport au jeu de base)
@@ -698,7 +700,7 @@ it('donne 2 cases à chaque figure dont le livret dessine un jeton OVALE ou une 
     expect(Monstre::where('nom_base', 'Loup géant')->firstOrFail()->grandeTaille())->toBeTrue();
 });
 
-it('déclare `attaque_diagonale` sur l\'Assassin, la Vrille et le Scion Fleur-Pourrie, et nulle part ailleurs', function () {
+it('déclare `attaque_diagonale` sur l\'Assassin, Abraxus, la Vrille et le Scion Fleur-Pourrie, et nulle part ailleurs', function () {
     // Carte « Assassin » (Rise of the Dread Moon, p15, © 2023, scan de René
     // 2026-10-05) : « Each Assassin may attack diagonally. » Le comportement
     // EN JEU (un Assassin en diagonale attaque, un Gobelin en diagonale non)
@@ -710,6 +712,7 @@ it('déclare `attaque_diagonale` sur l\'Assassin, la Vrille et le Scion Fleur-Po
     // « *Tendrils may attack diagonally. » (la Vrille) et « *The Bloomrot Scion has a sweeping
     // attack that targets all heroes adjacent and diagonal to it. » (le Scion — son balayage lit la
     // MÊME adjacence diagonale, `ResolveurTour::heroAuContact()`).
+    // Abraxus (First Light, quête 9, PDF 18, « Abraxus wields a crossbow and can attack diagonally ») : le même lecteur.
     $porteurs = Monstre::all()
         ->filter(fn (Monstre $m) => in_array('attaque_diagonale', (array) $m->capacites, true))
         ->pluck('nom_base')
@@ -717,7 +720,7 @@ it('déclare `attaque_diagonale` sur l\'Assassin, la Vrille et le Scion Fleur-Po
         ->values()
         ->all();
 
-    expect($porteurs)->toBe(['Assassin', 'Scion Fleur-Pourrie', 'Vrille'], '`attaque_diagonale` : porteurs inattendus : '.implode(', ', $porteurs));
+    expect($porteurs)->toBe(['Abraxus', 'Assassin', 'Scion Fleur-Pourrie', 'Vrille'], '`attaque_diagonale` : porteurs inattendus : '.implode(', ', $porteurs));
 });
 
 it('porte les créatures de Kellar\'s Keep et Bellthor telles que leurs livrets les chiffrent, avec leur `cout` mesuré', function () {
@@ -831,22 +834,19 @@ it('déclare ses ÉCARTS DE COMPORTEMENT du jeu de base, avec leur raison (2026-
             'raison' => 'René, 2026-10-31 : nos quêtes sont générées ; un groupe sans la Lame des Esprits ne pourrait jamais '
                 .'le vaincre. Il ne fuit pas (le livret ne lui donne aucune Fuite).',
         ],
-        'Grak' => [
-            'livret' => '« one per turn », sans borne écrite',
-            'chez_nous' => 'bridé au budget de son palier (sous-boss : 2 par rencontre)',
-            'raison' => 'Même arbitrage que le Spectre (`USAGES_BASE`) : un sort « à volonté » n\'est pas un sort sans limite. '
-                .'`sort_a_volonte` ne nomme qu\'un sort, Grak en a trois.',
-        ],
     ];
+    // Grak n'écarte PLUS rien : « one per turn » et « une fois par quête » sont lus par `sorts_uniques` (2026-10-31).
 
     foreach ($ecarts as $nom => $ecart) {
         expect($ecart['raison'])->not->toBeEmpty("{$nom} : écart sans raison écrite");
     }
 
+    // Barak Tor : aucune immunité (l'écart nommé ci-dessus), et « fear twice » LEVÉ : Frayeur se compte deux fois.
     $witch = Monstre::where('nom_base', 'Seigneur Sorcier de Barak Tor')->firstOrFail();
     expect($witch->immunitesSorts())->toMatchArray(['totale' => false, 'sauf' => null, 'elements' => null, 'sources' => null])
-        ->and((array) $witch->capacites)->toBe([]);
+        ->and((array) $witch->capacites)->toBe(['sorts_uniques' => ['Frayeur' => 2]]);
 
     $grak = Monstre::where('nom_base', 'Grak')->firstOrFail();
-    expect((array) $grak->capacites)->not->toHaveKey('repertoire_complet');
+    expect((array) $grak->capacites)->toBe(['sorts_uniques'])
+        ->and((array) $grak->capacites)->not->toHaveKey('repertoire_complet');
 });

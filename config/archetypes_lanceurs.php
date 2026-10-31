@@ -333,8 +333,8 @@ return [
     'grak' => [
         'porteur' => 'Grak (jeu de base, quête 6, F2847 PDF 8 — LQ p. 15)',
         // « Grak knows 3 Dread spells that he may cast (one per turn) instead of attacking. The spells are: fear,
-        // sleep, and tempest. » Les trois sont de palier `sous_boss` ou `base` : aucun filtre à lever. Le budget de
-        // palier borne le « one per turn » (divergence nommée, `docs/regles/bestiaire-et-rencontres.md`).
+        // sleep, and tempest. » Les trois sont de palier `sous_boss` ou `base` : aucun filtre à lever. « Une fois par
+        // quête » de la règle de base : `sorts_uniques` sur la fiche (`MonstreSeeder`), trois lancers au plus, un par tour.
         'sorts' => [
             'Frayeur',
             'Sommeil',
@@ -361,8 +361,8 @@ return [
     'seigneur_sorcier_barak_tor' => [
         'porteur' => 'Seigneur Sorcier de Barak Tor (jeu de base, quête 14, F2847 PDF 16 — LQ p. 31)',
         // « Also, he knows the following spells: summon undead, fear (which he can cast twice), ball of flame,
-        // command, and tempest. » ⚠ « fear (which he can cast twice) » n'a pas de compteur par sort : le boss n'est
-        // borné que par son budget de palier (3 par rencontre). Écart OUVERT, écrit dans la doc du bestiaire.
+        // command, and tempest. » Chacun une fois (`sorts_uniques`), Frayeur deux fois : `['Frayeur' => 2]` sur la fiche
+        // (`MonstreSeeder`). Budget 6, lu par `MoteurDread::budgetSortsUniques()`. Écart « fear twice » LEVÉ (2026-10-31).
         'sorts' => [
             'Invocation de morts-vivants',
             'Frayeur',

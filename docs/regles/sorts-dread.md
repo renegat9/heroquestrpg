@@ -270,3 +270,30 @@ Seuls les sorts à dégâts ont un lecteur ici. Détail, et ce qui n'est pas por
 `docs/regles/exploration-et-fouille.md` §« Coffre piégé d'un sort de Dread ».
 
 **Le porteur lance un sort du maître du donjon (lot I, 2026-10-29).** Le talisman maudit porte deux sorts de Dread (Prophecy of Telor p. 10) : Éclair de Chaos (rayon, 2 PV, sans défense) et Tempête de feu (salle, 3 PV moins les succès de 2 dés rouges par figure). Le résolveur LIT l'effet au catalogue : le rayon passe par la couture du rayon du héros (`ResolveurTour::projeterRayon()`, avec l'immunité aux sorts de Dread en argument), la salle par le calcul de dégâts du MJ (`MoteurDread::degatsInfliges()`, rendu public pour cela). Le porteur ne frappe que des monstres ; une figure immunisée n'est jamais touchée. Une fois par quête et par sort, +1 PV de Mind à chaque lancer, plafonné au maximum. Décision et écarts : `artefacts.md`, §« Sorts de Dread lancés par le porteur ».
+
+## Ajustements du jeu de base (2026-10-31) — les sorts comptés
+
+Deux sorciers du jeu de base disent « une fois par quête » ou « deux fois » (LR p. 20-21 ; F2847 LQ p. 15 et 31). Deux formes existaient déjà pour cela, et il fallait choisir sans en tordre une.
+
+- **Grak** (« fear, sleep, and tempest », « one per turn ») : `sorts_uniques` nu. Chacun une fois, trois lancers au plus, un par tour. L'écart « bridé au budget de palier » est LEVÉ : le budget de palier (2) ne disait pas quel sort était épuisé.
+- **Le Seigneur Sorcier de Barak Tor** (« fear (which he can cast twice) ») : chacun une fois, Frayeur deux fois. Budget 6.
+
+**Le choix de forme.** Deux candidats :
+
+1. **`reserve_cartes` : REFUSÉE.** `MoteurDread::consommerUsage()` ne dépense une carte de réserve que pour un sort dont `effet.carte` vaut `defausse` (*Mind Burst*) ; un sort prêté (`prete`, *Mind Lock*, *Dominate*) ne la dépense qu'au moment où il PREND (`VerrouMental::enregistrer()`). Une Frayeur nue n'a ni l'une ni l'autre : sa réserve ne s'épuiserait jamais. La faire fonctionner aurait exigé de lui inventer un destin de carte (défaussée ? prêtée ?) que le livret n'écrit pas — « fear (which he can cast twice) ». Elle n'est donc pas la forme.
+2. **`sorts_uniques` à compteur : RETENUE.** `['Frayeur' => 2]` : un nombre par sort nommé, les autres une fois. Lue à DEUX points, qui sont la règle : `MoteurDread::reinitialiserUsagesInstance()` (le budget = somme des usages, `budgetSortsUniques()`) et `MoteurDread::sortsLancables()` (un sort est épuisé quand ses lancers atteignent son compte, `lancersPermis()`). La forme nue reste une liste, et ne porte aucun nombre : `lancersPermis()` rend 1 pour tout sort qu'elle ne nomme pas.
+
+**Ce que cela change dans la donnée.**
+
+- Déclarée dans le vocabulaire fermé `App\Engine\MotsClesAdversaires::SORTS_UNIQUES`, avec son lecteur (`reinitialiserUsagesInstance`). Le registre est confronté aux données dans les deux sens (`AdversairesNommesTest`), et `AjustementsJeuDeBaseTest` pose un garde-fou de plus : seul Barak Tor écrit un compteur, chaque sort compté appartient à son répertoire, et chaque compteur vaut au moins 2 (un compteur de 1 ne s'écrit pas).
+- `instances_monstres.sorts_dread_lances` garde UN NOM PAR LANCER, sans dédoublonner. Le dédoublonnage (`array_unique`) était sans objet tant qu'un sort ne partait qu'une fois, et il aurait effacé la seconde Frayeur. Le snapshot porte déjà la colonne : une reprise ne rend pas le second lancer.
+
+**Testé EN JEU** (`tests/Feature/Partie/AjustementsJeuDeBaseTest.php`, par les routes réelles, deux héros) :
+
+- Grak : trois sorts, chacun une fois, un par tour (Frayeur, Sommeil, Tourmente), usages 3 → 0.
+- Barak Tor : six lancers, Frayeur deux fois, Boule de Flammes, Commandement, Tourmente et Invocation de morts-vivants une fois chacun ; usages 6 → 0.
+- Mutation contrôlée : `lancersPermis()` rendu constant (1) fait tomber le budget à 5, et le test échoue (« 5 is identical to 6 »).
+
+**Pourquoi DEUX héros.** Avec un héros seul, Tourmente lui fait perdre son tour (`tour_perdu`), et le tour suivant n'ouvre AUCUN menu (422 « Aucun menu en attente »), parce que la phase des monstres ne se rejoue pas d'elle-même pour un tour perdu. C'est le trou que `ResolveurTour` nomme pour l'Étourdi d'un groupe réduit à un héros (ligne de `ROUNDS_SANS_HEROS_MAX`, « non corrigé, nommé »). Observé le 2026-10-31 : il vaut aussi pour Tourmente, et il devrait être fermé avec l'Étourdi. Les tests en jeu n'en dépendent pas.
+
+**Ce qui reste hors de ce chantier.** Le libellé du guide (`resources/js/compendium.js`, `sorts_uniques` : « chacun une seule fois par quête ») est inexact pour le Seigneur Sorcier, qui lance Frayeur deux fois : à corriger côté front, non touché ici. Le compte d'un sort n'a aucun autre porteur que Barak Tor.

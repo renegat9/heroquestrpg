@@ -63,6 +63,7 @@ return [
         'Squelette-roi nain' => 'skeleton', // « These skeletons are those of ancient dwarven kings » (F4543 PDF 9) ; les jetons derrière les portes de B
         'Cavalier-esprit' => 'skeleton', // « The skeletons in these four rooms are the Spirit Riders » (F4193 PDF 6)
         'Garde du Dread' => 'dread-warrior', // « three Doomguard Dread warriors » (F4193 PDF 13) ; « This Dread Warrior is a Doomguard » (First Light, quête 4)
+        'Abraxus' => 'dread-warrior', // « Qwindrak's general is a Dread Warrior called by the name of Abraxus » (First Light, quête 9, PDF 18) : le jeton du Guerrier du Dread
         'Bellthor' => 'gargoyle', // « Bellthor, a foul gargoyle » (F4193 PDF 9) ; le jeton de gargouille près de B
         'Gargouille gardienne' => 'gargoyle', // « Place the gargoyle on the square marked X » (F4543 PDF 14)
         'Roi Archaloneus' => 'mummy', // « This mummy is King Archaloneus » (G1798 PDF 9) ; le jeton de momie près de B

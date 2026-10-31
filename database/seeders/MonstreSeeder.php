@@ -196,11 +196,11 @@ class MonstreSeeder extends Seeder
 
             // GRAK (quête 6, « Legacy of the Orc Warlord », PDF 8 — LQ p. 15) : « Use an orc figure for Grak. » « Grak knows
             // 3 Dread spells that he may cast (one per turn) instead of attacking. The spells are: fear, sleep, and tempest. »
-            // ⚠ « one per turn » n'écrit AUCUNE borne : Grak est bridé au budget de son palier (sous-boss : 2 par rencontre),
-            // comme le Spectre (`USAGES_BASE`). C'est une divergence NOMMÉE (`docs/regles/bestiaire-et-rencontres.md`).
+            // « Une fois par quête » de la règle de base (LR p. 20-21) : chacun des trois UNE fois, trois lancers au plus,
+            // un par tour — `sorts_uniques`, comme Balur. Budget 3 (`MoteurDread::budgetSortsUniques()`).
             // Body 3 / (1,5 − 4/6) = 3,6 attaques, comme le Cavalier-esprit : cout 8, le plancher.
             ['nom_base' => 'Grak', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 3,
-                'tier' => 'sous_boss', 'boite' => 'base', 'cout' => 8, 'capacites' => [], 'sorts_dread' => [],
+                'tier' => 'sous_boss', 'boite' => 'base', 'cout' => 8, 'capacites' => ['sorts_uniques'], 'sorts_dread' => [],
                 'archetype_lanceur' => 'grak'],
 
             // BALUR (quête 8, « The Fire Mage », PDF 10 — LQ p. 19) : « Use the Dread sorcerer figure for Balur. Fire spells
@@ -223,10 +223,13 @@ class MonstreSeeder extends Seeder
             // PAS semée (René, 2026-10-31 : nos quêtes sont générées, un groupe sans la Lame des Esprits ne pourrait jamais
             // le vaincre). Elle est dans la liste nommée de `BestiaireSourceTest`.
             // Il ne fuit pas : le livret ne lui donne aucune Fuite. Ses sorts : summon undead, fear (« which he can cast
-            // twice »), ball of flame, command, tempest. ⚠ « fear twice » N'EST PAS porté : aucun compteur par sort n'existe
-            // (`reserve_cartes` remplacerait tout le répertoire) ; il n'est borné que par le budget de boss, 3 par rencontre.
+            // twice »), ball of flame, command, tempest. Chacun UNE fois par quête (la règle de base, `sorts_uniques`), et
+            // Frayeur DEUX fois : `['Frayeur' => 2]`. Budget 6 = cinq sorts, Frayeur comptée deux fois
+            // (`MoteurDread::budgetSortsUniques()`). `reserve_cartes` n'est pas la forme : elle ne dépense une carte que
+            // pour un sort qui la défausse ou la prête (`MoteurDread::consommerUsage()`).
             ['nom_base' => 'Seigneur Sorcier de Barak Tor', 'deplacement' => 10, 'attaque' => 5, 'defense' => 6, 'pv_body' => 4,
-                'pv_mind' => 6, 'tier' => 'boss', 'boite' => 'base', 'cout' => 14, 'capacites' => [], 'sorts_dread' => [],
+                'pv_mind' => 6, 'tier' => 'boss', 'boite' => 'base', 'cout' => 14,
+                'capacites' => ['sorts_uniques' => ['Frayeur' => 2]], 'sorts_dread' => [],
                 'archetype_lanceur' => 'seigneur_sorcier_barak_tor'],
 
             // ----- Deux attaques par tour (Frozen Horror p. 37) -----
@@ -400,11 +403,15 @@ class MonstreSeeder extends Seeder
             //
             // ⚠ **Mind 9**, la plus haute valeur du bestiaire : une archimage
             // ne s'endort pas. C'est la fiche qui le dit, pas nous.
-            // Le `cout` en revanche est nôtre — il l'aligne sur les autres
-            // créations (Liche 18, Sorcier des Tempêtes 17), retirées le 2026-10-31. ⚠ Ancré sur des
-            // lignes qui n'existent plus : à REMESURER par la méthode du bestiaire, décision de René.
+            // Le `cout` est nôtre, MESURÉ (2026-10-31, décision de René : remesure). Body 4 / (1,5 − 4/6) = 4,8 attaques
+            // d'un héros à 3 dés. Droite des boss ancrée sur les trois repères RESTANTS (la Liche, le Sorcier des Tempêtes
+            // et le Seigneur ont été retirés) : Seigneur Sorcier (8 attaques → 14), Ogre commandant (9,0 → 15), Seigneur
+            // ogre (20,0 → 22). Moindres carrés sur ces trois points : pente 0,65, ordonnée 8,9, donc 8,9 + 0,65 × 4,8 ≈
+            // 12,1 ⇒ 12. Les deux extrêmes (8 → 14 et 20 → 22) donnent 11,9 ; seule la pente LOCALE (8 ↔ 9) donnerait 11.
+            // Festral (4,5 attaques → 11) reste en dessous : l'ordre est tenu. Les sorts ne sont pas comptés, comme pour le
+            // Seigneur Sorcier et Fellmarak (le Dragon et Magrian, eux, ajoutent +3 : écart de convention, non tranché).
             ['nom_base' => 'Archimage elfe', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 9,
-                'tier' => 'boss', 'boite' => 'mage_du_miroir', 'cout' => 17, 'capacites' => [], 'sorts_dread' => [],
+                'tier' => 'boss', 'boite' => 'mage_du_miroir', 'cout' => 12, 'capacites' => [], 'sorts_dread' => [],
                 'archetype_lanceur' => 'archimage_elfe'],
 
             // ---- The Frozen Horror (doc 18) ----
@@ -946,6 +953,20 @@ class MonstreSeeder extends Seeder
                     'flamme_du_dread' => ['degats' => 1]],
                 'sorts_dread' => ['Boule de Flammes']],
 
+            // ABRAXUS, « Qwindrak's general is a Dread Warrior called by the name of Abraxus » (First Light, quête 9, PDF 18 —
+            // « Sound the Hearthkin Horn », p. 29 imprimée). SOUS-BOSS de sa boîte : le premier sous-boss de First Light, qui
+            // n'en avait aucun (le jalon se rabattait sur le repli générique). Bloc de stats PROPRE, relu sur le rendu PNG de
+            // la page : Mouvement 8 · Attaque 4 dés · Défense 5 dés · Body 3 · Mind 3 (l'extraction texte, elle, lit « 5 a »).
+            // « Abraxus wields a crossbow and can attack diagonally » : la diagonale est `attaque_diagonale` (le lecteur de
+            // l'Assassin). L'arbalète est son arme, et le trophée de la fouille (« claims Abraxus's crossbow ») : la carte ne
+            // lui donne AUCUN tir à distance, donc pas de `portee`. Aucun sort.
+            // `cout` MESURÉ (méthode du bestiaire : Body / (1,5 − Défense/6)) : 3 / (1,5 − 5/6) = 4,5 attaques, exactement le
+            // profil de Kavra (Body 3, Défense 5), sur la droite des SOUS-BOSS (Ogre champion 7,2 → 11 ; Doralf 10,5 → 13,
+            // pente ≈ 0,61) : 11 − 0,61 × 2,7 ≈ 9,4 ⇒ 9. Le plancher du palier est 8.
+            ['nom_base' => 'Abraxus', 'deplacement' => 8, 'attaque' => 4, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'boite' => 'first_light', 'cout' => 9,
+                'capacites' => ['attaque_diagonale'], 'sorts_dread' => []],
+
             // QWINDRAK THE WARLOCK (First Light, confrontation finale — 2026-10-17, décision de René ; répertoire,
             // météore et coût révisés le 2026-10-22).
             // Source : notes de quête photographiées (`reference/18_extensions.md` §6.1 : « Qwindrak the Warlock
@@ -1140,8 +1161,12 @@ class MonstreSeeder extends Seeder
 
             // GARDE DU DREAD (Doomguard, q. 9-10, p. 25) : variante du Guerrier du Dread, sous-boss.
             // Body 3 / (1,5 − 6/6) = 6 attaques, sur la droite des sous-boss : cout 10.
+            // BOÎTES PARTAGÉES (2026-10-31) : « This Dread Warrior is a Doomguard, one of Kessandria's elite » est aussi la
+            // note C de la quête 4 de First Light (PDF 11, rendu PNG relu : Mouvement 8, Attaque 4, Défense 6, Body 3, Mind 3,
+            // le même bloc que ci-dessus). Une ligne, deux boîtes (précédent : l'Archer elfe), jamais une ligne dupliquée.
             ['nom_base' => 'Garde du Dread', 'deplacement' => 8, 'attaque' => 4, 'defense' => 6, 'pv_body' => 3, 'pv_mind' => 3,
-                'tier' => 'sous_boss', 'boite' => 'witch_lord', 'cout' => 10, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'sous_boss', 'boite' => 'witch_lord', 'boites_partagees' => ['first_light'], 'cout' => 10,
+                'capacites' => [], 'sorts_dread' => []],
 
             // SKULMAR, chef de la Légion Oubliée (q. 7, p. 21) : SOUS-BOSS (Q2, René 2026-10-15), comme Doralf.
             // « Skulmar should try to escape » : la capacité `fuit_si_affaibli` le fait fuir à un TIERS de ses

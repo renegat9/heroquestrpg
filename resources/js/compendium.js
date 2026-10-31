@@ -234,6 +234,19 @@ const CAPACITES = {
     meteore: "Météore : chaque attaque ou sort d'un héros qui le vise lui vaut 2 dés d'attaque contre ce héros, toutes formes",
     vrille_en_fin_de_tour: 'Pose une Vrille à la fin de chacun de ses tours',
     sacrifice_de_vrille: 'Sacrifie une Vrille pour rester à 1 PV au lieu de mourir',
+    // Mots de `App\Engine\MotsClesAdversaires` que le guide montrait en clé brute (vu le 2026-10-31) — leurs libellés.
+    invulnerable_casse_arme: 'Invulnérable : aucun dégât, et l\'arme de l\'attaquant se brise (sauf les armes exemptées)',
+    fuit_si_affaibli: 'Fuit dès que ses Body tombent au tiers de ses Body de départ',
+    repertoire_complet: 'Garde son répertoire entier, quel que soit son palier',
+    passif_jusqua: 'Dort jusqu\'à son déclencheur : visible, immobile, sans attaque ; intouchable jusqu\'à son premier geste',
+    attaque_mind: 'Attaque l\'esprit d\'un héros en vue : chaque crâne = 1 Mind perdu',
+    double_sort: 'Lance deux sorts de Dread au même tour (jamais le même)',
+    metamorphe: 'Se métamorphose à chaque mort : une carte tirée au hasard devient sa forme',
+    reserve_a_son_theme: 'N\'apparaît que dans les campagnes de sa boîte',
+    // Repli des capacités PARAMÉTRÉES (`capacitesVersChips()` lit leur valeur d'abord).
+    immunite_sorts_sauf: 'Immunisé à tous les sorts, sauf une famille',
+    immunite_sorts_elements: 'Insensible aux sorts d\'un élément',
+    vulnerable_uniquement_a: 'Blessé seulement par quelques armes et sorts nommés',
 };
 
 /** Humanise une valeur brute (snake_case → « snake case »). */
@@ -353,9 +366,24 @@ export function capacitesVersChips(capacites) {
     const tags = Array.isArray(capacites)
         ? capacites
         : Object.entries(capacites).map(([k, v]) => (/^\d+$/.test(k) && typeof v === 'string' ? v : k));
+    // Capacités PARAMÉTRÉES : leur valeur est la règle (2026-10-31). Sans elle, le guide disait « chacun une seule
+    // fois » du Seigneur Sorcier de Barak Tor, qui lance la Frayeur deux fois, et montrait la clé brute des immunités.
+    const params = Array.isArray(capacites) ? {} : capacites;
+    const elements = (liste) => liste.map((e) => ELEMENT[e]?.l?.toLowerCase() ?? humaniser(e)).join(', ');
+    const PARAMETREES = {
+        sorts_uniques: (v) => {
+            const exceptions = v && typeof v === 'object' && !Array.isArray(v) ? Object.entries(v) : [];
+            return exceptions.length === 0
+                ? CAPACITES.sorts_uniques
+                : `Sorts du Dread (chacun une seule fois par quête, sauf ${exceptions.map(([s, n]) => `${s} ${n} fois`).join(', ')})`;
+        },
+        immunite_sorts_sauf: (v) => (Array.isArray(v) ? `Immunisé à tous les sorts, sauf ceux de ${elements(v)}` : null),
+        immunite_sorts_elements: (v) => (Array.isArray(v) ? `Insensible aux sorts de ${elements(v)}` : null),
+        vulnerable_uniquement_a: (v) => (Array.isArray(v) ? `Blessé seulement par : ${v.join(', ')}` : null),
+    };
     const chips = tags
         .filter((t) => typeof t === 'string' && t !== 'effet_global_quete')
-        .map((t) => ({ texte: CAPACITES[t] ?? humaniser(t) }));
+        .map((t) => ({ texte: PARAMETREES[t]?.(params[t]) ?? CAPACITES[t] ?? humaniser(t) }));
     // Effet de quête (Gruulob, Jungles of Delthrak) : un OBJET { titre, faction, volee, des },
     // pas un mot. Décrit avec les chiffres que le serveur publie, jamais recalculés.
     const effet = Array.isArray(capacites) ? null : capacites.effet_global_quete;

@@ -347,6 +347,10 @@ class GabaritQueteSeeder extends Seeder
                             // sous-boss par le précédent des lieutenants de Morcar), la Garde du Dread (q. 9-10), le
                             // Cavalier-esprit (q. 2). Aucun n'a de répertoire d'archétype : ils se nomment en créatures.
                             'Skulmar', 'Kessandria', 'Garde du Dread', 'Cavalier-esprit',
+                            // ABRAXUS (First Light, quête 9, PDF 18 — 2026-10-31) : le général de Qwindrak, sous-boss de sa boîte
+                            // `first_light`, sans répertoire (une arbalète, la diagonale). Le thème `first_light` le préfère
+                            // (`DemarreurQuete::acheterMonstres()`), et la Garde du Dread, partagée avec cette boîte, s'y joint.
+                            'Abraxus',
                         ],
                     ],
                     'pieges' => ['min' => 2, 'max' => 3],

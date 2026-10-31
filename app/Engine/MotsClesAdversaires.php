@@ -175,6 +175,18 @@ final class MotsClesAdversaires
     public const REPERTOIRE_COMPLET = 'repertoire_complet';
 
     /**
+     * CHAQUE SORT UNE FOIS PAR QUÊTE (Wizards of Morcar, « Each spell may only be used once per quest », G1504 p. 10 ;
+     * Balur, « which he may use once during the quest », F2847 LQ p. 19 ; Grak et Nelath). Le budget est le répertoire,
+     * un usage par sort ; la liste des sorts lancés (`sorts_dread_lances`) repart à vide à chaque placement.
+     * Paramétrée, optionnellement : `['Frayeur' => 2]` = CE sort-là se lance deux fois, les autres une fois (Seigneur
+     * Sorcier de Barak Tor, « fear (which he can cast twice) », F2847 LQ p. 31). Le budget devient alors la somme des
+     * usages. Lue à DEUX points, qui sont la règle : `MoteurDread::reinitialiserUsagesInstance()` (le budget) et
+     * `MoteurDread::sortsLancables()` (l'épuisement d'un sort). `reserve_cartes` n'est PAS la forme : elle ne dépense
+     * une carte que pour un sort qui la défausse ou la prête, et une Frayeur nue ne s'épuiserait jamais.
+     */
+    public const SORTS_UNIQUES = 'sorts_uniques';
+
+    /**
      * PASSIF JUSQU'À DÉCLENCHEUR (Kellar's Keep q. 1 n.C, q. 5 n.B ; Witch Lord q. 5 n.B) : la figure est VISIBLE, mais ne
      * bouge ni n'attaque tant que son déclencheur ne s'est pas produit. Paramétrée :
      *  - `declencheur` (liste fermée {@see self::PASSIF_DECLENCHEURS}) :
@@ -303,6 +315,10 @@ final class MotsClesAdversaires
         self::REPERTOIRE_COMPLET => [
             'lecteur' => 'App\Partie\MoteurDread::sortsDisponibles',
             'libelle' => 'Garde son répertoire entier malgré le palier : un sorcier nommé que son livret donne complet',
+        ],
+        self::SORTS_UNIQUES => [
+            'lecteur' => 'App\Partie\MoteurDread::reinitialiserUsagesInstance',
+            'libelle' => 'Chaque sort une seule fois par quête (un sort nommé peut se lancer davantage : `[\'Frayeur\' => 2]`)',
         ],
         self::PASSIF_JUSQUA => [
             'lecteur' => 'App\Partie\MoteurDormants::estDormant',
