@@ -1532,27 +1532,6 @@
     },
     {
       "type": "monstres",
-      "cle": "morcar-sorcerer",
-      "nom_catalogue": "Morcar sorcerer",
-      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
-      "page": 19,
-      "cadre": [
-        852.88,
-        488.09,
-        884.82,
-        520.03
-      ],
-      "rotation": 90,
-      "disque": [
-        868.85,
-        504.06,
-        13.31
-      ],
-      "source": "G1504 p. 37 (PDF 19), « Wandering Monsters in the Quest: Take a turn with one of the Sorcerers »",
-      "note": "étiquette verticale (rotation 90) : le jeton tourne avec son texte ; anneau de 26 pt, le plus grand des livrets lus"
-    },
-    {
-      "type": "monstres",
       "cle": "ogre-champion",
       "nom_catalogue": "Ogre Champion",
       "livret": "F9528_en-us_avalon-hill-heroquest-against-the-ogre-horde-quest-pack.pdf",
@@ -2008,6 +1987,216 @@
       "tuile": true,
       "source": "F7539 p. 6 (PDF 4), « Princess Millandriel — This tile represents the kidnapped daughter of Queen Terrellia »",
       "note": "tuile mesurée le 2026-10-30 (le carré noir, 44,5 pt) ; page couchée : rotation 90"
+    },
+    {
+      "type": "monstres",
+      "cle": "dread-cultist",
+      "nom_catalogue": "Dread Cultist",
+      "livret": "F6646_en-us_avalon-hill-heroquest-rise-of-the-dread-moon-quest-pack-requires-heroquest-game-system-14.pdf",
+      "page": 20,
+      "cadre": [
+        686.85,
+        328.85,
+        709.31,
+        351.31
+      ],
+      "rotation": 90,
+      "disque": [
+        698.08,
+        340.08,
+        9.36
+      ],
+      "source": "F6646 p. 39 (PDF 20), planche « Design Your Own Quest Adventures », « Dread Cultists »",
+      "note": "disque mesuré le 2026-10-31 sur la planche « Design Your Own Quest » (René : « les tokens sont affichés après les dernières quêtes ») ; page couchée : rotation 90"
+    },
+    {
+      "type": "monstres",
+      "cle": "elven-warrior",
+      "nom_catalogue": "Elven Warrior",
+      "livret": "F6646_en-us_avalon-hill-heroquest-rise-of-the-dread-moon-quest-pack-requires-heroquest-game-system-14.pdf",
+      "page": 20,
+      "cadre": [
+        777.04,
+        264.66,
+        799.12,
+        286.74
+      ],
+      "rotation": 90,
+      "disque": [
+        788.08,
+        275.7,
+        9.2
+      ],
+      "source": "F6646 p. 39 (PDF 20), planche « Design Your Own Quest Adventures », « Elven Warriors »",
+      "note": "disque mesuré le 2026-10-31 sur la planche « Design Your Own Quest » (René : « les tokens sont affichés après les dernières quêtes ») ; page couchée : rotation 90"
+    },
+    {
+      "type": "monstres",
+      "cle": "elven-archer",
+      "nom_catalogue": "Elven Archer",
+      "livret": "F6646_en-us_avalon-hill-heroquest-rise-of-the-dread-moon-quest-pack-requires-heroquest-game-system-14.pdf",
+      "page": 20,
+      "cadre": [
+        810.18,
+        264.3,
+        831.78,
+        285.9
+      ],
+      "rotation": 90,
+      "disque": [
+        820.98,
+        275.1,
+        9.0
+      ],
+      "source": "F6646 p. 39 (PDF 20), planche « Design Your Own Quest Adventures », « Elven Archers »",
+      "note": "disque mesuré le 2026-10-31 sur la planche « Design Your Own Quest » (René : « les tokens sont affichés après les dernières quêtes ») ; page couchée : rotation 90"
+    },
+    {
+      "type": "monstres",
+      "cle": "sir-ragnar",
+      "nom_catalogue": "Sir Ragnar",
+      "livret": "F6646_en-us_avalon-hill-heroquest-rise-of-the-dread-moon-quest-pack-requires-heroquest-game-system-14.pdf",
+      "page": 20,
+      "cadre": [
+        651.87,
+        372.27,
+        675.87,
+        396.27
+      ],
+      "rotation": 90,
+      "disque": [
+        663.87,
+        384.27,
+        10.0
+      ],
+      "source": "F6646 p. 39 (PDF 20), planche « Design Your Own Quest Adventures », « Sir Ragnar »",
+      "note": "disque mesuré le 2026-10-31 sur la planche « Design Your Own Quest » (René : « les tokens sont affichés après les dernières quêtes ») ; page couchée : rotation 90"
+    },
+    {
+      "type": "monstres",
+      "cle": "orc-warcaster",
+      "nom_catalogue": "Orc Warcaster",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 22,
+      "cadre": [
+        589.43,
+        172.14,
+        613.67,
+        196.38
+      ],
+      "rotation": 90,
+      "disque": [
+        601.55,
+        184.26,
+        10.1
+      ],
+      "source": "G1504 p. 43 (PDF 22), planche « Design Your Own Quest Adventures », « Orc Warcaster »",
+      "note": "disque mesuré le 2026-10-31 sur la planche « Design Your Own Quest » (René : « les tokens sont affichés après les dernières quêtes ») ; page couchée : rotation 90"
+    },
+    {
+      "type": "monstres",
+      "cle": "necromancer",
+      "nom_catalogue": "Necromancer",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 22,
+      "cadre": [
+        589.92,
+        247.22,
+        615.6,
+        272.9
+      ],
+      "rotation": 90,
+      "disque": [
+        602.76,
+        260.06,
+        10.7
+      ],
+      "source": "G1504 p. 43 (PDF 22), planche « Design Your Own Quest Adventures », « Necromancer »",
+      "note": "disque mesuré le 2026-10-31 sur la planche « Design Your Own Quest » (René : « les tokens sont affichés après les dernières quêtes ») ; page couchée : rotation 90"
+    },
+    {
+      "type": "monstres",
+      "cle": "high-mage",
+      "nom_catalogue": "High Mage",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 22,
+      "cadre": [
+        648.87,
+        175.88,
+        674.45,
+        201.46
+      ],
+      "rotation": 90,
+      "disque": [
+        661.66,
+        188.67,
+        10.66
+      ],
+      "source": "G1504 p. 43 (PDF 22), planche « Design Your Own Quest Adventures », « High Mage »",
+      "note": "disque mesuré le 2026-10-31 sur la planche « Design Your Own Quest » (René : « les tokens sont affichés après les dernières quêtes ») ; page couchée : rotation 90"
+    },
+    {
+      "type": "monstres",
+      "cle": "artificer",
+      "nom_catalogue": "Artificer",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 22,
+      "cadre": [
+        648.53,
+        247.53,
+        673.59,
+        272.59
+      ],
+      "rotation": 90,
+      "disque": [
+        661.06,
+        260.06,
+        10.44
+      ],
+      "source": "G1504 p. 43 (PDF 22), planche « Design Your Own Quest Adventures », « Artificer »",
+      "note": "disque mesuré le 2026-10-31 sur la planche « Design Your Own Quest » (René : « les tokens sont affichés après les dernières quêtes ») ; page couchée : rotation 90"
+    },
+    {
+      "type": "monstres",
+      "cle": "storm-master",
+      "nom_catalogue": "Storm Master",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 22,
+      "cadre": [
+        706.78,
+        226.56,
+        733.14,
+        252.92
+      ],
+      "rotation": 90,
+      "disque": [
+        719.96,
+        239.74,
+        10.98
+      ],
+      "source": "G1504 p. 43 (PDF 22), planche « Design Your Own Quest Adventures », « Storm Master »",
+      "note": "disque mesuré le 2026-10-31 sur la planche « Design Your Own Quest » (René : « les tokens sont affichés après les dernières quêtes ») ; page couchée : rotation 90"
+    },
+    {
+      "type": "monstres",
+      "cle": "dreadshifter",
+      "nom_catalogue": "Dreadshifter",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 22,
+      "cadre": [
+        590.39,
+        96.38,
+        616.63,
+        122.62
+      ],
+      "rotation": 90,
+      "disque": [
+        603.51,
+        109.5,
+        10.93
+      ],
+      "source": "G1504 p. 43 (PDF 22), planche « Design Your Own Quest Adventures », « Dreadshifter (Chest) » — la version coffre : notre Dreadshifter est embusqué dans un coffre",
+      "note": "disque mesuré le 2026-10-31 sur la planche « Design Your Own Quest » (René : « les tokens sont affichés après les dernières quêtes ») ; page couchée : rotation 90"
     }
   ]
 }

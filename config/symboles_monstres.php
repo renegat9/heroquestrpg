@@ -33,7 +33,12 @@ return [
 
     // Jetons reliés par une correspondance écrite (source entre parenthèses ; « traduction » = même figure).
     'cles' => [
-        'Artificière' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
+        // Planches « Design Your Own Quest » (René, 2026-10-31 : « les tokens sont affichés après les dernières quêtes ») :
+        'Archer elfe' => 'elven-archer', // « Elven Archers », planche « Design Your Own », F6646 PDF 20
+        'Guerrier elfe' => 'elven-warrior', // « Elven Warriors », planche « Design Your Own », F6646 PDF 20
+        'Cultiste du Dread' => 'dread-cultist', // « Dread Cultists », planche « Design Your Own », F6646 PDF 20
+        // 'Dreadshifter' → `dreadshifter` par son slug : « Dreadshifter (Chest) », planche « Design Your Own », G1504 PDF 22 (la version coffre).
+        'Artificière' => 'artificer', // son propre jeton « Artificer » (planche « Design Your Own », G1504 PDF 22, 2026-10-31) — plus juste que celui du sorcier du Dread de First Light
         'Fellmarak le Roi Sorcier' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
         'Seigneur Sorcier' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
         'Skulmar' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
@@ -41,7 +46,7 @@ return [
         'Sorcier du Dread' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
         'Fimir' => 'abomination', // nom de 1989 ; le livret 2021 nomme ce jeton Abomination
         'Guerrier du Chaos' => 'dread-warrior', // nom de 1989 (Chaos Warrior) ; le livret 2021 nomme ce jeton Dread Warrior
-        'Sir Ragnar' => 'dread-warrior', // « Use the Dread Warrior miniature to represent him » (F6646 PDF 16) ; la quête 2 de base (F2847 PDF 4) met la figurine de Dread sorcerer : retenu le texte de la quête 9, dont le bloc de statistiques est celui du catalogue
+        'Sir Ragnar' => 'sir-ragnar', // son propre jeton « Sir Ragnar » (planche « Design Your Own », F6646 PDF 20, 2026-10-31) ; avant : « Use the Dread Warrior miniature to represent him » (F6646 PDF 16) ; la quête 2 de base (F2847 PDF 4) met la figurine de Dread sorcerer : retenu le texte de la quête 9, dont le bloc de statistiques est celui du catalogue
         'Borokk' => 'dread-warrior', // « has the same stats as a Dread warrior » (F4543) ; le texte donne aussi une figurine de sorcier : à confirmer
         'Gragor' => 'dread-warrior', // « His stats are the same as a Dread warrior » (F4543) ; le texte donne aussi une figurine de sorcier : à confirmer
         'Momie' => 'mummy', // traduction du livret
@@ -64,10 +69,10 @@ return [
         'Gobelin archer' => 'goblin-archer', // archer, légende Ogre Horde (F9528 PDF 19)
         'Archer squelette' => 'skeleton-archer', // archer, légende Ogre Horde (F9528 PDF 19)
         'Tisseur putride' => 'blightweaver', // Blightweaver, légende Delthrak (F9907 PDF 6)
-        'Haut mage' => 'morcar-sorcerer', // lieutenant de Morcar « High Mage » (G1504 PDF 13 : « Zanrath has all 6 High Mage spells ») ; jeton « one of the Sorcerers »
-        'Maître des orages' => 'morcar-sorcerer', // lieutenant « Storm Master » (G1504 PDF 15 : « Boroush has all 6 Storm Master spells »)
-        'Nécromancien' => 'morcar-sorcerer', // lieutenant « Necromancer » (G1504 PDF 14 : « Fanrax has all 6 Necromancer spells »)
-        'Mage de guerre orque' => 'morcar-sorcerer', // lieutenant « Orc Warcaster » (G1504 PDF 16 : « Nyashak has all 6 Orc Warcaster spells »)
+        'Haut mage' => 'high-mage', // jeton « High Mage » (planche « Design Your Own », G1504 PDF 22, 2026-10-31) ; lieutenant de Morcar « High Mage » (G1504 PDF 13 : « Zanrath has all 6 High Mage spells ») ; jeton « one of the Sorcerers »
+        'Maître des orages' => 'storm-master', // jeton « Storm Master » (planche « Design Your Own », G1504 PDF 22, 2026-10-31) ; lieutenant « Storm Master » (G1504 PDF 15 : « Boroush has all 6 Storm Master spells »)
+        'Nécromancien' => 'necromancer', // jeton « Necromancer » (planche « Design Your Own », G1504 PDF 22, 2026-10-31) ; lieutenant « Necromancer » (G1504 PDF 14 : « Fanrax has all 6 Necromancer spells »)
+        'Mage de guerre orque' => 'orc-warcaster', // jeton « Orc Warcaster » (planche « Design Your Own », G1504 PDF 22, 2026-10-31) ; lieutenant « Orc Warcaster » (G1504 PDF 16 : « Nyashak has all 6 Orc Warcaster spells »)
         // Figures 1×2 : la clé est le nom que le livret donne à la figure (légende, planche « Design Your Own »).
         'Ogre commandant' => 'ogre-commander', // Ogre Commander, légende Ogre Horde (F9528 PDF 19) ; jeton OVALE
         'Seigneur ogre' => 'ogre-lord', // Ogre Lord, légende Ogre Horde (F9528 PDF 19) ; jeton OVALE
@@ -107,21 +112,18 @@ return [
 
     // Monstres sans jeton : une raison par nom, lue par SymbolesMonstresTest.
     'absents' => [
-        'Archer elfe' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
         'Archimage elfe' => '« Use the elven archmage figure » : figurine sans jeton dans les livrets lus',
         'Bakabri le Cruel' => '« Use the Goblin Warlock miniature » (F9907 PDF 21) : aucun jeton de Goblin Warlock',
-        'Bellthor' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Buubhealxea, reine gobeline' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
+        'Bellthor' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        'Buubhealxea, reine gobeline' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
         'Cavalier-esprit' => 'Spirit Riders (F4193 PDF 6) : aucune figurine renvoyée dans le texte',
-        'Chamane Gobelin' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Champion' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Crâne du Dread' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Cultiste du Dread' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
+        'Chamane Gobelin' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        'Champion' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        'Crâne du Dread' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
         'Demonape' => 'Gretzl (F9907 PDF 18) : aucune figurine renvoyée dans le texte',
         'Demonspider' => 'Gretzl (F9907 PDF 18) : aucune figurine renvoyée dans le texte',
-        'Doralf' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Dreadshifter' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Festral' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
+        'Doralf' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        'Festral' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
         'Garde du Dread' => 'Elite Dread Warrior (G1504 PDF 13) : le texte ne relie pas la garde à ce jeton',
         'Gargouille gardienne' => 'aucun jeton : « guardian gargoyle » n’est nommé dans les livrets lus',
         'Gretzl la Porte-Fléau' => 'Gretzl (F9907 PDF 18) : aucune figurine renvoyée dans le texte',
@@ -130,25 +132,24 @@ return [
         'Gruzbella Déterminée' => 'aucun jeton : statistiques d’une autre figurine reprises (« Adopt the statistics of … »), aucun jeton propre',
         'Gruzbella Hammerhand' => 'aucun jeton : statistiques d’une autre figurine reprises (« Adopt the statistics of … »), aucun jeton propre',
         'Gruzbella Imprudente' => 'aucun jeton : statistiques d’une autre figurine reprises (« Adopt the statistics of … »), aucun jeton propre',
-        'Guerrier elfe' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Kedrick Gilbane' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Kessandria' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Liche' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
+        'Kedrick Gilbane' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        'Kessandria' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        'Liche' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
         'Magrian' => 'Magrian, the Dread Wraith (F6646 PDF 17) : aucune figurine renvoyée dans le texte',
         'Momie-naine' => 'Arcane Mummy (F9907 PDF 15) : identité non établie, aucune figurine renvoyée',
-        'Métamorphe' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Nexrael' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
+        'Métamorphe' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        'Nexrael' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
         'Qwindrak the Warlock' => '« Replace Qwindrak with the Dragon miniature » (First Light PDF 9) : la forme de sorcier n’a pas de jeton propre isolé ; la forme de dragon a le sien (Dragon)',
-        'Roi Archaloneus' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
+        'Roi Archaloneus' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
         'Scion Fleur-Pourrie' => 'Bloomrot Scion (F9907 PDF 20) : aucune figurine renvoyée dans le texte',
-        'Seigneur' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Sorcière des Marais' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Spawn of the Pit' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Spawn of the Pit déchaîné' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Squelette-roi nain' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
-        'Troll' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
+        'Seigneur' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        'Sorcière des Marais' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        'Spawn of the Pit' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        'Spawn of the Pit déchaîné' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        'Squelette-roi nain' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        'Troll' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
         'Venim le Dragon' => 'Venim (G1798 PDF 13, « The Dragon Venim’s Lair ») : aucune figurine renvoyée dans le texte ; le jeton « Dragon » (First Light) n’est pas le sien sans texte qui le dise',
         'Vrille' => 'Tendril : un pion de bois (F9907 PDF 20), pas une figurine',
-        'Xenloth' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni figurine renvoyée par le texte',
+        'Xenloth' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
     ],
 ];
