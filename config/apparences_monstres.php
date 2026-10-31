@@ -43,7 +43,7 @@ return [
     'Seigneur Sorcier de Barak Tor' => 'un sorcier du Dread, le Seigneur sorcier', // F2847 p16, « Use the Dread sorcerer figure for the Witch Lord »
 
     // ----- Kellar's Keep (F4543) -----
-    'Squelette-roi nain' => 'un squelette de roi nain', // F4543 p09, « These skeletons are those of ancient dwarven kings »
+    'Squelette-roi nain' => 'un squelette nain, ossements nus, portant une couronne de roi', // F4543 p09, « These skeletons are those of ancient dwarven kings » (2026-10-31 : « un squelette de roi nain » donnait un roi en armure, sans squelette)
     'Métamorphe' => 'une abomination, sa forme du moment', // F4543 p13, « a shapechanger … currently in the form of an abomination »
     'Borokk' => 'un sorcier du Dread maléfique', // F4543 p13, « Place Borokk, an evil Dread sorcerer »
     'Gragor' => 'un sorcier du Dread, magicien maléfique', // F4543 p10, « led by Gragor, an evil magician » ; « Use the Dread sorcerer figure to represent Gragor »
@@ -59,7 +59,7 @@ return [
     'Seigneur Sorcier' => 'un sorcier du Dread, le Seigneur sorcier', // F4193 p10, « Use the Dread sorcerer figure to represent the Witch Lord » (et p14)
 
     // ----- La Crypte des Ténèbres perpétuelles (G1798) -----
-    'Crâne du Dread' => 'un crâne du Dread', // G1798 p03, « As soon as a hero sees a Dread Skull, place it on the board »
+    'Crâne du Dread' => 'un crâne seul, sans corps', // G1798 p03, « As soon as a hero sees a Dread Skull, place it on the board » (2026-10-31 : « un crâne du Dread » donnait un guerrier mort-vivant entier)
     'Sorcière des Marais' => 'une sorcière des marais, figurée par un sorcier du Dread', // G1798 p06, « The Dread sorcerer represents a swamp hag »
     'Kedrick Gilbane' => 'un chevalier de la mort, figuré par un sorcier du Dread', // G1798 p12, « The Dread sorcerer represents the Dread knight Kedrick » ; p06, « the death knight »
     'Squelette de minotaure' => 'un squelette géant, cornu, de minotaure, qui brandit sa hache', // G1798 p07, « the bones of a giant, horned skeleton of a minotaur … swings its axe »
@@ -111,7 +111,7 @@ return [
     'Singe géant' => 'un singe géant qui bondit', // F9907 p13, « the Giant Ape miniature … as it leaps »
     'Gretzl la Porte-Fléau' => 'une gobeline sorcière, figurée par un sorcier gobelin', // F9907 p18, « Gretzl the Blightspeaker, stands guard here with her lieutenants » ; jeton Goblin Warlock (`cles`)
     'Demonspider' => 'une araignée démoniaque', // F9907 p18, « Gretzl the Demonspider »
-    'Demonape' => 'un singe démoniaque', // F9907 p18, « Adopt the statistics of Gretzl the Demonape »
+    'Demonape' => 'un singe géant', // F9907 p18, « place a Giant Ape miniature in the nearest open square to her. Adopt the statistics of Gretzl the Demonape » (2026-10-31 : « un singe démoniaque » donnait un démon rouge)
     'Gruulob, Sorcier Gobelin Corrompu' => 'un sorcier gobelin corrompu', // F9907 p14, « Gruulob, Blighted Goblin Warlock »
     'Gruulob, Forme Démoniaque' => 'un sorcier gobelin corrompu, sous sa forme démoniaque', // F9907 p14, « do not remove the miniature from the map » (même figurine)
     'Golem Cœur-de-Forge' => 'un golem de Cœur-de-Forge, à la machinerie arcanique usée par les siècles', // F9907 p12, « The centuries have eroded its arcane hardware »
