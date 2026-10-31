@@ -29,7 +29,7 @@ sys.path.insert(0, '/tmp/pylib')
 import pymupdf  # noqa: E402  (PyMuPDF)
 from PIL import Image, ImageChops, ImageFilter  # noqa: E402
 
-TYPES = ['mobiliers', 'terrains', 'pieges', 'portes', 'leviers', 'escalier', 'dangers', 'monstres']
+TYPES = ['mobiliers', 'terrains', 'pieges', 'portes', 'leviers', 'escalier', 'dangers', 'monstres', 'allies']
 CREME = (239, 230, 216)        # #efe6d8 — le trait, comme convenu avec l'affichage
 LISERE = (26, 20, 16)          # liseré sombre autour du trait
 COTE_PX = 256                  # grand côté de sortie

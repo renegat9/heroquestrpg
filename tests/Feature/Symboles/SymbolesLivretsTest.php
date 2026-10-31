@@ -37,7 +37,7 @@ function manifesteSymboles(): array
 
 function typesSymboles(): array
 {
-    return ['mobiliers', 'terrains', 'pieges', 'portes', 'leviers', 'escalier', 'dangers', 'monstres'];
+    return ['mobiliers', 'terrains', 'pieges', 'portes', 'leviers', 'escalier', 'dangers', 'monstres', 'allies'];
 }
 
 it('le manifeste est un JSON valide et déclare des symboles', function () {

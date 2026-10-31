@@ -259,7 +259,7 @@ final class BibliothequeImages
      * absent d'ici n'a pas de dossier, donc pas de symbole. `monstres` est le JETON de la figurine (une tête dans un cercle),
      * pas un pictogramme de case : voir `urlSymboleMonstre()`.
      */
-    public const TYPES_SYMBOLE = ['mobiliers', 'terrains', 'pieges', 'portes', 'leviers', 'escalier', 'dangers', 'monstres'];
+    public const TYPES_SYMBOLE = ['mobiliers', 'terrains', 'pieges', 'portes', 'leviers', 'escalier', 'dangers', 'monstres', 'allies'];
 
     /** Clé de la porte de pierre encore fermée (`verrou.type` = `pierre` sur une porte `fermee`). */
     private const SYMBOLE_PORTE_PIERRE = 'verrou_pierre';
@@ -377,6 +377,34 @@ final class BibliothequeImages
      *
      * ⚠ Absence = `null` : le client garde l'apparence actuelle du jeton. Un fichier qui n'existe pas n'est jamais publié.
      */
+    /**
+     * Le JETON d'un ALLIÉ (table `mercenaires`, 2026-10-30) : `config('symboles_allies.jetons')` donne `type/clé` — un jeton
+     * propre (`allies/…`) ou celui de la figure du bestiaire que son texte nomme (`monstres/…`). `null` sans jeton déclaré
+     * ou sans fichier : l'allié garde son portrait.
+     */
+    public function urlSymboleAllie(string $nom): ?string
+    {
+        $chemin = (string) (config('symboles_allies.jetons', [])[$nom] ?? '');
+
+        if (! str_contains($chemin, '/')) {
+            return null;
+        }
+
+        [$type, $cle] = explode('/', $chemin, 2);
+
+        return $this->urlSymboleLivret($type, $cle);
+    }
+
+    /** FORME du jeton d'un allié : `tuile` (`symboles_allies.tuiles`), `rond` sinon, `null` sans jeton. */
+    public function formeSymboleAllie(string $nom): ?string
+    {
+        if ($this->urlSymboleAllie($nom) === null) {
+            return null;
+        }
+
+        return in_array($nom, (array) config('symboles_allies.tuiles', []), true) ? 'tuile' : 'rond';
+    }
+
     public function urlSymboleMonstre(string $nomBase): ?string
     {
         $cles = (array) config('symboles_monstres.cles', []);

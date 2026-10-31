@@ -1869,6 +1869,145 @@
       "cle": "vent-de-couloir",
       "nom_catalogue": "Vent de couloir",
       "absent": "G0053 (Spirit Queen's Torment) : le terrain est décrit par le TEXTE d'une note de carte, sans pictogramme imprimé à ce jour. q. 12, p. 15 : « Strong air currents move through the hallways » — la case de couloir n'a pas de pictogramme imprimé. Un pictogramme n'a donc rien à extraire ; s'il en paraît un, l'extraire comme les autres (orchestrateur)."
+    },
+    {
+      "type": "allies",
+      "cle": "crossbowman",
+      "nom_catalogue": "Crossbowman",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 7,
+      "cadre": [
+        685.52,
+        532.32,
+        723.68,
+        570.48
+      ],
+      "rotation": 90,
+      "disque": [
+        704.6,
+        551.4,
+        15.9
+      ],
+      "source": "F5815 p. 13 (PDF 7), légende des Mercenaires « Crossbowman »",
+      "note": "disque mesuré le 2026-10-30 (jetons alignés : colonnes x 704,6 et 787,5, rangées y 475,8 et 551,4, R 15,9) ; page couchée : rotation 90"
+    },
+    {
+      "type": "allies",
+      "cle": "halberdier",
+      "nom_catalogue": "Halberdier",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 7,
+      "cadre": [
+        685.52,
+        456.72,
+        723.68,
+        494.88
+      ],
+      "rotation": 90,
+      "disque": [
+        704.6,
+        475.8,
+        15.9
+      ],
+      "source": "F5815 p. 13 (PDF 7), légende des Mercenaires « Halberdier »",
+      "note": "disque mesuré le 2026-10-30 (jetons alignés : colonnes x 704,6 et 787,5, rangées y 475,8 et 551,4, R 15,9) ; page couchée : rotation 90"
+    },
+    {
+      "type": "allies",
+      "cle": "scout",
+      "nom_catalogue": "Scout",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 7,
+      "cadre": [
+        768.42,
+        456.72,
+        806.58,
+        494.88
+      ],
+      "rotation": 90,
+      "disque": [
+        787.5,
+        475.8,
+        15.9
+      ],
+      "source": "F5815 p. 13 (PDF 7), légende des Mercenaires « Scout »",
+      "note": "disque mesuré le 2026-10-30 (jetons alignés : colonnes x 704,6 et 787,5, rangées y 475,8 et 551,4, R 15,9) ; page couchée : rotation 90"
+    },
+    {
+      "type": "allies",
+      "cle": "swordsman",
+      "nom_catalogue": "Swordsman",
+      "livret": "F5815_en-us_avalon-hill-hero-quest-the-frozen-horror-quest-pack-for-ages-14-and-up-requires-hero-quest-game-system-to-play-instruction.pdf",
+      "page": 7,
+      "cadre": [
+        768.42,
+        532.32,
+        806.58,
+        570.48
+      ],
+      "rotation": 90,
+      "disque": [
+        787.5,
+        551.4,
+        15.9
+      ],
+      "source": "F5815 p. 13 (PDF 7), légende des Mercenaires « Swordsman »",
+      "note": "disque mesuré le 2026-10-30 (jetons alignés : colonnes x 704,6 et 787,5, rangées y 475,8 et 551,4, R 15,9) ; page couchée : rotation 90"
+    },
+    {
+      "type": "allies",
+      "cle": "sir-ragnar",
+      "nom_catalogue": "Sir Ragnar",
+      "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 22,
+      "cadre": [
+        706.72,
+        130.8,
+        733.08,
+        157.16
+      ],
+      "rotation": 90,
+      "disque": [
+        719.9,
+        143.98,
+        10.98
+      ],
+      "source": "G1504 p. 43 (PDF 22), planche « Design Your Own », « Sir Ragnar »",
+      "note": "disque mesuré le 2026-10-30 ; page couchée : rotation 90"
+    },
+    {
+      "type": "allies",
+      "cle": "prospector",
+      "nom_catalogue": "Prospector",
+      "livret": "F7539_en-us_avalon-hill-heroquest-the-mage-of-the-mirror-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 4,
+      "cadre": [
+        134.1,
+        299.56,
+        178.56,
+        344.02
+      ],
+      "rotation": 90,
+      "tuile": true,
+      "source": "F7539 p. 6 (PDF 4), « Prospector — This tile represents the old prospector who acts as an ally »",
+      "note": "tuile mesurée le 2026-10-30 (le carré noir, 44,5 pt) ; page couchée : rotation 90"
+    },
+    {
+      "type": "allies",
+      "cle": "princess-millandriel",
+      "nom_catalogue": "Princess Millandriel",
+      "livret": "F7539_en-us_avalon-hill-heroquest-the-mage-of-the-mirror-quest-pack-requires-heroquest-game-system.pdf",
+      "page": 4,
+      "cadre": [
+        261.28,
+        299.92,
+        305.74,
+        344.38
+      ],
+      "rotation": 90,
+      "tuile": true,
+      "source": "F7539 p. 6 (PDF 4), « Princess Millandriel — This tile represents the kidnapped daughter of Queen Terrellia »",
+      "note": "tuile mesurée le 2026-10-30 (le carré noir, 44,5 pt) ; page couchée : rotation 90"
     }
   ]
 }

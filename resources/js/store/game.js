@@ -651,8 +651,8 @@ export function entitesVersFigurines(entites, initiative) {
                     ? (e.animal ? 'pets' : 'handshake')
                     : 'sentiment_very_dissatisfied')),
             img: e.image_url ?? null,
-            // JETON du monstre (livret, chantier jetons 2026-10-29) : décidé par le serveur, `null` sans fichier — le jeton
-            // garde alors son portrait. Jamais composé ici.
+            // JETON de livret du monstre (2026-10-29) ou de l'allié et du captif (2026-10-30) : décidé par le serveur, `null`
+            // sans fichier — le jeton garde alors son portrait. Jamais composé ici.
             symbole_url: e.symbole_url ?? null,
             // FORME et ROTATION du jeton (phase 3, 2026-10-29) : `ovale` pour une figure 1×2 au livret, `rond` sinon ; `symbole_rotation`
             // (0|90) couche un ovale posé debout. Décidées par le serveur, transportées telles quelles (`DungeonGrid`, `SymboleCarte`).

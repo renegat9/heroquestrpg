@@ -1232,6 +1232,8 @@ final class EtatGroupe
                 // Le jeton de carte l'affiche déjà quand il existe
                 // (`entitesVersFigurines` lit `image_url`) — 2026-10-01.
                 'image_url' => app(BibliothequeImages::class)->urlMercenaire($a->mercenaire_id, $a->mercenaire->nom),
+                // JETON DE LIVRET de l'allié (2026-10-30), décidé ici comme celui d'un monstre.
+                ...$this->symboleDAllie($a->mercenaire->nom),
             ])
             ->values()
             ->all();
@@ -1273,9 +1275,30 @@ final class EtatGroupe
                 'pv_body' => (int) $c->pv_body,
                 'pv_body_max' => (int) $c->mercenaire->pv_body,
                 'image_url' => app(BibliothequeImages::class)->urlMercenaire($c->mercenaire_id, $c->mercenaire->nom),
+                // Le captif porte DÉJÀ son jeton de livret (la tuile du Prospecteur, de la Princesse) : c'est la même figure
+                // avant et après sa libération, seul l'anneau change (ambre, puis bleu).
+                ...$this->symboleDAllie($c->mercenaire->nom),
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Le JETON d'un allié ou d'un captif (2026-10-30) — le pendant de {@see self::symboleDeMonstre()} : `symbole_url` (`null`
+     * sans jeton : le client garde le portrait), `symbole_forme` (`tuile` | `rond` | `null`) et `symbole_rotation` (toujours
+     * 0 : aucun allié n'occupe deux cases). Toujours présents. Registre : `config/symboles_allies.php`.
+     *
+     * @return array{symbole_url: ?string, symbole_forme: ?string, symbole_rotation: int}
+     */
+    private function symboleDAllie(string $nom): array
+    {
+        $biblio = app(BibliothequeImages::class);
+
+        return [
+            'symbole_url' => $biblio->urlSymboleAllie($nom),
+            'symbole_forme' => $biblio->formeSymboleAllie($nom),
+            'symbole_rotation' => 0,
+        ];
     }
 
     /**
