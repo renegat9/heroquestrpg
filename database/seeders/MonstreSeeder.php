@@ -342,8 +342,10 @@ class MonstreSeeder extends Seeder
             // MÊME point de passage unique que les phases
             // (`MoteurDegats::infligerAMonstre()`), une fois pour toute la
             // rencontre.
+            // `cout` 13 (2026-10-31) : droite des boss sans le Seigneur à N 6,0 = 13,05 ⇒ 13 (`docs/regles/bestiaire-et-rencontres.md`,
+            // « La droite des boss sans le Seigneur »). L'increvable ne compte pas dans N : convention inchangée.
             ['nom_base' => 'Sir Ragnar', 'deplacement' => 5, 'attaque' => 5, 'defense' => 5, 'pv_body' => 4, 'pv_mind' => 4,
-                'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 14, 'capacites' => ['increvable_une_fois'], 'sorts_dread' => []],
+                'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 13, 'capacites' => ['increvable_une_fois'], 'sorts_dread' => []],
 
             // MAGRIAN, LE DREAD WRAITH (boss FINAL de Rise of the Dread Moon, quête 10, F6646 p. 33 — chantier EXT-MAGRIAN,
             // 2026-10-23). Stats relues sur le RENDU PNG (p. 33) et sur le tableau p. 36 : Move 9 · Attack 6 · Defend 4 ·
@@ -362,13 +364,13 @@ class MonstreSeeder extends Seeder
             // Qwindrak), en attaques d'un héros à 3 dés : base 5 / (1,5 − 4/6) = 6,0 ; Consume Magic rend 2 Body (2 / 0,833 = +2,4)
             // et annule le sort d'une action de héros (+1) ; Reflection renvoie le coup fatal (+1) ; Terror prive un héros d'une
             // attaque (+1) ; ses sorts, 3 lancers au budget de boss (`MoteurDread::USAGES_BOSS`), +3 — Shift Reality lance dans ce
-            // même budget, il n'en ajoute pas. N = 14,4, sur la droite des boss (Seigneur 15 → 20, pente 0,5) : 20 + 0,5 × (14,4 − 15)
-            // = 19,7 ⇒ **20** (était 16, sa seule base). L'éthéré est compté À L'ACHAT, en plus : `DemarreurQuete::coutEffectif()`
+            // même budget, il n'en ajoute pas. N = 14,4, sur la droite des boss SANS le Seigneur (2026-10-31) : 18,48 ⇒ **18**
+            // (était 20, lu sur la droite du Seigneur retiré). L'éthéré est compté À L'ACHAT, en plus : `DemarreurQuete::coutEffectif()`
             // le multiplie par `RATIO_COUT_ETHERE` (2) — 40 dans le budget de la rencontre finale.
             // DEUX cases (René, 2026-10-31 : « Oui 2 cases avec son token ») : la planche « Design Your Own » (F6646 PDF 20)
             // dessine le Dread Wraith en OVALE, et un livret qui dessine des ovales les réserve aux figures de 2 cases.
             ['nom_base' => 'Magrian', 'deplacement' => 9, 'attaque' => 6, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 5,
-                'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 20, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 18, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['ethere', 'reserve_a_son_theme',
                     'reactions_defense' => ['terreur', 'consomme_magie', 'reflexion', 'realite_decalee']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'magrian'],
@@ -403,13 +405,10 @@ class MonstreSeeder extends Seeder
             //
             // ⚠ **Mind 9**, la plus haute valeur du bestiaire : une archimage
             // ne s'endort pas. C'est la fiche qui le dit, pas nous.
-            // Le `cout` est nôtre, MESURÉ (2026-10-31, décision de René : remesure). Body 4 / (1,5 − 4/6) = 4,8 attaques
-            // d'un héros à 3 dés. Droite des boss ancrée sur les trois repères RESTANTS (la Liche, le Sorcier des Tempêtes
-            // et le Seigneur ont été retirés) : Seigneur Sorcier (8 attaques → 14), Ogre commandant (9,0 → 15), Seigneur
-            // ogre (20,0 → 22). Moindres carrés sur ces trois points : pente 0,65, ordonnée 8,9, donc 8,9 + 0,65 × 4,8 ≈
-            // 12,1 ⇒ 12. Les deux extrêmes (8 → 14 et 20 → 22) donnent 11,9 ; seule la pente LOCALE (8 ↔ 9) donnerait 11.
-            // Festral (4,5 attaques → 11) reste en dessous : l'ordre est tenu. Les sorts ne sont pas comptés, comme pour le
-            // Seigneur Sorcier et Fellmarak (le Dragon et Magrian, eux, ajoutent +3 : écart de convention, non tranché).
+            // Le `cout` est nôtre, MESURÉ (2026-10-31). Body 4 / (1,5 − 4/6) = 4,8 attaques d'un héros à 3 dés, lues sur la
+            // droite des boss SANS le Seigneur (`docs/regles/bestiaire-et-rencontres.md`) : 9,17 + 0,646 × 4,8 = 12,27 ⇒ 12.
+            // Les sorts ne sont pas comptés, comme pour Fellmarak (le Dragon et Magrian, eux, ajoutent +3 : écart de convention,
+            // non tranché).
             ['nom_base' => 'Archimage elfe', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 9,
                 'tier' => 'boss', 'boite' => 'mage_du_miroir', 'cout' => 12, 'capacites' => [], 'sorts_dread' => [],
                 'archetype_lanceur' => 'archimage_elfe'],
@@ -427,6 +426,8 @@ class MonstreSeeder extends Seeder
             // (saignement automatique + interdiction d'attaquer tant qu'il tient).
             ['nom_base' => 'Yéti', 'deplacement' => 8, 'attaque' => 3, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 2,
                 'tier' => 'sous_boss', 'boite' => 'horreur_des_glaces', 'cout' => 9, 'capacites' => ['etreinte'], 'sorts_dread' => []],
+            // `cout` 14 (2026-10-31) : droite des boss sans le Seigneur, N 7,2 ⇒ 13,83 ⇒ 14. Le 16 du 2026-08-10 (barème, sans
+            // mesure) était plus cher qu'un Ogre commandant à N 9,0 (15) : il tombe. La résistance magique ne joue que contre les sorts.
             // Boss de sa boîte. Grande figurine : « When a monster takes up more than one square (the Frozen
             // Horror in this quest pack, for instance) » (F5815 PDF 6). ⚠ Son jeton est ROND : ce livret ne
             // dessine AUCUN ovale (sa planche « Design Your Own » le fait seulement plus grand que les autres),
@@ -435,7 +436,7 @@ class MonstreSeeder extends Seeder
             // Freeze, Skate, Soothe*) + 6 au choix du MJ » (Frozen Horror
             // p. 37). Trois des six ne sont pas portés — voir l'archétype.
             ['nom_base' => 'Horreur des Glaces', 'deplacement' => 8, 'attaque' => 5, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 4,
-                'tier' => 'boss', 'boite' => 'horreur_des_glaces', 'cout' => 16, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'tier' => 'boss', 'boite' => 'horreur_des_glaces', 'cout' => 14, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['resistance_magique'], 'sorts_dread' => [],
                 'archetype_lanceur' => 'horreur_glacee'],
 
@@ -453,10 +454,14 @@ class MonstreSeeder extends Seeder
             ['nom_base' => 'Ogre champion', 'deplacement' => 6, 'attaque' => 5, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 1,
                 'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 11, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => [], 'sorts_dread' => []],
+            // REPÈRE de la droite des boss sans le Seigneur (2026-10-31) : N 9,0 (Body 6 / Défense 5). `cout` 15 posé au 2026-08-10,
+            // droite 14,99 ⇒ 15. Ne bouge pas.
             ['nom_base' => 'Ogre commandant', 'deplacement' => 4, 'attaque' => 6, 'defense' => 5, 'pv_body' => 6, 'pv_mind' => 2,
                 'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 15, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['charge'], 'sorts_dread' => []],
             // 10 points de Body : la créature la plus résistante du catalogue.
+            // REPÈRE de la droite des boss sans le Seigneur (2026-10-31) : N 20,0 (Body 10 / Défense 6). `cout` 22, posé au 2026-08-10
+            // au-dessus de l'ancien Seigneur, droite 22,10 ⇒ 22. Ne bouge pas.
             ['nom_base' => 'Seigneur ogre', 'deplacement' => 4, 'attaque' => 6, 'defense' => 6, 'pv_body' => 10, 'pv_mind' => 5,
                 'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 22, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['frappe_de_zone', 'resistance_magique'], 'sorts_dread' => []],
@@ -490,9 +495,9 @@ class MonstreSeeder extends Seeder
             // `ReactionsMj::apresSortDeHeros()`). *Deflect* (« redirige l'attaque vers un héros dans ses 10 cases ») est PORTÉ (chantier EXT-MAGRIAN, 2026-10-23) : `redirige_attaque`, lu par `ResolveurTour::frapper()` AVANT le jet (`ReactionsMj::deflechirAttaque()`) ; le coup part vers un héros, qui répond avec sa propre défense. Vaincue (dernière phase à 0 Body),
             // « elle s'incline » : `recompense_reddition` crédite 1000 po au
             // groupe au lieu d'une mort — ELLE N'EST PAS maléfique (p. 2).
-            // `cout` : somme des attaques-à-3-dés par phase (10 + 7,5 + 3,75
-            // ≈ 21,25), arrondie au niveau du Seigneur ogre (22) dont elle
-            // partage la résistance totale.
+            // REPÈRE de la droite des boss sans le Seigneur. `cout` 23 : somme des attaques-à-3-dés par phase (10 + 7,5 + 3,75
+            // = 21,25), posé le 2026-10-05 « au niveau du Seigneur ogre (22) » (la valeur retenue est 23) ; droite 22,91 ⇒ 23.
+            // Ne bouge pas.
             ['nom_base' => 'Gruzbella Hammerhand', 'deplacement' => 5, 'attaque' => 4, 'defense' => 6, 'pv_body' => 5, 'pv_mind' => 4,
                 'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
                 'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif', 'redirige_attaque']],
@@ -559,11 +564,11 @@ class MonstreSeeder extends Seeder
             // *Dominate*, « 3 cards for each spell ». BOSS (René, 2026-10-02 : lanceur de boss, comme
             // l'Archimage elfe). « The Dread Warriors in the room are Festral's personal guard. They each
             // roll 5 Attack dice and 5 Defend dice » : `garde_personnelle`, posée au placement par
-            // `App\Partie\GardePersonnelle` sur les Guerriers du Dread de SA salle. Mesuré 4,5 attaques → 11
-            // sur la droite des boss (Ogre commandant 9 → 15, Seigneur 15 → 20) — au niveau de la
-            // Gardienne de Morcar (5 attaques → 12) : un lanceur, pas une brute.
+            // `App\Partie\GardePersonnelle` sur les Guerriers du Dread de SA salle. Mesuré 4,5 attaques → 12
+            // sur la droite des boss sans le Seigneur (2026-10-31) : 12,08 ⇒ 12, au niveau de la Gardienne de Morcar (12) :
+            // un lanceur, pas une brute.
             ['nom_base' => 'Festral', 'deplacement' => 6, 'attaque' => 4, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 8,
-                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 11,
+                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 12,
                 'capacites' => [
                     'reserve_cartes' => ['Explosion mentale' => 3, 'Verrou mental' => 3, 'Domination' => 3],
                     'garde_personnelle' => ['monstre' => 'Guerrier du Chaos', 'attaque' => 5, 'defense' => 5],
@@ -661,11 +666,11 @@ class MonstreSeeder extends Seeder
             // VENIM LE DRAGON (boss final, quête 10, p. 25 : « Venim has the following spells: Cloud of Dread,
             // Fear, Command, Sleep, and Breathe Acid (Firestorm but with acid damage) ») : M7 A5 D5 B4 Mi4.
             // Répertoire → archétype `venim_dragon` (Souffle acide, carte-sœur de Tempête de feu). `cout` :
-            // 4 / (1,5 − 5/6) = 6,0 attaques, sur la droite des boss (Seigneur 15 → 20, pente 0,5) :
-            // 20 + 0,5 × (6,0 − 15) = 15,5 ⇒ 16. Venim est une cible valide du bonus « contre un dragon » de la
+            // 4 / (1,5 − 5/6) = 6,0 attaques, sur la droite des boss SANS le Seigneur (2026-10-31) : 13,05 ⇒ 13.
+            // Venim est une cible valide du bonus « contre un dragon » de la
             // Lance (`des_attaque_contre`, noms). Taille : le livret ne la donne pas (⚠ non trouvé) : 1 × 1.
             ['nom_base' => 'Venim le Dragon', 'deplacement' => 7, 'attaque' => 5, 'defense' => 5, 'pv_body' => 4, 'pv_mind' => 4,
-                'tier' => 'boss', 'boite' => 'crypte_tenebres', 'cout' => 16,
+                'tier' => 'boss', 'boite' => 'crypte_tenebres', 'cout' => 13,
                 'capacites' => ['repertoire_complet', 'reserve_a_son_theme'], 'sorts_dread' => [], 'archetype_lanceur' => 'venim_dragon'],
 
             // ---- Jungles of Delthrak (doc 18) ----
@@ -743,24 +748,24 @@ class MonstreSeeder extends Seeder
             // la prend pour cible (cible unique, zone ou rayon), une fois par
             // rencontre, sans action et sans jet.
             //
-            // `cout` : somme des attaques-à-3-dés par phase (5 + 4,8 + 5,14
-            // ≈ 14,9), interpolée comme le Dragon (First Light) entre les
-            // bosses existants plutôt qu'inventée au hasard.
+            // `cout` 19 (2026-10-31) : somme des attaques-à-3-dés par phase (5 + 4,8 + 36/7 = 14,94), droite des boss sans le
+            // Seigneur : 18,83 ⇒ 19. L'ancien 18 se disait « interpolé » entre les bosses de l'époque, et aucune interpolation ne le
+            // reproduit (≈ 19 à 20 selon les deux droites).
             // « *Gretzl may choose to fire at range at any hero in her line of
             // sight » (livret p. 35, l'astérisque des TROIS formes) : `tir_au_choix`,
             // construit pour Gruulob (2026-10-09).
             ['nom_base' => 'Gretzl la Porte-Fléau', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 6,
-                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 18,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 19,
                 'capacites' => ['tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque', 'annule_sort_ciblant']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
                 'phase_suivante' => 'Demonspider'],
             ['nom_base' => 'Demonspider', 'deplacement' => 8, 'attaque' => 5, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 3,
-                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 18,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 19,
                 'capacites' => ['agile', 'venimeux', 'tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque', 'annule_sort_ciblant']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
                 'phase_suivante' => 'Demonape'],
             ['nom_base' => 'Demonape', 'deplacement' => 8, 'attaque' => 6, 'defense' => 2, 'pv_body' => 6, 'pv_mind' => 1,
-                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 18,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 19,
                 'capacites' => ['agile', 'tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque', 'annule_sort_ciblant']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
                 'phase_suivante' => null],
@@ -805,9 +810,7 @@ class MonstreSeeder extends Seeder
             // Wings*) : aucune entrée de `reactions_defense`.
             //
             // `cout` : somme des attaques-à-3-dés par phase — Body / (1.5 − Défense/6)
-            // = 4 / 0,833 + 3 / 0,667 = 4,8 + 4,5 = 9,3 — placée entre l'Ogre
-            // commandant (9,0 attaques → cout 15) et le Dragon (10,5 → 16), soit
-            // 15,2 → 15 : la même méthode que Gretzl, sans chiffre inventé.
+            // = 4 / 0,833 + 3 / 0,667 = 4,8 + 4,5 = 9,3, droite des boss sans le Seigneur (2026-10-31) : 15,18 ⇒ 15 (inchangé).
             ['nom_base' => 'Gruulob, Sorcier Gobelin Corrompu', 'deplacement' => 6, 'attaque' => 3, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 5,
                 'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 15,
                 'capacites' => ['tir_au_choix',
@@ -866,9 +869,9 @@ class MonstreSeeder extends Seeder
 
             // SCION FLEUR-POURRIE (« Bloomrot Scion », quête 14 voie B, p. 39 — BOSS FINAL du livret) :
             // Move 0 · Attack 5* · Defend 5 · Body 12** · Mind 0, « (Venomous. Entangling Roots.) » →
-            // 18 attaques ; boss, `cout` 22 (entre le Seigneur ogre, 15 attaques → 22, et Gruzbella,
-            // 21 → 23 : le sacrifice ajoute du Body que la mesure ne compte pas, l'immobilité en retire
-            // de la menace). Son Move 0 reprend le patron de la tourelle pour l'IMMOBILITÉ seule
+            // 18 attaques ; boss, `cout` 21 (2026-10-31) : droite des boss sans le Seigneur, 20,81 ⇒ 21. Le sacrifice ajoute du
+            // Body que la mesure ne compte pas, l'immobilité en retire de la menace (ces deux écarts ne sont pas chiffrés).
+            // Son Move 0 reprend le patron de la tourelle pour l'IMMOBILITÉ seule
             // (`Monstre::estImmobile()` : posé en salle, hors parvis, plancher tenu).
             //  * « has a sweeping attack that targets all heroes adjacent and diagonal to it » →
             //    `frappe_de_zone` + `attaque_diagonale`, deux mots-clés existants (le balayage lit la
@@ -887,7 +890,7 @@ class MonstreSeeder extends Seeder
             // forever » — la faille est un élément de la CARTE imprimée de la quête 14, que la génération
             // procédurale ne dresse pas.
             ['nom_base' => 'Scion Fleur-Pourrie', 'deplacement' => 0, 'attaque' => 5, 'defense' => 5, 'pv_body' => 12, 'pv_mind' => 0,
-                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 22,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 21,
                 'capacites' => [
                     'venimeux', 'racines_entravantes', 'frappe_de_zone', 'attaque_diagonale',
                     'sacrifice_de_vrille', 'vrille_en_fin_de_tour' => ['creature' => 'Vrille'],
@@ -944,6 +947,8 @@ class MonstreSeeder extends Seeder
             //    Défense (5) : Seigneur (Body 10, cout 20, 15 attaques) et
             //    Ogre commandant (Body 6, cout 15, 9 attaques). Le Dragon
             //    (Body 7, 10.5 attaques) tombe à 15 + 1.25×(7−6) ≈ 16.
+            //    Lecture ANCIENNE, remplacée le 2026-10-31 : la droite des repères Ogre commandant / Seigneur ogre / Gruzbella donne
+            //    (13335 + 940 × 10,5) / 1454 = 15,96 ⇒ 16. Même cout, autre lecture.
             ['nom_base' => 'Dragon', 'deplacement' => 10, 'attaque' => 5, 'defense' => 5, 'pv_body' => 7, 'pv_mind' => 6,
                 'tier' => 'boss', 'boite' => 'first_light', 'cout' => 16, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['vol_draconique', 'sort_a_volonte' => ['sort' => 'Boule de Flammes'],
@@ -996,11 +1001,12 @@ class MonstreSeeder extends Seeder
             //   météore : 2 dés contre les 3 de l'unité = 2/3 d'une attaque par attaque (ou sort) du groupe :
             //     N × (1 + 2/3) = 47,0.
             //   sorts : 3 lancers au plus (budget de boss, partagé par les formes), 1 action de héros chacun : +3.
-            //   N_eq = 50,0 ; sur la droite des boss (Seigneur 15 → 20 ; Gruzbella, chaîne de ses trois phases, 21 → 23 ; pente 0,5) :
-            //   23 + 0,5 × (50,0 − 21) = 37,5 ⇒ 38. Non chiffré : la flamme du Dragon (un dé rouge par héros de la salle,
+            //   N_eq = 28,207 × 5/3 + 3 = 50,012 ; droite des boss sans le Seigneur (13335 + 940 N) / 1454 = 41,50 ⇒ 42.
+            //   Frontière à N 50,006 : un N arrondi à 50,0 donnerait 41. 42 tient au N exact, celui que mesure le test.
+            //   Non chiffré : la flamme du Dragon (un dé rouge par héros de la salle,
             //   comme pour le Dragon seul) et sa Boule de Flammes à volonté.
             ['nom_base' => 'Qwindrak the Warlock', 'deplacement' => 6, 'attaque' => 3, 'defense' => 6, 'pv_body' => 3, 'pv_mind' => 6,
-                'tier' => 'boss', 'boite' => 'first_light', 'cout' => 38,
+                'tier' => 'boss', 'boite' => 'first_light', 'cout' => 42,
                 'capacites' => [
                     'synchroformes' => [
                         'formes' => ['Abomination', 'Gargouille', 'Guerrier du Chaos', 'Gobelin', 'Orque'],
@@ -1055,9 +1061,8 @@ class MonstreSeeder extends Seeder
             // (« Defeat the Storm Master to complete this quest »).
             // `cout` : NOTRE valeur, mesurée comme les autres bosses
             // (`docs/regles/bestiaire-et-rencontres.md`) — attaques d'un héros à 3 dés
-            // pour l'abattre, Body / (1,5 − Défense/6), sur la droite Ogre commandant
-            // (9 attaques, 15) — Seigneur (15 attaques, 20) : Storm Master 10 → 16,
-            // Necromancer 8 → 14, High Mage 6 → 13.
+            // pour l'abattre, Body / (1,5 − Défense/6). (Première lecture sur la droite du Seigneur retiré — Storm Master 10 → 16,
+            // Necromancer 8 → 14, High Mage 6 → 13 — remplacée par la remesure sur la droite des sous-boss ci-dessus.)
             ['nom_base' => 'Maître des orages', 'deplacement' => 6, 'attaque' => 4, 'defense' => 6, 'pv_body' => 5, 'pv_mind' => 7,
                 'tier' => 'sous_boss', 'boite' => 'wizards_of_morcar', 'cout' => 13, 'capacites' => ['sorts_uniques'], 'sorts_dread' => [],
                 'archetype_lanceur' => 'orages_morcar'],
@@ -1079,9 +1084,8 @@ class MonstreSeeder extends Seeder
             // L'Artificer porte « Attack 4+2* » au tableau : l'astérisque est *Hammer of
             // Ruin* (+2 dés tant que le sort tient — `bonus_attaque`), jamais une
             // statistique de base. `cout` : même mesure que la vague 2A — attaques d'un
-            // héros à 3 dés pour l'abattre, Body / (1,5 − Défense/6), sur la droite
-            // Ogre commandant (9 attaques, 15) — Seigneur (15, 20) : Warcaster 7,5 → 14,
-            // Artificer 5 → 12.
+            // héros à 3 dés pour l'abattre, Body / (1,5 − Défense/6). Artificer (boss) : droite des boss SANS le Seigneur
+            // (2026-10-31) : 5 → 12,40 ⇒ 12 (inchangé). Le Warcaster (sous-boss) : voir la droite des sous-boss, ci-dessus.
             ['nom_base' => 'Mage de guerre orque', 'deplacement' => 7, 'attaque' => 5, 'defense' => 5, 'pv_body' => 5, 'pv_mind' => 7,
                 'tier' => 'sous_boss', 'boite' => 'wizards_of_morcar', 'cout' => 12, 'capacites' => ['sorts_uniques'], 'sorts_dread' => [],
                 'archetype_lanceur' => 'guerriere_orque_morcar'],
@@ -1139,18 +1143,17 @@ class MonstreSeeder extends Seeder
             // détruit les portes de la salle ».
             //
             // `cout` MESURÉ (docs/regles/bestiaire-et-rencontres.md) : attaques d'un héros à 3 dés
-            // pour l'abattre = Body / (1,5 − Défense/6) = 6 / (1,5 − 4/6) = 7,2. Lu sur la droite
-            // des boss (Seigneur 15 → 20 ; Gruzbella 21 → 23 ; pente 0,5) : 20 + 0,5 × (7,2 − 15)
-            // = 16,1 ⇒ 16. Recoupement : la Horreur des Glaces a exactement ce profil de combat
-            // (M8 A5 D4 B6, 7,2 attaques, cout 16).
+            // pour l'abattre = Body / (1,5 − Défense/6) = 6 / (1,5 − 4/6) = 7,2. Droite des boss sans le Seigneur
+            // (2026-10-31) : 13,83 ⇒ 14. La Horreur des Glaces, au profil de combat identique, tombe aussi à 14.
             ['nom_base' => 'Fellmarak le Roi Sorcier', 'deplacement' => 8, 'attaque' => 5, 'defense' => 4,
-                'pv_body' => 6, 'pv_mind' => 6, 'tier' => 'boss', 'boite' => 'prophecy_telor', 'cout' => 16,
+                'pv_body' => 6, 'pv_mind' => 6, 'tier' => 'boss', 'boite' => 'prophecy_telor', 'cout' => 14,
                 'capacites' => [], 'sorts_dread' => [], 'archetype_lanceur' => 'fellmarak_roi_sorcier'],
             // ---- Return of the Witch Lord (F4193, 2021/22) — lots B, C, D (chantier 2026-10-23) ----
             // Stats : Move/Attack/Defend/Body/Mind, `reference/18` §Witch Lord, relues sur le livret.
             // `cout` = attaques d'un héros à 3 dés pour abattre, Body / (1,5 − Défense/6), placé sur la
-            // droite de SON palier (sous-boss : Ogre champion 7,2 → 11, Minotaure 9 → 12 ; boss : Ogre
-            // commandant 9 → 15, Seigneur 15 → 20), plancher de palier 8 (sous-boss) comme l'Effigie.
+            // droite de SON palier (sous-boss : Ogre champion 7,2 → 11, Minotaure 9 → 12 ; boss : la droite des boss SANS
+            // le Seigneur, 2026-10-31 : Ogre commandant 9 → 15, Seigneur ogre 20 → 22, Gruzbella 21,25 → 23), plancher de
+            // palier 8 (sous-boss) comme l'Effigie.
             // Lecture sans vulnérabilité ni immunité : une créature qui ne craint que certaines sources est
             // comptée comme les autres (à trancher par René, voir `docs/plan-witch-lord.md` §Exécution).
 
@@ -1199,7 +1202,7 @@ class MonstreSeeder extends Seeder
             // « fire of wrath » (Trait de Feu), le « ball of flame » (Boule de Feu) et la Dague de jet magique
             // (`vulnerable_uniquement_a`, p. 27 : « can only be harmed by four things at this time »).
             // Répertoire : summon undead, firestorm, tempest, lightning bolt, fear, command. Body 4 / (1,5 − 6/6)
-            // = 8 attaques, sur la droite des boss : cout 14.
+            // = 8 attaques, sur la droite des boss sans le Seigneur (2026-10-31) : 14,34 ⇒ 14 (inchangé).
             ['nom_base' => 'Seigneur Sorcier', 'deplacement' => 10, 'attaque' => 5, 'defense' => 6, 'pv_body' => 4, 'pv_mind' => 5,
                 'tier' => 'boss', 'boite' => 'witch_lord', 'cout' => 14,
                 'capacites' => ['vulnerable_uniquement_a' => ['Lame des Esprits', 'Trait de Feu', 'Boule de Feu', 'Dague de jet magique']],
@@ -1275,8 +1278,8 @@ class MonstreSeeder extends Seeder
             // DERNIER obstacle de la boîte : la porte de sortie ne s'ouvre qu'à sa mort. Boss final du thème. Le premier héros
             // qui pose le pied sur la case « C » l'active : déclencheur propre à cette quête, non porté — elle est posée comme
             // un boss ordinaire. `immunite_sorts` : le mot-clé de l'Effigie (`MotsClesAdversaires::IMMUNITE_SORTS`), totale.
-            // `cout` : 4 / (1,5 − 5/6) = 6,0 attaques, sur la droite des boss (Ogre commandant 9 → 15, Seigneur 15 → 20) :
-            // 12,5 → 13 (arrondi au supérieur, comme le Scion à 21,5 → 22 : l'immunité n'est pas chiffrée par la méthode).
+            // `cout` : 4 / (1,5 − 5/6) = 6,0 attaques, droite des boss sans le Seigneur (2026-10-31) : 13,05 ⇒ 13 (inchangé).
+            // L'immunité aux sorts n'est pas chiffrée par la méthode.
             [...$gargouille, 'nom_base' => 'Gargouille gardienne', 'tier' => 'boss', 'boite' => 'kellars_keep', 'pv_body' => 4,
                 'cout' => 13, 'capacites' => ['immunite_sorts'], 'sorts_dread' => []],
 
@@ -1331,14 +1334,14 @@ class MonstreSeeder extends Seeder
             // `cout` MESURÉ (docs/regles/bestiaire-et-rencontres.md, attaques d'un héros à 3 dés = Body / (1,5 − Défense/6)) :
             // Kavra 3 / (1,5 − 5/6) = 4,5 attaques, sur la droite des SOUS-BOSS (Ogre champion 7,2 → 11 ; Doralf 10,5 → 13,
             // pente ≈ 0,61) : 11 − 0,61 × 2,7 ≈ 9,4 ⇒ 9. Nelath 6 / (1,5 − 4/6) = 7,2 attaques, sur la droite des BOSS
-            // (Seigneur 15 → 20, pente 0,5) : 20 + 0,5 × (7,2 − 15) ≈ 16,1 ⇒ 16, comme Fellmarak (même Défense, même Body).
+            // sans le Seigneur (2026-10-31) : 13,83 ⇒ 14, comme Fellmarak (même Défense, même Body).
             // Les sorts ne sont pas comptés dans le `cout`, comme pour Fellmarak.
             ['nom_base' => 'Kavra', 'deplacement' => 7, 'attaque' => 4, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 3,
                 'tier' => 'sous_boss', 'boite' => 'spirit_queen', 'cout' => 9,
                 'capacites' => ['double_sort' => ['premier_tour' => true]], 'sorts_dread' => [],
                 'archetype_lanceur' => 'kavra_sorciere'],
             ['nom_base' => 'Nelath, la Reine des Esprits', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 3,
-                'tier' => 'boss', 'boite' => 'spirit_queen', 'cout' => 16,
+                'tier' => 'boss', 'boite' => 'spirit_queen', 'cout' => 14,
                 'capacites' => ['double_sort', 'sorts_uniques'], 'sorts_dread' => [],
                 'archetype_lanceur' => 'nelath_reine_des_esprits'],
         ];

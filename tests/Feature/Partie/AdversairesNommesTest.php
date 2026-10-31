@@ -275,7 +275,7 @@ it('CATALOGUE : les six lignes portent les stats relues sur le livret, rendu à 
 
     // La Vrille ne s'achète JAMAIS (cout 0 : le Scion la pose) ; les cinq autres ont un coût de palier.
     expect((int) Monstre::where('nom_base', 'Vrille')->value('cout'))->toBe(0);
-    foreach (['Effigie gardienne' => 8, 'Deathspinner la Reine du Fléau' => 10, 'Golem Cœur-de-Forge' => 11, 'Scion Fleur-Pourrie' => 22, 'Bakabri le Cruel' => 10] as $nom => $cout) {
+    foreach (['Effigie gardienne' => 8, 'Deathspinner la Reine du Fléau' => 10, 'Golem Cœur-de-Forge' => 11, 'Scion Fleur-Pourrie' => 21, 'Bakabri le Cruel' => 10] as $nom => $cout) {
         expect((int) Monstre::where('nom_base', $nom)->value('cout'))->toBe($cout, $nom);
     }
 

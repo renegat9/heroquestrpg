@@ -358,7 +358,7 @@ it('assigne le lanceur nommé demandé comme rencontre finale (indice de gabarit
 
     // Sans indice d'archétype : le LEADER DE COÛT du palier. On ne fige pas son
     // nom — le bestiaire s'est enrichi des créatures d'extension le 2026-08-10,
-    // et le Seigneur ogre (coût 22) a pris la tête ; Qwindrak (coût 38, 2026-10-22)
+    // et le Seigneur ogre (coût 22) a pris la tête ; Qwindrak (coût 42, 2026-10-31)
     // la prend à son tour. Ce que le test garde, c'est la règle : à défaut
     // d'archétype, on prend le boss le plus cher du palier. SANS plafond de budget :
     // `acheterMonstres()` achète la rencontre finale même au-dessus du budget

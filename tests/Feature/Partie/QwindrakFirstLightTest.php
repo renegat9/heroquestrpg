@@ -848,9 +848,9 @@ it('le coût de Qwindrak suit la méthode mesurée : formes, puis météore (× 
     // Le météore : 2 dés contre les 3 de l'unité du bestiaire, soit 2/3 d'une attaque par attaque ou sort du groupe.
     // Les trois sorts : au plus 3 lancers, une action de héros chacun.
     $equivalent = $attaques * (1 + 2 / 3) + 3;
-    // Droite des boss : Seigneur 15 → 20, Gruzbella (chaîne de ses trois phases) 21 → 23.
-    $cout = (int) round(23 + 0.5 * ($equivalent - 21));
+    // Droite des boss SANS le Seigneur (2026-10-31) : `coutDroiteBoss()`, la seule source de la formule.
+    $cout = coutDroiteBoss($equivalent);
 
     expect((int) $q->cout)->toBe($cout)
-        ->and($cout)->toBe(38);
+        ->and($cout)->toBe(42);
 });

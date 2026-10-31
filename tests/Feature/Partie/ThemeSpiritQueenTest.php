@@ -121,10 +121,10 @@ it('le coût de Kavra et de Nelath suit la méthode mesurée : attaques pour l\'
     expect((int) round(11 + (2 / 3.3) * ($attaquesKavra - 7.2)))->toBe((int) $kavra->cout)
         ->and((int) $kavra->cout)->toBe(9);
 
-    // Nelath, boss : 6 / (1,5 − 4/6) = 7,2 attaques ; droite des boss (Seigneur 15 → 20, pente 0,5) : 16 — comme Fellmarak.
+    // Nelath, boss : 6 / (1,5 − 4/6) = 7,2 attaques ; droite des boss SANS le Seigneur (2026-10-31) : 14 — comme Fellmarak.
     $attaquesNelath = $nelath->pv_body / (1.5 - $nelath->defense / 6);
-    expect((int) round(20 + 0.5 * ($attaquesNelath - 15)))->toBe((int) $nelath->cout)
-        ->and((int) $nelath->cout)->toBe(16);
+    expect(coutDroiteBoss($attaquesNelath))->toBe((int) $nelath->cout)
+        ->and((int) $nelath->cout)->toBe(14);
 });
 
 it('sous le thème spirit_queen, la rencontre finale tire NELATH et le sous-boss tire KAVRA (graines 1 à 30)', function () {

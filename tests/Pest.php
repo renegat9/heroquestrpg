@@ -75,6 +75,18 @@ function connecterJoueur(string $pseudo = 'rene'): JoueurAuthentifiable
 }
 
 /**
+ * LA droite des boss SANS le Seigneur (René, 2026-10-31 : « Oui applique cette droite » ; `docs/regles/bestiaire-et-rencontres.md`,
+ * « La droite des boss sans le Seigneur »). Unique source de la formule pour les tests qui figent un `cout` de boss.
+ *
+ * Moindres carrés sur les trois repères Ogre commandant (N 9,0 → 15), Seigneur ogre (N 20,0 → 22) et Gruzbella (N 21,25 → 23) :
+ * pente a = 470/727 = 940/1454 ≈ 0,646492, ordonnée b = 13335/1454 ≈ 9,171252. Arrondi au plus proche, étendu sous N = 9.
+ */
+function coutDroiteBoss(float $attaques): int
+{
+    return (int) round((13335 + 940 * $attaques) / 1454);
+}
+
+/**
  * Groupe au hub, prêt à recevoir des héros (création directe en base —
  * la création via l'API est couverte par les tests du flux complet).
  */

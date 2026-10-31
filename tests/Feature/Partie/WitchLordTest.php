@@ -137,7 +137,7 @@ it('FINALE — le Seigneur est posé À COUP SÛR, même au budget le plus petit
     // Budget MESURÉ (`budgetRencontres`, un héros de niveau 1, premier arc, boss final) : 8. Le Seigneur coûte 14 :
     // `acheterMonstres()` pose la finale QUOI QU'IL EN SOIT, puis débite `max(0, restant − cout)`. Au budget 8,
     // l'escorte est donc VIDE — la rencontre n'est que le Seigneur, comme pour les finales existantes (le Seigneur
-    // ogre coûte 20, le Scion 22). Au budget 40, il reste 26 pour l'escorte.
+    // ogre coûte 22, le Scion 21). Au budget 40, il reste 26 pour l'escorte.
     $petit = wlAcheter('witch_lord', 'boss_final', 8, 8, 1, 1);
     $confortable = wlAcheter('witch_lord', 'boss_final', 40, 8, 1, 1);
 

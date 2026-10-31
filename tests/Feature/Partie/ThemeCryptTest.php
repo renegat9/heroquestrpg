@@ -154,5 +154,6 @@ it('le coût de Venim suit la méthode mesurée, sur la droite des boss', functi
     $v = Monstre::where('nom_base', 'Venim le Dragon')->firstOrFail();
     $attaques = $v->pv_body / (1.5 - $v->defense / 6);
 
-    expect((int) round(20 + 0.5 * ($attaques - 15)))->toBe((int) $v->cout);
+    expect(coutDroiteBoss($attaques))->toBe((int) $v->cout)
+        ->and((int) $v->cout)->toBe(13);
 });

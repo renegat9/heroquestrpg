@@ -461,12 +461,12 @@ it('porte les sept adversaires nommés exactement comme leur livret, avec les co
             ->and((int) Monstre::where('nom_base', $nom)->value('cout'))->toBe(8, $nom);
     }
 
-    // Le coût de Venim suit la méthode mesurée : 4 / (1,5 − 5/6) = 6 attaques, sur la droite des boss (Seigneur 15 → 20).
+    // Le coût de Venim suit la méthode mesurée : 4 / (1,5 − 5/6) = 6 attaques, sur la droite des boss SANS le Seigneur.
     $venim = Monstre::where('nom_base', 'Venim le Dragon')->firstOrFail();
     $attaques = $venim->pv_body / (1.5 - $venim->defense / 6);
 
-    expect((int) round(20 + 0.5 * ($attaques - 15)))->toBe((int) $venim->cout)
-        ->and((int) $venim->cout)->toBe(16);
+    expect(coutDroiteBoss($attaques))->toBe((int) $venim->cout)
+        ->and((int) $venim->cout)->toBe(13);
 });
 
 it('chaque lanceur nommé de la Crypte a son répertoire du livret, et tous ses sorts existent au catalogue', function () {

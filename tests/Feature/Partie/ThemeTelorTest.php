@@ -128,11 +128,11 @@ it('l\'escorte d\'une campagne Telor vient du jeu de base : la boîte n\'a aucun
 it('le coût de Fellmarak suit la méthode mesurée : attaques pour l\'abattre, lues sur la droite des boss', function () {
     $f = Monstre::where('nom_base', TELOR_FELLMARAK)->firstOrFail();
 
-    // Body / (1,5 − Défense/6) = 6 / (1,5 − 4/6) = 7,2 attaques ; droite des boss (Seigneur 15 → 20, pente 0,5).
+    // Body / (1,5 − Défense/6) = 6 / (1,5 − 4/6) = 7,2 attaques ; droite des boss SANS le Seigneur (2026-10-31).
     $attaques = $f->pv_body / (1.5 - $f->defense / 6);
 
-    expect((int) round(20 + 0.5 * ($attaques - 15)))->toBe((int) $f->cout)
-        ->and((int) $f->cout)->toBe(16);
+    expect(coutDroiteBoss($attaques))->toBe((int) $f->cout)
+        ->and((int) $f->cout)->toBe(14);
 });
 
 it('FIGE le thème : un groupe figé sur une autre boîte ne bouge pas quand la rotation s\'allonge', function () {

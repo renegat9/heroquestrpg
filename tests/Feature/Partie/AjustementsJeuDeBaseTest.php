@@ -325,39 +325,18 @@ it('le jalon sous-boss d\'une campagne First Light tire un sous-boss DE SA BOÎT
 // 4. L'ARCHIMAGE ELFE — remesuré
 // ==================================================================
 
-it('remesure le cout de l\'Archimage elfe à 12 : 4,8 attaques sur la droite des boss (repères restants)', function () {
+it('remesure le cout de l\'Archimage elfe à 12 : 4,8 attaques sur la droite des boss SANS le Seigneur (2026-10-31)', function () {
     $archimage = Monstre::where('nom_base', 'Archimage elfe')->firstOrFail();
 
     expect((int) $archimage->cout)->toBe(12)
         ->and($archimage->tier)->toBe('boss');
 
-    // Les trois repères restants, et la méthode : Body / (1,5 − Défense/6), moindres carrés sur (attaques, cout).
-    $repères = [
-        ['Seigneur Sorcier', 'boss', 8.0, 14],
-        ['Ogre commandant', 'boss', 9.0, 15],
-        ['Seigneur ogre', 'boss', 20.0, 22],
-    ];
-
-    foreach ($repères as [$nom, $tier, $attaques, $cout]) {
-        $m = Monstre::where('nom_base', $nom)->firstOrFail();
-
-        expect($m->tier)->toBe($tier)
-            ->and(round($m->pv_body / (1.5 - $m->defense / 6), 1))->toBe($attaques, "{$nom} : attaques")
-            ->and((int) $m->cout)->toBe($cout, "{$nom} : cout");
-    }
-
-    $xs = array_column($repères, 2);
-    $ys = array_column($repères, 3);
-    $n = count($xs);
-    $moyX = array_sum($xs) / $n;
-    $moyY = array_sum($ys) / $n;
-    $pente = array_sum(array_map(fn ($x, $y) => ($x - $moyX) * ($y - $moyY), $xs, $ys))
-        / array_sum(array_map(fn ($x) => ($x - $moyX) ** 2, $xs));
-    $ordonnee = $moyY - $pente * $moyX;
-
+    // La droite est `coutDroiteBoss()` (tests/Pest.php), posée sur les repères Ogre commandant, Seigneur ogre et Gruzbella,
+    // jamais sur le Seigneur retiré. 4,8 attaques ⇒ 12.
     $attaquesArchimage = $archimage->pv_body / (1.5 - $archimage->defense / 6);
 
-    expect(round($ordonnee + $pente * $attaquesArchimage))->toBe(12.0);
+    expect(round($attaquesArchimage, 1))->toBe(4.8)
+        ->and(coutDroiteBoss($attaquesArchimage))->toBe((int) $archimage->cout);
 });
 
 // ==================================================================

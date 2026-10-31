@@ -72,7 +72,7 @@ it('garde la rencontre finale en tête, et n\'empêche la masse de faibles QUE s
     $structure = ['rencontre_finale' => ['tier' => 'boss']];
 
     // Le boss d'abord, même au-dessus du budget : `acheterMonstres()` le place « toujours présente ». Le leader de coût
-    // du palier (Qwindrak, coût 38 depuis le 2026-10-22) ne tient pas dans un budget de 30 : il occupe alors toute la
+    // du palier (Qwindrak, coût 42 depuis le 2026-10-31) ne tient pas dans un budget de 30 : il occupe alors toute la
     // rencontre, et c'est ce que `docs/regles/bestiaire-et-rencontres.md` mesure. L'ancien test supposait un boss
     // abordable à 30 ; il vérifie désormais la règle elle-même.
     $sousBudget = acheter(budget: 30, maxSpawns: 20, positionArc: 1, structure: $structure);
