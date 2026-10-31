@@ -137,6 +137,12 @@ Quest: Orc », et posent à côté une **tête dans un anneau vert** : c'est le 
   Commander, Warrior), Delthrak PDF 26, Mage of the Mirror PDF 20, Wizards of Morcar PDF 22 (Minotaur, PDF 22 : le
   Minotaure a son ovale ici), Frozen Horror PDF 20 (Frozen Horror), First Light PDF 23 (Dragon : ovale horizontal,
   le seul à ne pas être couché). Ogre Horde PDF 41 : le tableau « Monster Map Symbol » donne les mêmes symboles.
+  Rise of the Dread Moon PDF 20 (René, 2026-10-31 : « les tokens sont affichés après les dernières quêtes ») : Dread
+  Cultist, Elven Warrior, Elven Archer, Sir Ragnar. Wizards of Morcar PDF 22 : un jeton PAR lieutenant (Orc Warcaster,
+  Necromancer, High Mage, Storm Master), l'Artificer et le Dreadshifter — la planche en dessine deux, « Dreadshifter »
+  et « Dreadshifter (Chest) » ; c'est la version coffre qui est extraite, celle que le catalogue pose.
+  Pas de planche dans Prophecy of Telor, Spirit Queen's Torment ni The Crypt of Perpetual Darkness ; Delthrak
+  remplace la sienne par le tableau « Map Symbol » (PDF 26), déjà exploité.
 - **Figures 1×2 dont le livret dessine un jeton ROND** : Ogre (Mage du Miroir, PDF 7 : légende, jeton rond de 1,05),
   Ogre guerrier (Ogre Horde PDF 19, 37, 41, 43 : rond partout) et Horreur des Glaces (planche Frozen Horror PDF 20,
   rapport 1,13). Le livret les dessine RONDS, alors que le catalogue les pose 1×2 : ils gardent le jeton rond
@@ -145,8 +151,8 @@ Quest: Orc », et posent à côté une **tête dans un anneau vert** : c'est le 
   figure 1×1 au catalogue. NON extrait : l'emprise est une règle de déplacement, à trancher, pas un détail d'image.
 - **Carte, sous une lettre** : la gargouille de la quête 3 de base (F2847 PDF 7, lettre B : « a gargoyle that
   appears to be a stone statue ») est un jeton posé sur le plan ; sa note nomme la figure, le jeton est celui-là.
-  Les lieutenants de Morcar (« one of the Sorcerers », G1504 PDF 19, quatre sorciers aux statistiques communes)
-  partagent un seul jeton : `morcar-sorcerer`.
+  ⚠ Les lieutenants de Morcar ont partagé un jeton générique `morcar-sorcerer` (« one of the Sorcerers », G1504
+  PDF 19) jusqu'au 2026-10-31 : la planche PDF 22 dessine chacun sous son nom, le jeton commun a été retiré.
 - **Les parois rouges de la carte** : le rouge franc n'est jamais du dessin, il est retiré dans le disque comme
   dans la couronne (une paroi bordeaux, sous la lettre B, restait dans le cercle).
 - **Spawnling** (étiquette « Wandering Monster in the Quest », Delthrak PDF 7) n'est pas extrait : son fond est une **tuile carrée**, pas un disque. « Rejeton putride » reste donc « à reprendre ».
