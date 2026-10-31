@@ -132,6 +132,15 @@ final class MotsClesAdversaires
     public const IMMUNITE_SORTS_SAUF = 'immunite_sorts_sauf';
 
     /**
+     * IMMUNITÉ À UNE FAMILLE DE SORTS, ÉLÉMENT PAR ÉLÉMENT — l'INVERSE de `IMMUNITE_SORTS_SAUF` (Balur, *Jeu de base*
+     * quête 8, « The Fire Mage », F2847 PDF 10 : « Fire spells do not affect him. »). Liste des ÉLÉMENTS de sort qui
+     * ne l'atteignent PAS (`['feu']`) : un sort de héros de l'un de ces éléments est refusé, les autres passent.
+     * Même point de passage unique que les autres barreaux, `MoteurSorts::sortRefuseSur()` — donc au menu ET à la
+     * résolution, jamais recopié.
+     */
+    public const IMMUNITE_SORTS_ELEMENTS = 'immunite_sorts_elements';
+
+    /**
      * VULNÉRABLE UNIQUEMENT À UNE LISTE DE SOURCES (Seigneur Sorcier, *Witch Lord* q. 10, p. 27 : « The Witch Lord
      * can only be harmed by four things at this time: the Spirit Blade, the fire of wrath spell, the ball of
      * flame spell, and the Magical Throwing Dagger. ») — la liste nomme des ARMES (`Objet::nom`) et des SORTS DE
@@ -274,6 +283,10 @@ final class MotsClesAdversaires
         self::IMMUNITE_SORTS_SAUF => [
             'lecteur' => 'App\Models\Monstre::immunitesSorts',
             'libelle' => 'Immunisé à tous les sorts SAUF une famille (éléments listés) : les autres sorts sont refusés',
+        ],
+        self::IMMUNITE_SORTS_ELEMENTS => [
+            'lecteur' => 'App\Models\Monstre::immunitesSorts',
+            'libelle' => 'Immunisé aux sorts d\'un ÉLÉMENT listé (feu) : un sort de héros de cet élément ne l\'atteint pas, les autres passent',
         ],
         self::VULNERABLE_UNIQUEMENT_A => [
             'lecteur' => 'App\Models\Monstre::immunitesSorts',

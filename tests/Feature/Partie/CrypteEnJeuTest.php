@@ -56,7 +56,7 @@ beforeEach(function () {
 /** Un héros seul en quête, avec un monstre nommé au contact : la même base que `demarrerQueteAvecMonstre()`. */
 function crypteLanceur(string $sort, array $herosAttrs = []): array
 {
-    $ctx = demarrerQueteAvecMonstre('Seigneur', $herosAttrs);
+    $ctx = demarrerQueteAvecMonstre('Seigneur Sorcier de Barak Tor', $herosAttrs);
 
     $ctx['instance']->monstre->update(['sorts_dread' => [$sort], 'archetype_lanceur' => null]);
     $ctx['instance']->update(['pv_body_max' => (int) $ctx['instance']->monstre->pv_body]);

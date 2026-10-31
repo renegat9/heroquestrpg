@@ -56,7 +56,7 @@ beforeEach(function () {
  *
  * @return array{alice: mixed, groupe: mixed, heros: Personnage, quete: Quete, instance: InstanceMonstre, etatHeros: EtatPersonnageQuete}
  */
-function lanceurAvecSort(string $sort, string $monstre = 'Seigneur', array $herosAttrs = []): array
+function lanceurAvecSort(string $sort, string $monstre = 'Seigneur ogre', array $herosAttrs = []): array
 {
     $ctx = demarrerQueteAvecMonstre($monstre, $herosAttrs);
 
@@ -311,7 +311,7 @@ it('Tourmente fait SAUTER le tour suivant, sans aucun jet', function () {
     // « That hero then misses their next turn. » Aucune résistance.
     // ⚠ `perd_prochain_tour` vivait au catalogue SANS LECTEUR depuis la création
     // de la table : un héros étourdi jouait normalement.
-    $ctx = lanceurAvecSort('Tourmente', 'Champion');
+    $ctx = lanceurAvecSort('Tourmente', 'Garde-mage');
     ['heros' => $heros, 'quete' => $quete] = $ctx;
 
     $actions = tourDreadAvec($ctx, []);
@@ -387,7 +387,7 @@ it('Étreinte des Ronces immobilise sur un crâne, et se coupe à la hache', fun
     // hero can spend an action to destroy the vines. »
     // ⚠ Premier producteur d'*Immobilisé*, et premier lecteur de son
     // `fin: liberation` — la condition dormait au catalogue, posée par personne.
-    $ctx = lanceurAvecSort('Étreinte des Ronces', 'Champion');
+    $ctx = lanceurAvecSort('Étreinte des Ronces', 'Garde-mage');
     ['alice' => $alice, 'groupe' => $groupe, 'heros' => $heros] = $ctx;
 
     $pvAvant = (int) $heros->pv_body;
@@ -559,7 +559,7 @@ it('Réanimation relève les morts-vivants VAINCUS de la salle du lanceur', func
 it('Apaisement rend au plus ce qui a été PERDU', function () {
     // « Restores UP TO 3 lost Body Points to the spellcaster or any one
     // monster » : le plafond est ce qui manque, jamais le maximum.
-    $ctx = lanceurAvecSort('Apaisement', 'Champion');
+    $ctx = lanceurAvecSort('Apaisement', 'Garde-mage');
     ['instance' => $boss] = $ctx;
 
     $max = (int) $boss->pv_body_max;
@@ -576,7 +576,7 @@ it('Apaisement rend au plus ce qui a été PERDU', function () {
 it('un soin ne part PAS quand personne n\'est blessé', function () {
     // Un usage dépensé pour un journal vide est le défaut que la Tempête de feu
     // portait avant que le choix et la résolution ne lisent la même zone.
-    $ctx = lanceurAvecSort('Apaisement', 'Champion');
+    $ctx = lanceurAvecSort('Apaisement', 'Garde-mage');
 
     expect(actionDuSort(tourDreadAvec($ctx, []), 'Apaisement'))->toBeNull();
 });

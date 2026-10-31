@@ -136,12 +136,12 @@ it('rend l\'Archer et le Guerrier elfes disponibles dans les DEUX thèmes qui le
             ->and(BestiaireGroupe::auto('horde_ogre')->contient($elfe->boites()))->toBeFalse();
     }
 
-    // Un monstre `boite: null` reste générique, et un monstre d'une seule boîte ne change pas.
-    $champion = Monstre::where('nom_base', 'Champion')->firstOrFail();
+    // Un monstre de la boîte de BASE reste générique (le jeu de base passe partout), et un monstre d'une seule boîte ne change pas.
+    $ulag = Monstre::where('nom_base', 'Ulag')->firstOrFail();
     $assassin = Monstre::where('nom_base', 'Assassin')->firstOrFail();
 
-    expect($champion->boites())->toBe([])
-        ->and(BestiaireGroupe::manuel([])->autorise($champion->boites()))->toBeTrue()
+    expect($ulag->boites())->toBe(['base'])
+        ->and(BestiaireGroupe::manuel(['horde_ogre'])->autorise($ulag->boites()))->toBeTrue()
         ->and($assassin->boites())->toBe(['dread_moon'])
         ->and(BestiaireGroupe::manuel(['mage_du_miroir'])->autorise($assassin->boites()))->toBeFalse();
 });

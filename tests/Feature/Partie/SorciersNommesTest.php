@@ -57,43 +57,35 @@ function repertoireDe(string $nomMonstre): array
     return $sorts->pluck('nom')->all();
 }
 
-it('résout le répertoire complet de l\'archétype pour un lanceur nommé', function () {
-    $sorts = repertoireDe('Sorcier des Tempêtes'); // archétype maitre_tempetes
+it('résout le répertoire complet de l\'archétype pour un lanceur nommé (sorts_uniques : le palier ne retire rien)', function () {
+    // Balur (sous-boss, jeu de base) porte six sorts UNE FOIS chacun (`sorts_uniques`) : le répertoire entier, Fuite
+    // (palier boss) comprise, lui est ouvert quel que soit son palier. Ancien porteur : le Sorcier des Tempêtes, retiré.
+    $sorts = repertoireDe('Balur');
 
     expect($sorts)
         ->toContain('Tempête de feu')
-        // ⚠ L'*Éclair de Chaos* (carte *Lightning Bolt*) a remplacé le *Trait de
-        // Chaos* le 2026-09-04 : ce dernier était notre seule invention du
-        // catalogue de Dread, et il portait à lui seul la frappe à distance du
-        // répertoire du Maître des tempêtes.
-        ->toContain('Éclair de Chaos')
         ->toContain('Fuite')
-        // L'invocation appartient au Nécromancien, pas au Maître des tempêtes.
+        ->toContain("Invocation d'orques")
+        // L'invocation des morts-vivants appartient au Seigneur Sorcier de Barak Tor, pas à Balur.
         ->not->toContain('Invocation de morts-vivants');
 });
 
-it('donne au Nécromancien son propre répertoire (invocation + contrôle)', function () {
-    $sorts = repertoireDe('Liche'); // archétype necromancien
+it('donne au Seigneur Sorcier de Barak Tor son propre répertoire (invocation + contrôle)', function () {
+    $sorts = repertoireDe('Seigneur Sorcier de Barak Tor'); // archétype seigneur_sorcier_barak_tor
 
     expect($sorts)
         ->toContain('Invocation de morts-vivants')
-        ->toContain('Sommeil')
+        ->toContain('Commandement')
         ->not->toContain('Tempête de feu');
 });
 
 it('retombe sur la liste sorts_dread propre quand aucun archétype n\'est défini', function () {
-    // ⚠ Le CHAMPION depuis le 2026-09-04, plus le Seigneur : celui-ci a reçu un
-    // archétype pour entrer dans le pool de rencontre finale. Le Champion garde
-    // donc sa liste brute — et depuis le 2026-09-30, le Dragon de First Light
-    // la porte aussi (sa carte ne nomme qu'UN sort, pas un répertoire de
-    // sorcier nommé) : le repli de `repertoireSorts()` a donc deux porteurs en
-    // production, pas zéro — c'est ce qui compte, une branche que plus aucune
-    // donnée n'emprunte est une branche dont on ne sait plus si elle marche.
-    $sorts = repertoireDe('Champion');
+    // ⚠ Le Champion gardait cette liste brute jusqu'à son retrait (2026-10-31). Le Dragon de First Light la porte
+    // désormais seul : sa carte ne nomme qu'UN sort. Une branche que plus aucune donnée n'emprunte est une branche
+    // dont on ne sait plus si elle marche — celle-ci a encore son porteur.
+    $sorts = repertoireDe('Dragon');
 
-    expect($sorts)
-        ->toContain('Sommeil')
-        ->toContain('Tempête de feu');
+    expect($sorts)->toContain('Boule de Flammes');
 });
 
 it('remplit un POOL d\'archétypes dans chaque gabarit à rencontre finale', function () {
@@ -227,9 +219,10 @@ it('donne une BOÎTE à chaque créature, et aucune de fantaisie', function () {
             ->toBeTrue("La boîte « {$boite} » est désactivée mais n'existe pas.");
     }
 
-    // …et nos propres blocs de stats n'appartiennent à aucune : ce sont eux qui
+    // …et les méchants du JEU DE BASE (boîte `base`) appartiennent à toutes : ce sont eux qui
     // garantissent qu'un pool ne se vide jamais, quel que soit le thème.
-    expect(Monstre::whereNull('boite')->pluck('nom_base')->all())->toContain('Champion', 'Seigneur');
+    expect(Monstre::where('boite', 'base')->pluck('nom_base')->all())
+        ->toContain('Ulag', 'Grak', 'Balur', 'Seigneur Sorcier de Barak Tor');
 });
 
 it('fait tourner le THÈME par groupe, et le tient toute la campagne', function () {
@@ -286,14 +279,14 @@ it('facture PLUS CHER une créature éthérée, à tous les paliers', function (
     $demarreur = app(DemarreurQuete::class);
 
     $ombre = Monstre::where('nom_base', 'Magrian')->firstOrFail();
-    $liche = Monstre::where('nom_base', 'Liche')->firstOrFail();
+    $seigneurSorcier = Monstre::where('nom_base', 'Seigneur Sorcier de Barak Tor')->firstOrFail();
 
     expect($demarreur->coutEffectif($ombre))
         ->toBe((int) ceil((int) $ombre->cout * DemarreurQuete::RATIO_COUT_ETHERE))
         ->toBeGreaterThan((int) $ombre->cout);
 
     // …et une créature ordinaire paie son prix affiché.
-    expect($demarreur->coutEffectif($liche))->toBe((int) $liche->cout);
+    expect($demarreur->coutEffectif($seigneurSorcier))->toBe((int) $seigneurSorcier->cout);
 
     // ⚠ Le SPECTRE aussi : il est éthéré, de tier `base`, et acheté comme sbire
     // ordinaire. Ne majorer que le boss aurait laissé le même défaut un palier
@@ -353,15 +346,15 @@ it('assigne le lanceur nommé demandé comme rencontre finale (indice de gabarit
     $methode = new ReflectionMethod($demarreur, 'acheterMonstres');
     $methode->setAccessible(true);
 
-    // Gabarit demandant un boss « necromancien » → la Liche, pas le Seigneur.
+    // Gabarit demandant un boss « seigneur_sorcier_barak_tor » → le Seigneur Sorcier de Barak Tor (jeu de base).
     $achats = $methode->invoke(
         $demarreur,
-        ['rencontre_finale' => ['tier' => 'boss', 'archetype' => 'necromancien']],
+        ['rencontre_finale' => ['tier' => 'boss', 'archetype' => 'seigneur_sorcier_barak_tor']],
         30,
         5,
         1, // positionArc
     );
-    expect($achats[0]->nom_base)->toBe('Liche');
+    expect($achats[0]->nom_base)->toBe('Seigneur Sorcier de Barak Tor');
 
     // Sans indice d'archétype : le LEADER DE COÛT du palier. On ne fige pas son
     // nom — le bestiaire s'est enrichi des créatures d'extension le 2026-08-10,
@@ -386,9 +379,9 @@ it('assigne le lanceur nommé demandé comme rencontre finale (indice de gabarit
 });
 
 it('fait lancer en jeu un sort du répertoire de l\'archétype (champ sorts_dread vide)', function () {
-    // Le Sorcier des Tempêtes a sorts_dread = [] mais l'archétype maitre_tempetes
+    // Le Seigneur Sorcier de Barak Tor a sorts_dread = [] mais l'archétype seigneur_sorcier_barak_tor
     // doit lui ouvrir son répertoire : il lance un de ses sorts au tour des monstres.
-    $ctx = demarrerQueteAvecMonstre('Sorcier des Tempêtes', ['attribut_mind' => 1, 'pv_mind' => 1, 'pv_mind_max' => 1]);
+    $ctx = demarrerQueteAvecMonstre('Seigneur Sorcier de Barak Tor', ['attribut_mind' => 1, 'pv_mind' => 1, 'pv_mind_max' => 1]);
 
     desFiges(array_fill(0, 200, 4));
 
@@ -399,11 +392,10 @@ it('fait lancer en jeu un sort du répertoire de l\'archétype (champ sorts_drea
     $sortLance = collect($reponse->json('resultat.tour_monstres.actions'))
         ->firstWhere('type', 'sort_dread');
 
-    $repertoire = config('archetypes_lanceurs.maitre_tempetes.sorts');
+    $repertoire = config('archetypes_lanceurs.seigneur_sorcier_barak_tor.sorts');
 
     expect($sortLance)->not->toBeNull()
-        ->and($sortLance['sort'])->toBeIn($repertoire)
-        ->and($sortLance['sort'])->not->toBe('Invocation de morts-vivants');
+        ->and($sortLance['sort'])->toBeIn($repertoire);
 });
 
 it('garantit que chaque sort d\'archétype existe dans le catalogue SortDread', function () {
@@ -417,20 +409,20 @@ it('garantit que chaque sort d\'archétype existe dans le catalogue SortDread', 
 });
 
 it('filtre le répertoire de l\'archétype par PALIER : le sous-boss n\'a pas les sorts vilains', function () {
-    // Le Chamane Gobelin (sous_boss) porte l'archétype `chaman_orque`, dont le
-    // répertoire liste Commandement — un sort de palier boss. `palier` n'avait
-    // aucun lecteur : le sous-boss commandait les héros dès la première quête.
-    $sorts = repertoireDe('Chamane Gobelin');
+    // Le Sorcier du Dread (sous_boss, Prophecy of Telor) porte l'archétype `sorcier_dread_telor`, dont le répertoire
+    // liste Commandement et Nuée d'Effroi — deux sorts de palier boss. `palier` n'avait aucun lecteur : le sous-boss
+    // commandait les héros dès la première quête.
+    $sorts = repertoireDe('Sorcier du Dread');
 
-    expect(config('archetypes_lanceurs.chaman_orque.sorts'))->toContain('Commandement')
+    expect(config('archetypes_lanceurs.sorcier_dread_telor.sorts'))->toContain('Commandement', "Nuée d'Effroi")
         ->and($sorts)
         ->toContain('Frayeur')
-        ->toContain('Sommeil')
+        ->toContain('Tourmente')
         // Palier `base` : un sous-boss y a droit, c'est le sens du minimum.
-        ->toContain("Canaliser l'Effroi")
-        // Palier `boss` : refusés au Chamane Gobelin, sous-boss.
+        ->toContain('Boule de Flammes')
+        // Palier `boss` : refusés au sous-boss.
         ->not->toContain('Commandement')
-        ->not->toContain("Invocation d'orques");
+        ->not->toContain("Nuée d'Effroi");
 });
 
 it('connaît le palier de CHAQUE sort du catalogue (aucun rang muet)', function () {

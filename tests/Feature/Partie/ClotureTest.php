@@ -78,7 +78,7 @@ function gagnerQueteCourante(JoueurAuthentifiable $joueur, Groupe $groupe, Perso
     // condition de succès d'un dé). Les dés figés plus bas supposent un
     // défenseur ordinaire, et ces tests portent sur la CLÔTURE de campagne, pas
     // sur la nature du boss : on leur donne un adversaire connu.
-    $proie->update(['monstre_id' => App\Models\Monstre::where('nom_base', 'Seigneur')->value('id')]);
+    $proie->update(['monstre_id' => App\Models\Monstre::where('nom_base', 'Seigneur Sorcier de Barak Tor')->value('id')]);
     $proie->refresh()->load('monstre');
 
     $etat = $quete->etatsPersonnages()->where('personnage_id', $hero->id)->firstOrFail();

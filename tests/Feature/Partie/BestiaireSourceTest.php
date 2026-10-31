@@ -803,3 +803,50 @@ it('porte le Deflect de Gruzbella sur ses TROIS phases (F9528 p. 25 : « redirig
             ->toBeTrue("{$nom} : le Deflect manque.");
     }
 });
+
+it('porte les méchants du JEU DE BASE tels que le livret de quêtes F2847 les chiffre, avec leur `cout` mesuré (2026-10-31)', function () {
+    // [déplacement, attaque, défense, body, mind, tier, boîte, cout] — stats relues page par page (LQ entre parenthèses).
+    $attendus = [
+        'Ulag' => [10, 4, 5, 2, 3, 'sous_boss', 'base', 8],                               // quête 3, PDF 5 (LQ p. 9)
+        'Grak' => [8, 4, 4, 3, 3, 'sous_boss', 'base', 8],                                // quête 6, PDF 8 (LQ p. 15)
+        'Balur' => [8, 2, 5, 3, 7, 'sous_boss', 'base', 9],                               // quête 8, PDF 10 (LQ p. 19)
+        'Seigneur Sorcier de Barak Tor' => [10, 5, 6, 4, 6, 'boss', 'base', 14],          // quête 14, PDF 16 (LQ p. 31)
+    ];
+
+    foreach ($attendus as $nom => [$mv, $at, $df, $bd, $mi, $tier, $boite, $cout]) {
+        $m = Monstre::where('nom_base', $nom)->firstOrFail();
+
+        expect([$m->deplacement, $m->attaque, $m->defense, $m->pv_body, $m->pv_mind, $m->tier, $m->boite, (int) $m->cout])
+            ->toBe([$mv, $at, $df, $bd, $mi, $tier, $boite, $cout], "{$nom} : stats, palier ou coût divergents du livret");
+    }
+});
+
+it('déclare ses ÉCARTS DE COMPORTEMENT du jeu de base, avec leur raison (2026-10-31)', function () {
+    // Une divergence de STAT se déclare dans le tableau de `déclare ses DIVERGENCES` ; ici la fiche est exacte, c'est le
+    // COMPORTEMENT qui s'écarte. Chaque écart est lu sur le catalogue : rien ne doit le démentir en silence.
+    $ecarts = [
+        'Seigneur Sorcier de Barak Tor' => [
+            'livret' => '« not affected by any weapon or spell other than the Spirit Blade »',
+            'chez_nous' => 'aucune immunité : les armes et les sorts le blessent',
+            'raison' => 'René, 2026-10-31 : nos quêtes sont générées ; un groupe sans la Lame des Esprits ne pourrait jamais '
+                .'le vaincre. Il ne fuit pas (le livret ne lui donne aucune Fuite).',
+        ],
+        'Grak' => [
+            'livret' => '« one per turn », sans borne écrite',
+            'chez_nous' => 'bridé au budget de son palier (sous-boss : 2 par rencontre)',
+            'raison' => 'Même arbitrage que le Spectre (`USAGES_BASE`) : un sort « à volonté » n\'est pas un sort sans limite. '
+                .'`sort_a_volonte` ne nomme qu\'un sort, Grak en a trois.',
+        ],
+    ];
+
+    foreach ($ecarts as $nom => $ecart) {
+        expect($ecart['raison'])->not->toBeEmpty("{$nom} : écart sans raison écrite");
+    }
+
+    $witch = Monstre::where('nom_base', 'Seigneur Sorcier de Barak Tor')->firstOrFail();
+    expect($witch->immunitesSorts())->toMatchArray(['totale' => false, 'sauf' => null, 'elements' => null, 'sources' => null])
+        ->and((array) $witch->capacites)->toBe([]);
+
+    $grak = Monstre::where('nom_base', 'Grak')->firstOrFail();
+    expect((array) $grak->capacites)->not->toHaveKey('repertoire_complet');
+});

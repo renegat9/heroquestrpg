@@ -91,7 +91,7 @@ it('sans Sorcier de Dread en vue, Désapprentissage n\'est pas proposé — mêm
 });
 
 it('avec un Sorcier de Dread en vue, Désapprentissage est proposé, et vise ce Sorcier', function () {
-    $ctx = demarrerQueteAvecMonstre('Seigneur', ['classe' => 'magicien']);
+    $ctx = demarrerQueteAvecMonstre('Seigneur Sorcier de Barak Tor', ['classe' => 'magicien']);
     app(MoteurSorts::class)->attacherElement($ctx['heros'], 'protection');
 
     $entree = collect(sansCibleListe(sansCibleMenu($ctx), 'lancer_sort', 'sorts'))->firstWhere('nom', 'Désapprentissage');
@@ -179,7 +179,7 @@ it('le parchemin de Désapprentissage suit la même règle : sans Sorcier, il n\
 });
 
 it('le parchemin de Désapprentissage est proposé avec un Sorcier de Dread en vue, visant ce Sorcier', function () {
-    $ctx = demarrerQueteAvecMonstre('Seigneur', ['classe' => 'magicien']);
+    $ctx = demarrerQueteAvecMonstre('Seigneur Sorcier de Barak Tor', ['classe' => 'magicien']);
     sansCibleParchemin($ctx, 'Désapprentissage');
 
     $entree = collect(sansCibleListe(sansCibleMenu($ctx), 'lire_parchemin', 'parchemins'))->firstWhere('nom', 'Désapprentissage');

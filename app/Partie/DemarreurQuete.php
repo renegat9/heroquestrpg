@@ -1205,7 +1205,7 @@ final class DemarreurQuete
             // 3.8, fonctionnait, et **aucun gabarit ne l'avait jamais rempli** :
             // le repli prenait donc toujours le leader de coût du palier, si
             // bien que le Seigneur fermait TOUTES les quêtes et qu'aucun lanceur
-            // nommé — Liche, Sorcier des Tempêtes, Ombre du Dread, Horreur des
+            // nommé — Liche et Sorcier des Tempêtes (retirés le 2026-10-31), Ombre du Dread, Horreur des
             // Glaces, Archimage elfe — n'avait jamais été tiré en partie. C'est
             // la leçon des leviers, qui exigeaient des coordonnées qu'aucun
             // gabarit ne déclarait : un champ qui marche mais que personne ne

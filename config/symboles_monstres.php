@@ -34,6 +34,11 @@ return [
     // Jetons reliés par une correspondance écrite (source entre parenthèses ; « traduction » = même figure).
     'cles' => [
         // Planches « Design Your Own Quest » (René, 2026-10-31 : « les tokens sont affichés après les dernières quêtes ») :
+        // Jeu de base (F2847, 2026-10-31) — les figurines que le livret de quêtes désigne :
+        'Ulag' => 'orc', // « Use the orc figure with the large sword to represent Ulag. » (F2847 PDF 5)
+        'Grak' => 'orc', // « Use an orc figure for Grak. » (F2847 PDF 8)
+        'Balur' => 'dread-sorcerer', // « Use the Dread sorcerer figure for Balur. » (F2847 PDF 10)
+        'Seigneur Sorcier de Barak Tor' => 'dread-sorcerer', // « Use the Dread sorcerer figure for the Witch Lord. » (F2847 PDF 16)
         'Archer elfe' => 'elven-archer', // « Elven Archers », planche « Design Your Own », F6646 PDF 20
         'Guerrier elfe' => 'elven-warrior', // « Elven Warriors », planche « Design Your Own », F6646 PDF 20
         'Cultiste du Dread' => 'dread-cultist', // « Dread Cultists », planche « Design Your Own », F6646 PDF 20
@@ -66,7 +71,6 @@ return [
         'Fellmarak le Roi Sorcier' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
         'Seigneur Sorcier' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
         'Skulmar' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
-        'Sorcier des Tempêtes' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
         'Sorcier du Dread' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
         'Fimir' => 'abomination', // nom de 1989 ; le livret 2021 nomme ce jeton Abomination
         'Guerrier du Chaos' => 'dread-warrior', // nom de 1989 (Chaos Warrior) ; le livret 2021 nomme ce jeton Dread Warrior
@@ -157,10 +161,5 @@ return [
         'Crâne du Dread' => '« As soon as a hero sees a Dread Skull, place it on the board » (G1798 PDF 12) : sept lettres A sur la carte, aucun jeton dessiné',
         'Buubhealxea, reine gobeline' => 'note E de la quête 5 (G1798 PDF 8) : lettre seule sur la carte, aucune figurine renvoyée par le texte',
         'Venim le Dragon' => 'Venim (G1798 PDF 13, « The Dragon Venim’s Lair ») : aucun jeton sur la carte, aucune figurine renvoyée ; le jeton « Dragon » (First Light) n’est pas le sien sans texte qui le dise',
-        'Champion' => 'gabarit élite du projet (`reference/09`) : aucune quête des livrets ne le nomme',
-        'Seigneur' => 'gabarit élite du projet (`reference/09`) : aucune quête des livrets ne le nomme',
-        'Chamane Gobelin' => 'créature du projet (« nôtre », `reference/09`) : aucune quête des livrets ne la nomme',
-        'Liche' => 'créature du projet (« nôtre », `reference/09`) : aucune quête des livrets ne la nomme',
-        'Troll' => 'carte « Cave Troll » du paquet (`reference/16`) : aucune quête des livrets ne le pose',
     ],
 ];

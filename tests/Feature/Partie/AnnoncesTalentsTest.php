@@ -302,10 +302,10 @@ it('ATTAQUE RENDUE APRÈS UN KILL — Soif de sang se voit', function () {
 });
 
 it('CONTRESORT — annule Sommeil et le dit, quand la résistance naturelle a échoué', function () {
-    // Même montage que DreadTest::demarrerQueteBoss('Champion', mindHeros: 1) —
-    // un Champion (sous-boss) placé au contact, PV de Mind à 1 pour que la
+    // Même montage que DreadTest::demarrerQueteBoss('Garde-mage', mindHeros: 1) —
+    // un sous-boss (Garde-mage, A4 D4 comme l'ancien Champion) placé au contact, PV de Mind à 1 pour que la
     // résistance naturelle échoue de façon déterministe.
-    $ctx = demarrerQueteAvecMonstre('Champion', [
+    $ctx = demarrerQueteAvecMonstre('Garde-mage', [
         'classe' => 'magicien', 'attribut_mind' => 1, 'pv_mind' => 1, 'pv_mind_max' => 1,
     ]);
     $heros = $ctx['heros'];

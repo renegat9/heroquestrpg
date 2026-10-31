@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Jobs\GenererMenu;
 use App\Models\Carte;
 use App\Models\EtatPersonnageQuete;
 use App\Models\GabaritQuete;
@@ -186,6 +187,9 @@ it('(a) L\'échelle, lue à son point de passage unique : totale → famille →
     expect($moteur->sortRefuseSur(['totale' => true, 'sauf' => null, 'sources' => null], $feu))->toBeTrue()
         ->and($moteur->sortRefuseSur(['totale' => false, 'sauf' => ['feu'], 'sources' => null], $feu))->toBeFalse()
         ->and($moteur->sortRefuseSur(['totale' => false, 'sauf' => ['feu'], 'sources' => null], $eau))->toBeTrue()
+        // (d) : l'immunité à un ÉLÉMENT (Balur, « Fire spells do not affect him ») — le feu seul est refusé, l'air passe.
+        ->and($moteur->sortRefuseSur(['totale' => false, 'sauf' => null, 'elements' => ['feu'], 'sources' => null], $feu))->toBeTrue()
+        ->and($moteur->sortRefuseSur(['totale' => false, 'sauf' => null, 'elements' => ['feu'], 'sources' => null], $air))->toBeFalse()
         // (b) : la liste de sources ne vise que les sorts de DÉGÂTS — un sommeil n'est pas une « source de dégâts ».
         ->and($moteur->sortRefuseSur(['totale' => false, 'sauf' => null, 'sources' => ['Boule de Feu']], $feu))->toBeFalse()
         ->and($moteur->sortRefuseSur(['totale' => false, 'sauf' => null, 'sources' => ['Boule de Feu']], $air))->toBeTrue()
@@ -312,5 +316,37 @@ it('(a)(b) le Seigneur et Kessandria portent leurs listes EXACTEMENT comme le li
 
     expect($cap('Seigneur Sorcier')['vulnerable_uniquement_a'])
         ->toBe(['Lame des Esprits', 'Trait de Feu', 'Boule de Feu', 'Dague de jet magique'])
-        ->and($cap('Kessandria')['immunite_sorts_sauf'])->toBe(['feu']);
+        ->and($cap('Kessandria')['immunite_sorts_sauf'])->toBe(['feu'])
+        ->and($cap('Balur')['immunite_sorts_elements'])->toBe(['feu']);
+});
+
+// =====================================================================
+// (d) — L'IMMUNITÉ À UN ÉLÉMENT : Balur, « Fire spells do not affect him » (Jeu de base, quête 8, F2847 PDF 10)
+// =====================================================================
+
+it('(d) ÉLÉMENT — Balur ne se vise pas par le feu : Boule de Feu et Trait de Feu ne lui sont pas offerts, Génie (air) passe', function () {
+    $ctx = wlMage(['feu', 'air']);
+    wlPoser($ctx, 'Balur', 3, 4);
+
+    expect(wlCibles($ctx, 'Boule de Feu'))->not->toContain('Balur')
+        ->and(wlCibles($ctx, 'Trait de Feu'))->not->toContain('Balur')
+        ->and(wlCibles($ctx, 'Génie'))->toContain('Balur');
+});
+
+it('(d) ÉLÉMENT — à la RÉSOLUTION, une Boule de Feu forcée sur Balur est refusée par la route réelle : il ne perd aucun PV', function () {
+    $ctx = wlMage(['feu']);
+    $balur = wlPoser($ctx, 'Balur', 3, 4);
+    $boule = Sort::where('nom', 'Boule de Feu')->firstOrFail();
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['albrecht']->id);
+    desFiges(array_fill(0, 30, 1));
+    $pvAvant = (int) $balur->pv_body;
+
+    // La cible n'est pas dans la liste blanche du menu (`ciblesLegales()` lit `sortRefuseSur()`) : le résolveur la refuse.
+    test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$boule->id}", 'cible_id' => $balur->id, 'cible_type' => 'monstre'],
+    ])->assertStatus(422);
+
+    expect((int) $balur->fresh()->pv_body)->toBe($pvAvant);
 });

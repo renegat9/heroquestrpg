@@ -324,7 +324,7 @@ it('FAIT APPARAÎTRE Festral au boss final du thème Horde ogre, Xenloth au sous
     $bestiaire = BestiaireGroupe::auto('horde_ogre');
 
     $boss = collect(range(1, 8))->map(fn (int $graine) => ogresAchats(
-        $bestiaire, ['rencontre_finale' => ['tier' => 'boss', 'archetypes' => ['seigneur_du_chaos', 'festral_sorcier_dread']]], 1, $graine,
+        $bestiaire, ['rencontre_finale' => ['tier' => 'boss', 'archetypes' => ['seigneur_sorcier_barak_tor', 'festral_sorcier_dread']]], 1, $graine,
     )[0]->nom_base)->unique();
 
     expect($boss)->toContain('Festral');

@@ -109,7 +109,7 @@ function pvAdapte(Monstre $monstre, int $nbHeros): int
 }
 
 it('adapte les PV du boss à la taille du groupe', function () {
-    $seigneur = Monstre::where('nom_base', 'Seigneur')->firstOrFail(); // boss, 10 PV
+    $seigneur = Monstre::where('nom_base', 'Seigneur ogre')->firstOrFail(); // boss, 10 PV (Body 10, comme l'ancien Seigneur)
 
     expect(pvAdapte($seigneur, 4))->toBe(10)  // référence : PV catalogue inchangés
         ->and(pvAdapte($seigneur, 2))->toBe(5) // duo : 10 × 2/4
@@ -117,7 +117,7 @@ it('adapte les PV du boss à la taille du groupe', function () {
 });
 
 it('ne descend jamais un boss sous 40 % de ses PV (plancher)', function () {
-    $seigneur = Monstre::where('nom_base', 'Seigneur')->firstOrFail();
+    $seigneur = Monstre::where('nom_base', 'Seigneur ogre')->firstOrFail();
 
     // Solo : 10 × 1/4 = 2.5 → plancher ceil(10 × 0.4) = 4.
     expect(pvAdapte($seigneur, 1))->toBe(4);

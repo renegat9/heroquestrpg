@@ -2918,10 +2918,12 @@ final class MoteurSorts
      *  - par l'immunité TOTALE (`immunite_sorts`) ;
      *  - par l'immunité PAR FAMILLE (`immunite_sorts_sauf` : Kessandria, « all spells except fire ») : un
      *    élément de sort absent de la liste des exemptés est refusé ;
+     *  - par l'immunité à un ÉLÉMENT (`immunite_sorts_elements` : Balur, « Fire spells do not affect him ») : un
+     *    sort de l'élément listé est refusé, les autres passent — l'inverse du barreau précédent ;
      *  - par la liste blanche des SOURCES (`vulnerable_uniquement_a`) — mais seulement un sort de DÉGÂTS : un
      *    sort qui ne blesse pas (un sommeil) n'est pas une « source de dégâts », le livret ne le vise pas.
      *
-     * @param  array{totale?: bool, sauf?: ?list<string>, sources?: ?list<string>}  $immunites
+     * @param  array{totale?: bool, sauf?: ?list<string>, elements?: ?list<string>, sources?: ?list<string>}  $immunites
      */
     public function sortRefuseSur(array $immunites, Sort $sort): bool
     {
@@ -2932,6 +2934,12 @@ final class MoteurSorts
         $sauf = $immunites['sauf'] ?? null;
 
         if (is_array($sauf) && ! in_array((string) $sort->element, $sauf, true)) {
+            return true;
+        }
+
+        $elements = $immunites['elements'] ?? null;
+
+        if (is_array($elements) && in_array((string) $sort->element, $elements, true)) {
             return true;
         }
 

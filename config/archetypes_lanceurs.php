@@ -38,9 +38,9 @@
  *
  * ⚠ Le répertoire est FILTRÉ PAR PALIER à l'exécution (`sorts_dread.palier`, un
  * tier MINIMUM — doc 09 §4). Un archétype se déclare donc complet, et c'est le
- * TIER de la créature qui le porte qui décide de ce qu'elle en tire : le Chamane
- * Gobelin (sous-boss) hérite de Frayeur, Sommeil et Canaliser l'Effroi, mais ni
- * du Commandement ni de l'Invocation d'orques, réservés au palier boss. Un
+ * TIER de la créature qui le porte qui décide de ce qu'elle en tire : le Sorcier
+ * du Dread de *Prophecy of Telor* (sous-boss) garde Boule de Flammes, Tourmente et
+ * Frayeur, mais ni la Nuée d'Effroi ni le Commandement, réservés au palier boss. Un
  * chaman de rang boss ajouté demain commandera, sans qu'on touche à cette table.
  */
 return [
@@ -221,8 +221,7 @@ return [
         // Nuée d'Effroi, Commandement (palier `boss`). Le monstre qui porte
         // CET archétype est de tier `sous_boss` (Q3, docs/plan-telor.md) :
         // `MoteurDread::sortsDisponibles()` retire déjà les deux sorts `boss`
-        // à l'exécution, exactement comme il le fait pour le Chamane Gobelin
-        // ci-dessous — le répertoire se déclare COMPLET, c'est le palier qui
+        // à l'exécution, exactement comme il le fait pour tout sous-boss lanceur — le répertoire se déclare COMPLET, c'est le palier qui
         // décide ce qu'il en tire.
         'sorts' => [
             'Boule de Flammes',
@@ -327,83 +326,49 @@ return [
     ],
 
     // ------------------------------------------------------------------
-    // Archétypes DE NOUS — aucune carte ne les décrit ; seuls leurs sorts
-    // sont sourcés. Ils existaient avant le passage aux cartes officielles
-    // et gardent leurs porteurs.
+    // JEU DE BASE — les méchants nommés du livret de quêtes F2847 (2026-10-31)
+    // Les répertoires se lisent sur les citations ; `sorts` nomme des sorts DÉJÀ au catalogue (SortDreadSeeder).
     // ------------------------------------------------------------------
 
-    'seigneur_du_chaos' => [
-        'porteur' => 'Seigneur',
-        // ⚠ Le Seigneur REJOINT les archétypes le 2026-09-04 (René : « remets le
-        // Seigneur en rotation »). Il gardait jusque-là une liste brute
-        // `monstres.sorts_dread`, au motif que ce n'est pas un sorcier nommé
-        // mais un bloc de stats — or le pool de rencontre finale se déclare en
-        // ARCHÉTYPES, et un boss hors du pool ne peut plus apparaître du tout
-        // depuis que les gabarits en nomment un. Le motif ne valait donc plus
-        // son prix : il coûtait au Seigneur son existence en jeu.
-        //
-        // ⚠ Le **Champion** (sous-boss), lui, garde sa liste brute, et c'est
-        // délibéré : il reste le seul porteur en production du repli de
-        // `repertoireSorts()`. Une branche que plus aucune donnée n'emprunte est
-        // une branche qu'on ne sait plus si elle marche.
-        //
-        // Répertoire NÔTRE, comme les trois du dessous — aucune carte ne décrit
-        // ce personnage ; seuls ses sorts viennent d'une carte.
+    'grak' => [
+        'porteur' => 'Grak (jeu de base, quête 6, F2847 PDF 8 — LQ p. 15)',
+        // « Grak knows 3 Dread spells that he may cast (one per turn) instead of attacking. The spells are: fear,
+        // sleep, and tempest. » Les trois sont de palier `sous_boss` ou `base` : aucun filtre à lever. Le budget de
+        // palier borne le « one per turn » (divergence nommée, `docs/regles/bestiaire-et-rencontres.md`).
         'sorts' => [
-            'Tempête de feu',
-            'Invocation de morts-vivants',
-            'Commandement',
-            'Fuite',
-        ],
-    ],
-
-    'necromancien' => [
-        'porteur' => 'Liche',
-        // Morts-vivants + contrôle. La *Réanimation* le distingue désormais du
-        // simple invocateur : il ne fait pas qu'appeler des sbires, il relève
-        // ceux que le groupe vient d'abattre — la seule carte du paquet qui
-        // rende une victoire réversible.
-        // ⚠ La *Rouille* lui revient (2026-09-04) : ses trois porteurs officiels
-        // sont des bosses de la même famille — le Roi Archaloneus, seigneur
-        // momie (« Sleep, Rust, Command »), et Fellmarak le Roi Sorcier
-        // (« Firestorm, Rust, Command, Fear, Cloud of Dread »), doc 18. Une
-        // liche est le plus proche des deux dans notre bestiaire.
-        'sorts' => [
-            'Invocation de morts-vivants',
-            'Réanimation',
-            'Sommeil',
-            'Frayeur',
-            'Rouille',
-            'Canaliser l\'Effroi',
-        ],
-    ],
-
-    'maitre_tempetes' => [
-        'porteur' => 'Sorcier des Tempêtes',
-        // Dégâts de zone + esquive : embrase, foudroie, terrifie, se dérobe.
-        // ⚠ L'*Éclair de Chaos* remplace ici le *Trait de Chaos*, qui n'existait
-        // sur aucune carte et qui portait à lui seul la frappe à distance du
-        // répertoire.
-        'sorts' => [
-            'Tempête de feu',
-            'Éclair de Chaos',
-            'Frayeur',
-            'Fuite',
-        ],
-    ],
-
-    'chaman_orque' => [
-        'porteur' => 'Chamane Gobelin',
-        // Meneur de guerre : commande les héros, terrifie, endort, appelle les
-        // siens. Le Chamane Gobelin étant sous-boss, il n'obtient en jeu que
-        // Frayeur, Sommeil et Canaliser l'Effroi — la démonstration vivante du
-        // filtre par palier.
-        'sorts' => [
-            'Commandement',
             'Frayeur',
             'Sommeil',
+            'Tourmente',
+        ],
+    ],
+
+    'balur_mage_du_feu' => [
+        'porteur' => 'Balur (jeu de base, quête 8, F2847 PDF 10 — LQ p. 19)',
+        // « Balur has the following spells, which he may use once during the quest: ball of flame, firestorm, tempest,
+        // summon orcs, fear, and escape. » `sorts_uniques` : un usage par sort, une fois par quête, palier levé (le
+        // sous-boss lance ses six sorts, comme les sorciers de Morcar). « Fire spells do not affect him » : l'immunité
+        // est portée par la créature (`immunite_sorts_elements`), pas par ce répertoire.
+        'sorts' => [
+            'Boule de Flammes',
+            'Tempête de feu',
+            'Tourmente',
             'Invocation d\'orques',
-            'Canaliser l\'Effroi',
+            'Frayeur',
+            'Fuite',
+        ],
+    ],
+
+    'seigneur_sorcier_barak_tor' => [
+        'porteur' => 'Seigneur Sorcier de Barak Tor (jeu de base, quête 14, F2847 PDF 16 — LQ p. 31)',
+        // « Also, he knows the following spells: summon undead, fear (which he can cast twice), ball of flame,
+        // command, and tempest. » ⚠ « fear (which he can cast twice) » n'a pas de compteur par sort : le boss n'est
+        // borné que par son budget de palier (3 par rencontre). Écart OUVERT, écrit dans la doc du bestiaire.
+        'sorts' => [
+            'Invocation de morts-vivants',
+            'Frayeur',
+            'Boule de Flammes',
+            'Commandement',
+            'Tourmente',
         ],
     ],
 

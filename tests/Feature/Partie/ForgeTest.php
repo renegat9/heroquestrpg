@@ -542,7 +542,7 @@ it('Allégée fait compter à nouveau le d6 de déplacement — sur SON exemplai
 });
 
 it('Gardée absorbe le premier Apeuré d\'un combat — l\'armure protège, ce n\'est pas une résistance mentale', function () {
-    $ctx = demarrerQueteAvecMonstre('Champion');
+    $ctx = demarrerQueteAvecMonstre('Garde-mage');
     ['alice' => $alice, 'groupe' => $groupe, 'heros' => $heros, 'quete' => $quete, 'instance' => $instance] = $ctx;
 
     // Frayeur (Dread, doc 09) : type contrôle, condition_appliquee Apeuré,

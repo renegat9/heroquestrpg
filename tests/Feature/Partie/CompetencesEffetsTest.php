@@ -92,7 +92,7 @@ it('Pas léger (+1 déplacement) augmente l\'allonce exposée au menu de tour', 
 });
 
 it('Frénésie (+1 dé d\'attaque sous la moitié des PV de Body) s\'applique au combat', function () {
-    $ctx = demarrerQueteAvecMonstre('Champion', [
+    $ctx = demarrerQueteAvecMonstre('Garde-mage', [
         'classe' => 'barbare', 'niveau' => 2, 'des_attaque' => 2, 'pv_body_max' => 8,
     ]);
 
@@ -114,7 +114,7 @@ it('Frénésie (+1 dé d\'attaque sous la moitié des PV de Body) s\'applique au
 });
 
 it('Frénésie ne s\'applique PAS au-dessus de la moitié des PV de Body', function () {
-    $ctx = demarrerQueteAvecMonstre('Champion', [
+    $ctx = demarrerQueteAvecMonstre('Garde-mage', [
         'classe' => 'barbare', 'niveau' => 2, 'des_attaque' => 2, 'pv_body_max' => 8,
     ]);
 

@@ -27,7 +27,7 @@ it('mappe les archétypes vers leur profil de voix, repli « defaut »', functio
     $banque = new BanqueBarks;
 
     expect($banque->profil('Gobelin'))->toBe('gobelin')
-        ->and($banque->profil('Seigneur'))->toBe('boss')
+        ->and($banque->profil('Seigneur Sorcier'))->toBe('boss')
         ->and($banque->profil('Momie'))->toBe('mort_vivant')
         ->and($banque->profil('Bestiole Inconnue'))->toBe('defaut');
 });

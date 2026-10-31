@@ -77,7 +77,7 @@ function victoireFinaleCombattreBoss(JoueurAuthentifiable $alice, Groupe $groupe
     $proie = $quete->instancesMonstres()->with('monstre')->orderBy('id')->firstOrFail();
     $quete->instancesMonstres()->whereKeyNot($proie->id)->update(['etat' => 'vaincu']);
     // Bloc connu (le boss d'un pool d'archétypes change d'une exécution à l'autre) : le test porte sur l'arc.
-    $proie->update(['monstre_id' => Monstre::where('nom_base', 'Seigneur')->value('id')]);
+    $proie->update(['monstre_id' => Monstre::where('nom_base', 'Seigneur Sorcier de Barak Tor')->value('id')]);
     $proie->refresh()->load('monstre');
 
     $etat = $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail();

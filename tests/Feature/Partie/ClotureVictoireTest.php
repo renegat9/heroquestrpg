@@ -54,7 +54,7 @@ it('le coup fatal au boss final ouvre AUTOMATIQUEMENT une clôture victoire (flu
     // dépendre du tirage en faisait un test intermittent, ce qui est pire qu'un
     // test rouge. On lui donne donc un adversaire connu, d'une seule case.
     $proie = $quete->instancesMonstres()->with('monstre')->orderBy('id')->firstOrFail();
-    $proie->update(['monstre_id' => App\Models\Monstre::where('nom_base', 'Seigneur')->value('id')]);
+    $proie->update(['monstre_id' => App\Models\Monstre::where('nom_base', 'Seigneur Sorcier de Barak Tor')->value('id')]);
     $proie->refresh()->load('monstre');
     $quete->instancesMonstres()->whereKeyNot($proie->id)->update(['etat' => 'vaincu']);
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heroA->id)->firstOrFail();

@@ -129,9 +129,9 @@ it('GenererBarksBoss n\'appelle aucun TTS quand la synthèse vocale IA dynamique
     $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
 
     // Démarre une quête et bascule le premier monstre en boss nommé
-    // (Seigneur, tier 'boss') — pendant tout ce setup, aucune clé Gemini
+    // (Seigneur Sorcier de Barak Tor, tier 'boss') — pendant tout ce setup, aucune clé Gemini
     // n'est configurée : aucun appel TTS ne peut fuiter dans les assertions.
-    ['quete' => $quete] = demarrerQueteAvecMonstre('Seigneur');
+    ['quete' => $quete] = demarrerQueteAvecMonstre('Seigneur Sorcier de Barak Tor');
 
     config(['services.gemini.api_key' => 'cle-test']);
     Parametre::actuel()->update(['voix_dynamique_active' => false]);

@@ -169,10 +169,11 @@ class Monstre extends Model
     /**
      * L'ÉCHELLE des immunités aux sorts, lue d'un seul tenant par `MoteurSorts::sortRefuseSur()` (menu ET
      * résolution) : `totale` (`immunite_sorts`, Effigie), `sauf` (`immunite_sorts_sauf`, les ÉLÉMENTS qui passent —
-     * Kessandria : `['feu']`) et `sources` (`vulnerable_uniquement_a`, les armes et sorts de dégâts qui blessent
+     * Kessandria : `['feu']`), `elements` (`immunite_sorts_elements`, les ÉLÉMENTS qui ne l'atteignent pas — Balur :
+     * `['feu']`, l'inverse de `sauf`) et `sources` (`vulnerable_uniquement_a`, les armes et sorts de dégâts qui blessent
      * — Seigneur Sorcier). `null` = pas de restriction de cette forme.
      *
-     * @return array{totale: bool, sauf: ?list<string>, sources: ?list<string>}
+     * @return array{totale: bool, sauf: ?list<string>, elements: ?list<string>, sources: ?list<string>}
      */
     public function immunitesSorts(): array
     {
@@ -181,6 +182,7 @@ class Monstre extends Model
         return [
             'totale' => $this->immuniseAuxSorts(),
             'sauf' => $this->listeDeCapacite($capacites, 'immunite_sorts_sauf'),
+            'elements' => $this->listeDeCapacite($capacites, 'immunite_sorts_elements'),
             'sources' => $this->listeDeCapacite($capacites, 'vulnerable_uniquement_a'),
         ];
     }

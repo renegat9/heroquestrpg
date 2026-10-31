@@ -92,7 +92,7 @@ class MonstreSeeder extends Seeder
          * `jungles_delthrak` — un vestige du premier portage (2026-08-10, avant
          * que la question des boîtes ne se pose), jamais un choix de règle —
          * et en sortent ici pour rejoindre nos propres blocs de stats
-         * (Champion, Seigneur…), disponibles dans toute campagne.
+         * (nos anciens Champion et Seigneur, retirés le 2026-10-31), disponibles dans toute campagne.
          *
          * `cout` : aucune carte ne chiffre de budget de rencontre pour cette
          * variante (comme tout `cout` du bestiaire, c'est une valeur à nous).
@@ -180,66 +180,54 @@ class MonstreSeeder extends Seeder
             $archerSquelette,
             $orqueArcher,
 
-            // Troll (carte « Cave Troll ») : la seule créature du paquet dont
-            // le texte NOMME le feu — « Trolls may choose to regenerate 1 Body
-            // point instead of attacking. Damage done by fire is permanent and
-            // cannot be regenerated. » C'est ce qui donne un second lecteur au
-            // type de dégât `feu`, à côté de l'Anneau de Feu : sans lui, la
-            // nature d'un dégât n'aurait servi qu'à une carte défensive.
-            // ⚠ Palier SOUS-BOSS, pas `base` (test de jeu du 2026-08-10). Il y a
-            // été placé le 2026-08-09 en pensant à la mécanique du feu, pas au
-            // budget de rencontre — et c'était une erreur de rangement : avec
-            // 3 PV et 4 dés de défense, il a TROIS FOIS les PV de n'importe quel
-            // autre monstre de base (tous à 1 depuis l'alignement sur les
-            // cartes) et la meilleure défense du palier.
-            //
-            // Conséquence mesurée en partie réelle : le budget d'une quête 1 (14
-            // points) a acheté « Troll + 2 gobelins + orque + squelette +
-            // zombie » et l'a lâché sur deux héros de niveau 1 sans talent ni or.
-            // Un barbare à 3 dés lui arrache 0,98 PV par attaque là où il tue
-            // n'importe quel autre monstre de base d'un coup ; le troll, lui,
-            // rend 1,40 PV par attaque — soit un magicien mort en 3 coups. TPK
-            // dès la première salle avec un ennemi.
-            ['nom_base' => 'Troll', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 2,
-                'tier' => 'sous_boss', 'boite' => null, 'cout' => 9, 'capacites' => ['regeneration'], 'sorts_dread' => []],
+            // ----- JEU DE BASE (boîte `base`, F2847) : les méchants nommés du livret de quêtes (2026-10-31) -----
+            // Décision de René, 2026-10-31 : « Enlève nos créations et mets ceux du jeu de base ». Les six créations
+            // (Champion, Seigneur, Chamane Gobelin, Liche, Sorcier des Tempêtes, Troll) sont RETIRÉES du catalogue par la
+            // migration `2026_10_31_110000_retirer_createurs_du_jeu_de_base` (`docs/regles/bestiaire-et-rencontres.md`).
+            // Stats lues sur le livret de quêtes F2847, page par page (Mouvement/Attaque/Défense/Body/Mind).
+            // `cout` = attaques d'un héros à 3 dés pour abattre, Body / (1,5 − Défense/6), placé sur la droite de SON palier ;
+            // les immunités ne comptent pas (la méthode ne lit ni vulnérabilité ni immunité).
 
-            // ----- Gabarits élites (doc 09 §4 — exemples proposés, à équilibrer) -----
-            // capacites = bibliothèque assignable (l'IA choisit l'habillage, le moteur résout)
-            ['nom_base' => 'Champion', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 3,
-                'tier' => 'sous_boss', 'boite' => null, 'cout' => 10,
-                'capacites' => ['charge'],
-                // ⚠ Le *Trait de Chaos* a quitté ce répertoire le 2026-09-04 :
-                // c'était notre seul sort de Dread sans carte. L'*Éclair de
-                // Chaos* (carte *Lightning Bolt*) reprend la frappe à distance
-                // qu'il portait, en ligne droite et sans jet de défense.
-                'sorts_dread' => ['Éclair de Chaos', 'Frayeur', 'Sommeil', 'Tempête de feu']],
-            // ⚠ Son répertoire est passé en ARCHÉTYPE le 2026-09-04 : le pool de
-            // rencontre finale se déclare en archétypes, et un boss qui n'en
-            // porte pas ne peut plus être tiré du tout. Le Champion, lui, garde
-            // sa liste brute : c'était jusqu'au 2026-09-30 le seul porteur en
-            // production du repli de `repertoireSorts()`. Le Dragon de First
-            // Light (plus bas) l'a rejoint — sa carte ne nomme QU'UN sort, pas
-            // un répertoire de sorcier, et lui fabriquer un archétype pour une
-            // seule entrée aurait été la donnée décorative inverse : un
-            // registre rempli pour la forme plutôt que pour un besoin réel.
-            ['nom_base' => 'Seigneur', 'deplacement' => 7, 'attaque' => 5, 'defense' => 5, 'pv_body' => 10, 'pv_mind' => 5,
-                'tier' => 'boss', 'boite' => null, 'cout' => 20,
-                'capacites' => ['invocation', 'frappe_de_zone'],
-                'sorts_dread' => [], 'archetype_lanceur' => 'seigneur_du_chaos'],
+            // ULAG (quête 3, « Lair of the Orc Warlord », PDF 5 — LQ p. 9) : « Use the orc figure with the large sword to
+            // represent Ulag. » Aucun sort. Body 2 / (1,5 − 5/6) = 3,0 attaques, sous le plancher de palier : cout 8, comme
+            // l'Effigie gardienne (Body 2, Défense 5).
+            ['nom_base' => 'Ulag', 'deplacement' => 10, 'attaque' => 4, 'defense' => 5, 'pv_body' => 2, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'boite' => 'base', 'cout' => 8, 'capacites' => [], 'sorts_dread' => []],
 
-            // ----- Sorciers nommés à répertoire dédié (3.8 — config/archetypes_lanceurs.php) -----
-            // Le répertoire vient de l'archétype ; `sorts_dread` reste vide (l'archétype prime).
-            // `cout` sous les leaders de tier (Champion 10 / Seigneur 20) pour ne pas changer
-            // la rencontre finale auto-sélectionnée des quêtes.
-            ['nom_base' => 'Chamane Gobelin', 'deplacement' => 8, 'attaque' => 2, 'defense' => 2, 'pv_body' => 3, 'pv_mind' => 4,
-                'tier' => 'sous_boss', 'boite' => null, 'cout' => 9,
-                'capacites' => [], 'sorts_dread' => [], 'archetype_lanceur' => 'chaman_orque'],
-            ['nom_base' => 'Liche', 'deplacement' => 6, 'attaque' => 3, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 6,
-                'tier' => 'boss', 'boite' => null, 'cout' => 18,
-                'capacites' => ['invocation'], 'sorts_dread' => [], 'archetype_lanceur' => 'necromancien'],
-            ['nom_base' => 'Sorcier des Tempêtes', 'deplacement' => 7, 'attaque' => 3, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 5,
-                'tier' => 'boss', 'boite' => null, 'cout' => 17,
-                'capacites' => [], 'sorts_dread' => [], 'archetype_lanceur' => 'maitre_tempetes'],
+            // GRAK (quête 6, « Legacy of the Orc Warlord », PDF 8 — LQ p. 15) : « Use an orc figure for Grak. » « Grak knows
+            // 3 Dread spells that he may cast (one per turn) instead of attacking. The spells are: fear, sleep, and tempest. »
+            // ⚠ « one per turn » n'écrit AUCUNE borne : Grak est bridé au budget de son palier (sous-boss : 2 par rencontre),
+            // comme le Spectre (`USAGES_BASE`). C'est une divergence NOMMÉE (`docs/regles/bestiaire-et-rencontres.md`).
+            // Body 3 / (1,5 − 4/6) = 3,6 attaques, comme le Cavalier-esprit : cout 8, le plancher.
+            ['nom_base' => 'Grak', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'boite' => 'base', 'cout' => 8, 'capacites' => [], 'sorts_dread' => [],
+                'archetype_lanceur' => 'grak'],
+
+            // BALUR (quête 8, « The Fire Mage », PDF 10 — LQ p. 19) : « Use the Dread sorcerer figure for Balur. Fire spells
+            // do not affect him. » Ball of flame, firestorm, tempest, summon orcs, fear, escape : « which he may use once
+            // during the quest » — c'est exactement `sorts_uniques` (un usage par sort, une fois par quête, palier levé,
+            // comme les six sorciers de Morcar). L'immunité au FEU est le barreau `immunite_sorts_elements`
+            // (`App\Engine\MotsClesAdversaires`, lu par `MoteurSorts::sortRefuseSur()`).
+            // Body 3 / (1,5 − 5/6) = 4,5 attaques : entre le Cavalier-esprit (3,6 → 8) et la Garde du Dread (6 → 10) : cout 9.
+            ['nom_base' => 'Balur', 'deplacement' => 8, 'attaque' => 2, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 7,
+                'tier' => 'sous_boss', 'boite' => 'base', 'cout' => 9,
+                'capacites' => ['sorts_uniques', 'immunite_sorts_elements' => ['feu']], 'sorts_dread' => [],
+                'archetype_lanceur' => 'balur_mage_du_feu'],
+
+            // LE SEIGNEUR SORCIER DE BARAK TOR (le Witch Lord du JEU DE BASE, quête 14, « Return to Barak Tor », PDF 16 —
+            // LQ p. 31) : « Use the Dread sorcerer figure for the Witch Lord. » 10/5/6/4/6 (« The Witch Lord has grown
+            // stronger! (See stats.) »). Il ferme le jeu de base (« Confrontation finale », `GabaritQueteSeeder`).
+            // Body 4 / (1,5 − 6/6) = 8 attaques, comme le Seigneur Sorcier de Return of the Witch Lord : cout 14.
+            // Le nom est DISTINCT de ce dernier (`Seigneur Sorcier`, F4193 p. 27, boîte `witch_lord`) : deux personnages.
+            // ⚠ ÉCART NOMMÉ, SANS son immunité : « not affected by any weapon or spell other than the Spirit Blade » n'est
+            // PAS semée (René, 2026-10-31 : nos quêtes sont générées, un groupe sans la Lame des Esprits ne pourrait jamais
+            // le vaincre). Elle est dans la liste nommée de `BestiaireSourceTest`.
+            // Il ne fuit pas : le livret ne lui donne aucune Fuite. Ses sorts : summon undead, fear (« which he can cast
+            // twice »), ball of flame, command, tempest. ⚠ « fear twice » N'EST PAS porté : aucun compteur par sort n'existe
+            // (`reserve_cartes` remplacerait tout le répertoire) ; il n'est borné que par le budget de boss, 3 par rencontre.
+            ['nom_base' => 'Seigneur Sorcier de Barak Tor', 'deplacement' => 10, 'attaque' => 5, 'defense' => 6, 'pv_body' => 4,
+                'pv_mind' => 6, 'tier' => 'boss', 'boite' => 'base', 'cout' => 14, 'capacites' => [], 'sorts_dread' => [],
+                'archetype_lanceur' => 'seigneur_sorcier_barak_tor'],
 
             // ----- Deux attaques par tour (Frozen Horror p. 37) -----
             // `deux_attaques` : « attacks once with its mighty paw and once with
@@ -413,8 +401,8 @@ class MonstreSeeder extends Seeder
             // ⚠ **Mind 9**, la plus haute valeur du bestiaire : une archimage
             // ne s'endort pas. C'est la fiche qui le dit, pas nous.
             // Le `cout` en revanche est nôtre — il l'aligne sur les autres
-            // bosses lanceurs (Liche 18, Sorcier des Tempêtes 17), sous le
-            // Seigneur (20) pour ne pas déplacer la rencontre finale par défaut.
+            // créations (Liche 18, Sorcier des Tempêtes 17), retirées le 2026-10-31. ⚠ Ancré sur des
+            // lignes qui n'existent plus : à REMESURER par la méthode du bestiaire, décision de René.
             ['nom_base' => 'Archimage elfe', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 9,
                 'tier' => 'boss', 'boite' => 'mage_du_miroir', 'cout' => 17, 'capacites' => [], 'sorts_dread' => [],
                 'archetype_lanceur' => 'archimage_elfe'],
@@ -800,10 +788,10 @@ class MonstreSeeder extends Seeder
             // la PREMIÈRE forme seulement — c'est elle qui entre dans la quête. Figé au
             // démarrage (`EffetsGlobauxQuete::etablir()`) : la forme démoniaque n'a pas à le
             // porter, et l'effet tient jusqu'à la fin de la quête même si Gruulob tombe.
-            // Faction « Gobelin » = le monstre de base, son archer ET le Chamane Gobelin
-            // (`InstanceMonstre::estDeFaction()`, `MEMBRES_SUPPLEMENTAIRES_DE_FACTION`) —
-            // René, 2026-10-15 : le Chamane est un gobelin, « All Goblins in this quest »
-            // l'inclut. Gruulob lui-même (« Gruulob, … ») et sa forme démoniaque n'en font
+            // Faction « Gobelin » = le monstre de base et son archer (`InstanceMonstre::estDeFaction()`).
+            // Le Chamane Gobelin y entrait par un registre (René, 2026-10-15, « All Goblins in this quest »),
+            // retiré avec lui le 2026-10-31. Gruulob lui-même (« Gruulob, … ») et sa forme démoniaque n'en font
+            // PAS partie : le chef auquel les gobelins sont dévoués garde sa fiche imprimée.
             // PAS partie : le chef auquel les gobelins sont dévoués garde sa fiche imprimée.
             //
             // Aucune capacité RÉACTIVE dans le livret (contrairement à Gretzl et *Demon
@@ -935,7 +923,7 @@ class MonstreSeeder extends Seeder
             //    distinguent pas largeur et hauteur).
             //  - sorts_dread : liste BRUTE et non un archétype — la carte ne
             //    nomme qu'UN sort, pas un répertoire de sorcier nommé (voir
-            //    le commentaire du Champion, plus haut).
+            //    une carte ne nomme qu'UN sort ; voir le Dragon, plus bas).
             //  - capacites : `sort_a_volonte` (Boule de Flammes sans compteur
             //    d'usage, pour ce monstre SEUL — René, 2026-09-30,
             //    `MoteurDread::sortAVolonte()`) et `vol_draconique`
@@ -1012,7 +1000,7 @@ class MonstreSeeder extends Seeder
             // déjà semés), et c'est le FILTRE PAR PALIER de
             // `MoteurDread::sortsDisponibles()` qui retire silencieusement les
             // deux sorts `boss` pour une créature `sous_boss` — exactement le
-            // même mécanisme qui réduit déjà le répertoire du Chamane Gobelin.
+            // même mécanisme qui réduit déjà le répertoire d'un sous-boss lanceur.
             // Rien à construire : pure donnée, le palier existant suffit.
             // `cout` : même profil de résistance que le Garde-mage (Body 3,
             // Défense 4 → 3,6 attaques-à-3-dés), même valeur.
@@ -1133,8 +1121,7 @@ class MonstreSeeder extends Seeder
             // pour l'abattre = Body / (1,5 − Défense/6) = 6 / (1,5 − 4/6) = 7,2. Lu sur la droite
             // des boss (Seigneur 15 → 20 ; Gruzbella 21 → 23 ; pente 0,5) : 20 + 0,5 × (7,2 − 15)
             // = 16,1 ⇒ 16. Recoupement : la Horreur des Glaces a exactement ce profil de combat
-            // (M8 A5 D4 B6, 7,2 attaques, cout 16) ; la Liche (même Body/Défense) coûte 18 avec une
-            // invocation de plus.
+            // (M8 A5 D4 B6, 7,2 attaques, cout 16).
             ['nom_base' => 'Fellmarak le Roi Sorcier', 'deplacement' => 8, 'attaque' => 5, 'defense' => 4,
                 'pv_body' => 6, 'pv_mind' => 6, 'tier' => 'boss', 'boite' => 'prophecy_telor', 'cout' => 16,
                 'capacites' => [], 'sorts_dread' => [], 'archetype_lanceur' => 'fellmarak_roi_sorcier'],

@@ -59,7 +59,7 @@ beforeEach(function () {
 /**
  * Démarre une quête avec un héros barbare (alice, Mind configurable) et,
  * si demandé, un second héros (bob) — puis remplace le premier monstre par
- * le bloc Monstre dont le nom est fourni (Champion ou Seigneur du catalogue)
+ * le bloc Monstre dont le nom est fourni (par défaut la Garde-mage, sous-boss lanceur)
  * positionné sur une case spécifique (ou libre adjacente au héros).
  *
  * @return array{
@@ -75,7 +75,7 @@ beforeEach(function () {
  * }
  */
 function demarrerQueteBoss(
-    string $nomBoss = 'Champion',
+    string $nomBoss = 'Garde-mage',
     int $mindHeros = 2,
     bool $avecSecondHeros = false,
     int $mindHeros2 = 2,
@@ -183,7 +183,7 @@ it('Boule de Flammes inflige 2 PV FIXES que la cible réduit aux dés rouges', f
     // supprimé le 2026-09-04 faute de carte. Il lançait des dés d'attaque contre
     // une défense : même fourchette, tout autres probabilités, et le hasard du
     // mauvais côté — c'est la cible qui résiste, pas le lanceur qui vise.
-    $ctx = demarrerQueteBoss('Champion');
+    $ctx = demarrerQueteBoss('Garde-mage');
     ['heros' => $heros, 'boss' => $boss, 'quete' => $quete, 'groupe' => $groupe] = $ctx;
 
     $boss->monstre->update(['sorts_dread' => ['Boule de Flammes'], 'archetype_lanceur' => null]);
@@ -214,7 +214,7 @@ it('Boule de Flammes inflige 2 PV FIXES que la cible réduit aux dés rouges', f
 });
 
 it('Boule de Flammes : chaque 5-6 des dés rouges annule 1 point', function () {
-    $ctx = demarrerQueteBoss('Champion');
+    $ctx = demarrerQueteBoss('Garde-mage');
     ['heros' => $heros, 'boss' => $boss] = $ctx;
 
     $boss->monstre->update(['sorts_dread' => ['Boule de Flammes'], 'archetype_lanceur' => null]);
@@ -239,10 +239,10 @@ it('Boule de Flammes : chaque 5-6 des dés rouges annule 1 point', function () {
 
 it('Sommeil endort un héros (Mind faible échoue) : il saute son tour, réveillé par une attaque', function () {
     // Héros avec Mind 1 → très peu de chances de résister.
-    $ctx = demarrerQueteBoss('Champion', mindHeros: 1, avecSecondHeros: true, mindHeros2: 1);
+    $ctx = demarrerQueteBoss('Garde-mage', mindHeros: 1, avecSecondHeros: true, mindHeros2: 1);
     ['alice' => $alice, 'groupe' => $groupe, 'heros' => $heros, 'quete' => $quete, 'boss' => $boss] = $ctx;
 
-    // On force le Champion à utiliser Sommeil (pas de sort de dégâts pour le moment).
+    // On force la Garde-mage à utiliser Sommeil (pas de sort de dégâts pour le moment).
     // Pour cela : on épuise l'usage du sort de dégâts en amont... ou on fige les dés
     // pour que le bot choisisse Sommeil selon la priorité (Mind le plus faible avec Sommeil disponible).
     // La priorité 1 (Tempête/Trait) précède Sommeil.
@@ -308,7 +308,7 @@ it('Sommeil endort un héros (Mind faible échoue) : il saute son tour, réveill
 });
 
 it('Sommeil direct : le héros saute son tour, puis une attaque le réveille', function () {
-    $ctx = demarrerQueteBoss('Champion', mindHeros: 1);
+    $ctx = demarrerQueteBoss('Garde-mage', mindHeros: 1);
     ['alice' => $alice, 'groupe' => $groupe, 'heros' => $heros, 'quete' => $quete, 'boss' => $boss] = $ctx;
 
     // On pose manuellement la condition Endormi sur le héros.
@@ -347,7 +347,7 @@ it('Sommeil direct : le héros saute son tour, puis une attaque le réveille', f
 });
 
 it('Frayeur PLAFONNE l\'attaque à 1 dé (condition Apeuré)', function () {
-    $ctx = demarrerQueteBoss('Champion', mindHeros: 1);
+    $ctx = demarrerQueteBoss('Garde-mage', mindHeros: 1);
     ['alice' => $alice, 'groupe' => $groupe, 'heros' => $heros, 'quete' => $quete, 'boss' => $boss] = $ctx;
 
     // Pose manuellement la condition Apeuré (des_attaque_max = 1).
@@ -391,7 +391,7 @@ it('Frayeur PLAFONNE l\'attaque à 1 dé (condition Apeuré)', function () {
 });
 
 it('Tempête de feu touche 2 héros sur les cases orthogonales du boss', function () {
-    $ctx = demarrerQueteBoss('Champion', mindHeros: 1, avecSecondHeros: true, mindHeros2: 1);
+    $ctx = demarrerQueteBoss('Garde-mage', mindHeros: 1, avecSecondHeros: true, mindHeros2: 1);
     ['alice' => $alice, 'groupe' => $groupe, 'heros' => $heros, 'quete' => $quete, 'boss' => $boss] = $ctx;
 
     // Place le second héros adjacent au boss également.
@@ -401,7 +401,7 @@ it('Tempête de feu touche 2 héros sur les cases orthogonales du boss', functio
 
     // Épuise les usages sauf 1 et configure le boss pour lancer Tempête de feu.
     // Avec 2 héros visibles, la priorité 1 favorise Tempête.
-    // On épuise les dégâts en passant le Champion à Tempête de feu directement
+    // On épuise les dégâts en passant la Garde-mage à Tempête de feu directement
     // par manipulation de cache. On laisse 1 usage.
     $dread = app(MoteurDread::class);
 
@@ -441,8 +441,8 @@ it('Tempête de feu touche 2 héros sur les cases orthogonales du boss', functio
 });
 
 it('Commandement : au tour suivant le héros commandé attaque son allié', function () {
-    // Seigneur a Commandement dans ses sorts_dread.
-    $ctx = demarrerQueteBoss('Seigneur', mindHeros: 1, avecSecondHeros: true, mindHeros2: 4);
+    // Le Seigneur Sorcier de Barak Tor a Commandement dans son répertoire.
+    $ctx = demarrerQueteBoss('Seigneur Sorcier de Barak Tor', mindHeros: 1, avecSecondHeros: true, mindHeros2: 4);
     ['alice' => $alice, 'groupe' => $groupe, 'heros' => $heros, 'quete' => $quete, 'boss' => $boss] = $ctx;
 
     // Pose manuellement la condition Commandé sur le héros (comme si le sort avait réussi).
@@ -512,7 +512,7 @@ it('Commandement : au tour suivant le héros commandé attaque son allié', func
 
 it('Invocation : 2 squelettes apparaissent et l\'usage ne se reproduit pas (1×/rencontre)', function () {
     // Seigneur a Invocation de morts-vivants.
-    $ctx = demarrerQueteBoss('Seigneur');
+    $ctx = demarrerQueteBoss('Seigneur Sorcier de Barak Tor');
     ['alice' => $alice, 'groupe' => $groupe, 'quete' => $quete, 'boss' => $boss] = $ctx;
 
     $dread = app(MoteurDread::class);
@@ -563,7 +563,7 @@ it('Invocation : 2 squelettes apparaissent et l\'usage ne se reproduit pas (1×/
 });
 
 it('usages de Dread épuisés → le boss attaque normalement', function () {
-    $ctx = demarrerQueteBoss('Champion');
+    $ctx = demarrerQueteBoss('Garde-mage');
     ['alice' => $alice, 'groupe' => $groupe, 'quete' => $quete, 'boss' => $boss] = $ctx;
 
     $dread = app(MoteurDread::class);
@@ -574,7 +574,7 @@ it('usages de Dread épuisés → le boss attaque normalement', function () {
 
     // Dés : héros attendre, puis attaque du boss (crânes sur le héros).
     desFiges([
-        // Attaque du boss : 4 dés (Champion attaque=4) crânes
+        // Attaque du boss : 4 dés (Garde-mage attaque=4) crânes
         1, 1, 1, 1,
         // Défense du héros : 2 dés (boucliers blancs → 0 bouclier)
         4, 4,
@@ -596,7 +596,7 @@ it('usages de Dread épuisés → le boss attaque normalement', function () {
 
 it('Régénération : +1 PV Body au début du tour, plafonné au max du catalogue', function () {
     // Crée un boss avec capacité régénération (on ajoute manuellement à l'instance).
-    $ctx = demarrerQueteBoss('Seigneur');
+    $ctx = demarrerQueteBoss('Seigneur Sorcier de Barak Tor');
     ['alice' => $alice, 'groupe' => $groupe, 'quete' => $quete, 'boss' => $boss] = $ctx;
 
     // Modifie le monstre pour avoir la capacité régénération.
@@ -629,7 +629,7 @@ it('Régénération : +1 PV Body au début du tour, plafonné au max du catalogu
 });
 
 it('Régénération ne dépasse pas le maximum du catalogue', function () {
-    $ctx = demarrerQueteBoss('Seigneur');
+    $ctx = demarrerQueteBoss('Seigneur Sorcier de Barak Tor');
     ['alice' => $alice, 'groupe' => $groupe, 'quete' => $quete, 'boss' => $boss] = $ctx;
 
     $catalogueBoss = $boss->monstre;
@@ -655,11 +655,11 @@ it('Régénération ne dépasse pas le maximum du catalogue', function () {
 });
 
 it('Frappe de zone touche 2 héros adjacents au boss', function () {
-    $ctx = demarrerQueteBoss('Seigneur', avecSecondHeros: true);
+    $ctx = demarrerQueteBoss('Seigneur ogre', avecSecondHeros: true);
     ['alice' => $alice, 'groupe' => $groupe, 'quete' => $quete, 'boss' => $boss] = $ctx;
     ['bob' => $bob, 'heros' => $heros, 'heros2' => $heros2] = $ctx;
 
-    // S'assure que Seigneur a la capacité frappe_de_zone.
+    // S'assure que le Seigneur ogre (sourcé, Body 10) a la capacité frappe_de_zone.
     expect($boss->monstre->capacites)->toContain('frappe_de_zone');
 
     // Place les 2 héros adjacents au boss.
@@ -716,8 +716,8 @@ it('Résistance magique : +2 dés de défense vérifiés quand un héros lance B
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
     $quete->instancesMonstres()->update(['revele' => true]);
 
-    // Remplace le premier monstre par un Champion avec résistance_magique.
-    $catalogueBoss = Monstre::where('nom_base', 'Champion')->firstOrFail();
+    // Remplace le premier monstre par une Garde-mage avec résistance_magique.
+    $catalogueBoss = Monstre::where('nom_base', 'Garde-mage')->firstOrFail();
     $premiereInstance = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
     $quete->instancesMonstres()->whereKeyNot($premiereInstance->id)->update(['etat' => 'vaincu']);
     $premiereInstance->update([
@@ -730,12 +730,12 @@ it('Résistance magique : +2 dés de défense vérifiés quand un héros lance B
         'etat' => 'actif',
     ]);
 
-    // Ajoute résistance_magique au catalogue du Champion.
+    // Ajoute résistance_magique au catalogue de la Garde-mage.
     $catalogueBoss->update(['capacites' => ['charge', 'resistance_magique']]);
     $premiereInstance->refresh();
     $premiereInstance->load('monstre');
 
-    // Ligne de vue nécessaire pour un sort offensif : place le Champion au
+    // Ligne de vue nécessaire pour un sort offensif : place la Garde-mage au
     // contact du mage (adjacent ⇒ aucune case interposée).
     $etatMage = $quete->etatsPersonnages()->where('personnage_id', $mage->id)->firstOrFail();
     $contact = caseAdjacenteLibre($quete, (int) $etatMage->position_x, (int) $etatMage->position_y);
@@ -787,10 +787,11 @@ it('Résistance magique : +2 dés de défense vérifiés quand un héros lance B
 });
 
 it('Charge : le boss hors contact charge et attaque avec +1 dé', function () {
-    $ctx = demarrerQueteBoss('Champion');
+    // Le Loup géant (sous-boss sourcé, F7539) porte `charge` : le Champion, qui la portait, est retiré (2026-10-31).
+    $ctx = demarrerQueteBoss('Loup géant');
     ['alice' => $alice, 'groupe' => $groupe, 'quete' => $quete, 'boss' => $boss, 'etatHeros' => $etatHeros] = $ctx;
 
-    // S'assure que le Champion a la capacité charge.
+    // S'assure que le Loup géant a la capacité charge.
     expect($boss->monstre->capacites)->toContain('charge');
 
     // Place le boss LOIN du héros (pas adjacent) mais à portée de charge.
@@ -800,7 +801,7 @@ it('Charge : le boss hors contact charge et attaque avec +1 dé', function () {
     // Épuise les usages Dread pour tester la Charge seule.
     $boss->update(['usages_dread' => 0]);
 
-    // Dés pour la charge : attaque Champion = 4 + 1 = 5 dés.
+    // Dés pour la charge : attaque du Loup géant + 1 dé (la charge se lit sur la fiche, `des_attaque` = attaque + 1).
     desFiges([
         1, 1, 1, 1, 1, // 5 crânes (charge + 1 dé)
         4, 4,          // défense héros
@@ -826,7 +827,7 @@ it('Charge : le boss hors contact charge et attaque avec +1 dé', function () {
 });
 
 it('EtatGroupe expose conditions sur les entités héros ET monstres', function () {
-    $ctx = demarrerQueteBoss('Champion', mindHeros: 1);
+    $ctx = demarrerQueteBoss('Garde-mage', mindHeros: 1);
     ['alice' => $alice, 'groupe' => $groupe, 'heros' => $heros, 'boss' => $boss, 'quete' => $quete] = $ctx;
 
     // Pose une condition sur le héros.
@@ -880,7 +881,7 @@ it('le Magicien (Mind 4) résiste là où le Barbare (Mind 1) échoue avec les m
 });
 
 it('usages Dread réinitialisés au démarrage d\'une nouvelle quête', function () {
-    $ctx = demarrerQueteBoss('Champion');
+    $ctx = demarrerQueteBoss('Garde-mage');
     ['alice' => $alice, 'groupe' => $groupe, 'quete' => $quete, 'boss' => $boss] = $ctx;
 
     $dread = app(MoteurDread::class);
@@ -922,7 +923,7 @@ it('usages Dread réinitialisés au démarrage d\'une nouvelle quête', function
 // ------------------------------------------------------------------
 
 it('Contresort annule Sommeil quand la résistance naturelle échoue mais le contresort réussit', function () {
-    $ctx = demarrerQueteBoss('Champion', mindHeros: 1);
+    $ctx = demarrerQueteBoss('Garde-mage', mindHeros: 1);
     ['alice' => $alice, 'heros' => $heros, 'boss' => $boss] = $ctx;
 
     // Force le boss à ne disposer que de Sommeil (sinon les sorts de dégâts priment).
@@ -961,7 +962,7 @@ it('Contresort annule Sommeil quand la résistance naturelle échoue mais le con
 });
 
 it('Contresort raté : Sommeil s\'applique quand même', function () {
-    $ctx = demarrerQueteBoss('Champion', mindHeros: 1);
+    $ctx = demarrerQueteBoss('Garde-mage', mindHeros: 1);
     ['alice' => $alice, 'heros' => $heros, 'boss' => $boss] = $ctx;
 
     $boss->monstre->update(['sorts_dread' => ['Sommeil'], 'archetype_lanceur' => null]);
@@ -990,7 +991,7 @@ it('Contresort raté : Sommeil s\'applique quand même', function () {
 });
 
 it('sans le nœud Contresort, aucune seconde chance : Sommeil s\'applique directement', function () {
-    $ctx = demarrerQueteBoss('Champion', mindHeros: 1);
+    $ctx = demarrerQueteBoss('Garde-mage', mindHeros: 1);
     ['alice' => $alice, 'heros' => $heros, 'boss' => $boss] = $ctx;
 
     $boss->monstre->update(['sorts_dread' => ['Sommeil'], 'archetype_lanceur' => null]);
@@ -1042,7 +1043,7 @@ function caseHorsDeVue(Quete $quete, InstanceMonstre $boss): ?array
 }
 
 it('ne lance AUCUN sort de Dread sur un héros hors ligne de vue', function () {
-    $ctx = demarrerQueteBoss('Champion');
+    $ctx = demarrerQueteBoss('Garde-mage');
     ['alice' => $alice, 'quete' => $quete, 'boss' => $boss, 'etatHeros' => $etatHeros] = $ctx;
 
     // Répertoire réduit à la Boule de Flammes : sans le filtre de vue, elle partait à
@@ -1068,7 +1069,7 @@ it('ne lance AUCUN sort de Dread sur un héros hors ligne de vue', function () {
 });
 
 it('ne choisit pas Tempête de feu quand personne ne se tient dans sa zone', function () {
-    $ctx = demarrerQueteBoss('Champion');
+    $ctx = demarrerQueteBoss('Garde-mage');
     ['alice' => $alice, 'quete' => $quete, 'boss' => $boss, 'etatHeros' => $etatHeros] = $ctx;
 
     // Répertoire réduit à la Tempête : le héros reste EN VUE mais hors zone.
@@ -1155,7 +1156,7 @@ it('cible un AUTRE héros quand le Mind le plus faible porte déjà la condition
     // alice (Mind 1) est la cible naturelle de Sommeil ; on l'endort d'avance.
     // L'ancienne sélection ne regardait qu'elle et renonçait au sort — bob,
     // parfaitement endormissable, n'était jamais envisagé.
-    $ctx = demarrerQueteBoss('Champion', mindHeros: 1, avecSecondHeros: true, mindHeros2: 2);
+    $ctx = demarrerQueteBoss('Garde-mage', mindHeros: 1, avecSecondHeros: true, mindHeros2: 2);
     ['alice' => $alice, 'bob' => $bob, 'quete' => $quete, 'boss' => $boss] = $ctx;
     ['heros' => $heros, 'heros2' => $heros2, 'etatHeros2' => $etatHeros2] = $ctx;
 
@@ -1182,7 +1183,7 @@ it('cible un AUTRE héros quand le Mind le plus faible porte déjà la condition
 });
 
 it('un SOUS-BOSS ne lance pas les sorts de palier boss', function () {
-    $ctx = demarrerQueteBoss('Champion'); // tier sous_boss
+    $ctx = demarrerQueteBoss('Garde-mage'); // tier sous_boss
     ['alice' => $alice, 'boss' => $boss] = $ctx;
 
     // Fuite et Commandement sont de palier boss : le répertoire les liste, le
@@ -1216,7 +1217,7 @@ it('un SOUS-BOSS ne lance pas les sorts de palier boss', function () {
 });
 
 it('la CAPACITÉ Invocation fait apparaître des sbires sans dépenser d\'usage', function () {
-    $ctx = demarrerQueteBoss('Seigneur');
+    $ctx = demarrerQueteBoss('Seigneur Sorcier de Barak Tor');
     ['alice' => $alice, 'quete' => $quete, 'boss' => $boss, 'etatHeros' => $etatHeros] = $ctx;
 
     // Capacité seule, aucun sort : jusqu'ici `invocation` n'avait aucun lecteur
@@ -1249,7 +1250,7 @@ it('la CAPACITÉ Invocation fait apparaître des sbires sans dépenser d\'usage'
 });
 
 it('les usages de Dread vivent en COLONNE et survivent au vidage du cache', function () {
-    $ctx = demarrerQueteBoss('Champion');
+    $ctx = demarrerQueteBoss('Garde-mage');
     ['boss' => $boss, 'quete' => $quete] = $ctx;
 
     expect((int) $boss->fresh()->usages_dread)->toBe(MoteurDread::USAGES_SOUS_BOSS);
@@ -1264,7 +1265,7 @@ it('les usages de Dread vivent en COLONNE et survivent au vidage du cache', func
 });
 
 it('un sort de dégâts vise le héros le PLUS PROCHE, pas le premier de la liste', function () {
-    $ctx = demarrerQueteBoss('Champion', avecSecondHeros: true);
+    $ctx = demarrerQueteBoss('Garde-mage', avecSecondHeros: true);
     ['alice' => $alice, 'bob' => $bob, 'quete' => $quete, 'boss' => $boss] = $ctx;
     ['heros' => $heros, 'etatHeros' => $etatHeros, 'etatHeros2' => $etatHeros2] = $ctx;
 

@@ -253,25 +253,10 @@ class InstanceMonstre extends Model
     }
 
     /**
-     * Les membres d'une faction qui NE portent pas son nom : `faction => [nom_base, …]`. Un
-     * membre de plus se déclare ICI, avec sa raison — jamais en élargissant la comparaison de
-     * `estDeFaction()`, qui rattacherait au passage « Gruulob, Sorcier Gobelin Corrompu ».
-     *
-     * Le Chamane Gobelin est un gobelin (René, 2026-10-15) : le bonus de Gruulob
-     * (F9907 p. 27, « All Goblins in this quest are elite warriors dedicated to Gruulob and
-     * roll 1 additional Attack die ») est pour lui comme pour le Gobelin et son archer.
-     * Gruulob et sa forme démoniaque restent HORS faction : ils sont le chef auquel les
-     * gobelins sont dévoués, et leur fiche imprimée (3 puis 4 dés) est la leur.
-     * `BestiaireSourceTest` vérifie que chaque nom déclaré existe au catalogue.
-     */
-    public const MEMBRES_SUPPLEMENTAIRES_DE_FACTION = [
-        'Gobelin' => ['Chamane Gobelin'],
-    ];
-
-    /**
      * La créature appartient-elle à la FACTION nommée ? « Orcs » = les figurines d'Orque,
-     * y compris leur variante à distance (`variante_distance_de`) ; « Gobelin » = le Gobelin,
-     * son archer et le Chamane Gobelin (`MEMBRES_SUPPLEMENTAIRES_DE_FACTION`). Toujours
+     * y compris leur variante à distance (`variante_distance_de`) ; « Gobelin » = le Gobelin
+     * et son archer (`variante_distance_de`). Un membre sans le nom de la faction se déclarerait
+     * ici — il n'en reste aucun depuis le retrait du Chamane Gobelin (2026-10-31). Toujours
      * `nom_base`, le nom de CATALOGUE : l'habillage IA rebaptise.
      *
      * ⚠ Point de passage UNIQUE : les buffs de faction de Morcar (`MoteurDread`) et l'effet
@@ -283,8 +268,7 @@ class InstanceMonstre extends Model
 
         return $monstre !== null
             && ($monstre->nom_base === $faction
-                || $monstre->variante_distance_de === $faction
-                || in_array($monstre->nom_base, self::MEMBRES_SUPPLEMENTAIRES_DE_FACTION[$faction] ?? [], true));
+                || $monstre->variante_distance_de === $faction);
     }
 
     /**

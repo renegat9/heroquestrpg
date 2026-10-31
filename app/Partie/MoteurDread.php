@@ -1836,8 +1836,8 @@ final class MoteurDread
      * `palier` est un tier MINIMUM (doc 09 §4) et n'avait jusqu'ici aucun
      * lecteur : un sous-boss pouvait lancer les sorts vilains réservés au boss
      * final. Le filtre est aussi ce qui fait vivre les archétypes nommés — le
-     * Chamane Gobelin (sous-boss) et un chaman de rang boss partagent le
-     * répertoire `chaman_orque`, seul le second commande les héros.
+     * répertoire sert au sous-boss comme au boss, et c'est le palier du porteur qui
+     * décide de ce qu'il en tire.
      *
      * @return \Illuminate\Support\Collection<int, SortDread>
      */

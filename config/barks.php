@@ -123,19 +123,18 @@ return [
         'Momie' => 'mort_vivant',
         'Guerrier du Chaos' => 'demon',
         'Gargouille' => 'demon',
-        'Champion' => 'champion',
-        'Seigneur' => 'boss',
         'Abomination' => 'demon',
         // Variantes À DISTANCE (Against the Ogre Horde p. 8, `monstres.variante_distance_de`) :
         // même créature, même voix que leur monstre de base.
         'Gobelin archer' => 'gobelin',
         'Orque archer' => 'brute',
         'Archer squelette' => 'mort_vivant',
-        // Gabarits génériques (sans boîte).
-        'Troll' => 'ogre',
-        'Chamane Gobelin' => 'gobelin',
-        'Liche' => 'mort_vivant',
-        'Sorcier des Tempêtes' => 'sorcier',
+        // JEU DE BASE (F2847, 2026-10-31) : les méchants nommés du livret de quêtes — les ORQUES (la voix de l'Orque,
+        // « brute »), les SORCIERS du Dread (Balur, le Seigneur Sorcier de Barak Tor).
+        'Ulag' => 'brute',
+        'Grak' => 'brute',
+        'Balur' => 'sorcier',
+        'Seigneur Sorcier de Barak Tor' => 'sorcier',
         // Kellar's Keep (2026-10-23) : le squelette-roi, la gargouille-statue et la gardienne, le sorcier Borokk, Gragor ;
         // Witch Lord : Bellthor (une gargouille). Le Métamorphe : la voix de sa forme de départ, l'Abomination.
         'Squelette-roi nain' => 'mort_vivant',
@@ -145,7 +144,6 @@ return [
         'Borokk' => 'sorcier',
         'Gragor' => 'sorcier',
         'Bellthor' => 'demon',
-        'Sorcier des Tempêtes' => 'sorcier',
         // Rise of the Dread Moon
         'Cultiste du Dread' => 'sorcier',
         'Spectre' => 'spectre',

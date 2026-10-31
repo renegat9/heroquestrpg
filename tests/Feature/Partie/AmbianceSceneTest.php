@@ -52,7 +52,7 @@ it('scène combat / exploration / boss selon les monstres actifs', function () {
     expect(ambianceDe())->toBe('combat');
 
     // Un boss/sous-boss actif → boss.
-    $premier->update(['monstre_id' => Monstre::where('nom_base', 'Seigneur')->value('id')]);
+    $premier->update(['monstre_id' => Monstre::where('nom_base', 'Seigneur Sorcier de Barak Tor')->value('id')]);
     expect(ambianceDe())->toBe('boss');
 });
 

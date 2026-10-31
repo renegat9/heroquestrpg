@@ -56,6 +56,13 @@ Exemples (proposés, à équilibrer) :
 | **Sous-boss « Champion »** | 7 | 4 | 4 | 5 | 3 | 1 |
 | **Boss final « Seigneur »** | 7 | 5 | 5 | 10 | 5 | 1–2 (+ sbires) |
 
+> **Note datée — 2026-10-31 (René : « Enlève nos créations et mets ceux du jeu de base »).** Le Champion et le Seigneur ci-dessus,
+> comme la Liche, le Sorcier des Tempêtes, le Chamane Gobelin et le Troll, sont **retirés du catalogue** (migration
+> `2026_10_31_110000_retirer_createurs_du_jeu_de_base`). Le jeu de base les remplace par ses propres méchants nommés du livret
+> F2847 : **Ulag** et **Grak** (sous-boss), **Balur** (sous-boss, six sorts), **le Seigneur Sorcier de Barak Tor** (boss final).
+> Le tableau ci-dessus reste le gabarit de départ de 2026-08 ; ce qui a été sourcé et mesuré depuis est dans
+> `docs/regles/bestiaire-et-rencontres.md`, paragraphe « Le jeu de base : ses méchants nommés ».
+
 ### Bibliothèque de capacités (définie, l'IA assigne)
 - **Invocation** : fait apparaître des sbires de base.
 - **Frappe de zone** : touche plusieurs cibles adjacentes.
@@ -402,6 +409,11 @@ qu'elle en tire (`sorts_dread.palier`, un minimum).
 | `necromancien` | Liche (boss) | *nôtre* | Invocation de morts-vivants, Réanimation, Sommeil, Frayeur, Rouille, Canaliser l'Effroi |
 | `maitre_tempetes` | Sorcier des Tempêtes (boss) | *nôtre* | Tempête de feu, Éclair de Chaos, Frayeur, Fuite |
 | `chaman_orque` | Chamane Gobelin (sous-boss) | *nôtre* | Commandement, Frayeur, Sommeil, Invocation d'orques, Canaliser l'Effroi |
+
+> **Note datée — 2026-10-31.** Les quatre archétypes « nôtres » de ce tableau (`seigneur_du_chaos`, `necromancien`,
+> `maitre_tempetes`, `chaman_orque`) sont retirés de `config/archetypes_lanceurs.php` avec leurs porteurs. Remplacés par les
+> répertoires sourcés du jeu de base : `grak` (Frayeur, Sommeil, Tourmente), `balur_mage_du_feu` (six sorts, `sorts_uniques`),
+> `seigneur_sorcier_barak_tor` (Invocation de morts-vivants, Frayeur, Boule de Flammes, Commandement, Tourmente).
 
 Les deux gabarits élites génériques — **Champion** (sous-boss) et **Seigneur**
 (boss) — gardent une liste brute `monstres.sorts_dread` plutôt qu'un archétype :

@@ -310,46 +310,37 @@ it('frappe au contact plutôt que de tirer : une figure collée ne lui laisse pa
         ->not->toContain('tire sur');
 });
 
-it('donne 1 dé d\'attaque de plus à tout gobelin de la quête, archer et chamane compris, et ni à Gruulob ni à l\'orque', function () {
+it('donne 1 dé d\'attaque de plus à tout gobelin de la quête, archer compris, et ni à Gruulob ni à l\'orque', function () {
     $ctx = demarrerGruulob();
     $quete = $ctx['quete'];
     EffetsGlobauxQuete::etablir($quete); // le démarrage : Gruulob est dans la roster
 
     $gobelin = gruulobPoser($quete, 'Gobelin');
     $archer = gruulobPoser($quete, 'Gobelin archer');
-    $chamane = gruulobPoser($quete, 'Chamane Gobelin');
     $orque = gruulobPoser($quete, 'Orque');
 
     expect($ctx['instance']->fresh()->attaqueEffective())->toBe(3)  // Gruulob : ses 3 dés, sans bonus
         ->and($gobelin->fresh()->attaqueEffective())->toBe(2 + 1)   // Gobelin : attaque 2, +1
         ->and($archer->fresh()->attaqueEffective())->toBe(1 + 1)    // archer : attaque de contact 1, +1
-        // Chamane Gobelin (René, 2026-10-15) : « All Goblins in this quest » — c'est un gobelin,
-        // il lance son dé de plus ; sans la déclaration de faction il restait à sa fiche (2).
-        ->and($chamane->fresh()->attaqueEffective())->toBe(2 + 1)
         ->and($orque->fresh()->attaqueEffective())->toBe(3);        // orque : aucun effet ne la vise
 });
 
-it('range le Chamane Gobelin dans la faction Gobelin, et Gruulob ni sa forme démoniaque nulle part', function () {
+it('range les gobelins (le Gobelin et son archer) dans la faction Gobelin, et Gruulob ni sa forme démoniaque nulle part', function () {
+    // Le Chamane Gobelin, « All Goblins in this quest » (René, 2026-10-15), entrait ici par un registre de membres
+    // supplémentaires : retiré avec lui (2026-10-31). Les gobelins se reconnaissent désormais à leur nom et à leur
+    // variante à distance ; Gruulob, lui, n'en est jamais membre.
     $ctx = demarrerGruulob();
     $quete = $ctx['quete'];
 
-    $chamane = gruulobPoser($quete, 'Chamane Gobelin')->load('monstre');
+    $gobelin = gruulobPoser($quete, 'Gobelin')->load('monstre');
+    $archer = gruulobPoser($quete, 'Gobelin archer')->load('monstre');
     $forme = gruulobPoser($quete, 'Gruulob, Forme Démoniaque')->load('monstre');
 
-    expect($chamane->estDeFaction('Gobelin'))->toBeTrue()
-        ->and($chamane->estDeFaction('Orque'))->toBeFalse()
+    expect($gobelin->estDeFaction('Gobelin'))->toBeTrue()
+        ->and($archer->estDeFaction('Gobelin'))->toBeTrue()
+        ->and($gobelin->estDeFaction('Orque'))->toBeFalse()
         ->and($ctx['instance']->fresh()->load('monstre')->estDeFaction('Gobelin'))->toBeFalse()
         ->and($forme->estDeFaction('Gobelin'))->toBeFalse();
-
-    // Le registre, DANS LES DEUX SENS : chaque nom déclaré existe au catalogue (un nom qui
-    // n'y est pas n'enrôlerait personne), et chaque faction déclarée est une faction réelle.
-    foreach (InstanceMonstre::MEMBRES_SUPPLEMENTAIRES_DE_FACTION as $faction => $noms) {
-        expect(Monstre::where('nom_base', $faction)->exists())->toBeTrue("faction « {$faction} » absente du catalogue");
-
-        foreach ($noms as $nom) {
-            expect(Monstre::where('nom_base', $nom)->exists())->toBeTrue("membre « {$nom} » absent du catalogue");
-        }
-    }
 });
 
 it('ne donne aucun dé de plus aux gobelins d\'une quête sans Gruulob', function () {

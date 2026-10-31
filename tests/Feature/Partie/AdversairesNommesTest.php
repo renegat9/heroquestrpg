@@ -705,13 +705,13 @@ it('EN JEU — la technique du Moine (un rayon qui n\'est PAS un sort) blesse l\
 
 it('EN JEU — la magie du Dread épargne l\'Effigie : la zone de Tempête de feu ne la compte pas', function () {
     $ctx = advScene();
-    $liche = advPoser($ctx, 'Liche', 10, 4);
+    $lanceur = advPoser($ctx, 'Seigneur Sorcier de Barak Tor', 10, 4);
     $effigie = advPoser($ctx, 'Effigie gardienne', 8, 4);
     $gobelin = advPoser($ctx, 'Gobelin', 9, 4);
     $sort = SortDread::where('nom', 'Tempête de feu')->firstOrFail();
 
     $touches = (new ReflectionMethod(MoteurDread::class, 'monstresDuSort'))->invoke(
-        app(MoteurDread::class), $sort, $ctx['quete']->fresh()->load('carte'), $liche,
+        app(MoteurDread::class), $sort, $ctx['quete']->fresh()->load('carte'), $lanceur,
     );
 
     // Avant : « all heroes AND monsters in the room » — l'Effigie, « immune to all spell effects », y était.
@@ -720,21 +720,21 @@ it('EN JEU — la magie du Dread épargne l\'Effigie : la zone de Tempête de fe
 
 it('EN JEU — le soin et le drain du Dread épargnent aussi l\'Effigie : un soin est un effet de sort comme un autre', function () {
     $ctx = advScene();
-    $necro = advPoser($ctx, 'Liche', 10, 4);
+    $lanceur = advPoser($ctx, 'Seigneur Sorcier de Barak Tor', 10, 4);
     $effigie = advPoser($ctx, 'Effigie gardienne', 8, 4);
     $effigie->update(['pv_body' => 1]); // blessée : la plus blessée de la salle
     $gobelin = advPoser($ctx, 'Orque', 9, 4);
     $quete = $ctx['quete']->fresh()->load('carte');
 
     $soin = SortDread::where('nom', 'Apaisement')->firstOrFail();
-    $cible = (new ReflectionMethod(MoteurDread::class, 'cibleSoin'))->invoke(app(MoteurDread::class), $soin, $quete, $necro);
+    $cible = (new ReflectionMethod(MoteurDread::class, 'cibleSoin'))->invoke(app(MoteurDread::class), $soin, $quete, $lanceur);
 
     // Avant : « the most wounded monster » — l'Effigie, à 1 PV sur 2, recevait le soin.
     expect($cible)->toBeNull('l\'Effigie blessée n\'est pas soignable, et personne d\'autre ne manque de PV');
 
     $drain = SortDread::where('nom', 'Drain de vie')->firstOrFail();
     $figures = (new ReflectionMethod(MoteurDread::class, 'figuresDuDrain'))->invoke(
-        app(MoteurDread::class), $drain, $quete, $necro, $quete->etatsPersonnages()->with('personnage')->get(),
+        app(MoteurDread::class), $drain, $quete, $lanceur, $quete->etatsPersonnages()->with('personnage')->get(),
     );
 
     expect($figures['monstres']->pluck('id')->all())->toContain($gobelin->id)->not->toContain($effigie->id);

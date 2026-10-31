@@ -257,9 +257,8 @@ class GabaritQueteSeeder extends Seeder
                     // adversaire — le défaut du pool de salles, un cran plus
                     // haut.
                     //
-                    // Les deux sous-boss lanceurs du bestiaire : le Chamane
-                    // Gobelin (répertoire orque — commande, terrifie, endort) et
-                    // le Garde-mage (Boule de Flammes, Tourmente).
+                    // Les sous-boss lanceurs du bestiaire : le Garde-mage (Boule de
+                    // Flammes, Tourmente) ; Grak et Balur du jeu de base (2026-10-31).
                     'rencontre_finale' => [
                         'tier' => 'sous_boss',
                         'escorte_budget' => 4,
@@ -268,7 +267,13 @@ class GabaritQueteSeeder extends Seeder
                         // à répertoire limité (Q3, Telor) — son archétype se
                         // déclare complet, le filtre par palier fait le reste.
                         'archetypes' => [
-                            'chaman_orque', 'garde_magus', 'sorcier_dread_telor',
+                            'garde_magus', 'sorcier_dread_telor',
+                            // GRAK (jeu de base, quête 6, F2847 PDF 8 — 2026-10-31) : sous-boss lanceur, trois sorts
+                            // du livret (Frayeur, Sommeil, Tourmente). « Fear, sleep, and tempest ».
+                            'grak',
+                            // BALUR (jeu de base, quête 8, F2847 PDF 10 — 2026-10-31) : sous-boss, six sorts UNE FOIS
+                            // chacun (`sorts_uniques`), et l'immunité au feu. « Fire spells do not affect him. »
+                            'balur_mage_du_feu',
                             // LES QUATRE LIEUTENANTS DE MORCAR (Wizards of Morcar,
                             // vague 2C, 2026-10-08) : Maître des orages, Haut mage,
                             // Mage de guerre orque, Nécromancien — sous-boss, un par
@@ -300,8 +305,7 @@ class GabaritQueteSeeder extends Seeder
                         // ⚠ …et les ONZE brutes du palier, qui n'ont pas de
                         // répertoire et ne pouvaient donc pas être nommées.
                         // C'est là que vit la diversité du sous-boss : la
-                        // régénération du Troll, la double attaque de l'Ours, le
-                        // venin et la ponte des créatures de Delthrak.
+                        // double attaque de l'Ours, le venin et la ponte des créatures de Delthrak.
                         //
                         // ⚠ Doralf et Spawn of the Pit (Against the Ogre Horde,
                         // chantier monstre à phases 2026-10-04) les rejoignent.
@@ -312,7 +316,8 @@ class GabaritQueteSeeder extends Seeder
                         // pourrait démarrer DÉJÀ dans sa seconde forme, ce que
                         // sa carte ne permet pas.
                         'creatures' => [
-                            'Troll', 'Champion', 'Ours polaire de guerre', 'Yéti', 'Ogre',
+                            // ULAG (jeu de base, quête 3, F2847 PDF 5 — 2026-10-31) : brute sans sort, « the orc warlord ».
+                            'Ulag', 'Ours polaire de guerre', 'Yéti', 'Ogre',
                             'Ogre guerrier', 'Ogre champion', 'Loup géant',
                             'Rampant putride', 'Serpent géant', 'Singe géant',
                             'Doralf', 'Spawn of the Pit',
@@ -412,20 +417,17 @@ class GabaritQueteSeeder extends Seeder
                         // cartes du paquet : celle-ci donne la Fiole de soin.
                         'potions' => ['Potion de soin', 'Potion de bataille', 'Antidote au venin'],
                     ],
-                    // ⚠ Les CINQ bosses lanceurs, tirés au sort (même raison
-                    // qu'au jalon sous-boss). Chacun impose une lecture
-                    // différente du combat final : la Liche relève les morts, le
-                    // Sorcier des Tempêtes embrase et se dérobe, l'Ombre du
-                    // Dread marque et appelle des spectres, l'Horreur des Glaces
-                    // gèle et se soigne, l'Archimage elfe lâche ses loups.
+                    // ⚠ Les bosses lanceurs de la rotation, tirés au sort (même raison
+                    // qu'au jalon sous-boss). Chacun impose une lecture différente du combat
+                    // final : le Seigneur Sorcier de Barak Tor (jeu de base) invoque les morts et
+                    // tente la Tempête, Magrian terrifie et appelle des spectres, l'Horreur des
+                    // Glaces gèle et se soigne, l'Archimage elfe lâche ses loups.
                     //
-                    // ⚠ Le **Seigneur** est dans la rotation (René, 2026-09-04)
-                    // et n'en est plus le titulaire perpétuel : il fermait
-                    // TOUTES les quêtes tant qu'aucun gabarit ne nommait
-                    // personne. Il reste le plus cher des six (20), donc la
-                    // quête qui tombe sur lui achète un peu MOINS de sbires —
-                    // c'est ce que `cout` sert à dire, et c'est la seule chose
-                    // qu'il pilote (budget de rencontre, `DemarreurQuete`).
+                    // ⚠ Le Seigneur et ses deux pairs de nos créations (Liche, Sorcier des Tempêtes)
+                    // sont RETIRÉS le 2026-10-31 (René : « Enlève nos créations et mets ceux du jeu de
+                    // base ») : le Witch Lord du jeu de base ferme la campagne « jeu de base seul ».
+                    // Le `cout` sert toujours à une seule chose : le budget de rencontre que le boss
+                    // laisse aux sbires (`DemarreurQuete`).
                     'rencontre_finale' => [
                         'tier' => 'boss',
                         'escorte_budget' => 6,
@@ -442,7 +444,10 @@ class GabaritQueteSeeder extends Seeder
                         // deux fois ferait diverger les deux copies — un seul point
                         // de passage, comme partout ailleurs.
                         'archetypes' => [
-                            'seigneur_du_chaos', 'necromancien', 'maitre_tempetes',
+                            // LE SEIGNEUR SORCIER DE BARAK TOR (le Witch Lord du JEU DE BASE, quête 14, F2847 PDF 16 —
+                            // 2026-10-31) : le boss final de la boîte de base, `boite` = 'base' — donc le seul candidat de
+                            // la campagne « jeu de base seul » (`BestiaireGroupe::autorise()` laisse passer 'base').
+                            'seigneur_sorcier_barak_tor',
                             // MAGRIAN, LE DREAD WRAITH (boss FINAL de Rise of the Dread Moon, quête 10 — chantier EXT-MAGRIAN, 2026-10-23) : son
                             // archétype À SON NOM remplace celui de l'Ombre (qui n'entre plus ici : sous-boss de la boîte). Réservé à
                             // son thème (`reserve_a_son_theme`) : jamais tiré hors de Rise of the Dread Moon.

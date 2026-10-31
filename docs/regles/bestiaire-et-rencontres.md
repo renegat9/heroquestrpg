@@ -304,3 +304,45 @@ passant Magrian à deux cases — la première figure de deux cases **éthérée
   exclut le lanceur : sa seconde case y passait pour libre, et un spectre de Magrian y serait apparu. Elle cherche désormais
   autour de toute l'emprise (`casesDuLanceur()`), dans le même ordre qu'avant pour une figure d'une case.
 `GrandeFigureCasesTest` et `TrappeTeleportationTest` les épinglent ; chacun échouait avant le correctif.
+
+## Le jeu de base : ses méchants nommés, et le retrait de nos créations (René, 2026-10-31)
+
+**« Enlève nos créations et mets ceux du jeu de base » (René, 2026-10-31).** Six créations sortent du catalogue : **Champion**, **Seigneur**, **Chamane Gobelin**, **Liche**, **Sorcier des Tempêtes** (inventés : `reference/09` les dit « nôtre ») et **Troll** (carte « Cave Troll » du paquet Sjeng, compilation d'amateur, `reference/16`). Migration `2026_10_31_110000_retirer_createurs_du_jeu_de_base` : une ligne n'est supprimée que si AUCUNE instance ne la référence (`instances_monstres.monstre_id` est en `restrictOnDelete`) ; une ligne encore référencée reste, sans rôle, comme pour l'Ombre du Dread. Vérifié à 0 instance sur la vraie base avant le retrait. Le seeder ne les recrée plus.
+
+Ces six entraient dans TOUTES les campagnes (`boite` null). Sans elles, le jeu de base n'avait ni sous-boss ni boss : `BestiaireGroupe` (mode manuel) ne laisse passer que `base`, les boîtes cochées et les `boite` null. Les remplaçants portent donc tous `boite` = `base`, et les stats du livret de quêtes **F2847**, lues page par page. Le `cout` est mesuré par la méthode de ce document (Body / (1,5 − Défense/6), placé sur la droite de son palier ; immunités non comptées).
+
+| Catalogue | Livret | Tier | M/A/D/B/Mi | Attaques | `cout` | Répertoire |
+|---|---|---|---|---|---|---|
+| Ulag | quête 3, PDF 5 | sous_boss | 10/4/5/2/3 | 3,0 | 8 (plancher) | aucun |
+| Grak | quête 6, PDF 8 | sous_boss | 8/4/4/3/3 | 3,6 | 8 (plancher) | Frayeur, Sommeil, Tourmente |
+| Balur | quête 8, PDF 10 | sous_boss | 8/2/5/3/7 | 4,5 | 9 | six sorts, `sorts_uniques` |
+| Seigneur Sorcier de Barak Tor | quête 14, PDF 16 | boss | 10/5/6/4/6 | 8,0 | 14 | cinq sorts |
+
+Le plancher sous-boss est 8 (celui de l'Effigie gardienne, Body 2 / Défense 5, dont Ulag a exactement la fiche). Grak (3,6) rejoint le Cavalier-esprit (3,6 → 8). Balur (4,5) se place entre le Cavalier-esprit (8) et la Garde du Dread (6 → 10) : 9. Le Seigneur Sorcier de Barak Tor (8 attaques, comme le Seigneur Sorcier de *Return of the Witch Lord*, même Body et même Défense) reprend son 14.
+
+⚠ **Le Seigneur Sorcier de Barak Tor n'est PAS le Seigneur Sorcier de *Return of the Witch Lord*** (F4193 p. 27, boîte `witch_lord`, 10/5/6/4/**5**). Deux personnages, deux noms de catalogue : le second garde la Lame des Esprits et ses quatre sources.
+
+**Les voix et les jetons** suivent les figurines que le livret désigne : Ulag et Grak tiennent une figurine d'orque (`orc` ; voix « brute », celle de l'Orque), Balur et le Seigneur Sorcier de Barak Tor la figurine de sorcier du Dread (`dread-sorcerer` ; voix « sorcier »).
+
+**Le répertoire du boss final.** La campagne « jeu de base seul » (mode manuel, aucune boîte cochée) tirait son boss, par rotation, parmi les seuls monstres de boîte null (Seigneur, Liche, Sorcier des Tempêtes). Le pool de la « Confrontation finale » porte désormais `seigneur_sorcier_barak_tor`, seul candidat de la boîte `base` à ce palier : c'est lui qui ferme le jeu de base. Le pool du jalon sous-boss porte `grak`, `balur_mage_du_feu` et Ulag (par son nom, sans répertoire). Les boîtes thématiques gardent leur préférence : un boss de leur propre boîte passe devant lui. Une boîte sans aucun boss dans son pool le reçoit en repli générique, comme les créations le faisaient. `base` n'est jamais un thème tiré en auto (`DemarreurQuete::BOITES_THEMATIQUES`).
+
+**Un nouveau barreau de l'échelle des immunités : `immunite_sorts_elements`** (`App\Engine\MotsClesAdversaires::IMMUNITE_SORTS_ELEMENTS`). La liste des ÉLÉMENTS de sort qui ne l'atteignent PAS, l'inverse de `immunite_sorts_sauf` (Kessandria : tout sauf le feu ; Balur : le feu seulement). Lue par `Monstre::immunitesSorts()` (champ `elements`) et refusée par `MoteurSorts::sortRefuseSur()`, le point de passage unique des sorts : le menu et la résolution la lisent ensemble. Éprouvée EN JEU (`ImmunitesSelectivesTest`) : une Boule de Feu n'est pas offerte contre Balur, un sort d'air l'est.
+
+**Écarts NOMMÉS — le livret dit autre chose, et c'est un choix écrit.**
+
+1. **Le Seigneur Sorcier de Barak Tor n'a PAS son immunité** : « not affected by any weapon or spell other than the Spirit Blade » n'est pas semée (René, 2026-10-31 : nos quêtes sont générées, et un groupe sans la Lame des Esprits ne pourrait jamais le vaincre). Ce n'est pas une stat : c'est un écart de comportement, déclaré dans `BestiaireSourceTest` à côté de Fellmarak. Il ne fuit pas (le livret ne lui donne aucune Fuite).
+2. **Grak « one per turn » n'écrit aucune borne.** Il est bridé au budget de son palier (sous-boss : 2 par rencontre), comme le Spectre (`USAGES_BASE`) — le même arbitrage que pour les sorts « à volonté ». `sort_a_volonte` ne nomme qu'UN sort, et Grak en a trois.
+3. **« fear (which he can cast twice) » n'est PAS porté — écart OUVERT.** Aucun compteur PAR SORT n'existe. `sorts_uniques` donne un usage par sort (c'est exactement Balur : « which he may use once during the quest ») ; `reserve_cartes` remplacerait tout le répertoire par des réserves dont les chiffres ne sont sourcés que pour Nexrael, Festral et Xenloth. Le Seigneur Sorcier de Barak Tor n'est donc borné que par son budget de boss (3 par rencontre), et Frayeur peut y revenir plus de deux fois. À trancher par René : un plafond par sort, ou le budget de boss tel quel.
+
+**Ce que le retrait laisse sans porteur sourcé** (les lecteurs restent, aucune donnée ne les appelle encore) :
+- `regeneration` (le Troll en était le seul porteur), `invocation` (le Seigneur et la Liche). Un test EN JEU les éprouve encore sur une figure de test, jamais semée.
+- Le **feu** : le Troll était le second lecteur du dégât `feu`, avec l'Anneau de Feu. Ce dernier reste ; le feu d'un sort de héros (`Boule de Flammes`, `Trait de Feu`) et le feu des pièges restent aussi lus.
+- Le **répertoire brut** (`sorts_dread` sans archétype) : son dernier porteur de production était le Champion. Le Dragon de *First Light* le porte désormais seul.
+- Le **`cout` de l'Archimage elfe** (17) était aligné sur la Liche (18) et le Sorcier des Tempêtes (17) : il est ancré sur des lignes qui n'existent plus, à REMESURER (décision de René).
+- Le registre `MEMBRES_SUPPLEMENTAIRES_DE_FACTION` (le Chamane Gobelin en était le seul membre) est retiré avec son lecteur : `estDeFaction()` ne compare plus que le nom et `variante_distance_de`.
+
+**Ce qui reste ouvert** : le « fear twice » (point 3) ; le plafond de Grak (point 2) ; la remesure de l'Archimage elfe ; et une question que le livret pose sans la trancher : Balur est immunisé à « fire magic », l'Anneau de Feu (artefact, dégât de feu) n'est pas un sort, et il le blesse aujourd'hui.
+
+**Ce qui n'est PAS semé, et pourquoi (2026-10-31).** Le **Witch Lord de la quête 12** (« moves 1 space per turn and rolls 2 Attack dice », invulnérable, il s'éveille et on le fuit) est une rencontre SCRIPTÉE d'une quête, pas une figure de bestiaire : elle attend son propre chantier. **Verag** (quête 2, « a foul gargoyle ») n'a pas de bloc de stats propre : c'est une gargouille ordinaire, déjà au catalogue.
+
+**Un thème sans sous-boss propre.** `first_light` n'a AUCUN sous-boss au catalogue (lacune antérieure au retrait, inchangée) : son jalon sous-boss se rabat sur le repli générique, qui porte désormais Ulag, Grak et Balur au lieu de nos créations. Les autres thèmes gardent un boss ET un sous-boss dans leur propre pool (vérifié le 2026-10-31). Un thème à répertoire pauvre reste jouable parce que le repli ne vide jamais le pool.

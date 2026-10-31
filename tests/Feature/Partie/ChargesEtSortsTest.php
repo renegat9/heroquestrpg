@@ -409,7 +409,7 @@ it('l\'Anneau de Feu annule INTÉGRALEMENT un sort de feu, deux fois', function 
     // UNIQUE, « any one monster » (décision de René, 2026-10-09). Le feu qui le
     // touche vient donc du MJ — sa Tempête de feu, qui brûle toute la salle —, et
     // l'anneau le protège des deux : même lecteur, « Fire OR CHAOS FIRE spells ».
-    $ctx = demarrerQueteAvecMonstre('Seigneur', ['classe' => 'magicien']);
+    $ctx = demarrerQueteAvecMonstre('Seigneur Sorcier de Barak Tor', ['classe' => 'magicien']);
     $magicien = $ctx['heros'];
     $ctx['instance']->monstre->update(['sorts_dread' => ['Tempête de feu'], 'archetype_lanceur' => null]);
     $ctx['instance']->update(['pv_body_max' => (int) $ctx['instance']->monstre->pv_body]);
@@ -440,7 +440,7 @@ it('l\'Anneau de Feu annule INTÉGRALEMENT un sort de feu, deux fois', function 
 it('ne protège que du FEU : un sort d\'une autre nature passe', function () {
     // Morsure de Froid (zone de contact, `type_degat: froid`) : l'anneau de feu n'y
     // change rien, et sa charge reste entière.
-    $ctx = demarrerQueteAvecMonstre('Seigneur', ['classe' => 'magicien']);
+    $ctx = demarrerQueteAvecMonstre('Seigneur Sorcier de Barak Tor', ['classe' => 'magicien']);
     $magicien = $ctx['heros'];
     $ctx['instance']->monstre->update(['sorts_dread' => ['Morsure de Froid'], 'archetype_lanceur' => null]);
     $ctx['instance']->update(['pv_body_max' => (int) $ctx['instance']->monstre->pv_body]);
@@ -458,7 +458,11 @@ it('ne protège que du FEU : un sort d\'une autre nature passe', function () {
 });
 
 it('un sort de feu BRÛLE le monstre et lui coupe la régénération', function () {
-    $ctx = demarrerQueteAvecMonstre('Troll', ['classe' => 'magicien']);
+    $ctx = demarrerQueteAvecMonstre('Garde-mage', ['classe' => 'magicien']);
+    // Le Troll, seul porteur de la régénération, est retiré (2026-10-31) : la capacité est posée ici sur une figure
+    // SOURCÉE de même Body et même Défense (3 et 4), sans répertoire, pour que le feu soit éprouvé EN JEU contre elle.
+    $ctx['instance']->monstre->update(['capacites' => ['regeneration'], 'sorts_dread' => [], 'archetype_lanceur' => null]);
+    $ctx['instance']->refresh()->load('monstre');
     $magicien = $ctx['heros'];
     armerDeSorts($magicien);
 
