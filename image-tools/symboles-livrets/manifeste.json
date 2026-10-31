@@ -1720,6 +1720,44 @@
     },
     {
       "type": "monstres",
+      "cle": "goblin-warlock",
+      "nom_catalogue": "Goblin Warlock",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 26,
+      "cadre": [
+        776.22,
+        500.88,
+        815.74,
+        540.4
+      ],
+      "rotation": 90,
+      "disque": [
+        795.98,
+        520.64,
+        16.47
+      ],
+      "source": "F9907 p. 51 (PDF 26), planche « Design Your Own Quest Adventures », « Goblin Warlock »",
+      "note": "disque mesuré le 2026-10-31 ; page couchée : rotation 90. Même jeton que celui posé dans la salle de Gretzl (quête 12, PDF 18). Figurine de Bakabri (« Use the Goblin Warlock miniature », PDF 21) et de Gruulob (« Gruulob, Blighted Goblin Warlock », PDF 14)"
+    },
+    {
+      "type": "monstres",
+      "cle": "grasping-vines",
+      "nom_catalogue": "Grasping Vines",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 26,
+      "cadre": [
+        619.4,
+        155.0,
+        661.4,
+        196.88
+      ],
+      "rotation": 90,
+      "tuile": true,
+      "source": "F9907 p. 51 (PDF 26), planche « Design Your Own Quest Adventures », « Grasping Vines » (tuile carrée)",
+      "note": "tuile mesurée bord à bord le 2026-10-31 (le liseré bordeaux) ; « Use the grasping vines tile to represent the Tendril » (quête 14, PDF 20). Même tuile que le symbole de piège `piege-de-lianes`"
+    },
+    {
+      "type": "monstres",
       "cle": "minotaur",
       "nom_catalogue": "Minotaur",
       "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",

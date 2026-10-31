@@ -141,8 +141,12 @@ Quest: Orc », et posent à côté une **tête dans un anneau vert** : c'est le 
   Cultist, Elven Warrior, Elven Archer, Sir Ragnar, et le Dread Wraith en OVALE (Magrian, passé à deux cases). Wizards of Morcar PDF 22 : un jeton PAR lieutenant (Orc Warcaster,
   Necromancer, High Mage, Storm Master), l'Artificer et le Dreadshifter — la planche en dessine deux, « Dreadshifter »
   et « Dreadshifter (Chest) » ; c'est la version coffre qui est extraite, celle que le catalogue pose.
-  Pas de planche dans Prophecy of Telor, Spirit Queen's Torment ni The Crypt of Perpetual Darkness ; Delthrak
-  remplace la sienne par le tableau « Map Symbol » (PDF 26), déjà exploité.
+  Delthrak PDF 26 donne aussi le jeton « Goblin Warlock » (Bakabri, Gruulob, Gretzl) et la tuile « Grasping Vines » (la
+  Vrille, extraite une seconde fois, côté monstres, en `tuile`). Pas de planche dans Prophecy of Telor, Spirit Queen's
+  Torment ni The Crypt of Perpetual Darkness.
+- **Cartes de quête** (2026-10-31) : un monstre nommé prend le jeton de la figurine que sa note renvoie, ou celui que la
+  carte pose à sa place. Lire la note ET regarder la carte : la carte de Gretzl ne la nomme pas, mais le seul jeton qui
+  n'est pas l'un de ses lieutenants (quatre Blightweavers, un Raptor) est le Goblin Warlock.
 - **Figures 1×2 dont le livret dessine un jeton ROND** : Ogre (Mage du Miroir, PDF 7 : légende, jeton rond de 1,05),
   Ogre guerrier (Ogre Horde PDF 19, 37, 41, 43 : rond partout) et Horreur des Glaces (planche Frozen Horror PDF 20,
   rapport 1,13). Le livret les dessine RONDS, alors que le catalogue les pose 1×2 : ils gardent le jeton rond

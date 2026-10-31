@@ -38,6 +38,30 @@ return [
         'Guerrier elfe' => 'elven-warrior', // « Elven Warriors », planche « Design Your Own », F6646 PDF 20
         'Cultiste du Dread' => 'dread-cultist', // « Dread Cultists », planche « Design Your Own », F6646 PDF 20
         // 'Dreadshifter' → `dreadshifter` par son slug : « Dreadshifter (Chest) », planche « Design Your Own », G1504 PDF 22 (la version coffre).
+        // Les CARTES de quête et leurs notes (René, 2026-10-31 : « s'ils ont un token assigné quand ils apparaissent dans une
+        // quête des livrets, il faudrait utiliser ce token ») — la figurine que le texte renvoie, ou le jeton que la carte pose :
+        'Bakabri le Cruel' => 'goblin-warlock', // « Use the Goblin Warlock miniature to represent him » (F9907 PDF 21) ; jeton de la planche (PDF 26)
+        'Gruulob, Sorcier Gobelin Corrompu' => 'goblin-warlock', // « Gruulob, Blighted Goblin Warlock » (F9907 PDF 14)
+        'Gruulob, Forme Démoniaque' => 'goblin-warlock', // « do not remove the miniature from the map » (F9907 PDF 14) : la même figurine
+        'Gretzl la Porte-Fléau' => 'goblin-warlock', // carte de la quête 12 (F9907 PDF 18) : le jeton Goblin Warlock au milieu de « Gretzl … with her lieutenants » (quatre Blightweavers, un Raptor)
+        'Vrille' => 'grasping-vines', // « Use the grasping vines tile to represent the Tendril » (F9907 PDF 20) ; TUILE de la planche (PDF 26)
+        'Qwindrak the Warlock' => 'dread-sorcerer', // « replace it with the Dread Sorcerer miniature » (livret de quêtes de First Light, quête 4) ; même jeton près de lui, cartes des quêtes 5 et 10
+        'Festral' => 'dread-sorcerer', // « Festral, the Dread Sorcerer » (F9528 PDF 35) ; le jeton du sorcier sur la carte de la quête 8 (PDF 34)
+        'Xenloth' => 'dread-sorcerer', // « Xenloth the Dread Mage » (F9528 PDF 37) ; seul jeton de la salle B, carte de la quête 9 (PDF 36)
+        'Nexrael' => 'dread-sorcerer', // « Nexrael, an apprentice Dread Sorcerer » (F9528 PDF 31) ; le jeton du sorcier dans la salle D (PDF 30)
+        'Kessandria' => 'dread-sorcerer', // « Use the Dread sorcerer figure to represent her » (F4193 PDF 13)
+        'Kedrick Gilbane' => 'dread-sorcerer', // « The Dread sorcerer represents the Dread knight Kedrick » (G1798 PDF 12)
+        'Sorcière des Marais' => 'dread-sorcerer', // « The Dread sorcerer represents a swamp hag » (G1798 PDF 6)
+        'Spawn of the Pit' => 'abomination', // le jeton de la vague 3, carte de la quête 1 (F9528 PDF 20)
+        'Spawn of the Pit déchaîné' => 'abomination', // « do not remove the miniature from the map » (F9528 PDF 21) : la même figurine
+        'Métamorphe' => 'abomination', // « currently in the form of an abomination » (F4543 PDF 13) ; le jeton de la salle A
+        'Squelette-roi nain' => 'skeleton', // « These skeletons are those of ancient dwarven kings » (F4543 PDF 9) ; les jetons derrière les portes de B
+        'Cavalier-esprit' => 'skeleton', // « The skeletons in these four rooms are the Spirit Riders » (F4193 PDF 6)
+        'Garde du Dread' => 'dread-warrior', // « three Doomguard Dread warriors » (F4193 PDF 13) ; « This Dread Warrior is a Doomguard » (First Light, quête 4)
+        'Bellthor' => 'gargoyle', // « Bellthor, a foul gargoyle » (F4193 PDF 9) ; le jeton de gargouille près de B
+        'Gargouille gardienne' => 'gargoyle', // « Place the gargoyle on the square marked X » (F4543 PDF 14)
+        'Roi Archaloneus' => 'mummy', // « This mummy is King Archaloneus » (G1798 PDF 9) ; le jeton de momie près de B
+        'Momie-naine' => 'mummy', // « The mummy in this room was a dwarf in its former life » (G1798 PDF 11) ; le jeton de momie près de C
         'Artificière' => 'artificer', // son propre jeton « Artificer » (planche « Design Your Own », G1504 PDF 22, 2026-10-31) — plus juste que celui du sorcier du Dread de First Light
         'Fellmarak le Roi Sorcier' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
         'Seigneur Sorcier' => 'dread-sorcerer', // « Use the Dread sorcerer figure » ; jeton du « Quest Map Guide » de First Light (p. 9)
@@ -110,49 +134,33 @@ return [
     // (2026-10-29). Fichier carré pour une figure d'une case, 2:1 pour deux cases ; le manifeste le marque `tuile`.
     'tuiles' => [
         'Rejeton putride',
+        // Vrille : « Use the grasping vines tile to represent the Tendril » (F9907 PDF 20) — la tuile carrée de la planche, une case.
+        'Vrille',
         // Golem : tuile d'une case sur deux (F9907 PDF 12), emprise passée à 1×2 (René, 2026-10-29 : « Oui passe à 2 cases »).
         'Golem Cœur-de-Forge',
     ],
 
     // Monstres sans jeton : une raison par nom, lue par SymbolesMonstresTest.
     'absents' => [
-        'Archimage elfe' => '« Use the elven archmage figure » : figurine sans jeton dans les livrets lus',
-        'Bakabri le Cruel' => '« Use the Goblin Warlock miniature » (F9907 PDF 21) : aucun jeton de Goblin Warlock',
-        'Bellthor' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Buubhealxea, reine gobeline' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Cavalier-esprit' => 'Spirit Riders (F4193 PDF 6) : aucune figurine renvoyée dans le texte',
-        'Chamane Gobelin' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Champion' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Crâne du Dread' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Demonape' => 'Gretzl (F9907 PDF 18) : aucune figurine renvoyée dans le texte',
-        'Demonspider' => 'Gretzl (F9907 PDF 18) : aucune figurine renvoyée dans le texte',
-        'Doralf' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Festral' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Garde du Dread' => 'Elite Dread Warrior (G1504 PDF 13) : le texte ne relie pas la garde à ce jeton',
-        'Gargouille gardienne' => 'aucun jeton : « guardian gargoyle » n’est nommé dans les livrets lus',
-        'Gretzl la Porte-Fléau' => 'Gretzl (F9907 PDF 18) : aucune figurine renvoyée dans le texte',
-        'Gruulob, Forme Démoniaque' => 'Gruulob (F9907 PDF 14) : statistiques reprises, aucune figurine renvoyée',
-        'Gruulob, Sorcier Gobelin Corrompu' => 'Gruulob (F9907 PDF 14) : statistiques reprises, aucune figurine renvoyée',
-        'Gruzbella Déterminée' => 'aucun jeton : statistiques d’une autre figurine reprises (« Adopt the statistics of … »), aucun jeton propre',
-        'Gruzbella Hammerhand' => 'aucun jeton : statistiques d’une autre figurine reprises (« Adopt the statistics of … »), aucun jeton propre',
-        'Gruzbella Imprudente' => 'aucun jeton : statistiques d’une autre figurine reprises (« Adopt the statistics of … »), aucun jeton propre',
-        'Kedrick Gilbane' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Kessandria' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Liche' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Momie-naine' => 'Arcane Mummy (F9907 PDF 15) : identité non établie, aucune figurine renvoyée',
-        'Métamorphe' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Nexrael' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Qwindrak the Warlock' => '« Replace Qwindrak with the Dragon miniature » (First Light PDF 9) : la forme de sorcier n’a pas de jeton propre isolé ; la forme de dragon a le sien (Dragon)',
-        'Roi Archaloneus' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Scion Fleur-Pourrie' => 'Bloomrot Scion (F9907 PDF 20) : aucune figurine renvoyée dans le texte',
-        'Seigneur' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Sorcière des Marais' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Spawn of the Pit' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Spawn of the Pit déchaîné' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Squelette-roi nain' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Troll' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Venim le Dragon' => 'Venim (G1798 PDF 13, « The Dragon Venim’s Lair ») : aucune figurine renvoyée dans le texte ; le jeton « Dragon » (First Light) n’est pas le sien sans texte qui le dise',
-        'Vrille' => 'Tendril : un pion de bois (F9907 PDF 20), pas une figurine',
-        'Xenloth' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
+        // ⚠ À TRANCHER (René) : la carte ou le texte leur donne un jeton OVALE — une figure de deux cases — alors que le
+        // catalogue les pose sur une case. L'emprise suit le jeton (`docs/regles/bestiaire-et-rencontres.md`) : sans décision,
+        // ni ovale ni emprise.
+        'Doralf' => 'à trancher : la carte de la quête 2 (F9528 PDF 22) ne pose qu’un jeton, l’OVALE de l’Ogre Commander, sur l’équipe des Défenseurs dont « Doralf must be one of the monsters » ; figure 1×1 au catalogue',
+        'Gruzbella Hammerhand' => 'à trancher : la carte de la quête 3 (F9528 PDF 24) ne pose qu’un jeton, l’OVALE de l’Ogre Champion ; figure 1×1 au catalogue',
+        'Gruzbella Déterminée' => 'à trancher : même figurine que Gruzbella Hammerhand (« do not remove the miniature », F9528 PDF 25), l’OVALE de l’Ogre Champion ; figure 1×1 au catalogue',
+        'Gruzbella Imprudente' => 'à trancher : même figurine que Gruzbella Hammerhand (« do not remove the miniature », F9528 PDF 25), l’OVALE de l’Ogre Champion ; figure 1×1 au catalogue',
+        'Demonspider' => 'à trancher : « place a Blightcrawler miniature » (F9907 PDF 18), jeton OVALE `blightcrawler` ; figure 1×1 au catalogue',
+        'Demonape' => 'à trancher : « place a Giant Ape miniature » (F9907 PDF 18), jeton OVALE `giant-ape` ; figure 1×1 au catalogue',
+        'Scion Fleur-Pourrie' => 'à trancher : une tuile de 4×4 cases au centre de la carte de la quête 14 (F9907 PDF 20), sans nom — la bête ou la faille ? figure 1×1 au catalogue',
+        // Sans jeton : cartes et textes lus le 2026-10-31.
+        'Archimage elfe' => '« Use the elven archmage figure » ; la carte de la quête 9 (F7539 PDF 16) ne pose que le mot « SIN », aucun jeton',
+        'Crâne du Dread' => '« As soon as a hero sees a Dread Skull, place it on the board » (G1798 PDF 12) : sept lettres A sur la carte, aucun jeton dessiné',
+        'Buubhealxea, reine gobeline' => 'note E de la quête 5 (G1798 PDF 8) : lettre seule sur la carte, aucune figurine renvoyée par le texte',
+        'Venim le Dragon' => 'Venim (G1798 PDF 13, « The Dragon Venim’s Lair ») : aucun jeton sur la carte, aucune figurine renvoyée ; le jeton « Dragon » (First Light) n’est pas le sien sans texte qui le dise',
+        'Champion' => 'gabarit élite du projet (`reference/09`) : aucune quête des livrets ne le nomme',
+        'Seigneur' => 'gabarit élite du projet (`reference/09`) : aucune quête des livrets ne le nomme',
+        'Chamane Gobelin' => 'créature du projet (« nôtre », `reference/09`) : aucune quête des livrets ne la nomme',
+        'Liche' => 'créature du projet (« nôtre », `reference/09`) : aucune quête des livrets ne la nomme',
+        'Troll' => 'carte « Cave Troll » du paquet (`reference/16`) : aucune quête des livrets ne le pose',
     ],
 ];
