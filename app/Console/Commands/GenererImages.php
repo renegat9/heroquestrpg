@@ -135,7 +135,9 @@ final class GenererImages extends Command
             $cibles[] = [
                 'type' => 'monstres',
                 'rel' => $biblio->relatifCatalogue('monstres', $m->id, $m->nom_base),
-                'prompt' => $biblio->prompt('monstre', ['nom' => $m->nom_base, 'tier' => (string) $m->tier]),
+                // ⚠ Le NOM seul faisait dessiner un démon à tous les méchants nommés (2026-10-31) : le prompt
+                // porte l'APPARENCE du livret (`config/apparences_monstres.php`), par `promptMonstre()` seul.
+                'prompt' => $biblio->promptMonstre($m->nom_base, (string) $m->tier),
             ];
         }
 

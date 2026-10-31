@@ -22,7 +22,13 @@ return [
     // Gabarits par type. {style} est remplacé par la valeur ci-dessus.
     'gabarits' => [
         'classe' => 'Portrait héroïque en buste d\'un {detail}, personnage de jeu de rôle fantasy. {style}',
-        'monstre' => 'Figurine de monstre de donjon : {nom} (tier {tier}), créature menaçante en pied. {style}',
+        // MONSTRE (2026-10-31) : un monstre SANS apparence dans `config/apparences_monstres.php` garde son nom et
+        // son tier ; la consigne « aucune inscription » est ajoutée, parce que Gemini recopiait des noms dans l'image.
+        'monstre' => 'Figurine de monstre de donjon : {nom} (tier {tier}), créature menaçante en pied. Illustration seule : aucune inscription, aucun chiffre, aucune interface. {style}',
+        // MONSTRE NOMMÉ (2026-10-31) : l'APPARENCE tirée du livret remplace le NOM. Un nom propre (Ulag, Kessandria,
+        // Archaloneus…) faisait dessiner un démon cornu à tous les méchants nommés. Lu par
+        // `BibliothequeImages::promptMonstre()`, seul point de passage.
+        'monstre_nomme' => 'Figurine de monstre de donjon, en pied : {apparence}. Illustration seule : aucune inscription, aucun chiffre, aucune interface. {style}',
         // ALLIÉ (2026-10-01, René : « des illustrations pour les alliés quand
         // ils font des actions ») : mercenaire ou créature qui combat AUX CÔTÉS
         // des héros. ⚠ Le prompt porte la DESCRIPTION du catalogue : avec le

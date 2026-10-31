@@ -607,6 +607,33 @@ final class BibliothequeImages
         )));
     }
 
+    /**
+     * Apparence d'un monstre NOMMÉ, tirée du livret (`config/apparences_monstres.php`), ou null quand le livret
+     * n'en dit rien. Lecture par clé dans le tableau entier : `config('apparences_monstres.'.$nom)` couperait
+     * le nom au premier point.
+     */
+    public function apparenceMonstre(string $nomBase): ?string
+    {
+        $apparence = config('apparences_monstres', [])[$nomBase] ?? null;
+
+        return is_string($apparence) && trim($apparence) !== '' ? trim($apparence) : null;
+    }
+
+    /**
+     * Prompt d'un monstre du catalogue — le SEUL point de passage des prompts de monstre (2026-10-31). Un monstre
+     * nommé est décrit par son APPARENCE : le nom propre ne doit pas entrer dans le prompt, Gemini le recopiait
+     * dans l'image (et dessinait un démon pour tous). Sans apparence, le gabarit générique garde le nom ; la
+     * consigne « aucune inscription » est dans les deux.
+     */
+    public function promptMonstre(string $nomBase, string $tier): string
+    {
+        $apparence = $this->apparenceMonstre($nomBase);
+
+        return $apparence !== null
+            ? $this->prompt('monstre_nomme', ['apparence' => $apparence])
+            : $this->prompt('monstre', ['nom' => $nomBase, 'tier' => $tier]);
+    }
+
     /** Détail d'apparence d'une classe (pour le prompt). */
     public function detailClasse(string $classe): string
     {
