@@ -311,22 +311,27 @@ it('Tourmente fait SAUTER le tour suivant, sans aucun jet', function () {
     // « That hero then misses their next turn. » Aucune résistance.
     // ⚠ `perd_prochain_tour` vivait au catalogue SANS LECTEUR depuis la création
     // de la table : un héros étourdi jouait normalement.
+    // Une seule Tourmente (usages 1) : quand le héros est SEUL, la phase se rejoue (2026-10-31,
+    // `RoundSansHerosTest`), et un Garde-mage qui garderait son budget en relancerait une à chaque rejeu.
     $ctx = lanceurAvecSort('Tourmente', 'Garde-mage');
-    ['heros' => $heros, 'quete' => $quete] = $ctx;
+    ['heros' => $heros, 'quete' => $quete, 'instance' => $garde] = $ctx;
+    $garde->update(['usages_dread' => 1]);
 
     $actions = tourDreadAvec($ctx, []);
 
     expect(actionDuSort($actions, 'Tourmente')['resultats'][0]['effet_applique'])->toBeTrue();
 
-    // Le tour suivant s'ouvre : la condition est consommée ET le créneau grillé.
-    $perdu = collect($actions)->firstWhere('type', 'tour_perdu');
-    expect($perdu)->not->toBeNull()
-        ->and($perdu['cause'])->toBe('Étourdi');
+    // Le tour suivant s'ouvre : la condition est consommée, et le tour perdu est dit — une fois.
+    $perdus = collect($actions)->where('type', 'tour_perdu');
+    expect($perdus)->toHaveCount(1)
+        ->and($perdus->first()['cause'])->toBe('Étourdi');
 
+    // Le héros étant seul, la phase se rejoue : son tour revient au round suivant, il n'est plus consommé.
+    // Avant le 2026-10-31 cette assertion lisait « a_joue = vrai » : c'était le trou, le groupe ne rejouait jamais.
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)
         ->where('personnage_id', $heros->id)->firstOrFail();
 
-    expect((bool) $etat->a_joue)->toBeTrue()
+    expect((bool) $etat->a_joue)->toBeFalse()
         ->and($heros->fresh()->conditions()->where('nom', 'Étourdi')->exists())->toBeFalse();
 });
 

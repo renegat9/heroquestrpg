@@ -47,8 +47,9 @@ beforeEach(function () {
 });
 
 /**
- * Une quête à DEUX héros (Albrecht, puis Brunhild), comme `SortsOgreHordeTest::ogresQuete2()` : un héros seul s'arrête
- * net quand Tourmente lui fait perdre son tour (écart déjà nommé : `tour_perdu` d'un groupe réduit à un héros).
+ * Une quête à DEUX héros (Albrecht, puis Brunhild), comme `SortsOgreHordeTest::ogresQuete2()`. Le héros seul que
+ * Tourmente étourdit a désormais son round rejoué (2026-10-31, `RoundSansHerosTest`) : deux héros restent ici pour
+ * que chaque sort de Grak et du Seigneur Sorcier soit lancé par une ronde complète.
  *
  * Le monstre est posé au contact d'Albrecht (`$ecart` = 0), ou à `$ecart` cases de lui sur une rangée nue.
  *

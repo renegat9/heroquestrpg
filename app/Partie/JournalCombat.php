@@ -130,6 +130,9 @@ final class JournalCombat
         'sort_dread' => true, 'sort_dread_annule' => true, 'rupture_sort_dread' => true,
         'effet_dread' => true, 'effet_global_quete' => true, 'conditions_levees' => true,
         'tour_perdu' => true, 'heros_endormi' => true, 'possession_deplacement' => true,
+        // Zargon joue un tour de plus : aucun héros (ni allié) ne peut agir à l'ouverture du round (gel, Étourdi,
+        // loup). Émis par `ResolveurTour::rejouerPhaseMonstres()`, journalisé comme `tour_perdu`.
+        'phase_rejouee' => true,
         'commandement_sans_effet' => true, 'commandement_sans_cible' => true,
         'commandement_deplacement' => true, 'commandement_attaque' => true,
         'ombre_decompte' => true, 'glace_dissipee' => true,
@@ -1153,6 +1156,9 @@ final class JournalCombat
             'sort_dread_annule' => [$this->info("{$acteurNom} amorce ".($a['sort'] ?? 'un sort').' — sans effet')],
             'rupture_sort_dread' => $this->ruptureSortDread($a),
             'tour_perdu' => [$this->info(($a['nom'] ?? 'Le héros').' est encore étourdi — il passe son tour')],
+            // Le rejeu qui suit le tour perdu : sans cette ligne, les monstres jouaient deux fois de suite sans qu'aucune
+            // phrase ne dise pourquoi.
+            'phase_rejouee' => [$this->info('Aucun héros ne peut agir : Zargon joue encore')],
             // ⚠ Un objet à charges se BRISE au dernier usage (René, 2026-09-16) :
             // sans cette ligne, l'arc disparaissait de la main de l'elfe sans
             // un mot — et redevenait trouvable dans les coffres sans que

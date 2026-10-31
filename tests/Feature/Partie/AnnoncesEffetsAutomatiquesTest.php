@@ -253,6 +253,8 @@ function fixturesDesTypesAnnonces(): array
         'effet_global_quete' => ['texte' => 'Tous les gobelins…'],
         'conditions_levees' => ['levees' => [['nom' => 'Grom', 'condition' => 'Aveuglé']]],
         'tour_perdu' => ['nom' => 'Grom'],
+        // Zargon joue un tour de plus (2026-10-31) : aucun héros ne peut agir, la phrase ne porte aucune donnée.
+        'phase_rejouee' => [],
         'heros_endormi' => ['personnage' => 'Grom'],
         'possession_deplacement' => ['personnage' => 'Grom'],
         // Against the Ogre Horde (F9528 p. 10-11) : le gel de Mind Lock et les gestes du héros DOMINÉ.

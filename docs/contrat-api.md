@@ -1439,7 +1439,7 @@ serveur**, jamais à re-dériver de `allie_id`. Deux profils, deux devenirs :
   porteur est quand même tombé — piège, terrain…). ⚠ **Depuis le 2026-10-09,
   `resultat.captifs_repris` porte TOUTES les annonces d'ouverture d'un round
   sans monstre** (captif repris, `rupture_sort_dread`, `tour_perdu`,
-  `regain_corps`) — nom historique conservé — et le fil de combat la lit comme
+  `regain_corps`, `phase_rejouee`) — nom historique conservé — et le fil de combat la lit comme
   les phases de monstres (`JournalCombat::actionsDuTour()`). Avant cette date
   personne ne la lisait : ces annonces étaient muettes dans tout round où le
   groupe n'avait plus de monstre.
@@ -3595,6 +3595,14 @@ formes de payload pour la même famille finissent par diverger. S'y ajoutent
 `{type: "rupture_sort_dread", personnage_id, nom, condition, rompu, faces, seuil}`
 et `{type: "tour_perdu", personnage_id, nom, cause}`. Un jet de dés que
 personne ne voit n'a pas eu lieu pour la table.
+
+⚠ **Un troisième, `{type: "phase_rejouee"}` (2026-10-31, René : « on le corrige »).**
+Aucun héros, ni allié qu'il contrôle, ne peut agir à l'ouverture du round (gel,
+Étourdi, loup) : Zargon joue un tour de plus. Le payload précède la phase
+rejouée dans la même liste ; le round suivant rend la main au premier héros
+qui peut agir, ou au premier allié libre. Phrase du fil : « Aucun héros ne peut
+agir : Zargon joue encore ». Il est journalisé comme `tour_perdu` (le rejeu le
+relit). Jamais émis avec un héros ou un allié capable d'agir.
 
 ⚠ **Relèvement par le Corps — mode Story de *Jungles of Delthrak* (décision de
 René, 2026-10-09).** `{type: "regain_corps", personnage_id, nom, pv_body,

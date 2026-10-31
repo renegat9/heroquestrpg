@@ -137,10 +137,10 @@ final class ResolveurTour
     private const EFFET_RAYON = 'rayon';
 
     /**
-     * Combien de rounds consécutifs la phase des monstres rejoue d'elle-même quand AUCUN héros ne peut
-     * jouer à l'ouverture (tous gelés ou étourdis) — voir `phaseMonstres()`. Le plus long gel possible est
-     * la réserve d'un Sorcier (5 cartes) : la borne ne sert qu'à garantir qu'une boucle ne s'écrit pas
-     * d'elle-même si un futur état « sans tour » n'avait pas de fin.
+     * Combien de rounds consécutifs la phase des monstres rejoue d'elle-même quand AUCUN héros (ni allié)
+     * ne peut agir à l'ouverture — gelés, étourdis ou transformés en loup. Voir `phaseMonstres()`. Le plus
+     * long gel possible est la réserve d'un Sorcier (5 cartes) : la borne ne sert qu'à garantir qu'une boucle
+     * ne s'écrit pas d'elle-même si un futur état « sans tour » n'avait pas de fin.
      */
     private const ROUNDS_SANS_HEROS_MAX = 8;
 
@@ -12326,44 +12326,56 @@ final class ResolveurTour
             return ['actions' => $actions, 'tpk_suspendu' => true];
         }
 
-        // ROUND OUVERT SANS AUCUN HÉROS QUI PUISSE JOUER PARCE QU'UN GEL LUI A PRIS SON TOUR : le héros gelé
-        // par un *Mind Lock* perd son tour à l'ouverture (`VerrouMental::ouvrirTour()`) — son créneau est
-        // consommé, plus aucun menu ne s'ouvre, et si PERSONNE d'autre ne peut jouer, personne ne peut
-        // déclencher la phase suivante : le groupe resterait figé, sans erreur, à attendre un joueur qui
-        // n'a rien à jouer. Un héros seul gelé par un Sorcier à 5 cartes le serait cinq rounds de suite.
-        // Le round suivant se joue donc tout de suite, jusqu'à ce qu'un héros retrouve la main — borné :
-        // un gel ne dure jamais plus que la réserve du Sorcier.
-        // ⚠ Délibérément limité au gel (`verrou_mental_tour`) : le même trou existe pour l'Étourdi d'un
-        // groupe réduit à un héros, et le fermer change le comportement d'un test déjà posé — nommé dans
-        // `docs/regles/sorts-dread.md`, pas corrigé en passant.
-        // ⚠ La MALÉDICTION s'y ajoute : un héros transformé en loup perd son tour à l'ouverture exactement comme
-        // le gelé, et un groupe entier sous forme de loup serait figé de la même façon.
-        if ($profondeur < self::ROUNDS_SANS_HEROS_MAX
-            && (collect($actions)->contains(fn ($a) => is_array($a) && ($a['type'] ?? null) === 'verrou_mental_tour')
-                || $this->louDoitJouerSansAutreHeros($actions, $groupe, $quete))) {
-            $suite = $this->phaseMonstres($groupe->fresh(), $quete->fresh(), $profondeur + 1);
-
-            return [...$suite, 'actions' => [...$actions, ...$suite['actions']]];
+        // ROUND OUVERT SANS AUCUN HÉROS QUI PUISSE AGIR. Un héros qui perd son tour à l'ouverture — gelé par un
+        // *Mind Lock* (`VerrouMental::ouvrirTour()`), étourdi par *Tourmente* (`consommerTourPerdu()`), transformé
+        // en loup (`MaledictionLoupGarou::ouvrirTour()`) — a son créneau consommé. S'il était le SEUL, aucun menu ne
+        // s'ouvre, et rien ne déclenche la phase suivante : le groupe restait figé, sans erreur. Une phase des
+        // héros vide est une phase de Zargon de plus : elle se rejoue, bornée par `ROUNDS_SANS_HEROS_MAX`.
+        // ⚠ Une seule garde, lue sur l'état (`personneNePeutJouer()`), et jamais tant qu'un héros ou un allié
+        // peut encore agir : un gelé dont le compagnon est libre ne fait rejouer personne.
+        if ($profondeur < self::ROUNDS_SANS_HEROS_MAX && $this->personneNePeutJouer($groupe, $quete)) {
+            return $this->rejouerPhaseMonstres($groupe, $quete, $actions, $profondeur);
         }
 
         return ['actions' => $actions];
     }
 
     /**
-     * Un héros vient-il de se transformer en LOUP à l'ouverture du round, sans qu'AUCUN autre héros puisse jouer ?
-     * Le loup n'a pas de menu : tant que personne ne joue, aucune phase suivante ne se déclenche (F7539 p. 10 — « on
-     * Zargon's next turn », son tour est celui de Zargon, pas du joueur). Même garde que le gel de Mind Lock, à
-     * l'exception qu'elle porte sur la transformation.
+     * Zargon joue UN TOUR DE PLUS : le round vient de s'ouvrir sans que personne (ni allié) puisse agir, donc
+     * ni menu à montrer ni phase suivante à déclencher. C'est déjà la règle du loup-garou (F7539 p. 10 — « on
+     * Zargon's next turn » : son tour est celui de Zargon, pas celui du joueur). L'annonce `phase_rejouee` rejoint
+     * les actions du round, puis la phase des monstres se rejoue, profondeur + 1 — bornée par `ROUNDS_SANS_HEROS_MAX`.
      *
-     * @param  list<mixed>  $actions
+     * @param  list<mixed>  $actions  ce qui s'est joué dans le round qui vient de s'ouvrir
+     * @return array<string, mixed>  la phase rejouée, `actions` = tout ce qui s'est joué (round et rejeu)
      */
-    private function louDoitJouerSansAutreHeros(array $actions, Groupe $groupe, Quete $quete): bool
+    private function rejouerPhaseMonstres(Groupe $groupe, Quete $quete, array $actions, int $profondeur): array
     {
-        $transforme = collect($actions)->contains(fn ($a) => is_array($a) && ($a['type'] ?? null) === 'malediction_jet'
-            && ($a['transforme'] ?? false) === true);
+        $annonce = ['type' => 'phase_rejouee'];
+        Journal::ajouter($groupe, 'action', $annonce);
+        $actions[] = $annonce;
 
-        return $transforme
-            && $quete->fresh()?->etat === 'en_cours'
+        $suite = $this->phaseMonstres($groupe->fresh(), $quete->fresh(), $profondeur + 1);
+
+        return [...$suite, 'actions' => [...$actions, ...$suite['actions']]];
+    }
+
+    /**
+     * Personne ne peut-il agir à l'instant, dans une quête en cours ? Aucun héros debout n'a la main, et aucun
+     * allié qu'un héros contrôle non plus.
+     *
+     * LE prédicat de la garde de round, et le seul. C'est déjà la question du menu : `MenuCourant::pour()` ne
+     * sert un menu qu'à l'acteur que `OrdreDuTour::acteurActif()` désigne. Vrai ⇔ aucun menu ne s'ouvrira, et
+     * rien ne déclenchera la phase suivante. Une liste de CAUSES (gel, Étourdi, loup) laissait sortir la
+     * première cause qu'elle ne nommait pas — l'Étourdi, précisément.
+     *
+     * ⚠ Un allié dont le héros a perdu son tour compte comme « quelqu'un peut agir » : il reçoit son menu
+     * (`GenererMenu::allieEnAttenteDe()`), donc le groupe ne se fige pas. Écart nommé avec le loup, qui consomme
+     * aussi son allié (`MaledictionLoupGarou::ouvrirTour()`) — `docs/regles/combat-et-tour.md`.
+     */
+    private function personneNePeutJouer(Groupe $groupe, Quete $quete): bool
+    {
+        return $quete->fresh()?->etat === 'en_cours'
             && app(OrdreDuTour::class)->acteurActif($groupe->fresh()) === null;
     }
 
@@ -15716,11 +15728,11 @@ final class ResolveurTour
             $actions = [];
             $this->ouvrirNouveauTour($groupe, $quete, $actions);
 
-            // Un héros vient de se transformer en loup À L'OUVERTURE du round, et il n'y a plus personne pour jouer :
-            // le loup n'a pas de menu, et rien ne déclenche la phase suivante. Son tour de Zargon se joue tout de suite.
-            if ($this->louDoitJouerSansAutreHeros($actions, $groupe, $quete)) {
-                $suite = $this->phaseMonstres($groupe->fresh(), $quete->fresh());
-                $actions = [...$actions, ...(array) ($suite['actions'] ?? [])];
+            // Personne ne peut agir À L'OUVERTURE du round (gel, Étourdi, loup : tous les héros, ou leurs alliés) :
+            // rien ne déclenche la phase suivante, et le groupe resterait figé. Zargon joue son tour tout de suite —
+            // même garde que `phaseMonstres()`.
+            if ($this->personneNePeutJouer($groupe, $quete)) {
+                $actions = $this->rejouerPhaseMonstres($groupe, $quete, $actions, 0)['actions'];
             }
 
             if ($actions !== []) {

@@ -131,7 +131,7 @@ frozen » se joue à l'**ouverture du round** (`ResolveurTour::ouvrirTourDesHero
 du suivant, et rien ne se passe entre les deux. Le tour est perdu, une carte revient dans la main DU SORCIER qui l'a prêtée, puis — s'il en reste — le héros lance autant de dés de combat que de Mind (jauge)
 et se libère à 3 crânes ou plus (`liberation_cranes`), rendant toutes les cartes restantes. La dernière carte rendue libère sans jet. ⚠ Un gel qui prend le tour de **tous** les héros debout laissait le
 groupe FIGÉ (aucun menu ne s'ouvre, personne ne déclenche la phase suivante) : `phaseMonstres()` se rejoue alors d'elle-même, jusqu'à ce qu'un héros ait la main — borné à `ROUNDS_SANS_HEROS_MAX` (8).
-**Non corrigé, nommé** : le même trou existe pour l'Étourdi d'un groupe réduit à un seul héros (`tour_perdu`) ; le fermer change un comportement déjà couvert par un test, hors périmètre.
+**Corrigé le 2026-10-31 (René : « on le corrige »).** Le trou n'était pas propre au gel : l'Étourdi de *Tourmente* le rouvrait aussi, et la garde ne couvrait que le gel (le loup, lui, était déjà couvert, par une garde qui lisait l'état). La règle est désormais une seule, qui lit l'état pour les trois causes : **un round qui s'ouvre sans qu'aucun héros ni allié puisse agir rejoue la phase des monstres**, bornée par `ROUNDS_SANS_HEROS_MAX`. Le détail, l'annonce `phase_rejouee` et l'écart allié/loup sont dans `docs/regles/combat-et-tour.md` (« Un round sans héros qui puisse agir »). Conséquence de jeu assumée : un Sorcier qui garde un usage de *Tourmente* en relance une à chaque rejeu — un héros seul peut perdre plusieurs tours de suite, jusqu'à épuisement de l'usage ou de la borne.
 La condition ne survit pas à la quête (`MoteurSorts::reinitialiserQuete()` → `VerrouMental::purger()`) : les conditions de Dread n'ont pas le préfixe `sort:` que la purge connaissait, et un gel resté d'une
 quête à l'autre aurait privé le héros de son tour sans qu'aucune colonne ne sache plus le lever (`ouvrirTour()` lève aussi toute condition orpheline).
 
@@ -207,7 +207,7 @@ dans `App\Partie\MaledictionLoupGarou`, qui en est l'unique point de passage :
   donner, ni boire (`MoteurPotions::boire()` et `SeanceEchange` refusent, le menu n'en propose pas) ;
 - un héros transformé ne mène aucun de ses alliés pendant son tour (son tour est perdu, comme l'Étourdi) ;
 - **un groupe entièrement sous forme de loup ne se fige pas** : la phase des monstres se rejoue d'elle-même, comme pour le gel de
-  *Mind Lock* (`louDoitJouerSansAutreHeros()`), et un donjon vidé attend le retour de forme avant de se clore (`jouerFinDeRound()`).
+  *Mind Lock* (`personneNePeutJouer()`, garde unique depuis le 2026-10-31), et un donjon vidé attend le retour de forme avant de se clore (`jouerFinDeRound()`).
 
 **Non porté, nommé** : la MORSURE d'un loup-garou (« or injured by the attack of a werewolf », p. 10) et le loup-garou errant de la
 quête 7 (p. 14, « Wandering Monster in this Quest: Werewolf », figurine de Loup géant). Aucun loup-garou n'est au bestiaire : la morsure
@@ -294,6 +294,6 @@ Deux sorciers du jeu de base disent « une fois par quête » ou « deux fois »
 - Barak Tor : six lancers, Frayeur deux fois, Boule de Flammes, Commandement, Tourmente et Invocation de morts-vivants une fois chacun ; usages 6 → 0.
 - Mutation contrôlée : `lancersPermis()` rendu constant (1) fait tomber le budget à 5, et le test échoue (« 5 is identical to 6 »).
 
-**Pourquoi DEUX héros.** Avec un héros seul, Tourmente lui fait perdre son tour (`tour_perdu`), et le tour suivant n'ouvre AUCUN menu (422 « Aucun menu en attente »), parce que la phase des monstres ne se rejoue pas d'elle-même pour un tour perdu. C'est le trou que `ResolveurTour` nomme pour l'Étourdi d'un groupe réduit à un héros (ligne de `ROUNDS_SANS_HEROS_MAX`, « non corrigé, nommé »). Observé le 2026-10-31 : il vaut aussi pour Tourmente, et il devrait être fermé avec l'Étourdi. Les tests en jeu n'en dépendent pas.
+**Pourquoi DEUX héros (historique).** Avant le 2026-10-31, un héros seul étourdi par Tourmente ne rouvrait AUCUN menu (422 « Aucun menu en attente ») : le trou décrit plus haut. Il est fermé. Les tests de Grak et du Seigneur Sorcier gardent deux héros pour que chaque sort soit lancé par une ronde complète ; le héros seul est couvert par `RoundSansHerosTest`.
 
 **Ce qui reste hors de ce chantier.** Le libellé du guide (`resources/js/compendium.js`, `sorts_uniques` : « chacun une seule fois par quête ») est inexact pour le Seigneur Sorcier, qui lance Frayeur deux fois : à corriger côté front, non touché ici. Le compte d'un sort n'a aucun autre porteur que Barak Tor.
