@@ -4404,11 +4404,13 @@ final class MoteurDread
         $grille = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
         $lx = (int) $instance->position_x;
         $ly = (int) $instance->position_y;
+        // Toute l'emprise du lanceur, pas sa seule ancre (même garde que `casesLibresAdjacentes()`).
+        $siennes = $this->casesDuLanceur($grille, $instance);
         $candidates = [];
 
         for ($y = $ly - 10; $y <= $ly + 10; $y++) {
             for ($x = $lx - 10; $x <= $lx + 10; $x++) {
-                if (($x === $lx && $y === $ly) || ! $grille->estTraversable($x, $y)
+                if (isset($siennes["{$x},{$y}"]) || ! $grille->estTraversable($x, $y)
                     || ! $grille->ligneDeVue($lx, $ly, $x, $y, figuresBloquent: true)) {
                     continue;
                 }
@@ -5621,23 +5623,53 @@ final class MoteurDread
      * maison faisait apparaître un squelette sur une table, et sur un héros à
      * terre.
      *
+     * ⚠ Autour de TOUTE l'emprise du lanceur, jamais sur elle (2026-10-31, Magrian à deux cases) : la grille exclut le
+     * lanceur, donc sa seconde case y passe pour libre — un spectre y apparaissait. Pour une case, l'ordre est celui
+     * d'avant (droite, gauche, bas, haut).
+     *
      * @return list<array{x: int, y: int}>
      */
     private function casesLibresAdjacentes(Quete $quete, InstanceMonstre $lanceur): array
     {
         $grille = $this->grilleQuete($quete, exceptInstanceId: $lanceur->id);
+        $siennes = $this->casesDuLanceur($grille, $lanceur);
+        $vues = [];
         $libres = [];
 
-        foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
-            $x = (int) $lanceur->position_x + $dx;
-            $y = (int) $lanceur->position_y + $dy;
+        foreach ($siennes as [$cx, $cy]) {
+            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                $x = $cx + $dx;
+                $y = $cy + $dy;
 
-            if ($grille->estTraversable($x, $y)) {
-                $libres[] = ['x' => $x, 'y' => $y];
+                if (isset($siennes["{$x},{$y}"]) || isset($vues["{$x},{$y}"])) {
+                    continue;
+                }
+                $vues["{$x},{$y}"] = true;
+
+                if ($grille->estTraversable($x, $y)) {
+                    $libres[] = ['x' => $x, 'y' => $y];
+                }
             }
         }
 
         return $libres;
+    }
+
+    /**
+     * Les cases que la figure occupe, clé « x,y » → [x, y], ancre en tête.
+     *
+     * @return array<string, array{0: int, 1: int}>
+     */
+    private function casesDuLanceur(Grille $grille, InstanceMonstre $lanceur): array
+    {
+        $e = $lanceur->monstre?->emprise() ?? ['l' => 1, 'h' => 1];
+        $cases = [];
+
+        foreach ($grille->cellulesEmprise((int) $lanceur->position_x, (int) $lanceur->position_y, $e['l'], $e['h']) as $c) {
+            $cases["{$c['x']},{$c['y']}"] = [(int) $c['x'], (int) $c['y']];
+        }
+
+        return $cases;
     }
 
     /**

@@ -138,7 +138,7 @@ Quest: Orc », et posent à côté une **tête dans un anneau vert** : c'est le 
   Minotaure a son ovale ici), Frozen Horror PDF 20 (Frozen Horror), First Light PDF 23 (Dragon : ovale horizontal,
   le seul à ne pas être couché). Ogre Horde PDF 41 : le tableau « Monster Map Symbol » donne les mêmes symboles.
   Rise of the Dread Moon PDF 20 (René, 2026-10-31 : « les tokens sont affichés après les dernières quêtes ») : Dread
-  Cultist, Elven Warrior, Elven Archer, Sir Ragnar. Wizards of Morcar PDF 22 : un jeton PAR lieutenant (Orc Warcaster,
+  Cultist, Elven Warrior, Elven Archer, Sir Ragnar, et le Dread Wraith en OVALE (Magrian, passé à deux cases). Wizards of Morcar PDF 22 : un jeton PAR lieutenant (Orc Warcaster,
   Necromancer, High Mage, Storm Master), l'Artificer et le Dreadshifter — la planche en dessine deux, « Dreadshifter »
   et « Dreadshifter (Chest) » ; c'est la version coffre qui est extraite, celle que le catalogue pose.
   Pas de planche dans Prophecy of Telor, Spirit Queen's Torment ni The Crypt of Perpetual Darkness ; Delthrak

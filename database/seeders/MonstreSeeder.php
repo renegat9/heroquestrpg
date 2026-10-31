@@ -374,8 +374,10 @@ class MonstreSeeder extends Seeder
             // même budget, il n'en ajoute pas. N = 14,4, sur la droite des boss (Seigneur 15 → 20, pente 0,5) : 20 + 0,5 × (14,4 − 15)
             // = 19,7 ⇒ **20** (était 16, sa seule base). L'éthéré est compté À L'ACHAT, en plus : `DemarreurQuete::coutEffectif()`
             // le multiplie par `RATIO_COUT_ETHERE` (2) — 40 dans le budget de la rencontre finale.
+            // DEUX cases (René, 2026-10-31 : « Oui 2 cases avec son token ») : la planche « Design Your Own » (F6646 PDF 20)
+            // dessine le Dread Wraith en OVALE, et un livret qui dessine des ovales les réserve aux figures de 2 cases.
             ['nom_base' => 'Magrian', 'deplacement' => 9, 'attaque' => 6, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 5,
-                'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 20,
+                'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 20, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['ethere', 'reserve_a_son_theme',
                     'reactions_defense' => ['terreur', 'consomme_magie', 'reflexion', 'realite_decalee']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'magrian'],

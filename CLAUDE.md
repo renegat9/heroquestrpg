@@ -53,7 +53,9 @@ reason, and the two must never drift.
   `ContactOrthogonalTest`, → `docs/regles/combat-et-tour.md`; since 2026-10-29:
   `Equipement::retirable()` for every way a piece leaves a hero — unequip, give, sell,
   discard, transmute, quicksand — and `MoteurSorts::consommerParchemin()` for every scroll
-  use, reading and *Vision du futur* alike, charges included).
+  use, reading and *Vision du futur* alike, charges included; since 2026-10-31:
+  `ResolveurTour::empriseOuSArreter()` for where a multi-cell monster may STOP — walk and
+  trap door alike, on the real grid, never the passage grid).
   Two copies of a rule too simple to notice drifting is this project's most repeated defect.
 - **`sortBy([$f, $g])` is never a multi-key sort** — Laravel reads a callable there as a
   *comparator*, and it never errors. It bit twice. → `docs/regles/sorts-dread.md`

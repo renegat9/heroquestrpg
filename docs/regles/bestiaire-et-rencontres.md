@@ -278,6 +278,9 @@ jeton rond une seule ; les légendes donnent le petit axe d'un ovale égal au ra
 - **Golem Cœur-de-Forge** : **1×2** (René, 2026-10-29 : « Oui passe à 2 cases »). Le livret ne lui dessine pas de jeton mais sa
   TUILE (« Use the Forgeheart Golem's tile », F9907 PDF 12) : posée dans la salle A de la carte de la quête 6, elle couvre une
   colonne sur deux cases. Une tuile de deux cases compte comme un ovale. Migration `2026_10_29_200000_golem_coeur_de_forge_deux_cases`.
+- **Magrian, le Dread Wraith** : **1×2** (René, 2026-10-31 : « Oui 2 cases avec son token »). La planche « Design Your Own » de
+  Rise of the Dread Moon (F6646 PDF 20) le dessine en OVALE, à côté des jetons ronds de Sir Ragnar et du Stranger. Migration
+  `2026_10_31_100000_magrian_deux_cases` (aucune instance sur la vraie base ce jour-là).
 
 La règle est un registre testé dans les deux sens (`BestiaireSourceTest`) : chaque nom de `config('symboles_monstres.ovales')` est
 1×2, chaque nom de `tuiles` a l'emprise de son fichier (carré : une case, 2:1 : deux), et chaque figure de 2 cases est dans
@@ -287,3 +290,17 @@ La règle est un registre testé dans les deux sens (`BestiaireSourceTest`) : ch
 chaque pièce garde l'emprise figée à sa pose. Changer la taille d'un monstre change celle de ses figures déjà posées : avant une
 telle migration, compter ses instances sur la vraie base (0 le 2026-10-29). Une figure qui grandit sur une case déjà prise
 chevaucherait son voisin.
+
+**Une figure de deux cases s'ARRÊTE sur deux cases légales, et l'on pose AUTOUR d'elle, jamais sur elle** (2026-10-31, trouvé en
+passant Magrian à deux cases — la première figure de deux cases **éthérée**). Trois défauts, un même oubli : la seconde case.
+- **La marche** (`ResolveurTour::marcheVersLaCible()`) vérifiait l'arrivée sur la grille de PASSAGE, celle où les autres monstres
+  se franchissent (`franchitAllies`) et où, pour un éthéré, roche et héros s'effacent. La case basse d'un Ogre champion se posait
+  sur un autre monstre ; un éthéré de deux cases aurait fini à moitié dans la roche. L'emprise PASSE sur la grille de passage et
+  ne s'arrête que là où `empriseOuSArreter()` le permet : grille réelle, `empriseArretPossible()` (figures, roche, terrain qui
+  interdit l'arrêt) et, pour un traversant, chaque case dans une salle découverte — `derniereCaseOuSArreter()` étendu à l'emprise.
+- **La trappe de téléportation** testait la jumelle sur la même grille de passage : un monstre, même d'une case, ressortait sur
+  un autre monstre. Même prédicat, `empriseOuSArreter()`.
+- **L'invocation** (`MoteurDread::casesLibresAdjacentes()`, `casesDInvocation()`) cherchait autour de l'ANCRE sur une grille qui
+  exclut le lanceur : sa seconde case y passait pour libre, et un spectre de Magrian y serait apparu. Elle cherche désormais
+  autour de toute l'emprise (`casesDuLanceur()`), dans le même ordre qu'avant pour une figure d'une case.
+`GrandeFigureCasesTest` et `TrappeTeleportationTest` les épinglent ; chacun échouait avant le correctif.

@@ -85,6 +85,7 @@ return [
         'Deathspinner la Reine du Fléau' => 'blightcrawler', // « Use the Blightcrawler miniature » (F9907 PDF 9) ; jeton OVALE
         'Rejeton putride' => 'spawnling', // Spawnling, légende du monstre errant de la quête 1 de Delthrak (F9907 PDF 7) ; TUILE carrée
         'Golem Cœur-de-Forge' => 'forgeheart-golem', // « Use the Forgeheart Golem's tile » (F9907 PDF 12) ; TUILE 1×2 posée salle A
+        'Magrian' => 'dread-wraith', // « Dread Wraith », planche « Design Your Own » (F6646 PDF 20) ; jeton OVALE, emprise 1×2 (René, 2026-10-31)
     ],
 
     // Monstres dont le jeton est un OVALE 2:1 (figure 1×2 au livret) : le serveur publie `symbole_forme` = 'ovale'.
@@ -100,6 +101,9 @@ return [
         'Deathspinner la Reine du Fléau',
         // Dragon : jeton du « Quest Map Guide » de First Light (p. 9), scan de René — « l'icône semble bonne » (2026-10-29).
         'Dragon',
+        // Magrian : ovale « Dread Wraith » de la planche « Design Your Own » (F6646 PDF 20) — passé à 1×2 (René, 2026-10-31 :
+        // « Oui 2 cases avec son token »).
+        'Magrian',
     ],
 
     // Monstres que le livret pose en TUILE (pas une tête dans un anneau) : le serveur publie `symbole_forme` = 'tuile'
@@ -135,7 +139,6 @@ return [
         'Kedrick Gilbane' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
         'Kessandria' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
         'Liche' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
-        'Magrian' => 'Magrian, the Dread Wraith (F6646 PDF 17) : aucune figurine renvoyée dans le texte',
         'Momie-naine' => 'Arcane Mummy (F9907 PDF 15) : identité non établie, aucune figurine renvoyée',
         'Métamorphe' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',
         'Nexrael' => 'aucun jeton dans les livrets lus : ni étiquette « Wandering Monster », ni légende, ni planche « Design Your Own », ni figurine renvoyée par le texte',

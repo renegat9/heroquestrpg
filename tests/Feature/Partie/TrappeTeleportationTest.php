@@ -299,6 +299,39 @@ it('un monstre qui entre dans la trappe est porté sur la jumelle, sans frapper 
         ->and((int) $scene['heros']->fresh()->pv_body)->toBe($pvHeros, 'il n\'a pas frappé en arrivant : son tour s\'est achevé à la trappe');
 });
 
+it('un monstre ne ressort pas sur une jumelle où se tient déjà un autre monstre', function () {
+    // Même couloir, mais un second Squelette tient la jumelle (6,0), au contact du héros. La marche du premier se calcule
+    // sur la grille de PASSAGE, où les monstres se franchissent : la jumelle y passait pour libre (2026-10-31).
+    $scene = sceneTrappe(
+        [array_fill(0, 8, 's')],
+        ['x' => 7, 'y' => 0],
+        paireTrappeDuTest(),
+        [['x' => 5, 'y' => 0, 'largeur' => 3, 'hauteur' => 1]],
+        ['x' => 0, 'y' => 0, 'largeur' => 4, 'hauteur' => 1],
+        [0, 1],
+    );
+
+    $catalogue = Monstre::where('nom_base', 'Squelette')->firstOrFail();
+    $poser = fn (int $x) => InstanceMonstre::create([
+        'quete_id' => $scene['quete']->id,
+        'monstre_id' => $catalogue->id,
+        'pv_body' => $catalogue->pv_body, 'pv_body_max' => $catalogue->pv_body, 'pv_mind' => $catalogue->pv_mind,
+        'position_x' => $x, 'position_y' => 0,
+        'etat' => 'actif', 'revele' => true,
+    ]);
+    $marcheur = $poser(0); // joue le premier
+    $poser(6);
+
+    desFiges(array_fill(0, 80, 4));
+
+    app(ResolveurTour::class)->resoudre(
+        $scene['groupe']->fresh(), $scene['heros'],
+        ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'], [],
+    );
+
+    expect((int) $marcheur->fresh()->position_x)->not->toBe(6, 'deux figures ne partagent jamais une case');
+});
+
 // ---------------------------------------------------------------------
 // 4. L'annonce : la téléportation, son dé et la fin de tour se disent dans le fil
 // ---------------------------------------------------------------------

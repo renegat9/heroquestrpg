@@ -2074,6 +2074,28 @@
     },
     {
       "type": "monstres",
+      "cle": "dread-wraith",
+      "nom_catalogue": "Dread Wraith",
+      "livret": "F6646_en-us_avalon-hill-heroquest-rise-of-the-dread-moon-quest-pack-requires-heroquest-game-system-14.pdf",
+      "page": 20,
+      "cadre": [
+        595.96,
+        374.56,
+        618.04,
+        418.24
+      ],
+      "rotation": 90,
+      "ovale": [
+        607.0,
+        396.4,
+        9.2,
+        18.2
+      ],
+      "source": "F6646 p. 39 (PDF 20), planche « Design Your Own Quest Adventures », « Dread Wraith »",
+      "note": "ovale mesuré le 2026-10-31 à 600 dpi (bords du vert : x 597,8–616,2, y 378,2–414,6) ; la pointe de lance et le nez qui débordent de la couronne sont rognés ; page couchée : rotation 90. Catalogue « Magrian » (René, 2026-10-31 : « Oui 2 cases avec son token »)"
+    },
+    {
+      "type": "monstres",
       "cle": "orc-warcaster",
       "nom_catalogue": "Orc Warcaster",
       "livret": "G1504_en-us_heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system.pdf",

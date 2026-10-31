@@ -3695,6 +3695,36 @@ final class ResolveurTour
     }
 
     /**
+     * `derniereCaseOuSArreter()` pour une figure de PLUSIEURS cases : toute l'emprise ancrée sur `$case` est-elle une
+     * place où s'arrêter ? Sur la grille RÉELLE (`$reelle`, sans franchissement) : aucune case occupée par une figure,
+     * aucune roche, aucun terrain qui interdit l'arrêt (`empriseArretPossible()`) ; et, pour un traversant (éthéré,
+     * agile), aucune case dans une salle non découverte — la garde de `derniereCaseOuSArreter()`, case par case.
+     *
+     * @param  array{x: int, y: int}  $case
+     * @param  array{l: int, h: int}  $emprise
+     */
+    private function empriseOuSArreter(Quete $quete, Grille $reelle, InstanceMonstre $instance, array $case, array $emprise): bool
+    {
+        if (! $reelle->empriseArretPossible((int) $case['x'], (int) $case['y'], $emprise['l'], $emprise['h'])) {
+            return false;
+        }
+
+        if (! $this->dread->aCapacite($instance, 'ethere') && ! $this->dread->aCapacite($instance, 'agile')) {
+            return true;
+        }
+
+        $decouvertes = $quete->sallesDecouvertes();
+
+        foreach ($reelle->cellulesEmprise((int) $case['x'], (int) $case['y'], $emprise['l'], $emprise['h']) as $c) {
+            if (! $this->salleDecouverte($quete, $decouvertes, (int) $c['x'], (int) $c['y'])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * La case appartient-elle à une salle DÉCOUVERTE (ou à un couloir) ?
      *
      * « Jamais dans une zone non découverte » : un éthéré ne doit pas traverser
@@ -13682,14 +13712,21 @@ final class ResolveurTour
                 // grande figurine peut ainsi progresser moins loin qu'un 1×1, mais
                 // ne chevauche jamais un mur ni une autre figurine. (Le BFS n'est
                 // pas réécrit : on valide simplement la tenue d'emprise à l'arrivée.)
+                // ⚠ TRAVERSER N'EST PAS S'ARRÊTER (2026-10-31) : `$grille` est celle du PASSAGE — les autres monstres s'y
+                // franchissent, et pour un éthéré la roche et les héros s'effacent. L'emprise y PASSE ; elle ne s'ARRÊTE
+                // que là où `empriseOuSArreter()` le permet, sur la grille réelle. Avant, la case basse d'un Ogre
+                // champion se posait sur un autre monstre (`GrandeFigureArretTest`).
                 $e = $instance->monstre->emprise();
                 $arrivee = null;
+                $reelle = $this->grille($quete, exceptInstanceId: $instance->id);
 
                 for ($i = 0; $i < $pas; $i++) {
                     if (! $grille->empriseLibre($chemin[$i]['x'], $chemin[$i]['y'], $e['l'], $e['h'])) {
                         break;
                     }
-                    $arrivee = $chemin[$i];
+                    if ($this->empriseOuSArreter($quete, $reelle, $instance, $chemin[$i], $e)) {
+                        $arrivee = $chemin[$i];
+                    }
                 }
 
                 if ($arrivee !== null) {
@@ -13737,9 +13774,12 @@ final class ResolveurTour
         if ($cheminParcouruMonstre !== [] && $grille->estPortail($arriveeMonstre['x'], $arriveeMonstre['y'])) {
             $jumelle = $grille->jumellePortail($arriveeMonstre['x'], $arriveeMonstre['y']);
 
+            // ⚠ Libre sur la grille RÉELLE, emprise entière (2026-10-31) : `$grille` est celle du passage, où les autres
+            // monstres se franchissent — la jumelle tenue par un autre monstre passait pour libre, et une figure de deux
+            // cases n'y vérifiait que son ancre.
             if ($jumelle !== null
                 && $this->salleDecouverte($quete, $quete->sallesDecouvertes(), $jumelle['x'], $jumelle['y'])
-                && $grille->estTraversable($jumelle['x'], $jumelle['y'])) {
+                && $this->empriseOuSArreter($quete, $this->grille($quete, exceptInstanceId: $instance->id), $instance, $jumelle, $instance->monstre->emprise())) {
                 $teleportation = ['de' => $arriveeMonstre, 'vers' => $jumelle];
                 $instance->update(['position_x' => $jumelle['x'], 'position_y' => $jumelle['y']]);
             }
