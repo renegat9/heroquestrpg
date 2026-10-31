@@ -46,10 +46,12 @@ return [
         'Princesse Millandriel',
     ],
 
+    // Cherchés dans les 21 livrets le 2026-10-31 : légendes des cartes de quête, planches « Design Your Own », listes de
+    // composants. Un allié qui n'y paraît qu'en PHOTO de figurine n'a pas de jeton dessiné.
     'absents' => [
-        'Ogre mercenaire' => 'aucune carte de quête ne le pose : il se loue au hub (Against the Ogre Horde, F9528 PDF 8), et le livret ne nomme pas sa figurine',
-        'Loup' => 'allié animal recruté avant la quête (F9528 PDF 9) : aucune carte de quête ne le pose, aucun jeton',
-        'Croc-sabre' => 'allié animal recruté avant la quête : aucune carte de quête ne le pose, aucun jeton',
-        'Gothar' => '« Use any available hero figure for Gothar » (The Frozen Horror) : une figurine de héros, aucun jeton',
+        'Ogre mercenaire' => '« Ogre Mercenaries » (Against the Ogre Horde, F9528 PDF 8) : une règle de recrutement, sans figurine nommée ; aucune légende de carte ni planche ne le dessine',
+        'Loup' => '« Wolf » (Against the Ogre Horde) : seulement en photo de figurine, dans la liste des composants (F9528 PDF 3) ; aucune légende de carte ni planche ne le dessine en jeton',
+        'Croc-sabre' => '« Saberfang Ally » (Jungles of Delthrak) : seulement en photo de figurine, dans la liste des composants (F9907 PDF 2) ; aucune légende de carte ni planche ne le dessine en jeton',
+        'Gothar' => '« Use any available hero figure for Gothar » (The Frozen Horror, F5815 PDF 10) : une figurine de héros, aucun jeton',
     ],
 ];
