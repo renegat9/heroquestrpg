@@ -540,7 +540,31 @@ final class BibliothequeImages
      */
     public function supprimerDyn(string $sousType, int|string $id): bool
     {
-        return $this->supprimer($this->relatifDyn($sousType, $id));
+        $retire = $this->supprimer($this->relatifDyn($sousType, $id));
+
+        // Les portraits de boss se rangent PAR FORME (`cleDynMonstre()` : `{instance}-{monstre}`) : effacer le sujet
+        // `{id}`, c'est aussi effacer chacune de ses formes. Le tiret borne l'id : `12-*` ne touche jamais `123`.
+        $formes = collect(glob(public_path("images/dyn/{$sousType}/{$id}-*.*")) ?: [])
+            ->map(fn (string $chemin) => pathinfo($chemin, PATHINFO_FILENAME))
+            ->filter(fn (string $nom) => (bool) preg_match('/^\d+-\d+$/', $nom))
+            ->unique();
+
+        foreach ($formes as $cle) {
+            $retire = $this->supprimerDyn($sousType, $cle) || $retire;
+        }
+
+        return $retire;
+    }
+
+    /**
+     * La clé du portrait de boss d'une instance SOUS UNE FORME (`{instance}-{monstre}`) — point de passage unique de
+     * l'écriture (`GenererImagesQuete`) et de la lecture (`urlMonstre()`). Le portrait était rangé par instance seule :
+     * après une mue (Gretzl → Demonspider), la table montrait encore Gretzl, et un boss sans jeton de livret (Venim)
+     * garde ce portrait pour jeton sur la carte. La nouvelle forme retombe sur l'image de SON catalogue.
+     */
+    public function cleDynMonstre(int $instanceId, int $monstreId): string
+    {
+        return "{$instanceId}-{$monstreId}";
     }
 
     /**
@@ -579,12 +603,13 @@ final class BibliothequeImages
     }
 
     /**
-     * Image d'un monstre : portrait de BOSS dynamique (dyn/monstre par instance)
-     * s'il existe, sinon l'image de CATALOGUE de l'archétype, sinon null.
+     * Image d'un monstre : portrait de BOSS dynamique de sa forme COURANTE (`cleDynMonstre()`) s'il existe, sinon
+     * l'image de CATALOGUE de cette forme, sinon l'emblème. Sans forme connue, aucun portrait : on ne saurait pas
+     * quelle créature il montre.
      */
     public function urlMonstre(int $instanceId, ?int $monstreId, ?string $nomBase): string
     {
-        return $this->urlDyn('monstre', $instanceId)
+        return ($monstreId === null ? null : $this->urlDyn('monstre', $this->cleDynMonstre($instanceId, $monstreId)))
             ?? $this->urlMonstreCatalogue($monstreId, $nomBase)
             ?? $this->vignette('monstre', $instanceId);
     }
@@ -632,6 +657,30 @@ final class BibliothequeImages
         return $apparence !== null
             ? $this->prompt('monstre_nomme', ['apparence' => $apparence])
             : $this->prompt('monstre', ['nom' => $nomBase, 'tier' => $tier]);
+    }
+
+    /**
+     * Prompt du PORTRAIT DE BOSS d'une quête (`GenererImagesQuete`) — même principe que {@see self::promptMonstre()} :
+     * l'APPARENCE tirée du livret décrit la créature, et aucun nom propre n'entre dans le prompt (2026-11-05). Le
+     * prompt ne portait que le nom d'habillage (« Le Cœur-Liane Éveillé ») : Gemini dessinait un démon cornu pour
+     * tous, et écrivait le nom dans l'image. La description d'habillage n'apporte plus que l'AMBIANCE, ses noms
+     * effacés (`$nomsATaire` : le nom d'habillage et celui du catalogue).
+     *
+     * @param  list<string>  $nomsATaire
+     */
+    public function promptBoss(string $nomBase, string $tier, ?string $description, array $nomsATaire = []): string
+    {
+        $apparence = $this->apparenceMonstre($nomBase) ?? "{$nomBase} (tier {$tier})";
+        $ambiance = trim((string) $description);
+
+        foreach (array_filter(array_map('trim', [...$nomsATaire, $nomBase])) as $nom) {
+            $ambiance = trim((string) preg_replace('/\s{2,}/u', ' ', str_ireplace($nom, 'la créature', $ambiance)));
+        }
+
+        return $this->prompt('boss', [
+            'apparence' => $apparence,
+            'ambiance' => $ambiance === '' ? '' : ' Détails d\'ambiance, sans changer la créature : '.rtrim($ambiance, '. ').'.',
+        ]);
     }
 
     /** Détail d'apparence d'une classe (pour le prompt). */

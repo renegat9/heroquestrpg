@@ -19,8 +19,9 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Génère EN ARRIÈRE-PLAN les images dynamiques d'une quête : une illustration
- * de SCÈNE (par quête) et un PORTRAIT pour chaque BOSS/sous-boss (depuis le nom
- * donné par l'IA, instance.habillage.nom). Écrit sous public/images/dyn/ ;
+ * de SCÈNE (par quête) et un PORTRAIT pour chaque BOSS/sous-boss (son apparence
+ * de livret, l'habillage IA pour l'ambiance — `BibliothequeImages::promptBoss()`).
+ * Écrit sous public/images/dyn/ ;
  * {@see BibliothequeImages} les sert en priorité sur l'image de catalogue.
  *
  * Best-effort : sans GEMINI_API_KEY (ou en cas d'échec), aucun asset n'est
@@ -84,15 +85,20 @@ class GenererImagesQuete implements ShouldQueue
             ->get();
 
         foreach ($boss as $instance) {
-            $chemin = $biblio->cheminDyn('monstre', $instance->id);
+            // Un portrait par FORME (`cleDynMonstre()`) : celui de la forme courante — après une mue, la nouvelle
+            // forme montre l'image de son catalogue, jamais le portrait de l'ancienne.
+            $chemin = $biblio->cheminDyn('monstre', $biblio->cleDynMonstre((int) $instance->id, (int) $instance->monstre_id));
             if (is_file($chemin['absolu'])) {
                 continue;
             }
 
-            $nom = (string) ($instance->habillage['nom'] ?? $instance->monstre?->nom_base ?? 'le boss');
-            $desc = (string) ($instance->habillage['description'] ?? '');
             $produit = $this->generer($image, $biblio, $chemin['rel'],
-                $biblio->prompt('boss', ['nom' => $nom, 'description' => $desc]),
+                $biblio->promptBoss(
+                    (string) $instance->monstre->nom_base,
+                    (string) $instance->monstre->tier,
+                    $instance->habillage['description'] ?? null,
+                    array_filter([(string) ($instance->habillage['nom'] ?? '')]),
+                ),
                 ['boss' => $instance->id]) || $produit;
         }
 

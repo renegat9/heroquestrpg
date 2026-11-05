@@ -102,7 +102,9 @@ return [
             .'de Zargon, une seule scène centrée, sans texte. {style}',
 
         // Dynamiques (jobs) :
-        'boss' => 'Boss de donjon imposant et terrifiant : {nom}. {description} {style}',
+        // BOSS (2026-11-05) : l'APPARENCE du livret, jamais le nom — `BibliothequeImages::promptBoss()`, seul point de
+        // passage. `{ambiance}` : la description d'habillage, noms effacés, ou rien.
+        'boss' => 'Boss de donjon imposant et terrifiant, en pied : {apparence}.{ambiance} Illustration seule : aucune inscription, aucun chiffre, aucune interface. {style}',
         'scene' => 'Illustration d\'ambiance, scène d\'ouverture d\'une quête de donjon fantasy : {intro} {style}',
         'hub' => 'Lieu de repos des aventuriers entre deux quêtes (campement / salle commune chaleureuse), ambiance de répit. {premisse} {style}',
         'portrait' => 'Portrait héroïque en buste de « {nom} », un {detail}, personnage unique de jeu de rôle fantasy. {style}',

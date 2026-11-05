@@ -14238,7 +14238,7 @@ final class ResolveurTour
             'monstre' => $nomMonstre,
             ...($marteau !== null ? ['marteau_brise' => true] : []),
             // ⚠ L'INSTANCE, pas seulement le nom : c'est elle qui porte le
-            // portrait dynamique d'un boss (`dyn/monstre/{instance_id}`), et le
+            // portrait dynamique d'un boss (`dyn/monstre/{instance_id}-{monstre_id}`), et le
             // nom AFFICHÉ est celui de l'habillage IA — il ne retrouve donc
             // aucune ligne de catalogue. Lu par `SceneDeTable` (.table.scene).
             'instance_id' => $instance->id,

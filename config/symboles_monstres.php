@@ -79,8 +79,10 @@ return [
         'Fimir' => 'abomination', // nom de 1989 ; le livret 2021 nomme ce jeton Abomination
         'Guerrier du Chaos' => 'dread-warrior', // nom de 1989 (Chaos Warrior) ; le livret 2021 nomme ce jeton Dread Warrior
         'Sir Ragnar' => 'sir-ragnar', // son propre jeton « Sir Ragnar » (planche « Design Your Own », F6646 PDF 20, 2026-10-31) ; avant : « Use the Dread Warrior miniature to represent him » (F6646 PDF 16) ; la quête 2 de base (F2847 PDF 4) met la figurine de Dread sorcerer : retenu le texte de la quête 9, dont le bloc de statistiques est celui du catalogue
-        'Borokk' => 'dread-warrior', // « has the same stats as a Dread warrior » (F4543) ; le texte donne aussi une figurine de sorcier : à confirmer
-        'Gragor' => 'dread-warrior', // « His stats are the same as a Dread warrior » (F4543) ; le texte donne aussi une figurine de sorcier : à confirmer
+        // Borokk et Gragor ont les STATS d'un Dread warrior, mais la FIGURE du sorcier du Dread (relu le 2026-11-05 ; c'était
+        // le jeton du guerrier, « à confirmer ») :
+        'Borokk' => 'dread-sorcerer', // « Place Borokk, an evil Dread sorcerer, on the square marked with his name » (F4543 p13)
+        'Gragor' => 'dread-sorcerer', // « Use the Dread sorcerer figure to represent Gragor » (F4543 p10)
         'Momie' => 'mummy', // traduction du livret
         'Orque' => 'orc', // traduction du livret
         'Effigie gardienne' => 'orc', // « This Orc is a magical effigy » (F9528 PDF 27)

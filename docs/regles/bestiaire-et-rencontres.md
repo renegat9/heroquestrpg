@@ -444,6 +444,8 @@ Ces repères ne sont pas des mesures indépendantes : leurs barèmes sont posés
 
 Dix boss changent (douze lignes de catalogue, Gretzl compte trois phases).
 
+**Qwindrak reste à 42** (René, 2026-11-05 : « Pour 1 point on peut laisser Qwindrak tel quel »). La droite donne 41,50 à N 50,012, juste sur l'arrondi : un N lu à 50,0 donnerait 41. L'écart d'un point est accepté, ne pas le rouvrir.
+
 **Trois erreurs de la remesure ouverte, corrigées :**
 - L'**Horreur des Glaces** n'était pas lue sur le Seigneur. Son 16 est un barème du 2026-08-10 (commit `e31e288`), plus cher qu'un Ogre commandant à N 9,0 (15). La droite la ramène à 14, comme Fellmarak, au profil de combat identique.
 - Le commentaire du **Scion** disait « Seigneur ogre, 15 attaques → 22 ». Le Seigneur ogre a 20 attaques. Le Scion (18 attaques) passe à 21.

@@ -111,8 +111,9 @@ final class PurgerImagesOrphelines extends Command
             // que `BibliothequeImages::url()` fait gagner) : on raisonne sur
             // l'id, jamais sur le fichier, sinon on en laisserait un des deux
             // — et c'est justement celui qui est servi.
+            // `{id}-{forme}` : un portrait de boss par FORME (`BibliothequeImages::cleDynMonstre()`) — son sujet reste l'id.
             $ids = collect(scandir($dossier) ?: [])
-                ->filter(fn (string $f) => (bool) preg_match('/^(\d+)\.(png|webp)$/i', $f))
+                ->filter(fn (string $f) => (bool) preg_match('/^(\d+)(-\d+)?\.(png|webp)$/i', $f))
                 ->map(fn (string $f) => (int) preg_replace('/\D.*$/', '', $f))
                 ->unique()
                 ->sort()
@@ -129,8 +130,7 @@ final class PurgerImagesOrphelines extends Command
             $octets = 0;
 
             foreach ($orphelins as $id) {
-                foreach (['png', 'webp'] as $ext) {
-                    $chemin = "{$dossier}/{$id}.{$ext}";
+                foreach ([...glob("{$dossier}/{$id}.*") ?: [], ...glob("{$dossier}/{$id}-*.*") ?: []] as $chemin) {
                     $octets += is_file($chemin) ? (int) filesize($chemin) : 0;
                 }
 

@@ -59,6 +59,9 @@ class HabillageMonstres extends Skill
         - Renomme/redécris uniquement : tu ne touches à AUCUNE statistique.
         - Un habillage par monstre_id fourni, pas davantage, pas moins.
         - Cohérence avec le squelette et la bible (mêmes factions, même registre).
+        - Quand un bloc porte une `apparence` (ce que le livret officiel montre), la
+          description garde CETTE créature : même espèce, même silhouette. Tu
+          changes le ton, jamais ce qu'elle est (un orque reste un orque).
         TXT;
 
         $user = $this->contexteEnTexte($contexte, ['groupe', 'squelette', 'bible'])

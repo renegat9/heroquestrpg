@@ -11,6 +11,7 @@ use App\Events\EtatGroupeDiffuse;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Partie\EtatGroupe;
+use App\Partie\Images\BibliothequeImages;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -70,6 +71,10 @@ class HabillerMonstres implements ShouldQueue
                 'monstre_id' => (int) $i->monstre_id,
                 'nom_base' => $i->monstre->nom_base,
                 'tier' => $i->monstre->tier,
+                // Ce que le LIVRET dit de son allure (`config/apparences_monstres.php`), ou rien : la description
+                // d'habillage nourrit le portrait du boss (`BibliothequeImages::promptBoss()`) et ne doit pas en faire
+                // une autre créature (2026-11-05).
+                'apparence' => app(BibliothequeImages::class)->apparenceMonstre((string) $i->monstre->nom_base),
             ])
             ->values()
             ->all();
