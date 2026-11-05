@@ -50,6 +50,9 @@ return [
         'Gruulob, Forme Démoniaque' => 'goblin-warlock', // « do not remove the miniature from the map » (F9907 PDF 14) : la même figurine
         'Gretzl la Porte-Fléau' => 'goblin-warlock', // carte de la quête 12 (F9907 PDF 18) : le jeton Goblin Warlock au milieu de « Gretzl … with her lieutenants » (quatre Blightweavers, un Raptor)
         'Vrille' => 'grasping-vines', // « Use the grasping vines tile to represent the Tendril » (F9907 PDF 20) ; TUILE de la planche (PDF 26)
+        // Le Scion : la tuile 4×4 de la carte de la quête 14 (F9907 PDF 20, « The Bloomrot Scion ») — pas de nom sur la carte,
+        // la carte la pose au centre ; René a tranché 4×4 (2026-10-31), et la tuile est sa figure.
+        'Scion Fleur-Pourrie' => 'bloomrot-scion',
         'Qwindrak the Warlock' => 'dread-sorcerer', // « replace it with the Dread Sorcerer miniature » (livret de quêtes de First Light, quête 4) ; même jeton près de lui, cartes des quêtes 5 et 10
         'Festral' => 'dread-sorcerer', // « Festral, the Dread Sorcerer » (F9528 PDF 35) ; le jeton du sorcier sur la carte de la quête 8 (PDF 34)
         'Xenloth' => 'dread-sorcerer', // « Xenloth the Dread Mage » (F9528 PDF 37) ; seul jeton de la salle B, carte de la quête 9 (PDF 36)
@@ -156,6 +159,8 @@ return [
         'Rejeton putride',
         // Vrille : « Use the grasping vines tile to represent the Tendril » (F9907 PDF 20) — la tuile carrée de la planche, une case.
         'Vrille',
+        // Bloomrot Scion : la tuile 4×4 de la carte de la quête 14 (F9907 PDF 20), bord à bord, carré de quatre cases de côté.
+        'Scion Fleur-Pourrie',
         // Golem : tuile d'une case sur deux (F9907 PDF 12), emprise passée à 1×2 (René, 2026-10-29 : « Oui passe à 2 cases »).
         'Golem Cœur-de-Forge',
     ],
@@ -165,7 +170,6 @@ return [
         // ⚠ À TRANCHER (René) : la carte ou le texte leur donne un jeton OVALE — une figure de deux cases — alors que le
         // catalogue les pose sur une case. L'emprise suit le jeton (`docs/regles/bestiaire-et-rencontres.md`) : sans décision,
         // ni ovale ni emprise. (Doralf, les trois Gruzbella, Demonspider et Demonape ont tranché le 2026-10-31 : 1×2, dans `cles`.)
-        'Scion Fleur-Pourrie' => 'à trancher : une tuile de 4×4 cases au centre de la carte de la quête 14 (F9907 PDF 20), sans nom — la bête ou la faille ? figure 1×1 au catalogue',
         // Sans jeton : cartes et textes lus le 2026-10-31.
         'Archimage elfe' => '« Use the elven archmage figure » ; la carte de la quête 9 (F7539 PDF 16) ne pose que le mot « SIN », aucun jeton',
         'Crâne du Dread' => '« As soon as a hero sees a Dread Skull, place it on the board » (G1798 PDF 12) : sept lettres A sur la carte, aucun jeton dessiné',

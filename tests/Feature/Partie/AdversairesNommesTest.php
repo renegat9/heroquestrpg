@@ -328,7 +328,7 @@ it('POOLS : les adversaires entrent dans les rotations du palier de leur livret,
                         ->and($achats->filter(fn (Monstre $m) => $m->estImmobile())->count())->toBeLessThanOrEqual(1);
 
                     // Sans case sûre sur la carte : AUCUNE figure immobile n'est achetée.
-                    $sansCase = collect($acheter->invoke($demarreur, $structure, 60, 7, $arc, $graine, $bestiaire, false));
+                    $sansCase = collect($acheter->invoke($demarreur, $structure, 60, 7, $arc, $graine, $bestiaire, fn (Monstre $m): bool => false));
                     expect($sansCase->filter(fn (Monstre $m) => $m->estImmobile())->count())->toBe(0);
                 }
             }
@@ -432,70 +432,97 @@ it('PLACEMENT : chaque case sûre est en salle, hors parvis, et laisse la salle 
     expect($avecCase)->toBeGreaterThan((int) ($total / 2), 'trop de cartes sans aucune case pour une figure fixe');
 });
 
-it('PLACEMENT : la figure immobile prend une case sûre et CÈDE la sienne — jamais un doublon', function () {
+it('PLACEMENT : la grande figure immobile (4×4) prend une ancre tenue par TOUTE son emprise, et déplace ceux qui s\'y trouvaient — jamais un doublon', function () {
     $positionsDesMonstres = new ReflectionMethod(DemarreurQuete::class, 'positionsDesMonstres');
     $positionsDesMonstres->setAccessible(true);
+    $assembleur = app(AssembleurCarte::class);
 
-    $salles = [
-        ['x' => 0, 'y' => 0, 'largeur' => 4, 'hauteur' => 4],
-        ['x' => 6, 'y' => 0, 'largeur' => 6, 'hauteur' => 6],
-    ];
-    // A (7,1) est sur un parvis (non sûre) ; B (9,3) est sûre ; C (10,4) aussi, dans la même salle.
-    $carte = [
-        'salles' => $salles,
-        'spawn_monstres' => [['x' => 7, 'y' => 1], ['x' => 9, 'y' => 3], ['x' => 10, 'y' => 4]],
-        'spawn_figures_fixes' => [['x' => 9, 'y' => 3], ['x' => 10, 'y' => 4]],
-    ];
+    $gabarit = GabaritQuete::query()->where('type_jalon', 'boss_final')->firstOrFail();
+    // Graine 6 : une salle du boss de 9 × 5 qui offre quatre ancres (la graine 3 n'en offre aucune : le mobilier coupe les blocs).
+    $carte = $assembleur->assembler($gabarit, 6, bestiaire: BestiaireGroupe::auto('jungles_delthrak'));
+
+    // La première ancre tenable DANS une salle donnée : c'est elle que le placement retient (la salle d'abord, puis l'ordre).
+    $ancres = $assembleur->ancresFiguresFixes($carte, 4, 4);
+    expect($ancres)->not->toBe([], 'la carte d\'essai doit offrir un lieu au Scion');
+
+    $salle = Salles::indexDe($carte['salles'], $ancres[0]['x'], $ancres[0]['y']);
+    $ancre = collect($ancres)->first(fn (array $a) => Salles::indexDe($carte['salles'], $a['x'], $a['y']) === $salle);
+    $emprise = Grille::cellulesEmprise($ancre['x'], $ancre['y'], 4, 4);
+    $dansEmprise = collect($emprise)->map(fn (array $c) => "{$c['x']},{$c['y']}")->flip();
+
+    // Le Scion naît dans la salle, HORS emprise ; le gobelin naît SUR l'ancre, donc dans l'emprise.
+    $libres = array_keys($assembleur->casesDeSalleLibres($carte));
+    $naissanceScion = collect($libres)->first(function (string $k) use ($carte, $salle, $dansEmprise) {
+        [$x, $y] = array_map(intval(...), explode(',', $k));
+
+        return Salles::indexDe($carte['salles'], $x, $y) === $salle && ! $dansEmprise->has($k);
+    });
+    [$sx, $sy] = array_map(intval(...), explode(',', $naissanceScion));
+    $carte['spawn_monstres'] = [['x' => $sx, 'y' => $sy], ['x' => $ancre['x'], 'y' => $ancre['y']]];
+
     $scion = Monstre::where('nom_base', 'Scion Fleur-Pourrie')->firstOrFail();
     $gobelin = Monstre::where('nom_base', 'Gobelin')->firstOrFail();
 
-    $positions = $positionsDesMonstres->invoke(app(DemarreurQuete::class), [$scion, $gobelin, $gobelin], $carte);
+    $positions = $positionsDesMonstres->invoke(app(DemarreurQuete::class), [$scion, $gobelin], $carte);
 
-    expect($positions[0])->toBe(['x' => 9, 'y' => 3], 'le Scion prend une case sûre de SA salle')
-        ->and($positions[1])->toBe(['x' => 7, 'y' => 1], 'le gobelin hérite de la case que le Scion quitte')
-        ->and(collect($positions)->map(fn ($p) => "{$p['x']},{$p['y']}")->unique()->count())->toBe(3);
-
-    // Déjà sur une case sûre : rien ne bouge. Un monstre mobile ne déplace personne.
-    $carte['spawn_monstres'] = [['x' => 10, 'y' => 4], ['x' => 7, 'y' => 1], ['x' => 9, 'y' => 3]];
-    expect($positionsDesMonstres->invoke(app(DemarreurQuete::class), [$scion, $gobelin, $gobelin], $carte))->toBe($carte['spawn_monstres'])
-        ->and($positionsDesMonstres->invoke(app(DemarreurQuete::class), [$gobelin, $gobelin, $gobelin], $carte))->toBe($carte['spawn_monstres']);
+    expect($positions[0])->toBe(['x' => $ancre['x'], 'y' => $ancre['y']], 'le Scion prend l\'ancre tenable de sa salle')
+        ->and($dansEmprise->has("{$positions[1]['x']},{$positions[1]['y']}"))->toBeFalse('le gobelin a quitté l\'emprise du Scion')
+        ->and(collect($positions)->map(fn (array $p) => "{$p['x']},{$p['y']}")->unique()->count())->toBe(2, 'aucun doublon')
+        ->and($positions[1])->not->toBe($positions[0]);
 });
 
-it('PLACEMENT : de bout en bout, un Scion acheté est posé sur une case sûre — jamais sur un parvis ni en couloir', function () {
+it('PLACEMENT : de bout en bout, un Scion acheté tient en entier dans une salle — hors parvis, hors décor, plancher tenu', function () {
     $acheter = new ReflectionMethod(DemarreurQuete::class, 'acheterMonstres');
     $acheter->setAccessible(true);
     $positionner = new ReflectionMethod(DemarreurQuete::class, 'positionsDesMonstres');
     $positionner->setAccessible(true);
+    $lieu = new ReflectionMethod(DemarreurQuete::class, 'figureFixePossible');
+    $lieu->setAccessible(true);
 
     $gabarit = GabaritQuete::query()->where('type_jalon', 'boss_final')->firstOrFail()->replicate();
     $structure = (array) $gabarit->structure;
     $structure['rencontre_finale'] = ['tier' => 'boss', 'escorte_budget' => 6, 'archetypes' => [], 'creatures' => ['Scion Fleur-Pourrie']];
     $gabarit->structure = $structure;
 
-    $poses = 0;
+    $assembleur = app(AssembleurCarte::class);
+    $achetes = 0;
 
     foreach (range(1, 40) as $graine) {
-        $carte = app(AssembleurCarte::class)->assembler($gabarit, $graine, bestiaire: BestiaireGroupe::auto('jungles_delthrak'));
+        $carte = $assembleur->assembler($gabarit, $graine, bestiaire: BestiaireGroupe::auto('jungles_delthrak'));
+        $possible = fn (Monstre $m): bool => $lieu->invoke(app(DemarreurQuete::class), $carte, $m);
         $monstres = $acheter->invoke(app(DemarreurQuete::class), $structure, 60, count($carte['spawn_monstres']), 1, $graine,
-            BestiaireGroupe::auto('jungles_delthrak'), $carte['spawn_figures_fixes'] !== []);
+            BestiaireGroupe::auto('jungles_delthrak'), $possible);
 
         if ($monstres[0]->nom_base !== 'Scion Fleur-Pourrie') {
-            // Sans case sûre, il n'est PAS acheté (un adversaire du pool restant prend la place, ou le repli).
-            expect($carte['spawn_figures_fixes'])->toBe([], "graine {$graine} : Scion écarté alors qu'une case sûre existait");
+            // Sans lieu tenable, il n'est PAS acheté : un adversaire du pool restant prend la place. Jamais en silence.
+            expect($assembleur->ancresFiguresFixes($carte, 4, 4))->toBe([], "graine {$graine} : Scion écarté alors qu'un lieu existait");
 
             continue;
         }
 
+        $achetes++;
         $positions = $positionner->invoke(app(DemarreurQuete::class), $monstres, $carte);
-        $sures = array_map(fn ($p) => "{$p['x']},{$p['y']}", $carte['spawn_figures_fixes']);
+        $ancre = $positions[0];
+        $salle = Salles::indexDe($carte['salles'], $ancre['x'], $ancre['y']);
+        $libres = $assembleur->casesDeSalleLibres($carte);
 
-        expect(in_array("{$positions[0]['x']},{$positions[0]['y']}", $sures, true))->toBeTrue("graine {$graine} : le Scion n'est pas sur une case sûre")
-            ->and(Salles::indexDe($carte['salles'], $positions[0]['x'], $positions[0]['y']))->not->toBeNull('en couloir');
+        expect($salle)->not->toBeNull("graine {$graine} : le Scion est en couloir");
 
-        $poses++;
+        foreach (Grille::cellulesEmprise($ancre['x'], $ancre['y'], 4, 4) as $c) {
+            expect(Salles::indexDe($carte['salles'], $c['x'], $c['y']))->toBe($salle, "graine {$graine} : une case de l'emprise sort de la salle");
+            expect(isset($libres["{$c['x']},{$c['y']}"]))->toBeTrue("graine {$graine} : une case de l'emprise est un parvis ou du décor");
+        }
+
+        // Chaque figure sur sa propre case : aucune n'est tombée dans l'emprise du Scion.
+        expect(collect($positions)->map(fn (array $p) => "{$p['x']},{$p['y']}")->unique()->count())->toBe(count($positions), "graine {$graine} : doublon");
+
+        foreach (array_slice($positions, 1) as $autre) {
+            expect(collect(Grille::cellulesEmprise($ancre['x'], $ancre['y'], 4, 4))->contains(fn (array $c) => $c['x'] === $autre['x'] && $c['y'] === $autre['y']))
+                ->toBeFalse("graine {$graine} : une autre figure dans l'emprise du Scion");
+        }
     }
 
-    expect($poses)->toBeGreaterThan(25, 'le Scion est presque toujours posable : les cases sûres ne sont pas rares');
+    expect($achetes)->toBeGreaterThan(0, 'le Scion est posable sur au moins une graine d\'essai');
 });
 
 it('PUBLICATION : `spawn_figures_fixes` reste INTERNE — jamais dans l\'état publié ; une figure posée en cours de quête, si', function () {
@@ -968,8 +995,10 @@ it('EN JEU — le souffle ne gaspille pas son unique usage sur UN héros quand u
 // =====================================================================
 
 it('EN JEU — le balayage du Scion atteint les héros ADJACENTS ET EN DIAGONALE (« adjacent and diagonal to it »)', function () {
-    $ctx = advScene(2, positions: ['albrecht' => [4, 4], 'bertrand' => [3, 4]]);
-    advPoser($ctx, 'Scion Fleur-Pourrie', 3, 3);
+    // Scion 4×4 ancré en (3,2) : son emprise est x 3..6, y 2..5. Albrecht touche la colonne de droite (6,4) ;
+    // Bertrand est en diagonale du coin bas-gauche (3,5). Aucun des deux n'est DANS l'emprise.
+    $ctx = advScene(2, positions: ['albrecht' => [7, 4], 'bertrand' => [2, 6]]);
+    advPoser($ctx, 'Scion Fleur-Pourrie', 3, 2);
 
     advDes([], 1); // des crânes partout
     advAttendre($ctx, 'alice');
@@ -1028,25 +1057,30 @@ it('EN JEU — sans personne à sa portée, le Scion lance Canaliser l\'Effroi �
 });
 
 it('EN JEU — la Vrille se pose sur la case libre la plus proche : jamais sur une figure, sur un mur ni de l\'autre côté d\'une cloison', function () {
-    $ctx = advScene(positions: ['albrecht' => [8, 3]]);
+    // Scion 4×4 en (8,4) : emprise x 8..11, y 4..7. Autour de l'emprise, des figures occupent (7,3), (7,4), (8,3) et (12,4).
+    $ctx = advScene(positions: ['albrecht' => [7, 3]]);
     $scion = advPoser($ctx, 'Scion Fleur-Pourrie', 8, 4);
-    advPoser($ctx, 'Gobelin', 8, 5);
     advPoser($ctx, 'Gobelin', 7, 4);
-    advPoser($ctx, 'Gobelin', 9, 4);
+    advPoser($ctx, 'Gobelin', 8, 3);
+    advPoser($ctx, 'Gobelin', 12, 4);
 
-    // Les quatre voisines orthogonales sont prises (héros au nord, trois gobelins) : une diagonale suit.
     $vrille = app(App\Partie\AdversairesDelthrak::class)->vrilleEnFinDeTour($ctx['groupe'], $ctx['quete']->fresh()->load('carte'), $scion);
+    $vx = $vrille['vrille']['x'];
+    $vy = $vrille['vrille']['y'];
+    $distanceAEmprise = min(array_map(fn (array $c) => max(abs($vx - $c['x']), abs($vy - $c['y'])), $scion->fresh()->cases()));
 
+    // La case la plus proche DE L'EMPRISE (distance 1), jamais dans l'emprise, jamais sur une figure.
     expect($vrille['vrille'])->not->toBeNull()
-        ->and(max(abs($vrille['vrille']['x'] - 8), abs($vrille['vrille']['y'] - 4)))->toBe(1)
-        ->and(in_array([$vrille['vrille']['x'], $vrille['vrille']['y']], [[8, 3], [8, 5], [7, 4], [9, 4]], true))->toBeFalse('une case occupée');
+        ->and($distanceAEmprise)->toBe(1)
+        ->and(in_array([$vx, $vy], [[7, 3], [7, 4], [8, 3], [12, 4]], true))->toBeFalse('une case occupée')
+        ->and(collect($scion->fresh()->cases())->contains(fn (array $c) => $c['x'] === $vx && $c['y'] === $vy))->toBeFalse('jamais sur le Scion');
 });
 
 it('EN JEU — au coup fatal, le Scion sacrifie une Vrille et reste à 1 PV (par la vraie route d\'attaque)', function () {
     $ctx = advScene(positions: ['albrecht' => [2, 4]]);
     $scion = advPoser($ctx, 'Scion Fleur-Pourrie', 3, 4);
     $scion->update(['pv_body' => 2, 'pv_body_max' => 2]);
-    $vrille = advPoser($ctx, 'Vrille', 3, 6);
+    $vrille = advPoser($ctx, 'Vrille', 2, 8);
     $vrille->poserEtatDread('maitre', (int) $scion->id);
 
     // Trois crânes d'attaque, puis 4 (aucun bouclier noir : le Scion ne pare pas).
@@ -1073,12 +1107,12 @@ it('EN JEU — au coup fatal, le Scion sacrifie une Vrille et reste à 1 PV (par
 it('le sacrifice se paie à CHAQUE coup fatal tant qu\'il reste une Vrille — et sans Vrille, le Scion meurt', function () {
     $ctx = advScene();
     $scion = advPoser($ctx, 'Scion Fleur-Pourrie', 8, 4);
-    $a = advPoser($ctx, 'Vrille', 8, 6);
+    $a = advPoser($ctx, 'Vrille', 8, 8);
     $a->poserEtatDread('maitre', (int) $scion->id);
-    $b = advPoser($ctx, 'Vrille', 9, 6);
+    $b = advPoser($ctx, 'Vrille', 9, 8);
     $b->poserEtatDread('maitre', (int) $scion->id);
     // Une Vrille d'un AUTRE maître n'est pas la sienne : elle ne paie rien.
-    $etrangere = advPoser($ctx, 'Vrille', 10, 6);
+    $etrangere = advPoser($ctx, 'Vrille', 12, 8);
     $etrangere->poserEtatDread('maitre', 999);
 
     $degats = app(MoteurDegats::class);
@@ -1101,9 +1135,85 @@ it('le sacrifice se paie à CHAQUE coup fatal tant qu\'il reste une Vrille — e
 it('les Vrilles et l\'état de sacrifice survivent à la reprise : l\'id du maître est conservé par le snapshot', function () {
     $ctx = advScene();
     $scion = advPoser($ctx, 'Scion Fleur-Pourrie', 8, 4);
-    $vrille = advPoser($ctx, 'Vrille', 8, 6);
+    $vrille = advPoser($ctx, 'Vrille', 8, 8);
     $vrille->poserEtatDread('maitre', (int) $scion->id);
 
     $source = (string) file_get_contents(base_path('app/Partie/Sauvegarde.php'));
     expect($source)->toContain("'habillage' => \$i->habillage")->and($source)->toContain("'id' => \$instance['id']");
+});
+
+// =====================================================================
+// 9. SCION 4×4 — l'emprise entière, pas l'ancre (2026-10-31)
+// =====================================================================
+
+it('EN JEU — le CONTACT du Scion 4×4 se prend par TOUTE son emprise : un héros collé à une case qui n\'est pas l\'ancre le frappe', function () {
+    // Scion ancré en (3,4) : emprise x 3..6, y 4..7. Albrecht n'est au contact QUE de (6,6), une case de l'emprise.
+    $ctx = advScene(positions: ['albrecht' => [7, 6]]);
+    $scion = advPoser($ctx, 'Scion Fleur-Pourrie', 3, 4);
+    test()->actingAs($ctx['alice'], 'joueur');
+
+    $cibles = collect(advMenu()['options'] ?? [])->flatMap(fn ($o) => data_get($o, 'parametres.cibles', []))->pluck('id');
+
+    expect($cibles->contains($scion->id))->toBeTrue('le menu propose le Scion : une de ses cases touche Albrecht')
+        ->and($scion->fresh()->cases())->toHaveCount(16);
+
+    test()->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $scion->id],
+    ])->assertStatus(202);
+});
+
+it('EN JEU — le Scion LANCEUR voit depuis TOUTE son emprise : un héros caché à son ancre mais vu de sa case basse est une cible', function () {
+    // Scion ancré en (3,4) : emprise x 3..6, y 4..7. Albrecht en (10,7). Un bloc de murs en (7..8, 5..6) coupe la vue de
+    // l'ancre (3,4) vers lui ; la rangée y = 7, libre, la laisse depuis la case (6,7) du Scion (2026-11-05 : la vue d'un
+    // sort de Dread se prenait à l'ancre seule).
+    $murs = [['x' => 7, 'y' => 5], ['x' => 7, 'y' => 6], ['x' => 8, 'y' => 5], ['x' => 8, 'y' => 6]];
+    $ctx = advScene(murs: $murs, positions: ['albrecht' => [10, 7]]);
+    $scion = advPoser($ctx, 'Scion Fleur-Pourrie', 3, 4);
+    $etat = EtatPersonnageQuete::where('quete_id', $ctx['quete']->id)->where('personnage_id', $ctx['albrecht']->id)->firstOrFail();
+    $grille = App\Partie\FabriqueGrille::pour($ctx['quete']->fresh(), exceptInstanceId: $scion->id);
+
+    expect($grille->ligneDeVue(3, 4, 10, 7, figuresBloquent: true))->toBeFalse('témoin : l\'ancre ne le voit pas')
+        ->and($grille->ligneDeVue(6, 7, 10, 7, figuresBloquent: true))->toBeTrue('témoin : la case (6,7) le voit')
+        ->and(app(MoteurDread::class)->voitLeHeros($ctx['quete']->fresh(), $scion->fresh(), $etat))->toBeTrue();
+});
+
+it('EN JEU — le contact est refusé à une case qui n\'effleure PAS l\'emprise (diagonale au coin, sans arme longue)', function () {
+    // Albrecht en (7,3) : diagonal au coin (6,4) — la règle orthogonale ne le compte pas au contact.
+    $ctx = advScene(positions: ['albrecht' => [7, 3]]);
+    $scion = advPoser($ctx, 'Scion Fleur-Pourrie', 3, 4);
+    test()->actingAs($ctx['alice'], 'joueur');
+
+    $cibles = collect(advMenu()['options'] ?? [])->flatMap(fn ($o) => data_get($o, 'parametres.cibles', []))->pluck('id');
+
+    expect($cibles->contains($scion->id))->toBeFalse('pas de contact en diagonale pour une arme ordinaire');
+});
+
+it('PUBLICATION — le Scion est publié avec son ANCRE, son emprise 4×4 et son jeton en tuile carrée', function () {
+    $ctx = advScene();
+    advPoser($ctx, 'Scion Fleur-Pourrie', 5, 2);
+
+    $scion = collect(app(EtatGroupe::class)->payload($ctx['groupe']->fresh())['entites'])->firstWhere('nom_base', 'Scion Fleur-Pourrie');
+
+    expect($scion)->not->toBeNull()
+        ->and($scion['x'])->toBe(5)->and($scion['y'])->toBe(2)
+        ->and($scion['emprise'])->toBe(['l' => 4, 'h' => 4])
+        ->and($scion['symbole_forme'])->toBe('tuile')
+        ->and((string) $scion['symbole_url'])->toContain('bloomrot-scion');
+});
+
+it('EN JEU — une figure IMMOBILE ne se repousse pas : aucune option « repousser » ne la vise, même au contact', function () {
+    $ctx = advScene(positions: ['albrecht' => [2, 4]]);
+    $scion = advPoser($ctx, 'Scion Fleur-Pourrie', 3, 4);
+    test()->actingAs($ctx['alice'], 'joueur');
+
+    expect(collect(advMenu()['options'] ?? [])->pluck('id')->contains("repousser_{$scion->id}"))->toBeFalse('le Scion ne bouge pas : rien à repousser');
+});
+
+it('DONNÉES — le Scion occupe 4×4 au catalogue, et la salle du boss a neuf colonnes et cinq rangées de sol', function () {
+    expect(Monstre::where('nom_base', 'Scion Fleur-Pourrie')->firstOrFail()->emprise())->toBe(['l' => 4, 'h' => 4]);
+
+    $boss = \App\Models\Tuile::query()->where('type', 'salle')->where('theme', 'boss')->firstOrFail();
+    $grille = (array) $boss->grille;
+
+    expect($grille['largeur'])->toBe(11)->and($grille['hauteur'])->toBe(7);
 });

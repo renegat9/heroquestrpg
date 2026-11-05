@@ -112,13 +112,18 @@ class TuileSeeder extends Seeder
                 'msssssssm',
                 'mmmmpmmmm',
             ])],
+            // SALLE DU BOSS (2026-10-31) : neuf colonnes et cinq rangées de sol, au lieu de sept et quatre. Le Bloomrot
+            // Scion occupe 4×4 cases ; avec quatre rangées, son emprise couvrait toujours la case du parvis de la porte
+            // (la rangée 1, sous « p ») — jamais de place pour lui. Avec cinq rangées, il tient sur les rangées 2 à 5, hors
+            // de ce parvis ; les neuf colonnes laissent le mobilier de la salle et quatre cases libres au contact de sa figure.
             ['type' => 'salle', 'theme' => 'boss', 'grille' => $grille([
-                'mmmmpmmmm',
-                'msssssssm',
-                'msssssssm',
-                'msssssssm',
-                'msssssssm',
-                'mmmmmmmmm',
+                'mmmmmpmmmmm',
+                'msssssssssm',
+                'msssssssssm',
+                'msssssssssm',
+                'msssssssssm',
+                'msssssssssm',
+                'mmmmmmmmmmm',
             ])],
             // Couloirs
             ['type' => 'couloir', 'theme' => 'generique', 'grille' => $grille([

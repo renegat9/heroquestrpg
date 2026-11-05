@@ -675,21 +675,31 @@ it('donne 2 cases à chaque figure dont le livret dessine un jeton OVALE ou une 
 
     // TUILES (2026-10-29) : le livret pose la tuile de la figure ; sa taille DIT l'emprise. Fichier 2:1 = deux cases
     // (le Golem Cœur-de-Forge, F9907 PDF 12 — René : « Oui passe à 2 cases »), fichier carré = une case (le Spawnling).
+    // Un fichier CARRÉ de plusieurs cases (le Bloomrot Scion, 4×4, 2026-11-05) se déclare au manifeste (`carre_de_cases`),
+    // et sa taille suit : 256 px par case.
+    $manifeste = collect(json_decode((string) file_get_contents(base_path('image-tools/symboles-livrets/manifeste.json')), true)['symboles'])->keyBy('cle');
     $tuilesDeDeux = [];
+    $tuilesCarrees = [];
     foreach (config('symboles_monstres.tuiles') as $nom) {
         $cle = config('symboles_monstres.cles')[$nom] ?? Illuminate\Support\Str::slug($nom);
         [$largeur, $hauteur] = getimagesize(public_path("images/livrets/monstres/{$cle}.webp"));
         $deux = $largeur === 2 * $hauteur;
+        $cotes = $largeur === $hauteur ? (int) ($manifeste[$cle]['carre_de_cases'] ?? 1) : 1;
         expect(Monstre::where('nom_base', $nom)->firstOrFail()->emprise())
-            ->toBe(['l' => 1, 'h' => $deux ? 2 : 1], "{$nom} : tuile {$largeur}×{$hauteur}");
+            ->toBe(['l' => $deux ? 1 : $cotes, 'h' => $deux ? 2 : $cotes], "{$nom} : tuile {$largeur}×{$hauteur}");
         if ($deux) {
             $tuilesDeDeux[] = $nom;
         }
+        if ($cotes > 1) {
+            expect($largeur)->toBe(256 * $cotes, "{$nom} : un carré de {$cotes} cases fait 256 px par case");
+            $tuilesCarrees[] = $nom;
+        }
     }
     expect($tuilesDeDeux)->toContain('Golem Cœur-de-Forge');
+    expect($tuilesCarrees)->toContain('Scion Fleur-Pourrie');
 
     $grandes = Monstre::all()->filter(fn (Monstre $m) => $m->grandeTaille())->pluck('nom_base')->sort()->values()->all();
-    $sansOvale = array_values(array_diff($grandes, $ovales, $tuilesDeDeux));
+    $sansOvale = array_values(array_diff($grandes, $ovales, $tuilesDeDeux, $tuilesCarrees));
     sort($exceptions);
 
     expect($sansOvale)->toBe($exceptions, 'une figure de 2 cases sans jeton ovale ni tuile de 2 cases doit être une exception nommée');

@@ -1798,9 +1798,11 @@ final class ResolveurTour
 
             $grille = $this->grille($quete, exceptPersonnageId: $personnage->id);
             // FAVEUR « Deadeye » (Hopekins Rest) : revalidée ici comme au menu.
-            if (! $grille->ligneDeVue(
+            // Une figure se vise par UNE de ses cases (`ligneDeVueEmprise()`) — la même règle que le menu.
+            if (! $grille->ligneDeVueEmprise(
                 (int) $etat->position_x, (int) $etat->position_y,
                 (int) $instance->position_x, (int) $instance->position_y,
+                $instance->monstre->emprise()['l'], $instance->monstre->emprise()['h'],
                 figuresBloquent: $this->faveurs->figuresBloquentPour($personnage),
             )) {
                 throw ValidationException::withMessages(['option_id' => 'Cible hors de vue : aucune ligne de tir dégagée.']);
@@ -9735,18 +9737,25 @@ final class ResolveurTour
      */
     private function frapperEntreMonstres(Quete $quete, InstanceMonstre $sbire, InstanceMonstre $cible): array
     {
-        $contact = Grille::sontAdjacentes(
-            (int) $sbire->position_x, (int) $sbire->position_y,
-            (int) $cible->position_x, (int) $cible->position_y,
-        );
+        // Contact par TOUTE l'emprise de la cible (un 4×4 se frappe depuis chacune de ses cases).
+        $contact = $cible->touche((int) $sbire->position_x, (int) $sbire->position_y);
 
         if (! $contact) {
+            // Le plus court chemin vers une case libre au contact de N'IMPORTE quelle case de la cible.
             $plateau = $this->grille($quete, exceptInstanceId: (int) $sbire->id);
-            $chemin = $this->dread->cheminVersCaseAdjacente(
-                $plateau,
-                (int) $sbire->position_x, (int) $sbire->position_y,
-                (int) $cible->position_x, (int) $cible->position_y,
-            );
+            $chemin = null;
+
+            foreach ($cible->cases() as $but) {
+                $essai = $this->dread->cheminVersCaseAdjacente(
+                    $plateau,
+                    (int) $sbire->position_x, (int) $sbire->position_y,
+                    $but['x'], $but['y'],
+                );
+
+                if ($essai !== null && ($chemin === null || count($essai) < count($chemin))) {
+                    $chemin = $essai;
+                }
+            }
 
             $pas = (int) ($sbire->monstre?->deplacement ?? 0);
 
@@ -9754,10 +9763,7 @@ final class ResolveurTour
                 $arrivee = $chemin[min(count($chemin), $pas) - 1];
                 $sbire->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
 
-                $contact = Grille::sontAdjacentes(
-                    (int) $arrivee['x'], (int) $arrivee['y'],
-                    (int) $cible->position_x, (int) $cible->position_y,
-                );
+                $contact = $cible->touche((int) $arrivee['x'], (int) $arrivee['y']);
             }
         }
 
@@ -10107,9 +10113,10 @@ final class ResolveurTour
             ]);
         }
 
-        if (! $this->grille($quete)->ligneDeVue(
+        if (! $this->grille($quete)->ligneDeVueEmprise(
             (int) $etat->position_x, (int) $etat->position_y,
             (int) $instance->position_x, (int) $instance->position_y,
+            $instance->monstre->emprise()['l'], $instance->monstre->emprise()['h'],
         )) {
             throw ValidationException::withMessages(['option_id' => 'Cette créature n\'est pas en vue.']);
         }
@@ -10182,11 +10189,9 @@ final class ResolveurTour
             ->where('id', $cibleId)
             ->where('etat', 'actif')->where('revele', true)->first();
 
+        // « adjacent to you » : au contact de N'IMPORTE laquelle des cases de la figure, orthogonal comme partout.
         if ($instance === null || $instance->position_x === null
-            || ! Grille::sontAdjacentes(
-                (int) $instance->position_x, (int) $instance->position_y,
-                (int) $etat->position_x, (int) $etat->position_y,
-            )) {
+            || ! $instance->touche((int) $etat->position_x, (int) $etat->position_y)) {
             throw ValidationException::withMessages(['option_id' => 'Aucune créature à votre contact ici.']);
         }
 
@@ -11361,8 +11366,14 @@ final class ResolveurTour
         $ix = (int) $instance->position_x;
         $iy = (int) $instance->position_y;
 
-        if (! Grille::sontAdjacentes($ix, $iy, $px, $py)) {
+        // Contact par TOUTE l'emprise (la même règle que le menu, `MenuMoteur::ciblesRepoussables()`).
+        if (! $instance->touche($px, $py)) {
             throw ValidationException::withMessages(['option_id' => 'La créature n\'est plus à votre contact.']);
+        }
+
+        // Une figure IMMOBILE ne bouge pas, donc ne se repousse pas (`carte-donjon.md` §2.12 quater).
+        if ($instance->monstre->estImmobile()) {
+            throw ValidationException::withMessages(['option_id' => 'Cette créature ne bouge pas : rien à repousser.']);
         }
 
         $deja = array_map('intval', (array) data_get($instance->habillage, 'repousse_par', []));

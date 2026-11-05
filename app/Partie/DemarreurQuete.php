@@ -249,9 +249,9 @@ final class DemarreurQuete
         $budget = $this->budgetRencontres($groupe, $positionArc, $typeJalon);
         $monstres = $this->acheterMonstres(
             $gabarit->structure ?? [], $budget, count($carte['spawn_monstres']), $positionArc, (int) $groupe->id, $bestiaire,
-            // FIGURES IMMOBILES : seulement si la carte offre une case où la poser sans fermer une
+            // FIGURES IMMOBILES : seulement si la carte offre un lieu où la poser sans fermer une
             // porte, couper une salle ni passer sous le plancher de cases jouables.
-            figuresFixesPossibles: ($carte['spawn_figures_fixes'] ?? []) !== [],
+            figureFixePossible: fn (Monstre $m): bool => $this->figureFixePossible($carte, $m),
         );
         $positionsMonstres = $this->positionsDesMonstres($monstres, $carte);
 
@@ -605,6 +605,107 @@ final class DemarreurQuete
     }
 
     /**
+     * Une figure IMMOBILE qui fait plus d'une case (le Bloomrot Scion, 4×4) : `figureFixePossible()` dit s'il existe un
+     * lieu, cette méthode le prend. Ancre : `AssembleurCarte::ancresFiguresFixes()`, de préférence dans la salle où elle
+     * était. Les monstres qui occupaient une case de l'emprise partent sur une case libre HORS emprise
+     * (`AssembleurCarte::casesDeSalleLibres()`), d'abord dans la même salle. Un lieu sans place pour eux est refusé,
+     * sans repli : on ne pose jamais une figure sur un autre monstre ni sur un mur.
+     *
+     * @param  list<array{x: int, y: int}>  $positions
+     * @param  array<string, mixed>  $carte
+     * @return list<array{x: int, y: int}>
+     *
+     * @throws RuntimeException  aucun lieu tenable : l'achat et le placement se contredisent (une donnée à corriger)
+     */
+    private function poserGrandeFigure(array $carte, array $positions, int $i, int $l, int $h): array
+    {
+        $salles = (array) ($carte['salles'] ?? []);
+        $salleDe = fn (array $p): ?int => Salles::indexDe($salles, (int) $p['x'], (int) $p['y']);
+        $cle = fn (array $p): string => "{$p['x']},{$p['y']}";
+        $salleActuelle = $salleDe($positions[$i]);
+
+        $ancres = $this->assembleur->ancresFiguresFixes($carte, $l, $h);
+        // La salle où la figure se trouvait d'abord (stable : l'ordre du placement est conservé dans chaque groupe).
+        usort($ancres, fn (array $a, array $b): int => ($salleDe($a) === $salleActuelle ? 0 : 1) <=> ($salleDe($b) === $salleActuelle ? 0 : 1));
+
+        $libres = array_keys($this->assembleur->casesDeSalleLibres($carte));
+
+        foreach ($ancres as $ancre) {
+            $emprise = Grille::cellulesEmprise((int) $ancre['x'], (int) $ancre['y'], $l, $h);
+            $dans = [];
+            foreach ($emprise as $c) {
+                $dans["{$c['x']},{$c['y']}"] = true;
+            }
+
+            // Cases où un monstre DÉPLACÉ peut partir : libres, hors emprise, hors des autres figures.
+            $occupees = [];
+            foreach ($positions as $j => $p) {
+                if ($j !== $i) {
+                    $occupees[$cle($p)] = true;
+                }
+            }
+            $pour = array_values(array_filter($libres, fn (string $k) => ! isset($dans[$k]) && ! isset($occupees[$k])));
+
+            $tenue = $positions;
+            $ok = true;
+
+            foreach ($positions as $j => $p) {
+                if ($j === $i || ! isset($dans[$cle($p)])) {
+                    continue;
+                }
+
+                // Le même salle d'abord, n'importe quelle salle ensuite.
+                $salleDuPartant = $salleDe($p);
+                $cible = null;
+                foreach ([true, false] as $memeSalle) {
+                    foreach ($pour as $idx => $k) {
+                        [$x, $y] = array_map(intval(...), explode(',', $k));
+                        if ($memeSalle && Salles::indexDe($salles, $x, $y) !== $salleDuPartant) {
+                            continue;
+                        }
+                        $cible = ['x' => $x, 'y' => $y, 'idx' => $idx];
+                        break 2;
+                    }
+                }
+
+                if ($cible === null) {
+                    $ok = false;
+                    break;
+                }
+
+                $tenue[$j] = ['x' => $cible['x'], 'y' => $cible['y']];
+                unset($pour[$cible['idx']]);
+                $pour = array_values($pour);
+            }
+
+            if ($ok) {
+                $tenue[$i] = ['x' => (int) $ancre['x'], 'y' => (int) $ancre['y']];
+
+                return $tenue;
+            }
+        }
+
+        throw new RuntimeException(sprintf(
+            'Aucun lieu tenable pour une figure immobile de %d×%d : l\'achat et le placement se contredisent.', $l, $h,
+        ));
+    }
+
+    /**
+     * Une figure IMMOBILE tient-elle quelque part sur cette carte ? Une case (`spawn_figures_fixes`, comme avant), ou une
+     * emprise entière (`AssembleurCarte::ancresFiguresFixes()`). Le même critère sert à l'achat ET au placement.
+     */
+    private function figureFixePossible(array $carte, Monstre $monstre): bool
+    {
+        if (! $monstre->grandeTaille()) {
+            return ($carte['spawn_figures_fixes'] ?? []) !== [];
+        }
+
+        $e = $monstre->emprise();
+
+        return $this->assembleur->ancresFiguresFixes($carte, $e['l'], $e['h']) !== [];
+    }
+
+    /**
      * La case de chaque monstre acheté : `spawn_monstres[i]`, comme avant — sauf pour une FIGURE
      * IMMOBILE (`Monstre::estImmobile()`), qui ne se pose que sur une case de `spawn_figures_fixes`
      * (`AssembleurCarte::casesPourFiguresFixes()` : en salle, hors parvis, salle connexe et
@@ -628,8 +729,23 @@ final class DemarreurQuete
         $salles = (array) ($carte['salles'] ?? []);
         $prises = [];
 
+        // GRANDES FIGURES IMMOBILES d'abord (emprise de plus d'une case : le Bloomrot Scion, 4×4). Leur emprise entière
+        // est réservée avant toute figure d'une case, pour qu'aucune n'y tombe.
         foreach (array_values($monstres) as $i => $monstre) {
-            if (! $monstre->estImmobile() || $sures === []) {
+            if (! $monstre->estImmobile() || ! $monstre->grandeTaille()) {
+                continue;
+            }
+
+            $e = $monstre->emprise();
+            $positions = $this->poserGrandeFigure($carte, $positions, $i, $e['l'], $e['h']);
+
+            foreach (Grille::cellulesEmprise((int) $positions[$i]['x'], (int) $positions[$i]['y'], $e['l'], $e['h']) as $c) {
+                $prises["{$c['x']},{$c['y']}"] = true;
+            }
+        }
+
+        foreach (array_values($monstres) as $i => $monstre) {
+            if (! $monstre->estImmobile() || $monstre->grandeTaille() || $sures === []) {
                 continue;
             }
 
@@ -1181,8 +1297,11 @@ final class DemarreurQuete
      *                          (appel direct en test par réflexion).
      * @return list<Monstre>
      */
-    private function acheterMonstres(array $structure, int $budget, int $maxSpawns, int $positionArc, int $graineGroupe = 0, ?BestiaireGroupe $bestiaire = null, bool $figuresFixesPossibles = true): array
+    private function acheterMonstres(array $structure, int $budget, int $maxSpawns, int $positionArc, int $graineGroupe = 0, ?BestiaireGroupe $bestiaire = null, ?\Closure $figureFixePossible = null): array
     {
+        // Une figure IMMOBILE n'est achetée que si la carte offre un lieu où la poser — une case pour une figure
+        // d'une case, un emprise entière pour une grande (`figureFixePossible()`). Sans carte : aucune contrainte.
+        $figureFixePossible ??= static fn (Monstre $m): bool => true;
         $achats = [];
         $restant = $budget;
         // ⚠ Une SEULE résolution du thème pour toute la méthode — le pool du
@@ -1250,11 +1369,11 @@ final class DemarreurQuete
                     // sans cela, un sous-boss de la Crypte ferait sortir la Première Lumière, qui n'en a aucun.
                     ->filter(fn (Monstre $m) => ! $m->reserveASonTheme() || $bestiaire->contient($m->boites()))
                     // ⚠ Une FIGURE IMMOBILE (déplacement 0 : Guardian Effigy, Bloomrot Scion) ne
-                    // s'achète que si la carte a une case SÛRE pour elle (`spawn_figures_fixes`) :
+                    // s'achète que si la carte a un lieu SÛR pour elle (`figureFixePossible()`) :
                     // une figure qui ne bougera plus, posée sur le seul parvis d'une porte ou au
                     // milieu d'un boyau, ferait de la salle un cul-de-sac (§2.12 ter). Écrit : la
                     // rotation passe alors à l'adversaire suivant plutôt que de le poser n'importe où.
-                    ->reject(fn (Monstre $m) => ! $figuresFixesPossibles && $m->estImmobile())
+                    ->reject(fn (Monstre $m) => $m->estImmobile() && ! $figureFixePossible($m))
                     ->values();
 
                 // ⚠ ROTATION, pas tirage — et la distinction est celle que le
@@ -1291,7 +1410,7 @@ final class DemarreurQuete
             $final ??= Monstre::query()->where('tier', $tierFinal)->orderByDesc('cout')->orderBy('id')->get()
                 ->first(fn (Monstre $m) => $bestiaire->autorise($m->boites())
                     && (! $m->reserveASonTheme() || $bestiaire->contient($m->boites()))
-                    && ($figuresFixesPossibles || ! $m->estImmobile()));
+                    && (! $m->estImmobile() || $figureFixePossible($m)));
 
             if ($final !== null) {
                 $achats[] = $final;
@@ -1318,9 +1437,9 @@ final class DemarreurQuete
             ->filter(fn (Monstre $m) => $bestiaire->autorise($m->boites()))
             // `reserve_a_son_theme` s'applique à la masse aussi : une créature réservée ne sort jamais hors de sa boîte.
             ->filter(fn (Monstre $m) => ! $m->reserveASonTheme() || $bestiaire->contient($m->boites()))
-            ->reject(fn (Monstre $m) => ! $figuresFixesPossibles && $m->estImmobile())
+            ->reject(fn (Monstre $m) => $m->estImmobile() && ! $figureFixePossible($m))
             ->values();
-        $faibles = $base->filter(fn (Monstre $m) => (int) $m->cout <= $seuil)->values();       // coût croissant
+        $faibles =$base->filter(fn (Monstre $m) => (int) $m->cout <= $seuil)->values();       // coût croissant
 
         // ⚠ Les QUELQUES forts viennent du thème quand il en propose, la MASSE
         // de faibles non — et c'est exactement ainsi que les boîtes officielles

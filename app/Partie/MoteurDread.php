@@ -1325,13 +1325,14 @@ final class MoteurDread
         }
 
         $grille = FabriqueGrille::pour($quete, exceptInstanceId: $instance->id);
-        $ix = (int) $instance->position_x;
-        $iy = (int) $instance->position_y;
+        // Depuis N'IMPORTE quelle case du lanceur (2026-11-05) : un Bloomrot Scion de 4×4 voit ce que voit l'une de
+        // ses seize cases, pas seulement son ancre (`InstanceMonstre::cases()`). Pour une case, c'est l'ancre seule.
+        $siennes = $instance->cases();
 
         return $cibles->filter(fn (EtatPersonnageQuete $c) => $c->position_x !== null
-            && $grille->ligneDeVue(
-                $ix, $iy, (int) $c->position_x, (int) $c->position_y, figuresBloquent: true,
-            ))->values();
+            && collect($siennes)->contains(fn (array $case) => $grille->ligneDeVue(
+                $case['x'], $case['y'], (int) $c->position_x, (int) $c->position_y, figuresBloquent: true,
+            )))->values();
     }
 
     /**
@@ -1688,8 +1689,10 @@ final class MoteurDread
         $epargneLanceur = (bool) data_get($sort->effet, 'epargne_lanceur', false);
 
         return $quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get()
+            // Une figure est dans la zone dès qu'UNE de ses cases y est (`InstanceMonstre::cases()`, 2026-11-05) : l'ancre
+            // seule laissait hors de la zone une figure de deux cases (ou le Scion de seize) dont seule la tête y était.
             ->filter(fn (InstanceMonstre $m) => $m->position_x !== null
-                && isset($index[(int) $m->position_x.':'.(int) $m->position_y])
+                && collect($m->cases())->contains(fn (array $c) => isset($index[$c['x'].':'.$c['y']]))
                 && ! ($epargneLanceur && $m->id === $instance->id)
                 // « immune to all spell effects » (Guardian Effigy) : la zone passe sans l'atteindre.
                 && ! $m->monstre->immuniseAuxSorts())
@@ -1847,17 +1850,17 @@ final class MoteurDread
      */
     private function auContact(InstanceMonstre $instance, Collection $cibles): bool
     {
-        return $cibles->contains(fn (EtatPersonnageQuete $c) => Grille::sontAdjacentes(
-            (int) $instance->position_x, (int) $instance->position_y,
-            (int) $c->position_x, (int) $c->position_y,
-        ));
+        // Par TOUTE l'emprise (`InstanceMonstre::touche()`, qui passe par `Grille::sontAdjacentes()`).
+        return $cibles->contains(fn (EtatPersonnageQuete $c) => $c->position_x !== null
+            && $instance->touche((int) $c->position_x, (int) $c->position_y));
     }
 
-    /** Distance de Manhattan entre une créature et un héros. */
+    /** Distance de Manhattan entre une créature et un héros — depuis la case de la créature la plus proche du héros. */
     private function distance(InstanceMonstre $instance, EtatPersonnageQuete $cible): int
     {
-        return abs((int) $instance->position_x - (int) $cible->position_x)
-            + abs((int) $instance->position_y - (int) $cible->position_y);
+        return (int) collect($instance->cases())
+            ->map(fn (array $case) => abs($case['x'] - (int) $cible->position_x) + abs($case['y'] - (int) $cible->position_y))
+            ->min();
     }
 
     /** L'invocation ne se déclenche que si le lanceur est presque seul (≤ 1 autre monstre actif). */
@@ -6145,7 +6148,8 @@ final class MoteurDread
         $monstres = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->with('monstre')->get()
             ->filter(fn (InstanceMonstre $m) => $m->id !== $instance->id
                 && $m->position_x !== null
-                && isset($index[(int) $m->position_x.':'.(int) $m->position_y])
+                // Une de ses cases dans la zone suffit (même règle que `monstresDuSort()`).
+                && collect($m->cases())->contains(fn (array $c) => isset($index[$c['x'].':'.$c['y']]))
                 // « immune to all spell effects » (Guardian Effigy) : le drain ne la saigne pas.
                 && ! $m->monstre->immuniseAuxSorts())
             ->values();

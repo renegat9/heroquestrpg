@@ -1741,6 +1741,24 @@
     },
     {
       "type": "monstres",
+      "cle": "bloomrot-scion",
+      "nom_catalogue": "Bloomrot Scion",
+      "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",
+      "page": 20,
+      "cadre": [
+        204.0,
+        315.4,
+        283.0,
+        394.4
+      ],
+      "rotation": 0,
+      "tuile": true,
+      "carre_de_cases": 4,
+      "source": "F9907 p. 39 (PDF 20), carte de la quête 14, « The Bloomrot Scion » : la tuile du centre, qui dessine la gueule de la bête",
+      "note": "tuile carrée de quatre cases de côté, mesurée bord à bord le 2026-11-05 (fond bordeaux, ~79 pt de côté) ; la carte ne la nomme pas : le nom vient de la fiche du Scion ; emprise [4, 4] décidée par René (2026-10-31)"
+    },
+    {
+      "type": "monstres",
       "cle": "grasping-vines",
       "nom_catalogue": "Grasping Vines",
       "livret": "F9907_en-us_avalon-hill-heroquest-jungles-of-delthrak-quest-pack-game.pdf",

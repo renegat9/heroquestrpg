@@ -251,8 +251,18 @@ it('une TUILE porte un fichier à la taille de son emprise (carré : une case, 2
         [$largeur, $hauteur] = getimagesize($chemin);
         $emprise = $catalogue[$nom]->emprise();
         $cases = $emprise['l'] * $emprise['h'];
-        expect($cases)->toBeIn([1, 2], "« {$nom} » : une tuile couvre une ou deux cases");
-        expect($largeur)->toBe($cases * $hauteur, "« {$nom} » : fichier {$largeur}×{$hauteur} pour une emprise de {$cases} case(s)");
+        // Une tuile couvre une case, deux (2:1), ou un CARRÉ de quatre cases de côté (le Bloomrot Scion, 4×4, 2026-11-05) :
+        // Le fichier est TOUJOURS horizontal (1×2 comme 2×1 donnent 2:1 ; c'est le serveur qui couche le jeton) : le rapport
+        // largeur/hauteur est celui du grand côté sur le petit de l'emprise.
+        expect($cases)->toBeIn([1, 2, 16], "« {$nom} » : une tuile couvre une case, deux, ou un carré de quatre")
+            ->and($largeur * min($emprise['l'], $emprise['h']))->toBe($hauteur * max($emprise['l'], $emprise['h']), "« {$nom} » : fichier {$largeur}×{$hauteur}, emprise {$emprise['l']}×{$emprise['h']}");
+
+        // Un carré de plusieurs cases : le manifeste le déclare (`carre_de_cases`), et c'est lui qui fixe la taille du fichier.
+        if ($emprise['l'] > 1 && $emprise['l'] === $emprise['h']) {
+            $manifeste = json_decode((string) file_get_contents(base_path('image-tools/symboles-livrets/manifeste.json')), true)['symboles'];
+            $entree = collect($manifeste)->firstWhere('cle', $cle);
+            expect($entree['carre_de_cases'] ?? null)->toBe($emprise['l'], "« {$nom} » : carré de {$emprise['l']} cases non déclaré au manifeste");
+        }
     }
 
     $marques = [];

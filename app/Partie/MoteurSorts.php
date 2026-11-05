@@ -2024,11 +2024,13 @@ final class MoteurSorts
         return $quete->instancesMonstres()
             ->where('etat', 'actif')
             ->where('revele', true)
+            ->with('monstre')
             ->get()
             ->contains(fn (InstanceMonstre $i) => $i->position_x !== null
-                && $grille->ligneDeVue(
+                && $grille->ligneDeVueEmprise(
                     (int) $etat->position_x, (int) $etat->position_y,
                     (int) $i->position_x, (int) $i->position_y,
+                    $i->monstre->emprise()['l'], $i->monstre->emprise()['h'],
                 ));
     }
 

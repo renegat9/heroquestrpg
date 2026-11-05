@@ -896,8 +896,10 @@ class MonstreSeeder extends Seeder
             // ⚠ NON porté, nommé : « A hero or monster that enters the rift is consumed by Dread and lost
             // forever » — la faille est un élément de la CARTE imprimée de la quête 14, que la génération
             // procédurale ne dresse pas.
+            // EMPRISE 4×4 (René, 2026-10-31 : « Oui allons-y avec le 4x4 ») : la tuile de la carte de la quête 14 (F9907
+            // PDF 20) est un carré de quatre cases de côté, et c'est le jeton de la figure. Lue partout dans `Monstre::emprise()`.
             ['nom_base' => 'Scion Fleur-Pourrie', 'deplacement' => 0, 'attaque' => 5, 'defense' => 5, 'pv_body' => 12, 'pv_mind' => 0,
-                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 21,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 21, 'grande_taille' => ['l' => 4, 'h' => 4],
                 'capacites' => [
                     'venimeux', 'racines_entravantes', 'frappe_de_zone', 'attaque_diagonale',
                     'sacrifice_de_vrille', 'vrille_en_fin_de_tour' => ['creature' => 'Vrille'],

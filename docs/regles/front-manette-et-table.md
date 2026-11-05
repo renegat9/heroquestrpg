@@ -294,3 +294,5 @@ Le client, lui, ne fait qu'une chose : `SymboleCarte` (un seul composant) affich
   (`pousser_vent`). Un effet muet serait injouable.
 - ⚠ Rendu NON VÉRIFIÉ À L'ÉCRAN dans ce chantier (pas de partie réelle lancée depuis le worktree) : la lisibilité des quatre hachures à 38 px
   et l'icône `surfing`/`landslide`/`air` restent à regarder en partie.
+
+**Une tuile CARRÉE de plusieurs cases couvre toute son emprise** (2026-10-31, le Bloomrot Scion, 4×4). Le livret pose la tuile bord à bord : une tuile d'une case garde la place d'un disque (70 %), une tuile 2:1 celle d'un ovale (85 %), une tuile carrée de quatre cases occupe les quatre cases entières (`JETON_TUILE` = 1, `tuileCarreePleine()` dans `DungeonGrid.vue`). Le client ne fait que lire `symbole_forme` = `tuile` et l'emprise publiée `{l, h}` : la règle « combien de la case couvre le jeton » reste dans `disposerJetons()`, un seul endroit, table et manette ensemble. Le fichier du jeton est carré, de 256 px par case (`carre_de_cases` au manifeste, `image-tools/symboles-livrets/extraire.py`).

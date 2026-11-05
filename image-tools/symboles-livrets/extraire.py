@@ -355,7 +355,11 @@ def extraire_un(doc, entree, racine_livrets):
             img = img.rotate(-rotation, expand=True)
         img = img.convert('RGBA')
         if img.width < 1.5 * img.height:
-            return img.resize((COTE_PX, COTE_PX), Image.LANCZOS)
+            # Carrée : une case = 256 px de côté, comme partout ; une tuile CARRÉE de plusieurs cases (le Bloomrot Scion,
+            # `carre_de_cases` 4, 2026-11-05) prend 256 px PAR CASE, pour garder la même finesse à l'écran.
+            cases = max(1, int(entree.get('carre_de_cases', 1)))
+            cote = COTE_PX * cases
+            return img.resize((cote, cote), Image.LANCZOS)
         largeur, hauteur = 2 * COTE_PX, COTE_PX
         echelle = min(largeur / img.width, hauteur / img.height)
         dessin = img.resize((max(1, round(img.width * echelle)), max(1, round(img.height * echelle))), Image.LANCZOS)

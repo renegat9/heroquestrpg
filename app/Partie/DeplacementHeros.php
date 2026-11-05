@@ -501,10 +501,13 @@ final class DeplacementHeros
     {
         $cases = [];
 
-        foreach ($quete->instancesMonstres()->where('etat', 'actif')->get() as $instance) {
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get() as $instance) {
             /** @var InstanceMonstre $instance */
             if ($instance->position_x !== null && $this->sorts->monstreA($instance, MoteurSorts::MONSTRE_ENFUME)) {
-                $cases["{$instance->position_x},{$instance->position_y}"] = true;
+                // Toute l'EMPRISE : une figure noyée dans la fumée ne tient plus AUCUNE de ses cases.
+                foreach ($instance->cases() as $c) {
+                    $cases["{$c['x']},{$c['y']}"] = true;
+                }
             }
         }
 

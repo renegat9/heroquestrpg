@@ -245,7 +245,11 @@ const JETON_SEUL = 0.7;   // fraction du côté de l'emprise, pour une figure se
 const JETON_OVALE = 0.85; // figure ovale seule : son petit côté, en fraction du côté de l'emprise (le grand côté le double)
 const JETON_DUO = 0.46;   // deux figures sur une case
 const JETON_GROUPE = 0.86; // plus de deux : la grille k×k se partage 86 % du côté
+const JETON_TUILE = 1;     // tuile CARRÉE d'une emprise de plusieurs cases (le Bloomrot Scion, 4×4) : elle couvre TOUTE l'emprise
 const CENTRES_DUO = [[0.25, 0.25], [0.75, 0.75]];
+
+/** Une tuile carrée de plusieurs cases : le livret la pose bord à bord, elle occupe son emprise entière (et non une place de disque). */
+const tuileCarreePleine = (f) => f.symbole_forme === 'tuile' && (f.ew ?? 1) === (f.eh ?? 1) && (f.ew ?? 1) > 1;
 
 /** Une figure dont le livret dessine le jeton en OVALE — ou pose une TUILE de deux cases (le Golem, 2026-10-29), qui s'étend
  *  de la même façon sur ses deux cases. Sur une emprise carrée, ni l'un ni l'autre ne s'allonge. */
@@ -272,7 +276,8 @@ function disposerJetons(membres) {
     let diametre;
     let centres;
     if (n === 1) {
-        diametre = (estOvale(membres[0]) ? JETON_OVALE : JETON_SEUL) * cote;
+        const tuile = tuileCarreePleine(membres[0]);
+        diametre = (tuile ? JETON_TUILE : estOvale(membres[0]) ? JETON_OVALE : JETON_SEUL) * cote;
         centres = [[0.5, 0.5]];
     } else if (n === 2) {
         diametre = JETON_DUO * cote;

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Partie\EffetsGlobauxQuete;
+use App\Partie\Grille;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -401,6 +402,43 @@ class InstanceMonstre extends Model
         return $this->pv_body_max !== null
             ? (int) $this->pv_body_max
             : (int) $this->monstre->pv_body + ($this->elite ? self::BONUS_ELITE : 0);
+    }
+
+    /**
+     * TOUTES les cases que la figure occupe : son ancre (coin haut-gauche) et son emprise entière
+     * (`Monstre::emprise()`, lue dans le catalogue à chaque appel). Vide sans position.
+     *
+     * Le point de passage pour « où est ce monstre » quand la question porte sur sa place entière : un
+     * Bloomrot Scion est 4×4, et sa seule ancre ne suffit ni au contact, ni à la vue, ni à une Vrille,
+     * ni à une fumée — la règle de chacun se lit sur ces cases-ci.
+     *
+     * @return list<array{x: int, y: int}>
+     */
+    public function cases(): array
+    {
+        if ($this->position_x === null || $this->position_y === null) {
+            return [];
+        }
+
+        $e = $this->monstre->emprise();
+
+        return Grille::cellulesEmprise((int) $this->position_x, (int) $this->position_y, $e['l'], $e['h']);
+    }
+
+    /**
+     * La figure touche-t-elle la case (x, y) par UNE de ses cases ? Orthogonal par défaut ; `$diagonales`
+     * ouvre les huit voisines (arme longue, `attaque_diagonale`). Passe toujours par `Grille::sontAdjacentes()`,
+     * le point de passage unique du contact : aucune formule recopiée ici.
+     */
+    public function touche(int $x, int $y, bool $diagonales = false): bool
+    {
+        foreach ($this->cases() as $c) {
+            if (Grille::sontAdjacentes($c['x'], $c['y'], $x, $y, $diagonales)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function quete(): BelongsTo

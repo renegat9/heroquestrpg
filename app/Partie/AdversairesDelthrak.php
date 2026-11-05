@@ -236,8 +236,10 @@ final class AdversairesDelthrak
      * close as possible to the Bloomrot Scion » (F9907 p. 39).
      *
      * « As close as possible » : la case libre la plus proche au sens du JEU — d'abord la distance
-     * de Tchebychev à la case du Scion (le balayage diagonal compte pour un), puis le coût du
-     * chemin, puis l'ordre de lecture, de quoi rester DÉTERMINISTE. Les cases candidates sont celles
+     * de Tchebychev à l'EMPRISE du Scion (la case de son emprise la plus proche ; le balayage diagonal
+     * compte pour un), puis le coût du chemin, puis l'ordre de lecture, de quoi rester DÉTERMINISTE.
+     * Jamais une case de l'emprise elle-même ; la marche part de n'importe laquelle de ses cases.
+     * Les cases candidates sont celles
      * où une figure peut réellement s'ARRÊTER (`Grille::casesAtteignables()` : ni mur, ni mobilier,
      * ni porte close, ni figure, ni mare, ni brasier) ; les autres monstres se traversent
      * (`franchitAllies`), de sorte qu'une Vrille déjà posée n'emmure pas la suivante. Aucune case
@@ -265,17 +267,32 @@ final class AdversairesDelthrak
             return null; // donnée absente : jamais une exception en pleine phase
         }
 
-        $sx = (int) $scion->position_x;
-        $sy = (int) $scion->position_y;
+        // L'EMPRISE entière, pas l'ancre : un Scion 4×4 se touche par toutes ses cases. Une Vrille ne se pose
+        // jamais SUR l'emprise, et se mesure à la case de l'emprise la plus proche (Tchebychev, comme avant),
+        // atteignable depuis n'importe laquelle de ses cases.
+        $cases = $scion->cases();
+        $sur = [];
+
+        foreach ($cases as $c) {
+            $sur["{$c['x']},{$c['y']}"] = true;
+        }
+
         $grille = FabriqueGrille::pour($quete, exceptInstanceId: $scion->id, franchitAllies: true);
-        $meilleure = null; // [tchebychev, coût, y, x]
+        $meilleure = null; // [tchebychev à l'emprise, coût, y, x]
 
-        foreach ($grille->casesAtteignables($sx, $sy, 12) as $cle => $chemin) {
-            [$x, $y] = array_map(intval(...), explode(',', $cle));
-            $score = [max(abs($x - $sx), abs($y - $sy)), $grille->coutChemin($chemin), $y, $x];
+        foreach ($cases as $depart) {
+            foreach ($grille->casesAtteignables($depart['x'], $depart['y'], 12) as $cle => $chemin) {
+                if (isset($sur[$cle])) {
+                    continue;
+                }
 
-            if ($meilleure === null || $score < $meilleure) {
-                $meilleure = $score;
+                [$x, $y] = array_map(intval(...), explode(',', $cle));
+                $proche = min(array_map(fn (array $c): int => max(abs($x - $c['x']), abs($y - $c['y'])), $cases));
+                $score = [$proche, $grille->coutChemin($chemin), $y, $x];
+
+                if ($meilleure === null || $score < $meilleure) {
+                    $meilleure = $score;
+                }
             }
         }
 

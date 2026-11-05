@@ -183,7 +183,7 @@ inouvrable — « connexe n'est pas jouable » (§2.12 ter), cette fois avec une
   `CASES_JOUABLES_MINIMUM` cases libres** une fois mobilier ET figure posés — un plancher, jamais un plafond.
 - `DemarreurQuete::positionsDesMonstres()` pose la figure sur une case de cette liste en ÉCHANGEANT sa case
   avec celle du monstre qui s'y trouvait (de préférence dans la même salle : le boss reste dans la salle du
-  trône) ; `acheterMonstres(…, figuresFixesPossibles)` n'achète **aucune** figure immobile quand la liste est
+  trône) ; `acheterMonstres(…, figureFixePossible)` n'achète **aucune** figure immobile quand la liste est
   vide — la rotation passe à l'adversaire suivant plutôt que de poser une tourelle n'importe où. Aujourd'hui
   au plus UNE figure immobile par rencontre (le palier final ; aucune créature de palier `base` n'est à la fois
   immobile et achetable).
@@ -899,3 +899,18 @@ les monstres qui attaquent un héros dans la fosse suivent les règles ordinaire
 **Symbole** : le symbole 2 × 1 du livret ne tient pas dans une case. Chaque case porte la flèche de la Fosse
 (`PIEGE_ICONES['Fosse longue']`) ; le manifeste déclare l'absence avec sa mesure. Le contrat : `docs/contrat-api.md` §« The Mage
 of the Mirror — la fosse longue ».
+
+**§2.12 quinquies — une GRANDE figure immobile (4×4) se pose TOUTE, en salle, hors parvis, et laisse de la place aux héros** (2026-10-31, le Bloomrot Scion). `casesPourFiguresFixes()` ne voit qu'une case ; une emprise l×h est posée par `AssembleurCarte::ancresFiguresFixes($carte, l, h)`, lue sur la carte ASSEMBLÉE. Une ancre vaut quand :
+- chaque case de l'emprise est dans la MÊME salle que l'ancre, à l'intérieur, et hors décor et hors parvis (`casesDeSalleLibres()` : le recensement unique du décor, `casesDuDecor()`, et des parvis, `parvis()`) — jamais la salle 0, jamais un couloir ;
+- au moins `HEROS_AU_CONTACT_GRANDE` = 4 cases libres touchent l'emprise, orthogonalement : quatre héros s'y tiennent ;
+- la salle reste CONNEXE, mobilier et emprise compris (`salleResteConnexe()`), et il reste `CASES_JOUABLES_MINIMUM` cases libres.
+
+**Une case de SPAWN peut tomber dans l'emprise** : `DemarreurQuete::poserGrandeFigure()` pose le boss sur l'ancre, puis déplace chaque monstre qui occupait une case de l'emprise sur une case libre hors emprise (même salle d'abord). Le boss est posé AVANT les figures d'une case, qui ne peuvent donc pas tomber dans son emprise. Pas de place pour les occupants : le placement échoue par une `RuntimeException` explicite, jamais par une figure posée sur un autre monstre.
+
+**Ce n'est pas `MoteurSynchroformes::ancrer()`.** Celui-ci exige des salles DÉCOUVERTES (au départ, il n'y en a qu'une) et accepte un couloir et un parvis : une mue n'a pas les règles d'un placement de départ. Les deux ne partagent que `Grille::empriseArretPossible()`.
+
+**L'achat et le placement lisent LE MÊME critère.** `DemarreurQuete::figureFixePossible()` : une case (`spawn_figures_fixes`, comme avant) pour une figure d'une case, une emprise (`ancresFiguresFixes()`) pour une grande. Une figure immobile qu'aucun lieu ne tient n'est pas achetée : la rotation passe au boss suivant (`acheterMonstres()`).
+
+**La salle du boss a neuf colonnes et cinq rangées de sol** (`TuileSeeder`, migration `2026_10_31_150100_salle_du_boss_neuf_par_cinq`). À quatre rangées, le 4×4 couvrait toujours la case du parvis de la porte, et aucune salle du boss ne pouvait le recevoir. Sur 60 graines d'essai : 37 salles du boss offrent un lieu en 9 × 5. Décision à René : réserver le bloc 4×4 au mobilier de la salle du boss, ou la laisser sans mobilier.
+
+**Test** : `AdversairesNommesTest`, « PLACEMENT » (ancre tenue par toute l'emprise, occupants déplacés, de bout en bout sur 40 graines).

@@ -59,7 +59,7 @@ it('chaque clé FONCTIONNELLE du manifeste est lue par l\'outil, et aucune clé 
     // Une clé du manifeste sans lecteur serait une clé décorative : l'outil croirait la prendre en compte, et ne le ferait pas.
     // `source`, `note` et `nom_catalogue` sont de la DOCUMENTATION (lue par l'humain et par ce test), permises sans lecteur.
     $outil = file_get_contents(base_path('image-tools/symboles-livrets/extraire.py'));
-    $lues = ['type', 'cle', 'livret', 'page', 'cadre', 'rotation', 'emprise', 'couleur', 'seuil', 'poussiere', 'natif', 'absent', 'disque', 'ovale', 'tuile'];
+    $lues = ['type', 'cle', 'livret', 'page', 'cadre', 'rotation', 'emprise', 'couleur', 'seuil', 'poussiere', 'natif', 'absent', 'disque', 'ovale', 'tuile', 'carre_de_cases'];
     $documentaires = ['nom_catalogue', 'source', 'note'];
 
     foreach ($lues as $cle) {

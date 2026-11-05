@@ -116,10 +116,9 @@ final class MenuMoteur
                 continue;
             }
 
-            $ix = (int) $instance->position_x;
-            $iy = (int) $instance->position_y;
-
-            if (! Grille::sontAdjacentes($ix, $iy, $px, $py)) {
+            // Contact par TOUTE l'emprise (un 4×4 se touche par chacune de ses cases). Une figure IMMOBILE ne se
+            // repousse pas : elle reste là où on l'a posée jusqu'à ce qu'on la détruise (`carte-donjon.md` §2.12 quater).
+            if ($instance->monstre->estImmobile() || ! $instance->touche($px, $py)) {
                 continue;
             }
 
@@ -260,11 +259,13 @@ final class MenuMoteur
             // FAVEUR « Deadeye » (Hopekins Rest) : les figures ne bloquent
             // plus la ligne de vue de CE héros pour viser.
             $figuresBloquent = $this->faveurs->figuresBloquentPour($personnage);
+            // Visée d'une figure : UNE de ses cases suffit (`ligneDeVueEmprise()`), un 4×4 se voit par son bord.
             $aDistance = $actives->filter(fn (InstanceMonstre $i) => $i->position_x !== null
                 && ! in_array($i->id, $idsAdjacents, true)
-                && $grille->ligneDeVue(
+                && $grille->ligneDeVueEmprise(
                     (int) $etat->position_x, (int) $etat->position_y,
                     (int) $i->position_x, (int) $i->position_y,
+                    $i->monstre->emprise()['l'], $i->monstre->emprise()['h'],
                     figuresBloquent: $figuresBloquent,
                 ));
         }
@@ -424,9 +425,13 @@ final class MenuMoteur
         );
 
         if ($cible === MotsClesSort::CIBLE_MONSTRE) {
+            // Une figure est visée dès qu'UNE de ses cases est en vue (son emprise entière, pas l'ancre seule).
             $cibles = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
                 ->with('monstre')->get()
-                ->filter(fn (InstanceMonstre $i) => $vue($i->position_x, $i->position_y))
+                ->filter(fn (InstanceMonstre $i) => $i->position_x !== null && $grille->ligneDeVueEmprise(
+                    (int) $etat->position_x, (int) $etat->position_y, (int) $i->position_x, (int) $i->position_y,
+                    $i->monstre->emprise()['l'], $i->monstre->emprise()['h'], figuresBloquent: $figuresBloquent,
+                ))
                 ->map(fn (InstanceMonstre $i) => ['id' => $i->id, 'type' => 'monstre', 'nom' => $i->nomAffiche()])
                 ->values()->all();
 
@@ -571,7 +576,8 @@ final class MenuMoteur
                     ->with('monstre')->get()
                     ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
                         && in_array(mb_strtolower((string) $i->monstre?->nom_base), $noms, true)
-                        && $grille->ligneDeVue($px, $py, (int) $i->position_x, (int) $i->position_y))
+                        && $grille->ligneDeVueEmprise($px, $py, (int) $i->position_x, (int) $i->position_y,
+                            $i->monstre->emprise()['l'], $i->monstre->emprise()['h']))
                     ->map(fn (InstanceMonstre $i) => ['id' => $i->id, 'type' => 'monstre', 'nom' => $i->nomAffiche()])
                     ->values()->all();
 

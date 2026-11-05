@@ -4551,6 +4551,12 @@ final class AssembleurCarte
     private const CASES_JOUABLES_MINIMUM = self::RESERVE_CASES_LIBRES + 2;
 
     /**
+     * Une grande figure immobile (`ancresFiguresFixes()`) laisse au moins quatre cases libres AU CONTACT de son emprise :
+     * les quatre héros qui la frappent s'y tiennent (consigne du 2026-10-31 : « avec de la place pour quatre héros autour »).
+     */
+    private const HEROS_AU_CONTACT_GRANDE = 4;
+
+    /**
      * Mobilier POSÉ PAR UN SORT EN COURS DE QUÊTE
      * (`MoteurMobilier::poserMurMagique()`), jamais par ce générateur — Mur de
      * Pierre (Wall of Stone, sort de héros, 2026-10-06), et demain Mur de
@@ -4839,6 +4845,144 @@ final class AssembleurCarte
         }
 
         return $sures;
+    }
+
+    /**
+     * Les cases où une figure peut se TENIR en salle : l'intérieur de chaque salle (jamais la salle 0), hors décor
+     * (`casesDuDecor()`, emprises de meubles comprises) et hors parvis (`parvis()`). Un seul recensement, lu par
+     * `ancresFiguresFixes()` (où poser une grande figure) et par `DemarreurQuete` (où déplacer un monstre qui occupe
+     * une case de cette emprise).
+     *
+     * @param  array<string, mixed>  $carte  la carte assemblée (`cases`, `salles`, `portes`, `leviers`, `epreuves`,
+     *                                        `mobilier`, `pieges`, `terrain`)
+     * @return array<string, true>  clés « x,y »
+     */
+    public function casesDeSalleLibres(array $carte): array
+    {
+        $cases = (array) ($carte['cases'] ?? []);
+        $salles = (array) ($carte['salles'] ?? []);
+        $portes = (array) ($carte['portes'] ?? []);
+        $leviers = (array) ($carte['leviers'] ?? []);
+        $epreuves = (array) ($carte['epreuves'] ?? []);
+
+        $parvis = $this->parvis($portes, $leviers, $epreuves);
+        $decor = $this->casesDuDecor(
+            $salles, $portes, (array) ($carte['mobilier'] ?? []), (array) ($carte['pieges'] ?? []),
+            $leviers, $epreuves, (array) ($carte['terrain'] ?? []),
+        );
+
+        $libres = [];
+        foreach ($salles as $i => $salle) {
+            if ($i === 0) {
+                continue;
+            }
+
+            foreach ($this->interieur($cases, $salle) as $c) {
+                $cle = "{$c['x']},{$c['y']}";
+
+                if (! isset($decor[$cle]) && ! isset($parvis[$cle])) {
+                    $libres[$cle] = true;
+                }
+            }
+        }
+
+        return $libres;
+    }
+
+    /**
+     * Les ANCRES (coin haut-gauche) où une figure IMMOBILE de `$l` × `$h` cases tient en salle — le Bloomrot Scion,
+     * 4×4 (René, 2026-10-31 : « Oui allons-y avec le 4x4 »). `casesPourFiguresFixes()` ne voit qu'UNE case : une grande
+     * figure est posée TOUTE, ou pas du tout. Une ancre vaut quand, pour chaque case de son emprise :
+     *  - elle est dans la MÊME salle que l'ancre, à l'intérieur, hors décor et hors parvis (`casesDeSalleLibres()`) ;
+     * et quand la salle reste dans son état jouable une fois l'emprise posée :
+     *  - la salle reste CONNEXE, mobilier et emprise compris (`salleResteConnexe()`) ;
+     *  - il reste au moins `CASES_JOUABLES_MINIMUM` cases libres — un plancher sur les cases restantes.
+     * Une case de SPAWN peut tomber dans l'emprise : son monstre y est déplacé à la pose (`DemarreurQuete`), jamais la
+     * figure qui se pose sur lui.
+     *
+     * Ce n'est PAS `MoteurSynchroformes::ancrer()` : celui-ci exige des salles DÉCOUVERTES (au départ, il n'y en a
+     * qu'une) et accepte un couloir et un parvis. Un placement de départ et une mue n'ont pas la même règle.
+     *
+     * @param  array<string, mixed>  $carte  la carte assemblée (voir `casesDeSalleLibres()`, plus `salles`, `portes`)
+     * @return list<array{x: int, y: int}>  par salle (ordre des salles), puis ligne, puis colonne : déterministe
+     */
+    public function ancresFiguresFixes(array $carte, int $l, int $h): array
+    {
+        $cases = (array) ($carte['cases'] ?? []);
+        $salles = (array) ($carte['salles'] ?? []);
+        $portes = (array) ($carte['portes'] ?? []);
+        $libres = $this->casesDeSalleLibres($carte);
+
+        $meubles = [];
+        foreach ((array) ($carte['mobilier'] ?? []) as $m) {
+            foreach (Grille::cellulesEmprise((int) $m['x'], (int) $m['y'], (int) ($m['l'] ?? 1), (int) ($m['h'] ?? 1)) as $c) {
+                $meubles["{$c['x']},{$c['y']}"] = true;
+            }
+        }
+
+        $ancres = [];
+
+        foreach ($salles as $i => $salle) {
+            if ($i === 0) {
+                continue;
+            }
+
+            $interieur = $this->interieur($cases, $salle);
+            $seuils = $this->seuilsDeSalle($salle, $portes);
+
+            foreach ($interieur as $ancre) {
+                $emprise = Grille::cellulesEmprise($ancre['x'], $ancre['y'], $l, $h);
+                $dedans = [];
+                foreach ($emprise as $c) {
+                    $dedans["{$c['x']},{$c['y']}"] = true;
+                }
+                $tient = true;
+
+                foreach ($emprise as $c) {
+                    if (! isset($libres["{$c['x']},{$c['y']}"]) || Salles::indexDe($salles, $c['x'], $c['y']) !== $i) {
+                        $tient = false;
+                        break;
+                    }
+                }
+
+                if (! $tient) {
+                    continue;
+                }
+
+                // Des héros doivent pouvoir se tenir AU CONTACT de la figure, orthogonal comme partout : au moins
+                // `HEROS_AU_CONTACT_GRANDE` cases libres, hors emprise, la touchent. Sans elles, la figure est là mais
+                // personne ne peut la frapper — une salle que le groupe ne peut pas jouer.
+                $voisines = [];
+                foreach ($emprise as $c) {
+                    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                        $k = ($c['x'] + $dx).','.($c['y'] + $dy);
+                        if (isset($libres[$k]) && ! isset($dedans[$k])) {
+                            $voisines[$k] = true;
+                        }
+                    }
+                }
+
+                if (count($voisines) < self::HEROS_AU_CONTACT_GRANDE) {
+                    continue;
+                }
+
+                $occupees = $meubles;
+                foreach ($emprise as $c) {
+                    $occupees["{$c['x']},{$c['y']}"] = true;
+                }
+
+                $prises = count(array_filter($interieur, fn (array $c) => isset($occupees["{$c['x']},{$c['y']}"])));
+
+                if (count($interieur) - $prises < self::CASES_JOUABLES_MINIMUM
+                    || ! $this->salleResteConnexe($interieur, $seuils, $occupees)) {
+                    continue;
+                }
+
+                $ancres[] = ['x' => $ancre['x'], 'y' => $ancre['y']];
+            }
+        }
+
+        return $ancres;
     }
 
     /**

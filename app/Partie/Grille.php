@@ -875,7 +875,7 @@ final class Grille
      *
      * @return list<array{x: int, y: int}>
      */
-    public function cellulesEmprise(int $x, int $y, int $l, int $h): array
+    public static function cellulesEmprise(int $x, int $y, int $l, int $h): array
     {
         $cellules = [];
 
