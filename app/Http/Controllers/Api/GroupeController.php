@@ -16,6 +16,7 @@ use App\Models\Personnage;
 use App\Models\PersonnageHistorique;
 use App\Models\Competence;
 use App\Partie\Marche\PhaseMarche;
+use App\Partie\BestiaireGroupe;
 use App\Partie\CompagnonOffert;
 use App\Partie\DemarreurQuete;
 use App\Partie\Equipement;
@@ -45,8 +46,11 @@ class GroupeController extends Controller
 {
     use AutoriseLectureGroupe;
 
-    /** Bornes de quêtes par longueur de campagne (doc 05 §2). */
-    private const QUETES_PAR_LONGUEUR = [
+    /**
+     * Bornes de quêtes par longueur de campagne (doc 05 §2). Mêmes clés que
+     * `BestiaireGroupe::BOITES_TIREES_PAR_LONGUEUR` (testé dans les deux sens).
+     */
+    public const QUETES_PAR_LONGUEUR = [
         'tres_courte' => [1, 1],
         'courte' => [3, 5],
         'normale' => [7, 10],
@@ -105,6 +109,16 @@ class GroupeController extends Controller
             }
         }
 
+        // `array_key_exists`, pas `??` : une liste VIDE est un choix (jeu de base
+        // seul), distinct de l'absence (automatique).
+        // Automatique (2026-11-05) : un TIRAGE selon la longueur, écrit tout de
+        // suite — la campagne est jouable sans attendre l'IA. Le MJ IA le remplace
+        // par les boîtes que le thème évoque en écrivant le squelette
+        // (`GenererSqueletteCampagne`, `BestiaireGroupe::adopterChoixDuMj()`).
+        $bestiaire = array_key_exists('bestiaire_boites', $donnees) && $donnees['bestiaire_boites'] !== null
+            ? ['boites_bestiaire' => array_values($donnees['bestiaire_boites'])]
+            : ['boites_bestiaire' => BestiaireGroupe::tirer($donnees['longueur']), 'origine_boites' => BestiaireGroupe::MODE_TIRAGE];
+
         $groupe = Groupe::create([
             'identifiant' => $donnees['identifiant'] ?? $this->genererIdentifiant($donnees['nom']),
             'nom' => $donnees['nom'],
@@ -112,11 +126,7 @@ class GroupeController extends Controller
             'longueur' => $donnees['longueur'],
             'nb_quetes_total' => random_int($min, $max),
             'ton' => $donnees['ton'] ?? null,
-            // `array_key_exists`, pas `??` : une liste VIDE est un choix (jeu
-            // de base seul), distinct de l'absence (automatique).
-            'boites_bestiaire' => array_key_exists('bestiaire_boites', $donnees) && $donnees['bestiaire_boites'] !== null
-                ? array_values($donnees['bestiaire_boites'])
-                : null,
+            ...$bestiaire,
         ]);
 
         // Le perso fondateur rejoint le groupe (pivot + or au pot).

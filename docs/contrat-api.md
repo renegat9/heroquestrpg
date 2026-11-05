@@ -46,7 +46,7 @@ proposition du MJ. » quand ce n'est pas son tour.
   "groupe": {"identifiant": "...", "nom": "...", "phase": "hub|quete", "or": 0, "etat": "en_cours",
              "theme": "Cryptes maudites sous la cité|null",
              "theme_bestiaire": "horreur_des_glaces|null", "theme_bestiaire_libelle": "The Frozen Horror",
-             "bestiaire_mode": "auto|manuel", "bestiaire_boites": ["horreur_des_glaces"],
+             "bestiaire_mode": "manuel|mj|tirage|auto", "bestiaire_boites": ["horreur_des_glaces"],
              "prets": [{"personnage_id": 1, "pret": false}],
              "mercenaires": [{"id": 3, "mercenaire_id": 2, "nom": "...", "type": "archer",
                               "animal": false, "offert": false, "pv_body": 1, "pv_body_max": 1}],
@@ -172,9 +172,27 @@ système de base seulement). » Choisi **à la création du groupe**, figé pour
 campagne.
 
 - **Automatique** — `bestiaire_boites` absent ou `null` au `POST /api/groupes`.
-  Comportement historique : une boîte tirée par rotation à la première quête
-  (`groupes.theme_bestiaire`), qui est une **préférence** (boss final et
-  quelques « forts ») sur le bestiaire commun, jamais un filtre.
+  **Depuis le 2026-11-05** (René : « donner la liste et une description des
+  extensions à l'agent IA afin qu'il choisisse des extensions selon le prompt
+  donné, et si le prompt est trop vague, choisir 1, 2 ou 3 extensions au hasard
+  selon la longueur de la campagne ») :
+  1. À la création, le serveur **tire** les boîtes au hasard dans
+     `DemarreurQuete::BOITES_THEMATIQUES`, selon la longueur : 1 (`tres_courte`,
+     `courte`), 2 (`normale`), 3 (`longue`, `tres_longue`). Écrites tout de
+     suite (`groupes.boites_bestiaire`, `groupes.origine_boites = tirage`) : la
+     campagne est jouable sans attendre l'IA, et sans clé API.
+  2. Le squelette de campagne (`GenererSqueletteCampagne`) reçoit la liste des
+     boîtes avec leur description et ce tirage. Le MJ IA rend dans `extensions`
+     de 1 à 3 boîtes que le thème évoque clairement, ou une liste VIDE si le
+     thème est trop vague. Une liste non vide **remplace** le tirage
+     (`origine_boites = mj`), à une condition : aucune quête du groupe n'a
+     encore démarré. Sinon le tirage reste, et la prémisse a été écrite pour lui.
+  3. Les boîtes ainsi choisies sont un **filtre**, exactement comme en manuel
+     (ci-dessous) : jeu de base, nos créatures et ces boîtes, rien d'autre.
+  ⚠ Les campagnes créées AVANT le 2026-11-05 (`boites_bestiaire` `null`) gardent
+  le comportement historique : une boîte tirée par rotation à la première quête
+  (`groupes.theme_bestiaire`), une **préférence** (boss final et quelques
+  « forts ») sur le bestiaire commun, jamais un filtre. Rien ne les convertit.
 - **Manuel** — `bestiaire_boites` est une liste (vide comprise) d'identifiants
   de `DemarreurQuete::BOITES_THEMATIQUES` ; toute autre valeur → 422. C'est un
   **filtre** : n'apparaissent que les créatures du jeu de base (`boite =
@@ -188,12 +206,15 @@ campagne.
   la carte du lanceur : le lanceur n'est là que si sa boîte l'est.
 - `GET /api/moi` publie `boites_bestiaire: [{id, libelle}]` — les boîtes
   proposables, libellés **décidés côté serveur** (noms officiels).
-- `EtatGroupe.groupe` : `bestiaire_mode` (`auto|manuel`), `bestiaire_boites`
-  (en auto : la boîte tirée, ou `[]` avant la première quête ; en manuel : la
-  sélection), `theme_bestiaire` (la boîte tirée en auto, **`null` en manuel**)
-  et `theme_bestiaire_libelle`, toujours présent : en manuel « HeroQuest Game
-  System », suivi des boîtes cochées (« HeroQuest Game System + Jungles of
-  Delthrak »). `App\Partie\BestiaireGroupe` est le point de passage unique.
+- `EtatGroupe.groupe` : `bestiaire_mode` — `manuel` (cochées par les joueurs),
+  `mj` (choisies par le MJ IA selon le thème), `tirage` (tirées au hasard,
+  thème trop vague ou IA indisponible), `auto` (campagne d'avant le 2026-11-05,
+  rotation historique) ; `bestiaire_boites` (la sélection ; en `auto`, la boîte
+  tirée, ou `[]` avant la première quête) ; `theme_bestiaire` (la boîte tirée en
+  `auto`, **`null` dans les trois autres modes**) et `theme_bestiaire_libelle`,
+  toujours présent : hors `auto`, « HeroQuest Game System » suivi des boîtes
+  (« HeroQuest Game System + Jungles of Delthrak »).
+  `App\Partie\BestiaireGroupe` est le point de passage unique.
 
 `groupe.ambiance` — scène sonore **décidée par le serveur**
 (`EtatGroupe::sceneAmbiance()`), la table ne fait que jouer la piste :

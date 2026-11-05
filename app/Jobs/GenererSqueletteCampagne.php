@@ -13,6 +13,8 @@ use App\Agent\Skills\SqueletteCampagne;
 use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
 use App\Models\Groupe;
+use App\Partie\BestiaireGroupe;
+use App\Partie\CatalogueExtensions;
 use App\Partie\Narration\BibliothequeNarration;
 use App\Support\Journal;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -27,6 +29,12 @@ use Throwable;
  * persiste dans groupes.plan_campagne (socle stable, doc 07 §2), amorce
  * la bible Qdrant avec le thème (best effort), puis diffuse la prémisse
  * sur l'écran de table.
+ *
+ * Bestiaire automatique (René, 2026-11-05) : le MJ reçoit la liste des
+ * extensions et le tirage fait à la création ; les boîtes qu'il rend
+ * remplacent ce tirage (`BestiaireGroupe::adopterChoixDuMj()`). Sans réponse
+ * (thème vague, LLM indisponible, pas de clé), le tirage reste. Dans tous les
+ * cas, le bestiaire retenu est écrit au journal.
  */
 class GenererSqueletteCampagne implements ShouldQueue
 {
@@ -36,7 +44,7 @@ class GenererSqueletteCampagne implements ShouldQueue
 
     public function __construct(public readonly int $groupeId) {}
 
-    public function handle(SqueletteCampagne $skill, ContexteAssembleur $assembleur, BibleQdrant $bible, TtsGemini $tts, BibliothequeNarration $narration): void
+    public function handle(SqueletteCampagne $skill, ContexteAssembleur $assembleur, BibleQdrant $bible, TtsGemini $tts, BibliothequeNarration $narration, CatalogueExtensions $extensions): void
     {
         $groupe = Groupe::findOrFail($this->groupeId);
 
@@ -44,6 +52,7 @@ class GenererSqueletteCampagne implements ShouldQueue
 
         try {
             $contexte = $assembleur->assembler($groupe, requeteScene: $groupe->theme);
+            $contexte['extensions'] = $extensions->pourSquelette($groupe);
 
             try {
                 $squelette = $skill->generer($contexte);
@@ -58,6 +67,7 @@ class GenererSqueletteCampagne implements ShouldQueue
                 ]);
 
                 Journal::ajouter($groupe, 'systeme', ['action' => 'squelette_campagne_indisponible']);
+                $this->annoncerBestiaire($groupe);
 
                 $texteRepli = 'La campagne commence : le groupe se rassemble, prêt à répondre à l\'appel de l\'aventure.';
                 $evenementRepli = Journal::ajouter($groupe, 'narration', ['texte' => $texteRepli]);
@@ -70,6 +80,20 @@ class GenererSqueletteCampagne implements ShouldQueue
 
                 return;
             }
+
+            // Le choix du bestiaire n'est PAS du fil rouge : retiré avant d'écrire le
+            // squelette, que les skills suivants reçoivent comme « à ne pas contredire ».
+            $choisies = array_values(array_unique(array_map('strval', (array) ($squelette['extensions'] ?? []))));
+            unset($squelette['extensions']);
+
+            if ($contexte['extensions']['choix_ouvert'] && $choisies !== []
+                && ! BestiaireGroupe::adopterChoixDuMj($groupe, $choisies)) {
+                Log::info('Bestiaire du MJ non retenu : une quête a démarré pendant l\'écriture du squelette, le tirage reste.', [
+                    'groupe_id' => $groupe->id,
+                    'choisies' => $choisies,
+                ]);
+            }
+            $this->annoncerBestiaire($groupe);
 
             $groupe->plan_campagne = $squelette;
             $groupe->save();
@@ -98,6 +122,26 @@ class GenererSqueletteCampagne implements ShouldQueue
         } finally {
             broadcast(new MjReflechit($groupe, false));
         }
+    }
+
+    /**
+     * Le bestiaire RETENU, au journal : choisi par le MJ selon le thème, ou tiré au hasard. Rien pour un bestiaire coché
+     * par les joueurs (ils l'ont choisi eux-mêmes) ni pour une campagne en rotation historique.
+     */
+    private function annoncerBestiaire(Groupe $groupe): void
+    {
+        $bestiaire = BestiaireGroupe::duGroupe($groupe);
+
+        if (! in_array($bestiaire->mode, [BestiaireGroupe::MODE_MJ, BestiaireGroupe::MODE_TIRAGE], true)) {
+            return;
+        }
+
+        Journal::ajouter($groupe, 'systeme', [
+            'action' => 'bestiaire_de_campagne',
+            'mode' => $bestiaire->mode,
+            'boites' => $bestiaire->boites,
+            'libelle' => $bestiaire->libelle(),
+        ]);
     }
 
     /**

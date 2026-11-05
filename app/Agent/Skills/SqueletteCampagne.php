@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Agent\Skills;
 
+use App\Partie\BestiaireGroupe;
+use App\Partie\DemarreurQuete;
 use App\Partie\JalonsCampagne;
 
 /**
@@ -21,8 +23,17 @@ class SqueletteCampagne extends Skill
 {
     public const SCHEMA = [
         'type' => 'object',
-        'required' => ['premisse', 'menace', 'jalons', 'fils_narratifs'],
+        'required' => ['premisse', 'menace', 'jalons', 'fils_narratifs', 'extensions'],
         'properties' => [
+            // Le bestiaire de la campagne (René, 2026-11-05) : les boîtes que le THÈME évoque, ou rien s'il est trop
+            // vague — le tirage fait à la création reste alors. Lu par `GenererSqueletteCampagne`, jamais gardé dans
+            // le squelette. ⚠ L'unicité est vérifiée par `validerMetier()` : le validateur de schéma ne lit pas `uniqueItems`.
+            'extensions' => [
+                'type' => 'array',
+                'maxItems' => BestiaireGroupe::BOITES_CHOISIES_MAX,
+                'description' => 'Identifiants des extensions que le thème du groupe évoque clairement (1 à 3), ou liste vide.',
+                'items' => ['type' => 'string', 'enum' => DemarreurQuete::BOITES_THEMATIQUES],
+            ],
             'premisse' => [
                 'type' => 'string',
                 'minLength' => 40,
@@ -104,16 +115,78 @@ class SqueletteCampagne extends Skill
         - Le squelette est NARRATIF : aucune statistique, aucun monstre précis du
           catalogue — seulement des idées que les quêtes concrétiseront.
         TXT;
+        $system .= $this->consigneExtensions($contexte['extensions'] ?? null);
 
         $user = $this->contexteEnTexte($contexte, ['groupe', 'bible'])
+            .$this->catalogueExtensionsEnTexte($contexte['extensions'] ?? null)
             ."\n\nGénère le squelette de campagne pour ce groupe en appelant l'outil.";
 
         return ['system' => $system, 'user' => $user];
     }
 
+    /**
+     * La consigne du bestiaire. Choix OUVERT (un tirage, aucune quête jouée) : le MJ choisit selon le thème, ou laisse
+     * le tirage. Choix FERMÉ (cochées par les joueurs, ou déjà joué) : il écrit pour les boîtes retenues.
+     *
+     * @param  array{choix_ouvert: bool, retenues: list<string>, catalogue: array<string, string>}|null  $extensions
+     */
+    private function consigneExtensions(?array $extensions): string
+    {
+        if ($extensions === null) {
+            return "\n- Rends `extensions` vide.";
+        }
+
+        $retenues = implode(', ', array_map(
+            fn (string $b) => app(DemarreurQuete::class)->libelleBoiteBestiaire($b),
+            $extensions['retenues'],
+        ));
+        $max = BestiaireGroupe::BOITES_CHOISIES_MAX;
+
+        if (! $extensions['choix_ouvert']) {
+            return $retenues === ''
+                ? "\n\nBestiaire : la campagne joue avec le jeu de base seul, aucune extension. Rends `extensions` VIDE."
+                : "\n\nBestiaire : la campagne joue avec le jeu de base et {$retenues}. Rends `extensions` VIDE. "
+                    .'Prémisse, menace et jalons doivent coller au décor et aux adversaires de ces extensions (section EXTENSIONS).';
+        }
+
+        return <<<TXT
+
+
+        Bestiaire (section EXTENSIONS) : chaque extension apporte son décor et ses créatures, qui s'ajoutent au jeu de base.
+        - Mets dans `extensions` de 1 à {$max} identifiant(s) d'extension que le THÈME du groupe évoque CLAIREMENT
+          (un lieu, un peuple, une créature, une ambiance). N'en ajoute pas pour faire nombre.
+        - Si le thème n'en évoque clairement aucune, rends `extensions` VIDE : la campagne jouera alors avec celles
+          tirées au hasard, {$retenues}.
+        - Prémisse, menace et jalons doivent coller au décor et aux adversaires des extensions retenues (les tiennes,
+          ou à défaut le tirage).
+        TXT;
+    }
+
+    /**
+     * @param  array{choix_ouvert: bool, retenues: list<string>, catalogue: array<string, string>}|null  $extensions
+     */
+    private function catalogueExtensionsEnTexte(?array $extensions): string
+    {
+        if ($extensions === null) {
+            return '';
+        }
+
+        $lignes = [];
+        foreach ($extensions['catalogue'] as $boite => $description) {
+            $lignes[] = "- `{$boite}` : {$description}";
+        }
+
+        return "\n\n## EXTENSIONS (identifiant : description)\n".implode("\n", $lignes);
+    }
+
     protected function validerMetier(array $sortie, array $contexte): array
     {
         $erreurs = [];
+
+        $extensions = (array) ($sortie['extensions'] ?? []);
+        if (count($extensions) !== count(array_unique($extensions))) {
+            $erreurs[] = 'Une extension est citée deux fois dans `extensions`.';
+        }
         $nbQuetes = (int) ($contexte['groupe']['nb_quetes_total'] ?? 1);
         $jalons = $sortie['jalons'] ?? [];
 

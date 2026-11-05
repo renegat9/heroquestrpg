@@ -208,7 +208,9 @@ const boitesBestiaire = ref([]);
 const modeBestiaire = ref({});   // { [perso.id]: 'auto' | 'manuel' }
 const boitesCochees = ref({});   // { [perso.id]: [id de boîte…] }
 const modesBestiaire = [
-    { v: 'auto', l: 'Automatique', sub: 'une extension tirée au sort' },
+    // Automatique (2026-11-05) : le MJ choisit selon le thème saisi, ou tire
+    // 1 à 3 extensions au hasard selon la longueur si le thème est trop vague.
+    { v: 'auto', l: 'Automatique', sub: 'le MJ choisit selon le thème' },
     { v: 'manuel', l: 'Manuel', sub: 'je choisis les extensions' },
 ];
 function basculerBoite(persoId, boite) {

@@ -49,7 +49,7 @@ function achatsPour(BestiaireGroupe $bestiaire, array $structure, int $positionA
     return $methode->invoke($demarreur, $structure, 40, 12, $positionArc, $graine, $bestiaire);
 }
 
-it('enregistre le mode à la création : absent = automatique, liste (vide comprise) = manuel', function () {
+it('enregistre le mode à la création : absent = automatique (un tirage), liste (vide comprise) = manuel', function () {
     connecterJoueur('alice');
 
     $creer = fn (string $id, array $extra) => $this->postJson('/api/groupes', [
@@ -60,7 +60,13 @@ it('enregistre le mode à la création : absent = automatique, liste (vide compr
     $creer('base-seule', ['bestiaire_boites' => []])->assertStatus(201);
     $creer('jungle-lune', ['bestiaire_boites' => ['jungles_delthrak', 'dread_moon']])->assertStatus(201);
 
-    expect(Groupe::where('identifiant', 'auto')->value('boites_bestiaire'))->toBeNull()
+    // Automatique, depuis le 2026-11-05 : une boîte TIRÉE (campagne courte), que le MJ IA pourra remplacer.
+    // Le détail du tirage et du choix du MJ : `BestiaireChoisiParLeMjTest`.
+    $auto = Groupe::where('identifiant', 'auto')->first();
+    expect($auto->boites_bestiaire)->toHaveCount(1)
+        ->and(DemarreurQuete::BOITES_THEMATIQUES)->toContain($auto->boites_bestiaire[0])
+        ->and($auto->origine_boites)->toBe(BestiaireGroupe::MODE_TIRAGE)
+        ->and(Groupe::where('identifiant', 'base-seule')->first()->origine_boites)->toBeNull()
         ->and(Groupe::where('identifiant', 'base-seule')->first()->boites_bestiaire)->toBe([])
         ->and(Groupe::where('identifiant', 'jungle-lune')->first()->boites_bestiaire)->toBe(['jungles_delthrak', 'dread_moon']);
 

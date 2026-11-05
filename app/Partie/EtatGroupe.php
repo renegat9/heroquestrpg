@@ -90,9 +90,9 @@ final class EtatGroupe
             // Boîte de BESTIAIRE, FIGÉE pour toute la campagne — l'identifiant
             // ET son libellé lisible, les deux décidés ici, jamais par le
             // client.
-            // `null` en MANUEL : aucune boîte tirée, les cochées sont dans
-            // `bestiaire_boites`.
-            'theme_bestiaire' => $bestiaire->estManuel() ? null : ($bestiaire->boites[0] ?? null),
+            // `null` hors rotation historique : la liste (cochée, choisie par le
+            // MJ, tirée) est dans `bestiaire_boites`.
+            'theme_bestiaire' => $bestiaire->estFiltre() ? null : ($bestiaire->boites[0] ?? null),
             'theme_bestiaire_libelle' => $bestiaire->libelle(),
             'bestiaire_mode' => $bestiaire->mode,
             'bestiaire_boites' => $bestiaire->boites,

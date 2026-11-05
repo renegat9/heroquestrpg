@@ -30,10 +30,14 @@ class Groupe extends Model
         // DemarreurQuete::themeBestiaireDuGroupe(), qui retombe alors sur le
         // calcul historique plutôt que de traiter `null` comme une erreur.
         'theme_bestiaire',
-        // Bestiaire MANUEL (2026-09-28) : boîtes cochées à la création, liste
-        // vide = jeu de base seul ; `null` = automatique. Lire via
+        // Boîtes qui FILTRENT le bestiaire (2026-09-28) : cochées à la création
+        // (liste vide = jeu de base seul), ou, depuis le 2026-11-05, choisies
+        // en automatique (tirage, puis le MJ IA selon le thème) ; `null` = une
+        // campagne d'avant, en rotation historique. Lire via
         // App\Partie\BestiaireGroupe::duGroupe(), jamais brut.
         'boites_bestiaire',
+        // QUI a choisi `boites_bestiaire` : `mj`, `tirage`, ou `null` (les joueurs).
+        'origine_boites',
         'etat',
         'phase',
         // Issue DURABLE de la proposition du compagnon animal offert (Against the
