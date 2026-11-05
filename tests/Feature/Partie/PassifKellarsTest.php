@@ -439,11 +439,14 @@ it('GRAGOR : son répertoire porte les cinq sorts du livret, et le palier sous-b
     expect($lances)->not->toBeEmpty();
 
     // Le FILTRE PAR PALIER, lu directement : `repertoire_complet` lui laisse Invocation d'orques et Rouille (palier boss).
+    // Depuis le 2026-10-31, un sort déjà lancé dans la quête ne se relance pas : il sort de « disponibles » sans sortir
+    // du répertoire. Un sort écarté par le PALIER, lui, ne serait ni disponible ni lancé : c'est ce que le test attrape.
     $filtre = new ReflectionMethod(MoteurDread::class, 'sortsDisponibles');
     $disponibles = collect($filtre->invoke(app(MoteurDread::class), $gragor->fresh()->load('monstre'), $ctx['quete']->fresh()))
         ->map(fn ($sort) => is_object($sort) ? $sort->nom : (string) $sort)->all();
 
-    expect($disponibles)->toContain('Frayeur', 'Boule de Flammes', 'Éclair de Chaos', "Invocation d'orques", 'Rouille');
+    expect(array_values(array_unique([...$disponibles, ...$lances])))
+        ->toContain('Frayeur', 'Boule de Flammes', 'Éclair de Chaos', "Invocation d'orques", 'Rouille');
 });
 
 // =====================================================================

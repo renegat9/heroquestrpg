@@ -46,6 +46,18 @@ use Illuminate\Support\Facades\DB;
  * Étant en colonne, ils entrent AUSSI dans le snapshot : une reprise ne rend
  * plus au boss des sorts qu'il avait déjà dépensés.
  *
+ * UNE FOIS PAR QUÊTE, POUR TOUTES LES FIGURES (règle générale, 2026-10-31) :
+ * « Each monster may cast each spell they know once per quest, regardless of if
+ * another monster has already cast that spell » (F9907 p. 4 ; F6646 p. 4 ; FL p. 6).
+ * Une figure lance donc chacun de ses sorts au plus UNE fois par instance et par
+ * quête. Le budget par palier reste le PLAFOND total : la règle retire des
+ * répétitions, jamais un lancer. Ce qui peut se répéter est écrit par le texte, et
+ * porté par sa propre forme : le « à volonté » (`sort_a_volonte`, qui ne consomme
+ * rien et n'entre jamais au compteur), la réserve de cartes (`reserve_cartes`,
+ * `CartesDread`), le compte nommé (`sorts_uniques` à compteur, Barak Tor). Un seul
+ * compteur durable, `instances_monstres.sorts_dread_lances`, tenu par
+ * `consommerUsage()` et lu par `sortsLancables()`.
+ *
  * PALIER : `sorts_dread.palier` est un tier MINIMUM (doc 09 §4 — « les
  * sous-boss lancent déjà les sorts mineurs, le boss final ajoute les sorts
  * vilains »). Un sous-boss ne lance donc jamais Invocation, Commandement ni
@@ -251,8 +263,10 @@ final class MoteurDread
         // spells » — le budget est le RÉPERTOIRE ENTIER (un usage par sort,
         // chaque sort une seule fois ; `budgetSortsUniques()` compte le nombre
         // écrit pour un sort nommé, Barak Tor « can cast fear twice »), et la
-        // liste des sorts déjà lancés repart à vide. Remplace le budget par
-        // palier, qui ne dit pas QUEL sort est dépensé.
+        // liste des sorts déjà lancés repart à vide. Le budget est le répertoire,
+        // et la règle « chaque sort une seule fois » vaut pour toutes les figures
+        // (`sortsLancables()`) : ce qui est propre au sorcier nommé, c'est le
+        // palier levé et le compte écrit.
         if ($this->aCapacite($instance, 'sorts_uniques')) {
             $instance->update([
                 'usages_dread' => $this->budgetSortsUniques($instance),
@@ -307,8 +321,10 @@ final class MoteurDread
             return;
         }
 
+        // Une nouvelle rencontre repart sans aucun sort lancé : `sortsLancables()` lit cette liste.
         $instance->update([
             'usages_dread' => $usages,
+            'sorts_dread_lances' => [],
             'invocation_dread_utilisee' => false,
             'fuite_dread_utilisee' => false,
         ]);
@@ -343,11 +359,11 @@ final class MoteurDread
 
         $maj = ['usages_dread' => max(0, (int) $instance->usages_dread - 1)];
 
-        // « Each spell may only be used once per quest » : on retient QUEL sort
-        // est parti, pas seulement combien. UN NOM PAR LANCER, sans dédoublonner :
-        // un sort qu'un livret donne deux fois (`['Frayeur' => 2]`) doit se voir
-        // deux fois (`sortsLancables()` compte).
-        if ($sort !== null && $this->aCapacite($instance, 'sorts_uniques')) {
+        // « Each monster may cast each spell they know once per quest » (règle générale, 2026-10-31) : on
+        // retient QUEL sort est parti, pour TOUTE figure. UN NOM PAR LANCER, sans dédoublonner : un sort qu'un
+        // livret donne deux fois (`['Frayeur' => 2]`) doit se voir deux fois (`sortsLancables()` compte). Le sort
+        // « à volonté » n'arrive pas ici : ses appelants ne dépensent rien pour lui.
+        if ($sort !== null) {
             $maj['sorts_dread_lances'] = [
                 ...(array) ($instance->sorts_dread_lances ?? []),
                 $sort->nom,
@@ -358,7 +374,7 @@ final class MoteurDread
     }
 
     /**
-     * Combien de fois CE sort peut partir pour ce sorcier : UNE fois (la règle de `sorts_uniques`), ou le nombre que
+     * Combien de fois CE sort peut partir pour cette figure : UNE fois (la règle générale), ou le nombre que
      * le livret écrit pour lui (`['Frayeur' => 2]`, Seigneur Sorcier de Barak Tor). Ne lit que la forme paramétrée :
      * la forme nue, « chacun une fois », est une liste et ne porte aucun nombre.
      */
@@ -1163,9 +1179,9 @@ final class MoteurDread
             // du paquet. Le verrou 1×/rencontre, lui, tient : relever ses morts
             // à chaque tour rendrait toute salle impossible à nettoyer.
             // ⚠ Un SORCIER DE MORCAR (`sorts_uniques`) n'est plus bridé par le
-            // verrou 1×/rencontre : sa règle propre — chaque sort une seule fois
-            // par quête — le remplace. Deux sorts d'invocation (Summon Mummy,
-            // Call Skeletons) y coexistent, et un seul verrou en aurait muselé un.
+            // verrou 1×/rencontre : son budget, qui est son répertoire entier, le
+            // remplace. Deux sorts d'invocation (Summon Mummy, Call Skeletons) y
+            // coexistent, et un seul verrou en aurait muselé un.
             Mot::TYPE_INVOCATION => (! $instance->invocation_dread_utilisee || $this->aCapacite($instance, 'sorts_uniques'))
                 && (data_get($sort->effet, 'reanime') !== null
                     ? $this->mortsVivantsARelever($quete, $instance, $sort)->isNotEmpty()
@@ -1880,12 +1896,14 @@ final class MoteurDread
     }
 
     /**
-     * Les noms que ce Sorcier peut encore LANCER : son répertoire moins ce que la
-     * quête lui a fait oublier (`Unlearn`) ET moins ce qu'il a épuisé
-     * (`sorts_uniques` — chaque sort une seule fois par quête, sauf le nombre que
-     * le livret écrit pour lui, `lancersPermis()`). Distinct de
-     * {@see self::sortsOubliables()} : un sort épuisé ne se lance plus, mais on
-     * peut encore le faire OUBLIER (la carte héros ne le sait pas).
+     * Les noms que cette figure peut encore LANCER : son répertoire moins ce que la
+     * quête lui a fait oublier (`Unlearn`) ET moins ce qu'elle a épuisé. Chaque sort ne
+     * part qu'une fois par quête, pour TOUTE figure (règle générale, 2026-10-31 : F9907
+     * p. 4, F6646 p. 4, FL p. 6), sauf le nombre que le livret écrit (`lancersPermis()`)
+     * et sauf le sort « à volonté » (`sortAVolonte()`), qui ne s'épuise jamais. Une
+     * réserve de cartes n'a pas ce compteur : sa réserve EST son budget. Distinct de
+     * {@see self::sortsOubliables()} : un sort épuisé ne se lance plus, mais on peut
+     * encore le faire OUBLIER (la carte héros ne le sait pas).
      *
      * @return list<string>
      */
@@ -1893,21 +1911,19 @@ final class MoteurDread
     {
         $noms = $this->sortsOubliables($instance, $quete);
 
-        if ($this->aCapacite($instance, 'sorts_uniques')) {
-            $lances = array_count_values((array) ($instance->sorts_dread_lances ?? []));
-            $noms = array_values(array_filter(
-                $noms,
-                fn (string $nom) => ($lances[$nom] ?? 0) < $this->lancersPermis($instance, $nom),
-            ));
-        }
-
-        // Un sort dont la dernière carte a quitté la main (défaussée, ou prêtée à un héros gelé) ne se
-        // lance plus : la réserve EST le budget du Sorcier.
+        // Un sorcier à RÉSERVE DE CARTES : un sort dont la dernière carte a quitté la main (défaussée, ou prêtée à
+        // un héros gelé) ne se lance plus. Pas de compteur de la règle générale ici : la réserve EST le budget.
         if (CartesDread::aUneReserve($instance)) {
-            $noms = array_values(array_filter($noms, fn (string $nom) => CartesDread::restantes($instance, $nom) > 0));
+            return array_values(array_filter($noms, fn (string $nom) => CartesDread::restantes($instance, $nom) > 0));
         }
 
-        return $noms;
+        $lances = array_count_values((array) ($instance->sorts_dread_lances ?? []));
+        $aVolonte = $this->sortAVolonte($instance);
+
+        return array_values(array_filter(
+            $noms,
+            fn (string $nom) => $nom === $aVolonte || ($lances[$nom] ?? 0) < $this->lancersPermis($instance, $nom),
+        ));
     }
 
     private function sortsDisponibles(InstanceMonstre $instance, Quete $quete): \Illuminate\Support\Collection
@@ -1934,8 +1950,9 @@ final class MoteurDread
         // aurait retiré *Fuite* (palier boss) et le Mage de guerre *Esprit de
         // vengeance* et *Orque berserker*, alors que `usages_dread` lui en
         // compte six.
-        // ⚠ `repertoire_complet` (Kessandria, Skulmar : répertoire donné entier par le livret) lève le palier
-        // SANS la règle « un sort par quête » de `sorts_uniques` — voir `MotsClesAdversaires::REPERTOIRE_COMPLET`.
+        // ⚠ `repertoire_complet` (Kessandria, Skulmar : répertoire donné entier par le livret) lève le palier ; la
+        // règle « un sort par quête » vaut pour lui comme pour toute figure (`sortsLancables()`) — voir
+        // `MotsClesAdversaires::REPERTOIRE_COMPLET`.
         if ($this->aCapacite($instance, 'sorts_uniques') || $this->aCapacite($instance, 'repertoire_complet')) {
             $rangLanceur = max(self::RANG_PALIER);
         }

@@ -86,20 +86,30 @@ it('Kavra lance DEUX sorts de Dread au premier tour, et jamais le même (dés in
         ->and((int) $ctx['instance']->fresh()->tours_dread_joues)->toBe(1);
 });
 
-it('Kavra ne lance son double sort qu\'AU PREMIER tour : au suivant, un sort seul (budget relevé pour l\'isoler)', function () {
-    // Preuve de la clause « premier tour seulement » : le budget est relevé à la main après le premier tour, pour
-    // que seule la règle de premier tour décide. Sans le lecteur `premier_tour`, Kavra relancerait deux sorts.
+it('Kavra ne lance son double sort qu\'AU PREMIER tour, et au suivant ses deux sorts sont épuisés (une fois par quête)', function () {
+    // Le budget est relevé à la main après le premier tour : c'est la règle « une fois par quête » — et non le compteur —
+    // qui vide le second tour. Éclair de Chaos et Boule de Flammes ont déjà été lancés une fois chacun.
     $ctx = demarrerQueteAvecMonstre('Kavra', ['pv_mind' => 20, 'pv_mind_max' => 20]);
 
     desFiges(array_fill(0, 400, 4));
 
     attendreUnTour($ctx);
+    expect(collect((array) $ctx['instance']->fresh()->sorts_dread_lances)->sort()->values()->all())
+        ->toBe(['Boule de Flammes', 'Éclair de Chaos']);
+
     $ctx['instance']->fresh()->update(['usages_dread' => 5]);
 
     $reponse = attendreUnTour($ctx);
 
-    expect(sortsLancesAuTour($reponse))->toHaveCount(1, 'au second tour, Kavra retombe à un sort par tour')
+    expect(sortsLancesAuTour($reponse))->toHaveCount(0, 'au second tour, aucun des deux sorts ne repart')
         ->and((int) $ctx['instance']->fresh()->tours_dread_joues)->toBe(2);
+
+    // Le lecteur de la clause, lu directement : le double sort n'existe qu'au premier tour de Dread joué.
+    $moteur = app(\App\Partie\MoteurDread::class);
+    $figure = $ctx['instance']->fresh()->load('monstre');
+
+    expect($moteur->doubleSortDisponible($figure, true))->toBeTrue()
+        ->and($moteur->doubleSortDisponible($figure, false))->toBeFalse();
 });
 
 it('Nelath lance DEUX sorts à CHAQUE tour (capacité nue) : le premier tour comme le second', function () {

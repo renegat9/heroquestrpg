@@ -216,7 +216,8 @@ it("Canaliser l'Effroi lit ses PALIERS sur le d6 brut", function () {
         ->and((int) $heros->fresh()->pv_body)->toBe($pvAvant - 1);
 });
 
-it("Canaliser l'Effroi : un 3 laisse le héros indemne, un 6 coûte 2 PV", function () {
+it("Canaliser l'Effroi : un 3 laisse le héros indemne — et au tour suivant, le même lanceur ne le relance PAS", function () {
+    // Une fois par quête, pour toute figure (F9907 p. 4) : le lanceur a des usages, mais son Canaliser est épuisé.
     $ctx = lanceurAvecSort("Canaliser l'Effroi");
     ['heros' => $heros] = $ctx;
     $pvAvant = (int) $heros->pv_body;
@@ -224,9 +225,19 @@ it("Canaliser l'Effroi : un 3 laisse le héros indemne, un 6 coûte 2 PV", funct
     expect(actionDuSort(tourDreadAvec($ctx, [3]), "Canaliser l'Effroi")['resultats'][0]['degats'])->toBe(0)
         ->and((int) $heros->fresh()->pv_body)->toBe($pvAvant);
 
-    // Second tour, même lanceur (il lui reste des usages) : un 6 fait 2 PV.
     $ctx['quete']->etatsPersonnages()->update(['a_joue' => false]);
-    expect(actionDuSort(tourDreadAvec($ctx, [6]), "Canaliser l'Effroi")['resultats'][0]['degats'])->toBe(2);
+    expect(actionDuSort(tourDreadAvec($ctx, [6]), "Canaliser l'Effroi"))->toBeNull()
+        ->and((int) $heros->fresh()->pv_body)->toBe($pvAvant);
+});
+
+it("Canaliser l'Effroi : un 6 coûte 2 PV (palier du d6 brut)", function () {
+    // Le palier du 6 est testé seul, sur un lanceur neuf : un second Canaliser du même lanceur ne part plus (une fois par quête).
+    $ctx = lanceurAvecSort("Canaliser l'Effroi");
+    ['heros' => $heros] = $ctx;
+    $pvAvant = (int) $heros->pv_body;
+
+    expect(actionDuSort(tourDreadAvec($ctx, [6]), "Canaliser l'Effroi")['resultats'][0]['degats'])->toBe(2)
+        ->and((int) $heros->fresh()->pv_body)->toBe($pvAvant - 2);
 });
 
 it("Canaliser l'Effroi gagne +1 par LANCEUR DU MÊME SORT au contact", function () {

@@ -3709,6 +3709,8 @@ coûte toujours l'action du tour, et le payload reste `{type: "sort_dread",
 ...}` sans changement de forme. Divergence assumée : le Spectre, dont la carte
 dit aussi « at will », reste bridé à `USAGES_BASE` — ce lot ne le touche pas.
 
+**Une fois par quête, pour toute figure (2026-10-31).** Aucun champ de payload n'est ajouté : une figure ne relance plus un sort déjà lancé dans la quête (`instances_monstres.sorts_dread_lances`, dans le snapshot). Les exceptions sont celles que le texte écrit, et seulement celles-là : le « à volonté » (jamais compté), la réserve de cartes (`reserve_cartes`, sa propre dérivation) et le compte nommé (`sorts_uniques` à compteur). Le payload `sort_dread` d'un second lancer du même sort n'existe donc plus pour une figure ordinaire.
+
 **Sorciers du Dread de Wizards of Morcar — vague 2A (Storm Master, High Mage,
 Necromancer, 2026-10-08).** Capacité `sorts_uniques` : « Each spell may only be
 used once per quest […] a full set of six spells » — `usages_dread` = taille du

@@ -737,10 +737,14 @@ it('le fil dit les DEUX totaux de Dissipation, et le renvoi de Magie Miroir', fu
     expect(rmjFil($annule))
         ->toContain('Sinestra — Dissipation (sans action) : Mind 9 + dé 3 = 12 contre Mind 2 + dé 4 = 6 — Boule de Feu est annulé');
 
-    // Une dissipation ratée se lit aussi, AVANT l'effet qui suit.
+    // Une dissipation ratée se lit aussi, AVANT l'effet qui suit. La dissipation de l'annulation ci-dessus a été jouée :
+    // une fois par quête (F9907 p. 4), elle ne repart pas dans la MÊME quête. On simule donc une NOUVELLE rencontre par le
+    // vrai point de réarmement (`reinitialiserUsagesInstance()`, qui remet `sorts_dread_lances` à zéro).
+    expect((array) $ctx['instance']->fresh()->sorts_dread_lances)->toBe(['Dissipation']);
+
     rmjRendreLeSort($ctx, 'Trait de Feu');
     $ctx['instance']->monstre->update(['sorts_dread' => ['Dissipation']]);
-    $ctx['instance']->fresh()->update(['capacites_reactives_utilisees' => [], 'usages_dread' => 3]);
+    app(\App\Partie\MoteurDread::class)->reinitialiserUsagesInstance($ctx['instance']->fresh()->load('monstre'), $ctx['quete']);
     $ctx['mage']->update(['pv_mind' => 9, 'attribut_mind' => 9, 'pv_mind_max' => 9]);
     desFiges([1, 6, 1, ...array_fill(0, 30, 1)]);
     $resiste = rmjLancer($ctx, 'Trait de Feu', $ctx['instance'])->assertStatus(202)->json('resultat');

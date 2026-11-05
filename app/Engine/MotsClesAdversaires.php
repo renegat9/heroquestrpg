@@ -168,21 +168,25 @@ final class MotsClesAdversaires
 
     /**
      * RÉPERTOIRE COMPLET : un lanceur NOMMÉ dont le livret donne le répertoire entier ignore le filtre de palier
-     * (`MoteurDread::sortsDisponibles()`), comme `sorts_uniques` pour les sorciers de Morcar — SANS sa règle
-     * « chaque sort une fois par quête », que le livret ne donne pas. Kessandria (sous-boss, précédent des
-     * lieutenants de Morcar) garde *Nuée d'Effroi* et sa potion (*Patinage*), deux sorts de palier boss.
+     * (`MoteurDread::sortsDisponibles()`), comme `sorts_uniques` pour les sorciers de Morcar. La règle « chaque sort une
+     * fois par quête » vaut pour TOUTE figure depuis le 2026-10-31 (`MoteurDread::sortsLancables()`) : elle ne se lève
+     * pas ici. Kessandria (sous-boss, précédent des lieutenants de Morcar) garde *Nuée d'Effroi* et sa potion
+     * (*Patinage*), deux sorts de palier boss.
      */
     public const REPERTOIRE_COMPLET = 'repertoire_complet';
 
     /**
-     * CHAQUE SORT UNE FOIS PAR QUÊTE (Wizards of Morcar, « Each spell may only be used once per quest », G1504 p. 10 ;
-     * Balur, « which he may use once during the quest », F2847 LQ p. 19 ; Grak et Nelath). Le budget est le répertoire,
-     * un usage par sort ; la liste des sorts lancés (`sorts_dread_lances`) repart à vide à chaque placement.
+     * LE SORCIER NOMMÉ (Wizards of Morcar, « Each spell may only be used once per quest », G1504 p. 10 ; Balur, « which he
+     * may use once during the quest », F2847 LQ p. 19 ; Grak et Nelath). Depuis le 2026-10-31, « chaque sort une fois par
+     * quête » vaut pour TOUTE figure (règle générale, `MoteurDread::sortsLancables()`) : cette capacité n'ajoute plus que
+     * ce qui est propre au sorcier nommé — le budget est son répertoire entier (un usage par sort), le palier est levé, et
+     * le verrou 1×/rencontre des invocations ne le bride pas. La liste des sorts lancés (`sorts_dread_lances`) repart à vide
+     * à chaque placement.
      * Paramétrée, optionnellement : `['Frayeur' => 2]` = CE sort-là se lance deux fois, les autres une fois (Seigneur
      * Sorcier de Barak Tor, « fear (which he can cast twice) », F2847 LQ p. 31). Le budget devient alors la somme des
-     * usages. Lue à DEUX points, qui sont la règle : `MoteurDread::reinitialiserUsagesInstance()` (le budget) et
-     * `MoteurDread::sortsLancables()` (l'épuisement d'un sort). `reserve_cartes` n'est PAS la forme : elle ne dépense
-     * une carte que pour un sort qui la défausse ou la prête, et une Frayeur nue ne s'épuiserait jamais.
+     * usages. Lue à DEUX points : `MoteurDread::reinitialiserUsagesInstance()` (le budget) et `MoteurDread::lancersPermis()`,
+     * que `sortsLancables()` consulte (l'épuisement d'un sort). `reserve_cartes` n'est PAS la forme : elle ne dépense une
+     * carte que pour un sort qui la défausse ou la prête, et une Frayeur nue ne s'épuiserait jamais.
      */
     public const SORTS_UNIQUES = 'sorts_uniques';
 
