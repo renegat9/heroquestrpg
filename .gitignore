@@ -45,6 +45,8 @@ browser-shots/*.png
 # restent hors dépôt, comme les illustrations propres à chaque quête.
 /public/images/**/*.png
 /public/images/dyn/quete/
+# Portraits de boss : générés pour CHAQUE quête (`GenererImagesQuete`, un par forme depuis le 2026-11-05) — même règle.
+/public/images/dyn/monstre/
 
 # Découpages du LIVRET officiel (art Hasbro, 2026-10-17) : le dépôt est PUBLIC, et ces
 # dessins n'y entrent JAMAIS — même règle que les PDF des livrets, hors dépôt. Ils vivent
