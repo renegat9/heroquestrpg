@@ -470,12 +470,17 @@ final class MoteurDegats
      *  3. **Phases** (`monstres.phase_suivante` déclaré sur la ligne de
      *     catalogue COURANTE) : adopte la statistique suivante — nouveau
      *     `monstre_id`, Body ET Mind pleins de la nouvelle phase, tout le
-     *     reste de l'instance (position, conditions, habillage, usages déjà
-     *     dépensés) inchangé, puisque « still considered the same monster ».
+     *     reste de l'instance (habillage, conditions, usages déjà dépensés)
+     *     inchangé, puisque « still considered the same monster ». Sa PLACE
+     *     est décidée d'abord (`MoteurSynchroformes::ancrer()`) : la figure ne
+     *     bouge que si la nouvelle emprise ne tient pas sur son ancre
+     *     (`deplacement`, annoncé) ; si elle ne tient sur aucune case
+     *     découverte, la forme n'est pas prise et la figure meurt (4).
      *     Annoncé par un évènement de journal DÉDIÉ, en plus du retour —
      *     garanti même si un futur appelant oublie de le relayer dans son
      *     propre payload.
-     *  4. **Mort réelle** (dernière phase, ou monstre ordinaire) :
+     *  4. **Mort réelle** (dernière phase, monstre ordinaire, ou forme qui ne
+     *     tient sur aucune case découverte) :
      *     `recompense_reddition` (Gruzbella vaincue « s'incline et paie
      *     1000 po », jamais une vraie mort) crédite le groupe avant de poser
      *     `etat: vaincu`.
@@ -694,7 +699,13 @@ final class MoteurDegats
         $chaine = app(MoteurSynchroformes::class)->prochaine($instance);
         $prochaine = $chaine['monstre'] ?? null;
 
-        if ($prochaine !== null) {
+        // LA PLACE de cette forme, décidée AVANT toute écriture — le point de passage unique que partage la pioche de
+        // Qwindrak (`MoteurSynchroformes::ancrer()`). Une forme qui ne tient sur aucune case de la carte découverte n'est
+        // pas prise : la figure tombe par la mort réelle ci-dessous, et deux figures ne se chevauchent jamais.
+        $ancreAvant = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
+        $pose = $prochaine === null ? null : app(MoteurSynchroformes::class)->ancrer($instance, $prochaine);
+
+        if ($prochaine !== null && $pose !== null) {
             // ⚠ Le nom que l'ÉCRAN montre (`nomAffiche()`), jamais celui du catalogue :
             // le fil disait « Gretzl la Porte-Fléau … Demonspider » quand la table
             // montrait « Le Cœur-Liane Éveillé » (partie du 2026-10-10).
@@ -729,16 +740,14 @@ final class MoteurDegats
             // Sans habillage, le nom affiché EST celui de la nouvelle forme (★ d'élite compris).
             $nomApres = $habille ? $prochaine->nom_base : $instance->nomAffiche();
 
-            // Une forme de la PIOCHE (Qwindrak) : ses sorts actifs cessent, sa place doit être SÛRE (une
-            // emprise de 1 × 2 n'entre pas toujours là où était la forme précédente), puis son arrivée
-            // souffle la flamme du Dread si la fiche la porte. La chaîne des phases ne fait rien de tout cela.
+            // Une forme de la PIOCHE (Qwindrak) : ses sorts actifs cessent, puis son arrivée souffle la flamme du Dread
+            // si la fiche la porte. La chaîne des phases ne fait rien de tout cela. Sa place est déjà décidée (`$pose`).
             $sortsTermines = [];
             $flamme = null;
 
             if ($chaine['synchro']) {
                 $synchroformes = app(MoteurSynchroformes::class);
                 $sortsTermines = $synchroformes->terminerSorts($instance);
-                $synchroformes->ancrer($instance);
                 $flamme = $synchroformes->flammeALArrivee($instance);
             }
 
@@ -759,6 +768,12 @@ final class MoteurDegats
 
             if ($flamme !== null) {
                 $changement['flamme'] = $flamme;
+            }
+
+            // Faute de place sur l'ancre, la forme se pose ailleurs : publié ici, et annoncé par la ligne de journal et la
+            // scène de transformation (`LignesEffetsAutomatiques::lignePhase()`, `SceneDeTable::changementPhase()`).
+            if ($pose['deplacee']) {
+                $changement['deplacement'] = ['de' => $ancreAvant, 'vers' => ['x' => $pose['x'], 'y' => $pose['y']]];
             }
 
             $this->journaliserChangementPhase($instance, $changement);

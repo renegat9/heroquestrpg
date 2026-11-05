@@ -472,8 +472,11 @@ class MonstreSeeder extends Seeder
             // (~10,5 attaques de héros à 3 dés pour l'abattre) : « il n'a
             // AUCUNE capacité, une brute très dure » — d'où un `cout` au
             // sommet du palier sous-boss plutôt qu'au niveau d'un boss.
+            // JETON OVALE : la carte de la quête 2 (F9528 PDF 22) ne pose que l'ovale de l'Ogre Commander, sur l'équipe des
+            // Défenseurs dont « Doralf must be one of the monsters » (PDF 23) → 1×2 (René, 2026-10-31 : « Continue avec les correctifs »).
             ['nom_base' => 'Doralf', 'deplacement' => 6, 'attaque' => 6, 'defense' => 5, 'pv_body' => 7, 'pv_mind' => 3,
-                'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 13, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 13, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => [], 'sorts_dread' => []],
 
             // MONSTRE À PHASES (chantier transverse 2026-10-04, lot C,
             // Against the Ogre Horde p. 6 et 21) : « Some powerful foes adopt
@@ -498,16 +501,17 @@ class MonstreSeeder extends Seeder
             // REPÈRE de la droite des boss sans le Seigneur. `cout` 23 : somme des attaques-à-3-dés par phase (10 + 7,5 + 3,75
             // = 21,25), posé le 2026-10-05 « au niveau du Seigneur ogre (22) » (la valeur retenue est 23) ; droite 22,91 ⇒ 23.
             // Ne bouge pas.
+            // JETON OVALE (carte de la quête 3, F9528 PDF 24 : l'ovale de l'Ogre Champion ; « do not remove the miniature », PDF 25) : 1×2.
             ['nom_base' => 'Gruzbella Hammerhand', 'deplacement' => 5, 'attaque' => 4, 'defense' => 6, 'pv_body' => 5, 'pv_mind' => 4,
-                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
+                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif', 'redirige_attaque']],
                 'sorts_dread' => [], 'phase_suivante' => 'Gruzbella Déterminée'],
             ['nom_base' => 'Gruzbella Déterminée', 'deplacement' => 7, 'attaque' => 5, 'defense' => 5, 'pv_body' => 5, 'pv_mind' => 4,
-                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
+                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif', 'redirige_attaque']],
                 'sorts_dread' => [], 'phase_suivante' => 'Gruzbella Imprudente'],
             ['nom_base' => 'Gruzbella Imprudente', 'deplacement' => 8, 'attaque' => 6, 'defense' => 1, 'pv_body' => 5, 'pv_mind' => 4,
-                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
+                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['reactions_defense' => ['ignore_degats_attaque', 'rompt_sort_actif', 'redirige_attaque'], 'recompense_reddition' => ['or' => 1000]],
                 'sorts_dread' => [], 'phase_suivante' => null],
 
@@ -759,13 +763,16 @@ class MonstreSeeder extends Seeder
                 'capacites' => ['tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque', 'annule_sort_ciblant']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
                 'phase_suivante' => 'Demonspider'],
+            // JETON OVALE (« place a Blightcrawler miniature in the nearest open square to her », F9907 PDF 18) : 1×2. Une mue
+            // qui grandit de 1×1 à 1×2 se pose ailleurs si sa case ne la loge pas (`MoteurSynchroformes::ancrer()`).
             ['nom_base' => 'Demonspider', 'deplacement' => 8, 'attaque' => 5, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 3,
-                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 19,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 19, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['agile', 'venimeux', 'tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque', 'annule_sort_ciblant']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
                 'phase_suivante' => 'Demonape'],
+            // JETON OVALE (« place a Giant Ape miniature in the nearest open square to her », F9907 PDF 18) : 1×2.
             ['nom_base' => 'Demonape', 'deplacement' => 8, 'attaque' => 6, 'defense' => 2, 'pv_body' => 6, 'pv_mind' => 1,
-                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 19,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 19, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['agile', 'tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque', 'annule_sort_ciblant']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
                 'phase_suivante' => null],

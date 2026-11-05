@@ -298,7 +298,7 @@ final class SceneDeTable
     }
 
     /**
-     * @param  array{avant: string, apres: string}  $changement
+     * @param  array{avant: string, apres: string, deplacement?: array{de: array{x: int, y: int}, vers: array{x: int, y: int}}}  $changement
      * @return array<string, mixed>
      */
     private function changementPhase(array $changement): array
@@ -306,10 +306,15 @@ final class SceneDeTable
         $avant = (string) ($changement['avant'] ?? 'La créature');
         $apres = (string) ($changement['apres'] ?? 'une autre forme');
 
+        // Faute de place sur sa case, la forme se pose plus loin : la table le dit aussi (`deplacement`).
+        $sousTitre = is_array($changement['deplacement'] ?? null)
+            ? 'adopte de nouvelles statistiques, et se pose plus loin faute de place'
+            : 'adopte de nouvelles statistiques';
+
         return [
             'genre' => 'transformation',
             'titre' => "{$avant} se transforme",
-            'sous_titre' => 'adopte de nouvelles statistiques',
+            'sous_titre' => $sousTitre,
             'issue' => ['ton' => 'info', 'libelle' => "devient {$apres} !"],
         ];
     }

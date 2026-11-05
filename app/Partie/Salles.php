@@ -41,6 +41,23 @@ final class Salles
     }
 
     /**
+     * La case (x, y) est-elle dans une salle DÉCOUVERTE, ou dans un couloir ? Point de passage unique de « jamais dans une
+     * zone non découverte » : lu par les éthérés et les figures de deux cases qui cherchent où s'arrêter
+     * (`ResolveurTour::salleDecouverte()`), et par la place d'une forme qui grandit (`MoteurSynchroformes::ancrer()`).
+     *
+     * Un couloir (`indexDe()` = `null`) n'est jamais « non découvert » ; la salle 0 l'est toujours (`Quete::sallesDecouvertes()`).
+     *
+     * @param  array<int|string, array{x: int|string, y: int|string, largeur: int|string, hauteur: int|string}>  $salles
+     * @param  list<int>  $decouvertes
+     */
+    public static function decouverte(array $salles, array $decouvertes, int $x, int $y): bool
+    {
+        $index = self::indexDe($salles, $x, $y);
+
+        return $index === null || in_array($index, $decouvertes, true);
+    }
+
+    /**
      * Vrai si (x, y) tombe dans la salle d'index donné.
      *
      * @param  array<int|string, array{x: int|string, y: int|string, largeur: int|string, hauteur: int|string}>  $salles

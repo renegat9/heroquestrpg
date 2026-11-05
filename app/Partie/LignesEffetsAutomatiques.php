@@ -664,7 +664,7 @@ trait LignesEffetsAutomatiques
      * (« Attaque 3 → 4 dés, défense 4 → 5 dés, Body 2/2 ») quand le moteur les a
      * publiées. Sans elles, on ne sait pas pourquoi les dés de Gruulob ont changé.
      *
-     * @param  array<string, mixed>  $p  `{avant, apres, stats?}`
+     * @param  array<string, mixed>  $p  `{avant, apres, stats?, sorts_termines?, flamme?, deplacement?}`
      * @return list<array{texte: string, ton: string}>
      */
     private function lignePhase(array $p): array
@@ -698,6 +698,12 @@ trait LignesEffetsAutomatiques
         }
 
         $lignes = [$this->info($texte)];
+
+        // Faute de place sur l'ancre, la forme se pose ailleurs (`deplacement`, écrit par `MoteurDegats`) : la table le dit,
+        // pour que la figure qui change de case ne bouge pas en silence.
+        if (is_array($p['deplacement'] ?? null)) {
+            $lignes[] = $this->info("Faute de place sur sa case, {$apres} se pose sur les cases libres les plus proches.");
+        }
 
         // Une forme de la pioche de Qwindrak : les sorts actifs sur elle cessent — dit, pas seulement fait.
         $sorts = array_values(array_filter(array_map('strval', (array) ($p['sorts_termines'] ?? []))));

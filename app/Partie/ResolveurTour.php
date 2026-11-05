@@ -3735,10 +3735,8 @@ final class ResolveurTour
      */
     private function salleDecouverte(Quete $quete, array $decouvertes, int $x, int $y): bool
     {
-        $index = Salles::indexDe((array) data_get($quete->carte?->grille, 'salles', []), $x, $y);
-
-        // Couloir (`null`) : jamais « non découvert ».
-        return $index === null || in_array($index, $decouvertes, true);
+        // Le point de passage unique : `Salles::decouverte()` (couloir compris, jamais « non découvert »).
+        return Salles::decouverte((array) data_get($quete->carte?->grille, 'salles', []), $decouvertes, $x, $y);
     }
 
     /**

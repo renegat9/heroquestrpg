@@ -144,50 +144,84 @@ final class MoteurSynchroformes
     }
 
     /**
-     * UNE PLACE SÛRE pour la nouvelle emprise. L'ancre reste si toute l'emprise tient
-     * (`Grille::empriseArretPossible()` : libre, traversable, pas de terrain qui interdit l'arrêt — la même
-     * lecture que le vol du Dragon) ; sinon la case sûre la plus proche (distance de Tchebychev, puis ordre
-     * de lecture, pour rester déterministe). Aucune place sûre sur toute la carte : l'ancre reste — un
-     * cas que la génération ne produit pas, et que les tests de placement couvrent.
+     * LA PLACE d'une forme qui prend la figure — le point de passage unique de « où tient la nouvelle emprise ? ».
+     * La chaîne des phases (`MoteurDegats::infligerAMonstreBrut()`) et la pioche de Qwindrak la lisent toutes deux :
+     * une seule règle, jamais deux copies.
+     *
+     * Dans cet ordre (« place … in the nearest open square to her », Delthrak F9907 PDF 18 ; René, 2026-10-31) :
+     *  1. L'ANCRE RESTE si toute l'emprise de la forme tient SUR PLACE : grille RÉELLE, la figure elle-même exclue
+     *     (`FabriqueGrille::pour()`), `Grille::empriseArretPossible()` (libre, ni roche, ni mobilier, ni terrain qui
+     *     interdit l'arrêt) et chaque case dans une salle DÉCOUVERTE ou un couloir (`Salles::decouverte()`).
+     *  2. Sinon, la case d'ancre la plus proche où toute l'emprise tient ainsi. Distance de TCHEBYCHEV depuis l'ancre
+     *     d'origine : géométrique, ni chemin ni coût de terrain (un mur ne l'allonge pas). Départage par ORDRE DE LECTURE
+     *     (la ligne y d'abord, puis x), pour rester déterministe. La nouvelle ancre est ÉCRITE.
+     *  3. Aucune ancre de ce genre sur la carte découverte : `null`. La forme n'est pas prise, et l'appelant fait tomber
+     *     la figure par la mort ordinaire. Jamais deux figures sur une même case.
+     *
+     * Une mue de MÊME emprise ne bouge pas tant que sa case reste légale : la figure occupe déjà ses propres cases, qui
+     * sont exclues du test (`tests/Feature/Partie/MueQuiGranditTest.php`).
+     *
+     * @param  Monstre|null  $forme  la forme qui prend la place ; `null` = la fiche courante de la figure (la pioche
+     *                               de Qwindrak la pose après l'avoir écrite, `InstanceMonstre::monstre`)
+     * @return array{x: int, y: int, deplacee: bool}|null  `null` = aucune place
      */
-    public function ancrer(InstanceMonstre $instance): void
+    public function ancrer(InstanceMonstre $instance, ?Monstre $forme = null): ?array
     {
-        $quete = $instance->quete;
-
-        if ($quete === null) {
-            return;
-        }
-
-        $emprise = $instance->monstre->emprise();
         $x0 = (int) $instance->position_x;
         $y0 = (int) $instance->position_y;
-        $grille = FabriqueGrille::pour($quete, null, (int) $instance->id);
+        $quete = $instance->quete;
 
-        if ($grille->empriseArretPossible($x0, $y0, $emprise['l'], $emprise['h'])) {
-            return;
+        // Sans carte assemblée, il n'y a pas de grille à lire : la figure reste où elle est.
+        if ($quete === null || $quete->carte === null) {
+            return ['x' => $x0, 'y' => $y0, 'deplacee' => false];
         }
 
-        $cases = (array) ($quete->carte?->grille['cases'] ?? []);
+        $emprise = ($forme ?? $instance->monstre)->emprise();
+        $grille = FabriqueGrille::pour($quete, null, (int) $instance->id);
+        $salles = (array) data_get($quete->carte->grille, 'salles', []);
+        $decouvertes = $quete->sallesDecouvertes();
+
+        $tient = function (int $x, int $y) use ($grille, $emprise, $salles, $decouvertes): bool {
+            if (! $grille->empriseArretPossible($x, $y, $emprise['l'], $emprise['h'])) {
+                return false;
+            }
+
+            foreach ($grille->cellulesEmprise($x, $y, $emprise['l'], $emprise['h']) as $case) {
+                if (! Salles::decouverte($salles, $decouvertes, $case['x'], $case['y'])) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        if ($tient($x0, $y0)) {
+            return ['x' => $x0, 'y' => $y0, 'deplacee' => false];
+        }
+
+        $cases = (array) ($quete->carte->grille['cases'] ?? []);
         $hauteur = count($cases);
         $largeur = $hauteur > 0 ? count((array) $cases[0]) : 0;
         $candidats = [];
 
         for ($y = 0; $y < $hauteur; $y++) {
             for ($x = 0; $x < $largeur; $x++) {
-                if ($grille->empriseArretPossible($x, $y, $emprise['l'], $emprise['h'])) {
+                if ($tient($x, $y)) {
                     $candidats[] = [max(abs($x - $x0), abs($y - $y0)), $y, $x];
                 }
             }
         }
 
         if ($candidats === []) {
-            return;
+            return null;
         }
 
         usort($candidats, fn (array $a, array $b): int => $a <=> $b);
         [, $y, $x] = $candidats[0];
 
         $instance->update(['position_x' => $x, 'position_y' => $y]);
+
+        return ['x' => $x, 'y' => $y, 'deplacee' => true];
     }
 
     /**

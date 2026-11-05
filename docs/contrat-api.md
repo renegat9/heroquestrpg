@@ -1630,7 +1630,7 @@ toutes deux sont fermées.
     RETENU (réductions et réactions comprises).
   - `sort_regagne` `{personnage_id, personnage, sort, regain, texte}` — `RegainEffet::libelle()`
     (la Métamorphose revient quand le Body repasse au maximum).
-  - `changement_phase` `{instance_id, nom, phase: {avant, apres, stats, sorts_termines?, flamme?}, texte?}` — l'annonce
+  - `changement_phase` `{instance_id, nom, phase: {avant, apres, stats, sorts_termines?, flamme?, deplacement?}, texte?}` — l'annonce
     AUTONOME d'un changement de forme (écrite par `MoteurDegats`, pour les appelants qui ne
     relaient pas `changement_phase`) ; le rejeu l'écarte quand le coup qui l'a provoquée la
     porte déjà (`JournalCombat::signatureDeDoublon()`).
@@ -4250,7 +4250,7 @@ champs s'ajoutent au payload de **toute** action qui blesse un monstre
 `frapper_entre_monstres`…), toujours présents (même `null`/`false`), comme
 `cible_vaincue` à côté d'eux :
 
-- **`changement_phase`** : `null`, ou `{avant, apres, stats, sorts_termines, flamme?}` — `avant` : le nom que
+- **`changement_phase`** : `null`, ou `{avant, apres, stats, sorts_termines, flamme?, deplacement?}` — `avant` : le nom que
   l'ÉCRAN montrait (`nomAffiche()`, habillage compris) ; `apres` : le `nom_base` de la
   forme adoptée si l'instance est habillée (son nom d'habillage ne change pas), sinon son
   nom affiché (le nom de catalogue de la nouvelle forme, ★ compris). Depuis
@@ -4274,6 +4274,19 @@ champs s'ajoutent au payload de **toute** action qui blesse un monstre
   1 à 3 lui fait perdre 1 Body (`App\Partie\MoteurSynchroformes::flammeALArrivee()`). Rendue par une
   seconde scène de table `genre: "attaque"` (« X — La flamme du Dread », un objet par héros, avec
   son dé : « dé 2 — −1 PV ») et par une ligne de journal par héros (« Albrecht : dé 2, −1 PV. »).
+  **`deplacement`** (2026-10-31, « Continue avec les correctifs ») — absent quand la nouvelle forme TIENT sur l'ancre
+  de la figure, ce qui est toujours le cas d'une mue de même emprise (Gruzbella 1×2 → 1×2, Spawn of the Pit 1×1 → 1×1,
+  Demonspider → Demonape). Sinon `{de: {x, y}, vers: {x, y}}` : Gretzl (1×1) devient Demonspider (1×2) contre un mur, et la
+  case d'ancre d'origine ne peut pas la loger. La figure se pose sur l'ancre la plus proche où toute son emprise tient
+  (`App\Partie\MoteurSynchroformes::ancrer()`, le point de passage unique que partage la pioche de Qwindrak) : distance de
+  Tchebychev depuis l'ancre d'origine, départage par ordre de lecture (y puis x) ; jamais sur une figure, une roche ou un
+  terrain interdit à l'arrêt ; jamais dans une salle non découverte (un couloir compte comme découvert, `Salles::decouverte()`).
+  Rendu : la ligne de journal « Faute de place sur sa case, X se pose sur les cases libres les plus proches. » et le
+  sous-titre de la scène de transformation (« … et se pose plus loin faute de place »). La position publiée est celle de
+  `EtatGroupe::monstres()`, déjà à jour dans le même payload.
+  **Aucune place** (aucune ancre de ce genre sur la carte découverte) : la forme n'est PAS prise, `changement_phase` vaut
+  `null`, et la figure tombe par la mort ordinaire (`vaincu: true`). Jamais deux figures sur une même case. La pioche de
+  Qwindrak a déjà avancé d'une forme dans ce cas : la figure est morte, la suite n'est jamais jouée.
   ⚠ La PIOCHE elle-même (les formes restantes, `instances_monstres.formes_a_venir`) n'est JAMAIS
   publiée : seule la forme COURANTE l'est (`EtatGroupe::monstres()` : nom, `nom_base`, emprise,
   position). Le client ne sait pas quelle forme vient après celle qui joue.

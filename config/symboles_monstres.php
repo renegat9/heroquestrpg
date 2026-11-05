@@ -115,6 +115,14 @@ return [
         'Rejeton putride' => 'spawnling', // Spawnling, légende du monstre errant de la quête 1 de Delthrak (F9907 PDF 7) ; TUILE carrée
         'Golem Cœur-de-Forge' => 'forgeheart-golem', // « Use the Forgeheart Golem's tile » (F9907 PDF 12) ; TUILE 1×2 posée salle A
         'Magrian' => 'dread-wraith', // « Dread Wraith », planche « Design Your Own » (F6646 PDF 20) ; jeton OVALE, emprise 1×2 (René, 2026-10-31)
+        // Six figures 1×2 sur l'ovale de leur livret (René, 2026-10-31 : « Continue avec les correctifs ») ; migration
+        // `2026_10_31_140000_six_figures_deux_cases`. Elles étaient « à trancher » dans `absents` (voir ci-dessous).
+        'Doralf' => 'ogre-commander', // carte de la quête 2 (F9528 PDF 22) : seul jeton de l'équipe des Défenseurs, « Doralf must be one of the monsters » (PDF 23)
+        'Gruzbella Hammerhand' => 'ogre-champion', // carte de la quête 3 (F9528 PDF 24) : seul jeton, l'OVALE de l'Ogre Champion ; « do not remove the miniature » (PDF 25)
+        'Gruzbella Déterminée' => 'ogre-champion', // « do not remove the miniature » (F9528 PDF 25) : la même figurine que Gruzbella Hammerhand
+        'Gruzbella Imprudente' => 'ogre-champion', // « do not remove the miniature » (F9528 PDF 25) : la même figurine que Gruzbella Hammerhand
+        'Demonspider' => 'blightcrawler', // « place a Blightcrawler miniature in the nearest open square to her » (F9907 PDF 18)
+        'Demonape' => 'giant-ape', // « place a Giant Ape miniature in the nearest open square to her » (F9907 PDF 18)
     ],
 
     // Monstres dont le jeton est un OVALE 2:1 (figure 1×2 au livret) : le serveur publie `symbole_forme` = 'ovale'.
@@ -133,6 +141,13 @@ return [
         // Magrian : ovale « Dread Wraith » de la planche « Design Your Own » (F6646 PDF 20) — passé à 1×2 (René, 2026-10-31 :
         // « Oui 2 cases avec son token »).
         'Magrian',
+        // Six figures 1×2 (René, 2026-10-31) : l'ovale du livret, sur deux cases. Leurs sources sont dans `cles`.
+        'Doralf',
+        'Gruzbella Hammerhand',
+        'Gruzbella Déterminée',
+        'Gruzbella Imprudente',
+        'Demonspider',
+        'Demonape',
     ],
 
     // Monstres que le livret pose en TUILE (pas une tête dans un anneau) : le serveur publie `symbole_forme` = 'tuile'
@@ -149,13 +164,7 @@ return [
     'absents' => [
         // ⚠ À TRANCHER (René) : la carte ou le texte leur donne un jeton OVALE — une figure de deux cases — alors que le
         // catalogue les pose sur une case. L'emprise suit le jeton (`docs/regles/bestiaire-et-rencontres.md`) : sans décision,
-        // ni ovale ni emprise.
-        'Doralf' => 'à trancher : la carte de la quête 2 (F9528 PDF 22) ne pose qu’un jeton, l’OVALE de l’Ogre Commander, sur l’équipe des Défenseurs dont « Doralf must be one of the monsters » ; figure 1×1 au catalogue',
-        'Gruzbella Hammerhand' => 'à trancher : la carte de la quête 3 (F9528 PDF 24) ne pose qu’un jeton, l’OVALE de l’Ogre Champion ; figure 1×1 au catalogue',
-        'Gruzbella Déterminée' => 'à trancher : même figurine que Gruzbella Hammerhand (« do not remove the miniature », F9528 PDF 25), l’OVALE de l’Ogre Champion ; figure 1×1 au catalogue',
-        'Gruzbella Imprudente' => 'à trancher : même figurine que Gruzbella Hammerhand (« do not remove the miniature », F9528 PDF 25), l’OVALE de l’Ogre Champion ; figure 1×1 au catalogue',
-        'Demonspider' => 'à trancher : « place a Blightcrawler miniature » (F9907 PDF 18), jeton OVALE `blightcrawler` ; figure 1×1 au catalogue',
-        'Demonape' => 'à trancher : « place a Giant Ape miniature » (F9907 PDF 18), jeton OVALE `giant-ape` ; figure 1×1 au catalogue',
+        // ni ovale ni emprise. (Doralf, les trois Gruzbella, Demonspider et Demonape ont tranché le 2026-10-31 : 1×2, dans `cles`.)
         'Scion Fleur-Pourrie' => 'à trancher : une tuile de 4×4 cases au centre de la carte de la quête 14 (F9907 PDF 20), sans nom — la bête ou la faille ? figure 1×1 au catalogue',
         // Sans jeton : cartes et textes lus le 2026-10-31.
         'Archimage elfe' => '« Use the elven archmage figure » ; la carte de la quête 9 (F7539 PDF 16) ne pose que le mot « SIN », aucun jeton',

@@ -281,6 +281,12 @@ jeton rond une seule ; les légendes donnent le petit axe d'un ovale égal au ra
 - **Magrian, le Dread Wraith** : **1×2** (René, 2026-10-31 : « Oui 2 cases avec son token »). La planche « Design Your Own » de
   Rise of the Dread Moon (F6646 PDF 20) le dessine en OVALE, à côté des jetons ronds de Sir Ragnar et du Stranger. Migration
   `2026_10_31_100000_magrian_deux_cases` (aucune instance sur la vraie base ce jour-là).
+- **Doralf, Gruzbella Hammerhand / Déterminée / Imprudente, Demonspider, Demonape** : **1×2** (René, 2026-10-31 : « Continue avec les
+  correctifs »). Chacun sur l'OVALE de son livret : Doralf sur celui de l'Ogre Commander, carte de la quête 2 (F9528 PDF 22, « Doralf
+  must be one of the monsters », PDF 23) ; les trois Gruzbella sur celui de l'Ogre Champion, carte de la quête 3 (F9528 PDF 24, « do not
+  remove the miniature », PDF 25) ; Demonspider et Demonape : « place a Blightcrawler / Giant Ape miniature in the nearest open square
+  to her » (F9907 PDF 18). Migration `2026_10_31_140000_six_figures_deux_cases` (seeder compris). Vérifié sur la vraie base le
+  2026-10-31 : aucune instance de ces six, aucune quête en cours. Leur « à trancher » est levé dans `cles` et `ovales`.
 
 La règle est un registre testé dans les deux sens (`BestiaireSourceTest`) : chaque nom de `config('symboles_monstres.ovales')` est
 1×2, chaque nom de `tuiles` a l'emprise de son fichier (carré : une case, 2:1 : deux), et chaque figure de 2 cases est dans
@@ -304,6 +310,31 @@ passant Magrian à deux cases — la première figure de deux cases **éthérée
   exclut le lanceur : sa seconde case y passait pour libre, et un spectre de Magrian y serait apparu. Elle cherche désormais
   autour de toute l'emprise (`casesDuLanceur()`), dans le même ordre qu'avant pour une figure d'une case.
 `GrandeFigureCasesTest` et `TrappeTeleportationTest` les épinglent ; chacun échouait avant le correctif.
+
+**La mue qui grandit — une forme de deux cases ne se pose jamais sur une figure** (René, 2026-10-31, « Continue avec les correctifs »).
+Gretzl la Porte-Fléau (1×1) devient Demonspider (1×2) à 0 Body, puis Demonape (1×2) : la nouvelle forme n'a pas forcément la place
+de la précédente. Le livret dit où la poser : « place a Blightcrawler miniature in the nearest open square to her » (F9907 PDF 18).
+D'où la règle, écrite une fois dans `MoteurSynchroformes::ancrer()`, le point de passage unique que partage la pioche de Qwindrak :
+- **L'ancre reste** si toute l'emprise de la nouvelle forme tient sur place : grille RÉELLE, la figure elle-même exclue
+  (`FabriqueGrille::pour()`), `Grille::empriseArretPossible()`, et chaque case dans une salle découverte ou un couloir
+  (`Salles::decouverte()`). Une mue de même emprise (Gruzbella 1×2 → 1×2, Demonspider → Demonape, Spawn of the Pit 1×1 → 1×1) ne bouge
+  donc pas, tant que sa case reste légale.
+- **Sinon**, la figure se pose sur l'ancre la plus proche où toute son emprise tient : distance de TCHEBYCHEV depuis l'ancre d'origine
+  (géométrique : ni chemin, ni coût de terrain — un mur ne l'allonge pas), départage par ORDRE DE LECTURE (la ligne y, puis x).
+  Jamais sur une figure, une roche, un terrain interdit à l'arrêt, ni dans une salle non découverte.
+- **Aucune ancre de ce genre** sur la carte découverte : la forme n'est PAS prise, et la figure tombe par la mort ordinaire. Décision
+  de code, écrite pour être relue : une mue ne doit jamais laisser deux figures sur une même case, et une figure qui ne peut pas
+  changer de forme à 0 Body n'a pas d'autre issue qu'une défaite. Cas quasi impossible (il faudrait que toute la carte découverte
+  refuse une case double). À valider par René si l'on préfère une autre issue.
+- **Le déplacement est publié et annoncé** : `changement_phase.deplacement = {de, vers}` (absent quand la figure reste), une ligne de
+  journal (« Faute de place sur sa case, Demonspider se pose sur les cases libres les plus proches. ») et le sous-titre de la scène de
+  transformation. La position est celle que publie `EtatGroupe::monstres()`. Contrat : `docs/contrat-api.md`, §« Monstre à phases ».
+- **Changement pour la pioche de Qwindrak** : son Dragon (1×2) suit la même règle. Avant, l'ancre restait même quand elle ne tenait pas,
+  et la figure pouvait chevaucher son voisin ; désormais la salle découverte s'applique aussi à lui, et l'absence de place le fait
+  tomber comme les autres formes.
+
+Tests EN JEU : `tests/Feature/Partie/MueQuiGranditTest.php` (le coup part par `ResolveurTour::frapper()`, dés injectés : déplacement
+annoncé, place conservée, aucune place, salle non découverte, mues de même emprise, les six, migration).
 
 ## Le jeu de base : ses méchants nommés, et le retrait de nos créations (René, 2026-10-31)
 
