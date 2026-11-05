@@ -250,12 +250,14 @@ it('AVANT : à volonté, le Dragon en vue d\'un héros lointain lance Boule de F
 });
 
 it('AVANT : la jambe 1 traverse un monstre sans jamais s\'y arrêter — la coupure tombe là où le sort voit sa cible', function () {
-    // Un Gobelin (une figure, pas une cible) occupe (3, 0) : il coupe la ligne de vue du Dragon depuis le
-    // départ, et il ne peut pas être une case d'arrêt. Le Dragon traverse, s'arrête en (4, 0) — d'où
-    // Boule de Flammes voit le héros —, lance, puis achève son vol jusqu'au contact en (5, 0).
+    // Deux Gobelins (des figures, pas des cibles) tiennent (3, 0) et (3, 1) : ils coupent la ligne de vue du Dragon
+    // depuis le départ — depuis ses DEUX cases, puisqu'un lanceur voit par toute son emprise (2026-11-05) —, et ne
+    // peuvent pas être une case d'arrêt. Le Dragon traverse, s'arrête en (4, 0) — d'où Boule de Flammes voit le
+    // héros —, lance, puis achève son vol jusqu'au contact en (5, 0).
     $quete = dragonQueteDessinee(['sssssssss', 'sssssssss']);
     [, $etatHeros] = dragonHeroEn($quete, 'Cible', 1, 6, 0);
     $gobelin = dragonMonstreEn($quete, 'Gobelin', 3, 0);
+    $gobelinBas = dragonMonstreEn($quete, 'Gobelin', 3, 1);
     $dragon = dragonMonstreEn($quete, 'Dragon', 0, 0);
 
     desFiges(array_fill(0, 200, 4));
@@ -276,15 +278,18 @@ it('AVANT : la jambe 1 traverse un monstre sans jamais s\'y arrêter — la coup
     $dragon->refresh();
     $gobelin->refresh();
     expect([(int) $dragon->position_x, (int) $dragon->position_y])->toBe([5, 0])
-        ->and([(int) $gobelin->position_x, (int) $gobelin->position_y])->toBe([3, 0]);
+        ->and([(int) $gobelin->position_x, (int) $gobelin->position_y])->toBe([3, 0])
+        ->and([(int) $gobelinBas->fresh()->position_x, (int) $gobelinBas->fresh()->position_y])->toBe([3, 1]);
 });
 
 it('AVANT : sans action, une seule jambe — le Dragon ne finit jamais sur une figure, même au bout de son budget', function () {
-    // Le Gobelin tombe pile sur la 10e case du budget, (10, 0) : la jambe s'arrête sur (9, 0), jamais dessus.
-    // Aucune ligne de vue avant : la ligne vers le héros passe par le Gobelin, aucun sort ne part.
+    // Les Gobelins tombent pile sur la 10e case du budget, (10, 0) et (10, 1) : la jambe s'arrête sur (9, 0), jamais
+    // dessus. Aucune ligne de vue avant, depuis aucune des deux cases du Dragon : la ligne vers le héros passe par un
+    // Gobelin, aucun sort ne part.
     $quete = dragonQueteDessinee([str_repeat('s', 14), str_repeat('s', 14)]);
     [, $etatHeros] = dragonHeroEn($quete, 'Cible', 1, 13, 0);
     dragonMonstreEn($quete, 'Gobelin', 10, 0);
+    dragonMonstreEn($quete, 'Gobelin', 10, 1);
     $dragon = dragonMonstreEn($quete, 'Dragon', 0, 0);
 
     desFiges(array_fill(0, 200, 4));
