@@ -120,11 +120,10 @@ use Illuminate\Support\Facades\DB;
  *   - sort_a_volonte : capacité PARAMÉTRÉE (`['sort' => 'Boule de
  *     Flammes']`) — le sort qu'elle nomme échappe au compteur `usages_dread`
  *     pour CETTE instance SEULE (`sortAVolonte()`), chaque lancer coûtant
- *     toujours l'action du tour. Contrairement à `USAGES_BASE` (le Spectre,
- *     dont la carte dit aussi « à volonté » mais reste bridé à 1/rencontre —
- *     divergence assumée), la carte du Dragon ne dit QUE « at will », sans
- *     réserve : c'est la seule créature du catalogue à l'avoir au pied de
- *     la lettre.
+ *     toujours l'action du tour. Trois porteurs, chacun cité par son texte :
+ *     le Dragon (Boule de Flammes), le Bloomrot Scion et le Spectre (Canaliser
+ *     l'Effroi — bridé à 1/rencontre jusqu'au 2026-11-05, divergence retirée
+ *     par René).
  *
  * DÉCISION DE SORT (choisirSort) — priorités, premier match gagne, sur les
  * seuls héros EN VUE :
@@ -166,8 +165,8 @@ final class MoteurDread
      * chacun leurs sorts « 1 fois par quête » (doc 18). Sans usage, leur
      * répertoire n'aurait jamais rien produit.
      *
-     * Divergence assumée pour le Specter, dont la carte dit « à volonté » :
-     * un spectre par salle canaliserait alors à chaque tour de monstre.
+     * Le Specter, dont la carte dit « à volonté », n'y est plus soumis pour ce
+     * sort-là depuis le 2026-11-05 (`sort_a_volonte`, René).
      */
     public const USAGES_BASE = 1;
 

@@ -194,17 +194,15 @@ it('le Dragon lance Boule de Flammes même à 0 usage restant — sort_a_volonte
     expect($instance->fresh()->usages_dread)->toBe(0);
 });
 
-it('le Spectre, lui, reste bridé à 1 usage malgré sa carte « à volonté » (divergence assumée)', function () {
-    // Contraste délibéré avec le Dragon : `USAGES_BASE` documente cette
-    // divergence depuis le 2026-09-04 (« un spectre par salle canaliserait
-    // sinon à chaque tour de monstre ») — rien de ce lot ne doit la changer.
+it('le Spectre aussi : son « à volonté » ouvre la porte du sort même à 0 usage restant (René, 2026-11-05)', function () {
+    // Il restait bridé à 1 usage (`USAGES_BASE`, divergence assumée du 2026-09-04) : compteur à sec, plus de sort.
+    // Sa carte dit « at will » comme celle du Dragon, et il porte désormais le même mécanisme.
     $ctx = demarrerQueteAvecMonstre('Spectre');
     $instance = $ctx['instance']->fresh()->load('monstre');
 
-    expect(app(MoteurDread::class)->sortAVolonte($instance))->toBeNull();
+    expect(app(MoteurDread::class)->sortAVolonte($instance))->toBe('Canaliser l\'Effroi');
 
     $instance->update(['usages_dread' => 0]);
-    $instance->refresh();
 
     desFiges(array_fill(0, 50, 4));
 
@@ -212,9 +210,10 @@ it('le Spectre, lui, reste bridé à 1 usage malgré sa carte « à volonté » 
         $ctx['groupe'], $ctx['quete'], $instance->fresh()->load('monstre'), Collection::make([$ctx['etatHeros']]),
     );
 
-    // Compteur à sec, pas de sort gratuit : comportement de base (approche
-    // au contact, pas de sort), donc aucune action Dread.
-    expect($resultat)->toBeNull();
+    expect($resultat)->not->toBeNull()
+        ->and($resultat['type'])->toBe('sort_dread')
+        ->and($resultat['sort'])->toBe('Canaliser l\'Effroi')
+        ->and((int) $instance->fresh()->usages_dread)->toBe(0);
 });
 
 // ---------------------------------------------------------------------

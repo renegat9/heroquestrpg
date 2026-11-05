@@ -321,7 +321,11 @@ D'où la règle, écrite une fois dans `MoteurSynchroformes::ancrer()`, le point
   donc pas, tant que sa case reste légale.
 - **Sinon**, la figure se pose sur l'ancre la plus proche où toute son emprise tient : distance de TCHEBYCHEV depuis l'ancre d'origine
   (géométrique : ni chemin, ni coût de terrain — un mur ne l'allonge pas), départage par ORDRE DE LECTURE (la ligne y, puis x).
-  Jamais sur une figure, une roche, un terrain interdit à l'arrêt, ni dans une salle non découverte.
+  Jamais sur une figure, une roche, un terrain interdit à l'arrêt, ni dans une salle non découverte. Un couloir compte : une salle
+  pleine envoie la forme dans le couloir ou la salle explorée la plus proche.
+- **On ne REPOUSSE personne pour lui faire de la place** (René, 2026-11-05 : « gardons la règle du livret et au besoin le faire
+  apparaître dans le corridor ou salle explorée la plus proche »). Proposé et écarté : reculer d'une case les figures adjacentes qui
+  gênent, pour que la forme reste sur place. Le livret déplace la FORME, jamais les autres figures. Ne pas rouvrir.
 - **Aucune ancre de ce genre** sur la carte découverte : la forme n'est PAS prise, et la figure tombe par la mort ordinaire. Décision
   de code, écrite pour être relue : une mue ne doit jamais laisser deux figures sur une même case, et une figure qui ne peut pas
   changer de forme à 0 Body n'a pas d'autre issue qu'une défaite. Cas quasi impossible (il faudrait que toute la carte découverte
@@ -334,7 +338,8 @@ D'où la règle, écrite une fois dans `MoteurSynchroformes::ancrer()`, le point
   tomber comme les autres formes.
 
 Tests EN JEU : `tests/Feature/Partie/MueQuiGranditTest.php` (le coup part par `ResolveurTour::frapper()`, dés injectés : déplacement
-annoncé, place conservée, aucune place, salle non découverte, mues de même emprise, les six, migration).
+annoncé, place conservée, aucune place, salle non découverte, salle pleine → couloir sans poussée, mues de même emprise, les six,
+migration).
 
 ## Le jeu de base : ses méchants nommés, et le retrait de nos créations (René, 2026-10-31)
 

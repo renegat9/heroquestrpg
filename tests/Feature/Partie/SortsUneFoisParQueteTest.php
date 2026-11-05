@@ -31,7 +31,8 @@ use Illuminate\Support\Facades\Http;
  *
  *  1. Un sous-boss à UN sort (Tourmente) la lance une fois dans la quête, jamais deux — son budget reste à un.
  *  2. Un sous-boss à deux sorts les lance chacun une fois, puis n'en lance plus.
- *  3. Le sort « à volonté » (`sort_a_volonte`) se répète sans rien dépenser, et n'entre jamais au compteur.
+ *  3. Le sort « à volonté » (`sort_a_volonte`) se répète sans rien dépenser, et n'entre jamais au compteur — le
+ *     Spectre compris (René, 2026-11-05).
  *  4. La réserve de cartes (Nexrael) n'est pas bridée par le compteur : une carte par Explosion mentale.
  *  5. Une reprise de partie (snapshot) garde les sorts déjà lancés.
  *  6. REGISTRE : « à volonté » et réserve ne sont portés que par les figures dont le texte l'écrit.
@@ -202,6 +203,52 @@ it('le sort `sort_a_volonte` se répète chaque tour, ne consomme aucun usage et
         ->and((array) $ctx['instance']->fresh()->sorts_dread_lances)->toBe([]);
 });
 
+it('EN JEU — le Spectre canalise À VOLONTÉ : trois tours de suite par le vrai tour des monstres, sans rien dépenser', function () {
+    // F6646 p. 19 : « can cast the following Dread spell at will: Channel Dread » (René, 2026-11-05). Bridé à UN usage
+    // par rencontre jusque-là (`USAGES_BASE`) : le deuxième tour, il ne canalisait plus.
+    $ctx = demarrerQueteAvecMonstre('Spectre');
+    ['heros' => $heros, 'instance' => $spectre, 'alice' => $alice] = $ctx;
+
+    expect(app(MoteurDread::class)->sortAVolonte($spectre->fresh()->load('monstre')))->toBe('Canaliser l\'Effroi')
+        ->and((int) $spectre->fresh()->usages_dread)->toBe(MoteurDread::USAGES_BASE);
+
+    $pvAvant = (int) $heros->fresh()->pv_body;
+    $lances = [];
+
+    for ($tour = 0; $tour < 3; $tour++) {
+        // Un 4 au dé rouge : « on 4-5 loses 1 Body Point ».
+        desFiges(array_fill(0, 300, 4));
+
+        $reponse = test()->actingAs($alice, 'joueur')
+            ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+            ->assertStatus(202);
+
+        $lances = [...$lances, ...sufSortsJoues(collect($reponse->json('resultat.tour_monstres.actions'))->all())];
+    }
+
+    expect($lances)->toBe(['Canaliser l\'Effroi', 'Canaliser l\'Effroi', 'Canaliser l\'Effroi'])
+        ->and((int) $heros->fresh()->pv_body)->toBe($pvAvant - 3)
+        ->and((int) $spectre->fresh()->usages_dread)->toBe(MoteurDread::USAGES_BASE)
+        ->and((array) $spectre->fresh()->sorts_dread_lances)->toBe([]);
+});
+
+it('la migration `2026_11_05_100000_spectre_canalise_a_volonte` donne le « à volonté » au Spectre déjà en base, et revient en arrière', function () {
+    $migration = require database_path('migrations/2026_11_05_100000_spectre_canalise_a_volonte.php');
+    $aVolonte = fn () => app(MoteurDread::class)->sortAVolonte(
+        InstanceMonstre::make()->setRelation('monstre', Monstre::where('nom_base', 'Spectre')->firstOrFail()),
+    );
+
+    Monstre::where('nom_base', 'Spectre')->update(['capacites' => ['ethere']]);
+
+    $migration->up();
+    expect($aVolonte())->toBe('Canaliser l\'Effroi')
+        ->and(Monstre::where('nom_base', 'Spectre')->firstOrFail()->capacites)->toContain('ethere');
+
+    $migration->down();
+    expect($aVolonte())->toBeNull()
+        ->and(Monstre::where('nom_base', 'Spectre')->firstOrFail()->capacites)->toBe(['ethere']);
+});
+
 // ==================================================================
 // 4. RÉSERVE DE CARTES — la règle « une fois » ne la bride pas
 // ==================================================================
@@ -266,14 +313,15 @@ it('une reprise de partie garde les sorts déjà lancés : le sous-boss ne relan
 // 6. REGISTRE — « à volonté » et réserve, testés DANS LES DEUX SENS
 // ==================================================================
 
-it('REGISTRE : « à volonté » (`sort_a_volonte`) n\'est porté que par les deux figures dont le texte l\'écrit', function () {
+it('REGISTRE : « à volonté » (`sort_a_volonte`) n\'est porté que par les trois figures dont le texte l\'écrit', function () {
     $porteurs = Monstre::all()
         ->filter(fn (Monstre $m) => array_key_exists('sort_a_volonte', (array) $m->capacites))
         ->pluck('nom_base')->sort()->values()->all();
 
     // F9907 p. 20 : Bloomrot Scion, « may cast the Channel Dread spell at will » ; First Light, carte Dragon
-    // (« may cast Ball of Flame at will », lu sur la carte en 2026-09-30 — absent du texte extrait du livret).
-    expect($porteurs)->toBe(['Dragon', 'Scion Fleur-Pourrie']);
+    // (« may cast Ball of Flame at will », lu sur la carte en 2026-09-30 — absent du texte extrait du livret) ; F6646
+    // p. 19 : Specter, « can cast the following Dread spell at will: Channel Dread » (René, 2026-11-05).
+    expect($porteurs)->toBe(['Dragon', 'Scion Fleur-Pourrie', 'Spectre']);
 });
 
 it('REGISTRE : la réserve de cartes (`reserve_cartes`) n\'est portée que par les trois Sorciers d\'Against the Ogre Horde', function () {

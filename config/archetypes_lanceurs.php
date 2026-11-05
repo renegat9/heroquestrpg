@@ -63,10 +63,9 @@ return [
 
     'spectre_hurlant' => [
         'porteur' => 'Spectre',
-        // « mort-vivant et éthéré, lance *Channel Dread* À VOLONTÉ ». Le « à
-        // volonté » de la carte reste borné par notre budget d'usages — une
-        // créature de base en a UN par rencontre. Divergence assumée : sans
-        // borne, un spectre par salle canaliserait à chaque tour de monstre.
+        // « mort-vivant et éthéré, lance *Channel Dread* À VOLONTÉ » (F6646 p. 19) : porté
+        // au pied de la lettre depuis le 2026-11-05 (René) par la capacité `sort_a_volonte`
+        // de la fiche, qui fait échapper ce sort au budget d'usages.
         'sorts' => [
             'Canaliser l\'Effroi',
         ],

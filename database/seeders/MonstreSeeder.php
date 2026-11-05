@@ -305,11 +305,13 @@ class MonstreSeeder extends Seeder
             ['nom_base' => 'Cultiste du Dread', 'deplacement' => 7, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2,
                 'tier' => 'base', 'boite' => 'dread_moon', 'cout' => 2, 'capacites' => [], 'sorts_dread' => [],
                 'archetype_lanceur' => 'culte_effroi'],
-            // « mort-vivant et éthéré, lance *Channel Dread* à volonté » (doc 18).
-            // Le « à volonté » reste borné par notre budget d'usages — un par
-            // rencontre pour une créature de base.
+            // « Each Specter is undead, ethereal, and can cast the following Dread spell at will: Channel Dread »
+            // (F6646 p. 19). « À volonté » au pied de la lettre (René, 2026-11-05) : `sort_a_volonte`, comme le Dragon
+            // et le Scion — chaque lancer coûte l'action du tour, aucun ne s'épuise. Il bornait autrefois à UN usage
+            // par rencontre (`USAGES_BASE`), divergence retirée.
             ['nom_base' => 'Spectre', 'deplacement' => 8, 'attaque' => 3, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'boite' => 'dread_moon', 'cout' => 5, 'capacites' => ['ethere'], 'sorts_dread' => [],
+                'tier' => 'base', 'boite' => 'dread_moon', 'cout' => 5,
+                'capacites' => ['ethere', 'sort_a_volonte' => ['sort' => 'Canaliser l\'Effroi']], 'sorts_dread' => [],
                 'archetype_lanceur' => 'spectre_hurlant'],
             // CORRIGÉ le 2026-10-05 : la carte « Assassin » (p15, © 2023,
             // reference/20_cartes_monstres.md) porte un texte de capacité que

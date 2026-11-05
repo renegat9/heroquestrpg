@@ -293,6 +293,29 @@ it('EN JEU — une case d\'une salle NON découverte n\'est jamais la place d\'u
         ->and(mueChevauche($gretzl2->fresh()))->toBeFalse();
 });
 
+it('EN JEU — salle pleine : la forme se pose dans le COULOIR le plus proche, et personne n\'est repoussé (René, 2026-11-05)', function () {
+    // Salle 0 : une rangée (1..3, 1), Gretzl en (1,1), deux héros en (2,1) et (3,1). Un couloir descend de (3,2) à (3,3).
+    // Demonspider (1 × 2) ne tient nulle part dans la salle sans écarter un héros : René garde la règle du livret (« the
+    // nearest open square »), la forme se pose dans le couloir ou la salle explorée la plus proche, à distance 2.
+    $quete = mueQuete(
+        ['mmmmm', 'msssm', 'mmmsm', 'mmmsm', 'mmmmm'],
+        [['x' => 1, 'y' => 1, 'largeur' => 3, 'hauteur' => 1]],
+    );
+    [$heros, $etat] = mueHeros($quete, 2, 1);
+    [, $etatVoisin] = mueHeros($quete, 3, 1);
+    $gretzl = mueFigure($quete, 'Gretzl la Porte-Fléau', 1, 1, ['ignore_degats_attaque'], 1);
+
+    $payload = mueFrapper($heros, $etat, $gretzl);
+
+    expect($payload['changement_phase'])->toMatchArray(['avant' => 'Gretzl la Porte-Fléau', 'apres' => 'Demonspider'])
+        ->and($payload['changement_phase']['deplacement'])->toBe(['de' => ['x' => 1, 'y' => 1], 'vers' => ['x' => 3, 'y' => 2]])
+        ->and(mueChevauche($gretzl->fresh()))->toBeFalse();
+
+    // Les héros n'ont pas bougé : aucune poussée.
+    expect([(int) $etat->fresh()->position_x, (int) $etat->fresh()->position_y])->toBe([2, 1])
+        ->and([(int) $etatVoisin->fresh()->position_x, (int) $etatVoisin->fresh()->position_y])->toBe([3, 1]);
+});
+
 it('une mue de MÊME emprise ne bouge pas : Gruzbella Hammerhand (1 × 2) → Déterminée (1 × 2)', function () {
     $quete = mueQuete(
         ['mmmmmmm', 'msssssm', 'msssssm', 'msssssm', 'mmmmmmm'],
