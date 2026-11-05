@@ -21,11 +21,19 @@ const personnages = computed(() => store.state.personnages ?? []);
 const chargement = ref(true);
 const erreurGlobale = ref('');
 
+// ⚠ LE point de passage de `/moi` : le profil, le roster ET les boîtes du
+// bestiaire manuel. Les boîtes n'étaient lues qu'au montage — qui répond 401 à
+// un joueur pas encore connecté : après connexion ou inscription, « Manuel »
+// n'offrait aucune extension (René, 2026-11-05).
+async function rafraichirMoi() {
+    const { joueur: moi, personnages: persos, boites_bestiaire: boites } = await api.moi();
+    store.setJoueur(moi, persos ?? []);
+    boitesBestiaire.value = boites ?? [];
+}
+
 onMounted(async () => {
     try {
-        const { joueur: moi, personnages: persos, boites_bestiaire: boites } = await api.moi();
-        store.setJoueur(moi, persos ?? []);
-        boitesBestiaire.value = boites ?? [];
+        await rafraichirMoi();
     } catch {
         // 401 = pas connecté, c'est normal ; les autres erreurs n'empêchent
         // pas d'afficher les onglets connexion/inscription.
@@ -46,8 +54,7 @@ async function seConnecter() {
     erreurAuth.value = '';
     try {
         await api.connexion(identifiant.value.trim());
-        const { joueur: moi, personnages: persos } = await api.moi();
-        store.setJoueur(moi, persos ?? []);
+        await rafraichirMoi();
     } catch (e) {
         erreurAuth.value = e.message;
     } finally {
@@ -63,8 +70,7 @@ async function sInscrire() {
             pseudo: pseudo.value.trim(),
             identifiant: identifiant.value.trim(),
         });
-        const { joueur: moi, personnages: persos } = await api.moi();
-        store.setJoueur(moi, persos ?? []);
+        await rafraichirMoi();
     } catch (e) {
         erreurAuth.value = e.message;
     } finally {
@@ -139,8 +145,7 @@ async function creerPersonnage() {
             payload.elements = elementsChoisis.value;
         }
         await api.creerPersonnage(payload);
-        const { joueur: moi, personnages: persos } = await api.moi();
-        store.setJoueur(moi, persos ?? []);
+        await rafraichirMoi();
         nouveauNom.value = '';
         nouvelleClasse.value = 'barbare';
         elementsChoisis.value = [];
@@ -180,8 +185,7 @@ async function rejoindre(perso) {
         // live (resterait bloqué au hub). Repli sur le code tapé.
         const reponse = await api.rejoindreGroupe(code, { personnage_id: perso.id });
         const ident = reponse?.groupe?.identifiant ?? code;
-        const { joueur: moi, personnages: persos } = await api.moi();
-        store.setJoueur(moi, persos ?? []);
+        await rafraichirMoi();
         // On transmet le personnage ENGAGÉ sur ce téléphone : sinon la manette
         // devine et pilote le 1er perso engagé du joueur (bug multi-personnages).
         router.push({ name: 'manette', params: { groupe: ident }, query: { perso: perso.id } });
@@ -245,8 +249,7 @@ async function creerGroupe(perso) {
                 ? { bestiaire_boites: boitesCochees.value[perso.id] ?? [] }
                 : {}),
         });
-        const { joueur: moi, personnages: persos } = await api.moi();
-        store.setJoueur(moi, persos ?? []);
+        await rafraichirMoi();
         router.push({ name: 'manette', params: { groupe: groupe.identifiant }, query: { perso: perso.id } });
     } catch (e) {
         erreurCreerGroupe.value = { ...erreurCreerGroupe.value, [perso.id]: e.message };
@@ -289,8 +292,7 @@ async function supprimerPersonnage(perso) {
     erreurSuppression.value = { ...erreurSuppression.value, [perso.id]: '' };
     try {
         await api.supprimerPersonnage(perso.id);
-        const { joueur: moi, personnages: persos } = await api.moi();
-        store.setJoueur(moi, persos ?? []);
+        await rafraichirMoi();
         // Pas besoin de refermer la confirmation : la carte a disparu avec le perso.
     } catch (e) {
         erreurSuppression.value = { ...erreurSuppression.value, [perso.id]: e.message };
