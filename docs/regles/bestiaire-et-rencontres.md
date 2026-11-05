@@ -329,7 +329,8 @@ D'où la règle, écrite une fois dans `MoteurSynchroformes::ancrer()`, le point
 - **Aucune ancre de ce genre** sur la carte découverte : la forme n'est PAS prise, et la figure tombe par la mort ordinaire. Décision
   de code, écrite pour être relue : une mue ne doit jamais laisser deux figures sur une même case, et une figure qui ne peut pas
   changer de forme à 0 Body n'a pas d'autre issue qu'une défaite. Cas quasi impossible (il faudrait que toute la carte découverte
-  refuse une case double). À valider par René si l'on préfère une autre issue.
+  refuse une case double). Tranché par René le 2026-11-05 (« Laissons ça comme ça ») : cette issue reste, sans annonce
+  particulière à la table — la mort ordinaire est déjà annoncée comme toute défaite.
 - **Le déplacement est publié et annoncé** : `changement_phase.deplacement = {de, vers}` (absent quand la figure reste), une ligne de
   journal (« Faute de place sur sa case, Demonspider se pose sur les cases libres les plus proches. ») et le sous-titre de la scène de
   transformation. La position est celle que publie `EtatGroupe::monstres()`. Contrat : `docs/contrat-api.md`, §« Monstre à phases ».
