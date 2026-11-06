@@ -97,3 +97,6 @@ browser-shots/jd-*.json
 /browser-shots/livret/
 /browser-shots/valider/
 /browser-shots/valider2/
+
+# Python : bytecode compilé, où qu'il soit (py_compile des scripts du livret, harnais)
+__pycache__/
