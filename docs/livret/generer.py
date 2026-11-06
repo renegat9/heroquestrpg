@@ -372,11 +372,12 @@ ecrire('''
   <li>Un joueur <strong>crée le groupe</strong> depuis un personnage libre : il en devient le
       fondateur, choisit un <strong>thème</strong> (registre fantasy), une
       <strong>longueur de campagne</strong> et le <strong>bestiaire</strong> :
-      <em>automatique</em> (une extension tirée au sort à la première quête, qui colore le
-      boss et quelques monstres forts) ou <em>manuel</em> (il coche les extensions voulues ;
-      seules celles-là, le jeu de base et les créatures propres au jeu apparaîtront —
-      aucune case cochée, c'est le jeu de base seul). Le choix vaut pour toute la campagne.
-      Le code du groupe apparaît.</li>
+      <em>automatique</em> (le maître du jeu choisit d'une à trois extensions d'après le
+      thème ; si le thème n'en évoque aucune, une à trois sont tirées au hasard selon la
+      longueur) ou <em>manuel</em> (il coche les extensions voulues — aucune case cochée,
+      c'est le jeu de base seul). Dans les deux cas, seules ces extensions, le jeu de base et
+      les créatures propres au jeu apparaîtront ; le choix vaut pour toute la campagne
+      (<a href="#ch13">chapitre 13</a>). Le code du groupe apparaît.</li>
   <li>Les autres <strong>rejoignent par ce code</strong>, chacun avec un personnage libre de
       son roster. Un personnage ne figure qu'une fois dans un groupe.</li>
   <li>Le narrateur <strong>ouvre la table</strong> avec le même code.</li>
@@ -1041,10 +1042,17 @@ ecrire('''
   <h4>Une fois par quête, et pas de repos</h4>
   <p>Chaque sort connu est lançable <strong>une fois par quête</strong>, puis épuisé. Tout
   redevient disponible <strong>entre deux quêtes</strong>. Il n'existe aucun repos en cours de
-  quête. Deux exceptions seulement, chacune <strong>une fois par quête</strong> : le talent
-  <em>Concentration</em> du magicien, qui sacrifie son tour pour récupérer un sort, et la
+  quête. Trois exceptions seulement, chacune <strong>une fois par quête</strong> : le talent
+  <em>Concentration</em> du magicien, qui sacrifie son tour pour récupérer un sort ; la
   <em>Potion de sagesse ancienne</em> (<em>Jungles of Delthrak</em>), qui rend un sort ou une
-  compétence déjà utilisés — une seule par héros et par quête.</p>
+  compétence déjà utilisés — une seule par héros et par quête ; et l'<strong>Anneau de
+  Sort</strong>, dont le porteur <strong>déclare au premier tour</strong> le sort qu'il garde —
+  la manette lui ouvre la liste d'elle-même, et ce sort-là se lance <strong>deux fois</strong>
+  dans la quête.</p>
+  <p><strong>Jamais deux fois le même sort dans le même tour.</strong> Même gardé par l'anneau
+  ou par un talent, un sort déjà lancé ce tour reste grisé jusqu'au tour suivant : la
+  <em>Baguette de Rappel</em> (Elfe et Magicien seulement) donne un second sort, mais un sort
+  <em>différent</em>.</p>
   <p>Les sorts de dégâts se résolvent <strong>sans jet de toucher</strong>. Les sorts mentaux
   sont <strong>binaires</strong> : la cible résiste, ou subit. Et les créatures à
   <strong>Mind 0</strong> — squelette, zombie, momie — y sont totalement insensibles.</p>
@@ -1512,16 +1520,20 @@ fin()
 
 # ======================================== 11. FOUILLER LE DONJON ==========
 chapitre(11, 'Fouiller, les coffres et les artefacts',
-         "Une fouille par héros et par salle — et un paquet de trésors qui tourne sans "
-         "jamais s'épuiser.")
+         "Une fouille par héros et par salle — et un paquet de trésors où l'or et les potions, "
+         "une fois trouvés, ne reviennent pas.")
 ecrire('''
 <h3>Le paquet de fouille</h3>
 <p>« Fouiller — trésor » tire une carte dans un paquet propre à la quête, composé comme celui
-du plateau : <strong>24 cartes</strong> — des gemmes et des bijoux, des pièces d'or, trois
-potions de soin, un peu d'héroïsme, de force et de défense, quelques fosses et pièges à
-lances, et <strong>six monstres errants</strong>, de loin la carte la plus fréquente.</p>
-<p>Chaque carte tirée <strong>repasse sous le paquet</strong> : il tourne au lieu de s'épuiser.
-Une fouille par héros <strong>et par salle</strong> — le premier qui cherche ne referme pas la
+du plateau — carte pour carte, le paquet de <em>First Light</em> : <strong>24 cartes</strong>,
+dont <strong>six monstres errants</strong>, de loin la carte la plus fréquente ; trois potions
+de soin ; deux gemmes (35 po), deux bourses de 25 po, deux de 15 po et deux coffrets de bijoux
+(50 po) ; deux fosses et deux pièges à flèches ; une potion d'héroïsme, une de force et une de
+défense.</p>
+<p><strong>Ce qu'on trouve, on le garde</strong> : l'or, les gemmes, les bijoux et les potions
+quittent le paquet, comme le disent leurs cartes. Les monstres errants et les pièges, eux,
+<strong>repassent sous le paquet</strong> — quand tout le butin est trouvé, il ne reste qu'eux,
+et ils tournent. Une fouille par héros <strong>et par salle</strong> — le premier qui cherche ne referme pas la
 pièce pour les autres, chacun tire la sienne. Le butin va au fouilleur ; l'or va au pot commun.
 Une carte piège <strong>termine le tour</strong>.</p>
 <p><strong>L'armoire donne une seconde carte.</strong> Le <em>premier</em> héros à fouiller le
@@ -1769,6 +1781,33 @@ LIB_BOITE = {'base': 'Boîte de base', 'horreur_des_glaces': 'Horreur des Glaces
              None: 'Élites du donjon'}
 MON = CAT['monstres']
 
+# LES EXTENSIONS (2026-11-05) : nom, ambiance et créatures de chaque boîte, telles que le MJ IA les lit pour choisir le
+# bestiaire d'une campagne automatique (`App\Partie\CatalogueExtensions::fiches()`, exportées par `catalogue.sh`).
+def _noms(liste):
+    return ', '.join(e(n) for n in liste) or '—'
+EXTENSIONS = ('<table><thead><tr><th>Extension</th><th>Ambiance</th><th>Boss</th><th>Sous-boss et élites</th>'
+              '<th>Piétaille</th></tr></thead><tbody>'
+              + ''.join(f'<tr><td class="nom">{e(x["libelle"])}</td><td>{e(x["ambiance"])}</td>'
+                        f'<td>{_noms(x["boss"])}</td><td>{_noms(x["sous_boss"])}</td><td>{_noms(x["base"])}</td></tr>'
+                        for x in CAT.get('extensions', []))
+              + '</tbody></table>')
+assert CAT.get('extensions'), 'catalogue sans extensions : relancer docs/livret/catalogue.sh'
+
+# LES GRANDES FIGURES, tirées de la base (`monstres.grande_taille`, {l, h}) : une énumération écrite à la main avait
+# oublié le Scion 4×4 et Magrian. Les formes suivantes d'un monstre à phases (Gruzbella Déterminée…) sont tues :
+# on ne les rencontre qu'en jeu, sous le nom de leur première forme.
+_SUIVANTES = {m['phase_suivante'] for m in MON if m.get('phase_suivante')}
+_GRANDES = {}
+for _m in MON:
+    _g = j(_m.get('grande_taille')) if _m.get('grande_taille') else None
+    if isinstance(_g, dict) and _m['nom_base'] not in _SUIVANTES:
+        _GRANDES.setdefault((int(_g.get('l', 1)), int(_g.get('h', 1))), []).append(_m['nom_base'])
+GRANDES_FIGURES = ('<table><thead><tr><th>Emprise</th><th>Créatures</th></tr></thead><tbody>'
+                   + ''.join(f'<tr><td class="nom">{max(l, h)} × {min(l, h)} cases</td>'
+                             f'<td>{", ".join(e(n) for n in sorted(noms))}</td></tr>'
+                             for (l, h), noms in sorted(_GRANDES.items(), key=lambda kv: kv[0][0] * kv[0][1]))
+                   + '</tbody></table>')
+
 chapitre(13, 'Le bestiaire',
          f"{len(MON)} créatures — et un maître du jeu qui les rebaptise sans jamais "
          "toucher à leurs chiffres.")
@@ -1828,6 +1867,10 @@ l'autre, ce sont le déplacement, l'attaque, la défense — et parfois le nom. 
 forme est <strong>annoncé</strong> au journal, au téléphone et sur la table, jamais subi en
 silence. Un seul point de passage décide de la mort d'un monstre, quel que soit le chemin des
 dégâts : coup, sort, piège ou braise.</p>
+<p><strong>Une forme qui grandit</strong> (Gretzl devenant la <em>Demonspider</em>, qui occupe deux
+cases) se pose là où elle tient : à sa place si elle y entre, sinon sur la place libre la plus
+proche, dans un couloir ou une salle déjà explorée — comme le dit le livret, « the nearest open
+square ». On ne repousse personne pour lui faire de la place ; sans aucune place, la figure meurt.</p>
 <ul>
   <li><strong>Gruzbella Hammerhand</strong> (<em>Against the Ogre Horde</em>) : trois formes,
       <em>Hammerhand</em> puis <em>Déterminée</em> puis <em>Imprudente</em>. Chacune peut
@@ -1871,12 +1914,16 @@ suivantes ne s'atteignent qu'en jeu.</p>
 </ul>
 
 <h3>Les grandes figures</h3>
-<p>Une créature occupe <strong>deux cases</strong> quand son livret la dessine ainsi sur ses cartes de
-quête : un jeton <strong>ovale</strong> (l'Ogre champion, le Minotaure, le Dragon, le Loup géant…) ou une
-<strong>tuile</strong> de deux cases (le <em>Golem Cœur-de-Forge</em> de Delthrak). Un jeton rond ou une
-tuile carrée — le <em>Rejeton putride</em> — tient sur une case. Seule exception, nommée par son texte :
-l'<em>Horreur des Glaces</em> occupe deux cases avec un jeton rond. Sur la carte, chaque créature porte le
-jeton de son livret quand il existe.</p>
+<p>Une créature occupe <strong>plusieurs cases</strong> quand son livret la dessine ainsi sur ses
+cartes de quête : un jeton <strong>ovale</strong> ou une <strong>tuile</strong> de deux cases (le
+<em>Golem Cœur-de-Forge</em> de Delthrak) en couvre deux ; la grande tuile carrée du <em>Scion
+Fleur-Pourrie</em> couvre ses <strong>4 × 4 cases</strong>, bord à bord. Un jeton rond ou une petite
+tuile carrée — le <em>Rejeton putride</em> — tient sur une case. Seule exception, nommée par son
+texte : l'<em>Horreur des Glaces</em> occupe deux cases avec un jeton rond. Une grande figure voit
+<strong>depuis chacune de ses cases</strong>, et on la voit dès qu'une seule d'entre elles est en vue :
+pour se cacher d'elle, il faut couper la vue de toutes. Sur la carte, chaque créature porte le jeton
+de son livret quand il existe.</p>
+''' + GRANDES_FIGURES + '''
 
 <h3>Les cinq Sorciers du Dread</h3>
 <p><em>Wizards of Morcar</em> apporte cinq sorciers, chacun avec <strong>six sorts</strong> qui lui sont
@@ -1894,26 +1941,32 @@ lanceurs que le <em>Désapprentissage</em> d'un héros peut priver d'un sort.</p
 campagne ; les quatre autres, les « Lieutenants de Morcar », sont ses sous-boss et gardent
 leurs six sorts.</p>
 
-<div class="encadre">
-  <h4>Le thème de campagne</h4>
-  <p>Chaque campagne se fige, à son premier lancement, sur le <strong>thème</strong> d'une boîte
-  d'extension : Rise of the Dread Moon, The Mage of the Mirror, Against the Ogre Horde, Jungles
-  of Delthrak, The Frozen Horror, First Light, Wizards of Morcar, Prophecy of Telor, Return of the
-  Witch Lord, Kellar's Keep, Spirit Queen's Torment et The Crypt of Perpetual Darkness — ou sur
-  plusieurs boîtes cochées à la main. C'est lui qui décide quelles créatures, quels pièges, quels
-  terrains et quels objets de boîte peuplent ses donjons. Une campagne <em>en cours</em> ne change
-  jamais de thème en route.</p>
-</div>
+<h3>Les extensions</h3>
+<p>Chaque campagne joue avec le <strong>jeu de base</strong>, les créatures propres au jeu, et une
+à trois <strong>extensions</strong>, fixées une fois pour toutes à la création du groupe. En
+<em>manuel</em>, le fondateur les coche. En <em>automatique</em>, le maître du jeu les choisit
+d'après le <strong>thème</strong> saisi — une jungle appelle <em>Jungles of Delthrak</em>, une
+forteresse naine assiégée <em>Kellar's Keep</em> — et écrit la grande menace de la campagne pour
+elles ; si le thème n'en évoque aucune, elles sont <strong>tirées au hasard</strong> : une pour une
+campagne très courte ou courte, deux pour une normale, trois pour une longue ou très longue. Les extensions
+retenues décident des créatures, des pièges, des terrains et des objets de boîte qui peuplent les
+donjons ; aucune autre n'y entre. Une campagne <em>en cours</em> ne change jamais d'extensions.</p>
+<p>Le tableau ci-dessous est celui que lit le maître du jeu au moment de choisir : la même
+description, les mêmes créatures, tirées du catalogue.</p>
+''' + EXTENSIONS + '''
 
 <h3>Les sorts de Dread</h3>
 <p>C'est la magie de l'adversaire, et elle suit exactement les mêmes règles de résolution que
 celle des héros — <strong>c'est le Mind des héros qui sert de bouclier</strong>. Elle est
 répartie sur tout l'arc : les sorts mineurs aux sous-boss, les plus vilains au boss final.
-Un boss ne les lance pas à volonté : chaque rencontre a son compte d'usages — sauf le
-<strong>Dragon</strong> de <em>First Light</em>, dont la carte dit qu'il lance la Boule de
-Flammes <em>at will</em> : il peut la cracher à chaque tour, au prix de son action. Il occupe
-deux cases et <strong>vole par-dessus les figures</strong> (jamais par-dessus un meuble) pour
-atteindre sa proie.</p>
+Personne ne les lance à volonté : chaque lanceur a son compte d'usages pour la rencontre, et
+<strong>chaque sort ne sert qu'une fois par quête</strong> — sauf quand la carte de la créature
+écrit autre chose. Trois créatures lancent un sort <em>at will</em>, comme le disent leurs
+cartes : le <strong>Dragon</strong> de <em>First Light</em> crache la Boule de Flammes à chaque
+tour, au prix de son action ; le <strong>Scion Fleur-Pourrie</strong> de <em>Jungles of
+Delthrak</em> et le <strong>Spectre</strong> de <em>Rise of the Dread Moon</em> canalisent l'effroi
+à chaque tour. Le Dragon occupe deux cases et <strong>vole par-dessus les figures</strong> (jamais
+par-dessus un meuble) pour atteindre sa proie.</p>
 ''')
 ecrire(fig('05-guide-bestiaire', "Le bestiaire du guide intégré, avec les blocs de statistiques "
                                  "sourcés et les traits d'extension."))

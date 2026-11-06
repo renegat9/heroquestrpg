@@ -29,6 +29,9 @@ docker compose exec -T app php artisan tinker --execute="
   \$d['avantages_objets'] = \App\Models\Objet::all()->mapWithKeys(
     fn (\$o) => [(string) \$o->id => \App\Engine\MotsClesEquipement::avantages((array) \$o->effet)]
   );
+  // Les EXTENSIONS (2026-11-05) : nom, ambiance, créatures par palier — la même source que celle du MJ IA
+  // (\App\Partie\CatalogueExtensions), pour que le livret et le MJ ne décrivent jamais deux boîtes différentes.
+  \$d['extensions'] = app(\App\Partie\CatalogueExtensions::class)->fiches();
   file_put_contents('/tmp/catalogue.json', json_encode(\$d, JSON_UNESCAPED_UNICODE));" >/dev/null
 docker compose exec -T app cat /tmp/catalogue.json > "$SORTIE"
 echo "catalogue : $SORTIE ($(wc -c < "$SORTIE") octets)"

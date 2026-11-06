@@ -19,21 +19,48 @@ final class CatalogueExtensions
     public function __construct(private readonly DemarreurQuete $demarreur) {}
 
     /**
-     * @return array<string, string> boîte → « Nom officiel — ambiance. Créatures : … »
+     * Une FICHE par boîte qui tourne : son nom officiel, son ambiance, et ses créatures par palier. Lue par le livret
+     * de jeu (`docs/livret/catalogue.sh`) ET, mise en phrase, par le MJ IA (`descriptions()`) : la même source, pour
+     * que ce que lit le joueur et ce que lit le MJ ne puissent pas diverger.
+     *
+     * @return list<array{id: string, libelle: string, ambiance: string, boss: list<string>, sous_boss: list<string>, base: list<string>}>
      */
-    public function descriptions(): array
+    public function fiches(): array
     {
         $formesSuivantes = Monstre::nomsDeFormeSuivante();
         $monstres = Monstre::query()->orderBy('id')->get()
             ->reject(fn (Monstre $m) => in_array($m->nom_base, $formesSuivantes, true));
 
-        $descriptions = [];
+        $fiches = [];
         foreach (DemarreurQuete::BOITES_THEMATIQUES as $boite) {
-            $creatures = $monstres->filter(fn (Monstre $m) => in_array($boite, $m->boites(), true))
-                ->pluck('nom_base')->unique()->implode(', ');
-            $ambiance = rtrim((string) config("extensions.descriptions.{$boite}", ''), '. ');
+            $deLaBoite = $monstres->filter(fn (Monstre $m) => in_array($boite, $m->boites(), true));
+            $parPalier = fn (string $tier) => $deLaBoite->where('tier', $tier)->pluck('nom_base')->unique()->values()->all();
 
-            $descriptions[$boite] = $this->demarreur->libelleBoiteBestiaire($boite).' — '.$ambiance.'.'
+            $fiches[] = [
+                'id' => $boite,
+                'libelle' => $this->demarreur->libelleBoiteBestiaire($boite),
+                'ambiance' => rtrim((string) config("extensions.descriptions.{$boite}", ''), '. ').'.',
+                'boss' => $parPalier('boss'),
+                'sous_boss' => $parPalier('sous_boss'),
+                'base' => $parPalier('base'),
+            ];
+        }
+
+        return $fiches;
+    }
+
+    /**
+     * @return array<string, string> boîte → « Nom officiel — ambiance. Créatures : … »
+     */
+    public function descriptions(): array
+    {
+        $descriptions = [];
+        foreach ($this->fiches() as $fiche) {
+            // L'ordre du catalogue (par id), tous paliers confondus — celui que le MJ lisait déjà.
+            $creatures = Monstre::query()->whereIn('nom_base', [...$fiche['boss'], ...$fiche['sous_boss'], ...$fiche['base']])
+                ->orderBy('id')->pluck('nom_base')->unique()->implode(', ');
+
+            $descriptions[$fiche['id']] = "{$fiche['libelle']} — {$fiche['ambiance']}"
                 .($creatures === '' ? '' : " Créatures : {$creatures}.");
         }
 

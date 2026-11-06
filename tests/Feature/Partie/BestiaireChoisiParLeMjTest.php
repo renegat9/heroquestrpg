@@ -145,6 +145,22 @@ it('décrit chaque boîte avec son nom officiel et ses créatures du catalogue, 
         ->and($descriptions['mage_du_miroir'])->toContain('Archer elfe');
 });
 
+it('donne au livret les MÊMES fiches que lit le MJ : nom, ambiance, créatures par palier', function () {
+    $fiches = collect(app(CatalogueExtensions::class)->fiches())->keyBy('id');
+    $jungle = $fiches['jungles_delthrak'];
+
+    expect($fiches->keys()->all())->toBe(DemarreurQuete::BOITES_THEMATIQUES)
+        ->and($jungle['libelle'])->toBe('Jungles of Delthrak')
+        ->and($jungle['ambiance'])->toBe(rtrim((string) config('extensions.descriptions.jungles_delthrak'), '. ').'.')
+        ->and($jungle['boss'])->toContain('Gretzl la Porte-Fléau', 'Scion Fleur-Pourrie')
+        ->and($jungle['boss'])->not->toContain('Demonspider')
+        ->and($jungle['sous_boss'])->toContain('Serpent géant')
+        ->and($jungle['base'])->toContain('Raptor')
+        // La phrase du MJ est faite des mêmes morceaux.
+        ->and(app(CatalogueExtensions::class)->descriptions()['jungles_delthrak'])
+        ->toStartWith("Jungles of Delthrak — {$jungle['ambiance']} Créatures : ");
+});
+
 it('EN JEU — le MJ choisit selon le thème : son choix remplace le tirage, filtre la quête, et il est annoncé', function () {
     $joueur = connecterJoueur('alice');
     fakeMjExtensions([['jungles_delthrak']]);
