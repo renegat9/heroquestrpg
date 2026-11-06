@@ -8,9 +8,11 @@ les deux médias n'ayant presque aucune règle en commun, chacun a sa feuille au
 (`CSS` pour l'impression, `CSS_WEB` pour l'écran) plutôt qu'une pile de surcharges.
 
 Rien de tout cela n'est écrit à la main : il est
-**généré**, et c'est ce qui l'empêche de mentir. Les tableaux — stats des 12 classes,
-41 créatures, 105 objets, 31 sorts, pièges, mobilier, terrain, grilles de talents —
-sont extraits de la **base réelle** ; les copies d'écran sont prises sur la **vraie
+**généré**, et c'est ce qui l'empêche de mentir. Les tableaux — stats des classes,
+créatures, objets, sorts, pièges, mobilier, terrain, grilles de talents, grandes figures
+(`monstres.grande_taille`) et, depuis le 2026-11-05, les **extensions** (les fiches que lit
+le MJ IA pour choisir le bestiaire, `CatalogueExtensions::fiches()`) — sont extraits de la
+**base réelle** ; les copies d'écran sont prises sur la **vraie
 stack**, avec une campagne jouée pour de bon.
 
 Les textes de règle, eux, sont écrits dans `generer.py` et adossés à `reference/01`
