@@ -56,13 +56,14 @@ class GabaritQueteSeeder extends Seeder
                     // `or_coffre` : ce que verse le coffre désigné quand aucune arme
                     // unique n'est disponible pour la quête.
                     'deck_fouille' => [
-                        // Paquet de trésor : 24 cartes au TOTAL, confirmé (livret 2021,
-                        // boîte F2847 « Contents » ; First Light G0978 p. 4). ⚠ La
-                        // RÉPARTITION par carte n'est sourcée nulle part (⚠ non trouvé :
-                        // aucune liste officielle par carte) : elle reste à confirmer par
-                        // le décompte du paquet photographié par René. Montants sourcés
-                        // par ces photos (reference/16 §7.4) : gemme 35, or 15, or 25,
-                        // bijoux 50. Aucune quantité ne se change sans source.
+                        // Paquet de trésor : 24 cartes au TOTAL (livret 2021, boîte F2847
+                        // « Contents » ; First Light G0978 p. 4). RÉPARTITION sourcée le
+                        // 2026-11-05 par le décompte du paquet First Light de René
+                        // (`treasures_first_light.txt`, Drive) : 2 gemmes, 2 × 25, 2 × 15,
+                        // 2 bijoux, 2 fosses, 2 flèches, 3 soins, 1 héroïsme, 1 force,
+                        // 1 défense, 6 errants. Montants sourcés par ses photos
+                        // (reference/16 §7.4) : gemme 35, or 15, or 25, bijoux 50. Aucune
+                        // quantité ne se change sans source.
                         'cartes' => [
                             'gemme' => 2,          // 35 po
                             'or_25' => 2,
@@ -158,13 +159,14 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'budget_rencontres' => ['base' => 6, 'par_salle' => true],
                     'deck_fouille' => [
-                        // Paquet de trésor : 24 cartes au TOTAL, confirmé (livret 2021,
-                        // boîte F2847 « Contents » ; First Light G0978 p. 4). ⚠ La
-                        // RÉPARTITION par carte n'est sourcée nulle part (⚠ non trouvé :
-                        // aucune liste officielle par carte) : elle reste à confirmer par
-                        // le décompte du paquet photographié par René. Montants sourcés
-                        // par ces photos (reference/16 §7.4) : gemme 35, or 15, or 25,
-                        // bijoux 50. Aucune quantité ne se change sans source.
+                        // Paquet de trésor : 24 cartes au TOTAL (livret 2021, boîte F2847
+                        // « Contents » ; First Light G0978 p. 4). RÉPARTITION sourcée le
+                        // 2026-11-05 par le décompte du paquet First Light de René
+                        // (`treasures_first_light.txt`, Drive) : 2 gemmes, 2 × 25, 2 × 15,
+                        // 2 bijoux, 2 fosses, 2 flèches, 3 soins, 1 héroïsme, 1 force,
+                        // 1 défense, 6 errants. Montants sourcés par ses photos
+                        // (reference/16 §7.4) : gemme 35, or 15, or 25, bijoux 50. Aucune
+                        // quantité ne se change sans source.
                         'cartes' => [
                             'gemme' => 2,
                             'or_25' => 2,
@@ -221,13 +223,14 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'budget_rencontres' => ['base' => 8, 'par_salle' => true],
                     'deck_fouille' => [
-                        // Paquet de trésor : 24 cartes au TOTAL, confirmé (livret 2021,
-                        // boîte F2847 « Contents » ; First Light G0978 p. 4). ⚠ La
-                        // RÉPARTITION par carte n'est sourcée nulle part (⚠ non trouvé :
-                        // aucune liste officielle par carte) : elle reste à confirmer par
-                        // le décompte du paquet photographié par René. Montants sourcés
-                        // par ces photos (reference/16 §7.4) : gemme 35, or 15, or 25,
-                        // bijoux 50. Aucune quantité ne se change sans source.
+                        // Paquet de trésor : 24 cartes au TOTAL (livret 2021, boîte F2847
+                        // « Contents » ; First Light G0978 p. 4). RÉPARTITION sourcée le
+                        // 2026-11-05 par le décompte du paquet First Light de René
+                        // (`treasures_first_light.txt`, Drive) : 2 gemmes, 2 × 25, 2 × 15,
+                        // 2 bijoux, 2 fosses, 2 flèches, 3 soins, 1 héroïsme, 1 force,
+                        // 1 défense, 6 errants. Montants sourcés par ses photos
+                        // (reference/16 §7.4) : gemme 35, or 15, or 25, bijoux 50. Aucune
+                        // quantité ne se change sans source.
                         'cartes' => [
                             'gemme' => 2,          // 35 po
                             'or_25' => 2,
@@ -394,13 +397,14 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'budget_rencontres' => ['base' => 10, 'par_salle' => true],
                     'deck_fouille' => [
-                        // Paquet de trésor : 24 cartes au TOTAL, confirmé (livret 2021,
-                        // boîte F2847 « Contents » ; First Light G0978 p. 4). ⚠ La
-                        // RÉPARTITION par carte n'est sourcée nulle part (⚠ non trouvé :
-                        // aucune liste officielle par carte) : elle reste à confirmer par
-                        // le décompte du paquet photographié par René. Montants sourcés
-                        // par ces photos (reference/16 §7.4) : gemme 35, or 15, or 25,
-                        // bijoux 50. Aucune quantité ne se change sans source.
+                        // Paquet de trésor : 24 cartes au TOTAL (livret 2021, boîte F2847
+                        // « Contents » ; First Light G0978 p. 4). RÉPARTITION sourcée le
+                        // 2026-11-05 par le décompte du paquet First Light de René
+                        // (`treasures_first_light.txt`, Drive) : 2 gemmes, 2 × 25, 2 × 15,
+                        // 2 bijoux, 2 fosses, 2 flèches, 3 soins, 1 héroïsme, 1 force,
+                        // 1 défense, 6 errants. Montants sourcés par ses photos
+                        // (reference/16 §7.4) : gemme 35, or 15, or 25, bijoux 50. Aucune
+                        // quantité ne se change sans source.
                         'cartes' => [
                             'gemme' => 2,          // 35 po
                             'or_25' => 2,
