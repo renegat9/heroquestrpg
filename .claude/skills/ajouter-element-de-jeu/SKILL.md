@@ -69,6 +69,16 @@ vendable, ni affichable. ⚠ `MobilierSeeder` **clé sur `nom`** exprès : la gr
 stocke un `mobilier_id`, re-seeder en purgeant orphelinerait chaque meuble d'une
 quête en cours, ni fouillable ni bloquant, **sans une seule erreur**.
 
+⚠ **Une BOÎTE d'extension neuve** (un thème) : entrée à la **FIN** de
+`DemarreurQuete::BOITES_THEMATIQUES` (l'ordre est la rotation historique, jamais
+réordonné), son nom officiel dans `LIBELLES_BOITES`, et son **ambiance** dans
+`config/extensions.php` — une phrase tirée du message de Mentor ou de
+l'introduction du livret. Cette fiche est lue par le MJ IA (choix du bestiaire
+automatique), par le bouton ⓘ du formulaire et par le livret
+(`CatalogueExtensions::fiches()`) ; `BestiaireChoisiParLeMjTest` refuse une boîte
+sans description. Un **monstre** ajouté à une boîte existante, lui, entre partout
+tout seul.
+
 ⚠ **Le butin filtre ce que personne ne peut utiliser** : `RareteButin` pondère
 par le niveau du groupe, et le pool retire ce qu'aucun héros **engagé** ne
 pourrait porter (`Equipement::tagsAccessiblesAux()`). Un `tag_equipement`

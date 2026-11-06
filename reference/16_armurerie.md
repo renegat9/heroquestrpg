@@ -881,8 +881,8 @@ vaut 3 dés, sauf contre les morts-vivants.
 | **Capuche du Magister** / Magister's Hood | idem, « only by a Wizard » | tag `talisman_magicien` |
 | **Runes naines** / Dwarven Runestones | idem, « only by a Dwarf » | tag `talisman_nain` |
 | **Arc elfique de Vindication** / Elven Bow | « instantly kills any one monster… unless the monster rolls a black shield on 1 combat die. There are only 4 arrows » — ⚠ **remplacé par l'arbitrage de René (2026-09-16)** : « Inflige automatiquement 3 de dommages par flèche sauf si un bouclier noir est tiré sur un dé. 4 flèches, après l'arc est détruit. Elfe seulement. » | arme, `degats_sauf_bouclier_noir: 3` + `charges: 4` (l'arc se brise à la dernière) |
-| **Anneau de Sort** / Spell Ring | « cast one spell twice in the same Quest » | talisman, `sort_non_epuise` + `charges: 1` |
-| **Baguette de Rappel** / Wand of Recall | « cast two spells instead of one during your turn » | talisman, `second_sort_par_tour` |
+| **Anneau de Sort** / Spell Ring | « cast one spell twice in the same Quest » | talisman, `sort_non_epuise` + `charges: 1` — ⚠ depuis le 2026-11-05, la carte 2024 : sort déclaré au premier tour, sans charge (`docs/regles/artefacts.md`) |
+| **Baguette de Rappel** / Wand of Recall | « cast two spells instead of one during your turn » | talisman, `second_sort_par_tour` — ⚠ depuis le 2026-11-05 : Elfe et Magicien, deux sorts différents (texte retenu par René) |
 | **Sceptre de Mémoire** / Rod of Memory | « roll one combat die per turn. On a black shield, the chosen spell may be cast again » | talisman, `sort_non_epuise_sur_bouclier_noir` |
 | **Parchemin de Sorts** / Scroll of Spells | « restores all spells that Hero possessed at the beginning of the quest » | consommable, `restaure_sorts` |
 | **Baguette de Galimatias** / Wand of Galimatias | « recover all spells he has used so far… also grants 2 extra Mind points » | talisman, `restaure_sorts` + `charges: 1` + `bonus_pv_mind_max: 2` |

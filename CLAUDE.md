@@ -55,7 +55,10 @@ reason, and the two must never drift.
   discard, transmute, quicksand — and `MoteurSorts::consommerParchemin()` for every scroll
   use, reading and *Vision du futur* alike, charges included; since 2026-10-31:
   `ResolveurTour::empriseOuSArreter()` for where a multi-cell monster may STOP — walk and
-  trap door alike, on the real grid, never the passage grid).
+  trap door alike, on the real grid, never the passage grid; since 2026-11-05:
+  `MoteurSorts::lanceCeTour()` for "never the same spell twice in one turn", and
+  `CatalogueExtensions::fiches()` for what an expansion box IS — read by the AI GM's
+  bestiary choice, the group-creation ⓘ and the booklet alike).
   Two copies of a rule too simple to notice drifting is this project's most repeated defect.
 - **`sortBy([$f, $g])` is never a multi-key sort** — Laravel reads a callable there as a
   *comparator*, and it never errors. It bit twice. → `docs/regles/sorts-dread.md`
@@ -66,7 +69,9 @@ reason, and the two must never drift.
   (`se_deplacer.parametres.destinations`, `DeplacementHeros`) are therefore computed
   server-side and sent **already decided**. A published flag nobody reads is the same
   defect turned around: `franchit_figures`, `ignore_terrain_entravant` and `franchit_mobilier`
-  were dropped from the payload once `destinations` carried their consequence.
+  were dropped from the payload once `destinations` carried their consequence. Lists count
+  too: the group-creation form hard-coded 3 of the 5 campaign lengths (found 2026-11-05) —
+  `GET /moi` now publishes `longueurs_campagne` and `boites_bestiaire`.
   → `docs/regles/front-manette-et-table.md`
 - **Connected is not playable.** A procedural placement that only re-checks *connectivity*
   accepts a one-cell corridor four heroes cannot stand in — `salleResteConnexe()` was

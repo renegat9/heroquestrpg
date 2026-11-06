@@ -739,7 +739,7 @@ glace »).
 
 **Sort épargné — `sort_preserve` (2026-09-25).** Le résultat d'un `lancer_sort`
 porte `sort_preserve` quand le sort lancé **reste disponible** : `"anneau_de_sort"`
-(une charge de l'Anneau de sort) ou `"talent"` — *Chant runique* / *Appel de la
+(le sort déclaré au premier tour, son premier lancer — §« L'Anneau de Sort ») ou `"talent"` — *Chant runique* / *Appel de la
 forêt*, mécanique `garde_sort_qui_tue` : **le sort qui abat un monstre n'est pas
 épuisé** (René ; remplace l'ancien regain au bouclier noir). `sort_preserve_par`
 nomme alors le talent. Le fil l'annonce (« Boule de Feu reste disponible (Chant

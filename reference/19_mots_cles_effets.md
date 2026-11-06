@@ -569,17 +569,17 @@ savait toucher à cette économie.
 | clé | ce qu'elle fait | carte |
 |---|---|---|
 | `restaure_sorts` | Rend **tous** les sorts épuisés. À distinguer du nœud *Concentration*, qui n'en rend qu'un au prix du tour : la différence d'échelle est la valeur de ces cartes. | Parchemin de Sorts (consommable), Baguette de Galimatias (à l'équipement, une charge) |
-| `second_sort_par_tour` | Un second sort dans le tour. Exactement le pouvoir de *Réserve arcanique*, accordé par un OBJET — et les deux passent par le même `etat.bonus_sort_utilise`, donc ils ne se cumulent pas. | Baguette de Rappel |
-| `sort_non_epuise` | Le prochain sort lancé ne s'épuise pas, contre une charge. | Anneau de Sort |
+| `second_sort_par_tour` | Un second sort dans le tour, **différent** du premier (règle commune `MoteurSorts::lanceCeTour()`, 2026-11-05). Exactement le pouvoir de *Réserve arcanique*, accordé par un OBJET — et les deux passent par le même `etat.bonus_sort_utilise`, donc ils ne se cumulent pas. | Baguette de Rappel (Elfe et Magicien, tag `talisman_elfe_magicien`) |
+| `sort_non_epuise` | Le sort **déclaré au premier tour** (fenêtre imposée) se lance deux fois dans la quête, jamais deux fois dans le même tour (`MoteurAnneauDeSort`, 2026-11-05). | Anneau de Sort |
 | `sort_non_epuise_sur_bouclier_noir` | Après chaque sort, un dé : bouclier noir (1 sur 6) → le sort reste disponible. Illimité — c'est le dé qui limite, pas une charge. | Sceptre de Mémoire |
 
 ⚠ **Ordre d'évaluation** : le sceptre est testé **avant** l'anneau. Réussir son
 jet évite de gaspiller la charge de l'anneau — l'inverse aurait dépensé une
 ressource rare derrière un effet gratuit.
 
-⚠ **Écart assumé sur l'Anneau de Sort** : la carte fait CHOISIR le sort au début
-de la quête. Ici le choix se fait en le lançant — même résultat, sans imposer un
-pari à l'aveugle avant d'avoir vu le donjon.
+⚠ ~~Écart assumé sur l'Anneau de Sort~~ — **retiré le 2026-11-05** (René) : la
+carte fait CHOISIR le sort au début de la quête, et c'est désormais le cas, au
+premier tour du porteur, par une fenêtre imposée (`docs/regles/artefacts.md`).
 
 ### Types de dégâts (`App\Engine\TypeDegat`)
 
