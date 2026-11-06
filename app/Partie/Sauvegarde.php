@@ -453,6 +453,9 @@ final class Sauvegarde
                     // FOSSE LONGUE (p. 6) : un héros tombé dans la fosse y reste d'un round à l'autre — l'oublier le
                     // ferait sortir sans avoir tenté de se hisser, et lui rendrait son dé de combat.
                     'dans_la_fosse' => $e->dans_la_fosse,
+                    // ANNEAU DE SORT (2026-11-05) : le sort déclaré et son second lancer — l'oublier rouvrirait la
+                    // fenêtre, ou rendrait gratuitement un second lancer déjà dépensé.
+                    'anneau_de_sort' => $e->anneau_de_sort,
                 ])->values()->all(),
             'heros' => $this->herosActifs($groupe)
                 ->map(fn (Personnage $p) => $this->serialiserHeros($p))->values()->all(),
@@ -716,6 +719,8 @@ final class Sauvegarde
                 ...(($etat['verrou_mental'] ?? null) !== null ? ['verrou_mental' => $etat['verrou_mental']] : []),
                 // `??` : un snapshot antérieur au 2026-10-29 ne porte pas la Fosse longue. Même garde que le Verrou mental.
                 ...(($etat['dans_la_fosse'] ?? null) !== null ? ['dans_la_fosse' => $etat['dans_la_fosse']] : []),
+                // `??` : un snapshot antérieur au 2026-11-05 ne porte pas l'Anneau de Sort ; `null` = fenêtre ouverte.
+                'anneau_de_sort' => $etat['anneau_de_sort'] ?? null,
             ]);
         }
     }

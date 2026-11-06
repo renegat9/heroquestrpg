@@ -90,6 +90,10 @@ class EtatPersonnageQuete extends Model
         // cette ligne est recréée à chaque démarrage de quête. Voir
         // App\Partie\MoteurOracle.
         'malediction_oracle_utilisee',
+        // ANNEAU DE SORT (carte 2024, René 2026-11-05) : le sort DÉCLARÉ au premier tour — `null` (fenêtre ouverte),
+        // `{sort_id, nom, relance}` (déclaré), `{ferme: true}` (premier tour passé sans déclaration). Voir
+        // App\Partie\MoteurAnneauDeSort, seul lecteur et seul écrivain.
+        'anneau_de_sort',
         // FOSSE LONGUE (*The Mage of the Mirror* p. 6, 2026-10-29) : le héros TOMBÉ DANS la fosse y reste —
         // {x, y, piege_id}. En COLONNE, jamais en cache : il traverse un round entier et une reprise. Voir
         // App\Partie\MoteurFosseLongue (sortie sur 5-6, malus d'un dé de combat).
@@ -160,6 +164,7 @@ class EtatPersonnageQuete extends Model
             'vent_choix' => 'array',
             'verrou_mental' => 'array',
             'dans_la_fosse' => 'array',
+            'anneau_de_sort' => 'array',
             'capacites_utilisees' => 'array',
             'capacites_tour' => 'array',
             'styles_epuises' => 'array',

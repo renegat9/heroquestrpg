@@ -582,19 +582,21 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Plume anti-poison', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 300, 'emplacement' => 'consommable',
                 'effet' => ['retire_condition' => 'Empoisonné', 'soin_source' => 'poison', 'cible' => 'heros_adjacent']],
 
-            // « The Wand of Recall allows you to cast two spells instead of one
-            // during your turn. » — le pouvoir du nœud Réserve arcanique, mais
-            // porté par un objet. Les deux partagent `bonus_sort_utilise` : ils
-            // ne se cumulent donc pas.
-            ['nom' => 'Baguette de Rappel', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1300, 'emplacement' => 'talisman', 'tag_equipement' => 'armure_magicien',
+            // Le pouvoir du nœud Réserve arcanique, porté par un objet : les deux partagent `bonus_sort_utilise`, ils ne
+            // se cumulent donc pas.
+            // L'ELFE ou le MAGICIEN, deux sorts DIFFÉRENTS (René, 2026-11-05 : « This magical wand allows the Elf or
+            // Wizard to cast two separate and different spells on his turn instead of one single spell »). Tag propre,
+            // porté par ces deux classes seules (`ClasseHerosSeeder`) ; « différents » est la règle commune d'un sort
+            // jamais lancé deux fois dans le même tour (`MoteurSorts::lanceCeTour()`).
+            ['nom' => 'Baguette de Rappel', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1300, 'emplacement' => 'talisman', 'tag_equipement' => 'talisman_elfe_magicien',
                 'effet' => ['second_sort_par_tour' => true]],
 
-            // « This Ring can be used to store extra magic before an adventure.
-            // It enables the Elf or Wizard who carries it to cast one spell
-            // twice in the same Quest. » — une charge, dépensée sur le prochain
-            // sort lancé, qui ne s'épuise alors pas.
+            // Carte © 2024 (René, 2026-11-05) : « At the beginning of each quest, you must declare which spell is stored in
+            // the ring » — le sort se DÉCLARE au premier tour (fenêtre imposée, `MoteurAnneauDeSort`), il n'est plus le
+            // premier lancé. Plus de `frequence` : l'état de la quête (`etat_personnage_quete.anneau_de_sort`) dit si le
+            // second lancer est encore dû.
             ['nom' => 'Anneau de Sort', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'talisman',
-                'effet' => ['sort_non_epuise' => true, 'frequence' => 'une_fois_par_quete']],
+                'effet' => ['sort_non_epuise' => true]],
 
             // « The Rod of Memory allows you to attempt to cast this spell as
             // often as you wish during the quest. You may roll one combat die

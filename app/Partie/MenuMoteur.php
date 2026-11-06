@@ -1400,6 +1400,16 @@ final class MenuMoteur
             }
         }
 
+        // ANNEAU DE SORT (carte 2024, René 2026-11-05 : « forcer un popup ») : au premier tour, le porteur qui lance des
+        // sorts DÉCLARE celui que l'anneau garde, avant tout autre geste. Même court-circuit que les sables : l'état vit
+        // en COLONNE (`anneau_de_sort`), un téléphone rechargé retrouve la fenêtre.
+        if ($etat !== null && ($forceAnneau = app(MoteurAnneauDeSort::class)->menuForce($groupe, $personnage, $etat)) !== null) {
+            return [
+                'situation' => $forceAnneau['situation'],
+                'options' => $this->avecCreneaux($forceAnneau['options']),
+            ];
+        }
+
         // CHUTE DE BLOCS (livret p. 14, 2026-09-24) : « the hero then decides
         // to move ahead or move back to an empty square ». Tant que ce choix
         // n'est pas fait, RIEN D'AUTRE n'est proposé — ni se déplacer (le

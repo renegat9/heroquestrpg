@@ -482,6 +482,15 @@ final class ResolveurTour
             }
         }
 
+        // ANNEAU DE SORT (René, 2026-11-05) : tant que la déclaration est due, rien d'autre. Le menu n'offre qu'elle
+        // (`MoteurAnneauDeSort::menuForce()`) ; ce garde-fou refuse l'option forgée ou périmée.
+        if (($option['type'] ?? null) !== MoteurAnneauDeSort::TYPE
+            && app(MoteurAnneauDeSort::class)->declarationAttendue($groupe, $personnage, $etat)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Choisissez d\'abord le sort que garde votre Anneau de Sort.',
+            ]);
+        }
+
         // VISION DU FUTUR (2026-10-08) : tant qu'un jet attend la réponse du héros
         // — son d6 de déplacement, ou une action suspendue —, RIEN d'autre ne se
         // joue pour lui : « le serveur attend sa réponse AVANT d'appliquer le
@@ -720,6 +729,10 @@ final class ResolveurTour
                 // `MoteurSables`. Le menu d'un héros enlisé n'offre que les deux dernières.
                 'saut_sables' => $this->resoudreSautSables($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'defausse_sables' => $this->resoudreDefausseSables($groupe, $personnage, $etat, $option, $parametres, $acteur),
+                // ANNEAU DE SORT (René, 2026-11-05) : la déclaration du premier tour, gratuite — voir `MoteurAnneauDeSort`.
+                MoteurAnneauDeSort::TYPE => app(MoteurAnneauDeSort::class)->declarer(
+                    $groupe, $personnage, $etat, $this->entreeChoisie($option, $parametres, 'sorts'), $acteur,
+                ),
                 'sortie_sables' => $this->resoudreSortieSables($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // FOSSE LONGUE (p. 6) : se hisser hors du trou, un dé rouge. Le saut par le bout passe par `franchissement`.
                 'sortie_fosse' => $this->fosse()->resoudreSortie($groupe, $quete, $personnage, $etat, $option, $acteur),
@@ -4573,11 +4586,10 @@ final class ResolveurTour
             return true;
         }
 
-        $anneau = $this->charges->pieceActive($personnage, 'sort_non_epuise', $etat);
-
-        if ($anneau !== null && $this->charges->consommerUsage($anneau, $etat)) {
+        // ANNEAU DE SORT (carte 2024, René 2026-11-05) : il garde le sort DÉCLARÉ au premier tour, une fois — plus le
+        // premier sort lancé. `MoteurAnneauDeSort::garder()` dépense le second lancer.
+        if (app(MoteurAnneauDeSort::class)->garder($personnage, $etat, (int) ($payload['sort']['id'] ?? 0))) {
             $payload['sort_preserve'] = 'anneau_de_sort';
-            $payload['charges_restantes'] = $this->charges->restantes($anneau->fresh());
 
             return true;
         }
@@ -5932,6 +5944,13 @@ final class ResolveurTour
             ]);
         }
 
+        // UN MÊME SORT JAMAIS DEUX FOIS DANS LE MÊME TOUR (2026-11-05) : la règle commune de `MoteurSorts::lanceCeTour()`.
+        if (MoteurSorts::lanceCeTour($etat, (int) $sort->id)) {
+            throw ValidationException::withMessages([
+                'option_id' => "{$sort->nom} a déjà été lancé ce tour : un même sort ne se lance pas deux fois dans le même tour.",
+            ]);
+        }
+
         $payload = [
             'type' => 'sort',
             'option_id' => $option['id'],
@@ -5940,14 +5959,17 @@ final class ResolveurTour
             ...$this->lancerSort($quete, $personnage, $etat, $sort, $option, $parametres),
         ];
 
-        // Économie de sorts : deux artefacts peuvent épargner le sort qu'on
-        // vient de lancer. On ne les cumule pas — l'anneau dépense une charge,
-        // il ne doit pas la gaspiller derrière un sceptre qui a déjà réussi.
+        // Économie de sorts : un talent (le sort qui abat un monstre) ou l'Anneau
+        // de Sort (le sort déclaré au premier tour) peuvent épargner le sort qu'on
+        // vient de lancer. Le talent passe d'abord : un effet gratuit ne doit pas
+        // dépenser le second lancer de l'anneau.
         $preserve = $this->preserverSort($personnage, $etat, $payload);
 
         if (! $preserve) {
             $personnage->sorts()->updateExistingPivot($sort->id, ['disponible' => false]);
         }
+
+        MoteurSorts::marquerLanceCeTour($etat, (int) $sort->id);
 
         Journal::ajouter($groupe, $sort->type === 'degats' ? 'combat' : 'action', $payload, $acteur);
 
@@ -12634,6 +12656,9 @@ final class ResolveurTour
             app(MoteurPotions::class)->dissiperBreuvageNonUtilise($etatTour);
         }
 
+        // ANNEAU DE SORT : la manche se rouvre, le premier tour est passé — la déclaration ne se fait plus.
+        app(MoteurAnneauDeSort::class)->fermerFenetres($quete);
+
         // Nouveau tour : les héros debout rejouent (l'initiative reste figée, C1).
         // Créneaux remis à zéro + on relancera le d6 de déplacement.
         $quete->etatsPersonnages()->update([
@@ -14832,6 +14857,8 @@ final class ResolveurTour
             // `forcer_porte_condition` (Kellar's Keep, 2026-10-23) : ouvrir une porte à condition est GRATUIT, comme
             // `ouvrir_porte` ; c'est un jet RATÉ qui ferme le tour, par `$finTourPorteForcee`, pas le type.
             'desarmer_embrasement', 'liberer_captif', 'defausse_sables', 'memoire_parfaite', 'forcer_porte_condition', 'forcer_grille' => 'interaction',
+            // ANNEAU DE SORT : déclarer le sort gardé ne coûte rien, le tour commence à peine.
+            MoteurAnneauDeSort::TYPE => 'interaction',
             // Pousser par le vent (lot H des restes) : la suite du mouvement, pas une action — elle ne consomme aucun créneau.
             'pousser_vent' => 'interaction',
             // `s_ecarter_du_bloc` REJOINT cette liste le 2026-09-24 : le seul

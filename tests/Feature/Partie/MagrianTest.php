@@ -93,7 +93,9 @@ function magrianDemarrer(string $nomMonstre = 'Magrian', bool $avecBob = false):
 /** Un nouveau créneau d'action pour le mage, puis le menu régénéré. */
 function magrianMenu(array $ctx): void
 {
-    $ctx['etat']->fresh()->update(['a_agi' => false, 'a_joue' => false]);
+    // Un tour NEUF : `capacites_tour` repart à zéro, comme à la réouverture de la manche. Sans lui, le sort relancé
+    // ici serait refusé par la règle commune « jamais deux fois le même sort dans le même tour » (2026-11-05).
+    $ctx['etat']->fresh()->update(['a_agi' => false, 'a_joue' => false, 'capacites_tour' => null]);
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['mage']->id);
 }
 

@@ -395,8 +395,11 @@ final class MotsClesEquipement
     public const RESTAURE_SORTS = 'restaure_sorts';
 
     /**
-     * Un SECOND sort dans le même tour — « allows you to cast two spells instead
-     * of one during your turn » (Baguette de Rappel).
+     * Un SECOND sort dans le même tour — « This magical wand allows the Elf or
+     * Wizard to cast two separate and different spells on his turn instead of
+     * one single spell » (Baguette de Rappel, texte retenu par René le
+     * 2026-11-05). « Different » est la règle commune de
+     * `MoteurSorts::lanceCeTour()`.
      *
      * Exactement le pouvoir du nœud *Réserve arcanique*, mais accordé par un
      * OBJET : les deux passent par `etat.bonus_sort_utilise`, donc ils ne se
@@ -406,14 +409,13 @@ final class MotsClesEquipement
     public const SECOND_SORT_PAR_TOUR = 'second_sort_par_tour';
 
     /**
-     * Le prochain sort lancé **ne s'épuise pas**, au prix d'une charge —
-     * « enables the Elf or Wizard who carries it to cast one spell twice in the
-     * same Quest » (Anneau de Sort).
+     * Le sort DÉCLARÉ au premier tour se lance deux fois dans la quête (Anneau de
+     * Sort, carte © 2024 : « At the beginning of each quest, you must declare
+     * which spell is stored in the ring »).
      *
-     * ⚠ Écart assumé : la carte fait CHOISIR le sort au début de la quête. Ici
-     * le choix se fait en le lançant, ce qui donne le même résultat sans imposer
-     * un pari à l'aveugle avant d'avoir vu le donjon.
-     * Lecteur : `ResolveurTour::lancerSort()`.
+     * ⚠ Jusqu'au 2026-11-05, écart assumé : l'anneau gardait le premier sort
+     * lancé. René le retire : fenêtre IMPOSÉE au premier tour du porteur.
+     * Lecteur : `App\Partie\MoteurAnneauDeSort` (déclaration, garde, fermeture).
      */
     public const SORT_NON_EPUISE = 'sort_non_epuise';
 
@@ -1453,8 +1455,8 @@ final class MotsClesEquipement
         // --- Magie
         self::RESTAURE_SORTS => 'Rend %s sort(s) épuisé(s)',
         self::RECUPERE_SORT_OU_COMPETENCE => 'Rend un sort ou une compétence déjà utilisés',
-        self::SECOND_SORT_PAR_TOUR => 'Un second sort par tour',
-        self::SORT_NON_EPUISE => 'Le sort lancé n\'est pas épuisé',
+        self::SECOND_SORT_PAR_TOUR => 'Un second sort, différent, par tour',
+        self::SORT_NON_EPUISE => 'Le sort choisi au premier tour se lance deux fois',
         self::IMMUNITE_DEGAT => 'Immunise contre les dégâts de %s',
         self::ANNULE_PROCHAIN_SORT_DEGATS => 'Annule le prochain sort à dégâts subi',
         self::ABSORBE_DEGATS_MIND => 'Absorbe les dégâts de Mind, un point à la fois',

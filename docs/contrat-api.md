@@ -3441,6 +3441,47 @@ que ce héros ne connaît pas encore. Un non-lanceur reçoit `{remplacables: [],
 offerts: []}`. La manette (onglet Sorts, hub seulement) affiche ces listes telles
 quelles et ne re-dérive rien.
 
+**Un même sort jamais deux fois dans le même tour (2026-11-05).** Un sort lancé est
+marqué dans `etat_personnage_quete.capacites_tour` (`sort_lance:{id}`, remis à zéro à
+chaque manche). Tant qu'il l'est, son entrée de `lancer_sort` reste dans la liste,
+**grisée** (`disponible: false`), et le résolveur refuse un envoi forgé (422). Les
+cartes le disent : *Spell Ring* « The spell may not be cast twice on the same turn »,
+*Wand of Magic* « two separate and different spells ». La règle est commune : elle
+vaut aussi pour un sort gardé par un talent (Chant runique) suivi d'un second sort.
+
+### L'Anneau de Sort — le sort gardé, choisi au premier tour (René, 2026-11-05)
+
+Carte © 2024 : « While wearing this ring, you may cast one of the spells you know twice
+in one quest instead of the usual one-time use. The spell may not be cast twice on the
+same turn. At the beginning of each quest, you must declare which spell is stored in the
+ring. » René : la déclaration se fait au **premier tour** du porteur, par une fenêtre
+**imposée** ; un porteur qui ne lance pas de sorts n'en voit aucune.
+
+- **État** — `etat_personnage_quete.anneau_de_sort` (JSON, **colonne**, porté par le
+  snapshot) : `null` = fenêtre ouverte (premier tour de la quête) ;
+  `{sort_id, nom, relance: bool}` = déclaré (`relance` : le second lancer est encore
+  dû) ; `{ferme: true}` = premier tour passé sans déclaration, l'anneau ne sert pas
+  dans cette quête. La fenêtre se ferme à la réouverture de la manche
+  (`ResolveurTour::ouvrirNouveauTour()`), pour tous.
+- **Menu FORCÉ** — porteur (anneau équipé), fenêtre ouverte, au moins un sort non épuisé :
+  une seule option, `anneau_de_sort` (`type: anneau_de_sort`, `creneau: interaction`,
+  **`imposee: true`**), `parametres: {sorts: [{cle: "sort:{id}", sort_id, nom, element,
+  disponible: true}]}` — la **liste blanche** relue par le résolveur. `situation` le dit.
+  La manette ouvre la liste d'elle-même quand l'option porte `imposee`, sans bouton de
+  retour. Le résolveur refuse tout autre geste tant que la déclaration est due (422).
+- **Choix** — `POST /choix {option_id: "anneau_de_sort", parametres: {cle}}` : gratuit,
+  le tour continue. Payload `{type: "anneau_de_sort", sort: {id, nom}}`, au fil
+  (`JournalCombat::TYPES`).
+- **Lancer** — le sort déclaré, lancé avec l'anneau porté, n'est **pas épuisé** la
+  première fois (`resultat.sort_preserve: "anneau_de_sort"`), puis grisé jusqu'à la fin
+  du tour (règle commune ci-dessus) ; le lancer suivant l'épuise. Aucun autre sort n'est
+  gardé par l'anneau.
+
+**La Baguette de Rappel (*Wand of Magic*)** : « This magical wand allows the Elf or
+Wizard to cast two separate and different spells on his turn instead of one single
+spell » (texte retenu par René, 2026-11-05). Portable par l'**Elfe** et le **Magicien**
+seulement (tag `talisman_elfe_magicien`) ; deux sorts **différents**, par la règle commune.
+
 ## Clôture de campagne (doc 05 §6)
 
 Fenêtre de clôture (cache, comme le marché) ouverte : automatiquement à la

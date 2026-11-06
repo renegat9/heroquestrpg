@@ -193,6 +193,7 @@ function fixturesDesTypesAnnonces(): array
         'pousser_vent' => ['direction' => 'e', 'cases' => 2, 'depart' => ['x' => 4, 'y' => 0], 'vers' => ['x' => 6, 'y' => 0], 'terrain_jets' => []],
         'saut_sables' => ['terrain' => 'Sables mouvants', 'faces' => ['crane'], 'face_requise' => 'bouclier_noir', 'franchi' => false, 'a_defausser' => 2],
         'defausse_sables' => ['terrain' => 'Sables mouvants', 'objet' => 'Fiole', 'restantes' => 1],
+        'anneau_de_sort' => ['sort' => ['id' => 1, 'nom' => 'Boule de Feu']],
         'sortie_sables' => ['terrain' => 'Sables mouvants', 'vers' => ['x' => 2, 'y' => 3]],
         // Fosse longue (lot G, 2026-10-29) : se hisser hors du trou, un dé rouge — resté dans le trou ici.
         'sortie_fosse' => ['piege' => 'Fosse longue', 'de' => 4, 'sortie_sur' => [5, 6], 'succes' => false,

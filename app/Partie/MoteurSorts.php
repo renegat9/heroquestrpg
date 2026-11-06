@@ -1227,6 +1227,29 @@ final class MoteurSorts
     // Options de menu (MenuMoteur — exécutables telles quelles)
     // ------------------------------------------------------------------
 
+    /** Marqueur de `capacites_tour` : « ce sort a été lancé ce tour », suffixé de son id. */
+    public const MARQUE_SORT_LANCE = 'sort_lance:';
+
+    /**
+     * UN MÊME SORT JAMAIS DEUX FOIS DANS LE MÊME TOUR (2026-11-05). Les cartes le disent — *Spell Ring* « The spell may
+     * not be cast twice on the same turn », *Wand of Magic* « two separate and different spells » — et la règle est
+     * commune : elle tient aussi pour un sort gardé par un talent suivi d'un second sort. Lue au menu (`options()`,
+     * l'entrée est grisée) et au résolveur (`ResolveurTour::resoudreSort()`, 422). Le marqueur vit dans
+     * `capacites_tour`, remis à zéro à chaque manche par `ResolveurTour::ouvrirNouveauTour()`.
+     */
+    public static function lanceCeTour(?EtatPersonnageQuete $etat, int $sortId): bool
+    {
+        return $etat !== null && in_array(self::MARQUE_SORT_LANCE.$sortId, (array) ($etat->capacites_tour ?? []), true);
+    }
+
+    /** Marque le sort comme lancé ce tour. */
+    public static function marquerLanceCeTour(EtatPersonnageQuete $etat, int $sortId): void
+    {
+        $etat->update(['capacites_tour' => array_values(array_unique([
+            ...(array) ($etat->capacites_tour ?? []), self::MARQUE_SORT_LANCE.$sortId,
+        ]))]);
+    }
+
     /**
      * Options de sorts d'un héros en quête — TROIS options au plus, chacune
      * portant la liste de ses sous-choix (René, 2026-09-01).
@@ -1290,7 +1313,10 @@ final class MoteurSorts
         $oubliesHeros = app(OubliSorts::class)->oublies($quete, OubliSorts::CIBLE_PERSONNAGE, $personnage->id, OubliSorts::SOURCE_SORT);
 
         foreach ($personnage->sorts()->orderBy('sorts.id')->get() as $sort) {
-            $disponible = (bool) $sort->pivot->disponible && ! in_array($sort->nom, $oubliesHeros, true);
+            // Un sort déjà lancé CE TOUR est grisé, même s'il n'est pas épuisé (gardé par l'Anneau de Sort ou par un
+            // talent) : `lanceCeTour()`, règle commune.
+            $disponible = (bool) $sort->pivot->disponible && ! in_array($sort->nom, $oubliesHeros, true)
+                && ! self::lanceCeTour($etat, (int) $sort->id);
 
             // CLAIRVOYANCE (Spells of Detection, 2026-10-06) : « lay out the
             // contents of one room anywhere on the board ». Une entrée PAR SALLE

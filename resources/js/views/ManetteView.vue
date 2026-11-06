@@ -595,10 +595,21 @@ async function repondreReaction(accepte, soin = null) {
 }
 watch(() => store.state.menu, () => { feuilles.value = []; });
 
+/* Choix IMPOSÉ (Anneau de Sort, René 2026-11-05 : « forcer un popup ») : quand le
+   serveur publie une option `imposee`, la manette en ouvre la liste d'elle-même,
+   sans retour. C'est le serveur qui décide qu'il n'y a pas d'autre choix
+   (`MoteurAnneauDeSort::menuForce()`) : ici, on ne fait que l'ouvrir. */
+watch([menuCourant, () => feuilles.value.length, boutonsGeles], ([menu, nbFeuilles, geles]) => {
+    const imposee = (menu?.options ?? []).find((o) => o.imposee === true);
+    if (imposee && nbFeuilles === 0 && !geles) ouvrirOption(imposee);
+});
+
 /* Les options à SOUS-CHOIX et la liste qu'elles portent. Le libellé du
    retour NOMME la liste : c'est lui qu'affiche le niveau des cibles. */
 const LISTES = {
     lancer_sort: { cle: 'sorts', titre: 'Quel sort lancer ?', retour: 'Retour aux sorts', grouper: true },
+    // ANNEAU DE SORT (René, 2026-11-05) : le sort gardé, déclaré au premier tour — choix IMPOSÉ, sans retour.
+    anneau_de_sort: { cle: 'sorts', titre: 'Quel sort votre Anneau de Sort garde-t-il ?', retour: 'Retour aux sorts', grouper: true },
     // Sorts de Dread du porteur (Talisman du Savoir maudit, 2026-10-29) : la liste `parametres.sorts`, comme un sort de héros.
     lancer_sort_dread: { cle: 'sorts', titre: 'Quel sort de Dread lancer ?', retour: 'Retour aux sorts de Dread' },
     lire_parchemin: { cle: 'parchemins', titre: 'Quel parchemin lire ?', retour: 'Retour aux parchemins' },
@@ -719,6 +730,8 @@ function ouvrirOption(option) {
             // CibleSheet, au niveau de la liste puisque `jeter` n'a pas de
             // niveau de cibles).
             confirmer: liste.confirmer === true,
+            // Choix IMPOSÉ par le serveur : la feuille n'offre ni retour ni fermeture par le fond.
+            imposee: option.imposee === true,
             entrees,
             retour: 'Retour aux actions',
         });

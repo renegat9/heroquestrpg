@@ -97,6 +97,8 @@ final class JournalCombat
         'sortie' => true, 'jet_en_attente' => true, 'reaction' => true, 'objet_detruit' => true,
         // Sables mouvants (F7539 p. 29) : le saut, l'abandon d'un objet, la sortie.
         'saut_sables' => true, 'defausse_sables' => true, 'sortie_sables' => true,
+        // ANNEAU DE SORT (René, 2026-11-05) : le sort déclaré au premier tour — la table sait lequel reviendra.
+        'anneau_de_sort' => true,
         // Fosse longue (F7539 p. 6) : se hisser hors du trou, un dé rouge. Le saut par le bout est un `franchissement`.
         'sortie_fosse' => true,
         // ---- Les pièges
@@ -1212,6 +1214,10 @@ final class JournalCombat
             // peut tomber — autant d'effets automatiques qu'aucune autre ligne ne dirait.
             'saut_sables' => $this->sautSables($a, $acteurNom),
             'defausse_sables' => $this->defausseSables($a, $acteurNom),
+            'anneau_de_sort' => [[
+                'texte' => "{$acteurNom} confie ".($a['sort']['nom'] ?? 'un sort').' à son Anneau de Sort : il pourra le lancer deux fois',
+                'ton' => 'info',
+            ]],
             'sortie_sables' => $this->sortieSables($a, $acteurNom),
             // FOSSE LONGUE (p. 6) : se hisser hors du trou, ou n'y pas parvenir — un dé rouge, 5 ou 6.
             'sortie_fosse' => $this->sortieFosse($a, $acteurNom),

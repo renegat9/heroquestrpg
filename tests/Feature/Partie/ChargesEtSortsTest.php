@@ -347,33 +347,33 @@ it('la Baguette de Rappel accorde un SECOND sort par tour, comme le nœud', func
     expect($avecObjet)->not->toBeEmpty();
 });
 
-it('l\'Anneau de Sort épargne UN sort, contre sa charge', function () {
+it('l\'Anneau de Sort épargne le sort DÉCLARÉ au premier tour, sans se briser', function () {
+    // Depuis le 2026-11-05 (carte © 2024, René) : le sort se DÉCLARE au premier tour, il n'est plus le premier lancé.
+    // Le détail (fenêtre imposée, deux lancers, jamais deux dans le même tour) : `AnneauDeSortTest`.
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
     $magicien = $ctx['heros'];
     armerDeSorts($magicien);
     $anneau = poser($magicien, 'Anneau de Sort', 'talisman');
 
     desFiges(array_fill(0, 30, 4));
-    [$sortId, $cible] = premierSortCiblable($ctx, $magicien);
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $magicien->id);
+    $declaration = collect(Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id))['menu']['options'])
+        ->firstWhere('id', 'anneau_de_sort');
+    $sortId = (int) collect($declaration['parametres']['sorts'])->firstWhere('nom', 'Boule de Feu')['sort_id'];
 
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'anneau_de_sort', 'parametres' => ['cle' => "sort:{$sortId}"]])
+        ->assertStatus(202);
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $magicien->id);
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'lancer_sort',
-        'parametres' => ['cle' => "sort:{$sortId}", 'cible_id' => $cible['id'], 'cible_type' => $cible['type'] ?? 'monstre'],
+        'parametres' => ['cle' => "sort:{$sortId}", 'cible_id' => $ctx['instance']->id, 'cible_type' => 'monstre'],
     ])->assertStatus(202)->assertJsonPath('resultat.sort_preserve', 'anneau_de_sort');
 
-    // ⚠ FENÊTRE, pas CHARGE (René, 2026-09-25 : « faire attention entre les
-    // objets qui ont un nombre de charges permanent vs par quête pour la
-    // destruction »). L'anneau est « une fois par quête » : il se réarme à la
-    // quête suivante, il ne se brise JAMAIS, et le fil ne doit donc annoncer
-    // ni charge dépensée ni destruction.
+    // Ni charge dépensée ni destruction : l'anneau se réarme à la quête suivante, il ne se brise JAMAIS.
     expect($reponse->json('resultat.charges_depensees'))->toBeNull()
-        ->and(Inventaire::find($anneau->id))->not->toBeNull();
-
-    $sort = $magicien->sorts()->wherePivot('sorts.id', $sortId)->firstOrFail();
-
-    // Le sort reste lançable, et la charge est partie.
-    expect((bool) $magicien->sorts()->wherePivot('sorts.id', $sort->id)->first()?->pivot->disponible)->toBeTrue()
-        ->and((int) $anneau->fresh()->charges)->toBe(0);
+        ->and(Inventaire::find($anneau->id))->not->toBeNull()
+        ->and((bool) $magicien->sorts()->wherePivot('sorts.id', $sortId)->first()?->pivot->disponible)->toBeTrue();
 });
 
 // ---------------------------------------------------------------------------

@@ -17,7 +17,7 @@ import MSym from '../ui/MSym.vue';
 import { elementInfo, TYPES_SORT } from '../../store/game.js';
 
 const props = defineProps({
-    /** Frame de la pile : { option, titre, entrees, grouper, confirmer?, retour }. */
+    /** Frame de la pile : { option, titre, entrees, grouper, confirmer?, imposee?, retour }. */
     feuille: { type: Object, required: true },
 });
 const emit = defineEmits(['choisir', 'retour']);
@@ -166,7 +166,8 @@ function carte(entree) {
 </script>
 
 <template>
-    <div class="overlay" @click.self="emit('retour')">
+    <!-- Choix IMPOSÉ (`feuille.imposee`, Anneau de Sort) : ni tap sur le fond ni bouton de retour. -->
+    <div class="overlay" @click.self="!feuille.imposee && emit('retour')">
         <div class="sheet">
             <div class="grip" />
 
@@ -253,7 +254,7 @@ function carte(entree) {
                     />
                 </template>
 
-                <button class="btn btn-ghost btn-block cl-retour" type="button" @click="emit('retour')">
+                <button v-if="!feuille.imposee" class="btn btn-ghost btn-block cl-retour" type="button" @click="emit('retour')">
                     <MSym n="arrow_back" :size="18" /> {{ feuille.retour }}
                 </button>
             </template>
