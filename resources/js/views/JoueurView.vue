@@ -206,6 +206,12 @@ const longueurGroupe = ref({});
 // « automatique » = le tirage historique ; « manuel » = les boîtes cochées,
 // aucune = jeu de base seul. Libellés décidés côté serveur (`/moi`).
 const boitesBestiaire = ref([]);
+// Résumé déplié d'une extension, clé `${persoId}:${boite}` (bouton ⓘ, René 2026-11-05).
+const resumeOuvert = ref({});
+function basculerResume(persoId, boite) {
+    const cle = `${persoId}:${boite}`;
+    resumeOuvert.value = { ...resumeOuvert.value, [cle]: !resumeOuvert.value[cle] };
+}
 const modeBestiaire = ref({});   // { [perso.id]: 'auto' | 'manuel' }
 const boitesCochees = ref({});   // { [perso.id]: [id de boîte…] }
 const modesBestiaire = [
@@ -556,19 +562,40 @@ function libelleClasse(classe) {
                                     </label>
                                 </div>
                                 <div v-if="modeBestiaire[perso.id] === 'manuel'" class="joueur-boites">
-                                    <label
-                                        v-for="b in boitesBestiaire"
-                                        :key="b.id"
-                                        class="joueur-boite"
-                                        :class="{ on: (boitesCochees[perso.id] ?? []).includes(b.id) }"
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            :checked="(boitesCochees[perso.id] ?? []).includes(b.id)"
-                                            @change="basculerBoite(perso.id, b.id)"
-                                        />
-                                        {{ b.libelle }}
-                                    </label>
+                                    <template v-for="b in boitesBestiaire" :key="b.id">
+                                        <label
+                                            class="joueur-boite"
+                                            :class="{ on: (boitesCochees[perso.id] ?? []).includes(b.id) }"
+                                            :title="b.ambiance"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                :checked="(boitesCochees[perso.id] ?? []).includes(b.id)"
+                                                @change="basculerBoite(perso.id, b.id)"
+                                            />
+                                            <span class="joueur-boite-nom">{{ b.libelle }}</span>
+                                            <!-- ⓘ : le résumé de l'extension (René, 2026-11-05). Un bouton dans le
+                                                 label ne coche rien ; `.prevent` le garantit. -->
+                                            <button
+                                                type="button"
+                                                class="joueur-boite-info"
+                                                :class="{ ouvert: resumeOuvert[`${perso.id}:${b.id}`] }"
+                                                :aria-label="`Ce qu'ajoute ${b.libelle}`"
+                                                :aria-expanded="!!resumeOuvert[`${perso.id}:${b.id}`]"
+                                                @click.prevent.stop="basculerResume(perso.id, b.id)"
+                                            >
+                                                <MSym n="info" :size="18" />
+                                            </button>
+                                        </label>
+                                        <!-- Le résumé vient du serveur (`/moi` → `boites_bestiaire`) : les fiches que
+                                             lit le MJ IA et qu'imprime le livret, jamais réécrites ici. -->
+                                        <div v-if="resumeOuvert[`${perso.id}:${b.id}`]" class="joueur-boite-resume">
+                                            <p>{{ b.ambiance }}</p>
+                                            <p v-if="b.boss?.length"><strong>Boss :</strong> {{ b.boss.join(', ') }}</p>
+                                            <p v-if="b.sous_boss?.length"><strong>Sous-boss et élites :</strong> {{ b.sous_boss.join(', ') }}</p>
+                                            <p v-if="b.base?.length"><strong>Piétaille :</strong> {{ b.base.join(', ') }}</p>
+                                        </div>
+                                    </template>
                                     <p class="joueur-boites-note">
                                         <template v-if="(boitesCochees[perso.id] ?? []).length === 0">
                                             Aucune extension cochée : jeu de base seul.
@@ -1002,6 +1029,15 @@ function libelleClasse(classe) {
   background: var(--stone-850); cursor: pointer; transition: border-color .15s, color .15s; }
 .joueur-boite:hover { border-color: var(--torch); color: var(--ink-200); }
 .joueur-boite.on { border-color: var(--torch); color: var(--torch); background: oklch(0.76 0.155 65 / 0.08); }
+.joueur-boite-nom { flex: 1; }
+.joueur-boite-info { display: inline-flex; align-items: center; justify-content: center; margin: -4px -6px -4px 0;
+  padding: 4px; border: 0; border-radius: 50%; background: none; color: var(--ink-500); cursor: pointer; }
+.joueur-boite-info:hover, .joueur-boite-info.ouvert { color: var(--torch); }
+.joueur-boite-resume { margin: -2px 0 2px; padding: 8px 12px; border-left: 2px solid var(--torch);
+  border-radius: 0 var(--r-md) var(--r-md) 0; background: var(--stone-850); font-size: 12px; color: var(--ink-300); }
+.joueur-boite-resume p { margin: 0 0 4px; }
+.joueur-boite-resume p:last-child { margin-bottom: 0; }
+.joueur-boite-resume strong { color: var(--ink-200); }
 .joueur-boite input { accent-color: var(--torch); }
 .joueur-boites-note { margin: 0; font-size: 12px; color: var(--ink-500); }
 

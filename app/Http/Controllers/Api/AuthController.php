@@ -11,7 +11,7 @@ use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\Inventaire;
 use App\Models\PersonnageHistorique;
-use App\Partie\DemarreurQuete;
+use App\Partie\CatalogueExtensions;
 use App\Partie\Equipement;
 use App\Partie\FaveursHopekins;
 use App\Partie\Forge;
@@ -109,10 +109,16 @@ class AuthController extends Controller
             // Boîtes proposables au bestiaire MANUEL (contrat §Bestiaire
             // automatique ou manuel, 2026-09-28) — libellés officiels DÉCIDÉS
             // ici : la manette ne traduit jamais un identifiant de boîte.
-            'boites_bestiaire' => array_map(fn (string $b) => [
-                'id' => $b,
-                'libelle' => app(DemarreurQuete::class)->libelleBoiteBestiaire($b),
-            ], DemarreurQuete::BOITES_THEMATIQUES),
+            // Depuis le 2026-11-05, chaque boîte porte son RÉSUMÉ (ambiance, créatures par palier) : les fiches mêmes
+            // que lit le MJ IA et qu'imprime le livret — le formulaire les montre derrière un bouton ⓘ.
+            'boites_bestiaire' => array_map(fn (array $fiche) => [
+                'id' => $fiche['id'],
+                'libelle' => $fiche['libelle'],
+                'ambiance' => $fiche['ambiance'],
+                'boss' => $fiche['boss'],
+                'sous_boss' => $fiche['sous_boss'],
+                'base' => $fiche['base'],
+            ], app(CatalogueExtensions::class)->fiches()),
             // Longueurs de campagne proposables (2026-11-05) : la liste que `POST /groupes` valide, jamais recopiée côté
             // client — le formulaire en avait trois en dur sur cinq.
             'longueurs_campagne' => GroupeController::longueursPubliees(),

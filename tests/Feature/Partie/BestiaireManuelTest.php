@@ -103,8 +103,15 @@ it('publie sur /moi les boîtes proposables, libellés officiels décidés côt�
 
     $boites = $this->getJson('/api/moi')->assertOk()->json('boites_bestiaire');
 
+    $jungle = collect($boites)->firstWhere('id', 'jungles_delthrak');
     expect(collect($boites)->pluck('id')->all())->toBe(DemarreurQuete::BOITES_THEMATIQUES)
-        ->and(collect($boites)->firstWhere('id', 'jungles_delthrak')['libelle'])->toBe('Jungles of Delthrak');
+        ->and($jungle['libelle'])->toBe('Jungles of Delthrak')
+        // Le RÉSUMÉ derrière le bouton ⓘ (2026-11-05) : les fiches mêmes que lit le MJ IA et qu'imprime le livret.
+        ->and($jungle)->toBe(collect(app(\App\Partie\CatalogueExtensions::class)->fiches())->firstWhere('id', 'jungles_delthrak'))
+        ->and($jungle['ambiance'])->toContain('jungle')
+        ->and($jungle['boss'])->toContain('Gretzl la Porte-Fléau')
+        ->and(collect($boites)->every(fn ($b) => is_array($b['boss']) && is_array($b['sous_boss']) && is_array($b['base'])
+            && trim((string) $b['ambiance']) !== ''))->toBeTrue();
 });
 
 it('sans case cochée, ne fait apparaître QUE le jeu de base et nos créatures — boss compris', function () {

@@ -17,7 +17,7 @@ Routes protégées par middleware `auth` sauf connexion.
 | POST | /api/connexion | {identifiant} | {joueur} (nom seul, sans mot de passe) |
 | GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes (chacune avec **`depart: {arme, pieces[], des_attaque, des_defense}`** — l'attaque et la défense **avec l'équipement de départ**, décidées par le serveur (`EquipementDepart::valeurs()`, mêmes règles que `recalculerCombat()`), à côté des `des_attaque`/`des_defense` de base à mains nues, 2026-09-24), competences (chacune avec **`cout`**, 2026-10-22 : 1 point, 2 pour le pouvoir final, 0 pour une capacité de carte — §« Le pouvoir final et le `cout` »), monstres (chacun avec **`boite`/`boite_libelle`**, 2026-10-09 ; `boite` reste la boîte d'ORIGINE, et `boite_libelle` nomme TOUTES les boîtes où la fiche est imprimée, séparées par « · » — l'Archer elfe et le Guerrier elfe : « The Mage of the Mirror · Rise of the Dread Moon », 2026-10-15, `monstres.boites_partagees`), objets (chacun avec **`avantages: string[]`** — ce que fait la pièce, traduit par le serveur via `MotsClesEquipement::avantages()`, le même texte que le sac ; le front ne retraduit plus la clé ; **`prix_base` est `null` pour un objet HORS MARCHÉ**, 2026-10-16 — parchemin, carte de trésor sans prix, potion de soin : `PhaseMarche::estHorsMarche()`, le prédicat de l'étal. Un prix qu'aucune transaction n'utilise n'est pas publié, et le front n'en affiche aucun), sorts, pieges, **mobiliers** (`{nom, largeur, hauteur, bloque_vue, fouillable, difficulte_destruction, pv_body, defense_dice, attaquable, detruit_par_action, boite_libelle}`) — `detruit_par_action` (2026-10-09) : le **Cocon** de Jungles of Delthrak, détruit par une action d'un héros adjacent, sans jet, décidé par le serveur depuis `effet.detruit_par_action` —, **terrains** (`[{nom, cout_deplacement, avantages: string[], boite, boite_libelle}]`, 2026-10-09 : ce que chaque tuile FAIT, en phrases, traduit par le serveur via `MotsClesTerrain::avantages()` ; une tuile qui ne produit rien dit « sans effet à ce jour » ; une clé non implémentée ne produit aucune phrase), **themes** (`[{cle, libelle}]` = `DemarreurQuete::BOITES_THEMATIQUES`), **cartes**} (catalogues seedés, autres effets bruts mis en forme côté front). `cartes` = les **trois** paquets sources (`config/cartes.php`, **69 cartes** : `equipement` 20 + `potions` 15, photos du matériel officiel Hasbro, + `artefacts` 34) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque, image_url}]}` — `image_url` (2026-10-16) : l'illustration d'une carte de **Dread**, emblème compris, `null` hors de ce paquet (§« Sorts de Dread illustrés ») — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
 | POST | /api/deconnexion | — | 204 |
-| GET | /api/moi | — | {joueur, personnages: [...], boites_bestiaire: [{id, libelle}], longueurs_campagne: [{id, libelle, quetes}]} |
+| GET | /api/moi | — | {joueur, personnages: [...], boites_bestiaire: [{id, libelle, ambiance, boss, sous_boss, base}], longueurs_campagne: [{id, libelle, quetes}]} |
 | POST | /api/groupes | {nom, theme, longueur, ton, bestiaire_boites?} | {groupe} + dispatch squelette — `bestiaire_boites` : voir §Bestiaire automatique ou manuel ; `longueur` ∈ les `id` de `longueurs_campagne` |
 | POST | /api/groupes/{identifiant}/joueurs | {personnage_id} ou {nom, classe} | {personnage} (rejoint le groupe) |
 | GET | /api/groupes/{identifiant}/etat | — | **EtatGroupe** (voir ci-dessous) |
@@ -204,8 +204,13 @@ campagne.
   artefacts « boîtés » suivent les boîtes cochées.
   ⚠ L'invocation et la ponte (Dread, *spawn*) gardent la créature nommée sur
   la carte du lanceur : le lanceur n'est là que si sa boîte l'est.
-- `GET /api/moi` publie `boites_bestiaire: [{id, libelle}]` — les boîtes
-  proposables, libellés **décidés côté serveur** (noms officiels).
+- `GET /api/moi` publie `boites_bestiaire: [{id, libelle, ambiance, boss,
+  sous_boss, base}]` — les boîtes proposables, libellés **décidés côté serveur**
+  (noms officiels). **Depuis le 2026-11-05**, chacune porte aussi son résumé :
+  `ambiance` (une phrase) et les noms de ses créatures par palier (`boss`,
+  `sous_boss`, `base`, listes de chaînes, éventuellement vides) — les fiches
+  mêmes que lit le MJ IA et qu'imprime le livret (`CatalogueExtensions::fiches()`).
+  Le formulaire de création les montre derrière un bouton ⓘ par extension.
 - **Les longueurs de campagne aussi (2026-11-05)** : `GET /api/moi` publie
   `longueurs_campagne: [{id, libelle, quetes}]`, les CINQ longueurs du doc 05 dans
   l'ordre (`tres_courte` « Très courte » « 1 quête » … `tres_longue` « Très longue »
