@@ -726,9 +726,10 @@ ecrire('<div class="duo">' +
        '</div>')
 ecrire('''
 <h3>Une action, et une seule</h3>
-<p>Attaquer, lancer un sort, lire un parchemin, boire une potion, fouiller, désamorcer,
-actionner un levier, tenter une épreuve, équiper ou ranger une pièce : tout cela consomme
-<strong>l'action du tour</strong>. Une seule attaque par tour, sauf capacité explicite.</p>
+<p>Attaquer, lancer un sort, lire un parchemin, fouiller, désamorcer, actionner un levier,
+tenter une épreuve, équiper ou ranger une pièce, échanger avec un allié : tout cela consomme
+<strong>l'action du tour</strong>. Une seule attaque par tour, sauf capacité explicite.
+<strong>Boire une potion, elle, ne coûte rien</strong> (voir ci-dessous).</p>
 <p>Quand une action recouvre plusieurs objets — neuf sorts, trois parchemins, deux potions,
 ou même une seule pièce d'équipement — le menu ne s'allonge pas : <strong>une seule entrée
 porte la liste</strong>, et l'on choisit ensuite. C'est la même règle partout, et c'est ce qui
@@ -748,9 +749,27 @@ celles du premier : le téléphone n'en invente aucune.</p>
 
 <h3>Les gestes qui ne coûtent rien</h3>
 <p>Une poignée de gestes n'entament <strong>aucun créneau</strong> du tour, ni le mouvement ni
-l'action : ouvrir une porte, jeter un objet, activer un style élémentaire, proposer la retraite
-au groupe, proposer de quitter le donjon, utiliser un objet dont la carte le dit elle-même
-(chausse-trappes, bombe fumigène). Répétables, ils restent au menu même après avoir
+l'action :</p>
+<ul>
+  <li><strong>ouvrir une porte</strong>, et, pour les portes des boîtes, <strong>tenter la porte
+      à condition</strong> ou <strong>forcer la grille de fer</strong> — mais un échec finit le
+      tour ;</li>
+  <li><strong>boire une potion</strong>, ou la tendre à un héros adjacent ;</li>
+  <li><strong>jeter</strong> un objet ;</li>
+  <li><strong>libérer un captif</strong> à son contact ;</li>
+  <li>regarder la salle derrière une porte close <strong>sans l'ouvrir</strong>, par la
+      Bénédiction de l'Oracle ou en lâchant la <strong>souris familière</strong> ;</li>
+  <li><strong>désarmer un piège d'embrasement</strong> en défaussant la <em>Tempête</em> ou un
+      sort d'Eau ;</li>
+  <li>activer un <strong>style élémentaire</strong> (moine), déclarer le sort de l'<strong>Anneau
+      de Sort</strong>, retrouver un sort par <em>Mémoire parfaite</em> (magicien) ;</li>
+  <li>éveiller le pouvoir de la <strong>Lame Fantôme</strong> ou de la <strong>Longue épée de
+      Fortune</strong>, et utiliser un objet dont la carte le dit elle-même
+      (chausse-trappes, bombe fumigène) ;</li>
+  <li>proposer la <strong>retraite</strong> au groupe, ou de <strong>quitter le donjon</strong>.</li>
+</ul>
+<p>L'eau bénite, le cor des Hearthkin et les autres artefacts à activer, eux, prennent l'action —
+le menu l'affiche. Répétables, ils restent au menu même après avoir
 agi — les économiser n'aurait aucun sens. Le téléphone <strong>lit</strong> ce que le serveur
 publie (le champ <code>creneau</code>, jamais recalculé côté client) et marque ces options d'un
 <strong>∞</strong> à la suite du libellé : un geste gratuit qui ne se voit pas comme tel se
@@ -938,8 +957,8 @@ table_objets(par('armure', ('commun', 'peu_commun', 'rare')), 'Armures et protec
 table_objets(par('outil'), 'Outils et matériel')
 ecrire('<h4>Potions et consommables</h4>'
        '<p>Ils ne consomment jamais la capacité du sac, se boivent depuis « Utiliser un objet » '
-       'dans les actions, et peuvent viser un <strong>héros adjacent</strong> aussi bien que '
-       'soi-même.</p>')
+       'dans les actions — <strong>sans coûter l\'action du tour</strong> —, et peuvent viser un '
+       '<strong>héros adjacent</strong> aussi bien que soi-même.</p>')
 table_objets(par('consommable', ('commun', 'peu_commun', 'rare')))
 
 ecrire('''
@@ -1331,12 +1350,12 @@ plus d'une par carte : elle offre un raccourci, elle ne ferme jamais la route de
   <li><strong>La porte de pierre</strong> (<em>Against the Ogre Horde</em>) : un héros qui lance au
       moins deux dés d'attaque de base peut tenter de la forcer ; deux crânes l'ouvrent.</li>
   <li><strong>La porte à condition</strong> (<em>Kellar's Keep</em>) : on lance deux dés rouges —
-      un seul pour le nain, quand la porte le dit — contre son Corps ou son Mind ; un échec finit le
-      tour.</li>
+      un seul pour le nain, quand la porte le dit — contre son Corps ou son Mind. Tenter ne coûte
+      rien ; un échec finit le tour.</li>
   <li><strong>La grille de fer</strong> (<em>The Mage of the Mirror</em>) : on ne voit pas à travers
       tant qu'elle est fermée. La <strong>clé de laiton</strong>, trouvée au râtelier d'une autre
       salle, la lève ; sinon un héros la force avec <strong>deux dés rouges sous son Corps de
-      départ</strong>, et un échec finit son tour.</li>
+      départ</strong> — tenter ne coûte rien, mais un échec finit son tour.</li>
   <li><strong>Le miroir</strong> (<em>The Mage of the Mirror</em>) : sous ce thème, un passage secret
       trouvé est un miroir — « des portails secrets vers de grands trésors et des salles cachées ».
       Il se cherche, s'ouvre et se franchit exactement comme un passage secret ; la carte le peint
@@ -1676,7 +1695,7 @@ EFFET_PIEGE = {
  'Fosse des ténèbres': "une fosse dont la chute coûte <strong>1 PV sans armure ou avec une armure non métallique, 2 en armure métallique, 3 en armure de plates</strong>. Se saute une fois détectée ; <strong>ne se désamorce pas</strong>.",
  'Piège de téléportation': "<strong>introuvable à la fouille</strong>, posé par paire : celui qui marche sur l'un réapparaît sur l'autre.",
  "Piège de l'ouragan": "<strong>introuvable</strong>, en couloir seulement : repousse tous les héros du couloir à l'opposé, jusqu'à 8 cases ou jusqu'au premier mur, meuble ou piège.",
- "Piège d'embrasement": "<strong>introuvable</strong> ; il s'amorce en silence puis <strong>explose au début du tour du maître du jeu</strong>, sur toute la salle ou le couloir, héros et monstres — dégâts de feu, 3 dés d'attaque, défense normale. On le désarme en défaussant une <em>Tempête</em> ou un sort d'Eau.",
+ "Piège d'embrasement": "<strong>introuvable</strong> ; il s'amorce en silence puis <strong>explose au début du tour du maître du jeu</strong>, sur toute la salle ou le couloir, héros et monstres — dégâts de feu, 3 dés d'attaque, défense normale. On le désarme en défaussant une <em>Tempête</em> ou un sort d'Eau — un geste gratuit.",
  'Poison': "à l'ouverture : 1 dé de combat, sans défense",
  'Mare d\'acide': "un dé de combat de dégâts d'<strong>acide</strong> ; elle reste au sol, armée, et se saute d'un jet de Body (difficulté 2) une fois détectée",
  'Piège de Boule de Flammes': "un coffre piégé : la fouille lance le sort de Dread <strong>Boule de Flammes</strong> sur le fouilleur, qui y résiste de ses dés rouges",
@@ -2077,7 +2096,8 @@ du groupe qui fait ensuite sortir tout le monde.</p>
 <p>Une quête peut avoir pour objectif de <strong>secourir quelqu'un</strong>. Le captif est posé
 dans la salle la plus profonde — la même qu'un coffre d'artefact —, <strong>infranchissable</strong>
 comme un meuble tant qu'on ne l'a pas libéré. Un héros à son contact choisit alors
-<strong>« Libérer »</strong> au menu, une action du tour comme relever un compagnon. Le captif devient
+<strong>« Libérer »</strong> au menu, un geste <strong>gratuit</strong> — aucun livret n'y met de
+prix —, là où relever un compagnon coûte l'action. Le captif devient
 <strong>l'allié temporaire du libérateur</strong>, joué par son joueur (voir le chapitre 5), pour
 le reste de la quête. L'objectif est rempli quand <strong>le captif libéré, et vivant, se tient sur
 l'escalier</strong> : la bannière d'objectif dit « ramener le captif à l'escalier ». S'il meurt avant,
@@ -2144,6 +2164,7 @@ ecrire('''
   <li>Déplacement = <strong>base + 1d6</strong>, orthogonal</li>
   <li>Aucun monstre révélé : le d6 vaut <strong>4</strong></li>
   <li><strong>Une</strong> action, avant ou après</li>
+  <li>Boire une potion : <strong>gratuit</strong></li>
   <li>Une seule attaque, sauf capacité</li>
   <li>Pas d'attaque d'opportunité</li>
   <li>Armure de plates : perd le d6 entier (Chevalier/Allégée : le garde)</li>
@@ -2205,7 +2226,7 @@ ecrire('''
 <section><h4>Escalier, alliés, captifs</h4><ul>
   <li>On <strong>commence</strong> sur l'escalier 2×2 ; on ne <strong>quitte</strong> le donjon que debout dessus (la retraite, sans condition)</li>
   <li>Un allié est <strong>toujours joué par son joueur</strong> : second menu, dépl. + attaque</li>
-  <li>Sauvetage : libérer au contact, <strong>ramener le captif à l'escalier</strong></li>
+  <li>Sauvetage : libérer au contact (<strong>gratuit</strong>), <strong>ramener le captif à l'escalier</strong></li>
   <li>Captif escorté (jeton) : s'il tombe, retour en cellule</li>
   <li>Mercenaire : <strong>10 po d'entretien</strong> par quête, Gardien après 2 quêtes, 4 par héros</li>
   <li>Meuble à PV : on le frappe comme un monstre</li>
