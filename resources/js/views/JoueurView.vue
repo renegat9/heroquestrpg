@@ -26,9 +26,10 @@ const erreurGlobale = ref('');
 // un joueur pas encore connecté : après connexion ou inscription, « Manuel »
 // n'offrait aucune extension (René, 2026-11-05).
 async function rafraichirMoi() {
-    const { joueur: moi, personnages: persos, boites_bestiaire: boites } = await api.moi();
+    const { joueur: moi, personnages: persos, boites_bestiaire: boites, longueurs_campagne: durees } = await api.moi();
     store.setJoueur(moi, persos ?? []);
     boitesBestiaire.value = boites ?? [];
+    longueurs.value = durees ?? [];
 }
 
 onMounted(async () => {
@@ -223,11 +224,9 @@ function basculerBoite(persoId, boite) {
 const creerGroupeEnCours = ref({});
 const erreurCreerGroupe = ref({});
 
-const longueurs = [
-    { v: 'courte', l: 'Court', sub: '3 à 5 quêtes' },
-    { v: 'normale', l: 'Moyen', sub: '7 à 10 quêtes' },
-    { v: 'longue', l: 'Épique', sub: '12 à 15 quêtes' },
-];
+// Longueurs de campagne PUBLIÉES par le serveur (`/moi` → `longueurs_campagne`, 2026-11-05) : la liste que
+// `POST /groupes` valide. Écrite en dur ici, elle n'en proposait que trois sur cinq.
+const longueurs = ref([]);
 
 function initCreerGroupe(id) {
     if (!nomGroupe.value[id]) nomGroupe.value = { ...nomGroupe.value, [id]: '' };
@@ -524,18 +523,18 @@ function libelleClasse(classe) {
                                 <div class="joueur-radio-row">
                                     <label
                                         v-for="l in longueurs"
-                                        :key="l.v"
+                                        :key="l.id"
                                         class="joueur-radio"
-                                        :class="{ on: (longueurGroupe[perso.id] || 'normale') === l.v }"
+                                        :class="{ on: (longueurGroupe[perso.id] || 'normale') === l.id }"
                                     >
                                         <input
                                             type="radio"
                                             :name="`longueur-${perso.id}`"
-                                            :value="l.v"
-                                            :checked="(longueurGroupe[perso.id] || 'normale') === l.v"
-                                            @change="longueurGroupe = { ...longueurGroupe, [perso.id]: l.v }"
+                                            :value="l.id"
+                                            :checked="(longueurGroupe[perso.id] || 'normale') === l.id"
+                                            @change="longueurGroupe = { ...longueurGroupe, [perso.id]: l.id }"
                                         />
-                                        {{ l.l }} <span class="joueur-radio-sub">{{ l.sub }}</span>
+                                        {{ l.libelle }} <span class="joueur-radio-sub">{{ l.quetes }}</span>
                                     </label>
                                 </div>
                                 <label class="joueur-lbl">Bestiaire</label>

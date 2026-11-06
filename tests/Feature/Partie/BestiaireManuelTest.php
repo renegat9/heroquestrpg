@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\GroupeController;
 use App\Models\Groupe;
 use App\Models\Monstre;
 use App\Models\Quete;
@@ -74,6 +75,27 @@ it('enregistre le mode à la création : absent = automatique (un tirage), liste
     // Un identifiant qui n'est PAS un thème (Kellar's Keep l'est depuis le 2026-10-23 : le test ne doit plus le prendre pour un intrus).
     $creer('inconnue', ['bestiaire_boites' => ['boite_inventee']])->assertStatus(422);
     $creer('doublon', ['bestiaire_boites' => ['horde_ogre', 'horde_ogre']])->assertStatus(422);
+});
+
+it('publie sur /moi les CINQ longueurs de campagne, celles que POST /groupes valide', function () {
+    // Le formulaire en écrivait trois en dur : « Très courte » et « Très longue » n'ont jamais été proposées (René,
+    // 2026-11-05). La liste vient maintenant du serveur, dans l'ordre du doc 05.
+    connecterJoueur('alice');
+
+    $longueurs = $this->getJson('/api/moi')->assertOk()->json('longueurs_campagne');
+
+    expect(collect($longueurs)->pluck('id')->all())->toBe(['tres_courte', 'courte', 'normale', 'longue', 'tres_longue'])
+        ->and(collect($longueurs)->pluck('id')->all())->toBe(array_keys(GroupeController::QUETES_PAR_LONGUEUR))
+        ->and(array_keys(GroupeController::LIBELLES_LONGUEUR))->toBe(array_keys(GroupeController::QUETES_PAR_LONGUEUR))
+        ->and($longueurs[0])->toBe(['id' => 'tres_courte', 'libelle' => 'Très courte', 'quetes' => '1 quête'])
+        ->and($longueurs[4])->toBe(['id' => 'tres_longue', 'libelle' => 'Très longue', 'quetes' => '17 à 20 quêtes']);
+
+    // Chaque longueur publiée crée bien un groupe.
+    foreach ($longueurs as $l) {
+        $this->postJson('/api/groupes', ['identifiant' => "g-{$l['id']}", 'nom' => $l['libelle'], 'theme' => 'Test', 'longueur' => $l['id']])
+            ->assertStatus(201);
+    }
+    expect(Groupe::where('identifiant', 'g-tres_longue')->value('nb_quetes_total'))->toBeGreaterThanOrEqual(17)->toBeLessThanOrEqual(20);
 });
 
 it('publie sur /moi les boîtes proposables, libellés officiels décidés côté serveur', function () {

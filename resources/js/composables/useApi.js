@@ -127,6 +127,8 @@ export function useApi() {
                 personnages: r?.joueur?.personnages ?? [],
                 // Boîtes du bestiaire MANUEL, libellés décidés côté serveur.
                 boites_bestiaire: r?.boites_bestiaire ?? [],
+                // Longueurs de campagne proposables (2026-11-05), décidées côté serveur.
+                longueurs_campagne: r?.longueurs_campagne ?? [],
             };
         },
 

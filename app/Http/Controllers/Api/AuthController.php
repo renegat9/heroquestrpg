@@ -113,6 +113,9 @@ class AuthController extends Controller
                 'id' => $b,
                 'libelle' => app(DemarreurQuete::class)->libelleBoiteBestiaire($b),
             ], DemarreurQuete::BOITES_THEMATIQUES),
+            // Longueurs de campagne proposables (2026-11-05) : la liste que `POST /groupes` valide, jamais recopiée côté
+            // client — le formulaire en avait trois en dur sur cinq.
+            'longueurs_campagne' => GroupeController::longueursPubliees(),
         ]);
     }
 

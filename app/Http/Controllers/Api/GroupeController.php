@@ -58,6 +58,36 @@ class GroupeController extends Controller
         'tres_longue' => [17, 20],
     ];
 
+    /** Libellés des longueurs, ceux du doc 05 et du livret. Mêmes clés que `QUETES_PAR_LONGUEUR` (testé dans les deux sens). */
+    public const LIBELLES_LONGUEUR = [
+        'tres_courte' => 'Très courte',
+        'courte' => 'Courte',
+        'normale' => 'Normale',
+        'longue' => 'Longue',
+        'tres_longue' => 'Très longue',
+    ];
+
+    /**
+     * Les longueurs de campagne PUBLIÉES au formulaire de création (`GET /moi`), dans l'ordre : la liste même que
+     * `creer()` valide. Le formulaire en écrivait trois en dur — les deux autres n'ont jamais été proposées
+     * (constaté par René, 2026-11-05).
+     *
+     * @return list<array{id: string, libelle: string, quetes: string}>
+     */
+    public static function longueursPubliees(): array
+    {
+        $longueurs = [];
+        foreach (self::QUETES_PAR_LONGUEUR as $id => [$min, $max]) {
+            $longueurs[] = [
+                'id' => $id,
+                'libelle' => self::LIBELLES_LONGUEUR[$id],
+                'quetes' => $min === $max ? "{$min} quête".($min > 1 ? 's' : '') : "{$min} à {$max} quêtes",
+            ];
+        }
+
+        return $longueurs;
+    }
+
     /**
      * POST /api/groupes — créer une campagne depuis un perso libre du joueur.
      *
