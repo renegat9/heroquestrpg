@@ -182,7 +182,7 @@ it('porte le Dragon de First Light exactement comme sa carte', function () {
 it('donne aux créatures à distance leur attaque de tir ET leur malus au contact', function () {
     // « Attack 4 (1 si adjacent) » : deux valeurs distinctes, pas une.
     // L'Orque archer (Against the Ogre Horde p. 8, Q6) a rejoint les deux
-    // archers de Jungles le 2026-10-02.
+    // archers de Jungles le 2026-10-02 ; tous trois suivent leurs boîtes depuis le 2026-11-06.
     foreach (['Archer elfe' => 4, 'Gobelin archer' => 2, 'Archer squelette' => 2, 'Orque archer' => 3] as $nom => $tir) {
         $m = Monstre::where('nom_base', $nom)->firstOrFail();
 
@@ -192,7 +192,7 @@ it('donne aux créatures à distance leur attaque de tir ET leur malus au contac
     }
 });
 
-it('dérive la variante À DISTANCE générique (Q6) de son monstre de base, pour tout thème', function () {
+it('dérive la variante À DISTANCE (Q6) de son monstre de base, rangée dans les boîtes qui l\'impriment', function () {
     // Against the Ogre Horde p. 8, verbatim : « Zargon may place a standard
     // monster or a ranged version of that same monster type (in this quest
     // pack, that means skeletons, orcs, and goblins). A ranged monster rolls
@@ -203,6 +203,11 @@ it('dérive la variante À DISTANCE générique (Q6) de son monstre de base, pou
         'Gobelin archer' => 'Gobelin',
         'Archer squelette' => 'Squelette',
         'Orque archer' => 'Orque',
+    ];
+    $boitesAttendues = [
+        'Gobelin archer' => ['horde_ogre', 'jungles_delthrak'],
+        'Archer squelette' => ['horde_ogre', 'jungles_delthrak'],
+        'Orque archer' => ['horde_ogre'],
     ];
 
     foreach ($liens as $nomVariante => $nomBase) {
@@ -222,10 +227,9 @@ it('dérive la variante À DISTANCE générique (Q6) de son monstre de base, pou
             // …et les dés d'attaque STANDARD de la base, à distance.
             ->and((int) $variante->attaque_distance)->toBe((int) $base->attaque, "{$nomVariante} : attaque à distance = attaque standard de la base");
 
-        // GÉNÉRIQUE (Q6, René 2026-10-02) : `boite: null`, utilisable dans
-        // TOUS les thèmes — jamais réservée à Jungles of Delthrak ni à Against
-        // the Ogre Horde, qui ne fait qu'illustrer la règle.
-        expect($variante->boite)->toBeNull("{$nomVariante} : doit être générique (boite null)");
+        // LES BOÎTES QUI IMPRIMENT LA FIGURINE (René, 2026-11-06), plus « générique » comme le voulait Q6 : Ogre Horde
+        // (contenu p. 3) pour les trois, Jungles of Delthrak (contenu p. 2) pour le gobelin et le squelette.
+        expect($variante->boites())->toBe($boitesAttendues[$nomVariante], "{$nomVariante} : boîtes qui l'impriment");
     }
 
     // Le monstre de base lui-même n'est PAS une variante.
@@ -859,4 +863,13 @@ it('déclare ses ÉCARTS DE COMPORTEMENT du jeu de base, avec leur raison (2026-
     $grak = Monstre::where('nom_base', 'Grak')->firstOrFail();
     expect((array) $grak->capacites)->toBe(['sorts_uniques'])
         ->and((array) $grak->capacites)->not->toHaveKey('repertoire_complet');
+});
+
+it('range TOUTE créature dans une boîte qui l\'imprime : plus aucun monstre sans boîte (René, 2026-11-06)', function () {
+    // Les trois archers étaient les derniers `boite: null` (Q6, 2026-10-02). Un monstre sans boîte passe tous les
+    // filtres : il apparaîtrait dans une campagne « jeu de base seul » comme dans une campagne filtrée sur une boîte
+    // qui ne le contient pas. Le jeu de base porte ses propres paliers (Ulag, Grak, Balur, Seigneur Sorcier).
+    expect(Monstre::whereNull('boite')->pluck('nom_base')->all())->toBe([])
+        ->and(Monstre::where('boite', 'base')->where('tier', 'sous_boss')->exists())->toBeTrue()
+        ->and(Monstre::where('boite', 'base')->where('tier', 'boss')->exists())->toBeTrue();
 });

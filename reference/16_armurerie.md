@@ -517,7 +517,7 @@ document.
 | **Rise of the Dread Moon** | Cultiste du Dread, Spectre, Assassin, Garde-mage, Ombre du Dread |
 | **The Mage of the Mirror** | Archer elfe, Guerrier elfe, Loup géant, Ogre *(aligné)* |
 | **The Frozen Horror** | Gremlin des glaces, Yéti, Horreur des Glaces, Ours polaire de guerre *(aligné)* |
-| **Against the Ogre Horde** | Ogre guerrier, Ogre champion, Ogre commandant, Seigneur ogre |
+| **Against the Ogre Horde** | Ogre guerrier, Ogre champion, Ogre commandant, Seigneur ogre, Gobelin archer, Orque archer, Archer squelette *(variantes à distance, rattachées le 2026-11-06 : contenu p. 3)* |
 | **Jungles of Delthrak** | Rejeton putride, Archer squelette, Tisseur putride, Crâne putride, Raptor, Rampant putride, Serpent géant, Singe géant, Gobelin archer *(aligné)* |
 
 **23 nouvelles créatures, 3 alignées.** `tier` et `cout` sont les **seules**

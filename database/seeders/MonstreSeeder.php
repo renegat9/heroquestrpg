@@ -81,18 +81,14 @@ class MonstreSeeder extends Seeder
          * c'est ce lien, pas une convention de nommage, qui fait d'une entrée
          * une variante.
          *
-         * ⚠ `boite: null`, volontairement. La règle du livret commence par
-         * « in this quest pack », mais son mécanisme (« Zargon may place a
-         * standard monster or a ranged version ») ne dépend d'aucune règle
-         * propre à la boîte Ogre Horde — c'est un remplacement générique à la
-         * pose, comme on ferait au plateau avec n'importe quel figurine. René
-         * a tranché Q6 dans ce sens : une règle utilisable par TOUS les
-         * thèmes plutôt qu'un trait de boîte. Les deux variantes déjà seedées
-         * (Gobelin archer, Archer squelette) étaient jusqu'ici rangées dans
-         * `jungles_delthrak` — un vestige du premier portage (2026-08-10, avant
-         * que la question des boîtes ne se pose), jamais un choix de règle —
-         * et en sortent ici pour rejoindre nos propres blocs de stats
-         * (nos anciens Champion et Seigneur, retirés le 2026-10-31), disponibles dans toute campagne.
+         * ⚠ LES BOÎTES QUI LES IMPRIMENT (René, 2026-11-06 : « appliquer ces créatures aux extensions où elles sont
+         * présentes »). Q6 les avait rendues génériques (`boite: null`, 2026-10-02), donc présentes dans toute
+         * campagne, y compris « jeu de base seul » et une campagne filtrée sur une boîte qui n'en a aucune. Elles
+         * suivent désormais leurs figurines : Against the Ogre Horde (contenu p. 3, légende p. 19 : Goblin, Orc et
+         * Skeleton Archers) et Jungles of Delthrak (contenu p. 2, légende p. 6 : Goblin et Skeleton Archers). Le
+         * mécanisme reste générique, c'est sa DISPONIBILITÉ qui suit les boîtes : `variantesDistanceParBase()` filtre
+         * déjà par `autorise()`, et le monstre standard reste posé quand sa variante n'est pas du lot. La rotation
+         * historique (`MODE_AUTO`, une préférence) les garde partout.
          *
          * `cout` : aucune carte ne chiffre de budget de rencontre pour cette
          * variante (comme tout `cout` du bestiaire, c'est une valeur à nous).
@@ -103,7 +99,7 @@ class MonstreSeeder extends Seeder
          * squelette n'a jamais porté cette prime (coût = celui du Squelette) —
          * un rééquilibrage séparé, hors du périmètre de ce lot.
          */
-        $varianteDistance = function (array $base, string $nomVariante, int $coutVariante): array {
+        $varianteDistance = function (array $base, string $nomVariante, int $coutVariante, array $boites): array {
             return [
                 'nom_base' => $nomVariante,
                 'deplacement' => $base['deplacement'],
@@ -114,7 +110,8 @@ class MonstreSeeder extends Seeder
                 'pv_body' => $base['pv_body'],
                 'pv_mind' => $base['pv_mind'],
                 'tier' => $base['tier'],
-                'boite' => null,
+                'boite' => $boites[0],
+                'boites_partagees' => array_slice($boites, 1) ?: null,
                 'cout' => $coutVariante,
                 'variante_distance_de' => $base['nom_base'],
                 'capacites' => [],
@@ -122,11 +119,11 @@ class MonstreSeeder extends Seeder
             ];
         };
 
-        $gobelinArcher = $varianteDistance($gobelin, 'Gobelin archer', 2);
-        $archerSquelette = $varianteDistance($squelette, 'Archer squelette', 2);
+        $gobelinArcher = $varianteDistance($gobelin, 'Gobelin archer', 2, ['horde_ogre', 'jungles_delthrak']);
+        $archerSquelette = $varianteDistance($squelette, 'Archer squelette', 2, ['horde_ogre', 'jungles_delthrak']);
         // Nouveau (lot B, Against the Ogre Horde) : l'Orque archer, troisième
         // et dernière variante nommée par le livret p. 8.
-        $orqueArcher = $varianteDistance($orque, 'Orque archer', 3);
+        $orqueArcher = $varianteDistance($orque, 'Orque archer', 3, ['horde_ogre']);
 
         // Carte « Dread Warrior » (p03, © 2021 — 1989 « Chaos Warrior ») : Déplacement 7, Attaque 4, Défense 4, Body 3,
         // Mind 3 — valeurs de CARTE (décision 2026-10-05). Variable : Borokk et Gragor, « same stats as a Dread warrior »

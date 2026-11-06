@@ -149,7 +149,7 @@ it('ne dépasse jamais le budget en substituant une variante plus chère', funct
     expect($total)->toBeLessThanOrEqual($budget);
 });
 
-it('offre la variante à distance dans TOUS les thèmes (Q6 : générique, pas un trait de boîte)', function () {
+it('offre la variante à distance partout en rotation historique, qui n\'est qu\'une préférence', function () {
     // Automatique : `autorise()` ne filtre jamais (c'est `contient()`, la
     // préférence sur les FORTS, qui lit le thème) — donc chaque thème doit
     // pouvoir faire apparaître au moins une des trois variantes sur un lot
@@ -163,14 +163,21 @@ it('offre la variante à distance dans TOUS les thèmes (Q6 : générique, pas u
 
         expect($variantesApparues)->not->toBeEmpty("thème « {$boite} » : aucune variante à distance offerte");
     }
+});
 
-    // Manuel, AUCUNE case cochée (jeu de base + nos créatures seulement) :
-    // les variantes sont `boite: null`, donc toujours du lot.
-    $manuel = BestiaireGroupe::manuel([]);
-    $achats = acheterPourVariante([], 200, 40, 1, 3, $manuel);
-    $variantesApparues = collect($achats)->pluck('nom_base')->intersect(['Gobelin archer', 'Archer squelette', 'Orque archer']);
+it('ne pose une variante à distance qu\'avec une boîte qui imprime sa figurine (René, 2026-11-06)', function () {
+    // Against the Ogre Horde (contenu p. 3) : les trois archers. Jungles of Delthrak (contenu p. 2) : gobelin et
+    // squelette. Ailleurs, le monstre STANDARD reste posé à leur place : aucun emplacement perdu.
+    $archers = fn (BestiaireGroupe $b) => collect(acheterPourVariante([], 200, 40, 1, 3, $b))->pluck('nom_base')
+        ->intersect(['Gobelin archer', 'Archer squelette', 'Orque archer'])->unique()->sort()->values()->all();
 
-    expect($variantesApparues)->not->toBeEmpty('bestiaire manuel sans case cochée : aucune variante à distance offerte');
+    expect($archers(BestiaireGroupe::manuel([])))->toBe([])
+        ->and($archers(BestiaireGroupe::manuel(['dread_moon'])))->toBe([])
+        ->and($archers(BestiaireGroupe::manuel(['horde_ogre'])))->toBe(['Archer squelette', 'Gobelin archer', 'Orque archer'])
+        ->and($archers(BestiaireGroupe::manuel(['jungles_delthrak'])))->toBe(['Archer squelette', 'Gobelin archer']);
+
+    $sansArcher = collect(acheterPourVariante([], 200, 40, 1, 3, BestiaireGroupe::manuel([])))->pluck('nom_base');
+    expect($sansArcher)->toContain('Gobelin')->toContain('Squelette')->toContain('Orque');
 });
 
 it('reste un monstre STANDARD quand la rotation ne tombe pas sur son rang (jamais 100% de variantes)', function () {
@@ -183,4 +190,22 @@ it('reste un monstre STANDARD quand la rotation ne tombe pas sur son rang (jamai
     $standards = $noms->intersect(['Gobelin', 'Squelette', 'Orque']);
 
     expect($standards)->not->toBeEmpty('la rotation a remplacé 100% des monstres de base par leur variante : '.$noms->implode(', '));
+});
+
+it('la migration des archers écrit en base exactement les boîtes du seeder, et down() les rend génériques', function () {
+    $migration = require base_path('database/migrations/2026_11_06_140000_archers_dans_leurs_boites.php');
+    $boites = fn () => Monstre::whereNotNull('variante_distance_de')->orderBy('nom_base')->get()
+        ->mapWithKeys(fn (Monstre $m) => [$m->nom_base => $m->boites()])->all();
+    $duSeeder = $boites();
+
+    $migration->down();
+    expect(collect($boites())->flatten()->all())->toBe([]);
+
+    $migration->up();
+    expect($boites())->toBe($duSeeder)
+        ->and($duSeeder)->toBe([
+            'Archer squelette' => ['horde_ogre', 'jungles_delthrak'],
+            'Gobelin archer' => ['horde_ogre', 'jungles_delthrak'],
+            'Orque archer' => ['horde_ogre'],
+        ]);
 });

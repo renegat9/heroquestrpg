@@ -358,7 +358,10 @@ peut placer un squelette, un orque ou un gobelin « à distance » à la place
 du modèle standard ; ce monstre lance ses dés d'attaque habituels contre
 une cible non adjacente en ligne de vue, ou 1 seul dé si la cible est
 adjacente (Ogre Horde, p. 8). Stats identiques au monstre standard dans le
-roster du tournoi.
+roster du tournoi. *Chez nous (2026-11-06)* : la règle reste générique, mais les
+trois archers n'apparaissent qu'avec une boîte qui imprime leur figurine —
+Ogre Horde (contenu p. 3 : gobelin, orque, squelette) ou Jungles of Delthrak
+(contenu p. 2 : gobelin, squelette).
 
 **Adversaires nommés (bosses) :**
 - **Doralf** (chef pit-fighter, quête 2) — **Attack 6 · Defend 5 · Move 6 ·

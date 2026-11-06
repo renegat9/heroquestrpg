@@ -22,8 +22,9 @@ use Random\Randomizer;
  * entrer par la fenêtre une extension que le joueur n'a pas cochée.
  *
  *  - **Manuel** : les boîtes COCHÉES (`groupes.boites_bestiaire`, liste,
- *    vide comprise). Un FILTRE : jeu de base + nos créatures (`boite = null`,
- *    sans lesquelles le jeu de base n'a ni sous-boss ni boss) + boîtes cochées.
+ *    vide comprise). Un FILTRE : jeu de base + ce qui n'a pas de boîte
+ *    (`boite = null` : aucun monstre depuis le 2026-11-06, où les trois archers
+ *    ont rejoint leurs boîtes ; des terrains et des objets) + boîtes cochées.
  *    Parmi elles, les cochées gardent la préférence (boss, forts).
  *  - **Automatique, depuis le 2026-11-05** (René : « donner la liste et une
  *    description des extensions à l'agent IA afin qu'il choisisse des extensions
