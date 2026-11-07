@@ -17,8 +17,8 @@ const props = defineProps({
     equipEnCours: { type: Boolean, default: false },
     // Autres héros actifs du groupe : destinataires possibles d'un don.
     compagnons: { type: Array, default: () => [] },
-    // Bourse commune (EtatGroupe.groupe.or) — pour griser une amélioration
-    // de Forge trop chère dans la feuille de détail, comme RecrutementHub.
+    // Bourse commune (EtatGroupe.groupe.or) — affichée en tête du sac, et pour griser une
+    // amélioration de Forge trop chère dans la feuille de détail, comme RecrutementHub.
     orCommun: { type: Number, default: null },
 });
 /**
@@ -113,6 +113,13 @@ const deborde = computed(() => {
 
 <template>
     <div>
+        <!-- LA BOURSE COMMUNE (René, 2026-11-06 : « afficher le total de gold du groupe présentement »), au hub comme
+             en quête : l'or trouvé y entre au moment de la fouille. La valeur publiée par le serveur
+             (`EtatGroupe.groupe.or`), jamais recalculée ici ; même ligne que le recrutement au hub. -->
+        <div v-if="Number.isFinite(orCommun)" class="sac-bourse">
+            <MSym n="paid" fill :size="15" /> Bourse commune : <b>{{ orCommun }}</b> or
+        </div>
+
         <div class="sect-title"><MSym n="checkroom" :size="16" /> Équipement</div>
 
         <!-- pièces équipées : chacune déséquipable au hub -->
@@ -309,6 +316,8 @@ const deborde = computed(() => {
     </template>
 
 <style scoped>
+.sac-bourse { display: flex; align-items: center; gap: 6px; margin: 0 0 12px;
+  font-size: 14px; color: var(--gold, #c9a24a); font-weight: 700; }
 /* Charges restantes de CET exemplaire (`charges: {restantes, max}`, décidé
    par le serveur) : l'arc de Vindication affichait « 4 » pour toujours. */
 .sac-charges { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 99px;
