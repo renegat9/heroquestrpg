@@ -1935,7 +1935,8 @@ final class MoteurPieges
         $dx = $piege['x'] - $depart['x'];
         $dy = $piege['y'] - $depart['y'];
 
-        if (abs($dx) + abs($dy) !== 1 || $quete->carte === null) {
+        // Le saut part d'une case AU CONTACT du piège — le contact passe par son point de passage (`ContactOrthogonalTest`).
+        if (! Grille::sontAdjacentes($depart['x'], $depart['y'], $piege['x'], $piege['y']) || $quete->carte === null) {
             return [];
         }
 
