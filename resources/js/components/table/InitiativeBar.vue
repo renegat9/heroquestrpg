@@ -1,10 +1,20 @@
 <script setup>
+import { nextTick, ref, watch } from 'vue';
 import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
 
-defineProps({
+const props = defineProps({
     /** [{ l, nom, img, cur?, foe?, ally?, id, type }] */
     order: { type: Array, required: true },
+});
+
+/* La barre DÉFILE quand les figures débordent (2026-11-06) : le jeton dont c'est le tour revient au centre à chaque
+   changement de tour, sinon la table perdrait de vue qui joue. `block: 'nearest'` : jamais de défilement vertical. */
+const barre = ref(null);
+
+watch(() => props.order.findIndex((o) => o.cur), async () => {
+    await nextTick();
+    barre.value?.querySelector('.init-unite.cur')?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
 });
 
 // Cliquer un jeton d'initiative ouvre la fiche de stats de la figure (C3).
@@ -14,7 +24,7 @@ const emit = defineEmits(['inspecter']);
 <template>
     <!-- Rien à afficher au hub : sans ce garde, le libellé « Initiative » restait
          seul à l'écran après un retour au hub (§2.20). -->
-    <div v-if="order.length" class="init">
+    <div v-if="order.length" ref="barre" class="init">
         <span class="ttl">Initiative</span>
         <template v-for="(o, i) in order" :key="i">
             <!-- Portrait + nom dessous (René, 2026-10-01). Le cercle garde la

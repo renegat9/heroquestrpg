@@ -1292,6 +1292,16 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .quest .obj.fait .obj-tag { border-color: var(--ok); color: var(--ok);
   background: color-mix(in oklch, var(--ok) 16%, transparent); }
 .table-screen .init { display: flex; align-items: center; gap: 10px; margin: 0 auto; }
+/* BARRE DE DÉFILEMENT (René, 2026-11-06 : « il faudrait mettre une barre de défilement dans l'affichage des figures
+   dans l'entête ») : avec beaucoup de figures, la fin de l'ordre sortait de l'écran, coupée. La barre peut maintenant
+   rétrécir (`min-width: 0`) et défile en largeur ; la marge intérieure laisse de la place au jeton courant, agrandi
+   (`scale(1.14)`), qu'un `overflow` rognerait sinon. Le jeton courant est ramené au centre (`InitiativeBar.vue`). */
+.table-screen .init { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; overflow-y: hidden;
+  padding: 8px 6px 10px; scrollbar-width: thin; scrollbar-color: var(--stone-600) transparent; }
+.table-screen .init > * { flex: none; }
+.table-screen .init::-webkit-scrollbar { height: 8px; }
+.table-screen .init::-webkit-scrollbar-thumb { background: var(--stone-600); border-radius: 999px; }
+.table-screen .init::-webkit-scrollbar-track { background: transparent; }
 .table-screen .init .ttl { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-500); font-weight: 700; margin-right: 4px; }
 .table-screen .tok { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 14px;
   background: var(--stone-800); border: 2px solid var(--stone-600); color: var(--ink-300); position: relative; transition: all .3s;

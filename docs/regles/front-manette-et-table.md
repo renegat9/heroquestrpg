@@ -172,6 +172,8 @@ c'est la collision que ces règles signalent depuis le début.
 
 **Les capacités d'un monstre se lisent partout où ses stats s'affichent** (René, 2026-11-06). La fiche de stats de la table (barre d'initiative, figure touchée sur la carte) liste les phrases que le serveur publie (`entites[].capacites`) ; le Guide et le livret lisent la même source, `App\Partie\LibellesCapacitesMonstre` — une seule liste de libellés, testée dans les deux sens contre le bestiaire. Ce soir-là, un Assassin rebaptisé frappait du coin et rien ne le disait.
 
+**La barre d'initiative de la table défile** (René, 2026-11-06 : « il faudrait mettre une barre de défilement dans l'affichage des figures dans l'entête »). Avec beaucoup de figures, la fin de l'ordre sortait de l'écran. La barre peut rétrécir et défile en largeur, barre visible, avec assez de marge pour le jeton courant agrandi ; à chaque changement de tour, ce jeton revient au centre (`InitiativeBar.vue`), sans jamais faire défiler la page en hauteur.
+
 ⚠ **Une scène ne couvre QUE la zone carte** (`.map-wrap`), jamais la racine de
 l'écran. Elle capture les clics — c'est ainsi qu'on revient à la carte —, donc
 posée plus haut elle avalait aussi ceux destinés au bandeau du MJ, aux réglages
