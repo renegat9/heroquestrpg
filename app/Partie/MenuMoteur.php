@@ -1718,13 +1718,14 @@ final class MenuMoteur
         // DESCENDRE DANS UNE FOSSE OUVERTE (René, 2026-11-07 : « on devrait pouvoir tomber dans le trou si on le veut ») :
         // First Light p. 9, « you must voluntarily fall into the pit (suffering damage) and do combat with the monster from
         // in the pit ». Le pas est le MOUVEMENT du tour ; la chute fait ses dégâts ; l'action reste. Fosse ordinaire
-        // seulement (la fosse longue a sa propre mécanique, `MoteurFosseLongue`), et jamais sur une figure.
+        // seulement (la fosse longue a sa propre mécanique, `MoteurFosseLongue`). ⚠ Une fosse OCCUPÉE se descend aussi :
+        // « You cannot share a square […] except when you are […] in a pit trap » (First Light p. 7) — un saut raté y
+        // pose déjà le héros quelle que soit l'occupation (René, 2026-11-07 : « c'est arrivé hier »).
         if (! $aDeplace && ! $enFosse && $etat !== null && $this->pointsRestants($personnage, $etat) >= 1) {
             foreach ($detectes as $adjacent) {
                 if (($adjacent['etat'] ?? null) !== MoteurPieges::ETAT_FOSSE_OUVERTE
                     || ! $this->pieges->estFosse($adjacent['piege'])
-                    || isset(($quete->carte->grille['pieges'][$adjacent['index']] ?? [])['groupe_id'])
-                    || ! FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id)->estTraversable($adjacent['x'], $adjacent['y'])) {
+                    || isset(($quete->carte->grille['pieges'][$adjacent['index']] ?? [])['groupe_id'])) {
                     continue;
                 }
 

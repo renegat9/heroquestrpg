@@ -5405,7 +5405,8 @@ final class ResolveurTour
      * First Light p. 9 : « you must voluntarily fall into the pit (suffering damage) and do combat with the monster from
      * in the pit ». Le pas est le MOUVEMENT du tour ; la chute fait les dégâts de la fosse, par son déclenchement
      * ordinaire (`MoteurPieges::declencher()`, annonces comprises) ; l'ACTION reste — c'est tout l'intérêt. Revalide ce
-     * que le menu a offert : fosse ouverte ordinaire, au contact, case libre.
+     * que le menu a offert : fosse ouverte ordinaire, au contact. Occupée ou non : une fosse se PARTAGE (First Light p. 7),
+     * comme le saut raté y pose déjà le héros.
      *
      * @param  array<string, mixed>  $option
      * @param  array<string, mixed>  $acteur
@@ -5437,10 +5438,9 @@ final class ResolveurTour
             || isset($entree['groupe_id'])
             || ! $this->pieges->estFosse(Piege::find($entree['piege_id']))
             || $etat->a_deplace
-            || ! Grille::sontAdjacentes((int) $etat->position_x, (int) $etat->position_y, $x, $y)
-            || ! $this->grille($quete, exceptPersonnageId: $personnage->id)->estTraversable($x, $y)) {
+            || ! Grille::sontAdjacentes((int) $etat->position_x, (int) $etat->position_y, $x, $y)) {
             throw ValidationException::withMessages([
-                'option_id' => 'Impossible de descendre dans cette fosse : il faut une fosse ouverte, au contact, et libre.',
+                'option_id' => 'Impossible de descendre dans cette fosse : il faut une fosse ouverte, au contact.',
             ]);
         }
 

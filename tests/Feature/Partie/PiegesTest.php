@@ -571,6 +571,26 @@ it('laisse DESCENDRE volontairement dans une fosse ouverte : la chute fait mal, 
         ->and((bool) $etat->a_agi)->toBeFalse();
 });
 
+it('laisse descendre dans une fosse DÉJÀ OCCUPÉE : une fosse se partage (First Light p. 7)', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
+    $saut = alignementFranchissable($quete, (int) $etat->position_x, (int) $etat->position_y);
+    poserPieges($quete, [['x' => $saut['fosse']['x'], 'y' => $saut['fosse']['y'], 'nom' => 'Fosse', 'etat' => 'fosse_ouverte']]);
+
+    // Brunhilde est déjà au fond (un saut raté l'y a posée, la partie du 2026-11-06).
+    EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', '!=', $hero->id)
+        ->update(['position_x' => $saut['fosse']['x'], 'position_y' => $saut['fosse']['y']]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $option = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->firstWhere('id', "descendre_fosse_{$saut['fosse']['x']}_{$saut['fosse']['y']}");
+
+    expect($option)->not->toBeNull();
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => $option['id']])->assertStatus(202);
+
+    expect([(int) $etat->fresh()->position_x, (int) $etat->fresh()->position_y])->toBe([$saut['fosse']['x'], $saut['fosse']['y']]);
+});
+
 it('franchit une fosse détectée sur un jet de Body 2 réussi : le héros atterrit de l\'autre côté', function () {
     [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros(); // barbare : Franchir, pas Désamorcer
 

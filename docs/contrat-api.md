@@ -2149,8 +2149,10 @@ de la quête.
   voluntarily fall into the pit (suffering damage) and do combat with the monster
   from in the pit ». Le héros entre dans la fosse (son mouvement du tour), la chute
   fait ses dégâts par le déclenchement ordinaire (résultat `descente_fosse` avec
-  `declenchement`), et **son action reste**. Fosse ordinaire libre et au contact
-  seulement (la fosse longue a sa propre mécanique).
+  `declenchement`), et **son action reste**. Fosse ordinaire au contact (la fosse
+  longue a sa propre mécanique) — **même occupée** : une fosse se partage (« except
+  when you are […] in a pit trap », First Light p. 7), comme un saut raté y pose
+  déjà le héros.
 - **Couloirs** : une ou deux voies (LR p. 11), tirées **une sur deux** par
   couloir (`AssembleurCarte::CHANCE_VOIE_UNIQUE`). Un couloir à voie unique ne
   reçoit **jamais** de Chute de blocs : tombée, elle fermerait le passage à
