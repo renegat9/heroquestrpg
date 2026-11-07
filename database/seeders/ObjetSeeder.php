@@ -283,8 +283,11 @@ class ObjetSeeder extends Seeder
             // §2.1bis). Valeur du projet, à remplacer dès qu'une source existe.
             // Carte de trésor SANS PRIX → `hors_marche` (René, 2026-10-16) : ni à
             // l'étal, ni revendable ; trouvable en fouille et buvable.
+            // ⚠ ÉCART ASSUMÉ, décision de René (2026-11-06, en partie : « une potion de force devrait aussi donner un
+            // bonus de 2 dés au test de force ») : la carte ne parle que de l'attaque. `bonus_des_body` donne les mêmes
+            // +2 dés au prochain jet de Body, et la potion paie au PREMIER des deux (`MoteurSorts::consommerBonusJetBody()`).
             ['nom' => 'Potion de force', 'categorie' => 'consommable', 'prix_base' => 150, 'emplacement' => 'consommable',
-                'effet' => ['bonus_des_attaque' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent', 'hors_marche' => true]],
+                'effet' => ['bonus_des_attaque' => 2, 'bonus_des_body' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent', 'hors_marche' => true]],
             // SOURCE — « Potion of Defense », carte de trésor de BASE (© 2021
             // Hasbro) et de First Light (© 2024), photographiées par René le
             // 2026-10-16 (reference/16 §7.4). Même effet sur les deux éditions :

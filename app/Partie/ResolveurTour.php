@@ -4740,7 +4740,8 @@ final class ResolveurTour
             ? $this->talents->valeur($personnage, 'avantage_jet_mind', ['contexte' => $contexte])
             : 0;
 
-        $nbDes = ($attribut === 'body' ? (int) $personnage->attribut_body : (int) $personnage->attribut_mind) + $bonusAvantage;
+        $body = $attribut === 'body' ? $this->desDeBody($personnage) : null;
+        $nbDes = ($body !== null ? $body['des'] : (int) $personnage->attribut_mind) + $bonusAvantage;
         $resultat = (new JetCompetence($this->des))->resoudre($nbDes, $difficulte);
 
         // PARLER À LA PIERRE (Moine, Style de la Terre) — la fouille ne peut
@@ -4777,7 +4778,7 @@ final class ResolveurTour
 
         // Modificateur de jet SANS événement propre (groupe 3, 2026-09-25) :
         // pas de popup, le jet qu'il a modifié porte `modificateurs`.
-        $modificateursJet = [];
+        $modificateursJet = $body['modificateurs'] ?? [];
 
         if ($bonusAvantage > 0) {
             $noeudAvantage = $this->talents->noeud($personnage, 'avantage_jet_mind', ['contexte' => $contexte]);
@@ -4978,6 +4979,32 @@ final class ResolveurTour
      *
      * @return array{reussi: bool, detail: array<string, mixed>}
      */
+    /**
+     * Les dés d'un JET DE BODY de ce héros — le point de passage des cinq (épreuve ou action de Body, désamorçage, saut,
+     * levier, poussée). La Potion de force y ajoute ses dés (`bonus_des_body`, René 2026-11-06 : « une potion de force
+     * devrait aussi donner un bonus de 2 dés au test de force ») et se DÉPENSE ici, au moment où le jet les prend : ses
+     * +2 dés vont au premier des deux, l'attaque ou ce jet. Le modificateur se publie sous le jet (`modificateurs`).
+     *
+     * @return array{des: int, modificateurs: list<array{source: string, valeur: int, sur: string}>}
+     */
+    private function desDeBody(?Personnage $personnage): array
+    {
+        if ($personnage === null) {
+            return ['des' => 0, 'modificateurs' => []];
+        }
+
+        ['valeur' => $bonus, 'sources' => $sources] = $this->sorts->bonusJetBody($personnage);
+
+        if ($bonus > 0) {
+            $this->sorts->consommerBonusJetBody($personnage);
+        }
+
+        return [
+            'des' => (int) $personnage->attribut_body + $bonus,
+            'modificateurs' => $bonus > 0 ? [['source' => implode(', ', $sources), 'valeur' => $bonus, 'sur' => 'body']] : [],
+        ];
+    }
+
     private function jetDesamorcage(Personnage $personnage, Quete $quete): array
     {
         if (in_array($personnage->classe, MoteurPieges::SANS_OUTILS, true)) {
@@ -4992,8 +5019,8 @@ final class ResolveurTour
         // Plafond de Body (2026-08-24) : un seul endroit décide, même pour les deux jets historiques.
         $difficulte = DifficulteBody::plafonnee($quete, self::DIFFICULTE_DESAMORCAGE);
 
-        $resultat = (new JetCompetence($this->des))
-            ->resoudre((int) $personnage->attribut_body, $difficulte);
+        $body = $this->desDeBody($personnage);
+        $resultat = (new JetCompetence($this->des))->resoudre($body['des'], $difficulte);
 
         return [
             'reussi' => $resultat->estReussi(),
@@ -5001,9 +5028,10 @@ final class ResolveurTour
                 'methode' => 'trousse',
                 'attribut' => 'body',
                 'difficulte' => $difficulte,
-                'des_lances' => (int) $personnage->attribut_body,
+                'des_lances' => $body['des'],
                 'issue' => $resultat->issue->value,
                 'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
+                ...($body['modificateurs'] !== [] ? ['modificateurs' => $body['modificateurs']] : []),
             ],
         ];
     }
@@ -5476,8 +5504,8 @@ final class ResolveurTour
         } else {
             $difficulteSaut = DifficulteBody::plafonnee($quete, self::DIFFICULTE_FRANCHISSEMENT);
 
-            $resultat = (new JetCompetence($this->des))
-                ->resoudre((int) $personnage->attribut_body, $difficulteSaut);
+            $body = $this->desDeBody($personnage);
+            $resultat = (new JetCompetence($this->des))->resoudre($body['des'], $difficulteSaut);
 
             // Potion de dextérité : « or guarantees one successful pit jump ».
             // Même traitement que le Dragon bondissant, et pour la même raison :
@@ -5496,7 +5524,8 @@ final class ResolveurTour
             $payload += [
                 'attribut' => 'body',
                 'difficulte' => $difficulteSaut,
-                'des_lances' => (int) $personnage->attribut_body,
+                'des_lances' => $body['des'],
+                ...($body['modificateurs'] !== [] ? ['modificateurs' => $body['modificateurs']] : []),
                 'succes' => $resultat->succes,
                 'issue' => $resultat->issue->value,
                 'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
@@ -6173,7 +6202,8 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Parchemin introuvable dans le sac de ce héros.']);
         }
 
-        $estLanceur = in_array($personnage->classe, MoteurSorts::LANCEURS, true);
+        $difficulteLecture = MoteurSorts::difficulteLecture($personnage, $sort);
+        $estLanceur = $difficulteLecture === null;
 
         $payload = [
             'type' => 'parchemin',
@@ -6186,7 +6216,7 @@ final class ResolveurTour
         $reussi = true;
 
         if (! $estLanceur) {
-            $difficulte = max(1, (int) $sort->difficulte_parchemin);
+            $difficulte = $difficulteLecture;
             $jet = (new JetCompetence($this->des))->resoudre((int) $personnage->attribut_mind, $difficulte);
             $reussi = $jet->estReussi();
 
@@ -10367,7 +10397,8 @@ final class ResolveurTour
         // Le héros vient de son ÉTAT : `resoudreActionnerLevier()` ne l'a jamais
         // reçu en paramètre, l'action étant gratuite et anonyme jusqu'ici.
         $forceur = $etat->personnage;
-        $desBody = (int) ($forceur?->attribut_body ?? 0);
+        $body = $this->desDeBody($forceur);
+        $desBody = $body['des'];
 
         $difficulte = DifficulteBody::plafonnee($quete, (int) ($levier['difficulte'] ?? 2));
         $resultat = (new JetCompetence($this->des))->resoudre($desBody, $difficulte);
@@ -10376,6 +10407,7 @@ final class ResolveurTour
             'attribut' => 'body',
             'difficulte' => $difficulte,
             'des_lances' => $desBody,
+            ...($body['modificateurs'] !== [] ? ['modificateurs' => $body['modificateurs']] : []),
             'succes' => $resultat->succes,
             'issue' => $resultat->issue->value,
             'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
@@ -11410,7 +11442,8 @@ final class ResolveurTour
         $instance->update(['habillage' => $habillage]);
 
         $difficulte = DifficulteBody::plafonnee($quete, (int) $instance->monstre->pv_body);
-        $resultat = (new JetCompetence($this->des))->resoudre((int) $personnage->attribut_body, $difficulte);
+        $body = $this->desDeBody($personnage);
+        $resultat = (new JetCompetence($this->des))->resoudre($body['des'], $difficulte);
 
         $payload = [
             'type' => 'poussee',
@@ -11420,7 +11453,8 @@ final class ResolveurTour
             'jet' => [
                 'attribut' => 'body',
                 'difficulte' => $difficulte,
-                'des_lances' => (int) $personnage->attribut_body,
+                'des_lances' => $body['des'],
+                ...($body['modificateurs'] !== [] ? ['modificateurs' => $body['modificateurs']] : []),
                 'succes' => $resultat->succes,
                 'issue' => $resultat->issue->value,
                 'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
@@ -14262,6 +14296,9 @@ final class ResolveurTour
             'type' => 'attaque_monstre',
             'monstre' => $nomMonstre,
             ...($marteau !== null ? ['marteau_brise' => true] : []),
+            // EN DIAGONALE (Assassin, `attaque_diagonale`) : le fil et la table le disent (2026-11-06).
+            ...(self::enDiagonale($instance->position_x, $instance->position_y, $cible->position_x, $cible->position_y)
+                ? ['diagonale' => true] : []),
             // ⚠ L'INSTANCE, pas seulement le nom : c'est elle qui porte le
             // portrait dynamique d'un boss (`dyn/monstre/{instance_id}-{monstre_id}`), et le
             // nom AFFICHÉ est celui de l'habillage IA — il ne retrouve donc
@@ -14679,6 +14716,17 @@ final class ResolveurTour
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
+    /**
+     * Un coup qui part d'une case DIAGONALE à sa cible — seul un monstre `attaque_diagonale` (l'Assassin) le peut. Le
+     * moteur le décide et le publie (`diagonale`), le fil et la table le disent : le contact est orthogonal partout
+     * ailleurs, un coup venu du coin sans explication se lit comme un bug (partie réelle, 2026-11-06).
+     */
+    private static function enDiagonale(?int $ax, ?int $ay, ?int $bx, ?int $by): bool
+    {
+        return $ax !== null && $ay !== null && $bx !== null && $by !== null
+            && abs($ax - $bx) === 1 && abs($ay - $by) === 1;
+    }
+
     private function resoudreAttaqueMonstreSurAllie(
         Groupe $groupe,
         Quete $quete,
@@ -14699,6 +14747,8 @@ final class ResolveurTour
         );
 
         $vaincu = $resultat->pvBodyApres === 0;
+        // Lu AVANT la mise à jour : un allié vaincu quitte la carte, sa case devient `null`.
+        $diagonale = self::enDiagonale($instance->position_x, $instance->position_y, $allie->position_x, $allie->position_y);
         $allie->update([
             'pv_body' => $resultat->pvBodyApres,
             'etat' => $vaincu ? 'vaincu' : 'actif',
@@ -14714,6 +14764,7 @@ final class ResolveurTour
             'instance_id' => $instance->id,
             'monstre' => $nomMonstre,
             'portee' => $portee,
+            ...($diagonale ? ['diagonale' => true] : []),
             'cible' => [
                 'type' => 'allie',
                 'allie_id' => (int) $allie->id,

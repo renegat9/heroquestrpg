@@ -356,6 +356,8 @@ dur dès qu'un piège caché se déclenche — avant cette date, seule la fosse
 chute de blocs laissaient le héros continuer sa marche en pleine hémorragie,
 déplacement et action encore intacts.
 
+**Une Chute de blocs tombée ne ferme JAMAIS une route** (René, 2026-11-06, partie réelle : « donc il se pourrait qu'un personnage reste coincé »). La garde des couloirs d'une case (2026-09-27) ne voyait que les couloirs : ce soir-là, un bloc posé en SALLE sur la case derrière une porte, un trône à côté, a muré la porte une fois tombé — un raccourci, par chance. `AssembleurCarte::blocsQuiNeCoupentRien()` juge désormais chaque Chute de blocs COMME SI ELLE ÉTAIT TOMBÉE, une fois tout le décor posé (mobilier, terrain, fosse longue) et avec les blocs déjà gardés : si une case accessible depuis le départ cessait de l'être, elle devient un piège de sol sans bloc du même vivier (`piegesDeSol()`), choisi par son rang — aucun tirage, la suite PRNG ne bouge pas. Même prédicat que le rocher roulant (`accesPreserve()`). `CouloirsTest` le vérifie sur 120 graines ; garde retirée, la graine 11 échoue. ⚠ Le livret (First Light p. 10) prévient que le HÉROS qui déclenche le bloc choisit d'avancer ou de reculer, et qu'avancer peut l'isoler du groupe : ce choix reste le sien. La garde n'interdit que la carte dont le bloc fermerait la seule route. ⚠ Écart connu : chez nous, ce héros reste sur la case du bloc et ne choisit son côté qu'à son tour suivant, là où le livret le fait choisir tout de suite.
+
 **Le bloc tombé est un OBSTACLE, jamais un trou** — il bloque le passage ET
 la vue, comme un mur, lu par la boucle **unique** de `FabriqueGrille::pour()`
 (jamais une seconde, même raison que le mobilier, le terrain et le mur de

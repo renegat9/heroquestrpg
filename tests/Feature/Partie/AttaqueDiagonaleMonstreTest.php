@@ -112,7 +112,28 @@ it('fait attaquer un Assassin en diagonale d\'un héros, sans aucun chemin ortho
 
     expect($attaque)->not->toBeNull('l\'Assassin en diagonale aurait dû attaquer ce tour-ci')
         ->and($attaque['monstre'])->toBe('Assassin')
-        ->and($attaque['cible']['personnage_id'])->toBe($ctx['heros']->id);
+        ->and($attaque['cible']['personnage_id'])->toBe($ctx['heros']->id)
+        // ANNONCÉ (René, 2026-11-06) : le moteur publie le coin, le fil et la table le disent.
+        ->and($attaque['diagonale'] ?? false)->toBeTrue()
+        ->and(collect(app(App\Partie\JournalCombat::class)->depuisResultat($attaque, 'Assassin'))->pluck('texte')->implode(' | '))
+        ->toContain('en diagonale');
+});
+
+it('ne dit PAS « en diagonale » quand l\'Assassin frappe de face', function () {
+    $ctx = demarrerQueteAvecMonstre('Assassin');
+    $case = caseAdjacenteLibre($ctx['quete'], (int) $ctx['etatHeros']->position_x, (int) $ctx['etatHeros']->position_y);
+    $ctx['instance']->update(['position_x' => $case['x'], 'position_y' => $case['y']]);
+
+    desFiges(array_fill(0, 200, 4));
+
+    $reponse = test()->actingAs($ctx['alice'], 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    $attaque = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('type', 'attaque_monstre');
+
+    expect($attaque)->not->toBeNull()
+        ->and($attaque)->not->toHaveKey('diagonale');
 });
 
 it('ne fait PAS attaquer un Gobelin en diagonale d\'un héros, à la même position bloquée', function () {

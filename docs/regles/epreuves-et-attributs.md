@@ -32,3 +32,4 @@ A trial is a seeded catalogue row (7 of them) dropped on a floor cell by `Assemb
 
 ⚠ **La Bénédiction, option (b), et la Malédiction, sont scopées à la DÉFENSE — le mouvement reste une dette nommée.** Voir `docs/regles/artefacts.md` pour le détail des deux divergences assumées.
 
+⚠ **Un jet par héros et par épreuve — confirmé le 2026-11-06.** En pleine partie, René a demandé qu'un *Mécanisme gripé* puis toutes les épreuves se retentent après un échec, puis l'a retiré quelques minutes plus tard : « seulement 1 jet par personne ». La règle `tentee_par` (un échec ferme l'épreuve pour ce héros autant qu'une réussite) reste donc en vigueur ; ne pas la rouvrir sans lui.

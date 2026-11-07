@@ -276,6 +276,35 @@ it('creuse chaque couloir sur UNE ou DEUX voies, jamais une voie à moitié creu
         ->and($largeurs['double'])->toBeGreaterThan(0);
 });
 
+it('ne laisse AUCUNE Chute de blocs tombée fermer une route — en salle, derrière une porte, contre un meuble (2026-11-06)', function () {
+    // Partie réelle, campagne Trio : un bloc posé sur la case derrière une porte, un trône à côté, a muré la porte une
+    // fois tombé. La garde juge chaque bloc COMME S'IL ÉTAIT TOMBÉ, décor complet posé (`blocsQuiNeCoupentRien()`).
+    $assembleur = app(AssembleurCarte::class);
+    $prive = fn (string $m) => (new ReflectionMethod($assembleur, $m))->getClosure($assembleur);
+    $idsBloc = \App\Models\Piege::all()->filter(fn ($p) => (bool) data_get($p->effet, 'bloc_permanent', false))->pluck('id')->all();
+    $blocsVus = 0;
+
+    foreach (range(1, 120) as $i) {
+        $carte = $assembleur->assembler(gabaritNormal(), $i * 65537);
+        $bloquantes = $prive('cellulesBloquantesMouvement')($carte['cases'], $carte['mobilier'], $carte['terrain']);
+        $origine = $prive('origineDepart')($carte['cases'], $carte['salles'], $bloquantes);
+
+        foreach ($carte['pieges'] as $piege) {
+            if (! in_array($piege['piege_id'], $idsBloc, true)) {
+                continue;
+            }
+
+            $blocsVus++;
+            expect($prive('accesPreserve')($carte['cases'], $bloquantes, $origine, $piege['x'], $piege['y']))
+                ->toBeTrue("graine {$i} : la Chute de blocs en ({$piege['x']}, {$piege['y']}) fermerait une route");
+            $bloquantes[] = ['x' => $piege['x'], 'y' => $piege['y']];
+        }
+    }
+
+    // La garde remplace un bloc qui couperait — elle ne fait pas disparaître le piège du jeu.
+    expect($blocsVus)->toBeGreaterThan(0);
+});
+
 it('ne pose JAMAIS de Chute de blocs dans un couloir à voie unique : le donjon ne peut pas être coupé', function () {
     $idBloc = \App\Models\Piege::where('nom', 'Chute de blocs')->value('id');
     $piegesEnVoieUnique = 0;

@@ -762,6 +762,30 @@ final class JournalCombat
             ], $a);
         }
 
+        // UN DÉ À PALIERS (*Canaliser l'Effroi*, `paliers_d6`, `MoteurDread::degatsInfliges()`) : un d6, plus 1 par lanceur
+        // adjacent, dont le TOTAL choisit les dégâts. Aucune face ne « réussit » — d'où `touchante: []` et la phrase de
+        // fin de ligne décidée ici (`somme_atk`), à la place du compte de succès que `JetDes.vue` ferait sinon. Avant cette
+        // branche, la table n'ouvrait aucune fenêtre pour ce sort et le fil ne montrait pas son dé (2026-11-06).
+        if (array_key_exists('lanceurs_adjacents', $a) && isset($a['de'], $a['total'])) {
+            $bonus = (int) $a['lanceurs_adjacents'];
+            $degats = (int) ($a['degats'] ?? 0);
+
+            return $this->avecModificateurs([
+                'atk' => [(int) $a['de']],
+                'def' => [],
+                'touchante' => [],
+                'defensive' => null,
+                'attaquant' => null,
+                'defenseur' => $nomCible,
+                'touches' => null,
+                'boucliers' => null,
+                'libelle_atk' => 'lance le dé',
+                'somme_atk' => 'total '.(int) $a['total'].' → '.($degats > 0 ? "{$degats} PV" : 'aucun dégât'),
+            ], $bonus > 0
+                ? $a + ['modificateurs' => [['source' => $bonus > 1 ? 'lanceurs adjacents' : 'lanceur adjacent', 'valeur' => $bonus, 'sur' => 'attaque']]]
+                : $a);
+        }
+
         // SAUT par-dessus des SABLES MOUVANTS : UN dé de combat dont la face qui fait
         // réussir est celle du catalogue (`face_requise`, ici le bouclier noir) — le
         // marqueur de cette forme. Ni `mind_cible`, ni `touches`.
@@ -1677,8 +1701,9 @@ final class JournalCombat
             // Boule de Flammes du MJ (`des_rouges`, MoteurDread::degatsInfliges()) —
             // même défaut, même correctif que la version héros de ce sort :
             // « one rule, both sides » vaut aussi pour le silence qui allait
-            // avec.
+            // avec. Le dé à paliers de *Canaliser l'Effroi* est lancé par le SORCIER : la ligne le nomme.
             if (($des = $this->desJetUnilateral($r, $cible)) !== null) {
+                $des['attaquant'] ??= $acteurNom;
                 $ligne['des'] = $des;
             }
 
@@ -1947,6 +1972,10 @@ final class JournalCombat
         $degats = (int) ($a['degats'] ?? 0);
         $des = $this->detailDes($a);
         $oracle = $this->suffixeOracle($a);
+        // EN DIAGONALE (Assassin, « Each Assassin may attack diagonally », René 2026-11-06 : « J'ai été attaqué 2 fois…
+        // est-ce que l'un des ennemis pouvait m'attaquer en diagonale ») : le contact est orthogonal partout ailleurs,
+        // un coup venu du coin se DIT. `diagonale` est décidé par le moteur (`ResolveurTour::enDiagonale()`).
+        $diag = ! empty($a['diagonale']) ? ' en diagonale' : '';
 
         // Un TIR se dit : « Gretzl » touchait Brokk à 12 cases sans que le fil dise que
         // la créature TIRAIT (partie du 2026-10-10) — or c'est toute la différence pour
@@ -1966,15 +1995,15 @@ final class JournalCombat
                     ? "{$monstre} charge {$cible} — et le manque{$des}{$oracle}"
                     : ($tire
                         ? "{$monstre} {$verbeTir} {$cible} — et le manque{$des}{$oracle}"
-                        : "{$monstre} manque {$cible}{$des}{$oracle}"), 'ton' => 'echec']]
+                        : "{$monstre} manque {$cible}{$diag}{$des}{$oracle}"), 'ton' => 'echec']]
                 : [['texte' => $charge
                     ? "{$cible} encaisse la charge de {$monstre} sans dommage{$des}{$oracle}"
                     : ($tire
                         ? "{$cible} pare le tir de {$monstre}{$des}{$oracle}"
-                        : "{$cible} pare l'assaut de {$monstre}{$des}{$oracle}"), 'ton' => 'pare']];
+                        : "{$cible} pare l'assaut de {$monstre}{$diag}{$des}{$oracle}"), 'ton' => 'pare']];
         }
 
-        $verbe = $charge ? "{$monstre} charge {$cible}" : ($tire ? "{$monstre} {$verbeTir} {$cible}" : "{$monstre} touche {$cible}");
+        $verbe = $charge ? "{$monstre} charge {$cible}" : ($tire ? "{$monstre} {$verbeTir} {$cible}" : "{$monstre} touche {$cible}{$diag}");
         $lignes = [['texte' => "{$verbe} (−{$degats} PV){$des}{$oracle}", 'ton' => 'subit']];
 
         // Ce que le coup a POSÉ sur le héros (venin, étreinte…) : dit dans l'ordre où
@@ -2337,7 +2366,30 @@ final class JournalCombat
      */
     private function sort(array $a, string $acteurNom): array
     {
+        // UN PARCHEMIN LU PAR UN HÉROS QUI NE LANCE PAS DE SORTS (René, 2026-11-06 : « le nain a utilisé le parchemin
+        // et rien ne dit si ça a fonctionné ») : son jet de Mind décide (`ResolveurTour::resoudreParchemin()`, `jet`,
+        // `gaspille`). Raté, le fil écrivait quand même « lance Luciole », et la table « Luciole opère ».
+        $jetParchemin = ($a['type'] ?? null) === 'parchemin' && is_array($a['jet'] ?? null)
+            ? $this->desJetUnilateral($a['jet'], $acteurNom)
+            : null;
+
+        if (($a['type'] ?? null) === 'parchemin' && ! empty($a['gaspille'])) {
+            return [array_filter([
+                'texte' => "{$acteurNom} tente de lire ".($a['sort']['nom'] ?? 'un parchemin').' — jet de Mind raté : le parchemin est perdu',
+                'ton' => 'echec',
+                'des' => $jetParchemin,
+            ], fn ($v) => $v !== null)];
+        }
+
         $lignes = $this->lignesSort($a, $acteurNom);
+
+        if ($jetParchemin !== null) {
+            array_unshift($lignes, [
+                'texte' => "{$acteurNom} déchiffre le parchemin (jet de Mind réussi)",
+                'ton' => 'succes',
+                'des' => $jetParchemin,
+            ]);
+        }
 
         // Un sort ÉPARGNÉ (Anneau de sort) restait allumé sur la manette sans
         // que le fil dise pourquoi : un effet automatique que rien n'annonce

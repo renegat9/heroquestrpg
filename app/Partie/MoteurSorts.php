@@ -112,6 +112,16 @@ final class MoteurSorts
     public const LANCEURS = ['magicien', 'elfe', 'barde', 'druide', 'warlock'];
 
     /**
+     * Le jet de Mind qu'exige la LECTURE d'un parchemin par ce héros : `null` pour un lanceur de sorts, qui lit sans jet
+     * (S1). Lu par le résolveur (`ResolveurTour::resoudreParchemin()`) ET publié au sac (`GET /moi`, `parchemins[]`) :
+     * une difficulté recopiée côté sac aurait dérivé de celle contre laquelle on roule (René, 2026-11-06).
+     */
+    public static function difficulteLecture(Personnage $personnage, Sort $sort): ?int
+    {
+        return in_array($personnage->classe, self::LANCEURS, true) ? null : max(1, (int) $sort->difficulte_parchemin);
+    }
+
+    /**
      * Classes dont les sorts sont FIXES : leur carte en donne trois, acquis
      * d'emblée, sans aucun choix d'école (2026-08-12).
      *
@@ -1909,6 +1919,45 @@ final class MoteurSorts
         }
 
         return $total;
+    }
+
+    /**
+     * Les dés que les buffs du héros ajoutent à son prochain JET DE BODY (`bonus_des_body`, la Potion de force — René,
+     * 2026-11-06), et ce qui les donne, pour le dire sous le jet (`des.modificateurs`).
+     *
+     * @return array{valeur: int, sources: list<string>}
+     */
+    public function bonusJetBody(Personnage $personnage): array
+    {
+        $valeur = 0;
+        $sources = [];
+
+        foreach ($this->buffsSorts($personnage) as $condition) {
+            $source = (string) $condition->pivot->source;
+            $bonus = (int) ($this->effetSortSource($source)[MotsClesEquipement::BONUS_DES_BODY] ?? 0);
+
+            if ($bonus > 0) {
+                $valeur += $bonus;
+                $sources[] = self::origineDeSource($source) ?? 'un buff';
+            }
+        }
+
+        return ['valeur' => $valeur, 'sources' => array_values(array_unique($sources))];
+    }
+
+    /**
+     * Un jet de Body vient de PRENDRE ces dés : le buff qui les donnait se dépense en entier — la potion de force ne
+     * paie qu'une fois, à l'attaque OU au jet, le premier des deux. Annoncé comme toute fin de buff (`retirerBuff()`).
+     */
+    public function consommerBonusJetBody(Personnage $personnage): void
+    {
+        foreach ($this->buffsSorts($personnage) as $condition) {
+            $source = (string) $condition->pivot->source;
+
+            if ((int) ($this->effetSortSource($source)[MotsClesEquipement::BONUS_DES_BODY] ?? 0) > 0) {
+                $this->retirerBuff($personnage, $condition, $source, 'dépensé sur un jet de Body');
+            }
+        }
     }
 
     /**

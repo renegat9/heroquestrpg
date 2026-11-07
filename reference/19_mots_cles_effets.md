@@ -479,7 +479,7 @@ première quête narrée.
 
 `soin_pv_body` (montant fixe) · `soin_pv_body_de` (1d6 — Fiole de soin, ⚠ de
 nous : les potions officielles annoncent toujours leur montant) · `soin_pv_mind` ·
-`bonus_des_attaque` · `bonus_des_defense` · `attaque_supplementaire` (une
+`bonus_des_attaque` · `bonus_des_body` (Potion de force, décision de René du 2026-11-06 : les mêmes +2 dés au prochain jet de Body, la potion payant au PREMIER des deux — `MoteurSorts::bonusJetBody()` / `consommerBonusJetBody()`, via `ResolveurTour::desDeBody()`) · `bonus_des_defense` · `attaque_supplementaire` (une
 **seconde attaque** ce tour, pas des dés en plus : chez nous l'attaque vient de
 l'arme) · `condition_appliquee` · `retire_condition` · `duree`.
 

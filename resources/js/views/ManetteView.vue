@@ -1674,6 +1674,7 @@ const navItems = computed(() => (scene.value === 'marche'
                             v-else-if="tab === 'sac'"
                             :equipement="monPerso?.equipement ?? { armes: [], armure: null, sac: [] }"
                             :potions="consommablesActifs"
+                            :parchemins="monPerso?.parchemins ?? []"
                             :au-hub="auHub"
                             :equip-en-cours="equipEnCours"
                             :compagnons="compagnonsDeDon"

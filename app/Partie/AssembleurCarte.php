@@ -464,6 +464,9 @@ final class AssembleurCarte
         // thème, `placerFosseLongue()` rend `[]` sans aucun tirage : les cartes existantes ne bougent pas.
         $pieges = [...$pieges, ...$this->placerFosseLongue($cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $terrain, $suivant, $bestiaire)];
 
+        // Une Chute de blocs tombée ne doit fermer aucune route (2026-11-06) : jugée une fois le décor complet, sans tirage.
+        $pieges = $this->blocsQuiNeCoupentRien($cases, $salles, $mobilier, $terrain, $pieges, $bestiaire);
+
         // DANGERS MOBILES AUTONOMES (2026-10-23 — rocher roulant, brume de la mort) : posés EN DERNIER, après les spawns,
         // pour qu'aucun tirage existant ne soit décalé. Hors de leur thème : aucun tirage (voir `placerDangers()`).
         $dangers = $this->placerDangers($cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $terrain, $suivant, $bestiaire);
@@ -2072,6 +2075,97 @@ final class AssembleurCarte
     }
 
     /**
+     * Le VIVIER des pièges de sol tirés case par case — un seul, lu par `placerPieges()` et par la garde des Chutes de
+     * blocs (`blocsQuiNeCoupentRien()`), qui y prend son remplaçant.
+     *
+     * @return Collection<int, Piege>
+     */
+    private function piegesDeSol(?BestiaireGroupe $bestiaire): Collection
+    {
+        // Le piège de coffre (`ouverture_tresor`), la Lame balançoire, la Fosse longue et les pièges de Morcar ont
+        // chacun leur pose dédiée (voir `placerPieges()`).
+        return Piege::query()
+            ->orderBy('id')
+            ->get()
+            ->reject(fn (Piege $p) => data_get($p->effet, 'declencheur') === 'ouverture_tresor')
+            ->reject(fn (Piege $p) => data_get($p->effet, 'zone_lames') !== null)
+            // FOSSE LONGUE (The Mage of the Mirror p. 6, lot G, 2026-10-29) : DEUX cases liées par `groupe_id`, posées par
+            // `placerFosseLongue()` et par elle seule. Dans ce vivier, elle tomberait en UNE case sans son lien de groupe, sans
+            // le saut par le bout : une fosse de deux cases ne se tire jamais case par case.
+            ->reject(fn (Piege $p) => data_get($p->effet, 'saut_long') !== null)
+            // Wizards of Morcar (lot B, 2026-10-06) : les trois pièges
+            // magiques ont chacun une pose DÉDIÉE (`placerPiegesMorcar()`,
+            // juste après `placerLameBalanciere()`) — le Téléporteur exige
+            // une PAIRE de cases plutôt qu'une seule, l'Ouragan un COULOIR
+            // précisément, l'Embrasement n'a besoin de rien de spécial mais
+            // rejoint quand même la pose dédiée par cohérence du lot. Tirés
+            // ici, ils se seraient retrouvés parfois en salle (le Téléporteur,
+            // l'Embrasement) parfois tout court sans garantie de paire.
+            ->reject(fn (Piege $p) => (bool) data_get($p->effet, 'teleportation', false))
+            ->reject(fn (Piege $p) => in_array(data_get($p->effet, 'declencheur'), ['hurricane', 'fireburst_differe'], true))
+            ->filter(fn (Piege $p) => $p->boite === null || ($bestiaire?->contient($p->boite) ?? false))
+            ->values();
+    }
+
+    /**
+     * UNE CHUTE DE BLOCS NE COUPE JAMAIS UNE ROUTE (René, 2026-11-06, partie réelle : « donc il se pourrait qu'un
+     * personnage reste coincé »). Tombée, elle est un mur pour toujours (« the trap space is now a permanent block in
+     * the game », RB p. 18). `placerPieges()` l'écartait des couloirs d'une case, mais pas d'une salle : ce soir-là, un
+     * bloc posé sur la case derrière une porte, un trône à côté, a muré la porte — un raccourci par chance. Une fois
+     * TOUTES les couches posées (mobilier, terrain, fosse longue compris), chaque Chute de blocs est jugée comme si elle
+     * était déjà tombée, avec les blocs gardés avant elle : si une case accessible cessait de l'être, elle devient le
+     * piège de sol suivant du vivier, sans bloc (`piegesDeSol()`), choisi par son rang — AUCUN tirage, la suite PRNG de
+     * la carte ne bouge pas. Même vérification que le rocher roulant (`accesPreserve()`).
+     *
+     * ⚠ Le livret prévient que le HÉROS qui déclenche le bloc peut se couper du groupe en choisissant d'avancer : ce
+     * choix-là reste le sien. Ce que cette garde interdit, c'est que la CARTE n'ait plus qu'une route, que le bloc ferme.
+     *
+     * @param  list<array<string, mixed>>  $pieges
+     * @return list<array<string, mixed>>
+     */
+    private function blocsQuiNeCoupentRien(array $cases, array $salles, array $mobilier, array $terrain, array $pieges, ?BestiaireGroupe $bestiaire): array
+    {
+        $estBloc = Piege::query()->get()
+            ->filter(fn (Piege $p) => (bool) data_get($p->effet, 'bloc_permanent', false))
+            ->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        if ($estBloc === [] || ! collect($pieges)->contains(fn (array $p) => in_array((int) ($p['piege_id'] ?? 0), $estBloc, true))) {
+            return $pieges;
+        }
+
+        $bloquantes = $this->cellulesBloquantesMouvement($cases, $mobilier, $terrain);
+        $origine = $this->origineDepart($cases, $salles, $bloquantes);
+
+        if ($origine === null) {
+            return $pieges;
+        }
+
+        $sansBloc = $this->piegesDeSol($bestiaire)
+            ->reject(fn (Piege $p) => (bool) data_get($p->effet, 'bloc_permanent', false))
+            ->values();
+
+        foreach ($pieges as $i => $piege) {
+            if (! in_array((int) ($piege['piege_id'] ?? 0), $estBloc, true)) {
+                continue;
+            }
+
+            if ($this->accesPreserve($cases, $bloquantes, $origine, (int) $piege['x'], (int) $piege['y'])) {
+                $bloquantes[] = ['x' => (int) $piege['x'], 'y' => (int) $piege['y']];
+
+                continue;
+            }
+
+            if ($sansBloc->isNotEmpty()) {
+                $pieges[$i]['piege_id'] = (int) $sansBloc[$i % $sansBloc->count()]->id;
+            } else {
+                unset($pieges[$i]);
+            }
+        }
+
+        return array_values($pieges);
+    }
+
+    /**
      * Pièges du gabarit (structure.pieges.min), un par couloir (arête), posé
      * au milieu de son creusement — le TYPE de chaque piège est tiré au
      * hasard parmi les pièges DE SOL du catalogue par le PRNG déterministe de
@@ -2195,27 +2289,7 @@ final class AssembleurCarte
         // `placerLameBalanciere()`, appelé séparément par `assembler()`. Et
         // boîte : un piège `boite` n'entre dans ce vivier QUE si le thème de
         // bestiaire du groupe l'inclut (même lecture que `Terrain::boite`).
-        $piegesSol = Piege::query()
-            ->orderBy('id')
-            ->get()
-            ->reject(fn (Piege $p) => data_get($p->effet, 'declencheur') === 'ouverture_tresor')
-            ->reject(fn (Piege $p) => data_get($p->effet, 'zone_lames') !== null)
-            // FOSSE LONGUE (The Mage of the Mirror p. 6, lot G, 2026-10-29) : DEUX cases liées par `groupe_id`, posées par
-            // `placerFosseLongue()` et par elle seule. Dans ce vivier, elle tomberait en UNE case sans son lien de groupe, sans
-            // le saut par le bout : une fosse de deux cases ne se tire jamais case par case.
-            ->reject(fn (Piege $p) => data_get($p->effet, 'saut_long') !== null)
-            // Wizards of Morcar (lot B, 2026-10-06) : les trois pièges
-            // magiques ont chacun une pose DÉDIÉE (`placerPiegesMorcar()`,
-            // juste après `placerLameBalanciere()`) — le Téléporteur exige
-            // une PAIRE de cases plutôt qu'une seule, l'Ouragan un COULOIR
-            // précisément, l'Embrasement n'a besoin de rien de spécial mais
-            // rejoint quand même la pose dédiée par cohérence du lot. Tirés
-            // ici, ils se seraient retrouvés parfois en salle (le Téléporteur,
-            // l'Embrasement) parfois tout court sans garantie de paire.
-            ->reject(fn (Piege $p) => (bool) data_get($p->effet, 'teleportation', false))
-            ->reject(fn (Piege $p) => in_array(data_get($p->effet, 'declencheur'), ['hurricane', 'fireburst_differe'], true))
-            ->filter(fn (Piege $p) => $p->boite === null || ($bestiaire?->contient($p->boite) ?? false))
-            ->values();
+        $piegesSol = $this->piegesDeSol($bestiaire);
 
         if ($piegesSol->isEmpty()) {
             return [];

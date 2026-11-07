@@ -11,6 +11,8 @@ const props = defineProps({
     equipement: { type: Object, default: () => ({ armes: [], armure: null, sac: [] }) },
     // Potions réelles du héros (/moi.consommables).
     potions: { type: Array, default: () => [] },
+    // Parchemins du héros (/moi.parchemins, 2026-11-06) : `lecture` dit où et comment il se lit.
+    parchemins: { type: Array, default: () => [] },
     // Gérer l'équipement n'est possible qu'au hub (entre deux quêtes).
     auHub: { type: Boolean, default: false },
     // Un appel équiper/déséquiper est en cours (gèle les boutons).
@@ -217,6 +219,41 @@ const deborde = computed(() => {
                     <span v-if="p.utilisable === false" class="sac-note" title="Réservée à une autre classe">
                         <MSym n="block" :size="14" /> Réservée à une autre classe
                     </span>
+                </div>
+                <div v-if="donEnCours === p.inventaire_id" class="don-cible">
+                    <span class="don-lbl">Donner 1 × {{ p.nom }} à</span>
+                    <button
+                        v-for="c in compagnons"
+                        :key="c.id"
+                        class="sac-btn ghost"
+                        :disabled="equipEnCours"
+                        @click="confirmerDon(p.inventaire_id, c.id, 1)"
+                    >{{ c.nom }}</button>
+                </div>
+            </template>
+        </template>
+
+        <!-- PARCHEMINS (René, 2026-11-06 : « le nain a gagné un parchemin mais il ne le voit pas dans son sac ») :
+             ni au sac ni parmi les potions, ils n'existaient qu'au menu, au moment de les lire. La ligne dit ce que
+             le serveur a décidé (`lecture`), jamais une règle recalculée ici. -->
+        <template v-if="parchemins.length">
+            <div class="sect-title"><MSym n="description" :size="16" /> Parchemins</div>
+            <template v-for="p in parchemins" :key="p.inventaire_id">
+                <div class="item">
+                    <span class="ic"><MSym n="description" /></span>
+                    <div>
+                        <div class="nm">{{ p.nom }}<span v-if="p.quantite > 1"> ×{{ p.quantite }}</span><span v-if="p.charges" class="sac-charges" :title="`${p.charges.restantes} usage(s) restant(s) sur ${p.charges.max}`">{{ p.charges.restantes }}/{{ p.charges.max }}</span></div>
+                        <div class="rar">{{ p.lecture }}</div>
+                    </div>
+                    <button class="sac-btn ghost det-ic" title="Voir le détail"
+                        @click="ouvrirDetail(p, 'Parchemin', 'description')"><MSym n="info" :size="18" /></button>
+                    <button
+                        v-if="peutDonner"
+                        class="sac-btn ghost don-ic"
+                        :disabled="equipEnCours"
+                        title="Donner à un compagnon"
+                        @click="basculerDon(p.inventaire_id)"
+                    ><MSym n="volunteer_activism" :size="18" /></button>
                 </div>
                 <div v-if="donEnCours === p.inventaire_id" class="don-cible">
                     <span class="don-lbl">Donner 1 × {{ p.nom }} à</span>

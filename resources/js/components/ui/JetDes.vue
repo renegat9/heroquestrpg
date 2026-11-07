@@ -33,7 +33,7 @@ import { computed } from 'vue';
 import MSym from './MSym.vue';
 
 const props = defineProps({
-    /** {atk, def, touchante, defensive, attaquant, defenseur, touches, boucliers, libelle_atk?, libelle_def?} */
+    /** {atk, def, touchante, defensive, attaquant, defenseur, touches, boucliers, libelle_atk?, libelle_def?, somme_atk?} */
     jet: { type: Object, required: true },
     /** Version compacte pour le fil du combat. */
     compact: { type: Boolean, default: false },
@@ -151,7 +151,8 @@ const modificateurs = computed(() => props.jet.modificateurs ?? []);
                     <MSym v-else :n="icone(d.face)" :size="compact ? 13 : 20" fill />
                 </span>
             </span>
-            <span class="jd-somme">{{ compte(reussitesAttaque, motTouchante) }}</span>
+            <!-- Un dé à PALIERS (Canaliser l'Effroi) n'a pas de « succès » à compter : le serveur publie la phrase. -->
+            <span class="jd-somme">{{ jet.somme_atk || compte(reussitesAttaque, motTouchante) }}</span>
         </div>
 
         <div v-if="defense.length" class="jd-ligne jd-defense">

@@ -456,6 +456,23 @@ class AuthController extends Controller
                             ])
                             ->values()
                             ->all(),
+                        // PARCHEMINS (René, 2026-11-06 : « le nain a gagné un parchemin mais il ne le voit pas dans
+                        // son sac ») : ni rangés au sac (`emplacement: consommable`) ni potions (`categorie:
+                        // parchemin`), ils ne paraissaient que dans le menu, au moment de les lire. `lecture` est la
+                        // phrase DÉCIDÉE ici — où et comment il se lit, et le jet de Mind d'un non-lanceur, lu au
+                        // même point de passage que le résolveur (`MoteurSorts::difficulteLecture()`).
+                        'parchemins' => $p->inventaire
+                            ->filter(fn ($l) => $l->objet !== null && $l->objet->categorie === 'parchemin')
+                            ->map(fn ($l) => [
+                                'inventaire_id' => $l->id,
+                                'nom' => $l->objet->nom,
+                                'quantite' => (int) $l->quantite,
+                                'avantages' => $this->avantagesDeLExemplaire($l),
+                                'charges' => $this->chargesDeLExemplaire($l),
+                                'lecture' => $this->lectureDuParchemin($p, $l),
+                            ])
+                            ->values()
+                            ->all(),
                         // Remise de recrutement mercenaire (Potion of Charm) : l'ÉTAT
                         // durable du héros, consommé un par recrutement au hub.
                         'rabais_recrutement' => [
@@ -508,6 +525,31 @@ class AuthController extends Controller
                 ->values()
                 ->all(),
         ];
+    }
+
+    /**
+     * Où et comment ce parchemin se lit, pour CE héros — la phrase du sac (`parchemins[].lecture`).
+     */
+    private function lectureDuParchemin(\App\Models\Personnage $personnage, Inventaire $ligne): string
+    {
+        $sort = \App\Models\Sort::find(data_get($ligne->objet?->effet, 'sort_id'));
+
+        if ($sort === null) {
+            return 'Parchemin';
+        }
+
+        // VISION DU FUTUR : jamais par le menu, toujours APRÈS un jet (`MoteurReactions::sourceVisionDuFutur()`).
+        if ((bool) data_get($sort->effet, 'relance_jet', false)) {
+            return 'Se joue juste après un jet, quand le jeu te le propose';
+        }
+
+        $difficulte = MoteurSorts::difficulteLecture($personnage, $sort);
+
+        return 'Se lit en quête, pendant ton tour : Actions → « Lire un parchemin »'.($difficulte === null
+            ? ' — sans jet, tu lances des sorts'
+            : " — jet de Mind : {$difficulte} crâne".($difficulte > 1 ? 's' : '')
+                .' sur '.(int) $personnage->attribut_mind.' dé'.((int) $personnage->attribut_mind > 1 ? 's' : '')
+                .', perdu si raté');
     }
 
     /**

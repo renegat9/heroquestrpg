@@ -555,6 +555,15 @@ final class MotsClesEquipement
     public const BONUS_DES_ATTAQUE = 'bonus_des_attaque';
 
     /**
+     * Bonus TEMPORAIRE de dés au prochain JET DE BODY (René, 2026-11-06 : « une potion de force devrait aussi donner un
+     * bonus de 2 dés au test de force »). La Potion de force le porte À CÔTÉ de `bonus_des_attaque`, et ses dés vont au
+     * PREMIER des deux (« une seule gorgée, un seul bonus ») : l'attaque dépense le buff entier (`duree`), un jet de Body
+     * aussi (`MoteurSorts::consommerBonusJetBody()`). Lecteur : `MoteurSorts::bonusJetBody()`, via le point de passage de
+     * tous les jets de Body d'un héros, `ResolveurTour::jetDeBody()`.
+     */
+    public const BONUS_DES_BODY = 'bonus_des_body';
+
+    /**
      * Bonus TEMPORAIRE de dés de défense — s'accompagne toujours d'une `duree`.
      * Lu sur les potions, les buffs de sort et les améliorations de Forge : jamais
      * sur une PIÈCE, qui se lit par `des_defense` (`LUES_SUR_UNE_PIECE`).
@@ -1228,6 +1237,7 @@ final class MotsClesEquipement
         self::SOIN_PV_BODY_DE,
         self::SOIN_PV_MIND,
         self::BONUS_DES_ATTAQUE,
+        self::BONUS_DES_BODY,
         self::BONUS_DES_DEFENSE,
         self::ATTAQUE_SUPPLEMENTAIRE,
         self::CONDITION_APPLIQUEE,
@@ -1377,6 +1387,7 @@ final class MotsClesEquipement
         self::DES_ATTAQUE => '%s dé(s) d\'attaque',
         self::DES_DEFENSE => '%s dé(s) de défense',
         'bonus_des_attaque' => '+%s dé(s) d\'attaque',
+        self::BONUS_DES_BODY => '+%s dé(s) au prochain jet de Body — le premier des deux, attaque ou jet, dépense la potion',
         'bonus_des_defense' => '+%s dé(s) de défense',
         'bonus_des_resistance_mentale' => '+%s dé(s) pour résister aux sorts du maître du donjon',
         self::ATTAQUE_DIAGONALE => 'Frappe en diagonale',

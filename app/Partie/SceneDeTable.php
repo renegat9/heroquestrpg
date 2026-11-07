@@ -564,7 +564,8 @@ final class SceneDeTable
             // carte (porte toujours fermée), la scène est la SEULE annonce.
             'forcer_porte_pierre' => $this->portePierre($a, $acteur),
             'potion' => $this->potion($a, $acteur),
-            'sort', 'parchemin' => $this->sort($a, $acteur),
+            'sort' => $this->sort($a, $acteur),
+            'parchemin' => $this->parchemin($a, $acteur),
             // ⚠ `sort_dread` N'AVAIT AUCUN CAS ICI (retombait sur `default`) :
             // le MJ lançait un sort de contrôle, le jet de Mind d'un héros
             // décidait s'il résiste ou s'effondre sous *Sommeil*/*Terreur*, et
@@ -1743,6 +1744,47 @@ final class SceneDeTable
      * @param  array<string, mixed>  $a
      * @return array<string, mixed>|null
      */
+    /**
+     * Un PARCHEMIN : la scène du sort, plus le jet de Mind d'un héros qui ne lance pas de sorts (René, 2026-11-06).
+     * Raté, il n'y a pas de sort : la scène montre le jet et dit que le parchemin est perdu, au lieu de « … opère ».
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function parchemin(array $a, Personnage $acteur): ?array
+    {
+        $jet = is_array($a['jet'] ?? null) ? app(JournalCombat::class)->desJetUnilateral($a['jet'], $acteur->nom) : null;
+
+        if (empty($a['gaspille'])) {
+            $scene = $this->sort($a, $acteur);
+
+            if ($scene !== null && $scene['jet'] === null && $jet !== null) {
+                $scene['jet'] = $jet;
+            }
+
+            return $scene;
+        }
+
+        $nomSort = (string) ($a['sort']['nom'] ?? 'un parchemin');
+        $sortId = (int) ($a['sort']['id'] ?? 0);
+
+        return [
+            'genre' => 'sort',
+            'titre' => "{$acteur->nom} tente de lire {$nomSort}",
+            'sous_titre' => 'Parchemin — jet de Mind',
+            'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
+            'jet' => $jet,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [[
+                'nom' => $nomSort,
+                'image_url' => $this->images->urlSort($sortId ?: null, $nomSort) ?? $this->images->vignette('sort', $sortId ?: $nomSort),
+                'detail' => $a['sort']['type'] ?? null,
+            ]],
+            'issue' => ['ton' => 'echec', 'libelle' => 'Jet raté — le parchemin est perdu'],
+        ];
+    }
+
     private function sort(array $a, Personnage $acteur): ?array
     {
         $nomSort = (string) ($a['sort']['nom'] ?? '');
@@ -1886,11 +1928,15 @@ final class SceneDeTable
             // ⚠ L'OPPOSITION de Mind (Mind Lock, Dominate, Mind Burst — Against the Ogre Horde p. 10-11)
             // publie DEUX volées (`faces_attaque`/`faces_defense`) : `jetDesDes()` les lit d'abord et
             // retombe sur le jet unilatéral pour tous les autres sorts.
-            $jet = $this->jetDesDes($r, (string) ($a['lanceur']['nom'] ?? 'Le maître du jeu'), $cibleNom);
+            $lanceurNom = (string) ($a['lanceur']['nom'] ?? 'Le maître du jeu');
+            $jet = $this->jetDesDes($r, $lanceurNom, $cibleNom);
 
             if ($jet === null) {
                 continue; // rien à montrer pour cette victime : la suivante, ou aucune scène
             }
+
+            // Le dé à paliers (*Canaliser l'Effroi*) est lancé par le SORCIER, pas par la victime.
+            $jet['attaquant'] ??= $lanceurNom;
 
             $victime = $cibleId > 0 ? Personnage::find($cibleId) : null;
 
@@ -1931,6 +1977,8 @@ final class SceneDeTable
                     },
                     ! empty($r['cible_tombee']) => ['ton' => 'chute', 'libelle' => "{$cibleNom} s'effondre"],
                     (int) ($r['degats'] ?? 0) > 0 => ['ton' => 'subit', 'libelle' => '−'.(int) $r['degats'].' PV'],
+                    // Un dé à PALIERS trop bas : le sort a frappé, et n'a rien fait.
+                    array_key_exists('lanceurs_adjacents', $r) => ['ton' => 'pare', 'libelle' => "{$cibleNom} n'y perd rien"],
                     array_key_exists('effet_applique', $r) => empty($r['effet_applique'])
                         ? ['ton' => 'pare', 'libelle' => "{$cibleNom} résiste"]
                         : ['ton' => 'subit', 'libelle' => "{$cibleNom} subit ".($a['condition'] ?? $nom)],
@@ -2374,6 +2422,11 @@ final class SceneDeTable
         // TOURELLE : une figure qui ne bouge pas — le sous-titre le dit.
         if (! empty($a['tourelle'])) {
             return 'Tourelle — fait feu depuis son poste';
+        }
+
+        // EN DIAGONALE (Assassin, 2026-11-06) : le seul coup de mêlée qui part du coin — il se dit.
+        if (! empty($a['diagonale'])) {
+            return 'En diagonale — une capacité de ce monstre';
         }
 
         return JournalCombat::estUnTir($a) ? 'À distance' : null;
