@@ -991,6 +991,21 @@ Broadcasts canal `groupe.{identifiant}` : `.marche.ouvert` (EtatMarche),
 `.marche.maj` (EtatMarche, à chaque panier/confirmation), `.marche.finalise`
 ({applique: bool}) suivi de `.groupe.etat`.
 
+## Entraînement — +1 à un attribut contre de l'or (au hub uniquement, 2026-11-07)
+
+René : les attributs Body et Mind (les dés des jets de test) ne montaient jamais ; il retient l'entraînement payant,
+« seulement +1 par attribut par joueur avec un coût de 500 (on se rend compte qu'on a vite acheté le meilleur
+équipement pour nos personnages, car on gagne plus d'or que dans le jeu normal) ». Une décision du projet, aucune
+source au plateau : le prix vit dans `App\Partie\Entrainement::PRIX`.
+
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| POST | /groupes/{identifiant}/entrainement | {personnage_id, attribut: "body"\|"mind"} | **+1** à `attribut_body` ou `attribut_mind` de CE héros, **500 po** prélevées sur la bourse commune (`groupes.or`), **une fois par attribut et par héros** (`personnages.entraine_body` / `entraine_mind`). 422 : hors hub, héros qui n'est pas un héros actif de ce joueur dans ce groupe, attribut inconnu, attribut déjà entraîné, bourse insuffisante. 200 `{personnage: {id, attribut_body, attribut_mind}, or}`. Journal `systeme` `entrainement` `{personnage_id, personnage, attribut, valeur, prix}`. Rediffuse `.groupe.etat` (la bourse a bougé). |
+
+`GET /moi` publie, pour chaque personnage engagé dans un groupe, `entrainement: [{attribut, libelle, valeur, prix,
+possible, raison}]` — la DÉCISION (au hub, pas encore entraîné, bourse suffisante), la raison en clair quand c'est non.
+La fiche du héros (manette, onglet Fiche) l'affiche sous ses attributs ; le client ne recalcule rien.
+
 ## Alliés — mercenaires (doc 14 §3.5 — au hub uniquement)
 
 | Méthode | URL | Corps | Effet |

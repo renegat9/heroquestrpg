@@ -1050,6 +1050,21 @@ async function desequiper(inventaireId) {
    ce téléphone) porte le nœud, jamais un autre héros du groupe. Le serveur
    diffuse `.groupe.etat` (or débité) ET on relit `/moi` (l'amélioration
    posée). */
+/* ---- ENTRAÎNEMENT au hub (2026-11-07) : +1 à un attribut contre 500 po. La fiche n'affiche que ce que le serveur
+   publie (`/moi.entrainement`) ; on relit /moi pour voir l'attribut monter, la bourse suit par `.groupe.etat`. ---- */
+async function entrainer(attribut) {
+    if (equipEnCours.value || !monPersonnageId.value || !attribut) return;
+    equipEnCours.value = true;
+    try {
+        await api.entrainer(props.groupe, monPersonnageId.value, attribut);
+        rafraichirMoi();
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        equipEnCours.value = false;
+    }
+}
+
 async function forger({ inventaireId, ameliorationId }) {
     if (equipEnCours.value || !monPersonnageId.value || !inventaireId || !ameliorationId) return;
     equipEnCours.value = true;
@@ -1662,6 +1677,9 @@ const navItems = computed(() => (scene.value === 'marche'
                             :groupe="groupe"
                             :competences="mesCompetences"
                             :faveurs="monPerso?.faveurs ?? []"
+                            :entrainement="auHub ? (monPerso?.entrainement ?? []) : []"
+                            :entrainement-en-cours="equipEnCours"
+                            @entrainer="entrainer"
                         />
                         <SpellsTab
                             v-else-if="tab === 'sorts'"

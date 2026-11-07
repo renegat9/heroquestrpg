@@ -40,6 +40,9 @@ class Personnage extends Model
         // amélioration de forge gratuite a servi — la marque « déjà utilisée à ce
         // passage » vit sur le HÉROS, en base. Voir `App\Partie\Forge::gratuiteOuverte()`.
         'chef_oeuvre_quete_id',
+        // ENTRAÎNEMENT au hub (2026-11-07) : +1 à l'attribut, une fois par attribut — `App\Partie\Entrainement`.
+        'entraine_body',
+        'entraine_mind',
     ];
 
     /**
@@ -97,6 +100,8 @@ class Personnage extends Model
             // castée dans ce projet.
             'benediction_oracle' => 'boolean',
             'malediction_oracle' => 'boolean',
+            'entraine_body' => 'boolean',
+            'entraine_mind' => 'boolean',
         ];
     }
 

@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\CompetenceController;
 use App\Http\Controllers\Api\DonController;
 use App\Http\Controllers\Api\EquipementController;
 use App\Http\Controllers\Api\FaveurController;
+use App\Http\Controllers\Api\EntrainementController;
 use App\Http\Controllers\Api\ForgeController;
 use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\GuideController;
@@ -179,6 +180,8 @@ Route::middleware('auth:joueur')->group(function () {
     // améliore DÉFINITIVEMENT une pièce d'un membre actif contre de l'or commun.
     Route::get('/forge', [ForgeController::class, 'catalogue']);
     Route::post('/groupes/{identifiant}/forge', [ForgeController::class, 'appliquer']);
+    // ENTRAÎNEMENT au hub (2026-11-07) : +1 à un attribut contre 500 po, une fois par attribut — `App\Partie\Entrainement`.
+    Route::post('/groupes/{identifiant}/entrainement', [EntrainementController::class, 'entrainer']);
 
     // Recrutement d'alliés au hub (3.5) — catalogue + bourse commune.
     Route::get('/mercenaires', [MercenaireController::class, 'catalogue']);

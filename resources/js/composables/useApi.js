@@ -406,6 +406,10 @@ export function useApi() {
                 inventaire_id: inventaireId,
                 amelioration_id: ameliorationId,
             }),
+        /* ENTRAÎNEMENT au hub (René, 2026-11-07) : +1 à un attribut (`body` | `mind`) contre 500 po de la bourse
+           commune, une fois par attribut et par héros. Le serveur décide (`/moi.entrainement`) et revérifie. */
+        entrainer: (identifiant, personnageId, attribut) =>
+            request('POST', `/groupes/${identifiant}/entrainement`, { personnage_id: personnageId, attribut }),
 
         // ---- alliés / mercenaires (contrat « Alliés », au hub uniquement) ----
 

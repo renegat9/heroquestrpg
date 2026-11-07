@@ -27,7 +27,13 @@ defineProps({
      * et l'effet viennent du serveur — jamais recomposés ici.
      */
     faveurs: { type: Array, default: () => [] },
+    /** ENTRAÎNEMENT au hub (2026-11-07) : `/moi.entrainement`, vide hors du hub — la décision du serveur, telle quelle. */
+    entrainement: { type: Array, default: () => [] },
+    entrainementEnCours: { type: Boolean, default: false },
 });
+
+// ENTRAÎNEMENT au hub (2026-11-07) : l'attribut choisi remonte à ManetteView, qui appelle la route.
+defineEmits(['entrainer']);
 
 const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'local_fire_department' : 'coronavirus');
 // Icône PROPRE au badge quand il en porte une (Oracle, rejetons), sinon celle du type.
@@ -87,6 +93,25 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
             <div class="stat"><div class="k">Body (attr.)</div><div class="v" style="color: var(--body-bright)">{{ hero.atkAttr }}</div></div>
             <div class="stat"><div class="k">Mind (attr.)</div><div class="v" style="color: var(--mind-bright)">{{ hero.mindAttr }}</div></div>
         </div>
+
+        <!-- ENTRAÎNEMENT (René, 2026-11-07) : +1 à un attribut contre 500 po, une fois par attribut. Les boutons et
+             leurs raisons sont DÉCIDÉS par le serveur (`possible`, `raison`) : rien n'est recalculé ici. -->
+        <template v-if="entrainement.length">
+            <div class="sect-title" style="margin-top: 18px"><MSym n="fitness_center" :size="16" /> Entraînement</div>
+            <p class="ft-entr-note">Une seule fois par attribut : +1 dé à tes jets de ce type, payé par la bourse commune.</p>
+            <div v-for="e in entrainement" :key="e.attribut" class="ft-entr">
+                <button
+                    class="ft-entr-btn"
+                    type="button"
+                    :disabled="!e.possible || entrainementEnCours"
+                    @click="$emit('entrainer', e.attribut)"
+                >
+                    <MSym :n="e.attribut === 'body' ? 'favorite' : 'psychology'" fill :size="16" />
+                    {{ e.libelle }} {{ e.valeur }} → {{ e.valeur + 1 }} · {{ e.prix }} po
+                </button>
+                <span v-if="!e.possible && e.raison" class="ft-entr-raison">{{ e.raison }}</span>
+            </div>
+        </template>
 
         <div class="sect-title"><MSym n="ecg_heart" :size="16" /> Points de vie</div>
         <div class="gauge">
@@ -172,6 +197,13 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
 </template>
 
 <style scoped>
+/* ENTRAÎNEMENT (2026-11-07) : un bouton doré par attribut, la raison en clair dessous quand il est fermé. */
+.ft-entr-note { font-size: 12px; color: var(--ink-500); margin: 0 0 10px; }
+.ft-entr { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.ft-entr-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 14px;
+  border: 0; border-radius: var(--r-md, 10px); background: var(--gold, #c9a24a); color: #1a1204; font: inherit; font-weight: 700; cursor: pointer; }
+.ft-entr-btn:disabled { opacity: 0.5; cursor: default; }
+.ft-entr-raison { font-size: 12px; color: var(--ink-500); }
 /* Descriptions des conditions actives (catalogue serveur) — une ligne par condition. */
 .ft-cond-descs { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px;
   font-size: 13px; line-height: 1.4; color: var(--ink-300, inherit); }

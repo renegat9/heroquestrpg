@@ -143,7 +143,10 @@ class AuthController extends Controller
                 'benediction_oracle', 'malediction_oracle',
                 // CHEF-D'ŒUVRE (lot B) : la marque du passage, lue par `Forge::gratuiteOuverte()`. Absente de cette
                 // liste, elle reviendrait `null` et rouvrirait la gratuité à chaque publication.
-                'chef_oeuvre_quete_id']);
+                'chef_oeuvre_quete_id',
+                // ENTRAÎNEMENT (2026-11-07) : même raison — absentes, les marques reviendraient `false` et rouvriraient
+                // un entraînement déjà payé (`Entrainement::options()`).
+                'entraine_body', 'entraine_mind']);
 
         // `supprimable` (DELETE /personnages/{id}, contrat) : « jamais joué »
         // se lit sur DEUX tables — en UNE requête chacune sur tout le roster,
@@ -500,6 +503,9 @@ class AuthController extends Controller
                         // celle du moteur, la manette l'affiche sans la
                         // re-dériver. Vide pour un non-lanceur.
                         'repertoires' => app(MoteurSorts::class)->repertoiresChangeables($p),
+                        // ENTRAÎNEMENT au hub (2026-11-07) : la DÉCISION par attribut (possible, raison), jamais recalculée
+                        // sur la manette — `App\Partie\Entrainement::options()`, le même prédicat que la route.
+                        'entrainement' => $p->groupeActif === null ? [] : app(\App\Partie\Entrainement::class)->options($p, $p->groupeActif),
                         'disponible' => $disponible,
                         // Contrat DELETE /personnages/{id} : le bouton
                         // « Supprimer » du roster (JoueurView.vue) LIT ce
