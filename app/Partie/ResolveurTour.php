@@ -14723,8 +14723,11 @@ final class ResolveurTour
      */
     private static function enDiagonale(?int $ax, ?int $ay, ?int $bx, ?int $by): bool
     {
+        // Le contact passe par SON point de passage (`Grille::sontAdjacentes()`, garde-fou `ContactOrthogonalTest`) :
+        // au contact en comptant les diagonales, et pas au contact sans elles.
         return $ax !== null && $ay !== null && $bx !== null && $by !== null
-            && abs($ax - $bx) === 1 && abs($ay - $by) === 1;
+            && Grille::sontAdjacentes($ax, $ay, $bx, $by, true)
+            && ! Grille::sontAdjacentes($ax, $ay, $bx, $by);
     }
 
     private function resoudreAttaqueMonstreSurAllie(
