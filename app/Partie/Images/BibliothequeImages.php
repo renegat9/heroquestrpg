@@ -310,13 +310,19 @@ final class BibliothequeImages
     }
 
     /**
-     * Piège : le symbole de son nom, dans les trois états où une ICÔNE se lit sur la case — détecté, désarmé, retenu par
-     * des lianes. Un trou ouvert, une mare d'acide ou un bloc tombé n'en portent pas : la silhouette (trou, bloc) EST la
-     * case, et le client n'affiche aucun glyphe pour ces états. Publier un symbole là serait une clé décorative.
+     * Piège : le symbole de son nom, dans les états où une IMAGE se lit sur la case — détecté, désarmé, retenu par des
+     * lianes, et le BLOC TOMBÉ. Un trou ouvert ou une mare d'acide n'en portent pas : la silhouette du trou EST la case,
+     * et le client n'affiche aucun glyphe pour ces états.
+     *
+     * ⚠ LE BLOC TOMBÉ PORTE SA TUILE (René, 2026-11-07 : « afficher le token du livre comme image ») : en partie, un carré
+     * gris sombre a été pris pour un trou. Le livret pose justement la tuile à ce moment-là : « Once it's sprung, use the
+     * falling block trap tile to represent it on the board » (First Light p. 10).
      */
     public function urlSymbolePiege(?string $nom, string $etat): ?string
     {
-        if ($nom === null || ! in_array($etat, [MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_DESARME, MoteurPieges::ETAT_RETIENT], true)) {
+        $etats = [MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_DESARME, MoteurPieges::ETAT_RETIENT, MoteurPieges::ETAT_BLOC];
+
+        if ($nom === null || ! in_array($etat, $etats, true)) {
             return null;
         }
 

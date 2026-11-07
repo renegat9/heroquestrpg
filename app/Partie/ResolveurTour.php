@@ -525,7 +525,7 @@ final class ResolveurTour
         // on refuse de rejouer un créneau déjà consommé ce tour. Réserve
         // arcanique (nœud magicien) : un SECOND sort par tour, au-delà du
         // créneau action normal — une seule fois par tour (bonus_sort_utilise).
-        $creneau = self::creneauOption((string) ($option['type'] ?? ''));
+        $creneau = self::creneauDeLOption($option);
         // Second sort du tour : le nœud magicien *Réserve arcanique*, la
         // Baguette de Rappel (« cast two spells instead of one »), OU la
         // Potion of Magical Aptitude (Wizards of Morcar, doc 18 — buff de
@@ -1280,7 +1280,9 @@ final class ResolveurTour
         // et c'est CE choix qui fermera son tour (voir `$finTourPiegeSol`).
         $attenteEcart = $controle['attente_ecart'] ?? null;
 
-        if ($controle['declenchements'] !== [] && $attenteEcart === null) {
+        // Un héros MIS À TERRE par le bloc (`apres_chute`) ne choisit rien maintenant : son tour se ferme, le choix
+        // l'attend à son prochain menu (`MenuMoteur`, option gratuite `creneauDeLOption()`).
+        if ($controle['declenchements'] !== [] && ($attenteEcart === null || ! empty($attenteEcart['apres_chute']))) {
             $this->finTourPiegeSol = true;
         }
 
@@ -5725,6 +5727,13 @@ final class ResolveurTour
         if ($choisie === null) {
             throw ValidationException::withMessages([
                 'parametres' => 'Cette case ne fait pas partie de celles proposées pour s\'écarter du bloc.',
+            ]);
+        }
+
+        // Relevé un tour plus tard (`apres_chute`), la case a pu être prise entre-temps : on ne s'arrête jamais sur une figure.
+        if (! FabriqueGrille::pour($etat->quete, exceptPersonnageId: $etat->personnage_id)->estTraversable($x, $y)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Cette case n\'est plus libre.',
             ]);
         }
 
@@ -14868,6 +14877,23 @@ final class ResolveurTour
      * droit, appelable sans construire tout `ResolveurTour` et son cortège de
      * dépendances pour une seule correspondance de chaînes.
      */
+    /**
+     * Le créneau d'une OPTION — son type (`creneauOption()`), sauf UNE exception qui se lit sur l'option elle-même :
+     * s'écarter d'un bloc de pierre APRÈS s'être relevé (`parametres.apres_chute`, 2026-11-07) ne coûte rien. Le livret
+     * fait de ce choix la fin du tour du héros qui déclenche le bloc ; celui qui était tombé l'a déjà perdu, ce tour-là,
+     * et ne doit pas en perdre un second pour sortir de la pierre. Lu par le menu ET par le résolveur.
+     *
+     * @param  array<string, mixed>  $option
+     */
+    public static function creneauDeLOption(array $option): string
+    {
+        if (($option['type'] ?? null) === 's_ecarter_du_bloc' && ! empty($option['parametres']['apres_chute'])) {
+            return 'interaction';
+        }
+
+        return self::creneauOption((string) ($option['type'] ?? ''));
+    }
+
     public static function creneauOption(string $type): string
     {
         return match ($type) {

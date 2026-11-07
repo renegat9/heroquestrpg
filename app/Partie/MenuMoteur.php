@@ -1233,6 +1233,53 @@ final class MenuMoteur
     }
 
     /**
+     * L'option « s'écarter du bloc » (Chute de blocs, livret p. 14 : « the hero then decides to move ahead or move back
+     * to an empty square »), ou `null` s'il n'y a nulle part où aller. La liste blanche est celle posée au déclenchement ;
+     * pour un héros relevé un tour plus tard (`apres_chute`), elle est relue sur la carte d'AUJOURD'HUI — une case prise
+     * entre-temps tombe, et s'il n'en reste aucune, toute case libre au contact du bloc la remplace.
+     *
+     * @param  array<string, mixed>  $attente  `etat_personnage_quete.piege_a_ecarter`
+     * @return array<string, mixed>|null
+     */
+    private function optionEcartDuBloc(Quete $quete, Personnage $personnage, array $attente): ?array
+    {
+        $bloc = ['x' => (int) ($attente['x'] ?? 0), 'y' => (int) ($attente['y'] ?? 0)];
+        $cases = array_values((array) ($attente['cases'] ?? []));
+        $apresChute = ! empty($attente['apres_chute']);
+
+        if ($apresChute) {
+            $grille = FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id);
+            $libres = array_values(array_filter($cases, fn (array $c) => $grille->estTraversable((int) $c['x'], (int) $c['y'])));
+
+            if ($libres === []) {
+                foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                    if ($grille->estTraversable($bloc['x'] + $dx, $bloc['y'] + $dy)) {
+                        $libres[] = ['x' => $bloc['x'] + $dx, 'y' => $bloc['y'] + $dy, 'sens' => 'cote'];
+                    }
+                }
+            }
+
+            $cases = $libres;
+        }
+
+        if ($cases === []) {
+            return null;
+        }
+
+        return [
+            'id' => 's_ecarter_du_bloc',
+            'libelle' => 'S\'écarter du bloc de pierre',
+            'type' => 's_ecarter_du_bloc',
+            'parametres' => [
+                'bloc' => $bloc,
+                // Liste blanche — le résolveur la relit sur CETTE option, jamais reconstruite depuis la colonne.
+                'cases' => $cases,
+                ...($apresChute ? ['apres_chute' => true] : []),
+            ],
+        ];
+    }
+
+    /**
      * Publie `creneau` sur chaque option du menu (contrat « creneau — chaque
      * option dit ce qu'elle coûte », 2026-09-18) : la valeur que rend
      * `ResolveurTour::creneauOption()` pour son `type`, TELLE QUELLE.
@@ -1262,7 +1309,7 @@ final class MenuMoteur
     {
         return array_map(
             static function (array $option) use ($perteDeplacement, $secondeFrappeEnAttente) {
-                $creneau = ResolveurTour::creneauOption((string) ($option['type'] ?? ''));
+                $creneau = ResolveurTour::creneauDeLOption($option);
 
                 return $option + ['creneau' => $creneau]
                     + ($creneau === 'action' ? ['perd_deplacement' => $perteDeplacement] : [])
@@ -1430,22 +1477,13 @@ final class MenuMoteur
             ];
         }
 
-        if ($etat !== null && $etat->piege_a_ecarter !== null) {
-            $attente = (array) $etat->piege_a_ecarter;
-
+        if ($etat !== null && $etat->piege_a_ecarter !== null && ! $etat->tombe
+            && ($ecart = $this->optionEcartDuBloc($quete, $personnage, (array) $etat->piege_a_ecarter)) !== null) {
             return [
-                'situation' => 'Le bloc de pierre s\'est refermé sur vous : vous devez vous écarter avant de poursuivre.',
-                'options' => $this->avecCreneaux([[
-                    'id' => 's_ecarter_du_bloc',
-                    'libelle' => 'S\'écarter du bloc de pierre',
-                    'type' => 's_ecarter_du_bloc',
-                    'parametres' => [
-                        'bloc' => ['x' => (int) ($attente['x'] ?? 0), 'y' => (int) ($attente['y'] ?? 0)],
-                        // Liste blanche — le résolveur la relit sur CETTE option,
-                        // jamais reconstruite depuis la colonne (un point de passage).
-                        'cases' => array_values((array) ($attente['cases'] ?? [])),
-                    ],
-                ]]),
+                'situation' => ! empty($ecart['parametres']['apres_chute'])
+                    ? 'Vous vous relevez au milieu des pierres tombées : écartez-vous du bloc avant de poursuivre.'
+                    : 'Le bloc de pierre s\'est refermé sur vous : vous devez vous écarter avant de poursuivre.',
+                'options' => $this->avecCreneaux([$ecart]),
             ];
         }
 

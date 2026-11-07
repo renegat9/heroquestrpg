@@ -243,13 +243,13 @@ final class MoteurPieges
                 // autres pièges, l'arrêt clôt directement le tour (le créneau
                 // effectif est forcé à 'tour' par le résolveur).
                 //
-                // ⚠ SAUF si le coup l'a mis à terre (`$etat->tombe`, posé par
-                // `declencher()` juste au-dessus) : un héros TOMBÉ ne choisit
-                // rien, il gît sur le bloc — son tour se ferme comme pour les
-                // deux autres pièges, pas de menu à un seul bouton pour un
-                // héros inconscient.
-                $attenteEcart = (! empty($payload['bloc_permanent']) && ! $etat->tombe)
-                    ? $this->casesEcart($carte, $personnage, $provenance, ['x' => $x, 'y' => $y])
+                // ⚠ Si le coup l'a mis À TERRE (`$etat->tombe`, posé par `declencher()` juste au-dessus), il ne choisit
+                // rien maintenant : son tour se ferme comme pour les deux autres pièges. Mais le choix reste POSÉ
+                // (`apres_chute`) — relevé par une potion, un sort ou un compagnon, il ne doit pas rester debout DANS
+                // le bloc (partie réelle, 2026-11-07 : Sylvan, relevé par sa potion de soin d'urgence, y est resté et
+                // a coupé le couloir à tout le groupe). Son prochain menu le fait s'écarter, sans lui coûter son tour.
+                $attenteEcart = ! empty($payload['bloc_permanent'])
+                    ? $this->casesEcart($carte, $personnage, $provenance, ['x' => $x, 'y' => $y]) + ($etat->tombe ? ['apres_chute' => true] : [])
                     : null;
 
                 // TÉLÉPORTATION / OURAGAN (Wizards of Morcar) : l'ARRÊT n'est

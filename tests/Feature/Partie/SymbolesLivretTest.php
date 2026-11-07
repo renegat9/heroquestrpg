@@ -173,11 +173,18 @@ it('ne donne un symbole de piège que dans les trois états où une icône se li
 
     expect($biblio->urlSymbolePiege('Fosse', 'detecte'))->toBe('/images/livrets/pieges/fosse.webp')
         ->and($biblio->urlSymbolePiege('Fosse', 'desarme'))->toBe('/images/livrets/pieges/fosse.webp')
-        // Le fichier EXISTE ici : seul l'état décide. Un trou ouvert, une mare, un bloc tombé se dessinent sans symbole.
+        // Le fichier EXISTE ici : seul l'état décide. Un trou ouvert ou une mare se dessinent sans symbole.
         ->and($biblio->urlSymbolePiege('Fosse', 'fosse_ouverte'))->toBeNull()
         ->and($biblio->urlSymbolePiege('Fosse', 'mare_acide'))->toBeNull()
-        ->and($biblio->urlSymbolePiege('Fosse', 'bloc'))->toBeNull()
         ->and($biblio->urlSymbolePiege('Fosse', 'declenche'))->toBeNull();
+});
+
+it('pose la TUILE du livret sur la Chute de blocs tombée (« use the falling block trap tile », 2026-11-07)', function () {
+    symbolesDossierJetable();
+    symbolesPoser('pieges/chute-de-blocs.webp');
+
+    expect(app(BibliothequeImages::class)->urlSymbolePiege('Chute de blocs', 'bloc'))
+        ->toBe('/images/livrets/pieges/chute-de-blocs.webp');
 });
 
 it('ne donne un symbole au danger mobile que tant qu\'il roule : un rocher arrêté est un bloc', function () {

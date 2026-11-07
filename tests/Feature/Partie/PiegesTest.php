@@ -710,6 +710,54 @@ it('un BLOC PERMANENT bloque le passage ET la vue, lu par FabriqueGrille::pour()
         ->and($grille->ligneDeVue($x, $y, $apres['x'], $apres['y']))->toBeFalse('le bloc doit bloquer la VUE, comme un mur');
 });
 
+it('un héros MIS À TERRE par la Chute de blocs, une fois relevé, doit s\'écarter du bloc — sans y perdre son tour (2026-11-07)', function () {
+    // Partie réelle : Sylvan, à 0 PV sous le bloc puis relevé par sa potion de soin d'urgence, est resté DANS la pierre
+    // et a coupé le couloir au groupe. Le choix « avancer ou reculer » du livret ne lui avait jamais été donné.
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
+    $hero->update(['pv_body' => 2]);
+
+    $depart = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+    $scene = alignementFranchissable($quete, $depart['x'], $depart['y']);
+    $bloc = $scene['fosse'];
+    poserPieges($quete, [['x' => $bloc['x'], 'y' => $bloc['y'], 'nom' => 'Chute de blocs', 'etat' => 'cache']]);
+
+    // Trois crânes : 3 PV sur un héros qui n'en a que 2 — il tombe. (Pas de dé de Brunhilde ensuite : on n'en consomme pas.)
+    desFiges([1, 1, 1, 4, 4, 4, 4, 4, 4]);
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'se_deplacer', 'parametres' => $bloc])->assertStatus(202);
+
+    $etat->refresh();
+    expect((bool) $etat->tombe)->toBeTrue()
+        // À terre, il ne choisit rien : son tour se ferme…
+        ->and((bool) $etat->a_joue)->toBeTrue()
+        // … mais le choix l'attend.
+        ->and($etat->piege_a_ecarter['apres_chute'] ?? false)->toBeTrue();
+
+    // Relevé (potion, sort, compagnon : peu importe le chemin), à son tour suivant.
+    $hero->update(['pv_body' => 2]);
+    $etat->update(['tombe' => false, 'a_joue' => false, 'a_deplace' => false, 'a_agi' => false, 'capacites_tour' => null]);
+    EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', '!=', $hero->id)->update(['a_joue' => true]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $options = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options']);
+    $ecart = $options->firstWhere('id', 's_ecarter_du_bloc');
+
+    expect($options->pluck('id')->all())->toBe(['s_ecarter_du_bloc'])
+        ->and($ecart['parametres']['apres_chute'] ?? false)->toBeTrue()
+        // Gratuit : il a déjà perdu SON tour sous la pierre.
+        ->and($ecart['creneau'])->toBe('interaction');
+
+    $vers = $ecart['parametres']['cases'][0];
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 's_ecarter_du_bloc', 'parametres' => ['x' => $vers['x'], 'y' => $vers['y']],
+    ])->assertStatus(202)->assertJsonPath('resultat.type', 's_ecarter_du_bloc');
+
+    $etat->refresh();
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([(int) $vers['x'], (int) $vers['y']])
+        ->and($etat->piege_a_ecarter)->toBeNull()
+        // Son tour continue : il peut encore agir.
+        ->and((bool) $etat->a_joue)->toBeFalse();
+});
+
 it('déclenche la Chute de blocs : 3 dés de combat sans défense, bloc permanent, le héros doit s\'écarter avant que son tour ne se termine', function () {
     [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
 
