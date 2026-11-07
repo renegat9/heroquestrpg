@@ -544,6 +544,8 @@ final class SceneDeTable
             'saute_tour_monstre' => $this->sauteTourMonstre($a, $acteur),
             'attaque_monstre' => $this->attaqueDuMonstre($a),
             'piege_declenche' => $this->piege($a, $acteur),
+            // Descendre dans une fosse : la scène est celle de la chute qu'elle provoque.
+            'descente_fosse' => is_array($a['declenchement'] ?? null) ? $this->piege($a['declenchement'], $acteur) : null,
             // LIANES ESQUIVÉES (Jungles of Delthrak p. 4) : le piège a jailli, le héros
             // poursuit sa route. Aucun dégât, aucun état — la scène est la SEULE annonce.
             'piege_esquive' => $this->piegeEsquive($a, $acteur),

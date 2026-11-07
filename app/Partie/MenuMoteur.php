@@ -1648,6 +1648,19 @@ final class MenuMoteur
 
                 $nomPiege = $adjacent['piege']?->nom ?? 'Piège';
 
+                // OÙ ATTERRIR (René, 2026-11-07 : « il faudrait tout le temps choisir la destination quand on saute ») :
+                // tout droit ou en diagonale, la liste blanche que le résolveur relit. Aucune case libre : aucun saut
+                // offert — jamais un bouton que le résolveur refuserait faute de réception.
+                $arrivees = $this->pieges->arriveesDeSaut(
+                    $quete, $personnage,
+                    ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y],
+                    ['x' => $adjacent['x'], 'y' => $adjacent['y']],
+                );
+
+                if ($arrivees === []) {
+                    continue;
+                }
+
                 if ($bottes !== null) {
                     $options[] = [
                         'id' => "franchir_bottes_{$adjacent['x']}_{$adjacent['y']}",
@@ -1657,6 +1670,7 @@ final class MenuMoteur
                             'piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']],
                             'cout' => ResolveurTour::COUT_FRANCHISSEMENT,
                             'bottes' => $bottes->id,
+                            'arrivees' => $arrivees,
                         ],
                     ];
                 }
@@ -1672,6 +1686,7 @@ final class MenuMoteur
                         'parametres' => [
                             'piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']],
                             'cout' => ResolveurTour::COUT_FRANCHISSEMENT,
+                            'arrivees' => $arrivees,
                         ],
                     ];
 
@@ -1692,10 +1707,33 @@ final class MenuMoteur
                                 'piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']],
                                 'cout' => ResolveurTour::COUT_FRANCHISSEMENT,
                                 'style' => 'saut_piege_automatique',
+                                'arrivees' => $arrivees,
                             ],
                         ];
                     }
                 }
+            }
+        }
+
+        // DESCENDRE DANS UNE FOSSE OUVERTE (René, 2026-11-07 : « on devrait pouvoir tomber dans le trou si on le veut ») :
+        // First Light p. 9, « you must voluntarily fall into the pit (suffering damage) and do combat with the monster from
+        // in the pit ». Le pas est le MOUVEMENT du tour ; la chute fait ses dégâts ; l'action reste. Fosse ordinaire
+        // seulement (la fosse longue a sa propre mécanique, `MoteurFosseLongue`), et jamais sur une figure.
+        if (! $aDeplace && ! $enFosse && $etat !== null && $this->pointsRestants($personnage, $etat) >= 1) {
+            foreach ($detectes as $adjacent) {
+                if (($adjacent['etat'] ?? null) !== MoteurPieges::ETAT_FOSSE_OUVERTE
+                    || ! $this->pieges->estFosse($adjacent['piege'])
+                    || isset(($quete->carte->grille['pieges'][$adjacent['index']] ?? [])['groupe_id'])
+                    || ! FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id)->estTraversable($adjacent['x'], $adjacent['y'])) {
+                    continue;
+                }
+
+                $options[] = [
+                    'id' => "descendre_fosse_{$adjacent['x']}_{$adjacent['y']}",
+                    'libelle' => 'Descendre dans la fosse — la chute fait mal, tu combats depuis le fond',
+                    'type' => 'descente_fosse',
+                    'parametres' => ['piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']]],
+                ];
             }
         }
 

@@ -606,6 +606,12 @@ watch([menuCourant, () => feuilles.value.length, boutonsGeles], ([menu, nbFeuill
 
 /* Les options à SOUS-CHOIX et la liste qu'elles portent. Le libellé du
    retour NOMME la liste : c'est lui qu'affiche le niveau des cibles. */
+/* Par TYPE, pour les options dont l'identifiant porte une case (`franchir_x_y`) : sauter, c'est TOUJOURS choisir où
+   atterrir (René, 2026-11-07) — tout droit ou en diagonale, la liste blanche `parametres.arrivees` du serveur. */
+const LISTES_PAR_TYPE = {
+    franchissement: { cle: 'arrivees', titre: 'Où atterrir ?', retour: 'Retour aux sauts' },
+};
+const listeDe = (option) => LISTES[option.id] ?? LISTES_PAR_TYPE[option.type] ?? null;
 const LISTES = {
     lancer_sort: { cle: 'sorts', titre: 'Quel sort lancer ?', retour: 'Retour aux sorts', grouper: true },
     // ANNEAU DE SORT (René, 2026-11-05) : le sort gardé, déclaré au premier tour — choix IMPOSÉ, sans retour.
@@ -716,7 +722,7 @@ function ouvrirOption(option) {
 
     // ⚠ AVANT le test des cibles : une option à liste n'en porte pas au premier
     // niveau (le sort n'est pas encore choisi), mais ses ENTRÉES en portent.
-    const liste = LISTES[option.id];
+    const liste = listeDe(option);
     const entrees = liste ? option.parametres?.[liste.cle] : null;
 
     if (Array.isArray(entrees) && entrees.length) {
@@ -828,7 +834,7 @@ function frameSlot(option, entree, retour) {
  */
 function choisirEntree(entree) {
     const { option, retour } = feuilleOption.value;
-    const liste = LISTES[option.id];
+    const liste = listeDe(option);
 
     // Échanger (R3) : choisir l'allié n'ENVOIE rien — ça ouvre la SÉANCE, qui
     // porte sa propre validation unique (transferts[]). Testé AVANT `cibles` :

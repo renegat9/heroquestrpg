@@ -2101,6 +2101,14 @@ fosses ignorées et les lianes esquivées croisées sur la route.
   cache : un téléphone rechargé doit retrouver le choix en attente). Une fois le
   choix fait, **son tour se termine** (livret) — le livret ajoute que choisir
   d'avancer peut l'isoler à jamais du groupe : la manette l'annonce.
+  **Mis à terre par le bloc** (2026-11-07) : le choix reste posé avec
+  `apres_chute: true` ; relevé par n'importe quel chemin, son prochain menu ne
+  contient que `s_ecarter_du_bloc` (`parametres.apres_chute: true`, `creneau:
+  interaction` — gratuit, il a déjà perdu son tour), vers les cases encore libres
+  (toute case libre au contact du bloc à défaut). Avant, il restait debout dans la
+  pierre (partie réelle).
+- **Le bloc tombé porte sa tuile** (2026-11-07) : `pieges[].symbole_url` est publié
+  pour l'état `bloc` (« use the falling block trap tile », First Light p. 10).
 
 Cycle : **caché** (placé à l'assemblage) → **détecté** (action Fouiller réussie
 sur la zone ; auto pour un héros adjacent possédant le nœud *Œil du mineur*) →
@@ -2129,6 +2137,20 @@ de la quête.
   Sur une Chute de blocs ratée il se retrouve **sur le bloc** : `piege_a_ecarter`
   est posé et le menu ne contient plus que `s_ecarter_du_bloc`, comme après un
   déclenchement en marchant.
+  **On choisit où atterrir** (René, 2026-11-07 : « il faudrait tout le temps
+  choisir la destination quand on saute ») : chaque option de saut porte
+  `parametres.arrivees: [{cle: "x,y", nom, x, y, sens: "droit"|"diagonale"}]` —
+  tout droit et les deux diagonales de l'autre côté, seulement là où l'on peut
+  s'arrêter (`MoteurPieges::arriveesDeSaut()`) ; aucune arrivée, aucun saut offert.
+  La manette ouvre « Où atterrir ? » ; corps `{option_id, parametres: {cle}}`. Sans
+  `cle` : tout droit s'il est permis, sinon la seule arrivée, sinon 422.
+- **Descendre dans une fosse ouverte** (`descendre_fosse_{x}_{y}`, type
+  `descente_fosse`, créneau `mouvement`, 2026-11-07) : First Light p. 9, « you must
+  voluntarily fall into the pit (suffering damage) and do combat with the monster
+  from in the pit ». Le héros entre dans la fosse (son mouvement du tour), la chute
+  fait ses dégâts par le déclenchement ordinaire (résultat `descente_fosse` avec
+  `declenchement`), et **son action reste**. Fosse ordinaire libre et au contact
+  seulement (la fosse longue a sa propre mécanique).
 - **Couloirs** : une ou deux voies (LR p. 11), tirées **une sur deux** par
   couloir (`AssembleurCarte::CHANCE_VOIE_UNIQUE`). Un couloir à voie unique ne
   reçoit **jamais** de Chute de blocs : tombée, elle fermerait le passage à

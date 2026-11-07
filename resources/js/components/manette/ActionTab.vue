@@ -101,6 +101,8 @@ const ICONE_TYPE = {
     sortie_sables: 'move_up',
     // FOSSE LONGUE (F7539 p. 6, 2026-10-29) : se hisser hors du trou, un dé rouge — une flèche vers le haut, sortie d'un puits.
     sortie_fosse: 'vertical_align_top',
+    // Descendre dans une fosse ouverte (2026-11-07) : une flèche vers le bas, l'inverse de la sortie.
+    descente_fosse: 'vertical_align_bottom',
     sort: 'auto_awesome',
     // Sort de Dread du porteur (Talisman du Savoir maudit, 2026-10-29) : un sort du maître du donjon, lancé par le héros.
     // Une baguette qui ouvre une sorcellerie — distincte du sort de héros (`auto_awesome`) et de l'éclair de la rune.
@@ -287,6 +289,7 @@ function creneauConsomme(option) {
         case 'franchissement':
         case 'saut_sables':
         case 'sortie_fosse':
+        case 'descente_fosse':
             return !!moi.a_deplace;
         case 'ouvrir_porte':
         case 'lacher_souris':

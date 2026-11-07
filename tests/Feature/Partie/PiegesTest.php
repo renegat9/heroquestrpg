@@ -474,6 +474,103 @@ it('refuse le désamorçage sans Nain ni trousse — et l\'offre au porteur de l
     expect($ids)->toContain("desamorcer_{$cible['x']}_{$cible['y']}");
 });
 
+/**
+ * Une scène de saut où la case tout droit ET une diagonale de l'autre côté sont libres : [fosse, droit, diagonale].
+ *
+ * @return array{fosse: array{x: int, y: int}, droit: array{x: int, y: int}, diagonale: array{x: int, y: int}}
+ */
+function sceneSautEnDiagonale(Quete $quete, int $x, int $y): array
+{
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        $fosse = ['x' => $x + $dx, 'y' => $y + $dy];
+        $droit = ['x' => $x + 2 * $dx, 'y' => $y + 2 * $dy];
+
+        foreach ([1, -1] as $cote) {
+            $diagonale = ['x' => $droit['x'] + $cote * $dy, 'y' => $droit['y'] + $cote * $dx];
+
+            if (caseQueteLibre($quete, $fosse['x'], $fosse['y']) && caseQueteLibre($quete, $droit['x'], $droit['y'])
+                && caseQueteLibre($quete, $diagonale['x'], $diagonale['y'])) {
+                return compact('fosse', 'droit', 'diagonale');
+            }
+        }
+    }
+
+    throw new RuntimeException('Aucune scène de saut en diagonale — scénario de test invalide.');
+}
+
+it('fait CHOISIR la case d\'arrivée d\'un saut — tout droit ou en diagonale (René, 2026-11-07)', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
+    $scene = sceneSautEnDiagonale($quete, (int) $etat->position_x, (int) $etat->position_y);
+    poserPieges($quete, [['x' => $scene['fosse']['x'], 'y' => $scene['fosse']['y'], 'nom' => 'Fosse', 'etat' => 'detecte']]);
+    $etat->update(['deplacement_tour' => 6]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $option = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->firstWhere('id', "franchir_{$scene['fosse']['x']}_{$scene['fosse']['y']}");
+    $arrivees = collect($option['parametres']['arrivees'])->keyBy('cle');
+
+    expect($arrivees->keys()->all())->toContain("{$scene['droit']['x']},{$scene['droit']['y']}")
+        ->and($arrivees->keys()->all())->toContain("{$scene['diagonale']['x']},{$scene['diagonale']['y']}")
+        ->and($arrivees["{$scene['diagonale']['x']},{$scene['diagonale']['y']}"]['sens'])->toBe('diagonale');
+
+    desFiges([1, 1, 4, 4]);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => $option['id'], 'parametres' => ['cle' => "{$scene['diagonale']['x']},{$scene['diagonale']['y']}"],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.franchi', true)
+        ->assertJsonPath('resultat.vers', $scene['diagonale']);
+
+    // Une case HORS de la liste est refusée : le résolveur relit la liste blanche du menu.
+    expect([(int) $etat->fresh()->position_x, (int) $etat->fresh()->position_y])->toBe([$scene['diagonale']['x'], $scene['diagonale']['y']]);
+});
+
+it('offre encore le saut quand la case tout droit est prise — en diagonale seulement', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
+    $scene = sceneSautEnDiagonale($quete, (int) $etat->position_x, (int) $etat->position_y);
+    poserPieges($quete, [['x' => $scene['fosse']['x'], 'y' => $scene['fosse']['y'], 'nom' => 'Fosse', 'etat' => 'detecte']]);
+
+    // Une figure sur la case tout droit (le trône de ce soir-là, ou un compagnon).
+    EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', '!=', $hero->id)
+        ->update(['position_x' => $scene['droit']['x'], 'position_y' => $scene['droit']['y']]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $option = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->firstWhere('id', "franchir_{$scene['fosse']['x']}_{$scene['fosse']['y']}");
+
+    expect($option)->not->toBeNull()
+        ->and(collect($option['parametres']['arrivees'])->pluck('cle')->all())
+        ->not->toContain("{$scene['droit']['x']},{$scene['droit']['y']}")
+        ->and(collect($option['parametres']['arrivees'])->pluck('sens')->unique()->values()->all())->toBe(['diagonale']);
+});
+
+it('laisse DESCENDRE volontairement dans une fosse ouverte : la chute fait mal, l\'action reste (First Light p. 9)', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
+    $saut = alignementFranchissable($quete, (int) $etat->position_x, (int) $etat->position_y);
+    poserPieges($quete, [['x' => $saut['fosse']['x'], 'y' => $saut['fosse']['y'], 'nom' => 'Fosse', 'etat' => 'fosse_ouverte']]);
+    $pvAvant = (int) $hero->fresh()->pv_body;
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $option = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->firstWhere('id', "descendre_fosse_{$saut['fosse']['x']}_{$saut['fosse']['y']}");
+
+    expect($option)->not->toBeNull()
+        ->and($option['type'])->toBe('descente_fosse')
+        ->and($option['creneau'])->toBe('mouvement');
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => $option['id']])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.type', 'descente_fosse');
+
+    $etat->refresh();
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([$saut['fosse']['x'], $saut['fosse']['y']])
+        ->and((int) $hero->fresh()->pv_body)->toBeLessThan($pvAvant)
+        ->and((bool) $etat->a_deplace)->toBeTrue()
+        // Il combat depuis le fond : son action, elle, reste.
+        ->and((bool) $etat->a_joue)->toBeFalse()
+        ->and((bool) $etat->a_agi)->toBeFalse();
+});
+
 it('franchit une fosse détectée sur un jet de Body 2 réussi : le héros atterrit de l\'autre côté', function () {
     [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros(); // barbare : Franchir, pas Désamorcer
 

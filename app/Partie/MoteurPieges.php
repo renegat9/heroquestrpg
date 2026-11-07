@@ -1918,6 +1918,68 @@ final class MoteurPieges
      * la Chute de blocs se saute aussi (2026-09-27) : Forme démoniaque, la
      * Potion de dextérité et l'immobilisation parlent de la FOSSE seule.
      */
+    /**
+     * OÙ ATTERRIR après avoir sauté par-dessus le piège en `$piege` depuis `$depart` (René, 2026-11-07 : « il faudrait
+     * tout le temps choisir la destination quand on saute ») : la case dans le prolongement, et les deux cases en
+     * DIAGONALE de l'autre côté — toutes au contact du piège, toutes au-delà. Seules celles où le héros peut réellement
+     * s'arrêter : libres (grille réelle, comme la règle d'arrêt) et sans piège connu armé dessous (une seconde fosse, la
+     * même fosse longue). LA liste blanche : le menu la publie (`parametres.arrivees`), le résolveur la relit
+     * (`ResolveurTour::resoudreFranchissement()`), jamais deux calculs.
+     *
+     * @param  array{x: int, y: int}  $depart
+     * @param  array{x: int, y: int}  $piege
+     * @return list<array{cle: string, nom: string, x: int, y: int, sens: string}>
+     */
+    public function arriveesDeSaut(Quete $quete, Personnage $personnage, array $depart, array $piege): array
+    {
+        $dx = $piege['x'] - $depart['x'];
+        $dy = $piege['y'] - $depart['y'];
+
+        if (abs($dx) + abs($dy) !== 1 || $quete->carte === null) {
+            return [];
+        }
+
+        $grille = FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id);
+        $connus = [];
+
+        foreach ((array) ($quete->carte->grille['pieges'] ?? []) as $entree) {
+            if (in_array($entree['etat'] ?? null, self::ETATS_CONNUS_ARMES, true)) {
+                $connus["{$entree['x']},{$entree['y']}"] = true;
+            }
+        }
+
+        $arrivees = [];
+
+        // Tout droit, puis les deux diagonales (perpendiculaires au sens du saut).
+        foreach ([[0, 'droit'], [1, 'diagonale'], [-1, 'diagonale']] as [$cote, $sens]) {
+            $x = $piege['x'] + $dx + $cote * $dy;
+            $y = $piege['y'] + $dy + $cote * $dx;
+
+            if (! $grille->estTraversable($x, $y) || isset($connus["{$x},{$y}"])) {
+                continue;
+            }
+
+            $arrivees[] = [
+                'cle' => "{$x},{$y}",
+                'nom' => ($sens === 'droit' ? 'Atterrir tout droit' : 'Atterrir en diagonale').' — '.self::direction($x - $depart['x'], $y - $depart['y']),
+                'x' => $x,
+                'y' => $y,
+                'sens' => $sens,
+            ];
+        }
+
+        return $arrivees;
+    }
+
+    /** « au nord », « au sud-est »… — le sens d'un saut vu du héros (y croît vers le sud). */
+    private static function direction(int $dx, int $dy): string
+    {
+        $nordSud = $dy < 0 ? 'nord' : ($dy > 0 ? 'sud' : '');
+        $estOuest = $dx > 0 ? 'est' : ($dx < 0 ? 'ouest' : '');
+
+        return 'vers le '.trim($nordSud.($nordSud !== '' && $estOuest !== '' ? '-' : '').$estOuest);
+    }
+
     public function estFosse(?Piege $piege): bool
     {
         return $piege?->usage === 'persistant' && $this->estFranchissable($piege) && ! $this->estMare($piege);

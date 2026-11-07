@@ -189,6 +189,10 @@ function fixturesDesTypesAnnonces(): array
         'danger_sans_effet' => ['danger' => 'Brume de la mort', 'heros' => 'Albrecht', 'arme' => 'Dague', 'x' => 7, 'y' => 4],
         'detacher_rejetons' => ['cible' => $cible, 'retires' => 1, 'restants' => 1],
         's_ecarter_du_bloc' => ['vers' => ['x' => 2, 'y' => 3]],
+        // Descendre dans une fosse (2026-11-07) : le pas, puis la chute ordinaire de la fosse.
+        'descente_fosse' => ['piege' => ['nom' => 'Fosse', 'x' => 2, 'y' => 3],
+            'declenchement' => ['type' => 'piege_declenche', 'piege' => ['nom' => 'Fosse', 'x' => 2, 'y' => 3], 'personnage' => ['id' => 1, 'nom' => 'Albrecht'],
+                'degats' => 1, 'pv_body_apres' => 7, 'tombe' => false, 'immobilise' => true]],
         // VENTS DE COULOIR (lot H des restes, 2026-10-29) : le choix du héros après un bouclier — la direction, les cases, la poussée.
         'pousser_vent' => ['direction' => 'e', 'cases' => 2, 'depart' => ['x' => 4, 'y' => 0], 'vers' => ['x' => 6, 'y' => 0], 'terrain_jets' => []],
         'saut_sables' => ['terrain' => 'Sables mouvants', 'faces' => ['crane'], 'face_requise' => 'bouclier_noir', 'franchi' => false, 'a_defausser' => 2],

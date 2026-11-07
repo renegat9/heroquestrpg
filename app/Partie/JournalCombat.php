@@ -103,6 +103,8 @@ final class JournalCombat
         'sortie_fosse' => true,
         // ---- Les pièges
         'piege_declenche' => true, 'piege_ignore' => true, 'piege_esquive' => true,
+        // Descendre volontairement dans une fosse (2026-11-07) : le pas, puis la chute dite par `piegeDeclenche()`.
+        'descente_fosse' => true,
         'piege_amorce' => true, 'piege_explosion' => true, 'piege_teleporte' => true,
         'piege_bourrasque' => true, 'piege_desarme_embrasement' => true,
         'pieges_detectes' => true, 'portes_secretes_revelees' => true,
@@ -1116,6 +1118,10 @@ final class JournalCombat
             // MÉTAMORPHE : le tirage à la mort (la carte tirée, ou la mort pour de bon).
             'metamorphe_tirage' => $this->metamorpheTirage($a),
             'piege_declenche' => $this->piegeDeclenche($a, $acteurNom),
+            'descente_fosse' => [
+                $this->info("{$acteurNom} descend volontairement dans ".mb_strtolower((string) ($a['piege']['nom'] ?? 'la fosse'))),
+                ...(is_array($a['declenchement'] ?? null) ? $this->piegeDeclenche($a['declenchement'], $acteurNom) : []),
+            ],
             // PIÈGES MAGIQUES (Wizards of Morcar, lot 1b) : cinq événements,
             // chacun annoncé — jeton posé, explosion, téléportation, ouragan,
             // désamorçage. Voir `piegeMagique()`.

@@ -653,7 +653,9 @@ final class ResolveurTour
                 // Tempête (Magic Reference Chart, Wizards of Morcar) — geste
                 // gratuit (`creneauOption()`), voir `resoudreDesarmerEmbrasement()`.
                 'desarmer_embrasement' => $this->resoudreDesarmerEmbrasement($groupe, $quete, $personnage, $etat, $option, $acteur),
-                'franchissement' => $this->resoudreFranchissement($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'franchissement' => $this->resoudreFranchissement($groupe, $quete, $personnage, $etat, $option, $acteur, $parametres),
+                // DESCENDRE DANS UNE FOSSE (René, 2026-11-07 ; First Light p. 9) — voir `resoudreDescenteFosse()`.
+                'descente_fosse' => $this->resoudreDescenteFosse($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sort' => $this->resoudreSort($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 // SORT DE DREAD DU PORTEUR (Talisman du Savoir maudit, 2026-10-29) : le héros lance un sort du MJ. Action.
                 'lancer_sort_dread' => $this->resoudreSortDreadPorteur($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
@@ -5358,6 +5360,108 @@ final class ResolveurTour
     }
 
     /**
+     * LA CASE D'ARRIVÉE d'un saut ordinaire (René, 2026-11-07 : « il faudrait tout le temps choisir la destination
+     * quand on saute ») : l'entrée choisie dans `parametres.arrivees` — la liste blanche du menu, relue ici, jamais
+     * recalculée sur le client (`MoteurPieges::arriveesDeSaut()`). Sans choix (un client d'avant cette liste, un test) :
+     * tout droit si c'est permis, sinon la seule arrivée offerte ; plusieurs arrivées et pas de choix → 422.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $cible
+     * @return array{x: int, y: int}
+     */
+    private function arriveeChoisie(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $parametres, array $cible): array
+    {
+        $droit = ['x' => 2 * $cible['x'] - (int) $etat->position_x, 'y' => 2 * $cible['y'] - (int) $etat->position_y];
+        $arrivees = (array) data_get($option, 'parametres.arrivees', []);
+
+        if ($arrivees === []) {
+            return $droit;
+        }
+
+        if (($parametres['cle'] ?? '') !== '') {
+            $entree = $this->entreeChoisie($option, $parametres, 'arrivees');
+
+            return ['x' => (int) $entree['x'], 'y' => (int) $entree['y']];
+        }
+
+        foreach ($arrivees as $a) {
+            if ((int) $a['x'] === $droit['x'] && (int) $a['y'] === $droit['y']) {
+                return $droit;
+            }
+        }
+
+        if (count($arrivees) === 1) {
+            return ['x' => (int) $arrivees[0]['x'], 'y' => (int) $arrivees[0]['y']];
+        }
+
+        throw ValidationException::withMessages([
+            'parametres' => 'Choix requis : parametres.cle doit désigner la case d\'arrivée.',
+        ]);
+    }
+
+    /**
+     * DESCENDRE DANS UNE FOSSE OUVERTE (René, 2026-11-07 : « on devrait pouvoir tomber dans le trou si on le veut ») —
+     * First Light p. 9 : « you must voluntarily fall into the pit (suffering damage) and do combat with the monster from
+     * in the pit ». Le pas est le MOUVEMENT du tour ; la chute fait les dégâts de la fosse, par son déclenchement
+     * ordinaire (`MoteurPieges::declencher()`, annonces comprises) ; l'ACTION reste — c'est tout l'intérêt. Revalide ce
+     * que le menu a offert : fosse ouverte ordinaire, au contact, case libre.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreDescenteFosse(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $x = (int) data_get($option, 'parametres.piege.x', -1);
+        $y = (int) data_get($option, 'parametres.piege.y', -1);
+        $index = null;
+
+        foreach ((array) ($quete->carte->grille['pieges'] ?? []) as $i => $entree) {
+            if ((int) $entree['x'] === $x && (int) $entree['y'] === $y) {
+                $index = $i;
+                break;
+            }
+        }
+
+        $entree = $index === null ? null : $quete->carte->grille['pieges'][$index];
+
+        if ($entree === null
+            || ($entree['etat'] ?? null) !== MoteurPieges::ETAT_FOSSE_OUVERTE
+            || isset($entree['groupe_id'])
+            || ! $this->pieges->estFosse(Piege::find($entree['piege_id']))
+            || $etat->a_deplace
+            || ! Grille::sontAdjacentes((int) $etat->position_x, (int) $etat->position_y, $x, $y)
+            || ! $this->grille($quete, exceptPersonnageId: $personnage->id)->estTraversable($x, $y)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Impossible de descendre dans cette fosse : il faut une fosse ouverte, au contact, et libre.',
+            ]);
+        }
+
+        $etat->update(['position_x' => $x, 'position_y' => $y, 'a_deplace' => true, 'deplacement_restant' => 0]);
+
+        $chute = $this->pieges->declencher($groupe, $quete->carte, $index, $personnage, $etat->fresh(), 'descente');
+
+        $payload = [
+            'type' => 'descente_fosse',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'piege' => ['nom' => Piege::find($entree['piege_id'])?->nom ?? 'Fosse', 'x' => $x, 'y' => $y],
+            'declenchement' => $chute,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
      * Franchir un piège DÉTECTÉ franchissable adjacent — Fosse, ou Chute de
      * blocs pas encore tombée (doc 10 §4, livret p. 14) : jet de Body
      * difficulté 2 (départ playtest) — succès : le héros atterrit de l'autre
@@ -5375,6 +5479,7 @@ final class ResolveurTour
         EtatPersonnageQuete $etat,
         array $option,
         array $acteur,
+        array $parametres = [],
     ): array {
         // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : le saut PAR LE BOUT a sa propre liste (`MoteurFosseLongue`) — son
         // coût (trois cases), sa réception et sa case de chute y sont lus, jamais recalculés ici. Le dé de saut, la chute
@@ -5441,10 +5546,7 @@ final class ResolveurTour
         // Case de réception : le prolongement de l'élan, de l'autre côté de
         // la fosse (héros → fosse → réception, alignés) ; pour le saut par le
         // bout, celle que la liste a déjà vérifiée.
-        $arrivee = $longue ? $saut['vers'] : [
-            'x' => 2 * $cible['x'] - (int) $etat->position_x,
-            'y' => 2 * $cible['y'] - (int) $etat->position_y,
-        ];
+        $arrivee = $longue ? $saut['vers'] : $this->arriveeChoisie($quete, $personnage, $etat, $option, $parametres, $cible);
 
         if (! $this->grille($quete, exceptPersonnageId: $personnage->id)
             ->estTraversable($arrivee['x'], $arrivee['y'])) {
@@ -14899,7 +15001,7 @@ final class ResolveurTour
         return match ($type) {
             // `saut_sables` : franchir les sables mouvants fait partie du MOUVEMENT, comme sauter une fosse.
             // `sortie_fosse` : se hisser hors du trou EST le déplacement du tour (Fosse longue, p. 6).
-            'deplacement', 'franchissement', 'saut_sables', 'sortie_fosse' => 'mouvement',
+            'deplacement', 'franchissement', 'saut_sables', 'sortie_fosse', 'descente_fosse' => 'mouvement',
             // Ouvrir une porte / actionner un levier = interaction LIBRE (E2) :
             // ne consomme ni le déplacement ni l'action — on s'arrête devant la
             // porte, on l'ouvre, puis on continue son mouvement s'il reste des points.
