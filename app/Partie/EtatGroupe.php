@@ -1532,6 +1532,9 @@ final class EtatGroupe
                 // être un habillage IA (« Écumeur des cryptes ») — nom_base permet
                 // de relier le monstre à sa fiche du guide (mêmes stats).
                 'nom_base' => $i->monstre->nom_base,
+                // Ses CAPACITÉS, déjà dites (René, 2026-11-06 : l'Assassin frappait du coin et la fiche n'en disait
+                // rien) — la même liste que le Guide et le livret (`LibellesCapacitesMonstre`).
+                'capacites' => LibellesCapacitesMonstre::pour($i->monstre->capacites),
                 // Portrait de boss dynamique si généré, sinon image du catalogue.
                 'image_url' => app(BibliothequeImages::class)->urlMonstre($i->id, $i->monstre_id, $i->monstre->nom_base),
                 // JETON de la figurine (livret, une tête dans un cercle) : forme et rotation décidées ici, dans `symboleDeMonstre()`.

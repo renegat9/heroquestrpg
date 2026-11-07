@@ -119,6 +119,15 @@ it('fait attaquer un Assassin en diagonale d\'un héros, sans aucun chemin ortho
         ->toContain('en diagonale');
 });
 
+it('montre la capacité « Attaque en diagonale » sur la fiche du monstre à la table (EtatGroupe.entites)', function () {
+    $ctx = demarrerQueteAvecMonstre('Assassin');
+
+    $entite = collect(app(App\Partie\EtatGroupe::class)->payload($ctx['groupe']->fresh())['entites'])
+        ->firstWhere('type', 'monstre');
+
+    expect($entite['capacites'])->toContain('Attaque en diagonale');
+});
+
 it('ne dit PAS « en diagonale » quand l\'Assassin frappe de face', function () {
     $ctx = demarrerQueteAvecMonstre('Assassin');
     $case = caseAdjacenteLibre($ctx['quete'], (int) $ctx['etatHeros']->position_x, (int) $ctx['etatHeros']->position_y);

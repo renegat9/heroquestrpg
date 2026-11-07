@@ -1761,61 +1761,12 @@ ecrire(fig('08-guide-pieges', "Le guide intégré : détectable, désamorçable,
 fin()
 
 # ================================================ 13. LE BESTIAIRE ========
-LIB_CAP = {
- 'charge': 'charge', 'invocation': 'invoque', 'frappe_de_zone': 'frappe de zone',
- 'ethere': 'éthéré', 'resistance_magique': 'résistance magique', 'agile': 'agile',
- 'regeneration': 'se régénère', 'vol_objet': "vole un objet", 'etreinte': 'étreinte',
- 's_accroche': "s'accroche", 'racines_entravantes': 'racines entravantes',
- 'tacticien': 'bouge avant ET après son attaque', 'venimeux': 'venimeux',
- 'choix_attaque': 'choisit son attaque', 'spawn': 'fait surgir des rejetons',
- 'vol_draconique': 'vole par-dessus les figures', 'sort_a_volonte': 'un sort à volonté',
- 'attaque_diagonale': 'attaque en diagonale', 'deux_attaques': 'deux attaques',
- 'reactions_defense': 'ignore un coup, une fois',
- 'recompense_reddition': 'vaincu, il paie sa rançon',
- 'increvable_une_fois': 'tombe à 1 PV au lieu de 0, une fois',
- 'sorts_uniques': 'sorts du Dread, une fois chacun par quête',
- 'embuscade': 'embusqué dans un coffre',
- 'coup_de_corne': 'encorne qui finit son tour au contact',
- 'tir_au_choix': 'tire à distance, au choix',
- 'effet_global_quete': "effet de quête : ses gobelins lancent un dé d'attaque de plus (voir Gruulob)",
- # Ajoutés le 2026-11-05 : ces capacités s'affichaient avec leur clé technique (« attaque mind »).
- 'apparait_a_la_vue': "surgit dès qu'un héros le voit",
- 'attaque_mind': "frappe l'esprit (points de Mind)",
- 'double_sort': 'deux sorts dans le même tour',
- 'filet_silencieux': "canalise l'effroi sur qui finit son tour sous ses yeux",
- 'flamme_du_dread': 'crache la flamme du Dread sur sa salle',
- 'fuit_si_affaibli': "s'enfuit quand il est affaibli",
- 'garde_personnelle': 'protégé par sa garde personnelle',
- 'immunite_conditions': 'insensible au sommeil et aux tours perdus',
- 'immunite_sorts': 'insensible à tous les sorts',
- 'immunite_sorts_elements': "insensible aux sorts d'un élément",
- 'immunite_sorts_sauf': "seul un élément l'atteint",
- 'metamorphe': 'change de forme à chaque mort',
- 'meteore': 'riposte par un météore',
- 'mouvement_apres_sort': 'se déplace après son sort',
- 'passif_jusqua': "immobile jusqu'à son réveil",
- 'repertoire_complet': 'lance tout son répertoire',
- 'reserve_a_son_theme': 'seulement dans son extension',
- 'reserve_cartes': 'une réserve de cartes de sort',
- 'sacrifice_de_vrille': 'sacrifie une vrille pour survivre',
- 'souffle_du_construit': 'souffle sur sa salle, une fois',
- 'synchroformes': 'change de forme au fil du combat',
- 'tourelle': 'immobile, tire sur ce qu\'elle voit',
- 'vrille_en_fin_de_tour': 'fait pousser une vrille à chaque tour',
- 'vulnerable_uniquement_a': 'seules certaines armes et certains sorts le blessent',
-}
+# Les capacités des monstres se disent côté SERVEUR (`App\\Partie\\LibellesCapacitesMonstre::courtes()`, exportées par
+# `catalogue.sh`) : la même source que la fiche de la table et le Guide. `LIB_CAP` vivait ici jusqu'au 2026-11-06.
+CAP_MONSTRES = CAT.get('capacites_monstres', {})
 def capacites_de(m):
-    """`capacites` est tantôt une liste de mots, tantôt un objet dont les clés
-    numériques portent un mot et les autres SONT le mot (avec leur paramétrage
-    en valeur). Les deux formes existent en base — on lit les deux."""
-    v = j(m['capacites'])
-    if isinstance(v, list):
-        noms = [x for x in v if isinstance(x, str)]
-    elif isinstance(v, dict):
-        noms = [(val if k.isdigit() and isinstance(val, str) else k) for k, val in v.items()]
-    else:
-        noms = []
-    return ' · '.join(LIB_CAP.get(n, n.replace('_', ' ')) for n in noms if n) or '—'
+    """Les capacités DITES par le serveur (formes courtes, `catalogue.sh`) — jamais retraduites ici."""
+    return ' · '.join(CAP_MONSTRES.get(str(m['id']), [])) or '—'
 
 LIB_BOITE = {'base': 'Boîte de base', 'horreur_des_glaces': 'Horreur des Glaces',
              'horde_ogre': 'Horde des Ogres', 'mage_du_miroir': 'Mage du Miroir',

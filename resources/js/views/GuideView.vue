@@ -9,7 +9,6 @@ import Vignette from '../components/ui/Vignette.vue';
 import { useApi } from '../composables/useApi';
 import {
     accesEquipement,
-    capacitesVersChips,
     CATEGORIE_OBJET,
     CLASSE,
     DESARMABLE,
@@ -419,8 +418,10 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                                 <span class="stat"><MSym n="shield" :size="14" class="c-def" /> {{ m.defense }} <em>déf.</em></span>
                                 <span class="stat"><MSym n="directions_walk" :size="14" /> {{ m.deplacement }} <em>dépl.</em></span>
                             </div>
-                            <div v-if="capacitesVersChips(m.capacites).length" class="chips">
-                                <span v-for="(ch, i) in capacitesVersChips(m.capacites)" :key="i" class="chip cap"><MSym n="bolt" :size="11" /> {{ ch.texte }}</span>
+                            <!-- Phrases DÉCIDÉES par le serveur (`LibellesCapacitesMonstre`, 2026-11-06) : la même liste
+                                 que la fiche de la table et le livret, plus une copie locale. -->
+                            <div v-if="m.capacites_libelles?.length" class="chips">
+                                <span v-for="(texte, i) in m.capacites_libelles" :key="i" class="chip cap"><MSym n="bolt" :size="11" /> {{ texte }}</span>
                             </div>
                         </article>
                     </div>

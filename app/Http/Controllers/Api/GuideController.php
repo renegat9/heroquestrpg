@@ -97,6 +97,9 @@ class GuideController extends Controller
                 ->get(['nom_base', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'tier', 'cout', 'capacites', 'boite', 'boites_partagees'])
                 ->map(fn (Monstre $m) => [
                     ...$m->only(['nom_base', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'tier', 'cout', 'capacites', 'boite']),
+                    // Ses capacités DITES (`LibellesCapacitesMonstre`, 2026-11-06) : la même liste que la fiche de la table
+                    // et le livret. `capacites` reste publié brut pour les clients qui le lisaient.
+                    'capacites_libelles' => \App\Partie\LibellesCapacitesMonstre::pour($m->capacites),
                     'boite_libelle' => $m->boite === null ? null : collect($m->boites())
                         ->map(fn (string $b) => app(DemarreurQuete::class)->libelleBoiteBestiaire($b))->implode(' · '),
                 ])

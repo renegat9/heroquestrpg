@@ -1179,6 +1179,11 @@ watch(() => store.state.clotureTerminee, (t) => {
                     <div v-if="figureInspectee.conditions?.length" class="stat-conds">
                         <span v-for="(c, i) in figureInspectee.conditions" :key="i" class="stat-cond">{{ c.nom }}</span>
                     </div>
+                    <!-- CAPACITÉS du monstre (René, 2026-11-06 : « partout où on affiche les stats des monstres ») :
+                         les phrases du serveur, les mêmes que le Guide et le livret. -->
+                    <ul v-if="figureInspectee.capacites?.length" class="stat-caps">
+                        <li v-for="(c, i) in figureInspectee.capacites" :key="i"><MSym n="bolt" :size="14" /> {{ c }}</li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -1338,6 +1343,10 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .stat-b i { font-style: normal; color: var(--ink-500); font-weight: 600; font-size: 14px; }
 .table-screen .stat-conds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .table-screen .stat-cond { font-size: 11px; padding: 3px 8px; border-radius: 999px; background: oklch(0.3 0.05 300 / 0.4); border: 1px solid oklch(0.5 0.08 300 / 0.5); color: var(--ink-200); }
+/* Capacités du monstre : une phrase par ligne, lisible depuis le canapé — jamais des pastilles tronquées. */
+.table-screen .stat-caps { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.table-screen .stat-caps li { display: flex; align-items: flex-start; gap: 6px; font-size: 13px; line-height: 1.35; color: var(--ink-200); }
+.table-screen .stat-caps .msym { color: var(--gold, #c9a24a); flex: none; margin-top: 1px; }
 /* Rejetons accrochés : un dégât automatique et indéfendable chaque fin de tour
    — il doit sauter aux yeux du narrateur, pas se fondre dans les conditions. */
 .table-screen .stat-rejetons { background: oklch(0.32 0.11 30 / 0.55); border-color: oklch(0.55 0.16 30 / 0.7); color: oklch(0.92 0.06 40); font-weight: 700; }

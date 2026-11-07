@@ -32,6 +32,11 @@ docker compose exec -T app php artisan tinker --execute="
   // Les EXTENSIONS (2026-11-05) : nom, ambiance, créatures par palier — la même source que celle du MJ IA
   // (\App\Partie\CatalogueExtensions), pour que le livret et le MJ ne décrivent jamais deux boîtes différentes.
   \$d['extensions'] = app(\App\Partie\CatalogueExtensions::class)->fiches();
+  // Les CAPACITÉS des monstres, formes courtes (2026-11-06) : la même source que la fiche de la table et le Guide
+  // (\App\Partie\LibellesCapacitesMonstre) — le livret n'en tient plus sa propre copie.
+  \$d['capacites_monstres'] = \App\Models\Monstre::all()->mapWithKeys(
+    fn (\$m) => [(string) \$m->id => \App\Partie\LibellesCapacitesMonstre::courtes(\$m->capacites)]
+  );
   file_put_contents('/tmp/catalogue.json', json_encode(\$d, JSON_UNESCAPED_UNICODE));" >/dev/null
 docker compose exec -T app cat /tmp/catalogue.json > "$SORTIE"
 echo "catalogue : $SORTIE ($(wc -c < "$SORTIE") octets)"

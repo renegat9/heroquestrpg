@@ -825,6 +825,8 @@ export function statsFigure(item, entites) {
         attribut_body: e.attribut_body ?? null,
         attribut_mind: e.attribut_mind ?? null,
         conditions: e.conditions ?? [],
+        // Capacités d'un monstre, DÉJÀ DITES par le serveur (`LibellesCapacitesMonstre`, 2026-11-06).
+        capacites: e.type === 'monstre' ? (e.capacites ?? []) : [],
         // ÉTAT DE CHOC (René 2026-10-01) : héros seulement (`entites[].en_choc`,
         // dérivé de pv_mind côté serveur) — `des_attaque`/`des_defense`
         // ci-dessus sont déjà les valeurs PLAFONNÉES (1/2) le temps du choc.

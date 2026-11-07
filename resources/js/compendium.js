@@ -183,71 +183,9 @@ const EFFETS_ENUM = {
     cout: 'Coût', // capté ici quand le coût est textuel (ex. « déplacement du tour »)
 };
 
-/** Capacités de monstres (tags) → libellé lisible. */
-const CAPACITES = {
-    charge: 'Charge',
-    invocation: 'Invocation',
-    frappe_de_zone: 'Frappe de zone',
-    deux_attaques: 'Deux attaques (une ou deux cibles)',
-    vol: 'Vol',
-    peur: 'Peur',
-    regeneration: 'Régénération',
-    resistance_magique: 'Résistance magique',
-    agile: 'Agile (ignore mobilier et figures)',
-    venimeux: 'Venimeux (paralysie)',
-    tacticien: 'Tacticien (+1 dé sur cible flanquée)',
-    racines_entravantes: 'Racines entravantes (stoppe net)',
-    spawn: 'Engendre des rejetons',
-    ethere: 'Éthéré (touché seulement sur bouclier noir)',
-    etreinte: 'Étreinte (dégâts automatiques tant qu\'il tient)',
-    vol_objet: 'Vole un objet puis s\'enfuit',
-    // First Light, carte Dragon (2026-09-30).
-    vol_draconique: 'Vol draconique (traverse les figures, jamais le mobilier)',
-    sort_a_volonte: 'Sort à volonté (sans limite d\'usage)',
-    // 2026-10-04 → 10-08 : mobilier attaquable, monstres à phases, Morcar.
-    attaque_diagonale: 'Attaque en diagonale',
-    s_accroche: 'S\'accroche (jeton sur le héros au contact, qui le ralentit)',
-    reactions_defense: 'Réactions à usage unique, une fois par rencontre (sans action)',
-    recompense_reddition: 'Vaincu, s\'incline et verse une rançon à la bourse commune',
-    increvable_une_fois: 'Increvable une fois (tombe à 1 PV au lieu de 0)',
-    // Rise of the Dread Moon, Magrian (F6646 p. 33) et Against the Ogre Horde, Deflect (F9528 p. 25) — chantier EXT-MAGRIAN.
-    terreur: 'Terror : intouchable par les sorts et les coups du héros dont c\'est le tour',
-    consomme_magie: 'Consume Magic : annule le sort d\'un héros, et rend 2 PV de Corps',
-    reflexion: 'Reflection : le coup qui l\'achèverait retombe sur un héros en vue',
-    redirige_attaque: 'Deflect : détourne l\'attaque vers un héros à 10 cases',
-    realite_decalee: 'Shift Reality : lance un sort de Dread au début du tour du MJ',
-    // Jungles of Delthrak (2026-10-09) : Gretzl et Gruulob tirent à distance, au choix.
-    tir_au_choix: 'Tir au choix : tire à distance sur place, frappe au contact',
-    sorts_uniques: 'Sorts du Dread (chacun une seule fois par quête)',
-    embuscade: 'Embuscade (déguisé en coffre jusqu\'à ce qu\'un héros approche)',
-    coup_de_corne: 'Coup de corne (encorne le héros qui finit son tour à son contact)',
-    // Le patron TOURELLE et les adversaires nommés de Jungles of Delthrak (2026-10-15) — libellés
-    // de `App\Engine\MotsClesAdversaires`, jamais une règle réécrite ici.
-    tourelle: 'Tourelle : immobile, fait feu chaque tour sur un héros en vue',
-    immunite_sorts: 'Immunisé à tous les effets de sort',
-    immunite_conditions: 'Immunisé aux sorts qui l\'endorment ou lui font perdre son tour',
-    apparait_a_la_vue: 'Paraît dès qu\'un héros le voit, et fait feu aussitôt',
-    filet_silencieux: 'Filet silencieux : Canaliser l\'Effroi sur tout héros qui finit son tour en sa vue (sans action)',
-    souffle_du_construit: 'Souffle du Construit (une fois) : 2 PV à toute la salle ou le couloir, réduits par 2 dés rouges',
-    synchroformes: 'Se transforme à chaque forme vaincue (pioche mélangée, le Dragon en dernier) ; ses sorts actifs cessent',
-    flamme_du_dread: 'Flamme du Dread à son arrivée : chaque héros de la salle lance un dé rouge, 3 ou moins = 1 PV',
-    meteore: "Météore : chaque attaque ou sort d'un héros qui le vise lui vaut 2 dés d'attaque contre ce héros, toutes formes",
-    vrille_en_fin_de_tour: 'Pose une Vrille à la fin de chacun de ses tours',
-    sacrifice_de_vrille: 'Sacrifie une Vrille pour rester à 1 PV au lieu de mourir',
-    // Mots de `App\Engine\MotsClesAdversaires` que le guide montrait en clé brute (vu le 2026-10-31) — leurs libellés.
-    invulnerable_casse_arme: 'Invulnérable : aucun dégât, et l\'arme de l\'attaquant se brise (sauf les armes exemptées)',
-    fuit_si_affaibli: 'Fuit dès que ses Body tombent au tiers de ses Body de départ',
-    repertoire_complet: 'Garde son répertoire entier, quel que soit son palier',
-    passif_jusqua: 'Dort jusqu\'à son déclencheur : visible, immobile, sans attaque ; intouchable jusqu\'à son premier geste',
-    attaque_mind: 'Attaque l\'esprit d\'un héros en vue : chaque crâne = 1 Mind perdu',
-    double_sort: 'Lance deux sorts de Dread au même tour (jamais le même)',
-    metamorphe: 'Se métamorphose à chaque mort : une carte tirée au hasard devient sa forme',
-    reserve_a_son_theme: 'N\'apparaît que dans les campagnes de sa boîte',
-    // Repli des capacités PARAMÉTRÉES (`capacitesVersChips()` lit leur valeur d'abord).
-    immunite_sorts_sauf: 'Immunisé à tous les sorts, sauf une famille',
-    immunite_sorts_elements: 'Insensible aux sorts d\'un élément',
-    vulnerable_uniquement_a: 'Blessé seulement par quelques armes et sorts nommés',
-};
+/* Les capacités des monstres ne se traduisent plus ici (2026-11-06) : le serveur publie leurs phrases
+   (`monstres[].capacites_libelles`, `App\Partie\LibellesCapacitesMonstre`), la même liste que la fiche de la table
+   et le livret. Une copie locale aurait dérivé de la règle qu'elle décrit. */
 
 /** Humanise une valeur brute (snake_case → « snake case »). */
 function humaniser(v) {
@@ -355,44 +293,6 @@ export function effetVersChips(effet) {
     return chips;
 }
 
-/**
- * Capacités d'un monstre (liste de tags OU map {tag: params}) → chips.
- */
-export function capacitesVersChips(capacites) {
-    if (!capacites) return [];
-    // Deux formes existent en base : une liste de mots, ou une map dont les clés
-    // NUMÉRIQUES portent un mot (`{"0":"agile","spawn":{…}}`) et les autres SONT
-    // le mot. Sans cette lecture, le guide affichait « 0 » et « 1 » en chips.
-    const tags = Array.isArray(capacites)
-        ? capacites
-        : Object.entries(capacites).map(([k, v]) => (/^\d+$/.test(k) && typeof v === 'string' ? v : k));
-    // Capacités PARAMÉTRÉES : leur valeur est la règle (2026-10-31). Sans elle, le guide disait « chacun une seule
-    // fois » du Seigneur Sorcier de Barak Tor, qui lance la Frayeur deux fois, et montrait la clé brute des immunités.
-    const params = Array.isArray(capacites) ? {} : capacites;
-    const elements = (liste) => liste.map((e) => ELEMENT[e]?.l?.toLowerCase() ?? humaniser(e)).join(', ');
-    const PARAMETREES = {
-        sorts_uniques: (v) => {
-            const exceptions = v && typeof v === 'object' && !Array.isArray(v) ? Object.entries(v) : [];
-            return exceptions.length === 0
-                ? CAPACITES.sorts_uniques
-                : `Sorts du Dread (chacun une seule fois par quête, sauf ${exceptions.map(([s, n]) => `${s} ${n} fois`).join(', ')})`;
-        },
-        immunite_sorts_sauf: (v) => (Array.isArray(v) ? `Immunisé à tous les sorts, sauf ceux de ${elements(v)}` : null),
-        immunite_sorts_elements: (v) => (Array.isArray(v) ? `Insensible aux sorts de ${elements(v)}` : null),
-        vulnerable_uniquement_a: (v) => (Array.isArray(v) ? `Blessé seulement par : ${v.join(', ')}` : null),
-    };
-    const chips = tags
-        .filter((t) => typeof t === 'string' && t !== 'effet_global_quete')
-        .map((t) => ({ texte: PARAMETREES[t]?.(params[t]) ?? CAPACITES[t] ?? humaniser(t) }));
-    // Effet de quête (Gruulob, Jungles of Delthrak) : un OBJET { titre, faction, volee, des },
-    // pas un mot. Décrit avec les chiffres que le serveur publie, jamais recalculés.
-    const effet = Array.isArray(capacites) ? null : capacites.effet_global_quete;
-    if (effet && typeof effet === 'object') {
-        const de = effet.volee === 'defense' ? 'de défense' : "d'attaque";
-        chips.push({ texte: `Effet de quête : ${effet.titre} — +${effet.des} dé(s) ${de}, jusqu'à la fin de la quête` });
-    }
-    return chips;
-}
 
 /** Libellés d'affichage des énumérations de catalogue. */
 export const CATEGORIE_OBJET = {
