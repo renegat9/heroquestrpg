@@ -13704,6 +13704,14 @@ final class ResolveurTour
         // ne frappe que ce qui est déjà à sa portée — jamais un faux « avance de 0 case » au fil.
         $immobile = $instance->monstre->estImmobile();
 
+        // ⚠ UNE CASE D'ARRIVÉE TENUE PAR UNE AUTRE FIGURE N'EN EST PAS UNE (partie réelle, 2026-11-06 : « Il y avait
+        // 3 monstres qui pouvaient m'attaquer et seulement 1 l'a fait »). `$grille` est celle du PASSAGE, où les monstres
+        // se franchissent : la case de l'Orque déjà au contact y comptait comme arrivée, souvent la plus courte. Le
+        // Fimir et le Zombie la choisissaient, ne pouvaient pas s'y arrêter (`derniereCaseOuSArreter()`, grille réelle),
+        // reculaient jusqu'à leur départ et passaient leur tour, une case libre au contact à un pas. On ne retient donc
+        // que les cases où la figure peut réellement S'ARRÊTER, sur la grille réelle — la même que la règle d'arrêt.
+        $reelle = $immobile ? null : $this->grille($quete, exceptInstanceId: $instance->id);
+
         foreach ([...$cibles->all(), ...$this->alliesCiblables($quete)->all()] as $cible) {
             if ($this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y, $diagonalesMonstre)) {
                 if ($meilleure === null || $meilleure[1] !== []) {
@@ -13724,6 +13732,11 @@ final class ResolveurTour
                 // Mare, Brasier : on ne s'y arrête pas — une case voisine du héros
                 // qui est l'une des deux n'est pas une case d'arrivée possible.
                 if ($grille->arretInterditParTerrain($cx, $cy)) {
+                    continue;
+                }
+
+                // Occupée par une figure (un autre monstre, un héros, un allié) ou infranchissable : pas une arrivée.
+                if ($reelle !== null && ! $reelle->estTraversable($cx, $cy)) {
                     continue;
                 }
 
