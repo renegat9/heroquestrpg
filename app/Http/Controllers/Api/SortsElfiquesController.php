@@ -125,7 +125,9 @@ class SortsElfiquesController extends Controller
         $donnees = $request->validate([
             'personnage_id' => ['required', 'integer'],
             'element_actuel' => ['required', 'string'],
-            'nouveau_repertoire' => ['required', 'string', 'in:'.implode(',', MoteurSorts::REPERTOIRES_OPTIONNELS)],
+            // Ce à quoi CE héros a droit se décide dans `MoteurSorts::remplacerElement()` (la liste d'Arcane Library,
+            // sans limite d'école depuis le 2026-11-06) : une liste recopiée ici en aurait été une seconde.
+            'nouveau_repertoire' => ['required', 'string', 'max:32'],
         ]);
 
         if ($groupe->phase !== 'hub') {

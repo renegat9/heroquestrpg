@@ -181,15 +181,46 @@ it('remplace un élément connu par un répertoire optionnel, pour n\'importe qu
         'personnage_id' => $mage->id, 'element_actuel' => 'air', 'nouveau_repertoire' => 'detection',
     ])->assertStatus(422);
 
-    // 422 : hors des trois répertoires optionnels déclarés.
+    // AUCUNE LIMITE D'ÉCOLE (René, 2026-11-06) : une école ÉLÉMENTAIRE se reprend aussi au hub.
     $this->putJson('/api/groupes/table-1/sorts-repertoire', [
         'personnage_id' => $mage->id, 'element_actuel' => 'eau', 'nouveau_repertoire' => 'feu',
+    ])->assertOk();
+    expect($mage->fresh()->sorts()->pluck('element')->unique()->sort()->values()->all())
+        ->toBe(['feu', 'tenebres', 'terre']);
+
+    // 422 : un mot qui n'est pas une école.
+    $this->putJson('/api/groupes/table-1/sorts-repertoire', [
+        'personnage_id' => $mage->id, 'element_actuel' => 'feu', 'nouveau_repertoire' => 'parchemin',
     ])->assertStatus(422);
 
     // 422 : hors hub.
     $groupe->update(['phase' => 'quete']);
     $this->putJson('/api/groupes/table-1/sorts-repertoire', [
         'personnage_id' => $mage->id, 'element_actuel' => 'eau', 'nouveau_repertoire' => 'detection',
+    ])->assertStatus(422);
+});
+
+it('ouvre les écoles élémentaires au Magicien et à l\'Elfe, jamais au Barde — la liste d\'Arcane Library (2026-11-06)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $elfe = creerHeros($alice, $groupe, 'Sylvan', 1, ['classe' => 'elfe']);
+    $barde = creerHeros($alice, $groupe, 'Lirelle', 2, ['classe' => 'barde']);
+    app(MoteurSorts::class)->attacherElement($elfe, 'eau');
+
+    $persos = collect($this->getJson('/api/moi')->assertOk()->json('joueur.personnages'))->keyBy('id');
+
+    expect($persos[$elfe->id]['repertoires']['offerts'])->toBe(['feu', 'terre', 'air', 'protection', 'detection', 'tenebres'])
+        ->and($persos[$barde->id]['repertoires']['offerts'])->toBe(['protection', 'detection', 'tenebres']);
+
+    // L'Elfe change d'école élémentaire au hub ; le Barde ne prend pas d'école élémentaire.
+    $this->putJson('/api/groupes/table-1/sorts-repertoire', [
+        'personnage_id' => $elfe->id, 'element_actuel' => 'eau', 'nouveau_repertoire' => 'air',
+    ])->assertOk();
+    expect($elfe->fresh()->sorts()->pluck('element')->unique()->values()->all())->toBe(['air']);
+
+    $repertoireBarde = $barde->sorts()->value('element');
+    $this->putJson('/api/groupes/table-1/sorts-repertoire', [
+        'personnage_id' => $barde->id, 'element_actuel' => $repertoireBarde ?? 'barde', 'nouveau_repertoire' => 'feu',
     ])->assertStatus(422);
 });
 
@@ -603,7 +634,8 @@ it('refuse de prendre un répertoire déjà connu, et de remplacer un parchemin 
 
     // La décision que la manette affiche, publiée par /moi.
     $perso = collect($this->getJson('/api/moi')->assertOk()->json('joueur.personnages'))->firstWhere('id', $mage->id);
-    expect($perso['repertoires']['offerts'])->toBe(['detection', 'tenebres'])
+    // Sans limite d'école (2026-11-06) : l'école élémentaire qu'il n'a pas, puis les optionnels qu'il n'a pas.
+    expect($perso['repertoires']['offerts'])->toBe(['air', 'detection', 'tenebres'])
         ->and($perso['repertoires']['remplacables'])->toContain('protection')
         ->and($perso['repertoires']['remplacables'])->not->toContain('parchemin');
 

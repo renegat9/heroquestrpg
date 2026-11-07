@@ -401,9 +401,15 @@ final class MoteurSorts
     }
 
     /**
-     * REMPLACE un élément CONNU du héros par un répertoire OPTIONNEL
-     * (`REPERTOIRES_OPTIONNELS`) — le mécanisme générique derrière
+     * REMPLACE un élément CONNU du héros par une AUTRE école à laquelle il a droit — le mécanisme générique derrière
      * « Spellcasters may change their spells between quests » (livret p. 11).
+     *
+     * ⚠ AUCUNE LIMITE D'ÉCOLE (René, 2026-11-06 : « Ne limitons pas les écoles de magie et ce en tout temps, on n'est
+     * pas limité aux jeux de cartes disponibles ») : jusque-là, seuls les trois répertoires OPTIONNELS de Wizards of
+     * Morcar se prenaient au hub, et une école élémentaire restait celle de la création. La liste est désormais celle
+     * d'*Arcane Library*, `repertoiresSupplementaires()` — une seule règle de « ce à quoi ce lanceur a droit » : les
+     * optionnels pour les cinq classes, les écoles élémentaires en plus pour le Magicien et l'Elfe — dans toute
+     * campagne, quelles que soient ses boîtes, et sans partage des cartes entre héros (deux héros gardent la même école).
      *
      * Réutilise exactement le patron de {@see self::fixerSortsElfiques()}
      * (détacher l'ancien, attacher le nouveau EN BLOC via
@@ -416,21 +422,11 @@ final class MoteurSorts
      * three sets » n'est qu'une CONSÉQUENCE du remplacement UN POUR UN, jamais
      * une règle à appliquer à part.
      *
-     * ⚠ Ne vaut QUE dans un sens : vers un répertoire optionnel. Revenir
-     * d'un répertoire optionnel à une école élémentaire reste hors de ce
-     * point de passage (la création de personnage s'en occupe) — nommé ici
-     * plutôt que deviné.
      *
      * @return Collection<int, Sort> sorts nouvellement attachés
      */
     public function remplacerElement(Personnage $personnage, string $ancienElement, string $nouveauRepertoire): Collection
     {
-        if (! in_array($nouveauRepertoire, self::REPERTOIRES_OPTIONNELS, true)) {
-            throw ValidationException::withMessages([
-                'repertoire' => "« {$nouveauRepertoire} » n'est pas un répertoire optionnel (protection/detection/tenebres).",
-            ]);
-        }
-
         if (! in_array($personnage->classe, self::LANCEURS, true)) {
             throw ValidationException::withMessages([
                 'personnage_id' => 'Ce héros ne lance aucun sort.',
@@ -460,6 +456,13 @@ final class MoteurSorts
             ]);
         }
 
+        // Ce à quoi CE lanceur a droit : la liste d'Arcane Library, la même que `/moi` publie (`offerts`).
+        if (! in_array($nouveauRepertoire, $this->repertoiresSupplementaires($personnage), true)) {
+            throw ValidationException::withMessages([
+                'nouveau_repertoire' => "« {$nouveauRepertoire} » n'est pas une école que ce héros peut apprendre.",
+            ]);
+        }
+
         $anciens = $personnage->sorts()->where('element', $ancienElement)->pluck('sorts.id');
         $personnage->sorts()->detach($anciens->all());
 
@@ -473,8 +476,8 @@ final class MoteurSorts
      *  - `remplacables` : les éléments qu'un remplacement peut détacher — tout
      *    répertoire connu, à l'exception du PARCHEMIN (il n'est pas un
      *    répertoire) ;
-     *  - `offerts` : les répertoires optionnels que ce héros ne connaît pas
-     *    encore (un répertoire déjà connu ne peut pas être pris une seconde fois).
+     *  - `offerts` : les écoles auxquelles ce héros a droit et qu'il ne connaît pas encore — la liste
+     *    d'Arcane Library (`repertoiresSupplementaires()`), sans limite d'école depuis le 2026-11-06.
      *
      * Un non-lanceur n'a ni l'un ni l'autre : `remplacerElement()` le refuse.
      *
@@ -490,7 +493,7 @@ final class MoteurSorts
 
         return [
             'remplacables' => array_values(array_filter($connus, fn (string $e) => $e !== 'parchemin')),
-            'offerts' => array_values(array_diff(self::REPERTOIRES_OPTIONNELS, $connus)),
+            'offerts' => $this->repertoiresSupplementaires($personnage),
         ];
     }
 

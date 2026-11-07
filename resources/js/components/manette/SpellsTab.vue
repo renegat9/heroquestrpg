@@ -59,8 +59,8 @@ function confirmerRechoix() {
     rechoixOuvert.value = false;
 }
 
-/* RÉPERTOIRE OPTIONNEL (Wizards of Morcar, livret p. 11) : entre deux quêtes,
-   un répertoire connu cède sa place à l'un des trois optionnels. Deux temps :
+/* CHANGER D'ÉCOLE (Wizards of Morcar, livret p. 11 ; sans limite d'école depuis le 2026-11-06) : entre deux quêtes,
+   un répertoire connu cède sa place à une autre école. Deux temps :
    on choisit le répertoire à céder, puis celui qui le remplace. Ce que la
    manette affiche (`remplacables`, `offerts`) est DÉCIDÉ par le serveur. */
 const remplacerOuvert = ref(null);
@@ -172,11 +172,11 @@ function lancerConfirme() {
                 </div>
             </template>
         </div>
-        <!-- Répertoires OPTIONNELS (Wizards of Morcar) : entre deux quêtes, un
-             répertoire connu cède sa place. Décision publiée : `repertoires`. -->
+        <!-- Entre deux quêtes, un répertoire connu cède sa place à une AUTRE école — sans limite d'école depuis le
+             2026-11-06 (René). Décision publiée : `repertoires`. -->
         <div v-if="peutChangerRepertoire" class="spl-rechoix">
-            <p class="spl-note">Entre deux quêtes, un répertoire peut céder sa place à un répertoire optionnel.</p>
-            <p v-if="!repertoires.offerts.length" class="spl-note">Tu connais déjà les trois répertoires optionnels.</p>
+            <p class="spl-note">Entre deux quêtes, un répertoire peut céder sa place à une autre école de magie.</p>
+            <p v-if="!repertoires.offerts.length" class="spl-note">Tu connais déjà toutes les écoles qui te sont ouvertes.</p>
             <template v-else>
                 <div v-for="element in repertoires.remplacables" :key="`rep-${element}`" class="spl-remp">
                     <button
