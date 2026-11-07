@@ -315,7 +315,40 @@ function creneauConsomme(option) {
  */
 const filDuCombat = ref(null);
 
-watch(() => props.journal.length, async () => {
+/**
+ * LE FIL SE REPLIE (René, 2026-11-06 : « cacher/afficher la section Fil de combat en laissant seulement la dernière
+ * ligne affichée quand c'est caché »). Replié, il ne garde que l'entrée la plus récente, et les actions récupèrent
+ * la place. ⚠ Contrairement au bandeau du MJ (`NarrationBand`), qui se rouvre au texte suivant, le repli SURVIT : il
+ * ne fait jamais taire le fil, puisque chaque nouvelle ligne remplace celle qu'on voyait. Et l'onglet est démonté à
+ * chaque changement d'onglet (`v-else-if` de `ManetteView`) : un simple `ref` se rouvrirait à chaque retour. C'est
+ * une préférence du TÉLÉPHONE, pas de la partie, d'où `localStorage`, comme le volume de la table, lu et écrit sous
+ * `try` : un stockage bloqué (navigation privée) laisse le fil déplié, jamais la manette cassée.
+ */
+const CLE_FIL_REPLIE = 'manette:fil-replie';
+
+function lireFilReplie() {
+    try {
+        return localStorage.getItem(CLE_FIL_REPLIE) === '1';
+    } catch {
+        return false;
+    }
+}
+
+const filReplie = ref(lireFilReplie());
+const lignesDuFil = computed(() => (filReplie.value ? props.journal.slice(-1) : props.journal));
+
+function basculerFil() {
+    filReplie.value = ! filReplie.value;
+
+    try {
+        localStorage.setItem(CLE_FIL_REPLIE, filReplie.value ? '1' : '0');
+    } catch {
+        // Préférence non retenue : le fil reste tel qu'on vient de le mettre jusqu'au prochain démontage.
+    }
+}
+
+// Déplié de nouveau, il revient lui aussi sur la ligne la plus récente.
+watch(() => [props.journal.length, filReplie.value], async () => {
     await nextTick();
     const el = filDuCombat.value;
 
@@ -342,7 +375,7 @@ function mesurerSuite() {
     suiteEnBas.value = el.scrollTop + el.clientHeight < el.scrollHeight - 1;
 }
 
-watch(() => [props.menu, props.pending, props.journal.length], () => nextTick(mesurerSuite));
+watch(() => [props.menu, props.pending, props.journal.length, filReplie.value], () => nextTick(mesurerSuite));
 
 onMounted(() => {
     mesurerSuite();
@@ -441,10 +474,15 @@ const ICONE_JOURNAL = {
     <!-- journal de combat mécanique (.combat.journal) : ce que le moteur vient
          de résoudre (attaques, dégâts, tour des monstres) — visible même hors
          de mon tour, sinon on ne verrait que ses PV bouger. -->
-    <div v-if="journal.length" class="cbt-log">
-        <div class="sect-title"><MSym n="history" :size="16" /> Fil du combat</div>
+    <div v-if="journal.length" class="cbt-log" :class="{ 'cbt-replie': filReplie }">
+        <!-- Tout le titre est le bouton : une cible large au pouce, à côté des actions. -->
+        <button type="button" class="sect-title cbt-bascule" :aria-expanded="! filReplie" @click="basculerFil">
+            <MSym n="history" :size="16" /> Fil du combat
+            <span class="cbt-bascule-lib">{{ filReplie ? 'Tout voir' : 'Réduire' }}</span>
+            <MSym :n="filReplie ? 'unfold_more' : 'unfold_less'" :size="18" />
+        </button>
         <div ref="filDuCombat" class="cbt-lines">
-            <div v-for="l in journal" :key="l.id" class="cbt-entree">
+            <div v-for="l in lignesDuFil" :key="l.id" class="cbt-entree">
                 <div class="cbt-line" :class="`t-${l.ton}`">
                     <!-- Un talent qui s'active tout seul se VOIT (2026-09-25) :
                          son ICÔNE PROPRE (App\Engine\MotsClesTalent), pas celle
@@ -487,6 +525,12 @@ const ICONE_JOURNAL = {
    chasser de l'écran. */
 .cbt-log { flex: 0 0 auto; max-height: 40%; display: flex; flex-direction: column; min-height: 0;
   border-top: var(--line); padding-top: 10px; }
+/* Le titre est un bouton : on lui rend l'allure du titre de section (`.sect-title`, manette.css). */
+.cbt-bascule { width: 100%; background: none; border: 0; padding: 0; cursor: pointer; text-align: left;
+  -webkit-tap-highlight-color: transparent; }
+.cbt-bascule-lib { margin-left: auto; font-family: var(--font-ui); font-size: 11px; letter-spacing: 0.04em;
+  color: var(--ink-500, oklch(0.6 0.02 70)); }
+.cbt-replie .cbt-bascule { margin-bottom: 8px; }
 .cbt-lines { display: flex; flex-direction: column; gap: 4px;
   min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .cbt-lines::-webkit-scrollbar { width: 0; }

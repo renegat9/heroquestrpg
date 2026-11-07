@@ -166,6 +166,8 @@ d'ouverture invisible, un état qui persiste au-delà de ce qu'il devait couvrir
 0,2,0) écrasait `.narr-replie` (0,1,0). Les blocs `<style>` sont globaux ici, et
 c'est la collision que ces règles signalent depuis le début.
 
+**Le fil du combat se replie aussi** (`ActionTab`, René 2026-11-06 : « cacher/afficher la section Fil de combat en laissant seulement la dernière ligne affichée quand c'est caché »). Tout le titre de la section est le bouton ; replié, le fil ne montre que l'entrée la plus récente, dés compris. ⚠ À l'inverse du bandeau du MJ, le repli **survit** : il ne fait jamais taire le fil, puisque chaque ligne nouvelle remplace celle qu'on voyait. L'onglet Actions est démonté à chaque changement d'onglet (`v-else-if`), donc l'état vit en `localStorage['manette:fil-replie']`, préférence du téléphone et non de la partie, lue et écrite sous `try` (un stockage bloqué laisse le fil déplié).
+
 ⚠ **Une scène ne couvre QUE la zone carte** (`.map-wrap`), jamais la racine de
 l'écran. Elle capture les clics — c'est ainsi qu'on revient à la carte —, donc
 posée plus haut elle avalait aussi ceux destinés au bandeau du MJ, aux réglages
