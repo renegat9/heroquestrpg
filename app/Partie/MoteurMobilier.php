@@ -21,10 +21,13 @@ use RuntimeException;
  * lecteur : sept types sur huit le portent, et aucun ne s'ouvrait. Un joueur
  * voyait un coffre au milieu de la salle et ne pouvait rien en faire.
  *
- * Un meuble se fouille **une seule fois pour tout le groupe** — c'est un objet
- * physique, pas une table de trésor : le premier qui l'ouvre le vide. C'est la
- * différence avec la fouille de SALLE, qui est une par héros (chacun cherche
- * dans son coin). L'état vit dans la grille de la carte (`mobilier[i].fouille`),
+ * Un meuble se fouille **une fois par héros** (René, 2026-08-17), mais son
+ * CONTENU EST FINI (René, 2026-11-07) : c'est un SAC DE JETONS — chaque
+ * fouille en tire un, qui sort du sac, sauf « rien », qu'on y remet
+ * (`exemplairesRestants()`) ; le meuble dont il ne reste que « rien » est
+ * VIDE, retiré du menu. Le COFFRE (`un_seul_butin`) se fouille une
+ * seule fois pour tout le groupe : son premier butin le vide. L'état vit dans
+ * la grille de la carte (`mobilier[i].fouille_par`, `.tirees`, `.fouille`),
  * comme celui des portes, donc il survit aux snapshots sans nouvelle colonne.
  *
  * Le mobilier bloquant le passage, on le fouille depuis une case ADJACENTE :
@@ -138,8 +141,8 @@ final class MoteurMobilier
      */
     private static function dejaFouille(array $entree, ?int $personnageId): bool
     {
-        if (! empty($entree['fouille'])) {
-            return true; // format ancien : épuisé pour le groupe
+        if (self::estVide($entree)) {
+            return true; // vidé pour le groupe (contenu épuisé, ou format ancien)
         }
 
         if ($personnageId === null) {
@@ -172,6 +175,129 @@ final class MoteurMobilier
     }
 
     /**
+     * Le meuble est-il VIDE pour tout le groupe ? Le drapeau `fouille` de la grille, qui disait « épuisé pour le
+     * groupe » dans le format d'avant le 2026-08-17, dit la même chose depuis le contenu fini (2026-11-07) : il
+     * est posé par `noterTirage()` quand le dernier butin est sorti. Un seul drapeau, un seul lecteur — le menu
+     * (`fouillablesAdjacents()`) et la destruction (`ResolveurTour::fracasserMobilier()`) le lisent ici.
+     *
+     * @param  array<string, mixed>  $entree  une entrée de `grille.mobilier`
+     */
+    public static function estVide(array $entree): bool
+    {
+        return ! empty($entree['fouille']);
+    }
+
+    /**
+     * LE COFFRE (René, 2026-11-07 : « fouillé seulement 1 fois avec 1 résultat seulement (artefact ou or) ») :
+     * le premier BUTIN le vide pour tout le groupe. Un piège n'est pas un butin — il garde le trésor, ne le
+     * remplace pas (RB p. 18-19 : le meuble « redevient fouillable normalement ») ; c'est le résolveur qui rend
+     * alors sa fouille au héros (`rendreFouille()`).
+     */
+    public static function unSeulButin(?Mobilier $type): bool
+    {
+        return ! empty($type?->effet['un_seul_butin']);
+    }
+
+    /**
+     * Combien de fois chaque entrée de la table est déjà sortie de CE meuble (`grille.mobilier[i].tirees`,
+     * index de l'entrée dans `effet.fouille` => compte).
+     *
+     * @param  array<string, mixed>  $entree
+     * @return array<int, int>
+     */
+    public static function tireesDe(array $entree): array
+    {
+        $tirees = [];
+
+        foreach ((array) ($entree['tirees'] ?? []) as $i => $n) {
+            $tirees[(int) $i] = (int) $n;
+        }
+
+        return $tirees;
+    }
+
+    /**
+     * CONTENU FINI (René, 2026-11-07) : combien d'EXEMPLAIRES de cette entrée restent dans ce meuble. Le meuble se lit
+     * comme un SAC DE JETONS (René : « 3 potions + piège + rien ») : chaque fouille en tire un, le jeton tiré sort du
+     * sac — sauf « rien », qui y retourne toujours (1 exemplaire, inépuisable). Une entrée vaut `fois` jetons (1 par
+     * défaut ; la Table des brasseurs en porte 3, « three potions can be found », G0053 p. 13), chacun du poids de
+     * l'entrée : trois potions se trouvent trois fois plus souvent qu'une, et de moins en moins à mesure qu'on les prend.
+     *
+     * @param  array<string, mixed>  $entreeTable
+     * @param  array<int, int>  $tirees
+     */
+    private static function exemplairesRestants(array $entreeTable, int $i, array $tirees): int
+    {
+        if (($entreeTable['issue'] ?? 'rien') === 'rien') {
+            return 1;
+        }
+
+        return max(0, max(1, (int) ($entreeTable['fois'] ?? 1)) - ($tirees[$i] ?? 0));
+    }
+
+    /**
+     * Reste-t-il à ce meuble un résultat autre que « rien », admis par le thème du groupe ? Sinon il est vide.
+     *
+     * @param  array<int, int>  $tirees
+     * @param  list<string>  $boitesDuTheme
+     */
+    public function resteUnButin(Mobilier $type, array $tirees, array $boitesDuTheme = []): bool
+    {
+        foreach ((array) ($type->effet['fouille'] ?? []) as $i => $e) {
+            if (is_array($e) && (int) ($e['poids'] ?? 0) > 0 && ($e['issue'] ?? 'rien') !== 'rien'
+                && self::exemplairesRestants($e, (int) $i, $tirees) > 0 && $this->admisParLeTheme($e, $boitesDuTheme)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Inscrit qu'une entrée de la table est sortie de ce meuble, et le VIDE pour le groupe si `$vider`
+     * (`estVide()`). `$entreeTable` à `null` : rien à compter (le coffre de la quête, qui ne tire pas dans la table).
+     */
+    public function noterTirage(Carte $carte, int $index, ?int $entreeTable, bool $vider): void
+    {
+        $grille = $carte->grille;
+
+        if (! isset($grille['mobilier'][$index])) {
+            return;
+        }
+
+        if ($entreeTable !== null) {
+            $tirees = self::tireesDe($grille['mobilier'][$index]);
+            $tirees[$entreeTable] = ($tirees[$entreeTable] ?? 0) + 1;
+            $grille['mobilier'][$index]['tirees'] = $tirees;
+        }
+
+        if ($vider) {
+            $grille['mobilier'][$index]['fouille'] = true;
+        }
+
+        $carte->update(['grille' => $grille]);
+    }
+
+    /**
+     * Rend sa fouille à ce héros (le piège d'un coffre `un_seul_butin` : il a gardé le trésor, il ne l'a pas pris).
+     */
+    public function rendreFouille(Carte $carte, int $index, int $personnageId): void
+    {
+        $grille = $carte->grille;
+
+        if (! isset($grille['mobilier'][$index])) {
+            return;
+        }
+
+        $grille['mobilier'][$index]['fouille_par'] = array_values(array_filter(
+            array_map('intval', (array) ($grille['mobilier'][$index]['fouille_par'] ?? [])),
+            fn (int $id) => $id !== $personnageId,
+        ));
+
+        $carte->update(['grille' => $grille]);
+    }
+
+    /**
      * Tire le butin d'un meuble dans SA table (`mobiliers.effet.fouille`), et
      * rend une carte de la même forme que celles du deck de fouille — pour que
      * `ResolveurTour::appliquerButin()` l'applique sans rien savoir d'où elle
@@ -183,18 +309,30 @@ final class MoteurMobilier
      * Un meuble sans table déclarée rend `rien` — un catalogue incomplet ne doit
      * pas fabriquer de butin fantôme.
      *
+     * CONTENU FINI (2026-11-07) : `$tirees` (`tireesDe()` de CE meuble) retire de la table les jetons déjà sortis
+     * (`exemplairesRestants()`), AVANT le tirage pondéré : une entrée pèse son `poids` × ses exemplaires restants, et
+     * les autres se partagent la chance libérée.
+     * La carte rendue porte `table_index`, l'index de l'entrée tirée dans `effet.fouille`, pour que l'appelant la
+     * compte (`noterTirage()`) ; il le retire avant de publier.
+     *
+     * @param  array<int, int>  $tirees
      * @return array<string, mixed>
      */
-    public function tirerButin(Mobilier $type, int $niveauMoyen = 1, array $tagsAccessibles = [], array $boitesDuTheme = []): array
+    public function tirerButin(Mobilier $type, int $niveauMoyen = 1, array $tagsAccessibles = [], array $boitesDuTheme = [], array $tirees = []): array
     {
         // THÈME DU GROUPE (2026-10-29) : une pièce BOÎTÉE ne sort que sous sa boîte — `BestiaireGroupe::duGroupe($groupe)->boites`,
         // le même prédicat que l'artefact du coffre (`DeckFouille::choisirArtefact()`). Une entrée boîtée hors thème n'existe pas
         // pour CE tirage : elle sort du tableau AVANT le tirage pondéré, pour que les autres entrées gardent leur poids. Sans
         // `$boitesDuTheme`, seules les pièces SANS boîte restent admises (échec fermé).
-        $table = array_values(array_filter(
-            (array) ($type->effet['fouille'] ?? []),
-            fn ($e) => is_array($e) && (int) ($e['poids'] ?? 0) > 0 && $this->admisParLeTheme($e, $boitesDuTheme),
-        ));
+        $table = [];
+
+        foreach ((array) ($type->effet['fouille'] ?? []) as $i => $e) {
+            $restants = is_array($e) ? self::exemplairesRestants($e, (int) $i, $tirees) : 0;
+
+            if ($restants > 0 && (int) ($e['poids'] ?? 0) > 0 && $this->admisParLeTheme($e, $boitesDuTheme)) {
+                $table[] = ['poids' => (int) $e['poids'] * $restants] + $e + ['table_index' => (int) $i];
+            }
+        }
 
         if ($table === []) {
             return ['issue' => 'rien', 'sans_table' => true];
@@ -213,7 +351,8 @@ final class MoteurMobilier
             }
         }
 
-        return $this->carteDepuisEntree($entree, $niveauMoyen, $tagsAccessibles, $boitesDuTheme);
+        return $this->carteDepuisEntree($entree, $niveauMoyen, $tagsAccessibles, $boitesDuTheme)
+            + ['table_index' => $entree['table_index']];
     }
 
     /**

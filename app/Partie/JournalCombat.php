@@ -3072,6 +3072,29 @@ final class JournalCombat
         ]];
     }
 
+    /**
+     * « Le trône », « L'armoire », « La bibliothèque » — l'article défini d'un meuble du catalogue, en tête de phrase.
+     * Le genre se lit sur une liste FERMÉE des meubles fouillables ; un nom absent retombe sur « Le meuble X ».
+     */
+    private static function leMeuble(string $nom): string
+    {
+        $bas = mb_strtolower($nom);
+
+        if (preg_match('/^[aeiouyéèêâîôû]/u', $bas) === 1) {
+            return "L'{$bas}";
+        }
+
+        $feminins = ['bibliothèque', 'table des brasseurs', 'caisse de ravitaillement'];
+
+        if (in_array($bas, $feminins, true)) {
+            return "La {$bas}";
+        }
+
+        $masculins = ['coffre', 'trône', 'tombeau', "râtelier d'armes"];
+
+        return in_array($bas, $masculins, true) ? "Le {$bas}" : "Le meuble « {$nom} »";
+    }
+
     private function fouille(array $a, string $acteurNom): array
     {
         $lignes = match ($a['issue'] ?? null) {
@@ -3141,6 +3164,12 @@ final class JournalCombat
         // sans que personne ne l'ait trouvée.
         if (isset($a['cle_de_laiton']['objet']['nom'])) {
             $lignes[] = ['texte' => "{$acteurNom} trouve aussi une {$a['cle_de_laiton']['objet']['nom']}", 'ton' => 'tresor'];
+        }
+
+        // CONTENU FINI (René, 2026-11-07) : le meuble qui vient de rendre son dernier butin quitte le menu. Le fil le
+        // dit — sinon « Fouiller : Trône » disparaît de la manette des autres héros sans raison visible.
+        if (! empty($a['meuble_vide']) && isset($a['mobilier'])) {
+            $lignes[] = $this->info(self::leMeuble((string) $a['mobilier']).' est désormais vide');
         }
 
         // SIXIÈME SENS (Explorateur) : la carte de piège remise sous le paquet. Elle ne se

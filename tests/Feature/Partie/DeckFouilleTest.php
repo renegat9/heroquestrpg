@@ -940,13 +940,14 @@ it('rend le mobilier FOUILLABLE, une fois PAR HÉROS', function () {
 
     expect($option)->not->toBeNull('« Fouiller : <meuble> » absent du menu');
 
-    test()->postJson('/api/groupes/table-1/choix', ['option_id' => $option['id']])
+    $resultat = test()->postJson('/api/groupes/table-1/choix', ['option_id' => $option['id']])
         ->assertStatus(202)
         ->assertJsonPath('resultat.type', 'fouille_mobilier')
         // ⚠ Aucun `deck_restant` : le meuble tire dans SA table, il ne touche
         // pas au deck de la quête. L'annoncer apprenait au joueur une chose
         // fausse — relevé par la joueuse elfe en partie réelle (2026-08-17).
-        ->assertJsonMissingPath('resultat.deck_restant');
+        ->assertJsonMissingPath('resultat.deck_restant')
+        ->json('resultat');
 
     // UNE FOIS PAR HÉROS (décision de René, 2026-08-17) : le fouilleur a
     // dépensé la sienne…
@@ -961,8 +962,16 @@ it('rend le mobilier FOUILLABLE, une fois PAR HÉROS', function () {
 
     // …mais un COMPAGNON garde la sienne. C'est tout le changement : le premier
     // arrivé n'épuise plus la pièce pour le groupe, et l'or cesse de dépendre
-    // de qui a atteint le meuble le premier.
-    expect($mm->fouillablesAdjacents($carte, $x, $y, (int) $hero->id + 999))->not->toBeEmpty();
+    // de qui a atteint le meuble le premier. SAUF si cette fouille l'a VIDÉE
+    // (contenu fini, 2026-11-07 : le coffre après son butin, le trône après son
+    // or) — elle n'est alors plus offerte à personne, et le payload le dit.
+    $offertsAuCompagnon = collect($mm->fouillablesAdjacents($carte, $x, $y, (int) $hero->id + 999))->pluck('index');
+
+    if (! empty($resultat['meuble_vide'])) {
+        expect($offertsAuCompagnon)->not->toContain($index);
+    } else {
+        expect($offertsAuCompagnon)->toContain($index);
+    }
 });
 
 it('donne à CHAQUE meuble sa table de butin, avec une chance de ne rien trouver', function () {
@@ -983,7 +992,9 @@ it('donne à CHAQUE meuble sa table de butin, avec une chance de ne rien trouver
         // message — piège déjà payé ailleurs dans ce dépôt.
         $issues = array_column($table, 'issue');
 
-        expect(in_array('rien', $issues, true))->toBeTrue(
+        // ⚠ LE COFFRE (`un_seul_butin`, René, 2026-11-07 : « fouillé seulement 1 fois avec 1 résultat seulement ») n'a
+        // pas de « rien » PAR CONSTRUCTION : son premier butin le vide pour tout le groupe, donc il ne se récolte pas.
+        expect(in_array('rien', $issues, true) || MoteurMobilier::unSeulButin($type))->toBeTrue(
             "{$type->nom} : aucune issue « rien » — un meuble qui donne toujours "
             .'quelque chose fait de l\'exploration une récolte.');
 

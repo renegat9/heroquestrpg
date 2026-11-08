@@ -57,6 +57,12 @@ class MobilierSeeder extends Seeder
         // meuble a maintenant SA table, et se fouille UNE FOIS PAR HÉROS — comme
         // une salle.
         //
+        // CONTENU FINI (René, 2026-11-07) : un meuble est un SAC DE JETONS.
+        // Chaque entrée vaut `fois` jetons (1 par défaut), chacun de son poids ;
+        // le jeton tiré sort du sac, « rien » y est remis — un meuble dont il ne
+        // reste que « rien » est vide et quitte le menu (`MoteurMobilier::tirerButin()`).
+        // Le Coffre ne se fouille qu'une fois pour tout le groupe (`un_seul_butin`).
+        //
         // ⚠ Aucun livret ne source ces tables : ils ne disent même pas qu'un
         // meuble bloque le passage (doc 17 §3). C'est un choix de jeu, guidé par
         // ce que la pièce contient PLAUSIBLEMENT — des armes dans un râtelier,
@@ -78,7 +84,8 @@ class MobilierSeeder extends Seeder
         //
         // ⚠ CHAQUE table porte une issue `rien`, et un test l'exige : un meuble
         // qui donnerait toujours quelque chose ferait de l'exploration une
-        // récolte, et l'or cesserait d'être une ressource.
+        // récolte, et l'or cesserait d'être une ressource. Seule exception, par
+        // construction : le Coffre (`un_seul_butin`), que son unique butin vide.
         $mobiliers = [
             // Habillage de la fouille de SALLE (RB p. 14) : aucune note de quête
             // consultée n'accroche un trésor propre à une table — fouillable = false.
@@ -93,31 +100,37 @@ class MobilierSeeder extends Seeder
             // UNE carte, la potion de fortune a un poids sur trois (le livret ne dit pas combien de fouilles la vident).
             ['nom' => 'Table des brasseurs', 'nom_anglais' => 'Table', 'largeur' => 3, 'hauteur' => 2, 'difficulte_destruction' => 1, 'fouillable' => true, 'bloque_vue' => false,
                 'boite' => 'spirit_queen',
+                // `fois` 3 (2026-11-07, contenu fini) : les « three potions » du livret — trois jetons de potion dans le sac,
+                // 3 chances sur 5 à la première fouille, puis de moins en moins, et jamais une quatrième.
                 'effet' => ['fouille' => [
-                    ['issue' => 'objet', 'poids' => 1, 'objet' => 'Potion de fortune'],
+                    ['issue' => 'objet', 'poids' => 1, 'objet' => 'Potion de fortune', 'fois' => 3],
                     ['issue' => 'rien', 'poids' => 2],
                 ]]],
 
-            // Le coffre est le contenant à butin par excellence : c'est celui qui
-            // paie le plus souvent, et le seul à pouvoir rendre un objet rare.
+            // LE COFFRE (René, 2026-11-07 : « fouillé seulement 1 fois avec 1 résultat seulement (artefact ou or) ») :
+            // `un_seul_butin` — le premier butin le vide pour tout le groupe. Un coffre ORDINAIRE rend donc de l'or, et
+            // rien d'autre : ni « rien », ni objet (il en rendait 2 chances sur 11 de consommable, 1 d'arme ou d'armure).
+            // Le coffre DÉSIGNÉ de la quête rend sa récompense (`DeckFouille::carteCoffre()`), puis il est vide aussi.
             ['nom' => 'Coffre', 'nom_anglais' => 'Chest', 'largeur' => 1, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => false,
-                'effet' => ['fouille' => [
-                    ['issue' => 'tresor', 'poids' => 4, 'or' => [25, 60]],
-                    ['issue' => 'objet', 'poids' => 2, 'categories' => ['consommable']],
-                    ['issue' => 'objet', 'poids' => 1, 'categories' => ['arme', 'armure']],
+                'effet' => ['un_seul_butin' => true, 'fouille' => [
+                    ['issue' => 'tresor', 'poids' => 3, 'or' => [25, 60]],
                     // Spirit Queen's Torment (G0053 quête 2, note C, p. 5 ; quête 6, note B, p. 9) : un coffre peut porter
                     // un piège magique qui lance Boule de Flammes sur le fouilleur. Poids 1 : CHOIX DE JEU (⚠ non trouvé :
                     // aucun livret ne donne de fréquence). N'entre dans la table que sous le thème `spirit_queen` — la
                     // boîte est portée par la LIGNE du piège (`pieges.boite`), lue par `MoteurMobilier::tirerButin()`.
+                    // Poids 1 contre 3 depuis le 2026-11-07 : le coffre ne se fouille plus qu'une fois, et ce quart
+                    // garde la fréquence d'avant PAR COFFRE (≈ 1 chance sur 11, à chacune de ~3 fouilles). Le piège
+                    // ne vide pas le coffre : il sort une fois, et le trésor attend la fouille suivante.
                     ['issue' => 'piege', 'poids' => 1, 'piege' => 'Piège de Boule de Flammes'],
-                    ['issue' => 'rien', 'poids' => 3],
                 ]]],
 
             // Un trône ne se fouille pas, il se dépouille : pierreries du dossier,
             // pièces oubliées sous l'assise. De l'or, ou rien.
             ['nom' => 'Trône', 'nom_anglais' => 'Throne', 'largeur' => 1, 'hauteur' => 1, 'difficulte_destruction' => 3, 'fouillable' => true, 'bloque_vue' => false,
                 'effet' => ['fouille' => [
-                    ['issue' => 'tresor', 'poids' => 4, 'or' => [35, 75]],
+                    // Or ÷2 le 2026-11-07 (était 35-75) : « on gagne plus d'or que dans le jeu normal » — bilan
+                    // `docs/bilan-economie-2026-11-07.md`, les meubles hors coffres faisaient 38 % de l'or.
+                    ['issue' => 'tresor', 'poids' => 4, 'or' => [18, 38]],
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
 
@@ -143,7 +156,7 @@ class MobilierSeeder extends Seeder
             // 3×2 COUCHÉ : décision de René (2026-10-16), comme dessiné (Q14, p. 31 imprimée).
             ['nom' => 'Tombeau', 'nom_anglais' => 'Tomb', 'largeur' => 3, 'hauteur' => 2, 'difficulte_destruction' => null, 'fouillable' => true, 'bloque_vue' => false,
                 'effet' => ['fouille' => [
-                    ['issue' => 'tresor', 'poids' => 3, 'or' => [30, 70]],
+                    ['issue' => 'tresor', 'poids' => 3, 'or' => [15, 35]], // ÷2 le 2026-11-07 (était 30-70)
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['arme', 'armure']],
                     // Un tombeau se défend (décision de René, 2026-08-17) :
                     // l'aiguille dans la serrure du sarcophage.
@@ -164,7 +177,7 @@ class MobilierSeeder extends Seeder
             ['nom' => 'Bibliothèque', 'nom_anglais' => 'Bookcase', 'largeur' => 3, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 3, 'categories' => ['parchemin']],
-                    ['issue' => 'tresor', 'poids' => 1, 'or' => [10, 25]],
+                    ['issue' => 'tresor', 'poids' => 1, 'or' => [5, 12]], // ÷2 le 2026-11-07 (était 10-25)
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
 
@@ -183,7 +196,7 @@ class MobilierSeeder extends Seeder
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['consommable']],
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['outil']],
-                    ['issue' => 'tresor', 'poids' => 2, 'or' => [15, 40]],
+                    ['issue' => 'tresor', 'poids' => 2, 'or' => [8, 20]], // ÷2 le 2026-11-07 (était 15-40)
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
 

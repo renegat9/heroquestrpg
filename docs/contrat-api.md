@@ -2959,7 +2959,23 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
     or ou potion de `carteCoffre()`) REMPLACE la table ordinaire du coffre ;
     payload `{type: "fouille_mobilier", mobilier: "Coffre", coffre_quete:
     true, issue, …}`. Une seule fois pour le groupe : `quetes.coffres_ouverts`
-    (nouvel état durable, restauré par les snapshots).
+    (nouvel état durable, restauré par les snapshots). Depuis le 2026-11-07, le
+    coffre est ensuite **vide** (`meuble_vide: true`, ci-dessous).
+  - **Contenu fini** (René, 2026-11-07) : un meuble est un **sac de jetons**. Chaque
+    entrée de sa table vaut `fois` jetons (1 par défaut ; 3 potions à la Table des
+    brasseurs), chacun du poids de l'entrée ; la fouille en tire un, qui **sort du
+    sac** — sauf « rien », remis dans le sac. Ce qui reste se partage la chance
+    libérée. Le **Coffre** (`mobiliers.effet.un_seul_butin`) ne rend qu'**un**
+    butin pour tout le groupe — de l'or, ou la récompense du coffre désigné ; un
+    piège ne le vide pas et **rend sa fouille** au héros. Le meuble dont il ne
+    reste que « rien » (ou le coffre qui a rendu son butin) est **vide** : le
+    payload de la fouille qui le vide porte **`meuble_vide: true`**, le fil le dit
+    (« Le trône est désormais vide »), et l'option **« Fouiller : X » n'est plus
+    offerte à personne** — la manette n'a rien à déduire, le menu est la décision.
+    Un meuble vide **mis en pièces** ne rend plus de `fouille_finale` (son payload
+    s'arrête à `{detruit: true}`). État durable dans la grille :
+    `grille.mobilier[i].tirees` (`{index d'entrée: compte}`) et `.fouille: true`
+    (vide pour le groupe).
   - **Caisse de ravitaillement** (Against the Ogre Horde p. 5, boîte
     `horde_ogre`) → au PREMIER qui l'ouvre : `{issue: "caisse_ravitaillement",
     caisse_ravitaillement: true, objets: [{objet, sac_deborde?}, ×4]}`

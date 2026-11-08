@@ -96,10 +96,11 @@ it('ne tire jamais une rareté ABSENTE du vivier', function () {
 
 it('fait vraiment monter le rare dans le butin d\'un meuble', function () {
     $mm = app(MoteurMobilier::class);
-    $coffre = Mobilier::where('nom', 'Coffre')->firstOrFail();
+    // Le râtelier, et non plus le coffre : depuis le 2026-11-07 (`un_seul_butin`), un coffre ordinaire ne rend que de l'or.
+    $ratelier = Mobilier::where('nom', 'Râtelier d\'armes')->firstOrFail();
 
     $rares = fn (int $niveau) => collect(range(1, 400))
-        ->map(fn () => $mm->tirerButin($coffre, $niveau))
+        ->map(fn () => $mm->tirerButin($ratelier, $niveau))
         ->where('issue', 'objet')
         ->where('rarete', 'rare')
         ->count();

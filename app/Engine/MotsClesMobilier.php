@@ -29,10 +29,21 @@ final class MotsClesMobilier
      */
     public const VOCABULAIRE = [
         // Table de butin d'une pièce fouillable (coffre, tombeau, armoire…),
-        // tirée PONDÉRÉE par `poids`.
+        // tirée PONDÉRÉE par `poids`. CONTENU FINI (René, 2026-11-07) : un SAC
+        // DE JETONS — chaque entrée vaut `fois` jetons (1 par défaut ; la Table
+        // des brasseurs : « three potions »), le jeton tiré sort du sac, « rien »
+        // y est remis.
         'fouille' => [
             'lecteur' => 'App\Partie\MoteurMobilier::tirerButin()',
-            'libelle' => 'se fouille : table de butin propre à la pièce',
+            'libelle' => 'se fouille : table de butin propre à la pièce, chaque résultat une fois',
+        ],
+
+        // LE COFFRE (René, 2026-11-07 : « fouillé seulement 1 fois avec 1
+        // résultat seulement (artefact ou or) ») : le premier BUTIN le vide pour
+        // tout le groupe. Un piège ne le vide pas (RB p. 18-19).
+        'un_seul_butin' => [
+            'lecteur' => 'App\Partie\MoteurMobilier::unSeulButin()',
+            'libelle' => 'se fouille une seule fois pour tout le groupe : le premier butin le vide',
         ],
 
         // COCON (Jungles of Delthrak p. 4) : « A hero adjacent to a cocoon can

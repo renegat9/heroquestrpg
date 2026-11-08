@@ -10612,12 +10612,10 @@ final class ResolveurTour
     /**
      * Fouiller un MEUBLE au contact (doc 17) — coffre, tombeau, armoire…
      *
-     * Une seule fois pour tout le GROUPE : un meuble est un objet physique, le
-     * premier qui l'ouvre le vide. C'est ce qui le distingue de la fouille de
-     * salle, qui est une par héros.
-     *
-     * Le butin vient du MÊME deck que la fouille de salle : un seul barème de
-     * trésor pour le donjon, et le meuble consomme donc une carte.
+     * Une fois par HÉROS (2026-08-17), dans la table propre au meuble, à contenu
+     * FINI (2026-11-07) : un sac de jetons — le jeton tiré sort du sac, « rien »
+     * y est remis —, et le coffre (`un_seul_butin`) ne rend qu'un butin pour tout
+     * le groupe — `MoteurMobilier`.
      *
      * @param  array<string, mixed>  $option
      * @param  array<string, mixed>  $acteur
@@ -10700,6 +10698,13 @@ final class ResolveurTour
                 $groupe, $quete, $personnage, $etat,
             );
 
+            // LE COFFRE ne rend qu'un résultat (René, 2026-11-07) : sa récompense prise, il est vide pour le groupe —
+            // avant, les fouilleurs suivants retombaient sur sa table ordinaire.
+            if (MoteurMobilier::unSeulButin($meuble['type'])) {
+                $this->mobilier->noterTirage($carteQuete->refresh(), $index, null, true);
+                $payload['meuble_vide'] = true;
+            }
+
             Journal::ajouter($groupe, 'action', $payload, $acteur);
 
             return $payload;
@@ -10749,17 +10754,49 @@ final class ResolveurTour
         // deux tirages : la relance rejoue donc la même table, sans recalculer
         // (ni ré-annoncer l'Œil du prix).
         // FLAIR DU PISTEUR (lot B) : un résultat négatif de la table se refait ici aussi, au même point de tirage.
+        // Boîtes du thème du groupe (2026-10-29) : une pièce boîtée hors thème ne sort jamais de cette table.
+        // CONTENU FINI (2026-11-07) : les résultats déjà sortis de CE meuble n'y sont plus (`MoteurMobilier::tireesDe()`).
+        $boites = BestiaireGroupe::duGroupe($groupe)->boites;
         [$carte, $ecartee] = $this->piocherAvecFlair(
             $personnage, $etat,
-            // Boîtes du thème du groupe (2026-10-29) : une pièce boîtée hors thème ne sort jamais de cette table.
-            fn (): array => $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles, BestiaireGroupe::duGroupe($groupe)->boites),
+            fn (): array => $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles, $boites, MoteurMobilier::tireesDe($meuble['entree'])),
         );
 
+        // L'index de l'entrée tirée sert au décompte, jamais au payload. La carte écartée par une relance retourne
+        // dans la table : elle n'est pas comptée.
+        $entreeTable = isset($carte['table_index']) ? (int) $carte['table_index'] : null;
+        unset($carte['table_index']);
+
         if ($ecartee !== null) {
-            $entete['carte_ecartee'] = $ecartee;
+            $entete['carte_ecartee'] = $ecartee; // l'issue écartée (`'piege'`…), jamais la carte entière
         }
 
         $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat, duDeck: false);
+
+        // CONTENU FINI (René, 2026-11-07) : ce qui vient de sortir n'est plus dans ce meuble — « rien » excepté, et un
+        // butin que personne ici ne pouvait prendre (`objet_indisponible`, publié en `rien`) y reste. Dont il ne reste
+        // que « rien », le meuble est VIDE pour le groupe et quitte le menu. LE COFFRE (`un_seul_butin`) : son premier
+        // butin le vide ; un piège ne le vide pas et rend sa fouille au héros — il gardait le trésor, il ne l'a pas pris.
+        $donne = ($payload['issue'] ?? 'rien') !== 'rien';
+        $tirees = MoteurMobilier::tireesDe((array) (($carteQuete->refresh()->grille['mobilier'] ?? [])[$index] ?? []));
+
+        if ($donne && $entreeTable !== null) {
+            $tirees[$entreeTable] = ($tirees[$entreeTable] ?? 0) + 1;
+        }
+
+        $unSeulButin = MoteurMobilier::unSeulButin($meuble['type']);
+        $vider = ($unSeulButin && $donne && $payload['issue'] !== 'piege')
+            || ! $this->mobilier->resteUnButin($meuble['type'], $tirees, $boites);
+
+        $this->mobilier->noterTirage($carteQuete, $index, $donne ? $entreeTable : null, $vider);
+
+        if ($unSeulButin && ($payload['issue'] ?? null) === 'piege') {
+            $this->mobilier->rendreFouille($carteQuete, $index, (int) $personnage->id);
+        }
+
+        if ($vider) {
+            $payload['meuble_vide'] = true;
+        }
 
         // CLÉ DE LAITON (Mage of the Mirror, F7539 quête 7 note C : « The first hero to search for treasure in this room finds a
         // tool kit in the weapons rack. […] This hero also finds a brass key. ») : le PREMIER qui fouille le râtelier qui la porte
@@ -11862,10 +11899,12 @@ final class ResolveurTour
      * Met une pièce de mobilier en pièces (2026-08-24).
      *
      * ⚠ Une pièce FOUILLABLE rend UNE dernière fouille à son destructeur, même
-     * si tout le groupe l'avait déjà vidée : c'est le troc — on ouvre le passage
+     * si tout le groupe l'avait déjà fouillée : c'est le troc — on ouvre le passage
      * et on rafle le fond, mais plus personne ne la fouillera. Le butin passe par
      * `appliquerButin()`, donc l'objet va au fouilleur et l'or à la bourse
-     * commune, comme partout ailleurs.
+     * commune, comme partout ailleurs. CONTENU FINI (2026-11-07) : le fond, c'est
+     * ce qui RESTE (`MoteurMobilier::tireesDe()`) ; une pièce VIDE (`estVide()`)
+     * n'a plus de fond, et sa destruction ne rend rien.
      *
      * @return array<string, mixed>
      */
@@ -11887,7 +11926,7 @@ final class ResolveurTour
 
         $payload = ['detruit' => true];
 
-        if (! $type->fouillable) {
+        if (! $type->fouillable || MoteurMobilier::estVide($entree)) {
             return $payload;
         }
 
@@ -11898,8 +11937,9 @@ final class ResolveurTour
 
         $carte = $this->mobilier->tirerButin(
             $type, $niveauMoyen, $this->equipement->tagsAccessiblesAux($herosEngages),
-            BestiaireGroupe::duGroupe($groupe)->boites,
+            BestiaireGroupe::duGroupe($groupe)->boites, MoteurMobilier::tireesDe($entree),
         );
+        unset($carte['table_index']);
 
         // ⚠ Le butin est NICHÉ sous `butin`, jamais fusionné à plat : le payload
         // d'un jet porte déjà `issue` (le résultat du DÉ — réussite, réussite

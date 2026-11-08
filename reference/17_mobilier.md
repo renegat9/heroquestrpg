@@ -260,15 +260,20 @@ Chaque meuble fouillable porte sa propre table de butin (`mobiliers.effet.fouill
 tirée au sort de façon **pondérée**, et se fouille **une fois par héros** — comme
 une salle, et non plus une fois pour tout le groupe.
 
-| Meuble | Or | Objet | Piège | Rien |
+| Meuble | Or | Objet | Piège / monstre | Rien |
 |---|---|---|---|---|
-| Coffre | 40 % · 25-70 po | 20 % consommable · 10 % arme/armure | — | 30 % |
-| Trône | 50 % · 35-75 po | — | — | 50 % |
+| Coffre (`un_seul_butin`) | 75 % · 25-60 po | — | 25 % *Boule de Flammes* (Spirit Queen's Torment seulement ; hors de ce thème, l'or sort toujours) | — |
+| Trône | 50 % · 18-38 po | — | — | 50 % |
 | Établi d'alchimiste | — | 42 % consommable · 17 % **parchemin** (2026-10-16) | 17 % *Fiole de poison* | 25 % |
-| Tombeau | 27 % · 30-70 po | 18 % arme/armure | 18 % *Aiguille empoisonnée* | 36 % |
-| Bibliothèque | 12,5 % · 10-25 po | 37,5 % **parchemin** | — | 50 % |
+| Tombeau | 23 % · 15-35 po | 15 % arme/armure | 15 % *Aiguille empoisonnée* · 15 % mort-vivant | 31 % |
+| Bibliothèque | 12,5 % · 5-12 po | 37,5 % **parchemin** | — | 50 % |
 | Râtelier d'armes | — | 50 % arme/armure | — | 50 % |
-| Armoire | 20 % · 15-40 po | 20 % consommable · 20 % outil | — | 40 % |
+| Armoire | 20 % · 8-20 po | 20 % consommable · 20 % outil | — | 40 % |
+
+Chances de la PREMIÈRE fouille. **Contenu fini** (René, 2026-11-07) : chaque résultat, « rien »
+excepté, ne sort qu'une fois par meuble, et le meuble dont il ne reste que « rien » est vide ; le
+Coffre ne rend qu'un butin pour tout le groupe ; l'or hors coffres a été divisé par deux. Règle et
+raisons : `docs/regles/exploration-et-fouille.md`.
 
 La **Table** reste non fouillable (§1) : aucune note de quête consultée n'y
 accroche de trésor.
