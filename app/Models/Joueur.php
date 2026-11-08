@@ -26,9 +26,12 @@ class Joueur extends Model
         ];
     }
 
-    /** Roster du joueur. */
+    /**
+     * Roster du joueur — ses VRAIS héros. Les doublures d'arène (mode arène, lot A1) lui appartiennent aussi, pour
+     * qu'il les pilote depuis sa manette, mais n'y figurent jamais : `Personnage::scopeHorsDoublures()`.
+     */
     public function personnages(): HasMany
     {
-        return $this->hasMany(Personnage::class, 'joueur_id');
+        return $this->hasMany(Personnage::class, 'joueur_id')->horsDoublures();
     }
 }

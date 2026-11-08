@@ -43,6 +43,9 @@ class Personnage extends Model
         // ENTRAÎNEMENT au hub (2026-11-07) : +1 à l'attribut, une fois par attribut — `App\Partie\Entrainement`.
         'entraine_body',
         'entraine_mind',
+        // MODE ARÈNE (lot A1, 2026-11-08) : l'id du héros dont cette ligne est la DOUBLURE, `null` pour un vrai héros.
+        // Posé par `App\Partie\Arene\Doublures::doubler()` seul — `docs/plan-mode-arene.md` §2.
+        'doublure_de',
     ];
 
     /**
@@ -103,6 +106,32 @@ class Personnage extends Model
             'entraine_body' => 'boolean',
             'entraine_mind' => 'boolean',
         ];
+    }
+
+    /**
+     * MODE ARÈNE (lot A1) : une doublure est la copie jetable d'un héros, qui combat en arène à sa place.
+     * `docs/plan-mode-arene.md` §2.
+     */
+    public function estDoublure(): bool
+    {
+        return $this->doublure_de !== null;
+    }
+
+    /** Le héros dont cette ligne est la doublure (`null` pour un vrai héros). */
+    public function source(): BelongsTo
+    {
+        return $this->belongsTo(Personnage::class, 'doublure_de');
+    }
+
+    /**
+     * Les VRAIS héros, doublures d'arène exclues : ce que voit le roster et ce qu'une campagne peut engager.
+     * Un seul prédicat, lu par `Joueur::personnages()` et par chaque route qui engage ou supprime un héros
+     * (`GroupeController`), pour qu'une doublure ne puisse jamais entrer en campagne ni être supprimée hors de
+     * `Doublures::supprimer()`.
+     */
+    public function scopeHorsDoublures(\Illuminate\Database\Eloquent\Builder $query): void
+    {
+        $query->whereNull('personnages.doublure_de');
     }
 
     /** Propriétaire (roster). */

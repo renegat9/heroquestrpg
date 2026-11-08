@@ -991,6 +991,18 @@ Broadcasts canal `groupe.{identifiant}` : `.marche.ouvert` (EtatMarche),
 `.marche.maj` (EtatMarche, à chaque panier/confirmation), `.marche.finalise`
 ({applique: bool}) suivi de `.groupe.etat`.
 
+## Mode arène — doublures (lot A1, 2026-11-08, `docs/plan-mode-arene.md` §2)
+
+Le héros n'entre jamais dans l'arène : sa **doublure** y entre — une ligne `personnages` à part entière
+(`doublure_de` = id du héros source), créée et supprimée par `App\Partie\Arene\Doublures` seul. Aucune route ne
+l'expose encore (elles viennent avec le groupe d'arène, lot A2). Ce qui change dès maintenant pour les routes
+existantes :
+
+- `GET /api/moi` → `joueur.personnages[]` ne contient **jamais** une doublure (`Joueur::personnages()`).
+- `POST /api/groupes` (`personnage_id`) et `POST /api/groupes/{identifiant}/joueurs` refusent une doublure en
+  **422**, avec le message d'un héros qui n'existe pas ou n'appartient pas au joueur.
+- `DELETE /api/personnages/{id}` répond **404** pour une doublure.
+
 ## Entraînement — +1 à un attribut contre de l'or (au hub uniquement, 2026-11-07)
 
 René : les attributs Body et Mind (les dés des jets de test) ne montaient jamais ; il retient l'entraînement payant,

@@ -121,7 +121,9 @@ class GroupeController extends Controller
         // Validation du perso fondateur si fourni.
         $personnageFondateur = null;
         if (isset($donnees['personnage_id'])) {
+            // `horsDoublures()` : une doublure d'arène ne fonde jamais une campagne (mode arène, lot A1).
             $personnageFondateur = Personnage::query()
+                ->horsDoublures()
                 ->where('id', $donnees['personnage_id'])
                 ->where('joueur_id', $joueur->id)
                 ->first();
@@ -260,7 +262,8 @@ class GroupeController extends Controller
     {
         $joueur = Auth::guard('joueur')->user();
 
-        $personnage = Personnage::where('joueur_id', $joueur->id)->where('id', $id)->firstOrFail();
+        // `horsDoublures()` : une doublure d'arène ne se supprime que par `Doublures::supprimer()` (mode arène, lot A1).
+        $personnage = Personnage::horsDoublures()->where('joueur_id', $joueur->id)->where('id', $id)->firstOrFail();
 
         if ($personnage->groupe_actif_id !== null) {
             throw ValidationException::withMessages([
@@ -336,7 +339,9 @@ class GroupeController extends Controller
         } else {
             $ids = $donnees['personnage_ids'] ?? [$donnees['personnage_id']];
 
+            // `horsDoublures()` : une doublure d'arène ne rejoint jamais une campagne (mode arène, lot A1).
             $personnages = Personnage::query()
+                ->horsDoublures()
                 ->whereIn('id', $ids)
                 ->where('joueur_id', $joueur->id)
                 ->get();
