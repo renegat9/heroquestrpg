@@ -442,7 +442,7 @@ async function enregistrer() {
                         <h3><MSym n="balance" :size="16" /> Équilibrage des rencontres</h3>
                         <div class="parametres-grille">
                             <label class="parametres-champ">
-                                <span>Monstres forts par quête</span>
+                                <span>Monstres forts par quête (minimum)</span>
                                 <input
                                     v-model="form.rencontres_forts_par_quete"
                                     type="number"

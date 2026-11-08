@@ -407,7 +407,9 @@ it('« Fouiller — trésor » fait surgir un monstre errant (budget dédié) qu
 
     $instancesAvant = $quete->instancesMonstres()->count();
 
-    // Le moins cher du bestiaire (Gobelin, coût 1) est instancié.
+    // L'errant DE LA QUÊTE est instancié — de plus en plus fort au fil de l'arc depuis le 2026-11-08
+    // (`MonstreErrant::deLaQuete()`) ; ce n'est plus le Gobelin, le moins cher, à toutes les quêtes.
+    $attendu = app(App\Partie\MonstreErrant::class)->deLaQuete($quete)->nom_base;
     empilerCarteFouille($quete, ['issue' => 'errant']);
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
@@ -421,6 +423,7 @@ it('« Fouiller — trésor » fait surgir un monstre errant (budget dédié) qu
     expect($errant)->not->toBeNull()
         ->and($errant->etat)->toBe('actif')
         ->and((bool) $errant->revele)->toBeTrue()
+        ->and($errant->monstre->nom_base)->toBe($attendu)
         ->and($quete->fresh()->instancesMonstres()->count())->toBe($instancesAvant + 1);
 
     // Fouiller est une ACTION (a_agi) mais NE termine plus le tour tout seul :
@@ -439,7 +442,7 @@ it('« Fouiller — trésor » fait surgir un monstre errant (budget dédié) qu
 
     $actions = collect($tour->json('resultat.tour_monstres.actions'));
     expect($actions->isNotEmpty())->toBeTrue()
-        ->and($actions->contains(fn ($a) => ($a['monstre'] ?? null) === 'Gobelin'))->toBeTrue();
+        ->and($actions->contains(fn ($a) => ($a['monstre'] ?? null) === $attendu))->toBeTrue();
 });
 
 it('révèle la salle et ses monstres DÈS L\'OUVERTURE de la porte — comme au plateau, sans attendre d\'y entrer', function () {

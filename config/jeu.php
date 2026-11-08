@@ -23,9 +23,14 @@ return [
      * héros niveau 1). Le budget achète d'abord quelques « forts » (haut du tier
      * base), puis remplit la masse avec des « faibles » (bas du tier) pour
      * maximiser le nombre d'ennemis peu dangereux.
+     *
+     * ⚠ Révisé le 2026-11-08 (René : « ajouter plus de monstres n'est pas nécessairement plus difficile car souvent
+     * ils sont coincés entre des meubles ou le cadre de porte ») : la masse est PLAFONNÉE par salle
+     * (`places_par_salle_en_plus_des_heros`), et le budget qu'elle ne peut plus absorber achète des forts. Le
+     * compte ci-dessous devient un MINIMUM : à petit budget rien ne change, à gros budget les forts prennent la place.
      */
     'rencontres' => [
-        // Nombre de monstres FORTS semés par quête, EN PLUS de la rencontre finale.
+        // MINIMUM de monstres FORTS semés par quête, EN PLUS de la rencontre finale.
         'forts_par_quete' => (int) env('JEU_FORTS_PAR_QUETE', 1),
         // + 1 fort tous les N crans d'arc (escalade douce ; 0 = pas d'escalade).
         'forts_escalade_arc' => (int) env('JEU_FORTS_ESCALADE_ARC', 2),
@@ -51,6 +56,23 @@ return [
         'jalon_boss_final' => (float) env('JEU_JALON_BOSS_FINAL', 1.5),
         'jalon_boss_debut' => (float) env('JEU_JALON_BOSS_DEBUT', 1.1),
         'jalon_boss_niveau_plein' => (int) env('JEU_JALON_BOSS_NIVEAU_PLEIN', 3),
+
+        // PLAFOND DE MONSTRES PAR SALLE (René, 2026-11-08) : au plus « héros + N » monstres posés dans une
+        // salle. Au-delà, ils attendaient derrière ceux qui frappaient, coincés au seuil ou entre les meubles :
+        // 42 % des monstres de nos 6 quêtes n'ont jamais frappé. Le budget qui ne trouve plus de place achète
+        // des FORTS au lieu de faibles (`DemarreurQuete::acheterMonstres()`).
+        'places_par_salle_en_plus_des_heros' => (int) env('JEU_PLACES_PAR_SALLE_EN_PLUS_DES_HEROS', 1),
+    ],
+
+    /*
+     * Le MONSTRE ERRANT de la quête (`App\Partie\MonstreErrant`), de plus en plus fort au fil de l'arc
+     * (René, 2026-11-08) : le monstre de base le plus cher dont le `cout` ne dépasse pas
+     * cout_depart + (position d'arc − 1) × cout_par_quete — 2, 3, 4… comme l'Orc des quêtes 1 à 3 du livret
+     * de base, puis l'Abomination et le Dread Warrior.
+     */
+    'errant' => [
+        'cout_depart' => (int) env('JEU_ERRANT_COUT_DEPART', 2),
+        'cout_par_quete' => (int) env('JEU_ERRANT_COUT_PAR_QUETE', 1),
     ],
 
     /*

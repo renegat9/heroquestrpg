@@ -156,7 +156,10 @@ it('offre la variante à distance partout en rotation historique, qui n\'est qu\
     // suffisamment grand.
     foreach (DemarreurQuete::BOITES_THEMATIQUES as $boite) {
         $bestiaire = BestiaireGroupe::auto($boite);
-        $achats = acheterPourVariante([], 200, 40, 1, 3, $bestiaire);
+        // ⚠ 120 places, pas 40 (2026-11-08) : avec le plafond par salle, un budget que les places ne peuvent plus
+        // absorber en faibles achète des FORTS — la masse, où vivent les variantes, fondait. Assez de places pour
+        // que la masse prenne tout le budget, comme ce test l'a toujours supposé.
+        $achats = acheterPourVariante([], 200, 120, 1, 3, $bestiaire);
         $noms = collect($achats)->pluck('nom_base');
 
         $variantesApparues = $noms->intersect(['Gobelin archer', 'Archer squelette', 'Orque archer']);
@@ -168,7 +171,8 @@ it('offre la variante à distance partout en rotation historique, qui n\'est qu\
 it('ne pose une variante à distance qu\'avec une boîte qui imprime sa figurine (René, 2026-11-06)', function () {
     // Against the Ogre Horde (contenu p. 3) : les trois archers. Jungles of Delthrak (contenu p. 2) : gobelin et
     // squelette. Ailleurs, le monstre STANDARD reste posé à leur place : aucun emplacement perdu.
-    $archers = fn (BestiaireGroupe $b) => collect(acheterPourVariante([], 200, 40, 1, 3, $b))->pluck('nom_base')
+    // 120 places : la masse absorbe tout le budget (voir le test précédent).
+    $archers = fn (BestiaireGroupe $b) => collect(acheterPourVariante([], 200, 120, 1, 3, $b))->pluck('nom_base')
         ->intersect(['Gobelin archer', 'Archer squelette', 'Orque archer'])->unique()->sort()->values()->all();
 
     expect($archers(BestiaireGroupe::manuel([])))->toBe([])
@@ -176,7 +180,7 @@ it('ne pose une variante à distance qu\'avec une boîte qui imprime sa figurine
         ->and($archers(BestiaireGroupe::manuel(['horde_ogre'])))->toBe(['Archer squelette', 'Gobelin archer', 'Orque archer'])
         ->and($archers(BestiaireGroupe::manuel(['jungles_delthrak'])))->toBe(['Archer squelette', 'Gobelin archer']);
 
-    $sansArcher = collect(acheterPourVariante([], 200, 40, 1, 3, BestiaireGroupe::manuel([])))->pluck('nom_base');
+    $sansArcher = collect(acheterPourVariante([], 200, 120, 1, 3, BestiaireGroupe::manuel([])))->pluck('nom_base');
     expect($sansArcher)->toContain('Gobelin')->toContain('Squelette')->toContain('Orque');
 });
 

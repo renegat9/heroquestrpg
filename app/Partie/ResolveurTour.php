@@ -12130,7 +12130,7 @@ final class ResolveurTour
      * n'est pas un test de contact à aligner sur `Grille::sontAdjacentes()`.
      *
      * SANS PLAFOND : sa carte revient sous le paquet comme les autres, elle doit
-     * donc mordre à chaque fois.
+     * donc mordre à chaque fois. QUEL monstre : `MonstreErrant::deLaQuete()`.
      */
     private function spawnErrant(Quete $quete, EtatPersonnageQuete $etat): ?InstanceMonstre
     {
@@ -12140,19 +12140,10 @@ final class ResolveurTour
         // plus fréquente du deck (6 sur 24) en carte blanche.
         //
         // Toujours le MÊME monstre pour une quête donnée — « le monstre errant
-        // de la quête » du plateau : le moins cher du bestiaire de base, choix
-        // déterministe.
-        //
-        // ⚠ Bestiaire MANUEL (2026-09-28) : jamais une boîte non cochée — le
-        // moins cher du bestiaire AUTORISÉ, pas du catalogue entier.
-        $bestiaire = BestiaireGroupe::duGroupe($quete->groupe);
-        $monstre = Monstre::query()
-            ->where('tier', 'base')
-            ->where('cout', '>', 0)
-            ->orderBy('cout')
-            ->orderBy('id')
-            ->get()
-            ->first(fn (Monstre $m) => $bestiaire->autorise($m->boites()));
+        // de la quête » du plateau —, de plus en plus fort au fil de l'arc
+        // (René, 2026-11-08) : `MonstreErrant::deLaQuete()`, qui ne prend que
+        // dans le bestiaire AUTORISÉ.
+        $monstre = app(MonstreErrant::class)->deLaQuete($quete);
 
         if ($monstre === null) {
             return null;

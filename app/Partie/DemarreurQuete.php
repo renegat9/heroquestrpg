@@ -247,8 +247,11 @@ final class DemarreurQuete
             ? AssembleurCarte::CHANCE_PASSAGE_SECRET
             : min(100, $chance + AssembleurCarte::PALIER_PASSAGE_SECRET)]);
         $budget = $this->budgetRencontres($groupe, $positionArc, $typeJalon);
+        // PLAFOND PAR SALLE (René, 2026-11-08) : les places permises passent en tête de `spawn_monstres`, et seules
+        // elles se vendent au budget. L'ordre reste celui du round-robin, la salle finale en premier.
+        [$carte['spawn_monstres'], $places] = $this->spawnsPlafonnes($carte, $this->placesParSalle($heros->count()));
         $monstres = $this->acheterMonstres(
-            $gabarit->structure ?? [], $budget, count($carte['spawn_monstres']), $positionArc, (int) $groupe->id, $bestiaire,
+            $gabarit->structure ?? [], $budget, $places, $positionArc, (int) $groupe->id, $bestiaire,
             // FIGURES IMMOBILES : seulement si la carte offre un lieu où la poser sans fermer une
             // porte, couper une salle ni passer sous le plancher de cases jouables.
             figureFixePossible: fn (Monstre $m): bool => $this->figureFixePossible($carte, $m),
@@ -1237,6 +1240,48 @@ final class DemarreurQuete
     }
 
     /**
+     * Combien de monstres une salle reçoit au plus : un par héros actif, plus `places_par_salle_en_plus_des_heros`
+     * (René, 2026-11-08). Au-delà, un monstre attendait derrière ceux qui frappaient : coincé au seuil ou entre les
+     * meubles, il ne faisait qu'allonger le combat. Mesuré sur nos 6 quêtes réelles : 42 % des monstres n'ont jamais
+     * frappé, et une salle de 9 monstres n'infligeait que 4,2 PV, contre 1,3 PV pour une salle de 2 ou 3.
+     */
+    private function placesParSalle(int $nbHeros): int
+    {
+        return max(1, $nbHeros + (int) config('jeu.rencontres.places_par_salle_en_plus_des_heros', 1));
+    }
+
+    /**
+     * `spawn_monstres` réordonné : d'abord les cases que le plafond par salle permet (au plus `$places` par salle,
+     * dans l'ordre du round-robin d'`AssembleurCarte::spawnsMonstres()`, la salle finale en tête), puis les autres.
+     * Rend aussi le NOMBRE de cases permises — c'est lui que le budget achète. Les cases au-delà restent dans la
+     * liste, en queue : une figure immobile peut encore y être échangée (`positionsDesMonstres()`), jamais un
+     * monstre de plus y être acheté.
+     *
+     * @param  array<string, mixed>  $carte
+     * @return array{0: list<array{x: int, y: int}>, 1: int}
+     */
+    private function spawnsPlafonnes(array $carte, int $places): array
+    {
+        $salles = (array) ($carte['salles'] ?? []);
+        $permises = [];
+        $enTrop = [];
+        $parSalle = [];
+
+        foreach (array_values((array) ($carte['spawn_monstres'] ?? [])) as $p) {
+            $salle = (string) (Salles::indexDe($salles, (int) $p['x'], (int) $p['y']) ?? 'hors_salle');
+
+            if (($parSalle[$salle] ?? 0) < $places) {
+                $parSalle[$salle] = ($parSalle[$salle] ?? 0) + 1;
+                $permises[] = $p;
+            } else {
+                $enTrop[] = $p;
+            }
+        }
+
+        return [[...$permises, ...$enTrop], count($permises)];
+    }
+
+    /**
      * Budget de rencontres en points de `cout` du bestiaire (doc 06 §2) :
      * score de puissance × escalade d'arc (+15 %/quête) × facteur de jalon.
      */
@@ -1288,6 +1333,13 @@ final class DemarreurQuete
      * tier base), et enfin la MASSE de FAIBLES (bas du tier), dans la limite des
      * positions de spawn de la carte. Objectif de playtest : « beaucoup
      * d'ennemis faibles + quelques ennemis forts » (config `jeu.rencontres`).
+     *
+     * ⚠ Depuis le 2026-11-08, `$maxSpawns` est le nombre de places que le PLAFOND PAR SALLE permet
+     * (`spawnsPlafonnes()`), et le compte de forts n'est plus qu'un MINIMUM : quand les places restantes,
+     * remplies de faibles au coût moyen, ne pourraient plus absorber le budget, il achète un fort de plus.
+     * À petit budget rien ne change ; à gros budget, la qualité remplace la quantité. Mesuré sur nos 6 quêtes
+     * (René : « ajouter plus de monstres n'est pas nécessairement plus difficile ») : un fort isolé au milieu de
+     * la masse frappait 0,7 fois avant de tomber, comme un gobelin ; ce sont plusieurs forts ENSEMBLE qui durent.
      *
      * @param  array<string, mixed>  $structure
      * @param  ?BestiaireGroupe  $bestiaire  bestiaire du groupe (automatique ou
@@ -1460,6 +1512,8 @@ final class DemarreurQuete
         // ⚠ Le plancher de réserve se lit sur le coût EFFECTIF : c'est ce qu'il
         // faudra vraiment payer pour garder un faible en fin de liste.
         $coutFaibleMin = (int) ($faibles->map(fn (Monstre $m) => $this->coutEffectif($m))->min() ?? 1);
+        // Ce que coûte, en moyenne, une place de la masse : le round-robin passe par chacun des faibles tour à tour.
+        $coutFaibleMoyen = (float) ($faibles->map(fn (Monstre $m) => $this->coutEffectif($m))->avg() ?? 1);
 
         // 1) QUELQUES forts (haut de gamme), en gardant assez de budget ET
         //    d'emplacements pour la masse de faibles (on réserve ≥ 1 slot faible).
@@ -1470,16 +1524,30 @@ final class DemarreurQuete
         if ($escaladeArc > 0) {
             $fortsSouhaites += intdiv(max(0, $positionArc - 1), $escaladeArc);
         }
-        for ($i = 0; $i < $fortsSouhaites && count($achats) < $maxSpawns - 1; $i++) {
+        for ($i = 0; count($achats) < $maxSpawns - 1; $i++) {
             // le plus fort abordable qui laisse encore de quoi payer un faible
-            // ⚠ Un fort DÉJÀ acheté passe après les autres (2026-10-08, thème Morcar) :
+            $abordables = $forts->filter(fn (Monstre $m) => $this->coutEffectif($m) <= $restant - $coutFaibleMin);
+
+            // AU-DELÀ DU MINIMUM (2026-11-08) : un fort de plus seulement si la masse ne pourrait plus absorber le
+            // budget — les places qui resteraient après lui, remplies de faibles au coût moyen, laissent encore de
+            // quoi le payer. Sinon le budget va à la masse, comme avant.
+            if ($i >= $fortsSouhaites) {
+                $placesApres = $maxSpawns - count($achats) - 1;
+                $abordables = $abordables->filter(
+                    fn (Monstre $m) => $restant - $this->coutEffectif($m) >= $placesApres * $coutFaibleMoyen,
+                );
+            }
+
+            // ⚠ Le MOINS acheté passe devant (2026-10-08, thème Morcar ; généralisé le 2026-11-08) :
             // `first()` sur une liste jamais consommée rachetait indéfiniment le
             // même (le Golem), si bien que le Dreadshifter — et en général tout
             // fort qui n'est pas le plus cher du thème — n'apparaissait JAMAIS
-            // dès que le budget payait le premier. Le repli sur un doublon
-            // garde le comportement d'avant quand il n'y a plus de choix.
-            $abordables = $forts->filter(fn (Monstre $m) => $this->coutEffectif($m) <= $restant - $coutFaibleMin);
+            // dès que le budget payait le premier. Avec le plafond par salle on
+            // achète bien plus d'un fort : ils tournent, chacun une fois avant
+            // qu'un premier revienne, au lieu de dix Gargouilles.
             $dejaAchetes = collect($achats)->pluck('id')->all();
+            $occurrences = array_count_values($dejaAchetes);
+            $moinsAchete = $abordables->min(fn (Monstre $m) => $occurrences[$m->id] ?? 0);
 
             // LA GARDE DU CHEF d'abord : un chef qui en porte une (`garde_personnelle`, Festral — « the
             // Dread Warriors in the room are Festral's personal guard ») la fait passer devant les autres
@@ -1490,8 +1558,7 @@ final class DemarreurQuete
                 && ! in_array($m->id, $dejaAchetes, true));
 
             $fort = $garde
-                ?? $abordables->first(fn (Monstre $m) => ! in_array($m->id, $dejaAchetes, true))
-                ?? $abordables->first();
+                ?? $abordables->first(fn (Monstre $m) => ($occurrences[$m->id] ?? 0) === $moinsAchete);
             if ($fort === null) {
                 break;
             }
