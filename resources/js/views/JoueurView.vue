@@ -88,6 +88,13 @@ async function seDeconnecter() {
 const montrerCreerPerso = ref(false);
 const nouveauNom = ref('');
 const nouvelleClasse = ref('barbare');
+// MODE ARÈNE (lot A6b, 2026-11-09) : un héros naît pour la CAMPAGNE ou pour l'ARÈNE — jamais les deux. Le héros
+// d'arène suit les règles du livret (niveau 1, carte de classe) et n'entre jamais en campagne : le serveur le refuse.
+const nouveauMode = ref('campagne');
+const modesHeros = [
+    { v: 'campagne', l: 'Campagne', ic: 'map', sub: 'quêtes, niveaux et talents' },
+    { v: 'arene', l: 'Arène', ic: 'swords', sub: 'règles du livret, niveau 1' },
+];
 const elementsChoisis = ref([]);
 const creerPersoEnCours = ref(false);
 const erreurCreerPerso = ref('');
@@ -138,7 +145,7 @@ async function creerPersonnage() {
     creerPersoEnCours.value = true;
     erreurCreerPerso.value = '';
     try {
-        const payload = { nom: nouveauNom.value.trim(), classe: nouvelleClasse.value };
+        const payload = { nom: nouveauNom.value.trim(), classe: nouvelleClasse.value, mode: nouveauMode.value };
         if (estElfe.value && voieElfe.value === 'elfique') {
             // ⚠ JAMAIS les deux clés : le serveur refuse école + répertoire.
             payload.sorts_elfiques = sortsElfiquesChoisis.value;
@@ -149,6 +156,7 @@ async function creerPersonnage() {
         await rafraichirMoi();
         nouveauNom.value = '';
         nouvelleClasse.value = 'barbare';
+        nouveauMode.value = 'campagne';
         elementsChoisis.value = [];
         sortsElfiquesChoisis.value = [];
         voieElfe.value = 'ecole';
@@ -458,7 +466,8 @@ function libelleClasse(classe) {
                                 <div class="pcard-cls">
                                     {{ libelleClasse(perso.classe) }}
                                     <span v-if="perso.niveau"> · Niv.&nbsp;{{ perso.niveau }}</span>
-                                    <span v-if="perso.or != null" style="color: var(--gold, #c9a24a)"> · <MSym n="paid" fill :size="12" /> {{ perso.or }} or</span>
+                                    <span v-if="perso.mode === 'arene'" class="pcard-arene"> · <MSym n="swords" :size="12" /> Arène</span>
+                                    <span v-if="perso.or != null && perso.mode !== 'arene'" style="color: var(--gold, #c9a24a)"> · <MSym n="paid" fill :size="12" /> {{ perso.or }} or</span>
                                 </div>
                             </div>
                             <!-- badge statut -->
@@ -503,6 +512,13 @@ function libelleClasse(classe) {
 
                         <!-- actions : perso LIBRE -->
                         <template v-if="statutPersonnage(perso).disponible">
+                          <!-- HÉROS D'ARÈNE (lot A6b) : ni groupe à fonder ni campagne à rejoindre — la DÉCISION
+                               `engageable_campagne` vient du serveur, qui refuse aussi les deux routes. -->
+                          <p v-if="perso.engageable_campagne === false" class="pcard-arene-note">
+                              <MSym n="swords" :size="14" /> Héros d'arène : il combat selon les règles du livret et
+                              n'entre jamais en campagne. L'arène ouvrira bientôt ses portes.
+                          </p>
+                          <template v-else>
                             <!-- créer un groupe -->
                             <div v-if="!montrerCreerGroupe[perso.id]" class="pcard-actions">
                                 <button
@@ -647,6 +663,7 @@ function libelleClasse(classe) {
                             <p v-if="erreurRejoindre[perso.id]" class="joueur-err">
                                 <MSym n="error" :size="14" /> {{ erreurRejoindre[perso.id] }}
                             </p>
+                          </template>
 
                             <!-- supprimer (créé par erreur) — visible SEULEMENT si le
                                  serveur le permet (contrat) : jamais engagé, jamais joué.
@@ -732,6 +749,19 @@ function libelleClasse(classe) {
                                 placeholder="ex. Gorrim le Brutal"
                                 spellcheck="false"
                             />
+                            <label class="joueur-lbl">Pour</label>
+                            <div class="joueur-radio-row">
+                                <label
+                                    v-for="m in modesHeros"
+                                    :key="m.v"
+                                    class="joueur-radio"
+                                    :class="{ on: nouveauMode === m.v }"
+                                >
+                                    <input type="radio" name="nouveauMode" :value="m.v" v-model="nouveauMode" />
+                                    <MSym :n="m.ic" :size="14" />
+                                    {{ m.l }} <span class="joueur-radio-sub">{{ m.sub }}</span>
+                                </label>
+                            </div>
                             <label class="joueur-lbl">Classe</label>
                             <div class="joueur-classe-grid">
                                 <label
@@ -822,7 +852,7 @@ function libelleClasse(classe) {
                                     :disabled="creerPersoEnCours || !nouveauNom.trim() || !choixMagiqueComplet"
                                 >
                                     <MSym n="add_circle" />
-                                    {{ creerPersoEnCours ? 'Création…' : 'Créer le personnage' }}
+                                    {{ creerPersoEnCours ? 'Création…' : (nouveauMode === 'arene' ? 'Créer le héros d\'arène' : 'Créer le personnage') }}
                                 </button>
                                 <button
                                     type="button"
@@ -986,6 +1016,9 @@ function libelleClasse(classe) {
 
 .pcard-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px;
   font-weight: 700; padding: 4px 10px; border-radius: 99px; white-space: nowrap; flex: none; }
+.pcard-arene { color: var(--torch); }
+.pcard-arene-note { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--ink-500);
+  margin: 4px 0 0; line-height: 1.4; }
 .pcard-badge.libre { color: var(--ok); border: 1px solid var(--ok); background: oklch(0.6 0.15 145 / 0.10); }
 .pcard-badge.engage { color: var(--torch); border: 1px solid var(--torch); background: oklch(0.76 0.155 65 / 0.10);
   max-width: 160px; overflow: hidden; text-overflow: ellipsis; }

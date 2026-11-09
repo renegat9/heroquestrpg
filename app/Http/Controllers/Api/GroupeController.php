@@ -134,6 +134,12 @@ class GroupeController extends Controller
                 ]);
             }
 
+            if ($personnageFondateur->estHerosArene()) {
+                throw ValidationException::withMessages([
+                    'personnage_id' => self::refusHerosArene($personnageFondateur),
+                ]);
+            }
+
             if ($personnageFondateur->groupe_actif_id !== null) {
                 throw ValidationException::withMessages([
                     'personnage_id' => "« {$personnageFondateur->nom} » est déjà engagé dans un groupe actif.",
@@ -192,8 +198,14 @@ class GroupeController extends Controller
         ], 201);
     }
 
+    /** Le refus d'engager un héros d'arène en campagne (lot A6b) — une seule phrase, pour la fondation et l'adhésion. */
+    private static function refusHerosArene(Personnage $personnage): string
+    {
+        return "« {$personnage->nom} » est un héros d'arène : il n'entre jamais en campagne.";
+    }
+
     /**
-     * POST /api/personnages {nom, classe, elements?}
+     * POST /api/personnages {nom, classe, mode?, elements?}
      *
      * Crée un personnage LIBRE dans le roster du joueur connecté (sans
      * l'engager dans un groupe). Réutilise la logique de creerHeros.
@@ -205,6 +217,9 @@ class GroupeController extends Controller
         $donnees = $request->validate([
             'nom' => ['required', 'string', 'max:120'],
             'classe' => ['required', Rule::exists('classes_heros', 'nom')],
+            // MODE ARÈNE (lot A6b, 2026-11-09) : un héros d'arène naît comme un héros de campagne — niveau 1, carte de
+            // classe, équipement de départ, capacités de carte — et n'entre jamais en campagne. Absent = campagne.
+            'mode' => ['sometimes', 'string', Rule::in(Personnage::MODES)],
             'elements' => $this->reglesElements($request->input('classe')),
             'elements.*' => ['string', 'distinct', Rule::in(MoteurSorts::ELEMENTS)],
             // VOIE ELFIQUE (décision de René, 2026-08-11) : l'Elfe prend une
@@ -224,6 +239,7 @@ class GroupeController extends Controller
             $donnees['classe'],
             $donnees['elements'] ?? null,
             $donnees['sorts_elfiques'] ?? null,
+            $donnees['mode'] ?? Personnage::MODE_CAMPAGNE,
         );
 
         return response()->json([
@@ -232,6 +248,7 @@ class GroupeController extends Controller
                 'nom' => $personnage->nom,
                 'classe' => $personnage->classe,
                 'niveau' => (int) $personnage->niveau,
+                'mode' => $personnage->mode,
                 'disponible' => true,
             ],
         ], 201);
@@ -349,6 +366,13 @@ class GroupeController extends Controller
             if ($personnages->count() !== count(array_unique($ids))) {
                 throw ValidationException::withMessages([
                     'personnage_ids' => 'Un des personnages n\'existe pas ou ne vous appartient pas.',
+                ]);
+            }
+
+            $herosArene = $personnages->first(fn (Personnage $p) => $p->estHerosArene());
+            if ($herosArene !== null) {
+                throw ValidationException::withMessages([
+                    'personnage_ids' => self::refusHerosArene($herosArene),
                 ]);
             }
         }
@@ -481,6 +505,7 @@ class GroupeController extends Controller
         string $classe,
         ?array $elements = null,
         ?array $sortsElfiques = null,
+        string $mode = Personnage::MODE_CAMPAGNE,
     ): Personnage {
         $base = ClasseHeros::where('nom', $classe)->firstOrFail();
 
@@ -489,9 +514,10 @@ class GroupeController extends Controller
         // ligne `personnages` restait, orpheline et injouable (attrapé par le
         // test « exige exactement TROIS sorts » : le 422 partait bien, mais
         // « Tricheur » existait déjà en base).
-        return DB::transaction(function () use ($base, $joueurId, $nom, $classe, $elements, $sortsElfiques, $sorts) {
+        return DB::transaction(function () use ($base, $joueurId, $nom, $classe, $elements, $sortsElfiques, $sorts, $mode) {
             $personnage = Personnage::create([
                 'joueur_id' => $joueurId,
+                'mode' => $mode,
                 'nom' => $nom,
                 'classe' => $classe,
                 'niveau' => 1,

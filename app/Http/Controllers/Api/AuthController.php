@@ -146,7 +146,9 @@ class AuthController extends Controller
                 'chef_oeuvre_quete_id',
                 // ENTRAÎNEMENT (2026-11-07) : même raison — absentes, les marques reviendraient `false` et rouvriraient
                 // un entraînement déjà payé (`Entrainement::options()`).
-                'entraine_body', 'entraine_mind']);
+                'entraine_body', 'entraine_mind',
+                // MODE ARÈNE (lot A6b) : héros de campagne ou héros d'arène.
+                'mode']);
 
         // `supprimable` (DELETE /personnages/{id}, contrat) : « jamais joué »
         // se lit sur DEUX tables — en UNE requête chacune sur tout le roster,
@@ -512,6 +514,11 @@ class AuthController extends Controller
                         // booléen au lieu de re-dériver « libre + jamais
                         // joué » côté client — le serveur publie la décision.
                         'supprimable' => $supprimable,
+                        // MODE ARÈNE (lot A6b, 2026-11-09) : la sorte de héros, et la DÉCISION « peut fonder ou rejoindre
+                        // une campagne » — le même prédicat que `POST /groupes` et `POST /groupes/{id}/joueurs`. La
+                        // manette n'en re-dérive rien.
+                        'mode' => $p->mode,
+                        'engageable_campagne' => ! $p->estHerosArene(),
                     ];
 
                     // Personnage engagé : expose le groupe avec narrateur_actif (contrat).

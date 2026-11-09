@@ -17,6 +17,11 @@ final class RefusArene extends \DomainException
         return new self("« {$personnage->nom} » (#{$personnage->id}) est déjà une doublure d'arène : on ne double pas une doublure.");
     }
 
+    public static function herosDeCampagne(Personnage $personnage): self
+    {
+        return new self("« {$personnage->nom} » (#{$personnage->id}) est un héros de campagne : seul un héros d'arène combat en arène.");
+    }
+
     public static function pasUneDoublure(Personnage $personnage): self
     {
         return new self("« {$personnage->nom} » (#{$personnage->id}) n'est pas une doublure d'arène : ce chemin ne supprime jamais un vrai héros.");

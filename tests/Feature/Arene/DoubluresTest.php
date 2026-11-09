@@ -68,15 +68,26 @@ function empreinteDuHeros(int $id): string
     return json_encode($empreinte, JSON_THROW_ON_ERROR);
 }
 
-/** Un héros de campagne qui a vécu : blessé, engagé, endetté de sorts, avec de l'or, un sac et une malédiction. */
-function herosDeCampagneEntame(): Personnage
+/**
+ * Un héros d'ARÈNE qui porte de tout — blessé, sorts dépensés, or, sac, malédiction, talent. Aucune de ces traces ne
+ * vient d'un vrai combat d'arène (qui ne s'applique qu'à la doublure) : elles sont posées pour prouver que la copie les
+ * rafraîchit ou les laisse, et que l'empreinte les garde intactes. Avec `$mode = 'campagne'`, le même héros en campagne.
+ */
+function herosEntame(string $mode = Personnage::MODE_ARENE): Personnage
 {
     $joueur = connecterJoueur();
     $groupe = creerGroupe();
     $heros = creerHeros($joueur, $groupe, 'Grimbold', 0, [
         'classe' => 'nain', 'niveau' => 3, 'pv_body' => 3, 'pv_mind' => 1, 'or' => 240,
-        'malediction_oracle' => true,
+        'malediction_oracle' => true, 'mode' => $mode,
     ]);
+
+    if ($mode === Personnage::MODE_ARENE) {
+        // Un héros d'arène n'appartient à aucun groupe de campagne.
+        $groupe->personnages()->detach($heros->id);
+        $heros->update(['groupe_actif_id' => null]);
+    }
+
     donnerTalent($heros, DB::table('competences')->where('classe', 'nain')->whereNotNull('colonne')->orderBy('id')->value('nom'));
 
     Inventaire::create(['personnage_id' => $heros->id, 'objet_id' => Objet::where('nom', 'Dague')->value('id'),
@@ -113,7 +124,7 @@ it('déclare CHAQUE table liée à personnages, copiée ou non, et rien qui n\'e
 });
 
 it('copie le héros RAFRAÎCHI : PV pleins, sorts rechargés, sans conditions, sans or ni état de campagne', function () {
-    $heros = herosDeCampagneEntame();
+    $heros = herosEntame();
 
     $doublure = app(Doublures::class)->doubler($heros);
 
@@ -140,7 +151,7 @@ it('copie le héros RAFRAÎCHI : PV pleins, sorts rechargés, sans conditions, s
 });
 
 it('ÉTANCHÉITÉ : tout ce que le combat fait à la doublure laisse le héros source identique au bit près', function () {
-    $heros = herosDeCampagneEntame();
+    $heros = herosEntame();
     $avant = empreinteDuHeros($heros->id);
 
     $doublures = app(Doublures::class);
@@ -167,14 +178,23 @@ it('ÉTANCHÉITÉ : tout ce que le combat fait à la doublure laisse le héros s
         ->and(DB::table('personnage_conditions')->where('personnage_id', $doublure->id)->count())->toBe(0);
 });
 
+it('refuse de doubler un héros de CAMPAGNE : l\'import est mis de côté (René, 2026-11-09)', function () {
+    $heros = herosEntame(Personnage::MODE_CAMPAGNE);
+    $avant = empreinteDuHeros($heros->id);
+
+    expect(fn () => app(Doublures::class)->doubler($heros))->toThrow(RefusArene::class)
+        ->and(Personnage::whereNotNull('doublure_de')->count())->toBe(0)
+        ->and(empreinteDuHeros($heros->id))->toBe($avant);
+});
+
 it('refuse de doubler une doublure', function () {
-    $doublure = app(Doublures::class)->doubler(herosDeCampagneEntame());
+    $doublure = app(Doublures::class)->doubler(herosEntame());
 
     expect(fn () => app(Doublures::class)->doubler($doublure))->toThrow(RefusArene::class);
 });
 
 it('refuse de supprimer un VRAI héros par le chemin des doublures', function () {
-    $heros = herosDeCampagneEntame();
+    $heros = herosEntame();
     $avant = empreinteDuHeros($heros->id);
 
     expect(fn () => app(Doublures::class)->supprimer($heros))->toThrow(RefusArene::class)
@@ -187,7 +207,7 @@ it('refuse de supprimer un VRAI héros par le chemin des doublures', function ()
 });
 
 it('le roster ne montre jamais une doublure', function () {
-    $heros = herosDeCampagneEntame();
+    $heros = herosEntame();
     $doublure = app(Doublures::class)->doubler($heros);
 
     $ids = collect($this->getJson('/api/moi')->assertOk()->json('joueur.personnages'))->pluck('id');
@@ -196,13 +216,13 @@ it('le roster ne montre jamais une doublure', function () {
 });
 
 it('une doublure ne fonde ni ne rejoint jamais une campagne, et ne se supprime pas par l\'API du roster', function () {
-    $heros = herosDeCampagneEntame();
+    $heros = herosEntame();
     $doublure = app(Doublures::class)->doubler($heros);
     $autre = creerGroupe('table-2');
 
     $this->postJson('/api/groupes', ['nom' => 'Usurpateurs', 'theme' => 'Cryptes', 'longueur' => 'courte',
-        'ton' => 'epique', 'personnage_id' => $doublure->id])
-        ->assertUnprocessable();
+        'personnage_id' => $doublure->id])
+        ->assertUnprocessable()->assertJsonValidationErrors(['personnage_id' => 'n\'existe pas']);
     $this->postJson("/api/groupes/{$autre->identifiant}/joueurs", ['personnage_id' => $doublure->id])
         ->assertUnprocessable()->assertJsonValidationErrors('personnage_ids');
     $this->deleteJson("/api/personnages/{$doublure->id}")->assertNotFound();

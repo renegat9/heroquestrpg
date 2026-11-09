@@ -1003,6 +1003,24 @@ existantes :
   **422**, avec le message d'un héros qui n'existe pas ou n'appartient pas au joueur.
 - `DELETE /api/personnages/{id}` répond **404** pour une doublure.
 
+### Héros d'arène (lot A6b, 2026-11-09)
+
+René, 2026-11-09 : « mettons de côté l'import des personnages de heroquest rpg pour le moment, permettons seulement la
+création ou l'utilisation d'un héros déjà créé pour l'arène afin d'intégrer les règles tel que dans le livret ».
+
+- `POST /api/personnages` accepte **`mode`** ∈ `campagne` (défaut) | `arene` (vocabulaire fermé `Personnage::MODES`,
+  422 sinon). Un héros d'arène naît **exactement** comme un héros de campagne de la même classe : niveau 1, carte de
+  classe, équipement de départ, capacités de carte, aucun talent de grille. La réponse porte `personnage.mode`.
+- `GET /api/moi` → `joueur.personnages[]` porte **`mode`** et la DÉCISION **`engageable_campagne`** (bool, `false`
+  pour un héros d'arène). La manette ne propose ni « Créer un groupe » ni « Rejoindre » quand elle vaut `false`.
+- `POST /api/groupes` (`personnage_id`) et `POST /api/groupes/{identifiant}/joueurs` refusent un héros d'arène en
+  **422** : « « {nom} » est un héros d'arène : il n'entre jamais en campagne. » (clés `personnage_id` /
+  `personnage_ids`).
+- **Seul un héros d'arène se double** : `Doublures::doubler()` refuse un héros de campagne (`RefusArene`). L'import
+  d'un héros de campagne est mis de côté, pas abandonné : il reviendra quand René aura tranché ce qu'il garde de ses
+  niveaux et talents.
+- `DELETE /api/personnages/{id}` : inchangé, un héros d'arène jamais joué se supprime comme un autre.
+
 ## Entraînement — +1 à un attribut contre de l'or (au hub uniquement, 2026-11-07)
 
 René : les attributs Body et Mind (les dés des jets de test) ne montaient jamais ; il retient l'entraînement payant,

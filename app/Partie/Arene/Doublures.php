@@ -15,6 +15,12 @@ use Illuminate\Support\Facades\DB;
  * l'oublierait. L'arène fait donc combattre une COPIE : une nouvelle ligne `personnages`, avec la copie de ses lignes
  * filles. Tout le combat s'applique à elle ; le vrai héros n'est jamais écrit. L'étanchéité tient par construction.
  *
+ * ⚠ SEUL UN HÉROS D'ARÈNE se double (René, 2026-11-09 : « mettons de côté l'import des personnages de heroquest rpg
+ * pour le moment, permettons seulement la création ou l'utilisation d'un héros déjà créé pour l'arène afin d'intégrer
+ * les règles tel que dans le livret »). Un héros de campagne porte des niveaux, des talents et des bonus que le tournoi
+ * du livret ignore ; le doubler est refusé (`RefusArene::herosDeCampagne()`) jusqu'à ce que René tranche ce qu'il en
+ * garde. La copie reste, pour le héros d'arène, ce qui le garde FRAIS d'un combat à l'autre (plan §2).
+ *
  * Point de passage UNIQUE de la création ET de la suppression d'une doublure. Les deux registres ci-dessous sont
  * testés DANS LES DEUX SENS (`tests/Feature/Arene/DoubluresTest.php`) : une colonne de `personnages` ou une table
  * liée à `personnages` ajoutée demain sans y être déclarée casse le test — c'est ce qui force la décision « copié ou
@@ -37,6 +43,7 @@ final class Doublures
         'deplacement_base',
         'entraine_body', // l'entraînement est déjà dans les attributs ; la marque suit pour que la fiche reste cohérente
         'entraine_mind',
+        'mode', // toujours `arene` : seul un héros d'arène se double
     ];
 
     /**
@@ -91,12 +98,17 @@ final class Doublures
      * Crée la doublure de `$source` : même héros, rafraîchi (PV et Mind au maximum, sorts rechargés, sans
      * conditions), avec son équipement et ses talents du moment, sans or ni état de campagne.
      *
-     * Refuse de doubler une doublure : une copie de copie aurait pour source une ligne qui va disparaître.
+     * Refuse de doubler une doublure (une copie de copie aurait pour source une ligne qui va disparaître) et un héros
+     * de campagne (import mis de côté, René 2026-11-09).
      */
     public function doubler(Personnage $source): Personnage
     {
         if ($source->estDoublure()) {
             throw RefusArene::doublureDeDoublure($source);
+        }
+
+        if (! $source->estHerosArene()) {
+            throw RefusArene::herosDeCampagne($source);
         }
 
         return DB::transaction(function () use ($source): Personnage {

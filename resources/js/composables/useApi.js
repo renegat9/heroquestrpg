@@ -135,12 +135,21 @@ export function useApi() {
         // ---- personnages du roster ----
 
         /**
-         * POST /api/personnages {nom, classe, elements?} → {personnage}.
+         * POST /api/personnages {nom, classe, mode?, elements? | sorts_elfiques?} → {personnage}.
          * Crée un perso libre dans le roster du joueur.
-         * `elements` (magicien) : 2 éléments parmi feu/eau/terre/air.
+         * `elements` (lanceurs) : les éléments choisis ; `sorts_elfiques` (Elfe, voie elfique) : 3 ids de sorts —
+         * jamais les deux, le serveur refuse. `mode` : `campagne` (défaut) ou `arene` (lot A6b, 2026-11-09).
+         * ⚠ Le corps est relayé tel quel : l'ancienne version ne gardait que `{nom, classe, elements}` et jetait en
+         * silence `sorts_elfiques`, si bien qu'un Elfe de voie elfique recevait l'école de départ.
          */
-        creerPersonnage: ({ nom, classe, elements }) =>
-            request('POST', '/personnages', elements ? { nom, classe, elements } : { nom, classe }),
+        creerPersonnage: ({ nom, classe, mode, elements, sorts_elfiques }) =>
+            request('POST', '/personnages', {
+                nom,
+                classe,
+                ...(mode ? { mode } : {}),
+                ...(elements ? { elements } : {}),
+                ...(sorts_elfiques ? { sorts_elfiques } : {}),
+            }),
 
         /**
          * DELETE /api/personnages/{id} → 204.

@@ -46,7 +46,20 @@ class Personnage extends Model
         // MODE ARÈNE (lot A1, 2026-11-08) : l'id du héros dont cette ligne est la DOUBLURE, `null` pour un vrai héros.
         // Posé par `App\Partie\Arene\Doublures::doubler()` seul — `docs/plan-mode-arene.md` §2.
         'doublure_de',
+        // MODE ARÈNE (lot A6b, 2026-11-09) : `campagne` ou `arene` — vocabulaire fermé `self::MODES`.
+        'mode',
     ];
+
+    /**
+     * Les deux sortes de héros du roster (mode arène, lot A6b, 2026-11-09). Un héros d'ARÈNE n'entre jamais en
+     * campagne ; seul un héros d'arène combat en arène (René, 2026-11-09 : l'import d'un héros de campagne est mis de
+     * côté). Vocabulaire fermé, validé à la création (`GroupeController::creerPersonnage()`).
+     */
+    public const MODE_CAMPAGNE = 'campagne';
+
+    public const MODE_ARENE = 'arene';
+
+    public const MODES = [self::MODE_CAMPAGNE, self::MODE_ARENE];
 
     /**
      * Point de passage UNIQUE du « premier dégât subi ».
@@ -115,6 +128,15 @@ class Personnage extends Model
     public function estDoublure(): bool
     {
         return $this->doublure_de !== null;
+    }
+
+    /**
+     * Héros DÉDIÉ à l'arène (lot A6b) : il n'entre jamais en campagne — `GroupeController` le refuse à la fondation et
+     * à l'adhésion d'un groupe, et `/moi` publie la décision (`engageable_campagne`).
+     */
+    public function estHerosArene(): bool
+    {
+        return $this->mode === self::MODE_ARENE;
     }
 
     /** Le héros dont cette ligne est la doublure (`null` pour un vrai héros). */
