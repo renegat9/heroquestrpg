@@ -838,6 +838,10 @@ final class MoteurDegats
                     $groupePourFaveur, $instance, true, $auteurHeros,
                 );
             }
+
+            // MODE ARÈNE (lot A6) : le COUP DE GRÂCE — le héros qui fait tomber le dernier PV gagne l'ennemi vaincu,
+            // crédité à son héros source. Même point de passage unique de la mort, sans effet hors de l'arène.
+            app(\App\Partie\Arene\PalmaresArene::class)->coupDeGrace($instance, $auteurHeros);
         }
 
         return [

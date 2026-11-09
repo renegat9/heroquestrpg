@@ -30,7 +30,14 @@ async function rafraichirMoi() {
     store.setJoueur(moi, persos ?? []);
     boitesBestiaire.value = boites ?? [];
     longueurs.value = durees ?? [];
+    // MODE ARÈNE (lot A6) : le palmarès général, seulement si le joueur a un héros d'arène.
+    if ((persos ?? []).some((p) => p.mode === 'arene')) {
+        palmares.value = (await api.palmaresArene().catch(() => null))?.combats ?? [];
+    }
 }
+
+// MODE ARÈNE (lot A6) : les derniers combats d'arène, tels que le serveur les publie.
+const palmares = ref([]);
 
 onMounted(async () => {
     try {
@@ -539,6 +546,15 @@ function libelleClasse(classe) {
                                   <MSym n="swords" :size="14" /> Héros d'arène : il combat selon les règles du livret
                                   et n'entre jamais en campagne. Chaque combat se joue avec une copie fraîche.
                               </p>
+                              <!-- statistiques d'arène (lot A6), publiées par le serveur -->
+                              <div v-if="perso.arene" class="pcard-arene-stats">
+                                  <span><MSym n="swords" :size="13" /> {{ perso.arene.combats }} combat(s)</span>
+                                  <span><MSym n="emoji_events" fill :size="13" /> {{ perso.arene.victoires }} victoire(s)</span>
+                                  <span v-if="perso.arene.ennemis_vaincus.length" class="pcard-arene-vaincus">
+                                      <MSym n="skull" :size="13" />
+                                      {{ perso.arene.ennemis_vaincus.map((e) => `${e.nom_base} ×${e.nombre}`).join(' · ') }}
+                                  </span>
+                              </div>
                               <div class="pcard-actions">
                                   <button class="joueur-btn-action" :disabled="areneEnCours[perso.id]" @click="ouvrirArene(perso)">
                                       <MSym n="swords" /> Ouvrir un combat
@@ -772,6 +788,17 @@ function libelleClasse(classe) {
                                 }}
                             </button>
                         </template>
+                    </div>
+                </div>
+
+                <!-- palmarès de l'arène (lot A6) -->
+                <div v-if="palmares.length" class="joueur-palmares">
+                    <h3 class="joueur-section-title"><MSym n="emoji_events" fill :size="16" /> Palmarès de l'arène</h3>
+                    <div v-for="c in palmares" :key="c.id" class="joueur-palmares-ligne" :class="c.issue">
+                        <MSym :n="c.issue === 'victoire' ? 'emoji_events' : 'skull'" fill :size="14" />
+                        <span class="jp-qui">{{ c.combattants.map((h) => h.nom).join(', ') }}</span>
+                        <span class="jp-contre">contre {{ c.defender.join(', ') }}</span>
+                        <span class="jp-rounds">{{ c.rounds }} round(s)</span>
                     </div>
                 </div>
 
@@ -1063,6 +1090,18 @@ function libelleClasse(classe) {
 .pcard-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px;
   font-weight: 700; padding: 4px 10px; border-radius: 99px; white-space: nowrap; flex: none; }
 .pcard-arene { color: var(--torch); }
+.pcard-arene-stats { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; font-weight: 700; color: var(--ink-300);
+  margin: 6px 0 0; }
+.pcard-arene-stats span { display: inline-flex; align-items: center; gap: 4px; }
+.pcard-arene-vaincus { font-weight: 600; color: var(--ink-500); }
+.joueur-palmares { margin: 16px 0; }
+.joueur-palmares-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 0; font-size: 12.5px;
+  border-bottom: var(--line); color: var(--ink-300); }
+.joueur-palmares-ligne.victoire > .msym { color: var(--ok); }
+.joueur-palmares-ligne.defaite > .msym { color: var(--danger, #e0735c); }
+.jp-qui { font-weight: 700; color: var(--ink-100, #efe6d4); }
+.jp-contre { color: var(--ink-500); }
+.jp-rounds { margin-left: auto; color: var(--ink-500); }
 .pcard-arene-note { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--ink-500);
   margin: 4px 0 0; line-height: 1.4; }
 .pcard-badge.libre { color: var(--ok); border: 1px solid var(--ok); background: oklch(0.6 0.15 145 / 0.10); }

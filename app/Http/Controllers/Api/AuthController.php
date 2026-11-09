@@ -525,6 +525,9 @@ class AuthController extends Controller
                         // manette n'en re-dérive rien.
                         'mode' => $p->mode,
                         'engageable_campagne' => ! $p->estHerosArene(),
+                        // MODE ARÈNE (lot A6) : ses statistiques d'arène (combats, victoires, ennemis vaincus par nom de
+                        // catalogue) ; `null` pour un héros de campagne, qui n'en a pas.
+                        'arene' => $p->estHerosArene() && ! $p->estDoublure() ? app(\App\Partie\Arene\PalmaresArene::class)->statistiques($p) : null,
                     ];
 
                     // Personnage engagé : expose le groupe avec narrateur_actif (contrat).

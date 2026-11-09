@@ -147,6 +147,7 @@ export function useApi() {
          */
         // ---- arène (lot A5, contrat « Le salon et les routes d'arène ») ----
         ouvrirArene: (personnageId) => request('POST', '/arene', { personnage_id: personnageId }),
+        palmaresArene: () => request('GET', '/arene/palmares'),
         rejoindreArene: (code, personnageId) => request('POST', `/arene/${encodeURIComponent(code)}/combattants`, { personnage_id: personnageId }),
         defenderArene: (code, monstreIds) => request('PUT', `/arene/${encodeURIComponent(code)}/defender`, { monstre_ids: monstreIds }),
         pretArene: (code, pret) => request('POST', `/arene/${encodeURIComponent(code)}/pret`, { pret }),

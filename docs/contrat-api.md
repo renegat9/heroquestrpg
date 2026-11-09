@@ -1104,6 +1104,17 @@ recrutement, compagnon, faveurs, prologue, départ) **n'est pas publié** ; à s
 | POST | /api/arene/{identifiant}/rejouer | — | membre OU table : après la fin, des doublures FRAÎCHES remplacent les anciennes, le Defender est gardé, les prêts sont remis à faux |
 | DELETE | /api/arene/{identifiant} | — | membre OU table : quitte et purge le combat (`GroupesArene::purger()`) → 204 |
 
+### Palmarès et statistiques (lot A6, 2026-11-09, `docs/plan-mode-arene.md` §5)
+
+- `GET /api/arene/palmares` (joueur) → `{combats: [{id, date, issue, rounds, combattants: [{heros_id, nom, classe}], defender: [nom_base]}]}`, les 20 derniers, du plus récent au plus ancien.
+- `GET /api/moi` → `joueur.personnages[].arene` : `{combats, victoires, ennemis_vaincus: [{nom_base, nombre}]}` pour un héros d'arène,
+  `null` pour un héros de campagne. Un ennemi vaincu est crédité au **coup de grâce** (le héros dont la doublure fait
+  tomber le dernier PV), compté par **nom de catalogue**, au héros SOURCE. Point de passage unique :
+  `App\Partie\Arene\PalmaresArene` (appelé par `MoteurDegats` à la mort, et par `ResolveurTour` à la fin du combat).
+- Sauvegarde et page Système (lot A7) ne comptent que les **campagnes** (`groupes.mode = 'campagne'`) et les **vrais
+  héros** (`doublure_de IS NULL`) : un combat d'arène ouvert ou purgé ne fait varier aucun compte, ni ne déclenche le
+  garde-fou « 0 groupe ».
+
 `GET /api/moi` porte **`joueur.doublures[]`** : les doublures que ce joueur pilote dans un combat d'arène en cours,
 même forme que `joueur.personnages[]`. La manette y lit la fiche (sorts, sac) de la doublure qu'elle pilote. Le roster
 (`joueur.personnages`) ne contient toujours **jamais** une doublure.

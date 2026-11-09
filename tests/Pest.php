@@ -516,6 +516,12 @@ function empreinteDuHeros(int $id): string
     $empreinte = ['personnages' => (array) \Illuminate\Support\Facades\DB::table('personnages')->where('id', $id)->first()];
 
     foreach (tablesLieesAuxPersonnages() as $table => $colonnes) {
+        // Les statistiques d'arène sont ce que l'arène REND au héros (plan §5) : l'empreinte se compare HORS d'elles,
+        // et les tests du palmarès vérifient à part qu'elles ont bien été écrites.
+        if ($table === 'arene_statistiques') {
+            continue;
+        }
+
         foreach ($colonnes as $colonne) {
             $empreinte["{$table}.{$colonne}"] = \Illuminate\Support\Facades\DB::table($table)->where($colonne, $id)->orderBy('id')->get()
                 ->map(fn ($ligne) => (array) $ligne)->all();

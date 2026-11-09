@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Agent\SanteFileAttente;
 use App\Agent\SanteServices;
+use App\Models\Joueur;
+use App\Models\Personnage;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -294,4 +296,27 @@ it('une sauvegarde complète affiche ses comptes', function () {
 
     expect($sauvegardes['etat'])->toBe('ok')
         ->and($sauvegardes['detail'])->toContain('3 groupe(s), 9 personnage(s), 4 joueur(s)');
+});
+
+it('MODE ARÈNE (lot A7) : un combat d\'arène et ses doublures ne comptent ni comme campagne ni comme héros', function () {
+    dossierSauvegardesTemporaire(['2026-10-03-0836' => "1\t1\t1"]);
+    $joueur = Joueur::create(['pseudo' => 'rene', 'identifiant' => 'rene', 'mot_de_passe' => 'x']);
+    $campagne = creerGroupe();
+    creerHeros($joueur, $campagne, 'Aldric', 0);
+
+    $arene = app(App\Partie\Arene\GroupesArene::class)->ouvrir();
+    $champion = Personnage::create([
+        'joueur_id' => $joueur->id, 'nom' => 'Brakka', 'classe' => 'barbare', 'niveau' => 1, 'mode' => 'arene',
+        'attribut_body' => 8, 'attribut_mind' => 2, 'pv_body_max' => 8, 'pv_body' => 8, 'pv_mind_max' => 2, 'pv_mind' => 2,
+        'des_attaque' => 3, 'des_defense' => 2, 'deplacement_base' => 8,
+    ]);
+    app(App\Partie\Arene\GroupesArene::class)->engager($arene, $champion);
+
+    // 2 groupes et 3 personnages en base, mais 1 campagne et 2 héros (Aldric et le héros d'arène).
+    expect(serviceSysteme('mariadb')['detail'])->toContain('1 campagne(s), 2 héros, 1 joueur(s)');
+
+    // L'arène purgée : la campagne reste, le garde-fou « 0 groupe » ne voit rien bouger.
+    app(App\Partie\Arene\GroupesArene::class)->purger($arene);
+    expect(serviceSysteme('mariadb')['etat'])->toBe('ok')
+        ->and(serviceSysteme('mariadb')['detail'])->toContain('1 campagne(s), 2 héros');
 });

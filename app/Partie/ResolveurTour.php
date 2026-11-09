@@ -12291,6 +12291,8 @@ final class ResolveurTour
         $groupe = $quete->groupe;
         if ($groupe !== null && $groupe->estArene() && $quete->fresh()?->etat === 'en_cours') {
             $quete->update(['etat' => 'terminee']);
+            // Palmarès (lot A6) : écrit AVANT le retour au hub, tant que les doublures sont encore au combat.
+            app(\App\Partie\Arene\PalmaresArene::class)->enregistrer($groupe, $quete, victoire: true);
             $groupe->update(['phase' => 'hub', 'quete_courante_id' => null]);
             Journal::ajouter($groupe, 'systeme', ['action' => 'arene_victoire', 'quete_id' => $quete->id]);
             $resultat['arene_victoire'] = true;
@@ -13142,6 +13144,9 @@ final class ResolveurTour
     private function echouerQuete(Groupe $groupe, Quete $quete, ?string $cause = null): void
     {
         $quete->update(['etat' => 'echouee']);
+
+        // MODE ARÈNE (lot A6) : une défaite d'arène entre au palmarès (sans effet hors de l'arène).
+        app(\App\Partie\Arene\PalmaresArene::class)->enregistrer($groupe, $quete, victoire: false);
 
         $payload = ['action' => 'quete_echouee', 'quete_id' => $quete->id];
 

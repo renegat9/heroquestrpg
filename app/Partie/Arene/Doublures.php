@@ -92,6 +92,8 @@ final class Doublures
             .'mercenaires, auberge…) ; non copiées tant que René n\'a pas tranché lesquelles valent en arène',
         'groupe_mercenaires' => 'référence (recruteur), pas une ligne du héros : un allié appartient à un groupe',
         'instances_monstres' => 'référence (dégât différé, contrôle), pas une ligne du héros',
+        'arene_statistiques' => 'statistiques d\'arène du héros SOURCE (lot A6) : une doublure n\'en a jamais, ses coups '
+            .'de grâce et ses victoires sont crédités à son héros',
     ];
 
     /**

@@ -43,6 +43,12 @@ class AreneController extends Controller
         return response()->json(['groupe' => ['identifiant' => $arene->identifiant], 'doublure_id' => $doublure->id], 201);
     }
 
+    /** GET /api/arene/palmares — les derniers combats d'arène (Coop), du plus récent au plus ancien. */
+    public function palmares(): JsonResponse
+    {
+        return response()->json(['combats' => app(\App\Partie\Arene\PalmaresArene::class)->palmares()]);
+    }
+
     /** POST /api/arene/{identifiant}/combattants {personnage_id} — engage SON héros d'arène. */
     public function rejoindre(Request $request, string $identifiant): JsonResponse
     {

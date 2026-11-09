@@ -134,6 +134,7 @@ Route::delete('/arene/{identifiant}', [AreneController::class, 'quitter']);
 Route::middleware('auth:joueur')->group(function () {
     // MODE ARÈNE (lot A5) : un joueur ouvre un combat, y engage son héros d'arène, se dit prêt.
     Route::post('/arene', [AreneController::class, 'ouvrir']);
+    Route::get('/arene/palmares', [AreneController::class, 'palmares']);
     Route::post('/arene/{identifiant}/combattants', [AreneController::class, 'rejoindre']);
     Route::post('/arene/{identifiant}/pret', [AreneController::class, 'pret']);
 
