@@ -424,7 +424,9 @@ passe adjacent, sans action.
 
 **Trésor (p. 13)** : action de fouille adjacent ou en diagonale d'un coffre, 2 dés rouges, puis le coffre est retiré :
 2 piège explosif (−3 Body), 3-4 gaz (−2), 5-6 flèche (−1), 7 **une hache de bataille en os**, 8-9 100 po, 10-11 200 po,
-12 300 po.
+12 300 po. La hache en os est réglée p. 8 (« Bone Weapons » : identique à l'arme de même nom de l'armurerie, sans valeur en
+or, ni achetable ni vendable) et **déjà portée** : `Hache de bataille en os` (`ObjetSeeder`, lot B, avec l'`Épée longue
+en os` de la quête 4).
 
 **Versions à distance (Ranged)** — nouvelle variante générique : Zargon
 peut placer un squelette, un orque ou un gobelin « à distance » à la place
