@@ -1059,9 +1059,23 @@ seule par héros et par combat) et le **purge**.
 - **Le menu d'un héros en arène** n'offre jamais `fouiller` (la seule fouille du tournoi est celle d'un coffre, lot
   T5), `quitter_donjon` ni `battre_en_retraite` (on gagne ou on tombe ; l'abandon viendra du salon). Le vote de sortie
   rejoint les étapes de campagne fermées (`EtapesCampagne::VOTE_SORTIE`).
-- ⚠ **Limite connue jusqu'au lot T2** : la fin d'un tour passe encore par la boucle de campagne, qui prend un
-  instantané à chaque tour — fermé à l'arène, donc **422** au premier `attendre`. Le combat d'arène n'est pas jouable
-  au-delà du premier tour tant que l'activation alternée n'existe pas.
+
+### L'activation alternée (lot T2, 2026-11-09, livret F9528 p. 12-16)
+
+- **Le Defender ouvre chaque round** : une figure s'active (au démarrage, `ResolveurTour::ouvrirCombatArene()`, puis
+  à chaque ouverture de round). Une figure qui a joué porte son jeton, `instances_monstres.active_ce_round`
+  (colonne : état durable du round), remis à `false` à la fermeture du round.
+- **Le Challenger active n'importe quel héros** : tout héros debout qui n'a pas joué a la main — `GET /menu` rend un
+  menu à **chacun** — jusqu'à ce que l'un d'eux **entame** son activation (premier pas, ou un créneau dépensé). Il la
+  garde alors seul : les autres reçoivent `{menu: null}` et leurs `POST choix` sont refusés (422). Une seule
+  question pour le menu, le résolveur et la manette : `OrdreDuTour::acteurPour()`.
+- **Chaque activation de héros reçoit sa réponse** : une figure du Defender. Quand le Challenger est à court, le
+  Defender enchaîne toutes les siennes et le round se referme ; quand c'est le Defender, les héros enchaînent.
+- **Aucun instantané** à la fermeture d'un round d'arène.
+- **Fin du combat** : le Defender éteint → `quete.etat = 'terminee'`, journal `arene_victoire`, résultat portant
+  `arene_victoire: true` ; tous les héros à terre → `quete.etat = 'echouee'` (le verdict de chute de la campagne).
+  Dans les deux cas le groupe repasse en phase `hub`, `quete_courante_id` à `null` — l'écran de résultat et la purge
+  viennent avec le salon (lot A5).
 
 ## Entraînement — +1 à un attribut contre de l'or (au hub uniquement, 2026-11-07)
 

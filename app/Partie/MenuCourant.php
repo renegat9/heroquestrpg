@@ -72,10 +72,11 @@ final class MenuCourant
         }
 
         $hero = $this->herosDuJoueur($groupe, $joueurId);
-        $acteur = $hero === null ? null : $this->ordreDuTour->acteurActif($groupe);
+        // `acteurPour()` : en arène, plusieurs héros ont la main à la fois (activation alternée, lot T2).
+        $acteur = $hero === null ? null : $this->ordreDuTour->acteurPour($groupe, (int) $hero->id);
 
         // Pas son tour : aucun menu ne se joue, et celui qui traîne est périmé.
-        if ($hero === null || $acteur === null || (int) $acteur['personnage_id'] !== (int) $hero->id) {
+        if ($hero === null || $acteur === null) {
             Cache::forget($cle);
 
             return null;
@@ -112,9 +113,8 @@ final class MenuCourant
         }
 
         $hero = $this->herosDuJoueur($groupe, $joueurId);
-        $acteur = $hero === null ? null : $this->ordreDuTour->acteurActif($groupe);
 
-        return $acteur !== null && (int) $acteur['personnage_id'] === (int) $hero->id;
+        return $hero !== null && $this->ordreDuTour->acteurPour($groupe, (int) $hero->id) !== null;
     }
 
     /** Le héros ACTIF de CE joueur dans ce groupe (un seul par joueur et groupe). */

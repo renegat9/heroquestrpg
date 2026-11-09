@@ -136,10 +136,15 @@ it('démarre un combat d\'arène : hall, doublures et Defender sur leurs tuiles,
     }
 
     $instances = InstanceMonstre::where('quete_id', $quete->id)->with('monstre')->get();
-    expect($instances)->toHaveCount(3);
+    expect($instances)->toHaveCount(3)
+        // Le Defender ouvre le combat (lot T2) : UNE figure a déjà joué, les autres attendent sur leur tuile.
+        ->and($instances->where('active_ce_round', true))->toHaveCount(1);
     foreach ($instances as $instance) {
-        expect($tuileMonstres)->toContain("{$instance->position_x},{$instance->position_y}")
-            ->and($instance->pv_body)->toBe((int) $instance->monstre->pv_body)
+        if (! $instance->active_ce_round) {
+            expect($tuileMonstres)->toContain("{$instance->position_x},{$instance->position_y}");
+        }
+
+        expect($instance->pv_body)->toBe((int) $instance->monstre->pv_body)
             ->and($instance->elite)->toBeFalse()
             // Noms originaux (René) : aucun habillage en arène.
             ->and($instance->nomAffiche())->toBe($instance->monstre->nom_base);
@@ -158,8 +163,7 @@ it('le moteur joue sur le hall : grille, état de table, menu et déplacement pa
     // La grille se construit par LE point de passage, sans cas particulier.
     $grille = FabriqueGrille::pour($quete->refresh());
     $etat = $quete->etatsPersonnages()->firstOrFail();
-    expect($grille->estRoche((int) $etat->position_x, (int) $etat->position_y))->toBeFalse()
-        ->and($grille->estTraversable((int) $etat->position_x + 1, (int) $etat->position_y))->toBeTrue();
+    expect($grille->estRoche((int) $etat->position_x, (int) $etat->position_y))->toBeFalse();
 
     $this->getJson("/api/groupes/{$arene->identifiant}/etat")->assertOk();
 

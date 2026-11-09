@@ -16,6 +16,7 @@ use App\Partie\EtatGroupe;
 use App\Partie\Grille;
 use App\Partie\MoteurDread;
 use App\Partie\MoteurSorts;
+use App\Partie\ResolveurTour;
 use App\Support\Journal;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -30,8 +31,9 @@ use Illuminate\Validation\ValidationException;
  * thème, ni jalon, ni deck de fouille, ni instantané, ni narration ni habillage par l'IA (AQ5 — un monstre garde son
  * nom de catalogue).
  *
- * ⚠ Lot T1 seulement : le Defender est donné par l'appelant (la composition à puissance d'équipe est le lot T3), et le
- * tour est encore la boucle de campagne (l'activation alternée est le lot T2).
+ * Le Defender est donné par l'appelant (la composition à puissance d'équipe est le lot T3). Le tour est l'ACTIVATION
+ * ALTERNÉE (lot T2) : le Defender ouvre le combat, puis chaque activation de héros reçoit sa réponse
+ * (`ResolveurTour::ouvrirCombatArene()`, `relaisArene()`, `OrdreDuTour::acteurPour()`).
  */
 final class DemarreurArene
 {
@@ -141,6 +143,10 @@ final class DemarreurArene
         });
 
         $this->dread->reinitialiserUsages($quete);
+
+        // ACTIVATION ALTERNÉE (lot T2) : « the Defender team starts the first round » (livret F9528 p. 16) — une
+        // figure du Defender s'active avant que le premier héros ne joue.
+        app(ResolveurTour::class)->ouvrirCombatArene($arene->refresh(), $quete->refresh());
 
         Journal::ajouter($arene, 'systeme', [
             'action' => 'quete_demarree',

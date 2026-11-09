@@ -859,9 +859,12 @@ final class ResolveurTour
             // dont l'allié n'a pas encore joué compte encore comme « en
             // attente », sans quoi la phase des monstres s'ouvrirait avant que
             // ce second menu n'ait jamais été proposé.
-            $enAttente = app(OrdreDuTour::class)->acteurActif($groupe) !== null;
-
-            if (! $enAttente) {
+            if ($groupe->estArene()) {
+                // ARÈNE (lot T2) : l'activation de CE héros vient-elle de finir ? Alors le Defender répond.
+                if ((bool) $etat->fresh()?->a_joue) {
+                    $resultat = $this->relaisArene($resultat, $groupe, $quete);
+                }
+            } elseif (app(OrdreDuTour::class)->acteurActif($groupe) === null) {
                 $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
                 $this->verifierFinDuCombat($quete); // les alliés ont pu achever le dernier
             }
@@ -958,13 +961,14 @@ final class ResolveurTour
     {
         // Même règle que la proposition du menu et que le jet de déplacement :
         // `OrdreDuTour`, point de passage unique depuis le 2026-09-16.
-        $actif = app(OrdreDuTour::class)->herosActifId($groupe, $etats);
+        $ordre = app(OrdreDuTour::class);
 
-        if ($actif === null) {
+        if ($ordre->acteurActif($groupe, $etats) === null) {
             throw ValidationException::withMessages(['personnage_id' => 'Aucun héros en attente ce tour.']);
         }
 
-        if ($actif !== (int) $personnage->id) {
+        // `estSonTour()` : en arène, tout héros qui a la main peut agir (activation alternée, lot T2).
+        if (! $ordre->estSonTour($groupe, (int) $personnage->id, $etats)) {
             throw ValidationException::withMessages([
                 'personnage_id' => 'Ce n\'est pas le tour de ce héros (ordre d\'initiative figé pour la quête).',
             ]);
@@ -12282,6 +12286,16 @@ final class ResolveurTour
         $resultat['donjon_nettoye'] = true;
         $this->verifierFinDuCombat($quete);
 
+        // ARÈNE (lot T2) : « the battle ends when one team has been completely defeated » (livret F9528 p. 12). Le
+        // Defender éteint, le Challenger a gagné : pas de fouille ni de vote de sortie, le combat est clos.
+        $groupe = $quete->groupe;
+        if ($groupe !== null && $groupe->estArene() && $quete->fresh()?->etat === 'en_cours') {
+            $quete->update(['etat' => 'terminee']);
+            $groupe->update(['phase' => 'hub', 'quete_courante_id' => null]);
+            Journal::ajouter($groupe, 'systeme', ['action' => 'arene_victoire', 'quete_id' => $quete->id]);
+            $resultat['arene_victoire'] = true;
+        }
+
         return $resultat;
     }
 
@@ -12311,9 +12325,10 @@ final class ResolveurTour
         //
         // ⚠ Même garde ALLIÉE que dans `resoudre()` (chantier 3a) :
         // `acteurActif()`, pas seulement les héros.
-        $enAttente = app(OrdreDuTour::class)->acteurActif($groupe) !== null;
-
-        if (! $enAttente) {
+        if ($groupe->estArene()) {
+            // ARÈNE (lot T2) : ces chemins ont tous clos l'activation du héros (endormi, commandé) — le Defender répond.
+            $resultat = $this->relaisArene($resultat, $groupe, $quete);
+        } elseif (app(OrdreDuTour::class)->acteurActif($groupe) === null) {
             $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
             $this->verifierFinDuCombat($quete); // les alliés ont pu achever le dernier
         }
@@ -12326,6 +12341,58 @@ final class ResolveurTour
     }
 
     /**
+     * MODE ARÈNE, lot T2 — le RELAIS de l'activation alternée (livret F9528 p. 12) : un héros vient de finir son
+     * activation, le Defender active UNE figure qui n'a pas joué ce round. Quand le Challenger n'a plus personne à
+     * activer, le Defender enchaîne toutes les siennes et le round se referme ; quand c'est le Defender qui est à court,
+     * le Challenger enchaîne (rien à faire ici : ses héros ont toujours la main, `OrdreDuTour::acteurPour()`).
+     *
+     * @param  array<string, mixed>  $resultat
+     * @return array<string, mixed>
+     */
+    private function relaisArene(array $resultat, Groupe $groupe, Quete $quete): array
+    {
+        if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+            return $resultat; // le Defender est éteint : `donjonNettoye()` déclare la victoire
+        }
+
+        $herosRestants = app(OrdreDuTour::class)->acteurActif($groupe->fresh()) !== null;
+        $monstresRestants = $this->monstresAActiverEnArene($quete) > 0;
+
+        if ($monstresRestants || ! $herosRestants) {
+            $resultat['tour_monstres'] = $this->phaseMonstres($groupe, $quete, 0, $herosRestants ? 1 : null);
+            $this->verifierFinDuCombat($quete);
+        }
+
+        return $resultat;
+    }
+
+    /**
+     * MODE ARÈNE, lot T2 — le Defender ouvre le combat (« the Defender team starts the first round », p. 16) : UNE
+     * figure s'active avant que le Challenger ne joue. Appelé par `DemarreurArene` ; chaque round suivant s'ouvre de la
+     * même façon, au bout de `ouvrirNouveauTour()`.
+     *
+     * @return array<string, mixed>
+     */
+    public function ouvrirCombatArene(Groupe $groupe, Quete $quete): array
+    {
+        if (! $groupe->estArene()) {
+            throw \App\Partie\Arene\RefusArene::pasUnGroupeDArene($groupe);
+        }
+
+        $resultat = ['tour_monstres' => $this->phaseMonstres($groupe, $quete, 0, 1)];
+        $this->verifierFinDuCombat($quete);
+
+        return $resultat;
+    }
+
+    /** ARÈNE : figures du Defender actives, révélées, libres, qui n'ont pas encore joué ce round. */
+    private function monstresAActiverEnArene(Quete $quete): int
+    {
+        return $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+            ->whereNull('controle_par')->where('active_ce_round', false)->count();
+    }
+
+    /**
      * Phase des monstres SCRIPTÉS (C2), résolue par le moteur : chaque
      * monstre actif rejoint le héros debout le plus proche (déplacement fixe
      * du catalogue, chemin orthogonal) puis attaque s'il est adjacent.
@@ -12333,63 +12400,74 @@ final class ResolveurTour
      *
      * @return array<string, mixed>
      */
-    private function phaseMonstres(Groupe $groupe, Quete $quete, int $profondeur = 0): array
+    private function phaseMonstres(Groupe $groupe, Quete $quete, int $profondeur = 0, ?int $limite = null): array
     {
         $actions = [];
 
-        // GRÉSIL AVEUGLANT (*Blinding Sleet*, Storm Master) : « until the start
-        // of Zargon's next turn » — le grésil tombe ICI, avant que le moindre
-        // monstre ne joue, et la chute est ANNONCÉE (un effet qui s'arrête en
-        // silence est aussi muet qu'un effet qui commence en silence).
-        $levees = $this->sorts->leverConditionsDeDebutDeTourMJ($quete);
+        // MODE ARÈNE (lot T2) : la phase de Zargon est découpée en activations. Les effets « au début du tour de
+        // Zargon » se jouent une fois par round, à sa PREMIÈRE activation ; `$limite` borne le nombre de figures
+        // activées tant que le Challenger a encore quelqu'un à activer.
+        $arene = $groupe->estArene();
+        $debutDeRound = ! $arene || ! $quete->instancesMonstres()->where('active_ce_round', true)->exists();
+        $activees = 0;
 
-        if ($levees !== []) {
-            $noms = Personnage::whereIn('id', array_column($levees, 'personnage_id'))->pluck('nom', 'id');
-            $payload = [
-                'type' => 'conditions_levees',
-                'levees' => array_map(fn (array $l) => $l + ['nom' => (string) ($noms[$l['personnage_id']] ?? 'Un héros')], $levees),
-            ];
-            Journal::ajouter($groupe, 'action', $payload);
-            $actions[] = $payload;
-        }
+        if ($debutDeRound) {
 
-        // TERROR (Magrian) : aucune Terreur ne survit à la phase des héros. Filet au début du tour du MJ, annoncé par
-        // `MoteurSorts::leverTerreurs()` — la levée normale se fait à la fin du tour du héros désigné (`marquerCreneau()`).
-        $this->sorts->leverTerreurs($quete);
+            // GRÉSIL AVEUGLANT (*Blinding Sleet*, Storm Master) : « until the start
+            // of Zargon's next turn » — le grésil tombe ICI, avant que le moindre
+            // monstre ne joue, et la chute est ANNONCÉE (un effet qui s'arrête en
+            // silence est aussi muet qu'un effet qui commence en silence).
+            $levees = $this->sorts->leverConditionsDeDebutDeTourMJ($quete);
 
-        // FIREBURST TRAP (Wizards of Morcar, doc 18 §5/§9) : « the beginning
-        // of Zargon's turn » — EN TOUT PREMIER, avant le moindre monstre
-        // scripté, tout jeton amorcé explose (zone entière, héros ET
-        // monstres, défense normale). Voir `MoteurPieges::explosionsFireburstEnAttente()`.
-        foreach ($this->pieges->explosionsFireburstEnAttente($groupe, $quete) as $explosion) {
-            $actions[] = $explosion;
-        }
+            if ($levees !== []) {
+                $noms = Personnage::whereIn('id', array_column($levees, 'personnage_id'))->pluck('nom', 'id');
+                $payload = [
+                    'type' => 'conditions_levees',
+                    'levees' => array_map(fn (array $l) => $l + ['nom' => (string) ($noms[$l['personnage_id']] ?? 'Un héros')], $levees),
+                ];
+                Journal::ajouter($groupe, 'action', $payload);
+                $actions[] = $payload;
+            }
 
-        // DANGERS MOBILES AUTONOMES (2026-10-23) : le rocher roule et la brume glisse AU TOUR DU MJ, avant le moindre monstre,
-        // à la même place que le Fireburst. `MoteurDanger::avancer()` est le seul point de passage de leur mouvement.
-        foreach (app(MoteurDanger::class)->avancer($groupe, $quete) as $danger) {
-            $actions[] = $danger;
-        }
+            // TERROR (Magrian) : aucune Terreur ne survit à la phase des héros. Filet au début du tour du MJ, annoncé par
+            // `MoteurSorts::leverTerreurs()` — la levée normale se fait à la fin du tour du héros désigné (`marquerCreneau()`).
+            $this->sorts->leverTerreurs($quete);
 
-        // LES LOUPS-GAROUS jouent AVANT les créatures de Zargon, par ordre de héros (F7539 p. 10 : « Zargon controls
-        // them as a monster for one turn »). Leur tour est celui de la couture `HerosJoueParLeMj` — pas une seconde
-        // marche —, et chacun de leurs gestes est journalisé par `MaledictionLoupGarou::jouerLoups()`.
-        foreach (app(MaledictionLoupGarou::class)->jouerLoups($groupe, $quete) as $geste) {
-            $actions[] = $geste;
-        }
+            // FIREBURST TRAP (Wizards of Morcar, doc 18 §5/§9) : « the beginning
+            // of Zargon's turn » — EN TOUT PREMIER, avant le moindre monstre
+            // scripté, tout jeton amorcé explose (zone entière, héros ET
+            // monstres, défense normale). Voir `MoteurPieges::explosionsFireburstEnAttente()`.
+            foreach ($this->pieges->explosionsFireburstEnAttente($groupe, $quete) as $explosion) {
+                $actions[] = $explosion;
+            }
 
-        // SHIFT REALITY (Magrian, Rise of the Dread Moon p. 33) : « Use at the start of Zargon's turn. Magrian casts one
-        // Dread spell it knows. » Au début du tour du MJ, comme le Fireburst et les dangers : la figure lance UN sort de son
-        // répertoire, une fois par rencontre (`MoteurDread::realiteDecalee()`, qui porte le choix et le budget du sort).
-        $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
-            ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
-            ->values();
+            // DANGERS MOBILES AUTONOMES (2026-10-23) : le rocher roule et la brume glisse AU TOUR DU MJ, avant le moindre monstre,
+            // à la même place que le Fireburst. `MoteurDanger::avancer()` est le seul point de passage de leur mouvement.
+            foreach (app(MoteurDanger::class)->avancer($groupe, $quete) as $danger) {
+                $actions[] = $danger;
+            }
 
-        foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
-            ->whereNull('controle_par')->with('monstre')->orderBy('id')->get() as $figure) {
-            foreach ($this->dread->realiteDecalee($groupe, $quete, $figure, $cibles) as $geste) {
+            // LES LOUPS-GAROUS jouent AVANT les créatures de Zargon, par ordre de héros (F7539 p. 10 : « Zargon controls
+            // them as a monster for one turn »). Leur tour est celui de la couture `HerosJoueParLeMj` — pas une seconde
+            // marche —, et chacun de leurs gestes est journalisé par `MaledictionLoupGarou::jouerLoups()`.
+            foreach (app(MaledictionLoupGarou::class)->jouerLoups($groupe, $quete) as $geste) {
                 $actions[] = $geste;
             }
+
+            // SHIFT REALITY (Magrian, Rise of the Dread Moon p. 33) : « Use at the start of Zargon's turn. Magrian casts one
+            // Dread spell it knows. » Au début du tour du MJ, comme le Fireburst et les dangers : la figure lance UN sort de son
+            // répertoire, une fois par rencontre (`MoteurDread::realiteDecalee()`, qui porte le choix et le budget du sort).
+            $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
+                ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
+                ->values();
+
+            foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+                ->whereNull('controle_par')->with('monstre')->orderBy('id')->get() as $figure) {
+                foreach ($this->dread->realiteDecalee($groupe, $quete, $figure, $cibles) as $geste) {
+                    $actions[] = $geste;
+                }
+            }
+
         }
 
         // ⚠ `whereNull('controle_par')` : un sbire enrôlé par la *Baguette d'Os*
@@ -12412,6 +12490,18 @@ final class ResolveurTour
             if (in_array((int) $instance->id, $dejaJoues, true)
                 || in_array((int) $instance->id, $enAttenteDeDefi, true)) {
                 continue;
+            }
+
+            // ARÈNE : une figure qui porte son jeton a joué ce round ; et le Defender n'active qu'UNE figure par
+            // relais tant que le Challenger a encore quelqu'un à activer (sinon il enchaîne toutes les siennes).
+            if ($arene) {
+                if ($instance->fresh()?->active_ce_round) {
+                    continue;
+                }
+
+                if ($limite !== null && $activees >= $limite && app(OrdreDuTour::class)->acteurActif($groupe->fresh()) !== null) {
+                    break;
+                }
             }
 
             // PASSIF (Kellar's Keep lot C, Witch Lord q. 5) : une figure qui DORT ne joue pas. Le seul éveil qui se
@@ -12446,6 +12536,11 @@ final class ResolveurTour
 
             $resultatMonstre = $this->jouerMonstre($groupe, $quete, $instance, $cibles);
             $dejaJoues[] = (int) $instance->id;
+
+            if ($arene) {
+                $instance->newQuery()->whereKey($instance->id)->update(['active_ce_round' => true]);
+                $activees++;
+            }
 
             // Si le monstre a joué plusieurs actions (p. ex. régénération + sort/attaque),
             // elles sont encapsulées sous 'type'='actions_composites' → on les étale.
@@ -12514,6 +12609,13 @@ final class ResolveurTour
             }
         }
 
+        // ARÈNE : tant qu'un héros a encore la main, l'activation alternée continue — la main revient au Challenger.
+        // Sinon le Defender vient de jouer tout ce qu'il pouvait (sans limite, `relaisArene()`) : le round se referme,
+        // et c'est `ouvrirNouveauTour()` qui constate une éventuelle défaite (tous les héros à terre).
+        if ($arene && app(OrdreDuTour::class)->acteurActif($groupe->fresh()) !== null) {
+            return ['actions' => $actions];
+        }
+
         // FIN DU TOUR DE ZARGON : chaque loup reprend sa forme humaine (F7539 p. 10, « At the end of Zargon's turn,
         // the wolf transforms back into the hero »). Avant l'ouverture du round suivant, qui relance les dés de
         // la malédiction : un héros qui n'a pas repris sa forme ne lancerait rien et ne jouerait jamais.
@@ -12542,6 +12644,15 @@ final class ResolveurTour
         // peut encore agir : un gelé dont le compagnon est libre ne fait rejouer personne.
         if ($profondeur < self::ROUNDS_SANS_HEROS_MAX && $this->personneNePeutJouer($groupe, $quete)) {
             return $this->rejouerPhaseMonstres($groupe, $quete, $actions, $profondeur);
+        }
+
+        // ARÈNE : le Defender ouvre CHAQUE round (« the Defender team starts », p. 16) — une figure s'active avant que
+        // le Challenger ne reprenne la main.
+        if ($arene && $profondeur < self::ROUNDS_SANS_HEROS_MAX && $quete->fresh()?->etat === 'en_cours'
+            && $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+            $suite = $this->phaseMonstres($groupe->fresh(), $quete->fresh(), $profondeur + 1, 1);
+
+            return [...$suite, 'actions' => [...$actions, ...$suite['actions']]];
         }
 
         return ['actions' => $actions];
@@ -12934,6 +13045,11 @@ final class ResolveurTour
             $actions[] = $ouverture;
         }
 
+        // ARÈNE (lot T2) : les jetons d'activation du Defender tombent avec le round.
+        if ($groupe->estArene()) {
+            $quete->instancesMonstres()->update(['active_ce_round' => false]);
+        }
+
         Journal::ajouter($groupe, 'systeme', ['action' => 'nouveau_tour', 'quete_id' => $quete->id]);
 
         $verdict = $this->verdictDeChute($groupe, $quete);
@@ -12941,7 +13057,8 @@ final class ResolveurTour
         // ⚠ Pas de snapshot si tout le monde est au sol : un instantané « tout
         // le monde à terre » deviendrait faux dès que le joueur boit sa potion,
         // et c'est lui que `/reprise` rechargerait.
-        if ($verdict === self::CHUTE_DEBOUT) {
+        // ARÈNE : aucun instantané — un combat d'arène se rejoue, il ne se reprend pas (`EtapesCampagne::SNAPSHOT`).
+        if ($verdict === self::CHUTE_DEBOUT && ! $groupe->estArene()) {
             $this->sauvegarde->snapshotter($groupe->refresh(), Sauvegarde::ETIQUETTE_NOUVEAU_TOUR);
         }
 

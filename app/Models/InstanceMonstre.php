@@ -12,6 +12,8 @@ class InstanceMonstre extends Model
     protected $table = 'instances_monstres';
 
     protected $fillable = [
+        // MODE ARÈNE (lot T2) : le jeton d'activation du round — lu par `ResolveurTour::phaseMonstres()` en arène seulement.
+        'active_ce_round',
         'quete_id',
         'monstre_id',
         'pv_body',
@@ -74,6 +76,7 @@ class InstanceMonstre extends Model
     protected function casts(): array
     {
         return [
+            'active_ce_round' => 'boolean',
             'habillage' => 'array',
             'formes_a_venir' => 'array',
             'revele' => 'boolean',

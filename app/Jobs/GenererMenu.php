@@ -110,9 +110,9 @@ class GenererMenu implements ShouldQueue
      */
     private function allieEnAttenteDe(Groupe $groupe, Personnage $personnage, OrdreDuTour $ordreDuTour): ?GroupeMercenaire
     {
-        $acteur = $ordreDuTour->acteurActif($groupe);
+        $acteur = $ordreDuTour->acteurPour($groupe, (int) $personnage->id);
 
-        if ($acteur === null || $acteur['type'] !== 'allie' || $acteur['personnage_id'] !== $personnage->id) {
+        if ($acteur === null || $acteur['type'] !== 'allie') {
             return null;
         }
 
@@ -199,12 +199,12 @@ class GenererMenu implements ShouldQueue
         // et publie donc des destinations à la seule portée de base — vu en partie
         // de vérification le 2026-10-10 : ~12 s de liste tronquée au début du tour.
         // `MenuCourant::pour()` le jette et le recalcule.
-        $acteur = app(OrdreDuTour::class)->acteurActif($groupe);
+        $acteur = app(OrdreDuTour::class)->acteurPour($groupe, (int) $personnage->id);
 
         Cache::put(self::cleMenu($groupe->id, $this->joueurId), [
             'personnage_id' => $personnage->id,
             'allie_id' => $allieId,
-            'au_tour' => $acteur !== null && (int) $acteur['personnage_id'] === (int) $personnage->id,
+            'au_tour' => $acteur !== null,
             'menu' => $menu,
         ], now()->addMinutes(self::TTL_MENU_MINUTES));
 
