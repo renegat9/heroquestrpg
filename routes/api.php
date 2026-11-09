@@ -127,6 +127,8 @@ Route::put('/groupes/{identifiant}/ordre', [GroupeController::class, 'reordonner
 // MODE ARÈNE (lot A5) — décisions de salon membre-OU-table (autorisation dans le contrôleur) : la table compose le
 // Defender, lance, propose la revanche ou ferme le combat, comme elle lance une quête.
 Route::put('/arene/{identifiant}/defender', [AreneController::class, 'defender']);
+Route::post('/arene/{identifiant}/defender', [AreneController::class, 'ajouterAuDefender']);
+Route::delete('/arene/{identifiant}/defender/{index}', [AreneController::class, 'retirerDuDefender'])->whereNumber('index');
 Route::post('/arene/{identifiant}/lancer', [AreneController::class, 'lancer']);
 Route::post('/arene/{identifiant}/rejouer', [AreneController::class, 'rejouer']);
 Route::delete('/arene/{identifiant}', [AreneController::class, 'quitter']);

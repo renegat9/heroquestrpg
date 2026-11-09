@@ -74,6 +74,26 @@ class AreneController extends Controller
         return $this->etat($arene);
     }
 
+    /** POST /api/arene/{identifiant}/defender {monstre_id} — membre OU table : ajoute UNE figure (lot T3). */
+    public function ajouterAuDefender(Request $request, string $identifiant): JsonResponse
+    {
+        $arene = $this->areneLisible($request, $identifiant);
+        $donnees = $request->validate(['monstre_id' => ['required', 'integer']]);
+
+        $this->arenes->ajouterAuDefender($arene, (int) $donnees['monstre_id']);
+
+        return $this->etat($arene);
+    }
+
+    /** DELETE /api/arene/{identifiant}/defender/{index} — membre OU table : retire la figure de ce rang. */
+    public function retirerDuDefender(Request $request, string $identifiant, int $index): JsonResponse
+    {
+        $arene = $this->areneLisible($request, $identifiant);
+        $this->arenes->retirerDuDefender($arene, $index);
+
+        return $this->etat($arene);
+    }
+
     /** POST /api/arene/{identifiant}/pret {pret} — la doublure du joueur connecté. */
     public function pret(Request $request, string $identifiant): JsonResponse
     {

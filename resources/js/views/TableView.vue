@@ -643,7 +643,8 @@ async function gesteArene(fn, { quitter = false } = {}) {
         areneEnCours.value = false;
     }
 }
-const definirDefender = (ids) => gesteArene(() => api.defenderArene(props.groupe, ids));
+const ajouterAuDefender = (id) => gesteArene(() => api.ajouterAuDefender(props.groupe, id));
+const retirerDuDefender = (index) => gesteArene(() => api.retirerDuDefender(props.groupe, index));
 const lancerArene = () => gesteArene(() => api.lancerArene(props.groupe));
 const rejouerArene = () => gesteArene(() => api.rejouerArene(props.groupe));
 const quitterArene = () => gesteArene(() => api.quitterArene(props.groupe), { quitter: true });
@@ -1000,7 +1001,8 @@ watch(() => store.state.clotureTerminee, (t) => {
                             :code="props.groupe"
                             :en-cours="areneEnCours"
                             :erreur="erreurArene"
-                            @defender="definirDefender"
+                            @ajouter="ajouterAuDefender"
+                            @retirer="retirerDuDefender"
                             @lancer="lancerArene"
                             @rejouer="rejouerArene"
                             @quitter="quitterArene"

@@ -47,7 +47,10 @@ final class GroupesArene
     /** Âge par défaut au-delà duquel `arene:nettoyer` tient un combat pour abandonné (onglet fermé, serveur redémarré). */
     public const HEURES_ABANDON = 6;
 
-    public function __construct(private readonly Doublures $doublures) {}
+    public function __construct(
+        private readonly Doublures $doublures,
+        private readonly PuissanceArene $puissance,
+    ) {}
 
     /** Ouvre un combat d'arène : un groupe `mode = arene`, sans campagne, sans IA. */
     public function ouvrir(string $nom = 'Arène'): Groupe
@@ -162,8 +165,48 @@ final class GroupesArene
             }
         }
 
+        $this->exigerAbordable($arene, $ids);
+
         $arene->update(['arene_defender' => $ids]);
         $this->toutLeMondePasPret($arene);
+    }
+
+    /** Ajoute UNE figure au Defender (lot T3) — refusée si elle n'est pas abordable (publiée `abordable: false`). */
+    public function ajouterAuDefender(Groupe $arene, int $monstreId): void
+    {
+        $this->choisirDefender($arene, [...array_map('intval', $arene->arene_defender ?? []), $monstreId]);
+    }
+
+    /** Retire la figure de rang `$index` du Defender. */
+    public function retirerDuDefender(Groupe $arene, int $index): void
+    {
+        $this->exigerSalon($arene);
+        $ids = array_values(array_map('intval', $arene->arene_defender ?? []));
+
+        if (! array_key_exists($index, $ids)) {
+            throw ValidationException::withMessages(['index' => 'Cette figure n\'est pas dans le Defender.']);
+        }
+
+        array_splice($ids, $index, 1);
+        $arene->update(['arene_defender' => $ids === [] ? null : $ids]);
+        $this->toutLeMondePasPret($arene);
+    }
+
+    /**
+     * T3 : « The Defender team's power must be less than or equal to the Challenger team's power » (F9528 p. 15).
+     *
+     * @param  list<int>  $ids
+     */
+    private function exigerAbordable(Groupe $arene, array $ids): void
+    {
+        $challenger = $this->puissance->duChallenger($arene);
+        $defender = $this->puissance->duDefender($arene, $ids);
+
+        if ($defender > $challenger) {
+            throw ValidationException::withMessages([
+                'monstre_ids' => "Le Defender vaudrait {$defender} : il ne peut pas dépasser la puissance du Challenger ({$challenger}).",
+            ]);
+        }
     }
 
     /** Marque prête (ou non) une doublure du combat. */
@@ -205,6 +248,14 @@ final class GroupesArene
 
         if (($arene->arene_defender ?? []) === []) {
             return 'Le Defender n\'est pas encore composé.';
+        }
+
+        // T3 : un combattant a pu partir, ou une copie fraîche valoir moins — revalidé ici, pas seulement à la
+        // composition.
+        $challenger = $this->puissance->duChallenger($arene);
+        $defender = $this->puissance->duDefender($arene);
+        if ($defender > $challenger) {
+            return "Le Defender ({$defender}) dépasse la puissance du Challenger ({$challenger}) : retirez une figure.";
         }
 
         if ($combattants->contains(fn (Personnage $p) => ! (bool) $p->pivot->pret_arene)) {
@@ -283,11 +334,15 @@ final class GroupesArene
                 'joueur_id' => (int) $p->joueur_id,
                 'joueur' => $p->joueur?->pseudo,
                 'pret' => (bool) $p->pivot->pret_arene,
+                'puissance' => $this->puissance->duHeros($p),
             ])
             ->values()
             ->all();
 
         $motif = $this->motifLancement($arene);
+        $puissanceChallenger = $this->puissance->duChallenger($arene);
+        $puissanceDefender = $this->puissance->duDefender($arene);
+        $restant = $puissanceChallenger - $puissanceDefender;
 
         return [
             'combattants' => $combattants,
@@ -303,7 +358,13 @@ final class GroupesArene
                 'attaque' => (int) $m->attaque,
                 'defense' => (int) $m->defense,
                 'pv_body' => (int) $m->pv_body,
+                // T3 : ce que la figure coûte, et la DÉCISION « l'ajouter reste-t-il permis ? » — la manette et la table
+                // n'additionnent rien.
+                'puissance' => $this->puissance->duMonstre($m),
+                'abordable' => $this->puissance->duMonstre($m) <= $restant,
             ])->all(),
+            'puissance_challenger' => $puissanceChallenger,
+            'puissance_defender' => $puissanceDefender,
             'lancement_possible' => $motif === null,
             'lancement_motif' => $motif,
             'resultat' => $derniere === null || $derniere->etat === 'en_cours' ? null : [

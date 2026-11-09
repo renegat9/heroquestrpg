@@ -305,7 +305,8 @@ async function gesteArene(fn, { quitter = false } = {}) {
         areneEnCours.value = false;
     }
 }
-const definirDefender = (ids) => gesteArene(() => api.defenderArene(props.groupe, ids));
+const ajouterAuDefender = (id) => gesteArene(() => api.ajouterAuDefender(props.groupe, id));
+const retirerDuDefender = (index) => gesteArene(() => api.retirerDuDefender(props.groupe, index));
 const basculerPretArene = (pret) => gesteArene(() => api.pretArene(props.groupe, pret));
 const lancerArene = () => gesteArene(() => api.lancerArene(props.groupe));
 const rejouerArene = () => gesteArene(() => api.rejouerArene(props.groupe));
@@ -1585,7 +1586,8 @@ const navItems = computed(() => (scene.value === 'marche'
                                 :mon-personnage-id="persoIdActif"
                                 :en-cours="areneEnCours"
                                 :erreur="erreurArene"
-                                @defender="definirDefender"
+                                @ajouter="ajouterAuDefender"
+                                @retirer="retirerDuDefender"
                                 @pret="basculerPretArene"
                                 @lancer="lancerArene"
                                 @rejouer="rejouerArene"

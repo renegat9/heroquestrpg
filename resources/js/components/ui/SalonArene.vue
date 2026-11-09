@@ -6,7 +6,7 @@
 // Defender, la LISTE BLANCHE des monstres (que `PUT …/defender` revalide), la décision de lancement et son motif, le
 // résultat et le bandeau d'étanchéité. Ce composant ne connaît ni le roster du tournoi, ni la taille maximale d'un
 // Defender au-delà de ce que le serveur refuse, ni ce qui rend un combat lançable : il rend ce qu'il reçoit.
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import MSym from './MSym.vue';
 
 const props = defineProps({
@@ -21,21 +21,14 @@ const props = defineProps({
     // Message d'erreur du dernier geste refusé par le serveur.
     erreur: { type: String, default: '' },
 });
-const emit = defineEmits(['defender', 'pret', 'lancer', 'rejouer', 'quitter']);
+const emit = defineEmits(['ajouter', 'retirer', 'pret', 'lancer', 'rejouer', 'quitter']);
 
 const monCombattant = computed(() =>
     props.salon.combattants.find((c) => c.personnage_id === props.monPersonnageId) ?? null);
 
-// Le Defender en cours de composition : part de celui que le serveur publie, et s'y recale à chaque publication.
-const brouillon = ref([]);
-watch(() => props.salon.defender, (d) => { brouillon.value = d.map((m) => m.monstre_id); }, { immediate: true, deep: true });
-const nomDuMonstre = (id) => props.salon.monstres.find((m) => m.id === id)?.nom_base ?? 'Monstre';
-const modifie = computed(() =>
-    JSON.stringify(brouillon.value) !== JSON.stringify(props.salon.defender.map((m) => m.monstre_id)));
+// Chaque ajout ou retrait part au serveur (`POST`/`DELETE …/defender`), qui republie le salon : la puissance des deux
+// équipes et les monstres encore abordables (lot T3) sont DÉCIDÉS côté serveur, jamais additionnés ici.
 const enSalon = computed(() => !props.salon.resultat);
-
-function ajouter(id) { brouillon.value = [...brouillon.value, id]; }
-function retirer(index) { brouillon.value = brouillon.value.filter((_, i) => i !== index); }
 
 const confirmerQuitter = ref(false);
 </script>
@@ -56,27 +49,33 @@ const confirmerQuitter = ref(false);
         </div>
 
         <!-- ---- combattants ---- -->
-        <div class="sla-titre"><MSym n="groups" fill :size="15" /> Challenger</div>
+        <div class="sla-titre">
+            <MSym n="groups" fill :size="15" /> Challenger
+            <span class="sla-puissance">puissance {{ salon.puissance_challenger }}</span>
+        </div>
         <div v-if="!salon.combattants.length" class="sla-vide">Aucun combattant pour l'instant.</div>
         <div v-for="c in salon.combattants" :key="c.personnage_id" class="sla-ligne" :class="{ pret: c.pret }">
             <MSym :n="c.pret ? 'check_circle' : 'radio_button_unchecked'" fill :size="15" />
             <span class="sla-nom">{{ c.nom }}</span>
-            <span class="sla-sub">{{ c.classe }}<template v-if="c.joueur"> · {{ c.joueur }}</template></span>
+            <span class="sla-sub">{{ c.classe }}<template v-if="c.joueur"> · {{ c.joueur }}</template> · {{ c.puissance }}</span>
         </div>
 
         <!-- ---- Defender ---- -->
-        <div class="sla-titre"><MSym n="skull" fill :size="15" /> Defender</div>
+        <div class="sla-titre">
+            <MSym n="skull" fill :size="15" /> Defender
+            <span class="sla-puissance">puissance {{ salon.puissance_defender }} / {{ salon.puissance_challenger }}</span>
+        </div>
         <div class="sla-chips">
-            <span v-if="!brouillon.length" class="sla-vide">Aucune figure choisie.</span>
+            <span v-if="!salon.defender.length" class="sla-vide">Aucune figure choisie.</span>
             <button
-                v-for="(id, i) in brouillon"
-                :key="`${id}-${i}`"
+                v-for="(m, i) in salon.defender"
+                :key="`${m.monstre_id}-${i}`"
                 class="sla-chip"
                 :disabled="!enSalon || enCours"
                 :title="enSalon ? 'Retirer' : ''"
-                @click="retirer(i)"
+                @click="emit('retirer', i)"
             >
-                {{ nomDuMonstre(id) }} <MSym v-if="enSalon" n="close" :size="12" />
+                {{ m.nom_base }} <MSym v-if="enSalon" n="close" :size="12" />
             </button>
         </div>
         <div v-if="enSalon" class="sla-roster">
@@ -84,10 +83,11 @@ const confirmerQuitter = ref(false);
                 v-for="m in salon.monstres"
                 :key="m.id"
                 class="sla-monstre"
-                :disabled="enCours"
-                @click="ajouter(m.id)"
+                :disabled="enCours || !m.abordable"
+                :title="m.abordable ? '' : 'Trop puissant pour ce qui reste'"
+                @click="emit('ajouter', m.id)"
             >
-                <span class="sla-nom">+ {{ m.nom_base }}</span>
+                <span class="sla-nom">+ {{ m.nom_base }} <span class="sla-cout">{{ m.puissance }}</span></span>
                 <span class="sla-stats">
                     <MSym n="directions_run" :size="12" />{{ m.deplacement }}
                     <MSym n="swords" :size="12" />{{ m.attaque }}
@@ -96,15 +96,6 @@ const confirmerQuitter = ref(false);
                 </span>
             </button>
         </div>
-        <button
-            v-if="enSalon && modifie"
-            class="sla-btn"
-            :disabled="enCours || !brouillon.length"
-            @click="emit('defender', brouillon)"
-        >
-            <MSym n="save" :size="16" /> Valider le Defender
-        </button>
-
         <!-- ---- prêt (manette) / lancer (tous) ---- -->
         <button
             v-if="enSalon && monCombattant"
@@ -168,6 +159,9 @@ const confirmerQuitter = ref(false);
 .sla-monstre { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 7px 9px; border-radius: 9px;
   border: 1px solid var(--line-soft, oklch(0.4 0.02 70 / 0.4)); background: var(--panel-2, oklch(0.22 0.02 70 / 0.4));
   cursor: pointer; text-align: left; }
+.sla-monstre:disabled { opacity: 0.45; cursor: default; }
+.sla-puissance { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; text-transform: none; color: var(--gold, #c9a24a); }
+.sla-cout { margin-left: 4px; font-size: 11px; font-weight: 800; color: var(--gold, #c9a24a); }
 .sla-stats { display: flex; align-items: center; gap: 3px; font-size: 11.5px; color: var(--ink-500); }
 .sla-btn { width: 100%; margin-top: 8px; padding: 10px; border: 0; border-radius: 9px; display: flex; align-items: center;
   justify-content: center; gap: 6px; font-weight: 700; font-size: 14px; cursor: pointer;

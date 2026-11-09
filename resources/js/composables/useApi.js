@@ -150,6 +150,8 @@ export function useApi() {
         palmaresArene: () => request('GET', '/arene/palmares'),
         rejoindreArene: (code, personnageId) => request('POST', `/arene/${encodeURIComponent(code)}/combattants`, { personnage_id: personnageId }),
         defenderArene: (code, monstreIds) => request('PUT', `/arene/${encodeURIComponent(code)}/defender`, { monstre_ids: monstreIds }),
+        ajouterAuDefender: (code, monstreId) => request('POST', `/arene/${encodeURIComponent(code)}/defender`, { monstre_id: monstreId }),
+        retirerDuDefender: (code, index) => request('DELETE', `/arene/${encodeURIComponent(code)}/defender/${index}`),
         pretArene: (code, pret) => request('POST', `/arene/${encodeURIComponent(code)}/pret`, { pret }),
         lancerArene: (code) => request('POST', `/arene/${encodeURIComponent(code)}/lancer`),
         rejouerArene: (code) => request('POST', `/arene/${encodeURIComponent(code)}/rejouer`),

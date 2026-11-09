@@ -1074,9 +1074,11 @@ recrutement, compagnon, faveurs, prologue, départ) **n'est pas publié** ; à s
 
 ```json
 {
-  "combattants": [{"personnage_id": 12, "heros_id": 4, "nom": "Brakka", "classe": "barbare", "joueur_id": 1, "joueur": "rene", "pret": false}],
+  "combattants": [{"personnage_id": 12, "heros_id": 4, "nom": "Brakka", "classe": "barbare", "joueur_id": 1, "joueur": "rene", "pret": false, "puissance": 4}],
   "defender": [{"monstre_id": 7, "nom_base": "Orque"}],
-  "monstres": [{"id": 7, "nom_base": "Orque", "deplacement": 8, "attaque": 3, "defense": 2, "pv_body": 1}],
+  "monstres": [{"id": 7, "nom_base": "Orque", "deplacement": 8, "attaque": 3, "defense": 2, "pv_body": 1, "puissance": 3, "abordable": true}],
+  "puissance_challenger": 4,
+  "puissance_defender": 3,
   "lancement_possible": false,
   "lancement_motif": "Tous les combattants ne sont pas prêts.",
   "resultat": null,
@@ -1088,10 +1090,14 @@ recrutement, compagnon, faveurs, prologue, départ) **n'est pas publié** ; à s
   nomme (F9528 p. 16 — Gobelin, Orque, Squelette, Zombie, Momie, Abomination, Guerrier du Chaos, Gargouille), aux stats
   de notre catalogue — fiches de CATALOGUE, d'où la clé `nom_base` (une figure sur la carte, elle, est nommée par
   `InstanceMonstre::nomAffiche()`). ⚠ Le Fimir, nom de 1989 absent du roster 2021, n'y est pas : retrait écrit
-  (`GroupesArene::ROSTER_DEFENDER`). La puissance d'équipe (lot T3) attend la valeur de chaque monstre du roster,
-  non numérisée.
+  (`GroupesArene::ROSTER_DEFENDER`).
+- **Puissance d'équipe (lot T3, F9528 p. 15-16)**, décidée par `App\Partie\Arene\PuissanceArene`, seul point de passage :
+  un héros vaut **1 + les dés de sa meilleure attaque** (arme `des_attaque`, ou sort `des_degats` — le Génie vaut 6),
+  un monstre vaut **ses dés d'attaque**. `puissance_challenger` / `puissance_defender` sont les sommes ;
+  `monstres[].abordable` dit si l'ajouter garderait le Defender **≤** le Challenger. Le front n'additionne rien.
 - `lancement_possible` / `lancement_motif` : la DÉCISION de `GroupesArene::motifLancement()`, le même prédicat que
-  `POST …/lancer` — au moins un combattant, un Defender, tous prêts, aucun combat déjà joué à rejouer d'abord.
+  `POST …/lancer` — au moins un combattant, un Defender qui ne dépasse pas le Challenger (revalidé : un combattant a
+  pu partir), tous prêts, aucun combat déjà joué à rejouer d'abord.
 - `resultat` : `null` avant le combat ; après, `{issue: "victoire" | "defaite", quete_id}`.
 - `bandeau` : la phrase d'étanchéité, permanente sur les deux écrans (plan §4, T7), décidée ici.
 
@@ -1099,7 +1105,9 @@ recrutement, compagnon, faveurs, prologue, départ) **n'est pas publié** ; à s
 |---|---|---|---|
 | POST | /api/arene | {personnage_id} | joueur : ouvre un combat et y engage SON héros d'arène → 201 `{groupe: {identifiant}, doublure_id}` |
 | POST | /api/arene/{identifiant}/combattants | {personnage_id} | joueur : engage son héros d'arène (sa doublure) → 201 `{doublure_id}` ; refusé hors salon, ou si ce héros y est déjà |
-| PUT | /api/arene/{identifiant}/defender | {monstre_ids: [int]} | membre OU table : compose le Defender (1 à 12 figures de la liste blanche) |
+| PUT | /api/arene/{identifiant}/defender | {monstre_ids: [int]} | membre OU table : compose le Defender d'un coup (1 à 12 figures de la liste blanche, puissance ≤ Challenger, sinon 422) |
+| POST | /api/arene/{identifiant}/defender | {monstre_id} | membre OU table : ajoute UNE figure (422 si elle n'est pas `abordable`) → EtatGroupe |
+| DELETE | /api/arene/{identifiant}/defender/{index} | — | membre OU table : retire la figure de ce rang → EtatGroupe |
 | POST | /api/arene/{identifiant}/pret | {pret: bool} | joueur : marque prête la doublure de ce joueur |
 | POST | /api/arene/{identifiant}/lancer | — | membre OU table : démarre le combat (`DemarreurArene`) si `lancement_possible`, sinon 422 avec le motif |
 | POST | /api/arene/{identifiant}/rejouer | — | membre OU table : après la fin, des doublures FRAÎCHES remplacent les anciennes, le Defender est gardé, les prêts sont remis à faux |
