@@ -412,11 +412,11 @@ révèle.
   ce n'est pas une tuile à part : toute tuile peut servir ainsi.
 - Ramassage : en FINISSANT son tour sur la case, sans action ; réserve d'équipe, impossible à voler ; les tuiles non
   ramassées disparaissent à la fin du combat ; une grande figure ramasse toutes celles sous elle.
-- ⚠ **Le troisième bouclier, non nommé** — ni le texte, ni l'illustration p. 14, ni la page de contenu (p. 3), ni la
-  photo du contenu de la boîte fournie par René (2026-11-09) ne le nomment : les trois dessins (crâne, bouclier à
-  visage, bouclier en écu) y sont les mêmes. Lecture probable, NON SOURCÉE : les trois faces du dé de combat 2021 —
-  le bouclier à visage serait le **bouclier noir** (défense des monstres), le bouclier en écu le **bouclier blanc**.
-  À confirmer en comparant le jeton au dé.
+- **Le troisième bouclier : le BOUCLIER NOIR** — confirmé par René le 2026-11-09 sur la boîte (« le jeton à visage est
+  le bouclier noir dans les trophées »). Ni le texte, ni l'illustration p. 14, ni la page de contenu ne le nomment. Les
+  trois tuiles de combat sont donc les trois faces du dé : **crâne blanc** (+1 crâne à l'attaque), **bouclier blanc**
+  (+1 bouclier blanc à la défense, le bouclier en écu) et **bouclier noir** (+1 bouclier noir à la défense, le bouclier
+  à visage), chacune en simple et en « x2 ».
 - Le tournoi se joue sur un **plateau en carton dédié** (« World's End Tournament », p. 3 et p. 12), tuiles de départ
   collées sur ses côtés, décalées (Challenger en haut à gauche, Defender en bas à droite) ; le plan « hors des
   quêtes » de la p. 15, ci-dessus, les centre et désigne trophées, coffres et gravats. La photo du contenu ne montre
