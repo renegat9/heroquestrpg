@@ -125,6 +125,9 @@ export function useApi() {
             return {
                 joueur: r?.joueur ?? null,
                 personnages: r?.joueur?.personnages ?? [],
+                // MODE ARÈNE (lot A5) : les doublures que ce joueur pilote dans un combat d'arène — JAMAIS dans le
+                // roster ; seule la manette les lit, pour la fiche de la doublure qu'elle pilote.
+                doublures: r?.joueur?.doublures ?? [],
                 // Boîtes du bestiaire MANUEL, libellés décidés côté serveur.
                 boites_bestiaire: r?.boites_bestiaire ?? [],
                 // Longueurs de campagne proposables (2026-11-05), décidées côté serveur.
@@ -142,6 +145,15 @@ export function useApi() {
          * ⚠ Le corps est relayé tel quel : l'ancienne version ne gardait que `{nom, classe, elements}` et jetait en
          * silence `sorts_elfiques`, si bien qu'un Elfe de voie elfique recevait l'école de départ.
          */
+        // ---- arène (lot A5, contrat « Le salon et les routes d'arène ») ----
+        ouvrirArene: (personnageId) => request('POST', '/arene', { personnage_id: personnageId }),
+        rejoindreArene: (code, personnageId) => request('POST', `/arene/${encodeURIComponent(code)}/combattants`, { personnage_id: personnageId }),
+        defenderArene: (code, monstreIds) => request('PUT', `/arene/${encodeURIComponent(code)}/defender`, { monstre_ids: monstreIds }),
+        pretArene: (code, pret) => request('POST', `/arene/${encodeURIComponent(code)}/pret`, { pret }),
+        lancerArene: (code) => request('POST', `/arene/${encodeURIComponent(code)}/lancer`),
+        rejouerArene: (code) => request('POST', `/arene/${encodeURIComponent(code)}/rejouer`),
+        quitterArene: (code) => request('DELETE', `/arene/${encodeURIComponent(code)}`),
+
         creerPersonnage: ({ nom, classe, mode, elements, sorts_elfiques }) =>
             request('POST', '/personnages', {
                 nom,

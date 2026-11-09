@@ -205,6 +205,26 @@ async function rejoindre(perso) {
     }
 }
 
+// MODE ARÈNE (lot A5) : un héros d'arène ouvre un combat ou en rejoint un par son code ; la manette pilote alors
+// SA DOUBLURE (`doublure_id`, rendue par le serveur), jamais le héros lui-même.
+const areneEnCours = ref({});
+const erreurArene = ref({});
+async function entrerArene(perso, appel) {
+    areneEnCours.value = { ...areneEnCours.value, [perso.id]: true };
+    erreurArene.value = { ...erreurArene.value, [perso.id]: '' };
+    try {
+        const r = await appel();
+        router.push({ name: 'manette', params: { groupe: r.groupe.identifiant }, query: { perso: r.doublure_id } });
+    } catch (e) {
+        erreurArene.value = { ...erreurArene.value, [perso.id]: e.message };
+    } finally {
+        areneEnCours.value = { ...areneEnCours.value, [perso.id]: false };
+    }
+}
+const ouvrirArene = (perso) => entrerArene(perso, () => api.ouvrirArene(perso.id));
+// Le code se tape en majuscules (`setCode`) ; l'identifiant du serveur est en minuscules.
+const rejoindreArene = (perso) => entrerArene(perso, () => api.rejoindreArene(codeDePerso(perso.id).trim().toLowerCase(), perso.id));
+
 // Créer un groupe
 const montrerCreerGroupe = ref({}); // { [perso.id]: bool }
 const nomGroupe = ref({});
@@ -514,10 +534,36 @@ function libelleClasse(classe) {
                         <template v-if="statutPersonnage(perso).disponible">
                           <!-- HÉROS D'ARÈNE (lot A6b) : ni groupe à fonder ni campagne à rejoindre — la DÉCISION
                                `engageable_campagne` vient du serveur, qui refuse aussi les deux routes. -->
-                          <p v-if="perso.engageable_campagne === false" class="pcard-arene-note">
-                              <MSym n="swords" :size="14" /> Héros d'arène : il combat selon les règles du livret et
-                              n'entre jamais en campagne. L'arène ouvrira bientôt ses portes.
-                          </p>
+                          <template v-if="perso.engageable_campagne === false">
+                              <p class="pcard-arene-note">
+                                  <MSym n="swords" :size="14" /> Héros d'arène : il combat selon les règles du livret
+                                  et n'entre jamais en campagne. Chaque combat se joue avec une copie fraîche.
+                              </p>
+                              <div class="pcard-actions">
+                                  <button class="joueur-btn-action" :disabled="areneEnCours[perso.id]" @click="ouvrirArene(perso)">
+                                      <MSym n="swords" /> Ouvrir un combat
+                                  </button>
+                              </div>
+                              <div class="pcard-actions pcard-join-row">
+                                  <input
+                                      class="joueur-code-input"
+                                      :value="codeDePerso(perso.id)"
+                                      placeholder="ARENE-XXXXX"
+                                      spellcheck="false"
+                                      @input="setCode(perso.id, $event.target.value)"
+                                  />
+                                  <button
+                                      class="joueur-btn-ghost-sm"
+                                      :disabled="areneEnCours[perso.id] || !codeDePerso(perso.id).trim()"
+                                      @click="rejoindreArene(perso)"
+                                  >
+                                      <MSym n="group_add" /> Rejoindre
+                                  </button>
+                              </div>
+                              <p v-if="erreurArene[perso.id]" class="joueur-err">
+                                  <MSym n="error" :size="14" /> {{ erreurArene[perso.id] }}
+                              </p>
+                          </template>
                           <template v-else>
                             <!-- créer un groupe -->
                             <div v-if="!montrerCreerGroupe[perso.id]" class="pcard-actions">

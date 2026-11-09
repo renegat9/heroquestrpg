@@ -47,6 +47,8 @@ class Groupe extends Model
         'quete_courante_id',
         // MODE ARÈNE (lot A2, 2026-11-09) : `campagne` ou `arene` — vocabulaire fermé `self::MODES`.
         'mode',
+        // MODE ARÈNE (lot A5) : ids `monstres` du Defender composé au salon — lus par `GroupesArene` seulement.
+        'arene_defender',
     ];
 
     /**
@@ -66,6 +68,7 @@ class Groupe extends Model
             'plan_campagne' => 'array',
             'ton' => 'array',
             'boites_bestiaire' => 'array',
+            'arene_defender' => 'array',
         ];
     }
 
@@ -97,7 +100,7 @@ class Groupe extends Model
     public function personnages(): BelongsToMany
     {
         return $this->belongsToMany(Personnage::class, 'groupe_personnages', 'groupe_id', 'personnage_id')
-            ->withPivot(['ordre_initiative', 'actif']);
+            ->withPivot(['ordre_initiative', 'actif', 'pret_arene']);
     }
 
     /** Personnages dont c'est le groupe actif. */

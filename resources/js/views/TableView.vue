@@ -6,6 +6,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import AnnonceHub from '../components/ui/AnnonceHub.vue';
+import SalonArene from '../components/ui/SalonArene.vue';
 import TalentPopup from '../components/ui/TalentPopup.vue';
 import InitiativeBar from '../components/table/InitiativeBar.vue';
 import DungeonMap from '../components/table/DungeonMap.vue';
@@ -622,6 +623,30 @@ watch(sceneAmbiance, (s) => { if (s) ambiance.definirScene(s); }, { immediate: t
 const lancementEnCours = ref(false);
 const erreurLancement = ref('');
 const phaseHub = computed(() => !!etat.value && etat.value.groupe?.phase === 'hub');
+
+/* ---- MODE ARÈNE (lot A5) : au salon, la table compose le Defender, lance, propose la revanche ou ferme le combat.
+   Tout est publié par le serveur (`groupe.arene`) ; la table n'a pas de combattant (`mon-personnage-id` nul). ---- */
+const salonArene = computed(() => etat.value?.groupe?.arene ?? null);
+const areneEnCours = ref(false);
+const erreurArene = ref('');
+async function gesteArene(fn, { quitter = false } = {}) {
+    if (areneEnCours.value) return;
+    areneEnCours.value = true;
+    erreurArene.value = '';
+    try {
+        const r = await fn();
+        if (quitter) { router.push({ name: 'narrateur' }); return; }
+        if (r?.groupe) store.appliquerEtat(r);
+    } catch (e) {
+        erreurArene.value = e.message;
+    } finally {
+        areneEnCours.value = false;
+    }
+}
+const definirDefender = (ids) => gesteArene(() => api.defenderArene(props.groupe, ids));
+const lancerArene = () => gesteArene(() => api.lancerArene(props.groupe));
+const rejouerArene = () => gesteArene(() => api.rejouerArene(props.groupe));
+const quitterArene = () => gesteArene(() => api.quitterArene(props.groupe), { quitter: true });
 // Alliés recrutés (3.5) exposés au hub : la table les affiche pour que le
 // narrateur voie les renforts avant de lancer la quête (le recrutement lui-même
 // se fait sur la manette d'un joueur, bourse commune).
@@ -968,6 +993,19 @@ watch(() => store.state.clotureTerminee, (t) => {
                     <!-- phase marché (mode connecté) : vue partagée des paniers -->
                     <MarketPanel v-if="marche" :marche="marche" @annuler="annulerMarche" />
                     <!-- phase hub (mode connecté) : pas encore de carte, on lance la quête -->
+                    <!-- MODE ARÈNE (lot A5) : le salon remplace le hub de campagne. -->
+                    <div v-else-if="phaseHub && salonArene" class="hub-panel arene-salon-table">
+                        <SalonArene
+                            :salon="salonArene"
+                            :code="props.groupe"
+                            :en-cours="areneEnCours"
+                            :erreur="erreurArene"
+                            @defender="definirDefender"
+                            @lancer="lancerArene"
+                            @rejouer="rejouerArene"
+                            @quitter="quitterArene"
+                        />
+                    </div>
                     <div v-else-if="phaseHub" class="hub-panel">
                         <img v-if="hubImage" :src="hubImage" alt="Lieu de repos" class="hub-illus" />
                         <MSym v-else n="map" :size="40" fill />
@@ -1530,6 +1568,9 @@ watch(() => store.state.clotureTerminee, (t) => {
   padding: 10px 12px; border: 1px solid var(--torch, #c9a25a); border-radius: 10px; background: rgba(201, 162, 90, 0.08);
   font-family: var(--font-ui); font-style: normal; font-size: 13.5px; line-height: 1.45; text-align: left; }
 .table-screen .hub-panel .hub-depart-motif > .msym { flex: none; margin-top: 1px; color: var(--torch, #c9a25a); }
+.table-screen .hub-panel.arene-salon-table { display: block; text-align: left; padding: 16px; width: min(560px, 100%);
+  max-width: 560px; max-height: 100%; overflow: auto; }
+.table-screen .hub-panel.arene-salon-table p { font-family: var(--font-ui); font-style: normal; font-size: 12.5px; }
 .table-screen .hub-panel .hub-err { font-family: var(--font-ui); font-style: normal; font-size: 13px; color: var(--danger, #c33); }
 .table-screen .hub-allies { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px;
   font-family: var(--font-ui); font-style: normal; }

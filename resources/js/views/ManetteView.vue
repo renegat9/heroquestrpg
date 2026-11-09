@@ -6,7 +6,7 @@
 // (.menu.propose → onglet Action) ; chaque tap envoie POST choix
 // {option_id} et gèle les boutons jusqu'au prochain .groupe.etat.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import Vignette from '../components/ui/Vignette.vue';
 import ActionTab from '../components/manette/ActionTab.vue';
@@ -19,6 +19,7 @@ import ChoixArmeFaveur from '../components/manette/ChoixArmeFaveur.vue';
 import ChoixLieuHopekins from '../components/manette/ChoixLieuHopekins.vue';
 import ChoixRepertoireFaveur from '../components/manette/ChoixRepertoireFaveur.vue';
 import AnnonceHub from '../components/ui/AnnonceHub.vue';
+import SalonArene from '../components/ui/SalonArene.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
 import JetDes from '../components/ui/JetDes.vue';
 import TalentPopup from '../components/ui/TalentPopup.vue';
@@ -65,8 +66,9 @@ const chargement = ref(true);
 const erreurChargement = ref('');
 onMounted(async () => {
     try {
-        const { joueur, personnages } = await api.moi();
-        store.setJoueur(joueur, personnages);
+        const { joueur, personnages, doublures } = await api.moi();
+        // MODE ARÈNE (lot A5) : la fiche d'une doublure vit sous `doublures` — la manette la cherche avec le roster.
+        store.setJoueur(joueur, [...personnages, ...doublures]);
         store.appliquerEtat(await api.getEtatReprise(props.groupe));
         desabonnements.push(
             souscrireGroupe(props.groupe, {
@@ -85,7 +87,7 @@ onMounted(async () => {
                 '.niveau.monte': (e) => {
                     store.setNiveauMonte(e);
                     // /moi rafraîchi : niveau + points_competence à jour.
-                    api.moi().then((r) => store.setJoueur(r.joueur, r.personnages)).catch(() => {});
+                    api.moi().then((r) => store.setJoueur(r.joueur, [...r.personnages, ...r.doublures])).catch(() => {});
                 },
                 '.cloture.ouverte': (e) => store.appliquerCloture(e),
                 '.cloture.maj': (e) => store.appliquerCloture(e),
@@ -123,7 +125,7 @@ let moiTimer = null;
 function rafraichirMoi() {
     clearTimeout(moiTimer);
     moiTimer = setTimeout(() => {
-        api.moi().then((r) => store.setJoueur(r.joueur, r.personnages)).catch(() => {});
+        api.moi().then((r) => store.setJoueur(r.joueur, [...r.personnages, ...r.doublures])).catch(() => {});
     }, 300);
 }
 onUnmounted(() => clearTimeout(moiTimer));
@@ -282,6 +284,32 @@ const mesCompetences = computed(() => {
    broadcast .prets.maj. Le narrateur doit être actif pour que la quête
    démarre (côté serveur). */
 const auHub = computed(() => store.state.etat?.groupe?.phase === 'hub');
+
+/* ---- MODE ARÈNE (lot A5) : le salon publié par le serveur (`groupe.arene`) remplace le hub de campagne. Rien n'est
+   décidé ici : le composant rend le salon, les gestes partent vers les routes `/api/arene/…`. ---- */
+const router = useRouter();
+const salonArene = computed(() => store.state.etat?.groupe?.arene ?? null);
+const areneEnCours = ref(false);
+const erreurArene = ref('');
+async function gesteArene(fn, { quitter = false } = {}) {
+    if (areneEnCours.value) return;
+    areneEnCours.value = true;
+    erreurArene.value = '';
+    try {
+        const r = await fn();
+        if (quitter) { router.push({ name: 'joueur' }); return; }
+        if (r?.groupe) store.appliquerEtat(r);
+    } catch (e) {
+        erreurArene.value = e.message;
+    } finally {
+        areneEnCours.value = false;
+    }
+}
+const definirDefender = (ids) => gesteArene(() => api.defenderArene(props.groupe, ids));
+const basculerPretArene = (pret) => gesteArene(() => api.pretArene(props.groupe, pret));
+const lancerArene = () => gesteArene(() => api.lancerArene(props.groupe));
+const rejouerArene = () => gesteArene(() => api.rejouerArene(props.groupe));
+const quitterArene = () => gesteArene(() => api.quitterArene(props.groupe), { quitter: true });
 // DÉPART DE LA QUÊTE (fin de campagne, 2026-10-16) : la DÉCISION du serveur, publiée par EtatGroupe au hub
 // (`depart_possible` / `depart_motif`). Campagne gagnée : pas de « Prêt », le motif publié s'affiche à sa place.
 // Le client ne redérive ni la victoire ni le motif.
@@ -1409,7 +1437,8 @@ const clotureToast = computed(() => {
 watch(scene, (s) => { if (s === 'marche') tab.value = 'action'; });
 
 const navItems = computed(() => (scene.value === 'marche'
-    ? [['action', 'storefront', 'Marché'], ['fiche', 'person', 'Fiche'], ['sorts', 'auto_awesome', 'Sorts'], ['sac', 'backpack', 'Sac']]
+    // MODE ARÈNE : au salon, le premier onglet est le salon, pas le marché.
+    ? [salonArene.value ? ['action', 'swords', 'Salon'] : ['action', 'storefront', 'Marché'], ['fiche', 'person', 'Fiche'], ['sorts', 'auto_awesome', 'Sorts'], ['sac', 'backpack', 'Sac']]
     : [['action', 'swords', 'Action'], ['fiche', 'person', 'Fiche'], ['sorts', 'auto_awesome', 'Sorts'], ['sac', 'backpack', 'Sac']]));
 </script>
 
@@ -1468,6 +1497,11 @@ const navItems = computed(() => (scene.value === 'marche'
                          déjà sur l'écran de table ; l'objectif, lui, n'était
                          visible NULLE PART et c'est ce sur quoi le joueur
                          décide de son déplacement à chaque tour. -->
+                    <!-- MODE ARÈNE : le bandeau d'étanchéité, permanent (phrase décidée par le serveur). -->
+                    <div v-if="salonArene && !auHub" class="obj-peek">
+                        <MSym n="shield_lock" fill :size="16" />
+                        <div class="obj-corps"><p>{{ salonArene.bandeau }}</p></div>
+                    </div>
                     <div v-if="objectif" class="obj-peek" :class="{ fait: objectif.accompli }">
                         <MSym :n="objectif.accompli ? 'task_alt' : 'my_location'" fill :size="16" />
                         <div class="obj-corps">
@@ -1543,6 +1577,21 @@ const navItems = computed(() => (scene.value === 'marche'
                             @choose="choisirOption"
                             @open-spells="tab = 'sorts'"
                         />
+                        <!-- MODE ARÈNE (lot A5) : le salon remplace tout le hub de campagne. -->
+                        <div v-else-if="tab === 'action' && scene === 'marche' && salonArene" style="padding: 14px">
+                            <SalonArene
+                                :salon="salonArene"
+                                :code="groupe"
+                                :mon-personnage-id="persoIdActif"
+                                :en-cours="areneEnCours"
+                                :erreur="erreurArene"
+                                @defender="definirDefender"
+                                @pret="basculerPretArene"
+                                @lancer="lancerArene"
+                                @rejouer="rejouerArene"
+                                @quitter="quitterArene"
+                            />
+                        </div>
                         <MarketTab
                             v-else-if="tab === 'action' && scene === 'marche' && marcheLive"
                             :hero="hero"

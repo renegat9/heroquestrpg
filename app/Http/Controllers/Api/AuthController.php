@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\Inventaire;
+use App\Models\Personnage;
 use App\Models\PersonnageHistorique;
 use App\Partie\CatalogueExtensions;
 use App\Partie\Equipement;
@@ -133,7 +134,12 @@ class AuthController extends Controller
         /** @var JoueurAuthentifiable $joueur */
         $joueur = Auth::guard('joueur')->user();
 
-        $personnages = $joueur->personnages()
+        // MODE ARÈNE (lot A5) : le roster ET les doublures que ce joueur pilote dans un combat d'arène en cours — la
+        // manette y lit la fiche (sorts, sac) de sa doublure. Les deux listes sont séparées à la sortie : une doublure
+        // n'entre JAMAIS dans `personnages` (le roster), elle n'apparaît que sous `doublures`.
+        $personnages = Personnage::query()
+            ->where('joueur_id', $joueur->id)
+            ->where(fn ($q) => $q->whereNull('doublure_de')->orWhereNotNull('groupe_actif_id'))
             ->with(['competences:competences.id,competences.nom,competences.description,competences.cout,competences.rang,competences.effet', 'sorts', 'groupeActif', 'inventaire.objet'])
             ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id', 'or',
                 'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max',
@@ -147,8 +153,8 @@ class AuthController extends Controller
                 // ENTRAÎNEMENT (2026-11-07) : même raison — absentes, les marques reviendraient `false` et rouvriraient
                 // un entraînement déjà payé (`Entrainement::options()`).
                 'entraine_body', 'entraine_mind',
-                // MODE ARÈNE (lot A6b) : héros de campagne ou héros d'arène.
-                'mode']);
+                // MODE ARÈNE (lot A6b) : héros de campagne ou héros d'arène ; (lot A5) la doublure et sa source.
+                'mode', 'doublure_de']);
 
         // `supprimable` (DELETE /personnages/{id}, contrat) : « jamais joué »
         // se lit sur DEUX tables — en UNE requête chacune sur tout le roster,
@@ -177,7 +183,7 @@ class AuthController extends Controller
             ->keyBy('groupe_actif_id');
         $forge = app(Forge::class);
 
-        return [
+        $profil = [
             'id' => $joueur->id,
             'pseudo' => $joueur->pseudo,
             'identifiant' => $joueur->identifiant,
@@ -538,6 +544,12 @@ class AuthController extends Controller
                 ->values()
                 ->all(),
         ];
+
+        $idsDoublures = $personnages->whereNotNull('doublure_de')->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $profil['doublures'] = array_values(array_filter($profil['personnages'], fn (array $p) => in_array((int) $p['id'], $idsDoublures, true)));
+        $profil['personnages'] = array_values(array_filter($profil['personnages'], fn (array $p) => ! in_array((int) $p['id'], $idsDoublures, true)));
+
+        return $profil;
     }
 
     /**

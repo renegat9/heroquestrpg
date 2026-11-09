@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\PlaceholderController;
+use App\Http\Controllers\Api\AreneController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChoixController;
 use App\Http\Controllers\Api\ClotureController;
@@ -123,7 +124,19 @@ Route::post('/groupes/{identifiant}/quetes', [GroupeController::class, 'demarrer
 // membre-OU-table, comme démarrer la quête / ouvrir le marché.
 Route::put('/groupes/{identifiant}/ordre', [GroupeController::class, 'reordonner']);
 
+// MODE ARÈNE (lot A5) — décisions de salon membre-OU-table (autorisation dans le contrôleur) : la table compose le
+// Defender, lance, propose la revanche ou ferme le combat, comme elle lance une quête.
+Route::put('/arene/{identifiant}/defender', [AreneController::class, 'defender']);
+Route::post('/arene/{identifiant}/lancer', [AreneController::class, 'lancer']);
+Route::post('/arene/{identifiant}/rejouer', [AreneController::class, 'rejouer']);
+Route::delete('/arene/{identifiant}', [AreneController::class, 'quitter']);
+
 Route::middleware('auth:joueur')->group(function () {
+    // MODE ARÈNE (lot A5) : un joueur ouvre un combat, y engage son héros d'arène, se dit prêt.
+    Route::post('/arene', [AreneController::class, 'ouvrir']);
+    Route::post('/arene/{identifiant}/combattants', [AreneController::class, 'rejoindre']);
+    Route::post('/arene/{identifiant}/pret', [AreneController::class, 'pret']);
+
     Route::post('/deconnexion', [AuthController::class, 'deconnexion']);
     Route::get('/moi', [AuthController::class, 'moi']);
 

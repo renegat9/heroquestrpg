@@ -1060,6 +1060,57 @@ seule par héros et par combat) et le **purge**.
   T5), `quitter_donjon` ni `battre_en_retraite` (on gagne ou on tombe ; l'abandon viendra du salon). Le vote de sortie
   rejoint les étapes de campagne fermées (`EtapesCampagne::VOTE_SORTIE`).
 
+### Le salon et les routes d'arène (lot A5, 2026-11-09, `docs/plan-mode-arene.md` §7, §7 bis)
+
+Un combat d'arène se joue sur les écrans existants : la **table** l'ouvre par son code (`POST /api/table`, inchangé)
+et la **manette** pilote la doublure (`/manette/{identifiant}?perso={doublure}`). Entre l'ouverture et le premier
+round, et après la fin du combat, le groupe est en phase `hub` : les deux écrans y affichent le **salon** au lieu du
+hub de campagne.
+
+`EtatGroupe.groupe` porte **`mode`** (`campagne` | `arene`). En arène, le bloc de hub de campagne (prêts, marché,
+recrutement, compagnon, faveurs, prologue, départ) **n'est pas publié** ; à sa place, **`groupe.arene`**
+(`App\Partie\Arene\GroupesArene::publier()`), toujours présent pour un groupe d'arène :
+
+```json
+{
+  "combattants": [{"personnage_id": 12, "heros_id": 4, "nom": "Brakka", "classe": "barbare", "joueur_id": 1, "joueur": "rene", "pret": false}],
+  "defender": [{"monstre_id": 7, "nom_base": "Orque"}],
+  "monstres": [{"id": 7, "nom_base": "Orque", "deplacement": 8, "attaque": 3, "defense": 2, "pv_body": 1}],
+  "lancement_possible": false,
+  "lancement_motif": "Tous les combattants ne sont pas prêts.",
+  "resultat": null,
+  "bandeau": "Arène — rien ne compte pour la campagne."
+}
+```
+
+- `monstres` est la **liste blanche** que `PUT …/defender` revalide : les huit monstres que le roster du tournoi
+  nomme (F9528 p. 16 — Gobelin, Orque, Squelette, Zombie, Momie, Abomination, Guerrier du Chaos, Gargouille), aux stats
+  de notre catalogue — fiches de CATALOGUE, d'où la clé `nom_base` (une figure sur la carte, elle, est nommée par
+  `InstanceMonstre::nomAffiche()`). ⚠ Le Fimir, nom de 1989 absent du roster 2021, n'y est pas : retrait écrit
+  (`GroupesArene::ROSTER_DEFENDER`). La puissance d'équipe (lot T3) attend la valeur de chaque monstre du roster,
+  non numérisée.
+- `lancement_possible` / `lancement_motif` : la DÉCISION de `GroupesArene::motifLancement()`, le même prédicat que
+  `POST …/lancer` — au moins un combattant, un Defender, tous prêts, aucun combat déjà joué à rejouer d'abord.
+- `resultat` : `null` avant le combat ; après, `{issue: "victoire" | "defaite", quete_id}`.
+- `bandeau` : la phrase d'étanchéité, permanente sur les deux écrans (plan §4, T7), décidée ici.
+
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| POST | /api/arene | {personnage_id} | joueur : ouvre un combat et y engage SON héros d'arène → 201 `{groupe: {identifiant}, doublure_id}` |
+| POST | /api/arene/{identifiant}/combattants | {personnage_id} | joueur : engage son héros d'arène (sa doublure) → 201 `{doublure_id}` ; refusé hors salon, ou si ce héros y est déjà |
+| PUT | /api/arene/{identifiant}/defender | {monstre_ids: [int]} | membre OU table : compose le Defender (1 à 12 figures de la liste blanche) |
+| POST | /api/arene/{identifiant}/pret | {pret: bool} | joueur : marque prête la doublure de ce joueur |
+| POST | /api/arene/{identifiant}/lancer | — | membre OU table : démarre le combat (`DemarreurArene`) si `lancement_possible`, sinon 422 avec le motif |
+| POST | /api/arene/{identifiant}/rejouer | — | membre OU table : après la fin, des doublures FRAÎCHES remplacent les anciennes, le Defender est gardé, les prêts sont remis à faux |
+| DELETE | /api/arene/{identifiant} | — | membre OU table : quitte et purge le combat (`GroupesArene::purger()`) → 204 |
+
+`GET /api/moi` porte **`joueur.doublures[]`** : les doublures que ce joueur pilote dans un combat d'arène en cours,
+même forme que `joueur.personnages[]`. La manette y lit la fiche (sorts, sac) de la doublure qu'elle pilote. Le roster
+(`joueur.personnages`) ne contient toujours **jamais** une doublure.
+
+Toutes les écritures diffusent `.groupe.etat`. Sur un groupe de campagne, elles répondent 422 (`RefusArene`). L'état du
+salon vit en base : `groupes.arene_defender` (ids du Defender), `groupe_personnages.pret_arene`.
+
 ### L'activation alternée (lot T2, 2026-11-09, livret F9528 p. 12-16)
 
 - **Le Defender ouvre chaque round** : une figure s'active (au démarrage, `ResolveurTour::ouvrirCombatArene()`, puis

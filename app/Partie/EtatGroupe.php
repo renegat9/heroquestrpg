@@ -80,6 +80,8 @@ final class EtatGroupe
             'identifiant' => $groupe->identifiant,
             'nom' => $groupe->nom,
             'phase' => $groupe->phase,
+            // MODE ARÈNE (lot A5) : `campagne` ou `arene` — les écrans affichent le salon au lieu du hub de campagne.
+            'mode' => $groupe->mode ?? Groupe::MODE_CAMPAGNE,
             'or' => (int) $groupe->or,
             'etat' => $groupe->etat,
             'narrateur_actif' => $narrateurActif,
@@ -92,10 +94,12 @@ final class EtatGroupe
             // client.
             // `null` hors rotation historique : la liste (cochée, choisie par le
             // MJ, tirée) est dans `bestiaire_boites`.
-            'theme_bestiaire' => $bestiaire->estFiltre() ? null : ($bestiaire->boites[0] ?? null),
-            'theme_bestiaire_libelle' => $bestiaire->libelle(),
-            'bestiaire_mode' => $bestiaire->mode,
-            'bestiaire_boites' => $bestiaire->boites,
+            // MODE ARÈNE : pas de bestiaire de campagne — le Defender est composé au salon (`groupe.arene`). Rien de
+            // la rotation des boîtes n'est publié, sans quoi la table affichait une boîte tirée pour rien.
+            'theme_bestiaire' => $groupe->estArene() || $bestiaire->estFiltre() ? null : ($bestiaire->boites[0] ?? null),
+            'theme_bestiaire_libelle' => $groupe->estArene() ? null : $bestiaire->libelle(),
+            'bestiaire_mode' => $groupe->estArene() ? null : $bestiaire->mode,
+            'bestiaire_boites' => $groupe->estArene() ? [] : $bestiaire->boites,
             // Scène sonore courante (boucle d'ambiance jouée par la table).
             'ambiance' => $this->sceneAmbiance($groupe, $queteCourante),
             // Illustration du lieu de repos (hub) — générée en arrière-plan
@@ -103,8 +107,14 @@ final class EtatGroupe
             'image_url' => app(BibliothequeImages::class)->urlDynOuVignette('hub', $groupe->id),
         ];
 
+        // MODE ARÈNE (lot A5) : le SALON remplace le hub de campagne — aucun marché, recrutement, compagnon, faveur ni
+        // prologue n'existe en arène, et rien n'en est publié. `GroupesArene::publier()` décide tout.
+        if ($groupe->estArene()) {
+            $preambuleGroupe['arene'] = app(\App\Partie\Arene\GroupesArene::class)->publier($groupe);
+        }
+
         // En phase hub : expose les statuts « prêt » des personnages actifs.
-        if ($groupe->phase === 'hub') {
+        if ($groupe->phase === 'hub' && ! $groupe->estArene()) {
             $prets = Cache::get("partie:pret:{$groupe->id}", []);
             // On porte le NOM du héros (pas seulement l'id) : sinon la manette
             // d'un joueur affichait « Perso n°59 » pour les coéquipiers dont elle
