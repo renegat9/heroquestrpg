@@ -738,6 +738,9 @@ final class ResolveurTour
                 'sortie_sables' => $this->resoudreSortieSables($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // FOSSE LONGUE (p. 6) : se hisser hors du trou, un dé rouge. Le saut par le bout passe par `franchissement`.
                 'sortie_fosse' => $this->fosse()->resoudreSortie($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // TROPHÉES D'ARÈNE (lot T4) : la potion de la réserve, l'élan (n'importe quelle tuile → +2 cases).
+                'trophee_potion' => $this->resoudreTropheePotion($groupe, $quete, $personnage, $option, $acteur),
+                'trophee_elan' => $this->resoudreTropheeElan($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
@@ -862,6 +865,10 @@ final class ResolveurTour
             if ($groupe->estArene()) {
                 // ARÈNE (lot T2) : l'activation de CE héros vient-elle de finir ? Alors le Defender répond.
                 if ((bool) $etat->fresh()?->a_joue) {
+                    // TROPHÉE (lot T4) : on ramasse en FINISSANT son activation sur la case, sans action.
+                    if (! $etat->fresh()->tombe) {
+                        app(\App\Partie\Arene\TropheesArene::class)->ramasserHeros($groupe, $quete, $personnage, $etat->fresh());
+                    }
                     $resultat = $this->relaisArene($resultat, $groupe, $quete);
                 }
             } elseif (app(OrdreDuTour::class)->acteurActif($groupe) === null) {
@@ -12387,6 +12394,73 @@ final class ResolveurTour
         return $resultat;
     }
 
+    /**
+     * TROPHÉE (lot T4) : le héros boit une potion de la réserve du Challenger — +2 PV, jusqu'à son maximum.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreTropheePotion(Groupe $groupe, Quete $quete, Personnage $personnage, array $option, array $acteur): array
+    {
+        $trophees = app(\App\Partie\Arene\TropheesArene::class);
+        $max = (int) $personnage->pv_body_max;
+
+        if ((int) $personnage->pv_body >= $max) {
+            throw ValidationException::withMessages(['option_id' => 'Vous n\'êtes pas blessé.']);
+        }
+
+        if (! $trophees->defausser($quete, \App\Partie\Arene\TropheesArene::CHALLENGER, \App\Partie\Arene\TropheesArene::POTION)) {
+            throw ValidationException::withMessages(['option_id' => 'Plus de potion dans la réserve du Challenger.']);
+        }
+
+        $avant = (int) $personnage->pv_body;
+        $personnage->update(['pv_body' => min($max, $avant + \App\Partie\Arene\TropheesArene::SOIN_POTION)]);
+
+        $payload = [
+            'type' => 'trophee_potion', 'option_id' => $option['id'], 'camp' => \App\Partie\Arene\TropheesArene::CHALLENGER,
+            'nom' => $personnage->nom, 'soin' => (int) $personnage->pv_body - $avant,
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * TROPHÉE (lot T4) — l'ÉLAN : « At any time, a combatant may discard any trophy tile to add 2 squares to their
+     * movement » (F9528 p. 13). La tuile choisie (liste blanche du menu) quitte la réserve, et la réserve de cases du
+     * tour gagne 2 — ouverte au besoin, exactement comme au premier pas (`pointsDeplacement()`).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreTropheeElan(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $parametres, array $acteur): array
+    {
+        $entree = $this->entreeChoisie($option, $parametres, 'tuiles');
+
+        if ($etat->deplacement_tour === null || $etat->a_deplace) {
+            throw ValidationException::withMessages(['option_id' => 'Le déplacement de ce tour est déjà terminé.']);
+        }
+
+        if (! app(\App\Partie\Arene\TropheesArene::class)->defausser($quete, \App\Partie\Arene\TropheesArene::CHALLENGER, (string) $entree['cle'])) {
+            throw ValidationException::withMessages(['parametres' => 'Cette tuile n\'est plus dans la réserve du Challenger.']);
+        }
+
+        $restant = $this->pointsDeplacement($personnage, $etat, (int) $etat->deplacement_tour)['restant'];
+        $etat->update(['deplacement_restant' => $restant + \App\Partie\Arene\TropheesArene::CASES_ELAN]);
+
+        $payload = [
+            'type' => 'trophee_elan', 'option_id' => $option['id'], 'nom' => $personnage->nom,
+            'tuile' => (string) ($entree['nom'] ?? $entree['cle']), 'cases' => \App\Partie\Arene\TropheesArene::CASES_ELAN,
+            'deplacement_restant' => $restant + \App\Partie\Arene\TropheesArene::CASES_ELAN,
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
     /** ARÈNE : figures du Defender actives, révélées, libres, qui n'ont pas encore joué ce round. */
     private function monstresAActiverEnArene(Quete $quete): int
     {
@@ -12536,12 +12610,21 @@ final class ResolveurTour
             // tour du monstre, comparée après coup — voir juste plus bas.
             $avantMonstre = ['x' => $instance->position_x, 'y' => $instance->position_y];
 
+            // TROPHÉES (lot T4, décision de René 2026-11-09) : une figure BLESSÉE qui s'active boit une potion de la
+            // réserve du Defender avant de jouer.
+            if ($arene) {
+                app(\App\Partie\Arene\TropheesArene::class)->potionDuDefender($groupe, $quete, $instance);
+                $instance->refresh();
+            }
+
             $resultatMonstre = $this->jouerMonstre($groupe, $quete, $instance, $cibles);
             $dejaJoues[] = (int) $instance->id;
 
             if ($arene) {
                 $instance->newQuery()->whereKey($instance->id)->update(['active_ce_round' => true]);
                 $activees++;
+                // …et elle ramasse sous toute son emprise en finissant son activation.
+                app(\App\Partie\Arene\TropheesArene::class)->ramasserMonstre($groupe, $quete, $instance->fresh()->load('monstre'));
             }
 
             // Si le monstre a joué plusieurs actions (p. ex. régénération + sort/attaque),
@@ -15207,6 +15290,9 @@ final class ResolveurTour
             'desarmer_embrasement', 'liberer_captif', 'defausse_sables', 'memoire_parfaite', 'forcer_porte_condition', 'forcer_grille' => 'interaction',
             // ANNEAU DE SORT : déclarer le sort gardé ne coûte rien, le tour commence à peine.
             MoteurAnneauDeSort::TYPE => 'interaction',
+            // TROPHÉES D'ARÈNE (lot T4) : « no action required » pour ramasser, et l'usage n'en demande pas davantage —
+            // boire la potion d'une tuile ou défausser une tuile pour l'élan ne coûte aucun créneau.
+            'trophee_potion', 'trophee_elan' => 'interaction',
             // Pousser par le vent (lot H des restes) : la suite du mouvement, pas une action — elle ne consomme aucun créneau.
             'pousser_vent' => 'interaction',
             // `s_ecarter_du_bloc` REJOINT cette liste le 2026-09-24 : le seul

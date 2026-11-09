@@ -133,6 +133,10 @@ function fixturesDesTypesAnnonces(): array
         'tunnelier' => ['personnage' => 'Grom'],
         'sacrifice_sort' => ['sort_recupere' => ['nom' => 'Boule de Feu'], 'pv_body_paye' => 1, 'pv_body_apres' => 3],
         'soin_allie' => ['cible' => $cible, 'de' => 4, 'soin_pv_body' => 4, 'pv_body_apres' => 8, 'releve' => true],
+        // MODE ARÈNE (lot T4) : les tuiles trophées.
+        'trophee_ramasse' => ['camp' => 'challenger', 'nom' => 'Brakka', 'tuiles' => ['Crâne blanc']],
+        'trophee_potion' => ['camp' => 'defender', 'nom' => 'Momie', 'soin' => 2],
+        'trophee_elan' => ['nom' => 'Brakka', 'tuile' => 'Crâne blanc', 'cases' => 2],
         'saute_tour_monstre' => ['capacite' => 'Hurlement', 'portee' => 'contact', 'cibles' => [$monstre]],
         'tir_traversant' => ['capacite' => 'Flèche traversante', 'direction' => 'e', 'cibles' => 2],
         'liberer_entraves' => ['cible' => $cible, 'sur_soi' => false, 'lianes_detruites' => true],

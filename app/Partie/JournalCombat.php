@@ -69,6 +69,8 @@ final class JournalCombat
         'degat_differe' => true, 'braise' => true, 'deplacement' => true, 'jet' => true,
         'desamorcage' => true, 'franchissement' => true, 'sort' => true, 'parchemin' => true,
         'concentration' => true, 'sacrifice_sort' => true, 'soin_allie' => true,
+        // MODE ARÈNE (lot T4) : une tuile trophée ramassée, une potion bue, un élan pris.
+        'trophee_ramasse' => true, 'trophee_potion' => true, 'trophee_elan' => true,
         // Tunnelier (nain·Mine, lot B) : l'effet du sort Traverser la Pierre, posé pour ce tour.
         'tunnelier' => true,
         // Mémoire parfaite (magicien, lot B) : son RÉSULTAT est un payload `concentration` (drapeau geste_libre),
@@ -1236,6 +1238,10 @@ final class JournalCombat
             'monstres_reveles' => $this->monstresReveles($a),
             'vote_resolu' => $this->voteResolu($a),
             'soin_allie' => $this->soinAllie($a, $acteurNom),
+            'trophee_ramasse' => [$this->info(($a['nom'] ?? $acteurNom).' ramasse '.implode(', ', (array) ($a['tuiles'] ?? []))
+                .' — '.(($a['camp'] ?? '') === 'defender' ? 'réserve du Defender' : 'réserve du Challenger'))],
+            'trophee_potion' => [['texte' => ($a['nom'] ?? $acteurNom).' boit une potion de trophée (+'.(int) ($a['soin'] ?? 0).' PV)', 'ton' => 'succes']],
+            'trophee_elan' => [$this->info(($a['nom'] ?? $acteurNom).' défausse '.($a['tuile'] ?? 'une tuile').' : +'.(int) ($a['cases'] ?? 2).' cases')],
             'concentration', 'sacrifice_sort' => $this->sortRecupere($a, $acteurNom),
             'tunnelier' => $this->tunnelier($acteurNom),
             's_ecarter_du_bloc' => $this->ecartDuBloc($a, $acteurNom),

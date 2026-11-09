@@ -211,7 +211,7 @@ function finGeste(e, permettreTap) {
     >
         <!-- Les figurines (héros, alliés, captifs, monstres) sont des JETONS posés par DungeonGrid — le même rendu que sur la
              manette. `figures-cliquables` : un toucher sur un jeton ouvre sa fiche (`debutGeste()` lit `.ent-holder`). -->
-        <DungeonGrid :carte="carte" :traps="traps" :furniture="furniture" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :shadow="carte.ombre ?? []" :dangers="carte.dangers ?? []" :stairs="carte.escalier ?? null" :figures="entities" figures-cliquables :grid-style="gridStyle" animate />
+        <DungeonGrid :carte="carte" :traps="traps" :furniture="furniture" :trials="carte.epreuves ?? []" :trophies="carte.trophees ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :shadow="carte.ombre ?? []" :dangers="carte.dangers ?? []" :stairs="carte.escalier ?? null" :figures="entities" figures-cliquables :grid-style="gridStyle" animate />
 
 
         <!-- « Recentrer » : seulement quand la vue a été écartée à la main —

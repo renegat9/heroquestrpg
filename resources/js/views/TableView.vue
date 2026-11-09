@@ -1152,7 +1152,17 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <span v-if="erreurReprise || erreurCloture" class="cerr">{{ erreurReprise || erreurCloture }}</span>
                     </div>
                 </div>
-                <GroupPanel v-if="!phaseHub" :party="party" />
+                <!-- Colonne de droite : le groupe et, en arène, les réserves de trophées sous lui (lot T4) — une seule
+                     cellule de la grille `.main`, sinon le panneau des trophées passe à la ligne sous la carte. -->
+                <div v-if="!phaseHub" class="table-col-droite">
+                    <GroupPanel :party="party" />
+                    <div v-if="etat?.quete?.trophees" class="arene-trophees">
+                        <div class="arene-trophees-titre"><MSym n="emoji_events" fill :size="15" /> Trophées</div>
+                        <p><strong>Challenger :</strong> {{ etat.quete.trophees.challenger.map((t) => t.libelle).join(', ') || '—' }}</p>
+                        <p><strong>Defender :</strong> {{ etat.quete.trophees.defender.map((t) => t.libelle).join(', ') || '—' }}</p>
+                        <p class="arene-trophees-elan">{{ etat.quete.trophees.elan }}</p>
+                    </div>
+                </div>
                 <div v-else class="hub-roster">
                     <h2><MSym n="groups" fill /> Le groupe</h2>
                     <p v-if="presenceHub.length > 1" class="hub-roster-hint">
@@ -1570,6 +1580,14 @@ watch(() => store.state.clotureTerminee, (t) => {
   padding: 10px 12px; border: 1px solid var(--torch, #c9a25a); border-radius: 10px; background: rgba(201, 162, 90, 0.08);
   font-family: var(--font-ui); font-style: normal; font-size: 13.5px; line-height: 1.45; text-align: left; }
 .table-screen .hub-panel .hub-depart-motif > .msym { flex: none; margin-top: 1px; color: var(--torch, #c9a25a); }
+.table-screen .table-col-droite { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.table-screen .table-col-droite > :first-child { flex: 1; min-height: 0; }
+.table-screen .arene-trophees { flex: none; padding: 12px; border-radius: var(--r-lg); border: var(--line);
+  background: var(--stone-850); color: var(--ink-300); font-size: 13px; }
+.table-screen .arene-trophees p { margin: 4px 0 0; }
+.table-screen .arene-trophees-titre { display: flex; align-items: center; gap: 6px; font-weight: 800; color: var(--gold, #c9a24a);
+  text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; }
+.table-screen .arene-trophees-elan { font-size: 11.5px; color: var(--ink-500); font-style: italic; }
 .table-screen .hub-panel.arene-salon-table { display: block; text-align: left; padding: 16px; width: min(560px, 100%);
   max-width: 560px; max-height: 100%; overflow: auto; }
 .table-screen .hub-panel.arene-salon-table p { font-family: var(--font-ui); font-style: normal; font-size: 12.5px; }

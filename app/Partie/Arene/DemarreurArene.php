@@ -106,6 +106,9 @@ final class DemarreurArene
                 'grille' => $carte,
             ]);
 
+            // TROPHÉES (lot T4) : le lot de la p. 14, mélangé, face cachée sur les six cases du plan.
+            app(TropheesArene::class)->poser($quete);
+
             foreach ($monstres as $i => $monstre) {
                 // Stats du CATALOGUE, sans adaptation à la taille du groupe ni tirage d'élite : en arène, l'équilibre
                 // est la puissance d'équipe (lot T3), pas l'adaptation des PV.

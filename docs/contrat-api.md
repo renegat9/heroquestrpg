@@ -1131,6 +1131,28 @@ même forme que `joueur.personnages[]`. La manette y lit la fiche (sorts, sac) d
 Toutes les écritures diffusent `.groupe.etat`. Sur un groupe de campagne, elles répondent 422 (`RefusArene`). L'état du
 salon vit en base : `groupes.arene_defender` (ids du Defender), `groupe_personnages.pret_arene`.
 
+### Les tuiles trophées, première étape (lot T4, 2026-11-09, F9528 p. 13-15)
+
+`App\Partie\Arene\TropheesArene`, seul point de passage ; état durable `quetes.trophees_arene`.
+
+- **Pose** au démarrage : le lot de la p. 14 (crâne blanc, bouclier blanc, bouclier noir, les mêmes « ×2 », deux
+  potions +2, une riposte), mélangé, **face cachée** sur les six cases du plan p. 15 ; les trois de trop restent de
+  côté.
+- **Publication** : `carte.trophees` = `[{x, y}]`, les cases encore couvertes — jamais la tuile (dessinées par la grille,
+  table et manette) ; `quete.trophees` = `{cases, challenger: [{tuile, libelle, effet}], defender: [...], elan}`.
+- **Ramassage** : en FINISSANT son activation sur la case (héros), ou sous toute son emprise (monstre) — la tuile est
+  révélée et rejoint la réserve de l'équipe. Annonce `{type: "trophee_ramasse", camp, nom, tuiles: [libellé]}` par
+  `TamponAnnonces` (`resultat.annonces_automatiques`).
+- **Usage du Challenger** — deux options de menu, gratuites (créneau `interaction`), publiées seulement quand le
+  résolveur les acceptera :
+  - `trophee_potion` (`type: trophee_potion`) : +2 PV jusqu'au maximum, si une potion est en réserve et le héros blessé ;
+  - `trophee_elan` (`type: trophee_elan`, `parametres.tuiles: [{cle, nom}]`, liste blanche) : `POST choix
+    {option_id: "trophee_elan", parametres: {cle}}` défausse cette tuile, et la réserve de cases du tour gagne 2.
+- **Usage du Defender** (décision de René, 2026-11-09) : une figure blessée qui s'active boit une potion de sa
+  réserve (annonce `trophee_potion`, `camp: defender`) ; il ne prend jamais l'élan.
+- ⚠ **Seconde étape, à venir** : les tuiles de combat (après le jet) et la riposte, des deux côtés, et la potion « avant
+  de mourir » à 0 PV. Jusque-là, chacune a déjà un usage : l'élan.
+
 ### L'activation alternée (lot T2, 2026-11-09, livret F9528 p. 12-16)
 
 - **Le Defender ouvre chaque round** : une figure s'active (au démarrage, `ResolveurTour::ouvrirCombatArene()`, puis

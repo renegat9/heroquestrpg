@@ -29,7 +29,7 @@ beforeEach(function () {
     $this->joueur = connecterJoueur();
 });
 
-function idMonstre(string $nom): int
+function idMonstreArene(string $nom): int
 {
     return (int) Monstre::where('nom_base', $nom)->value('id');
 }
@@ -62,7 +62,7 @@ it('le salon publie les puissances et ce qui reste abordable ; le Defender ne d�
     // On ajoute des gobelins (2) tant qu'ils restent abordables, puis le serveur refuse le suivant.
     $ajoutes = 0;
     while (($challenger - 2 * $ajoutes) >= 2) {
-        $this->postJson("/api/arene/{$code}/defender", ['monstre_id' => idMonstre('Gobelin')])->assertOk();
+        $this->postJson("/api/arene/{$code}/defender", ['monstre_id' => idMonstreArene('Gobelin')])->assertOk();
         $ajoutes++;
     }
     $salon = $this->getJson("/api/groupes/{$code}/etat")->json('groupe.arene');
@@ -70,7 +70,7 @@ it('le salon publie les puissances et ce qui reste abordable ; le Defender ne d�
     expect($salon['puissance_defender'])->toBe(2 * $ajoutes)
         ->and($gobelin['abordable'])->toBe($challenger - 2 * $ajoutes >= 2);
 
-    $this->postJson("/api/arene/{$code}/defender", ['monstre_id' => idMonstre('Gargouille')])
+    $this->postJson("/api/arene/{$code}/defender", ['monstre_id' => idMonstreArene('Gargouille')])
         ->assertUnprocessable()->assertJsonValidationErrors(['monstre_ids' => 'ne peut pas dépasser']);
 
     // Retirer une figure la rend de nouveau abordable.
@@ -85,7 +85,7 @@ it('le lancement revalide : un Defender devenu trop fort ne part pas', function 
     $this->postJson("/api/arene/{$code}/pret", ['pret' => true])->assertOk();
 
     // Un Defender posé en base au-delà de la puissance (un combattant parti, une copie qui vaut moins…).
-    Groupe::where('identifiant', $code)->update(['arene_defender' => json_encode(array_fill(0, 5, idMonstre('Gargouille')))]);
+    Groupe::where('identifiant', $code)->update(['arene_defender' => json_encode(array_fill(0, 5, idMonstreArene('Gargouille')))]);
 
     $salon = $this->getJson("/api/groupes/{$code}/etat")->json('groupe.arene');
     expect($salon['lancement_possible'])->toBeFalse()

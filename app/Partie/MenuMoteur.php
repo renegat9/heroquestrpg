@@ -3280,6 +3280,29 @@ final class MenuMoteur
             ];
         }
 
+        // TROPHÉES D'ARÈNE (lot T4) : la potion et l'élan, pris dans la réserve du Challenger — publiés seulement quand le
+        // résolveur les acceptera (blessé ; déplacement pas terminé ; réserve non vide), la liste des tuiles est la
+        // liste blanche que `resoudreTropheeElan()` revalide.
+        if ($enArene && ! $aJoue && $etat !== null) {
+            $reserve = app(\App\Partie\Arene\TropheesArene::class)->reserve($quete, \App\Partie\Arene\TropheesArene::CHALLENGER);
+
+            if (in_array(\App\Partie\Arene\TropheesArene::POTION, $reserve, true) && (int) $personnage->pv_body < (int) $personnage->pv_body_max) {
+                $options[] = ['id' => 'trophee_potion', 'libelle' => 'Boire une potion de trophée (+2 PV)', 'type' => 'trophee_potion'];
+            }
+
+            if ($reserve !== [] && $etat->deplacement_tour !== null && ! $etat->a_deplace) {
+                $options[] = [
+                    'id' => 'trophee_elan',
+                    'libelle' => 'Élan — défausser un trophée pour +2 cases',
+                    'type' => 'trophee_elan',
+                    'parametres' => ['tuiles' => array_values(array_map(fn (string $t) => [
+                        'cle' => $t,
+                        'nom' => \App\Partie\Arene\TropheesArene::TUILES[$t]['libelle'],
+                    ], array_unique($reserve)))],
+                ];
+            }
+        }
+
         if (! $aJoue) {
             $options[] = ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'];
         }

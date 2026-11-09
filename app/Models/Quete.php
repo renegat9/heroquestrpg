@@ -15,6 +15,8 @@ class Quete extends Model
     protected $table = 'quetes';
 
     protected $fillable = [
+        // MODE ARÈNE (lot T4) : tuiles trophées posées et réserves d'équipe — `App\Partie\Arene\TropheesArene`.
+        'trophees_arene',
         'groupe_id',
         'gabarit_id',
         'titre',
@@ -62,6 +64,7 @@ class Quete extends Model
             // derrière une porte secrète.
             'salles_coffre' => 'array',
             'coffres_ouverts' => 'array',
+            'trophees_arene' => 'array',
             // Effets globaux figés au démarrage (`EffetsGlobauxQuete`). NULL = quête
             // ouverte avant la colonne : sa liste se lit sur sa roster.
             'effets_globaux' => 'array',

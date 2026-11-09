@@ -208,6 +208,9 @@ final class EtatGroupe
             'quete' => $quete === null ? null : [
                 'id' => $quete->id,
                 'titre' => $quete->titre,
+                // MODE ARÈNE (lot T4) : les cases de trophée encore couvertes (FACE CACHÉE, sans la tuile) et les deux
+                // réserves d'équipe, tuile par tuile — `TropheesArene::publier()`. `null` hors de l'arène.
+                'trophees' => app(\App\Partie\Arene\TropheesArene::class)->publier($quete),
                 'position_arc' => $quete->position_arc,
                 'type_jalon' => $quete->type_jalon,
                 'etat' => $quete->etat,
@@ -474,6 +477,9 @@ final class EtatGroupe
                 ->values()
                 ->all(),
             'epreuves' => $this->epreuves($carte, $decouvertes),
+            // MODE ARÈNE (lot T4) : les cases de trophée encore couvertes, FACE CACHÉE (`[{x, y}]`, jamais la tuile) —
+            // `TropheesArene::publier()`, le même point que `quete.trophees`. Vide hors de l'arène.
+            'trophees' => app(\App\Partie\Arene\TropheesArene::class)->publier($quete)['cases'] ?? [],
             // ⚠ Les LEVIERS n'étaient publiés NULLE PART (corrigé 2026-08-27) :
             // aucun n'était donc dessiné. C'était sans conséquence tant qu'aucun
             // gabarit n'en posait ; ça ne l'est plus depuis qu'un levier demande

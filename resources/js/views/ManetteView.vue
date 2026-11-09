@@ -289,6 +289,8 @@ const auHub = computed(() => store.state.etat?.groupe?.phase === 'hub');
    décidé ici : le composant rend le salon, les gestes partent vers les routes `/api/arene/…`. ---- */
 const router = useRouter();
 const salonArene = computed(() => store.state.etat?.groupe?.arene ?? null);
+// La réserve de trophées du Challenger, publiée par le serveur (`quete.trophees.challenger`).
+const reserveTrophees = computed(() => store.state.etat?.quete?.trophees?.challenger ?? []);
 const areneEnCours = ref(false);
 const erreurArene = ref('');
 async function gesteArene(fn, { quitter = false } = {}) {
@@ -648,6 +650,8 @@ const LISTES = {
     // Sorts de Dread du porteur (Talisman du Savoir maudit, 2026-10-29) : la liste `parametres.sorts`, comme un sort de héros.
     lancer_sort_dread: { cle: 'sorts', titre: 'Quel sort de Dread lancer ?', retour: 'Retour aux sorts de Dread' },
     lire_parchemin: { cle: 'parchemins', titre: 'Quel parchemin lire ?', retour: 'Retour aux parchemins' },
+    // MODE ARÈNE (lot T4) : l'élan défausse UNE tuile de la réserve — `parametres.tuiles`, la liste blanche du serveur.
+    trophee_elan: { cle: 'tuiles', titre: 'Quelle tuile défausser pour +2 cases ?', retour: 'Retour aux tuiles' },
     utiliser_objet: { cle: 'objets', titre: 'Quel objet utiliser ?', retour: 'Retour aux objets' },
     se_concentrer: { cle: 'sorts', titre: 'Quel sort récupérer ?', retour: 'Retour aux sorts' },
     // MÉMOIRE PARFAITE (magicien, lot B) : la même liste que « Se concentrer », sans le tour sacrifié.
@@ -1501,7 +1505,12 @@ const navItems = computed(() => (scene.value === 'marche'
                     <!-- MODE ARÈNE : le bandeau d'étanchéité, permanent (phrase décidée par le serveur). -->
                     <div v-if="salonArene && !auHub" class="obj-peek">
                         <MSym n="shield_lock" fill :size="16" />
-                        <div class="obj-corps"><p>{{ salonArene.bandeau }}</p></div>
+                        <div class="obj-corps">
+                            <p>{{ salonArene.bandeau }}</p>
+                            <p v-if="reserveTrophees.length" class="obj-consigne">
+                                Trophées : {{ reserveTrophees.map((t) => t.libelle).join(', ') }}
+                            </p>
+                        </div>
                     </div>
                     <div v-if="objectif" class="obj-peek" :class="{ fait: objectif.accompli }">
                         <MSym :n="objectif.accompli ? 'task_alt' : 'my_location'" fill :size="16" />
