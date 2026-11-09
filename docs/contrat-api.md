@@ -1169,6 +1169,16 @@ salon vit en base : `groupes.arene_defender` (ids du Defender), `groupe_personna
     (`resultat.riposte_defender`, l'attaque journalisée et poussée au fil) ; potion avant de mourir (la figure se
     relève à 2 PV au plus). Chaque tuile jouée s'annonce : `{type: "trophee_combat", camp, nom, tuile, effet}`.
 
+### Les coffres du tournoi (lot T5, 2026-11-09, F9528 p. 13, plan p. 15)
+
+Deux meubles « Coffre » du catalogue posés aux cases du plan (`carte.mobilier[]`, entrée `tresor_tournoi: true`,
+`diagonale: true` — fouillables au contact ou EN DIAGONALE, « adjacent or diagonal »). L'option habituelle
+`fouille_mobilier` (créneau action) tire la table 2d6 du livret au lieu du butin de campagne, puis le coffre quitte le
+plateau : `{type: "tresor_tournoi", nom, des: [d6, d6], total, issue: "piege" | "objet" | "or", piege?, degats?,
+nom_objet?, or?}`. Pièges (2 : −3, 3-4 : −2, 5-6 : −1) au fouilleur ; 7 : une **Hache de bataille en os** dans le sac
+de la doublure (elle disparaît avec elle) ; 8-9 / 10-11 / 12 : 100 / 200 / 300 po à la bourse du COMBAT
+(`groupe.or` du groupe d'arène), jamais à un héros.
+
 ### L'activation alternée (lot T2, 2026-11-09, livret F9528 p. 12-16)
 
 - **Le Defender ouvre chaque round** : une figure s'active (au démarrage, `ResolveurTour::ouvrirCombatArene()`, puis

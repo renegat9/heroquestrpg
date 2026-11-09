@@ -44,6 +44,9 @@ final class HallArene
      */
     public const GRAVATS = [[2, 4], [6, 3]];
 
+    /** Les deux coffres du plan, en (colonne, rangée) de la salle centrale depuis 0 : (5,1) et (5,8) en 1-9 / 1-8. */
+    public const COFFRES = [[4, 0], [4, 7]];
+
     /** Marge de roche autour du hall. */
     private const MARGE = 1;
 

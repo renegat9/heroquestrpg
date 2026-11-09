@@ -1093,7 +1093,9 @@ final class MoteurMobilier
 
         for ($dx = 0; $dx < (int) ($entree['l'] ?? 1); $dx++) {
             for ($dy = 0; $dy < (int) ($entree['h'] ?? 1); $dy++) {
-                if (Grille::sontAdjacentes($ox + $dx, $oy + $dy, $x, $y)) {
+                // `diagonale` : un texte qui la NOMME — le coffre du tournoi se fouille « adjacent or diagonal »
+                // (F9528 p. 13). Ailleurs, le contact reste orthogonal.
+                if (Grille::sontAdjacentes($ox + $dx, $oy + $dy, $x, $y, (bool) ($entree['diagonale'] ?? false))) {
                     return true;
                 }
             }

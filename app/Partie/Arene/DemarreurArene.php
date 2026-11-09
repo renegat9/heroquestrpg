@@ -75,6 +75,18 @@ final class DemarreurArene
 
         $monstres = $this->monstres($defender);
         $carte = $this->hall->carte();
+
+        // COFFRES DU TOURNOI (lot T5, F9528 p. 13 et plan p. 15) : deux coffres du catalogue, fouillables « adjacent or
+        // diagonal » (`diagonale`, lu par `MoteurMobilier::adjacentAEmprise()`) ; leur fouille tire la table 2d6
+        // (`ResolveurTour::tresorDuTournoi()`), puis le coffre quitte le plateau.
+        $coffre = \App\Models\Mobilier::where('nom', 'Coffre')->value('id');
+        if ($coffre !== null) {
+            foreach (HallArene::COFFRES as [$c, $r]) {
+                [$x, $y] = $this->hall->caseDeLaSalle($c, $r);
+                $carte['mobilier'][] = ['mobilier_id' => (int) $coffre, 'x' => $x, 'y' => $y, 'l' => 1, 'h' => 1, 'salle' => 0,
+                    'diagonale' => true, 'tresor_tournoi' => true];
+            }
+        }
         $positions = $this->placerDefender($monstres, $carte);
 
         if (count($carte['spawn_heros']) < $challenger->count()) {

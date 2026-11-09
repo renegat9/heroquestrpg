@@ -135,6 +135,7 @@ function fixturesDesTypesAnnonces(): array
         'soin_allie' => ['cible' => $cible, 'de' => 4, 'soin_pv_body' => 4, 'pv_body_apres' => 8, 'releve' => true],
         // MODE ARÈNE (lot T4) : les tuiles trophées.
         'trophee_ramasse' => ['camp' => 'challenger', 'nom' => 'Brakka', 'tuiles' => ['Crâne blanc']],
+        'tresor_tournoi' => ['nom' => 'Brakka', 'des' => [3, 4], 'total' => 7, 'issue' => 'objet', 'nom_objet' => 'Hache de bataille en os'],
         'trophee_potion' => ['camp' => 'defender', 'nom' => 'Momie', 'soin' => 2],
         'trophee_elan' => ['nom' => 'Brakka', 'tuile' => 'Crâne blanc', 'cases' => 2],
         'trophee_combat' => ['camp' => 'defender', 'nom' => 'Orque', 'tuile' => 'Bouclier noir', 'effet' => '+1 bouclier noir'],

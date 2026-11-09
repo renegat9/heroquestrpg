@@ -10733,6 +10733,63 @@ final class ResolveurTour
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
+    /** La table 2d6 du trésor du tournoi (F9528 p. 13) : seuil haut → issue. */
+    public const TRESOR_TOURNOI = [
+        2 => ['issue' => 'piege', 'piege' => 'Piège explosif', 'degats' => 3],
+        4 => ['issue' => 'piege', 'piege' => 'Gaz empoisonné', 'degats' => 2],
+        6 => ['issue' => 'piege', 'piege' => 'Piège à flèche', 'degats' => 1],
+        7 => ['issue' => 'objet', 'objet' => 'Hache de bataille en os'],
+        9 => ['issue' => 'or', 'or' => 100],
+        11 => ['issue' => 'or', 'or' => 200],
+        12 => ['issue' => 'or', 'or' => 300],
+    ];
+
+    /**
+     * MODE ARÈNE, lot T5 — la fouille d'un COFFRE DU TOURNOI : « roll two red dice to determine the result, then remove
+     * the treasure chest from the board » (F9528 p. 13). Pièges : dégâts au fouilleur (point de passage
+     * `MoteurDegats::infligerAHeros()`, source piège). Hache de bataille en os : dans le sac de la DOUBLURE — elle « sert
+     * jusqu'à la fin du combat » et disparaît avec elle. Or : à la bourse du combat, qui ne sort jamais de l'arène.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function tresorDuTournoi(Groupe $groupe, Quete $quete, Personnage $personnage, int $index, array $option, array $acteur): array
+    {
+        $des = [$this->des->d6(), $this->des->d6()];
+        $total = array_sum($des);
+        $ligne = collect(self::TRESOR_TOURNOI)->first(fn ($l, $seuil) => $total <= $seuil);
+
+        // Le coffre quitte le plateau.
+        $carte = $quete->carte;
+        $grille = $carte->grille;
+        $mobilier = (array) ($grille['mobilier'] ?? []);
+        unset($mobilier[$index]);
+        $grille['mobilier'] = array_values($mobilier);
+        $carte->update(['grille' => $grille]);
+        $quete->unsetRelation('carte');
+
+        $payload = [
+            'type' => 'tresor_tournoi', 'option_id' => $option['id'], 'nom' => $personnage->nom,
+            'des' => $des, 'total' => $total, 'issue' => $ligne['issue'],
+        ];
+
+        if ($ligne['issue'] === 'piege') {
+            $subis = $this->degats->infligerAHeros($personnage, (int) $ligne['degats'], MoteurDegats::SOURCE_PIEGE, ['piege' => $ligne['piege']]);
+            $payload += ['piege' => $ligne['piege'], 'degats' => (int) $subis];
+        } elseif ($ligne['issue'] === 'objet') {
+            $payload['objet'] = $this->remettreButin(['objet_id' => (int) Objet::where('nom', $ligne['objet'])->value('id')], $personnage, 'objet');
+            $payload['nom_objet'] = $ligne['objet'];
+        } else {
+            $groupe->update(['or' => (int) $groupe->or + (int) $ligne['or']]);
+            $payload['or'] = (int) $ligne['or'];
+        }
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
     private function resoudreFouilleMobilier(
         Groupe $groupe,
         Quete $quete,
@@ -10759,6 +10816,11 @@ final class ResolveurTour
             throw ValidationException::withMessages([
                 'option_id' => 'Ce meuble n\'est plus à ta portée, ou tu l\'as déjà fouillé.',
             ]);
+        }
+
+        // COFFRE DU TOURNOI (lot T5, F9528 p. 13) : sa propre table, et il quitte le plateau.
+        if (! empty($meuble['entree']['tresor_tournoi'])) {
+            return $this->tresorDuTournoi($groupe, $quete, $personnage, $index, $option, $acteur);
         }
 
         // « Premier » lu AVANT de marquer : personne n'a encore fouillé ce meuble.
