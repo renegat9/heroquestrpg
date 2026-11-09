@@ -470,6 +470,21 @@ final class ResolveurTour
 
         $this->verifierInitiative($groupe, $quete, $personnage, $etats);
 
+        // ARÈNE, lot T5 : pendant la manœuvre du combattant seul, rien d'autre que ce que le menu forcé offre
+        // (`ManoeuvreSolo::TYPES_PERMIS`) — et la frappe à 2 dés n'existe qu'avant le premier pas.
+        if ($etat->manoeuvre_arene) {
+            $type = (string) ($option['type'] ?? '');
+
+            if (! in_array($type, \App\Partie\Arene\ManoeuvreSolo::TYPES_PERMIS, true)
+                || ($type === \App\Partie\Arene\ManoeuvreSolo::TYPE_ATTAQUE && ($etat->a_deplace || $etat->deplacement_restant !== null))) {
+                throw ValidationException::withMessages([
+                    'option_id' => 'Manœuvre de combattant seul : se déplacer OU frapper à 2 dés, rien d\'autre.',
+                ]);
+            }
+        } elseif (($option['type'] ?? null) === \App\Partie\Arene\ManoeuvreSolo::TYPE_ATTAQUE) {
+            throw ValidationException::withMessages(['option_id' => 'Aucune manœuvre n\'est ouverte.']);
+        }
+
         // SABLES MOUVANTS (F7539 p. 29) : un héros ENLISÉ n'a que les gestes de la règle.
         // Le menu n'en propose pas d'autres (`MoteurSables::menuForce()`) ; ce garde-fou
         // refuse l'option forgée ou périmée qui, elle, aurait déjà traversé le contrôleur.
@@ -648,6 +663,7 @@ final class ResolveurTour
             $resultat = match ($option['type']) {
                 'deplacement' => $this->resoudreDeplacement($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'attaque' => $this->resoudreAttaque($groupe, $quete, $etat, $personnage, $option, $parametres, $acteur),
+                \App\Partie\Arene\ManoeuvreSolo::TYPE_ATTAQUE => $this->resoudreAttaque($groupe, $quete, $etat, $personnage, $option, $parametres, $acteur),
                 'attaque_balayee' => $this->resoudreAttaqueBalayee($groupe, $quete, $etat, $personnage, $option, $acteur),
                 'style' => $this->resoudreStyle($groupe, $personnage, $etat, $option, $acteur),
                 'rayon' => $this->resoudreRayon($groupe, $quete, $etat, $personnage, $option, $acteur),
@@ -1717,6 +1733,12 @@ final class ResolveurTour
     ): array {
         $cibleId = (int) ($parametres['cible_id'] ?? 0);
         $lancer = (bool) ($option['lancer'] ?? false);
+        // ARÈNE, lot T5 : la manœuvre du combattant seul — une frappe à 2 dés, au contact seulement.
+        $manoeuvre = ($option['type'] ?? null) === \App\Partie\Arene\ManoeuvreSolo::TYPE_ATTAQUE;
+
+        if ($manoeuvre) {
+            $lancer = false;
+        }
 
         // Depuis 2026-09-18 (sous-choix), l'option `attaquer` / `lancer` ne
         // porte plus UNE arme : elle porte `parametres.armes[]`, une entrée
@@ -1813,6 +1835,10 @@ final class ResolveurTour
             $armeADistance = true;
         }
 
+        if (! $adjacentes && $manoeuvre) {
+            throw ValidationException::withMessages(['option_id' => 'La manœuvre ne frappe qu\'une créature au contact.']);
+        }
+
         if (! $adjacentes) {
             if (! $armeADistance) {
                 throw ValidationException::withMessages(['option_id' => 'Cible hors de portée : l\'attaque exige une case adjacente.']);
@@ -1876,11 +1902,13 @@ final class ResolveurTour
                 'libelle' => $option['libelle'] ?? null,
                 ...($furie > 0 ? ['furie' => $furie] : []),
                 ...($poing > 0 ? ['style_mains_nues' => $poing] : []),
+                ...($manoeuvre ? ['manoeuvre' => true] : []),
             ],
             acteur: $acteur,
+            desImposes: $manoeuvre ? \App\Partie\Arene\ManoeuvreSolo::DES_ATTAQUE : null,
         );
 
-        if ($this->ambidextrie($personnage, $etat, $armePrincipale)) {
+        if (! $manoeuvre && $this->ambidextrie($personnage, $etat, $armePrincipale)) {
             $payload['attaque_supplementaire'] = true;
             $payload['ambidextrie'] = true;
         }
@@ -1970,6 +1998,9 @@ final class ResolveurTour
         ?Inventaire $ligneArme = null,
         array $meta = [],
         array $acteur = [],
+        // ARÈNE, lot T5 : la manœuvre du combattant seul lance « 2 Attack dice », ni plus ni moins — l'arme, les talents
+        // et les buffs ne s'y ajoutent pas (`ManoeuvreSolo::DES_ATTAQUE`). Les plafonds (Frayeur, fosse) jouent encore.
+        ?int $desImposes = null,
     ): array {
         // INVISIBILITÉ (Spells of Protection, 2026-10-06) : « While invisible,
         // you may not attack. » Posée ICI, au seul choke-point de la frappe
@@ -2213,6 +2244,10 @@ final class ResolveurTour
             : max(0, max($desArme, $desArmeContre)
                 + $bonusAttaque + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc
                 + $bonusTier + $bonusElan + $bonusCri + $desBonus + $bonusArmeExperte);
+
+        if ($desImposes !== null) {
+            $desAttaqueEffectifs = $desImposes;
+        }
 
         // FOSSE LONGUE (*The Mage of the Mirror* p. 6) : « While in the pit, the hero rolls one less combat die when attacking
         // or defending (but never less than one die). » Le malus se lit ICI, au point de passage de TOUTE frappe du héros (attaque
@@ -12527,12 +12562,34 @@ final class ResolveurTour
             return $resultat; // le Defender est éteint : `donjonNettoye()` déclare la victoire
         }
 
-        $herosRestants = app(OrdreDuTour::class)->acteurActif($groupe->fresh()) !== null;
+        $manoeuvres = app(\App\Partie\Arene\ManoeuvreSolo::class);
+        $apresUneManoeuvre = $manoeuvres->fermer($quete);
+        $avant = [];
         $monstresRestants = $this->monstresAActiverEnArene($quete) > 0;
+
+        // COMBATTANT SEUL (lot T5, F9528 p. 16) : la dernière figure du Defender a déjà joué son activation du round —
+        // elle prend une manœuvre de base après celle du héros. Avant que le round ne se referme, le cas échéant.
+        if (! $apresUneManoeuvre && ! $monstresRestants && ($solo = $manoeuvres->defenderSolo($quete)) !== null) {
+            $manoeuvre = $this->manoeuvreDuDefender($groupe, $quete, $solo);
+
+            if ($manoeuvre !== null) {
+                $avant[] = $manoeuvre;
+                $this->verifierFinDuCombat($quete);
+            }
+        }
+
+        // Relu APRÈS la manœuvre : elle a pu faire tomber le dernier héros qui avait encore la main.
+        $herosRestants = app(OrdreDuTour::class)->acteurActif($groupe->fresh()) !== null;
 
         if ($monstresRestants || ! $herosRestants) {
             $resultat['tour_monstres'] = $this->phaseMonstres($groupe, $quete, 0, $herosRestants ? 1 : null);
             $this->verifierFinDuCombat($quete);
+        }
+
+        // La manœuvre se lit dans le même fil que les activations du Defender, avant elles.
+        if ($avant !== []) {
+            $resultat['tour_monstres'] = [...($resultat['tour_monstres'] ?? []),
+                'actions' => [...$avant, ...($resultat['tour_monstres']['actions'] ?? [])]];
         }
 
         return $resultat;
@@ -12622,6 +12679,74 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
+    }
+
+    /**
+     * ARÈNE, lot T5 — la MANŒUVRE DE BASE de la figure SEULE du Defender (F9528 p. 16) : « either moving up to their
+     * movement speed or rolling 2 Attack dice against an adjacent creature (if they can usually attack diagonally, they
+     * may do so in the basic maneuver as well) ». Au contact d'un héros : la frappe à 2 dés. Sinon : la marche vers le
+     * plus proche, sans frappe. Une figure qui ne pourrait pas agir (endormie, paralysée…) ne manœuvre pas.
+     *
+     * @return array<string, mixed>|null  le résultat, ou `null` quand la figure ne manœuvre pas
+     */
+    private function manoeuvreDuDefender(Groupe $groupe, Quete $quete, InstanceMonstre $instance): ?array
+    {
+        if (! app(\App\Partie\Arene\ManoeuvreSolo::class)->defenderPeutManoeuvrer($instance) || ! $instance->revele) {
+            return null;
+        }
+
+        $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
+            ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
+            ->values();
+
+        if ($cibles->isEmpty()) {
+            return null;
+        }
+
+        $nomMonstre = $instance->nomAffiche();
+        $acteur = ['type' => 'monstre', 'id' => $instance->id, 'nom' => $nomMonstre];
+        $annonce = ['type' => 'manoeuvre_solo', 'camp' => \App\Partie\Arene\TropheesArene::DEFENDER, 'nom' => $nomMonstre, 'geste' => 'defender'];
+
+        $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
+        $this->appliquerModeDeMarche($grille, $instance);
+        $meilleure = $this->cibleLaPlusProche($quete, $instance, $cibles, $grille, $this->dread->aCapacite($instance, 'attaque_diagonale'));
+
+        if ($meilleure === null) {
+            return null;
+        }
+
+        [$cible, $chemin] = $meilleure;
+
+        if ($chemin === []) {
+            if (! $cible instanceof EtatPersonnageQuete) {
+                return null;
+            }
+
+            Journal::ajouter($groupe, 'action', $annonce, $acteur);
+            $frappe = $this->resoudreAttaqueMonstre($groupe, $instance, $cible, \App\Partie\Arene\ManoeuvreSolo::DES_ATTAQUE, $acteur, $nomMonstre);
+
+            return $this->actionsEnchainees($annonce, $frappe);
+        }
+
+        if ($instance->monstre->estImmobile() || $this->sorts->monstreA($instance, MoteurSorts::MONSTRE_ENCHAINE)) {
+            return null;
+        }
+
+        Journal::ajouter($groupe, 'action', $annonce, $acteur);
+        $marche = $this->marcheVersLaCible($groupe, $quete, $instance, $grille, $chemin, $nomMonstre, $acteur);
+
+        if ($marche['brulure'] !== null) {
+            return $this->actionsEnchainees($annonce, $marche['brulure']);
+        }
+
+        if ($marche['chemin'] === []) {
+            return $annonce;
+        }
+
+        Journal::ajouter($groupe, 'action', $marche['deplacement'], $acteur);
+        app(\App\Partie\Arene\TropheesArene::class)->ramasserMonstre($groupe, $quete, $instance->fresh()->load('monstre'));
+
+        return $this->actionsEnchainees($annonce, $marche['deplacement']);
     }
 
     /** ARÈNE : figures du Defender actives, révélées, libres, qui n'ont pas encore joué ce round. */
@@ -12854,6 +12979,16 @@ final class ResolveurTour
 
             if ($braise !== null) {
                 $actions[] = $braise;
+            }
+
+            // COMBATTANT SEUL (lot T5) : le dernier héros debout, son activation jouée, prend une manœuvre de base
+            // après CHAQUE activation du Defender — il reprend la main, l'enchaînement s'interrompt.
+            if ($arene && app(\App\Partie\Arene\ManoeuvreSolo::class)->ouvrirPourChallenger($groupe, $quete)) {
+                $actions[] = ['type' => 'manoeuvre_solo', 'camp' => \App\Partie\Arene\TropheesArene::CHALLENGER,
+                    'nom' => (string) app(\App\Partie\Arene\ManoeuvreSolo::class)->challengerSolo($groupe, $quete)?->personnage?->nom,
+                    'geste' => 'ouverte'];
+
+                break;
             }
         }
 
@@ -13200,6 +13335,7 @@ final class ResolveurTour
             'a_joue' => false, 'a_deplace' => false, 'a_agi' => false,
             'deplacement_tour' => null, 'deplacement_restant' => null,
             'bonus_sort_utilise' => false,
+            'manoeuvre_arene' => false,
             'attaque_supplementaire' => false,
             // Capacités « once per turn » (Ambidextrie, Sixième sens…) : leur
             // compteur est le seul qui doive être remis à zéro à la main, les
@@ -15492,7 +15628,8 @@ final class ResolveurTour
             // (`marquerCreneau()`, annoncé par `perd_deplacement`). Avant, il
             // sacrifiait le tour entier pour une seule relève.
             // `sortie_sables` : « This ends the hero's turn. » — se hisser hors des sables clôt le tour.
-            'concentration', 'attente', 's_ecarter_du_bloc', 'sortie_sables' => 'tour',
+            // `manoeuvre_attaque` (arène, lot T5) : la frappe à 2 dés EST toute la manœuvre — elle la referme.
+            'concentration', 'attente', 's_ecarter_du_bloc', 'sortie_sables', \App\Partie\Arene\ManoeuvreSolo::TYPE_ATTAQUE => 'tour',
             default => 'action',
         };
     }

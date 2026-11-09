@@ -1340,6 +1340,7 @@ final class MenuMoteur
     public function generer(Groupe $groupe, Personnage $personnage): array
     {
         $menu = $this->genererBrut($groupe, $personnage);
+        $menu = $this->menuDeManoeuvre($groupe, $personnage, $menu);
 
         if (! $this->sorts->attaqueInterdite($personnage)) {
             return $menu;
@@ -1353,6 +1354,65 @@ final class MenuMoteur
         return $menu;
     }
 
+    /**
+     * ARÈNE, lot T5 — la MANŒUVRE DE BASE du combattant seul (F9528 p. 16, `App\Partie\Arene\ManoeuvreSolo`) : « either
+     * moving up to their movement speed or rolling 2 Attack dice against an adjacent creature ». Le menu ordinaire du
+     * héros (action prise, déplacement libre) est RESTREINT à ce que la manœuvre permet — la liste que le résolveur
+     * revalide (`ManoeuvreSolo::TYPES_PERMIS`) — et reçoit la frappe à 2 dés tant qu'aucun pas n'est fait. Les cibles
+     * sont celles de l'arme en main AU CONTACT : la diagonale d'une arme longue y est donc comprise (« if they can
+     * usually attack diagonally »).
+     *
+     * @param  array{situation: string, options: list<array<string, mixed>>}  $menu
+     * @return array{situation: string, options: list<array<string, mixed>>}
+     */
+    private function menuDeManoeuvre(Groupe $groupe, Personnage $personnage, array $menu): array
+    {
+        $quete = $groupe->queteCourante;
+        $etat = $quete?->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+
+        if ($etat === null || ! $etat->manoeuvre_arene || $etat->a_joue || $etat->tombe) {
+            return $menu;
+        }
+
+        $options = array_values(array_filter(
+            $menu['options'],
+            static fn (array $o) => in_array($o['type'] ?? null, \App\Partie\Arene\ManoeuvreSolo::TYPES_PERMIS, true),
+        ));
+
+        $options = array_map(static fn (array $o) => ($o['type'] ?? null) === 'attente'
+            ? ['libelle' => $etat->deplacement_restant !== null ? 'Terminer la manœuvre' : 'Passer la manœuvre'] + $o
+            : $o, $options);
+
+        if (! $etat->a_deplace && $etat->deplacement_restant === null) {
+            $arme = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
+            $cibles = array_values(array_filter(
+                $this->ciblesPourArme($quete, $etat, $personnage, $arme)['attaquer'],
+                static fn (array $c) => empty($c['distance']),
+            ));
+
+            if ($cibles !== []) {
+                $n = \App\Partie\Arene\ManoeuvreSolo::DES_ATTAQUE;
+                $attaque = $this->avecCreneaux([[
+                    'id' => 'manoeuvre_attaquer',
+                    'libelle' => "Frapper à {$n} dés",
+                    'type' => \App\Partie\Arene\ManoeuvreSolo::TYPE_ATTAQUE,
+                    'lancer' => false,
+                    'parametres' => ['arme' => 'arme_principale', 'cibles' => array_map(
+                        static fn (array $c) => array_diff_key($c, array_flip(['mains_nues', 'des_attaque', 'indication'])) + ['des_attaque' => $n],
+                        $cibles,
+                    )],
+                ]]);
+                array_unshift($options, $attaque[0]);
+            }
+        }
+
+        return [
+            'situation' => 'Seul en lice : manœuvre de base — se déplacer jusqu\'à votre mouvement OU frapper à '
+                .\App\Partie\Arene\ManoeuvreSolo::DES_ATTAQUE.' dés une créature au contact.',
+            'options' => $options,
+        ];
+    }
+
     /** Types d'option qui LANCENT un sort (sort connu, parchemin, concentration). */
     public const TYPES_LANCER_DE_SORT = ['sort', 'parchemin', 'concentration'];
 
@@ -1364,7 +1424,8 @@ final class MenuMoteur
 
     /** Types d'option qui frappent AVEC le héros lui-même (jamais le menu d'un allié). */
     // `tir_traversant` (Flèche traversante, lot A) est une attaque : un héros caché ne tire pas.
-    public const TYPES_ATTAQUE_HEROS = ['attaque', 'attaque_balayee', 'rayon', 'degat_differe', 'attaquer_mobilier', 'frapper_danger', 'tir_traversant'];
+    // `manoeuvre_attaque` (arène, lot T5) : la frappe à 2 dés du combattant seul est une attaque comme une autre.
+    public const TYPES_ATTAQUE_HEROS = ['attaque', 'attaque_balayee', 'rayon', 'degat_differe', 'attaquer_mobilier', 'frapper_danger', 'tir_traversant', 'manoeuvre_attaque'];
 
     /** Le prédicat UNIQUE « cette option est une attaque du héros » : lu par le menu et par le résolveur. */
     public static function estAttaqueDuHeros(array $option): bool

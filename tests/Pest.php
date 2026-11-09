@@ -530,3 +530,43 @@ function empreinteDuHeros(int $id): string
 
     return json_encode($empreinte, JSON_THROW_ON_ERROR);
 }
+
+// MODE ARÈNE (lot T2, partagé par ActivationAlterneeTest et ManoeuvreSoloTest).
+/**
+ * Deux joueurs, un héros d'arène chacun, engagés dans un combat contre `$defender` (noms du catalogue).
+ *
+ * @return array{arene: \App\Models\Groupe, quete: \App\Models\Quete, alice: mixed, bob: mixed, a: Personnage, b: Personnage}
+ */
+function combatADeux(array $defender): array
+{
+    $arenes = app(\App\Partie\Arene\GroupesArene::class);
+    $arene = $arenes->ouvrir();
+
+    $alice = connecterJoueur('alice');
+    $ha = \App\Models\Personnage::findOrFail(test()->postJson('/api/personnages', ['nom' => 'Aldra', 'classe' => 'barbare', 'mode' => 'arene'])->json('personnage.id'));
+    $a = $arenes->engager($arene, $ha);
+
+    $bob = connecterJoueur('bob');
+    $hb = \App\Models\Personnage::findOrFail(test()->postJson('/api/personnages', ['nom' => 'Borin', 'classe' => 'nain', 'mode' => 'arene'])->json('personnage.id'));
+    $b = $arenes->engager($arene, $hb);
+
+    $ids = array_map(fn (string $nom) => (int) \App\Models\Monstre::where('nom_base', $nom)->value('id'), $defender);
+    $quete = app(\App\Partie\Arene\DemarreurArene::class)->demarrer($arene, $ids);
+
+    return ['arene' => $arene->refresh(), 'quete' => $quete->refresh(), 'alice' => $alice, 'bob' => $bob, 'a' => $a, 'b' => $b];
+}
+
+function jetonsDuDefender(\App\Models\Quete $quete): int
+{
+    return \App\Models\InstanceMonstre::where('quete_id', $quete->id)->where('active_ce_round', true)->count();
+}
+
+/** Joue `option_id` pour le joueur donné, sur son menu courant. */
+function jouerEnArene($joueur, string $identifiant, string $option, array $parametres = [])
+{
+    test()->actingAs($joueur, 'joueur');
+    test()->getJson("/api/groupes/{$identifiant}/menu")->assertOk();
+
+    return test()->postJson("/api/groupes/{$identifiant}/choix", ['option_id' => $option, 'parametres' => $parametres]);
+}
+

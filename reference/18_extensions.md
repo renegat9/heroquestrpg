@@ -426,7 +426,8 @@ révèle.
 
 **Combattant seul (p. 12-13)** : « In addition to their own turn, they may take a basic maneuver after each opponent's
 turn » — se déplacer de sa vitesse, OU lancer 2 dés d'attaque contre une créature adjacente (en diagonale s'il le peut
-d'ordinaire) ; pas s'il est neutralisé ou incapable d'agir (*Tempest*) ; il garde son jeton d'activation.
+d'ordinaire) ; pas s'il est neutralisé ou incapable d'agir (*Tempest*) ; il garde son jeton d'activation. **Porté** (lot T5, `ManoeuvreSolo`) :
+les deux camps ; la propre activation du combattant seul tient lieu de manœuvre tant qu'il ne l'a pas jouée.
 
 **Mort (p. 12)** : hors jeu jusqu'à la fin de la quête ; ses objets restent sur sa case, ramassés par tout héros qui
 passe adjacent, sans action.

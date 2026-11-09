@@ -57,6 +57,8 @@ const ICONE_TYPE = {
     soin_cheminee: 'fireplace',
     jet: 'casino',
     attaque: 'swords',
+    // ARÈNE, combattant seul : la manœuvre de base frappe à 2 dés.
+    manoeuvre_attaque: 'swords',
     // Mobilier attaquable (PV + défense, 2026-10-04) : même glyphe que
     // `attaque`, c'est un coup de combat — distinct de `jet` (fracasser un
     // meuble sur un jet de Body, un dé, pas une volée de dés de combat).

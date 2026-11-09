@@ -138,6 +138,7 @@ function fixturesDesTypesAnnonces(): array
         'tresor_tournoi' => ['nom' => 'Brakka', 'des' => [3, 4], 'total' => 7, 'issue' => 'objet', 'nom_objet' => 'Hache de bataille en os'],
         'trophee_potion' => ['camp' => 'defender', 'nom' => 'Momie', 'soin' => 2],
         'trophee_elan' => ['nom' => 'Brakka', 'tuile' => 'Crâne blanc', 'cases' => 2],
+        'manoeuvre_solo' => ['nom' => 'Brakka', 'camp' => 'challenger', 'geste' => 'ouverte'],
         'trophee_combat' => ['camp' => 'defender', 'nom' => 'Orque', 'tuile' => 'Bouclier noir', 'effet' => '+1 bouclier noir'],
         'saute_tour_monstre' => ['capacite' => 'Hurlement', 'portee' => 'contact', 'cibles' => [$monstre]],
         'tir_traversant' => ['capacite' => 'Flèche traversante', 'direction' => 'e', 'cibles' => 2],

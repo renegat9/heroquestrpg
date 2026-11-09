@@ -35,44 +35,6 @@ beforeEach(function () {
     ]);
 });
 
-/**
- * Deux joueurs, un héros d'arène chacun, engagés dans un combat contre `$defender` (noms du catalogue).
- *
- * @return array{arene: App\Models\Groupe, quete: Quete, alice: mixed, bob: mixed, a: Personnage, b: Personnage}
- */
-function combatADeux(array $defender): array
-{
-    $arenes = app(GroupesArene::class);
-    $arene = $arenes->ouvrir();
-
-    $alice = connecterJoueur('alice');
-    $ha = Personnage::findOrFail(test()->postJson('/api/personnages', ['nom' => 'Aldra', 'classe' => 'barbare', 'mode' => 'arene'])->json('personnage.id'));
-    $a = $arenes->engager($arene, $ha);
-
-    $bob = connecterJoueur('bob');
-    $hb = Personnage::findOrFail(test()->postJson('/api/personnages', ['nom' => 'Borin', 'classe' => 'nain', 'mode' => 'arene'])->json('personnage.id'));
-    $b = $arenes->engager($arene, $hb);
-
-    $ids = array_map(fn (string $nom) => (int) Monstre::where('nom_base', $nom)->value('id'), $defender);
-    $quete = app(DemarreurArene::class)->demarrer($arene, $ids);
-
-    return ['arene' => $arene->refresh(), 'quete' => $quete->refresh(), 'alice' => $alice, 'bob' => $bob, 'a' => $a, 'b' => $b];
-}
-
-function jetonsDuDefender(Quete $quete): int
-{
-    return InstanceMonstre::where('quete_id', $quete->id)->where('active_ce_round', true)->count();
-}
-
-/** Joue `option_id` pour le joueur donné, sur son menu courant. */
-function jouerEnArene($joueur, string $identifiant, string $option, array $parametres = [])
-{
-    test()->actingAs($joueur, 'joueur');
-    test()->getJson("/api/groupes/{$identifiant}/menu")->assertOk();
-
-    return test()->postJson("/api/groupes/{$identifiant}/choix", ['option_id' => $option, 'parametres' => $parametres]);
-}
-
 it('le Defender ouvre le combat, puis les DEUX héros ont la main — le premier qui appuie', function () {
     $c = combatADeux(['Gobelin', 'Gobelin', 'Gobelin']);
 

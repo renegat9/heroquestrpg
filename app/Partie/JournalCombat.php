@@ -72,6 +72,7 @@ final class JournalCombat
         // MODE ARÈNE (lot T4) : une tuile trophée ramassée, une potion bue, un élan pris.
         'tresor_tournoi' => true,
         'trophee_ramasse' => true, 'trophee_potion' => true, 'trophee_elan' => true, 'trophee_combat' => true,
+        'manoeuvre_solo' => true,
         // Tunnelier (nain·Mine, lot B) : l'effet du sort Traverser la Pierre, posé pour ce tour.
         'tunnelier' => true,
         // Mémoire parfaite (magicien, lot B) : son RÉSULTAT est un payload `concentration` (drapeau geste_libre),
@@ -1254,6 +1255,9 @@ final class JournalCombat
             'trophee_combat' => [$this->info(($a['nom'] ?? $acteurNom).' joue '.($a['tuile'] ?? 'une tuile trophée')
                 .(isset($a['effet']) ? ' — '.$a['effet'] : ''))],
             'trophee_elan' => [$this->info(($a['nom'] ?? $acteurNom).' défausse '.($a['tuile'] ?? 'une tuile').' : +'.(int) ($a['cases'] ?? 2).' cases')],
+            // ARÈNE, lot T5 : le combattant SEUL prend une manœuvre de base après l'activation adverse (F9528 p. 16).
+            'manoeuvre_solo' => [$this->info(($a['nom'] ?? $acteurNom).', seul en lice, prend une manœuvre de base'
+                .(($a['camp'] ?? '') === 'challenger' ? ' : se déplacer ou frapper à 2 dés' : ''))],
             'concentration', 'sacrifice_sort' => $this->sortRecupere($a, $acteurNom),
             'tunnelier' => $this->tunnelier($acteurNom),
             's_ecarter_du_bloc' => $this->ecartDuBloc($a, $acteurNom),

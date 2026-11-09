@@ -1179,6 +1179,28 @@ nom_objet?, or?}`. Pièges (2 : −3, 3-4 : −2, 5-6 : −1) au fouilleur ; 7 :
 de la doublure (elle disparaît avec elle) ; 8-9 / 10-11 / 12 : 100 / 200 / 300 po à la bourse du COMBAT
 (`groupe.or` du groupe d'arène), jamais à un héros.
 
+### Le combattant seul (lot T5, 2026-11-09, F9528 p. 16)
+
+Le dernier combattant debout d'une équipe prend une **manœuvre de base** après chaque activation adverse : se déplacer
+jusqu'à son mouvement OU lancer **2 dés d'attaque** contre une créature au contact (en diagonale si son arme le permet).
+`ManoeuvreSolo` est le point de passage.
+
+- **Challenger** : son activation du round jouée, il reprend la main après chaque activation du Defender
+  (`etat_personnage_quete.manoeuvre_arene = true`, colonne ; `a_joue` levé, action marquée prise). `GET /menu` rend un
+  menu **forcé** : `situation` dit la manœuvre, les options sont restreintes à `deplacement`, `attente` (« Passer la
+  manœuvre » / « Terminer la manœuvre »), `trophee_elan`, et `{id: "manoeuvre_attaquer", type: "manoeuvre_attaque",
+  creneau: "tour", parametres: {arme, cibles: [{id, type, nom, nom_base, distance: false, des_attaque: 2}]}}` — offerte
+  tant qu'aucun pas n'est fait (`POST choix` avec `parametres.cible_id`, liste blanche revalidée). Toute autre option est
+  refusée (422). Le résultat de la frappe porte `manoeuvre: true` et une volée de 2 dés.
+- **Defender** : sa dernière figure, son activation jouée, manœuvre après chaque activation de héros — la frappe à 2 dés
+  si un héros est au contact, sinon la marche vers le plus proche. Elle se lit dans `tour_monstres.actions`, avant les
+  activations éventuelles.
+- Annonce : `{type: "manoeuvre_solo", camp: "challenger" | "defender", nom, geste: "ouverte" | "defender"}`.
+- ⚠ Lecture nommée : tant que le combattant seul n'a pas joué son activation du round, c'est elle qui répond à
+  l'adversaire — pas de manœuvre en plus. Une manœuvre n'appelle pas de réponse (« after each opponent's TURN »). Pas de
+  manœuvre pour un héros dont le tour a été perdu ce round (Étourdi, gel), ni pour une figure endormie, paralysée,
+  enchaînée ou privée de son tour.
+
 ### L'activation alternée (lot T2, 2026-11-09, livret F9528 p. 12-16)
 
 - **Le Defender ouvre chaque round** : une figure s'active (au démarrage, `ResolveurTour::ouvrirCombatArene()`, puis

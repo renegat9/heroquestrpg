@@ -817,7 +817,8 @@ function frameCible(option, source, retour) {
     // urgence (verdict §2.11).
     const typeSort = String(source?.sort_type ?? (mesSorts.value ?? [])
         .find((s) => String(s.sort_id) === String(source?.sort_id))?.type ?? '').toLowerCase();
-    const offensif = option.type === 'attaque' || ['degats', 'mental'].includes(typeSort);
+    // `manoeuvre_attaque` (arène, combattant seul) : la frappe à 2 dés est une attaque comme une autre.
+    const offensif = ['attaque', 'manoeuvre_attaque'].includes(option.type) || ['degats', 'mental'].includes(typeSort);
 
     return {
         option,

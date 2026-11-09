@@ -31,6 +31,8 @@ class EtatPersonnageQuete extends Model
         // un menu régénéré en cours de tour. Voir la migration
         // `detail_deplacement_tour` et App\Partie\MenuMoteur::deplacementDuTour().
         'detail_deplacement_tour',
+        // ARÈNE, lot T5 : la manœuvre de base du combattant seul est ouverte (`App\Partie\Arene\ManoeuvreSolo`).
+        'manoeuvre_arene',
         'tombe',
         'garde_tenace_utilisee',
         'bonus_sort_utilise',
@@ -172,6 +174,7 @@ class EtatPersonnageQuete extends Model
             'degats_subis' => 'array',
             'dernier_degat' => 'array',
             'monstres_vaincus' => 'integer',
+            'manoeuvre_arene' => 'boolean',
         ];
     }
 
