@@ -68,46 +68,54 @@ function idsMonstres(string ...$noms): array
     return array_map(fn (string $nom) => (int) Monstre::where('nom_base', $nom)->value('id'), $noms);
 }
 
-it('dessine le hall de René : 9 de large × 8 de haut, sans porte, aux deux tuiles de départ disjointes', function () {
-    $carte = app(HallArene::class)->carte();
+it('dessine le hall du livret (F9528 p. 15) : salle 9 × 8, deux tuiles de départ 4 × 4, deux gravats', function () {
+    $hall = app(HallArene::class);
+    $carte = $hall->carte();
     $cle = fn (array $c) => "{$c['x']},{$c['y']}";
+    $sol = fn (int $x, int $y) => ($carte['cases'][$y][$x] ?? 'm') === 's';
 
-    $sol = [];
-    foreach ($carte['cases'] as $y => $ligne) {
-        foreach ($ligne as $x => $case) {
-            if ($case === 's') {
-                $sol[] = [$x, $y];
-            }
+    // La salle centrale : 9 × 8 (René : « 8 de haut par 9 de large »), pleine sauf les deux gravats du plan.
+    $centre = [];
+    for ($r = 0; $r < 8; $r++) {
+        for ($c = 0; $c < 9; $c++) {
+            [$x, $y] = $hall->caseDeLaSalle($c, $r);
+            $centre["{$x},{$y}"] = $sol($x, $y);
         }
     }
-    $xs = array_column($sol, 0);
-    $ys = array_column($sol, 1);
-
-    // René (2026-11-09) : « 8 de haut par 9 de large » — un rectangle plein, rien d'autre.
-    expect(count($sol))->toBe(72)
-        ->and(max($xs) - min($xs) + 1)->toBe(9)
-        ->and(max($ys) - min($ys) + 1)->toBe(8);
-
-    $challenger = array_map($cle, $carte['spawn_heros']);
-    $defender = array_map($cle, $carte['spawn_monstres']);
-
-    expect($carte['salles'])->toHaveCount(1)
-        ->and($carte['portes'])->toBe([])
-        ->and($carte['escalier'])->toBeNull()
-        ->and(count($challenger))->toBeGreaterThanOrEqual(8)
-        ->and(count($defender))->toBeGreaterThanOrEqual(8)
-        ->and(array_intersect($challenger, $defender))->toBe([])
-        ->and(count(array_unique($challenger)))->toBe(count($challenger));
-
-    foreach ([...$carte['spawn_heros'], ...$carte['spawn_monstres']] as $c) {
-        expect($carte['cases'][$c['y']][$c['x']])->toBe('s');
+    expect(array_sum($centre))->toBe(70);
+    foreach (HallArene::GRAVATS as [$c, $r]) {
+        [$x, $y] = $hall->caseDeLaSalle($c, $r);
+        expect($sol($x, $y))->toBeFalse();
     }
 
-    // Les deux tuiles se font face sur la largeur : tout le Challenger à l'ouest de tout le Defender, avec du champ
-    // entre eux. Les premières cases (posées d'abord) sont au front.
+    // Deux tuiles de départ de 4 × 4 = 16 cases chacune, disjointes, sur le sol, alignées sur les rangées 3 à 6.
+    $challenger = array_map($cle, $carte['spawn_heros']);
+    $defender = array_map($cle, $carte['spawn_monstres']);
+    expect($challenger)->toHaveCount(16)
+        ->and($defender)->toHaveCount(16)
+        ->and(array_intersect($challenger, $defender))->toBe([])
+        ->and(array_intersect($challenger, array_keys($centre)))->toBe([]);
+    foreach ([...$carte['spawn_heros'], ...$carte['spawn_monstres']] as $c) {
+        expect($sol($c['x'], $c['y']))->toBeTrue();
+    }
+    [, $y3] = $hall->caseDeLaSalle(0, 2);
+    [, $y6] = $hall->caseDeLaSalle(0, 5);
+    expect(collect($carte['spawn_heros'])->pluck('y')->unique()->sort()->values()->all())->toBe(range($y3, $y6));
+
+    // Rien d'autre que la croix : 70 + 32 cases de sol.
+    $total = 0;
+    foreach ($carte['cases'] as $ligne) {
+        $total += count(array_filter($ligne, fn ($c) => $c === 's'));
+    }
+    expect($total)->toBe(102)
+        ->and($carte['salles'])->toHaveCount(1)
+        ->and($carte['portes'])->toBe([])
+        ->and($carte['escalier'])->toBeNull();
+
+    // Le Challenger à l'ouest, le Defender à l'est ; les premières cases posées sont au FRONT, contre la salle.
     $maxOuest = max(array_column($carte['spawn_heros'], 'x'));
     $minEst = min(array_column($carte['spawn_monstres'], 'x'));
-    expect($minEst - $maxOuest)->toBeGreaterThan(3)
+    expect($minEst - $maxOuest)->toBe(10)
         ->and($carte['spawn_heros'][0]['x'])->toBe($maxOuest)
         ->and($carte['spawn_monstres'][0]['x'])->toBe($minEst);
 });

@@ -1046,11 +1046,12 @@ seule par héros et par combat) et le **purge**.
 
 ### Le hall et le démarrage d'un combat (lot T1, 2026-11-09, `docs/plan-tournoi-worlds-end.md` §4)
 
-- **Le hall** (`App\Partie\Arene\HallArene`) : une carte FIXE de même forme qu'une carte assemblée — une seule
-  salle de **9 de large × 8 de haut** (René, 2026-11-09), sans porte ni escalier, toujours découverte (pas de
-  brouillard), deux tuiles de départ face à face sur la largeur : `spawn_heros` (Challenger, ouest) et `spawn_monstres`
-  (Defender, est), deux colonnes pleines de 8 cases chacune, le front d'abord. ⚠ La taille vient de René ; la place
-  des tuiles est **non sourcée** (le plan imprimé, F9528 p. 21-25, n'est pas numérisé).
+- **Le hall** (`App\Partie\Arene\HallArene`) : la carte FIXE du livret (plan F9528 p. 15), de même forme qu'une carte
+  assemblée — une salle centrale de **9 × 8** (René, 2026-11-09), deux **tuiles de départ de 4 × 4** de part et
+  d'autre, alignées sur ses rangées 3 à 6 (`spawn_heros` = Challenger à l'ouest, `spawn_monstres` = Defender à l'est,
+  16 cases chacune, le front d'abord), deux cases de gravats en roche. Une seule `salle` (toujours découverte, pas de
+  brouillard), ni porte ni escalier. ⚠ Écart nommé : au plateau, une tuile ne touche la salle que par sa double porte
+  (rangées 4-5) ; notre grille n'ayant de murs qu'en cases, la jonction est ouverte sur les quatre rangées de la tuile.
 - **Démarrage** (`App\Partie\Arene\DemarreurArene::demarrer($arene, $defender)`, aucune route avant le lot A5) :
   une `quete` **sans gabarit** (`gabarit_id` devient nullable), le hall en `cartes`, les doublures sur la tuile du
   Challenger, le Defender (ids du catalogue, donnés par l'appelant jusqu'au lot T3) sur la sienne, aux stats du
