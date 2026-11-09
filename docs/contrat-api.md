@@ -1047,9 +1047,9 @@ seule par héros et par combat) et le **purge**.
 ### Le hall et le démarrage d'un combat (lot T1, 2026-11-09, `docs/plan-tournoi-worlds-end.md` §4)
 
 - **Le hall** (`App\Partie\Arene\HallArene`) : une carte FIXE de même forme qu'une carte assemblée — une seule
-  salle de **8 × 9 cases** de sol (René, 2026-11-09), sans porte ni escalier, toujours découverte (pas de
-  brouillard), deux tuiles de départ face à face sur la longueur : `spawn_heros` (Challenger, sud) et `spawn_monstres`
-  (Defender, nord), deux rangées pleines de 8 cases chacune, le front d'abord. ⚠ La taille vient de René ; la place
+  salle de **9 de large × 8 de haut** (René, 2026-11-09), sans porte ni escalier, toujours découverte (pas de
+  brouillard), deux tuiles de départ face à face sur la largeur : `spawn_heros` (Challenger, ouest) et `spawn_monstres`
+  (Defender, est), deux colonnes pleines de 8 cases chacune, le front d'abord. ⚠ La taille vient de René ; la place
   des tuiles est **non sourcée** (le plan imprimé, F9528 p. 21-25, n'est pas numérisé).
 - **Démarrage** (`App\Partie\Arene\DemarreurArene::demarrer($arene, $defender)`, aucune route avant le lot A5) :
   une `quete` **sans gabarit** (`gabarit_id` devient nullable), le hall en `cartes`, les doublures sur la tuile du

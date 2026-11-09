@@ -68,7 +68,7 @@ function idsMonstres(string ...$noms): array
     return array_map(fn (string $nom) => (int) Monstre::where('nom_base', $nom)->value('id'), $noms);
 }
 
-it('dessine le hall de René : une salle de 8 × 9 cases, sans porte, aux deux tuiles de départ disjointes', function () {
+it('dessine le hall de René : 9 de large × 8 de haut, sans porte, aux deux tuiles de départ disjointes', function () {
     $carte = app(HallArene::class)->carte();
     $cle = fn (array $c) => "{$c['x']},{$c['y']}";
 
@@ -83,10 +83,10 @@ it('dessine le hall de René : une salle de 8 × 9 cases, sans porte, aux deux t
     $xs = array_column($sol, 0);
     $ys = array_column($sol, 1);
 
-    // 8 × 9, René (2026-11-09) : un rectangle plein, rien d'autre.
+    // René (2026-11-09) : « 8 de haut par 9 de large » — un rectangle plein, rien d'autre.
     expect(count($sol))->toBe(72)
-        ->and(max($xs) - min($xs) + 1)->toBe(8)
-        ->and(max($ys) - min($ys) + 1)->toBe(9);
+        ->and(max($xs) - min($xs) + 1)->toBe(9)
+        ->and(max($ys) - min($ys) + 1)->toBe(8);
 
     $challenger = array_map($cle, $carte['spawn_heros']);
     $defender = array_map($cle, $carte['spawn_monstres']);
@@ -103,13 +103,13 @@ it('dessine le hall de René : une salle de 8 × 9 cases, sans porte, aux deux t
         expect($carte['cases'][$c['y']][$c['x']])->toBe('s');
     }
 
-    // Les deux tuiles se font face sur la longueur : tout le Defender au nord de tout le Challenger, avec du champ
+    // Les deux tuiles se font face sur la largeur : tout le Challenger à l'ouest de tout le Defender, avec du champ
     // entre eux. Les premières cases (posées d'abord) sont au front.
-    $maxNord = max(array_column($carte['spawn_monstres'], 'y'));
-    $minSud = min(array_column($carte['spawn_heros'], 'y'));
-    expect($minSud - $maxNord)->toBeGreaterThan(3)
-        ->and($carte['spawn_heros'][0]['y'])->toBe($minSud)
-        ->and($carte['spawn_monstres'][0]['y'])->toBe($maxNord);
+    $maxOuest = max(array_column($carte['spawn_heros'], 'x'));
+    $minEst = min(array_column($carte['spawn_monstres'], 'x'));
+    expect($minEst - $maxOuest)->toBeGreaterThan(3)
+        ->and($carte['spawn_heros'][0]['x'])->toBe($maxOuest)
+        ->and($carte['spawn_monstres'][0]['x'])->toBe($minEst);
 });
 
 it('démarre un combat d\'arène : hall, doublures et Defender sur leurs tuiles, sans gabarit, sans instantané', function () {
