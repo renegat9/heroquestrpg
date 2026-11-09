@@ -1150,8 +1150,24 @@ salon vit en base : `groupes.arene_defender` (ids du Defender), `groupe_personna
     {option_id: "trophee_elan", parametres: {cle}}` défausse cette tuile, et la réserve de cases du tour gagne 2.
 - **Usage du Defender** (décision de René, 2026-11-09) : une figure blessée qui s'active boit une potion de sa
   réserve (annonce `trophee_potion`, `camp: defender`) ; il ne prend jamais l'élan.
-- ⚠ **Seconde étape, à venir** : les tuiles de combat (après le jet) et la riposte, des deux côtés, et la potion « avant
-  de mourir » à 0 PV. Jusque-là, chacune a déjà un usage : l'élan.
+- **Seconde étape (2026-11-09)** — les tuiles de combat, la riposte et la potion « avant de mourir » :
+  - **Crâne (Challenger)** : l'attaque du héros est SUSPENDUE après le jet (`resultat.type = "jet_en_attente"`), l'offre
+    `reaction_en_attente.action = "trophee_crane"` montre le jet (`des`, `des_adverses`, `touchante`, `defensive`,
+    `resume`, comme la Vision du futur) ; `POST /reaction {accepte, personnage_id}` : accepter défausse la tuile et
+    ajoute ses crânes au jet RETENU, refuser ou laisser passer la fenêtre reprend le jet tel quel. ⚠ Arbitrage :
+    l'offre n'est faite que si la tuile CHANGE l'issue (elle ajoute des dégâts et la cible ne tombe pas déjà) —
+    sinon on ne suspend pas l'attaque pour rien. La plus petite tuile utile est proposée (« ×2 » si la simple manque).
+  - **Bouclier blanc (Challenger)** : sur un coup de monstre qui blesse, offre `trophee_bouclier` — accepter rend autant
+    de points du coup que la tuile a de boucliers, et relève le héros tombé s'il lui en reste.
+  - **Riposte (Challenger)** : sur un coup de monstre au contact OU EN DIAGONALE, offre `riposte` portant
+    `trophee: "riposte"` — accepter défausse la tuile et frappe l'assaillant (`frapper()`), même à 0 PV.
+  - **Potion (Challenger) à 0 PV** : `soins[]` du soin d'urgence porte `{cle: "trophee:potion", type: "potion",
+    nom: "Potion de trophée", soin: "2"}`.
+  - ⚠ Une seule offre par coup reçu (la règle de toutes nos réactions) : bouclier, sinon riposte, sinon soin d'urgence.
+  - **Defender** (René) : bouclier noir dès qu'un coup de héros blesse sa figure ; crâne quand son coup n'est pas déjà
+    gagné ; riposte dès qu'une figure blessée est au contact ou en diagonale de son assaillant
+    (`resultat.riposte_defender`, l'attaque journalisée et poussée au fil) ; potion avant de mourir (la figure se
+    relève à 2 PV au plus). Chaque tuile jouée s'annonce : `{type: "trophee_combat", camp, nom, tuile, effet}`.
 
 ### L'activation alternée (lot T2, 2026-11-09, livret F9528 p. 12-16)
 

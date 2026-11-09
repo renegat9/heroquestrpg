@@ -295,3 +295,19 @@ it('garde le crâne comme face touchante quand la cible n\'est pas éthérée', 
 
     expect($resultat->touches)->toBe(3);
 });
+
+it('TUILES TROPHÉES : des crânes et des boucliers ajoutés APRÈS le jet comptent comme des faces (F9528 p. 14)', function () {
+    // Le monstre attaque avec 2 dés (1 crâne) ; le héros défend avec 2 dés (1 bouclier blanc) : 0 dégât.
+    $faces = [FaceDeCombat::Crane, FaceDeCombat::BouclierNoir, FaceDeCombat::BouclierBlanc, FaceDeCombat::Crane];
+
+    $sans = combatAvecFaces(...$faces)->resoudreAttaque(desAttaque: 2, desDefense: 2, typeDefenseur: TypeFigurine::Heros, pvBodyDefenseur: 8);
+    $crane = combatAvecFaces(...$faces)->resoudreAttaque(desAttaque: 2, desDefense: 2, typeDefenseur: TypeFigurine::Heros, pvBodyDefenseur: 8, touchesBonus: 2);
+    $bouclier = combatAvecFaces(...$faces)->resoudreAttaque(desAttaque: 2, desDefense: 2, typeDefenseur: TypeFigurine::Heros, pvBodyDefenseur: 8, touchesBonus: 2, boucliersBonus: 1);
+
+    expect([$sans->touches, $sans->boucliers, $sans->degats])->toBe([1, 1, 0])
+        // « Add two skulls to your combat roll » : sans dé, sans relance.
+        ->and([$crane->touches, $crane->degats, $crane->pvBodyApres])->toBe([3, 2, 6])
+        ->and([$bouclier->boucliers, $bouclier->degats])->toBe([2, 1])
+        // Les faces lancées ne changent pas : la tuile s'AJOUTE au jet.
+        ->and($crane->facesAttaque)->toBe($sans->facesAttaque);
+});

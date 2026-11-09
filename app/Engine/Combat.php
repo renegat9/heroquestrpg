@@ -57,6 +57,9 @@ final class Combat
      *                                                         (l'état a changé : mieux vaut un jet neuf qu'un jet faux).
      * @param  list<FaceDeCombat>|null  $facesDefenseImposees  Idem pour la volée de défense — c'est ce qui permet de ne
      *                                                         relancer QUE les dés d'un côté du jet.
+     * @param  int  $touchesBonus  Faces TOUCHANTES ajoutées APRÈS le jet, sans dé : la tuile trophée de combat du tournoi
+     *                             (« add two skulls to your combat roll. Use it after rolling combat dice », F9528 p. 14).
+     * @param  int  $boucliersBonus  Faces DÉFENSIVES ajoutées après le jet — les tuiles bouclier blanc / bouclier noir.
      */
     public function resoudreAttaque(
         int $desAttaque,
@@ -69,6 +72,8 @@ final class Combat
         int $relanceFaceMaximum = 1,
         ?array $facesAttaqueImposees = null,
         ?array $facesDefenseImposees = null,
+        int $touchesBonus = 0,
+        int $boucliersBonus = 0,
     ): ResultatAttaque {
         if ($desAttaque < 0) {
             throw new \InvalidArgumentException("Dés d'attaque invalides : {$desAttaque}.");
@@ -123,10 +128,10 @@ final class Combat
             ? array_values($facesDefenseImposees)
             : $this->des->desCombat($desDefense);
 
-        $touches = count(array_filter($facesAttaque, fn ($face) => $face === $touchante));
+        $touches = count(array_filter($facesAttaque, fn ($face) => $face === $touchante)) + max(0, $touchesBonus);
 
         $faceDefensive = $typeDefenseur->faceDefensive();
-        $boucliers = count(array_filter($facesDefense, fn ($face) => $face === $faceDefensive));
+        $boucliers = count(array_filter($facesDefense, fn ($face) => $face === $faceDefensive)) + max(0, $boucliersBonus);
 
         $degats = max(0, $touches - $boucliers);
         $pvBodyApres = max(0, $pvBodyDefenseur - $degats);

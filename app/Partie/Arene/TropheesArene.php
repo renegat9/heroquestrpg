@@ -80,6 +80,13 @@ final class TropheesArene
     /** Les six cases de trophée du plan p. 15, en (colonne, rangée) de la salle centrale depuis 0. */
     public const CASES = [[0, 0], [8, 0], [0, 7], [8, 7], [4, 3], [4, 4]];
 
+    /** Les familles de tuiles de COMBAT, de la plus petite à la plus grande : ce qu'elles ajoutent au jet. */
+    public const CRANES = [self::CRANE => 1, self::CRANE_X2 => 2];
+
+    public const BOUCLIERS_BLANCS = [self::BOUCLIER_BLANC => 1, self::BOUCLIER_BLANC_X2 => 2];
+
+    public const BOUCLIERS_NOIRS = [self::BOUCLIER_NOIR => 1, self::BOUCLIER_NOIR_X2 => 2];
+
     public const CHALLENGER = 'challenger';
 
     public const DEFENDER = 'defender';
@@ -216,6 +223,80 @@ final class TropheesArene
         app(TamponAnnonces::class)->annoncer($groupe, $payload);
 
         return $payload;
+    }
+
+    /**
+     * La plus petite tuile de `$famille` dont l'apport `n` satisfait `$utile(n)`, présente dans la réserve du camp — ou
+     * `null`. « La plus petite » : une tuile « x2 » n'est dépensée que si la simple ne suffit pas ou manque.
+     *
+     * @param  array<string, int>  $famille
+     * @param  callable(int): bool  $utile
+     */
+    public function tuileUtile(Quete $quete, string $camp, array $famille, callable $utile): ?string
+    {
+        $reserve = $this->reserve($quete->fresh() ?? $quete, $camp);
+
+        foreach ($famille as $tuile => $apport) {
+            if (in_array($tuile, $reserve, true) && $utile($apport)) {
+                return $tuile;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * DEFENDER QUI ATTAQUE (décision de René, 2026-11-09) : il ajoute un crâne « quand le jet n'est pas déjà gagné » —
+     * la cible ne tombe pas déjà, et la tuile ajoute bien des dégâts. Rend l'apport (0 si rien n'est dépensé), tuile
+     * défaussée et annoncée.
+     */
+    public function cranesDuDefender(Groupe $groupe, Quete $quete, string $qui, int $touches, int $boucliers, int $degats, int $pvCible): int
+    {
+        if ($degats >= $pvCible) {
+            return 0;
+        }
+
+        return $this->depenserPourCombat($groupe, $quete, self::DEFENDER, $qui, self::CRANES, fn (int $n) => $touches + $n > $boucliers);
+    }
+
+    /** DEFENDER QUI DÉFEND : il ajoute un bouclier noir dès que le coup le blesse. Même retour. */
+    public function boucliersDuDefender(Groupe $groupe, Quete $quete, string $qui, int $degats): int
+    {
+        if ($degats <= 0) {
+            return 0;
+        }
+
+        return $this->depenserPourCombat($groupe, $quete, self::DEFENDER, $qui, self::BOUCLIERS_NOIRS, fn (int $n) => true);
+    }
+
+    /**
+     * Défausse la tuile choisie et l'annonce ; rend son apport.
+     *
+     * @param  array<string, int>  $famille
+     */
+    public function depenserPourCombat(Groupe $groupe, Quete $quete, string $camp, string $qui, array $famille, callable $utile): int
+    {
+        $tuile = $this->tuileUtile($quete, $camp, $famille, $utile);
+
+        if ($tuile === null || ! $this->defausser($quete, $camp, $tuile)) {
+            return 0;
+        }
+
+        $this->annoncerCombat($groupe, $camp, $qui, $tuile);
+
+        return $famille[$tuile];
+    }
+
+    /** L'annonce d'une tuile de combat ou de riposte utilisée. */
+    public function annoncerCombat(Groupe $groupe, string $camp, string $qui, string $tuile): void
+    {
+        app(TamponAnnonces::class)->annoncer($groupe, [
+            'type' => 'trophee_combat',
+            'camp' => $camp,
+            'nom' => $qui,
+            'tuile' => self::TUILES[$tuile]['libelle'],
+            'effet' => self::TUILES[$tuile]['effet'],
+        ]);
     }
 
     /**

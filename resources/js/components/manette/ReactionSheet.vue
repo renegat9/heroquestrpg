@@ -63,11 +63,18 @@ const LIBELLE_ACTION = {
     defi_errant: 'Le défier — qu\'il vienne à toi',
     soin_urgence: 'Rester debout',
     relance_jet: 'Relancer mes dés',
+    // MODE ARÈNE (lot T4) : les tuiles trophées.
+    trophee_crane: 'Ajouter le crâne',
+    trophee_bouclier: 'Ajouter le bouclier',
 };
 
 /* Un bouclier sur un bouton qui REND le coup serait un contresens : la
    Représailles du Berserker n'encaisse rien, elle frappe. */
-const ICONE_ACTION = { riposte: 'swords', defi_errant: 'swords', soin_urgence: 'healing', relance_jet: 'casino' };
+const ICONE_ACTION = { riposte: 'swords', defi_errant: 'swords', soin_urgence: 'healing', relance_jet: 'casino', trophee_crane: 'emoji_events', trophee_bouclier: 'emoji_events' };
+
+/* MODE ARÈNE (lot T4) : une offre de TUILE TROPHÉE — la tuile quitte la réserve de l'équipe, ce n'est ni un sort ni
+   une capacité « pour la quête ». Décidé par le serveur : `action` ou la marque `trophee` d'une riposte. */
+const tuileTrophee = computed(() => ['trophee_crane', 'trophee_bouclier'].includes(props.reaction.action) || !!props.reaction.trophee);
 
 const origine = computed(() => LIBELLE_SOURCE[props.reaction.source] ?? 'ce coup');
 
@@ -91,7 +98,8 @@ const soinUrgence = computed(() => props.reaction.action === 'soin_urgence' && s
    MONTRE un jet et on demande s'il faut le relancer. Tout vient du serveur — les dés,
    ceux d'en face, la face qui compte pour chaque volée et la phrase du résultat
    (`resume`) : rien n'est recalculé ici. Un jet de déplacement n'a qu'une volée de d6. */
-const relanceJet = computed(() => props.reaction.action === 'relance_jet');
+// La tuile CRÂNE montre le jet comme la Vision du futur : on décide en le voyant (« use it after rolling »).
+const relanceJet = computed(() => ['relance_jet', 'trophee_crane'].includes(props.reaction.action));
 const jetCombat = computed(() => relanceJet.value && ['attaque', 'defense'].includes(props.reaction.jet));
 const jetDes = computed(() => {
     if (!jetCombat.value) return null;
@@ -177,7 +185,9 @@ const dsDeplacement = computed(() => (relanceJet.value && props.reaction.jet ===
             </div>
 
             <p class="rx-note">
-                {{ relanceJet
+                {{ tuileTrophee
+                    ? 'La tuile quitte la réserve de ton équipe ; sinon elle te reste.'
+                    : relanceJet
                     ? 'Si tu relances, le nouveau jet remplace l\'ancien et le sort est défaussé ; sinon il te reste.'
                     : (soinUrgence
                         ? 'La potion est consommée ; un sort se recharge à la quête suivante.'

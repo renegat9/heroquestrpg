@@ -404,6 +404,11 @@ final class ResolveurTour
         $attaques = array_values($this->attaquesImposees);
         $attaques[] = ['faces_attaque' => $attente->facesAttaque, 'faces_defense' => $attente->facesDefense];
 
+        // MODE ARÈNE (lot T4) : une tuile CRÂNE offerte — sa propre offre, pas la Vision du futur.
+        if ($attente->trophee !== null) {
+            return app(MoteurReactions::class)->suspendreTropheeCrane($groupe, $personnage, $option, $parametres, $attaques, $attente);
+        }
+
         return app(MoteurReactions::class)->suspendreAttaque(
             $groupe, $personnage, $option, $parametres, $attaques, $attente,
         );
@@ -2423,6 +2428,56 @@ final class ResolveurTour
             );
         }
 
+        // TROPHÉES D'ARÈNE (lot T4, F9528 p. 14) — les tuiles de COMBAT, « after rolling combat dice ». Le héros voit son
+        // jet et décide (offre suspendue, comme la Vision du futur) ; Zargon, lui, ajoute un bouclier noir dès que le coup
+        // blesse sa figure (décision de René, 2026-11-09). Le jet RETENU est ensuite recompté avec ces faces en plus.
+        if ($degatsFixes === 0 && $groupe->estArene()) {
+            $trophees = app(\App\Partie\Arene\TropheesArene::class);
+            $pvCible = (int) $instance->pv_body;
+            $touchesBonus = (int) ($imposee['touches_bonus'] ?? 0);
+
+            if ($suspensible && $imposee === null) {
+                $tuile = $trophees->tuileUtile($quete, \App\Partie\Arene\TropheesArene::CHALLENGER, \App\Partie\Arene\TropheesArene::CRANES,
+                    fn (int $n) => $resultat->degats < $pvCible && $resultat->touches + $n > $resultat->boucliers);
+
+                if ($tuile !== null) {
+                    $jetVu = $resultat->pourJournal();
+
+                    throw new JetEnAttente(
+                        ReactionEffet::JET_ATTAQUE, $rang,
+                        $jetVu['faces_attaque'], $jetVu['faces_defense'],
+                        [
+                            'cible' => $instance->nomAffiche(),
+                            'touches' => $resultat->touches,
+                            'boucliers' => $resultat->boucliers,
+                            'degats' => $resultat->degats,
+                            'face_touchante' => $jetVu['face_touchante'],
+                            'face_defensive' => $jetVu['face_defensive'],
+                        ],
+                        $tuile,
+                    );
+                }
+            }
+
+            $boucliersBonus = $trophees->boucliersDuDefender(
+                $groupe, $quete, $instance->nomAffiche(), max(0, $resultat->touches + $touchesBonus - $resultat->boucliers),
+            );
+
+            if ($touchesBonus > 0 || $boucliersBonus > 0) {
+                $resultat = (new Combat($this->des))->resoudreAttaque(
+                    desAttaque: count($resultat->facesAttaque),
+                    desDefense: count($resultat->facesDefense),
+                    typeDefenseur: TypeFigurine::Monstre,
+                    pvBodyDefenseur: $pvCible,
+                    defenseurEthere: $ethere,
+                    facesAttaqueImposees: $resultat->facesAttaque,
+                    facesDefenseImposees: $resultat->facesDefense,
+                    touchesBonus: $touchesBonus,
+                    boucliersBonus: $boucliersBonus,
+                );
+            }
+        }
+
         // MALÉDICTION DE L'ORACLE (First Light, FL-Q p. 6, lot C) : Zargon,
         // MOTEUR et non IA, force une fois par quête la relance COMPLÈTE de
         // l'échange et garde le résultat le pire pour le héros — ici, le
@@ -2683,7 +2738,53 @@ final class ResolveurTour
         // LE MÉTÉORE : cette attaque de héros a été RÉSOLUE, qu'elle ait touché ou non (`MoteurMeteore`).
         $this->meteoreDu($instance, $personnage);
 
+        // TROPHÉES D'ARÈNE (lot T4) — la RIPOSTE du Defender (décision de René, 2026-11-09 : il riposte dès qu'il le
+        // peut) : la figure blessée par un héros au contact ou en diagonale rend le coup aussitôt, « even if the
+        // defending combatant is defeated » (F9528 p. 14).
+        if ($resultat->degats > 0 && $groupe->estArene() && ! $tirADistance && ! $lancer) {
+            $riposte = $this->riposteDuDefender($groupe, $quete, $instance->fresh()?->load('monstre') ?? $instance, $etat);
+
+            if ($riposte !== null) {
+                $payload['riposte_defender'] = $riposte;
+            }
+        }
+
         return $payload;
+    }
+
+    /**
+     * MODE ARÈNE (lot T4) — la tuile RIPOSTE du Defender, jouée par le moteur : si la figure touchée est au contact (ou
+     * en diagonale) de son assaillant et que la réserve du Defender en a une, elle la défausse et frappe aussitôt.
+     * L'attaque passe par `resoudreAttaqueMonstre()`, qui la journalise ; le fil en direct la reçoit par le tampon.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function riposteDuDefender(Groupe $groupe, Quete $quete, InstanceMonstre $instance, EtatPersonnageQuete $etat): ?array
+    {
+        $trophees = app(\App\Partie\Arene\TropheesArene::class);
+
+        if (! in_array(\App\Partie\Arene\TropheesArene::RIPOSTE, $trophees->reserve($quete, \App\Partie\Arene\TropheesArene::DEFENDER), true)) {
+            return null;
+        }
+
+        $e = $instance->monstre?->emprise() ?? ['l' => 1, 'h' => 1];
+        $auContact = collect(Grille::cellulesEmprise((int) $instance->position_x, (int) $instance->position_y, $e['l'], $e['h']))
+            ->contains(fn (array $c) => Grille::sontAdjacentes($c['x'], $c['y'], (int) $etat->position_x, (int) $etat->position_y, true));
+
+        if (! $auContact || ! $trophees->defausser($quete, \App\Partie\Arene\TropheesArene::DEFENDER, \App\Partie\Arene\TropheesArene::RIPOSTE)) {
+            return null;
+        }
+
+        $nom = $instance->nomAffiche();
+        $trophees->annoncerCombat($groupe, \App\Partie\Arene\TropheesArene::DEFENDER, $nom, \App\Partie\Arene\TropheesArene::RIPOSTE);
+
+        $coup = $this->resoudreAttaqueMonstre(
+            $groupe, $instance, $etat->fresh(), $instance->attaqueEffective(),
+            ['type' => 'monstre', 'id' => $instance->id, 'nom' => $nom], $nom,
+        );
+        app(TamponAnnonces::class)->ajouter($coup);
+
+        return $coup;
     }
 
     /**
@@ -14565,6 +14666,27 @@ final class ResolveurTour
             $resultat, true, $volee, $garde, $personnage, $cible, $this->des,
         );
         $resultat = $maledictionOracle['resultat'];
+
+        // TROPHÉES D'ARÈNE (lot T4) : Zargon ajoute un crâne « quand le jet n'est pas déjà gagné » (René, 2026-11-09) —
+        // le héros ne tombe pas déjà, et la tuile ajoute des dégâts. Le jet retenu est recompté, faces inchangées.
+        if ($groupe->estArene() && $instance->quete !== null) {
+            $touchesBonus = app(\App\Partie\Arene\TropheesArene::class)->cranesDuDefender(
+                $groupe, $instance->quete, $nomMonstre,
+                $resultat->touches, $resultat->boucliers, $resultat->degats, (int) $personnage->pv_body,
+            );
+
+            if ($touchesBonus > 0) {
+                $resultat = (new Combat($this->des))->resoudreAttaque(
+                    desAttaque: count($resultat->facesAttaque),
+                    desDefense: count($resultat->facesDefense),
+                    typeDefenseur: TypeFigurine::Heros,
+                    pvBodyDefenseur: (int) $personnage->pv_body,
+                    facesAttaqueImposees: $resultat->facesAttaque,
+                    facesDefenseImposees: $resultat->facesDefense,
+                    touchesBonus: $touchesBonus,
+                );
+            }
+        }
 
         $subis = $this->degats->infligerAHeros(
             $personnage, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
