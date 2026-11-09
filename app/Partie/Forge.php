@@ -156,6 +156,8 @@ final class Forge
      */
     public function appliquer(Groupe $groupe, Inventaire $ligne, ForgeAmelioration $amelioration, ?Personnage $gratuitPour = null): Inventaire
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::FORGE);
+
         $objet = $ligne->objet;
 
         if ($gratuitPour !== null && ! $this->gratuiteOuverte($gratuitPour, $groupe)) {

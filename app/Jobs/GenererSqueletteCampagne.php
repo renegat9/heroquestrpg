@@ -46,6 +46,8 @@ class GenererSqueletteCampagne implements ShouldQueue
 
     public function handle(SqueletteCampagne $skill, ContexteAssembleur $assembleur, BibleQdrant $bible, TtsGemini $tts, BibliothequeNarration $narration, CatalogueExtensions $extensions): void
     {
+        Groupe::find($this->groupeId)?->exigerCampagne(\App\Partie\Arene\EtapesCampagne::SQUELETTE);
+
         $groupe = Groupe::findOrFail($this->groupeId);
 
         broadcast(new MjReflechit($groupe, true));

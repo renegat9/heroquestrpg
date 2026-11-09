@@ -32,42 +32,6 @@ beforeEach(function () {
     $this->seed([ClasseHerosSeeder::class, CompetenceSeeder::class, ConditionSeeder::class, SortSeeder::class, ObjetSeeder::class]);
 });
 
-/** Les tables qui portent une clé étrangère vers `personnages`, et la colonne qui la porte, lues sur le SCHÉMA. */
-function tablesLieesAuxPersonnages(): array
-{
-    $liees = [];
-
-    foreach (Schema::getTableListing(schemaQualified: false) as $table) {
-        foreach (Schema::getForeignKeys($table) as $cle) {
-            if ($cle['foreign_table'] === 'personnages' && $table !== 'personnages') {
-                $liees[$table][] = $cle['columns'][0];
-            }
-        }
-    }
-
-    ksort($liees);
-
-    return $liees;
-}
-
-/**
- * L'EMPREINTE complète d'un héros : sa ligne et TOUTES les lignes qui le désignent, quelle que soit la table — lue sur
- * le schéma, pas sur une liste à tenir à jour : une table ajoutée demain y entre d'elle-même.
- */
-function empreinteDuHeros(int $id): string
-{
-    $empreinte = ['personnages' => (array) DB::table('personnages')->where('id', $id)->first()];
-
-    foreach (tablesLieesAuxPersonnages() as $table => $colonnes) {
-        foreach ($colonnes as $colonne) {
-            $empreinte["{$table}.{$colonne}"] = DB::table($table)->where($colonne, $id)->orderBy('id')->get()
-                ->map(fn ($ligne) => (array) $ligne)->all();
-        }
-    }
-
-    return json_encode($empreinte, JSON_THROW_ON_ERROR);
-}
-
 /**
  * Un héros d'ARÈNE qui porte de tout — blessé, sorts dépensés, or, sac, malédiction, talent. Aucune de ces traces ne
  * vient d'un vrai combat d'arène (qui ne s'applique qu'à la doublure) : elles sont posées pour prouver que la copie les

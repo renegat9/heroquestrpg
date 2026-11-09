@@ -81,6 +81,8 @@ final class ClotureCampagne
      */
     public function ouvrir(Groupe $groupe, bool $abandon = false): array
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::CLOTURE);
+
         if ($groupe->phase !== 'hub') {
             throw ValidationException::withMessages([
                 'groupe' => 'La clôture ne peut s\'ouvrir qu\'au hub : terminez (ou abandonnez après échec) la quête en cours.',
@@ -331,6 +333,8 @@ final class ClotureCampagne
      */
     public function purger(Groupe $groupe): void
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::PURGE);
+
         $groupeId = (int) $groupe->id;
 
         // Relevé AVANT détachement, pour vider les menus en cache par joueur.

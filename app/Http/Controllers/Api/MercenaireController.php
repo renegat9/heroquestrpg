@@ -78,6 +78,7 @@ class MercenaireController extends Controller
     public function recruter(Request $request, string $identifiant, EtatGroupe $etatGroupe): JsonResponse
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::MERCENAIRES);
         $joueur = Auth::guard('joueur')->user();
 
         // Le joueur doit avoir un personnage actif dans ce groupe.

@@ -484,3 +484,43 @@ function ouvrirTourDeHub(Groupe $groupe): Quete
         'etat' => 'terminee',
     ]);
 }
+
+/*
+| MODE ARÈNE (`tests/Feature/Arene`) — l'EMPREINTE d'un héros, partagée par les tests d'étanchéité.
+*/
+
+/** Les tables qui portent une clé étrangère vers `personnages`, et la colonne qui la porte, lues sur le SCHÉMA. */
+function tablesLieesAuxPersonnages(): array
+{
+    $liees = [];
+
+    foreach (\Illuminate\Support\Facades\Schema::getTableListing(schemaQualified: false) as $table) {
+        foreach (\Illuminate\Support\Facades\Schema::getForeignKeys($table) as $cle) {
+            if ($cle['foreign_table'] === 'personnages' && $table !== 'personnages') {
+                $liees[$table][] = $cle['columns'][0];
+            }
+        }
+    }
+
+    ksort($liees);
+
+    return $liees;
+}
+
+/**
+ * L'EMPREINTE complète d'un héros : sa ligne et TOUTES les lignes qui le désignent, quelle que soit la table — lue sur
+ * le schéma, pas sur une liste à tenir à jour : une table ajoutée demain y entre d'elle-même.
+ */
+function empreinteDuHeros(int $id): string
+{
+    $empreinte = ['personnages' => (array) \Illuminate\Support\Facades\DB::table('personnages')->where('id', $id)->first()];
+
+    foreach (tablesLieesAuxPersonnages() as $table => $colonnes) {
+        foreach ($colonnes as $colonne) {
+            $empreinte["{$table}.{$colonne}"] = \Illuminate\Support\Facades\DB::table($table)->where($colonne, $id)->orderBy('id')->get()
+                ->map(fn ($ligne) => (array) $ligne)->all();
+        }
+    }
+
+    return json_encode($empreinte, JSON_THROW_ON_ERROR);
+}

@@ -1021,6 +1021,29 @@ création ou l'utilisation d'un héros déjà créé pour l'arène afin d'intég
   niveaux et talents.
 - `DELETE /api/personnages/{id}` : inchangé, un héros d'arène jamais joué se supprime comme un autre.
 
+### Groupe d'arène (lot A2, 2026-11-09, `docs/plan-mode-arene.md` §3, §6)
+
+Un combat d'arène est un `groupes` comme les autres, **`mode = 'arene'`** (vocabulaire fermé `Groupe::MODES`,
+défaut `campagne`), lu par `Groupe::estArene()`. Aucune route ne l'ouvre encore (salon et écrans : lot A5) ;
+`App\Partie\Arene\GroupesArene` l'ouvre, y **engage** un héros d'arène (sa doublure entre dans le groupe ; une
+seule par héros et par combat) et le **purge**.
+
+- **Étapes de campagne fermées** : chacune appelle `Groupe::exigerCampagne(<clé>)` à son point d'entrée et lève
+  `App\Partie\Arene\RefusArene` sur un groupe d'arène — jamais un passage en silence. Le registre
+  `App\Partie\Arene\EtapesCampagne` les nomme avec ce qui les remplace : squelette et bible, adhésion par code,
+  démarrage de quête, habillage, récits, images (quête, hub), montée de niveau, marché, forge, entraînement,
+  mercenaires, dons, vote de retraite, clôture, résumé IA, purge de campagne, instantanés et reprise.
+  Côté HTTP, toute route `api/*` qui atteint une de ces étapes répond **422**
+  `{message, errors: {arene: [phrase]}}` (rendu de `RefusArene`, `bootstrap/app.php`) — par exemple un code d'arène
+  collé dans « Rejoindre » d'une campagne : « … est un combat d'arène : l'étape de campagne « rejoindre une campagne
+  par son code » lui est fermée. »
+- **Purge à double verrou** (`GroupesArene::purger()`) : refuse un groupe dont le mode relu en base n'est pas `arene`,
+  et un groupe qui compte une seule ligne `personnages` non doublure (par le pivot ou `groupe_actif_id`) — avant de
+  supprimer quoi que ce soit. `ClotureCampagne::purger()` refuse un groupe d'arène ; `partie:purger` route chaque
+  groupe vers le bon service.
+- **Ménage de secours** : `php artisan arene:nettoyer [--heures=6] [--supprimer]` — inventaire par défaut ; supprime
+  les combats d'arène sans activité depuis N heures et les doublures jamais engagées, par les mêmes verrous.
+
 ## Entraînement — +1 à un attribut contre de l'or (au hub uniquement, 2026-11-07)
 
 René : les attributs Body et Mind (les dés des jets de test) ne montaient jamais ; il retient l'entraînement payant,

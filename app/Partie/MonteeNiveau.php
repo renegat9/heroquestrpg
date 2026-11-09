@@ -32,6 +32,8 @@ final class MonteeNiveau
      */
     public function appliquer(Groupe $groupe, Quete $quete): ?array
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::MONTEE_NIVEAU);
+
         $declencheur = $this->declencheur($quete);
 
         if ($declencheur === null) {

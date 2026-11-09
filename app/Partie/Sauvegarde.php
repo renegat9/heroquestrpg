@@ -68,6 +68,8 @@ final class Sauvegarde
      */
     public function snapshotter(Groupe $groupe, string $etiquette): Snapshot
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::SNAPSHOT);
+
         $snapshot = Snapshot::create([
             'groupe_id' => $groupe->id,
             'sequence_evenement' => (int) $groupe->evenements()->max('sequence'),
@@ -123,6 +125,8 @@ final class Sauvegarde
      */
     public function reprendre(Groupe $groupe, ?int $snapshotId = null): Snapshot
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::REPRISE);
+
         $queteCourante = $groupe->queteCourante;
 
         if ($groupe->phase === 'quete' && $queteCourante !== null && $queteCourante->etat === 'en_cours') {
@@ -157,6 +161,8 @@ final class Sauvegarde
      */
     public function redemarrerQuete(Groupe $groupe): Snapshot
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::REPRISE);
+
         $quete = $groupe->queteCourante;
 
         if ($quete === null) {
@@ -191,6 +197,8 @@ final class Sauvegarde
      */
     public function restaurer(Groupe $groupe, Snapshot $snapshot, string $action = 'reprise'): void
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::REPRISE);
+
         $etat = $snapshot->etat;
 
         DB::transaction(function () use ($groupe, $etat) {

@@ -53,6 +53,8 @@ class GenererImagesQuete implements ShouldQueue
 
     public function handle(ImageGemini $image, BibliothequeImages $biblio, EtatGroupe $etatGroupe): void
     {
+        Groupe::find($this->groupeId)?->exigerCampagne(\App\Partie\Arene\EtapesCampagne::IMAGES_QUETE);
+
         if (! $image->estConfigure() || ! $this->imagesActives()) {
             return;
         }

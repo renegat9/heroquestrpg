@@ -38,6 +38,8 @@ class HabillerMonstres implements ShouldQueue
 
     public function handle(HabillageMonstres $skill, ContexteAssembleur $assembleur): void
     {
+        Groupe::find($this->groupeId)?->exigerCampagne(\App\Partie\Arene\EtapesCampagne::HABILLAGE);
+
         $groupe = Groupe::find($this->groupeId);
 
         if ($groupe === null) {

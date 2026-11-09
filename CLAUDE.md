@@ -60,7 +60,12 @@ reason, and the two must never drift.
   `CatalogueExtensions::fiches()` for what an expansion box IS — read by the AI GM's
   bestiary choice, the group-creation ⓘ and the booklet alike; since 2026-11-08:
   `MonstreErrant::deLaQuete()` for which wandering monster a quest has, stronger as the arc
-  advances — `docs/regles/bestiaire-et-rencontres.md`).
+  advances — `docs/regles/bestiaire-et-rencontres.md`; since 2026-11-09, ARENA mode
+  (`docs/plan-mode-arene.md`): `Doublures` for every copy of a hero into a fight and its
+  deletion, `GroupesArene::purger()` for every arena-group purge — double lock, never
+  `ClotureCampagne::purger()` — and `Groupe::exigerCampagne()` at the entry of every
+  campaign-only step, each listed in `App\Partie\Arene\EtapesCampagne`, tested both ways:
+  a new job or hub phase must answer « what does it do to an arena group? »).
   Two copies of a rule too simple to notice drifting is this project's most repeated defect.
 - **`sortBy([$f, $g])` is never a multi-key sort** — Laravel reads a callable there as a
   *comparator*, and it never errors. It bit twice. → `docs/regles/sorts-dread.md`

@@ -332,6 +332,7 @@ class GroupeController extends Controller
     public function rejoindre(Request $request, string $identifiant, MoteurSorts $sorts): JsonResponse
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::ADHESION);
         $joueur = Auth::guard('joueur')->user();
 
         $donnees = $request->validate([

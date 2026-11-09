@@ -78,6 +78,8 @@ final class PhaseMarche
      */
     public function ouvrir(Groupe $groupe, ?string $profil = null): array
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::MARCHE);
+
         if ($groupe->phase !== 'hub') {
             throw ValidationException::withMessages([
                 'groupe' => 'Le marché n\'est accessible qu\'au hub, entre deux quêtes.',
