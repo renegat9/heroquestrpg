@@ -1044,6 +1044,24 @@ seule par héros et par combat) et le **purge**.
 - **Ménage de secours** : `php artisan arene:nettoyer [--heures=6] [--supprimer]` — inventaire par défaut ; supprime
   les combats d'arène sans activité depuis N heures et les doublures jamais engagées, par les mêmes verrous.
 
+### Le hall et le démarrage d'un combat (lot T1, 2026-11-09, `docs/plan-tournoi-worlds-end.md` §4)
+
+- **Le hall** (`App\Partie\Arene\HallArene`) : une carte FIXE de même forme qu'une carte assemblée — une seule
+  salle (20 × 14, mur compris), sans porte ni escalier, toujours découverte (pas de brouillard), deux tuiles de départ
+  face à face : `spawn_heros` (Challenger, ouest) et `spawn_monstres` (Defender, est), 18 cases chacune. ⚠ Géométrie
+  **non sourcée** : le plan imprimé du hall (F9528 p. 21-25) n'est pas numérisé.
+- **Démarrage** (`App\Partie\Arene\DemarreurArene::demarrer($arene, $defender)`, aucune route avant le lot A5) :
+  une `quete` **sans gabarit** (`gabarit_id` devient nullable), le hall en `cartes`, les doublures sur la tuile du
+  Challenger, le Defender (ids du catalogue, donnés par l'appelant jusqu'au lot T3) sur la sienne, aux stats du
+  catalogue, sans adaptation ni élite, nom d'origine (aucun habillage). Ni instantané, ni narration, ni job d'IA.
+  Diffuse `.groupe.etat` et un menu par doublure, comme une quête.
+- **Le menu d'un héros en arène** n'offre jamais `fouiller` (la seule fouille du tournoi est celle d'un coffre, lot
+  T5), `quitter_donjon` ni `battre_en_retraite` (on gagne ou on tombe ; l'abandon viendra du salon). Le vote de sortie
+  rejoint les étapes de campagne fermées (`EtapesCampagne::VOTE_SORTIE`).
+- ⚠ **Limite connue jusqu'au lot T2** : la fin d'un tour passe encore par la boucle de campagne, qui prend un
+  instantané à chaque tour — fermé à l'arène, donc **422** au premier `attendre`. Le combat d'arène n'est pas jouable
+  au-delà du premier tour tant que l'activation alternée n'existe pas.
+
 ## Entraînement — +1 à un attribut contre de l'or (au hub uniquement, 2026-11-07)
 
 René : les attributs Body et Mind (les dés des jets de test) ne montaient jamais ; il retient l'entraînement payant,

@@ -65,6 +65,8 @@ final class EtapesCampagne
 
     public const VOTE_RETRAITE = 'vote_retraite';
 
+    public const VOTE_SORTIE = 'vote_sortie';
+
     public const CLOTURE = 'cloture_campagne';
 
     public const RESUME = 'resume_campagne';
@@ -149,6 +151,11 @@ final class EtapesCampagne
             'libelle' => 'vote de retraite',
             'remplacee_par' => '« abandonner le combat » (lot A5)',
             'sites' => [[VoteGroupe::class, 'lancerRetraite']],
+        ],
+        self::VOTE_SORTIE => [
+            'libelle' => 'vote de sortie du donjon',
+            'remplacee_par' => 'rien : le combat finit quand une équipe est éteinte (livret F9528 p. 12)',
+            'sites' => [[VoteGroupe::class, 'lancerSortie']],
         ],
         self::CLOTURE => [
             'libelle' => 'clôture de campagne',

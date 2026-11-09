@@ -3111,12 +3111,17 @@ final class MenuMoteur
                 return ['situation' => 'Vous ne pouvez pas agir ce tour.', 'options' => $this->avecCreneaux($options, 0, $secondeFrappeEnAttente)];
             }
 
-            $options[] = [
-                'id' => 'fouiller',
-                'libelle' => 'Fouiller la zone — jet de Mind',
-                'type' => 'jet',
-                'jet' => ['attribut' => 'mind', 'difficulte' => 1, 'contexte' => 'perception'],
-            ];
+            // MODE ARÈNE (2026-11-09) : pas de fouille de zone dans le hall — ni piège caché, ni porte secrète à y
+            // trouver, et la seule fouille du tournoi est celle d'un coffre, à la table 2d6 (livret F9528 p. 13,
+            // lot T5). Retrait écrit, pas un oubli : `docs/plan-tournoi-worlds-end.md` §1.
+            if (! self::enArene($quete)) {
+                $options[] = [
+                    'id' => 'fouiller',
+                    'libelle' => 'Fouiller la zone — jet de Mind',
+                    'type' => 'jet',
+                    'jet' => ['attribut' => 'mind', 'difficulte' => 1, 'contexte' => 'perception'],
+                ];
+            }
 
             // PARLER À LA PIERRE (Moine, Style de la Terre) : la même fouille,
             // mais qui ne peut pas rater. Voir `ResolveurTour::resoudreJet()`
@@ -3225,7 +3230,12 @@ final class MenuMoteur
         // résolveur refusera.
         $voteOuvert = VoteGroupe::enCours($quete->groupe_id);
 
-        if (! $aJoue && $peutSortir && $surEscalier && ! $voteOuvert) {
+        // MODE ARÈNE (2026-11-09) : on ne quitte pas le hall et on n'y bat pas en retraite — le combat finit quand une
+        // équipe est éteinte (livret F9528 p. 12) ; l'abandon viendra du salon (lot A5). Les deux votes sont des
+        // étapes de campagne (`EtapesCampagne::VOTE_SORTIE`, `VOTE_RETRAITE`) : le menu ne les offre donc jamais.
+        $enArene = self::enArene($quete);
+
+        if (! $enArene && ! $aJoue && $peutSortir && $surEscalier && ! $voteOuvert) {
             $options[] = [
                 'id' => 'quitter_donjon',
                 'libelle' => 'Quitter le donjon — proposer au groupe',
@@ -3243,7 +3253,7 @@ final class MenuMoteur
         // retraite. Interaction libre comme la sortie : proposer ne coûte pas
         // son tour, et un héros qui a déjà joué garde le droit de le proposer
         // au prochain.
-        if (! $aJoue && ! $voteOuvert) {
+        if (! $enArene && ! $aJoue && ! $voteOuvert) {
             $options[] = [
                 'id' => 'battre_en_retraite',
                 'libelle' => 'Battre en retraite — proposer au groupe',
@@ -3455,5 +3465,11 @@ final class MenuMoteur
             'allie_id' => $allie->id,
             'options' => $options,
         ];
+    }
+
+    /** MODE ARÈNE : la quête est-elle un combat d'arène ? Lu par les options de campagne que le menu retire au hall. */
+    private static function enArene(\App\Models\Quete $quete): bool
+    {
+        return (bool) $quete->groupe?->estArene();
     }
 }
