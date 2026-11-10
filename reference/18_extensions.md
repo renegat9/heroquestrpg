@@ -430,7 +430,9 @@ d'ordinaire) ; pas s'il est neutralisé ou incapable d'agir (*Tempest*) ; il gar
 les deux camps ; la propre activation du combattant seul tient lieu de manœuvre tant qu'il ne l'a pas jouée.
 
 **Mort (p. 12)** : hors jeu jusqu'à la fin de la quête ; ses objets restent sur sa case, ramassés par tout héros qui
-passe adjacent, sans action.
+passe adjacent, sans action. **Porté en partie** (René, 2026-11-10) : dans l'arène, « Relever » n'est pas offert (menu) ni accepté
+(résolveur) ; les soins, eux, préviennent la mort comme en campagne. ⚠ Écart nommé : les objets du mort ne quittent pas
+sa doublure — pas de ramassage au sol.
 
 **Trésor (p. 13)** : action de fouille adjacent ou en diagonale d'un coffre, 2 dés rouges, puis le coffre est retiré :
 2 piège explosif (−3 Body), 3-4 gaz (−2), 5-6 flèche (−1), 7 **une hache de bataille en os**, 8-9 100 po, 10-11 200 po,

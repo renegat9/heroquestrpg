@@ -183,3 +183,20 @@ it('CHALLENGER SEUL : un pas fait, la frappe de manœuvre n\'est plus offerte ni
     $this->postJson("/api/groupes/{$id}/choix", ['option_id' => 'manoeuvre_attaquer', 'parametres' => ['cible_id' => $cible->id]])
         ->assertUnprocessable();
 });
+
+it('MORT : dans l\'arène, « Relever » n\'est ni offert ni accepté', function () {
+    $c = combatADeux(['Gobelin', 'Gobelin', 'Gobelin']);
+    $quete = $c['quete'];
+    $id = $c['arene']->identifiant;
+    $etatA = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $c['a']->id)->first();
+    EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $c['b']->id)
+        ->update(['tombe' => true, 'position_x' => $etatA->position_x, 'position_y' => $etatA->position_y + 1]);
+    Illuminate\Support\Facades\Cache::forget(App\Jobs\GenererMenu::cleMenu($c['arene']->id, (int) $c['alice']->id));
+
+    $this->actingAs($c['alice'], 'joueur');
+    $menu = $this->getJson("/api/groupes/{$id}/menu")->json('menu');
+    expect(collect($menu['options'])->where('type', 'relever')->all())->toBe([]);
+
+    $this->postJson("/api/groupes/{$id}/choix", ['option_id' => "relever_{$c['b']->id}"])->assertUnprocessable();
+    expect(EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $c['b']->id)->value('tombe'))->toBeTruthy();
+});

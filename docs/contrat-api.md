@@ -1201,6 +1201,12 @@ jusqu'à son mouvement OU lancer **2 dés d'attaque** contre une créature au co
   manœuvre pour un héros dont le tour a été perdu ce round (Étourdi, gel), ni pour une figure endormie, paralysée,
   enchaînée ou privée de son tour.
 
+### La mort dans l'arène (lot T5, René 2026-11-10, F9528 p. 12)
+
+Aucune option `relever` n'est publiée dans un groupe d'arène, et `POST choix` d'un `relever` y est refusé (422) : un
+combattant tombé est hors jeu jusqu'à la fin du combat. Les soins (sorts, potions, réactions) le préviennent et le
+relèvent comme en campagne. Ses objets restent dans le sac de sa doublure (pas de ramassage au sol).
+
 ### L'activation alternée (lot T2, 2026-11-09, livret F9528 p. 12-16)
 
 - **Le Defender ouvre chaque round** : une figure s'active (au démarrage, `ResolveurTour::ouvrirCombatArene()`, puis

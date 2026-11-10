@@ -8878,6 +8878,11 @@ final class ResolveurTour
         array $option,
         array $acteur,
     ): array {
+        // ARÈNE (René, 2026-11-10) : un mort est hors jeu (F9528 p. 12) — on ne relève pas, seuls les soins préviennent.
+        if ($groupe->estArene()) {
+            throw ValidationException::withMessages(['option_id' => 'Dans l\'arène, un combattant tombé est hors jeu : on ne le relève pas.']);
+        }
+
         $cibleId = (int) ($option['cible_personnage_id'] ?? 0);
 
         $cible = $quete->etatsPersonnages()
