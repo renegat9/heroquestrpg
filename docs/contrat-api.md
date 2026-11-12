@@ -1292,6 +1292,10 @@ relèvent comme en campagne. Ses objets restent dans le sac de sa doublure (pas 
   menu à **chacun** — jusqu'à ce que l'un d'eux **entame** son activation (premier pas, ou un créneau dépensé). Il la
   garde alors seul : les autres reçoivent `{menu: null}` et leurs `POST choix` sont refusés (422). Une seule
   question pour le menu, le résolveur et la manette : `OrdreDuTour::acteurPour()`.
+- **`initiative[].a_la_main`** (bool, héros et alliés ; `false` pour un monstre) : la DÉCISION du serveur
+  (`OrdreDuTour::acteurPour()` / `estSonTourAllie()`) — en arène, tous les héros libres l'ont à la fois ; en campagne,
+  seul l'acteur courant. La manette (son menu) et la table (le liseré de la figurine) le lisent, sans re-dériver l'acteur
+  de l'ordre de la barre.
 - **Chaque activation de héros reçoit sa réponse** : une figure du Defender. Quand le Challenger est à court, le
   Defender enchaîne toutes les siennes et le round se referme ; quand c'est le Defender, les héros enchaînent.
 - **Aucun instantané** à la fermeture d'un round d'arène.

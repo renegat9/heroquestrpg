@@ -131,3 +131,22 @@ it('DÉFAITE : le dernier héros à terre, le combat est perdu', function () {
     expect($quete->refresh()->etat)->toBe('echouee')
         ->and($c['arene']->refresh()->phase)->toBe('hub');
 });
+
+it('l\'état publie qui a la main : en arène, CHAQUE héros libre (pas seulement le premier de la barre)', function () {
+    $c = combatADeux(['Gobelin', 'Gobelin', 'Gobelin']);
+    $id = $c['arene']->identifiant;
+
+    $this->actingAs($c['bob'], 'joueur');
+    $heros = collect($this->getJson("/api/groupes/{$id}/etat")->json('initiative'))->where('entite', 'heros')->values();
+    expect($heros->pluck('a_la_main')->all())->toBe([true, true]);
+
+    // Bob entame : lui seul garde la main.
+    $menu = $this->getJson("/api/groupes/{$id}/menu")->json('menu');
+    $destination = collect(collect($menu['options'])->firstWhere('id', 'se_deplacer')['parametres']['destinations'])->first();
+    $this->postJson("/api/groupes/{$id}/choix", ['option_id' => 'se_deplacer', 'parametres' => ['x' => $destination['x'], 'y' => $destination['y']]])
+        ->assertSuccessful();
+
+    $heros = collect($this->getJson("/api/groupes/{$id}/etat")->json('initiative'))->where('entite', 'heros')->keyBy('id');
+    expect($heros[$c['b']->id]['a_la_main'])->toBeTrue()
+        ->and($heros[$c['a']->id]['a_la_main'])->toBeFalse();
+});

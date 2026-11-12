@@ -487,6 +487,10 @@ const cestMonTour = computed(() => {
     // pas qui contrôle quel allié : le re-dériver ici serait justement le
     // miroir que ce projet interdit.
     if (store.state.menuAllieId) return true;
+    // `a_la_main` : la DÉCISION du serveur sur MON héros — en arène, n'importe quel héros libre l'a (activation
+    // alternée), pas seulement le premier de la barre (validation de la PR #2).
+    const mien = (store.state.etat?.initiative ?? []).find((o) => o.entite === 'heros' && o.id === monEntite.value.id);
+    if (mien && 'a_la_main' in mien) return !!mien.a_la_main;
     const cur = acteurCourant(store.state.etat?.initiative);
     return !!(cur && cur.entite === 'heros' && cur.id === monEntite.value.id);
 });

@@ -290,16 +290,16 @@ it('COMBAT : une version à distance tire hors contact à ses dés de tir, et fr
         ->and($tir['distance'])->toBeTrue()
         ->and($tir['des_attaque'])->toBe((int) $archer->attaque_distance);
 
+    // Aucun crâne : le tir part sans blesser, la cible reste debout pour la suite.
+    desFiges(array_fill(0, 50, 5));
     $resultat = $this->postJson("/api/arene/{$code}/geste", ['instance_id' => $tireur->id, 'geste' => 'attaquer', 'parametres' => ['cible_id' => $cible->id]])
         ->assertOk()->json('resultat');
-    expect($resultat['portee'])->toBe('distance');
+    expect($resultat['portee'])->toBe('distance')
+        ->and($cible->refresh()->etat)->toBe('actif');
 
     // Au contact, la même figure ne lancerait qu'1 dé.
-    $cible->refresh();
-    if ($cible->etat === 'actif') {
-        $cible->update(['position_x' => $tireur->position_x - 1]);
-        $tireur->update(['mvm_agi' => false]);
-        $figure = collect($this->getJson("/api/arene/{$code}/figures")->json('figures'))->firstWhere('instance_id', $tireur->id);
-        expect(collect($figure['cibles'])->firstWhere('id', $cible->id)['des_attaque'] ?? null)->toBe(1);
-    }
+    $cible->update(['position_x' => $tireur->position_x - 1]);
+    $tireur->refresh()->update(['mvm_agi' => false]); // relu : le modèle du test ignore la frappe faite par la route
+    $figure = collect($this->getJson("/api/arene/{$code}/figures")->json('figures'))->firstWhere('instance_id', $tireur->id);
+    expect(collect($figure['cibles'])->firstWhere('id', $cible->id)['des_attaque'] ?? null)->toBe(1);
 });

@@ -1703,6 +1703,11 @@ final class EtatGroupe
             ->groupBy('recruteur_personnage_id');
 
         $heros = collect();
+        // QUI A LA MAIN, décidé par le serveur (`OrdreDuTour`, PR #2) : en campagne un seul acteur, en arène tout héros
+        // libre de l'activation alternée (« the Challenger team activates any one hero », F9528 p. 12). La manette et
+        // la table lisent ce drapeau ; elles ne re-dérivent plus l'acteur de l'ordre de la barre.
+        $ordre = app(OrdreDuTour::class);
+        $etatsListe = $quete->etatsPersonnages()->get();
 
         foreach ($groupe->personnages()
             ->wherePivot('actif', true)
@@ -1716,6 +1721,7 @@ final class EtatGroupe
                 // Un héros tombé est sauté par le moteur (verifierInitiative) :
                 // le client en a besoin pour désigner le VRAI acteur courant.
                 'tombe' => (bool) ($etats->get($p->id)?->tombe ?? false),
+                'a_la_main' => ($ordre->acteurPour($groupe, (int) $p->id, $etatsListe)['type'] ?? null) === 'heros',
                 // Portrait (2026-10-01) : le même que sa figurine sur la carte.
                 'image_url' => app(BibliothequeImages::class)->urlHeros($p->id, $p->classe),
             ]);
@@ -1727,6 +1733,7 @@ final class EtatGroupe
                     'nom' => $allie->mercenaire->nom,
                     'a_joue' => (bool) $allie->a_joue,
                     'tombe' => false,
+                    'a_la_main' => $ordre->estSonTourAllie($groupe, (int) $allie->id, $etatsListe),
                     'image_url' => app(BibliothequeImages::class)->urlMercenaire($allie->mercenaire_id, $allie->mercenaire->nom),
                 ]);
             }
@@ -1744,6 +1751,7 @@ final class EtatGroupe
                 'nom' => $i->nomAffiche(),
                 'a_joue' => false, // les monstres jouent en bloc après les héros (C2)
                 'tombe' => false,
+                'a_la_main' => false,
                 'image_url' => app(BibliothequeImages::class)->urlMonstre($i->id, $i->monstre_id, $i->monstre->nom_base),
             ]);
 

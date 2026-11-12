@@ -604,20 +604,26 @@ export function conditionDeJeton(conditions) {
 /** Acteur courant = première entrée d'initiative qui n'a pas encore joué.
  *  Un héros tombé est SAUTÉ (contrat : initiative[].tombe) — le moteur
  *  l'ignore aussi ; le désigner gèlerait toutes les manettes sur son tour. */
+// `a_la_main` est la DÉCISION du serveur (`OrdreDuTour`, publiée par EtatGroupe) : en arène, plusieurs héros l'ont
+// à la fois (activation alternée). Repli sur l'ordre de la barre seulement pour un état d'avant ce champ.
 export function acteurCourant(initiative) {
-    return (initiative ?? []).find((o) => !o.a_joue && !o.tombe) ?? null;
+    const liste = initiative ?? [];
+    if (liste.some((o) => 'a_la_main' in o)) return liste.find((o) => o.a_la_main) ?? null;
+    return liste.find((o) => !o.a_joue && !o.tombe) ?? null;
 }
 
 // Exporté depuis 2026-08-29 : l'aperçu de salle doit désigner le MÊME héros que
 // le bandeau d'initiative et que le liseré doré de la figurine. Une seconde
 // lecture de l'initiative, écrite ailleurs, aurait fini par désigner un autre.
 export function estCourant(entite, initiative) {
+    const type = entite.type === 'heros' || entite.type === 'allie' ? entite.type : 'monstre';
+    const entree = (initiative ?? []).find((o) => o.entite === type && o.id === entite.id);
+    if (entree && 'a_la_main' in entree) return !!entree.a_la_main;
     const cur = acteurCourant(initiative);
     if (!cur) return false;
     // `allie` est un type d'initiative à part entière depuis le 2026-10-01 :
     // le ranger sous `monstre` aurait pu désigner un allié et un monstre de
     // même id comme le même acteur.
-    const type = entite.type === 'heros' || entite.type === 'allie' ? entite.type : 'monstre';
     return cur.entite === type && cur.id === entite.id;
 }
 
