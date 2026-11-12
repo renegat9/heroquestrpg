@@ -116,6 +116,28 @@ class AreneController extends Controller
         return $this->etat($arene);
     }
 
+    /** PUT /api/arene/{identifiant}/allie {mercenaire_id|null} — l'allié de SON combattant (lot A4). */
+    public function allie(Request $request, string $identifiant): JsonResponse
+    {
+        $arene = $this->arene($identifiant);
+        $donnees = $request->validate(['mercenaire_id' => ['present', 'nullable', 'integer']]);
+        $joueur = Auth::guard('joueur')->user();
+
+        $doublure = Personnage::query()
+            ->whereNotNull('doublure_de')
+            ->where('groupe_actif_id', $arene->id)
+            ->where('joueur_id', $joueur->id)
+            ->first();
+
+        if ($doublure === null) {
+            throw ValidationException::withMessages(['arene' => 'Vous n\'avez aucun combattant dans cette arène.']);
+        }
+
+        $this->arenes->choisirAllie($arene, $doublure, $donnees['mercenaire_id'] === null ? null : (int) $donnees['mercenaire_id']);
+
+        return $this->etat($arene);
+    }
+
     /** POST /api/arene/{identifiant}/lancer — membre OU table. */
     public function lancer(Request $request, string $identifiant): JsonResponse
     {

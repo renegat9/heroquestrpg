@@ -100,7 +100,7 @@ class Groupe extends Model
     public function personnages(): BelongsToMany
     {
         return $this->belongsToMany(Personnage::class, 'groupe_personnages', 'groupe_id', 'personnage_id')
-            ->withPivot(['ordre_initiative', 'actif', 'pret_arene']);
+            ->withPivot(['ordre_initiative', 'actif', 'pret_arene', 'allie_arene_id']);
     }
 
     /** Personnages dont c'est le groupe actif. */

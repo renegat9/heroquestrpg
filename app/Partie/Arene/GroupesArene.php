@@ -6,6 +6,7 @@ namespace App\Partie\Arene;
 
 use App\Jobs\GenererMenu;
 use App\Models\Groupe;
+use App\Models\Mercenaire;
 use App\Models\Monstre;
 use App\Models\Personnage;
 use App\Partie\EtatGroupe;
@@ -223,6 +224,37 @@ final class GroupesArene
     }
 
     /**
+     * L'ALLIÉ d'un combattant (lot A4) : un bloc recrutable du catalogue, sans coût, ou aucun (`null`). Seulement au
+     * salon ; le « prêt » de ce combattant retombe (son équipe a changé de puissance).
+     */
+    public function choisirAllie(Groupe $arene, Personnage $doublure, ?int $mercenaireId): void
+    {
+        $this->exigerSalon($arene);
+
+        if (! $doublure->estDoublure() || (int) $doublure->groupe_actif_id !== (int) $arene->id) {
+            throw RefusArene::pasUneDoublure($doublure);
+        }
+
+        if ($mercenaireId !== null && ! $this->alliesDuCatalogue()->contains('id', $mercenaireId)) {
+            throw ValidationException::withMessages(['mercenaire_id' => 'Cet allié ne fait pas partie de ceux qu\'on peut engager.']);
+        }
+
+        $arene->personnages()->updateExistingPivot($doublure->id, ['allie_arene_id' => $mercenaireId, 'pret_arene' => false]);
+        $arene->touch();
+    }
+
+    /**
+     * Les alliés qu'on peut engager au salon : les recrutables du catalogue (comme au hub, `octroi_seul` exclu — le
+     * Squelette Hearthkin et les captifs n'existent que par leur règle).
+     *
+     * @return Collection<int, Mercenaire>
+     */
+    public function alliesDuCatalogue(): Collection
+    {
+        return Mercenaire::where('octroi_seul', false)->orderBy('prix')->orderBy('id')->get();
+    }
+
+    /**
      * Pourquoi le combat ne peut-il pas être lancé ? `null` s'il le peut. LE prédicat du lancement, publié au salon
      * (`lancement_possible`) et revalidé par `lancer()`.
      */
@@ -297,15 +329,24 @@ final class GroupesArene
                     throw RefusArene::pasUneDoublure($membre);
                 }
 
-                $sources[] = Personnage::findOrFail($membre->doublure_de);
+                // L'allié choisi au salon survit à la revanche : il est rattaché au héros d'arène, pas à sa copie.
+                $allie = DB::table('groupe_personnages')->where('groupe_id', $arene->id)
+                    ->where('personnage_id', $membre->id)->value('allie_arene_id');
+                $sources[] = [Personnage::findOrFail($membre->doublure_de), $allie];
                 $this->doublures->supprimer($membre);
             }
 
             $arene->quetes()->delete();
+            // Les alliés du combat joué meurent avec lui ; le lancement suivant les recrée.
+            \App\Models\GroupeMercenaire::where('groupe_id', $arene->id)->delete();
             $arene->update(['quete_courante_id' => null, 'phase' => 'hub']);
 
-            foreach ($sources as $source) {
-                $this->engager($arene->refresh(), $source);
+            foreach ($sources as [$source, $allie]) {
+                $doublure = $this->engager($arene->refresh(), $source);
+
+                if ($allie !== null) {
+                    $arene->personnages()->updateExistingPivot($doublure->id, ['allie_arene_id' => (int) $allie]);
+                }
             }
         });
     }
@@ -319,6 +360,7 @@ final class GroupesArene
     public function publier(Groupe $arene): array
     {
         $roster = $this->monstresDuRoster()->keyBy('id');
+        $allies = $this->alliesDuCatalogue()->keyBy('id');
         $derniere = $arene->quetes()->orderByDesc('id')->first();
 
         $combattants = $arene->personnages()
@@ -335,6 +377,12 @@ final class GroupesArene
                 'joueur' => $p->joueur?->pseudo,
                 'pret' => (bool) $p->pivot->pret_arene,
                 'puissance' => $this->puissance->duHeros($p),
+                // A4 : son allié, et ce qu'il ajoute à l'équipe.
+                'allie' => ($m = $allies->get((int) $p->pivot->allie_arene_id)) === null ? null : [
+                    'mercenaire_id' => (int) $m->id,
+                    'nom' => $m->nom,
+                    'puissance' => $this->puissance->duMercenaire($m),
+                ],
             ])
             ->values()
             ->all();
@@ -362,6 +410,17 @@ final class GroupesArene
                 // n'additionnent rien.
                 'puissance' => $this->puissance->duMonstre($m),
                 'abordable' => $this->puissance->duMonstre($m) <= $restant,
+            ])->all(),
+            'allies' => $allies->values()->map(fn (Mercenaire $m) => [
+                'id' => (int) $m->id,
+                'nom' => $m->nom,
+                'deplacement' => (int) $m->deplacement,
+                'attaque' => (int) $m->attaque,
+                'attaque_distance' => $m->attaque_distance === null ? null : (int) $m->attaque_distance,
+                'defense' => (int) $m->defense,
+                'pv_body' => (int) $m->pv_body,
+                'animal' => (bool) $m->animal,
+                'puissance' => $this->puissance->duMercenaire($m),
             ])->all(),
             'puissance_challenger' => $puissanceChallenger,
             'puissance_defender' => $puissanceDefender,

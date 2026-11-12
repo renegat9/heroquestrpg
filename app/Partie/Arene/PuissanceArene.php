@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Partie\Arene;
 
 use App\Models\Groupe;
+use App\Models\Mercenaire;
 use App\Models\Monstre;
 use App\Models\Personnage;
 use Illuminate\Support\Facades\DB;
@@ -41,11 +42,23 @@ final class PuissanceArene
         return (int) $monstre->attaque;
     }
 
-    /** Le Challenger : la somme de ses combattants (les doublures engagées). */
+    /**
+     * Un ALLIÉ (lot A4) vaut comme un héros : 1 + les dés de sa meilleure attaque, au contact ou à distance
+     * (`docs/plan-mode-arene.md` §2 : « 1 + ses dés d'attaque, même règle qu'un héros »).
+     */
+    public function duMercenaire(Mercenaire $mercenaire): int
+    {
+        return 1 + max((int) $mercenaire->attaque, (int) ($mercenaire->attaque_distance ?? 0));
+    }
+
+    /** Le Challenger : la somme de ses combattants (les doublures engagées) et de leurs alliés. */
     public function duChallenger(Groupe $arene): int
     {
-        return (int) $arene->personnages()->wherePivot('actif', true)->get()
-            ->sum(fn (Personnage $p) => $this->duHeros($p));
+        $combattants = $arene->personnages()->wherePivot('actif', true)->get();
+        $allies = Mercenaire::whereIn('id', $combattants->pluck('pivot.allie_arene_id')->filter()->unique())->get()->keyBy('id');
+
+        return (int) $combattants->sum(fn (Personnage $p) => $this->duHeros($p)
+            + ($allies->has($p->pivot->allie_arene_id) ? $this->duMercenaire($allies->get($p->pivot->allie_arene_id)) : 0));
     }
 
     /**

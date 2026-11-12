@@ -139,6 +139,7 @@ Route::middleware('auth:joueur')->group(function () {
     Route::get('/arene/palmares', [AreneController::class, 'palmares']);
     Route::post('/arene/{identifiant}/combattants', [AreneController::class, 'rejoindre']);
     Route::post('/arene/{identifiant}/pret', [AreneController::class, 'pret']);
+    Route::put('/arene/{identifiant}/allie', [AreneController::class, 'allie']);
 
     Route::post('/deconnexion', [AuthController::class, 'deconnexion']);
     Route::get('/moi', [AuthController::class, 'moi']);

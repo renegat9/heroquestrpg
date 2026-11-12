@@ -16772,7 +16772,7 @@ final class ResolveurTour
      */
     public function resoudreTourAllie(Groupe $groupe, Quete $quete, GroupeMercenaire $allie, array $option, array $parametres): array
     {
-        if (app(OrdreDuTour::class)->allieActifId($groupe) !== (int) $allie->id) {
+        if (! app(OrdreDuTour::class)->estSonTourAllie($groupe, (int) $allie->id)) {
             throw ValidationException::withMessages(['option_id' => 'Ce n\'est pas le tour de cet allié.']);
         }
 
@@ -16798,7 +16798,12 @@ final class ResolveurTour
             // après le héros qui le contrôle, avant le suivant ».
             $enAttente = app(OrdreDuTour::class)->acteurActif($groupe) !== null;
 
-            if (! $enAttente) {
+            if ($groupe->estArene()) {
+                // ARÈNE (lot A4) : l'allié est une figure du Challenger — son activation finie, le Defender répond.
+                if ((bool) $allie->fresh()?->a_joue) {
+                    $resultat = $this->relaisArene($resultat, $groupe, $quete);
+                }
+            } elseif (! $enAttente) {
                 $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
                 $this->verifierFinDuCombat($quete);
             }

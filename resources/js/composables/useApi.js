@@ -153,6 +153,7 @@ export function useApi() {
         ajouterAuDefender: (code, monstreId) => request('POST', `/arene/${encodeURIComponent(code)}/defender`, { monstre_id: monstreId }),
         retirerDuDefender: (code, index) => request('DELETE', `/arene/${encodeURIComponent(code)}/defender/${index}`),
         pretArene: (code, pret) => request('POST', `/arene/${encodeURIComponent(code)}/pret`, { pret }),
+        allieArene: (code, mercenaireId) => request('PUT', `/arene/${encodeURIComponent(code)}/allie`, { mercenaire_id: mercenaireId }),
         lancerArene: (code) => request('POST', `/arene/${encodeURIComponent(code)}/lancer`),
         rejouerArene: (code) => request('POST', `/arene/${encodeURIComponent(code)}/rejouer`),
         quitterArene: (code) => request('DELETE', `/arene/${encodeURIComponent(code)}`),

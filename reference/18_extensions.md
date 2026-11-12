@@ -429,6 +429,10 @@ turn » — se déplacer de sa vitesse, OU lancer 2 dés d'attaque contre une cr
 d'ordinaire) ; pas s'il est neutralisé ou incapable d'agir (*Tempest*) ; il garde son jeton d'activation. **Porté** (lot T5, `ManoeuvreSolo`) :
 les deux camps ; la propre activation du combattant seul tient lieu de manœuvre tant qu'il ne l'a pas jouée.
 
+**Alliés (p. 12)** : « Heroes and allies make up the Challenger team. » **Porté** (lot A4, 2026-11-12) : un allié gratuit
+par combattant, pris aux recrutables du catalogue, de puissance 1 + sa meilleure attaque (même règle qu'un héros), joué
+par son joueur à SA propre activation, à laquelle le Defender répond.
+
 **Mort (p. 12)** : hors jeu jusqu'à la fin de la quête ; ses objets restent sur sa case, ramassés par tout héros qui
 passe adjacent, sans action. **Porté en partie** (René, 2026-11-10) : dans l'arène, « Relever » n'est pas offert (menu) ni accepté
 (résolveur) ; les soins, eux, préviennent la mort comme en campagne. ⚠ Écart nommé : les objets du mort ne quittent pas

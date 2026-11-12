@@ -21,7 +21,7 @@ const props = defineProps({
     // Message d'erreur du dernier geste refusé par le serveur.
     erreur: { type: String, default: '' },
 });
-const emit = defineEmits(['ajouter', 'retirer', 'pret', 'lancer', 'rejouer', 'quitter']);
+const emit = defineEmits(['ajouter', 'retirer', 'pret', 'allie', 'lancer', 'rejouer', 'quitter']);
 
 const monCombattant = computed(() =>
     props.salon.combattants.find((c) => c.personnage_id === props.monPersonnageId) ?? null);
@@ -58,6 +58,27 @@ const confirmerQuitter = ref(false);
             <MSym :n="c.pret ? 'check_circle' : 'radio_button_unchecked'" fill :size="15" />
             <span class="sla-nom">{{ c.nom }}</span>
             <span class="sla-sub">{{ c.classe }}<template v-if="c.joueur"> · {{ c.joueur }}</template> · {{ c.puissance }}</span>
+            <span v-if="c.allie" class="sla-sub sla-allie"><MSym n="pets" :size="12" /> {{ c.allie.nom }} · {{ c.allie.puissance }}</span>
+        </div>
+
+        <!-- ---- mon allié (lot A4) : un par combattant, sans coût — la liste vient du serveur ---- -->
+        <div v-if="enSalon && monCombattant && salon.allies?.length" class="sla-allies">
+            <span class="sla-code-lbl">Mon allié</span>
+            <div class="sla-chips">
+                <button class="sla-chip sla-chip-allie" :class="{ actif: !monCombattant.allie }" :disabled="enCours"
+                    @click="emit('allie', null)">Aucun</button>
+                <button
+                    v-for="a in salon.allies"
+                    :key="a.id"
+                    class="sla-chip sla-chip-allie"
+                    :class="{ actif: monCombattant.allie?.mercenaire_id === a.id }"
+                    :disabled="enCours"
+                    :title="`Déplacement ${a.deplacement} · attaque ${a.attaque} · défense ${a.defense} · ${a.pv_body} PV`"
+                    @click="emit('allie', a.id)"
+                >
+                    {{ a.nom }} <span class="sla-cout">{{ a.puissance }}</span>
+                </button>
+            </div>
         </div>
 
         <!-- ---- Defender ---- -->
@@ -155,6 +176,10 @@ const confirmerQuitter = ref(false);
 .sla-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 99px; font-size: 12.5px;
   font-weight: 700; border: 1px solid var(--danger, #e0735c); color: var(--ink-100, #efe6d4); background: none; cursor: pointer; }
 .sla-chip:disabled { cursor: default; }
+.sla-allie { margin-left: auto; }
+.sla-allies { margin: 6px 0 4px; }
+.sla-chip-allie { border-color: var(--line-soft, oklch(0.4 0.02 70 / 0.4)); }
+.sla-chip-allie.actif { border-color: var(--gold, #c9a24a); color: var(--gold, #c9a24a); }
 .sla-roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-bottom: 8px; }
 .sla-monstre { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 7px 9px; border-radius: 9px;
   border: 1px solid var(--line-soft, oklch(0.4 0.02 70 / 0.4)); background: var(--panel-2, oklch(0.22 0.02 70 / 0.4));

@@ -58,7 +58,11 @@ final class ManoeuvreSolo
         $actifs = $groupe->personnages()->wherePivot('actif', true)->pluck('personnages.id')->map(fn ($id) => (int) $id)->all();
         $debout = $quete->etatsPersonnages()->where('tombe', false)->whereIn('personnage_id', $actifs)->get();
 
-        return $debout->count() === 1 ? $debout->first() : null;
+        // Un allié debout (lot A4) est un combattant de plus : le héros n'est pas seul.
+        $allies = \App\Models\GroupeMercenaire::where('groupe_id', $groupe->id)->where('etat', 'actif')->whereNotNull('position_x')
+            ->whereIn('recruteur_personnage_id', $debout->pluck('personnage_id'))->exists();
+
+        return $debout->count() === 1 && ! $allies ? $debout->first() : null;
     }
 
     /** La figure SEULE du Defender encore en jeu, ou `null`. */

@@ -8,6 +8,7 @@ use App\Events\EtatGroupeDiffuse;
 use App\Jobs\GenererMenu;
 use App\Models\Carte;
 use App\Models\Groupe;
+use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Monstre;
 use App\Models\Personnage;
@@ -89,11 +90,15 @@ final class DemarreurArene
         }
         $positions = $this->placerDefender($monstres, $carte);
 
-        if (count($carte['spawn_heros']) < $challenger->count()) {
+        // ALLIÉS (lot A4) : l'allié choisi au salon par chaque combattant, posé sur la tuile du Challenger après les héros.
+        $allies = $challenger->filter(fn (Personnage $p) => $p->pivot->allie_arene_id !== null)->values();
+        $catalogue = \App\Models\Mercenaire::whereIn('id', $allies->pluck('pivot.allie_arene_id'))->get()->keyBy('id');
+
+        if (count($carte['spawn_heros']) < $challenger->count() + $allies->count()) {
             throw ValidationException::withMessages(['groupe' => 'Trop de combattants pour la tuile de départ du hall.']);
         }
 
-        $quete = DB::transaction(function () use ($arene, $challenger, $monstres, $carte, $positions): Quete {
+        $quete = DB::transaction(function () use ($arene, $challenger, $monstres, $carte, $positions, $allies, $catalogue): Quete {
             $quete = Quete::create([
                 'groupe_id' => $arene->id,
                 'gabarit_id' => null,
@@ -152,6 +157,28 @@ final class DemarreurArene
                 ]);
             }
 
+            // Un combat neuf, des alliés neufs : ceux d'un combat précédent n'existent plus.
+            GroupeMercenaire::where('groupe_id', $arene->id)->delete();
+
+            foreach ($allies as $j => $doublure) {
+                $mercenaire = $catalogue->get((int) $doublure->pivot->allie_arene_id);
+                if ($mercenaire === null) {
+                    continue;
+                }
+
+                $case = $carte['spawn_heros'][$challenger->count() + $j];
+                GroupeMercenaire::create([
+                    'groupe_id' => $arene->id,
+                    'mercenaire_id' => $mercenaire->id,
+                    'recruteur_personnage_id' => $doublure->id,
+                    'pv_body' => (int) $mercenaire->pv_body,
+                    'position_x' => $case['x'],
+                    'position_y' => $case['y'],
+                    'etat' => 'actif',
+                    'a_deplace' => false, 'a_agi' => false, 'a_joue' => false,
+                ]);
+            }
+
             $arene->update(['phase' => 'quete', 'quete_courante_id' => $quete->id]);
 
             return $quete;
@@ -169,6 +196,7 @@ final class DemarreurArene
             'titre' => $quete->titre,
             'arene' => true,
             'nb_monstres' => count($monstres),
+            'nb_allies' => $allies->count(),
         ]);
 
         broadcast(new EtatGroupeDiffuse($arene, $this->etatGroupe->payload($arene->refresh())));

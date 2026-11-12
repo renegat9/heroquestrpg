@@ -310,6 +310,8 @@ async function gesteArene(fn, { quitter = false } = {}) {
 const ajouterAuDefender = (id) => gesteArene(() => api.ajouterAuDefender(props.groupe, id));
 const retirerDuDefender = (index) => gesteArene(() => api.retirerDuDefender(props.groupe, index));
 const basculerPretArene = (pret) => gesteArene(() => api.pretArene(props.groupe, pret));
+// ALLIÉS (lot A4) : l'allié de MON combattant, ou aucun (`null`) — la liste blanche est `salon.allies`.
+const choisirAllieArene = (mercenaireId) => gesteArene(() => api.allieArene(props.groupe, mercenaireId));
 const lancerArene = () => gesteArene(() => api.lancerArene(props.groupe));
 const rejouerArene = () => gesteArene(() => api.rejouerArene(props.groupe));
 const quitterArene = () => gesteArene(() => api.quitterArene(props.groupe), { quitter: true });
@@ -1599,6 +1601,7 @@ const navItems = computed(() => (scene.value === 'marche'
                                 @ajouter="ajouterAuDefender"
                                 @retirer="retirerDuDefender"
                                 @pret="basculerPretArene"
+                                @allie="choisirAllieArene"
                                 @lancer="lancerArene"
                                 @rejouer="rejouerArene"
                                 @quitter="quitterArene"

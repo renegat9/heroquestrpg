@@ -1179,6 +1179,26 @@ nom_objet?, or?}`. Pièges (2 : −3, 3-4 : −2, 5-6 : −1) au fouilleur ; 7 :
 de la doublure (elle disparaît avec elle) ; 8-9 / 10-11 / 12 : 100 / 200 / 300 po à la bourse du COMBAT
 (`groupe.or` du groupe d'arène), jamais à un héros.
 
+### Les alliés d'arène (lot A4, 2026-11-12, F9528 p. 12, `docs/plan-mode-arene.md` §2)
+
+« Heroes and allies make up the Challenger team. » Chaque joueur peut engager **un** allié du catalogue, sans coût.
+
+- `PUT /api/arene/{identifiant}/allie {mercenaire_id: int | null}` (joueur authentifié, membre) : choisit (ou retire,
+  `null`) l'allié de SON combattant. Seulement au salon ; liste blanche = `groupe.arene.allies` (les alliés recrutables
+  du catalogue, `octroi_seul` exclu). Le « prêt » de ce combattant retombe. Réponse : l'état du groupe, comme les autres
+  routes du salon.
+- Publication : `groupe.arene.combattants[].allie = {mercenaire_id, nom, puissance} | null` et
+  `groupe.arene.allies = [{id, nom, deplacement, attaque, attaque_distance, defense, pv_body, animal, puissance}]`.
+  La puissance d'un allié vaut **1 + sa meilleure attaque** (contact ou distance), comme un héros ; elle entre dans
+  `puissance_challenger` et donc dans `monstres[].abordable` et `lancement_possible`.
+- Au lancement, chaque allié choisi naît sur la tuile du Challenger, après les héros (`groupe_mercenaires`, contrôlé
+  par le combattant de son joueur). Il disparaît avec le groupe d'arène ; une revanche le recrée.
+- **Activation alternée** : un allié est une figure du Challenger, il s'active à SON tour — le Defender répond après
+  lui comme après un héros. Le joueur le joue sur sa manette, après son héros (le menu d'allié habituel,
+  `GET /menu` → `allie_id`). Un allié dont le héros est tombé ne joue plus (même règle qu'en campagne). Les monstres le
+  visent ; il se défend aux boucliers blancs. Ses victimes ne sont créditées à personne (palmarès).
+- Un héros qui a encore un allié debout n'est pas un combattant seul.
+
 ### Le combattant seul (lot T5, 2026-11-09, F9528 p. 16)
 
 Le dernier combattant debout d'une équipe prend une **manœuvre de base** après chaque activation adverse : se déplacer
