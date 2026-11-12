@@ -510,7 +510,12 @@ class InstanceMonstre extends Model
     public function nomAffiche(): string
     {
         $nom = $this->habillage['nom'] ?? $this->monstre?->nom_base ?? 'Créature';
+        $nom = $this->elite ? "{$nom} ★" : (string) $nom;
 
-        return $this->elite ? "{$nom} ★" : (string) $nom;
+        // MONSTER VS MONSTER : deux camps de mêmes monstres — sans le camp, le fil écrivait « Gobelin frappe Gobelin »
+        // (validation de la PR #2, 2026-11-12). Un seul point de passage du nom affiché : fil, initiative, cibles, figures.
+        return $this->camp_arene !== null && $this->camp_arene !== ''
+            ? $nom.' (camp '.strtoupper((string) $this->camp_arene).')'
+            : $nom;
     }
 }

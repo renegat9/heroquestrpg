@@ -601,6 +601,7 @@ const jetonsPlaces = computed(() => {
                 <Vignette v-else-if="p.image || p.icone" :src="p.image" :icon="p.icone ?? 'help'" :size="null" fill />
                 <span v-else class="jeton-lettres">{{ p.f.l }}</span>
                 <div v-if="p.f.elite" class="jeton-elite" title="Élite"><MSym n="star" fill /></div>
+                <div v-if="p.f.camp" class="jeton-camp" :class="`jeton-camp-${p.f.camp.toLowerCase()}`" :title="`Camp ${p.f.camp}`">{{ p.f.camp }}</div>
                 <div v-if="p.f.hp" class="jeton-pv"><i v-for="n in p.f.hp" :key="n" /></div>
                 <div v-if="p.f.cond" class="jeton-cond" :class="p.f.cond.t ? `b-${p.f.cond.t}` : null" :title="p.f.cond.titre">
                     <MSym :n="p.f.cond.ic" fill />
@@ -1039,6 +1040,13 @@ const jetonsPlaces = computed(() => {
 .jeton-elite { position: absolute; top: -6%; right: -6%; z-index: 1; color: var(--gold, oklch(0.82 0.15 85));
   font-size: 30cqw; line-height: 1; filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.7)); }
 .jeton-elite .msym { font-size: inherit; }
+/* MONSTER VS MONSTER : le camp de la figure, une lettre dans le coin haut-gauche (l'★ d'élite tient le coin droit).
+   Deux teintes franches, distinctes du rouge « ennemi » de l'anneau : A en bleu, B en ambre. */
+.jeton-camp { position: absolute; top: -8%; left: -8%; z-index: 1; min-width: 36cqw; height: 36cqw; padding: 0 4cqw;
+  box-sizing: border-box; border-radius: 999px; display: grid; place-items: center; font-weight: 800; font-size: 26cqw;
+  line-height: 1; border: 1px solid oklch(0 0 0 / 0.55); box-shadow: 0 1px 2px oklch(0 0 0 / 0.6); }
+.jeton-camp-a { background: oklch(0.62 0.15 250); color: oklch(0.98 0.01 250); }
+.jeton-camp-b { background: oklch(0.80 0.15 75); color: oklch(0.2 0.03 75); }
 /* PV de la figure : un point par PV de corps, sous le jeton. */
 .jeton-pv { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); display: flex; gap: 1.5px; }
 .jeton-pv i { width: 4px; height: 4px; border-radius: 1px; background: var(--body-bright, oklch(0.62 0.2 25));

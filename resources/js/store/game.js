@@ -673,6 +673,9 @@ export function entitesVersFigurines(entites, initiative) {
             hp: (e.type === 'monstre' || e.type === 'allie' || e.type === 'captif') ? e.pv_body : undefined,
             cur: estCourant(e, initiative),
             elite: e.type === 'monstre' ? !!e.elite : false,
+            // MONSTER VS MONSTER : le camp de la figure (`entites[].camp_arene`, `a` | `b`), en badge sur le jeton — deux
+            // Gobelins de camps opposés se ressemblaient trait pour trait (validation de la PR #2). `null` hors de ce mode.
+            camp: e.type === 'monstre' && e.camp_arene ? String(e.camp_arene).toUpperCase() : null,
             // CAPTIF PORTÉ (mode escorté, chantier « captifs-jetons »,
             // 2026-10-05) : pas de figurine propre, donc son indicateur se
             // pose sur le JETON DU PORTEUR — seulement si ce héros n'affiche

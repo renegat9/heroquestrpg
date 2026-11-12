@@ -1217,6 +1217,11 @@ et les routes de lecture l'acceptent comme un membre.
 - Le Defender sur la tuile est, le Challenger sur la tuile ouest ; chaque figure porte son camp
   (`entites[].camp_arene` : `a` | `b`). Ni héros, ni trophées, ni coffres (écart nommé : le livret ne dit pas qui les
   ramasse entre deux camps de monstres).
+- **Le nom d'une figure porte son camp** (2026-11-12, validation de la PR #2) : `InstanceMonstre::nomAffiche()` rend
+  « Gobelin (camp A) » dès que `camp_arene` est posé — donc `entites[].nom`, `initiative[].nom`, `figures[].nom`,
+  `cibles[].nom` et chaque annonce (`attaque_mvm.attaquant` / `cible`, `deplacement_monstre.monstre`, `attente_mvm.nom`).
+  Le fil écrivait « Gobelin frappe Gobelin ». Sur la grille (table et mini-carte), le jeton porte en plus un badge
+  « A » / « B » lu dans `camp_arene`, rien d'autre.
 - **Activation alternée** : le camp `main` active UNE figure qui n'a pas joué ce round (`active_ce_round`) — n'importe
   quel joueur du camp. Une figure entamée garde la main jusqu'à « terminer ». Puis la main passe à l'autre camp ; un
   camp à court laisse l'autre enchaîner ; quand tout a joué, le round se referme et le Defender rouvre le suivant.

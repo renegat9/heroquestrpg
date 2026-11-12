@@ -245,9 +245,7 @@ class ChoixController extends Controller
 
         Cache::forget($cleMenu);
 
-        foreach ($groupe->fresh()->personnages()->wherePivot('actif', true)->get() as $heros) {
-            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
-        }
+        GenererMenu::relancerApresResolution($groupe->fresh());
 
         return response()->json([
             'resultat' => $resultat,

@@ -153,15 +153,10 @@ final class ExecutionChoix
             $this->narrer($groupe, $quete, $resultat, $personnage);
         }
 
-        foreach ($groupe->personnages()->wherePivot('actif', true)->get() as $heros) {
-            // Un menu ne coûte plus d'appel LLM (§2, moteur seul) : la boucle
-            // reste volontairement sur TOUS les héros actifs (et pas seulement
-            // celui dont c'est le tour) — c'est ce qui alimente le rattrapage
-            // `GET /menu` de chacun, et restreindre pour un gain nul sur un
-            // calcul devenu gratuit serait prendre un risque de régression pour
-            // rien.
-            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
-        }
+        // Un menu ne coûte plus d'appel LLM (§2, moteur seul) : on relance volontairement TOUS les héros actifs (et pas
+        // seulement celui dont c'est le tour) — c'est ce qui alimente le rattrapage `GET /menu` de chacun. Leurs menus en
+        // cache sont jetés d'abord : la résolution vient de les périmer.
+        GenererMenu::relancerApresResolution($groupe);
 
         // 202 : le moteur a résolu, l'état et la narration arrivent par Reverb.
         // Le résultat moteur est renvoyé en echo (affichage immédiat des dés).

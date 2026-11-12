@@ -515,6 +515,22 @@ const joueursConnectes = computed(() => (phaseHub.value
 // Roster du hub (nom + prêt) pour le panneau « Le groupe » quand il n'y a pas
 // encore de carte — le narrateur voyait un panneau vide au repos.
 const presenceHub = computed(() => store.state.prets ?? []);
+// ARÈNE (validation de la PR #2, 2026-11-12) : le bloc de hub de campagne (`prets`) n'est pas publié pour un groupe
+// d'arène — le panneau affichait « Aucun héros rattaché » à côté d'un salon plein. On y montre le roster du salon, tel
+// que le serveur le publie dans `groupe.arene` : les combattants (Coop) ou les joueurs et leur camp (Monster vs Monster).
+const rosterArene = computed(() => {
+    const a = etat.value?.groupe?.arene;
+    if (!a) return null;
+    if (a.variante === 'monstres') {
+        return (a.joueurs ?? []).map((j) => {
+            const role = a.camps?.[j.camp]?.role;
+            return { cle: `j${j.joueur_id}`, nom: j.pseudo, detail: `Camp ${String(j.camp).toUpperCase()}${role ? ` · ${role === 'challenger' ? 'Challenger' : 'Defender'}` : ''}`, pret: null };
+        });
+    }
+    return (a.combattants ?? []).map((c) => ({
+        cle: `c${c.personnage_id}`, nom: c.nom, detail: c.allie ? `+ ${c.allie.nom}` : c.joueur, pret: !!c.pret,
+    }));
+});
 
 // Réordonner l'ordre du tour ENTRE les quêtes (au hub) : on monte/descend un
 // héros et on persiste la nouvelle permutation. Le broadcast .prets.maj
@@ -1170,7 +1186,19 @@ watch(() => store.state.clotureTerminee, (t) => {
                 <!-- Colonne de droite : le groupe et, en arène, les réserves de trophées sous lui (lot T4) — une seule
                      cellule de la grille `.main`, sinon le panneau des trophées passe à la ligne sous la carte. -->
                 <div v-if="!phaseHub" class="table-col-droite">
-                    <GroupPanel :party="party" />
+                    <!-- MONSTER VS MONSTER : aucun héros, le panneau du groupe restait vide pendant le combat — on y montre
+                         les joueurs et leur camp, comme au salon (`rosterArene`). -->
+                    <div v-if="etat?.groupe?.arene?.variante === 'monstres'" class="hub-roster">
+                        <h2><MSym n="groups" fill /> Le groupe</h2>
+                        <div class="hub-roster-list">
+                            <div v-for="m in rosterArene" :key="m.cle" class="hub-roster-line">
+                                <MSym n="person" fill :size="17" />
+                                <span class="hr-nom">{{ m.nom }}</span>
+                                <span class="hr-etat">{{ m.detail }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <GroupPanel v-else :party="party" />
                     <div v-if="etat?.quete?.trophees" class="arene-trophees">
                         <div class="arene-trophees-titre"><MSym n="emoji_events" fill :size="15" /> Trophées</div>
                         <p><strong>Challenger :</strong> {{ etat.quete.trophees.challenger.map((t) => t.libelle).join(', ') || '—' }}</p>
@@ -1180,6 +1208,17 @@ watch(() => store.state.clotureTerminee, (t) => {
                 </div>
                 <div v-else class="hub-roster">
                     <h2><MSym n="groups" fill /> Le groupe</h2>
+                    <template v-if="rosterArene">
+                        <div v-if="rosterArene.length" class="hub-roster-list">
+                            <div v-for="m in rosterArene" :key="m.cle" class="hub-roster-line" :class="{ pret: m.pret }">
+                                <MSym :n="m.pret === null ? 'person' : (m.pret ? 'check_circle' : 'radio_button_unchecked')" fill :size="17" />
+                                <span class="hr-nom">{{ m.nom }}</span>
+                                <span class="hr-etat">{{ m.pret === null ? m.detail : (m.pret ? 'Prêt' : 'En attente') }}</span>
+                            </div>
+                        </div>
+                        <p v-else class="hub-roster-vide">Personne dans le salon pour l'instant.</p>
+                    </template>
+                    <template v-else>
                     <p v-if="presenceHub.length > 1" class="hub-roster-hint">
                         <MSym n="swap_vert" :size="14" /> Ordre du tour — réordonne avant de lancer la quête
                     </p>
@@ -1203,6 +1242,7 @@ watch(() => store.state.clotureTerminee, (t) => {
                         </div>
                     </div>
                     <p v-else class="hub-roster-vide">Aucun héros rattaché pour l'instant.</p>
+                    </template>
                 </div>
             </div>
 

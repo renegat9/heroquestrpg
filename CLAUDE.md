@@ -65,7 +65,11 @@ reason, and the two must never drift.
   deletion, `GroupesArene::purger()` for every arena-group purge — double lock, never
   `ClotureCampagne::purger()` — and `Groupe::exigerCampagne()` at the entry of every
   campaign-only step, each listed in `App\Partie\Arene\EtapesCampagne`, tested both ways:
-  a new job or hub phase must answer « what does it do to an arena group? »).
+  a new job or hub phase must answer « what does it do to an arena group? »; since
+  2026-11-12: `GenererMenu::relancerApresResolution()` for relaunching every menu after a
+  resolution — the stale cached menus are dropped FIRST, never served before the job —
+  and `InstanceMonstre::nomAffiche()` for a figure's displayed name, camp included in
+  Monster vs Monster).
   Two copies of a rule too simple to notice drifting is this project's most repeated defect.
 - **`sortBy([$f, $g])` is never a multi-key sort** — Laravel reads a callable there as a
   *comparator*, and it never errors. It bit twice. → `docs/regles/sorts-dread.md`

@@ -63,6 +63,25 @@ class GenererMenu implements ShouldQueue
     }
 
     /**
+     * APRÈS UNE RÉSOLUTION — le seul point de passage (`ExecutionChoix`, `ChoixController` pour un allié) : le plateau
+     * vient de bouger, donc TOUS les menus en cache du groupe sont périmés. On les jette AVANT de relancer le job, pour
+     * qu'un `GET /menu` ou un `POST choix` arrivé entre-temps les recalcule sur l'état neuf (`MenuCourant::pour()`)
+     * au lieu de servir l'ancien. En arène, plusieurs héros gardent la main entre deux activations : la case qu'une
+     * figure du Defender venait d'occuper restait offerte une demi-seconde, et le résolveur la refusait (422) —
+     * « le menu ne propose jamais ce que le résolveur refusera » (validation de la PR #2, 2026-11-12).
+     *
+     * ⚠ Pas dans `dispatch()` : les reprises d'une attaque suspendue (`MoteurReactions`) relancent le job SANS jeter
+     * le menu, qu'elles laissent en cache à dessein.
+     */
+    public static function relancerApresResolution(Groupe $groupe): void
+    {
+        foreach ($groupe->personnages()->wherePivot('actif', true)->get() as $heros) {
+            Cache::forget(self::cleMenu($groupe->id, (int) $heros->joueur_id));
+            self::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
+        }
+    }
+
+    /**
      * Le groupe n'est-il PAS en quête (hub, ou quête sans carte) ? LE prédicat unique :
      * le job, le rattrapage (`MenuCourant`) et le refus (`ChoixController`) le lisent
      * tous. Hors quête, il n'y a aucun menu de quête à publier, à servir ni à accepter.

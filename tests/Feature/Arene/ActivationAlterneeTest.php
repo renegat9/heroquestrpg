@@ -150,3 +150,37 @@ it('l\'état publie qui a la main : en arène, CHAQUE héros libre (pas seulemen
     expect($heros[$c['b']->id]['a_la_main'])->toBeTrue()
         ->and($heros[$c['a']->id]['a_la_main'])->toBeFalse();
 });
+
+it('après une activation, les menus en cache des autres héros sont JETÉS : rien de périmé ne se sert avant le job', function () {
+    // Validation de la PR #2 (2026-11-12) : en arène, Bob garde la main pendant que le Defender répond à Alice. Son menu
+    // en cache, calculé AVANT que la figure du Defender ne bouge, offrait encore la case qu'elle venait d'occuper — le
+    // résolveur la refusait (422) pendant la demi-seconde où le job `GenererMenu` n'avait pas encore tourné.
+    $c = combatADeux(['Gobelin', 'Gobelin', 'Gobelin']);
+    $id = $c['arene']->identifiant;
+
+    $this->actingAs($c['bob'], 'joueur');
+    $this->getJson("/api/groupes/{$id}/menu")->assertOk();
+    $cleBob = \App\Jobs\GenererMenu::cleMenu($c['arene']->id, (int) $c['bob']->id);
+    expect(\Illuminate\Support\Facades\Cache::has($cleBob))->toBeTrue();
+
+    // Le job ne tourne pas : on regarde exactement la fenêtre entre la résolution et sa publication.
+    $file = app('queue');
+    \Illuminate\Support\Facades\Queue::fake([\App\Jobs\GenererMenu::class]);
+    jouerEnArene($c['alice'], $id, 'attendre')->assertSuccessful();
+
+    expect(\Illuminate\Support\Facades\Cache::has($cleBob))->toBeFalse();
+
+    // ⚠ `Queue::fake()` intercepte aussi le `dispatchSync()` du rattrapage (`MenuCourant::regenerer()`) : on rend la
+    // vraie file avant de le solliciter.
+    app()->instance('queue', $file);
+    \Illuminate\Support\Facades\Queue::swap($file);
+
+    // Le rattrapage recalcule sur l'état NEUF : aucune destination sous une figure debout.
+    $this->actingAs($c['bob'], 'joueur');
+    $menu = $this->getJson("/api/groupes/{$id}/menu")->json('menu');
+    $destinations = collect(collect($menu['options'])->firstWhere('id', 'se_deplacer')['parametres']['destinations'])
+        ->map(fn ($d) => $d['x'].','.$d['y']);
+    $occupees = InstanceMonstre::where('quete_id', $c['quete']->id)->where('etat', 'actif')->get()
+        ->map(fn ($m) => $m->position_x.','.$m->position_y);
+    expect($destinations->intersect($occupees)->all())->toBe([]);
+});

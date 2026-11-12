@@ -72,6 +72,18 @@ const props = defineProps({
      * éclairée, confirmer »).
      */
     casesEcart: { type: Array, default: null },
+    /** Les mots du mode `casesEcart` : par défaut ceux de la Chute de blocs. Le combat Monster vs Monster
+     *  (`AreneMonstresView`) réutilise ce mode pour un déplacement ordinaire — il passe les siens, sans quoi
+     *  sa feuille s'intitulait « S'écarter du bloc de pierre » (validation de la PR #2, 2026-11-12). */
+    libellesEcart: {
+        type: Object,
+        default: () => ({
+            titre: 'S\'écarter du bloc de pierre',
+            consigne: 'Touche une case éclairée pour t\'écarter',
+            confirmer: 'Confirme pour t\'écarter là',
+            bouton: 'S\'écarter',
+        }),
+    },
 });
 const emit = defineEmits(['deplacer', 'close']);
 
@@ -262,7 +274,7 @@ onMounted(async () => {
                      feuille-là (voir `casesEcart`). -->
                 <div class="dep-roll" v-if="casesEcart">
                     <MSym n="square" fill />
-                    <span class="dep-portee-lbl">S'écarter du bloc de pierre</span>
+                    <span class="dep-portee-lbl">{{ libellesEcart.titre }}</span>
                 </div>
                 <!-- Le reliquat se compte en POINTS de déplacement, pas en cases : le terrain
                      pondéré (sable, jungle) coûte 2 points par case. C'est l'unité de
@@ -318,7 +330,7 @@ onMounted(async () => {
 
             <p v-if="accessibles.size && ! apercu" class="dep-hint">
                 <MSym n="touch_app" :size="14" />
-                {{ casesEcart ? 'Touche une case éclairée pour t\'écarter' : 'Touche une case éclairée pour voir le trajet' }}
+                {{ casesEcart ? libellesEcart.consigne : 'Touche une case éclairée pour voir le trajet' }}
             </p>
 
             <!-- APERÇU : le trajet EXACT rendu par le serveur, à confirmer. Les
@@ -327,7 +339,7 @@ onMounted(async () => {
             <div v-else-if="apercu" class="dep-apercu">
                 <p class="dep-hint">
                     <MSym n="route" :size="14" />
-                    <span v-if="casesEcart">Confirme pour t'écarter là</span>
+                    <span v-if="casesEcart">{{ libellesEcart.confirmer }}</span>
                     <span v-else-if="apercuEnCours">Calcul du trajet…</span>
                     <span v-else-if="apercu.indisponible">Trajet indisponible — touche encore pour y aller quand même</span>
                     <span v-else-if="apercu.atteignable === false">{{ apercu.raison }}</span>
@@ -347,7 +359,7 @@ onMounted(async () => {
                     class="dep-aller"
                     type="button"
                     @click="confirmer"
-                ><MSym n="directions_walk" :size="16" fill /> {{ casesEcart ? "S'écarter" : 'Y aller' }}</button>
+                ><MSym n="directions_walk" :size="16" fill /> {{ casesEcart ? (libellesEcart.bouton ?? "S'écarter") : 'Y aller' }}</button>
             </div>
             <p v-else class="dep-hint dep-hint-bloque"><MSym n="block" :size="14" /> Aucune case accessible — tu es bloqué. Ferme et termine ton tour.</p>
 

@@ -97,6 +97,12 @@ async function geste(fn, { quitter = false } = {}) {
                     :entites="etat.entites ?? []"
                     :depart="{ x: figureDeplacee.x, y: figureDeplacee.y }"
                     :cases-ecart="figureDeplacee.destinations"
+                    :libelles-ecart="{
+                        titre: `Déplacer ${figureDeplacee.nom}`,
+                        consigne: 'Touche une case éclairée pour y aller',
+                        confirmer: 'Confirme pour y aller',
+                        bouton: 'Y aller',
+                    }"
                     :groupe="props.groupe"
                     @deplacer="(c) => gesteFigure(figureDeplacee, 'deplacer', c)"
                     @close="figureDeplacee = null"
