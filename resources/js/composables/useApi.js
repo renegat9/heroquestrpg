@@ -163,6 +163,8 @@ export function useApi() {
         puissanceMonstres: (code, puissance) => request('PUT', `/arene/${encodeURIComponent(code)}/puissance`, { puissance }),
         tirageMonstres: (code) => request('POST', `/arene/${encodeURIComponent(code)}/tirage`),
         selectionMonstres: (code, monstreId) => request('POST', `/arene/${encodeURIComponent(code)}/selection`, { monstre_id: monstreId }),
+        figuresMonstres: (code) => request('GET', `/arene/${encodeURIComponent(code)}/figures`),
+        gesteMonstres: (code, instanceId, geste, parametres = {}) => request('POST', `/arene/${encodeURIComponent(code)}/geste`, { instance_id: instanceId, geste, parametres }),
 
         creerPersonnage: ({ nom, classe, mode, elements, sorts_elfiques }) =>
             request('POST', '/personnages', {

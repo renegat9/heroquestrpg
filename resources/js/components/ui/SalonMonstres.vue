@@ -15,7 +15,7 @@ const props = defineProps({
     enCours: { type: Boolean, default: false },
     erreur: { type: String, default: '' },
 });
-const emit = defineEmits(['camp', 'puissance', 'tirage', 'choisir', 'quitter']);
+const emit = defineEmits(['camp', 'puissance', 'tirage', 'choisir', 'lancer', 'rejouer', 'quitter']);
 
 const NOMS = { a: 'Camp A', b: 'Camp B' };
 const ROLES = { challenger: 'Challenger', defender: 'Defender' };
@@ -97,7 +97,18 @@ const confirmerQuitter = ref(false);
             </div>
         </template>
 
-        <p v-if="salon.selection_terminee" class="slm-motif"><MSym n="info" :size="14" /> {{ salon.lancement_motif }}</p>
+        <!-- ---- résultat, lancement, revanche (lot A9c) ---- -->
+        <div v-if="salon.resultat" class="slm-resultat">
+            <MSym n="emoji_events" fill :size="22" /> {{ NOMS[salon.resultat.gagnant] }} l'emporte !
+            <template v-if="monCamp"> {{ monCamp === salon.resultat.gagnant ? 'Victoire.' : 'Défaite.' }}</template>
+        </div>
+        <button v-if="salon.resultat" class="slm-btn" :disabled="enCours" @click="emit('rejouer')">
+            <MSym n="replay" :size="16" /> Revanche
+        </button>
+        <button v-else-if="salon.lancement_possible" class="slm-btn" :disabled="enCours" @click="emit('lancer')">
+            <MSym n="swords" fill :size="16" /> Lancer le combat
+        </button>
+        <p v-else-if="salon.selection_terminee" class="slm-motif"><MSym n="info" :size="14" /> {{ salon.lancement_motif }}</p>
         <p v-if="erreur" class="slm-err"><MSym n="error" :size="13" /> {{ erreur }}</p>
 
         <div class="slm-quitter">
@@ -144,6 +155,8 @@ const confirmerQuitter = ref(false);
 .slm-btn-petit { padding: 4px 10px; border-radius: 7px; border: 1px solid var(--gold, #c9a24a); background: none; color: var(--gold, #c9a24a);
   font-weight: 700; font-size: 12px; cursor: pointer; }
 .slm-motif { display: flex; align-items: center; gap: 6px; justify-content: center; margin: 10px 0 0; font-size: 12.5px; color: var(--ink-500); text-align: center; }
+.slm-resultat { display: flex; align-items: center; gap: 8px; padding: 10px; margin: 8px 0; border-radius: 10px;
+  font-weight: 800; color: var(--gold, #c9a24a); border: 1px solid var(--gold, #c9a24a); }
 .slm-err { font-size: 12.5px; color: var(--danger, #e0735c); margin: 8px 0 0; }
 .slm-quitter { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 12px; }
 .slm-lien { background: none; border: 0; padding: 4px 2px; font-size: 12.5px; color: var(--ink-500); text-decoration: underline; cursor: pointer; }

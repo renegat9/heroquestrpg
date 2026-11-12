@@ -14,6 +14,10 @@ class InstanceMonstre extends Model
     protected $fillable = [
         // MODE ARÈNE (lot T2) : le jeton d'activation du round — lu par `ResolveurTour::phaseMonstres()` en arène seulement.
         'active_ce_round',
+        // MONSTER VS MONSTER (lot A9c) : le camp de la figure et les créneaux de son activation.
+        'camp_arene',
+        'mvm_deplace',
+        'mvm_agi',
         'quete_id',
         'monstre_id',
         'pv_body',
@@ -77,6 +81,8 @@ class InstanceMonstre extends Model
     {
         return [
             'active_ce_round' => 'boolean',
+            'mvm_deplace' => 'boolean',
+            'mvm_agi' => 'boolean',
             'habillage' => 'array',
             'formes_a_venir' => 'array',
             'revele' => 'boolean',

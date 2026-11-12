@@ -187,6 +187,30 @@ class AreneController extends Controller
         return $this->etat($groupe);
     }
 
+    /** GET /api/arene/{identifiant}/figures — le menu Monster vs Monster de CE joueur (lot A9c). */
+    public function figures(string $identifiant): JsonResponse
+    {
+        $groupe = $this->arene($identifiant);
+
+        return response()->json(app(\App\Partie\Arene\CombatMonstres::class)->menu($groupe, Auth::guard('joueur')->user()));
+    }
+
+    /** POST /api/arene/{identifiant}/geste {instance_id, geste, parametres} — un geste d'une figure de son camp. */
+    public function geste(Request $request, string $identifiant): JsonResponse
+    {
+        $groupe = $this->arene($identifiant);
+        $donnees = $request->validate([
+            'instance_id' => ['required', 'integer'],
+            'geste' => ['required', 'string', 'in:deplacer,attaquer,terminer'],
+            'parametres' => ['sometimes', 'array'],
+        ]);
+        $combat = app(\App\Partie\Arene\CombatMonstres::class);
+        $joueur = Auth::guard('joueur')->user();
+        $resultat = $combat->agir($groupe, $joueur, (int) $donnees['instance_id'], $donnees['geste'], $donnees['parametres'] ?? []);
+
+        return response()->json(['resultat' => $resultat, 'menu' => $combat->menu($groupe, $joueur)]);
+    }
+
     /** POST /api/arene/{identifiant}/lancer — membre OU table. */
     public function lancer(Request $request, string $identifiant): JsonResponse
     {

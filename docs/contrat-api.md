@@ -1205,8 +1205,29 @@ et les routes de lecture l'acceptent comme un membre.
   monstres: [{monstre_id, nom_base}], puissance, restant}, b: {…}}, tour_selection: "a" | "b" | null,
   selection_terminee, monstres: [{id, nom_base, deplacement, attaque, defense, pv_body, puissance, abordable}],
   lancement_possible: false, lancement_motif}` — `abordable` vaut pour le camp dont c'est le tour.
-- Le combat lui-même (monstres dirigés depuis la manette) vient avec les lots A9b-A9d : d'ici là,
-  `lancement_possible` reste `false` avec son motif.
+- `lancement_possible` / `lancement_motif` : la sélection close et chaque camp pourvu, `POST …/lancer` (membre OU
+  table) démarre le combat. `main` : le camp qui a la main en combat ; `resultat: {gagnant: "a" | "b"} | null`.
+  `POST …/rejouer` garde camps et sélection, et rouvre un combat neuf.
+
+### Monster vs Monster — le combat (lot A9c, 2026-11-12, F9528 p. 12-16)
+
+- Le Defender sur la tuile est, le Challenger sur la tuile ouest ; chaque figure porte son camp
+  (`entites[].camp_arene` : `a` | `b`). Ni héros, ni trophées, ni coffres (écart nommé : le livret ne dit pas qui les
+  ramasse entre deux camps de monstres).
+- **Activation alternée** : le camp `main` active UNE figure qui n'a pas joué ce round (`active_ce_round`) — n'importe
+  quel joueur du camp. Une figure entamée garde la main jusqu'à « terminer ». Puis la main passe à l'autre camp ; un
+  camp à court laisse l'autre enchaîner ; quand tout a joué, le round se referme et le Defender rouvre le suivant.
+- `GET /api/arene/{identifiant}/figures` (joueur) → `{main, mon_camp, figures: [{instance_id, nom, x, y, pv_body,
+  entamee, peut_deplacer, destinations: [{x, y}], peut_attaquer, cibles: [{id, nom, pv_body}]}]}` — vide hors de son
+  tour. C'est la liste blanche.
+- `POST /api/arene/{identifiant}/geste {instance_id, geste: "deplacer" | "attaquer" | "terminer", parametres: {x, y} |
+  {cible_id}}` → `{resultat, menu}`. Un déplacement (son déplacement du catalogue) et une frappe (au contact, en
+  diagonale si la figure frappe ainsi), dans l'ordre voulu ; les deux pris, ou « terminer », l'activation se clôt.
+  Annonces : `{type: "deplacement_monstre", …}`, `{type: "attaque_mvm", attaquant, cible, cible_id, touches, boucliers,
+  degats, cible_vaincue, …}`, `{type: "attente_mvm", nom}`.
+- **Fin** : un camp sans figure debout perd ; `quete.etat = 'terminee'`, le groupe revient au salon avec
+  `groupe.arene.resultat.gagnant`. Aucune statistique, aucun palmarès.
+- Les sorts de Dread d'une figure dirigée viennent au lot A9d.
 
 ### Les alliés d'arène (lot A4, 2026-11-12, F9528 p. 12, `docs/plan-mode-arene.md` §2)
 

@@ -10091,6 +10091,18 @@ final class ResolveurTour
             ];
         }
 
+        return $this->coupEntreMonstres($sbire, $cible);
+    }
+
+    /**
+     * LE COUP d'un monstre sur un autre — le sbire commandé (`frapperEntreMonstres()`) et, en Monster vs Monster
+     * (lot A9c), la figure qu'un joueur dirige (`frapperMonstreArene()`). Dés d'attaque contre dés de défense de
+     * monstre, puis la mort par son seul point de passage.
+     *
+     * @return array<string, mixed>
+     */
+    private function coupEntreMonstres(InstanceMonstre $sbire, InstanceMonstre $cible): array
+    {
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: $sbire->attaqueEffective(),
             desDefense: $cible->defenseEffective(),
@@ -12752,6 +12764,109 @@ final class ResolveurTour
         app(\App\Partie\Arene\TropheesArene::class)->ramasserMonstre($groupe, $quete, $instance->fresh()->load('monstre'));
 
         return $this->actionsEnchainees($annonce, $marche['deplacement']);
+    }
+
+    /**
+     * MONSTER VS MONSTER (lot A9c) — les cases où un joueur peut ARRÊTER cette figure : atteignables sur la grille du
+     * passage dans son déplacement du catalogue, et où toute son emprise peut s'arrêter sur la grille réelle (la même
+     * règle que la marche d'un monstre, `empriseOuSArreter()`). Clé `x,y` → chemin.
+     *
+     * @return array<string, list<array{x: int, y: int}>>
+     */
+    public function destinationsMonstreArene(Quete $quete, InstanceMonstre $instance): array
+    {
+        if ($instance->position_x === null || $instance->monstre->estImmobile()
+            || $this->sorts->monstreA($instance, MoteurSorts::MONSTRE_ENCHAINE)
+            || $this->sorts->monstreA($instance, MoteurSorts::MONSTRE_PARALYSE)) {
+            return [];
+        }
+
+        $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
+        $this->appliquerModeDeMarche($grille, $instance);
+        $reelle = $this->grille($quete, exceptInstanceId: $instance->id);
+        $e = $instance->monstre->emprise();
+        $destinations = [];
+
+        foreach ($grille->casesAtteignables((int) $instance->position_x, (int) $instance->position_y, (int) $instance->monstre->deplacement) as $cle => $chemin) {
+            [$x, $y] = array_map(intval(...), explode(',', (string) $cle));
+
+            if ($chemin !== [] && $this->empriseOuSArreter($quete, $reelle, $instance, ['x' => $x, 'y' => $y], $e)) {
+                $destinations[$cle] = $chemin;
+            }
+        }
+
+        return $destinations;
+    }
+
+    /**
+     * MONSTER VS MONSTER (lot A9c) — la figure dirigée marche jusqu'à la case choisie (liste blanche :
+     * `destinationsMonstreArene()`), par la marche ordinaire d'un monstre.
+     *
+     * @return array<string, mixed>
+     */
+    public function deplacerMonstreArene(Groupe $groupe, Quete $quete, InstanceMonstre $instance, int $x, int $y): array
+    {
+        $chemin = $this->destinationsMonstreArene($quete, $instance)["{$x},{$y}"] ?? null;
+
+        if ($chemin === null) {
+            throw ValidationException::withMessages(['parametres' => 'Cette case n\'est pas atteignable pour cette figure.']);
+        }
+
+        $nom = $instance->nomAffiche();
+        $acteur = ['type' => 'monstre', 'id' => $instance->id, 'nom' => $nom];
+        $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
+        $this->appliquerModeDeMarche($grille, $instance);
+        $marche = $this->marcheVersLaCible($groupe, $quete, $instance, $grille, $chemin, $nom, $acteur);
+        Journal::ajouter($groupe, 'action', $marche['deplacement'], $acteur);
+
+        return $marche['deplacement'];
+    }
+
+    /**
+     * MONSTER VS MONSTER (lot A9c) — les figures du camp ADVERSE que celle-ci peut frapper : au contact de son
+     * emprise, en diagonale si elle frappe ainsi d'ordinaire (`attaque_diagonale`).
+     *
+     * @return \Illuminate\Support\Collection<int, InstanceMonstre>
+     */
+    public function ciblesMonstreArene(Quete $quete, InstanceMonstre $instance): \Illuminate\Support\Collection
+    {
+        if ($instance->position_x === null
+            || $this->sorts->monstreA($instance, MoteurSorts::MONSTRE_ENCHAINE)
+            || $this->sorts->monstreA($instance, MoteurSorts::MONSTRE_PARALYSE)) {
+            return collect();
+        }
+
+        $diagonales = $this->dread->aCapacite($instance, 'attaque_diagonale');
+
+        return $quete->instancesMonstres()->where('etat', 'actif')->whereNotNull('position_x')
+            ->where('camp_arene', '!=', (string) $instance->camp_arene)->with('monstre')->orderBy('id')->get()
+            ->filter(fn (InstanceMonstre $cible) => collect($instance->cases())
+                ->contains(fn (array $c) => $cible->touche($c['x'], $c['y'], $diagonales)))
+            ->values();
+    }
+
+    /**
+     * MONSTER VS MONSTER (lot A9c) — la figure dirigée frappe une figure adverse de la liste blanche
+     * (`ciblesMonstreArene()`).
+     *
+     * @return array<string, mixed>
+     */
+    public function frapperMonstreArene(Groupe $groupe, Quete $quete, InstanceMonstre $instance, int $cibleId): array
+    {
+        $cible = $this->ciblesMonstreArene($quete, $instance)->firstWhere('id', $cibleId);
+
+        if ($cible === null) {
+            throw ValidationException::withMessages(['parametres' => 'Cette figure n\'est pas à portée de frappe.']);
+        }
+
+        $coup = $this->coupEntreMonstres($instance, $cible);
+        $payload = [
+            'type' => 'attaque_mvm', 'attaquant' => $instance->nomAffiche(), 'cible' => $cible->nomAffiche(),
+            'cible_id' => (int) $cible->id, ...$coup,
+        ];
+        Journal::ajouter($groupe, 'action', $payload, ['type' => 'monstre', 'id' => $instance->id, 'nom' => $instance->nomAffiche()]);
+
+        return $payload;
     }
 
     /** ARÈNE : figures du Defender actives, révélées, libres, qui n'ont pas encore joué ce round. */

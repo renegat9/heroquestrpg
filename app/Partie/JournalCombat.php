@@ -73,6 +73,7 @@ final class JournalCombat
         'tresor_tournoi' => true,
         'trophee_ramasse' => true, 'trophee_potion' => true, 'trophee_elan' => true, 'trophee_combat' => true,
         'manoeuvre_solo' => true,
+        'attaque_mvm' => true, 'attente_mvm' => true,
         // Tunnelier (nain·Mine, lot B) : l'effet du sort Traverser la Pierre, posé pour ce tour.
         'tunnelier' => true,
         // Mémoire parfaite (magicien, lot B) : son RÉSULTAT est un payload `concentration` (drapeau geste_libre),
@@ -1255,6 +1256,14 @@ final class JournalCombat
             'trophee_combat' => [$this->info(($a['nom'] ?? $acteurNom).' joue '.($a['tuile'] ?? 'une tuile trophée')
                 .(isset($a['effet']) ? ' — '.$a['effet'] : ''))],
             'trophee_elan' => [$this->info(($a['nom'] ?? $acteurNom).' défausse '.($a['tuile'] ?? 'une tuile').' : +'.(int) ($a['cases'] ?? 2).' cases')],
+            // MONSTER VS MONSTER (lot A9c) : une figure dirigée par un joueur frappe une figure du camp adverse.
+            'attaque_mvm' => [[
+                'texte' => ($a['attaquant'] ?? $acteurNom).' frappe '.($a['cible'] ?? 'une figure').' : '
+                    .(int) ($a['touches'] ?? 0).' touche(s), '.(int) ($a['boucliers'] ?? 0).' bouclier(s) — '
+                    .(! empty($a['cible_vaincue']) ? 'vaincue !' : '−'.(int) ($a['degats'] ?? 0).' PV'),
+                'ton' => ! empty($a['cible_vaincue']) ? 'succes' : 'info',
+            ]],
+            'attente_mvm' => [$this->info(($a['nom'] ?? $acteurNom).' termine son activation')],
             // ARÈNE, lot T5 : le combattant SEUL prend une manœuvre de base après l'activation adverse (F9528 p. 16).
             'manoeuvre_solo' => [$this->info(($a['nom'] ?? $acteurNom).', seul en lice, prend une manœuvre de base'
                 .(($a['camp'] ?? '') === 'challenger' ? ' : se déplacer ou frapper à 2 dés' : ''))],

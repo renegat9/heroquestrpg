@@ -139,6 +139,8 @@ function fixturesDesTypesAnnonces(): array
         'trophee_potion' => ['camp' => 'defender', 'nom' => 'Momie', 'soin' => 2],
         'trophee_elan' => ['nom' => 'Brakka', 'tuile' => 'Crâne blanc', 'cases' => 2],
         'manoeuvre_solo' => ['nom' => 'Brakka', 'camp' => 'challenger', 'geste' => 'ouverte'],
+        'attaque_mvm' => ['attaquant' => 'Orque', 'cible' => 'Gobelin', 'touches' => 2, 'boucliers' => 1, 'degats' => 1, 'cible_vaincue' => false],
+        'attente_mvm' => ['nom' => 'Orque'],
         'trophee_combat' => ['camp' => 'defender', 'nom' => 'Orque', 'tuile' => 'Bouclier noir', 'effet' => '+1 bouclier noir'],
         'saute_tour_monstre' => ['capacite' => 'Hurlement', 'portee' => 'contact', 'cibles' => [$monstre]],
         'tir_traversant' => ['capacite' => 'Flèche traversante', 'direction' => 'e', 'cibles' => 2],

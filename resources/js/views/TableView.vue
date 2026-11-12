@@ -1005,6 +1005,8 @@ watch(() => store.state.clotureTerminee, (t) => {
                             :erreur="erreurArene"
                             @puissance="(n) => gesteArene(() => api.puissanceMonstres(props.groupe, n))"
                             @tirage="gesteArene(() => api.tirageMonstres(props.groupe))"
+                            @lancer="lancerArene"
+                            @rejouer="rejouerArene"
                             @quitter="quitterArene"
                         />
                     </div>

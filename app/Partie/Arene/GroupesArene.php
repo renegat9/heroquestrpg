@@ -312,6 +312,10 @@ final class GroupesArene
             throw ValidationException::withMessages(['arene' => $motif]);
         }
 
+        if ($arene->estMonstresContreMonstres()) {
+            return app(DemarreurArene::class)->demarrerMonstres($arene);
+        }
+
         return app(DemarreurArene::class)->demarrer($arene, array_values($arene->arene_defender ?? []));
     }
 
@@ -348,6 +352,11 @@ final class GroupesArene
             // Les alliés du combat joué meurent avec lui ; le lancement suivant les recrée.
             \App\Models\GroupeMercenaire::where('groupe_id', $arene->id)->delete();
             $arene->update(['quete_courante_id' => null, 'phase' => 'hub']);
+
+            // Monster vs Monster : mêmes camps, même sélection, un combat neuf.
+            if ($arene->estMonstresContreMonstres()) {
+                $arene->update(['arene_mvm' => [...(array) $arene->arene_mvm, 'main' => null, 'gagnant' => null]]);
+            }
 
             foreach ($sources as [$source, $allie]) {
                 $doublure = $this->engager($arene->refresh(), $source);

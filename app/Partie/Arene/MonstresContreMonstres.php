@@ -21,7 +21,7 @@ use Illuminate\Validation\ValidationException;
  * statistique (René). Tout est décidé ici et publié (`publier()`) : la puissance restante, le tirage, le tour de
  * sélection, les monstres encore abordables. L'état vit en base (`groupes.arene_mvm`), jamais en cache.
  *
- * Le combat lui-même (monstres dirigés depuis la manette) vient avec les lots A9b-A9d : `motifLancement()` le dit.
+ * Le combat lui-même (monstres dirigés depuis la manette) est `CombatMonstres` (lot A9c).
  */
 final class MonstresContreMonstres
 {
@@ -31,8 +31,6 @@ final class MonstresContreMonstres
     public const PUISSANCE_MIN = 1;
 
     public const PUISSANCE_MAX = 60;
-
-    public const MOTIF_A_VENIR = 'Le combat Monster vs Monster arrive avec les monstres dirigés depuis la manette (lots A9b-A9d).';
 
     public function __construct(
         private readonly GroupesArene $arenes,
@@ -160,9 +158,18 @@ final class MonstresContreMonstres
         $this->ecrire($groupe, ['selection' => $selection, 'tour' => $tour]);
     }
 
-    public function motifLancement(Groupe $groupe): string
+    /** Pourquoi le combat ne peut-il pas être lancé ? `null` s'il le peut (lot A9c). */
+    public function motifLancement(Groupe $groupe): ?string
     {
         $salon = $this->salon($groupe);
+
+        if ($groupe->phase !== 'hub') {
+            return 'Le combat est déjà en cours.';
+        }
+
+        if ($groupe->quetes()->exists()) {
+            return 'Ce combat est joué : proposez une revanche pour le rejouer.';
+        }
 
         if ($salon['challenger'] === null) {
             return $this->motifTirage($groupe) ?? 'Le tirage n\'est pas fait.';
@@ -172,7 +179,11 @@ final class MonstresContreMonstres
             return 'La sélection des monstres n\'est pas terminée.';
         }
 
-        return self::MOTIF_A_VENIR;
+        if ($salon['selection']['a'] === [] || $salon['selection']['b'] === []) {
+            return 'Chaque camp doit compter au moins un monstre.';
+        }
+
+        return null;
     }
 
     /**
@@ -234,12 +245,15 @@ final class MonstresContreMonstres
                 'puissance' => $this->puissance->duMonstre($m),
                 'abordable' => $tour !== null && $this->puissance->duMonstre($m) <= $restantDuTour,
             ])->values()->all(),
-            'lancement_possible' => false,
-            'lancement_motif' => $this->motifLancement($groupe),
+            'lancement_possible' => ($motif = $this->motifLancement($groupe)) === null,
+            'lancement_motif' => $motif,
+            // Le combat (lot A9c) : le camp qui a la main et, une fois fini, le vainqueur.
+            'main' => $salon['main'],
+            'resultat' => $salon['gagnant'] === null ? null : ['gagnant' => $salon['gagnant']],
         ];
     }
 
-    /** @return array{puissance_convenue: ?int, challenger: ?string, tour: ?string, selection: array{a: list<int>, b: list<int>}} */
+    /** @return array{puissance_convenue: ?int, challenger: ?string, tour: ?string, selection: array{a: list<int>, b: list<int>}, main: ?string, gagnant: ?string} */
     public function salon(Groupe $groupe): array
     {
         $brut = (array) ($groupe->fresh()?->arene_mvm ?? []);
@@ -253,13 +267,17 @@ final class MonstresContreMonstres
                 'a' => array_map('intval', (array) ($brut['selection']['a'] ?? $vide['selection']['a'])),
                 'b' => array_map('intval', (array) ($brut['selection']['b'] ?? $vide['selection']['b'])),
             ],
+            // Pendant le combat (lot A9c) : le camp qui a la main, et le vainqueur une fois le combat fini.
+            'main' => in_array($brut['main'] ?? null, self::CAMPS, true) ? $brut['main'] : null,
+            'gagnant' => in_array($brut['gagnant'] ?? null, self::CAMPS, true) ? $brut['gagnant'] : null,
         ];
     }
 
     /** @return array<string, mixed> */
     private static function salonVide(): array
     {
-        return ['puissance_convenue' => null, 'challenger' => null, 'tour' => null, 'selection' => ['a' => [], 'b' => []]];
+        return ['puissance_convenue' => null, 'challenger' => null, 'tour' => null, 'selection' => ['a' => [], 'b' => []],
+            'main' => null, 'gagnant' => null];
     }
 
     private function depense(array $salon, string $camp): int

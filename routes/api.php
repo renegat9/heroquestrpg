@@ -141,6 +141,8 @@ Route::middleware('auth:joueur')->group(function () {
     Route::post('/arene/monstres', [AreneController::class, 'ouvrirMonstres']);
     Route::post('/arene/{identifiant}/camp', [AreneController::class, 'camp']);
     Route::post('/arene/{identifiant}/selection', [AreneController::class, 'selection']);
+    Route::get('/arene/{identifiant}/figures', [AreneController::class, 'figures']);
+    Route::post('/arene/{identifiant}/geste', [AreneController::class, 'geste']);
     Route::get('/arene/palmares', [AreneController::class, 'palmares']);
     Route::post('/arene/{identifiant}/combattants', [AreneController::class, 'rejoindre']);
     Route::post('/arene/{identifiant}/pret', [AreneController::class, 'pret']);

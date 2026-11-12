@@ -1577,6 +1577,8 @@ final class EtatGroupe
                 // n'annonce est injouable — la table doit pouvoir la distinguer
                 // d'un ennemi avant de lui taper dessus.
                 'controle_par' => $i->controle_par === null ? null : (int) $i->controle_par,
+                // MONSTER VS MONSTER (lot A9c) : le camp de la figure (`a` | `b`), `null` hors de ce mode.
+                'camp_arene' => $i->camp_arene,
                 'conditions' => $this->conditionsMonstre($i),
             ])
             ->values()

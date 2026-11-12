@@ -209,6 +209,74 @@ final class DemarreurArene
     }
 
     /**
+     * MONSTER VS MONSTER (lot A9c) — le démarrage : le hall, le camp Defender sur la tuile est, le Challenger sur la
+     * tuile ouest, chaque figure marquée de son camp. Ni héros, ni trophées, ni coffres (⚠ écart nommé : les trophées
+     * et le trésor sont ramassés par des héros ou par « le » Defender ; entre deux camps de monstres, le livret n'en dit
+     * rien). Le Defender a la main le premier (« the Defender team starts the first round »).
+     */
+    public function demarrerMonstres(Groupe $arene): Quete
+    {
+        $mvm = app(MonstresContreMonstres::class);
+        $salon = $mvm->salon($arene);
+
+        if (! $arene->estMonstresContreMonstres() || $salon['challenger'] === null || $salon['tour'] !== null
+            || $salon['selection']['a'] === [] || $salon['selection']['b'] === []) {
+            throw ValidationException::withMessages(['arene' => $mvm->motifLancement($arene)]);
+        }
+
+        if ($arene->phase !== 'hub' || $arene->quetes()->exists()) {
+            throw ValidationException::withMessages(['groupe' => 'Ce combat d\'arène a déjà commencé.']);
+        }
+
+        $challenger = $salon['challenger'];
+        $defender = $challenger === 'a' ? 'b' : 'a';
+        $carte = $this->hall->carte();
+        $camps = [
+            $defender => ['monstres' => $this->monstres($salon['selection'][$defender]), 'tuile' => 'spawn_monstres'],
+            $challenger => ['monstres' => $this->monstres($salon['selection'][$challenger]), 'tuile' => 'spawn_heros'],
+        ];
+        foreach ($camps as $camp => $c) {
+            $camps[$camp]['positions'] = $this->placerDefender($c['monstres'], $carte, $c['tuile']);
+        }
+
+        $quete = DB::transaction(function () use ($arene, $carte, $camps, $defender): Quete {
+            $quete = Quete::create([
+                'groupe_id' => $arene->id, 'gabarit_id' => null, 'titre' => 'Monster vs Monster', 'position_arc' => 1,
+                'type_jalon' => 'normale', 'objectif_majeur' => false, 'etat' => 'en_cours', 'or_initial' => 0,
+                'salles_decouvertes' => [0], 'tresors_fouilles' => [], 'deck_fouille' => [], 'salles_coffre' => [],
+                'coffres_ouverts' => [],
+            ]);
+
+            Carte::create(['quete_id' => $quete->id, 'largeur' => $carte['largeur'], 'hauteur' => $carte['hauteur'], 'grille' => $carte]);
+
+            foreach ($camps as $camp => $c) {
+                foreach ($c['monstres'] as $i => $monstre) {
+                    InstanceMonstre::create([
+                        'quete_id' => $quete->id, 'monstre_id' => $monstre->id,
+                        'pv_body' => (int) $monstre->pv_body, 'pv_body_max' => (int) $monstre->pv_body,
+                        'pv_mind' => (int) $monstre->pv_mind,
+                        'position_x' => $c['positions'][$i]['x'], 'position_y' => $c['positions'][$i]['y'],
+                        'etat' => 'actif', 'elite' => false, 'revele' => true, 'camp_arene' => (string) $camp,
+                    ]);
+                }
+            }
+
+            $arene->update(['phase' => 'quete', 'quete_courante_id' => $quete->id,
+                'arene_mvm' => [...(array) $arene->arene_mvm, 'main' => $defender, 'gagnant' => null]]);
+
+            return $quete;
+        });
+
+        $this->dread->reinitialiserUsages($quete);
+
+        Journal::ajouter($arene, 'systeme', ['action' => 'quete_demarree', 'quete_id' => $quete->id, 'titre' => $quete->titre,
+            'arene' => true, 'monster_vs_monster' => true]);
+        broadcast(new EtatGroupeDiffuse($arene, $this->etatGroupe->payload($arene->refresh())));
+
+        return $quete;
+    }
+
+    /**
      * @param  list<int>  $ids
      * @return list<Monstre>
      */
@@ -240,7 +308,7 @@ final class DemarreurArene
      * @param  array<string, mixed>  $carte
      * @return array<int, array{x: int, y: int}>
      */
-    private function placerDefender(array $monstres, array $carte): array
+    private function placerDefender(array $monstres, array $carte, string $tuile = 'spawn_monstres'): array
     {
         $ordre = array_keys($monstres);
         usort($ordre, fn (int $a, int $b) => ($monstres[$b]->emprise()['l'] * $monstres[$b]->emprise()['h'])
@@ -253,7 +321,7 @@ final class DemarreurArene
             $e = $monstres[$i]->emprise();
             $place = null;
 
-            foreach ($carte['spawn_monstres'] as $ancre) {
+            foreach ($carte[$tuile] as $ancre) {
                 $cellules = Grille::cellulesEmprise((int) $ancre['x'], (int) $ancre['y'], $e['l'], $e['h']);
                 $libre = array_reduce($cellules, fn (bool $ok, array $c) => $ok
                     && ($carte['cases'][$c['y']][$c['x']] ?? 'm') === 's'
