@@ -84,7 +84,8 @@ async function geste(fn, { quitter = false } = {}) {
                     </button>
                     <button v-for="c in f.cibles" :key="c.id" class="amv-btn amv-frappe" :disabled="enCours"
                         @click="gesteFigure(f, 'attaquer', { cible_id: c.id })">
-                        <MSym n="swords" :size="15" /> Frapper {{ c.nom }} ({{ c.pv_body }} PV)
+                        <MSym :n="c.distance ? 'my_location' : 'swords'" :size="15" />
+                        {{ c.distance ? 'Tirer sur' : 'Frapper' }} {{ c.nom }} ({{ c.pv_body }} PV · {{ c.des_attaque }} dé{{ c.des_attaque > 1 ? 's' : '' }})
                     </button>
                     <button class="amv-btn amv-fin" :disabled="enCours" @click="gesteFigure(f, 'terminer')">Terminer</button>
                 </div>

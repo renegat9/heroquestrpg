@@ -388,6 +388,10 @@ texte extrait avec `pdftotext`, pages 14-15 rendues en image et lues visuellemen
 | Ogre Champion | 6 | 1 | 4 | 6 | 5 |
 | Ogre Commander | 4 | 2 | 5 | 6 | 6 |
 
+**Porté** (2026-11-12, `GroupesArene::ROSTER_DEFENDER`) : les quatorze entrées, liste blanche du salon en Coop comme en
+Monster vs Monster. Une version à distance y vaut son attaque standard en puissance. Aucune n'a de sort de Dread : le
+tournoi n'a aucun lanceur.
+
 **Le hall du tournoi « hors des quêtes » (plan p. 15, lu sur le rendu)** — une salle centrale de **9 colonnes × 8
 rangées**, et de chaque côté une **tuile de départ de 4 × 4** (« Challenger Tile » à gauche, « Defender Tile » à droite),
 alignée sur les rangées 3 à 6 de la salle et reliée à elle par une **double porte** sur les rangées 4 et 5 (« The

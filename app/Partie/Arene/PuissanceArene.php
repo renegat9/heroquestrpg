@@ -37,9 +37,13 @@ final class PuissanceArene
         return 1 + max((int) $heros->des_attaque, $meilleurSort);
     }
 
+    /**
+     * Ses dés d'attaque : la colonne `Attack` du roster. Une version « à distance » y vaut son attaque STANDARD (le
+     * Goblin (Ranged) vaut 2 comme le Goblin) — chez nous `attaque_distance`, son `attaque` de contact étant 1.
+     */
     public function duMonstre(Monstre $monstre): int
     {
-        return (int) $monstre->attaque;
+        return max((int) $monstre->attaque, (int) ($monstre->attaque_distance ?? 0));
     }
 
     /**

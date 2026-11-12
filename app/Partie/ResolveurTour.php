@@ -10101,10 +10101,10 @@ final class ResolveurTour
      *
      * @return array<string, mixed>
      */
-    private function coupEntreMonstres(InstanceMonstre $sbire, InstanceMonstre $cible): array
+    private function coupEntreMonstres(InstanceMonstre $sbire, InstanceMonstre $cible, ?int $desAttaque = null): array
     {
         $resultat = (new Combat($this->des))->resoudreAttaque(
-            desAttaque: $sbire->attaqueEffective(),
+            desAttaque: $desAttaque ?? $sbire->attaqueEffective(),
             desDefense: $cible->defenseEffective(),
             typeDefenseur: TypeFigurine::Monstre,
             pvBodyDefenseur: (int) $cible->pv_body,
@@ -12836,13 +12836,31 @@ final class ResolveurTour
             return collect();
         }
 
-        $diagonales = $this->dread->aCapacite($instance, 'attaque_diagonale');
+        // VERSIONS À DISTANCE (Ogre Horde p. 8, roster du tournoi) : « Attack dice equal to their standard attack score
+        // against any non-adjacent target in their line of sight. If their target is adjacent, they roll 1 Attack
+        // die. » La ligne de tir est celle de l'archer du moteur (`tirerSiCibleEnVue()`) : une figure interposée la
+        // coupe ; une grande figure se vise par une de ses cases.
+        $tireur = $instance->monstre->portee === 'distance';
+        $grille = $tireur ? $this->grille($quete, exceptInstanceId: $instance->id) : null;
 
         return $quete->instancesMonstres()->where('etat', 'actif')->whereNotNull('position_x')
             ->where('camp_arene', '!=', (string) $instance->camp_arene)->with('monstre')->orderBy('id')->get()
-            ->filter(fn (InstanceMonstre $cible) => collect($instance->cases())
-                ->contains(fn (array $c) => $cible->touche($c['x'], $c['y'], $diagonales)))
+            ->filter(fn (InstanceMonstre $cible) => $this->auContactArene($instance, $cible)
+                || ($grille !== null && $grille->ligneDeVueEmprise(
+                    (int) $instance->position_x, (int) $instance->position_y,
+                    (int) $cible->position_x, (int) $cible->position_y,
+                    $cible->monstre->emprise()['l'], $cible->monstre->emprise()['h'],
+                    figuresBloquent: true,
+                )))
             ->values();
+    }
+
+    /** MONSTER VS MONSTER : les deux figures se touchent-elles (diagonale si l'attaquant frappe ainsi d'ordinaire) ? */
+    public function auContactArene(InstanceMonstre $instance, InstanceMonstre $cible): bool
+    {
+        $diagonales = $this->dread->aCapacite($instance, 'attaque_diagonale');
+
+        return collect($instance->cases())->contains(fn (array $c) => $cible->touche($c['x'], $c['y'], $diagonales));
     }
 
     /**
@@ -12859,10 +12877,14 @@ final class ResolveurTour
             throw ValidationException::withMessages(['parametres' => 'Cette figure n\'est pas à portée de frappe.']);
         }
 
-        $coup = $this->coupEntreMonstres($instance, $cible);
+        // Au contact : son attaque de mêlée (1 dé pour une version à distance) ; hors contact : un TIR, aux dés de tir.
+        $auContact = $this->auContactArene($instance, $cible);
+        $des = $auContact ? null : ($instance->attaqueDistanceEffective() ?? $instance->attaqueEffective());
+
+        $coup = $this->coupEntreMonstres($instance, $cible, $des);
         $payload = [
             'type' => 'attaque_mvm', 'attaquant' => $instance->nomAffiche(), 'cible' => $cible->nomAffiche(),
-            'cible_id' => (int) $cible->id, ...$coup,
+            'cible_id' => (int) $cible->id, 'portee' => $auContact ? 'corps_a_corps' : 'distance', ...$coup,
         ];
         Journal::ajouter($groupe, 'action', $payload, ['type' => 'monstre', 'id' => $instance->id, 'nom' => $instance->nomAffiche()]);
 

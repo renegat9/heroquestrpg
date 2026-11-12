@@ -253,3 +253,53 @@ it('COMBAT : quand tout a joué, le round se referme et le Defender rouvre le su
     expect(App\Models\InstanceMonstre::where('quete_id', $groupe->quete_courante_id)->where('active_ce_round', true)->count())->toBe(0)
         ->and($this->getJson("/api/groupes/{$code}/etat")->json('groupe.arene.main'))->toBe($defender);
 });
+
+it('ROSTER : les quatorze entrées du livret, versions à distance et ogres compris, à la puissance du roster', function () {
+    $roster = app(GroupesArene::class)->monstresDuRoster();
+    $puissance = app(App\Partie\Arene\PuissanceArene::class);
+
+    expect($roster->pluck('nom_base')->all())->toBe(GroupesArene::ROSTER_DEFENDER)
+        ->and($roster)->toHaveCount(14)
+        ->and($roster->contains(fn (Monstre $m) => $m->sorts_dread !== [] && $m->sorts_dread !== null))->toBeFalse();
+
+    // Colonne « Attack » du roster p. 16 : Goblin (Ranged) 2, Orc (Ranged) 3, Ogre Commander 6.
+    $par = $roster->keyBy('nom_base');
+    expect($puissance->duMonstre($par['Gobelin archer']))->toBe(2)
+        ->and($puissance->duMonstre($par['Orque archer']))->toBe(3)
+        ->and($puissance->duMonstre($par['Ogre commandant']))->toBe(6);
+});
+
+it('COMBAT : une version à distance tire hors contact à ses dés de tir, et frappe à 1 dé au contact', function () {
+    [$alice, $bob, $code, $defender] = combatMvmLance();
+    $challenger = $defender === 'a' ? 'b' : 'a';
+    $joueurDe = fn (string $camp) => $camp === 'a' ? $alice : $bob;
+    $groupe = Groupe::where('identifiant', $code)->firstOrFail();
+    $quete = $groupe->queteCourante;
+    $archer = Monstre::where('nom_base', 'Gobelin archer')->firstOrFail();
+
+    // Le premier gobelin du Defender devient un archer ; un adversaire à 2 cases, en ligne de vue (le gravat de la rangée est plus loin).
+    $tireur = App\Models\InstanceMonstre::where('quete_id', $quete->id)->where('camp_arene', $defender)->orderBy('id')->first();
+    $tireur->update(['monstre_id' => $archer->id]);
+    $cible = App\Models\InstanceMonstre::where('quete_id', $quete->id)->where('camp_arene', $challenger)->orderBy('id')->first();
+    $cible->update(['position_x' => $tireur->position_x - 2, 'position_y' => $tireur->position_y]);
+
+    $this->actingAs($joueurDe($defender), 'joueur');
+    $figure = collect($this->getJson("/api/arene/{$code}/figures")->json('figures'))->firstWhere('instance_id', $tireur->id);
+    $tir = collect($figure['cibles'])->firstWhere('id', $cible->id);
+    expect($tir)->not->toBeNull()
+        ->and($tir['distance'])->toBeTrue()
+        ->and($tir['des_attaque'])->toBe((int) $archer->attaque_distance);
+
+    $resultat = $this->postJson("/api/arene/{$code}/geste", ['instance_id' => $tireur->id, 'geste' => 'attaquer', 'parametres' => ['cible_id' => $cible->id]])
+        ->assertOk()->json('resultat');
+    expect($resultat['portee'])->toBe('distance');
+
+    // Au contact, la même figure ne lancerait qu'1 dé.
+    $cible->refresh();
+    if ($cible->etat === 'actif') {
+        $cible->update(['position_x' => $tireur->position_x - 1]);
+        $tireur->update(['mvm_agi' => false]);
+        $figure = collect($this->getJson("/api/arene/{$code}/figures")->json('figures'))->firstWhere('instance_id', $tireur->id);
+        expect(collect($figure['cibles'])->firstWhere('id', $cible->id)['des_attaque'] ?? null)->toBe(1);
+    }
+});

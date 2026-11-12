@@ -29,14 +29,18 @@ use Illuminate\Validation\ValidationException;
 final class GroupesArene
 {
     /**
-     * La LISTE BLANCHE du Defender (lot A5) : les huit monstres que le roster du tournoi nomme (livret F9528 p. 16, doc
-     * `reference/18_extensions.md`), par leur `nom_base`, aux stats de notre catalogue.
+     * La LISTE BLANCHE du Defender : le roster du tournoi tel que le livret l'imprime (F9528 p. 16,
+     * `reference/18_extensions.md` §Roster du tournoi), ses quatorze entrées dans son ordre, par leur `nom_base` —
+     * les trois versions « à distance » (Ogre Horde p. 8) et les trois ogres de la boîte comprises (complété le
+     * 2026-11-12 : la liste n'en gardait que les huit de la boîte de base).
      *
-     * ⚠ Retrait écrit : le **Fimir** (nom de 1989, absent du roster 2021) et les figures nommées (boss, sous-boss) n'y
-     * sont pas. Les variantes « équilibrage tournoi » du roster (Zombie à 5 cases…) ne remplacent pas notre bestiaire.
+     * ⚠ Retrait écrit : le **Fimir** (nom de 1989, absent du roster 2021) et les figures nommées (boss, sous-boss nommés)
+     * n'y sont pas. Aucune entrée ne lance de sort de Dread : le livret n'en met aucun dans le tournoi. Les stats sont
+     * celles de notre catalogue, qui recoupent le roster (Zombie excepté : 6 cases chez nous, 5 au roster).
      */
     public const ROSTER_DEFENDER = [
-        'Gobelin', 'Orque', 'Squelette', 'Zombie', 'Momie', 'Abomination', 'Guerrier du Chaos', 'Gargouille',
+        'Gobelin', 'Gobelin archer', 'Orque', 'Orque archer', 'Squelette', 'Archer squelette', 'Zombie', 'Momie',
+        'Abomination', 'Guerrier du Chaos', 'Gargouille', 'Ogre guerrier', 'Ogre champion', 'Ogre commandant',
     ];
 
     /** Taille maximale d'un Defender composé au salon : la tuile de départ du hall en tient 16. */
@@ -456,9 +460,11 @@ final class GroupesArene
     {
         $ordre = array_flip(self::ROSTER_DEFENDER);
 
+        // Une fiche par nom : celle de la boîte de base quand le nom y existe, sinon la première du catalogue.
         return Monstre::whereIn('nom_base', self::ROSTER_DEFENDER)
-            ->where('boite', 'base')
+            ->orderByRaw("CASE WHEN boite = 'base' THEN 0 ELSE 1 END")->orderBy('id')
             ->get()
+            ->unique('nom_base')
             ->sortBy(fn (Monstre $m) => $ordre[$m->nom_base] ?? 99)
             ->values();
     }

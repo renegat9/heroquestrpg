@@ -1200,6 +1200,9 @@ et les routes de lecture l'acceptent comme un membre.
 - `POST /api/arene/{identifiant}/selection {monstre_id}` (joueur du camp dont c'est le tour) : ajoute un monstre de la
   liste blanche (le roster du tournoi) à son camp. Refusé hors de son tour ou si le monstre dépasse ce qui reste de la
   puissance convenue. Après un choix, la main passe à l'autre camp s'il peut encore choisir, sinon elle reste.
+- **Le roster** (`monstres[]`, Coop et Monster vs Monster) : les quatorze entrées du livret p. 16, dans son ordre — les
+  trois versions à distance et les trois ogres compris. Une version à distance vaut son attaque STANDARD en puissance
+  (« Goblin (Ranged) » 2), comme au roster.
 - Publication `groupe.arene` (variante `monstres`) : `{variante: "monstres", bandeau, puissance_convenue,
   tirage_fait, joueurs: [{joueur_id, pseudo, camp}], camps: {a: {role: "challenger" | "defender" | null,
   monstres: [{monstre_id, nom_base}], puissance, restant}, b: {…}}, tour_selection: "a" | "b" | null,
@@ -1218,8 +1221,10 @@ et les routes de lecture l'acceptent comme un membre.
   quel joueur du camp. Une figure entamée garde la main jusqu'à « terminer ». Puis la main passe à l'autre camp ; un
   camp à court laisse l'autre enchaîner ; quand tout a joué, le round se referme et le Defender rouvre le suivant.
 - `GET /api/arene/{identifiant}/figures` (joueur) → `{main, mon_camp, figures: [{instance_id, nom, x, y, pv_body,
-  entamee, peut_deplacer, destinations: [{x, y}], peut_attaquer, cibles: [{id, nom, pv_body}]}]}` — vide hors de son
-  tour. C'est la liste blanche.
+  entamee, peut_deplacer, destinations: [{x, y}], peut_attaquer, cibles: [{id, nom, pv_body, distance, des_attaque}]}]}`
+  — vide hors de son tour. C'est la liste blanche. Une version « à distance » (Gobelin archer…) vise aussi une figure
+  hors contact en ligne de vue, à ses dés de tir ; au contact, elle frappe à 1 dé (Ogre Horde p. 8) — `distance` et
+  `des_attaque` le disent déjà, la manette n'a rien à recalculer.
 - `POST /api/arene/{identifiant}/geste {instance_id, geste: "deplacer" | "attaquer" | "terminer", parametres: {x, y} |
   {cible_id}}` → `{resultat, menu}`. Un déplacement (son déplacement du catalogue) et une frappe (au contact, en
   diagonale si la figure frappe ainsi), dans l'ordre voulu ; les deux pris, ou « terminer », l'activation se clôt.
@@ -1227,7 +1232,8 @@ et les routes de lecture l'acceptent comme un membre.
   degats, cible_vaincue, …}`, `{type: "attente_mvm", nom}`.
 - **Fin** : un camp sans figure debout perd ; `quete.etat = 'terminee'`, le groupe revient au salon avec
   `groupe.arene.resultat.gagnant`. Aucune statistique, aucun palmarès.
-- Les sorts de Dread d'une figure dirigée viennent au lot A9d.
+- **Sorts de Dread** : aucun. Le roster du tournoi (p. 16) ne compte aucun lanceur — il n'y a rien à lancer (René,
+  2026-11-12 : « restons avec les règles du livret »).
 
 ### Les alliés d'arène (lot A4, 2026-11-12, F9528 p. 12, `docs/plan-mode-arene.md` §2)
 

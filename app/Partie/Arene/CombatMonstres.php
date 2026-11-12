@@ -189,7 +189,10 @@ final class CombatMonstres
         }, array_keys($this->resolveur->destinationsMonstreArene($quete, $instance)));
 
         $cibles = $instance->mvm_agi ? [] : $this->resolveur->ciblesMonstreArene($quete, $instance)
-            ->map(fn (InstanceMonstre $c) => ['id' => (int) $c->id, 'nom' => $c->nomAffiche(), 'pv_body' => (int) $c->pv_body])
+            ->map(fn (InstanceMonstre $c) => ['id' => (int) $c->id, 'nom' => $c->nomAffiche(), 'pv_body' => (int) $c->pv_body,
+                // Décidé ici : un tir (hors contact) ou une frappe au contact, et ses dés.
+                'distance' => ! ($auContact = $this->resolveur->auContactArene($instance, $c)),
+                'des_attaque' => $auContact ? $instance->attaqueEffective() : ($instance->attaqueDistanceEffective() ?? $instance->attaqueEffective())])
             ->values()->all();
 
         return [
