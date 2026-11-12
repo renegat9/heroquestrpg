@@ -639,6 +639,33 @@ final class MoteurDegats
             ];
         }
 
+        // MODE ARÈNE (lot T4, F9528 p. 14) — la POTION D'UNE TUILE TROPHÉE, « before they die » : la figure tombée à 0
+        // boit une potion de la réserve du Defender et se relève à +2 (décision de René, 2026-11-09 : Zargon boit dès
+        // qu'une figure est blessée — à 0 PV aussi). Annoncée par `TropheesArene`.
+        $groupeArene = $instance->quete?->groupe;
+        if ($groupeArene !== null && $groupeArene->estArene() && $instance->quete !== null
+            && app(\App\Partie\Arene\TropheesArene::class)->defausser($instance->quete, \App\Partie\Arene\TropheesArene::DEFENDER, \App\Partie\Arene\TropheesArene::POTION)) {
+            $releve = min($instance->pvBodyMax(), \App\Partie\Arene\TropheesArene::SOIN_POTION);
+            $instance->update(['pv_body' => $releve, 'etat' => 'actif']);
+            app(TamponAnnonces::class)->annoncer($groupeArene, [
+                'type' => 'trophee_potion', 'camp' => \App\Partie\Arene\TropheesArene::DEFENDER,
+                'nom' => $instance->nomAffiche(), 'soin' => $releve, 'avant_de_mourir' => true,
+            ]);
+
+            return [
+                'degats' => max(0, $avant - $releve),
+                'pv_body' => $releve,
+                'pv_body_max' => $instance->pvBodyMax(),
+                'etat' => 'actif',
+                'vaincu' => false,
+                'changement_phase' => null,
+                'reaction' => null, // annoncée à part (`trophee_potion`), comme une défense de monstre journalisée
+                'survie_increvable' => false,
+                'reddition' => false,
+                'or_gagne' => 0,
+            ];
+        }
+
         // BLOOMROT SCION (Jungles of Delthrak p. 39) : « If the Bloomrot Scion would be reduced to
         // 0 body points, it may sacrifice one of its Tendrils and instead be reduced to 1 Body
         // Point. » Après Résilience et Increvable, avant les phases : la carte ne dit pas que la
@@ -838,6 +865,10 @@ final class MoteurDegats
                     $groupePourFaveur, $instance, true, $auteurHeros,
                 );
             }
+
+            // MODE ARÈNE (lot A6) : le COUP DE GRÂCE — le héros qui fait tomber le dernier PV gagne l'ennemi vaincu,
+            // crédité à son héros source. Même point de passage unique de la mort, sans effet hors de l'arène.
+            app(\App\Partie\Arene\PalmaresArene::class)->coupDeGrace($instance, $auteurHeros);
         }
 
         return [

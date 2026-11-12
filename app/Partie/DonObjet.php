@@ -45,6 +45,8 @@ final class DonObjet
      */
     public function donner(Personnage $donneur, Inventaire $ligne, Personnage $receveur, int $quantite = 1): void
     {
+        $donneur->groupeActif?->exigerCampagne(\App\Partie\Arene\EtapesCampagne::DONS);
+
         $objet = $ligne->objet;
 
         if ($objet === null || (int) $ligne->personnage_id !== (int) $donneur->id) {

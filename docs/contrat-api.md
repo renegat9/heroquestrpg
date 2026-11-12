@@ -991,6 +991,319 @@ Broadcasts canal `groupe.{identifiant}` : `.marche.ouvert` (EtatMarche),
 `.marche.maj` (EtatMarche, à chaque panier/confirmation), `.marche.finalise`
 ({applique: bool}) suivi de `.groupe.etat`.
 
+## Mode arène — doublures (lot A1, 2026-11-08, `docs/plan-mode-arene.md` §2)
+
+Le héros n'entre jamais dans l'arène : sa **doublure** y entre — une ligne `personnages` à part entière
+(`doublure_de` = id du héros source), créée et supprimée par `App\Partie\Arene\Doublures` seul. Aucune route ne
+l'expose encore (elles viennent avec le groupe d'arène, lot A2). Ce qui change dès maintenant pour les routes
+existantes :
+
+- `GET /api/moi` → `joueur.personnages[]` ne contient **jamais** une doublure (`Joueur::personnages()`).
+- `POST /api/groupes` (`personnage_id`) et `POST /api/groupes/{identifiant}/joueurs` refusent une doublure en
+  **422**, avec le message d'un héros qui n'existe pas ou n'appartient pas au joueur.
+- `DELETE /api/personnages/{id}` répond **404** pour une doublure.
+
+### Héros d'arène (lot A6b, 2026-11-09)
+
+René, 2026-11-09 : « mettons de côté l'import des personnages de heroquest rpg pour le moment, permettons seulement la
+création ou l'utilisation d'un héros déjà créé pour l'arène afin d'intégrer les règles tel que dans le livret ».
+
+- `POST /api/personnages` accepte **`mode`** ∈ `campagne` (défaut) | `arene` (vocabulaire fermé `Personnage::MODES`,
+  422 sinon). Un héros d'arène naît **exactement** comme un héros de campagne de la même classe : niveau 1, carte de
+  classe, équipement de départ, capacités de carte, aucun talent de grille. La réponse porte `personnage.mode`.
+- `GET /api/moi` → `joueur.personnages[]` porte **`mode`** et la DÉCISION **`engageable_campagne`** (bool, `false`
+  pour un héros d'arène). La manette ne propose ni « Créer un groupe » ni « Rejoindre » quand elle vaut `false`.
+- `POST /api/groupes` (`personnage_id`) et `POST /api/groupes/{identifiant}/joueurs` refusent un héros d'arène en
+  **422** : « « {nom} » est un héros d'arène : il n'entre jamais en campagne. » (clés `personnage_id` /
+  `personnage_ids`).
+- **Seul un héros d'arène se double** : `Doublures::doubler()` refuse un héros de campagne (`RefusArene`). L'import
+  d'un héros de campagne est mis de côté, pas abandonné : il reviendra quand René aura tranché ce qu'il garde de ses
+  niveaux et talents.
+- `DELETE /api/personnages/{id}` : inchangé, un héros d'arène jamais joué se supprime comme un autre.
+
+### Groupe d'arène (lot A2, 2026-11-09, `docs/plan-mode-arene.md` §3, §6)
+
+Un combat d'arène est un `groupes` comme les autres, **`mode = 'arene'`** (vocabulaire fermé `Groupe::MODES`,
+défaut `campagne`), lu par `Groupe::estArene()`. Aucune route ne l'ouvre encore (salon et écrans : lot A5) ;
+`App\Partie\Arene\GroupesArene` l'ouvre, y **engage** un héros d'arène (sa doublure entre dans le groupe ; une
+seule par héros et par combat) et le **purge**.
+
+- **Étapes de campagne fermées** : chacune appelle `Groupe::exigerCampagne(<clé>)` à son point d'entrée et lève
+  `App\Partie\Arene\RefusArene` sur un groupe d'arène — jamais un passage en silence. Le registre
+  `App\Partie\Arene\EtapesCampagne` les nomme avec ce qui les remplace : squelette et bible, adhésion par code,
+  démarrage de quête, habillage, récits, images (quête, hub), montée de niveau, marché, forge, entraînement,
+  mercenaires, dons, vote de retraite, clôture, résumé IA, purge de campagne, instantanés et reprise.
+  Côté HTTP, toute route `api/*` qui atteint une de ces étapes répond **422**
+  `{message, errors: {arene: [phrase]}}` (rendu de `RefusArene`, `bootstrap/app.php`) — par exemple un code d'arène
+  collé dans « Rejoindre » d'une campagne : « … est un combat d'arène : l'étape de campagne « rejoindre une campagne
+  par son code » lui est fermée. »
+- **Purge à double verrou** (`GroupesArene::purger()`) : refuse un groupe dont le mode relu en base n'est pas `arene`,
+  et un groupe qui compte une seule ligne `personnages` non doublure (par le pivot ou `groupe_actif_id`) — avant de
+  supprimer quoi que ce soit. `ClotureCampagne::purger()` refuse un groupe d'arène ; `partie:purger` route chaque
+  groupe vers le bon service.
+- **Ménage de secours** : `php artisan arene:nettoyer [--heures=6] [--supprimer]` — inventaire par défaut ; supprime
+  les combats d'arène sans activité depuis N heures et les doublures jamais engagées, par les mêmes verrous.
+
+### Le hall et le démarrage d'un combat (lot T1, 2026-11-09, `docs/plan-tournoi-worlds-end.md` §4)
+
+- **Le hall** (`App\Partie\Arene\HallArene`) : la carte FIXE du livret (plan F9528 p. 15), de même forme qu'une carte
+  assemblée — une salle centrale de **9 × 8** (René, 2026-11-09), deux **tuiles de départ de 4 × 4** de part et
+  d'autre, alignées sur ses rangées 3 à 6 (`spawn_heros` = Challenger à l'ouest, `spawn_monstres` = Defender à l'est,
+  16 cases chacune, le front d'abord), deux cases de gravats en roche. Une seule `salle` (toujours découverte, pas de
+  brouillard), ni porte ni escalier. ⚠ Écart nommé : au plateau, une tuile ne touche la salle que par sa double porte
+  (rangées 4-5) ; notre grille n'ayant de murs qu'en cases, la jonction est ouverte sur les quatre rangées de la tuile.
+- **Démarrage** (`App\Partie\Arene\DemarreurArene::demarrer($arene, $defender)`, aucune route avant le lot A5) :
+  une `quete` **sans gabarit** (`gabarit_id` devient nullable), le hall en `cartes`, les doublures sur la tuile du
+  Challenger, le Defender (ids du catalogue, donnés par l'appelant jusqu'au lot T3) sur la sienne, aux stats du
+  catalogue, sans adaptation ni élite, nom d'origine (aucun habillage). Ni instantané, ni narration, ni job d'IA.
+  Diffuse `.groupe.etat` et un menu par doublure, comme une quête.
+- **Le menu d'un héros en arène** n'offre jamais `fouiller` (la seule fouille du tournoi est celle d'un coffre, lot
+  T5), `quitter_donjon` ni `battre_en_retraite` (on gagne ou on tombe ; l'abandon viendra du salon). Le vote de sortie
+  rejoint les étapes de campagne fermées (`EtapesCampagne::VOTE_SORTIE`).
+
+### Le salon et les routes d'arène (lot A5, 2026-11-09, `docs/plan-mode-arene.md` §7, §7 bis)
+
+Un combat d'arène se joue sur les écrans existants : la **table** l'ouvre par son code (`POST /api/table`, inchangé)
+et la **manette** pilote la doublure (`/manette/{identifiant}?perso={doublure}`). Entre l'ouverture et le premier
+round, et après la fin du combat, le groupe est en phase `hub` : les deux écrans y affichent le **salon** au lieu du
+hub de campagne.
+
+`EtatGroupe.groupe` porte **`mode`** (`campagne` | `arene`). En arène, le bloc de hub de campagne (prêts, marché,
+recrutement, compagnon, faveurs, prologue, départ) **n'est pas publié** ; à sa place, **`groupe.arene`**
+(`App\Partie\Arene\GroupesArene::publier()`), toujours présent pour un groupe d'arène :
+
+```json
+{
+  "combattants": [{"personnage_id": 12, "heros_id": 4, "nom": "Brakka", "classe": "barbare", "joueur_id": 1, "joueur": "rene", "pret": false, "puissance": 4}],
+  "defender": [{"monstre_id": 7, "nom_base": "Orque"}],
+  "monstres": [{"id": 7, "nom_base": "Orque", "deplacement": 8, "attaque": 3, "defense": 2, "pv_body": 1, "puissance": 3, "abordable": true}],
+  "puissance_challenger": 4,
+  "puissance_defender": 3,
+  "lancement_possible": false,
+  "lancement_motif": "Tous les combattants ne sont pas prêts.",
+  "resultat": null,
+  "bandeau": "Arène — rien ne compte pour la campagne."
+}
+```
+
+- `monstres` est la **liste blanche** que `PUT …/defender` revalide : les huit monstres que le roster du tournoi
+  nomme (F9528 p. 16 — Gobelin, Orque, Squelette, Zombie, Momie, Abomination, Guerrier du Chaos, Gargouille), aux stats
+  de notre catalogue — fiches de CATALOGUE, d'où la clé `nom_base` (une figure sur la carte, elle, est nommée par
+  `InstanceMonstre::nomAffiche()`). ⚠ Le Fimir, nom de 1989 absent du roster 2021, n'y est pas : retrait écrit
+  (`GroupesArene::ROSTER_DEFENDER`).
+- **Puissance d'équipe (lot T3, F9528 p. 15-16)**, décidée par `App\Partie\Arene\PuissanceArene`, seul point de passage :
+  un héros vaut **1 + les dés de sa meilleure attaque** (arme `des_attaque`, ou sort `des_degats` — le Génie vaut 6),
+  un monstre vaut **ses dés d'attaque**. `puissance_challenger` / `puissance_defender` sont les sommes ;
+  `monstres[].abordable` dit si l'ajouter garderait le Defender **≤** le Challenger. Le front n'additionne rien.
+- `lancement_possible` / `lancement_motif` : la DÉCISION de `GroupesArene::motifLancement()`, le même prédicat que
+  `POST …/lancer` — au moins un combattant, un Defender qui ne dépasse pas le Challenger (revalidé : un combattant a
+  pu partir), tous prêts, aucun combat déjà joué à rejouer d'abord.
+- `resultat` : `null` avant le combat ; après, `{issue: "victoire" | "defaite", quete_id}`.
+- `bandeau` : la phrase d'étanchéité, permanente sur les deux écrans (plan §4, T7), décidée ici.
+
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| POST | /api/arene | {personnage_id} | joueur : ouvre un combat et y engage SON héros d'arène → 201 `{groupe: {identifiant}, doublure_id}` |
+| POST | /api/arene/{identifiant}/combattants | {personnage_id} | joueur : engage son héros d'arène (sa doublure) → 201 `{doublure_id}` ; refusé hors salon, ou si ce héros y est déjà |
+| PUT | /api/arene/{identifiant}/defender | {monstre_ids: [int]} | membre OU table : compose le Defender d'un coup (1 à 12 figures de la liste blanche, puissance ≤ Challenger, sinon 422) |
+| POST | /api/arene/{identifiant}/defender | {monstre_id} | membre OU table : ajoute UNE figure (422 si elle n'est pas `abordable`) → EtatGroupe |
+| DELETE | /api/arene/{identifiant}/defender/{index} | — | membre OU table : retire la figure de ce rang → EtatGroupe |
+| POST | /api/arene/{identifiant}/pret | {pret: bool} | joueur : marque prête la doublure de ce joueur |
+| POST | /api/arene/{identifiant}/lancer | — | membre OU table : démarre le combat (`DemarreurArene`) si `lancement_possible`, sinon 422 avec le motif |
+| POST | /api/arene/{identifiant}/rejouer | — | membre OU table : après la fin, des doublures FRAÎCHES remplacent les anciennes, le Defender est gardé, les prêts sont remis à faux |
+| DELETE | /api/arene/{identifiant} | — | membre OU table : quitte et purge le combat (`GroupesArene::purger()`) → 204 |
+
+### Palmarès et statistiques (lot A6, 2026-11-09, `docs/plan-mode-arene.md` §5)
+
+- `GET /api/arene/palmares` (joueur) → `{combats: [{id, date, issue, rounds, combattants: [{heros_id, nom, classe}], defender: [nom_base]}]}`, les 20 derniers, du plus récent au plus ancien.
+- `GET /api/moi` → `joueur.personnages[].arene` : `{combats, victoires, ennemis_vaincus: [{nom_base, nombre}]}` pour un héros d'arène,
+  `null` pour un héros de campagne. Un ennemi vaincu est crédité au **coup de grâce** (le héros dont la doublure fait
+  tomber le dernier PV), compté par **nom de catalogue**, au héros SOURCE. Point de passage unique :
+  `App\Partie\Arene\PalmaresArene` (appelé par `MoteurDegats` à la mort, et par `ResolveurTour` à la fin du combat).
+- Sauvegarde et page Système (lot A7) ne comptent que les **campagnes** (`groupes.mode = 'campagne'`) et les **vrais
+  héros** (`doublure_de IS NULL`) : un combat d'arène ouvert ou purgé ne fait varier aucun compte, ni ne déclenche le
+  garde-fou « 0 groupe ».
+
+`GET /api/moi` porte **`joueur.doublures[]`** : les doublures que ce joueur pilote dans un combat d'arène en cours,
+même forme que `joueur.personnages[]`. La manette y lit la fiche (sorts, sac) de la doublure qu'elle pilote. Le roster
+(`joueur.personnages`) ne contient toujours **jamais** une doublure.
+
+Toutes les écritures diffusent `.groupe.etat`. Sur un groupe de campagne, elles répondent 422 (`RefusArene`). L'état du
+salon vit en base : `groupes.arene_defender` (ids du Defender), `groupe_personnages.pret_arene`.
+
+### Les tuiles trophées, première étape (lot T4, 2026-11-09, F9528 p. 13-15)
+
+`App\Partie\Arene\TropheesArene`, seul point de passage ; état durable `quetes.trophees_arene`.
+
+- **Pose** au démarrage : le lot de la p. 14 (crâne blanc, bouclier blanc, bouclier noir, les mêmes « ×2 », deux
+  potions +2, une riposte), mélangé, **face cachée** sur les six cases du plan p. 15 ; les trois de trop restent de
+  côté.
+- **Publication** : `carte.trophees` = `[{x, y}]`, les cases encore couvertes — jamais la tuile (dessinées par la grille,
+  table et manette) ; `quete.trophees` = `{cases, challenger: [{tuile, libelle, effet}], defender: [...], elan}`.
+- **Ramassage** : en FINISSANT son activation sur la case (héros), ou sous toute son emprise (monstre) — la tuile est
+  révélée et rejoint la réserve de l'équipe. Annonce `{type: "trophee_ramasse", camp, nom, tuiles: [libellé]}` par
+  `TamponAnnonces` (`resultat.annonces_automatiques`).
+- **Usage du Challenger** — deux options de menu, gratuites (créneau `interaction`), publiées seulement quand le
+  résolveur les acceptera :
+  - `trophee_potion` (`type: trophee_potion`) : +2 PV jusqu'au maximum, si une potion est en réserve et le héros blessé ;
+  - `trophee_elan` (`type: trophee_elan`, `parametres.tuiles: [{cle, nom}]`, liste blanche) : `POST choix
+    {option_id: "trophee_elan", parametres: {cle}}` défausse cette tuile, et la réserve de cases du tour gagne 2.
+- **Usage du Defender** (décision de René, 2026-11-09) : une figure blessée qui s'active boit une potion de sa
+  réserve (annonce `trophee_potion`, `camp: defender`) ; il ne prend jamais l'élan.
+- **Seconde étape (2026-11-09)** — les tuiles de combat, la riposte et la potion « avant de mourir » :
+  - **Crâne (Challenger)** : l'attaque du héros est SUSPENDUE après le jet (`resultat.type = "jet_en_attente"`), l'offre
+    `reaction_en_attente.action = "trophee_crane"` montre le jet (`des`, `des_adverses`, `touchante`, `defensive`,
+    `resume`, comme la Vision du futur) ; `POST /reaction {accepte, personnage_id}` : accepter défausse la tuile et
+    ajoute ses crânes au jet RETENU, refuser ou laisser passer la fenêtre reprend le jet tel quel. ⚠ Arbitrage :
+    l'offre n'est faite que si la tuile CHANGE l'issue (elle ajoute des dégâts et la cible ne tombe pas déjà) —
+    sinon on ne suspend pas l'attaque pour rien. La plus petite tuile utile est proposée (« ×2 » si la simple manque).
+  - **Bouclier blanc (Challenger)** : sur un coup de monstre qui blesse, offre `trophee_bouclier` — accepter rend autant
+    de points du coup que la tuile a de boucliers, et relève le héros tombé s'il lui en reste.
+  - **Riposte (Challenger)** : sur un coup de monstre au contact OU EN DIAGONALE, offre `riposte` portant
+    `trophee: "riposte"` — accepter défausse la tuile et frappe l'assaillant (`frapper()`), même à 0 PV.
+  - **Potion (Challenger) à 0 PV** : `soins[]` du soin d'urgence porte `{cle: "trophee:potion", type: "potion",
+    nom: "Potion de trophée", soin: "2"}`.
+  - ⚠ Une seule offre par coup reçu (la règle de toutes nos réactions) : bouclier, sinon riposte, sinon soin d'urgence.
+  - **Defender** (René) : bouclier noir dès qu'un coup de héros blesse sa figure ; crâne quand son coup n'est pas déjà
+    gagné ; riposte dès qu'une figure blessée est au contact ou en diagonale de son assaillant
+    (`resultat.riposte_defender`, l'attaque journalisée et poussée au fil) ; potion avant de mourir (la figure se
+    relève à 2 PV au plus). Chaque tuile jouée s'annonce : `{type: "trophee_combat", camp, nom, tuile, effet}`.
+
+### Les coffres du tournoi (lot T5, 2026-11-09, F9528 p. 13, plan p. 15)
+
+Deux meubles « Coffre » du catalogue posés aux cases du plan (`carte.mobilier[]`, entrée `tresor_tournoi: true`,
+`diagonale: true` — fouillables au contact ou EN DIAGONALE, « adjacent or diagonal »). L'option habituelle
+`fouille_mobilier` (créneau action) tire la table 2d6 du livret au lieu du butin de campagne, puis le coffre quitte le
+plateau : `{type: "tresor_tournoi", nom, des: [d6, d6], total, issue: "piege" | "objet" | "or", piege?, degats?,
+nom_objet?, or?}`. Pièges (2 : −3, 3-4 : −2, 5-6 : −1) au fouilleur ; 7 : une **Hache de bataille en os** dans le sac
+de la doublure (elle disparaît avec elle) ; 8-9 / 10-11 / 12 : 100 / 200 / 300 po à la bourse du COMBAT
+(`groupe.or` du groupe d'arène), jamais à un héros.
+
+### Monster vs Monster — le salon (lot A9a, 2026-11-12, F9528 p. 16, `docs/plan-mode-arene.md` §4, §7 bis)
+
+« Both sides agree on an equal team power for both sides. Randomly determine which team will be the Challenger team,
+and which team the Defender team. The Defender team selects a monster from those available first, and the two teams
+proceed to alternate selecting monsters until each team meets the agreed-upon team power. »
+
+Un combat d'arène de **variante** `monstres` (`groupes.arene_variante`, `coop` par défaut). Aucun héros, aucune doublure,
+aucune statistique. Un joueur en est membre par `arene_joueurs` (joueur, camp `a` | `b`), sans personnage : `GET /etat`
+et les routes de lecture l'acceptent comme un membre.
+
+- `POST /api/arene/monstres` (joueur) → `201 {groupe: {identifiant, …}}` : ouvre le combat, son auteur dans le camp `a`.
+- `POST /api/arene/{identifiant}/camp {camp: "a" | "b"}` (joueur) : rejoint le combat dans ce camp, ou en change. Avant
+  le tirage seulement.
+- `PUT /api/arene/{identifiant}/puissance {puissance: int 1..60}` (membre OU table) : la **puissance convenue**. Avant le
+  tirage seulement.
+- `POST /api/arene/{identifiant}/tirage` (membre OU table) : le serveur tire au sort quel camp est Challenger, quel camp
+  est Defender. Exige la puissance convenue et au moins un joueur dans chaque camp. La sélection s'ouvre, le Defender
+  choisit le premier.
+- `POST /api/arene/{identifiant}/selection {monstre_id}` (joueur du camp dont c'est le tour) : ajoute un monstre de la
+  liste blanche (le roster du tournoi) à son camp. Refusé hors de son tour ou si le monstre dépasse ce qui reste de la
+  puissance convenue. Après un choix, la main passe à l'autre camp s'il peut encore choisir, sinon elle reste.
+- **Le roster** (`monstres[]`, Coop et Monster vs Monster) : les quatorze entrées du livret p. 16, dans son ordre — les
+  trois versions à distance et les trois ogres compris. Une version à distance vaut son attaque STANDARD en puissance
+  (« Goblin (Ranged) » 2), comme au roster.
+- Publication `groupe.arene` (variante `monstres`) : `{variante: "monstres", bandeau, puissance_convenue,
+  tirage_fait, joueurs: [{joueur_id, pseudo, camp}], camps: {a: {role: "challenger" | "defender" | null,
+  monstres: [{monstre_id, nom_base}], puissance, restant}, b: {…}}, tour_selection: "a" | "b" | null,
+  selection_terminee, monstres: [{id, nom_base, deplacement, attaque, defense, pv_body, puissance, abordable}],
+  lancement_possible: false, lancement_motif}` — `abordable` vaut pour le camp dont c'est le tour.
+- `lancement_possible` / `lancement_motif` : la sélection close et chaque camp pourvu, `POST …/lancer` (membre OU
+  table) démarre le combat. `main` : le camp qui a la main en combat ; `resultat: {gagnant: "a" | "b"} | null`.
+  `POST …/rejouer` garde camps et sélection, et rouvre un combat neuf.
+
+### Monster vs Monster — le combat (lot A9c, 2026-11-12, F9528 p. 12-16)
+
+- Le Defender sur la tuile est, le Challenger sur la tuile ouest ; chaque figure porte son camp
+  (`entites[].camp_arene` : `a` | `b`). Ni héros, ni trophées, ni coffres (écart nommé : le livret ne dit pas qui les
+  ramasse entre deux camps de monstres).
+- **Activation alternée** : le camp `main` active UNE figure qui n'a pas joué ce round (`active_ce_round`) — n'importe
+  quel joueur du camp. Une figure entamée garde la main jusqu'à « terminer ». Puis la main passe à l'autre camp ; un
+  camp à court laisse l'autre enchaîner ; quand tout a joué, le round se referme et le Defender rouvre le suivant.
+- `GET /api/arene/{identifiant}/figures` (joueur) → `{main, mon_camp, figures: [{instance_id, nom, x, y, pv_body,
+  entamee, peut_deplacer, destinations: [{x, y}], peut_attaquer, cibles: [{id, nom, pv_body, distance, des_attaque}]}]}`
+  — vide hors de son tour. C'est la liste blanche. Une version « à distance » (Gobelin archer…) vise aussi une figure
+  hors contact en ligne de vue, à ses dés de tir ; au contact, elle frappe à 1 dé (Ogre Horde p. 8) — `distance` et
+  `des_attaque` le disent déjà, la manette n'a rien à recalculer.
+- `POST /api/arene/{identifiant}/geste {instance_id, geste: "deplacer" | "attaquer" | "terminer", parametres: {x, y} |
+  {cible_id}}` → `{resultat, menu}`. Un déplacement (son déplacement du catalogue) et une frappe (au contact, en
+  diagonale si la figure frappe ainsi), dans l'ordre voulu ; les deux pris, ou « terminer », l'activation se clôt.
+  Annonces : `{type: "deplacement_monstre", …}`, `{type: "attaque_mvm", attaquant, cible, cible_id, touches, boucliers,
+  degats, cible_vaincue, …}`, `{type: "attente_mvm", nom}`.
+- **Fin** : un camp sans figure debout perd ; `quete.etat = 'terminee'`, le groupe revient au salon avec
+  `groupe.arene.resultat.gagnant`. Aucune statistique, aucun palmarès.
+- **Sorts de Dread** : aucun. Le roster du tournoi (p. 16) ne compte aucun lanceur — il n'y a rien à lancer (René,
+  2026-11-12 : « restons avec les règles du livret »).
+
+### Les alliés d'arène (lot A4, 2026-11-12, F9528 p. 12, `docs/plan-mode-arene.md` §2)
+
+« Heroes and allies make up the Challenger team. » Chaque joueur peut engager **un** allié du catalogue, sans coût.
+
+- `PUT /api/arene/{identifiant}/allie {mercenaire_id: int | null}` (joueur authentifié, membre) : choisit (ou retire,
+  `null`) l'allié de SON combattant. Seulement au salon ; liste blanche = `groupe.arene.allies` (les alliés recrutables
+  du catalogue, `octroi_seul` exclu). Le « prêt » de ce combattant retombe. Réponse : l'état du groupe, comme les autres
+  routes du salon.
+- Publication : `groupe.arene.combattants[].allie = {mercenaire_id, nom, puissance} | null` et
+  `groupe.arene.allies = [{id, nom, deplacement, attaque, attaque_distance, defense, pv_body, animal, puissance}]`.
+  La puissance d'un allié vaut **1 + sa meilleure attaque** (contact ou distance), comme un héros ; elle entre dans
+  `puissance_challenger` et donc dans `monstres[].abordable` et `lancement_possible`.
+- Au lancement, chaque allié choisi naît sur la tuile du Challenger, après les héros (`groupe_mercenaires`, contrôlé
+  par le combattant de son joueur). Il disparaît avec le groupe d'arène ; une revanche le recrée.
+- **Activation alternée** : un allié est une figure du Challenger, il s'active à SON tour — le Defender répond après
+  lui comme après un héros. Le joueur le joue sur sa manette, après son héros (le menu d'allié habituel,
+  `GET /menu` → `allie_id`). Un allié dont le héros est tombé ne joue plus (même règle qu'en campagne). Les monstres le
+  visent ; il se défend aux boucliers blancs. Ses victimes ne sont créditées à personne (palmarès).
+- Un héros qui a encore un allié debout n'est pas un combattant seul.
+
+### Le combattant seul (lot T5, 2026-11-09, F9528 p. 16)
+
+Le dernier combattant debout d'une équipe prend une **manœuvre de base** après chaque activation adverse : se déplacer
+jusqu'à son mouvement OU lancer **2 dés d'attaque** contre une créature au contact (en diagonale si son arme le permet).
+`ManoeuvreSolo` est le point de passage.
+
+- **Challenger** : son activation du round jouée, il reprend la main après chaque activation du Defender
+  (`etat_personnage_quete.manoeuvre_arene = true`, colonne ; `a_joue` levé, action marquée prise). `GET /menu` rend un
+  menu **forcé** : `situation` dit la manœuvre, les options sont restreintes à `deplacement`, `attente` (« Passer la
+  manœuvre » / « Terminer la manœuvre »), `trophee_elan`, et `{id: "manoeuvre_attaquer", type: "manoeuvre_attaque",
+  creneau: "tour", parametres: {arme, cibles: [{id, type, nom, nom_base, distance: false, des_attaque: 2}]}}` — offerte
+  tant qu'aucun pas n'est fait (`POST choix` avec `parametres.cible_id`, liste blanche revalidée). Toute autre option est
+  refusée (422). Le résultat de la frappe porte `manoeuvre: true` et une volée de 2 dés.
+- **Defender** : sa dernière figure, son activation jouée, manœuvre après chaque activation de héros — la frappe à 2 dés
+  si un héros est au contact, sinon la marche vers le plus proche. Elle se lit dans `tour_monstres.actions`, avant les
+  activations éventuelles.
+- Annonce : `{type: "manoeuvre_solo", camp: "challenger" | "defender", nom, geste: "ouverte" | "defender"}`.
+- ⚠ Lecture nommée : tant que le combattant seul n'a pas joué son activation du round, c'est elle qui répond à
+  l'adversaire — pas de manœuvre en plus. Une manœuvre n'appelle pas de réponse (« after each opponent's TURN »). Pas de
+  manœuvre pour un héros dont le tour a été perdu ce round (Étourdi, gel), ni pour une figure endormie, paralysée,
+  enchaînée ou privée de son tour.
+
+### La mort dans l'arène (lot T5, René 2026-11-10, F9528 p. 12)
+
+Aucune option `relever` n'est publiée dans un groupe d'arène, et `POST choix` d'un `relever` y est refusé (422) : un
+combattant tombé est hors jeu jusqu'à la fin du combat. Les soins (sorts, potions, réactions) le préviennent et le
+relèvent comme en campagne. Ses objets restent dans le sac de sa doublure (pas de ramassage au sol).
+
+### L'activation alternée (lot T2, 2026-11-09, livret F9528 p. 12-16)
+
+- **Le Defender ouvre chaque round** : une figure s'active (au démarrage, `ResolveurTour::ouvrirCombatArene()`, puis
+  à chaque ouverture de round). Une figure qui a joué porte son jeton, `instances_monstres.active_ce_round`
+  (colonne : état durable du round), remis à `false` à la fermeture du round.
+- **Le Challenger active n'importe quel héros** : tout héros debout qui n'a pas joué a la main — `GET /menu` rend un
+  menu à **chacun** — jusqu'à ce que l'un d'eux **entame** son activation (premier pas, ou un créneau dépensé). Il la
+  garde alors seul : les autres reçoivent `{menu: null}` et leurs `POST choix` sont refusés (422). Une seule
+  question pour le menu, le résolveur et la manette : `OrdreDuTour::acteurPour()`.
+- **`initiative[].a_la_main`** (bool, héros et alliés ; `false` pour un monstre) : la DÉCISION du serveur
+  (`OrdreDuTour::acteurPour()` / `estSonTourAllie()`) — en arène, tous les héros libres l'ont à la fois ; en campagne,
+  seul l'acteur courant. La manette (son menu) et la table (le liseré de la figurine) le lisent, sans re-dériver l'acteur
+  de l'ordre de la barre.
+- **Chaque activation de héros reçoit sa réponse** : une figure du Defender. Quand le Challenger est à court, le
+  Defender enchaîne toutes les siennes et le round se referme ; quand c'est le Defender, les héros enchaînent.
+- **Aucun instantané** à la fermeture d'un round d'arène.
+- **Fin du combat** : le Defender éteint → `quete.etat = 'terminee'`, journal `arene_victoire`, résultat portant
+  `arene_victoire: true` ; tous les héros à terre → `quete.etat = 'echouee'` (le verdict de chute de la campagne).
+  Dans les deux cas le groupe repasse en phase `hub`, `quete_courante_id` à `null` — l'écran de résultat et la purge
+  viennent avec le salon (lot A5).
+
 ## Entraînement — +1 à un attribut contre de l'or (au hub uniquement, 2026-11-07)
 
 René : les attributs Body et Mind (les dés des jets de test) ne montaient jamais ; il retient l'entraînement payant,

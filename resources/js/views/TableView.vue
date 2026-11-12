@@ -6,6 +6,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import AnnonceHub from '../components/ui/AnnonceHub.vue';
+import SalonArene from '../components/ui/SalonArene.vue';
+import SalonMonstres from '../components/ui/SalonMonstres.vue';
 import TalentPopup from '../components/ui/TalentPopup.vue';
 import InitiativeBar from '../components/table/InitiativeBar.vue';
 import DungeonMap from '../components/table/DungeonMap.vue';
@@ -622,6 +624,31 @@ watch(sceneAmbiance, (s) => { if (s) ambiance.definirScene(s); }, { immediate: t
 const lancementEnCours = ref(false);
 const erreurLancement = ref('');
 const phaseHub = computed(() => !!etat.value && etat.value.groupe?.phase === 'hub');
+
+/* ---- MODE ARÈNE (lot A5) : au salon, la table compose le Defender, lance, propose la revanche ou ferme le combat.
+   Tout est publié par le serveur (`groupe.arene`) ; la table n'a pas de combattant (`mon-personnage-id` nul). ---- */
+const salonArene = computed(() => etat.value?.groupe?.arene ?? null);
+const areneEnCours = ref(false);
+const erreurArene = ref('');
+async function gesteArene(fn, { quitter = false } = {}) {
+    if (areneEnCours.value) return;
+    areneEnCours.value = true;
+    erreurArene.value = '';
+    try {
+        const r = await fn();
+        if (quitter) { router.push({ name: 'narrateur' }); return; }
+        if (r?.groupe) store.appliquerEtat(r);
+    } catch (e) {
+        erreurArene.value = e.message;
+    } finally {
+        areneEnCours.value = false;
+    }
+}
+const ajouterAuDefender = (id) => gesteArene(() => api.ajouterAuDefender(props.groupe, id));
+const retirerDuDefender = (index) => gesteArene(() => api.retirerDuDefender(props.groupe, index));
+const lancerArene = () => gesteArene(() => api.lancerArene(props.groupe));
+const rejouerArene = () => gesteArene(() => api.rejouerArene(props.groupe));
+const quitterArene = () => gesteArene(() => api.quitterArene(props.groupe), { quitter: true });
 // Alliés recrutés (3.5) exposés au hub : la table les affiche pour que le
 // narrateur voie les renforts avant de lancer la quête (le recrutement lui-même
 // se fait sur la manette d'un joueur, bourse commune).
@@ -968,6 +995,34 @@ watch(() => store.state.clotureTerminee, (t) => {
                     <!-- phase marché (mode connecté) : vue partagée des paniers -->
                     <MarketPanel v-if="marche" :marche="marche" @annuler="annulerMarche" />
                     <!-- phase hub (mode connecté) : pas encore de carte, on lance la quête -->
+                    <!-- MODE ARÈNE (lot A5) : le salon remplace le hub de campagne. -->
+                    <div v-else-if="phaseHub && salonArene && salonArene.variante === 'monstres'" class="hub-panel arene-salon-table">
+                        <!-- A9a : la table fixe la puissance convenue et lance le tirage ; la sélection se fait aux manettes. -->
+                        <SalonMonstres
+                            :salon="salonArene"
+                            :code="props.groupe"
+                            :en-cours="areneEnCours"
+                            :erreur="erreurArene"
+                            @puissance="(n) => gesteArene(() => api.puissanceMonstres(props.groupe, n))"
+                            @tirage="gesteArene(() => api.tirageMonstres(props.groupe))"
+                            @lancer="lancerArene"
+                            @rejouer="rejouerArene"
+                            @quitter="quitterArene"
+                        />
+                    </div>
+                    <div v-else-if="phaseHub && salonArene" class="hub-panel arene-salon-table">
+                        <SalonArene
+                            :salon="salonArene"
+                            :code="props.groupe"
+                            :en-cours="areneEnCours"
+                            :erreur="erreurArene"
+                            @ajouter="ajouterAuDefender"
+                            @retirer="retirerDuDefender"
+                            @lancer="lancerArene"
+                            @rejouer="rejouerArene"
+                            @quitter="quitterArene"
+                        />
+                    </div>
                     <div v-else-if="phaseHub" class="hub-panel">
                         <img v-if="hubImage" :src="hubImage" alt="Lieu de repos" class="hub-illus" />
                         <MSym v-else n="map" :size="40" fill />
@@ -1112,7 +1167,17 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <span v-if="erreurReprise || erreurCloture" class="cerr">{{ erreurReprise || erreurCloture }}</span>
                     </div>
                 </div>
-                <GroupPanel v-if="!phaseHub" :party="party" />
+                <!-- Colonne de droite : le groupe et, en arène, les réserves de trophées sous lui (lot T4) — une seule
+                     cellule de la grille `.main`, sinon le panneau des trophées passe à la ligne sous la carte. -->
+                <div v-if="!phaseHub" class="table-col-droite">
+                    <GroupPanel :party="party" />
+                    <div v-if="etat?.quete?.trophees" class="arene-trophees">
+                        <div class="arene-trophees-titre"><MSym n="emoji_events" fill :size="15" /> Trophées</div>
+                        <p><strong>Challenger :</strong> {{ etat.quete.trophees.challenger.map((t) => t.libelle).join(', ') || '—' }}</p>
+                        <p><strong>Defender :</strong> {{ etat.quete.trophees.defender.map((t) => t.libelle).join(', ') || '—' }}</p>
+                        <p class="arene-trophees-elan">{{ etat.quete.trophees.elan }}</p>
+                    </div>
+                </div>
                 <div v-else class="hub-roster">
                     <h2><MSym n="groups" fill /> Le groupe</h2>
                     <p v-if="presenceHub.length > 1" class="hub-roster-hint">
@@ -1530,6 +1595,17 @@ watch(() => store.state.clotureTerminee, (t) => {
   padding: 10px 12px; border: 1px solid var(--torch, #c9a25a); border-radius: 10px; background: rgba(201, 162, 90, 0.08);
   font-family: var(--font-ui); font-style: normal; font-size: 13.5px; line-height: 1.45; text-align: left; }
 .table-screen .hub-panel .hub-depart-motif > .msym { flex: none; margin-top: 1px; color: var(--torch, #c9a25a); }
+.table-screen .table-col-droite { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.table-screen .table-col-droite > :first-child { flex: 1; min-height: 0; }
+.table-screen .arene-trophees { flex: none; padding: 12px; border-radius: var(--r-lg); border: var(--line);
+  background: var(--stone-850); color: var(--ink-300); font-size: 13px; }
+.table-screen .arene-trophees p { margin: 4px 0 0; }
+.table-screen .arene-trophees-titre { display: flex; align-items: center; gap: 6px; font-weight: 800; color: var(--gold, #c9a24a);
+  text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; }
+.table-screen .arene-trophees-elan { font-size: 11.5px; color: var(--ink-500); font-style: italic; }
+.table-screen .hub-panel.arene-salon-table { display: block; text-align: left; padding: 16px; width: min(560px, 100%);
+  max-width: 560px; max-height: 100%; overflow: auto; }
+.table-screen .hub-panel.arene-salon-table p { font-family: var(--font-ui); font-style: normal; font-size: 12.5px; }
 .table-screen .hub-panel .hub-err { font-family: var(--font-ui); font-style: normal; font-size: 13px; color: var(--danger, #c33); }
 .table-screen .hub-allies { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px;
   font-family: var(--font-ui); font-style: normal; }

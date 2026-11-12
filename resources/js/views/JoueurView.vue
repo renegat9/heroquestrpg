@@ -30,7 +30,14 @@ async function rafraichirMoi() {
     store.setJoueur(moi, persos ?? []);
     boitesBestiaire.value = boites ?? [];
     longueurs.value = durees ?? [];
+    // MODE ARÈNE (lot A6) : le palmarès général, seulement si le joueur a un héros d'arène.
+    if ((persos ?? []).some((p) => p.mode === 'arene')) {
+        palmares.value = (await api.palmaresArene().catch(() => null))?.combats ?? [];
+    }
 }
+
+// MODE ARÈNE (lot A6) : les derniers combats d'arène, tels que le serveur les publie.
+const palmares = ref([]);
 
 onMounted(async () => {
     try {
@@ -88,6 +95,13 @@ async function seDeconnecter() {
 const montrerCreerPerso = ref(false);
 const nouveauNom = ref('');
 const nouvelleClasse = ref('barbare');
+// MODE ARÈNE (lot A6b, 2026-11-09) : un héros naît pour la CAMPAGNE ou pour l'ARÈNE — jamais les deux. Le héros
+// d'arène suit les règles du livret (niveau 1, carte de classe) et n'entre jamais en campagne : le serveur le refuse.
+const nouveauMode = ref('campagne');
+const modesHeros = [
+    { v: 'campagne', l: 'Campagne', ic: 'map', sub: 'quêtes, niveaux et talents' },
+    { v: 'arene', l: 'Arène', ic: 'swords', sub: 'règles du livret, niveau 1' },
+];
 const elementsChoisis = ref([]);
 const creerPersoEnCours = ref(false);
 const erreurCreerPerso = ref('');
@@ -138,7 +152,7 @@ async function creerPersonnage() {
     creerPersoEnCours.value = true;
     erreurCreerPerso.value = '';
     try {
-        const payload = { nom: nouveauNom.value.trim(), classe: nouvelleClasse.value };
+        const payload = { nom: nouveauNom.value.trim(), classe: nouvelleClasse.value, mode: nouveauMode.value };
         if (estElfe.value && voieElfe.value === 'elfique') {
             // ⚠ JAMAIS les deux clés : le serveur refuse école + répertoire.
             payload.sorts_elfiques = sortsElfiquesChoisis.value;
@@ -149,6 +163,7 @@ async function creerPersonnage() {
         await rafraichirMoi();
         nouveauNom.value = '';
         nouvelleClasse.value = 'barbare';
+        nouveauMode.value = 'campagne';
         elementsChoisis.value = [];
         sortsElfiquesChoisis.value = [];
         voieElfe.value = 'ecole';
@@ -196,6 +211,45 @@ async function rejoindre(perso) {
         rejoindreEnCours.value = { ...rejoindreEnCours.value, [perso.id]: false };
     }
 }
+
+// MODE ARÈNE (lot A5) : un héros d'arène ouvre un combat ou en rejoint un par son code ; la manette pilote alors
+// SA DOUBLURE (`doublure_id`, rendue par le serveur), jamais le héros lui-même.
+const areneEnCours = ref({});
+const erreurArene = ref({});
+async function entrerArene(perso, appel) {
+    areneEnCours.value = { ...areneEnCours.value, [perso.id]: true };
+    erreurArene.value = { ...erreurArene.value, [perso.id]: '' };
+    try {
+        const r = await appel();
+        router.push({ name: 'manette', params: { groupe: r.groupe.identifiant }, query: { perso: r.doublure_id } });
+    } catch (e) {
+        erreurArene.value = { ...erreurArene.value, [perso.id]: e.message };
+    } finally {
+        areneEnCours.value = { ...areneEnCours.value, [perso.id]: false };
+    }
+}
+const ouvrirArene = (perso) => entrerArene(perso, () => api.ouvrirArene(perso.id));
+// Le code se tape en majuscules (`setCode`) ; l'identifiant du serveur est en minuscules.
+const rejoindreArene = (perso) => entrerArene(perso, () => api.rejoindreArene(codeDePerso(perso.id).trim().toLowerCase(), perso.id));
+
+// MONSTER VS MONSTER (lot A9a) : aucun héros — le joueur ouvre un combat, ou en rejoint un par son code dans un camp.
+const mvmCode = ref('');
+const mvmEnCours = ref(false);
+const mvmErreur = ref('');
+async function entrerMonstres(appel) {
+    mvmEnCours.value = true;
+    mvmErreur.value = '';
+    try {
+        const r = await appel();
+        router.push({ name: 'arene-monstres', params: { groupe: r.groupe.identifiant } });
+    } catch (e) {
+        mvmErreur.value = e.message;
+    } finally {
+        mvmEnCours.value = false;
+    }
+}
+const ouvrirMonstres = () => entrerMonstres(() => api.ouvrirMonstres());
+const rejoindreMonstres = (camp) => entrerMonstres(() => api.campMonstres(mvmCode.value.trim().toLowerCase(), camp));
 
 // Créer un groupe
 const montrerCreerGroupe = ref({}); // { [perso.id]: bool }
@@ -458,7 +512,8 @@ function libelleClasse(classe) {
                                 <div class="pcard-cls">
                                     {{ libelleClasse(perso.classe) }}
                                     <span v-if="perso.niveau"> · Niv.&nbsp;{{ perso.niveau }}</span>
-                                    <span v-if="perso.or != null" style="color: var(--gold, #c9a24a)"> · <MSym n="paid" fill :size="12" /> {{ perso.or }} or</span>
+                                    <span v-if="perso.mode === 'arene'" class="pcard-arene"> · <MSym n="swords" :size="12" /> Arène</span>
+                                    <span v-if="perso.or != null && perso.mode !== 'arene'" style="color: var(--gold, #c9a24a)"> · <MSym n="paid" fill :size="12" /> {{ perso.or }} or</span>
                                 </div>
                             </div>
                             <!-- badge statut -->
@@ -503,6 +558,48 @@ function libelleClasse(classe) {
 
                         <!-- actions : perso LIBRE -->
                         <template v-if="statutPersonnage(perso).disponible">
+                          <!-- HÉROS D'ARÈNE (lot A6b) : ni groupe à fonder ni campagne à rejoindre — la DÉCISION
+                               `engageable_campagne` vient du serveur, qui refuse aussi les deux routes. -->
+                          <template v-if="perso.engageable_campagne === false">
+                              <p class="pcard-arene-note">
+                                  <MSym n="swords" :size="14" /> Héros d'arène : il combat selon les règles du livret
+                                  et n'entre jamais en campagne. Chaque combat se joue avec une copie fraîche.
+                              </p>
+                              <!-- statistiques d'arène (lot A6), publiées par le serveur -->
+                              <div v-if="perso.arene" class="pcard-arene-stats">
+                                  <span><MSym n="swords" :size="13" /> {{ perso.arene.combats }} combat(s)</span>
+                                  <span><MSym n="emoji_events" fill :size="13" /> {{ perso.arene.victoires }} victoire(s)</span>
+                                  <span v-if="perso.arene.ennemis_vaincus.length" class="pcard-arene-vaincus">
+                                      <MSym n="skull" :size="13" />
+                                      {{ perso.arene.ennemis_vaincus.map((e) => `${e.nom_base} ×${e.nombre}`).join(' · ') }}
+                                  </span>
+                              </div>
+                              <div class="pcard-actions">
+                                  <button class="joueur-btn-action" :disabled="areneEnCours[perso.id]" @click="ouvrirArene(perso)">
+                                      <MSym n="swords" /> Ouvrir un combat
+                                  </button>
+                              </div>
+                              <div class="pcard-actions pcard-join-row">
+                                  <input
+                                      class="joueur-code-input"
+                                      :value="codeDePerso(perso.id)"
+                                      placeholder="ARENE-XXXXX"
+                                      spellcheck="false"
+                                      @input="setCode(perso.id, $event.target.value)"
+                                  />
+                                  <button
+                                      class="joueur-btn-ghost-sm"
+                                      :disabled="areneEnCours[perso.id] || !codeDePerso(perso.id).trim()"
+                                      @click="rejoindreArene(perso)"
+                                  >
+                                      <MSym n="group_add" /> Rejoindre
+                                  </button>
+                              </div>
+                              <p v-if="erreurArene[perso.id]" class="joueur-err">
+                                  <MSym n="error" :size="14" /> {{ erreurArene[perso.id] }}
+                              </p>
+                          </template>
+                          <template v-else>
                             <!-- créer un groupe -->
                             <div v-if="!montrerCreerGroupe[perso.id]" class="pcard-actions">
                                 <button
@@ -647,6 +744,7 @@ function libelleClasse(classe) {
                             <p v-if="erreurRejoindre[perso.id]" class="joueur-err">
                                 <MSym n="error" :size="14" /> {{ erreurRejoindre[perso.id] }}
                             </p>
+                          </template>
 
                             <!-- supprimer (créé par erreur) — visible SEULEMENT si le
                                  serveur le permet (contrat) : jamais engagé, jamais joué.
@@ -712,6 +810,29 @@ function libelleClasse(classe) {
                     </div>
                 </div>
 
+                <!-- palmarès de l'arène (lot A6) -->
+                <div v-if="palmares.length" class="joueur-palmares">
+                    <h3 class="joueur-section-title"><MSym n="emoji_events" fill :size="16" /> Palmarès de l'arène</h3>
+                    <div v-for="c in palmares" :key="c.id" class="joueur-palmares-ligne" :class="c.issue">
+                        <MSym :n="c.issue === 'victoire' ? 'emoji_events' : 'skull'" fill :size="14" />
+                        <span class="jp-qui">{{ c.combattants.map((h) => h.nom).join(', ') }}</span>
+                        <span class="jp-contre">contre {{ c.defender.join(', ') }}</span>
+                        <span class="jp-rounds">{{ c.rounds }} round(s)</span>
+                    </div>
+                </div>
+
+                <!-- Monster vs Monster (lot A9a) : sans héros -->
+                <div class="joueur-palmares">
+                    <h3 class="joueur-section-title"><MSym n="swords" fill :size="16" /> Monster vs Monster</h3>
+                    <div class="joueur-mvm">
+                        <button class="joueur-btn-action" :disabled="mvmEnCours" @click="ouvrirMonstres">Ouvrir un combat</button>
+                        <input v-model="mvmCode" class="joueur-input" placeholder="Code du combat" />
+                        <button class="joueur-btn-ghost" :disabled="mvmEnCours || !mvmCode.trim()" @click="rejoindreMonstres('a')">Camp A</button>
+                        <button class="joueur-btn-ghost" :disabled="mvmEnCours || !mvmCode.trim()" @click="rejoindreMonstres('b')">Camp B</button>
+                    </div>
+                    <p v-if="mvmErreur" class="joueur-err"><MSym n="error" :size="14" /> {{ mvmErreur }}</p>
+                </div>
+
                 <!-- créer un personnage -->
                 <div class="joueur-creer-perso">
                     <button
@@ -732,6 +853,19 @@ function libelleClasse(classe) {
                                 placeholder="ex. Gorrim le Brutal"
                                 spellcheck="false"
                             />
+                            <label class="joueur-lbl">Pour</label>
+                            <div class="joueur-radio-row">
+                                <label
+                                    v-for="m in modesHeros"
+                                    :key="m.v"
+                                    class="joueur-radio"
+                                    :class="{ on: nouveauMode === m.v }"
+                                >
+                                    <input type="radio" name="nouveauMode" :value="m.v" v-model="nouveauMode" />
+                                    <MSym :n="m.ic" :size="14" />
+                                    {{ m.l }} <span class="joueur-radio-sub">{{ m.sub }}</span>
+                                </label>
+                            </div>
                             <label class="joueur-lbl">Classe</label>
                             <div class="joueur-classe-grid">
                                 <label
@@ -822,7 +956,7 @@ function libelleClasse(classe) {
                                     :disabled="creerPersoEnCours || !nouveauNom.trim() || !choixMagiqueComplet"
                                 >
                                     <MSym n="add_circle" />
-                                    {{ creerPersoEnCours ? 'Création…' : 'Créer le personnage' }}
+                                    {{ creerPersoEnCours ? 'Création…' : (nouveauMode === 'arene' ? 'Créer le héros d\'arène' : 'Créer le personnage') }}
                                 </button>
                                 <button
                                     type="button"
@@ -873,6 +1007,8 @@ function libelleClasse(classe) {
 .joueur-auth-card { background: linear-gradient(180deg, var(--stone-850), var(--stone-900));
   border: var(--line); border-radius: var(--r-lg); padding: 24px; }
 .joueur-auth-form { display: flex; flex-direction: column; gap: 10px; }
+.joueur-mvm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.joueur-mvm .joueur-input { flex: 1 1 140px; min-width: 0; }
 .joueur-section-title { font-family: var(--font-display); font-size: 18px; color: var(--parch-100);
   margin: 0 0 16px; letter-spacing: 0.02em; }
 
@@ -986,6 +1122,21 @@ function libelleClasse(classe) {
 
 .pcard-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px;
   font-weight: 700; padding: 4px 10px; border-radius: 99px; white-space: nowrap; flex: none; }
+.pcard-arene { color: var(--torch); }
+.pcard-arene-stats { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; font-weight: 700; color: var(--ink-300);
+  margin: 6px 0 0; }
+.pcard-arene-stats span { display: inline-flex; align-items: center; gap: 4px; }
+.pcard-arene-vaincus { font-weight: 600; color: var(--ink-500); }
+.joueur-palmares { margin: 16px 0; }
+.joueur-palmares-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 0; font-size: 12.5px;
+  border-bottom: var(--line); color: var(--ink-300); }
+.joueur-palmares-ligne.victoire > .msym { color: var(--ok); }
+.joueur-palmares-ligne.defaite > .msym { color: var(--danger, #e0735c); }
+.jp-qui { font-weight: 700; color: var(--ink-100, #efe6d4); }
+.jp-contre { color: var(--ink-500); }
+.jp-rounds { margin-left: auto; color: var(--ink-500); }
+.pcard-arene-note { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--ink-500);
+  margin: 4px 0 0; line-height: 1.4; }
 .pcard-badge.libre { color: var(--ok); border: 1px solid var(--ok); background: oklch(0.6 0.15 145 / 0.10); }
 .pcard-badge.engage { color: var(--torch); border: 1px solid var(--torch); background: oklch(0.76 0.155 65 / 0.10);
   max-width: 160px; overflow: hidden; text-overflow: ellipsis; }

@@ -32,6 +32,8 @@ class GenererImageHub implements ShouldQueue
 
     public function handle(ImageGemini $image, BibliothequeImages $biblio, EtatGroupe $etatGroupe): void
     {
+        Groupe::find($this->groupeId)?->exigerCampagne(\App\Partie\Arene\EtapesCampagne::IMAGE_HUB);
+
         if (! $image->estConfigure() || ! $this->imagesActives()) {
             return;
         }

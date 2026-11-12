@@ -353,7 +353,7 @@ onMounted(async () => {
 
             <div class="dep-carte">
                 <div ref="grilleRef" class="dep-scroll" @scroll.passive="mesurer">
-                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :furniture="carte.mobilier ?? []" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :shadow="carte.ombre ?? []" :dangers="carte.dangers ?? []" :stairs="carte.escalier ?? null" :cell-class="surcouche" :figures="figures" :portraits="false" :grid-style="gridStyle" @cell="toucher" />
+                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :furniture="carte.mobilier ?? []" :trials="carte.epreuves ?? []" :trophies="carte.trophees ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :shadow="carte.ombre ?? []" :dangers="carte.dangers ?? []" :stairs="carte.escalier ?? null" :cell-class="surcouche" :figures="figures" :portraits="false" :grid-style="gridStyle" @cell="toucher" />
                 </div>
 
                 <!-- Croix de direction : le pendant du zoom. Le doigt sert à

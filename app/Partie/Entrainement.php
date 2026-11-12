@@ -64,6 +64,8 @@ final class Entrainement
      */
     public function entrainer(Groupe $groupe, Personnage $personnage, string $attribut): Personnage
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::ENTRAINEMENT);
+
         if (($raison = $this->refus($personnage, $groupe, $attribut)) !== null) {
             throw ValidationException::withMessages(['attribut' => $raison]);
         }

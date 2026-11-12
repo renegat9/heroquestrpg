@@ -6,7 +6,7 @@
 // (.menu.propose → onglet Action) ; chaque tap envoie POST choix
 // {option_id} et gèle les boutons jusqu'au prochain .groupe.etat.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import Vignette from '../components/ui/Vignette.vue';
 import ActionTab from '../components/manette/ActionTab.vue';
@@ -19,6 +19,7 @@ import ChoixArmeFaveur from '../components/manette/ChoixArmeFaveur.vue';
 import ChoixLieuHopekins from '../components/manette/ChoixLieuHopekins.vue';
 import ChoixRepertoireFaveur from '../components/manette/ChoixRepertoireFaveur.vue';
 import AnnonceHub from '../components/ui/AnnonceHub.vue';
+import SalonArene from '../components/ui/SalonArene.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
 import JetDes from '../components/ui/JetDes.vue';
 import TalentPopup from '../components/ui/TalentPopup.vue';
@@ -65,8 +66,9 @@ const chargement = ref(true);
 const erreurChargement = ref('');
 onMounted(async () => {
     try {
-        const { joueur, personnages } = await api.moi();
-        store.setJoueur(joueur, personnages);
+        const { joueur, personnages, doublures } = await api.moi();
+        // MODE ARÈNE (lot A5) : la fiche d'une doublure vit sous `doublures` — la manette la cherche avec le roster.
+        store.setJoueur(joueur, [...personnages, ...doublures]);
         store.appliquerEtat(await api.getEtatReprise(props.groupe));
         desabonnements.push(
             souscrireGroupe(props.groupe, {
@@ -85,7 +87,7 @@ onMounted(async () => {
                 '.niveau.monte': (e) => {
                     store.setNiveauMonte(e);
                     // /moi rafraîchi : niveau + points_competence à jour.
-                    api.moi().then((r) => store.setJoueur(r.joueur, r.personnages)).catch(() => {});
+                    api.moi().then((r) => store.setJoueur(r.joueur, [...r.personnages, ...r.doublures])).catch(() => {});
                 },
                 '.cloture.ouverte': (e) => store.appliquerCloture(e),
                 '.cloture.maj': (e) => store.appliquerCloture(e),
@@ -123,7 +125,7 @@ let moiTimer = null;
 function rafraichirMoi() {
     clearTimeout(moiTimer);
     moiTimer = setTimeout(() => {
-        api.moi().then((r) => store.setJoueur(r.joueur, r.personnages)).catch(() => {});
+        api.moi().then((r) => store.setJoueur(r.joueur, [...r.personnages, ...r.doublures])).catch(() => {});
     }, 300);
 }
 onUnmounted(() => clearTimeout(moiTimer));
@@ -282,6 +284,37 @@ const mesCompetences = computed(() => {
    broadcast .prets.maj. Le narrateur doit être actif pour que la quête
    démarre (côté serveur). */
 const auHub = computed(() => store.state.etat?.groupe?.phase === 'hub');
+
+/* ---- MODE ARÈNE (lot A5) : le salon publié par le serveur (`groupe.arene`) remplace le hub de campagne. Rien n'est
+   décidé ici : le composant rend le salon, les gestes partent vers les routes `/api/arene/…`. ---- */
+const router = useRouter();
+const salonArene = computed(() => store.state.etat?.groupe?.arene ?? null);
+// La réserve de trophées du Challenger, publiée par le serveur (`quete.trophees.challenger`).
+const reserveTrophees = computed(() => store.state.etat?.quete?.trophees?.challenger ?? []);
+const areneEnCours = ref(false);
+const erreurArene = ref('');
+async function gesteArene(fn, { quitter = false } = {}) {
+    if (areneEnCours.value) return;
+    areneEnCours.value = true;
+    erreurArene.value = '';
+    try {
+        const r = await fn();
+        if (quitter) { router.push({ name: 'joueur' }); return; }
+        if (r?.groupe) store.appliquerEtat(r);
+    } catch (e) {
+        erreurArene.value = e.message;
+    } finally {
+        areneEnCours.value = false;
+    }
+}
+const ajouterAuDefender = (id) => gesteArene(() => api.ajouterAuDefender(props.groupe, id));
+const retirerDuDefender = (index) => gesteArene(() => api.retirerDuDefender(props.groupe, index));
+const basculerPretArene = (pret) => gesteArene(() => api.pretArene(props.groupe, pret));
+// ALLIÉS (lot A4) : l'allié de MON combattant, ou aucun (`null`) — la liste blanche est `salon.allies`.
+const choisirAllieArene = (mercenaireId) => gesteArene(() => api.allieArene(props.groupe, mercenaireId));
+const lancerArene = () => gesteArene(() => api.lancerArene(props.groupe));
+const rejouerArene = () => gesteArene(() => api.rejouerArene(props.groupe));
+const quitterArene = () => gesteArene(() => api.quitterArene(props.groupe), { quitter: true });
 // DÉPART DE LA QUÊTE (fin de campagne, 2026-10-16) : la DÉCISION du serveur, publiée par EtatGroupe au hub
 // (`depart_possible` / `depart_motif`). Campagne gagnée : pas de « Prêt », le motif publié s'affiche à sa place.
 // Le client ne redérive ni la victoire ni le motif.
@@ -454,6 +487,10 @@ const cestMonTour = computed(() => {
     // pas qui contrôle quel allié : le re-dériver ici serait justement le
     // miroir que ce projet interdit.
     if (store.state.menuAllieId) return true;
+    // `a_la_main` : la DÉCISION du serveur sur MON héros — en arène, n'importe quel héros libre l'a (activation
+    // alternée), pas seulement le premier de la barre (validation de la PR #2).
+    const mien = (store.state.etat?.initiative ?? []).find((o) => o.entite === 'heros' && o.id === monEntite.value.id);
+    if (mien && 'a_la_main' in mien) return !!mien.a_la_main;
     const cur = acteurCourant(store.state.etat?.initiative);
     return !!(cur && cur.entite === 'heros' && cur.id === monEntite.value.id);
 });
@@ -619,6 +656,8 @@ const LISTES = {
     // Sorts de Dread du porteur (Talisman du Savoir maudit, 2026-10-29) : la liste `parametres.sorts`, comme un sort de héros.
     lancer_sort_dread: { cle: 'sorts', titre: 'Quel sort de Dread lancer ?', retour: 'Retour aux sorts de Dread' },
     lire_parchemin: { cle: 'parchemins', titre: 'Quel parchemin lire ?', retour: 'Retour aux parchemins' },
+    // MODE ARÈNE (lot T4) : l'élan défausse UNE tuile de la réserve — `parametres.tuiles`, la liste blanche du serveur.
+    trophee_elan: { cle: 'tuiles', titre: 'Quelle tuile défausser pour +2 cases ?', retour: 'Retour aux tuiles' },
     utiliser_objet: { cle: 'objets', titre: 'Quel objet utiliser ?', retour: 'Retour aux objets' },
     se_concentrer: { cle: 'sorts', titre: 'Quel sort récupérer ?', retour: 'Retour aux sorts' },
     // MÉMOIRE PARFAITE (magicien, lot B) : la même liste que « Se concentrer », sans le tour sacrifié.
@@ -784,7 +823,8 @@ function frameCible(option, source, retour) {
     // urgence (verdict §2.11).
     const typeSort = String(source?.sort_type ?? (mesSorts.value ?? [])
         .find((s) => String(s.sort_id) === String(source?.sort_id))?.type ?? '').toLowerCase();
-    const offensif = option.type === 'attaque' || ['degats', 'mental'].includes(typeSort);
+    // `manoeuvre_attaque` (arène, combattant seul) : la frappe à 2 dés est une attaque comme une autre.
+    const offensif = ['attaque', 'manoeuvre_attaque'].includes(option.type) || ['degats', 'mental'].includes(typeSort);
 
     return {
         option,
@@ -1409,7 +1449,8 @@ const clotureToast = computed(() => {
 watch(scene, (s) => { if (s === 'marche') tab.value = 'action'; });
 
 const navItems = computed(() => (scene.value === 'marche'
-    ? [['action', 'storefront', 'Marché'], ['fiche', 'person', 'Fiche'], ['sorts', 'auto_awesome', 'Sorts'], ['sac', 'backpack', 'Sac']]
+    // MODE ARÈNE : au salon, le premier onglet est le salon, pas le marché.
+    ? [salonArene.value ? ['action', 'swords', 'Salon'] : ['action', 'storefront', 'Marché'], ['fiche', 'person', 'Fiche'], ['sorts', 'auto_awesome', 'Sorts'], ['sac', 'backpack', 'Sac']]
     : [['action', 'swords', 'Action'], ['fiche', 'person', 'Fiche'], ['sorts', 'auto_awesome', 'Sorts'], ['sac', 'backpack', 'Sac']]));
 </script>
 
@@ -1468,6 +1509,16 @@ const navItems = computed(() => (scene.value === 'marche'
                          déjà sur l'écran de table ; l'objectif, lui, n'était
                          visible NULLE PART et c'est ce sur quoi le joueur
                          décide de son déplacement à chaque tour. -->
+                    <!-- MODE ARÈNE : le bandeau d'étanchéité, permanent (phrase décidée par le serveur). -->
+                    <div v-if="salonArene && !auHub" class="obj-peek">
+                        <MSym n="shield_lock" fill :size="16" />
+                        <div class="obj-corps">
+                            <p>{{ salonArene.bandeau }}</p>
+                            <p v-if="reserveTrophees.length" class="obj-consigne">
+                                Trophées : {{ reserveTrophees.map((t) => t.libelle).join(', ') }}
+                            </p>
+                        </div>
+                    </div>
                     <div v-if="objectif" class="obj-peek" :class="{ fait: objectif.accompli }">
                         <MSym :n="objectif.accompli ? 'task_alt' : 'my_location'" fill :size="16" />
                         <div class="obj-corps">
@@ -1543,6 +1594,23 @@ const navItems = computed(() => (scene.value === 'marche'
                             @choose="choisirOption"
                             @open-spells="tab = 'sorts'"
                         />
+                        <!-- MODE ARÈNE (lot A5) : le salon remplace tout le hub de campagne. -->
+                        <div v-else-if="tab === 'action' && scene === 'marche' && salonArene" style="padding: 14px">
+                            <SalonArene
+                                :salon="salonArene"
+                                :code="groupe"
+                                :mon-personnage-id="persoIdActif"
+                                :en-cours="areneEnCours"
+                                :erreur="erreurArene"
+                                @ajouter="ajouterAuDefender"
+                                @retirer="retirerDuDefender"
+                                @pret="basculerPretArene"
+                                @allie="choisirAllieArene"
+                                @lancer="lancerArene"
+                                @rejouer="rejouerArene"
+                                @quitter="quitterArene"
+                            />
+                        </div>
                         <MarketTab
                             v-else-if="tab === 'action' && scene === 'marche' && marcheLive"
                             :hero="hero"

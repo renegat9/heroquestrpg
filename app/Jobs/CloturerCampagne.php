@@ -49,6 +49,8 @@ class CloturerCampagne implements ShouldQueue
 
     public function handle(ClotureCampagne $service, ResumeCampagne $skill, ContexteAssembleur $assembleur): void
     {
+        Groupe::find($this->groupeId)?->exigerCampagne(\App\Partie\Arene\EtapesCampagne::RESUME);
+
         $groupe = Groupe::findOrFail($this->groupeId);
 
         $heros = $groupe->personnages()

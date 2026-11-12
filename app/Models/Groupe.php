@@ -45,7 +45,30 @@ class Groupe extends Model
         // App\Partie\CompagnonOffert, qui dit aussi quand la proposition EXISTE.
         'compagnon_offert',
         'quete_courante_id',
+        // MODE ARÈNE (lot A2, 2026-11-09) : `campagne` ou `arene` — vocabulaire fermé `self::MODES`.
+        'mode',
+        // MODE ARÈNE (lot A5) : ids `monstres` du Defender composé au salon — lus par `GroupesArene` seulement.
+        'arene_defender',
+        // MODE ARÈNE, lot A9a : la variante (`coop` | `monstres`) et le salon Monster vs Monster.
+        'arene_variante',
+        'arene_mvm',
     ];
+
+    /**
+     * Un groupe est une CAMPAGNE ou un COMBAT D'ARÈNE (mode arène, lot A2, `docs/plan-mode-arene.md` §3). Un seul
+     * prédicat, `estArene()` ; une seule garde, `exigerCampagne()`, posée au point d'entrée de chaque étape propre à la
+     * campagne et recensée dans `App\Partie\Arene\EtapesCampagne`.
+     */
+    public const MODE_CAMPAGNE = 'campagne';
+
+    public const MODE_ARENE = 'arene';
+
+    /** Variantes d'un combat d'arène (lot A9a) : héros contre Zargon, ou deux équipes de monstres. */
+    public const VARIANTE_COOP = 'coop';
+
+    public const VARIANTE_MONSTRES = 'monstres';
+
+    public const MODES = [self::MODE_CAMPAGNE, self::MODE_ARENE];
 
     protected function casts(): array
     {
@@ -53,14 +76,46 @@ class Groupe extends Model
             'plan_campagne' => 'array',
             'ton' => 'array',
             'boites_bestiaire' => 'array',
+            'arene_defender' => 'array',
+            'arene_mvm' => 'array',
         ];
+    }
+
+    /** Monster vs Monster (lot A9a) : un combat d'arène sans héros, deux camps de monstres. */
+    public function estMonstresContreMonstres(): bool
+    {
+        return $this->estArene() && $this->arene_variante === self::VARIANTE_MONSTRES;
+    }
+
+    public function estArene(): bool
+    {
+        return $this->mode === self::MODE_ARENE;
+    }
+
+    /**
+     * LA garde des étapes de campagne : un groupe d'arène qui en atteint une lève une erreur NOMMÉE, jamais un passage
+     * en silence — sinon la première étape de campagne ajoutée plus tard s'appliquerait à l'arène sans que personne ne
+     * le voie (plan §3). `$etape` est une clé de `EtapesCampagne::ETAPES`, et chaque appel est recensé là, testé dans
+     * les deux sens (`tests/Feature/Arene/EtapesCampagneTest.php`).
+     *
+     * Relue en base : une instance chargée avant la colonne, ou construite à la main, ne passe pas sur un `mode` absent.
+     */
+    public function exigerCampagne(string $etape): void
+    {
+        $mode = $this->exists
+            ? (\Illuminate\Support\Facades\DB::table('groupes')->where('id', $this->id)->value('mode') ?? $this->mode)
+            : $this->mode;
+
+        if ($mode === self::MODE_ARENE) {
+            throw \App\Partie\Arene\RefusArene::etapeDeCampagne($this, $etape);
+        }
     }
 
     /** Composition du groupe (+ initiative). */
     public function personnages(): BelongsToMany
     {
         return $this->belongsToMany(Personnage::class, 'groupe_personnages', 'groupe_id', 'personnage_id')
-            ->withPivot(['ordre_initiative', 'actif']);
+            ->withPivot(['ordre_initiative', 'actif', 'pret_arene', 'allie_arene_id']);
     }
 
     /** Personnages dont c'est le groupe actif. */

@@ -121,7 +121,9 @@ class GroupeController extends Controller
         // Validation du perso fondateur si fourni.
         $personnageFondateur = null;
         if (isset($donnees['personnage_id'])) {
+            // `horsDoublures()` : une doublure d'arène ne fonde jamais une campagne (mode arène, lot A1).
             $personnageFondateur = Personnage::query()
+                ->horsDoublures()
                 ->where('id', $donnees['personnage_id'])
                 ->where('joueur_id', $joueur->id)
                 ->first();
@@ -129,6 +131,12 @@ class GroupeController extends Controller
             if ($personnageFondateur === null) {
                 throw ValidationException::withMessages([
                     'personnage_id' => 'Ce personnage n\'existe pas ou ne vous appartient pas.',
+                ]);
+            }
+
+            if ($personnageFondateur->estHerosArene()) {
+                throw ValidationException::withMessages([
+                    'personnage_id' => self::refusHerosArene($personnageFondateur),
                 ]);
             }
 
@@ -190,8 +198,14 @@ class GroupeController extends Controller
         ], 201);
     }
 
+    /** Le refus d'engager un héros d'arène en campagne (lot A6b) — une seule phrase, pour la fondation et l'adhésion. */
+    private static function refusHerosArene(Personnage $personnage): string
+    {
+        return "« {$personnage->nom} » est un héros d'arène : il n'entre jamais en campagne.";
+    }
+
     /**
-     * POST /api/personnages {nom, classe, elements?}
+     * POST /api/personnages {nom, classe, mode?, elements?}
      *
      * Crée un personnage LIBRE dans le roster du joueur connecté (sans
      * l'engager dans un groupe). Réutilise la logique de creerHeros.
@@ -203,6 +217,9 @@ class GroupeController extends Controller
         $donnees = $request->validate([
             'nom' => ['required', 'string', 'max:120'],
             'classe' => ['required', Rule::exists('classes_heros', 'nom')],
+            // MODE ARÈNE (lot A6b, 2026-11-09) : un héros d'arène naît comme un héros de campagne — niveau 1, carte de
+            // classe, équipement de départ, capacités de carte — et n'entre jamais en campagne. Absent = campagne.
+            'mode' => ['sometimes', 'string', Rule::in(Personnage::MODES)],
             'elements' => $this->reglesElements($request->input('classe')),
             'elements.*' => ['string', 'distinct', Rule::in(MoteurSorts::ELEMENTS)],
             // VOIE ELFIQUE (décision de René, 2026-08-11) : l'Elfe prend une
@@ -222,6 +239,7 @@ class GroupeController extends Controller
             $donnees['classe'],
             $donnees['elements'] ?? null,
             $donnees['sorts_elfiques'] ?? null,
+            $donnees['mode'] ?? Personnage::MODE_CAMPAGNE,
         );
 
         return response()->json([
@@ -230,6 +248,7 @@ class GroupeController extends Controller
                 'nom' => $personnage->nom,
                 'classe' => $personnage->classe,
                 'niveau' => (int) $personnage->niveau,
+                'mode' => $personnage->mode,
                 'disponible' => true,
             ],
         ], 201);
@@ -260,7 +279,8 @@ class GroupeController extends Controller
     {
         $joueur = Auth::guard('joueur')->user();
 
-        $personnage = Personnage::where('joueur_id', $joueur->id)->where('id', $id)->firstOrFail();
+        // `horsDoublures()` : une doublure d'arène ne se supprime que par `Doublures::supprimer()` (mode arène, lot A1).
+        $personnage = Personnage::horsDoublures()->where('joueur_id', $joueur->id)->where('id', $id)->firstOrFail();
 
         if ($personnage->groupe_actif_id !== null) {
             throw ValidationException::withMessages([
@@ -312,6 +332,7 @@ class GroupeController extends Controller
     public function rejoindre(Request $request, string $identifiant, MoteurSorts $sorts): JsonResponse
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::ADHESION);
         $joueur = Auth::guard('joueur')->user();
 
         $donnees = $request->validate([
@@ -336,7 +357,9 @@ class GroupeController extends Controller
         } else {
             $ids = $donnees['personnage_ids'] ?? [$donnees['personnage_id']];
 
+            // `horsDoublures()` : une doublure d'arène ne rejoint jamais une campagne (mode arène, lot A1).
             $personnages = Personnage::query()
+                ->horsDoublures()
                 ->whereIn('id', $ids)
                 ->where('joueur_id', $joueur->id)
                 ->get();
@@ -344,6 +367,13 @@ class GroupeController extends Controller
             if ($personnages->count() !== count(array_unique($ids))) {
                 throw ValidationException::withMessages([
                     'personnage_ids' => 'Un des personnages n\'existe pas ou ne vous appartient pas.',
+                ]);
+            }
+
+            $herosArene = $personnages->first(fn (Personnage $p) => $p->estHerosArene());
+            if ($herosArene !== null) {
+                throw ValidationException::withMessages([
+                    'personnage_ids' => self::refusHerosArene($herosArene),
                 ]);
             }
         }
@@ -476,6 +506,7 @@ class GroupeController extends Controller
         string $classe,
         ?array $elements = null,
         ?array $sortsElfiques = null,
+        string $mode = Personnage::MODE_CAMPAGNE,
     ): Personnage {
         $base = ClasseHeros::where('nom', $classe)->firstOrFail();
 
@@ -484,9 +515,10 @@ class GroupeController extends Controller
         // ligne `personnages` restait, orpheline et injouable (attrapé par le
         // test « exige exactement TROIS sorts » : le 422 partait bien, mais
         // « Tricheur » existait déjà en base).
-        return DB::transaction(function () use ($base, $joueurId, $nom, $classe, $elements, $sortsElfiques, $sorts) {
+        return DB::transaction(function () use ($base, $joueurId, $nom, $classe, $elements, $sortsElfiques, $sorts, $mode) {
             $personnage = Personnage::create([
                 'joueur_id' => $joueurId,
+                'mode' => $mode,
                 'nom' => $nom,
                 'classe' => $classe,
                 'niveau' => 1,
@@ -559,7 +591,7 @@ class GroupeController extends Controller
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
 
-        if (! $this->peutVoirGroupe($request, $groupe)) {
+        if (! $this->peutLireGroupe($request, $groupe)) {
             abort(403, 'Accès refusé : vous n\'êtes ni membre ni la table de ce groupe.');
         }
 
@@ -743,30 +775,6 @@ class GroupeController extends Controller
         broadcast(new PretsMaj($groupe, $roster));
 
         return response()->json(['ordre' => $roster]);
-    }
-
-    /**
-     * Vérifie si la requête courante peut voir les infos du groupe :
-     * - joueur connecté avec un personnage actif dans le groupe, OU
-     * - session de table correspondant à ce groupe.
-     */
-    private function peutVoirGroupe(Request $request, Groupe $groupe): bool
-    {
-        // Session de table ?
-        if ($request->session()->get('table_groupe') === $groupe->identifiant) {
-            return true;
-        }
-
-        // Joueur membre ?
-        $joueur = Auth::guard('joueur')->user();
-        if ($joueur === null) {
-            return false;
-        }
-
-        return $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('joueur_id', $joueur->id)
-            ->exists();
     }
 
     /**

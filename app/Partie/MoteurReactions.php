@@ -254,6 +254,14 @@ final class MoteurReactions
             }
         }
 
+        // MODE ARÈNE (lot T4, F9528 p. 14) — les TUILES TROPHÉES du Challenger, une seule offre par coup : le BOUCLIER
+        // BLANC d'abord (il rend des dégâts, et peut relever le héros), sinon la RIPOSTE contre l'assaillant au contact
+        // ou en diagonale (« may be used even if the defending combatant is defeated »). La potion à 0 PV, elle, rejoint
+        // le soin d'urgence plus bas (`soinsDisponibles()`).
+        if ($source === MoteurDegats::SOURCE_ATTAQUE_MONSTRE && $this->proposerTropheeSurCoup($etat, $heros, $degats, $source, $contexte)) {
+            return;
+        }
+
         // 2. Un VOISIN : *Parade au bouclier* (Chevalier). La seule réaction
         // proposée à quelqu'un d'autre que la victime — d'où un protecteur
         // distinct dans la proposition, et une adjacence revérifiée à la
@@ -606,6 +614,19 @@ final class MoteurReactions
             ];
         }
 
+        // MODE ARÈNE (lot T4) : la potion d'une tuile trophée — « If a combatant's Body Points are reduced to 0, they may
+        // discard a healing potion tile before they die to immediately restore Body Points » (F9528 p. 14).
+        $queteArene = $etat?->quete;
+        if ($queteArene !== null && $queteArene->groupe?->estArene()
+            && in_array(\App\Partie\Arene\TropheesArene::POTION, app(\App\Partie\Arene\TropheesArene::class)->reserve($queteArene, \App\Partie\Arene\TropheesArene::CHALLENGER), true)) {
+            $soins[] = [
+                'cle' => 'trophee:potion',
+                'type' => 'potion',
+                'nom' => 'Potion de trophée',
+                'soin' => (string) \App\Partie\Arene\TropheesArene::SOIN_POTION,
+            ];
+        }
+
         foreach ($heros->sorts()->wherePivot('disponible', true)->get() as $sort) {
             $soin = (int) (($sort->effet['soin_pv_body'] ?? 0));
 
@@ -635,7 +656,7 @@ final class MoteurReactions
      *
      * @param  array<string, mixed>  $contexte
      */
-    private function monstreAuContact(EtatPersonnageQuete $etat, array $contexte): ?InstanceMonstre
+    private function monstreAuContact(EtatPersonnageQuete $etat, array $contexte, bool $diagonale = false): ?InstanceMonstre
     {
         $id = (int) ($contexte['instance_id'] ?? 0);
 
@@ -665,6 +686,7 @@ final class MoteurReactions
                 if (Grille::sontAdjacentes(
                     (int) $instance->position_x + $dx, (int) $instance->position_y + $dy,
                     (int) $etat->position_x, (int) $etat->position_y,
+                    $diagonale,
                 )) {
                     return $instance;
                 }
@@ -927,6 +949,8 @@ final class MoteurReactions
                 // Relance tirée du SAC : le parchemin part à l'acceptation. `null`
                 // pour toute autre réaction.
                 'parchemin' => $quoi['parchemin'] ?? null,
+                // MODE ARÈNE (lot T4) : la tuile trophée en jeu (`riposte`, ou la tuile d'une offre crâne/bouclier).
+                'trophee' => $quoi['trophee'] ?? $quoi['tuile'] ?? null,
                 'des' => $quoi['des'] ?? null,
                 'des_adverses' => $quoi['des_adverses'] ?? null,
                 // Quelle face COMPTE pour chaque volée — décidé par le moteur
@@ -969,6 +993,11 @@ final class MoteurReactions
         // une action suspendue ne la jette pas, elle reprend avec le jet d'origine.
         if (($attente['action'] ?? null) === ReactionEffet::RELANCE_JET) {
             return $this->repondreRelanceJet($groupe, $heros, $etat, $attente, $accepte);
+        }
+
+        // MODE ARÈNE (lot T4) : la tuile crâne — même reprise que la Vision du futur, refuser reprend le jet tel quel.
+        if (($attente['action'] ?? null) === ReactionEffet::TROPHEE_CRANE) {
+            return $this->repondreTropheeCrane($groupe, $heros, $attente, $accepte);
         }
 
         if (! $accepte) {
@@ -1027,6 +1056,11 @@ final class MoteurReactions
         // cible et frappe, ici et maintenant.
         if ($action === ReactionEffet::DEFI_ERRANT) {
             return $this->releverLeDefi($groupe, $heros, $etat, $attente);
+        }
+
+        // MODE ARÈNE (lot T4) : le bouclier blanc d'une tuile trophée — ses boucliers rendent autant de points du coup.
+        if ($action === ReactionEffet::TROPHEE_BOUCLIER) {
+            return $this->tropheeBouclier($groupe, $victime, $etatVictime, $attente);
         }
 
         // SOIN D'URGENCE : on ne défait rien, on paie pour rester debout.
@@ -1375,7 +1409,8 @@ final class MoteurReactions
         EtatPersonnageQuete $etat,
         array $attente,
     ): array {
-        $instance = $this->monstreAuContact($etat, ['instance_id' => $attente['instance_id'] ?? 0]);
+        // MODE ARÈNE : la tuile riposte vaut aussi contre un assaillant en DIAGONALE (« adjacent or immediately diagonal »).
+        $instance = $this->monstreAuContact($etat, ['instance_id' => $attente['instance_id'] ?? 0], diagonale: isset($attente['trophee']));
 
         // Le monstre a pu tomber ou s'éloigner pendant que le joueur réfléchit
         // (la phase des monstres, elle, ne s'est pas arrêtée). On ne frappe
@@ -1392,6 +1427,18 @@ final class MoteurReactions
 
         if (isset($attente['capacite'])) {
             $this->capacites->marquerDepensee($heros, $etat, (string) $attente['capacite']);
+        }
+
+        // MODE ARÈNE (lot T4) : la tuile riposte quitte la réserve du Challenger — partie entre-temps, pas de riposte.
+        if (isset($attente['trophee'])) {
+            $quete = $etat->quete;
+
+            if ($quete === null || ! app(\App\Partie\Arene\TropheesArene::class)->defausser($quete, \App\Partie\Arene\TropheesArene::CHALLENGER, \App\Partie\Arene\TropheesArene::RIPOSTE)) {
+                return ['type' => 'reaction', 'personnage' => $heros->nom, 'action' => ReactionEffet::RIPOSTE,
+                    'active' => false, 'raison' => 'La tuile riposte n\'est plus dans la réserve.'];
+            }
+
+            app(\App\Partie\Arene\TropheesArene::class)->annoncerCombat($groupe, \App\Partie\Arene\TropheesArene::CHALLENGER, $heros->nom, \App\Partie\Arene\TropheesArene::RIPOSTE);
         }
 
         // UN SEUL résolveur pour la frappe ET son météore : la file des météores vit sur l'instance du résolveur.
@@ -1515,6 +1562,16 @@ final class MoteurReactions
             }
 
             app(MoteurPotions::class)->boire($aidant, $ligne, [], $heros);
+        } elseif ($type === 'trophee') {
+            $queteArene = $etat->quete;
+
+            if ($queteArene === null || ! app(\App\Partie\Arene\TropheesArene::class)->defausser($queteArene, \App\Partie\Arene\TropheesArene::CHALLENGER, \App\Partie\Arene\TropheesArene::POTION)) {
+                throw ValidationException::withMessages([
+                    'reaction' => 'Plus de potion dans la réserve du Challenger.',
+                ]);
+            }
+
+            $heros->update(['pv_body' => min((int) $heros->pv_body_max, $avant + \App\Partie\Arene\TropheesArene::SOIN_POTION)]);
         } elseif ($type === 'artefact') {
             // Artefact PORTÉ : on soigne et on dépense une CHARGE — la pièce
             // reste au sac et devient inerte, elle n'est jamais consommée.
@@ -1696,6 +1753,18 @@ final class MoteurReactions
             // se jette pas — il REPREND avec le jet d'origine (refus par défaut).
             // Sans cela un téléphone muet figerait le groupe sur une action qui
             // n'a jamais eu lieu.
+            if (($attente['action'] ?? null) === ReactionEffet::TROPHEE_CRANE && $etat->personnage !== null) {
+                try {
+                    $this->repondreTropheeCrane($groupe, $etat->personnage, $attente, false);
+                } catch (\Throwable $e) {
+                    Log::warning('Reprise d\'une attaque suspendue (tuile crâne) impossible.', [
+                        'personnage_id' => $etat->personnage_id, 'erreur' => $e->getMessage(),
+                    ]);
+                }
+
+                continue;
+            }
+
             if (($attente['action'] ?? null) === ReactionEffet::RELANCE_JET && $etat->personnage !== null) {
                 try {
                     $this->repondreRelanceJet($groupe, $etat->personnage, $etat, $attente, false, expiree: true);
@@ -1943,6 +2012,178 @@ final class MoteurReactions
             'resume' => $etat->fresh()->reaction_en_attente['resume'] ?? null,
             'expire_dans' => ReactionEffet::FENETRE_SECONDES,
         ];
+    }
+
+    /**
+     * MODE ARÈNE (lot T4) — les tuiles du Challenger offertes sur un COUP DE MONSTRE : le bouclier blanc (si le coup a
+     * blessé), sinon la riposte (assaillant au contact ou en diagonale). Rend `true` si une offre est déposée.
+     *
+     * @param  array<string, mixed>  $contexte
+     */
+    private function proposerTropheeSurCoup(EtatPersonnageQuete $etat, Personnage $heros, int $degats, string $source, array $contexte): bool
+    {
+        $quete = $etat->quete;
+
+        if ($quete === null || ! $quete->groupe?->estArene()) {
+            return false;
+        }
+
+        $trophees = app(\App\Partie\Arene\TropheesArene::class);
+        $bouclier = $trophees->tuileUtile($quete, \App\Partie\Arene\TropheesArene::CHALLENGER, \App\Partie\Arene\TropheesArene::BOUCLIERS_BLANCS, fn (int $n) => $degats > 0);
+
+        if ($bouclier !== null) {
+            $tuile = \App\Partie\Arene\TropheesArene::TUILES[$bouclier];
+            $this->deposer($etat, $heros, $heros, [
+                'action' => ReactionEffet::TROPHEE_BOUCLIER,
+                'tuile' => $bouclier,
+                'nom' => 'Tuile trophée — '.$tuile['libelle'],
+                'description' => ucfirst($tuile['effet']).' : autant de points du coup rendus. La tuile quitte la réserve.',
+            ], $degats, $source, $contexte);
+
+            return true;
+        }
+
+        if (in_array(\App\Partie\Arene\TropheesArene::RIPOSTE, $trophees->reserve($quete, \App\Partie\Arene\TropheesArene::CHALLENGER), true)) {
+            $instance = $this->monstreAuContact($etat, $contexte, diagonale: true);
+
+            if ($instance !== null) {
+                $this->deposer($etat, $heros, $heros, [
+                    'action' => ReactionEffet::RIPOSTE,
+                    'trophee' => \App\Partie\Arene\TropheesArene::RIPOSTE,
+                    'nom' => 'Tuile trophée — Riposte',
+                    'description' => 'Contre-attaque immédiate contre '.$instance->nomAffiche().'. La tuile quitte la réserve.',
+                    'instance_id' => (int) $instance->id,
+                ], $degats, $source, $contexte);
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Le bouclier blanc accepté : la tuile quitte la réserve, et ses boucliers rendent autant de points du coup — le
+     * héros que ce coup avait fait tomber se relève s'il lui en reste.
+     *
+     * @param  array<string, mixed>  $attente
+     * @return array<string, mixed>
+     */
+    private function tropheeBouclier(Groupe $groupe, Personnage $victime, ?EtatPersonnageQuete $etatVictime, array $attente): array
+    {
+        $tuile = (string) ($attente['tuile'] ?? '');
+        $quete = $etatVictime?->quete;
+        $apport = \App\Partie\Arene\TropheesArene::BOUCLIERS_BLANCS[$tuile] ?? 0;
+
+        if ($apport === 0 || $quete === null || ! app(\App\Partie\Arene\TropheesArene::class)->defausser($quete, \App\Partie\Arene\TropheesArene::CHALLENGER, $tuile)) {
+            return ['type' => 'reaction', 'personnage' => $victime->nom, 'action' => ReactionEffet::TROPHEE_BOUCLIER,
+                'active' => false, 'raison' => 'La tuile n\'est plus dans la réserve.'];
+        }
+
+        app(\App\Partie\Arene\TropheesArene::class)->annoncerCombat($groupe, \App\Partie\Arene\TropheesArene::CHALLENGER, $victime->nom, $tuile);
+        $rendus = $this->defaireLeCoup($victime, $etatVictime, min($apport, (int) ($attente['degats'] ?? 0)));
+        $this->reprendreVerdictDeChute($groupe);
+
+        return [
+            'type' => 'reaction', 'personnage' => $victime->nom, 'victime' => $victime->nom,
+            'sort' => $attente['nom'] ?? null, 'action' => ReactionEffet::TROPHEE_BOUCLIER, 'active' => true,
+            'degats_annules' => $rendus, 'source' => $attente['source'] ?? null,
+        ];
+    }
+
+    /**
+     * MODE ARÈNE (lot T4) — l'attaque du héros est suspendue sur une tuile CRÂNE de la réserve du Challenger : le jet
+     * est montré, le joueur décide (« use it after rolling combat dice », F9528 p. 14). Même dépôt que la Vision du
+     * futur ; l'action reprend à la réponse ou à l'expiration.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  list<array<string, mixed>>  $attaques
+     * @return array<string, mixed>
+     */
+    public function suspendreTropheeCrane(Groupe $groupe, Personnage $heros, array $option, array $parametres, array $attaques, JetEnAttente $jet): array
+    {
+        $etat = EtatPersonnageQuete::enQuete($heros);
+
+        if ($etat === null || $etat->reaction_en_attente !== null || $jet->trophee === null) {
+            return app(ResolveurTour::class)->resoudreAvecJets($groupe, $heros, $option, $parametres, $attaques);
+        }
+
+        $resume = $jet->resume;
+        $degats = (int) $resume['degats'];
+        $tuile = \App\Partie\Arene\TropheesArene::TUILES[$jet->trophee];
+
+        $this->deposer($etat, $heros, $heros, [
+            'action' => ReactionEffet::TROPHEE_CRANE,
+            'jet' => ReactionEffet::JET_ATTAQUE,
+            'tuile' => $jet->trophee,
+            'nom' => 'Tuile trophée — '.$tuile['libelle'],
+            'description' => ucfirst($tuile['effet']).'. La tuile quitte la réserve du Challenger.',
+            'des' => $jet->facesAttaque,
+            'des_adverses' => $jet->facesDefense,
+            'touchante' => $resume['face_touchante'] ?? FaceDeCombat::Crane->value,
+            'defensive' => $resume['face_defensive'] ?? FaceDeCombat::BouclierNoir->value,
+            'resume' => "Tu touches {$resume['touches']} fois, {$resume['cible']} pare {$resume['boucliers']} : "
+                .($degats > 0 ? "{$degats} point".($degats > 1 ? 's' : '').' de dégâts.' : 'aucun dégât.'),
+            'reprise' => ['option' => $option, 'parametres' => $parametres, 'attaques' => $attaques],
+        ], $degats, 'jet_attaque', []);
+
+        return [
+            'type' => ResolveurTour::TYPE_JET_EN_ATTENTE,
+            'personnage' => ['id' => $heros->id, 'nom' => $heros->nom],
+            'jet' => ReactionEffet::JET_ATTAQUE,
+            'sort' => $tuile['libelle'],
+            'faces_attaque' => $jet->facesAttaque,
+            'faces_defense' => $jet->facesDefense,
+            'face_touchante' => $resume['face_touchante'] ?? 'crane',
+            'face_defensive' => $resume['face_defensive'] ?? 'bouclier_noir',
+            'resume' => $etat->fresh()->reaction_en_attente['resume'] ?? null,
+            'expire_dans' => ReactionEffet::FENETRE_SECONDES,
+        ];
+    }
+
+    /**
+     * Réponse à la tuile crâne : accepter la défausse et ajoute ses crânes au jet RETENU ; refuser (ou l'expiration)
+     * reprend le jet tel quel. Dans les deux cas l'action suspendue est rejouée.
+     *
+     * @param  array<string, mixed>  $attente
+     * @return array<string, mixed>
+     */
+    private function repondreTropheeCrane(Groupe $groupe, Personnage $heros, array $attente, bool $accepte): array
+    {
+        $trophees = app(\App\Partie\Arene\TropheesArene::class);
+        $expiree = isset($attente['expire_a']) && now()->greaterThan($attente['expire_a']);
+        $tuile = (string) ($attente['tuile'] ?? '');
+        $quete = $groupe->queteCourante;
+        $reprise = (array) ($attente['reprise'] ?? []);
+        $attaques = array_values((array) ($reprise['attaques'] ?? []));
+
+        $active = $accepte && ! $expiree && $quete !== null && $attaques !== []
+            && isset(\App\Partie\Arene\TropheesArene::CRANES[$tuile])
+            && $trophees->defausser($quete, \App\Partie\Arene\TropheesArene::CHALLENGER, $tuile);
+
+        if ($active) {
+            $attaques[count($attaques) - 1]['touches_bonus'] = \App\Partie\Arene\TropheesArene::CRANES[$tuile];
+            $trophees->annoncerCombat($groupe, \App\Partie\Arene\TropheesArene::CHALLENGER, $heros->nom, $tuile);
+        }
+
+        $base = [
+            'type' => 'reaction', 'personnage' => $heros->nom, 'victime' => $heros->nom, 'victime_id' => $heros->id,
+            'sort' => $attente['nom'] ?? null, 'action' => ReactionEffet::TROPHEE_CRANE, 'active' => $active,
+            ...($expiree ? ['raison' => 'Fenêtre de réaction écoulée.'] : []),
+        ];
+
+        try {
+            $execution = app(ExecutionChoix::class)->executer(
+                $groupe, $heros, (array) ($reprise['option'] ?? []), (array) ($reprise['parametres'] ?? []), $attaques,
+            );
+        } catch (ValidationException $e) {
+            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
+
+            return [...$base, 'erreur' => collect($e->errors())->flatten()->first()];
+        }
+
+        return [...$base, 'resultat' => $execution['resultat'], 'des' => $execution['des']];
     }
 
     /**

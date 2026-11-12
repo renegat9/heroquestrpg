@@ -80,6 +80,8 @@ final class EtatGroupe
             'identifiant' => $groupe->identifiant,
             'nom' => $groupe->nom,
             'phase' => $groupe->phase,
+            // MODE ARÈNE (lot A5) : `campagne` ou `arene` — les écrans affichent le salon au lieu du hub de campagne.
+            'mode' => $groupe->mode ?? Groupe::MODE_CAMPAGNE,
             'or' => (int) $groupe->or,
             'etat' => $groupe->etat,
             'narrateur_actif' => $narrateurActif,
@@ -92,10 +94,12 @@ final class EtatGroupe
             // client.
             // `null` hors rotation historique : la liste (cochée, choisie par le
             // MJ, tirée) est dans `bestiaire_boites`.
-            'theme_bestiaire' => $bestiaire->estFiltre() ? null : ($bestiaire->boites[0] ?? null),
-            'theme_bestiaire_libelle' => $bestiaire->libelle(),
-            'bestiaire_mode' => $bestiaire->mode,
-            'bestiaire_boites' => $bestiaire->boites,
+            // MODE ARÈNE : pas de bestiaire de campagne — le Defender est composé au salon (`groupe.arene`). Rien de
+            // la rotation des boîtes n'est publié, sans quoi la table affichait une boîte tirée pour rien.
+            'theme_bestiaire' => $groupe->estArene() || $bestiaire->estFiltre() ? null : ($bestiaire->boites[0] ?? null),
+            'theme_bestiaire_libelle' => $groupe->estArene() ? null : $bestiaire->libelle(),
+            'bestiaire_mode' => $groupe->estArene() ? null : $bestiaire->mode,
+            'bestiaire_boites' => $groupe->estArene() ? [] : $bestiaire->boites,
             // Scène sonore courante (boucle d'ambiance jouée par la table).
             'ambiance' => $this->sceneAmbiance($groupe, $queteCourante),
             // Illustration du lieu de repos (hub) — générée en arrière-plan
@@ -103,8 +107,17 @@ final class EtatGroupe
             'image_url' => app(BibliothequeImages::class)->urlDynOuVignette('hub', $groupe->id),
         ];
 
+        // MODE ARÈNE (lot A5) : le SALON remplace le hub de campagne — aucun marché, recrutement, compagnon, faveur ni
+        // prologue n'existe en arène, et rien n'en est publié. `GroupesArene::publier()` décide tout.
+        if ($groupe->estArene()) {
+            // A9a : un Monster vs Monster publie SON salon (camps, puissance convenue, tirage, sélection alternée).
+            $preambuleGroupe['arene'] = $groupe->estMonstresContreMonstres()
+                ? app(\App\Partie\Arene\MonstresContreMonstres::class)->publier($groupe)
+                : ['variante' => Groupe::VARIANTE_COOP, ...app(\App\Partie\Arene\GroupesArene::class)->publier($groupe)];
+        }
+
         // En phase hub : expose les statuts « prêt » des personnages actifs.
-        if ($groupe->phase === 'hub') {
+        if ($groupe->phase === 'hub' && ! $groupe->estArene()) {
             $prets = Cache::get("partie:pret:{$groupe->id}", []);
             // On porte le NOM du héros (pas seulement l'id) : sinon la manette
             // d'un joueur affichait « Perso n°59 » pour les coéquipiers dont elle
@@ -198,6 +211,9 @@ final class EtatGroupe
             'quete' => $quete === null ? null : [
                 'id' => $quete->id,
                 'titre' => $quete->titre,
+                // MODE ARÈNE (lot T4) : les cases de trophée encore couvertes (FACE CACHÉE, sans la tuile) et les deux
+                // réserves d'équipe, tuile par tuile — `TropheesArene::publier()`. `null` hors de l'arène.
+                'trophees' => app(\App\Partie\Arene\TropheesArene::class)->publier($quete),
                 'position_arc' => $quete->position_arc,
                 'type_jalon' => $quete->type_jalon,
                 'etat' => $quete->etat,
@@ -464,6 +480,9 @@ final class EtatGroupe
                 ->values()
                 ->all(),
             'epreuves' => $this->epreuves($carte, $decouvertes),
+            // MODE ARÈNE (lot T4) : les cases de trophée encore couvertes, FACE CACHÉE (`[{x, y}]`, jamais la tuile) —
+            // `TropheesArene::publier()`, le même point que `quete.trophees`. Vide hors de l'arène.
+            'trophees' => app(\App\Partie\Arene\TropheesArene::class)->publier($quete)['cases'] ?? [],
             // ⚠ Les LEVIERS n'étaient publiés NULLE PART (corrigé 2026-08-27) :
             // aucun n'était donc dessiné. C'était sans conséquence tant qu'aucun
             // gabarit n'en posait ; ça ne l'est plus depuis qu'un levier demande
@@ -1558,6 +1577,8 @@ final class EtatGroupe
                 // n'annonce est injouable — la table doit pouvoir la distinguer
                 // d'un ennemi avant de lui taper dessus.
                 'controle_par' => $i->controle_par === null ? null : (int) $i->controle_par,
+                // MONSTER VS MONSTER (lot A9c) : le camp de la figure (`a` | `b`), `null` hors de ce mode.
+                'camp_arene' => $i->camp_arene,
                 'conditions' => $this->conditionsMonstre($i),
             ])
             ->values()
@@ -1682,6 +1703,11 @@ final class EtatGroupe
             ->groupBy('recruteur_personnage_id');
 
         $heros = collect();
+        // QUI A LA MAIN, décidé par le serveur (`OrdreDuTour`, PR #2) : en campagne un seul acteur, en arène tout héros
+        // libre de l'activation alternée (« the Challenger team activates any one hero », F9528 p. 12). La manette et
+        // la table lisent ce drapeau ; elles ne re-dérivent plus l'acteur de l'ordre de la barre.
+        $ordre = app(OrdreDuTour::class);
+        $etatsListe = $quete->etatsPersonnages()->get();
 
         foreach ($groupe->personnages()
             ->wherePivot('actif', true)
@@ -1695,6 +1721,7 @@ final class EtatGroupe
                 // Un héros tombé est sauté par le moteur (verifierInitiative) :
                 // le client en a besoin pour désigner le VRAI acteur courant.
                 'tombe' => (bool) ($etats->get($p->id)?->tombe ?? false),
+                'a_la_main' => ($ordre->acteurPour($groupe, (int) $p->id, $etatsListe)['type'] ?? null) === 'heros',
                 // Portrait (2026-10-01) : le même que sa figurine sur la carte.
                 'image_url' => app(BibliothequeImages::class)->urlHeros($p->id, $p->classe),
             ]);
@@ -1706,6 +1733,7 @@ final class EtatGroupe
                     'nom' => $allie->mercenaire->nom,
                     'a_joue' => (bool) $allie->a_joue,
                     'tombe' => false,
+                    'a_la_main' => $ordre->estSonTourAllie($groupe, (int) $allie->id, $etatsListe),
                     'image_url' => app(BibliothequeImages::class)->urlMercenaire($allie->mercenaire_id, $allie->mercenaire->nom),
                 ]);
             }
@@ -1723,6 +1751,7 @@ final class EtatGroupe
                 'nom' => $i->nomAffiche(),
                 'a_joue' => false, // les monstres jouent en bloc après les héros (C2)
                 'tombe' => false,
+                'a_la_main' => false,
                 'image_url' => app(BibliothequeImages::class)->urlMonstre($i->id, $i->monstre_id, $i->monstre->nom_base),
             ]);
 

@@ -191,6 +191,19 @@ final class ReactionEffet
      */
     public const RELANCE_JET = 'relance_jet';
 
+    /**
+     * MODE ARÈNE (lot T4, F9528 p. 14) — tuile CRÂNE du Challenger : « use it after rolling combat dice ». L'attaque du
+     * héros est SUSPENDUE comme pour la Vision du futur, le jet montré ; accepter défausse la tuile et ajoute ses crânes,
+     * refuser (ou laisser passer la fenêtre) reprend le jet tel quel.
+     */
+    public const TROPHEE_CRANE = 'trophee_crane';
+
+    /**
+     * MODE ARÈNE (lot T4) — tuile BOUCLIER BLANC du Challenger, après le jet de défense : ses boucliers s'ajoutent, donc
+     * autant de points de dégâts du coup sont rendus. Peut relever un héros que ce coup a fait tomber.
+     */
+    public const TROPHEE_BOUCLIER = 'trophee_bouclier';
+
     public const JET_ATTAQUE = 'attaque';
 
     public const JET_DEFENSE = 'defense';
@@ -218,6 +231,8 @@ final class ReactionEffet
         // n'ont jamais lieu quand tout le monde est à terre — un héros debout
         // joue — donc la même ligne ne les rend pas suspensives à tort.)
         self::RELANCE_JET,
+        // Le bouclier blanc d'une tuile trophée rend des dégâts : il peut relever le héros.
+        self::TROPHEE_BOUCLIER,
     ];
 
     /** @return list<string> */
@@ -237,7 +252,8 @@ final class ReactionEffet
     {
         return [self::ANNULE_DEGATS, self::RIPOSTE, self::PLANCHER_PV,
             self::ANNULE_DEGATS_VOISIN, self::DEFI_ERRANT, self::SOIN_URGENCE,
-            self::RELANCE_ATTAQUE, self::REFLET_SORT, self::RELANCE_BENEDICTION_ORACLE, self::RELANCE_JET];
+            self::RELANCE_ATTAQUE, self::REFLET_SORT, self::RELANCE_BENEDICTION_ORACLE, self::RELANCE_JET,
+            self::TROPHEE_CRANE, self::TROPHEE_BOUCLIER];
     }
 
     /**

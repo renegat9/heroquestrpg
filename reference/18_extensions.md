@@ -353,6 +353,101 @@ officiel — ⚠ **recoupé le 2026-10-05** : la carte « Abomination » elle-m�
 cette fois sans réserve de prudence — table de tournoi et carte s'accordent),
 Guerrier du Chaos (Dread Warrior) 7/3/4/3/4, Gargouille 6/4/5/3/4.
 
+### Mode tournoi — relecture du 2026-11-09 (pages imprimées 12-16)
+
+PDF re-téléchargé le 2026-11-09 depuis `instructions.hasbro.com` (recherche « ogre horde » ; fichier
+`F9528UU00_INST_527014_HeroQuest_OGRE_HORDE_S24-compressed (1).pdf`, servi par `assets-us-01.kc-usercontent.com`),
+texte extrait avec `pdftotext`, pages 14-15 rendues en image et lues visuellement. Sert le **mode Arène**
+(`docs/plan-mode-arene.md`).
+
+**Puissance d'équipe (p. 15-16).**
+- Héros : « Each hero begins with a power of 1, then adds the Attack dice of their strongest attack » — exemple du
+  livret : épée large 4, épée courte 3, épée courte 3, sort du Génie 6 → « Team Power: 16 ».
+- **Monstre : sa puissance vaut ses dés d'attaque**, sans le +1. Le roster (p. 16) a une colonne `#` (nombre de
+  figures) et une colonne `Total` = `#` × `Attack Dice` : Goblin ×3 → 6, Goblin (Ranged) ×2 → 4, Ogre Warrior ×1 → 5,
+  et l'exemple d'équipe « Grazzarg Gorethooth's Gang » totalise **15** (6 + 4 + 5).
+- « The Defender team's power must be less than or equal to the Challenger team's power. » Monster vs Monster :
+  « Both sides agree on an equal team power ».
+
+**Roster du tournoi (p. 16)**, colonnes Movement / Mind / Defend / Body / Attack :
+
+| Monstre | Move | Mind | Defend | Body | Attack (= puissance) |
+|---|---|---|---|---|---|
+| Goblin | 10 | 1 | 1 | 1 | 2 |
+| Goblin (Ranged) | 10 | 1 | 1 | 1 | 2 |
+| Orc | 8 | 2 | 2 | 1 | 3 |
+| Orc (Ranged) | 8 | 2 | 2 | 1 | 3 |
+| Skeleton | 6 | 0 | 2 | 1 | 2 |
+| Skeleton (Ranged) | 6 | 0 | 2 | 1 | 2 |
+| Zombie | 5 | 0 | 3 | 1 | 2 |
+| Mummy | 4 | 0 | 4 | 2 | 3 |
+| Abomination | 6 | 3 | 3 | 2 | 3 |
+| Dread Warrior | 7 | 3 | 4 | 3 | 4 |
+| Gargoyle | 6 | 4 | 5 | 3 | 4 |
+| Ogre Warrior | 6 | 1 | 4 | 5 | 5 |
+| Ogre Champion | 6 | 1 | 4 | 6 | 5 |
+| Ogre Commander | 4 | 2 | 5 | 6 | 6 |
+
+**Porté** (2026-11-12, `GroupesArene::ROSTER_DEFENDER`) : les quatorze entrées, liste blanche du salon en Coop comme en
+Monster vs Monster. Une version à distance y vaut son attaque standard en puissance. Aucune n'a de sort de Dread : le
+tournoi n'a aucun lanceur.
+
+**Le hall du tournoi « hors des quêtes » (plan p. 15, lu sur le rendu)** — une salle centrale de **9 colonnes × 8
+rangées**, et de chaque côté une **tuile de départ de 4 × 4** (« Challenger Tile » à gauche, « Defender Tile » à droite),
+alignée sur les rangées 3 à 6 de la salle et reliée à elle par une **double porte** sur les rangées 4 et 5 (« The
+Defender team opens the door and begins the first round »). Dans la salle (colonnes 1-9, rangées 1-8, depuis le coin
+haut gauche) :
+- **6 cases de trophée** : les quatre coins (1,1), (9,1), (1,8), (9,8), et (5,4), (5,5) au centre ;
+- **2 coffres** : (5,1) et (5,8) ;
+- **2 cases de gravats** (case bloquée) : (3,5) et (7,4).
+
+**Mise en place (p. 15)** : les tuiles trophées, mélangées, face cachée sur les cases désignées ; « Place any
+remaining trophy tiles to the side ». Le Defender se place d'abord, caché par l'écran ; puis le Challenger ; puis on
+révèle.
+
+**Tuiles trophées (p. 13-14)**, illustrées p. 14 :
+- *Combat* : à ajouter à son jet APRÈS l'avoir lancé — six tuiles illustrées : trois simples et les mêmes trois en
+  « x2 ». Le texte nomme la tuile **crâne blanc** (+1 crâne à l'attaque) et la tuile **bouclier blanc** (+1 bouclier à
+  la défense) ; ⚠ la troisième illustration (un bouclier d'un autre dessin) n'est pas nommée par le texte.
+- *Healing Potion* : **deux tuiles, +2** chacune ; utilisable à 0 Body, « before they die ».
+- *Riposte* : **une tuile** illustrée ; contre-attaque immédiate après avoir subi des dégâts d'un adjacent ou d'un
+  diagonal, même si la figure tombe sur ce coup ; pas sous *Tempest*.
+- *Burst of Speed* : « At any time, a combatant may discard **any** trophy tile to add 2 squares to their movement » —
+  ce n'est pas une tuile à part : toute tuile peut servir ainsi.
+- Ramassage : en FINISSANT son tour sur la case, sans action ; réserve d'équipe, impossible à voler ; les tuiles non
+  ramassées disparaissent à la fin du combat ; une grande figure ramasse toutes celles sous elle.
+- **Le troisième bouclier : le BOUCLIER NOIR** — confirmé par René le 2026-11-09 sur la boîte (« le jeton à visage est
+  le bouclier noir dans les trophées »). Ni le texte, ni l'illustration p. 14, ni la page de contenu ne le nomment. Les
+  trois tuiles de combat sont donc les trois faces du dé : **crâne blanc** (+1 crâne à l'attaque), **bouclier blanc**
+  (+1 bouclier blanc à la défense, le bouclier en écu) et **bouclier noir** (+1 bouclier noir à la défense, le bouclier
+  à visage), chacune en simple et en « x2 ».
+- Le tournoi se joue sur un **plateau en carton dédié** (« World's End Tournament », p. 3 et p. 12), tuiles de départ
+  collées sur ses côtés, décalées (Challenger en haut à gauche, Defender en bas à droite) ; le plan « hors des
+  quêtes » de la p. 15, ci-dessus, les centre et désigne trophées, coffres et gravats. La photo du contenu ne montre
+  qu'une tuile potion, le livret en illustre deux (+2 chacune).
+- ⚠ Neuf tuiles illustrées (6 combat, 2 potions, 1 riposte) pour six cases : le livret ne dit pas lesquelles restent
+  de côté — le hasard du mélange.
+
+**Combattant seul (p. 12-13)** : « In addition to their own turn, they may take a basic maneuver after each opponent's
+turn » — se déplacer de sa vitesse, OU lancer 2 dés d'attaque contre une créature adjacente (en diagonale s'il le peut
+d'ordinaire) ; pas s'il est neutralisé ou incapable d'agir (*Tempest*) ; il garde son jeton d'activation. **Porté** (lot T5, `ManoeuvreSolo`) :
+les deux camps ; la propre activation du combattant seul tient lieu de manœuvre tant qu'il ne l'a pas jouée.
+
+**Alliés (p. 12)** : « Heroes and allies make up the Challenger team. » **Porté** (lot A4, 2026-11-12) : un allié gratuit
+par combattant, pris aux recrutables du catalogue, de puissance 1 + sa meilleure attaque (même règle qu'un héros), joué
+par son joueur à SA propre activation, à laquelle le Defender répond.
+
+**Mort (p. 12)** : hors jeu jusqu'à la fin de la quête ; ses objets restent sur sa case, ramassés par tout héros qui
+passe adjacent, sans action. **Porté en partie** (René, 2026-11-10) : dans l'arène, « Relever » n'est pas offert (menu) ni accepté
+(résolveur) ; les soins, eux, préviennent la mort comme en campagne. ⚠ Écart nommé : les objets du mort ne quittent pas
+sa doublure — pas de ramassage au sol.
+
+**Trésor (p. 13)** : action de fouille adjacent ou en diagonale d'un coffre, 2 dés rouges, puis le coffre est retiré :
+2 piège explosif (−3 Body), 3-4 gaz (−2), 5-6 flèche (−1), 7 **une hache de bataille en os**, 8-9 100 po, 10-11 200 po,
+12 300 po. La hache en os est réglée p. 8 (« Bone Weapons » : identique à l'arme de même nom de l'armurerie, sans valeur en
+or, ni achetable ni vendable) et **déjà portée** : `Hache de bataille en os` (`ObjetSeeder`, lot B, avec l'`Épée longue
+en os` de la quête 4).
+
 **Versions à distance (Ranged)** — nouvelle variante générique : Zargon
 peut placer un squelette, un orque ou un gobelin « à distance » à la place
 du modèle standard ; ce monstre lance ses dés d'attaque habituels contre

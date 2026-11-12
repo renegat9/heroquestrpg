@@ -484,3 +484,89 @@ function ouvrirTourDeHub(Groupe $groupe): Quete
         'etat' => 'terminee',
     ]);
 }
+
+/*
+| MODE ARÈNE (`tests/Feature/Arene`) — l'EMPREINTE d'un héros, partagée par les tests d'étanchéité.
+*/
+
+/** Les tables qui portent une clé étrangère vers `personnages`, et la colonne qui la porte, lues sur le SCHÉMA. */
+function tablesLieesAuxPersonnages(): array
+{
+    $liees = [];
+
+    foreach (\Illuminate\Support\Facades\Schema::getTableListing(schemaQualified: false) as $table) {
+        foreach (\Illuminate\Support\Facades\Schema::getForeignKeys($table) as $cle) {
+            if ($cle['foreign_table'] === 'personnages' && $table !== 'personnages') {
+                $liees[$table][] = $cle['columns'][0];
+            }
+        }
+    }
+
+    ksort($liees);
+
+    return $liees;
+}
+
+/**
+ * L'EMPREINTE complète d'un héros : sa ligne et TOUTES les lignes qui le désignent, quelle que soit la table — lue sur
+ * le schéma, pas sur une liste à tenir à jour : une table ajoutée demain y entre d'elle-même.
+ */
+function empreinteDuHeros(int $id): string
+{
+    $empreinte = ['personnages' => (array) \Illuminate\Support\Facades\DB::table('personnages')->where('id', $id)->first()];
+
+    foreach (tablesLieesAuxPersonnages() as $table => $colonnes) {
+        // Les statistiques d'arène sont ce que l'arène REND au héros (plan §5) : l'empreinte se compare HORS d'elles,
+        // et les tests du palmarès vérifient à part qu'elles ont bien été écrites.
+        if ($table === 'arene_statistiques') {
+            continue;
+        }
+
+        foreach ($colonnes as $colonne) {
+            $empreinte["{$table}.{$colonne}"] = \Illuminate\Support\Facades\DB::table($table)->where($colonne, $id)->orderBy('id')->get()
+                ->map(fn ($ligne) => (array) $ligne)->all();
+        }
+    }
+
+    return json_encode($empreinte, JSON_THROW_ON_ERROR);
+}
+
+// MODE ARÈNE (lot T2, partagé par ActivationAlterneeTest et ManoeuvreSoloTest).
+/**
+ * Deux joueurs, un héros d'arène chacun, engagés dans un combat contre `$defender` (noms du catalogue).
+ *
+ * @return array{arene: \App\Models\Groupe, quete: \App\Models\Quete, alice: mixed, bob: mixed, a: Personnage, b: Personnage}
+ */
+function combatADeux(array $defender): array
+{
+    $arenes = app(\App\Partie\Arene\GroupesArene::class);
+    $arene = $arenes->ouvrir();
+
+    $alice = connecterJoueur('alice');
+    $ha = \App\Models\Personnage::findOrFail(test()->postJson('/api/personnages', ['nom' => 'Aldra', 'classe' => 'barbare', 'mode' => 'arene'])->json('personnage.id'));
+    $a = $arenes->engager($arene, $ha);
+
+    $bob = connecterJoueur('bob');
+    $hb = \App\Models\Personnage::findOrFail(test()->postJson('/api/personnages', ['nom' => 'Borin', 'classe' => 'nain', 'mode' => 'arene'])->json('personnage.id'));
+    $b = $arenes->engager($arene, $hb);
+
+    $ids = array_map(fn (string $nom) => (int) \App\Models\Monstre::where('nom_base', $nom)->value('id'), $defender);
+    $quete = app(\App\Partie\Arene\DemarreurArene::class)->demarrer($arene, $ids);
+
+    return ['arene' => $arene->refresh(), 'quete' => $quete->refresh(), 'alice' => $alice, 'bob' => $bob, 'a' => $a, 'b' => $b];
+}
+
+function jetonsDuDefender(\App\Models\Quete $quete): int
+{
+    return \App\Models\InstanceMonstre::where('quete_id', $quete->id)->where('active_ce_round', true)->count();
+}
+
+/** Joue `option_id` pour le joueur donné, sur son menu courant. */
+function jouerEnArene($joueur, string $identifiant, string $option, array $parametres = [])
+{
+    test()->actingAs($joueur, 'joueur');
+    test()->getJson("/api/groupes/{$identifiant}/menu")->assertOk();
+
+    return test()->postJson("/api/groupes/{$identifiant}/choix", ['option_id' => $option, 'parametres' => $parametres]);
+}
+

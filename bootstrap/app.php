@@ -33,4 +33,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        // MODE ARÈNE (lot A2) : une étape de campagne atteinte par un groupe d'arène — un code d'arène collé dans le
+        // champ « Rejoindre » d'une campagne, par exemple — est un refus NOMMÉ, pas une panne : 422 avec sa phrase.
+        $exceptions->render(fn (\App\Partie\Arene\RefusArene $e, Request $request) => $request->is('api/*')
+            ? response()->json(['message' => $e->getMessage(), 'errors' => ['arene' => [$e->getMessage()]]], 422)
+            : null);
     })->create();

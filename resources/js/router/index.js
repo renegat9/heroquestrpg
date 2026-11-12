@@ -9,6 +9,7 @@ import MonteeNiveauView from '../views/MonteeNiveauView.vue';
 import ClotureCampagneView from '../views/ClotureCampagneView.vue';
 import GuideView from '../views/GuideView.vue';
 import SystemeView from '../views/SystemeView.vue';
+import AreneMonstresView from '../views/AreneMonstresView.vue';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -31,6 +32,8 @@ const router = createRouter({
         // ---- écrans de jeu ----
         { path: '/table/:groupe', name: 'table', component: TableView, props: true },
         { path: '/manette/:groupe', name: 'manette', component: ManetteView, props: true },
+        // MONSTER VS MONSTER (lot A9a) : la manette d'un joueur sans héros.
+        { path: '/arene/:groupe', name: 'arene-monstres', component: AreneMonstresView, props: true },
 
         // ---- écrans de moments de campagne ----
         { path: '/niveau/:groupe', name: 'montee-niveau', component: MonteeNiveauView, props: true },

@@ -33,10 +33,22 @@ rouge() { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 vert()  { printf '\033[32m%s\033[0m\n' "$*"; }
 info()  { printf '  %s\n' "$*"; }
 
+# MODE ARÈNE (lot A7, 2026-11-09) : les combats d'arène et leurs doublures sont ÉPHÉMÈRES. Compter tous les groupes
+# ferait varier les comptes à chaque combat ouvert ou purgé, et le garde-fou « 0 groupe alors que la précédente en
+# avait » se déclencherait pour une arène fermée. On ne compte donc que les CAMPAGNES (`groupes.mode = 'campagne'`)
+# et les VRAIS héros (`personnages.doublure_de IS NULL`). Une base d'avant ces colonnes (vieille sauvegarde relue par
+# --verifier) est comptée à l'ancienne : la requête est choisie selon la présence de la colonne.
+SQL_A_ARENE="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='groupes' AND column_name='mode'"
+SQL_COMPTES_ARENE="SELECT (SELECT COUNT(*) FROM groupes WHERE mode='campagne'), (SELECT COUNT(*) FROM personnages WHERE doublure_de IS NULL), (SELECT COUNT(*) FROM joueurs)"
+SQL_COMPTES_ANCIEN="SELECT (SELECT COUNT(*) FROM groupes), (SELECT COUNT(*) FROM personnages), (SELECT COUNT(*) FROM joueurs)"
+sql_comptes_pour() { if [ "${1:-0}" = "1" ]; then echo "$SQL_COMPTES_ARENE"; else echo "$SQL_COMPTES_ANCIEN"; fi; }
+
 compter() {
+  local arene
+  arene="$(docker compose exec -T mariadb sh -c \
+    "MYSQL_PWD='$MDP_ROOT' mariadb -uroot -N -B -e \"$SQL_A_ARENE\" '$BASE'")"
   docker compose exec -T mariadb sh -c \
-    "MYSQL_PWD='$MDP_ROOT' mariadb -uroot -N -B -e \
-     \"SELECT (SELECT COUNT(*) FROM groupes), (SELECT COUNT(*) FROM personnages), (SELECT COUNT(*) FROM joueurs)\" '$BASE'"
+    "MYSQL_PWD='$MDP_ROOT' mariadb -uroot -N -B -e \"$(sql_comptes_pour "$arene")\" '$BASE'"
 }
 
 # ---------------------------------------------------------------- --lister
@@ -73,9 +85,10 @@ if [ "${1:-}" = "--verifier" ]; then
   gzip -dc "$DERNIERE/mariadb.sql.gz" | docker exec -i "$NOM" \
     sh -c "MYSQL_PWD=verif mariadb -uroot '$BASE'"
 
+  ARENE_RELUE="$(docker exec "$NOM" sh -c \
+     "MYSQL_PWD=verif mariadb -uroot -N -B -e \"$SQL_A_ARENE\" '$BASE'")"
   LU="$(docker exec "$NOM" sh -c \
-     "MYSQL_PWD=verif mariadb -uroot -N -B -e \
-      \"SELECT (SELECT COUNT(*) FROM groupes), (SELECT COUNT(*) FROM personnages), (SELECT COUNT(*) FROM joueurs)\" '$BASE'")"
+     "MYSQL_PWD=verif mariadb -uroot -N -B -e \"$(sql_comptes_pour "$ARENE_RELUE")\" '$BASE'")"
   ATTENDU="$(grep -m1 '^lignes=' "$DERNIERE/MANIFEST.txt" | cut -d= -f2)"
 
   info "attendu : $ATTENDU"
@@ -160,7 +173,7 @@ install -m 600 "$RACINE/.env" "$DOSSIER/env"
 
 LIGNES="$(compter)"
 {
-  echo "$HORO — groupes/personnages/joueurs : $(echo "$LIGNES" | tr '\t' '/')"
+  echo "$HORO — campagnes/héros/joueurs : $(echo "$LIGNES" | tr '\t' '/')"
   echo "lignes=$LIGNES"
   echo "base=$BASE"
   echo "git=$(git -C "$RACINE" rev-parse --short HEAD 2>/dev/null || echo '?')"

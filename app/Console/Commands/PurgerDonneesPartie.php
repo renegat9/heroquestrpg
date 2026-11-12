@@ -8,6 +8,7 @@ use App\Agent\Memoire\BibleQdrant;
 use App\Models\Groupe;
 use App\Models\Joueur;
 use App\Models\Personnage;
+use App\Partie\Arene\GroupesArene;
 use App\Partie\ClotureCampagne;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -81,9 +82,10 @@ final class PurgerDonneesPartie extends Command
             return self::FAILURE;
         }
 
-        // 1. Les campagnes, par le service : caches, Qdrant et images compris.
+        // 1. Les campagnes, par le service : caches, Qdrant et images compris. Un combat d'ARÈNE a son propre point de
+        // passage (`GroupesArene::purger()`, mode arène lot A2) : `ClotureCampagne::purger()` le refuse.
         foreach ($groupes as $groupe) {
-            $cloture->purger($groupe);
+            $groupe->estArene() ? app(GroupesArene::class)->purger($groupe) : $cloture->purger($groupe);
         }
 
         // 2. Les héros détachés, que la purge d'une campagne rend au roster

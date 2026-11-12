@@ -142,6 +142,8 @@ final class VoteGroupe
      */
     public function lancerRetraite(Groupe $groupe, array $acteur): array
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::VOTE_RETRAITE);
+
         if (Cache::has(self::cle($groupe->id))) {
             throw ValidationException::withMessages([
                 'option_id' => 'Un vote est déjà en cours dans ce groupe.',
@@ -193,6 +195,8 @@ final class VoteGroupe
      */
     public function lancerSortie(Groupe $groupe, array $acteur): array
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::VOTE_SORTIE);
+
         if (Cache::has(self::cle($groupe->id))) {
             throw ValidationException::withMessages([
                 'option_id' => 'Un vote est déjà en cours dans ce groupe.',

@@ -125,6 +125,9 @@ export function useApi() {
             return {
                 joueur: r?.joueur ?? null,
                 personnages: r?.joueur?.personnages ?? [],
+                // MODE ARÈNE (lot A5) : les doublures que ce joueur pilote dans un combat d'arène — JAMAIS dans le
+                // roster ; seule la manette les lit, pour la fiche de la doublure qu'elle pilote.
+                doublures: r?.joueur?.doublures ?? [],
                 // Boîtes du bestiaire MANUEL, libellés décidés côté serveur.
                 boites_bestiaire: r?.boites_bestiaire ?? [],
                 // Longueurs de campagne proposables (2026-11-05), décidées côté serveur.
@@ -135,12 +138,42 @@ export function useApi() {
         // ---- personnages du roster ----
 
         /**
-         * POST /api/personnages {nom, classe, elements?} → {personnage}.
+         * POST /api/personnages {nom, classe, mode?, elements? | sorts_elfiques?} → {personnage}.
          * Crée un perso libre dans le roster du joueur.
-         * `elements` (magicien) : 2 éléments parmi feu/eau/terre/air.
+         * `elements` (lanceurs) : les éléments choisis ; `sorts_elfiques` (Elfe, voie elfique) : 3 ids de sorts —
+         * jamais les deux, le serveur refuse. `mode` : `campagne` (défaut) ou `arene` (lot A6b, 2026-11-09).
+         * ⚠ Le corps est relayé tel quel : l'ancienne version ne gardait que `{nom, classe, elements}` et jetait en
+         * silence `sorts_elfiques`, si bien qu'un Elfe de voie elfique recevait l'école de départ.
          */
-        creerPersonnage: ({ nom, classe, elements }) =>
-            request('POST', '/personnages', elements ? { nom, classe, elements } : { nom, classe }),
+        // ---- arène (lot A5, contrat « Le salon et les routes d'arène ») ----
+        ouvrirArene: (personnageId) => request('POST', '/arene', { personnage_id: personnageId }),
+        palmaresArene: () => request('GET', '/arene/palmares'),
+        rejoindreArene: (code, personnageId) => request('POST', `/arene/${encodeURIComponent(code)}/combattants`, { personnage_id: personnageId }),
+        defenderArene: (code, monstreIds) => request('PUT', `/arene/${encodeURIComponent(code)}/defender`, { monstre_ids: monstreIds }),
+        ajouterAuDefender: (code, monstreId) => request('POST', `/arene/${encodeURIComponent(code)}/defender`, { monstre_id: monstreId }),
+        retirerDuDefender: (code, index) => request('DELETE', `/arene/${encodeURIComponent(code)}/defender/${index}`),
+        pretArene: (code, pret) => request('POST', `/arene/${encodeURIComponent(code)}/pret`, { pret }),
+        allieArene: (code, mercenaireId) => request('PUT', `/arene/${encodeURIComponent(code)}/allie`, { mercenaire_id: mercenaireId }),
+        lancerArene: (code) => request('POST', `/arene/${encodeURIComponent(code)}/lancer`),
+        rejouerArene: (code) => request('POST', `/arene/${encodeURIComponent(code)}/rejouer`),
+        quitterArene: (code) => request('DELETE', `/arene/${encodeURIComponent(code)}`),
+        // MONSTER VS MONSTER (lot A9a)
+        ouvrirMonstres: () => request('POST', '/arene/monstres'),
+        campMonstres: (code, camp) => request('POST', `/arene/${encodeURIComponent(code)}/camp`, { camp }),
+        puissanceMonstres: (code, puissance) => request('PUT', `/arene/${encodeURIComponent(code)}/puissance`, { puissance }),
+        tirageMonstres: (code) => request('POST', `/arene/${encodeURIComponent(code)}/tirage`),
+        selectionMonstres: (code, monstreId) => request('POST', `/arene/${encodeURIComponent(code)}/selection`, { monstre_id: monstreId }),
+        figuresMonstres: (code) => request('GET', `/arene/${encodeURIComponent(code)}/figures`),
+        gesteMonstres: (code, instanceId, geste, parametres = {}) => request('POST', `/arene/${encodeURIComponent(code)}/geste`, { instance_id: instanceId, geste, parametres }),
+
+        creerPersonnage: ({ nom, classe, mode, elements, sorts_elfiques }) =>
+            request('POST', '/personnages', {
+                nom,
+                classe,
+                ...(mode ? { mode } : {}),
+                ...(elements ? { elements } : {}),
+                ...(sorts_elfiques ? { sorts_elfiques } : {}),
+            }),
 
         /**
          * DELETE /api/personnages/{id} → 204.

@@ -152,6 +152,8 @@ final class DemarreurQuete
 
     public function demarrer(Groupe $groupe): Quete
     {
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::DEMARRAGE_QUETE);
+
         if ($groupe->phase !== 'hub') {
             throw ValidationException::withMessages([
                 'groupe' => 'Une quête est déjà en cours : terminez-la avant d\'en démarrer une autre.',

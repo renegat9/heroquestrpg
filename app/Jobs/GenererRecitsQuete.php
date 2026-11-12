@@ -71,6 +71,8 @@ class GenererRecitsQuete implements ShouldQueue
 
     public function handle(RecitsQuete $skill, ContexteAssembleur $assembleur, BibliothequeNarration $narration): void
     {
+        Groupe::find($this->groupeId)?->exigerCampagne(\App\Partie\Arene\EtapesCampagne::RECITS);
+
         $groupe = Groupe::find($this->groupeId);
         $quete = Quete::find($this->queteId);
 

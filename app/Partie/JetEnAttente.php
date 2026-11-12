@@ -32,6 +32,8 @@ final class JetEnAttente extends \RuntimeException
         public readonly array $facesAttaque,
         public readonly array $facesDefense,
         public readonly array $resume,
+        // MODE ARÈNE (lot T4) : la tuile trophée CRÂNE offerte au héros pour ce jet — `null` pour la Vision du futur.
+        public readonly ?string $trophee = null,
     ) {
         parent::__construct('Jet en attente d\'une relance.');
     }

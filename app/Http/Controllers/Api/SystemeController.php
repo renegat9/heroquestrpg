@@ -414,9 +414,14 @@ class SystemeController extends Controller
                 $detail = 'Base VIDE : aucune table de jeu. Dossiers partagés non montés (redémarrage de WSL/Docker ?) — '
                     .'« docker compose up -d --force-recreate », jamais « down -v ». Vos données sont sur le disque, pas dans cette base.';
             } else {
+                // MODE ARÈNE (lot A7) : les combats d'arène et leurs doublures sont éphémères — seules les CAMPAGNES et
+                // les VRAIS héros comptent, comme dans `image-tools/sauvegarder.sh`. Sinon la fermeture d'une arène
+                // ferait varier les comptes, et « 0 groupe » pourrait venir d'une arène purgée.
                 $comptes = [
-                    'groupes' => DB::table('groupes')->count(),
-                    'personnages' => DB::table('personnages')->count(),
+                    'groupes' => DB::table('groupes')
+                        ->when(Schema::hasColumn('groupes', 'mode'), fn ($q) => $q->where('mode', 'campagne'))->count(),
+                    'personnages' => DB::table('personnages')
+                        ->when(Schema::hasColumn('personnages', 'doublure_de'), fn ($q) => $q->whereNull('doublure_de'))->count(),
                     'joueurs' => DB::table('joueurs')->count(),
                 ];
                 $sauvegarde = $this->derniereSauvegarde();
@@ -428,7 +433,7 @@ class SystemeController extends Controller
                         .'base remplacée par une vierge ? Ne sauvegardez pas, ne jouez pas — vérifiez les dossiers partagés.';
                 } else {
                     $etat = 'ok';
-                    $detail = "En ordre — {$comptes['groupes']} groupe(s), {$comptes['personnages']} personnage(s), {$comptes['joueurs']} joueur(s).";
+                    $detail = "En ordre — {$comptes['groupes']} campagne(s), {$comptes['personnages']} héros, {$comptes['joueurs']} joueur(s).";
                 }
             }
         } catch (Throwable $e) {

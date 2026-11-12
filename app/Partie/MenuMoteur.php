@@ -1340,6 +1340,7 @@ final class MenuMoteur
     public function generer(Groupe $groupe, Personnage $personnage): array
     {
         $menu = $this->genererBrut($groupe, $personnage);
+        $menu = $this->menuDeManoeuvre($groupe, $personnage, $menu);
 
         if (! $this->sorts->attaqueInterdite($personnage)) {
             return $menu;
@@ -1353,6 +1354,65 @@ final class MenuMoteur
         return $menu;
     }
 
+    /**
+     * ARÈNE, lot T5 — la MANŒUVRE DE BASE du combattant seul (F9528 p. 16, `App\Partie\Arene\ManoeuvreSolo`) : « either
+     * moving up to their movement speed or rolling 2 Attack dice against an adjacent creature ». Le menu ordinaire du
+     * héros (action prise, déplacement libre) est RESTREINT à ce que la manœuvre permet — la liste que le résolveur
+     * revalide (`ManoeuvreSolo::TYPES_PERMIS`) — et reçoit la frappe à 2 dés tant qu'aucun pas n'est fait. Les cibles
+     * sont celles de l'arme en main AU CONTACT : la diagonale d'une arme longue y est donc comprise (« if they can
+     * usually attack diagonally »).
+     *
+     * @param  array{situation: string, options: list<array<string, mixed>>}  $menu
+     * @return array{situation: string, options: list<array<string, mixed>>}
+     */
+    private function menuDeManoeuvre(Groupe $groupe, Personnage $personnage, array $menu): array
+    {
+        $quete = $groupe->queteCourante;
+        $etat = $quete?->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+
+        if ($etat === null || ! $etat->manoeuvre_arene || $etat->a_joue || $etat->tombe) {
+            return $menu;
+        }
+
+        $options = array_values(array_filter(
+            $menu['options'],
+            static fn (array $o) => in_array($o['type'] ?? null, \App\Partie\Arene\ManoeuvreSolo::TYPES_PERMIS, true),
+        ));
+
+        $options = array_map(static fn (array $o) => ($o['type'] ?? null) === 'attente'
+            ? ['libelle' => $etat->deplacement_restant !== null ? 'Terminer la manœuvre' : 'Passer la manœuvre'] + $o
+            : $o, $options);
+
+        if (! $etat->a_deplace && $etat->deplacement_restant === null) {
+            $arme = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
+            $cibles = array_values(array_filter(
+                $this->ciblesPourArme($quete, $etat, $personnage, $arme)['attaquer'],
+                static fn (array $c) => empty($c['distance']),
+            ));
+
+            if ($cibles !== []) {
+                $n = \App\Partie\Arene\ManoeuvreSolo::DES_ATTAQUE;
+                $attaque = $this->avecCreneaux([[
+                    'id' => 'manoeuvre_attaquer',
+                    'libelle' => "Frapper à {$n} dés",
+                    'type' => \App\Partie\Arene\ManoeuvreSolo::TYPE_ATTAQUE,
+                    'lancer' => false,
+                    'parametres' => ['arme' => 'arme_principale', 'cibles' => array_map(
+                        static fn (array $c) => array_diff_key($c, array_flip(['mains_nues', 'des_attaque', 'indication'])) + ['des_attaque' => $n],
+                        $cibles,
+                    )],
+                ]]);
+                array_unshift($options, $attaque[0]);
+            }
+        }
+
+        return [
+            'situation' => 'Seul en lice : manœuvre de base — se déplacer jusqu\'à votre mouvement OU frapper à '
+                .\App\Partie\Arene\ManoeuvreSolo::DES_ATTAQUE.' dés une créature au contact.',
+            'options' => $options,
+        ];
+    }
+
     /** Types d'option qui LANCENT un sort (sort connu, parchemin, concentration). */
     public const TYPES_LANCER_DE_SORT = ['sort', 'parchemin', 'concentration'];
 
@@ -1364,7 +1424,8 @@ final class MenuMoteur
 
     /** Types d'option qui frappent AVEC le héros lui-même (jamais le menu d'un allié). */
     // `tir_traversant` (Flèche traversante, lot A) est une attaque : un héros caché ne tire pas.
-    public const TYPES_ATTAQUE_HEROS = ['attaque', 'attaque_balayee', 'rayon', 'degat_differe', 'attaquer_mobilier', 'frapper_danger', 'tir_traversant'];
+    // `manoeuvre_attaque` (arène, lot T5) : la frappe à 2 dés du combattant seul est une attaque comme une autre.
+    public const TYPES_ATTAQUE_HEROS = ['attaque', 'attaque_balayee', 'rayon', 'degat_differe', 'attaquer_mobilier', 'frapper_danger', 'tir_traversant', 'manoeuvre_attaque'];
 
     /** Le prédicat UNIQUE « cette option est une attaque du héros » : lu par le menu et par le résolveur. */
     public static function estAttaqueDuHeros(array $option): bool
@@ -2329,7 +2390,9 @@ final class MenuMoteur
             // d'action depuis le 2026-10-09, décision de René) — le héros peut
             // encore se déplacer avant ou après, et `perd_deplacement` annonce ce
             // que l'action lui confisque s'il a entamé son mouvement.
-            $allies = $quete->etatsPersonnages()
+            // ARÈNE (René, 2026-11-10) : « Relever » n'existe pas — un mort est hors jeu jusqu'à la fin du combat
+            // (F9528 p. 12). Seuls les soins le préviennent. Même prédicat que `ResolveurTour::resoudreRelever()`.
+            $allies = self::enArene($quete) ? collect() : $quete->etatsPersonnages()
                 ->where('tombe', true)
                 ->where('personnage_id', '!=', $personnage->id)
                 ->with('personnage')
@@ -3111,12 +3174,17 @@ final class MenuMoteur
                 return ['situation' => 'Vous ne pouvez pas agir ce tour.', 'options' => $this->avecCreneaux($options, 0, $secondeFrappeEnAttente)];
             }
 
-            $options[] = [
-                'id' => 'fouiller',
-                'libelle' => 'Fouiller la zone — jet de Mind',
-                'type' => 'jet',
-                'jet' => ['attribut' => 'mind', 'difficulte' => 1, 'contexte' => 'perception'],
-            ];
+            // MODE ARÈNE (2026-11-09) : pas de fouille de zone dans le hall — ni piège caché, ni porte secrète à y
+            // trouver, et la seule fouille du tournoi est celle d'un coffre, à la table 2d6 (livret F9528 p. 13,
+            // lot T5). Retrait écrit, pas un oubli : `docs/plan-tournoi-worlds-end.md` §1.
+            if (! self::enArene($quete)) {
+                $options[] = [
+                    'id' => 'fouiller',
+                    'libelle' => 'Fouiller la zone — jet de Mind',
+                    'type' => 'jet',
+                    'jet' => ['attribut' => 'mind', 'difficulte' => 1, 'contexte' => 'perception'],
+                ];
+            }
 
             // PARLER À LA PIERRE (Moine, Style de la Terre) : la même fouille,
             // mais qui ne peut pas rater. Voir `ResolveurTour::resoudreJet()`
@@ -3225,7 +3293,12 @@ final class MenuMoteur
         // résolveur refusera.
         $voteOuvert = VoteGroupe::enCours($quete->groupe_id);
 
-        if (! $aJoue && $peutSortir && $surEscalier && ! $voteOuvert) {
+        // MODE ARÈNE (2026-11-09) : on ne quitte pas le hall et on n'y bat pas en retraite — le combat finit quand une
+        // équipe est éteinte (livret F9528 p. 12) ; l'abandon viendra du salon (lot A5). Les deux votes sont des
+        // étapes de campagne (`EtapesCampagne::VOTE_SORTIE`, `VOTE_RETRAITE`) : le menu ne les offre donc jamais.
+        $enArene = self::enArene($quete);
+
+        if (! $enArene && ! $aJoue && $peutSortir && $surEscalier && ! $voteOuvert) {
             $options[] = [
                 'id' => 'quitter_donjon',
                 'libelle' => 'Quitter le donjon — proposer au groupe',
@@ -3243,7 +3316,7 @@ final class MenuMoteur
         // retraite. Interaction libre comme la sortie : proposer ne coûte pas
         // son tour, et un héros qui a déjà joué garde le droit de le proposer
         // au prochain.
-        if (! $aJoue && ! $voteOuvert) {
+        if (! $enArene && ! $aJoue && ! $voteOuvert) {
             $options[] = [
                 'id' => 'battre_en_retraite',
                 'libelle' => 'Battre en retraite — proposer au groupe',
@@ -3268,6 +3341,29 @@ final class MenuMoteur
                 'type' => 'style',
                 'parametres' => ['style' => 'deplacement_scinde'],
             ];
+        }
+
+        // TROPHÉES D'ARÈNE (lot T4) : la potion et l'élan, pris dans la réserve du Challenger — publiés seulement quand le
+        // résolveur les acceptera (blessé ; déplacement pas terminé ; réserve non vide), la liste des tuiles est la
+        // liste blanche que `resoudreTropheeElan()` revalide.
+        if ($enArene && ! $aJoue && $etat !== null) {
+            $reserve = app(\App\Partie\Arene\TropheesArene::class)->reserve($quete, \App\Partie\Arene\TropheesArene::CHALLENGER);
+
+            if (in_array(\App\Partie\Arene\TropheesArene::POTION, $reserve, true) && (int) $personnage->pv_body < (int) $personnage->pv_body_max) {
+                $options[] = ['id' => 'trophee_potion', 'libelle' => 'Boire une potion de trophée (+2 PV)', 'type' => 'trophee_potion'];
+            }
+
+            if ($reserve !== [] && $etat->deplacement_tour !== null && ! $etat->a_deplace) {
+                $options[] = [
+                    'id' => 'trophee_elan',
+                    'libelle' => 'Élan — défausser un trophée pour +2 cases',
+                    'type' => 'trophee_elan',
+                    'parametres' => ['tuiles' => array_values(array_map(fn (string $t) => [
+                        'cle' => $t,
+                        'nom' => \App\Partie\Arene\TropheesArene::TUILES[$t]['libelle'],
+                    ], array_unique($reserve)))],
+                ];
+            }
         }
 
         if (! $aJoue) {
@@ -3455,5 +3551,11 @@ final class MenuMoteur
             'allie_id' => $allie->id,
             'options' => $options,
         ];
+    }
+
+    /** MODE ARÈNE : la quête est-elle un combat d'arène ? Lu par les options de campagne que le menu retire au hall. */
+    private static function enArene(\App\Models\Quete $quete): bool
+    {
+        return (bool) $quete->groupe?->estArene();
     }
 }

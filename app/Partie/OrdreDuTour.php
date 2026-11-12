@@ -38,6 +38,13 @@ use Illuminate\Support\Collection;
  * joueur) — jamais un allié qui bloque le tour. Dès que son héros se relève,
  * l'allié reprend son tour normal, juste après lui, au round suivant.
  * → docs/regles/combat-et-tour.md
+ *
+ * ⚠ **MODE ARÈNE — activation alternée** (lot T2, 2026-11-09, `docs/plan-tournoi-worlds-end.md` §1) : « the Challenger
+ * team activates any one hero » (livret F9528 p. 12). Il n'y a pas d'ordre d'initiative : TOUT héros debout qui n'a
+ * pas joué ce round a la main — le premier qui appuie (TQ4) — jusqu'à ce que l'un d'eux ENTAME son activation (un
+ * créneau dépensé, `a_deplace` ou `a_agi`, ou un premier pas, `deplacement_restant`). Il la garde alors seul jusqu'à `a_joue`. L'état est lu en base, jamais
+ * en cache. `acteurPour()` est la question « CE héros a-t-il la main ? », posée par le menu, le résolveur et la
+ * manette ; `acteurActif()` reste « quelqu'un a-t-il encore la main ? ».
  */
 final class OrdreDuTour
 {
@@ -57,7 +64,121 @@ final class OrdreDuTour
 
     public function estSonTour(Groupe $groupe, int $personnageId, ?Collection $etats = null): bool
     {
-        return $this->herosActifId($groupe, $etats) === $personnageId;
+        return ($this->acteurPour($groupe, $personnageId, $etats)['type'] ?? null) === 'heros';
+    }
+
+    /**
+     * CE héros (ou l'allié qu'il contrôle) a-t-il la main ? Le descripteur d'acteur s'il l'a, `null` sinon.
+     *
+     * En campagne, c'est exactement `acteurActif()` quand il désigne ce héros. En ARÈNE, plusieurs héros peuvent
+     * avoir la main en même temps (voir le docblock de la classe).
+     *
+     * @return array{type: string, personnage_id: int, allie_id?: int}|null
+     */
+    public function acteurPour(Groupe $groupe, int $personnageId, ?Collection $etats = null): ?array
+    {
+        if ($groupe->estArene()) {
+            $etats ??= $groupe->queteCourante?->etatsPersonnages()->get();
+
+            if ($etats === null) {
+                return null;
+            }
+
+            // Le héros d'abord, puis son allié (lot A4) : un joueur joue un acteur à la fois sur sa manette.
+            $acteurs = array_values(array_filter($this->acteursALaMainEnArene($groupe, $etats),
+                fn (array $a) => $a['personnage_id'] === $personnageId));
+
+            return $acteurs[0] ?? null;
+        }
+
+        $acteur = $this->acteurActif($groupe, $etats);
+
+        return $acteur !== null && (int) $acteur['personnage_id'] === $personnageId ? $acteur : null;
+    }
+
+    /**
+     * ARÈNE : les acteurs du Challenger qui ont la main — celui qui a ENTAMÉ son activation s'il y en a un, sinon
+     * tous ceux qui n'ont pas joué ce round : les héros debout, puis (lot A4) les alliés dont le héros est debout.
+     * Un allié est une figure à part : son activation reçoit sa réponse du Defender comme celle d'un héros.
+     *
+     * @return list<array{type: string, personnage_id: int, allie_id?: int}>
+     */
+    private function acteursALaMainEnArene(Groupe $groupe, Collection $etats): array
+    {
+        $acteurs = [];
+        $debout = [];
+
+        foreach ($this->herosALaMainEnArene($groupe, $etats, $entame) as $id) {
+            $acteurs[] = ['type' => 'heros', 'personnage_id' => $id];
+        }
+
+        if ($entame) {
+            return $acteurs;
+        }
+
+        foreach ($etats as $etat) {
+            if (! $etat->tombe) {
+                $debout[] = (int) $etat->personnage_id;
+            }
+        }
+
+        $allies = GroupeMercenaire::where('groupe_id', $groupe->id)
+            ->where('etat', 'actif')
+            ->where('a_joue', false)
+            ->whereNotNull('position_x')
+            ->whereIn('recruteur_personnage_id', $debout)
+            ->orderBy('id')
+            ->get();
+
+        foreach ($allies as $allie) {
+            $acteur = ['type' => 'allie', 'allie_id' => (int) $allie->id, 'personnage_id' => (int) $allie->recruteur_personnage_id];
+
+            if ($allie->a_deplace || $allie->a_agi) {
+                return [$acteur];
+            }
+
+            $acteurs[] = $acteur;
+        }
+
+        return $acteurs;
+    }
+
+    /**
+     * ARÈNE : les héros qui ont la main — celui qui a ENTAMÉ son activation s'il y en a un, sinon tous les héros
+     * debout qui n'ont pas joué ce round. `$entame` dit lequel des deux cas.
+     *
+     * @return list<int>
+     */
+    private function herosALaMainEnArene(Groupe $groupe, Collection $etats, ?bool &$entame = null): array
+    {
+        $entame = false;
+
+        $ordre = $groupe->personnages()
+            ->wherePivot('actif', true)
+            ->orderBy('groupe_personnages.ordre_initiative')
+            ->pluck('personnages.id');
+
+        $libres = [];
+
+        foreach ($ordre as $id) {
+            $etat = $etats->firstWhere('personnage_id', $id);
+
+            if ($etat === null || $etat->tombe || $etat->a_joue) {
+                continue;
+            }
+
+            // Activation ENTAMÉE : un créneau dépensé, ou une marche commencée (`deplacement_restant` n'est posé qu'au
+            // premier pas — il est remis à `null` à l'ouverture du round). Il la garde seul jusqu'au bout.
+            if ($etat->a_deplace || $etat->a_agi || $etat->deplacement_restant !== null) {
+                $entame = true;
+
+                return [(int) $id];
+            }
+
+            $libres[] = (int) $id;
+        }
+
+        return $libres;
     }
 
     /**
@@ -74,6 +195,16 @@ final class OrdreDuTour
 
     public function estSonTourAllie(Groupe $groupe, int $allieId, ?Collection $etats = null): bool
     {
+        // ARÈNE : plusieurs acteurs ont la main à la fois — l'allié l'a-t-il, lui ?
+        if ($groupe->estArene()) {
+            $etats ??= $groupe->queteCourante?->etatsPersonnages()->get();
+
+            return $etats !== null && in_array($allieId, array_column(
+                array_filter($this->acteursALaMainEnArene($groupe, $etats), fn (array $a) => $a['type'] === 'allie'),
+                'allie_id',
+            ), true);
+        }
+
         return $this->allieActifId($groupe, $etats) === $allieId;
     }
 
@@ -97,6 +228,11 @@ final class OrdreDuTour
 
         if ($etats === null) {
             return null;
+        }
+
+        // ARÈNE : « quelqu'un a-t-il encore la main ? » — le premier des héros qui l'ont (voir `acteurPour()`).
+        if ($groupe->estArene()) {
+            return $this->acteursALaMainEnArene($groupe, $etats)[0] ?? null;
         }
 
         $ordre = $groupe->personnages()

@@ -39,6 +39,8 @@ const props = defineProps({
      *  bloquent rien : un marqueur suffit, et il doit se distinguer du piège
      *  (danger) comme du meuble (obstacle) — ici une main tendue, dorée. */
     trials: { type: Array, default: () => [] },
+    /** MODE ARÈNE (lot T4) : cases de trophée encore couvertes, FACE CACHÉE — `carte.trophees` : [{x, y}]. */
+    trophies: { type: Array, default: () => [] },
     /** (x, y) → classe(s) CSS supplémentaire(s) par case (accessible / depart /
      *  occupant… — surcouche manette). Null = aucune (table). */
     cellClass: { type: Function, default: null },
@@ -422,6 +424,18 @@ const jetonsPlaces = computed(() => {
             </div>
         </div>
 
+        <!-- MODE ARÈNE : tuiles trophées face cachée — on les ramasse en finissant son tour dessus. -->
+        <div
+            v-for="(t, i) in trophies"
+            :key="`t-${t.x}-${t.y}-${i}`"
+            class="dg-trophy-holder"
+            :style="{ gridColumn: t.x + 1, gridRow: t.y + 1 }"
+        >
+            <div class="dg-trophy" title="Tuile trophée face cachée — finir son tour dessus pour la ramasser">
+                <MSym n="emoji_events" fill />
+            </div>
+        </div>
+
         <!-- mobilier (doc 17) : bloc plein sur toute son emprise l×h — un simple
              marqueur discret serait invisible à 22px (leçon des portes, cf. plus
              bas) alors qu'un meuble bloquant le passage doit se lire au premier
@@ -787,6 +801,10 @@ const jetonsPlaces = computed(() => {
    du piège (carré rouge, danger) — l'épreuve est une occasion, pas une menace.
    Estompé dès qu'un héros y a laissé sa tentative : la table voit d'un coup
    d'œil qu'elle a déjà servi (une tentative par héros). */
+.dg-trophy-holder { position: relative; display: grid; place-items: center; pointer-events: none; z-index: 2; }
+.dg-trophy { width: 62%; height: 62%; display: grid; place-items: center; border-radius: 6px;
+  background: oklch(0.45 0.09 70 / 0.85); border: 1px solid var(--gold, #c9a24a); color: var(--gold, #c9a24a);
+  font-size: var(--dg-icone, 1em); }
 .dg-trial-holder { position: relative; display: grid; place-items: center; pointer-events: none; z-index: 2; }
 .dg-trial { width: 54%; height: 54%; display: grid; place-items: center; transform: rotate(45deg);
   border-radius: 12%; color: var(--stone-950); background: var(--gold);
