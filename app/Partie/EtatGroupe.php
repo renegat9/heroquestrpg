@@ -110,7 +110,10 @@ final class EtatGroupe
         // MODE ARÈNE (lot A5) : le SALON remplace le hub de campagne — aucun marché, recrutement, compagnon, faveur ni
         // prologue n'existe en arène, et rien n'en est publié. `GroupesArene::publier()` décide tout.
         if ($groupe->estArene()) {
-            $preambuleGroupe['arene'] = app(\App\Partie\Arene\GroupesArene::class)->publier($groupe);
+            // A9a : un Monster vs Monster publie SON salon (camps, puissance convenue, tirage, sélection alternée).
+            $preambuleGroupe['arene'] = $groupe->estMonstresContreMonstres()
+                ? app(\App\Partie\Arene\MonstresContreMonstres::class)->publier($groupe)
+                : ['variante' => Groupe::VARIANTE_COOP, ...app(\App\Partie\Arene\GroupesArene::class)->publier($groupe)];
         }
 
         // En phase hub : expose les statuts « prêt » des personnages actifs.

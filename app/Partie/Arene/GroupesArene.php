@@ -84,6 +84,10 @@ final class GroupesArene
             throw RefusArene::pasUnHerosDArene($heros);
         }
 
+        if ($arene->estMonstresContreMonstres()) {
+            throw ValidationException::withMessages(['arene' => 'Un Monster vs Monster se joue sans héros : choisissez un camp.']);
+        }
+
         if ($arene->phase !== 'hub') {
             throw ValidationException::withMessages(['arene' => 'Le combat a déjà commencé : on ne le rejoint plus.']);
         }
@@ -264,6 +268,10 @@ final class GroupesArene
             return 'Ce groupe n\'est pas un combat d\'arène.';
         }
 
+        if ($arene->estMonstresContreMonstres()) {
+            return app(MonstresContreMonstres::class)->motifLancement($arene);
+        }
+
         if ($arene->phase !== 'hub') {
             return 'Le combat est déjà en cours.';
         }
@@ -435,7 +443,7 @@ final class GroupesArene
     }
 
     /** @return Collection<int, Monstre> */
-    private function monstresDuRoster(): Collection
+    public function monstresDuRoster(): Collection
     {
         $ordre = array_flip(self::ROSTER_DEFENDER);
 
@@ -451,6 +459,10 @@ final class GroupesArene
     {
         if (! $this->estArene($arene)) {
             throw RefusArene::pasUnGroupeDArene($arene);
+        }
+
+        if ($arene->estMonstresContreMonstres()) {
+            throw ValidationException::withMessages(['arene' => 'Un Monster vs Monster compose ses camps par la sélection alternée.']);
         }
 
         if ($arene->phase !== 'hub' || $arene->quetes()->exists()) {

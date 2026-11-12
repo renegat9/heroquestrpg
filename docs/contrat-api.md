@@ -1179,6 +1179,35 @@ nom_objet?, or?}`. Pièges (2 : −3, 3-4 : −2, 5-6 : −1) au fouilleur ; 7 :
 de la doublure (elle disparaît avec elle) ; 8-9 / 10-11 / 12 : 100 / 200 / 300 po à la bourse du COMBAT
 (`groupe.or` du groupe d'arène), jamais à un héros.
 
+### Monster vs Monster — le salon (lot A9a, 2026-11-12, F9528 p. 16, `docs/plan-mode-arene.md` §4, §7 bis)
+
+« Both sides agree on an equal team power for both sides. Randomly determine which team will be the Challenger team,
+and which team the Defender team. The Defender team selects a monster from those available first, and the two teams
+proceed to alternate selecting monsters until each team meets the agreed-upon team power. »
+
+Un combat d'arène de **variante** `monstres` (`groupes.arene_variante`, `coop` par défaut). Aucun héros, aucune doublure,
+aucune statistique. Un joueur en est membre par `arene_joueurs` (joueur, camp `a` | `b`), sans personnage : `GET /etat`
+et les routes de lecture l'acceptent comme un membre.
+
+- `POST /api/arene/monstres` (joueur) → `201 {groupe: {identifiant, …}}` : ouvre le combat, son auteur dans le camp `a`.
+- `POST /api/arene/{identifiant}/camp {camp: "a" | "b"}` (joueur) : rejoint le combat dans ce camp, ou en change. Avant
+  le tirage seulement.
+- `PUT /api/arene/{identifiant}/puissance {puissance: int 1..60}` (membre OU table) : la **puissance convenue**. Avant le
+  tirage seulement.
+- `POST /api/arene/{identifiant}/tirage` (membre OU table) : le serveur tire au sort quel camp est Challenger, quel camp
+  est Defender. Exige la puissance convenue et au moins un joueur dans chaque camp. La sélection s'ouvre, le Defender
+  choisit le premier.
+- `POST /api/arene/{identifiant}/selection {monstre_id}` (joueur du camp dont c'est le tour) : ajoute un monstre de la
+  liste blanche (le roster du tournoi) à son camp. Refusé hors de son tour ou si le monstre dépasse ce qui reste de la
+  puissance convenue. Après un choix, la main passe à l'autre camp s'il peut encore choisir, sinon elle reste.
+- Publication `groupe.arene` (variante `monstres`) : `{variante: "monstres", bandeau, puissance_convenue,
+  tirage_fait, joueurs: [{joueur_id, pseudo, camp}], camps: {a: {role: "challenger" | "defender" | null,
+  monstres: [{monstre_id, nom_base}], puissance, restant}, b: {…}}, tour_selection: "a" | "b" | null,
+  selection_terminee, monstres: [{id, nom_base, deplacement, attaque, defense, pv_body, puissance, abordable}],
+  lancement_possible: false, lancement_motif}` — `abordable` vaut pour le camp dont c'est le tour.
+- Le combat lui-même (monstres dirigés depuis la manette) vient avec les lots A9b-A9d : d'ici là,
+  `lancement_possible` reste `false` avec son motif.
+
 ### Les alliés d'arène (lot A4, 2026-11-12, F9528 p. 12, `docs/plan-mode-arene.md` §2)
 
 « Heroes and allies make up the Challenger team. » Chaque joueur peut engager **un** allié du catalogue, sans coût.

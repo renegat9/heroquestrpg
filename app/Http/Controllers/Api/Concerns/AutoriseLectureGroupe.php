@@ -22,21 +22,33 @@ trait AutoriseLectureGroupe
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
 
-        // Session de table de ce groupe ?
+        if (! $this->peutLireGroupe($request, $groupe)) {
+            abort(403, 'Accès refusé : vous n\'êtes ni membre ni la table de ce groupe.');
+        }
+
+        return $groupe;
+    }
+
+    /**
+     * LE prédicat de lecture d'un groupe — table de ce groupe, joueur membre par un héros actif, ou (lot A9a) joueur
+     * d'un camp Monster vs Monster. Un seul point de passage : `GroupeController::etat()` le lit aussi.
+     */
+    protected function peutLireGroupe(Request $request, Groupe $groupe): bool
+    {
         if ($request->session()->get('table_groupe') === $groupe->identifiant) {
-            return $groupe;
+            return true;
         }
 
-        // Joueur membre (au moins un héros actif) ?
         $joueur = Auth::guard('joueur')->user();
-        if ($joueur !== null
-            && $groupe->personnages()
-                ->wherePivot('actif', true)
-                ->where('joueur_id', $joueur->id)
-                ->exists()) {
-            return $groupe;
+        if ($joueur === null) {
+            return false;
         }
 
-        abort(403, 'Accès refusé : vous n\'êtes ni membre ni la table de ce groupe.');
+        if ($groupe->personnages()->wherePivot('actif', true)->where('joueur_id', $joueur->id)->exists()) {
+            return true;
+        }
+
+        return $groupe->estMonstresContreMonstres()
+            && app(\App\Partie\Arene\MonstresContreMonstres::class)->estMembre($groupe, (int) $joueur->id);
     }
 }

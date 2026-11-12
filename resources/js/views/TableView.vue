@@ -7,6 +7,7 @@ import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import AnnonceHub from '../components/ui/AnnonceHub.vue';
 import SalonArene from '../components/ui/SalonArene.vue';
+import SalonMonstres from '../components/ui/SalonMonstres.vue';
 import TalentPopup from '../components/ui/TalentPopup.vue';
 import InitiativeBar from '../components/table/InitiativeBar.vue';
 import DungeonMap from '../components/table/DungeonMap.vue';
@@ -995,6 +996,18 @@ watch(() => store.state.clotureTerminee, (t) => {
                     <MarketPanel v-if="marche" :marche="marche" @annuler="annulerMarche" />
                     <!-- phase hub (mode connecté) : pas encore de carte, on lance la quête -->
                     <!-- MODE ARÈNE (lot A5) : le salon remplace le hub de campagne. -->
+                    <div v-else-if="phaseHub && salonArene && salonArene.variante === 'monstres'" class="hub-panel arene-salon-table">
+                        <!-- A9a : la table fixe la puissance convenue et lance le tirage ; la sélection se fait aux manettes. -->
+                        <SalonMonstres
+                            :salon="salonArene"
+                            :code="props.groupe"
+                            :en-cours="areneEnCours"
+                            :erreur="erreurArene"
+                            @puissance="(n) => gesteArene(() => api.puissanceMonstres(props.groupe, n))"
+                            @tirage="gesteArene(() => api.tirageMonstres(props.groupe))"
+                            @quitter="quitterArene"
+                        />
+                    </div>
                     <div v-else-if="phaseHub && salonArene" class="hub-panel arene-salon-table">
                         <SalonArene
                             :salon="salonArene"

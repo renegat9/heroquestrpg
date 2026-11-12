@@ -129,6 +129,8 @@ Route::put('/groupes/{identifiant}/ordre', [GroupeController::class, 'reordonner
 Route::put('/arene/{identifiant}/defender', [AreneController::class, 'defender']);
 Route::post('/arene/{identifiant}/defender', [AreneController::class, 'ajouterAuDefender']);
 Route::delete('/arene/{identifiant}/defender/{index}', [AreneController::class, 'retirerDuDefender'])->whereNumber('index');
+Route::put('/arene/{identifiant}/puissance', [AreneController::class, 'puissance']);
+Route::post('/arene/{identifiant}/tirage', [AreneController::class, 'tirage']);
 Route::post('/arene/{identifiant}/lancer', [AreneController::class, 'lancer']);
 Route::post('/arene/{identifiant}/rejouer', [AreneController::class, 'rejouer']);
 Route::delete('/arene/{identifiant}', [AreneController::class, 'quitter']);
@@ -136,6 +138,9 @@ Route::delete('/arene/{identifiant}', [AreneController::class, 'quitter']);
 Route::middleware('auth:joueur')->group(function () {
     // MODE ARÈNE (lot A5) : un joueur ouvre un combat, y engage son héros d'arène, se dit prêt.
     Route::post('/arene', [AreneController::class, 'ouvrir']);
+    Route::post('/arene/monstres', [AreneController::class, 'ouvrirMonstres']);
+    Route::post('/arene/{identifiant}/camp', [AreneController::class, 'camp']);
+    Route::post('/arene/{identifiant}/selection', [AreneController::class, 'selection']);
     Route::get('/arene/palmares', [AreneController::class, 'palmares']);
     Route::post('/arene/{identifiant}/combattants', [AreneController::class, 'rejoindre']);
     Route::post('/arene/{identifiant}/pret', [AreneController::class, 'pret']);

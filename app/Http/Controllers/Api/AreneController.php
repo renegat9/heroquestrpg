@@ -138,6 +138,55 @@ class AreneController extends Controller
         return $this->etat($arene);
     }
 
+    // ---- MONSTER VS MONSTER (lot A9a) -------------------------------------------------------------------------
+
+    /** POST /api/arene/monstres — ouvre un combat Monster vs Monster, son auteur dans le camp « a ». */
+    public function ouvrirMonstres(): JsonResponse
+    {
+        $groupe = app(\App\Partie\Arene\MonstresContreMonstres::class)->ouvrir(Auth::guard('joueur')->user());
+
+        return response()->json($this->diffuser($groupe), 201);
+    }
+
+    /** POST /api/arene/{identifiant}/camp {camp} — rejoindre le combat dans ce camp, ou en changer. */
+    public function camp(Request $request, string $identifiant): JsonResponse
+    {
+        $groupe = $this->arene($identifiant);
+        $donnees = $request->validate(['camp' => ['required', 'string']]);
+        app(\App\Partie\Arene\MonstresContreMonstres::class)->rejoindre($groupe, Auth::guard('joueur')->user(), $donnees['camp']);
+
+        return $this->etat($groupe);
+    }
+
+    /** PUT /api/arene/{identifiant}/puissance {puissance} — membre OU table. */
+    public function puissance(Request $request, string $identifiant): JsonResponse
+    {
+        $groupe = $this->areneLisible($request, $identifiant);
+        $donnees = $request->validate(['puissance' => ['required', 'integer']]);
+        app(\App\Partie\Arene\MonstresContreMonstres::class)->convenirPuissance($groupe, (int) $donnees['puissance']);
+
+        return $this->etat($groupe);
+    }
+
+    /** POST /api/arene/{identifiant}/tirage — membre OU table. */
+    public function tirage(Request $request, string $identifiant): JsonResponse
+    {
+        $groupe = $this->areneLisible($request, $identifiant);
+        app(\App\Partie\Arene\MonstresContreMonstres::class)->tirer($groupe);
+
+        return $this->etat($groupe);
+    }
+
+    /** POST /api/arene/{identifiant}/selection {monstre_id} — un joueur du camp dont c'est le tour. */
+    public function selection(Request $request, string $identifiant): JsonResponse
+    {
+        $groupe = $this->arene($identifiant);
+        $donnees = $request->validate(['monstre_id' => ['required', 'integer']]);
+        app(\App\Partie\Arene\MonstresContreMonstres::class)->selectionner($groupe, Auth::guard('joueur')->user(), (int) $donnees['monstre_id']);
+
+        return $this->etat($groupe);
+    }
+
     /** POST /api/arene/{identifiant}/lancer — membre OU table. */
     public function lancer(Request $request, string $identifiant): JsonResponse
     {

@@ -232,6 +232,25 @@ const ouvrirArene = (perso) => entrerArene(perso, () => api.ouvrirArene(perso.id
 // Le code se tape en majuscules (`setCode`) ; l'identifiant du serveur est en minuscules.
 const rejoindreArene = (perso) => entrerArene(perso, () => api.rejoindreArene(codeDePerso(perso.id).trim().toLowerCase(), perso.id));
 
+// MONSTER VS MONSTER (lot A9a) : aucun héros — le joueur ouvre un combat, ou en rejoint un par son code dans un camp.
+const mvmCode = ref('');
+const mvmEnCours = ref(false);
+const mvmErreur = ref('');
+async function entrerMonstres(appel) {
+    mvmEnCours.value = true;
+    mvmErreur.value = '';
+    try {
+        const r = await appel();
+        router.push({ name: 'arene-monstres', params: { groupe: r.groupe.identifiant } });
+    } catch (e) {
+        mvmErreur.value = e.message;
+    } finally {
+        mvmEnCours.value = false;
+    }
+}
+const ouvrirMonstres = () => entrerMonstres(() => api.ouvrirMonstres());
+const rejoindreMonstres = (camp) => entrerMonstres(() => api.campMonstres(mvmCode.value.trim().toLowerCase(), camp));
+
 // Créer un groupe
 const montrerCreerGroupe = ref({}); // { [perso.id]: bool }
 const nomGroupe = ref({});
@@ -802,6 +821,18 @@ function libelleClasse(classe) {
                     </div>
                 </div>
 
+                <!-- Monster vs Monster (lot A9a) : sans héros -->
+                <div class="joueur-palmares">
+                    <h3 class="joueur-section-title"><MSym n="swords" fill :size="16" /> Monster vs Monster</h3>
+                    <div class="joueur-mvm">
+                        <button class="joueur-btn-action" :disabled="mvmEnCours" @click="ouvrirMonstres">Ouvrir un combat</button>
+                        <input v-model="mvmCode" class="joueur-input" placeholder="Code du combat" />
+                        <button class="joueur-btn-ghost" :disabled="mvmEnCours || !mvmCode.trim()" @click="rejoindreMonstres('a')">Camp A</button>
+                        <button class="joueur-btn-ghost" :disabled="mvmEnCours || !mvmCode.trim()" @click="rejoindreMonstres('b')">Camp B</button>
+                    </div>
+                    <p v-if="mvmErreur" class="joueur-err"><MSym n="error" :size="14" /> {{ mvmErreur }}</p>
+                </div>
+
                 <!-- créer un personnage -->
                 <div class="joueur-creer-perso">
                     <button
@@ -976,6 +1007,8 @@ function libelleClasse(classe) {
 .joueur-auth-card { background: linear-gradient(180deg, var(--stone-850), var(--stone-900));
   border: var(--line); border-radius: var(--r-lg); padding: 24px; }
 .joueur-auth-form { display: flex; flex-direction: column; gap: 10px; }
+.joueur-mvm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.joueur-mvm .joueur-input { flex: 1 1 140px; min-width: 0; }
 .joueur-section-title { font-family: var(--font-display); font-size: 18px; color: var(--parch-100);
   margin: 0 0 16px; letter-spacing: 0.02em; }
 

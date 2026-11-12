@@ -591,7 +591,7 @@ class GroupeController extends Controller
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
 
-        if (! $this->peutVoirGroupe($request, $groupe)) {
+        if (! $this->peutLireGroupe($request, $groupe)) {
             abort(403, 'Accès refusé : vous n\'êtes ni membre ni la table de ce groupe.');
         }
 
@@ -775,30 +775,6 @@ class GroupeController extends Controller
         broadcast(new PretsMaj($groupe, $roster));
 
         return response()->json(['ordre' => $roster]);
-    }
-
-    /**
-     * Vérifie si la requête courante peut voir les infos du groupe :
-     * - joueur connecté avec un personnage actif dans le groupe, OU
-     * - session de table correspondant à ce groupe.
-     */
-    private function peutVoirGroupe(Request $request, Groupe $groupe): bool
-    {
-        // Session de table ?
-        if ($request->session()->get('table_groupe') === $groupe->identifiant) {
-            return true;
-        }
-
-        // Joueur membre ?
-        $joueur = Auth::guard('joueur')->user();
-        if ($joueur === null) {
-            return false;
-        }
-
-        return $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('joueur_id', $joueur->id)
-            ->exists();
     }
 
     /**

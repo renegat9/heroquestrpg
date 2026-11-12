@@ -157,6 +157,12 @@ export function useApi() {
         lancerArene: (code) => request('POST', `/arene/${encodeURIComponent(code)}/lancer`),
         rejouerArene: (code) => request('POST', `/arene/${encodeURIComponent(code)}/rejouer`),
         quitterArene: (code) => request('DELETE', `/arene/${encodeURIComponent(code)}`),
+        // MONSTER VS MONSTER (lot A9a)
+        ouvrirMonstres: () => request('POST', '/arene/monstres'),
+        campMonstres: (code, camp) => request('POST', `/arene/${encodeURIComponent(code)}/camp`, { camp }),
+        puissanceMonstres: (code, puissance) => request('PUT', `/arene/${encodeURIComponent(code)}/puissance`, { puissance }),
+        tirageMonstres: (code) => request('POST', `/arene/${encodeURIComponent(code)}/tirage`),
+        selectionMonstres: (code, monstreId) => request('POST', `/arene/${encodeURIComponent(code)}/selection`, { monstre_id: monstreId }),
 
         creerPersonnage: ({ nom, classe, mode, elements, sorts_elfiques }) =>
             request('POST', '/personnages', {

@@ -49,6 +49,9 @@ class Groupe extends Model
         'mode',
         // MODE ARÈNE (lot A5) : ids `monstres` du Defender composé au salon — lus par `GroupesArene` seulement.
         'arene_defender',
+        // MODE ARÈNE, lot A9a : la variante (`coop` | `monstres`) et le salon Monster vs Monster.
+        'arene_variante',
+        'arene_mvm',
     ];
 
     /**
@@ -60,6 +63,11 @@ class Groupe extends Model
 
     public const MODE_ARENE = 'arene';
 
+    /** Variantes d'un combat d'arène (lot A9a) : héros contre Zargon, ou deux équipes de monstres. */
+    public const VARIANTE_COOP = 'coop';
+
+    public const VARIANTE_MONSTRES = 'monstres';
+
     public const MODES = [self::MODE_CAMPAGNE, self::MODE_ARENE];
 
     protected function casts(): array
@@ -69,7 +77,14 @@ class Groupe extends Model
             'ton' => 'array',
             'boites_bestiaire' => 'array',
             'arene_defender' => 'array',
+            'arene_mvm' => 'array',
         ];
+    }
+
+    /** Monster vs Monster (lot A9a) : un combat d'arène sans héros, deux camps de monstres. */
+    public function estMonstresContreMonstres(): bool
+    {
+        return $this->estArene() && $this->arene_variante === self::VARIANTE_MONSTRES;
     }
 
     public function estArene(): bool
