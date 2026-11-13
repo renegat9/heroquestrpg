@@ -306,33 +306,46 @@ it('remet à zéro le tour d\'un allié qui a survécu à la quête précédente
         ->and([(int) $allie->position_x, (int) $allie->position_y])->not->toBe([99, 99]);
 });
 
-it('un allié sans case de départ reste en RÉSERVE : hors plateau, tour remis à zéro', function () {
+it('un allié sans case de départ prend la case libre la plus proche de son héros (René, 2026-11-13)', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe('table-1', 20);
-    creerHeros($alice, $groupe, 'Albrecht', 1);
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
     rendreGardien($groupe);
-    $groupe->update(['or' => 5000]);
 
     // Assez d'alliés pour dépasser les cases de départ de la carte (8) : posés à la main, la route de recrutement
-    // plafonne à 4 par héros.
+    // plafonne à 4 par héros. Tous gardent l'état d'une quête précédente.
     $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
     for ($i = 0; $i < 9; $i++) {
         App\Models\GroupeMercenaire::create([
-            'groupe_id' => $groupe->id, 'mercenaire_id' => $merc->id, 'pv_body' => (int) $merc->pv_body,
-            'etat' => 'actif', 'a_joue' => true, 'position_x' => 99, 'position_y' => 99,
+            'groupe_id' => $groupe->id, 'mercenaire_id' => $merc->id, 'recruteur_personnage_id' => $hero->id,
+            'pv_body' => (int) $merc->pv_body, 'etat' => 'actif', 'a_joue' => true, 'position_x' => 99, 'position_y' => 99,
         ]);
     }
 
     oublierQuetesFictivesDeGardien($groupe);
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
 
-    $cases = count((array) Quete::findOrFail($groupe->fresh()->quete_courante_id)->carte->grille['spawn_heros']);
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $spawns = collect((array) $quete->carte->grille['spawn_heros'])->map(fn ($c) => "{$c['x']},{$c['y']}");
     $allies = $groupe->fresh()->mercenaires()->orderBy('id')->get();
+    $etat = $quete->etatsPersonnages()->firstOrFail();
+    $positions = $allies->map(fn ($a) => "{$a->position_x},{$a->position_y}");
 
-    expect($cases)->toBeLessThan(1 + $allies->count(), 'la carte doit manquer de cases pour que le test ait un sens')
-        ->and($allies->every(fn ($a) => $a->a_joue === false))->toBeTrue()
-        ->and($allies->filter(fn ($a) => $a->position_x === null)->count())->toBe(1 + $allies->count() - $cases)
-        ->and($allies->contains(fn ($a) => (int) $a->position_x === 99))->toBeFalse();
+    expect($spawns->count())->toBeLessThan(1 + $allies->count(), 'la carte doit manquer de cases pour que le test ait un sens')
+        ->and($allies->every(fn ($a) => $a->a_joue === false && $a->position_x !== null))->toBeTrue()
+        ->and($positions->unique()->count())->toBe($allies->count(), 'une case, une figure')
+        ->and($positions->contains("{$etat->position_x},{$etat->position_y}"))->toBeFalse('jamais sur la case du héros')
+        ->and($positions->contains('99,99'))->toBeFalse();
+
+    // Les alliés en surplus (hors cases de départ) sont au plus près du héros, dans ce que la marche atteint.
+    // (La grille les compte comme occupées, donc on mesure à vol d'oiseau, et on vérifie qu'elles sont des cases de sol.)
+    $cases = (array) $quete->carte->grille['cases'];
+    $surplus = $allies->filter(fn ($a) => ! $spawns->contains("{$a->position_x},{$a->position_y}"));
+    expect($surplus)->toHaveCount(1 + $allies->count() - $spawns->count());
+    foreach ($surplus as $a) {
+        expect(abs($a->position_x - $etat->position_x) + abs($a->position_y - $etat->position_y))->toBeLessThanOrEqual(6)
+            ->and($cases[$a->position_y][$a->position_x] ?? null)->toBe('s');
+    }
 });
 
 it('joue l\'allié dans le tour de son joueur : un menu propose d\'attaquer un monstre adjacent', function () {

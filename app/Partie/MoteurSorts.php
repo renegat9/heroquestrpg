@@ -573,6 +573,34 @@ final class MoteurSorts
     }
 
     /**
+     * Les effets À COMPTEUR (Empoisonné, Ralenti, Paralysé… : `duree > 0`) ne passent pas d'une quête à l'autre (René,
+     * 2026-11-13) : ils comptent des TOURS de combat, et le hub n'en a pas. Sans ça, un héros empoisonné au dernier round
+     * d'une quête entrait dans la suivante empoisonné, et le décompte, qui n'a lieu qu'en fin de round, ne passait pas au
+     * premier. Le filtre est celui de `Personnage::conditionsActives()`, jamais une copie. Les effets SANS compteur
+     * (la malédiction du loup-garou, qui ne tombe qu'à un remède) restent.
+     *
+     * Rend les noms des conditions levées, pour l'annonce (`DemarreurQuete`) : un effet qui disparaît sans un mot est muet.
+     *
+     * @return list<string>
+     */
+    public function dissiperEffetsACompteur(Personnage $personnage): array
+    {
+        $actives = $personnage->conditionsActives();
+
+        if ($actives->isEmpty()) {
+            return [];
+        }
+
+        DB::table('personnage_conditions')
+            ->where('personnage_id', $personnage->id)
+            ->whereIn('condition_id', $actives->pluck('id')->all())
+            ->where('duree', '>', 0)
+            ->delete();
+
+        return $actives->pluck('nom')->unique()->values()->all();
+    }
+
+    /**
      * Une CONDITION portée interdit-elle tout déplacement (`Envenimé`,
      * `Immobilisé`) ?
      *

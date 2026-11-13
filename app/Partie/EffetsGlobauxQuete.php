@@ -156,10 +156,24 @@ final class EffetsGlobauxQuete
             return;
         }
 
-        $annonces = array_map(
+        self::annoncerLignes($groupe, array_map(
             static fn (array $e) => ['type' => 'effet_global_quete', 'texte' => (string) $e['texte'], 'ton' => 'info'],
             $effets,
-        );
+        ));
+    }
+
+    /**
+     * Le canal d'annonce du DÉMARRAGE de quête : des actions typées (`JournalCombat::TYPES`), au journal (relu par
+     * `journal_combat` à la reconnexion) et au fil direct. Aussi lu pour les effets à compteur levés entre deux quêtes.
+     * Rien à annoncer = rien écrit.
+     *
+     * @param  list<array<string, mixed>>  $annonces
+     */
+    public static function annoncerLignes(Groupe $groupe, array $annonces): void
+    {
+        if ($annonces === []) {
+            return;
+        }
 
         $evenement = Journal::ajouter($groupe, 'combat', ['effets_globaux_annonces' => $annonces]);
 
