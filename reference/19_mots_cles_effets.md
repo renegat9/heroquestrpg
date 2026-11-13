@@ -274,7 +274,8 @@ mots-clés déclarés, et désormais **lus** :
 | `soi` | le lanceur ; aucune liste de cibles n'est proposée (*Métamorphose*, *Ailes sombres*, *Forme démoniaque*) |
 | `heros` | un héros de la quête, **lanceur compris** |
 | `monstre` | un monstre |
-| `monstres_zone` | plusieurs monstres — ⚠ **non implémenté**, voir §7 |
+| `monstres_zone` | les monstres d'une zone, aucun héros — la Morsure du Froid (zone de contact), 2026-11-13 |
+| `figures_zone` | les monstres ET les héros d'une zone, lanceur compris — le tir ami de zone (Tempête de Glace), 2026-11-13 |
 
 **Le lanceur est toujours une cible légale** d'un sort bénéfique : « This spell
 may be cast on any one hero, **including yourself** » (Heal Body, LR p. 8) et
@@ -349,6 +350,7 @@ valeur : chacun traduit une phrase de carte.
 | clé | ce qu'elle fait | lecteur | sort porteur |
 |---|---|---|---|
 | `zone` | `salle_du_lanceur` : le sort ne se cible pas, il **balaie la salle ou le couloir du lanceur** | `ResolveurTour::sortDeZone()` / `soinDeZone()` | Flamme hypnotique, Chant de guérison |
+| `zone` (sorts de HÉROS, 2026-11-13) | `contact` : les quatre cases orthogonales du lanceur · `carre_2x2` : un carré de 2 × 2 **que le joueur choisit**, tenu dans la salle, une entrée par carré légal | `MoteurSorts::figuresDeZone()` (menu et résolution) ; `ZonesDeSort` pour la géométrie | Morsure du Froid (`contact`), Tempête de Glace (`carre_2x2`) |
 | `condition_monstre` | pose sur un MONSTRE une condition de `MoteurSorts::CONDITIONS_MONSTRE` (`terrifie`, `ralenti`, `paralyse`, `endormi`, `saute_tour`) | `InstanceMonstre::attaqueEffective()` / `defenseEffective()` | Terreur, Ralentissement, Flamme hypnotique |
 | `seuil_mind_max` | s'applique **sans jet** aux créatures dont le Mind est au niveau ou en dessous du seuil | `ResolveurTour::sortMental()` | Sommeil profond |
 | `exclut_soi` | « any hero you can see, **excluding yourself** » : le lanceur sort de la liste des cibles | `MoteurSorts::ciblesLegales()` | Conte inspirant |
@@ -394,8 +396,11 @@ au joueur une règle absente est pire que se taire.
 
 | mot | ce qui manque | porté par un sort ? |
 |---|---|---|
-| `cible: monstres_zone` | aucun ciblage de surface : `ciblesLegales()` ne distingue pas de zone et `sortMental()` résout sur UNE cible | **non** |
 | `invocation_ephemere` | aucun mécanisme d'invocation | **non** |
+
+⚠ **Soldés depuis 2026-11-13** : `cible: monstres_zone` (Morsure du Froid) et `zone: carre_2x2`
+(Tempête de Glace) ne sont plus des dettes — chacun a son lecteur, et `SortsZoneRegistreTest`
+le vérifie dans les deux sens.
 
 **Plus aucun sort ne s'appuie dessus** — et la vérification a montré que la
 dette n'en était pas une : c'étaient deux **erreurs de donnée**. Le texte
@@ -470,7 +475,7 @@ câblés, aucun décoratif :
 | `bonus_pv_body_max` | PV de Body **maximum** en plus tant que la pièce est portée. Les gagner donne les points, les perdre écrête la valeur courante. | « adds 2 Body points … to the totals » |
 | `bonus_pv_mind_max` | Idem pour le Mind. | idem |
 | `immunite_sorts_nommes` | Sorts de Dread NOMMÉS que le porteur ne peut être choisi pour recevoir (`["Gel de l'Esprit"]`). Ni nature, ni charge. Lu par `Equipement::immuniseSortNomme()` au choix de la cible de Gel de l'Esprit (2026-11-12). | « immunity to Mind Freeze and Chill spells » (Brassard de Glace) |
-| `reduit_degats_de_sort` | `{sort, points}` : chaque coup du sort nommé reçu par le porteur fait `points` de moins, plancher zéro. Lu par `MoteurDegats::infligerAHeros()`, publié en modificateur (2026-11-12). | « reduces the damage from an Ice Storm spell by 1 point for the armband wearer only » (Brassard de Glace) |
+| `reduit_degats_de_sort` | `{sort, points}` : chaque coup du sort nommé reçu par le porteur fait `points` de moins, plancher zéro. Lu par `MoteurDegats::infligerAHeros()` pour un coup de sort, Dread (`SOURCE_SORT_DREAD`) ou héros (`SOURCE_TIR_AMI`, Tempête de Glace lancée par un héros, 2026-11-13) ; publié en modificateur (2026-11-12). | « reduces the damage from an Ice Storm spell by 1 point for the armband wearer only » (Brassard de Glace) |
 
 ⚠ Les deux clés « contre » testent `monstres.nom_base`, le nom de **catalogue** —
 jamais le nom affiché, que l'IA habille à chaque quête (« Grull l'Éventreur ») :
@@ -605,7 +610,8 @@ Une nature n'a d'intérêt que si elle a **une source ET un lecteur** :
   Chaleur et le Brassard de Glace (`immunite_degat: froid`). ⚠ **Daté (2026-11-12)** :
   la *Tempête de Glace* n'a plus de nature `froid` — sa carte la range à part de Chill,
   et son coup est réduit de 1 par le Brassard (`reduit_degats_de_sort`) au lieu d'être
-  annulé. *Mind Freeze* n'a aucune nature : le Brassard l'écarte par nom
+  annulé. ⚠ **Daté (2026-11-13)** : la Tempête de Glace **du héros** n'a pas de nature non
+  plus (`SortSeeder`), pour la même raison. *Mind Freeze* n'a aucune nature : le Brassard l'écarte par nom
   (`immunite_sorts_nommes`). Le bloc historique « sans source » ci-dessus est périmé.
 
 ⚠ Un seul lecteur pour les deux chemins qui blessent un héros —

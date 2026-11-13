@@ -75,7 +75,7 @@ final class MotsClesSort
     /**
      * TOUTE figure d'une zone : monstres ET héros, lanceur compris — « each monster and hero in that area » (*Ice
      * Storm*). Le tir ami de zone, lu par `MoteurSorts::figuresDeZone()` comme `CIBLE_MONSTRES_ZONE` plus les héros
-     * debout de la zone. Aucun sort semé ne l'emploie encore (lot 3 : Tempête de Glace).
+     * debout de la zone. Employé par la Tempête de Glace (parchemin, 2026-11-13, lot 3).
      */
     public const CIBLE_FIGURES_ZONE = 'figures_zone';
 
@@ -200,8 +200,10 @@ final class MotsClesSort
     public const ZONE_CONTACT = 'contact';
 
     /**
-     * Un carré 2×2 choisi par le joueur (*Ice Storm*). Dette NOMMÉE : la géométrie existe (`ZonesDeSort::carre()`), le
-     * CHOIX du carré sur la manette non — lot 3 du plan `docs/plan-parchemins-glace.md`.
+     * Un carré 2×2 choisi par le joueur (*Ice Storm*, Tempête de Glace — lot 3, 2026-11-13) : UNE entrée de menu PAR
+     * carré légal (`MoteurSorts::entreesCarre()`, `cases` et `touches` publiés), le choix du joueur est la liste blanche
+     * (`entreeChoisie()`). Le carré tient dans la salle du lanceur, et le lanceur en voit une case au moins. Lecteur :
+     * `MoteurSorts::figuresDeZone()`, via `MoteurSorts::zoneLegale()`.
      */
     public const ZONE_CARRE_2X2 = 'carre_2x2';
 
@@ -227,7 +229,7 @@ final class MotsClesSort
         ],
         self::ZONE_CARRE_2X2 => [
             'libelle' => 'une zone de 2 × 2 cases, alliés compris',
-            'lecteur' => null,
+            'lecteur' => 'App\Partie\MoteurSorts::figuresDeZone',
         ],
     ];
 
@@ -274,8 +276,6 @@ final class MotsClesSort
      * @var array<string, string>
      */
     public const NON_IMPLEMENTES = [
-        self::ZONE_CARRE_2X2 => 'Le carré 2×2 n\'a pas de CHOIX sur la manette : la géométrie existe (ZonesDeSort::carre()), '
-            .'la décision du joueur non (lot 3 du plan parchemins-glace, 2026-11-13).',
         'invocation_ephemere' => 'Aucun mécanisme d\'invocation : Génie reste un sort de dégâts.',
     ];
 

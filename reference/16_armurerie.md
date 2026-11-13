@@ -502,6 +502,9 @@ moment où ce paragraphe a été écrit :
   Tempête de Glace n'a plus de nature `froid` (le Brassard la réduit de 1,
   `reduit_degats_de_sort`, au lieu de l'annuler). `froid` a donc deux sources :
   *Morsure de Froid* et les deux terrains de glace.
+  ⚠ **Daté (2026-11-13)** : la *Morsure du Froid* du HÉROS (parchemin, lot 2) est une troisième
+  source de `froid` ; les deux terrains de glace et la *Morsure de Froid* du Dread restent. La
+  Tempête de Glace, côté héros comme côté Dread, n'a **aucune** nature (`SortSeeder`, `SortDreadSeeder`).
 
 Un sort sans `type_degat` est **neutre** : il ne déclenche ni immunité ni
 interdiction de régénération. C'est le cas de tous les autres.
@@ -1044,10 +1047,15 @@ dette périmée ment aussi sûrement qu'une clé décorative.
   (`degats_fixes: 1`), lue par `MoteurSorts::figuresDeZone()` sur la géométrie commune
   `ZonesDeSort` que le Dread lit aussi (`ZONE_CONTACT`). Décision de René (lot 0) : TOUS les
   monstres orthogonaux. Difficulté de lecture 2. Le parchemin dérive du sort (`ObjetSeeder`).
-- ***Ice Storm*** reste écartée (parchemin, *Tempête de Glace*) : la zone carrée 2×2 a sa
-  géométrie (`ZonesDeSort::carre()`) et son frappeur (`ResolveurTour::sortDeZoneDegats()`),
-  mais le choix du carré sur la manette manque — lot 3 du plan
-  `docs/plan-parchemins-glace.md`. `zone: carre_2x2` est `NON_IMPLEMENTES`.
+- ***Ice Storm*** est portée depuis le 2026-11-13 (**Tempête de Glace**, sort de parchemin,
+  lot 3 du plan `docs/plan-parchemins-glace.md`) : une zone de 2 × 2 cases que le JOUEUR CHOISIT
+  (une entrée par carré légal, `MoteurSorts::entreesCarre()`), tenue ENTIÈREMENT dans la salle du
+  lanceur, interdite en couloir (`hors_couloir`), et dont le lanceur voit une case au moins
+  (`MoteurSorts::zoneLegale()`). Chaque monstre et chaque héros du carré, lanceur compris, est
+  attaqué SÉPARÉMENT à 3 dés sans défense (`des_degats: 3`, `defense_applicable: false`,
+  `cible: figures_zone`) par `ResolveurTour::frapperSortDegats()`. Pas de `type_degat` : la
+  carte la range à part de Chill, et le Brassard la réduit de 1 — y compris quand un héros la
+  lance (`SOURCE_TIR_AMI`). Difficulté de lecture 2. Décisions de René (lot 0).
 - ***Snowshoes of Speed*** est portée depuis le 2026-09-10 :
   `Equipement::bonusDeplacementActif()` (symétrique de `malusDeplacement()`)
   est lu aux deux mêmes points de passage (`MenuMoteur`, `ResolveurTour`), et

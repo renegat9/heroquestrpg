@@ -405,8 +405,9 @@ final class MotsClesEquipement
      * plus de `type_degat` (`SortDreadSeeder`, 2026-11-12).
      *
      * Lecteur : `Partie\Equipement::reductionDegatsDeSort()`, consulté par `MoteurDegats::infligerAHeros()` — le point de
-     * passage unique des dégâts de héros — pour un coup de `SOURCE_SORT_DREAD` seulement. Publié par
-     * `dernierModificateurs()` (`sur: degats`), donc dans `sort_dread.resultats[].modificateurs` : un effet automatique
+     * passage unique des dégâts de héros — pour un coup de sort NOMMÉ : `SOURCE_SORT_DREAD` (Dread) ou `SOURCE_TIR_AMI` (le
+     * même sort lancé par un héros, parchemin de Tempête de Glace, 2026-11-13). Publié par `dernierModificateurs()`
+     * (`sur: degats`), donc dans `sort_dread.resultats[].modificateurs` ou `resultats[].modificateurs` : un effet automatique
      * qui ne se dit pas est injouable. (2026-11-12.)
      */
     public const REDUIT_DEGATS_DE_SORT = 'reduit_degats_de_sort';

@@ -804,7 +804,9 @@ PDF), relues sur le rendu PNG — voir transcription ci-dessous.
   that affects an area 2 squares wide by 2 squares long. Each monster and
   hero in that area is attacked separately by the spellcaster with 3 combat
   dice. There is no chance to defend. Cannot be used in corridors. Scroll
-  crumbles to dust once used.* »
+  crumbles to dust once used.* » ⚠ Portée le 2026-11-13 (**Tempête de Glace**,
+  lot 3 du plan `docs/plan-parchemins-glace.md`) : le joueur choisit le carré, un
+  carré par entrée de menu, tenu dans la salle du lanceur.
 - **Spell Scroll — Ice Bridge** — « *This spell creates a permanent bridge
   of Magic Ice tiles that enables heroes to cross over any pit, trap,
   chasm, crevasse, or icy square. Scroll crumbles to dust once used.* »
@@ -919,8 +921,9 @@ Entrance**.
 > portée le même jour. *Ice Storm* (Tempête de Glace) : le joueur choisit le carré 2×2, qui
 > doit tenir entièrement dans la salle du lanceur ; il suffit que le lanceur voie une de ses
 > quatre cases ; les héros du carré, lanceur compris, sont frappés. Le Brassard de Glace
-> réduit aussi la Tempête lancée par un héros. Le carré attend son choix sur la manette
-> (lot 3, `NON_IMPLEMENTES`). *Ice Bridge* (Pont de Glace) : le pont couvre autant de tuiles
+> réduit aussi la Tempête lancée par un héros. *Ice Storm* est PORTÉE le même jour (lot 3) :
+> `zone: carre_2x2`, `cible: figures_zone`, une entrée par carré légal (`MoteurSorts::entreesCarre()`),
+> sans nature (la carte la range à part de Chill). *Ice Bridge* (Pont de Glace) : le pont couvre autant de tuiles
 > « Magic Ice » qu'il en faut pour l'élément franchi, sur les pièges de sol et les terrains
 > de glace listés au plan ; portée : la ligne de vue (lot 4, écarté d'ici là).
 

@@ -59,6 +59,7 @@ class SortSeeder extends Seeder
         'Chaleur' => "Rend jusqu'à 3 points de Body au lanceur, ou à un héros de son choix, sans jamais dépasser son maximum.",
         'Patinage' => "Le lanceur ajoute 6 à son jet de déplacement pour ce tour, et il peut traverser monstres et héros en se déplaçant. Il ne se lit qu'avant le premier pas du tour.",
         'Morsure du Froid' => "Inflige 1 point de Body à chaque monstre adjacent au lanceur, jamais en diagonale. Les victimes ne peuvent pas se défendre.",
+        'Tempête de Glace' => "Un carré de 2 × 2 cases, choisi par le lanceur dans sa salle : chaque monstre et chaque héros qui s'y trouve, lanceur compris, est attaqué séparément à 3 dés de combat, sans défense possible. Interdit en couloir.",
         'Mur de Pierre' => "Un mur de pierre couvre 2 cases libres de figures : il a 1 point de Body et 6 dés de défense, et disparaît quand il est détruit.",
         'Invisibilité' => "Le lanceur devient invisible jusqu'au début de son prochain tour : il ne peut plus attaquer, mais personne ne peut l'attaquer et aucun sort ne l'atteint.",
         'Désapprentissage' => "Un lanceur de Dread en vue perd un sort tiré au hasard, pour toute la quête : ce sort est retiré du jeu jusqu'à la fin de la quête.",
@@ -494,6 +495,28 @@ class SortSeeder extends Seeder
             ['element' => 'parchemin', 'nom' => 'Morsure du Froid', 'type' => 'degats', 'difficulte_parchemin' => 2,
                 'effet' => ['cible' => 'monstres_zone', 'zone' => 'contact', 'degats_fixes' => 1,
                     'defense_applicable' => false, 'type_degat' => 'froid']],
+
+            // « This spell creates a blizzard of ice that affects an area 2 squares wide by 2 squares long. Each monster and hero
+            // in that area is attacked separately by the spellcaster with 3 combat dice. There is no chance to defend. Cannot be
+            // used in corridors. Scroll crumbles to dust once used. » (Spell Scroll — Ice Storm, The Frozen Horror, Artifact
+            // Reference p. 35 — `reference/18_extensions.md` §3) — porté le 2026-11-13 (lot 3, `docs/plan-parchemins-glace.md`).
+            //
+            // ⚠ `cible: figures_zone` : monstres ET héros de la zone, lanceur compris (« each monster and hero »). Le tir ami de
+            // zone, lu par `MoteurSorts::figuresAtteignables()`.
+            // ⚠ `zone: carre_2x2` : le joueur CHOISIT le carré — une entrée par carré légal (`MoteurSorts::entreesCarre()`), tenu
+            // ENTIÈREMENT dans la salle du lanceur (décision de René, lot 0) ; `hors_couloir: true` : « cannot be used in corridors ».
+            // ⚠ `des_degats: 3` et `defense_applicable: false` : trois dés de combat, figure par figure, sans défense.
+            // ⚠ PAS de `type_degat` (décision de René, 2026-11-13, alignée sur le Dread : `SortDreadSeeder`, 2026-11-12) : la carte
+            // range la Tempête À PART de Chill — « immunity to Mind Freeze and Chill spells … It also reduces the damage from an
+            // Ice Storm spell by 1 point ». Une nature `froid` la ferait tomber sous l'immunité du Brassard de Glace (et de
+            // l'Anneau de Chaleur, dont la carte ne nomme que Chill), qui l'annulerait entière au lieu de la réduire. Le Brassard
+            // la réduit donc de 1 (`reduit_degats_de_sort`, lu par `MoteurDegats::infligerAHeros()` pour `SOURCE_TIR_AMI` aussi).
+            // ⚠ `difficulte_parchemin: 2` : décision de René (lot 0, 2026-11-13), comme la Morsure du Froid.
+            // ⚠ Distinct de la « Tempête de Glace » du Dread (table `sorts_dread`, un palier et un mode d'ouverture différents).
+            // Son parchemin « Parchemin : Tempête de Glace » dérive de cette ligne (ObjetSeeder, fin de fichier).
+            ['element' => 'parchemin', 'nom' => 'Tempête de Glace', 'type' => 'degats', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'figures_zone', 'zone' => 'carre_2x2', 'des_degats' => 3,
+                    'defense_applicable' => false, 'hors_couloir' => true]],
 
             // ================================================================
             // Wizards of Morcar (G1504, livret p. 11 + cartes TRANSCRITES

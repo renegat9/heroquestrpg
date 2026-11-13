@@ -1404,13 +1404,20 @@ final class MoteurSorts
                 if (! $disponible) {
                     $entrees[] = $this->entreeSort("sort:{$sort->id}", $this->libelleZone($sort), $sort, false, [], [], $lanceur, $grille);
                 } elseif ($etat !== null && $etat->position_x !== null && $lanceur !== null) {
-                    $touches = $this->touchesDeZone($quete, $sort, $personnage, $etat);
+                    // CARRÉ (Tempête de Glace, 2026-11-13) : une entrée PAR carré légal — le choix est le carré.
+                    if ($this->estZoneCarre($sort)) {
+                        foreach ($this->entreesCarre($quete, $grille, $sort, $personnage, $etat, "sort:{$sort->id}") as $entree) {
+                            $entrees[] = $entree;
+                        }
+                    } else {
+                        $touches = $this->touchesDeZone($quete, $sort, $personnage, $etat);
 
-                    if ($touches !== []) {
-                        $entrees[] = $this->entreeSort(
-                            "sort:{$sort->id}", $this->libelleZone($sort), $sort, true, [], [], $lanceur, $grille,
-                            ['touches' => $touches],
-                        );
+                        if ($touches !== []) {
+                            $entrees[] = $this->entreeSort(
+                                "sort:{$sort->id}", $this->libelleZone($sort), $sort, true, [], [], $lanceur, $grille,
+                                ['touches' => $touches],
+                            );
+                        }
                     }
                 }
 
@@ -1528,15 +1535,22 @@ final class MoteurSorts
             // ZONE DE DÉGÂTS (Morsure du Froid, 2026-11-13) : la décision du sort connu, portée par le parchemin — une
             // entrée offerte seulement si la zone a une figure, avec son `inventaire_id`.
             if ($this->estZoneDeDegats($sort)) {
-                $touches = $lanceur !== null && $etat !== null && $etat->position_x !== null
-                    ? $this->touchesDeZone($quete, $sort, $personnage, $etat)
-                    : [];
+                if ($lanceur !== null && $etat !== null && $etat->position_x !== null) {
+                    // CARRÉ (Tempête de Glace, 2026-11-13) : le MÊME générateur que le sort connu, racine `parchemin:{id}`.
+                    if ($this->estZoneCarre($sort)) {
+                        foreach ($this->entreesCarre($quete, $grille, $sort, $personnage, $etat, "parchemin:{$ligne->id}", ['inventaire_id' => $ligne->id]) as $entree) {
+                            $parchemins[] = $entree;
+                        }
+                    } else {
+                        $touches = $this->touchesDeZone($quete, $sort, $personnage, $etat);
 
-                if ($touches !== []) {
-                    $parchemins[] = $this->entreeSort(
-                        "parchemin:{$ligne->id}", $this->libelleZone($sort), $sort, true, [], [], $lanceur, $grille,
-                        ['inventaire_id' => $ligne->id, 'touches' => $touches],
-                    );
+                        if ($touches !== []) {
+                            $parchemins[] = $this->entreeSort(
+                                "parchemin:{$ligne->id}", $this->libelleZone($sort), $sort, true, [], [], $lanceur, $grille,
+                                ['inventaire_id' => $ligne->id, 'touches' => $touches],
+                            );
+                        }
+                    }
                 }
 
                 continue;
@@ -1850,24 +1864,58 @@ final class MoteurSorts
         return "{$sort->nom} — {$libelle}";
     }
 
+    /** Le sort est une zone CARRÉ (*Ice Storm*) : le carré est alors le CHOIX du joueur, une entrée par carré. */
+    public function estZoneCarre(Sort $sort): bool
+    {
+        return data_get($sort->effet, 'zone') === MotsClesSort::ZONE_CARRE_2X2;
+    }
+
+    /**
+     * Le CARRÉ que l'entrée choisie porte (`parametres.cases`, publiées par `entreesCarre()`), ou `null` : un sort qui n'est
+     * pas un carré n'en porte aucun. La résolution le lit APRÈS `entreeChoisie()`, qui a déjà refusé toute entrée hors liste.
+     *
+     * @param  array<string, mixed>  $option
+     * @return list<array{x: int, y: int}>|null
+     */
+    public function casesChoisies(Sort $sort, array $option): ?array
+    {
+        if (! $this->estZoneCarre($sort)) {
+            return null;
+        }
+
+        $cases = array_values((array) data_get($option, 'parametres.cases', []));
+
+        return $cases === [] ? null : $cases;
+    }
+
     /**
      * LES FIGURES qu'une zone de dégâts frappe — UN SEUL calcul, lu par le menu (`touches`, la décision publiée) et par la
      * résolution (`ResolveurTour::sortDeZoneDegats()`) : deux lectures de la même zone finissent toujours par diverger.
      *
-     * - la zone (`zone`) donne les CASES (`ZonesDeSort`), jamais une liste recopiée ici ;
+     * - la zone (`zone`) donne les CASES : `contact` = les quatre orthogonales du lanceur ; `carre_2x2` = le carré que le
+     *   joueur a CHOISI (`$carre`, les cases de l'entrée validée). Géométrie : `ZonesDeSort`, jamais une liste recopiée ici ;
      * - la cible (`cible`) dit QUI : `monstres_zone` (monstres seuls) ou `figures_zone` (monstres ET héros debout, lanceur
      *   compris) ;
-     * - `hors_couloir` : rien dans un couloir (le lanceur y est sans salle) ;
-     * - une figure que le sort ne peut pas atteindre (immunité, terreur, condition refusée, intouchable) n'est PAS dans
-     *   la zone — exactement comme une cible unique écartée du menu.
+     * - la zone doit être LÉGALE d'où le lanceur se tient (`zoneLegale()`) : sinon rien — ni figure, ni case ;
+     * - une figure que le sort ne peut pas atteindre (immunité, terreur, condition refusée, intouchable) n'est PAS dans la
+     *   zone — exactement comme une cible unique écartée du menu.
      *
      * Ne compte que les monstres ACTIFS, RÉVÉLÉS et hors contrôle d'un héros (un sbire enrôlé par la *Baguette d'Os* est
      * du côté des héros pour un tour) ; les héros sont ceux qui sont DEBOUT.
      *
-     * @return array{monstres: Collection<int, InstanceMonstre>, heros: Collection<int, EtatPersonnageQuete>}
+     * `$grille` : le plateau que le menu a déjà lu. Un carré le lit ici sinon (la résolution n'en a pas d'autre).
+     *
+     * @param  list<array{x: int, y: int}>|null  $carre  les quatre cases du carré choisi (zone `carre_2x2` seulement)
+     * @return array{cases: list<array{x: int, y: int}>, monstres: Collection<int, InstanceMonstre>, heros: Collection<int, EtatPersonnageQuete>}
      */
-    public function figuresDeZone(Quete $quete, Sort $sort, Personnage $lanceur, EtatPersonnageQuete $etat): array
-    {
+    public function figuresDeZone(
+        Quete $quete,
+        Sort $sort,
+        Personnage $lanceur,
+        EtatPersonnageQuete $etat,
+        ?array $carre = null,
+        ?Grille $grille = null,
+    ): array {
         $cible = (string) data_get($sort->effet, 'cible', '');
         $zone = (string) data_get($sort->effet, 'zone', '');
 
@@ -1875,44 +1923,110 @@ final class MoteurSorts
             throw new \LogicException("{$sort->nom} : une zone de dégâts vise des figures de zone, pas « {$cible} » (MotsClesSort::CIBLES).");
         }
 
-        $rien = ['monstres' => collect(), 'heros' => collect()];
+        $rien = ['cases' => [], 'monstres' => collect(), 'heros' => collect()];
 
         if ($etat->position_x === null) {
             return $rien;
         }
 
-        $x = (int) $etat->position_x;
-        $y = (int) $etat->position_y;
-
-        // « Cannot be used in corridors » (*Ice Storm*) : un couloir n'a pas de salle. Lu ici, comme à la résolution.
-        $salles = (array) data_get($quete->carte?->grille, 'salles', []);
-
-        if ((bool) data_get($sort->effet, 'hors_couloir', false) && Salles::indexDe($salles, $x, $y) === null) {
-            return $rien;
-        }
-
         $cases = match ($zone) {
-            'contact' => ZonesDeSort::contact($x, $y),
+            'contact' => ZonesDeSort::contact((int) $etat->position_x, (int) $etat->position_y),
+            // Le carré est le CHOIX du joueur : l'entrée validée le porte. Sans choix, il n'y a aucune zone.
+            'carre_2x2' => $carre,
             default => throw new \LogicException("{$sort->nom} : la zone « {$zone} » n'a pas de lecteur de héros (MotsClesSort::ZONES)."),
         };
 
-        $monstres = ZonesDeSort::monstresSur(
-            $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
-                ->whereNull('controle_par')->with('monstre')->orderBy('id')->get(),
-            $cases,
-        )->filter(fn (InstanceMonstre $m) => $this->monstreAtteignable($m, $sort, $lanceur))->values();
+        if ($cases === null || ! $this->zoneLegale($quete, $sort, $lanceur, $etat, $cases, $grille)) {
+            return $rien;
+        }
+
+        return ['cases' => $cases, ...$this->figuresSurCases($this->figuresAtteignables($quete, $sort, $lanceur), $cases)];
+    }
+
+    /**
+     * LA ZONE EST-ELLE LÉGALE d'où le lanceur se tient ? — le point de passage unique de cette question : lu par la
+     * résolution (`figuresDeZone()`) comme par le menu d'un carré (`entreesCarre()`). Deux copies auraient divergé.
+     *
+     *  - `hors_couloir` (*Ice Storm* : « Cannot be used in corridors ») : le lanceur est dans une SALLE ;
+     *  - `carre_2x2` : le carré tient ENTIÈREMENT dans la salle du lanceur (décision de René, 2026-11-13) ; chacune de ses
+     *    cases est jouable (ni roche, ni la case d'une porte close : on ne frappe pas une case qu'on ne peut occuper) ; et le
+     *    lanceur VOIT AU MOINS UNE de ses quatre cases (`filtrerLigneDeVue()`, la ligne de vue de tout sort visé).
+     *
+     * Une zone légale peut être vide : les figures ne sont pas comptées ici.
+     *
+     * @param  list<array{x: int, y: int}>  $cases
+     */
+    private function zoneLegale(Quete $quete, Sort $sort, Personnage $lanceur, EtatPersonnageQuete $etat, array $cases, ?Grille $grille): bool
+    {
+        $x = (int) $etat->position_x;
+        $y = (int) $etat->position_y;
+        $salles = (array) data_get($quete->carte?->grille, 'salles', []);
+        $salleDuLanceur = Salles::indexDe($salles, $x, $y);
+
+        if ((bool) data_get($sort->effet, 'hors_couloir', false) && $salleDuLanceur === null) {
+            return false;
+        }
+
+        if (data_get($sort->effet, 'zone') !== MotsClesSort::ZONE_CARRE_2X2) {
+            return true;
+        }
+
+        if ($salleDuLanceur === null || ZonesDeSort::salleCommune($cases, $salles) !== $salleDuLanceur) {
+            return false;
+        }
+
+        $grille ??= FabriqueGrille::pour($quete);
+
+        foreach ($cases as $case) {
+            if ($grille->estRoche($case['x'], $case['y']) || $grille->porteFermeeSurCase($case['x'], $case['y'])) {
+                return false;
+            }
+        }
+
+        return $this->filtrerLigneDeVue(
+            $x, $y, $grille, $cases, app(FaveursHopekins::class)->figuresBloquentPour($lanceur),
+        ) !== [];
+    }
+
+    /**
+     * Les figures que le sort PEUT atteindre, où qu'elles soient sur le plateau — lues UNE fois. Le menu d'un carré parcourt
+     * toute une salle : il ne doit pas relire la quête à chaque coin.
+     *
+     * @return array{monstres: Collection<int, InstanceMonstre>, heros: Collection<int, EtatPersonnageQuete>}
+     */
+    private function figuresAtteignables(Quete $quete, Sort $sort, Personnage $lanceur): array
+    {
+        $monstres = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+            ->whereNull('controle_par')->with('monstre')->orderBy('id')->get()
+            ->filter(fn (InstanceMonstre $m) => $this->monstreAtteignable($m, $sort, $lanceur))
+            ->values();
 
         $heros = collect();
 
-        if ($cible === MotsClesSort::CIBLE_FIGURES_ZONE) {
-            $heros = ZonesDeSort::herosSur(
-                $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')
-                    ->with('personnage')->orderBy('id')->get(),
-                $cases,
-            )->filter(fn (EtatPersonnageQuete $e) => $e->personnage !== null && ! $this->immuniteSorts($e->personnage))->values();
+        if (data_get($sort->effet, 'cible') === MotsClesSort::CIBLE_FIGURES_ZONE) {
+            $heros = $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')
+                ->with('personnage')->orderBy('id')->get()
+                ->filter(fn (EtatPersonnageQuete $e) => $e->personnage !== null && ! $this->immuniteSorts($e->personnage))
+                ->values();
         }
 
         return ['monstres' => $monstres, 'heros' => $heros];
+    }
+
+    /**
+     * Les figures prises dans `$cases`, parmi celles que le sort peut atteindre (`figuresAtteignables()`). Une figure de
+     * plusieurs cases compte dès qu'UNE est dans la zone (`ZonesDeSort::monstresSur()`).
+     *
+     * @param  array{monstres: Collection<int, InstanceMonstre>, heros: Collection<int, EtatPersonnageQuete>}  $atteignables
+     * @param  list<array{x: int, y: int}>  $cases
+     * @return array{monstres: Collection<int, InstanceMonstre>, heros: Collection<int, EtatPersonnageQuete>}
+     */
+    private function figuresSurCases(array $atteignables, array $cases): array
+    {
+        return [
+            'monstres' => ZonesDeSort::monstresSur($atteignables['monstres'], $cases),
+            'heros' => ZonesDeSort::herosSur($atteignables['heros'], $cases),
+        ];
     }
 
     /**
@@ -1923,8 +2037,15 @@ final class MoteurSorts
      */
     public function touchesDeZone(Quete $quete, Sort $sort, Personnage $lanceur, EtatPersonnageQuete $etat): array
     {
-        $figures = $this->figuresDeZone($quete, $sort, $lanceur, $etat);
+        return $this->touchesDeFigures($this->figuresDeZone($quete, $sort, $lanceur, $etat));
+    }
 
+    /**
+     * @param  array{monstres: Collection<int, InstanceMonstre>, heros: Collection<int, EtatPersonnageQuete>}  $figures
+     * @return list<array{type: string, id: int, nom: string}>
+     */
+    private function touchesDeFigures(array $figures): array
+    {
         return [
             ...$figures['heros']->map(fn (EtatPersonnageQuete $e) => [
                 'type' => 'heros', 'id' => (int) $e->personnage_id, 'nom' => (string) $e->personnage->nom,
@@ -1933,6 +2054,77 @@ final class MoteurSorts
                 'type' => 'monstre', 'id' => (int) $m->id, 'nom' => $m->nomAffiche(),
             ])->values()->all(),
         ];
+    }
+
+    /**
+     * Une entrée PAR CARRÉ 2×2 que le sort peut frapper (*Ice Storm*, Tempête de Glace) — le sort connu ET le parchemin, un
+     * seul générateur, comme `entreesPoseMurMagique()` produit une entrée par paire.
+     *
+     * Le coin HAUT-GAUCHE parcourt la salle du lanceur (et ses bords). Un carré n'est offert que s'il est légal d'où le lanceur
+     * se tient (`zoneLegale()`, la règle que lit aussi la résolution) ET qu'il contient au moins un MONSTRE : le menu ne propose pas
+     * un carré qui ne frapperait que des héros. Un couloir n'a aucun carré. Chaque entrée publie ses `cases` et ses
+     * `touches`, et son `nom` dit le sort, le carré et ce qu'il touche : « Tempête de Glace — carré en 7,4 : Gobelin, Orque, Grombar ».
+     *
+     * `$racine` / `$extra` : comme `entreesPoseMurMagique()` — le parchemin porte `parchemin:{id}` et son `inventaire_id`.
+     *
+     * @param  array<string, mixed>  $extra
+     * @return list<array<string, mixed>>
+     */
+    private function entreesCarre(
+        Quete $quete,
+        Grille $grille,
+        Sort $sort,
+        Personnage $lanceur,
+        EtatPersonnageQuete $etat,
+        string $racine,
+        array $extra = [],
+    ): array {
+        $salles = (array) data_get($quete->carte?->grille, 'salles', []);
+        $indexSalle = Salles::indexDe($salles, (int) $etat->position_x, (int) $etat->position_y);
+
+        if ($indexSalle === null) {
+            return [];
+        }
+
+        $salle = $salles[$indexSalle];
+        $atteignables = $this->figuresAtteignables($quete, $sort, $lanceur);
+        $entrees = [];
+
+        // Le coin haut-gauche parcourt les coins dont le carré TOUCHE la salle, à une case près : un carré qui en déborde
+        // est refusé par `zoneLegale()` — la seule règle de tenue dans la salle, jamais la forme de cette boucle.
+        for ($y = (int) $salle['y'] - 1; $y <= (int) $salle['y'] + (int) $salle['hauteur'] - 1; $y++) {
+            for ($x = (int) $salle['x'] - 1; $x <= (int) $salle['x'] + (int) $salle['largeur'] - 1; $x++) {
+                $cases = ZonesDeSort::carre($x, $y);
+
+                if (! $this->zoneLegale($quete, $sort, $lanceur, $etat, $cases, $grille)) {
+                    continue;
+                }
+
+                $figures = $this->figuresSurCases($atteignables, $cases);
+
+                if ($figures['monstres']->isEmpty()) {
+                    continue;
+                }
+
+                $touches = $this->touchesDeFigures($figures);
+
+                $entrees[] = [
+                    'cle' => "{$racine}:carre:{$x},{$y}",
+                    'sort_id' => $sort->id,
+                    // Le NOM DU SORT d'abord (2026-11-13) : avec Morsure du Froid et Tempête de Glace au sac, « Lire un
+                    // parchemin » listait des « Carré en … » sans dire lequel on lisait.
+                    'nom' => "{$sort->nom} — carré en {$x},{$y} : ".implode(', ', array_column($touches, 'nom')),
+                    'element' => $sort->element,
+                    'sort_type' => $sort->type,
+                    'disponible' => true,
+                    'cases' => $cases,
+                    'touches' => $touches,
+                    ...$extra,
+                ];
+            }
+        }
+
+        return $entrees;
     }
 
     /**

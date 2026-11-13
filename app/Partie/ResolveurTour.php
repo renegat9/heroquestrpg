@@ -7232,8 +7232,9 @@ final class ResolveurTour
             effet: fn (array $o, array $p) => match ($sort->type) {
                 // ZONE DE DÉGÂTS (Morsure du Froid, 2026-11-13) : la zone EST la cible — chaque figure, séparément
                 // (`sortDeZoneDegats()`). Une cible unique n'y a pas de sens : `cibleSort()` la réclamerait en vain.
+                // L'OPTION (`$o`) porte le carré choisi (`parametres.cases`, sorts de zone carré) : elle est la liste blanche validée.
                 'degats' => data_get($sort->effet, 'zone') !== null
-                    ? $this->sortDeZoneDegats($quete, $sort, $lanceur, $etat)
+                    ? $this->sortDeZoneDegats($quete, $sort, $lanceur, $etat, $o)
                     : $this->sortDegats($quete, $sort, $o, $p, $lanceur),
                 'mental' => $this->sortMental($quete, $sort, $o, $p, $lanceur),
                 default => $this->sortUtilitaire($quete, $lanceur, $etat, $sort, $o, $p),
@@ -7352,12 +7353,14 @@ final class ResolveurTour
         array $option,
         array $parametres,
     ): \Illuminate\Support\Collection {
-        // ZONE DE DÉGÂTS (Morsure du Froid, 2026-11-13) : les monstres qu'elle frappe — le MÊME calcul que la résolution
-        // (`MoteurSorts::figuresDeZone()`), que le menu publie en `touches`. Un Dispel du MJ se joue sur chacun.
+        // ZONE DE DÉGÂTS (Morsure du Froid, 2026-11-13 ; Tempête de Glace, lot 3) : les monstres qu'elle frappe — le MÊME calcul
+        // que la résolution (`MoteurSorts::figuresDeZone()`), que le menu publie en `touches`. Un Dispel du MJ se joue sur chacun.
         if ($sort->type === 'degats' && data_get($sort->effet, 'zone') !== null) {
             return $etat->position_x === null
                 ? collect()
-                : $this->sorts->figuresDeZone($quete, $sort, $etat->personnage, $etat)['monstres']->values();
+                : $this->sorts->figuresDeZone(
+                    $quete, $sort, $etat->personnage, $etat, $this->sorts->casesChoisies($sort, $option),
+                )['monstres']->values();
         }
 
         if (! empty(($sort->effet ?? [])[self::EFFET_RAYON])) {
@@ -7819,26 +7822,30 @@ final class ResolveurTour
     }
 
     /**
-     * SORT DE DÉGÂTS DE ZONE d'un héros (Morsure du Froid, 2026-11-13 ; Tempête de Glace au lot 3) : chaque figure de la zone
+     * SORT DE DÉGÂTS DE ZONE d'un héros (Morsure du Froid, 2026-11-13 ; Tempête de Glace, lot 3) : chaque figure de la zone
      * est frappée SÉPARÉMENT, par la frappe qui sert au sort visant une seule figure (`frapperSortDegats()`) — montant fixe
      * ou dés, défense selon `defense_applicable`, immunités et réductions de pièce comprises.
      *
      * Les figures, leur liste et leur ordre viennent de `MoteurSorts::figuresDeZone()`, LE calcul que le menu publie en
-     * `touches`. Rien à frapper ⇒ 422 : une entrée n'est offerte que si `touches` est non vide, et une liste périmée ne doit
-     * pas consommer le sort pour rien.
+     * `touches`. Le carré (zone `carre_2x2`) est celui de l'entrée choisie, lu dans `$option` — déjà validé par `entreeChoisie()`.
+     * Rien à frapper ⇒ 422 : une entrée n'est offerte que si `touches` est non vide, et une liste périmée ne doit pas
+     * consommer le sort pour rien.
      *
-     * Contrat : `docs/contrat-api.md`, « Les sorts de ZONE d'un héros ». Le payload dit la zone (`zone`, le mot du catalogue)
-     * et ce qu'a encaissé chaque figure (`resultats`) — rien d'autre.
+     * Contrat : `docs/contrat-api.md`, « Les sorts de ZONE d'un héros ». Le payload dit la zone (`zone`, le mot du catalogue),
+     * ses cases (`cases`) et ce qu'a encaissé chaque figure (`resultats`) — rien d'autre.
      *
-     * @return array{zone: string, resultats: list<array<string, mixed>>}
+     * @param  array<string, mixed>  $option
+     * @return array{zone: string, cases: list<array{x: int, y: int}>, resultats: list<array<string, mixed>>}
      */
-    private function sortDeZoneDegats(Quete $quete, Sort $sort, Personnage $lanceur, EtatPersonnageQuete $etat): array
+    private function sortDeZoneDegats(Quete $quete, Sort $sort, Personnage $lanceur, EtatPersonnageQuete $etat, array $option): array
     {
-        $figures = $this->sorts->figuresDeZone($quete, $sort, $lanceur, $etat);
+        $figures = $this->sorts->figuresDeZone(
+            $quete, $sort, $lanceur, $etat, $this->sorts->casesChoisies($sort, $option),
+        );
 
         if ($figures['heros']->isEmpty() && $figures['monstres']->isEmpty()) {
             throw ValidationException::withMessages([
-                'option_id' => "{$sort->nom} : aucune figure à son contact — rien à frapper.",
+                'option_id' => "{$sort->nom} : aucune figure dans sa zone — rien à frapper.",
             ]);
         }
 
@@ -7864,7 +7871,7 @@ final class ResolveurTour
             );
         }
 
-        return ['zone' => (string) $sort->effet['zone'], 'resultats' => $resultats];
+        return ['zone' => (string) $sort->effet['zone'], 'cases' => $figures['cases'], 'resultats' => $resultats];
     }
 
     /**

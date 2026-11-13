@@ -66,6 +66,8 @@ const EFFETS_BOOL = {
     sort_non_epuise: 'Le prochain sort ne s’épuise pas',
     incompatible_deux_mains: 'Incompatible deux mains',
     attaque_diagonale: 'Attaque en diagonale',
+    // Tempête de Glace (2026-11-13) : « Cannot be used in corridors » — ni offert, ni lu dans un couloir.
+    hors_couloir: 'Interdit en couloir',
     inutilisable_adjacent: 'Inutilisable au contact',
     jetable: 'Jetable',
     defense_applicable: 'Défense applicable',
@@ -128,6 +130,9 @@ const VALEURS = {
     zone: {
         heros_en_vue: 'tous les héros en vue',
         salle_du_lanceur: 'la salle du lanceur',
+        // Zones de HÉROS au catalogue (2026-11-13) : la Morsure du Froid, et la Tempête de Glace — un carré que le joueur choisit.
+        contact: 'les monstres à son contact, jamais en diagonale',
+        carre_2x2: 'un carré de 2 × 2 cases que le joueur choisit, dans la salle, alliés compris',
     },
     declencheur: {
         ouverture_tresor: "à l'ouverture d'un trésor",
@@ -149,6 +154,7 @@ const VALEURS = {
         heros: 'un héros (soi compris)',
         monstre: 'un monstre',
         monstres_zone: 'des monstres (zone)',
+        figures_zone: 'des monstres et des héros (zone, lanceur compris)',
         lanceur_dread: 'un lanceur de sorts adverse',
     },
     portee: { distance: 'à distance', corps_a_corps: 'au contact' },

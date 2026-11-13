@@ -586,6 +586,24 @@ Le client répond **à plat** : `POST choix {option_id, parametres: {cle, cible_
   `Parchemin : Mur de Pierre` (`lire_parchemin`, 2026-10-08) offre les MÊMES paires,
   `cle: parchemin:{inventaire_id}:mur:…`, et passe par le même point de passage
   (`ResolveurTour::poserMurMagiqueSort()`) : une règle, deux entrées de menu.
+- ⚠ **`zone: carre_2x2`** (*Spell Scroll — Ice Storm* → parchemin **Tempête de Glace**, 2026-11-13, lot 3 de
+  `docs/plan-parchemins-glace.md`) : sur le modèle du Mur de Pierre, une entrée PAR CARRÉ possible —
+  `cle: parchemin:{inventaire_id}:carre:{x},{y}` (coin haut-gauche), `cases: [4 × {x, y}]`, `touches: [{type, id, nom}]`
+  (monstres ET héros du carré, lanceur compris : « each monster and hero in that area »), et un `nom` qui le dit déjà
+  (« Tempête de Glace — carré en 7,4 : Gobelin, Orque, Grombar » : le nom du sort d'abord, plusieurs parchemins de
+  zone pouvant être au sac). Le sort CONNU suit la même forme, `cle: sort:{id}:carre:{x},{y}`. Les 4 cases sont des
+  cases JOUABLES (ni roche, ni porte close) : le seul juge est `MoteurSorts::zoneLegale()` (salle, murs, vue), menu et
+  résolution. Un carré n'est publié que si (décisions de René, 2026-11-13) : ses 4
+  cases sont dans la SALLE du lanceur (« Cannot be used in corridors » — un lanceur en couloir n'a aucun carré) ; le
+  lanceur VOIT AU MOINS UNE des 4 cases ; il contient au moins un MONSTRE (le menu ne propose pas un carré qui ne
+  frapperait que des héros). `POST choix {option_id: "lire_parchemin", parametres: {cle}}` : le carré est fixé par
+  l'entrée, revalidé (`entreeChoisie`). Chaque figure du carré est attaquée SÉPARÉMENT à 3 dés de combat, sans
+  défense ; tir ami sur les héros ; le Brassard de Glace réduit de 1 (« reduces the damage from an Ice Storm spell »).
+  Résultat : la forme des sorts de ZONE (`zone: "carre_2x2"`, `cases`, `resultats[]` — `cases` est publié pour TOUTE
+  zone, contact compris). La réduction du Brassard s'applique au tir ami du parchemin comme au sort du Dread
+  (`MoteurDegats::infligerAHeros()`, sources `sort_dread` ET `tir_ami`). Pas de `type_degat: froid`, comme la Tempête
+  du Dread : l'immunité au froid l'annulerait entière au lieu de la réduire. La manette liste les carrés
+  (feuille de choix) ; la table et la mini-carte peuvent éclairer `cases`.
 - ⚠ **`mode: vision_salle`** (*Clairvoyance*, 2026-10-08) : une entrée PAR SALLE
   NON DÉCOUVERTE, `salle: <index>`, nom avec le repère de la salle (« au est, à 2
   cases ») et **jamais** son contenu. Le résultat (`vide`, `monstres` par nom,

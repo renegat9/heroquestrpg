@@ -650,9 +650,10 @@ final class Equipement
     }
 
     /**
-     * La réduction que la pièce équipée porte contre les coups d'un sort de Dread NOMMÉ — `['piece' => …, 'points' => N]`,
-     * ou `null`. Lu par `MoteurDegats::infligerAHeros()` pour un coup de `SOURCE_SORT_DREAD`. La pièce est NOMMÉE dans le
-     * modificateur publié : le joueur voit d'où vient le dégât en moins. (2026-11-12.)
+     * La réduction que la pièce équipée porte contre les coups d'un sort NOMMÉ — Dread ou héros — `['piece' => …, 'points' => N]`,
+     * ou `null`. Lu par `MoteurDegats::infligerAHeros()` pour un coup de `SOURCE_SORT_DREAD` ou de `SOURCE_TIR_AMI` (la Tempête
+     * de Glace d'un héros, 2026-11-13). La pièce est NOMMÉE dans le modificateur publié : le joueur voit d'où vient le dégât
+     * en moins. (2026-11-12.)
      *
      * @return array{piece: string, points: int}|null
      */

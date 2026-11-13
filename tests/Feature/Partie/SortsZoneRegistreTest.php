@@ -95,8 +95,14 @@ it('chaque nature de dégât d\'un sort de héros est une nature CONNUE', functi
     }
 });
 
-it('ne déclare aucune zone de héros sans lecteur, hormis la dette du carré (lot 3)', function () {
-    expect(MotsClesSort::NON_IMPLEMENTES)->toHaveKey(MotsClesSort::ZONE_CARRE_2X2)
+it('ne déclare AUCUNE zone de héros sans lecteur : le carré (lot 3, 2026-11-13) n\'est plus une dette', function () {
+    // Le carré a son lecteur (`MoteurSorts::figuresDeZone()`, la forme `'carre_2x2'` de sa `match`) : la dette du
+    // lot 2 est soldée. Une zone qui revient sans lecteur tombera ici, pas en partie.
+    foreach (MotsClesSort::ZONES as $zone => $meta) {
+        expect($meta['lecteur'])->not->toBeNull("{$zone} : zone de héros sans lecteur.");
+    }
+
+    expect(MotsClesSort::NON_IMPLEMENTES)->not->toHaveKey(MotsClesSort::ZONE_CARRE_2X2)
         ->and(MotsClesSort::estNonImplemente('monstres_zone'))->toBeFalse('Morsure du Froid l\'emploie, avec son lecteur')
-        ->and(MotsClesSort::ZONES[MotsClesSort::ZONE_CARRE_2X2]['lecteur'])->toBeNull();
+        ->and(MotsClesSort::ZONES[MotsClesSort::ZONE_CARRE_2X2]['lecteur'])->toBe('App\Partie\MoteurSorts::figuresDeZone');
 });

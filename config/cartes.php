@@ -155,7 +155,7 @@ return [
     | ⚠ Les cartes de la boîte GLACE (Frozen Horror) sont portées une à une, dès que
     | leur couture existe : l'Anneau de Chaleur et les Raquettes de Vitesse
     | (2026-09-10), puis le Brassard de Glace (2026-11-12). Chill, Ice Storm et
-    | Ice Bridge restent dans la section « Parchemins ».
+    | Ice Bridge sont dans la section « Parchemins » (Ice Bridge seule y reste écartée).
     */
     'artefacts' => [
         'source' => 'artifacts_part1.pdf + artifacts_part2.pdf',
@@ -396,8 +396,8 @@ return [
             ['carte' => 'Spell Scroll — Treasure Without Doom', 'sort' => 'Trésor sans Péril'],
             ['carte' => 'Spell Scroll — Psychic Recovery', 'sort' => 'Récupération Psychique'],
 
-            // ---- Boîte GLACE : Warmth portée (phase 5, 2026-09-06), Skate portée (2026-11-12), Chill portée (2026-11-13) ;
-            // 2 non prises en compte — Ice Storm, Ice Bridge (examen carte par carte, plus « écartée en bloc »).
+            // ---- Boîte GLACE : Warmth portée (phase 5, 2026-09-06), Skate portée (2026-11-12), Chill portée (2026-11-13), Ice Storm
+            // portée (2026-11-13, lot 3) ; 1 non prise en compte — Ice Bridge (examen carte par carte, plus « écartée en bloc »).
             //
             // ⚠ *Warmth* est le cas limite honnête que CLAUDE.md annonçait
             // depuis le 2026-08-15 : un soin fixe de 3, sans zone, sans
@@ -411,12 +411,12 @@ return [
             // dégradée : la zone EST le contrat de la carte (« any monster adjacent »). `BrassardDeGlaceTest` et
             // `MorsureDuFroidTest` tiennent les deux sorts à part.
             ['carte' => 'Spell Scroll — Chill', 'paquet' => 'Frozen Horror', 'sort' => 'Morsure du Froid'],
-            ['carte' => 'Spell Scroll — Ice Storm', 'paquet' => 'Frozen Horror', 'nom' => 'Tempête de Glace',
-                'texte' => 'Zone de 2×2 ; chaque figure y est attaquée séparément à 3 dés, sans défense possible. Interdit en couloir.',
-                'manque' => "GLACE — le socle de zone existe depuis le 2026-11-13 (`App\\Partie\\ZonesDeSort`, "
-                    ."`MoteurSorts::figuresDeZone()`, `ResolveurTour::sortDeZoneDegats()`) : il manque le CHOIX du carré "
-                    ."sur la manette (lot 3 du plan parchemins-glace). `zone: carre_2x2` reste donc NON_IMPLEMENTES "
-                    ."(`MotsClesSort::NON_IMPLEMENTES`). Écarté pour le moment."],
+            // ⚠ *Ice Storm* PORTÉE le 2026-11-13 (plan parchemins-glace, lot 3) : une ZONE de 2×2 cases que le joueur CHOISIT
+            // (une entrée par carré légal, `MoteurSorts::entreesCarre()`), tenue ENTIÈREMENT dans la salle du lanceur et interdite
+            // en couloir (décisions de René, lot 0). Chaque monstre et chaque héros du carré, lanceur compris, est attaqué
+            // séparément à 3 dés sans défense (`des_degats`, `cible: figures_zone`). PAS de `type_degat` : la carte la range à part
+            // de Chill, et le Brassard de Glace la RÉDUIT de 1 (`reduit_degats_de_sort`) au lieu de l'annuler.
+            ['carte' => 'Spell Scroll — Ice Storm', 'paquet' => 'Frozen Horror', 'sort' => 'Tempête de Glace'],
             ['carte' => 'Spell Scroll — Ice Bridge', 'paquet' => 'Frozen Horror', 'nom' => 'Pont de Glace',
                 'texte' => 'Crée un pont permanent permettant de franchir fosse, piège, gouffre, crevasse ou case glacée.',
                 'manque' => "GLACE — poser du TERRAIN en cours de quête (la couche `cartes.grille['terrain']` "

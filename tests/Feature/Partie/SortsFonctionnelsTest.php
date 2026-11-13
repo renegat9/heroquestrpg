@@ -60,8 +60,9 @@ const CLES_SORT_ACTIVES = [
     'type_degat',
     // ---- Répertoires de classe (2026-08-12) ----
     'exclut_soi',              // MoteurSorts::ciblesLegales() — « excluding yourself »
-    'zone',                    // MoteurSorts::figuresDeZone() (Morsure du Froid, 2026-11-13), ResolveurTour::sortDeZone()
-                               // (Flamme hypnotique), ResolveurTour::soinDeZone() (Chant de guérison) — MotsClesSort::ZONES
+    'zone',                    // MoteurSorts::figuresDeZone() (Morsure du Froid, Tempête de Glace — `carre_2x2`, 2026-11-13),
+                               // ResolveurTour::sortDeZone() (Flamme hypnotique), ResolveurTour::soinDeZone() (Chant de guérison)
+    'hors_couloir',            // MoteurSorts::zoneLegale() — « cannot be used in corridors » (Tempête de Glace, 2026-11-13)
     // ---- Sort qui n'existe QU'EN PARCHEMIN (2026-09-04) ----
     'pioche_sans_peril',       // ResolveurTour::piocherSansPeril() — Trésor sans Péril
     'restaure_pv_mind',        // ResolveurTour::sortUtilitaire() — Récupération Psychique
@@ -186,7 +187,8 @@ it('ne garde AUCUN sort que le seeder ne déclare pas', function () {
         ->and($attendus['tenebres'] ?? 0)->toBe(3)
         // ⚠ 41 depuis Patinage (Spell Scroll — Skate, élément `parchemin`), 2026-11-12.
         // ⚠ 42 depuis Morsure du Froid (Spell Scroll — Chill, élément `parchemin`, zone de contact), 2026-11-13.
-        ->and(Sort::count())->toBe(42);
+        // ⚠ 43 depuis Tempête de Glace (Spell Scroll — Ice Storm, élément `parchemin`, zone de carré), 2026-11-13.
+        ->and(Sort::count())->toBe(43);
 });
 
 it('n\'expose de sorts qu\'aux classes lanceuses', function () {
@@ -239,9 +241,11 @@ it('recense explicitement les mots dont la mécanique n\'existe pas', function (
     // jour où l'un de ces mots est implémenté : c'est le rappel de le retirer
     // de NON_IMPLEMENTES et de le documenter comme acquis.
     // ⚠ `monstres_zone` N'EST PLUS une dette depuis le 2026-11-13 : Morsure du Froid l'emploie, avec son lecteur
-    // (`MoteurSorts::figuresDeZone()`). La dette qui reste pour la zone de héros est le CARRÉ (lot 3).
-    expect(MotsClesSort::NON_IMPLEMENTES)->toHaveKeys(['carre_2x2', 'invocation_ephemere'])
+    // (`MoteurSorts::figuresDeZone()`). Le CARRÉ non plus depuis le lot 3 (Tempête de Glace, `carre_2x2`) : il ne reste
+    // que la dette du sort d'invocation.
+    expect(MotsClesSort::NON_IMPLEMENTES)->toHaveKeys(['invocation_ephemere'])
         ->and(MotsClesSort::estNonImplemente('monstres_zone'))->toBeFalse()
+        ->and(MotsClesSort::estNonImplemente('carre_2x2'))->toBeFalse()
         ->and(MotsClesSort::estNonImplemente('cout'))->toBeFalse();
 
     // …mais AUCUN sort ne doit plus s'appuyer dessus. Tempête portait
