@@ -1223,6 +1223,11 @@ class ObjetSeeder extends Seeder
             3 => ['rarete' => 'rare', 'prix_base' => 350],
         ];
 
+        // `boite` : un parchemin dont la CARTE appartient à une boîte d'extension ne sort du butin que sous son thème,
+        // comme les artefacts de cette boîte (René, 2026-11-13). La source est le registre (`config/cartes.php`,
+        // section `parchemins`, clé `paquet`), jamais une seconde liste : `boitesDesParchemins()`.
+        $boitesDesParchemins = self::boitesDesParchemins();
+
         foreach (Sort::all() as $sort) {
             $palier = $bareme[$sort->difficulte_parchemin];
 
@@ -1233,6 +1238,7 @@ class ObjetSeeder extends Seeder
                     'rarete' => $palier['rarete'],
                     'prix_base' => $palier['prix_base'],
                     'emplacement' => 'consommable',
+                    'boite' => $boitesDesParchemins[$sort->nom] ?? null,
                     'effet' => [
                         'sort_id' => $sort->id,
                         'sort_nom' => $sort->nom,
@@ -1275,5 +1281,33 @@ class ObjetSeeder extends Seeder
                 ],
             );
         }
+    }
+
+    /**
+     * Le `paquet` d'une carte du registre → la `boite` du thème qui la porte. Seuls les paquets d'une boîte d'extension
+     * y figurent ; un paquet absent (le jeu de base, *artifacts_part2*) laisse le parchemin tirable partout.
+     */
+    public const BOITE_DU_PAQUET = [
+        'Frozen Horror' => 'horreur_des_glaces',
+    ];
+
+    /**
+     * Nom du sort → boîte de son parchemin, lu sur le registre des cartes (`parchemins`, entrées à `sort` et `paquet`).
+     *
+     * @return array<string, string>
+     */
+    public static function boitesDesParchemins(): array
+    {
+        $boites = [];
+
+        foreach (config('cartes.parchemins.cartes', []) as $carte) {
+            $boite = self::BOITE_DU_PAQUET[$carte['paquet'] ?? ''] ?? null;
+
+            if ($boite !== null && isset($carte['sort'])) {
+                $boites[$carte['sort']] = $boite;
+            }
+        }
+
+        return $boites;
     }
 }
