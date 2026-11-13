@@ -209,7 +209,7 @@ EFFETS_TERRAIN = {
     "Rivière gelée": "SANS arrêt — bouclier blanc = 1 PV Body de froid à CHAQUE case entrée",
     "Tunnel de glace": "téléporte instantanément vers son jumeau (même paire_id) — normal, pas une anomalie",
     "Chambre forte de glace": "1 PV Body de froid (sur crâne) À CHAQUE tour passé dessus, pas qu'au contact",
-    "Glace magique": "décor — ancrage de sort du boss (Mur/Pont de glace), aucun effet sur un héros",
+    "Glace magique": "PONT DE GLACE (parchemin) — se traverse sans danger, le piège ou terrain dessous ne joue plus",
     "Rebord de crevasse": "décor — aucun effet mécanique",
 }
 terrain_carte = carte.get("terrain") or []
@@ -220,7 +220,9 @@ terrain_proche = sorted(
 if terrain_proche:
     print("TERRAIN proche :")
     for t, d in terrain_proche:
-        effet = EFFETS_TERRAIN.get(t.get("nom"), "")
+        # `avantages` (2026-10-10) est la phrase DÉCIDÉE par le serveur (`MotsClesTerrain::avantages()`) : elle prime ;
+        # la table fixe ci-dessus n'est plus qu'un repli.
+        effet = " ; ".join(t.get("avantages") or []) or EFFETS_TERRAIN.get(t.get("nom"), "")
         paire = f" — jumeau paire_id={t['paire_id']}" if t.get("paire_id") else ""
         print(f"  ({t['x']},{t['y']}) {t.get('nom')} — coût {t.get('cout_deplacement')} pt(s) pour ENTRER"
               f" — distance {d}{paire}" + (f" — {effet}" if effet else ""))
