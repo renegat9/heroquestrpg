@@ -1039,11 +1039,15 @@ dette périmée ment aussi sûrement qu'une clé décorative.
   `reduit_degats_de_sort` (−1, `MoteurDegats::infligerAHeros()`, publié en
   modificateur). La *Tempête de Glace* n'a donc plus de `type_degat` : sa carte la
   range à part de Chill, et l'immunité au froid l'aurait annulée au lieu de la réduire.
-- ***Chill* / *Ice Storm*** (parchemins) frappent PLUSIEURS monstres à la fois
-  — leurs jumeaux Dread le confirment (`ZONE_CONTACT`, `ZONE_CARRE_2X2`) — où
-  le ciblage de zone côté héros est explicitement `NON_IMPLEMENTES`
-  (`MotsClesSort::CIBLE_MONSTRES_ZONE`). Le lecteur manquant vit dans
-  `ResolveurTour::sortDegats()`.
+- ***Chill*** est portée depuis le 2026-11-13 (**Morsure du Froid**, sort de
+  parchemin) : une zone de contact (`zone: contact`, `cible: monstres_zone`), sans défense
+  (`degats_fixes: 1`), lue par `MoteurSorts::figuresDeZone()` sur la géométrie commune
+  `ZonesDeSort` que le Dread lit aussi (`ZONE_CONTACT`). Décision de René (lot 0) : TOUS les
+  monstres orthogonaux. Difficulté de lecture 2. Le parchemin dérive du sort (`ObjetSeeder`).
+- ***Ice Storm*** reste écartée (parchemin, *Tempête de Glace*) : la zone carrée 2×2 a sa
+  géométrie (`ZonesDeSort::carre()`) et son frappeur (`ResolveurTour::sortDeZoneDegats()`),
+  mais le choix du carré sur la manette manque — lot 3 du plan
+  `docs/plan-parchemins-glace.md`. `zone: carre_2x2` est `NON_IMPLEMENTES`.
 - ***Snowshoes of Speed*** est portée depuis le 2026-09-10 :
   `Equipement::bonusDeplacementActif()` (symétrique de `malusDeplacement()`)
   est lu aux deux mêmes points de passage (`MenuMoteur`, `ResolveurTour`), et

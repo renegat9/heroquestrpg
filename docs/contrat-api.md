@@ -3921,6 +3921,36 @@ cartes le disent : *Spell Ring* « The spell may not be cast twice on the same t
 *Wand of Magic* « two separate and different spells ». La règle est commune : elle
 vaut aussi pour un sort gardé par un talent (Chant runique) suivi d'un second sort.
 
+### Les sorts de ZONE d'un héros (2026-11-13, `docs/plan-parchemins-glace.md`)
+
+Un sort (ou parchemin) de héros peut toucher une ZONE au lieu d'une cible : vocabulaire `MotsClesSort` (`zone`,
+`degats_fixes`, `des_degats`, `defense_applicable`, `hors_couloir`, `type_degat`), géométrie partagée avec le Dread
+(`App\Partie\ZonesDeSort` — un seul calcul des cases, lu par `MoteurDread` ET par les sorts de héros).
+
+- **`zone: "contact"`** — les 4 cases ORTHOGONALES du lanceur (jamais les diagonales). Premier client : le parchemin
+  **Morsure du Froid** (*Spell Scroll — Chill*, « 1 Body Point of damage to any monster adjacent to the spellcaster
+  (though not diagonally adjacent). The victim cannot defend » ; René, 2026-11-13 : TOUS les monstres orthogonaux).
+- **Offre** : l'entrée (`parametres.sorts[]` / `parchemins[]`) n'a PAS de `cibles` (la zone EST la cible) et porte la
+  DÉCISION `touches: [{type, id, nom}]` — les figures que le sort frappera (`id` : instance pour un monstre,
+  personnage pour un héros). Elle n'est publiée que si `touches` est non vide : le menu ne propose pas un sort de zone
+  qui ne toucherait rien. Une figure IMMUNISÉE au sort n'est ni dans `touches` ni dans `resultats` (comme une cible
+  unique immunisée n'est pas offerte). `POST choix {option_id, parametres: {cle}}` ; si la zone a changé depuis le
+  menu, 422 et rien n'est consommé. Le seul calcul des figures : `MoteurSorts::figuresDeZone()` (menu ET résolution).
+  Clé `cible` du sort : `monstres_zone` (ne frappe que des monstres, Morsure du Froid) ou `figures_zone` (monstres ET
+  héros, tir ami — Tempête de Glace, lot 3).
+- **Résolution** : chaque figure de la zone, séparément — `degats_fixes` (sans dé) ou `des_degats` dés de combat ;
+  `defense_applicable: false` = aucune défense. Dégâts par `MoteurDegats` (immunités `absorbeDegat`, réductions de
+  pièce comprises). Résultat `{type: "sort", sort, zone, resultats: [{cible: {type, id, nom}, degats, pv_body_apres,
+  cible_vaincue, absorbe?, modificateurs?}]}` — `type` est `"parchemin"` pour un parchemin, comme tout parchemin ;
+  `zone` est le MOT de zone (`"contact"`), pas un booléen ; `cible_vaincue` vaut aussi pour un héros tombé. Journalisé,
+  une phrase par figure au fil ; frappe d'une figure : `ResolveurTour::frapperSortDegats()`, le point de passage de la
+  cible unique ET de chaque figure de zone.
+- **Réactions du MJ** : les monstres d'une zone sont « visés » (`ResolveurTour::monstresVisesParSort()`) — Dispel,
+  Dissipation, Break et Consume Magic (`ReactionsMj::auSortDeHeros()`) s'y appliquent comme à un sort ciblé. ⚠ PAS
+  Mirror Magic : sa carte renvoie un sort « cast AT the Dread spellcaster » — une cible unique, qu'une zone n'a pas.
+- ⚠ Corrigé au passage : un sort de héros à `zone` (autre que `salle_du_lanceur`) était OFFERT sans cible puis REFUSÉ
+  « Cible requise » ; le Chant de guérison (`zone` des héros en vue) se disait « toute la salle, alliés compris ».
+
 ### L'Anneau de Sort — le sort gardé, choisi au premier tour (René, 2026-11-05)
 
 Carte © 2024 : « While wearing this ring, you may cast one of the spells you know twice

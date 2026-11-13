@@ -60,7 +60,8 @@ const CLES_SORT_ACTIVES = [
     'type_degat',
     // ---- Répertoires de classe (2026-08-12) ----
     'exclut_soi',              // MoteurSorts::ciblesLegales() — « excluding yourself »
-    'zone',                    // ResolveurTour::soinDeZone() — soin à tous les héros vus
+    'zone',                    // MoteurSorts::figuresDeZone() (Morsure du Froid, 2026-11-13), ResolveurTour::sortDeZone()
+                               // (Flamme hypnotique), ResolveurTour::soinDeZone() (Chant de guérison) — MotsClesSort::ZONES
     // ---- Sort qui n'existe QU'EN PARCHEMIN (2026-09-04) ----
     'pioche_sans_peril',       // ResolveurTour::piocherSansPeril() — Trésor sans Péril
     'restaure_pv_mind',        // ResolveurTour::sortUtilitaire() — Récupération Psychique
@@ -74,7 +75,7 @@ const CLES_SORT_ACTIVES = [
     'image_miroir',            // App\Listeners\ImageMiroir — écouteur de HerosVaSubirDegats
     'tour_supplementaire',     // ResolveurTour::marquerCreneau() — le tour recommence
     'franchit_figures',        // MoteurSorts::franchitFigures() — Voile de Brume, mode de déplacement
-    'degats_fixes',            // ResolveurTour::sortDegats() — montant FIXE, sans dés d'attaque (sorts de feu)
+    'degats_fixes',            // ResolveurTour::frapperSortDegats() — montant FIXE, sans dés d'attaque (sorts de feu ; zone de contact)
     'des_resistance',          // ResolveurTour::reduireParDesRouges() — d6 bruts, chaque 5-6 annule 1 dégât
     // ---- Wizards of Morcar — répertoires optionnels (2026-10-06) ----
     'pose_mur_magique',        // MoteurSorts::entreesPoseMurMagique() + ResolveurTour::poserMurMagiqueSort() — Mur de Pierre
@@ -184,7 +185,8 @@ it('ne garde AUCUN sort que le seeder ne déclare pas', function () {
         ->and($attendus['detection'] ?? 0)->toBe(3)
         ->and($attendus['tenebres'] ?? 0)->toBe(3)
         // ⚠ 41 depuis Patinage (Spell Scroll — Skate, élément `parchemin`), 2026-11-12.
-        ->and(Sort::count())->toBe(41);
+        // ⚠ 42 depuis Morsure du Froid (Spell Scroll — Chill, élément `parchemin`, zone de contact), 2026-11-13.
+        ->and(Sort::count())->toBe(42);
 });
 
 it('n\'expose de sorts qu\'aux classes lanceuses', function () {
@@ -236,8 +238,10 @@ it('recense explicitement les mots dont la mécanique n\'existe pas', function (
     // Une dette déclarée est une dette qu'on peut retrouver. Ce test tombe le
     // jour où l'un de ces mots est implémenté : c'est le rappel de le retirer
     // de NON_IMPLEMENTES et de le documenter comme acquis.
-    expect(MotsClesSort::NON_IMPLEMENTES)->toHaveKeys(['monstres_zone', 'invocation_ephemere'])
-        ->and(MotsClesSort::estNonImplemente('monstres_zone'))->toBeTrue()
+    // ⚠ `monstres_zone` N'EST PLUS une dette depuis le 2026-11-13 : Morsure du Froid l'emploie, avec son lecteur
+    // (`MoteurSorts::figuresDeZone()`). La dette qui reste pour la zone de héros est le CARRÉ (lot 3).
+    expect(MotsClesSort::NON_IMPLEMENTES)->toHaveKeys(['carre_2x2', 'invocation_ephemere'])
+        ->and(MotsClesSort::estNonImplemente('monstres_zone'))->toBeFalse()
         ->and(MotsClesSort::estNonImplemente('cout'))->toBeFalse();
 
     // …mais AUCUN sort ne doit plus s'appuyer dessus. Tempête portait

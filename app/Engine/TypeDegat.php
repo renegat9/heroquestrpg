@@ -20,8 +20,10 @@ namespace App\Engine;
  *    feu (Dread) ; lecteurs = l'Anneau de Feu (immunité) et la régénération du
  *    troll (qu'une brûlure interrompt). Porté.
  *  - **`froid`** : sources = Morsure de Froid (Dread, `SortDreadSeeder`, depuis
- *    le 2026-09-04) et les deux terrains de glace qui blessent (Chambre forte
- *    de glace, Rivière gelée — `TerrainSeeder`, depuis le 2026-09-10).
+ *    le 2026-09-04), la Morsure du Froid du HÉROS (parchemin à zone de contact,
+ *    `SortSeeder`, depuis le 2026-11-13 — ses victimes sont des monstres, donc
+ *    aucune immunité ne la lit) et les deux terrains de glace qui blessent
+ *    (Chambre forte de glace, Rivière gelée — `TerrainSeeder`, depuis le 2026-09-10).
  *    ⚠ La Tempête de Glace n'en est plus une depuis le 2026-11-12 : sa carte la
  *    range à part de Chill, et le Brassard de Glace la réduit de 1 au lieu de
  *    l'annuler (`reduit_degats_de_sort`). Lecteur = `MoteurSorts::absorbeDegat()`,

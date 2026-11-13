@@ -911,6 +911,18 @@ Entrance**.
 > (Patinage) sont PORTÉES — leurs manques avaient chacun une couture
 > (`immunite_sorts_nommes`, `reduit_degats_de_sort`, `bonus_deplacement`). *Chill*,
 > *Ice Storm* et *Ice Bridge* restent écartés.
+>
+> **Décisions de René du 2026-11-13 (plan `docs/plan-parchemins-glace.md`, lot 0).**
+> *Chill* devient la **Morsure du Froid** (parchemin, `element: parchemin`, difficulté de
+> lecture 2) : TOUS les monstres des quatre cases orthogonales du lanceur, jamais une
+> diagonale, sans défense — une zone de contact (`zone: contact`, `cible: monstres_zone`),
+> portée le même jour. *Ice Storm* (Tempête de Glace) : le joueur choisit le carré 2×2, qui
+> doit tenir entièrement dans la salle du lanceur ; il suffit que le lanceur voie une de ses
+> quatre cases ; les héros du carré, lanceur compris, sont frappés. Le Brassard de Glace
+> réduit aussi la Tempête lancée par un héros. Le carré attend son choix sur la manette
+> (lot 3, `NON_IMPLEMENTES`). *Ice Bridge* (Pont de Glace) : le pont couvre autant de tuiles
+> « Magic Ice » qu'il en faut pour l'élément franchi, sur les pièges de sol et les terrains
+> de glace listés au plan ; portée : la ligne de vue (lot 4, écarté d'ici là).
 
 ---
 

@@ -66,15 +66,18 @@ final class MotsClesSort
     public const CIBLE_MONSTRE = 'monstre';
 
     /**
-     * Plusieurs monstres d'une zone.
-     *
-     * ⚠ **NON IMPLÉMENTÉ** : `ciblesLegales()` ne distingue aucune zone et
-     * `sortMental()` résout sur UNE cible. Un sort marqué ainsi se comporte
-     * aujourd'hui comme `CIBLE_MONSTRE`. Déclaré ici pour que le mot existe et
-     * soit repérable — pas pour laisser croire que la mécanique tourne. Voir
-     * `NON_IMPLEMENTES`.
+     * Plusieurs monstres d'une ZONE, et AUCUN héros — « any monster adjacent to the spellcaster » (*Chill*, Morsure
+     * du Froid, 2026-11-13). Une zone se lit par `MoteurSorts::figuresDeZone()` : la zone EST la cible, il n'y a pas
+     * de liste à ouvrir, et le menu publie les figures que la zone frappe (`touches`).
      */
     public const CIBLE_MONSTRES_ZONE = 'monstres_zone';
+
+    /**
+     * TOUTE figure d'une zone : monstres ET héros, lanceur compris — « each monster and hero in that area » (*Ice
+     * Storm*). Le tir ami de zone, lu par `MoteurSorts::figuresDeZone()` comme `CIBLE_MONSTRES_ZONE` plus les héros
+     * debout de la zone. Aucun sort semé ne l'emploie encore (lot 3 : Tempête de Glace).
+     */
+    public const CIBLE_FIGURES_ZONE = 'figures_zone';
 
     /**
      * Un monstre LANCEUR DE DREAD en ligne de vue, qui lui reste au moins un
@@ -91,6 +94,7 @@ final class MotsClesSort
         self::CIBLE_HEROS_ADJACENT,
         self::CIBLE_MONSTRE,
         self::CIBLE_MONSTRES_ZONE,
+        self::CIBLE_FIGURES_ZONE,
         self::CIBLE_LANCEUR_DREAD,
     ];
 
@@ -176,6 +180,90 @@ final class MotsClesSort
         self::RESISTANCE_DES_MIND,
     ];
 
+    // -------------------------------------------------------------- ZONES
+
+    /**
+     * Toute la SALLE du lanceur, alliés compris — la Flamme hypnotique. Lu par `ResolveurTour::sortMental()`, qui route
+     * vers `sortDeZone()` (jet de Mind par figure).
+     */
+    public const ZONE_SALLE_DU_LANCEUR = 'salle_du_lanceur';
+
+    /**
+     * Le lanceur et les héros qu'il VOIT — le Chant de guérison (soin de zone). Lu par `ResolveurTour::sortUtilitaire()`.
+     */
+    public const ZONE_HEROS_EN_VUE = 'heros_en_vue';
+
+    /**
+     * Les quatre cases ORTHOGONALES du lanceur — la Morsure du Froid (*Chill*). Lu par `MoteurSorts::figuresDeZone()`,
+     * sur la géométrie commune `ZonesDeSort::contact()` que le Dread lit aussi (`ZONE_CONTACT` de `MotsClesSortDread`).
+     */
+    public const ZONE_CONTACT = 'contact';
+
+    /**
+     * Un carré 2×2 choisi par le joueur (*Ice Storm*). Dette NOMMÉE : la géométrie existe (`ZonesDeSort::carre()`), le
+     * CHOIX du carré sur la manette non — lot 3 du plan `docs/plan-parchemins-glace.md`.
+     */
+    public const ZONE_CARRE_2X2 = 'carre_2x2';
+
+    /**
+     * Les valeurs de `effet.zone` d'un sort de HÉROS, avec le libellé que le MENU affiche (décidé ici, jamais dans le
+     * front) et le lecteur qui l'applique. `lecteur: null` = dette nommée (voir `NON_IMPLEMENTES`). `SortsZoneRegistreTest`
+     * confronte chaque lecteur au fichier qu'il désigne : il doit exister ET nommer la zone.
+     *
+     * @var array<string, array{libelle: string, lecteur: ?string}>
+     */
+    public const ZONES = [
+        self::ZONE_SALLE_DU_LANCEUR => [
+            'libelle' => 'toute la salle, alliés compris',
+            'lecteur' => 'App\Partie\ResolveurTour::sortDeZone',
+        ],
+        self::ZONE_HEROS_EN_VUE => [
+            'libelle' => "lui-même et les héros qu'il voit",
+            'lecteur' => 'App\Partie\ResolveurTour::sortUtilitaire',
+        ],
+        self::ZONE_CONTACT => [
+            'libelle' => 'les monstres à son contact, jamais en diagonale',
+            'lecteur' => 'App\Partie\MoteurSorts::figuresDeZone',
+        ],
+        self::ZONE_CARRE_2X2 => [
+            'libelle' => 'une zone de 2 × 2 cases, alliés compris',
+            'lecteur' => null,
+        ],
+    ];
+
+    /**
+     * Les clés d'effet de ZONE d'un sort de héros, chacune avec le lecteur qui l'applique. `lecteur` existe ET nomme la
+     * clé dans son fichier — un test le confronte aux sorts semés DANS LES DEUX SENS.
+     *
+     * @var array<string, array{lecteur: string, libelle: string}>
+     */
+    public const MECANIQUES = [
+        'zone' => [
+            'lecteur' => 'App\Partie\MoteurSorts::figuresDeZone',
+            'libelle' => 'Étendue du sort : la zone EST la cible (voir ZONES)',
+        ],
+        'hors_couloir' => [
+            'lecteur' => 'App\Partie\MoteurSorts::figuresDeZone',
+            'libelle' => 'Interdit en couloir : ni offert, ni résolu',
+        ],
+        'degats_fixes' => [
+            'lecteur' => 'App\Partie\ResolveurTour::frapperSortDegats',
+            'libelle' => 'Montant fixe, sans dé d\'attaque, par figure',
+        ],
+        'des_degats' => [
+            'lecteur' => 'App\Partie\ResolveurTour::frapperSortDegats',
+            'libelle' => 'Dés de combat lancés contre chaque figure de la zone',
+        ],
+        'defense_applicable' => [
+            'lecteur' => 'App\Partie\ResolveurTour::frapperSortDegats',
+            'libelle' => 'La figure peut-elle parer ?',
+        ],
+        'type_degat' => [
+            'lecteur' => 'App\Partie\ResolveurTour::frapperSortDegats',
+            'libelle' => 'Nature du dégât (feu, froid) — lue par les protections',
+        ],
+    ];
+
     // ------------------------------------------------------------------ ---
 
     /**
@@ -186,7 +274,8 @@ final class MotsClesSort
      * @var array<string, string>
      */
     public const NON_IMPLEMENTES = [
-        self::CIBLE_MONSTRES_ZONE => 'Aucun ciblage de surface : le sort touche une seule cible.',
+        self::ZONE_CARRE_2X2 => 'Le carré 2×2 n\'a pas de CHOIX sur la manette : la géométrie existe (ZonesDeSort::carre()), '
+            .'la décision du joueur non (lot 3 du plan parchemins-glace, 2026-11-13).',
         'invocation_ephemere' => 'Aucun mécanisme d\'invocation : Génie reste un sort de dégâts.',
     ];
 

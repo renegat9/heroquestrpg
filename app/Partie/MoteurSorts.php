@@ -1397,13 +1397,33 @@ final class MoteurSorts
                 continue;
             }
 
+            // ZONE DE DÉGÂTS (Morsure du Froid, 2026-11-13) : la zone EST la cible. Une entrée, sans liste de cibles, et
+            // offerte SEULEMENT si la zone a au moins une figure — `touches`, la décision que le serveur publie. Le menu
+            // ne propose jamais un sort qui ne toucherait rien (« le menu ne propose jamais ce que le résolveur refuserait »).
+            if ($this->estZoneDeDegats($sort)) {
+                if (! $disponible) {
+                    $entrees[] = $this->entreeSort("sort:{$sort->id}", $this->libelleZone($sort), $sort, false, [], [], $lanceur, $grille);
+                } elseif ($etat !== null && $etat->position_x !== null && $lanceur !== null) {
+                    $touches = $this->touchesDeZone($quete, $sort, $personnage, $etat);
+
+                    if ($touches !== []) {
+                        $entrees[] = $this->entreeSort(
+                            "sort:{$sort->id}", $this->libelleZone($sort), $sort, true, [], [], $lanceur, $grille,
+                            ['touches' => $touches],
+                        );
+                    }
+                }
+
+                continue;
+            }
+
             // Le libellé DIT la zone : sans cible à choisir, c'est la seule
-            // chose qui prévienne le joueur qu'il va toucher ses alliés.
+            // chose qui prévienne le joueur de ce qu'il va toucher. Le texte vient
+            // de `MotsClesSort::ZONES` (le chant soigne les héros EN VUE, la flamme
+            // balaie la salle) — jamais d'un libellé écrit en dur ici.
             $entrees[] = $this->entreeSort(
                 "sort:{$sort->id}",
-                data_get($sort->effet, 'zone') !== null
-                    ? "{$sort->nom} — toute la salle, alliés compris"
-                    : $sort->nom,
+                data_get($sort->effet, 'zone') !== null ? $this->libelleZone($sort) : $sort->nom,
                 $sort,
                 $disponible,
                 $disponible ? $ciblesMonstres : [],
@@ -1500,6 +1520,23 @@ final class MoteurSorts
                     foreach ($this->entreesVisionSalle($quete, $sort, $lanceur, "parchemin:{$ligne->id}", ['inventaire_id' => $ligne->id]) as $entree) {
                         $parchemins[] = $entree;
                     }
+                }
+
+                continue;
+            }
+
+            // ZONE DE DÉGÂTS (Morsure du Froid, 2026-11-13) : la décision du sort connu, portée par le parchemin — une
+            // entrée offerte seulement si la zone a une figure, avec son `inventaire_id`.
+            if ($this->estZoneDeDegats($sort)) {
+                $touches = $lanceur !== null && $etat !== null && $etat->position_x !== null
+                    ? $this->touchesDeZone($quete, $sort, $personnage, $etat)
+                    : [];
+
+                if ($touches !== []) {
+                    $parchemins[] = $this->entreeSort(
+                        "parchemin:{$ligne->id}", $this->libelleZone($sort), $sort, true, [], [], $lanceur, $grille,
+                        ['inventaire_id' => $ligne->id, 'touches' => $touches],
+                    );
                 }
 
                 continue;
@@ -1789,6 +1826,125 @@ final class MoteurSorts
         }));
 
         return $this->nettoyerCibles($cibles);
+    }
+
+    /**
+     * Un sort de ZONE DE DÉGÂTS : il frappe chaque figure de sa zone, sans cible à choisir (Morsure du Froid, 2026-11-13).
+     * Le test est celui de la résolution (`ResolveurTour::lancerSort()`) : un `degats` avec une `zone`.
+     */
+    public function estZoneDeDegats(Sort $sort): bool
+    {
+        return $sort->type === 'degats' && data_get($sort->effet, 'zone') !== null;
+    }
+
+    /**
+     * Le libellé d'une entrée de zone : le nom, puis ce que la zone touche — tiré de `MotsClesSort::ZONES`.
+     */
+    public function libelleZone(Sort $sort): string
+    {
+        $zone = (string) data_get($sort->effet, 'zone', '');
+
+        $libelle = MotsClesSort::ZONES[$zone]['libelle']
+            ?? throw new \LogicException("Zone « {$zone} » du sort {$sort->nom} non déclarée (MotsClesSort::ZONES).");
+
+        return "{$sort->nom} — {$libelle}";
+    }
+
+    /**
+     * LES FIGURES qu'une zone de dégâts frappe — UN SEUL calcul, lu par le menu (`touches`, la décision publiée) et par la
+     * résolution (`ResolveurTour::sortDeZoneDegats()`) : deux lectures de la même zone finissent toujours par diverger.
+     *
+     * - la zone (`zone`) donne les CASES (`ZonesDeSort`), jamais une liste recopiée ici ;
+     * - la cible (`cible`) dit QUI : `monstres_zone` (monstres seuls) ou `figures_zone` (monstres ET héros debout, lanceur
+     *   compris) ;
+     * - `hors_couloir` : rien dans un couloir (le lanceur y est sans salle) ;
+     * - une figure que le sort ne peut pas atteindre (immunité, terreur, condition refusée, intouchable) n'est PAS dans
+     *   la zone — exactement comme une cible unique écartée du menu.
+     *
+     * Ne compte que les monstres ACTIFS, RÉVÉLÉS et hors contrôle d'un héros (un sbire enrôlé par la *Baguette d'Os* est
+     * du côté des héros pour un tour) ; les héros sont ceux qui sont DEBOUT.
+     *
+     * @return array{monstres: Collection<int, InstanceMonstre>, heros: Collection<int, EtatPersonnageQuete>}
+     */
+    public function figuresDeZone(Quete $quete, Sort $sort, Personnage $lanceur, EtatPersonnageQuete $etat): array
+    {
+        $cible = (string) data_get($sort->effet, 'cible', '');
+        $zone = (string) data_get($sort->effet, 'zone', '');
+
+        if (! in_array($cible, [MotsClesSort::CIBLE_MONSTRES_ZONE, MotsClesSort::CIBLE_FIGURES_ZONE], true)) {
+            throw new \LogicException("{$sort->nom} : une zone de dégâts vise des figures de zone, pas « {$cible} » (MotsClesSort::CIBLES).");
+        }
+
+        $rien = ['monstres' => collect(), 'heros' => collect()];
+
+        if ($etat->position_x === null) {
+            return $rien;
+        }
+
+        $x = (int) $etat->position_x;
+        $y = (int) $etat->position_y;
+
+        // « Cannot be used in corridors » (*Ice Storm*) : un couloir n'a pas de salle. Lu ici, comme à la résolution.
+        $salles = (array) data_get($quete->carte?->grille, 'salles', []);
+
+        if ((bool) data_get($sort->effet, 'hors_couloir', false) && Salles::indexDe($salles, $x, $y) === null) {
+            return $rien;
+        }
+
+        $cases = match ($zone) {
+            'contact' => ZonesDeSort::contact($x, $y),
+            default => throw new \LogicException("{$sort->nom} : la zone « {$zone} » n'a pas de lecteur de héros (MotsClesSort::ZONES)."),
+        };
+
+        $monstres = ZonesDeSort::monstresSur(
+            $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+                ->whereNull('controle_par')->with('monstre')->orderBy('id')->get(),
+            $cases,
+        )->filter(fn (InstanceMonstre $m) => $this->monstreAtteignable($m, $sort, $lanceur))->values();
+
+        $heros = collect();
+
+        if ($cible === MotsClesSort::CIBLE_FIGURES_ZONE) {
+            $heros = ZonesDeSort::herosSur(
+                $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')
+                    ->with('personnage')->orderBy('id')->get(),
+                $cases,
+            )->filter(fn (EtatPersonnageQuete $e) => $e->personnage !== null && ! $this->immuniteSorts($e->personnage))->values();
+        }
+
+        return ['monstres' => $monstres, 'heros' => $heros];
+    }
+
+    /**
+     * Les figures d'une zone de dégâts, telles que le MENU les publie (`touches`) : héros d'abord, puis monstres — l'ordre
+     * de la résolution.
+     *
+     * @return list<array{type: string, id: int, nom: string}>
+     */
+    public function touchesDeZone(Quete $quete, Sort $sort, Personnage $lanceur, EtatPersonnageQuete $etat): array
+    {
+        $figures = $this->figuresDeZone($quete, $sort, $lanceur, $etat);
+
+        return [
+            ...$figures['heros']->map(fn (EtatPersonnageQuete $e) => [
+                'type' => 'heros', 'id' => (int) $e->personnage_id, 'nom' => (string) $e->personnage->nom,
+            ])->values()->all(),
+            ...$figures['monstres']->map(fn (InstanceMonstre $m) => [
+                'type' => 'monstre', 'id' => (int) $m->id, 'nom' => $m->nomAffiche(),
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * La figure que la zone PEUT atteindre — l'échelle d'immunités de `sortRefuseSur()`, la terreur, les conditions
+     * refusées et l'intouchabilité, lues comme pour une cible unique.
+     */
+    private function monstreAtteignable(InstanceMonstre $instance, Sort $sort, Personnage $lanceur): bool
+    {
+        return ! $this->sortRefuseSur($instance->monstre->immunitesSorts(), $sort)
+            && ! app(MoteurDormants::class)->estIntouchable($instance)
+            && ! $this->terrorisePour($instance, $lanceur)
+            && array_intersect($this->conditionsPoseesSurMonstre($sort), $instance->monstre->conditionsImmunisees()) === [];
     }
 
     /**

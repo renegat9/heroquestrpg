@@ -58,6 +58,7 @@ class SortSeeder extends Seeder
         'Éclair' => "Un trait de foudre en ligne droite — horizontale, verticale ou diagonale — qui s'arrête au mur ou à une porte fermée : 2 points de Body à chaque héros et à chaque monstre sur son passage.",
         'Chaleur' => "Rend jusqu'à 3 points de Body au lanceur, ou à un héros de son choix, sans jamais dépasser son maximum.",
         'Patinage' => "Le lanceur ajoute 6 à son jet de déplacement pour ce tour, et il peut traverser monstres et héros en se déplaçant. Il ne se lit qu'avant le premier pas du tour.",
+        'Morsure du Froid' => "Inflige 1 point de Body à chaque monstre adjacent au lanceur, jamais en diagonale. Les victimes ne peuvent pas se défendre.",
         'Mur de Pierre' => "Un mur de pierre couvre 2 cases libres de figures : il a 1 point de Body et 6 dés de défense, et disparaît quand il est détruit.",
         'Invisibilité' => "Le lanceur devient invisible jusqu'au début de son prochain tour : il ne peut plus attaquer, mais personne ne peut l'attaquer et aucun sort ne l'atteint.",
         'Désapprentissage' => "Un lanceur de Dread en vue perd un sort tiré au hasard, pour toute la quête : ce sort est retiré du jeu jusqu'à la fin de la quête.",
@@ -477,6 +478,22 @@ class SortSeeder extends Seeder
             // structure alignée sur Chaleur, décidée à défaut de source — à réviser si une meilleure apparaît.
             ['element' => 'parchemin', 'nom' => 'Patinage', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['cible' => 'soi', 'bonus_deplacement' => 6, 'franchit_figures' => true, 'duree' => 'ce_tour']],
+
+            // « This spell causes 1 Body Point of damage to any monster adjacent to the spellcaster (though not diagonally
+            // adjacent). The victim cannot defend against the attack. Scroll crumbles to dust once used. » (Spell Scroll — Chill,
+            // The Frozen Horror, Artifact Reference p. 35 — `reference/18_extensions.md` §3) — porté le 2026-11-13.
+            //
+            // ⚠ `cible: monstres_zone` : la zone EST la cible, et ce sont TOUS les monstres orthogonaux, décision de René
+            // (lot 0, 2026-11-13). `zone: contact` : les quatre cases orthogonales du lanceur, jamais les diagonales — lu par
+            // `MoteurSorts::figuresDeZone()`, sur la géométrie que le Dread lit aussi (`ZonesDeSort::contact()`).
+            // ⚠ `degats_fixes: 1` et `defense_applicable: false` : un montant sans dé, « cannot defend » — la frappe ne lance rien.
+            // ⚠ `type_degat: froid` : la nature du coup. Aucune immunité ne la lit ici (les monstres n'ont pas de Brassard) ;
+            // elle est portée pour la règle commune de `TypeDegat`, comme la Morsure de Froid du Dread.
+            // ⚠ `difficulte_parchemin: 2` : décision de René (lot 0, 2026-11-13). Le parchemin est un sous-produit d'ObjetSeeder.
+            // ⚠ Distinct de la « Morsure de Froid » du Dread (table `sorts_dread`, un palier et un mode d'ouverture différents).
+            ['element' => 'parchemin', 'nom' => 'Morsure du Froid', 'type' => 'degats', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'monstres_zone', 'zone' => 'contact', 'degats_fixes' => 1,
+                    'defense_applicable' => false, 'type_degat' => 'froid']],
 
             // ================================================================
             // Wizards of Morcar (G1504, livret p. 11 + cartes TRANSCRITES

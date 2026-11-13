@@ -1375,10 +1375,7 @@ final class MoteurDread
             // « adjacent to the spellcaster (though NOT DIAGONALLY adjacent) » :
             // les quatre orthogonales, la parenthèse de la carte de *Chill*
             // étant précisément ce qui la distingue d'un contact ordinaire.
-            Mot::ZONE_CONTACT => [
-                ['x' => $cx + 1, 'y' => $cy], ['x' => $cx - 1, 'y' => $cy],
-                ['x' => $cx, 'y' => $cy + 1], ['x' => $cx, 'y' => $cy - 1],
-            ],
+            Mot::ZONE_CONTACT => ZonesDeSort::contact($cx, $cy),
             Mot::ZONE_SALLE => $this->casesDeLaSalle($quete, $instance),
             // « in the same room OR CORRIDOR » : un couloir n'a pas d'index de
             // salle, d'où un mot distinct — sans lui, la Nuée d'Effroi ne
@@ -1408,7 +1405,7 @@ final class MoteurDread
 
     /**
      * Les héros de `$cibles` dont la case est dans `$cases` — la lecture que le Souffle du
-     * Construit partage avec les sorts de zone (`herosSurCases()`, privée).
+     * Construit partage avec les sorts de zone (`ZonesDeSort::herosSur()`, la géométrie commune).
      *
      * @param  Collection<int, EtatPersonnageQuete>  $cibles
      * @param  list<array{x: int, y: int}>  $cases
@@ -1416,7 +1413,7 @@ final class MoteurDread
      */
     public function herosDansLesCases(Collection $cibles, array $cases): \Illuminate\Support\Collection
     {
-        return $this->herosSurCases($cibles, $cases);
+        return ZonesDeSort::herosSur($cibles, $cases);
     }
 
     /**
@@ -1492,14 +1489,9 @@ final class MoteurDread
         $meilleurCompte = -1;
 
         foreach ($salle as $coin) {
-            $carre = [
-                ['x' => $coin['x'], 'y' => $coin['y']],
-                ['x' => $coin['x'] + 1, 'y' => $coin['y']],
-                ['x' => $coin['x'], 'y' => $coin['y'] + 1],
-                ['x' => $coin['x'] + 1, 'y' => $coin['y'] + 1],
-            ];
+            $carre = ZonesDeSort::carre($coin['x'], $coin['y']);
 
-            $compte = $this->herosSurCases($cibles, $carre)->count();
+            $compte = ZonesDeSort::herosSur($cibles, $carre)->count();
 
             if ($compte > $meilleurCompte) {
                 $meilleurCompte = $compte;
@@ -1571,7 +1563,7 @@ final class MoteurDread
                 $ligne = $coupee;
             }
 
-            $compte = $this->herosSurCases($cibles, $ligne)->count();
+            $compte = ZonesDeSort::herosSur($cibles, $ligne)->count();
 
             if ($compte > $meilleurCompte) {
                 $meilleurCompte = $compte;
@@ -1580,27 +1572,6 @@ final class MoteurDread
         }
 
         return $meilleur;
-    }
-
-    /**
-     * Les héros qui se tiennent sur l'une de ces cases.
-     *
-     * @param  Collection<int, EtatPersonnageQuete>  $cibles
-     * @param  list<array{x: int, y: int}>  $cases
-     * @return \Illuminate\Support\Collection<int, EtatPersonnageQuete>
-     */
-    private function herosSurCases(Collection $cibles, array $cases): \Illuminate\Support\Collection
-    {
-        $index = [];
-
-        foreach ($cases as $case) {
-            $index[$case['x'].':'.$case['y']] = true;
-        }
-
-        return $cibles
-            ->filter(fn (EtatPersonnageQuete $c) => $c->position_x !== null
-                && isset($index[(int) $c->position_x.':'.(int) $c->position_y]))
-            ->values();
     }
 
     /**
@@ -1628,7 +1599,7 @@ final class MoteurDread
         $zone = (string) data_get($sort->effet, 'zone', Mot::ZONE_CIBLE);
 
         if (in_array($zone, Mot::ZONES_MULTIPLES, true) || $zone === Mot::ZONE_CONTACT) {
-            $atteints = $this->herosSurCases($cibles, $this->casesDeZone($sort, $quete, $instance, $cibles));
+            $atteints = ZonesDeSort::herosSur($cibles, $this->casesDeZone($sort, $quete, $instance, $cibles));
 
             // Un sort de contrôle ne vise pas ceux qui portent déjà sa
             // condition : la Nuée d'Effroi relancée sur une salle entièrement
@@ -1679,20 +1650,15 @@ final class MoteurDread
             return collect();
         }
 
-        $index = [];
-
-        foreach ($cases as $case) {
-            $index[$case['x'].':'.$case['y']] = true;
-        }
-
         $epargneLanceur = (bool) data_get($sort->effet, 'epargne_lanceur', false);
 
-        return $quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get()
-            // Une figure est dans la zone dès qu'UNE de ses cases y est (`InstanceMonstre::cases()`, 2026-11-05) : l'ancre
-            // seule laissait hors de la zone une figure de deux cases (ou le Scion de seize) dont seule la tête y était.
-            ->filter(fn (InstanceMonstre $m) => $m->position_x !== null
-                && collect($m->cases())->contains(fn (array $c) => isset($index[$c['x'].':'.$c['y']]))
-                && ! ($epargneLanceur && $m->id === $instance->id)
+        // Une figure est dans la zone dès qu'UNE de ses cases y est : la géométrie commune (`ZonesDeSort::monstresSur()`,
+        // 2026-11-05 — l'ancre seule laissait hors de la zone une figure de deux cases dont seule la tête y était).
+        return ZonesDeSort::monstresSur(
+            $quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get(),
+            $cases,
+        )
+            ->filter(fn (InstanceMonstre $m) => ! ($epargneLanceur && $m->id === $instance->id)
                 // « immune to all spell effects » (Guardian Effigy) : la zone passe sans l'atteindre.
                 && ! $m->monstre->immuniseAuxSorts())
             ->values();
@@ -6146,7 +6112,7 @@ final class MoteurDread
     private function figuresDuDrain(SortDread $sort, Quete $quete, InstanceMonstre $instance, Collection $cibles): array
     {
         $cases = $this->casesDeZone($sort, $quete, $instance, $cibles);
-        $heros = $this->herosSurCases($cibles, $cases);
+        $heros = ZonesDeSort::herosSur($cibles, $cases);
         $index = [];
 
         foreach ($cases as $c) {
@@ -6370,7 +6336,7 @@ final class MoteurDread
             $perte = max(1, (int) ($ligne['pv_perdus'] ?? 2));
             $resultats = [];
 
-            foreach ($this->herosSurCases($debout, $this->casesDeZone($sort, $quete, $sorcier, $debout)) as $cible) {
+            foreach (ZonesDeSort::herosSur($debout, $this->casesDeZone($sort, $quete, $sorcier, $debout)) as $cible) {
                 $personnage = $cible->personnage;
                 $subis = $this->degats->infligerAHeros(
                     $personnage, $perte, MoteurDegats::SOURCE_SORT_DREAD,

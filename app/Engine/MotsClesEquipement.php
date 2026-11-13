@@ -331,7 +331,8 @@ final class MotsClesEquipement
      * les dégâts de TERRAIN typés (`ResolveurTour::saignerParTerrain()` /
      * `saignerSurRiviere()`, Chambre forte de glace et Rivière gelée).
      *
-     * ⚠ `froid` (2026-11-12) couvre Morsure de Froid (Chill) et les deux terrains de glace, et RIEN d'autre : la Tempête
+     * ⚠ `froid` (2026-11-12) couvre Morsure de Froid (Chill, Dread) et les deux terrains de glace — la Morsure du Froid du
+     * héros (2026-11-13) n'en est une source qu'en frappant des MONSTRES, que rien ici ne protège — et RIEN d'autre : la Tempête
      * de Glace n'en porte plus, parce que le Brassard de Glace la nomme à part (`REDUIT_DEGATS_DE_SORT`, réduction de 1, pas
      * une immunité) et que l'Anneau de Chaleur ne la nomme pas du tout. Mind Freeze n'a aucune nature : `IMMUNITE_SORTS_NOMMES`.
      *

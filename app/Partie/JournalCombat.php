@@ -2464,6 +2464,12 @@ final class JournalCombat
             return $this->lignesSortAvecReactionsMj($a, $acteurNom);
         }
 
+        // ZONE DE DÉGÂTS D'UN HÉROS (Morsure du Froid, 2026-11-13) : une ligne par figure, décidée par la résolution
+        // (`ResolveurTour::sortDeZoneDegats()`). Le repli « lance X sur Y » n'a pas de cible unique à nommer ici.
+        if (is_array($a['resultats'] ?? null) && is_string($a['zone'] ?? null)) {
+            return $this->lignesSortDeZone($a, $acteurNom);
+        }
+
         $nom = $a['sort']['nom'] ?? 'un sort';
         $cible = $a['cible']['nom'] ?? null;
         $des = $this->detailDes($a);
@@ -2516,6 +2522,52 @@ final class JournalCombat
         $suffixe = $cible !== null ? " sur {$cible}" : '';
 
         return [['texte' => "{$acteurNom} lance {$nom}{$suffixe}{$des}", 'ton' => 'info']];
+    }
+
+    /**
+     * Le fil d'une ZONE DE DÉGÂTS d'un héros : une ligne d'en-tête (le nombre de figures de la zone), puis UNE ligne par
+     * figure — ce qu'elle a encaissé, ce qui l'a protégée, ce qui a réduit le coup. Les tons sont décidés par le résultat
+     * (degats, mort, chute, pare), jamais par le nom du sort.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function lignesSortDeZone(array $a, string $acteurNom): array
+    {
+        $nom = (string) ($a['sort']['nom'] ?? 'un sort');
+        $resultats = array_values(array_filter((array) $a['resultats'], 'is_array'));
+
+        $lignes = [$this->info("{$acteurNom} lance {$nom} — ".count($resultats).' figure'.(count($resultats) > 1 ? 's' : '').' dans sa zone')];
+
+        foreach ($resultats as $resultat) {
+            $cible = (string) ($resultat['cible']['nom'] ?? 'une figure');
+            $degats = (int) ($resultat['degats'] ?? 0);
+            $heros = ($resultat['cible']['type'] ?? null) === 'heros';
+
+            if (! empty($resultat['absorbe'])) {
+                $lignes[] = ['texte' => "{$cible} est protégé : {$nom} ne l'atteint pas", 'ton' => 'pare'];
+            } elseif (! empty($resultat['cible_vaincue'])) {
+                $lignes[] = $heros
+                    ? ['texte' => "{$cible} s'effondre (−{$degats} PV) !", 'ton' => 'chute']
+                    : ['texte' => "{$cible} tombe (−{$degats} PV) !", 'ton' => 'mort'];
+            } elseif ($degats > 0) {
+                $lignes[] = ['texte' => "{$cible} subit −{$degats} PV", 'ton' => 'degats'];
+            } else {
+                $lignes[] = ['texte' => "{$cible} encaisse {$nom} sans dommage", 'ton' => 'pare'];
+            }
+
+            // BRASSARD DE GLACE et réductions de talent : le coup réduit se DIT, nommé par ce qui le réduit. Un bonus de
+            // dégâts (Puissance brute du magicien) s'annonce à l'inverse : le signe de la valeur décide du verbe.
+            foreach ((array) ($resultat['modificateurs'] ?? []) as $modificateur) {
+                $valeur = (int) $modificateur['valeur'];
+
+                $lignes[] = $valeur < 0
+                    ? ['texte' => "{$cible} : {$modificateur['source']} réduit le coup de ".abs($valeur), 'ton' => 'pare']
+                    : ['texte' => "{$cible} : {$modificateur['source']} ajoute {$valeur} au coup", 'ton' => 'succes'];
+            }
+        }
+
+        return $lignes;
     }
 
     /**

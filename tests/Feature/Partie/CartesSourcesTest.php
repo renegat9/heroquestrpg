@@ -200,13 +200,15 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // ⚠ Un de plus le 2026-10-29 (Prophecy of Telor, Talisman du Savoir maudit, portée malédiction comprise).
         // ⚠ Un de plus le 2026-11-12 (The Frozen Horror, Brassard de Glace) : la dernière carte de glace écartée à cette date.
         ->and($portees('artefacts'))->toBe(51)
-        // 15 parchemins sur 19 : 11 désignaient un sort que nous avions déjà,
+        // 17 parchemins sur 19 : 11 désignaient un sort que nous avions déjà,
         // trois ont été écrits le 2026-09-04 — Trésor sans Péril, Récupération
         // Psychique, Éclair — et *Warmth* a rejoint la liste le 2026-09-06
         // (phase 5, examen carte par carte de la boîte GLACE) : un soin fixe
         // de 3, sans zone ni résistance ni terrain, rien ne lui manquait que
         // l'examen. Patinage (Skate) rejoint la liste le 2026-11-12 (`bonus_deplacement`,
-        // `franchit_figures`, `ce_tour`). Ne restent que 3 cartes de la boîte GLACE — Chill,
-        // Ice Storm, Ice Bridge — chacune avec sa dette PROPRE (config/cartes.php).
-        ->and($portesSort('parchemins'))->toBe(16);
+        // `franchit_figures`, `ce_tour`). Chill (Morsure du Froid, zone de contact) rejoint la liste le
+        // 2026-11-13 (`zone`, `cible: monstres_zone`, `degats_fixes`). Ne restent que 2 cartes de la boîte
+        // GLACE — Ice Storm (le carré attend le choix sur la manette, lot 3), Ice Bridge (terrain, lot 4) —
+        // chacune avec sa dette PROPRE (config/cartes.php).
+        ->and($portesSort('parchemins'))->toBe(17);
 });

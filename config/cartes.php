@@ -396,38 +396,27 @@ return [
             ['carte' => 'Spell Scroll — Treasure Without Doom', 'sort' => 'Trésor sans Péril'],
             ['carte' => 'Spell Scroll — Psychic Recovery', 'sort' => 'Récupération Psychique'],
 
-            // ---- Boîte GLACE : Warmth portée (phase 5, 2026-09-06), Skate portée (2026-11-12) ; 3 non prises en
-            // compte — Chill, Ice Storm, Ice Bridge (examen carte par carte, plus « écartée en bloc »).
+            // ---- Boîte GLACE : Warmth portée (phase 5, 2026-09-06), Skate portée (2026-11-12), Chill portée (2026-11-13) ;
+            // 2 non prises en compte — Ice Storm, Ice Bridge (examen carte par carte, plus « écartée en bloc »).
             //
             // ⚠ *Warmth* est le cas limite honnête que CLAUDE.md annonçait
             // depuis le 2026-08-15 : un soin fixe de 3, sans zone, sans
             // résistance, sans terrain — rien ne manquait que l'examen.
             ['carte' => 'Spell Scroll — Warmth', 'paquet' => 'Frozen Horror', 'sort' => 'Chaleur'],
 
-            // ⚠ *Chill* est la carte la plus proche d'être portable — et elle
-            // ne l'est pas, pour une raison précise trouvée en confrontant
-            // les deux côtés de la table : côté Dread, `Morsure de Froid` est
-            // déclarée `zone => ZONE_CONTACT` (les 4 cases orthogonales du
-            // lanceur, PLUSIEURS monstres à la fois) — pas une cible unique.
-            // Le texte du parchemin (« 1 PV à TOUT monstre orthogonalement
-            // adjacent ») confirme qu'il s'agit de la même règle, pas d'une
-            // carte plus simple. Or côté HÉROS, `MotsClesSort::CIBLE_MONSTRES_ZONE`
-            // est explicitement `NON_IMPLEMENTES` — « le sort touche une seule
-            // cible » — et son seul lecteur possible, `ResolveurTour::sortDegats()`,
-            // est hors périmètre de cette phase. Le porter en dégradant
-            // silencieusement « tous les monstres adjacents » en « un seul »
-            // serait exactement la carte à moitié tenue à ne pas afficher.
-            ['carte' => 'Spell Scroll — Chill', 'paquet' => 'Frozen Horror', 'nom' => 'Morsure du Froid',
-                'texte' => '1 PV à tout monstre orthogonalement adjacent au lanceur ; la victime ne peut pas se défendre.',
-                'manque' => "GLACE — cible multiple (les 4 cases orthogonales du lanceur, comme son jumeau "
-                    ."Dread `zone => ZONE_CONTACT`) : `MotsClesSort::CIBLE_MONSTRES_ZONE` est explicitement "
-                    ."NON_IMPLEMENTES côté héros (« le sort touche une seule cible »), et son seul lecteur "
-                    ."possible vit dans ResolveurTour::sortDegats(), hors périmètre de cette phase. Écarté pour le moment (René, 2026-10-15)."],
+            // ⚠ *Chill* PORTÉE le 2026-11-13 (plan parchemins-glace, lot 2) : une ZONE de contact — les quatre cases
+            // orthogonales du lanceur, TOUS les monstres qui s'y tiennent (décision de René, lot 0) —, lue par
+            // `MoteurSorts::figuresDeZone()` sur la géométrie que le Dread lit aussi (`ZonesDeSort::contact()`, sa « Morsure
+            // de Froid »). Un montant fixe sans défense (« cannot defend ») : `degats_fixes`. Ce n'est pas une cible unique
+            // dégradée : la zone EST le contrat de la carte (« any monster adjacent »). `BrassardDeGlaceTest` et
+            // `MorsureDuFroidTest` tiennent les deux sorts à part.
+            ['carte' => 'Spell Scroll — Chill', 'paquet' => 'Frozen Horror', 'sort' => 'Morsure du Froid'],
             ['carte' => 'Spell Scroll — Ice Storm', 'paquet' => 'Frozen Horror', 'nom' => 'Tempête de Glace',
                 'texte' => 'Zone de 2×2 ; chaque figure y est attaquée séparément à 3 dés, sans défense possible. Interdit en couloir.',
-                'manque' => "GLACE — même manque que Chill, un cran plus loin : une zone carrée 2×2 existe "
-                    ."déjà côté Dread (`MotsClesSortDread::ZONE_CARRE_2X2`, lue par `MoteurDread::casesZone()`), "
-                    ."mais rien d'équivalent n'existe côté héros — `ResolveurTour::sortDegats()`, hors périmètre. Écarté pour le moment (René, 2026-10-15)."],
+                'manque' => "GLACE — le socle de zone existe depuis le 2026-11-13 (`App\\Partie\\ZonesDeSort`, "
+                    ."`MoteurSorts::figuresDeZone()`, `ResolveurTour::sortDeZoneDegats()`) : il manque le CHOIX du carré "
+                    ."sur la manette (lot 3 du plan parchemins-glace). `zone: carre_2x2` reste donc NON_IMPLEMENTES "
+                    ."(`MotsClesSort::NON_IMPLEMENTES`). Écarté pour le moment."],
             ['carte' => 'Spell Scroll — Ice Bridge', 'paquet' => 'Frozen Horror', 'nom' => 'Pont de Glace',
                 'texte' => 'Crée un pont permanent permettant de franchir fosse, piège, gouffre, crevasse ou case glacée.',
                 'manque' => "GLACE — poser du TERRAIN en cours de quête (la couche `cartes.grille['terrain']` "

@@ -6,6 +6,7 @@ namespace App\Partie;
 
 use App\Engine\Des\FaceDeCombat;
 use App\Engine\MotsClesEquipement;
+use App\Engine\MotsClesSort;
 use App\Models\InstanceMonstre;
 use App\Models\Mobilier;
 use App\Models\Objet;
@@ -1856,7 +1857,10 @@ final class SceneDeTable
                 'figure' => null,
                 'objets' => array_slice($objets, 0, 6),
                 'issue' => ['ton' => isset($a['soignes']) ? 'tresor' : 'degats',
-                    'libelle' => $nomSort.' balaie la salle'],
+                    // Une zone de dégâts d'un héros n'« balaie » pas une salle : elle frappe ce que son libellé dit (contrat « zones »).
+                    'libelle' => is_array($a['resultats'] ?? null)
+                        ? $nomSort.' — '.(MotsClesSort::ZONES[(string) ($a['zone'] ?? '')]['libelle'] ?? 'frappe sa zone')
+                        : $nomSort.' balaie la salle'],
             ];
         }
 
@@ -2029,6 +2033,30 @@ final class SceneDeTable
                 'nom' => (string) ($s['nom'] ?? $heros->nom),
                 'image_url' => $this->images->urlHeros($heros->id, $heros->classe),
                 'detail' => '+'.(int) ($s['soin'] ?? 0).' PV',
+            ];
+        }
+
+        // ZONE DE DÉGÂTS D'UN HÉROS (Morsure du Froid, 2026-11-13) : chaque figure de `resultats`, avec ce qu'elle a encaissé.
+        foreach ((array) ($a['resultats'] ?? []) as $r) {
+            if (! is_array($r) || ! is_array($r['cible'] ?? null)) {
+                continue;
+            }
+
+            $id = (int) ($r['cible']['id'] ?? 0);
+            $nom = (string) ($r['cible']['nom'] ?? 'cible');
+            $heros = ($r['cible']['type'] ?? null) === 'heros' ? Personnage::find($id) : null;
+
+            $out[] = [
+                'nom' => $nom,
+                'image_url' => $heros !== null
+                    ? $this->images->urlHeros($heros->id, $heros->classe)
+                    : ($id > 0 ? $this->acteurMonstre($id, $nom, 'cible')['image_url'] : $this->images->vignette('monstre', $nom)),
+                'detail' => match (true) {
+                    ! empty($r['absorbe']) => 'protégé',
+                    ! empty($r['cible_vaincue']) => 'abattu',
+                    (int) ($r['degats'] ?? 0) > 0 => '−'.(int) $r['degats'].' PV',
+                    default => 'sans dommage',
+                },
             ];
         }
 

@@ -4812,6 +4812,13 @@ final class ResolveurTour
             }
         }
 
+        // Une ZONE de dégâts (Morsure du Froid) : une figure qu'elle abat compte comme la cible qu'un sort abat.
+        foreach (is_array($payload['resultats'] ?? null) ? $payload['resultats'] : [] as $resultat) {
+            if (($resultat['cible']['type'] ?? null) === 'monstre' && ! empty($resultat['cible_vaincue'])) {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -7223,7 +7230,11 @@ final class ResolveurTour
             $quete, $lanceur, $etat, $sort, $option, $parametres,
             cibleUnique: data_get($sort->effet, 'zone') === null,
             effet: fn (array $o, array $p) => match ($sort->type) {
-                'degats' => $this->sortDegats($quete, $sort, $o, $p, $lanceur),
+                // ZONE DE DÉGÂTS (Morsure du Froid, 2026-11-13) : la zone EST la cible — chaque figure, séparément
+                // (`sortDeZoneDegats()`). Une cible unique n'y a pas de sens : `cibleSort()` la réclamerait en vain.
+                'degats' => data_get($sort->effet, 'zone') !== null
+                    ? $this->sortDeZoneDegats($quete, $sort, $lanceur, $etat)
+                    : $this->sortDegats($quete, $sort, $o, $p, $lanceur),
                 'mental' => $this->sortMental($quete, $sort, $o, $p, $lanceur),
                 default => $this->sortUtilitaire($quete, $lanceur, $etat, $sort, $o, $p),
             },
@@ -7341,6 +7352,14 @@ final class ResolveurTour
         array $option,
         array $parametres,
     ): \Illuminate\Support\Collection {
+        // ZONE DE DÉGÂTS (Morsure du Froid, 2026-11-13) : les monstres qu'elle frappe — le MÊME calcul que la résolution
+        // (`MoteurSorts::figuresDeZone()`), que le menu publie en `touches`. Un Dispel du MJ se joue sur chacun.
+        if ($sort->type === 'degats' && data_get($sort->effet, 'zone') !== null) {
+            return $etat->position_x === null
+                ? collect()
+                : $this->sorts->figuresDeZone($quete, $sort, $etat->personnage, $etat)['monstres']->values();
+        }
+
         if (! empty(($sort->effet ?? [])[self::EFFET_RAYON])) {
             $direction = (string) data_get($option, 'parametres.direction', '');
 
@@ -7492,8 +7511,24 @@ final class ResolveurTour
 
     private function sortDegats(Quete $quete, Sort $sort, array $option, array $parametres, ?Personnage $lanceur = null): array
     {
+        return $this->frapperSortDegats($quete, $sort, $this->cibleSort($quete, $option, $parametres), $lanceur);
+    }
+
+    /**
+     * LA FRAPPE D'UN SORT DE DÉGÂTS SUR UNE FIGURE — le point de passage unique, appelé par la cible unique (`sortDegats()`)
+     * et par chaque figure d'une zone (`sortDeZoneDegats()`) : une seule règle de dégât, de défense et de réduction.
+     *
+     * Trois manières de frapper, lues sur l'effet :
+     *  - `resistance: des_rouges` : un montant FIXE que la cible réduit à coups de d6 bruts (feu) ;
+     *  - `degats_fixes` seul : un montant FIXE, sans aucun dé, sans défense (Morsure du Froid — « cannot defend ») ;
+     *  - sinon `des_degats` dés de combat contre la défense de la figure, si `defense_applicable` la lui accorde.
+     *
+     * @param  array<string, mixed>  $cible  la figure, au format de `cibleSort()` : `{type: monstre, monstre}` ou `{type: heros, personnage, etat}`
+     * @return array<string, mixed>
+     */
+    private function frapperSortDegats(Quete $quete, Sort $sort, array $cible, ?Personnage $lanceur = null): array
+    {
         $des = (int) data_get($sort->effet, 'des_degats', MoteurSorts::DES_DEGATS_DEFAUT[$sort->nom] ?? 1);
-        $cible = $this->cibleSort($quete, $option, $parametres);
 
         // Les deux sorts de FEU ne lancent pas de dés d'attaque : ils infligent
         // un montant FIXE que la cible réduit à coups de d6 bruts (cartes
@@ -7598,6 +7633,30 @@ final class ResolveurTour
                 ];
             }
 
+            // MONTANT FIXE SANS DÉ (Morsure du Froid, 2026-11-13 — « This spell causes 1 Body Point of damage … The victim
+            // cannot defend against the attack ») : ni dé d'attaque, ni défense, ni résistance magique — la carte ne donne
+            // qu'un nombre. Le même point de passage des dégâts de monstre (`infligerAMonstre()`) et le même réveil qu'un coup.
+            if (data_get($sort->effet, 'degats_fixes') !== null) {
+                $resultatMort = $this->degats->infligerAMonstre(
+                    $instance, (int) data_get($sort->effet, 'degats_fixes') + $bonusDegatsSort,
+                    MoteurDegats::SOURCE_SORT_HEROS, ['sort' => $sort->nom], $lanceur,
+                );
+                $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
+
+                return [
+                    'degats_fixes' => (int) data_get($sort->effet, 'degats_fixes'),
+                    'bonus_degats_sort' => $bonusDegatsSort,
+                    'cible' => ['type' => 'monstre', 'instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
+                    'degats' => $resultatMort['degats'],
+                    'pv_body_apres' => $resultatMort['pv_body'],
+                    'cible_vaincue' => $resultatMort['vaincu'],
+                    'changement_phase' => $resultatMort['changement_phase'],
+                    'reaction_monstre' => $resultatMort['reaction'],
+                    'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
+                    ...($modificateursSort !== [] ? ['modificateurs' => $modificateursSort] : []),
+                ];
+            }
+
             $resultat = (new Combat($this->des))->resoudreAttaque(
                 desAttaque: $des,
                 desDefense: $defense,
@@ -7651,12 +7710,39 @@ final class ResolveurTour
             return [
                 'des_degats' => $des,
                 'tir_ami' => true,
+                'absorbe' => true,
                 'degats' => 0,
                 'immunite_degat' => $typeDegat,
                 'cible' => ['type' => 'heros', 'personnage_id' => $heros->id, 'nom' => $heros->nom],
                 'pv_body_apres' => (int) $heros->pv_body,
                 'faces_attaque' => [],
                 'faces_defense' => [],
+            ];
+        }
+
+        // MONTANT FIXE SANS DÉ, tir ami (Morsure du Froid et ses zones, 2026-11-13) : le héros ne se défend pas, et ne lance
+        // rien. Les modificateurs de pièce et de talent (`dernierModificateurs()`) sont publiés comme pour un dé.
+        if (data_get($sort->effet, 'degats_fixes') !== null && ! $desRouges) {
+            $subis = $this->degats->infligerAHeros(
+                $heros, (int) data_get($sort->effet, 'degats_fixes') + $bonusDegatsSort,
+                MoteurDegats::SOURCE_TIR_AMI, ['sort' => $sort->nom],
+            );
+            $modificateurs = $this->degats->dernierModificateurs();
+            $this->sorts->reveillerHeros($heros);
+
+            if ((int) $heros->pv_body === 0 && $subis > 0) {
+                $cible['etat']->update(['tombe' => true]); // C4
+            }
+
+            return [
+                'degats_fixes' => (int) data_get($sort->effet, 'degats_fixes'),
+                'bonus_degats_sort' => $bonusDegatsSort,
+                'tir_ami' => true,
+                'cible' => ['type' => 'heros', 'personnage_id' => $heros->id, 'nom' => $heros->nom],
+                'degats' => $subis,
+                'pv_body_apres' => (int) $heros->fresh()->pv_body,
+                'cible_tombee' => (int) $heros->fresh()->pv_body === 0 && $subis > 0,
+                ...($modificateurs !== [] ? ['modificateurs' => $modificateurs] : []),
             ];
         }
 
@@ -7706,6 +7792,7 @@ final class ResolveurTour
         $subis = $this->degats->infligerAHeros(
             $heros, $resultat->degats, MoteurDegats::SOURCE_TIR_AMI, ['sort' => $sort->nom],
         );
+        $modificateurs = $this->degats->dernierModificateurs();
         $this->sorts->reveillerHeros($heros); // être attaqué réveille
 
         if ((int) $heros->pv_body === 0 && $subis > 0) {
@@ -7726,7 +7813,77 @@ final class ResolveurTour
             'degats' => $subis,
             'pv_body_apres' => (int) $heros->pv_body,
             'cible_tombee' => (int) $heros->pv_body === 0 && $subis > 0,
+            ...($modificateurs !== [] ? ['modificateurs' => $modificateurs] : []),
             ...$resultat->pourJournal(),
+        ];
+    }
+
+    /**
+     * SORT DE DÉGÂTS DE ZONE d'un héros (Morsure du Froid, 2026-11-13 ; Tempête de Glace au lot 3) : chaque figure de la zone
+     * est frappée SÉPARÉMENT, par la frappe qui sert au sort visant une seule figure (`frapperSortDegats()`) — montant fixe
+     * ou dés, défense selon `defense_applicable`, immunités et réductions de pièce comprises.
+     *
+     * Les figures, leur liste et leur ordre viennent de `MoteurSorts::figuresDeZone()`, LE calcul que le menu publie en
+     * `touches`. Rien à frapper ⇒ 422 : une entrée n'est offerte que si `touches` est non vide, et une liste périmée ne doit
+     * pas consommer le sort pour rien.
+     *
+     * Contrat : `docs/contrat-api.md`, « Les sorts de ZONE d'un héros ». Le payload dit la zone (`zone`, le mot du catalogue)
+     * et ce qu'a encaissé chaque figure (`resultats`) — rien d'autre.
+     *
+     * @return array{zone: string, resultats: list<array<string, mixed>>}
+     */
+    private function sortDeZoneDegats(Quete $quete, Sort $sort, Personnage $lanceur, EtatPersonnageQuete $etat): array
+    {
+        $figures = $this->sorts->figuresDeZone($quete, $sort, $lanceur, $etat);
+
+        if ($figures['heros']->isEmpty() && $figures['monstres']->isEmpty()) {
+            throw ValidationException::withMessages([
+                'option_id' => "{$sort->nom} : aucune figure à son contact — rien à frapper.",
+            ]);
+        }
+
+        $resultats = [];
+
+        foreach ($figures['heros'] as $etatHeros) {
+            $frappe = $this->frapperSortDegats($quete, $sort, [
+                'type' => 'heros', 'personnage' => $etatHeros->personnage, 'etat' => $etatHeros,
+            ], $lanceur);
+
+            $resultats[] = $this->resultatDeZone(
+                ['type' => 'heros', 'id' => (int) $etatHeros->personnage_id, 'nom' => (string) $etatHeros->personnage->nom],
+                $frappe,
+            );
+        }
+
+        foreach ($figures['monstres'] as $instance) {
+            $frappe = $this->frapperSortDegats($quete, $sort, ['type' => 'monstre', 'monstre' => $instance], $lanceur);
+
+            $resultats[] = $this->resultatDeZone(
+                ['type' => 'monstre', 'id' => (int) $instance->id, 'nom' => $instance->nomAffiche()],
+                $frappe,
+            );
+        }
+
+        return ['zone' => (string) $sort->effet['zone'], 'resultats' => $resultats];
+    }
+
+    /**
+     * Une entrée de `resultats` : la figure, ce qu'elle a encaissé, et les seules décisions que le fil doit dire — l'absorption,
+     * la réduction de pièce, la chute. Le tout lu sur le résultat de `frapperSortDegats()`, jamais recalculé.
+     *
+     * @param  array{type: string, id: int, nom: string}  $cible
+     * @param  array<string, mixed>  $frappe
+     * @return array<string, mixed>
+     */
+    private function resultatDeZone(array $cible, array $frappe): array
+    {
+        return [
+            'cible' => $cible,
+            'degats' => (int) ($frappe['degats'] ?? 0),
+            'pv_body_apres' => (int) ($frappe['pv_body_apres'] ?? 0),
+            'cible_vaincue' => (bool) ($frappe['cible_vaincue'] ?? $frappe['cible_tombee'] ?? false),
+            ...(! empty($frappe['absorbe']) ? ['absorbe' => true] : []),
+            ...(isset($frappe['modificateurs']) ? ['modificateurs' => $frappe['modificateurs']] : []),
         ];
     }
 
@@ -8156,7 +8313,7 @@ final class ResolveurTour
         // lost Body Points each » (Chant de guérison du Barde). Le lanceur
         // COMPRIS — il se voit toujours lui-même —, et sans jamais dépasser le
         // maximum de chacun.
-        if (isset($effet['soin_pv_body'], $effet['zone'])) {
+        if (isset($effet['soin_pv_body']) && ($effet['zone'] ?? null) === 'heros_en_vue') {
             return $this->soinDeZone($quete, $lanceur, $etat, (int) $effet['soin_pv_body']);
         }
 

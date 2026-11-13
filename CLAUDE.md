@@ -69,7 +69,10 @@ reason, and the two must never drift.
   2026-11-12: `GenererMenu::relancerApresResolution()` for relaunching every menu after a
   resolution — the stale cached menus are dropped FIRST, never served before the job —
   and `InstanceMonstre::nomAffiche()` for a figure's displayed name, camp included in
-  Monster vs Monster).
+  Monster vs Monster; since 2026-11-13: `App\Partie\ZonesDeSort` for the geometry of
+  every spell ZONE, Dread and hero alike, `MoteurSorts::figuresDeZone()` for which
+  figures a hero's zone spell hits — menu and resolution — and
+  `ResolveurTour::frapperSortDegats()` for striking one figure with a hero's damage spell).
   Two copies of a rule too simple to notice drifting is this project's most repeated defect.
 - **`sortBy([$f, $g])` is never a multi-key sort** — Laravel reads a callable there as a
   *comparator*, and it never errors. It bit twice. → `docs/regles/sorts-dread.md`

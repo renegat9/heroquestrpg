@@ -599,7 +599,8 @@ Une nature n'a d'intérêt que si elle a **une source ET un lecteur** :
 - **`feu`** est complet — sources : Boule de Feu, Trait de Feu, Tempête de feu ;
   lecteurs : l'Anneau de Feu et la **régénération du troll**, qu'une brûlure
   interrompt définitivement (`instances_monstres.brule`).
-- **`froid`** a deux sources : *Morsure de Froid* (Chill, sort de Dread) et les deux
+- **`froid`** a trois sources : *Morsure de Froid* (Chill, sort de Dread), la *Morsure du
+  Froid* du HÉROS (Chill, parchemin à zone de contact, ⚠ **Daté 2026-11-13**) et les deux
   terrains de glace (Chambre forte de glace, Rivière gelée). Lecteurs : l'Anneau de
   Chaleur et le Brassard de Glace (`immunite_degat: froid`). ⚠ **Daté (2026-11-12)** :
   la *Tempête de Glace* n'a plus de nature `froid` — sa carte la range à part de Chill,
