@@ -281,6 +281,60 @@ it('instancie l\'allié au démarrage de quête et l\'expose dans l\'état', fun
         ->and($allieEntite['nom'])->toBe('Fauchard');
 });
 
+it('remet à zéro le tour d\'un allié qui a survécu à la quête précédente (René, 2026-11-13)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe('table-1', 20);
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
+    $groupe->update(['or' => 500]);
+
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
+    $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
+
+    // L'état qu'une quête précédente laisse : il avait joué son dernier round, à une case de l'ancienne carte.
+    $groupe->fresh()->mercenaires()->first()->update([
+        'a_joue' => true, 'a_deplace' => true, 'a_agi' => true, 'position_x' => 99, 'position_y' => 99,
+    ]);
+
+    oublierQuetesFictivesDeGardien($groupe);
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+
+    $allie = $groupe->fresh()->mercenaires()->first();
+    expect($allie->a_joue)->toBeFalse()
+        ->and($allie->a_deplace)->toBeFalse()
+        ->and($allie->a_agi)->toBeFalse()
+        ->and([(int) $allie->position_x, (int) $allie->position_y])->not->toBe([99, 99]);
+});
+
+it('un allié sans case de départ reste en RÉSERVE : hors plateau, tour remis à zéro', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe('table-1', 20);
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
+    $groupe->update(['or' => 5000]);
+
+    // Assez d'alliés pour dépasser les cases de départ de la carte (8) : posés à la main, la route de recrutement
+    // plafonne à 4 par héros.
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
+    for ($i = 0; $i < 9; $i++) {
+        App\Models\GroupeMercenaire::create([
+            'groupe_id' => $groupe->id, 'mercenaire_id' => $merc->id, 'pv_body' => (int) $merc->pv_body,
+            'etat' => 'actif', 'a_joue' => true, 'position_x' => 99, 'position_y' => 99,
+        ]);
+    }
+
+    oublierQuetesFictivesDeGardien($groupe);
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+
+    $cases = count((array) Quete::findOrFail($groupe->fresh()->quete_courante_id)->carte->grille['spawn_heros']);
+    $allies = $groupe->fresh()->mercenaires()->orderBy('id')->get();
+
+    expect($cases)->toBeLessThan(1 + $allies->count(), 'la carte doit manquer de cases pour que le test ait un sens')
+        ->and($allies->every(fn ($a) => $a->a_joue === false))->toBeTrue()
+        ->and($allies->filter(fn ($a) => $a->position_x === null)->count())->toBe(1 + $allies->count() - $cases)
+        ->and($allies->contains(fn ($a) => (int) $a->position_x === 99))->toBeFalse();
+});
+
 it('joue l\'allié dans le tour de son joueur : un menu propose d\'attaquer un monstre adjacent', function () {
     // Chantier 3a (2026-10-04, René : « un allié est TOUJOURS joué par son
     // joueur ») — remplace l'ancienne phase alliée automatique. Le héros

@@ -371,11 +371,22 @@ final class DemarreurQuete
             $slot = $heros->count();
             foreach (GroupeMercenaire::where('groupe_id', $groupe->id)->where('etat', 'actif')
                 ->with('mercenaire')->orderBy('id')->get() as $allie) {
+                // ⚠ ÉTAT DE TOUR REMIS À ZÉRO (René, 2026-11-13, reste du verdict arène) : un allié qui survit à une
+                // quête y a souvent joué son dernier round — `a_joue`/`a_deplace`/`a_agi` restaient vrais, et il
+                // perdait son premier round de la quête suivante. Le héros, lui, repart d'une ligne neuve
+                // (`etatsPersonnages()->create()` ci-dessus) ; l'allié est une ligne qui PERSISTE, donc remise à zéro ici.
+                $neuf = ['a_joue' => false, 'a_deplace' => false, 'a_agi' => false];
+
                 if (! isset($carte['spawn_heros'][$slot])) {
-                    break; // pas de case de spawn libre : l'allié reste en réserve
+                    // Pas de case de spawn libre : l'allié reste en RÉSERVE — hors plateau. Sa position de la quête
+                    // précédente ne veut rien dire sur cette carte (elle pouvait tomber dans la roche) : effacée.
+                    $allie->update([...$neuf, 'position_x' => null, 'position_y' => null]);
+
+                    continue;
                 }
 
                 $allie->update([
+                    ...$neuf,
                     'pv_body' => (int) $allie->mercenaire->pv_body,
                     'position_x' => $carte['spawn_heros'][$slot]['x'],
                     'position_y' => $carte['spawn_heros'][$slot]['y'],
