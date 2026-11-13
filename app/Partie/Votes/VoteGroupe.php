@@ -98,7 +98,7 @@ final class VoteGroupe
             ]);
         }
 
-        $membres = $this->membres($groupe);
+        $membres = $this->aLaTable($groupe);
 
         $vote = match ($donnees['type']) {
             'retrait_joueur' => $this->preparerRetrait($groupe, $donnees, $membres),
@@ -150,7 +150,7 @@ final class VoteGroupe
             ]);
         }
 
-        $membres = $this->membres($groupe);
+        $membres = $this->aLaTable($groupe);
 
         $vote = [
             'type' => self::TYPE_RETRAITE,
@@ -203,7 +203,7 @@ final class VoteGroupe
             ]);
         }
 
-        $membres = $this->membres($groupe);
+        $membres = $this->aLaTable($groupe);
 
         $vote = [
             'type' => self::TYPE_SORTIE,
@@ -310,7 +310,7 @@ final class VoteGroupe
             ]);
         }
 
-        $membres = $this->membres($groupe);
+        $membres = $this->proprietaires($groupe);
 
         if (! $membres->contains('id', $joueur->id)) {
             throw ValidationException::withMessages([
@@ -331,7 +331,7 @@ final class VoteGroupe
         // Groupe VIDE (doc 05 §6) : le dernier joueur parti → purge complète
         // silencieuse (données + caches + bible Qdrant), sans résumé ni
         // cérémonie — les personnages sont déjà revenus au roster.
-        if ($this->membres($groupe)->isEmpty()) {
+        if ($this->proprietaires($groupe)->isEmpty()) {
             $this->cloture->purger($groupe);
 
             return ['part' => $part];
@@ -359,7 +359,10 @@ final class VoteGroupe
             ]);
         }
 
-        $cible = $membres->firstWhere('id', (int) ($donnees['cible_joueur_id'] ?? 0));
+        // On retire un PROPRIÉTAIRE (ce sont ses héros qui partent) — y compris un absent dont le héros est confié — ou un
+        // joueur à la table. Les votants, eux, sont les joueurs à la table.
+        $cible = $this->proprietaires($groupe)->merge($membres)
+            ->firstWhere('id', (int) ($donnees['cible_joueur_id'] ?? 0));
 
         if ($cible === null) {
             throw ValidationException::withMessages([
@@ -451,7 +454,7 @@ final class VoteGroupe
             if ($applique) {
                 // Groupe VIDE après le retrait (doc 05 §6) : purge complète
                 // silencieuse — sinon, état rediffusé normalement.
-                if ($this->membres($groupe)->isEmpty()) {
+                if ($this->proprietaires($groupe)->isEmpty()) {
                     $this->cloture->purger($groupe);
                 } else {
                     broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe->fresh())));
@@ -642,7 +645,7 @@ final class VoteGroupe
     private function retirerJoueur(Groupe $groupe, int $cibleJoueurId): int
     {
         $quete = $groupe->queteCourante;
-        $membres = $this->membres($groupe)->count();
+        $membres = $this->proprietaires($groupe)->count();
 
         $part = intdiv((int) ($quete?->or_initial ?? 0), max(1, $membres));
 
@@ -744,17 +747,24 @@ final class VoteGroupe
     }
 
     /**
-     * Joueurs membres : ceux qui ont au moins un héros ACTIF dans le groupe.
+     * Ceux qui DÉCIDENT : les joueurs à la table, qui pilotent un héros actif (`PilotageHeros::joueursALaTable()`, lot M1).
+     * Ils votent ; un absent dont le héros est confié ne vote pas et ne bloque aucun vote.
      *
      * @return Collection<int, Joueur>
      */
-    private function membres(Groupe $groupe): Collection
+    private function aLaTable(Groupe $groupe): Collection
     {
-        $ids = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->pluck('joueur_id')
-            ->unique();
+        return app(\App\Partie\PilotageHeros::class)->joueursALaTable($groupe);
+    }
 
-        return Joueur::whereIn('id', $ids)->orderBy('id')->get();
+    /**
+     * Ceux qui ont une PART : les propriétaires d'un héros actif (`PilotageHeros::proprietaires()`). On part et on est
+     * retiré avec SES héros, le pot se divise entre eux, et un groupe sans propriétaire est vide.
+     *
+     * @return Collection<int, Joueur>
+     */
+    private function proprietaires(Groupe $groupe): Collection
+    {
+        return app(\App\Partie\PilotageHeros::class)->proprietaires($groupe);
     }
 }

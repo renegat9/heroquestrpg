@@ -33,6 +33,36 @@ class PilotageHeros
     }
 
     /**
+     * LES JOUEURS À LA TABLE : ceux qui PILOTENT au moins un héros actif. Ce sont eux qui DÉCIDENT — ils votent et font
+     * le marché. Au plateau, le héros d'un absent est joué par un présent, et c'est le présent qui décide pour lui : un
+     * absent dont le héros est confié n'a donc ni bulletin à rendre ni panier à confirmer, et ne bloque personne.
+     *
+     * @return \Illuminate\Support\Collection<int, \App\Models\Joueur>
+     */
+    public function joueursALaTable(Groupe $groupe): \Illuminate\Support\Collection
+    {
+        $ids = $groupe->personnages()->wherePivot('actif', true)->get()
+            ->map(fn (Personnage $p) => Groupe::piloteDuPivot($p))
+            ->unique();
+
+        return \App\Models\Joueur::whereIn('id', $ids)->orderBy('id')->get();
+    }
+
+    /**
+     * LES PROPRIÉTAIRES : ceux qui POSSÈDENT au moins un héros actif, même confié. Ce sont eux qui ont une PART — du pot
+     * commun au départ, du groupe tant qu'il existe. On quitte un groupe avec SES héros, on en est retiré avec SES héros,
+     * et un groupe sans propriétaire est vide. Piloter le héros d'un autre ne donne aucune part.
+     *
+     * @return \Illuminate\Support\Collection<int, \App\Models\Joueur>
+     */
+    public function proprietaires(Groupe $groupe): \Illuminate\Support\Collection
+    {
+        $ids = $groupe->personnages()->wherePivot('actif', true)->pluck('joueur_id')->unique();
+
+        return \App\Models\Joueur::whereIn('id', $ids)->orderBy('id')->get();
+    }
+
+    /**
      * Confie `$heros` à `$piloteJoueurId` (`null` ou le propriétaire : rendu à son propriétaire). Refus en français, en
      * `ValidationException`. Le demandeur doit être le propriétaire du héros OU son pilote actuel.
      */

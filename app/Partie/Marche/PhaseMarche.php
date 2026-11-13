@@ -927,18 +927,14 @@ final class PhaseMarche
     }
 
     /**
-     * Joueurs membres : ceux qui ont au moins un héros ACTIF dans le groupe.
+     * Ceux qui font le marché : les joueurs à la table, qui pilotent un héros actif (`PilotageHeros::joueursALaTable()`,
+     * lot M1). Un panier chacun ; un absent dont le héros est confié n'a rien à confirmer.
      *
      * @return Collection<int, Joueur>
      */
     private function membres(Groupe $groupe): Collection
     {
-        $ids = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->pluck('joueur_id')
-            ->unique();
-
-        return Joueur::whereIn('id', $ids)->orderBy('id')->get();
+        return app(\App\Partie\PilotageHeros::class)->joueursALaTable($groupe);
     }
 
     /**

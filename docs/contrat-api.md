@@ -1102,6 +1102,14 @@ absent qu'on lui a confié. Un seul point de passage : `Groupe::piloteDe()` et `
   rien) et le bandeau de héros de la manette. Le marché et les votes énumèrent encore leurs membres par PROPRIÉTAIRE
   (`membres()`) : un propriétaire absent dont le héros est confié doit toujours confirmer.
 
+**Qui décide, qui a une part** (2026-11-13). Deux listes, tenues par `App\Partie\PilotageHeros` :
+
+- les **joueurs à la table** (ceux qui pilotent un héros actif) : `POST /marche` ouvre **un panier par joueur à la
+  table**, et les `votants` d'un vote sont les joueurs à la table. Le propriétaire absent d'un héros confié n'a ni
+  panier à confirmer ni bulletin à rendre ;
+- les **propriétaires** (ceux qui possèdent un héros actif, même confié) : `POST /depart` leur est réservé, la part
+  du pot se divise entre eux, et la cible d'un vote `retrait_joueur` est un propriétaire ou un joueur à la table.
+
 ### Héros d'arène (lot A6b, 2026-11-09)
 
 René, 2026-11-09 : « mettons de côté l'import des personnages de heroquest rpg pour le moment, permettons seulement la

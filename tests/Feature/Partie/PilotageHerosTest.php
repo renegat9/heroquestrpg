@@ -275,3 +275,58 @@ it('rend à leur propriétaire les héros que pilotait un joueur qui quitte le g
         // Et le héros de Bob, sorti du groupe, n'y garde aucun pilote.
         ->and(piloteEnBase($deBob, $groupe))->toBeNull();
 });
+
+/*
+ * QUI DÉCIDE, QUI A UNE PART (René, 2026-11-13 : « je te laisse gérer selon ce que tu comprends des règles du jeu »).
+ * Au plateau, le héros d'un absent est joué par un présent, qui décide pour lui. Les joueurs À LA TABLE (ceux qui
+ * pilotent) votent et font le marché ; les PROPRIÉTAIRES gardent leur part et peuvent être retirés.
+ */
+it('n\'attend ni le bulletin ni le panier d\'un absent dont le héros est confié', function () {
+    $alice = compteDePilotage('alice');
+    $bob = compteDePilotage('bob');
+    $carol = compteDePilotage('carol');
+    $groupe = creerGroupe();
+    $deAlice = creerHeros($alice, $groupe, 'Albrecht', 1);
+    creerHeros($bob, $groupe, 'Bertrand', 2);
+    creerHeros($carol, $groupe, 'Cassandre', 3);
+
+    confierPilotage($alice, $deAlice, (int) $bob->id)->assertOk();
+
+    // Le marché : un panier par joueur à la table — Bob et Carol, pas Alice.
+    $this->actingAs($bob, 'joueur');
+    $marche = $this->postJson('/api/groupes/table-1/marche')->assertCreated()->json();
+    expect(collect($marche['paniers'])->pluck('joueur_id')->map(fn ($id) => (int) $id)->sort()->values()->all())
+        ->toBe([(int) $bob->id, (int) $carol->id]);
+    $this->deleteJson('/api/groupes/table-1/marche')->assertNoContent();
+
+    // Le vote : deux bulletins attendus, et il se résout sans Alice.
+    $this->postJson('/api/groupes/table-1/votes', [
+        'type' => 'choix_groupe',
+        'question' => 'Par où ?',
+        'options' => [['id' => 'gauche', 'libelle' => 'Gauche'], ['id' => 'droite', 'libelle' => 'Droite']],
+    ])->assertCreated()->assertJsonPath('vote.attendus', 2);
+
+    $this->postJson('/api/groupes/table-1/votes/bulletin', ['option_id' => 'gauche'])
+        ->assertOk()->assertJsonPath('resultat', null);
+
+    $this->actingAs($carol, 'joueur');
+    expect($this->postJson('/api/groupes/table-1/votes/bulletin', ['option_id' => 'gauche'])->assertOk()->json('resultat'))
+        ->not->toBeNull();
+});
+
+it('garde sa part au propriétaire absent : le pot se divise entre les propriétaires', function () {
+    $alice = compteDePilotage('alice');
+    $bob = compteDePilotage('bob');
+    $carol = compteDePilotage('carol');
+    $groupe = creerGroupe();
+    $groupe->update(['or' => 300]);
+    $deAlice = creerHeros($alice, $groupe, 'Albrecht', 1);
+    creerHeros($bob, $groupe, 'Bertrand', 2);
+    creerHeros($carol, $groupe, 'Cassandre', 3);
+
+    confierPilotage($alice, $deAlice, (int) $bob->id)->assertOk();
+
+    // Carol part : 300 ÷ 3 propriétaires (Alice comprise), pas ÷ 2 joueurs à la table.
+    $this->actingAs($carol, 'joueur');
+    $this->postJson('/api/groupes/table-1/depart')->assertOk()->assertJsonPath('part', 100);
+});

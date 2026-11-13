@@ -346,14 +346,19 @@ ni son format, il appelle ce que la route HTTP appelle.
   - `pilote_joueur_id` publié par héros dans `GET /etat` ;
   - un joueur qui quitte le groupe rend les héros qu'il pilotait.
   - Tests : `MenuPlusieursHerosTest` (3), `PilotageHerosTest` (10).
-- **Ouvert, à trancher par René** :
-  - `PhaseMarche::membres()` et `VoteGroupe::membres()` comptent les membres
-    par **propriétaire**. Un absent dont le héros est confié reste donc
-    membre : il doit encore confirmer le marché et compte dans le partage du
-    pot. À revoir avec la bourse par héros (Q3), qui change ce partage de
-    toute façon.
-  - Le « prêt » d'un héros vit en cache (4 h) : état d'avant-quête, laissé tel
-    quel.
+- **Qui décide, qui a une part — tranché le 2026-11-13.** René : « je te
+  laisse gérer selon ce que tu comprends des règles du jeu et ce qui fait du
+  sens ». Au plateau, le héros d'un absent est joué par un présent, qui décide
+  pour lui. Deux notions, écrites une fois dans `PilotageHeros` :
+  - **les joueurs à la table** (`joueursALaTable()`, ceux qui pilotent) :
+    ils **votent** et font le **marché**. Un absent dont le héros est confié
+    n'a ni bulletin ni panier, et ne bloque personne ;
+  - **les propriétaires** (`proprietaires()`) : ils gardent leur **part** du
+    pot, quittent le groupe ou en sont retirés avec **leurs** héros, et un
+    groupe sans propriétaire est vide.
+  Les deux copies de `membres()` (marché, votes) passent par là.
+- **Laissé tel quel** : le « prêt » d'un héros vit en cache (4 h) — état
+  d'avant-quête, pas un état de partie.
 - **Reste** : M2 (la manette : bandeau de héros, écran pour confier un héros).
 
 ## 10. Décisions de René (2026-11-13)
@@ -373,10 +378,16 @@ ni son format, il appelle ce que la route HTTP appelle.
 |---|---|---|
 | **H1** | `groupes.mode_mort` (`story`, `heroic`), choisi à la création d'un groupe classique et publié ; lecteur Heroic (jeton crâne, minuteur par héros, en colonne), annoncé et journalisé | K0 |
 
-### Question restante
+### Q7 — Mort en Heroic : tranché par délégation (2026-11-13)
 
-- **Q7 — Mort en Heroic.** Dans ce mode un héros peut mourir pour de bon. Le
-  groupe n'étant jamais dissous : le joueur crée-t-il un **nouveau héros** qui
-  prend la place (niveau de départ, équipement de départ), et que devient
-  l'équipement du mort — perdu, ou ramassable par un héros adjacent comme au
-  plateau ? À trancher avant H1, pas avant.
+René n'a pas répondu à Q7 et m'a laissé décider. Décision : **suivre le
+livret de règles**, sans rien inventer.
+
+- Un héros mort en Heroic est **perdu**. Sa **place** dans le groupe reste :
+  son joueur crée un héros neuf (équipement de départ de sa classe), qui la
+  prend au hub suivant. Le groupe n'est donc jamais dissous, même sur une mort.
+- Le sort de l'**équipement** du mort n'est sourcé dans aucun de nos
+  documents (`reference/16` ne cite que l'*Élixir de Vie*). Il sera lu dans le
+  livret de règles et dans la page des modes de *Jungles of Delthrak* **au
+  début du lot H1**, puis porté tel qu'écrit. « ⚠ non trouvé » vaut mieux
+  qu'une supposition : rien n'est codé avant cette lecture.
