@@ -141,6 +141,10 @@ const confirmerQuitter = ref(false);
         <p v-if="erreur" class="sla-err"><MSym n="error" :size="13" /> {{ erreur }}</p>
 
         <div class="sla-quitter">
+            <!-- Les règles, dans un nouvel onglet : le combat reste sous les yeux. Onglet « Arène » du guide (2026-11-12). -->
+            <a class="sla-lien sla-regles" href="/guide?onglet=arene" target="_blank" rel="noopener">
+                <MSym n="menu_book" :size="13" /> Règles de l'arène
+            </a>
             <button v-if="!confirmerQuitter" class="sla-lien" :disabled="enCours" @click="confirmerQuitter = true">
                 Quitter l'arène
             </button>
@@ -199,6 +203,8 @@ const confirmerQuitter = ref(false);
 .sla-err { font-size: 12.5px; color: var(--danger, #e0735c); margin: 8px 0 0; }
 .sla-quitter { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 12px; }
 .sla-lien { background: none; border: 0; padding: 4px 2px; font-size: 12.5px; color: var(--ink-500); text-decoration: underline; cursor: pointer; }
+.sla-regles { margin-right: auto; display: inline-flex; align-items: center; gap: 4px; color: var(--ink-500); }
+.sla-regles:hover { color: var(--gold, #c9a24a); }
 .sla-danger { color: var(--danger, #e0735c); }
 .sla-avert { font-size: 12.5px; color: var(--danger, #e0735c); }
 </style>

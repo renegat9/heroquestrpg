@@ -4,6 +4,8 @@
 // équipements, sorts, pièges. Source : GET /api/guide (catalogues seedés).
 // Les effets mécaniques sont traduits en libellés lisibles via compendium.js.
 import { computed, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
+import GuideArene from '../components/guide/GuideArene.vue';
 import MSym from '../components/ui/MSym.vue';
 import Vignette from '../components/ui/Vignette.vue';
 import { useApi } from '../composables/useApi';
@@ -28,7 +30,7 @@ const api = useApi();
 const guide = ref(null);
 const pret = ref(false);
 const erreur = ref('');
-const tab = ref('heros');
+const route = useRoute();
 
 const ONGLETS = [
     ['heros', 'shield_person', 'Héros'],
@@ -36,8 +38,17 @@ const ONGLETS = [
     ['equipement', 'inventory_2', 'Équipements'],
     ['sorts', 'auto_awesome', 'Sorts'],
     ['pieges', 'crisis_alert', 'Donjon'],
+    ['arene', 'swords', 'Arène'],
     ['cartes', 'style', 'Cartes sources'],
 ];
+
+/* `/guide?onglet=arene` ouvre directement l'onglet demandé : c'est le lien « Règles de l'arène » du salon et de la carte d'un
+   héros d'arène, ouvert dans un nouvel onglet. Un onglet inconnu (ou un paramètre répété) retombe sur « Héros ». */
+function ongletDemande() {
+    const demande = route.query.onglet;
+    return ONGLETS.some(([id]) => id === demande) ? demande : 'heros';
+}
+const tab = ref(ongletDemande());
 
 /* ---- Provenance : de quelle CARTE vient chaque pièce du catalogue ----
    Les armes, armures et artefacts sont la conversion de deux paquets de cartes
@@ -70,6 +81,9 @@ async function charger() {
     }
 }
 onMounted(charger);
+// L'onglet demandé par l'URL peut tomber hors de la barre, qui défile sur un téléphone (trois onglets visibles sur sept) :
+// on le fait voir, sans bouger la page en hauteur.
+onMounted(() => document.querySelector('.guide-tab.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
 
 /* ---- regroupements ---- */
 const mobiliers = computed(() => guide.value?.mobiliers ?? []);
@@ -217,7 +231,7 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                 <div class="guide-crest"><MSym n="menu_book" fill /></div>
                 <div>
                     <h1 class="guide-titre">Guide de jeu</h1>
-                    <p class="guide-sub">Bestiaire, talents, équipements, sorts, pièges — et les cartes dont tout cela est tiré.</p>
+                    <p class="guide-sub">Bestiaire, talents, équipements, sorts, pièges, arène — et les cartes dont tout cela est tiré.</p>
                 </div>
             </div>
         </header>
@@ -567,6 +581,12 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                 <div class="chips">
                     <span v-for="t in guide.themes ?? []" :key="t.cle" class="chip">{{ t.libelle }}</span>
                 </div>
+            </section>
+
+            <!-- ===================== ARÈNE ===================== -->
+            <!-- Le texte des règles et les deux tableaux : tout chiffre vient du bloc `arene` (GET /api/guide). -->
+            <section v-show="tab === 'arene'" class="guide-sec">
+                <GuideArene v-if="guide?.arene" :arene="guide.arene" />
             </section>
 
             <!-- ===================== CARTES SOURCES ===================== -->

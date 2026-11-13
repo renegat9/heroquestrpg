@@ -565,6 +565,12 @@ function libelleClasse(classe) {
                                   <MSym n="swords" :size="14" /> Héros d'arène : il combat selon les règles du livret
                                   et n'entre jamais en campagne. Chaque combat se joue avec une copie fraîche.
                               </p>
+                              <!-- Les règles de l'arène, dans un nouvel onglet (onglet « Arène » du guide, 2026-11-12). -->
+                              <p class="pcard-arene-regles-ligne">
+                                  <a class="pcard-arene-regles" href="/guide?onglet=arene" target="_blank" rel="noopener">
+                                      <MSym n="menu_book" :size="12" /> Règles de l'arène
+                                  </a>
+                              </p>
                               <!-- statistiques d'arène (lot A6), publiées par le serveur -->
                               <div v-if="perso.arene" class="pcard-arene-stats">
                                   <span><MSym n="swords" :size="13" /> {{ perso.arene.combats }} combat(s)</span>
@@ -1137,6 +1143,10 @@ function libelleClasse(classe) {
 .jp-rounds { margin-left: auto; color: var(--ink-500); }
 .pcard-arene-note { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--ink-500);
   margin: 4px 0 0; line-height: 1.4; }
+.pcard-arene-regles-ligne { margin: 2px 0 6px; }
+.pcard-arene-regles { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-500);
+  text-decoration: underline; }
+.pcard-arene-regles:hover { color: var(--torch); }
 .pcard-badge.libre { color: var(--ok); border: 1px solid var(--ok); background: oklch(0.6 0.15 145 / 0.10); }
 .pcard-badge.engage { color: var(--torch); border: 1px solid var(--torch); background: oklch(0.76 0.155 65 / 0.10);
   max-width: 160px; overflow: hidden; text-overflow: ellipsis; }

@@ -263,6 +263,28 @@ final class GroupesArene
     }
 
     /**
+     * Les alliés engageables, dans la forme exacte que publie le salon (`groupe.arene.allies`). Une seule forme : le
+     * salon et le guide de l'arène (2026-11-12, `GuideController::arene()`) la lisent au même endroit.
+     *
+     * @param  Collection<int, Mercenaire>|null  $allies  la liste déjà lue, si l'appelant la tient
+     * @return list<array<string, mixed>>
+     */
+    public function alliesPublies(?Collection $allies = null): array
+    {
+        return ($allies ?? $this->alliesDuCatalogue())->values()->map(fn (Mercenaire $m) => [
+            'id' => (int) $m->id,
+            'nom' => $m->nom,
+            'deplacement' => (int) $m->deplacement,
+            'attaque' => (int) $m->attaque,
+            'attaque_distance' => $m->attaque_distance === null ? null : (int) $m->attaque_distance,
+            'defense' => (int) $m->defense,
+            'pv_body' => (int) $m->pv_body,
+            'animal' => (bool) $m->animal,
+            'puissance' => $this->puissance->duMercenaire($m),
+        ])->all();
+    }
+
+    /**
      * Pourquoi le combat ne peut-il pas être lancé ? `null` s'il le peut. LE prédicat du lancement, publié au salon
      * (`lancement_possible`) et revalidé par `lancer()`.
      */
@@ -432,17 +454,7 @@ final class GroupesArene
                 'puissance' => $this->puissance->duMonstre($m),
                 'abordable' => $this->puissance->duMonstre($m) <= $restant,
             ])->all(),
-            'allies' => $allies->values()->map(fn (Mercenaire $m) => [
-                'id' => (int) $m->id,
-                'nom' => $m->nom,
-                'deplacement' => (int) $m->deplacement,
-                'attaque' => (int) $m->attaque,
-                'attaque_distance' => $m->attaque_distance === null ? null : (int) $m->attaque_distance,
-                'defense' => (int) $m->defense,
-                'pv_body' => (int) $m->pv_body,
-                'animal' => (bool) $m->animal,
-                'puissance' => $this->puissance->duMercenaire($m),
-            ])->all(),
+            'allies' => $this->alliesPublies($allies),
             'puissance_challenger' => $puissanceChallenger,
             'puissance_defender' => $puissanceDefender,
             'lancement_possible' => $motif === null,

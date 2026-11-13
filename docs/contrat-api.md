@@ -1197,6 +1197,38 @@ nom_objet?, or?}`. Pièges (2 : −3, 3-4 : −2, 5-6 : −1) au fouilleur ; 7 :
 de la doublure (elle disparaît avec elle) ; 8-9 / 10-11 / 12 : 100 / 200 / 300 po à la bourse du COMBAT
 (`groupe.or` du groupe d'arène), jamais à un héros.
 
+### Le guide de l'arène (2026-11-12, René : « un guide dédié à l'arène »)
+
+`GET /api/guide` (PUBLIC) porte un bloc **`arene`**, lu par l'onglet « Arène » de la page `/guide`
+(`/guide?onglet=arene` l'ouvre directement ; les salons Coop et Monster vs Monster et la carte d'un héros d'arène y
+renvoient par un lien « Règles de l'arène »). Toutes les valeurs y sont DÉCIDÉES par le serveur depuis les points de
+passage du jeu — jamais recopiées dans le front :
+
+```json
+"arene": {
+  "roster": [{"id", "nom_base", "deplacement", "attaque", "defense", "pv_body", "puissance", "a_distance": bool,
+              "emprise": {"l", "h"}}],
+  "allies": [{"id", "nom", "deplacement", "attaque", "attaque_distance", "defense", "pv_body", "animal", "puissance"}],
+  "puissance": {"heros": "1 + sa meilleure attaque", "plafond_mvm": 60},
+  "trophees": {"tuiles": [{"cle", "libelle", "effet", "nombre"}], "cases": 6, "elan": "<TropheesArene::ELAN>",
+               "cases_elan": 2, "soin_potion": 2},
+  "coffres": [{"de": 2, "a": 2, "issue": "piege", "texte": "Piège explosif : −3 PV au fouilleur"}, …],
+  "manoeuvre": {"des_attaque": 2},
+  "hall": {"largeur", "hauteur", "cases": [[…]], "trophees": [{"x", "y"}], "coffres": [{"x", "y"}],
+           "gravats": [{"x", "y"}], "depart_challenger": [{"x", "y"}], "depart_defender": [{"x", "y"}]}
+}
+```
+
+- `roster` : le roster du tournoi (`GroupesArene::ROSTER_DEFENDER`, dans l'ordre du livret p. 16), `puissance` par
+  `PuissanceArene::duMonstre()` ; `allies` : `GroupesArene::alliesDuCatalogue()`, `puissance` par
+  `PuissanceArene::duMercenaire()` — les mêmes listes et valeurs que le salon.
+- `trophees.tuiles` : `TropheesArene::TUILES`, `nombre` = occurrences dans `TropheesArene::LOT`.
+- `coffres` : `ResolveurTour::TRESOR_TOURNOI` mis en phrases par le serveur (fourchettes 2, 3-4, 5-6, 7, 8-9, 10-11, 12).
+- `hall` : la carte FIXE de `HallArene` (même forme de grille que `carte.cases` d'`EtatGroupe`, rendue par la même
+  grille), avec ses cases remarquables.
+- Le TEXTE des règles (modes, activation alternée, combattant seul, mort, revanche, Monster vs Monster) vit dans
+  l'onglet, rédigé à partir de ce contrat ; il ne porte AUCUN chiffre qui ne vienne de ce bloc.
+
 ### Monster vs Monster — le salon (lot A9a, 2026-11-12, F9528 p. 16, `docs/plan-mode-arene.md` §4, §7 bis)
 
 « Both sides agree on an equal team power for both sides. Randomly determine which team will be the Challenger team,

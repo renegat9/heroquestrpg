@@ -16,10 +16,17 @@ use App\Models\SortDread;
 use App\Models\Terrain;
 use App\Engine\MotsClesEquipement;
 use App\Engine\MotsClesTerrain;
+use App\Partie\Arene\GroupesArene;
+use App\Partie\Arene\HallArene;
+use App\Partie\Arene\ManoeuvreSolo;
+use App\Partie\Arene\MonstresContreMonstres;
+use App\Partie\Arene\PuissanceArene;
+use App\Partie\Arene\TropheesArene;
 use App\Partie\DemarreurQuete;
 use App\Partie\EquipementDepart;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\Marche\PhaseMarche;
+use App\Partie\ResolveurTour;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -192,7 +199,127 @@ class GuideController extends Controller
             // Un test (CartesSourcesTest) confronte ce registre au catalogue
             // dans les deux sens : la provenance affichée ne peut pas dériver.
             'cartes' => $this->cartes(),
+
+            // LE GUIDE DE L'ARÈNE (2026-11-12, « un guide dédié à l'arène ») : l'onglet « Arène » de /guide. Chaque chiffre
+            // est lu au point de passage du jeu qui le décide — la page n'en recopie aucun. Contrat : §« Le guide de l'arène ».
+            'arene' => $this->arene(),
         ]);
+    }
+
+    /**
+     * Le bloc `arene` (contrat, §« Le guide de l'arène »). Les listes sont celles du salon et du combat : roster et
+     * alliés (`GroupesArene`), puissance (`PuissanceArene`), tuiles (`TropheesArene`), table de fouille
+     * (`ResolveurTour::TRESOR_TOURNOI`), manœuvre (`ManoeuvreSolo`), plan du hall (`HallArene`).
+     *
+     * @return array<string, mixed>
+     */
+    private function arene(): array
+    {
+        $groupes = app(GroupesArene::class);
+        $puissance = app(PuissanceArene::class);
+        $hall = app(HallArene::class);
+        $carte = $hall->carte();
+        $lot = array_count_values(TropheesArene::LOT);
+
+        return [
+            // Le roster du Defender dans l'ordre du livret (p. 16) : `monstresDuRoster()` est la liste blanche du salon.
+            // `a_distance` : une version à distance ; sa puissance vaut alors son tir (`duMonstre()`), et `attaque` reste
+            // son attaque au contact.
+            'roster' => $groupes->monstresDuRoster()->map(fn (Monstre $m) => [
+                'id' => (int) $m->id,
+                'nom_base' => $m->nom_base,
+                'deplacement' => (int) $m->deplacement,
+                'attaque' => (int) $m->attaque,
+                'defense' => (int) $m->defense,
+                'pv_body' => (int) $m->pv_body,
+                'puissance' => $puissance->duMonstre($m),
+                'a_distance' => $m->aDistance(),
+                'emprise' => $m->emprise(),
+            ])->values()->all(),
+
+            'allies' => $groupes->alliesPublies(),
+
+            'puissance' => [
+                'heros' => $puissance->formuleHeros(),
+                'plafond_mvm' => MonstresContreMonstres::PUISSANCE_MAX,
+            ],
+
+            // `nombre` : combien d'exemplaires la p. 14 imprime dans le lot de neuf. `cases` : les six cases du plan.
+            'trophees' => [
+                'tuiles' => collect(TropheesArene::TUILES)->map(fn (array $t, string $cle) => [
+                    'cle' => $cle,
+                    'libelle' => $t['libelle'],
+                    'effet' => $t['effet'],
+                    'nombre' => (int) ($lot[$cle] ?? 0),
+                ])->values()->all(),
+                'cases' => count(TropheesArene::CASES),
+                'elan' => TropheesArene::ELAN,
+                'cases_elan' => TropheesArene::CASES_ELAN,
+                'soin_potion' => TropheesArene::SOIN_POTION,
+            ],
+
+            'coffres' => $this->coffresDuTournoi(),
+
+            'manoeuvre' => ['des_attaque' => ManoeuvreSolo::DES_ATTAQUE],
+
+            // Le hall : la carte FIXE (même forme que `carte.cases`), et ses cases remarquables, dans les coordonnées de la
+            // grille — celles que `DemarreurArene` et `TropheesArene::poser()` utilisent.
+            'hall' => [
+                'largeur' => $carte['largeur'],
+                'hauteur' => $carte['hauteur'],
+                'cases' => $carte['cases'],
+                'trophees' => $this->casesDuPlan(TropheesArene::CASES, $hall),
+                'coffres' => $this->casesDuPlan(HallArene::COFFRES, $hall),
+                'gravats' => $this->casesDuPlan(HallArene::GRAVATS, $hall),
+                'depart_challenger' => $carte['spawn_heros'],
+                'depart_defender' => $carte['spawn_monstres'],
+            ],
+        ];
+    }
+
+    /**
+     * La table 2d6 de la fouille d'un coffre du tournoi (`ResolveurTour::TRESOR_TOURNOI`, livret p. 13), en fourchettes.
+     * La clé d'une ligne est son PLAFOND : la fourchette commence juste au-dessus du plafond précédent, et la première
+     * commence au plus petit total de deux dés.
+     *
+     * @return list<array{de: int, a: int, issue: string, texte: string}>
+     */
+    private function coffresDuTournoi(): array
+    {
+        $de = 2;
+        $lignes = [];
+
+        foreach (ResolveurTour::TRESOR_TOURNOI as $a => $ligne) {
+            $lignes[] = ['de' => $de, 'a' => (int) $a, 'issue' => $ligne['issue'], 'texte' => $this->texteCoffre($ligne)];
+            $de = (int) $a + 1;
+        }
+
+        return $lignes;
+    }
+
+    /** Une ligne de la table de fouille, en phrase. Vocabulaire fermé : une issue inconnue lève une erreur, jamais une phrase vide. */
+    private function texteCoffre(array $ligne): string
+    {
+        return match ($ligne['issue']) {
+            'piege' => "{$ligne['piege']} : −{$ligne['degats']} PV au fouilleur",
+            'objet' => "{$ligne['objet']} : dans le sac de la doublure, perdu avec elle",
+            'or' => "{$ligne['or']} po à la bourse du combat",
+        };
+    }
+
+    /**
+     * Des cases de la salle centrale (colonne, rangée) en coordonnées de la grille du hall.
+     *
+     * @param  list<array{0: int, 1: int}>  $cases
+     * @return list<array{x: int, y: int}>
+     */
+    private function casesDuPlan(array $cases, HallArene $hall): array
+    {
+        return array_values(array_map(function (array $c) use ($hall): array {
+            [$x, $y] = $hall->caseDeLaSalle($c[0], $c[1]);
+
+            return ['x' => $x, 'y' => $y];
+        }, $cases));
     }
 
     /**

@@ -112,6 +112,10 @@ const confirmerQuitter = ref(false);
         <p v-if="erreur" class="slm-err"><MSym n="error" :size="13" /> {{ erreur }}</p>
 
         <div class="slm-quitter">
+            <!-- Les règles, dans un nouvel onglet : le combat reste sous les yeux. Onglet « Arène » du guide (2026-11-12). -->
+            <a class="slm-lien slm-regles" href="/guide?onglet=arene" target="_blank" rel="noopener">
+                <MSym n="menu_book" :size="13" /> Règles de l'arène
+            </a>
             <button v-if="!confirmerQuitter" class="slm-lien" :disabled="enCours" @click="confirmerQuitter = true">Quitter l'arène</button>
             <template v-else>
                 <span class="slm-avert">Le combat sera fermé pour tout le monde.</span>
@@ -160,6 +164,8 @@ const confirmerQuitter = ref(false);
 .slm-err { font-size: 12.5px; color: var(--danger, #e0735c); margin: 8px 0 0; }
 .slm-quitter { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 12px; }
 .slm-lien { background: none; border: 0; padding: 4px 2px; font-size: 12.5px; color: var(--ink-500); text-decoration: underline; cursor: pointer; }
+.slm-regles { margin-right: auto; display: inline-flex; align-items: center; gap: 4px; color: var(--ink-500); }
+.slm-regles:hover { color: var(--gold, #c9a24a); }
 .slm-danger, .slm-avert { color: var(--danger, #e0735c); }
 .slm-avert { font-size: 12.5px; }
 </style>

@@ -25,6 +25,15 @@ use Illuminate\Support\Facades\DB;
  */
 final class PuissanceArene
 {
+    /** « Each hero begins with a power of 1 » (F9528 p. 15). Lu par `duHeros()` et par le guide de l'arène (2026-11-12). */
+    public const BASE_HEROS = 1;
+
+    /** La formule du héros, telle que le guide de l'arène la publie (`arene.puissance.heros`). */
+    public function formuleHeros(): string
+    {
+        return self::BASE_HEROS.' + sa meilleure attaque';
+    }
+
     public function duHeros(Personnage $heros): int
     {
         $meilleurSort = (int) DB::table('personnage_sorts')
@@ -34,7 +43,7 @@ final class PuissanceArene
             ->map(fn ($effet) => (int) ((json_decode((string) $effet, true) ?: [])['des_degats'] ?? 0))
             ->max();
 
-        return 1 + max((int) $heros->des_attaque, $meilleurSort);
+        return self::BASE_HEROS + max((int) $heros->des_attaque, $meilleurSort);
     }
 
     /**
