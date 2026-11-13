@@ -188,7 +188,7 @@ class AuthController extends Controller
             'pseudo' => $joueur->pseudo,
             'identifiant' => $joueur->identifiant,
             'personnages' => $personnages
-                ->map(function ($p) use ($idsDejaEnQuete, $idsAvecHistorique, $groupesAvecForgeronDuJoueur, $forgeronParGroupe, $forge) {
+                ->map(function ($p) use ($personnages, $idsDejaEnQuete, $idsAvecHistorique, $groupesAvecForgeronDuJoueur, $forgeronParGroupe, $forge) {
                     $disponible = $p->groupe_actif_id === null;
                     // Les deux préalables de `ForgeController::appliquer()` avant
                     // même de regarder l'objet : le groupe est au hub, et LE
@@ -207,6 +207,23 @@ class AuthController extends Controller
                     // par tour » des capacités : lu UNE fois par héros, pas une
                     // fois par nœud.
                     $etatQuete = EtatPersonnageQuete::enQuete($p);
+                    // MODE ARÈNE (validation de la PR #2, 2026-11-12) : un héros d'arène qui combat n'a PAS d'état de quête —
+                    // c'est sa DOUBLURE (`doublure_de`) qui le porte. Ses capacités se lisent donc sur la doublure EN QUÊTE,
+                    // avec le corps qui la joue (PV, bouclier) : sinon le roster disait « Utilisable en quête seulement »
+                    // pendant que la doublure les jouait. Seules les CAPACITÉS suivent la doublure : `$etatQuete` reste celui du
+                    // héros source, lu par `offrable()` pour SON sac — qui ne combat pas, et que cette lecture ne doit jamais
+                    // déclarer utilisable.
+                    $lecteurCapacites = $p;
+                    $etatCapacites = $etatQuete;
+                    $doublureDuHeros = $p->doublure_de === null
+                        ? $personnages->first(fn ($d) => (int) $d->doublure_de === (int) $p->id)
+                        : null;
+
+                    if ($doublureDuHeros !== null && ($etatDoublure = EtatPersonnageQuete::enQuete($doublureDuHeros)) !== null) {
+                        $lecteurCapacites = $doublureDuHeros;
+                        $etatCapacites = $etatDoublure;
+                    }
+
                     // ⚠ La DÉCISION « ce héros peut être supprimé », pas ses
                     // ingrédients : DELETE /personnages/{id} réévalue ces
                     // trois mêmes conditions côté serveur (contrat), et le
@@ -288,7 +305,7 @@ class AuthController extends Controller
                             // de 2 points se lit sur la fiche sans que la manette le recalcule.
                             ->map(fn ($c) => ['id' => $c->id, 'nom' => $c->nom, 'description' => $c->description,
                                 'cout' => (int) $c->cout, 'rang' => $c->rang]
-                                + app(Talents::class)->fiche($p, $etatQuete, $c))
+                                + app(Talents::class)->fiche($lecteurCapacites, $etatCapacites, $c))
                             ->values()
                             ->all(),
                         // La DÉCISION d'achat de chaque case de la grille de sa classe (2026-10-22, docs/contrat-api.md,

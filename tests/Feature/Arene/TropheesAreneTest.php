@@ -124,6 +124,8 @@ it('la POTION du Challenger : +2 PV jusqu\'au maximum, sans créneau, puis la tu
     [$arene, $quete, $doublure] = combatAvecTrophees(['Gobelin']);
     $quete->update(['trophees_arene' => [...$quete->trophees_arene, 'challenger' => ['potion']]]);
     $doublure->update(['pv_body' => (int) $doublure->pv_body_max - 1]);
+    // LA LETTRE (2026-11-12) : le héros seul manœuvre d'abord, à l'ouverture du round — il passe, son activation reste à jouer.
+    jouerEnArene($this->joueur, $arene->identifiant, 'attendre')->assertSuccessful();
 
     expect(optionsMenuArene($arene->identifiant)->pluck('id')->all())->toContain('trophee_potion');
     $this->postJson("/api/groupes/{$arene->identifiant}/choix", ['option_id' => 'trophee_potion'])->assertSuccessful();
@@ -154,7 +156,8 @@ it('la POTION du Defender : une figure blessée qui s\'active la boit (René, 20
     $momie->update(['pv_body' => 1, 'active_ce_round' => false]);
     $quete->update(['trophees_arene' => [...$quete->trophees_arene, 'defender' => ['potion']]]);
 
-    // Fin d'activation du héros : le Defender répond avec sa seule figure, blessée.
+    // LA LETTRE : le héros seul manœuvre d'abord, il passe. Fin de SON activation : le Defender répond avec sa figure, blessée.
+    jouerEnArene($this->joueur, $arene->identifiant, 'attendre')->assertSuccessful();
     $this->getJson("/api/groupes/{$arene->identifiant}/menu")->assertOk();
     $this->postJson("/api/groupes/{$arene->identifiant}/choix", ['option_id' => 'attendre'])->assertSuccessful();
 

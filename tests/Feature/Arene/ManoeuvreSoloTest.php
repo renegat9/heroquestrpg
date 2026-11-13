@@ -95,11 +95,12 @@ it('CHALLENGER SEUL : son activation jouée, il manœuvre après CHAQUE activati
     EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $c['b']->id)->update(['tombe' => true]);
     $etatA = fn () => EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $c['a']->id)->first();
 
-    // Alice joue son activation : un gobelin répond, puis SA manœuvre s'ouvre (elle reprend la main).
+    // Alice joue son activation : un gobelin répond, puis SA manœuvre s'ouvre (elle reprend la main). Sa manœuvre
+    // ne lève pas son activation, déjà jouée (la lettre du livret, 2026-11-12 — lecture nommée abandonnée).
     jouerEnArene($c['alice'], $id, 'attendre')->assertSuccessful();
     expect(jetonsDuDefender($quete))->toBe(2)
         ->and($etatA()->manoeuvre_arene)->toBeTrue()
-        ->and($etatA()->a_joue)->toBeFalse();
+        ->and($etatA()->a_joue)->toBeTrue();
 
     $this->actingAs($c['alice'], 'joueur');
     $menu = $this->getJson("/api/groupes/{$id}/menu")->json('menu');
@@ -116,11 +117,11 @@ it('CHALLENGER SEUL : son activation jouée, il manœuvre après CHAQUE activati
     expect(jetonsDuDefender($quete))->toBe(3)
         ->and($etatA()->manoeuvre_arene)->toBeTrue();
 
-    // Elle passe encore : le Defender est à court, le round se referme et se rouvre (une figure) — elle a son
-    // activation à jouer, pas une manœuvre.
+    // Elle passe encore : le Defender est à court, le round se referme et se rouvre (une figure). Son activation n'est
+    // pas encore jouée : la figure d'ouverture lui donne SA manœuvre avant (la lettre : après CHAQUE activation adverse).
     jouerEnArene($c['alice'], $id, 'attendre')->assertSuccessful();
     expect(jetonsDuDefender($quete))->toBe(1)
-        ->and($etatA()->manoeuvre_arene)->toBeFalse()
+        ->and($etatA()->manoeuvre_arene)->toBeTrue()
         ->and($etatA()->a_joue)->toBeFalse();
 });
 

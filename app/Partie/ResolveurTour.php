@@ -464,7 +464,9 @@ final class ResolveurTour
         if ($etat->tombe) {
             throw ValidationException::withMessages(['personnage_id' => 'Ce héros est tombé : il ne peut plus agir ce tour.']);
         }
-        if ($etat->a_joue) {
+        // MANŒUVRE (lettre du livret, 2026-11-12) : une manœuvre joue alors que l'activation est déjà jouée — `a_joue`
+        // ne ferme que l'activation, et la main de la manœuvre est lue par `manoeuvre_arene` (`OrdreDuTour`).
+        if ($etat->a_joue && ! $etat->manoeuvre_arene) {
             throw ValidationException::withMessages(['personnage_id' => 'Ce héros a déjà agi ce tour.']);
         }
 
@@ -546,6 +548,16 @@ final class ResolveurTour
         // arcanique (nœud magicien) : un SECOND sort par tour, au-delà du
         // créneau action normal — une seule fois par tour (bonus_sort_utilise).
         $creneau = self::creneauDeLOption($option);
+
+        // MANŒUVRE DU COMBATTANT SEUL (lettre du livret, 2026-11-12) : pendant la manœuvre, son geste de fin
+        // (« Passer / Terminer la manœuvre », la frappe à 2 dés) referme la MANŒUVRE, jamais l'activation — même
+        // lorsque `creneauDeLOption()` y voit un tour (`'tour'`). Le créneau devient `manoeuvre`, qui ne marque rien.
+        $enManoeuvre = (bool) $etat->manoeuvre_arene;
+
+        if ($enManoeuvre && \App\Partie\Arene\ManoeuvreSolo::referme((string) ($option['type'] ?? ''))) {
+            $creneau = 'manoeuvre';
+        }
+
         // Second sort du tour : le nœud magicien *Réserve arcanique*, la
         // Baguette de Rappel (« cast two spells instead of one »), OU la
         // Potion of Magical Aptitude (Wizards of Morcar, doc 18 — buff de
@@ -582,7 +594,7 @@ final class ResolveurTour
         app(TamponAnnonces::class)->ouvrir();
 
         try {
-        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique, $bonusHeroisme, $perdSecondeFrappe) {
+        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique, $bonusHeroisme, $perdSecondeFrappe, $enManoeuvre) {
             $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
 
             // Endormi (Sommeil de Dread ou sort héros en tir ami) : le héros
@@ -803,14 +815,33 @@ final class ResolveurTour
             // immediately ends » (livret p. 14) sous les trois pièges de sol,
             // et c'est le SEUL et MÊME point de passage qui ferme un tour
             // avant que les deux créneaux ne soient consommés.
-            $creneauEffectif = (($this->evenementGlace['fin_tour'] ?? false) || $this->finTourPiegeSol || $this->finTourSables
-                || $this->finTourPorteForcee)
-                ? 'tour' : $creneau;
+            $finDeTour = ($this->evenementGlace['fin_tour'] ?? false) || $this->finTourPiegeSol || $this->finTourSables
+                || $this->finTourPorteForcee;
+
+            // MANŒUVRE (lettre du livret, 2026-11-12) : pendant une manœuvre, ce qui finirait le tour (glace, piège de sol,
+            // sables, porte forcée) ne finit que la MANŒUVRE — l'activation n'est pas jouée. Une règle qui force le héros
+            // (enlisé, chute de blocs, vent de couloir) la referme aussi : son menu forcé ne se joue pas dans une manœuvre,
+            // et le menu normal le montrera à la place.
+            if ($enManoeuvre) {
+                // Un héros qui TOMBE pendant sa manœuvre la finit aussi : il n'a plus la main, et le round doit continuer
+                // (sans quoi le groupe resterait muet).
+                $frais = $etat->fresh();
+                $creneauEffectif = ($creneau === 'manoeuvre' || $finDeTour || $frais->tombe
+                    || \App\Partie\Arene\ManoeuvreSolo::forceUnGeste($frais))
+                    ? 'manoeuvre' : $creneau;
+            } else {
+                $creneauEffectif = $finDeTour ? 'tour' : $creneau;
+            }
 
             // Consomme le créneau (mouvement/action) ; le tour ne se termine
             // que quand les DEUX créneaux sont faits, ou via une action terminante.
             $avantJoue = (bool) $etat->a_joue;
             $this->marquerCreneau($etat, $creneauEffectif, $bonusReserveArcanique, $bonusHeroisme);
+
+            // MANŒUVRE : la main se rend ICI, le geste de fin étant résolu (`fermer()`, colonne seule). `true` seulement
+            // si une manœuvre vient de se refermer — l'adversaire ne répond alors pas par sa propre activation.
+            $fermeeALInstant = $creneauEffectif === 'manoeuvre'
+                && app(\App\Partie\Arene\ManoeuvreSolo::class)->fermer($quete);
 
             // GORE (Minotaure, Wizards of Morcar) : « in addition to their own
             // turn, a minotaur may immediately roll 2 Attack dice against a hero
@@ -884,13 +915,23 @@ final class ResolveurTour
             // attente », sans quoi la phase des monstres s'ouvrirait avant que
             // ce second menu n'ait jamais été proposé.
             if ($groupe->estArene()) {
-                // ARÈNE (lot T2) : l'activation de CE héros vient-elle de finir ? Alors le Defender répond.
-                if ((bool) $etat->fresh()?->a_joue) {
-                    // TROPHÉE (lot T4) : on ramasse en FINISSANT son activation sur la case, sans action.
-                    if (! $etat->fresh()->tombe) {
-                        app(\App\Partie\Arene\TropheesArene::class)->ramasserHeros($groupe, $quete, $personnage, $etat->fresh());
-                    }
-                    $resultat = $this->relaisArene($resultat, $groupe, $quete);
+                $fini = $etat->fresh();
+
+                // L'ACTIVATION vient-elle de finir DANS ce geste ? Une manœuvre jouée après une activation déjà jouée (lettre
+                // du livret, 2026-11-12) trouve `a_joue` déjà levé : ce n'est pas une nouvelle fin — seule la transition compte.
+                $activationFinie = ! $avantJoue && (bool) $fini->a_joue;
+
+                // TROPHÉE (lot T4) : on ramasse en FINISSANT son activation sur la case, sans action — et en finissant sa
+                // MANŒUVRE (lettre du livret, 2026-11-12), comme la marche de la figure seule du Defender.
+                if (! $fini->tombe && ($activationFinie || $fermeeALInstant)) {
+                    app(\App\Partie\Arene\TropheesArene::class)->ramasserHeros($groupe, $quete, $personnage, $fini);
+                }
+
+                // ARÈNE (lot T2) : le Defender répond à la FIN de l'activation. Une manœuvre qui se referme ne répond pas par
+                // sa propre activation (« after each opponent's TURN ») : elle relance seulement le Defender, si la main n'est
+                // plus à personne (ou si le héros est tombé en la jouant) — sans quoi le round ne se rouvrirait jamais.
+                if ($activationFinie || ($fermeeALInstant && ($fini->a_joue || $fini->tombe))) {
+                    $resultat = $this->relaisArene($resultat, $groupe, $quete, $fermeeALInstant);
                 }
             } elseif (app(OrdreDuTour::class)->acteurActif($groupe) === null) {
                 $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
@@ -3824,9 +3865,10 @@ final class ResolveurTour
      * et `null` s'il n'en existe aucune (il reste alors sur place).
      *
      * @param  list<array{x: int, y: int}>  $chemin
+     * @param  Grille  $reelle  la grille NORMALE (sans franchissement) : ce qui est réellement occupé ou infranchissable
      * @return array{x: int, y: int}|null
      */
-    private function derniereCaseOuSArreter(Quete $quete, InstanceMonstre $instance, array $chemin, int $pas): ?array
+    private function derniereCaseOuSArreter(Quete $quete, InstanceMonstre $instance, array $chemin, int $pas, Grille $reelle): ?array
     {
         $traversant = $this->dread->aCapacite($instance, 'ethere')
             || $this->dread->aCapacite($instance, 'agile');
@@ -3837,8 +3879,8 @@ final class ResolveurTour
         // chemin sur la case d'une autre. Rendre `$chemin[$pas - 1]` sans le
         // vérifier empilait deux figurines.
         //
-        // Grille NORMALE : elle dit ce qui est réellement occupé/infranchissable.
-        $reelle = $this->grille($quete, exceptInstanceId: $instance->id);
+        // ⚠ Grille reçue, jamais reconstruite ici : la publication des destinations (`destinationsMonstreArene()`)
+        // la rejoue pour CHAQUE case candidate — une `FabriqueGrille::pour()` par candidat, c'est une requête par case.
         $decouvertes = $quete->sallesDecouvertes();
 
         for ($i = $pas - 1; $i >= 0; $i--) {
@@ -12570,17 +12612,19 @@ final class ResolveurTour
      * activer, le Defender enchaîne toutes les siennes et le round se referme ; quand c'est le Defender qui est à court,
      * le Challenger enchaîne (rien à faire ici : ses héros ont toujours la main, `OrdreDuTour::acteurPour()`).
      *
+     * `$apresUneManoeuvre` : la manœuvre du héros vient de se refermer (`resoudre()`) — ce n'était pas une activation, et
+     * le Defender seul ne répond pas à une manœuvre par sa propre manœuvre.
+     *
      * @param  array<string, mixed>  $resultat
      * @return array<string, mixed>
      */
-    private function relaisArene(array $resultat, Groupe $groupe, Quete $quete): array
+    private function relaisArene(array $resultat, Groupe $groupe, Quete $quete, bool $apresUneManoeuvre = false): array
     {
         if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
             return $resultat; // le Defender est éteint : `donjonNettoye()` déclare la victoire
         }
 
         $manoeuvres = app(\App\Partie\Arene\ManoeuvreSolo::class);
-        $apresUneManoeuvre = $manoeuvres->fermer($quete);
         $avant = [];
         $monstresRestants = $this->monstresAActiverEnArene($quete) > 0;
 
@@ -12752,15 +12796,18 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'action', $annonce, $acteur);
         $marche = $this->marcheVersLaCible($groupe, $quete, $instance, $grille, $chemin, $nomMonstre, $acteur);
 
-        if ($marche['brulure'] !== null) {
-            return $this->actionsEnchainees($annonce, $marche['brulure']);
-        }
-
         if ($marche['chemin'] === []) {
             return $annonce;
         }
 
+        // La marche faite se journalise et se publie, brûlure comprise (contrat « Une activation de monstre publie TOUT »,
+        // 2026-11-12) : elle ne disparaissait plus du fil quand une brûlure la suivait.
         Journal::ajouter($groupe, 'action', $marche['deplacement'], $acteur);
+
+        if ($marche['brulure'] !== null) {
+            return $this->actionsEnchainees($annonce, $this->enchainerMarche($marche, $marche['brulure']));
+        }
+
         app(\App\Partie\Arene\TropheesArene::class)->ramasserMonstre($groupe, $quete, $instance->fresh()->load('monstre'));
 
         return $this->actionsEnchainees($annonce, $marche['deplacement']);
@@ -12768,8 +12815,13 @@ final class ResolveurTour
 
     /**
      * MONSTER VS MONSTER (lot A9c) — les cases où un joueur peut ARRÊTER cette figure : atteignables sur la grille du
-     * passage dans son déplacement du catalogue, et où toute son emprise peut s'arrêter sur la grille réelle (la même
-     * règle que la marche d'un monstre, `empriseOuSArreter()`). Clé `x,y` → chemin.
+     * passage dans son déplacement du catalogue, et où la MARCHE s'arrête exactement (`trajetDeLaMarche()`, la règle que
+     * `deplacerMonstreArene()` applique). Clé `x,y` → chemin.
+     *
+     * ⚠ 2026-11-12, validation par combats d'agents : une case n'est offerte QUE si la marche, appliquée à son chemin,
+     * s'y arrête. Un Ogre champion (emprise 1×2) se voyait offrir (5,5) — le plus court chemin passe par (7,4), où sa
+     * seconde case tombe sur un gravat — et la marche s'arrêtait en (8,4) : l'arrivée seule était testée, pas le pas
+     * qui y mène. Une seule règle, lue des DEUX côtés : aucune case publiée n'est plus une promesse.
      *
      * @return array<string, list<array{x: int, y: int}>>
      */
@@ -12784,18 +12836,103 @@ final class ResolveurTour
         $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
         $this->appliquerModeDeMarche($grille, $instance);
         $reelle = $this->grille($quete, exceptInstanceId: $instance->id);
-        $e = $instance->monstre->emprise();
         $destinations = [];
 
         foreach ($grille->casesAtteignables((int) $instance->position_x, (int) $instance->position_y, (int) $instance->monstre->deplacement) as $cle => $chemin) {
             [$x, $y] = array_map(intval(...), explode(',', (string) $cle));
 
-            if ($chemin !== [] && $this->empriseOuSArreter($quete, $reelle, $instance, ['x' => $x, 'y' => $y], $e)) {
+            if ($chemin !== [] && $this->trajetDeLaMarche($quete, $instance, $grille, $reelle, $chemin)['arrivee'] === ['x' => $x, 'y' => $y]) {
                 $destinations[$cle] = $chemin;
             }
         }
 
         return $destinations;
+    }
+
+    /**
+     * LA MARCHE, UNE SEULE RÈGLE (2026-11-12) : où s'arrête une figure qui suit `$chemin`, et par quelles cases elle passe.
+     *
+     * Pure : ni déplacement, ni écriture, ni journal. Deux lecteurs, qui ne peuvent donc pas diverger :
+     * `marcheVersLaCible()`, qui applique le résultat, et `destinationsMonstreArene()`, qui n'offre que les cases où ce
+     * trajet s'arrête EXACTEMENT. Une grande figure avance tant que son EMPRISE tient sur le passage (`empriseLibre()`),
+     * et ne s'arrête que là où `empriseOuSArreter()` le permet, sur la grille réelle ; une figure d'une case recule
+     * jusqu'à la dernière case où elle peut s'arrêter (`derniereCaseOuSArreter()`). Les chausse-trappes tronquent le
+     * chemin d'abord, comme avant.
+     *
+     * @param  list<array{x: int, y: int}>  $chemin  le chemin vers la cible, sans la case de départ
+     * @param  Grille  $grille  le PASSAGE (les autres figures s'y franchissent)
+     * @param  Grille  $reelle  la grille NORMALE (ce qui est réellement occupé)
+     * @return array{chemin: list<array{x: int, y: int}>, arrivee: array{x: int, y: int}|null}  le parcours réel, et sa fin
+     */
+    private function trajetDeLaMarche(Quete $quete, InstanceMonstre $instance, Grille $grille, Grille $reelle, array $chemin): array
+    {
+        $aucun = ['chemin' => [], 'arrivee' => null];
+
+        if ($chemin === []) {
+            return $aucun;
+        }
+
+        // CHAUSSE-TRAPPES : la carte dit « a creature », donc les monstres aussi — c'est même contre eux qu'on les sème.
+        // ⚠ On tronque AVANT `derniereCaseOuSArreter()`, jamais après : cette méthode garantit que la case finale est
+        // légale, et raccourcir son résultat déposerait la créature n'importe où. Le chemin du BFS part de la case
+        // SUIVANTE : on lui repique la position de la figure en tête, puis on la retire.
+        // ⚠ Sauf l'ÉTHÉRÉ : « Ethereal monsters are unaffected by all traps, including caltrops placed by heroes » (Dread
+        // Moon p. 6, répété p. 36) — `docs/plan-correctifs-2026-10-04.md` C1.
+        if (! $this->dread->aCapacite($instance, 'ethere')) {
+            $departMonstre = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
+            $tronque = $this->tronquerSurChausseTrappes($quete, [$departMonstre, ...$chemin]);
+            $chemin = array_slice($tronque, 1);
+        }
+
+        // ⚠ POINTS de déplacement, pas nombre de cases (doc 18 §4, Rivière Gelée) : `pasAffordables()` compte les points
+        // réellement dépensés et rend l'INDEX que `derniereCaseOuSArreter()` attend.
+        $pas = $grille->pasAffordables($chemin, (int) $instance->monstre->deplacement);
+
+        if ($instance->monstre->grandeTaille()) {
+            // Déplacement multi-cases (3.9) — SIMPLIFICATION assumée : le BFS calcule le chemin de l'ANCRE (coin
+            // haut-gauche) sans connaître l'emprise. On avance donc le long de ce chemin et on s'arrête à la DERNIÈRE case
+            // où l'emprise ENTIÈRE tient. Une grande figurine peut ainsi progresser moins loin qu'un 1×1, mais ne chevauche
+            // jamais un mur ni une autre figurine.
+            // ⚠ TRAVERSER N'EST PAS S'ARRÊTER (2026-10-31) : `$grille` est celle du PASSAGE — l'emprise y PASSE ; elle ne
+            // s'ARRÊTE que là où `empriseOuSArreter()` le permet, sur la grille réelle. Avant, la case basse d'un Ogre
+            // champion se posait sur un autre monstre (`GrandeFigurineTest`).
+            // ⚠ ARRÊT AU PREMIER PAS QUI NE TIENT PLUS (2026-11-12) : la marche s'interrompt à la première case où l'emprise
+            // ne passe plus. C'est pour cela que la publication teste le CHEMIN entier (`destinationsMonstreArene()`), pas la
+            // seule arrivée.
+            $e = $instance->monstre->emprise();
+            $arrivee = null;
+
+            for ($i = 0; $i < $pas; $i++) {
+                if (! $grille->empriseLibre($chemin[$i]['x'], $chemin[$i]['y'], $e['l'], $e['h'])) {
+                    break;
+                }
+
+                if ($this->empriseOuSArreter($quete, $reelle, $instance, $chemin[$i], $e)) {
+                    $arrivee = $chemin[$i];
+                }
+            }
+        } else {
+            // Une figurine traversante (éthéré/agile) peut avoir un chemin qui PASSE par des cases occupées ou non
+            // découvertes. Elle les traverse, mais ne s'y arrête pas : on recule jusqu'à la dernière case d'arrêt légale.
+            $arrivee = $this->derniereCaseOuSArreter($quete, $instance, $chemin, $pas, $reelle);
+        }
+
+        if ($arrivee === null) {
+            return $aucun;
+        }
+
+        // Sous-chemin réellement parcouru, jusqu'à l'arrivée incluse.
+        $parcouru = [];
+
+        foreach (array_slice($chemin, 0, $pas) as $c) {
+            $parcouru[] = ['x' => (int) $c['x'], 'y' => (int) $c['y']];
+
+            if ((int) $c['x'] === (int) $arrivee['x'] && (int) $c['y'] === (int) $arrivee['y']) {
+                break;
+            }
+        }
+
+        return ['chemin' => $parcouru, 'arrivee' => ['x' => (int) $arrivee['x'], 'y' => (int) $arrivee['y']]];
     }
 
     /**
@@ -12855,6 +12992,23 @@ final class ResolveurTour
             ->values();
     }
 
+    /**
+     * MONSTER VS MONSTER — le motif d'un refus de frappe (2026-11-12, validation par combats d'agents). Un TIREUR qui ne
+     * voit pas une cible hors contact le dit : « Cette figure n'est pas en ligne de vue. » (la ligne de tir manque, pas
+     * la portée). Toute autre frappe refusée garde « Cette figure n'est pas à portée de frappe. ». Un seul endroit :
+     * `frapperMonstreArene()` et `CombatMonstres::agir()` lisent la même réponse.
+     */
+    public function motifRefusFrappeArene(InstanceMonstre $instance, int $cibleId): string
+    {
+        $cible = InstanceMonstre::find($cibleId);
+
+        if ($cible !== null && $instance->monstre->aDistance() && ! $this->auContactArene($instance, $cible)) {
+            return 'Cette figure n\'est pas en ligne de vue.';
+        }
+
+        return 'Cette figure n\'est pas à portée de frappe.';
+    }
+
     /** MONSTER VS MONSTER : les deux figures se touchent-elles (diagonale si l'attaquant frappe ainsi d'ordinaire) ? */
     public function auContactArene(InstanceMonstre $instance, InstanceMonstre $cible): bool
     {
@@ -12874,7 +13028,7 @@ final class ResolveurTour
         $cible = $this->ciblesMonstreArene($quete, $instance)->firstWhere('id', $cibleId);
 
         if ($cible === null) {
-            throw ValidationException::withMessages(['parametres' => 'Cette figure n\'est pas à portée de frappe.']);
+            throw ValidationException::withMessages(['parametres' => $this->motifRefusFrappeArene($instance, $cibleId)]);
         }
 
         // Au contact : son attaque de mêlée (1 dé pour une version à distance) ; hors contact : un TIR, aux dés de tir.
@@ -14318,15 +14472,30 @@ final class ResolveurTour
             // exactement l'inverse. Et sans ligne de mire, il fonçait au contact
             // comme un corps-à-corps, se privant lui-même de son arme. Le tir au
             // choix ne recule pas : seul l'archer se replace.
-            if ($instance->monstre->aDistance()
-                && $this->replacerTireur($groupe, $quete, $instance, $cibles, $grille, $acteur, $nomMonstre) !== null) {
-                $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
+            $repli = null;
+
+            if ($instance->monstre->aDistance()) {
+                $repli = $this->replacerTireur($groupe, $quete, $instance, $cibles, $grille, $acteur, $nomMonstre);
+
+                if ($repli !== null) {
+                    $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
+                }
             }
 
             $tir = $this->tirerSiCibleEnVue($groupe, $quete, $instance, $cibles, $grille, $acteur, $nomMonstre, tourelle: $tourelle);
 
+            // UNE ACTIVATION PUBLIE TOUT CE QU'ELLE A FAIT (contrat « L'activation alternée », 2026-11-12, validation par
+            // combats d'agents) : le repli d'abord, puis le tir. Le `repli_tireur` est déjà journalisé par
+            // `replacerTireur()` — il n'est pas journalisé une seconde fois ici.
             if ($tir !== null) {
-                return $tir;
+                return $repli === null ? $tir : $this->actionsEnchainees($repli, $tir);
+            }
+
+            // Un repli rend TOUJOURS une ligne de tir : `replacerTireur()` ne choisit qu'une case qu'un héros voit, et
+            // `tirerSiCibleEnVue()` le voit aussi. Ce retour ne devrait jamais servir ; s'il sert, le repli reste
+            // l'activation entière — publié et journalisé — plutôt qu'une marche masquée derrière lui.
+            if ($repli !== null) {
+                return $repli;
             }
         }
 
@@ -14399,24 +14568,29 @@ final class ResolveurTour
 
         // Se rapprocher : la marche (trajet, pas, case d'arrêt, trace pour la table) est `marcheVersLaCible()`.
         $marche = $this->marcheVersLaCible($groupe, $quete, $instance, $grille, $chemin, $nomMonstre, $acteur);
+        $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y, $diagonalesMonstre);
+
+        // UNE ACTIVATION PUBLIE TOUT CE QU'ELLE A FAIT (contrat « L'activation alternée », 2026-11-12, validation par combats
+        // d'agents) : la marche est journalisée ICI, une fois, puis rendue AVANT ce qui suit (`enchainerMarche()`). Une marche
+        // VIDE — figure déjà au contact — ne s'est pas faite : rien à dire. Une figure qui n'avance pas et n'est pas au
+        // contact le dit toujours (« ne peut pas avancer »), comme avant.
+        if ($marche['chemin'] !== [] || ! $adjacent) {
+            Journal::ajouter($groupe, 'action', $marche['deplacement'], $acteur);
+        }
 
         // BRASIER (« Any creature who moves through the bonfire… », Jungles of
         // Delthrak p. 4) : le monstre brûle comme le héros, sur le chemin qu'il
         // vient RÉELLEMENT de parcourir. ⚠ Un monstre qui meurt en marchant ne
-        // frappe pas : on rend le compte rendu de sa brûlure comme issue du tour.
+        // frappe pas : on rend la marche puis le compte rendu de sa brûlure, pour issue du tour.
         if ($marche['brulure'] !== null && $marche['brulure']['vaincu']) {
-            return $marche['brulure'];
+            return $this->enchainerMarche($marche, $marche['brulure']);
         }
 
         // TRAPPE DE TÉLÉPORTATION : le monstre vient d'être porté sur la jumelle, son tour
         // s'achève là — « the hero's or monster's turn is over » (F7539 p. 15). Pas de frappe.
         if ($marche['teleportation'] !== null) {
-            Journal::ajouter($groupe, 'action', $marche['deplacement'], $acteur);
-
             return $marche['deplacement'];
         }
-
-        $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y, $diagonalesMonstre);
 
         // VOILE D'OMBRE (*Cloak of Shadows*) : « heroes and monsters on the tile
         // may not attack ». Le monstre qui se tient sous le voile a pu marcher
@@ -14435,23 +14609,20 @@ final class ResolveurTour
             ];
             Journal::ajouter($groupe, 'action', $payload, $acteur);
 
-            return $payload;
+            return $this->enchainerMarche($marche, $payload);
         }
 
         if (! $adjacent) {
-            $payload = $marche['deplacement'];
-            Journal::ajouter($groupe, 'action', $payload, $acteur);
-
-            return $payload;
+            return $marche['deplacement'];
         }
 
         // La cible est un ALLIÉ : attaque simple, sa propre défense. Les
         // capacités ci-dessous (frappe de zone, choix tactique) raisonnent sur
         // des HÉROS et le restent — limite nommée, docs/regles/combat-et-tour.md.
         if ($cible instanceof GroupeMercenaire) {
-            return $this->resoudreAttaqueMonstreSurAllie(
+            return $this->enchainerMarche($marche, $this->resoudreAttaqueMonstreSurAllie(
                 $groupe, $quete, $instance, $cible, $instance->attaqueEffective(), $acteur, $nomMonstre,
-            );
+            ));
         }
 
         // Frappe de zone (capacité) : si plusieurs héros adjacents, tous sont touchés.
@@ -14460,20 +14631,39 @@ final class ResolveurTour
             )->values();
 
             if ($adjacents->count() >= 2) {
-                return $this->dread->frappeDeZone($groupe, $instance, $cibles, $acteur, $adjacents);
+                return $this->enchainerMarche($marche, $this->dread->frappeDeZone($groupe, $instance, $cibles, $acteur, $adjacents));
             }
         }
 
         // Deux attaques par tour (Ours polaire de guerre, Frozen Horror p. 37) —
         // décision 100 % mécanique (jamais LLM).
         if ($this->dread->aCapacite($instance, 'deux_attaques')) {
-            return $this->deuxAttaques($groupe, $instance, $cible, $cibles, $acteur, $nomMonstre);
+            return $this->enchainerMarche($marche, $this->deuxAttaques($groupe, $instance, $cible, $cibles, $acteur, $nomMonstre));
         }
 
         // Attaque simple du héros adjacent — moteur seul.
-        return $this->resoudreAttaqueMonstre(
+        return $this->enchainerMarche($marche, $this->resoudreAttaqueMonstre(
             $groupe, $instance, $cible, $instance->attaqueEffective(), $acteur, $nomMonstre,
-        );
+        ));
+    }
+
+    /**
+     * La marche d'une activation, rendue AVANT ce qui la suit dans le même tour (contrat « Une activation de monstre publie
+     * TOUT ce qu'elle a fait », 2026-11-12). La marche a déjà été journalisée par l'appelant : ici on ne fait que la publier.
+     * Une marche VIDE ne se publie pas — `$suite` seul. Un seul niveau d'étalement : `actionsEnchainees()` aplatit les deux
+     * côtés, la phase des monstres ne défaisant qu'un niveau de composite.
+     *
+     * @param  array<string, mixed>  $marche  `marcheVersLaCible()`
+     * @param  array<string, mixed>  $suite
+     * @return array<string, mixed>
+     */
+    private function enchainerMarche(array $marche, array $suite): array
+    {
+        if ($marche['chemin'] === []) {
+            return $suite;
+        }
+
+        return $this->actionsEnchainees($marche['deplacement'], $suite);
     }
 
     /**
@@ -14552,94 +14742,20 @@ final class ResolveurTour
      */
     private function marcheVersLaCible(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Grille $grille, array $chemin, string $nomMonstre, array $acteur): array
     {
-        // Se rapprocher : déplacement fixe du catalogue, le long du chemin.
+        // Se rapprocher : déplacement fixe du catalogue, le long du chemin. LA RÈGLE de la marche (chausse-trappes, pas
+        // affordables, emprise, case d'arrêt) est `trajetDeLaMarche()` — la même que celle qui publie les destinations
+        // (`destinationsMonstreArene()`) : aucune copie ici (2026-11-12).
         $departMonstre = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
-        $cheminParcouruMonstre = [];
-        if ($chemin !== []) {
-            // CHAUSSE-TRAPPES : la carte dit « a creature », donc les monstres
-            // aussi — c'est même contre eux qu'on les sème.
-            //
-            // ⚠ On tronque AVANT `derniereCaseOuSArreter()`, jamais après :
-            // cette méthode garantit que la case finale est légale (ni occupée,
-            // ni dans une zone non découverte), et raccourcir son résultat
-            // déposerait la créature n'importe où.
-            //
-            // Le chemin du BFS part de la case SUIVANTE, pas de celle du
-            // monstre : on lui repique sa position en tête, puis on la retire,
-            // pour que `tronquerSurChausseTrappes()` voie bien une « entrée »
-            // sur chaque case et n'ignore pas la première.
-            //
-            // ⚠ Sauf l'ÉTHÉRÉ : « Ethereal monsters are unaffected by all
-            // traps, including caltrops placed by heroes » (Dread Moon p. 6,
-            // répété p. 36) — `docs/plan-correctifs-2026-10-04.md` C1.
-            if (! $this->dread->aCapacite($instance, 'ethere')) {
-                $tronque = $this->tronquerSurChausseTrappes($quete, [$departMonstre, ...$chemin]);
-                $chemin = array_slice($tronque, 1);
-            }
+        $trajet = $chemin === []
+            ? ['chemin' => [], 'arrivee' => null]
+            : $this->trajetDeLaMarche($quete, $instance, $grille, $this->grille($quete, exceptInstanceId: $instance->id), $chemin);
 
-            // ⚠ POINTS de déplacement, pas nombre de cases (doc 18 §4, Rivière
-            // Gelée) : `min(deplacement, count($chemin))` confondait les deux
-            // tant que toute case coûtait 1 — `pasAffordables()` compte les
-            // POINTS réellement dépensés en tête de ce chemin déjà tronqué par
-            // les chausse-trappes, et rend l'INDEX que `derniereCaseOuSArreter()`
-            // attend toujours (elle n'a pas changé : seul ce qu'on lui passe l'est).
-            $pas = $grille->pasAffordables($chemin, (int) $instance->monstre->deplacement);
-
-            if ($instance->monstre->grandeTaille()) {
-                // Déplacement multi-cases (3.9) — SIMPLIFICATION assumée : le BFS
-                // calcule le chemin de l'ANCRE (coin haut-gauche) sans connaître
-                // l'emprise. On avance donc le long de ce chemin et on s'arrête à
-                // la DERNIÈRE case où l'emprise ENTIÈRE tient (empriseLibre). Une
-                // grande figurine peut ainsi progresser moins loin qu'un 1×1, mais
-                // ne chevauche jamais un mur ni une autre figurine. (Le BFS n'est
-                // pas réécrit : on valide simplement la tenue d'emprise à l'arrivée.)
-                // ⚠ TRAVERSER N'EST PAS S'ARRÊTER (2026-10-31) : `$grille` est celle du PASSAGE — les autres monstres s'y
-                // franchissent, et pour un éthéré la roche et les héros s'effacent. L'emprise y PASSE ; elle ne s'ARRÊTE
-                // que là où `empriseOuSArreter()` le permet, sur la grille réelle. Avant, la case basse d'un Ogre
-                // champion se posait sur un autre monstre (`GrandeFigureArretTest`).
-                $e = $instance->monstre->emprise();
-                $arrivee = null;
-                $reelle = $this->grille($quete, exceptInstanceId: $instance->id);
-
-                for ($i = 0; $i < $pas; $i++) {
-                    if (! $grille->empriseLibre($chemin[$i]['x'], $chemin[$i]['y'], $e['l'], $e['h'])) {
-                        break;
-                    }
-                    if ($this->empriseOuSArreter($quete, $reelle, $instance, $chemin[$i], $e)) {
-                        $arrivee = $chemin[$i];
-                    }
-                }
-
-                if ($arrivee !== null) {
-                    $instance->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
-                    // Sous-chemin réellement parcouru (jusqu'à l'arrivée incluse).
-                    foreach ($chemin as $c) {
-                        $cheminParcouruMonstre[] = ['x' => (int) $c['x'], 'y' => (int) $c['y']];
-                        if ($c['x'] === $arrivee['x'] && $c['y'] === $arrivee['y']) {
-                            break;
-                        }
-                    }
-                }
-            } else {
-                // Une figurine traversante (éthéré/agile) peut avoir un chemin
-                // qui PASSE par des cases occupées ou non découvertes. Elle les
-                // traverse, mais ne s'y arrête pas : on recule jusqu'à la
-                // dernière case d'arrêt légale — « jamais pour finir sur une
-                // case occupée, jamais dans une zone non découverte ».
-                $arrivee = $this->derniereCaseOuSArreter($quete, $instance, $chemin, $pas);
-
-                if ($arrivee !== null) {
-                    $instance->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
-
-                    foreach (array_slice($chemin, 0, $pas) as $c) {
-                        $cheminParcouruMonstre[] = ['x' => (int) $c['x'], 'y' => (int) $c['y']];
-                        if ((int) $c['x'] === (int) $arrivee['x'] && (int) $c['y'] === (int) $arrivee['y']) {
-                            break;
-                        }
-                    }
-                }
-            }
+        if ($trajet['arrivee'] !== null) {
+            $instance->update(['position_x' => $trajet['arrivee']['x'], 'position_y' => $trajet['arrivee']['y']]);
         }
+
+        // Sous-chemin réellement parcouru (jusqu'à l'arrivée incluse).
+        $cheminParcouruMonstre = $trajet['chemin'];
 
         // « Remove the tile from the board if a creature ends their turn on
         // it. » Le monstre ne bouge plus après ce point — attaquer ne déplace
@@ -14770,22 +14886,27 @@ final class ResolveurTour
 
         $marche = $this->marcheVersLaCible($groupe, $quete, $instance, $grille, $meilleure[1], $nomMonstre, $acteur);
 
-        if ($marche['brulure'] !== null && $marche['brulure']['vaincu']) {
-            return $this->actionsEnchainees($action, $marche['brulure']);
-        }
-
+        // Une marche qui ne se fait pas ne se publie pas. Une marche faite se journalise et se publie — y compris quand une
+        // brûlure la termine : elle ne disparaît plus du fil (contrat « Une activation de monstre publie TOUT », 2026-11-12).
         if ($marche['chemin'] === []) {
             return $action;
         }
 
         Journal::ajouter($groupe, 'action', $marche['deplacement'], $acteur);
 
+        if ($marche['brulure'] !== null && $marche['brulure']['vaincu']) {
+            return $this->actionsEnchainees($action, $this->enchainerMarche($marche, $marche['brulure']));
+        }
+
         return $this->actionsEnchainees($action, $marche['deplacement']);
     }
 
     /**
      * Deux actions d'un même tour, dans l'ordre où elles se sont produites — `actions_composites` (la régénération
-     * puis le sort, le sort puis la marche).
+     * puis le sort, le sort puis la marche, la marche puis la frappe).
+     *
+     * ⚠ Les DEUX côtés sont étalés (2026-11-12) : un composite emboîté dans un composite échappe à la phase des monstres,
+     * qui ne défait qu'un niveau, et la table n'en lit pas les scènes.
      *
      * @param  array<string, mixed>  $premiere
      * @param  array<string, mixed>  $suivante
@@ -14794,8 +14915,9 @@ final class ResolveurTour
     private function actionsEnchainees(array $premiere, array $suivante): array
     {
         $avant = ($premiere['type'] ?? null) === 'actions_composites' ? (array) $premiere['actions'] : [$premiere];
+        $apres = ($suivante['type'] ?? null) === 'actions_composites' ? (array) $suivante['actions'] : [$suivante];
 
-        return ['type' => 'actions_composites', 'actions' => [...$avant, $suivante]];
+        return ['type' => 'actions_composites', 'actions' => [...$avant, ...$apres]];
     }
 
     /**
@@ -15977,6 +16099,8 @@ final class ResolveurTour
             }
         }
         // 'mouvement' : a_deplace / deplacement_restant déjà posés par resoudreDeplacement.
+        // 'manoeuvre' (combattant seul, lettre du livret 2026-11-12) : aucun créneau. La main est rendue par
+        // `ManoeuvreSolo::fermer()` ; `a_joue` reste ce qu'il était — une manœuvre ne consomme pas l'activation.
 
         // Le tour ne se termine QUE sur décision du joueur (créneau 'tour') : plus
         // de fin automatique quand les deux créneaux sont pris — le héros garde la
@@ -16913,44 +17037,65 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Ce n\'est pas le tour de cet allié.']);
         }
 
-        return DB::transaction(function () use ($groupe, $quete, $allie, $option, $parametres) {
-            $nom = $allie->mercenaire?->nom ?? 'Allié';
-            $acteur = ['type' => 'allie', 'id' => $allie->id, 'nom' => $nom];
+        // Fenêtre des annonces automatiques OUVERTE, comme pour un héros (`resoudre()`) : le trophée qu'un allié ramasse, et
+        // la réponse du Defender qui suit, se rendent dans le RÉSULTAT — c'est lui que le fil en direct lit.
+        app(TamponAnnonces::class)->ouvrir();
 
-            $resultat = match ($option['type'] ?? null) {
-                'attaque' => $this->resoudreAttaqueDAllie($groupe, $quete, $allie, $parametres, $acteur, $nom),
-                'deplacement_allie' => $this->resoudreDeplacementDAllie($groupe, $quete, $allie, $parametres, $nom),
-                'deplacement_case_allie' => $this->resoudreDeplacementCaseAllie($groupe, $quete, $allie, $parametres, $nom),
-                default => $this->resoudreAttenteAllie($groupe, $allie, $nom),
-            };
+        try {
+            $resultat = DB::transaction(function () use ($groupe, $quete, $allie, $option, $parametres) {
+                $nom = $allie->mercenaire?->nom ?? 'Allié';
+                $acteur = ['type' => 'allie', 'id' => $allie->id, 'nom' => $nom];
 
-            $this->revelerDerriere($groupe, $quete, $this->portes->ouvrirParMonstresVaincus($groupe, $quete));
-            $this->verifierFinDuCombat($quete);
+                $resultat = match ($option['type'] ?? null) {
+                    'attaque' => $this->resoudreAttaqueDAllie($groupe, $quete, $allie, $parametres, $acteur, $nom),
+                    'deplacement_allie' => $this->resoudreDeplacementDAllie($groupe, $quete, $allie, $parametres, $nom),
+                    'deplacement_case_allie' => $this->resoudreDeplacementCaseAllie($groupe, $quete, $allie, $parametres, $nom),
+                    default => $this->resoudreAttenteAllie($groupe, $allie, $nom),
+                };
 
-            // ⚠ MÊME garde que `resoudre()`/`apresActionHeros()` : tant qu'un
-            // acteur — héros OU un autre allié qu'il contrôle — attend encore,
-            // la phase des monstres ne s'ouvre pas. Sans elle, le tour d'un
-            // allié qui n'est pas le DERNIER acteur du round ouvrirait quand
-            // même la phase des monstres — exactement l'inverse de « juste
-            // après le héros qui le contrôle, avant le suivant ».
-            $enAttente = app(OrdreDuTour::class)->acteurActif($groupe) !== null;
-
-            if ($groupe->estArene()) {
-                // ARÈNE (lot A4) : l'allié est une figure du Challenger — son activation finie, le Defender répond.
-                if ((bool) $allie->fresh()?->a_joue) {
-                    $resultat = $this->relaisArene($resultat, $groupe, $quete);
-                }
-            } elseif (! $enAttente) {
-                $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
+                $this->revelerDerriere($groupe, $quete, $this->portes->ouvrirParMonstresVaincus($groupe, $quete));
                 $this->verifierFinDuCombat($quete);
-            }
 
-            if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
-                return $this->donjonNettoye($resultat, $quete);
-            }
+                // ⚠ MÊME garde que `resoudre()`/`apresActionHeros()` : tant qu'un
+                // acteur — héros OU un autre allié qu'il contrôle — attend encore,
+                // la phase des monstres ne s'ouvre pas. Sans elle, le tour d'un
+                // allié qui n'est pas le DERNIER acteur du round ouvrirait quand
+                // même la phase des monstres — exactement l'inverse de « juste
+                // après le héros qui le contrôle, avant le suivant ».
+                $enAttente = app(OrdreDuTour::class)->acteurActif($groupe) !== null;
 
-            return $resultat;
-        });
+                if ($groupe->estArene()) {
+                    // ARÈNE (lot A4) : l'allié est une figure du Challenger — son activation finie, le Defender répond.
+                    if ((bool) $allie->fresh()?->a_joue) {
+                        // TROPHÉE (décision de René, 2026-11-12) : un allié ramasse en FINISSANT son activation sur la case,
+                        // comme un héros. L'annonce passe par le tampon générique, rendu dans le résultat ci-dessous.
+                        app(\App\Partie\Arene\TropheesArene::class)->ramasserAllie($groupe, $quete, $allie->fresh(), $nom);
+                        $resultat = $this->relaisArene($resultat, $groupe, $quete);
+                    }
+                } elseif (! $enAttente) {
+                    $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
+                    $this->verifierFinDuCombat($quete);
+                }
+
+                if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+                    return $this->donjonNettoye($resultat, $quete);
+                }
+
+                return $resultat;
+            });
+        } catch (\Throwable $e) {
+            app(TamponAnnonces::class)->vider();
+
+            throw $e;
+        }
+
+        $annonces = app(TamponAnnonces::class)->vider();
+
+        if ($annonces !== []) {
+            $resultat['annonces_automatiques'] = $annonces;
+        }
+
+        return $resultat;
     }
 
     /**

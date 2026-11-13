@@ -37,7 +37,19 @@ qui ne désigne pas l'acteur qui a la main est jeté — jamais servi, jamais ac
 Refus faute de menu jouable, deux messages (422, `option_id`) : « Le menu se met à
 jour — réessaie dans un instant. » quand c'est le tour du joueur et que la
 régénération n'a rien rendu ; « Aucun menu en attente pour ce joueur — attendez la
-proposition du MJ. » quand ce n'est pas son tour.
+proposition du MJ. » quand ce n'est pas son tour. En arène, quand un coéquipier a
+ENTAMÉ son activation et tient seul la main (activation alternée), le refus le nomme
+(2026-11-12) : « {nom} a pris la main : attends la fin de son activation. » — `{nom}`
+est le nom du HÉROS (ou de l'allié) qui a entamé, pas le pseudo de son joueur.
+
+**Après toute réponse à une réaction** (`POST /reaction`, acceptée OU refusée,
+2026-11-12) : les menus du groupe sont relancés comme après un choix
+(`GenererMenu::relancerApresResolution()`) — une réaction change le plateau (tuile de
+trophée défaussée, PV rendus, riposte ; un défi refusé fait frapper la bête). Un héros
+qui venait d'accepter un Bouclier blanc se voyait encore offrir l'élan avec la tuile
+défaussée (422). Exception : la reprise d'une attaque suspendue (Vision du futur sur un
+jet d'ATTAQUE, crâne de trophée) passe par `ExecutionChoix`, qui relance déjà les menus ;
+une reprise qui échoue garde son menu à dessein.
 
 ## EtatGroupe (GET etat + broadcast `.groupe.etat`)
 
@@ -1116,6 +1128,9 @@ recrutement, compagnon, faveurs, prologue, départ) **n'est pas publié** ; à s
 ### Palmarès et statistiques (lot A6, 2026-11-09, `docs/plan-mode-arene.md` §5)
 
 - `GET /api/arene/palmares` (joueur) → `{combats: [{id, date, issue, rounds, combattants: [{heros_id, nom, classe}], defender: [nom_base]}]}`, les 20 derniers, du plus récent au plus ancien.
+- `GET /api/moi` → les capacités et talents d'un héros d'arène ENGAGÉ dans un combat se lisent sur sa doublure en
+  quête — son état de quête ET son corps (PV, sac pour un bouclier requis) (2026-11-12) : le roster les disait
+  « Utilisable en quête seulement » pendant que la doublure les jouait.
 - `GET /api/moi` → `joueur.personnages[].arene` : `{combats, victoires, ennemis_vaincus: [{nom_base, nombre}]}` pour un héros d'arène,
   `null` pour un héros de campagne. Un ennemi vaincu est crédité au **coup de grâce** (le héros dont la doublure fait
   tomber le dernier PV), compté par **nom de catalogue**, au héros SOURCE. Point de passage unique :
@@ -1140,8 +1155,9 @@ salon vit en base : `groupes.arene_defender` (ids du Defender), `groupe_personna
   côté.
 - **Publication** : `carte.trophees` = `[{x, y}]`, les cases encore couvertes — jamais la tuile (dessinées par la grille,
   table et manette) ; `quete.trophees` = `{cases, challenger: [{tuile, libelle, effet}], defender: [...], elan}`.
-- **Ramassage** : en FINISSANT son activation sur la case (héros), ou sous toute son emprise (monstre) — la tuile est
-  révélée et rejoint la réserve de l'équipe. Annonce `{type: "trophee_ramasse", camp, nom, tuiles: [libellé]}` par
+- **Ramassage** : en FINISSANT son activation sur la case (héros **ou allié** — « Heroes and allies make up the
+  Challenger team », F9528 p. 12 ; décision de René, 2026-11-12), ou sous toute son emprise (monstre) — la tuile est
+  révélée et rejoint la réserve de l'équipe. La fin d'une MANŒUVRE du combattant seul ramasse aussi (« son tour »). Annonce `{type: "trophee_ramasse", camp, nom, tuiles: [libellé]}` par
   `TamponAnnonces` (`resultat.annonces_automatiques`).
 - **Usage du Challenger** — deux options de menu, gratuites (créneau `interaction`), publiées seulement quand le
   résolveur les acceptera :
@@ -1171,10 +1187,12 @@ salon vit en base : `groupes.arene_defender` (ids du Defender), `groupe_personna
 
 ### Les coffres du tournoi (lot T5, 2026-11-09, F9528 p. 13, plan p. 15)
 
-Deux meubles « Coffre » du catalogue posés aux cases du plan (`carte.mobilier[]`, entrée `tresor_tournoi: true`,
-`diagonale: true` — fouillables au contact ou EN DIAGONALE, « adjacent or diagonal »). L'option habituelle
-`fouille_mobilier` (créneau action) tire la table 2d6 du livret au lieu du butin de campagne, puis le coffre quitte le
-plateau : `{type: "tresor_tournoi", nom, des: [d6, d6], total, issue: "piege" | "objet" | "or", piege?, degats?,
+Deux meubles « Coffre » du catalogue posés aux cases du plan (`carte.mobilier[]`, publiés comme tout meuble) ;
+`tresor_tournoi` et `diagonale` vivent sur l'entrée de GRILLE, lus par le moteur seul — fouillables au contact ou EN
+DIAGONALE, « adjacent or diagonal ». ⚠ Ces deux drapeaux ne sont PAS publiés (corrigé le 2026-11-12 : ce paragraphe les
+annonçait dans le payload, où rien ne les mettait ni ne les lisait) : la DÉCISION l'est, par l'option de menu
+`fouiller_mobilier_<n>` (créneau action), offerte au contact OU en diagonale d'un coffre du tournoi. Elle tire la
+table 2d6 du livret au lieu du butin de campagne, puis le coffre quitte le plateau : `{type: "tresor_tournoi", nom, des: [d6, d6], total, issue: "piege" | "objet" | "or", piege?, degats?,
 nom_objet?, or?}`. Pièges (2 : −3, 3-4 : −2, 5-6 : −1) au fouilleur ; 7 : une **Hache de bataille en os** dans le sac
 de la doublure (elle disparaît avec elle) ; 8-9 / 10-11 / 12 : 100 / 200 / 300 po à la bourse du COMBAT
 (`groupe.or` du groupe d'arène), jamais à un héros.
@@ -1225,9 +1243,14 @@ et les routes de lecture l'acceptent comme un membre.
 - **Activation alternée** : le camp `main` active UNE figure qui n'a pas joué ce round (`active_ce_round`) — n'importe
   quel joueur du camp. Une figure entamée garde la main jusqu'à « terminer ». Puis la main passe à l'autre camp ; un
   camp à court laisse l'autre enchaîner ; quand tout a joué, le round se referme et le Defender rouvre le suivant.
-- `GET /api/arene/{identifiant}/figures` (joueur) → `{main, mon_camp, figures: [{instance_id, nom, x, y, pv_body,
-  entamee, peut_deplacer, destinations: [{x, y}], peut_attaquer, cibles: [{id, nom, pv_body, distance, des_attaque}]}]}`
-  — vide hors de son tour. C'est la liste blanche. Une version « à distance » (Gobelin archer…) vise aussi une figure
+- `GET /api/arene/{identifiant}/figures` (joueur) → `{main, mon_camp, figures: [{instance_id, nom, x, y, emprise: {l, h},
+  pv_body, entamee, peut_deplacer, destinations: [{x, y}], peut_attaquer, cibles: [{id, nom, pv_body, distance,
+  des_attaque}]}]}` — vide hors de son tour. C'est la liste blanche. `emprise` (2026-11-12) : les cases couvertes à
+  partir de `(x, y)` (un ogre : `{l: 1, h: 2}`), comme `entites[].emprise` — sans elle, le contact d'un ogre semblait
+  diagonal. **Chaque destination publiée est atteinte telle quelle** (2026-11-12) : la publication et la marche
+  appliquent le même prédicat d'emprise à CHAQUE pas — un Ogre champion se voyait offrir (5,5) et s'arrêtait en (8,4),
+  bloqué par un gravat sous sa seconde case. Un tir refusé (cible hors ligne de vue) le dit : « Cette figure n'est pas
+  en ligne de vue. » ; une frappe refusée garde « Cette figure n'est pas à portée de frappe. ». Une version « à distance » (Gobelin archer…) vise aussi une figure
   hors contact en ligne de vue, à ses dés de tir ; au contact, elle frappe à 1 dé (Ogre Horde p. 8) — `distance` et
   `des_attaque` le disent déjà, la manette n'a rien à recalculer.
 - `POST /api/arene/{identifiant}/geste {instance_id, geste: "deplacer" | "attaquer" | "terminer", parametres: {x, y} |
@@ -1277,10 +1300,14 @@ jusqu'à son mouvement OU lancer **2 dés d'attaque** contre une créature au co
   si un héros est au contact, sinon la marche vers le plus proche. Elle se lit dans `tour_monstres.actions`, avant les
   activations éventuelles.
 - Annonce : `{type: "manoeuvre_solo", camp: "challenger" | "defender", nom, geste: "ouverte" | "defender"}`.
-- ⚠ Lecture nommée : tant que le combattant seul n'a pas joué son activation du round, c'est elle qui répond à
-  l'adversaire — pas de manœuvre en plus. Une manœuvre n'appelle pas de réponse (« after each opponent's TURN »). Pas de
-  manœuvre pour un héros dont le tour a été perdu ce round (Étourdi, gel), ni pour une figure endormie, paralysée,
-  enchaînée ou privée de son tour.
+- **La lettre du livret** (« In addition to their own turn, they may take a basic maneuver after each opponent's
+  turn », F9528 p. 12-13 ; décision de René, 2026-11-12, qui remplace la lecture nommée du lot T5) : le combattant seul
+  prend sa manœuvre après CHAQUE activation adverse, **y compris avant d'avoir joué son activation du round** — un héros
+  seul face à une figure seule recevait 0 manœuvre quand la figure en prenait une à chaque fois. Une manœuvre ne compte
+  pas pour son activation : il la garde (« maintains its activation token »), et la joue ensuite normalement. L'état de
+  la manœuvre vit dans `etat_personnage_quete.manoeuvre_arene`, distinct de `a_joue`. Symétrique pour le Defender. Une
+  manœuvre n'appelle pas de réponse (« after each opponent's TURN »). Pas de manœuvre pour un héros dont le tour a été
+  perdu ce round (Étourdi, gel), ni pour une figure endormie, paralysée, enchaînée ou privée de son tour.
 
 ### La mort dans l'arène (lot T5, René 2026-11-10, F9528 p. 12)
 
@@ -1303,6 +1330,12 @@ relèvent comme en campagne. Ses objets restent dans le sac de sa doublure (pas 
   de l'ordre de la barre.
 - **Chaque activation de héros reçoit sa réponse** : une figure du Defender. Quand le Challenger est à court, le
   Defender enchaîne toutes les siennes et le round se referme ; quand c'est le Defender, les héros enchaînent.
+- **Une activation de monstre publie TOUT ce qu'elle a fait** (2026-11-12, arène et campagne) : une figure qui marche
+  puis frappe rend ses actions **à plat et dans l'ordre** dans `tour_monstres.actions` — `{type: "deplacement_monstre",
+  depart, chemin, vers, …}` puis `{type: "attaque_monstre", …}` ; un tireur qui recule puis tire, `repli_tireur` puis
+  son attaque. (Pas de composite littéral dans cette liste : `SceneDeTable` n'en lit pas, la scène d'attaque
+  disparaîtrait.) Une marche vide (figure déjà au contact) n'est pas publiée. Avant, seule la frappe était rendue : le fil taisait la marche, et le `vers` publié
+  différait de la case réelle. Le `vers` du dernier déplacement d'une figure est sa position en base.
 - **Aucun instantané** à la fermeture d'un round d'arène.
 - **Fin du combat** : le Defender éteint → `quete.etat = 'terminee'`, journal `arene_victoire`, résultat portant
   `arene_victoire: true` ; tous les héros à terre → `quete.etat = 'echouee'` (le verdict de chute de la campagne).

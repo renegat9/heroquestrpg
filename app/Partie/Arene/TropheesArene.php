@@ -6,6 +6,7 @@ namespace App\Partie\Arene;
 
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
+use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Quete;
@@ -23,9 +24,10 @@ use Random\Randomizer;
  *   2026-11-09 : « le jeton à visage est le bouclier noir »), les mêmes en « x2 », deux potions +2, une riposte.
  *   Mélangées, posées face cachée sur les six cases du plan p. 15 ; les trois de trop restent de côté (« Place any
  *   remaining trophy tiles to the side »).
- * - RAMASSAGE : en FINISSANT son activation sur la case, sans action ; la tuile se révèle et rejoint la réserve de
- *   l'équipe, que tout membre peut utiliser, et que personne ne vole. Une grande figure ramasse tout ce qui est sous
- *   elle.
+ * - RAMASSAGE : en FINISSANT son activation sur la case, sans action — un héros OU un allié du Challenger (décision de
+ *   René, 2026-11-12) ; la tuile se révèle et rejoint la réserve de l'équipe, que tout membre peut utiliser, et que
+ *   personne ne vole. Une grande figure ramasse tout ce qui est sous elle. Le héros ramasse aussi en finissant sa
+ *   MANŒUVRE (`ManoeuvreSolo`), comme la figure seule du Defender en finissant sa marche.
  * - USAGE, première étape (René, 2026-11-09) : la POTION (+2 PV, jusqu'au maximum) et l'ÉLAN (« discard ANY trophy tile
  *   to add 2 squares to their movement ») — pour le Challenger, par le menu. Le Defender (décision de René, même date) :
  *   il boit une potion dès qu'une figure blessée s'active, et ne prend jamais l'élan.
@@ -161,6 +163,20 @@ final class TropheesArene
     {
         return $this->ramasser($groupe, $quete, self::CHALLENGER, $heros->nom,
             [['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y]]);
+    }
+
+    /**
+     * Fin d'activation d'un ALLIÉ du Challenger : il ramasse sous lui, comme un héros — « Heroes and allies make up the
+     * Challenger team » (F9528 p. 12). Décision de René, 2026-11-12. L'annonce porte le nom de l'allié.
+     */
+    public function ramasserAllie(Groupe $groupe, Quete $quete, GroupeMercenaire $allie, string $nom): ?array
+    {
+        if ($allie->position_x === null) {
+            return null;
+        }
+
+        return $this->ramasser($groupe, $quete, self::CHALLENGER, $nom,
+            [['x' => (int) $allie->position_x, 'y' => (int) $allie->position_y]]);
     }
 
     /** Fin d'activation d'un monstre : il ramasse sous TOUTE son emprise. */

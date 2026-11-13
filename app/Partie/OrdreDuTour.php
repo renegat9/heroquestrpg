@@ -42,7 +42,7 @@ use Illuminate\Support\Collection;
  * ⚠ **MODE ARÈNE — activation alternée** (lot T2, 2026-11-09, `docs/plan-tournoi-worlds-end.md` §1) : « the Challenger
  * team activates any one hero » (livret F9528 p. 12). Il n'y a pas d'ordre d'initiative : TOUT héros debout qui n'a
  * pas joué ce round a la main — le premier qui appuie (TQ4) — jusqu'à ce que l'un d'eux ENTAME son activation (un
- * créneau dépensé, `a_deplace` ou `a_agi`, ou un premier pas, `deplacement_restant`). Il la garde alors seul jusqu'à `a_joue`. L'état est lu en base, jamais
+ * créneau dépensé, `a_deplace` ou `a_agi`, ou un premier pas, `deplacement_restant`). Il la garde alors seul jusqu'à `a_joue`. Une MANŒUVRE du combattant seul (`manoeuvre_arene`, lettre du livret, 2026-11-12) tient la main seule, quel que soit `a_joue`. L'état est lu en base, jamais
  * en cache. `acteurPour()` est la question « CE héros a-t-il la main ? », posée par le menu, le résolveur et la
  * manette ; `acteurActif()` reste « quelqu'un a-t-il encore la main ? ».
  */
@@ -144,8 +144,9 @@ final class OrdreDuTour
     }
 
     /**
-     * ARÈNE : les héros qui ont la main — celui qui a ENTAMÉ son activation s'il y en a un, sinon tous les héros
-     * debout qui n'ont pas joué ce round. `$entame` dit lequel des deux cas.
+     * ARÈNE : les héros qui ont la main — celui qui tient une MANŒUVRE (seul, quel que soit son activation) ou qui a
+     * ENTAMÉ son activation s'il y en a un, sinon tous les héros debout qui n'ont pas joué ce round. `$entame` dit
+     * lequel des cas.
      *
      * @return list<int>
      */
@@ -163,7 +164,19 @@ final class OrdreDuTour
         foreach ($ordre as $id) {
             $etat = $etats->firstWhere('personnage_id', $id);
 
-            if ($etat === null || $etat->tombe || $etat->a_joue) {
+            if ($etat === null || $etat->tombe) {
+                continue;
+            }
+
+            // MANŒUVRE DU COMBATTANT SEUL (lettre du livret, décision de René 2026-11-12) : elle tient la main SEULE, quel que
+            // soit l'état de l'activation — `a_joue` peut être levé, une manœuvre ne le lève pas et ne le consomme pas.
+            if ($etat->manoeuvre_arene) {
+                $entame = true;
+
+                return [(int) $id];
+            }
+
+            if ($etat->a_joue) {
                 continue;
             }
 

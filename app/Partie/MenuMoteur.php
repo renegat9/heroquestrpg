@@ -1357,7 +1357,7 @@ final class MenuMoteur
     /**
      * ARÈNE, lot T5 — la MANŒUVRE DE BASE du combattant seul (F9528 p. 16, `App\Partie\Arene\ManoeuvreSolo`) : « either
      * moving up to their movement speed or rolling 2 Attack dice against an adjacent creature ». Le menu ordinaire du
-     * héros (action prise, déplacement libre) est RESTREINT à ce que la manœuvre permet — la liste que le résolveur
+     * héros est RESTREINT à ce que la manœuvre permet — sa propre activation, jouée ou non, n'y entre pas — la liste que le résolveur
      * revalide (`ManoeuvreSolo::TYPES_PERMIS`) — et reçoit la frappe à 2 dés tant qu'aucun pas n'est fait. Les cibles
      * sont celles de l'arme en main AU CONTACT : la diagonale d'une arme longue y est donc comprise (« if they can
      * usually attack diagonally »).
@@ -1370,7 +1370,9 @@ final class MenuMoteur
         $quete = $groupe->queteCourante;
         $etat = $quete?->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
 
-        if ($etat === null || ! $etat->manoeuvre_arene || $etat->a_joue || $etat->tombe) {
+        // ⚠ Pas de garde sur `a_joue` : la manœuvre se joue aussi après une activation déjà jouée (lettre du livret,
+        // 2026-11-12) — `manoeuvre_arene` seul dit que la main est à la manœuvre.
+        if ($etat === null || ! $etat->manoeuvre_arene || $etat->tombe) {
             return $menu;
         }
 
@@ -1576,9 +1578,13 @@ final class MenuMoteur
             ];
         }
 
-        $aJoue = (bool) ($etat?->a_joue ?? false);
+        // MANŒUVRE DU COMBATTANT SEUL (lettre du livret, 2026-11-12) : une manœuvre n'est pas l'activation. Son menu part
+        // d'un héros LIBRE — `menuDeManoeuvre()` ne garde ensuite que ce qu'elle permet. Sans ce garde, un héros qui a déjà
+        // joué son activation n'aurait aucune option à filtrer, et son « Passer la manœuvre » n'existerait pas.
+        $enManoeuvre = $etat !== null && (bool) $etat->manoeuvre_arene;
+        $aJoue = (bool) ($etat?->a_joue ?? false) && ! $enManoeuvre;
         $aDeplace = $aJoue || (bool) ($etat?->a_deplace ?? false);
-        $aAgi = $aJoue || (bool) ($etat?->a_agi ?? false);
+        $aAgi = $aJoue || ((bool) ($etat?->a_agi ?? false) && ! $enManoeuvre);
         $options = [];
 
         // PERTE DU RELIQUAT (décision de René, 2026-10-09 : « garder la règle,

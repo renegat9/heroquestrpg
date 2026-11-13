@@ -286,11 +286,12 @@ class ChoixController extends Controller
     }
 
     /**
-     * Le refus d'un choix (ou d'un aperçu) faute de menu jouable — DEUX messages,
-     * parce que deux situations. C'est le tour du joueur et son menu manque : la
+     * Le refus d'un choix (ou d'un aperçu) faute de menu jouable — TROIS messages,
+     * parce que trois situations. C'est le tour du joueur et son menu manque : la
      * régénération a échoué ou le menu n'est pas encore là, le joueur doit
-     * simplement réessayer (« le menu se met à jour »). Ce n'est pas son tour :
-     * rien ne viendra, il attend la proposition du MJ.
+     * simplement réessayer (« le menu se met à jour »). Un coéquipier, en arène, a
+     * ENTAMÉ son activation et tient seul la main : le refus le nomme (2026-11-12).
+     * Sinon ce n'est pas son tour : rien ne viendra, il attend la proposition du MJ.
      */
     private function refusSansMenu(Groupe $groupe, int $joueurId): ValidationException
     {
@@ -300,9 +301,17 @@ class ChoixController extends Controller
             return ValidationException::withMessages(['option_id' => 'Aucun menu de quête au hub — le groupe se prépare entre deux quêtes.']);
         }
 
-        $message = app(MenuCourant::class)->aLaMain($groupe, $joueurId)
-            ? 'Le menu se met à jour — réessaie dans un instant.'
-            : 'Aucun menu en attente pour ce joueur — attendez la proposition du MJ.';
+        $menu = app(MenuCourant::class);
+
+        if ($menu->aLaMain($groupe, $joueurId)) {
+            $message = 'Le menu se met à jour — réessaie dans un instant.';
+        } elseif (($coequipier = $menu->nomDeLActeurEntame($groupe, $joueurId)) !== null) {
+            // ARÈNE, activation alternée (2026-11-12) : un coéquipier a ENTAMÉ son activation et tient seul la main. Le refus
+            // le nomme : le joueur sait qu'il attend la fin de SON tour, et non une proposition du MJ qui ne viendra pas.
+            $message = "{$coequipier} a pris la main : attends la fin de son activation.";
+        } else {
+            $message = 'Aucun menu en attente pour ce joueur — attendez la proposition du MJ.';
+        }
 
         return ValidationException::withMessages(['option_id' => $message]);
     }

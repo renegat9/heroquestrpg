@@ -48,6 +48,10 @@ function devantLeCoffre(): array
         Cache::forget(App\Jobs\GenererMenu::cleMenu($arene->id, (int) $j));
     }
 
+    // LA LETTRE (2026-11-12) : le héros seul manœuvre d'abord, à l'ouverture du round — il passe, son activation reste à jouer.
+    test()->getJson("/api/groupes/{$arene->identifiant}/menu")->assertOk();
+    test()->postJson("/api/groupes/{$arene->identifiant}/choix", ['option_id' => 'attendre'])->assertSuccessful();
+
     $option = collect(test()->getJson("/api/groupes/{$arene->identifiant}/menu")->json('menu.options'))->firstWhere('type', 'fouille_mobilier');
 
     return [$arene->refresh(), $quete, $doublure, $option];

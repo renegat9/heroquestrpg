@@ -75,6 +75,8 @@ it('CRÂNE du Challenger : offert sur un jet qui en profite, la réponse rejoue 
     // 1 crâne et 2 ratés ; la momie ne sort que des boucliers BLANCS (inutiles à un monstre) : 1 dégât sur 2 PV, le coup
     // n'est pas gagné — le crâne de la tuile l'achève.
     desFiges([1, 6, 6, 4, 4, 4, 4, 4, 4, 4]);
+    // LA LETTRE (2026-11-12) : le héros seul manœuvre d'abord, à l'ouverture du round — il passe, son activation reste à jouer.
+    jouerEnArene($this->joueur, $arene->identifiant, 'attendre')->assertSuccessful();
     $menu = collect($this->getJson("/api/groupes/{$arene->identifiant}/menu")->json('menu.options'));
     $attaquer = $menu->firstWhere('type', 'attaque');
     expect($attaquer)->not->toBeNull();
@@ -173,6 +175,8 @@ it('DEFENDER : la figure blessée au contact riposte aussitôt', function () {
     $pvHeros = (int) $doublure->pv_body;
 
     desFiges(array_fill(0, 80, 1)); // tout crâne : chaque coup porte
+    // LA LETTRE (2026-11-12) : le héros seul manœuvre d'abord, à l'ouverture du round — il passe, son activation reste à jouer.
+    jouerEnArene($this->joueur, $arene->identifiant, 'attendre')->assertSuccessful();
     $menu = collect($this->getJson("/api/groupes/{$arene->identifiant}/menu")->json('menu.options'));
     $attaquer = $menu->firstWhere('type', 'attaque');
     $cible = collect($attaquer['parametres']['cibles'] ?? [])->first();

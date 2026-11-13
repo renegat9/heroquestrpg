@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Engine\ReactionEffet;
 use App\Events\EtatGroupeDiffuse;
 use App\Events\SceneTable;
 use App\Http\Controllers\Controller;
+use App\Jobs\GenererMenu;
 use App\Models\Evenement;
 use App\Models\Groupe;
 use App\Models\Personnage;
@@ -83,6 +85,28 @@ class ReactionController extends Controller
         // Une relève provoquée par la réaction (« se relève ») suit sa scène.
         app(TamponScenes::class)->vider();
 
+        // …et les MENUS. Une réaction change le plateau (tuile trophée défaussée, PV rendus, riposte, défi refusé : la bête
+        // frappe le fouilleur), et les menus en cache, calculés AVANT, le décrivent encore. Validation de la PR #2 (2026-11-12) :
+        // un héros qui avait accepté un bouclier blanc se voyait offrir l'élan avec la tuile défaussée — 422. On les relance
+        // comme après un choix, quelle que soit la réponse : régénérer un menu exact ne coûte qu'un calcul.
+        // SAUF la reprise d'une attaque suspendue : `ExecutionChoix::executer()` la relance déjà, et le menu gardé à dessein
+        // quand la reprise échoue doit rester tel quel (`MoteurReactions::reprendreAttaque()`).
+        if (! $this->reprendUneAttaque($resultat)) {
+            GenererMenu::relancerApresResolution($groupe);
+        }
+
         return response()->json(['reaction' => $resultat]);
+    }
+
+    /**
+     * La réponse REPREND-elle une attaque suspendue — Vision du futur sur le jet d'attaque, crâne de trophée ? Ce cas-là
+     * consomme son menu (`MoteurReactions::reprendreAttaque()`, `repondreTropheeCrane()`) : il n'est pas relancé ici.
+     *
+     * @param  array<string, mixed>  $resultat
+     */
+    private function reprendUneAttaque(array $resultat): bool
+    {
+        return ($resultat['action'] ?? null) === ReactionEffet::TROPHEE_CRANE
+            || (($resultat['action'] ?? null) === ReactionEffet::RELANCE_JET && ($resultat['jet'] ?? null) === ReactionEffet::JET_ATTAQUE);
     }
 }

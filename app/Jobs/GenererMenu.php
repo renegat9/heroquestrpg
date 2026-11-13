@@ -63,12 +63,18 @@ class GenererMenu implements ShouldQueue
     }
 
     /**
-     * APRÈS UNE RÉSOLUTION — le seul point de passage (`ExecutionChoix`, `ChoixController` pour un allié) : le plateau
-     * vient de bouger, donc TOUS les menus en cache du groupe sont périmés. On les jette AVANT de relancer le job, pour
-     * qu'un `GET /menu` ou un `POST choix` arrivé entre-temps les recalcule sur l'état neuf (`MenuCourant::pour()`)
-     * au lieu de servir l'ancien. En arène, plusieurs héros gardent la main entre deux activations : la case qu'une
-     * figure du Defender venait d'occuper restait offerte une demi-seconde, et le résolveur la refusait (422) —
-     * « le menu ne propose jamais ce que le résolveur refusera » (validation de la PR #2, 2026-11-12).
+     * APRÈS UNE RÉSOLUTION — le point de passage de la relance des menus une fois le plateau modifié. TROIS appelants,
+     * et seulement ceux-là (grep `relancerApresResolution` pour le vérifier) :
+     *  - `ExecutionChoix::executer()` : tout choix d'un héros, reprise d'une attaque suspendue comprise ;
+     *  - `ChoixController::choisirPourAllie()` : le tour d'un allié joué par son joueur ;
+     *  - `ReactionController::repondre()` : toute réponse à une réaction hors tour, SAUF la reprise d'une attaque
+     *    suspendue que `ExecutionChoix` relance déjà (validation de la PR #2, 2026-11-12 : sans cet appel, un héros qui
+     *    acceptait un bouclier blanc voyait encore l'élan avec la tuile défaussée).
+     * Le plateau vient de bouger, donc TOUS les menus en cache du groupe sont périmés. On les jette AVANT de relancer le
+     * job, pour qu'un `GET /menu` ou un `POST choix` arrivé entre-temps les recalcule sur l'état neuf
+     * (`MenuCourant::pour()`) au lieu de servir l'ancien. En arène, plusieurs héros gardent la main entre deux
+     * activations : la case qu'une figure du Defender venait d'occuper restait offerte une demi-seconde, et le résolveur
+     * la refusait (422) — « le menu ne propose jamais ce que le résolveur refusera » (validation de la PR #2, 2026-11-12).
      *
      * ⚠ Pas dans `dispatch()` : les reprises d'une attaque suspendue (`MoteurReactions`) relancent le job SANS jeter
      * le menu, qu'elles laissent en cache à dessein.

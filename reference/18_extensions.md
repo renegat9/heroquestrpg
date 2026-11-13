@@ -431,7 +431,9 @@ révèle.
 **Combattant seul (p. 12-13)** : « In addition to their own turn, they may take a basic maneuver after each opponent's
 turn » — se déplacer de sa vitesse, OU lancer 2 dés d'attaque contre une créature adjacente (en diagonale s'il le peut
 d'ordinaire) ; pas s'il est neutralisé ou incapable d'agir (*Tempest*) ; il garde son jeton d'activation. **Porté** (lot T5, `ManoeuvreSolo`) :
-les deux camps ; la propre activation du combattant seul tient lieu de manœuvre tant qu'il ne l'a pas jouée.
+les deux camps, après CHAQUE activation adverse, y compris avant que le combattant seul ait joué son activation du
+round — il la garde (décision de René, 2026-11-12 : la lettre, qui remplace la « lecture nommée » du lot T5 où sa propre
+activation tenait lieu de manœuvre ; un héros seul face à une figure seule n'en recevait jamais).
 
 **Alliés (p. 12)** : « Heroes and allies make up the Challenger team. » **Porté** (lot A4, 2026-11-12) : un allié gratuit
 par combattant, pris aux recrutables du catalogue, de puissance 1 + sa meilleure attaque (même règle qu'un héros), joué

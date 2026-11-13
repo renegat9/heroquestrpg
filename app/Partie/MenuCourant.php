@@ -6,6 +6,7 @@ namespace App\Partie;
 
 use App\Jobs\GenererMenu;
 use App\Models\Groupe;
+use App\Models\GroupeMercenaire;
 use App\Models\Personnage;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -115,6 +116,45 @@ final class MenuCourant
         $hero = $this->herosDuJoueur($groupe, $joueurId);
 
         return $hero !== null && $this->ordreDuTour->acteurPour($groupe, (int) $hero->id) !== null;
+    }
+
+    /**
+     * ARÈNE, activation alternée (2026-11-12) : le NOM de l'acteur qui a ENTAMÉ son activation et tient SEUL la main — le
+     * refus d'un autre joueur le nomme (« {nom} a pris la main : attends la fin de son activation. ») — ou `null`.
+     *
+     * Sans relire les indicateurs d'activation d'`OrdreDuTour`, qui reste la seule règle : sans activation entamée, TOUT
+     * héros debout qui n'a pas joué a la main (`acteurPour()`). Donc si CE héros est debout, n'a pas joué, et n'a pourtant
+     * pas la main, c'est qu'un coéquipier a commencé — et il est le premier acteur qui a la main (`acteurActif()`).
+     * Le nom est celui du HÉROS qui agit (ou de l'allié, quand c'est l'allié qui a commencé).
+     */
+    public function nomDeLActeurEntame(Groupe $groupe, int $joueurId): ?string
+    {
+        if (! $groupe->estArene() || GenererMenu::sansQuete($groupe)) {
+            return null;
+        }
+
+        $hero = $this->herosDuJoueur($groupe, $joueurId);
+        $quete = $groupe->queteCourante;
+
+        if ($hero === null || $quete === null) {
+            return null;
+        }
+
+        $etats = $quete->etatsPersonnages()->get();
+        $monEtat = $etats->firstWhere('personnage_id', $hero->id);
+
+        if ($monEtat === null || $monEtat->tombe || $monEtat->a_joue
+            || $this->ordreDuTour->acteurPour($groupe, (int) $hero->id, $etats) !== null) {
+            return null;
+        }
+
+        $acteur = $this->ordreDuTour->acteurActif($groupe, $etats);
+
+        return match ($acteur['type'] ?? null) {
+            'heros' => Personnage::find($acteur['personnage_id'])?->nom,
+            'allie' => GroupeMercenaire::find($acteur['allie_id'])?->mercenaire?->nom ?? 'Allié',
+            default => null,
+        };
     }
 
     /** Le héros ACTIF de CE joueur dans ce groupe (un seul par joueur et groupe). */

@@ -270,9 +270,13 @@ it('Orque berserker : un orque en vue joue son tour DEUX FOIS, et pas trois', fu
 
     expect($sort)->not->toBeNull()->and($sort['double_tour']['instance_id'])->toBe($orque->id);
 
+    // Deux activations : la première marche PUIS frappe, la seconde frappe. La marche est publiée (contrat « Une activation
+    // de monstre publie TOUT ce qu'elle a fait », 2026-11-12) : « deux fois, pas trois » se lit donc sur les FRAPPES, une
+    // par activation, et la marche n'apparaît qu'une fois — celle de la première activation.
     $coups = collect($actions)->filter(fn ($a) => ($a['monstre'] ?? null) === 'Orque'
         && in_array($a['type'] ?? '', ['attaque_monstre', 'deplacement_monstre'], true));
-    expect($coups)->toHaveCount(2);
+    expect($coups->where('type', 'attaque_monstre'))->toHaveCount(2)
+        ->and($coups->where('type', 'deplacement_monstre'))->toHaveCount(1);
 });
 
 it('Orque berserker REFUSE un orque qui a déjà joué — « may not be cast on an Orc that has already moved or attacked »', function () {

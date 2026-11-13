@@ -87,6 +87,9 @@ it('une défaite compte un combat, sans victoire', function () {
     desFiges(array_fill(0, 200, 1));
 
     $this->getJson("/api/groupes/{$arene->identifiant}/menu")->assertOk();
+    // LA LETTRE (2026-11-12) : le héros seul manœuvre d'abord ; il passe, puis son activation appelle la riposte de l'Orque.
+    $this->postJson("/api/groupes/{$arene->identifiant}/choix", ['option_id' => 'attendre'])->assertSuccessful();
+    $this->getJson("/api/groupes/{$arene->identifiant}/menu")->assertOk();
     $this->postJson("/api/groupes/{$arene->identifiant}/choix", ['option_id' => 'attendre'])->assertSuccessful();
     expect($quete->refresh()->etat)->toBe('echouee');
 

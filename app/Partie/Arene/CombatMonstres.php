@@ -88,7 +88,8 @@ final class CombatMonstres
                 case 'attaquer':
                     $cibles = array_column($figure['cibles'], 'id');
                     if (! in_array((int) ($parametres['cible_id'] ?? 0), $cibles, true)) {
-                        throw ValidationException::withMessages(['parametres' => 'Cette figure n\'est pas à portée de frappe.']);
+                        // Un tireur qui ne voit pas sa cible le dit (« en ligne de vue ») : c'est le motif du résolveur.
+                        throw ValidationException::withMessages(['parametres' => $this->resolveur->motifRefusFrappeArene($instance, (int) ($parametres['cible_id'] ?? 0))]);
                     }
                     $payload = $this->resolveur->frapperMonstreArene($groupe, $quete, $instance, (int) $parametres['cible_id']);
                     $instance->update(['mvm_agi' => true]);
@@ -200,6 +201,9 @@ final class CombatMonstres
             'nom' => $instance->nomAffiche(),
             'x' => (int) $instance->position_x,
             'y' => (int) $instance->position_y,
+            // L'emprise (un ogre : 1×2), comme `entites[].emprise` d'`EtatGroupe` — même source (2026-11-12) : sans elle, le
+            // contact d'une grande figure se lisait comme une diagonale.
+            'emprise' => $instance->monstre->emprise(),
             'pv_body' => (int) $instance->pv_body,
             'entamee' => $instance->mvm_deplace || $instance->mvm_agi,
             'peut_deplacer' => $destinations !== [],
