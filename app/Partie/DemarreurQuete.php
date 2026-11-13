@@ -458,9 +458,20 @@ final class DemarreurQuete
         // et `quete.effets_globaux`. Rien à annoncer = rien écrit.
         EffetsGlobauxQuete::annoncer($groupe, $quete);
 
+        // OUVERTURE DU ROUND 1 (René, 2026-11-12 : « applique en campagne et en arène ») : les effets posés AVANT le
+        // départ — une malédiction du loup-garou, qui survit d'une quête à l'autre, un Étourdi, un gel resté d'une quête
+        // close — se lisent à l'ouverture du premier round, comme à chaque round suivant. Même point de passage que les
+        // rounds suivants (`ResolveurTour::ouvrirPremierRound()`), qui journalise et publie lui-même ce qu'il décide.
+        // ⚠ Avant le snapshot : une reprise ramène l'état tel que les joueurs l'ont vu, jet déjà fait.
+        app(ResolveurTour::class)->ouvrirPremierRound($groupe, $quete);
+
         // Snapshot `debut_quete` (contrat « Snapshots & reprise ») : l'état
         // vivant complet, base du « recharger » après TPK (doc 05 §6).
-        $this->sauvegarde->snapshotter($groupe->refresh(), Sauvegarde::ETIQUETTE_DEBUT_QUETE);
+        // ⚠ Pas de snapshot si l'ouverture a déjà fermé la quête (TPK au premier round) : un état « tout le monde à
+        // terre » ne doit jamais devenir le point de reprise — même règle que `ouvrirNouveauTour()`.
+        if ($quete->refresh()->etat === 'en_cours') {
+            $this->sauvegarde->snapshotter($groupe->refresh(), Sauvegarde::ETIQUETTE_DEBUT_QUETE);
+        }
 
         // Toute mutation d'état → journal puis broadcast `.groupe.etat` (contrat).
         broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe)));

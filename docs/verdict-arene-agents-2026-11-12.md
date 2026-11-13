@@ -53,9 +53,18 @@ Un sort ne sert qu'une fois par combat ; la ligne de vue est coupée par les deu
 interposées ; le contact d'un ogre passe par sa seconde case ; la Parade au bouclier exige un voisin et le Défi du
 chevalier un monstre errant (absent de l'arène) ; la réserve de trophées est partagée.
 
-## Restes
+## Suites décidées par René le même jour
 
-- La potion de trophée n'est pas offerte pendant une manœuvre (types permis de la manœuvre) — à arbitrer.
-- `ouvrirTourDesHeros()` n'est appelé que depuis `ouvrirNouveauTour()` : Étourdi et gel ne s'appliquent pas au premier
-  round (arène et campagne) — constat hors périmètre, non corrigé.
-- Le repli d'un tireur du Defender peut traverser tout le hall (une seule salle) : « recul borné à la salle courante ».
+- **Potions pendant la manœuvre** : boire ne coûte pas l'action — le menu de manœuvre offre la potion de trophée et
+  les objets gratuits du sac (jamais un objet « à l'action »), sans refermer la manœuvre.
+- **Effets de début de tour au round 1** (campagne et arène) : `ouvrirPremierRound()`. Le cas réel était la
+  malédiction du loup-garou, qui ne faisait pas son jet au premier round de chaque quête.
+- **Le repli d'un tireur à travers le hall** : voulu, c'est la stratégie des archers.
+
+## Restes (relevés par l'agent du round 1, non tranchés)
+
+- Un gel resté d'une quête close est retiré par `VerrouMental::purger()` au démarrage, SANS annonce.
+- Les alliés survivants gardent `a_joue` / `a_deplace` / `a_agi` d'une quête à l'autre (lu dans le code, non
+  reproduit) : un allié qui a joué avant la sortie perdrait son round 1.
+- Au round 1, seuls les effets de `ouvrirTourDesHeros()` passent : les décomptes de durée (Empoisonné…), les
+  expirations de buffs et le relèvement Story de `ouvrirNouveauTour()` n'y passent pas.

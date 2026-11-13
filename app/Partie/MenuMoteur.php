@@ -1385,6 +1385,21 @@ final class MenuMoteur
             ? ['libelle' => $etat->deplacement_restant !== null ? 'Terminer la manœuvre' : 'Passer la manœuvre'] + $o
             : $o, $options);
 
+        // POTIONS PENDANT LA MANŒUVRE (René, 2026-11-12) : `utiliser_objet` n'y garde que les objets GRATUITS — boire une
+        // potion n'est pas un geste de manœuvre ; l'eau bénite, le cor ou un artefact « à l'action » en seraient un.
+        // Cette liste est celle que `entreeChoisie()` revalide : un objet retiré ici est refusé là-bas.
+        $options = array_values(array_filter(array_map(static function (array $o) {
+            if (($o['type'] ?? null) !== 'objet_libre') {
+                return $o;
+            }
+            $o['parametres']['objets'] = array_values(array_filter(
+                $o['parametres']['objets'] ?? [],
+                static fn (array $entree) => ($entree['cout'] ?? 'action') !== 'action',
+            ));
+
+            return $o['parametres']['objets'] === [] ? null : $o;
+        }, $options)));
+
         if (! $etat->a_deplace && $etat->deplacement_restant === null) {
             $arme = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
             $cibles = array_values(array_filter(

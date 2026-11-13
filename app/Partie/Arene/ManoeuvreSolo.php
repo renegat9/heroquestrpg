@@ -43,8 +43,15 @@ final class ManoeuvreSolo
 
     public const TYPE_ATTAQUE = 'manoeuvre_attaque';
 
-    /** Ce que le menu forcé du Challenger offre, et la liste que le résolveur revalide. */
-    public const TYPES_PERMIS = ['deplacement', 'attente', 'trophee_elan', self::TYPE_ATTAQUE];
+    /**
+     * Ce que le menu forcé du Challenger offre, et la liste que le résolveur revalide.
+     *
+     * Les POTIONS (René, 2026-11-12) : boire ne coûte pas l'action — ce n'est pas un geste de manœuvre, donc rien ne
+     * l'interdit pendant elle. `trophee_potion` (réserve du Challenger) et `objet_libre` (`utiliser_objet`), dont le
+     * menu de manœuvre ne garde que les objets GRATUITS (`MenuMoteur::menuDeManoeuvre()` : la liste que l'option porte
+     * EST la liste blanche que le résolveur relit). Ni l'un ni l'autre ne referme la manœuvre (`TYPES_FERMANTS`).
+     */
+    public const TYPES_PERMIS = ['deplacement', 'attente', 'trophee_elan', 'trophee_potion', 'objet_libre', self::TYPE_ATTAQUE];
 
     /** Les gestes qui REFERMENT la manœuvre : « Passer / Terminer la manœuvre », et la frappe à 2 dés (qui la referme). */
     public const TYPES_FERMANTS = ['attente', self::TYPE_ATTAQUE];

@@ -186,10 +186,8 @@ final class DemarreurArene
 
         $this->dread->reinitialiserUsages($quete);
 
-        // ACTIVATION ALTERNÉE (lot T2) : « the Defender team starts the first round » (livret F9528 p. 16) — une
-        // figure du Defender s'active avant que le premier héros ne joue.
-        app(ResolveurTour::class)->ouvrirCombatArene($arene->refresh(), $quete->refresh());
-
+        // Le départ est journalisé AVANT l'ouverture du premier round, comme en campagne (`DemarreurQuete`) : les effets
+        // de début de tour et l'activation du Defender suivent le marqueur de départ, pas le précèdent.
         Journal::ajouter($arene, 'systeme', [
             'action' => 'quete_demarree',
             'quete_id' => $quete->id,
@@ -198,6 +196,11 @@ final class DemarreurArene
             'nb_monstres' => count($monstres),
             'nb_allies' => $allies->count(),
         ]);
+
+        // OUVERTURE DU ROUND 1 (2026-11-12) : les effets de début de tour des doublures, puis l'activation alternée
+        // « the Defender team starts the first round » (livret F9528 p. 16) — une figure du Defender s'active avant que le
+        // premier héros ne joue. `ouvrirCombatArene()` journalise et publie tout cela (`ouvrirPremierRound()`).
+        app(ResolveurTour::class)->ouvrirCombatArene($arene->refresh(), $quete->refresh());
 
         broadcast(new EtatGroupeDiffuse($arene, $this->etatGroupe->payload($arene->refresh())));
 

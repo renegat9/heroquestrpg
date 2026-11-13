@@ -263,3 +263,39 @@ it('1 CONTRE 1 : un héros PARALYSÉ, privé d\'action, ne reçoit pas de manœu
     expect(array_column($menu['options'], 'type'))->not->toContain(ManoeuvreSolo::TYPE_ATTAQUE)
         ->and($menu['situation'])->not->toContain('manœuvre');
 });
+
+it('POTIONS PENDANT LA MANŒUVRE : la potion de trophée et une potion du sac sont offertes, pas un objet « à l\'action », et boire ne referme pas la manœuvre', function () {
+    // René, 2026-11-12 : boire ne coûte pas l'action — ce n'est pas un geste de manœuvre. Avant, le menu forcé ne gardait
+    // que se déplacer / frapper à 2 dés / élan / passer : ni la potion de trophée, ni celles du sac.
+    $c = lettreCombatSeul(['Orque']);
+    $id = $c['arene']->identifiant;
+    $c['a']->update(['pv_body' => max(1, (int) $c['a']->pv_body_max - 3)]);
+    $c['quete']->update(['trophees_arene' => [...(array) $c['quete']->trophees_arene, \App\Partie\Arene\TropheesArene::CHALLENGER => [\App\Partie\Arene\TropheesArene::POTION]]]);
+    foreach (['Potion de soin', 'Eau bénite'] as $nom) {
+        \App\Models\Inventaire::create(['personnage_id' => $c['a']->id, 'objet_id' => \App\Models\Objet::where('nom', $nom)->value('id'), 'emplacement' => 'consommable', 'quantite' => 1]);
+    }
+
+    expect(lettreEtat($c)->manoeuvre_arene)->toBeTrue();
+    // La scène est posée à la main APRÈS le démarrage : le menu calculé alors est jeté, comme le ferait une mutation.
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleMenu($c['arene']->id, (int) $c['alice']->id));
+
+    test()->actingAs($c['alice'], 'joueur');
+    $options = collect(test()->getJson("/api/groupes/{$id}/menu")->json('menu.options'));
+    $objets = collect($options->firstWhere('id', 'utiliser_objet')['parametres']['objets'] ?? []);
+
+    expect($options->pluck('id')->all())->toContain('trophee_potion')
+        ->and($objets->pluck('nom')->all())->toContain('Potion de soin')
+        ->and($objets->pluck('nom')->all())->not->toContain('Eau bénite');
+
+    // Boire la potion de trophée : +2 PV, et la manœuvre reste ouverte.
+    $avant = (int) $c['a']->fresh()->pv_body;
+    test()->postJson("/api/groupes/{$id}/choix", ['option_id' => 'trophee_potion'])->assertSuccessful();
+    expect((int) $c['a']->fresh()->pv_body)->toBe($avant + 2)
+        ->and(lettreEtat($c)->manoeuvre_arene)->toBeTrue();
+
+    // L'eau bénite, forgée, est refusée par la liste blanche de l'option.
+    $eau = \App\Models\Inventaire::where('personnage_id', $c['a']->id)->whereHas('objet', fn ($q) => $q->where('nom', 'Eau bénite'))->value('id');
+    test()->getJson("/api/groupes/{$id}/menu")->assertOk();
+    test()->postJson("/api/groupes/{$id}/choix", ['option_id' => 'utiliser_objet', 'parametres' => ['cle' => "objet:{$eau}"]])->assertUnprocessable();
+    expect(lettreEtat($c)->manoeuvre_arene)->toBeTrue();
+});

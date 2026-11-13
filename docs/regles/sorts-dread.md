@@ -187,7 +187,7 @@ Sinestra est au bestiaire (`archimage_elfe`) ; le Haut Alchimiste et Tormuk atte
 
 **La règle de la transformation** (livret p. 10-11, « Turning Heroes into Werewolves ») — tout ce qui est ci-dessous est écrit
 dans `App\Partie\MaledictionLoupGarou`, qui en est l'unique point de passage :
-- **Chaque début de tour** du héros maudit, deux dés rouges (`ResolveurTour::ouvrirTourDesHeros()`, à l'ouverture du round). 2 à 9 : il
+- **Chaque début de tour** du héros maudit, deux dés rouges (`ResolveurTour::ouvrirTourDesHeros()`, à l'ouverture du round — y compris le round 1 de chaque quête depuis le 2026-11-12, `ouvrirPremierRound()`). 2 à 9 : il
   reste humain et joue normalement. **10 à 12 : il se transforme** — la condition `Forme de loup` est posée et son tour est perdu.
   Le jet est annoncé dans les deux cas.
 - **Le tour de Zargon** (phase des monstres) : le loup joue AVANT les créatures. Il avance de la vitesse du Loup géant (9), mord à ses

@@ -1308,6 +1308,10 @@ jusqu'à son mouvement OU lancer **2 dés d'attaque** contre une créature au co
   la manœuvre vit dans `etat_personnage_quete.manoeuvre_arene`, distinct de `a_joue`. Symétrique pour le Defender. Une
   manœuvre n'appelle pas de réponse (« after each opponent's TURN »). Pas de manœuvre pour un héros dont le tour a été
   perdu ce round (Étourdi, gel), ni pour une figure endormie, paralysée, enchaînée ou privée de son tour.
+- **Les potions pendant la manœuvre** (René, 2026-11-12) : boire ne coûte pas l'action, donc ce n'est pas un geste de
+  manœuvre — le menu forcé offre aussi `trophee_potion` (si le héros est blessé et qu'une potion reste en réserve) et
+  `utiliser_objet` restreint aux objets GRATUITS (`cout` ≠ `action` : potions ; jamais l'eau bénite, le cor…). Ni
+  l'un ni l'autre ne referme la manœuvre.
 
 ### La mort dans l'arène (lot T5, René 2026-11-10, F9528 p. 12)
 
@@ -4092,6 +4096,18 @@ rejouée dans la même liste ; le round suivant rend la main au premier héros
 qui peut agir, ou au premier allié libre. Phrase du fil : « Aucun héros ne peut
 agir : Zargon joue encore ». Il est journalisé comme `tour_perdu` (le rejeu le
 relit). Jamais émis avec un héros ou un allié capable d'agir.
+
+⚠ **Le PREMIER round aussi (2026-11-12, René : « applique en campagne et en arène »).** Les effets de début de
+tour du héros (`ResolveurTour::ouvrirTourDesHeros()` : jet du loup-garou, ruptures de sort de Dread, gel, Étourdi,
+Terreur) ne passaient qu'au passage d'un round au suivant — jamais à l'ouverture du round 1. Une malédiction du
+loup-garou, qui survit d'une quête à l'autre (« at the start of EVERY turn »), ne faisait donc pas son jet au
+premier round de chaque quête. Ils passent maintenant aussi à l'ouverture du round 1
+(`ResolveurTour::ouvrirPremierRound()`, même point de passage) : en campagne au démarrage de la quête, en arène
+AVANT l'activation d'ouverture du Defender — le même ordre que `ouvrirNouveauTour()` aux rounds suivants (jet, puis
+nouveau tour, puis Defender). Mêmes payloads (`tour_perdu`, `rupture_sort_dread`, jet de malédiction,
+`phase_rejouee`…), journalisés et diffusés au fil et à la table — l'activation d'ouverture du Defender, que le
+démarrage jetait, l'est aussi désormais. Le snapshot `debut_quete` est pris APRÈS cette ouverture : une reprise ne
+rejoue aucun jet. Monster vs Monster : aucun héros, rien de changé.
 
 ⚠ **Relèvement par le Corps — mode Story de *Jungles of Delthrak* (décision de
 René, 2026-10-09).** `{type: "regain_corps", personnage_id, nom, pv_body,

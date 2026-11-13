@@ -24,6 +24,7 @@ use App\Engine\TypeDegat;
 use App\Engine\TypeFigurine;
 use App\Events\BarkDiffuse;
 use App\Events\EtatGroupeDiffuse;
+use App\Events\JournalCombatDiffuse;
 use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
 use App\Events\SceneTable as SceneTableEvent;
@@ -12658,8 +12659,9 @@ final class ResolveurTour
 
     /**
      * MODE ARÈNE, lot T2 — le Defender ouvre le combat (« the Defender team starts the first round », p. 16) : UNE
-     * figure s'active avant que le Challenger ne joue. Appelé par `DemarreurArene` ; chaque round suivant s'ouvre de la
-     * même façon, au bout de `ouvrirNouveauTour()`.
+     * figure s'active avant que le Challenger ne joue. Appelé par `DemarreurArene`. Depuis le 2026-11-12, c'est
+     * {@see self::ouvrirPremierRound()} qui fait l'ouverture : les effets de début de tour des doublures d'abord, puis
+     * cette activation — l'ordre que `ouvrirNouveauTour()` tient déjà à chaque round suivant.
      *
      * @return array<string, mixed>
      */
@@ -12669,10 +12671,88 @@ final class ResolveurTour
             throw \App\Partie\Arene\RefusArene::pasUnGroupeDArene($groupe);
         }
 
-        $resultat = ['tour_monstres' => $this->phaseMonstres($groupe, $quete, 0, 1)];
+        return $this->ouvrirPremierRound($groupe, $quete);
+    }
+
+    /**
+     * OUVERTURE DU ROUND 1 — en campagne (`DemarreurQuete`) comme en arène (`ouvrirCombatArene()`), 2026-11-12, René :
+     * « applique en campagne et en arène ».
+     *
+     * Le premier round s'ouvrait sans rien : le démarreur posait les héros, et ils avaient la main. Or un effet posé AVANT
+     * le départ — une malédiction du loup-garou (durable d'une quête à l'autre), un Étourdi, un gel resté d'une quête close
+     * — n'était lu qu'à l'ouverture d'un round SUIVANT : il ne prenait donc jamais effet au premier round de la quête.
+     *
+     * Le round 1 passe par le MÊME point de passage que les rounds suivants, `ouvrirTourDesHeros()`, et dans le MÊME ordre :
+     *   - en campagne, les effets des héros sont lus à l'ouverture ; si plus aucun héros ne peut agir, Zargon joue un tour
+     *     de plus (`phase_rejouee`), exactement comme `phaseMonstres()` après `ouvrirNouveauTour()` ;
+     *   - en arène, les effets des doublures passent AVANT l'activation d'ouverture du Defender : c'est ce que
+     *     `ouvrirNouveauTour()` fait au round suivant (le journal le montre : jet, marqueur `nouveau_tour`, puis la première
+     *     figure). Le contrat disait « juste après » ; le code, et donc le journal, disent avant — c'est le code qui fait foi.
+     *
+     * Ce qui s'y passe est journalisé (`ouvrirTourDesHeros()`, `rejouerPhaseMonstres()`) ET publié sur le fil et la table
+     * ({@see self::annoncerOuverture()}) : un effet automatique que rien n'annonce est injouable. Un effet ne passe qu'une
+     * fois par round — cette méthode n'est appelée qu'au démarrage, et les rounds suivants restent à `ouvrirNouveauTour()`.
+     *
+     * ⚠ À appeler APRÈS que la quête est en cours (phase, `quete_courante_id`) et AVANT le snapshot `debut_quete` : une
+     * reprise doit ramener l'état tel que les joueurs l'ont vu, jet déjà fait.
+     *
+     * Défaut trouvé par la validation par combats d'agents (arène, 2026-11-12) : le premier round ne lisait aucun effet de
+     * début de tour, et le loup-garou durable ne faisait pas son jet à la première manche de chaque quête.
+     *
+     * @return array<string, mixed>  `tour_monstres.actions`, comme le résultat d'un round
+     */
+    public function ouvrirPremierRound(Groupe $groupe, Quete $quete): array
+    {
+        $ouvertures = $this->ouvrirTourDesHeros($groupe, $quete);
+
+        if ($this->personneNePeutJouer($groupe, $quete)) {
+            $phase = $this->rejouerPhaseMonstres($groupe, $quete, $ouvertures, 0);
+        } elseif ($groupe->estArene()) {
+            $phase = $this->phaseMonstres($groupe, $quete, 0, 1);
+            $phase['actions'] = [...$ouvertures, ...$phase['actions']];
+        } else {
+            $phase = ['actions' => $ouvertures];
+        }
+
         $this->verifierFinDuCombat($quete);
 
+        $resultat = ['tour_monstres' => $phase];
+        $this->annoncerOuverture($groupe, $quete, $resultat);
+
         return $resultat;
+    }
+
+    /**
+     * Le fil et la table pour l'ouverture d'un round : le MÊME montage qu'un choix (`ExecutionChoix::executer()`) — le
+     * journal de combat (`JournalCombatDiffuse`), puis une scène par action (`SceneTable`), sous la séquence du journal.
+     * Publié depuis le RÉSULTAT, jamais depuis les événements journalisés à côté (règle de `TamponAnnonces`). Rien à dire,
+     * rien de diffusé.
+     *
+     * L'acteur d'une scène est le premier héros de la quête (ordre d'initiative) : il ne sert qu'aux actions de héros, et
+     * une ouverture ne porte que des effets de début de tour et des gestes de figures.
+     *
+     * @param  array<string, mixed>  $resultat
+     */
+    private function annoncerOuverture(Groupe $groupe, Quete $quete, array $resultat): void
+    {
+        $sequence = (int) Evenement::query()->where('groupe_id', $groupe->id)->max('sequence');
+
+        $lignes = app(JournalCombat::class)->depuisResultat($resultat, 'Le maître du jeu');
+
+        if ($lignes !== []) {
+            broadcast(new JournalCombatDiffuse($groupe, $lignes, $sequence));
+        }
+
+        $acteur = $quete->etatsPersonnages()->with('personnage')->orderBy('id')->first()?->personnage;
+
+        if ($acteur !== null) {
+            foreach (app(SceneDeTable::class)->depuisResultat($resultat, $acteur, $this->figuresEnMarche()) as $scene) {
+                broadcast(new SceneTableEvent($groupe, $scene, $sequence));
+            }
+        }
+
+        // Puis ce qui est né PENDANT l'ouverture (une chute au passage d'un monstre) : même ordre qu'un choix.
+        app(TamponScenes::class)->vider($this->figuresEnMarche());
     }
 
     /**
