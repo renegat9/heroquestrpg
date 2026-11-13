@@ -81,6 +81,11 @@ browser-shots/jd-*.json
 # Bytecode compilé de vue.py/pilote.py — même raison que les .pid : un artefact
 # de la machine qui a joué, jamais du code à relire ni à versionner.
 /browser-shots/campagne/__pycache__/
+# Harnais d'arène : même partage — le code versionné, l'état d'une partie (cookies, registre des ids créés, PID) non.
+/browser-shots/arene/session-*.json
+/browser-shots/arene/crees.json
+/browser-shots/arene/*.pid
+/browser-shots/arene/__pycache__/
 
 # Sauvegardes locales (volumineuses, et elles contiennent des comptes joueurs)
 /backups/
