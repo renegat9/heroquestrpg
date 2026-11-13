@@ -29,6 +29,7 @@ import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
     TERRAIN_TEINTE_DEFAUT, TERRAIN_ICONES, TERRAIN_ICONE_DEFAUT, GLACE_ICONE, ESCALIER_ICONE, OMBRE_ICONE, DANGER_ICONE, icone,
+    PONT_ICONE, categorieTerrain,
 } from './symboles.js';
 
 const props = defineProps({
@@ -112,18 +113,19 @@ const TERRAIN_DETAILS = {
     eau: 'on la traverse sans y finir son mouvement — fouiller dans la salle peut rendre 1 PV',
     feu: 'on le traverse sans y finir son mouvement — un dé de combat, un crâne fait perdre 1 PV',
     sables: 'ne se traverse pas à pied : on le saute (un dé de combat, bouclier noir pour réussir) — sinon on s\'enlise et on abandonne 2 objets',
+    pont: 'pont de glace : se traverse sans danger, sans jet ni chute',
 };
 const terrains = computed(() => parNom(props.carte?.terrain).map((t) => ({
     nom: t.nom,
-    categorie: icone(TERRAIN_TEINTES, t.nom, TERRAIN_TEINTE_DEFAUT),
+    categorie: categorieTerrain(t),
     // L'icône de la PLAQUE (bloc ou motif), la même que sur la carte — la légende relie le symbole au nom. Une case isolée
-    // n'en a pas : `null`, et la vignette garde son emblème.
-    icone: icone(TERRAIN_ICONES, t.nom, null),
+    // n'en a pas : `null`, et la vignette garde son emblème. Un pont (drapeau serveur) a le sien.
+    icone: t.pont ? PONT_ICONE : icone(TERRAIN_ICONES, t.nom, null),
     img: t.image_url ?? null,
     // SYMBOLE DE LIVRET (2026-10-24) : le pictogramme posé sur la teinte, comme sur la carte (plaque : sur l'ancre ; case
     // isolée : sur la case). Son icône de repli est celle de la plaque, jamais `null` à ce stade.
     symbole: symboleDe(props.carte?.terrain, t.nom),
-    iconeSymbole: icone(TERRAIN_ICONES, t.nom, TERRAIN_ICONE_DEFAUT),
+    iconeSymbole: t.pont ? PONT_ICONE : icone(TERRAIN_ICONES, t.nom, TERRAIN_ICONE_DEFAUT),
     // Le texte DÉCIDÉ par le serveur (`carte.terrain[].avantages`) prime ; le tableau local
     // ne sert plus que de repli à un serveur plus ancien.
     avantages: Array.isArray(t.avantages) && t.avantages.length ? t.avantages.join(' · ') : null,
@@ -447,4 +449,5 @@ const grilleDeFer = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
     oklch(0.30 0.06 78);
   box-shadow: inset 0 0 0 1px oklch(0.82 0.11 85 / 0.6); }
 .lg-terrain.cat-decor { background: oklch(0.27 0.03 220); box-shadow: inset 0 0 0 1px oklch(0.6 0.04 220 / 0.4); }
+.lg-terrain.cat-pont { background: repeating-linear-gradient(90deg, oklch(0.97 0.02 210 / 0.5) 0 2px, transparent 2px 6px), oklch(0.74 0.08 216); box-shadow: inset 0 0 0 1px oklch(0.97 0.03 210 / 0.7); }
 </style>

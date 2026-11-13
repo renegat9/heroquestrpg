@@ -200,7 +200,7 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // ⚠ Un de plus le 2026-10-29 (Prophecy of Telor, Talisman du Savoir maudit, portée malédiction comprise).
         // ⚠ Un de plus le 2026-11-12 (The Frozen Horror, Brassard de Glace) : la dernière carte de glace écartée à cette date.
         ->and($portees('artefacts'))->toBe(51)
-        // 18 parchemins sur 19 (17 avant le lot 3 de Ice Storm, 2026-11-13) : 11 désignaient un sort que nous avions déjà,
+        // 19 parchemins sur 19 (18 avant le lot 4 de Ice Bridge, 2026-11-13) : 11 désignaient un sort que nous avions déjà,
         // trois ont été écrits le 2026-09-04 — Trésor sans Péril, Récupération
         // Psychique, Éclair — et *Warmth* a rejoint la liste le 2026-09-06
         // (phase 5, examen carte par carte de la boîte GLACE) : un soin fixe
@@ -208,7 +208,7 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // l'examen. Patinage (Skate) rejoint la liste le 2026-11-12 (`bonus_deplacement`,
         // `franchit_figures`, `ce_tour`). Chill (Morsure du Froid, zone de contact) rejoint la liste le
         // 2026-11-13 (`zone`, `cible: monstres_zone`, `degats_fixes`). Ice Storm (Tempête de Glace, zone de carré
-        // 2×2 au choix du joueur) le rejoint le même jour (lot 3). Ne reste que Ice Bridge (terrain, lot 4), avec sa
-        // dette PROPRE (config/cartes.php).
-        ->and($portesSort('parchemins'))->toBe(18);
+        // 2×2 au choix du joueur) le rejoint le même jour (lot 3), Ice Bridge (Pont de Glace, pose de terrain) au lot 4 :
+        // plus aucune carte de parchemin écartée.
+        ->and($portesSort('parchemins'))->toBe(19);
 });

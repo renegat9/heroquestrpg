@@ -22,6 +22,7 @@ import {
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
     TERRAIN_TEINTE_DEFAUT, TERRAIN_ICONES, TERRAIN_ICONE_DEFAUT,
     GLACE_ICONE, BLOC_ICONE, ESCALIER_ICONE, OMBRE_ICONE, DANGER_ICONE, icone,
+    PONT_ICONE, categorieTerrain,
 } from './symboles.js';
 
 const props = defineProps({
@@ -124,14 +125,15 @@ const terrainParCase = computed(() => {
 const terrainDe = (x, y) => terrainParCase.value[`${x},${y}`] ?? null;
 const classeTerrain = (x, y) => {
     const t = terrainDe(x, y);
-    return t ? `terrain-${icone(TERRAIN_TEINTES, t.nom, TERRAIN_TEINTE_DEFAUT)}` : null;
+    return t ? `terrain-${categorieTerrain(t)}` : null;
 };
 // PLAQUES (Jungles of Delthrak, 2026-10-24) : une case de terrain entre ici dès qu'elle porte un pictogramme (`symbole_url`),
 // ou, sans pictogramme, quand elle est l'ANCRE qui porte l'icône de repli. Le SERVEUR décide case par case : une plaque
 // RÉPÉTÉE (motif) porte son pictogramme sur chaque case ; un BLOC FIXE (Mare, Brasier) le porte sur son ancre seulement,
 // étendu sur son emprise (`etendue`). Le client ne recalcule ni le groupe, ni l'ancre, ni la famille : il dessine ce qu'il reçoit.
 const plaques = computed(() => props.terrain.filter((t) => t.ancre || t.symbole_url));
-const iconePlaque = (p) => icone(TERRAIN_ICONES, p.nom, TERRAIN_ICONE_DEFAUT);
+// Le pont (drapeau serveur) porte son propre dessin de glace ; les autres plaques, la table par nom.
+const iconePlaque = (p) => (p.pont ? PONT_ICONE : icone(TERRAIN_ICONES, p.nom, TERRAIN_ICONE_DEFAUT));
 // Titre de la case : nom du terrain, ET son surcoût s'il y en a un (Rivière
 // gelée : 2 points pour l'atteindre au lieu de 1, doc 18 §4). Sans ce second
 // membre, une case grisée sur la manette n'a QUE la teinte « danger » pour
@@ -680,6 +682,14 @@ const jetonsPlaces = computed(() => {
 .dg-cell.terrain-decor {
   background: linear-gradient(150deg, oklch(0.27 0.03 220), oklch(0.20 0.02 225));
   box-shadow: inset 0 0 0 1px oklch(0.6 0.04 220 / 0.3);
+}
+/* PONT DE GLACE (lot 4, 2026-11-13) : une case de glace claire, des PLANCHES (hachure verticale claire) — distincte de la
+   Glace glissante (hachure oblique sombre) : sur la carte, un pont se traverse, une glace glissante fait tomber. */
+.dg-cell.terrain-pont {
+  background:
+    repeating-linear-gradient(90deg, oklch(0.97 0.02 210 / 0.55) 0 2px, transparent 2px 7px),
+    linear-gradient(150deg, oklch(0.84 0.07 212), oklch(0.68 0.10 220));
+  box-shadow: inset 0 0 0 1px oklch(0.97 0.03 210 / 0.75);
 }
 /* Jungles of Delthrak : `gene` (terrain gênant, hachure vert-brun), `eau` (la
    Mare, teinte d'eau), `feu` (le Brasier, hachure orangée). Même principe que

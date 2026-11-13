@@ -75,6 +75,7 @@ class TerrainSeeder extends Seeder
                 'nom' => 'Glace glissante', 'nom_anglais' => 'Slippery Ice',
                 'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'horreur_des_glaces',
                 'effet' => [
+                    'pontable' => true,
                     'jet_des_combat' => 1,
                     'sur' => ['bouclier_blanc' => ['chute' => true, 'fin_tour' => true]],
                 ],
@@ -89,6 +90,7 @@ class TerrainSeeder extends Seeder
                 'nom' => 'Glissière de glace', 'nom_anglais' => 'Ice Slide',
                 'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'horreur_des_glaces',
                 'effet' => [
+                    'pontable' => true,
                     'sens_unique' => true,
                     // « Monsters cannot move onto ice slide squares » (p. 5).
                     'interdit_aux_monstres' => true,
@@ -113,6 +115,7 @@ class TerrainSeeder extends Seeder
                 // de Glace ne pourraient jamais intercepter une noyade de
                 // rivière gelée, quand bien même le lecteur existerait.
                 'effet' => [
+                    'pontable' => true,
                     'jet_des_combat' => 1,
                     'sur' => ['bouclier_blanc' => ['degats_pv_body' => 1]],
                     'type_degat' => 'froid',
@@ -152,15 +155,16 @@ class TerrainSeeder extends Seeder
                     'type_degat' => 'froid',
                 ],
             ],
-            // Glace magique (Magic Ice) — « support du sort Ice Bridge / Ice
-            // Wall » (doc 18 §4). Pas d'effet propre : un ANCRAGE pour deux
-            // sorts du boss (Pont de Glace / Mur de Glace, `config/cartes.php`),
-            // dont seul le second est porté (plan Phase 2). Pur décor tant
-            // qu'aucun sort ne la lit.
+            // Glace magique (Magic Ice, F5815 p. 4) — la tuile du PONT DE GLACE (*Ice Bridge*, lot 4 du plan
+            // parchemins-glace, 2026-11-13). Une tuile posée EN PLEINE QUÊTE par `MoteurTerrain::poserPont()`, jamais
+            // assemblée : `pont: true` (`MotsClesTerrain`) la déclare comme telle. Aucun effet propre (coût 1, ni blocage,
+            // ni jet) : elle REMPLACE la case couverte, et c'est l'absence des effets de l'élément couvert qui fait la règle.
+            // (`support_sort`, l'ancrage du Mur de Glace, n'appartient pas à cette tuile : le Mur de Glace vit sur
+            // `carte.grille['glace']`, `MoteurDread`.)
             [
                 'nom' => 'Glace magique', 'nom_anglais' => 'Magic Ice',
                 'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'horreur_des_glaces',
-                'effet' => ['support_sort' => ['Mur de Glace', 'Pont de Glace']],
+                'effet' => ['pont' => true],
             ],
             // Rebord de crevasse (Ice Ledge) — décor lié au Bottomless Chasm,
             // HORS PÉRIMÈTRE (René, cf. plan §5.5 : le moteur n'a aucune mort
@@ -235,7 +239,7 @@ class TerrainSeeder extends Seeder
                 'nom' => 'Mare', 'nom_anglais' => 'Pool of Water',
                 'largeur' => 2, 'hauteur' => 2, 'motif' => null,
                 'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'jungles_delthrak',
-                'effet' => ['interdit_arret' => true, 'soin_a_la_fouille' => 1],
+                'effet' => ['pontable' => true, 'interdit_arret' => true, 'soin_a_la_fouille' => 1],
             ],
 
             // BRASIER (« Bonfire », p. 4) : « Creatures may move through the
@@ -297,6 +301,7 @@ class TerrainSeeder extends Seeder
                 'nom' => 'Sables mouvants', 'nom_anglais' => 'Quicksand',
                 'cout_deplacement' => 1, 'bloque_mouvement' => true, 'bloque_vue' => false, 'boite' => 'mage_du_miroir',
                 'effet' => [
+                    'pontable' => true,
                     'saut_par_dessus' => 2,
                     'saut_reussi_sur' => 'bouclier_noir',
                     'enlise' => 2,
@@ -317,7 +322,7 @@ class TerrainSeeder extends Seeder
                 'nom' => 'Trappe de téléportation', 'nom_anglais' => 'Trap Door',
                 'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false,
                 'boite' => 'mage_du_miroir', 'boites_partagees' => ['kellars_keep'],
-                'effet' => ['teleportation' => 'contact', 'degats_au_passage' => 1],
+                'effet' => ['pontable' => true, 'teleportation' => 'contact', 'degats_au_passage' => 1],
             ],
 
             // ===== Spirit Queen's Torment (livret G0053, quête 11 « The Tower of Water », p. 14) — lot H des restes (2026-10-29) =====
@@ -347,7 +352,7 @@ class TerrainSeeder extends Seeder
                 'nom' => 'Sol meuble', 'nom_anglais' => 'Loose earth',
                 'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false,
                 'boite' => 'spirit_queen', 'pose' => 'salle',
-                'effet' => ['arret_sur_impair' => 1],
+                'effet' => ['pontable' => true, 'arret_sur_impair' => 1],
             ],
 
             // COURANT PORTEUR (q. 11 note C, p. 14 : « Currents in these rooms or halls make it easier for heroes to swim. A hero may

@@ -155,7 +155,7 @@ return [
     | ⚠ Les cartes de la boîte GLACE (Frozen Horror) sont portées une à une, dès que
     | leur couture existe : l'Anneau de Chaleur et les Raquettes de Vitesse
     | (2026-09-10), puis le Brassard de Glace (2026-11-12). Chill, Ice Storm et
-    | Ice Bridge sont dans la section « Parchemins » (Ice Bridge seule y reste écartée).
+    | Ice Bridge sont dans la section « Parchemins » — les trois portés (2026-11-13) : plus aucune carte écartée de la boîte.
     */
     'artefacts' => [
         'source' => 'artifacts_part1.pdf + artifacts_part2.pdf',
@@ -397,7 +397,7 @@ return [
             ['carte' => 'Spell Scroll — Psychic Recovery', 'sort' => 'Récupération Psychique'],
 
             // ---- Boîte GLACE : Warmth portée (phase 5, 2026-09-06), Skate portée (2026-11-12), Chill portée (2026-11-13), Ice Storm
-            // portée (2026-11-13, lot 3) ; 1 non prise en compte — Ice Bridge (examen carte par carte, plus « écartée en bloc »).
+            // portée (2026-11-13, lot 3), Ice Bridge portée (2026-11-13, lot 4) : les trois parchemins de glace sont portés.
             //
             // ⚠ *Warmth* est le cas limite honnête que CLAUDE.md annonçait
             // depuis le 2026-08-15 : un soin fixe de 3, sans zone, sans
@@ -417,11 +417,11 @@ return [
             // séparément à 3 dés sans défense (`des_degats`, `cible: figures_zone`). PAS de `type_degat` : la carte la range à part
             // de Chill, et le Brassard de Glace la RÉDUIT de 1 (`reduit_degats_de_sort`) au lieu de l'annuler.
             ['carte' => 'Spell Scroll — Ice Storm', 'paquet' => 'Frozen Horror', 'sort' => 'Tempête de Glace'],
-            ['carte' => 'Spell Scroll — Ice Bridge', 'paquet' => 'Frozen Horror', 'nom' => 'Pont de Glace',
-                'texte' => 'Crée un pont permanent permettant de franchir fosse, piège, gouffre, crevasse ou case glacée.',
-                'manque' => "GLACE — poser du TERRAIN en cours de quête (la couche `cartes.grille['terrain']` "
-                    ."n'est peuplée qu'à l'assemblage, doc 18 §4/phase 4a) ET la résolution de sort qui le "
-                    ."ferait, toutes deux hors périmètre — un mécanisme neuf, pas une couture existante. Écarté pour le moment (René, 2026-10-15)."],
+            // ⚠ *Ice Bridge* PORTÉE le 2026-11-13 (plan parchemins-glace, lot 4) : un PONT permanent posé en pleine quête sur un
+            // élément déjà repéré (piège de sol armé et connu, plaque de terrain pontable), par `MoteurTerrain::poserPont()`. Le
+            // choix de l'élément est le joueur (une entrée par élément, `MoteurSorts::elementsPontables()`). Ce n'est plus une
+            // dette : l'écarter « en bloc » (2026-10-15) avait mêlé une règle de pose à une règle de sort, les deux existent.
+            ['carte' => 'Spell Scroll — Ice Bridge', 'paquet' => 'Frozen Horror', 'sort' => 'Pont de Glace'],
             // Spell Scroll — Skate (Frozen Horror) : PORTÉ le 2026-11-12. La traversée des figures est celle de Voile de Brume
             // (`franchit_figures`, durée `ce_tour`) ; le « +6 au jet de déplacement » est `bonus_deplacement`, lu par
             // `MoteurSorts::bonusDes()` au même point de passage que la Potion de dextérité. Porté par le sort `Patinage`

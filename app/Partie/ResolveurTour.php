@@ -7177,6 +7177,12 @@ final class ResolveurTour
             return $this->poserMurMagiqueSort($quete, $sort, $option);
         }
 
+        // PONT DE GLACE (*Ice Bridge*, lot 4, 2026-11-13) : l'élément couvert est le choix — même raison que le mur, traité
+        // AVANT tout garde-fou de ciblage (un pont ne vise aucune figure).
+        if (data_get($option, 'parametres.mode') === 'pose_pont') {
+            return $this->poserPontSort($quete, $lanceur, $etat, $sort, $option);
+        }
+
         // VOILE D'OMBRE (Cloak of Shadows, Spells of Darkness, 2026-10-08) :
         // l'emplacement est le choix — même raison que le mur. L'état du lanceur
         // est relu ICI (jamais pris au menu) : `MoteurOmbre::poser()` revérifie
@@ -9661,6 +9667,46 @@ final class ResolveurTour
             'mur_magique' => true,
             'cases' => $cases,
             'mobilier' => $resultat,
+        ];
+    }
+
+    /**
+     * PONT DE GLACE (*Ice Bridge*, lot 4 du plan parchemins-glace, 2026-11-13) — « a permanent bridge of Magic Ice tiles that
+     * enables heroes to cross over any pit, trap, chasm, crevasse, or icy square ». L'élément est celui de l'entrée CHOISIE,
+     * que `resoudreSort()`/`resoudreParchemin()` ont déjà retrouvée dans les options fraîches (`entreeChoisie()`).
+     *
+     * Revalidé ICI contre le juge du menu (`MoteurSorts::elementPontableChoisi()`) : l'état de la quête a pu bouger depuis
+     * le menu (un piège déclenché, une figure entrée sur la case). Un élément qui n'est plus pontable est refusé — jamais
+     * posé à l'aveugle. La tuile est celle du sort (`pose_pont`, « Glace magique ») ; l'écriture est `MoteurTerrain::poserPont()`,
+     * le seul point d'écriture de terrain en pleine quête.
+     *
+     * @param  array<string, mixed>  $option
+     * @return array<string, mixed>
+     */
+    private function poserPontSort(Quete $quete, Personnage $lanceur, EtatPersonnageQuete $etat, Sort $sort, array $option): array
+    {
+        $cases = array_values((array) data_get($option, 'parametres.cases', []));
+        $tuile = (string) data_get($sort->effet, 'pose_pont', '');
+
+        if ($quete->carte === null || $tuile === '' || $cases === []) {
+            throw ValidationException::withMessages(['option_id' => 'Pont de Glace : carte, tuile ou cases manquantes.']);
+        }
+
+        $element = $this->sorts->elementPontableChoisi($quete, $lanceur, $etat, $cases);
+
+        if ($element === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Pont de Glace : cet élément ne peut plus être couvert (il n\'est plus connu, pontable, libre, ou à portée de vue).',
+            ]);
+        }
+
+        app(MoteurTerrain::class)->poserPont($quete->carte, $element['cases'], $tuile);
+
+        return [
+            'mode' => 'pose_pont',
+            'pont' => true,
+            'cases' => $element['cases'],
+            'element' => ['nature' => $element['nature'], 'nom' => $element['nom']],
         ];
     }
 

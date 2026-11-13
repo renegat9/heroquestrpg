@@ -302,3 +302,31 @@ Un sort (ou parchemin) de héros peut frapper une ZONE au lieu d'une cible. Le s
 - **Soldé le 2026-11-13 (lot 3)** : `carre_2x2` (*Ice Storm* / Tempête de Glace) — le choix du carré est publié (`entreesCarre()`), résolu (`sortDeZoneDegats()`), et son registre tient dans les deux sens (`SortsZoneRegistreTest`). Test en jeu : `TempeteDeGlaceParcheminTest`.
 - **Corrigé au passage, 2026-11-13** : un sort de héros à `zone` (autre que la salle du lanceur) était OFFERT sans cible puis REFUSÉ « Cible requise » ; le Chant de guérison disait « toute la salle, alliés compris » alors qu'il soigne le lanceur et les héros qu'il VOIT — le libellé vient désormais de `MotsClesSort::ZONES`.
 
+## Le PONT DE GLACE — poser du terrain en pleine quête (*Ice Bridge*, lot 4, 2026-11-13)
+
+Décisions de René (lot 0, `docs/plan-parchemins-glace.md`) : le pont couvre **autant de cases qu'il en faut pour l'élément
+choisi** (une fosse : 1 ; une fosse longue : 2) — le livret F5815 p. 4 montre les tuiles Magic Ice comme des tuiles d'UNE case ;
+portée = la **ligne de vue** ; **les monstres l'empruntent** ; difficulté de lecture 2 ; permanent jusqu'à la fin de la quête.
+
+- **Le juge : `MoteurSorts::elementsPontables()`**, lu par le MENU (sort connu et parchemin, `entreesPont()`) ET par la
+  RÉSOLUTION (`ResolveurTour::poserPontSort()`, via `elementPontableChoisi()` : l'état a pu bouger depuis le menu). Un élément
+  est un piège de sol `pontable` **armé et connu** (`MoteurPieges::ETATS_CONNUS_ARMES` : une Chute de blocs tombée, `bloc`, n'est
+  plus un trou, un piège caché ne se cible pas), ou une plaque de terrain `pontable` (toutes les cases de même `groupe_id`, ou la
+  case seule). Une Fosse longue est UN élément de deux cases. Il n'est offert que si AUCUNE figure ne se tient sur une de ses cases
+  (héros positionnés tombés compris, monstres actifs à emprise entière, alliés, captifs) et si le lanceur VOIT une de ses cases.
+- **Le menu** : une entrée PAR élément, `cle` = `{racine}:pont:{x},{y}` (la première case), `mode: pose_pont`, `cases` (toutes),
+  `element_pont: {type, nom}`. `element` reste la chaîne du sort (comme toutes les entrées) : le contrat disait `element` pour l'objet
+  du pont, il entrait en collision avec ce champ.
+- **La pose : `MoteurTerrain::poserPont()`**, le SEUL point d'écriture de `grille['terrain']` en pleine quête. Chaque case reçoit une
+  entrée Glace magique (`effet.pont`, `groupe_id: "pont-N"`, N unique dans la carte) qui REMPLACE la case ; l'ancien terrain reste en
+  `sous_pont` (jamais relu). Chaque piège ARMÉ de ces cases passe à l'état `sous_pont` (`MoteurPieges::ETAT_SOUS_PONT`).
+- **Ce que le pont change, sans règle neuve dans les lecteurs** : le piège `sous_pont` n'est dans aucun état armé ni connu (plus de
+  déclenchement, de saut, de désamorçage) ; la Glace magique coûte 1, ne bloque rien, n'a ni jet ni dégât, donc plus de glissade,
+  plus d'enlisement, plus de téléportation sur la case ; une Glissière pontée n'a plus `interdit_aux_monstres` — les monstres
+  l'empruntent. Le tirage aléatoire de l'assembleur ne prend JAMAIS la Glace magique (`AssembleurCarte::placerTerrains()`) : un pont
+  sans parchemin n'existe pas.
+- **Publication** : `carte.terrain[].pont` (vrai sur la Glace magique posée) ; `carte.pieges[]` ne publie pas un piège `sous_pont`.
+- **Registres** : `MotsClesTerrain` (`pont`, `pontable` ; `support_sort` retiré de NON_IMPLEMENTES), `MotsClesPiege` (`pontable`),
+  `MotsClesSort::POSES` (`pose_pont`) — tous testés dans les deux sens (`PontDeGlaceParcheminTest`, `TerrainEnJeuTest`, `MotsClesPiegeTest`).
+- **Test en jeu** : `tests/Feature/Partie/PontDeGlaceParcheminTest.php`. Le couloir y est forcé (la marche évite un piège connu
+  dans une salle ouverte) ; un test de CONTRÔLE montre que la même marche, sans pont, tombe dans la fosse.

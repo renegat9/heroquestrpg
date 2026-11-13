@@ -926,6 +926,9 @@ Entrance**.
 > sans nature (la carte la range à part de Chill). *Ice Bridge* (Pont de Glace) : le pont couvre autant de tuiles
 > « Magic Ice » qu'il en faut pour l'élément franchi, sur les pièges de sol et les terrains
 > de glace listés au plan ; portée : la ligne de vue (lot 4, écarté d'ici là).
+> **Ice Bridge PORTÉE le 2026-11-13 (lot 4)** : le parchemin **Pont de Glace** (`pose_pont`) — `MoteurSorts::elementsPontables()`
+> (le juge, menu et résolution), `MoteurTerrain::poserPont()` (la pose, état `sous_pont` pour le piège couvert). Plus aucune
+> carte de la boîte GLACE n'est écartée.
 
 ---
 

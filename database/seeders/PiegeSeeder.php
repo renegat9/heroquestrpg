@@ -27,16 +27,18 @@ class PiegeSeeder extends Seeder
         $pieges = [
             ['nom' => 'Fosse', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'persistant',
                 'effet' => [
+                    'pontable' => true,
                     'degats_pv_body' => 1,
                     'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
                 ]],
             ['nom' => 'Piège à lances', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'unique',
-                'effet' => ['des_combat' => 1]],
+                'effet' => ['pontable' => true, 'des_combat' => 1]],
             ['nom' => 'Chute de blocs', 'detectable' => true, 'desarmable' => 'partiel', 'usage' => 'unique',
                 // `franchissable` (2026-09-27) : « peut être désamorcée/sautée
                 // AVANT déclenchement » (livret p. 14, doc 16 §7.3) — le même
                 // saut que la fosse. Voir la migration `chute_de_blocs_franchissable`.
                 'effet' => [
+                    'pontable' => true,
                     'des_combat' => 3,
                     'bloc_permanent' => true,
                     'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
@@ -123,6 +125,7 @@ class PiegeSeeder extends Seeder
             // DÉ DE COMBAT, jamais le jet de Body de la trousse ordinaire.
             ['nom' => 'Lame balançoire', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'persistant', 'boite' => 'horde_ogre',
                 'effet' => [
+                    'pontable' => true,
                     'des_attaque_zone' => 2,
                     'zone_lames' => [[0, -1], [0, 0], [0, 1]],
                     'desarmage_special' => 'lame_balanciere',
@@ -144,6 +147,7 @@ class PiegeSeeder extends Seeder
             // AU MOMENT de la chute) remplace `degats_pv_body`.
             ['nom' => 'Fosse des ténèbres', 'detectable' => true, 'desarmable' => 'non', 'usage' => 'persistant', 'boite' => 'horde_ogre',
                 'effet' => [
+                    'pontable' => true,
                     'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
                     'degats_selon_armure' => true,
                 ]],
@@ -253,6 +257,7 @@ class PiegeSeeder extends Seeder
             // l'usage.
             ['nom' => 'Piège de lianes', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'unique', 'boite' => 'jungles_delthrak',
                 'effet' => [
+                    'pontable' => true,
                     'des_combat' => 1,
                     'esquive_sur_bouclier' => true,
                     'retient' => 'Immobilisé',
@@ -278,6 +283,7 @@ class PiegeSeeder extends Seeder
             ['nom' => "Mare d'acide", 'detectable' => true, 'desarmable' => 'non', 'usage' => 'persistant',
                 'boite' => 'crypte_tenebres',
                 'effet' => [
+                    'pontable' => true,
                     'des_combat' => 1,
                     'type_degat' => 'acide',
                     'mare' => true,
@@ -331,6 +337,7 @@ class PiegeSeeder extends Seeder
             ['nom' => 'Fosse longue', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'persistant',
                 'boite' => 'mage_du_miroir',
                 'effet' => [
+                    'pontable' => true,
                     'degats_pv_body' => 2,
                     'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
                     'saut_long' => ['face' => 'bouclier_noir'],

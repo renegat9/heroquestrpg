@@ -171,7 +171,7 @@ it('seed les Sables mouvants : un terrain qui BLOQUE la marche, jamais la vue, s
     expect($sables->boite)->toBe('mage_du_miroir')
         ->and($sables->bloque_mouvement)->toBeTrue('on le franchit d\'un saut, on ne le traverse pas')
         ->and($sables->bloque_vue)->toBeFalse('un trou de sable ne coupe pas la vue')
-        ->and($sables->effet)->toBe(['saut_par_dessus' => 2, 'saut_reussi_sur' => 'bouclier_noir', 'enlise' => 2]);
+        ->and($sables->effet)->toBe(['pontable' => true, 'saut_par_dessus' => 2, 'saut_reussi_sur' => 'bouclier_noir', 'enlise' => 2]);
 
     // Les trois clés sont au vocabulaire fermé, avec un lecteur chacune.
     foreach (['saut_par_dessus', 'saut_reussi_sur', 'enlise'] as $cle) {

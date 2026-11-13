@@ -2776,6 +2776,17 @@ final class JournalCombat
             return [$this->info("{$acteurNom} lance {$nom} — ".mb_strtolower((string) ($a['mobilier']['nom'] ?? 'un mur magique')).' se dresse sur deux cases')];
         }
 
+        // Pont de Glace (*Ice Bridge*, lot 4, 2026-11-13) : une POSE décidée, dite au fil. Le verbe suit le support — un parchemin
+        // se LIT, un sort se lance — et l'élément couvert est nommé comme le menu le nomme (« la Fosse », « la Rivière gelée »).
+        if ($mode === 'pose_pont') {
+            $verbe = ($a['type'] ?? null) === 'parchemin' ? 'lit' : 'lance';
+            $couvert = (string) ($a['element']['nom'] ?? 'un piège');
+            $repere = isset($a['cases'][0]) ? " en {$a['cases'][0]['x']},{$a['cases'][0]['y']}" : '';
+
+            // Pas d'article devant le nom : « Fosse », « Rivière gelée », « Sol meuble » n'ont pas le même genre.
+            return [['texte' => "{$acteurNom} {$verbe} {$nom} : un pont de glace est posé — {$couvert}{$repere}", 'ton' => 'info']];
+        }
+
         if ($mode === 'ouvre_porte') {
             return [$this->info("{$acteurNom} lance {$nom} — une porte s'ouvre à distance")];
         }

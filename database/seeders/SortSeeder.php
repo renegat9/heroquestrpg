@@ -60,6 +60,7 @@ class SortSeeder extends Seeder
         'Patinage' => "Le lanceur ajoute 6 à son jet de déplacement pour ce tour, et il peut traverser monstres et héros en se déplaçant. Il ne se lit qu'avant le premier pas du tour.",
         'Morsure du Froid' => "Inflige 1 point de Body à chaque monstre adjacent au lanceur, jamais en diagonale. Les victimes ne peuvent pas se défendre.",
         'Tempête de Glace' => "Un carré de 2 × 2 cases, choisi par le lanceur dans sa salle : chaque monstre et chaque héros qui s'y trouve, lanceur compris, est attaqué séparément à 3 dés de combat, sans défense possible. Interdit en couloir.",
+        'Pont de Glace' => "Pose un pont de glace magique, permanent jusqu'à la fin de la quête, sur un piège ou une case de terrain déjà repéré : fosse, piège, gouffre, crevasse ou case glacée. On le franchit sans jet ni chute, et les monstres peuvent l'emprunter. Il couvre autant de cases qu'il en faut pour l'élément choisi.",
         'Mur de Pierre' => "Un mur de pierre couvre 2 cases libres de figures : il a 1 point de Body et 6 dés de défense, et disparaît quand il est détruit.",
         'Invisibilité' => "Le lanceur devient invisible jusqu'au début de son prochain tour : il ne peut plus attaquer, mais personne ne peut l'attaquer et aucun sort ne l'atteint.",
         'Désapprentissage' => "Un lanceur de Dread en vue perd un sort tiré au hasard, pour toute la quête : ce sort est retiré du jeu jusqu'à la fin de la quête.",
@@ -517,6 +518,17 @@ class SortSeeder extends Seeder
             ['element' => 'parchemin', 'nom' => 'Tempête de Glace', 'type' => 'degats', 'difficulte_parchemin' => 2,
                 'effet' => ['cible' => 'figures_zone', 'zone' => 'carre_2x2', 'des_degats' => 3,
                     'defense_applicable' => false, 'hors_couloir' => true]],
+
+            // ICE BRIDGE (The Frozen Horror, Artifact Reference, F5815 p. 4 — `reference/18_extensions.md` §3) : « a permanent
+            // bridge of Magic Ice tiles that enables heroes to cross over any pit, trap, chasm, crevasse, or icy square. » Le
+            // livret montre les tuiles Magic Ice comme des tuiles d'UNE case : le pont couvre donc AUTANT de cases qu'il en
+            // faut pour l'élément choisi (une fosse : 1 ; une fosse longue : 2) — décision de René, lot 0, 2026-11-13.
+            // ⚠ `pose_pont` nomme la TUILE de terrain posée (« Glace magique », `TerrainSeeder`, `effet.pont`) : lue par
+            // `MoteurTerrain::poserPont()`, le point de passage unique. Le juge de ce qui se couvre, menu ET résolution, est
+            // `MoteurSorts::elementsPontables()` — pas d'`effet` de cible ici.
+            // ⚠ `difficulte_parchemin: 2` : décision de René (lot 0, 2026-11-13), comme les deux autres parchemins de glace.
+            ['element' => 'parchemin', 'nom' => 'Pont de Glace', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['pose_pont' => 'Glace magique']],
 
             // ================================================================
             // Wizards of Morcar (G1504, livret p. 11 + cartes TRANSCRITES

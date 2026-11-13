@@ -16,13 +16,16 @@ use App\Models\Competence;
 use App\Models\Condition;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
+use App\Models\GroupeMercenaire;
 use App\Models\Inventaire;
 use App\Models\InstanceMonstre;
 use App\Models\Objet;
 use App\Models\Personnage;
+use App\Models\Piege;
 use App\Models\Quete;
 use App\Models\Sort;
 use App\Models\SortDread;
+use App\Models\Terrain;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -1397,6 +1400,20 @@ final class MoteurSorts
                 continue;
             }
 
+            // PONT DE GLACE (*Ice Bridge*, lot 4, 2026-11-13) : l'élément à couvrir est le choix — une entrée PAR élément
+            // pontable (`entreesPont()`, le juge `elementsPontables()`). Aucun élément → aucune entrée, pas de sort sans effet.
+            if ((bool) data_get($sort->effet, 'pose_pont', false)) {
+                if ($disponible && $etat !== null && $lanceur !== null) {
+                    foreach ($this->entreesPont($quete, $sort, $personnage, $etat, $grille, "sort:{$sort->id}") as $entree) {
+                        $entrees[] = $entree;
+                    }
+                } elseif (! $disponible) {
+                    $entrees[] = $this->entreeSort("sort:{$sort->id}", $sort->nom, $sort, false, [], [], $lanceur, $grille);
+                }
+
+                continue;
+            }
+
             // ZONE DE DÉGÂTS (Morsure du Froid, 2026-11-13) : la zone EST la cible. Une entrée, sans liste de cibles, et
             // offerte SEULEMENT si la zone a au moins une figure — `touches`, la décision que le serveur publie. Le menu
             // ne propose jamais un sort qui ne toucherait rien (« le menu ne propose jamais ce que le résolveur refuserait »).
@@ -1498,6 +1515,18 @@ final class MoteurSorts
             if ((bool) data_get($sort->effet, 'pose_ombre', false)) {
                 if ($lanceur !== null) {
                     foreach ($this->entreesPoseOmbre($quete, $grille, $sort, $lanceur, "parchemin:{$ligne->id}", ['inventaire_id' => $ligne->id]) as $entree) {
+                        $parchemins[] = $entree;
+                    }
+                }
+
+                continue;
+            }
+
+            // PONT DE GLACE (lot 4, 2026-11-13) : le MÊME juge que le sort connu, racine `parchemin:{id}`. Aucun élément
+            // pontable → aucune entrée : le parchemin n'est pas offert (le menu ne propose pas un sort sans effet).
+            if ((bool) data_get($sort->effet, 'pose_pont', false)) {
+                if ($lanceur !== null && $etat !== null) {
+                    foreach ($this->entreesPont($quete, $sort, $personnage, $etat, $grille, "parchemin:{$ligne->id}", ['inventaire_id' => $ligne->id]) as $entree) {
                         $parchemins[] = $entree;
                     }
                 }
@@ -3844,6 +3873,218 @@ final class MoteurSorts
         }
 
         return $entrees;
+    }
+
+    /**
+     * LE JUGE DU PONT DE GLACE (*Ice Bridge*, lot 4 du plan parchemins-glace, 2026-11-13) : ce qu'un pont PEUT couvrir.
+     * Lu par le MENU (`options()`, sort connu et parchemin) ET par la RÉSOLUTION (`ResolveurTour::poserPontSort()`, via
+     * `elementPontableChoisi()`) — deux copies auraient divergé.
+     *
+     * Un ÉLÉMENT est, soit un PIÈGE de sol dont la ligne de catalogue porte `pontable` et qui est ARMÉ ET CONNU
+     * (`MoteurPieges::ETATS_CONNUS_ARMES` : une Chute de blocs tombée — `bloc` — n'est plus un trou, un piège caché ne
+     * se cible pas), soit une PLAQUE DE TERRAIN dont la ligne porte `pontable` (toutes les cases de même `groupe_id`, ou la
+     * case seule). Une Fosse longue est UN élément de deux cases. Un élément déjà sous un pont n'est plus pontable : sa
+     * case porte alors la tuile Glace magique (`pont`, non pontable) ou un piège `sous_pont` (hors états connus).
+     *
+     * Il n'est offert que si AUCUNE figure ne se tient sur une de ses cases (héros positionnés, tombés compris ; monstres
+     * actifs, emprise entière ; alliés et captifs) et si le lanceur VOIT au moins une de ses cases (`filtrerLigneDeVue()`,
+     * la règle des sorts visés). Un élément ne se pose pas sur une figure : la figure ne se déplacerait pas pour lui.
+     *
+     * @return list<array{x: int, y: int, type: string, nom: string, cases: list<array{x: int, y: int}>}> (x, y : la première case, `y` puis `x`)
+     */
+    public function elementsPontables(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, ?Grille $grille = null): array
+    {
+        if ($quete->carte === null || $etat->position_x === null) {
+            return [];
+        }
+
+        $grille ??= FabriqueGrille::pour($quete);
+        $occupees = $this->casesOccupeesParFigures($quete);
+        $figuresBloquent = app(FaveursHopekins::class)->figuresBloquentPour($personnage);
+        $lanceur = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+
+        $libres = [];
+
+        foreach ([...$this->elementsPiegesPontables($quete), ...$this->elementsTerrainPontables($quete)] as $element) {
+            $cles = array_map(fn (array $c) => "{$c['x']},{$c['y']}", $element['cases']);
+
+            if (array_intersect($cles, $occupees) !== []) {
+                continue;
+            }
+
+            if ($this->filtrerLigneDeVue($lanceur['x'], $lanceur['y'], $grille, $element['cases'], $figuresBloquent) === []) {
+                continue;
+            }
+
+            $libres[] = $element;
+        }
+
+        return $libres;
+    }
+
+    /**
+     * L'élément dont les cases sont EXACTEMENT `$cases` s'il est encore pontable, sinon `null`. C'est la revalidation de
+     * la résolution : l'entrée du menu est la liste blanche, mais l'état de la quête peut avoir bougé depuis le menu.
+     *
+     * @param  list<array{x: int, y: int}>  $cases
+     * @return array{x: int, y: int, nature: string, nom: string, cases: list<array{x: int, y: int}>}|null
+     */
+    public function elementPontableChoisi(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $cases): ?array
+    {
+        $demande = collect($cases)->map(fn (array $c) => ((int) $c['x']).','.((int) $c['y']))->sort()->values()->all();
+
+        foreach ($this->elementsPontables($quete, $personnage, $etat) as $element) {
+            $cles = collect($element['cases'])->map(fn (array $c) => "{$c['x']},{$c['y']}")->sort()->values()->all();
+
+            if ($cles === $demande) {
+                return $element;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Une entrée PAR élément pontable : `cle` = `{racine}:pont:{nature}:{x},{y}` (nature `piege`|`terrain` — un piège et une plaque peuvent partager une case ; la première case), `mode: pose_pont`, `cases`
+     * (TOUTES les cases de l'élément : « autant de tuiles Magic Ice qu'il en faut »), et un `nom` qui dit l'élément et son
+     * repère — « Pont de Glace — Rivière gelée en 5,2 (3 cases) ». Le patron de `entreesPoseMurMagique()` : la liste
+     * offerte EST la liste blanche de `entreeChoisie()`.
+     *
+     * `element_pont` (et non `element`, déjà pris par l'élément de sort) porte le piège ou le terrain couvert.
+     *
+     * @param  array<string, mixed>  $extra
+     * @return list<array<string, mixed>>
+     */
+    private function entreesPont(Quete $quete, Sort $sort, Personnage $personnage, EtatPersonnageQuete $etat, Grille $grille, string $racine, array $extra = []): array
+    {
+        $entrees = [];
+
+        foreach ($this->elementsPontables($quete, $personnage, $etat, $grille) as $element) {
+            $n = count($element['cases']);
+
+            $entrees[] = [
+                'cle' => "{$racine}:pont:{$element['nature']}:{$element['x']},{$element['y']}",
+                'sort_id' => $sort->id,
+                'nom' => "{$sort->nom} — {$element['nom']} en {$element['x']},{$element['y']}".($n > 1 ? " ({$n} cases)" : ''),
+                'element' => $sort->element,
+                'sort_type' => $sort->type,
+                'disponible' => true,
+                'mode' => 'pose_pont',
+                'cases' => $element['cases'],
+                'element_pont' => ['nature' => $element['nature'], 'nom' => $element['nom']],
+                ...$extra,
+            ];
+        }
+
+        return $entrees;
+    }
+
+    /**
+     * Les pièges de sol pontables et ARMÉS ET CONNUS : une Fosse longue (même `groupe_id`) est UN élément de deux cases.
+     *
+     * @return list<array{x: int, y: int, nature: string, nom: string, cases: list<array{x: int, y: int}>}>
+     */
+    private function elementsPiegesPontables(Quete $quete): array
+    {
+        $entrees = (array) ($quete->carte->grille['pieges'] ?? []);
+
+        $catalogue = Piege::query()
+            ->whereIn('id', collect($entrees)->pluck('piege_id')->filter()->unique()->values())
+            ->get(['id', 'nom', 'effet'])
+            ->keyBy('id');
+
+        $groupes = [];
+
+        foreach ($entrees as $entree) {
+            $piege = $catalogue->get($entree['piege_id'] ?? null);
+
+            if ($piege === null || empty(data_get($piege->effet, 'pontable'))) {
+                continue;
+            }
+
+            if (! in_array($entree['etat'] ?? null, MoteurPieges::ETATS_CONNUS_ARMES, true)) {
+                continue;
+            }
+
+            $cle = isset($entree['groupe_id']) ? 'g'.$entree['groupe_id'] : 'c'.$entree['x'].','.$entree['y'];
+            $groupes[$cle] ??= ['nature' => 'piege', 'nom' => (string) $piege->nom, 'cases' => []];
+            $groupes[$cle]['cases'][] = ['x' => (int) $entree['x'], 'y' => (int) $entree['y']];
+        }
+
+        return array_values(array_map(fn (array $g) => $this->elementPontable($g), $groupes));
+    }
+
+    /**
+     * Les plaques de terrain pontables : toutes les cases de même `groupe_id`, ou la case seule si elle n'en a pas.
+     *
+     * @return list<array{x: int, y: int, nature: string, nom: string, cases: list<array{x: int, y: int}>}>
+     */
+    private function elementsTerrainPontables(Quete $quete): array
+    {
+        $entrees = (array) ($quete->carte->grille['terrain'] ?? []);
+
+        $catalogue = Terrain::query()
+            ->whereIn('id', collect($entrees)->pluck('terrain_id')->filter()->unique()->values())
+            ->get(['id', 'nom', 'effet'])
+            ->keyBy('id');
+
+        $groupes = [];
+
+        foreach ($entrees as $entree) {
+            $tuile = $catalogue->get($entree['terrain_id'] ?? null);
+
+            if ($tuile === null || empty(data_get($tuile->effet, 'pontable'))) {
+                continue;
+            }
+
+            $cle = isset($entree['groupe_id']) ? 'g'.$entree['groupe_id'] : 'c'.$entree['x'].','.$entree['y'];
+            $groupes[$cle] ??= ['nature' => 'terrain', 'nom' => (string) $tuile->nom, 'cases' => []];
+            $groupes[$cle]['cases'][] = ['x' => (int) $entree['x'], 'y' => (int) $entree['y']];
+        }
+
+        return array_values(array_map(fn (array $g) => $this->elementPontable($g), $groupes));
+    }
+
+    /**
+     * @param  array{nature: string, nom: string, cases: list<array{x: int, y: int}>}  $groupe
+     * @return array{x: int, y: int, nature: string, nom: string, cases: list<array{x: int, y: int}>}
+     */
+    private function elementPontable(array $groupe): array
+    {
+        $cases = $groupe['cases'];
+        usort($cases, fn (array $a, array $b) => [$a['y'], $a['x']] <=> [$b['y'], $b['x']]);
+
+        return ['x' => $cases[0]['x'], 'y' => $cases[0]['y'], 'nature' => $groupe['nature'], 'nom' => $groupe['nom'], 'cases' => $cases];
+    }
+
+    /**
+     * Les cases tenues par une FIGURE — héros positionnés (tombés compris : un corps sur la fosse la garde), monstres
+     * actifs (emprise entière), alliés actifs et captifs. Lues depuis la quête, pas depuis la grille : `FabriqueGrille`
+     * écarte les héros à terre de sa liste d'occupation, et un pont ne se pose pas sous un corps non plus.
+     *
+     * @return list<string>  « x,y »
+     */
+    private function casesOccupeesParFigures(Quete $quete): array
+    {
+        $cases = [];
+
+        foreach ($quete->etatsPersonnages()->whereNotNull('position_x')->get() as $etat) {
+            $cases[] = "{$etat->position_x},{$etat->position_y}";
+        }
+
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->whereNotNull('position_x')->with('monstre')->get() as $instance) {
+            $emprise = $instance->monstre->emprise();
+
+            foreach (Grille::cellulesEmprise((int) $instance->position_x, (int) $instance->position_y, $emprise['l'], $emprise['h']) as $c) {
+                $cases[] = "{$c['x']},{$c['y']}";
+            }
+        }
+
+        foreach (GroupeMercenaire::where('groupe_id', $quete->groupe_id)->whereIn('etat', ['actif', 'captif'])->whereNotNull('position_x')->get() as $allie) {
+            $cases[] = "{$allie->position_x},{$allie->position_y}";
+        }
+
+        return $cases;
     }
 
     /**

@@ -604,6 +604,39 @@ Le client répond **à plat** : `POST choix {option_id, parametres: {cle, cible_
   (`MoteurDegats::infligerAHeros()`, sources `sort_dread` ET `tir_ami`). Pas de `type_degat: froid`, comme la Tempête
   du Dread : l'immunité au froid l'annulerait entière au lieu de la réduire. La manette liste les carrés
   (feuille de choix) ; la table et la mini-carte peuvent éclairer `cases`.
+- ⚠ **`mode: pose_pont`** (*Spell Scroll — Ice Bridge* → parchemin **Pont de Glace**, 2026-11-13, lot 4 de
+  `docs/plan-parchemins-glace.md`, décisions de René du lot 0) : une entrée PAR ÉLÉMENT pontable —
+  `cle: parchemin:{inventaire_id}:pont:{nature}:{x},{y}` (`nature` = `piege`|`terrain`, un piège et une plaque pouvant partager
+  une case ; la première case de l'élément, ordre `y` puis `x`), `mode: "pose_pont"`,
+  `cases: [{x, y}, …]` (TOUTES les cases de l'élément : « autant de tuiles Magic Ice qu'il en faut », une tuile = une
+  case, livret F5815 p. 4), `element_pont: {nature: "piege"|"terrain", nom}` (`element` est déjà l'école du sort, comme
+  sur toute entrée), et un `nom` qui dit tout (« Pont de Glace — Fosse
+  en 7,4 », « Pont de Glace — Rivière gelée en 5,2 (3 cases) »). Le sort CONNU suivrait la même forme (`sort:{id}:pont:…`).
+  Le seul juge est `MoteurSorts::elementsPontables()`, menu ET résolution. Un ÉLÉMENT est :
+  - un **piège** du plateau dont la ligne de catalogue porte `effet.pontable` (Fosse, Fosse des ténèbres, Fosse longue,
+    Piège à lances, Chute de blocs, Lame balançoire, Mare d'acide, Piège de lianes), dans un état ARMÉ ET CONNU
+    (`MoteurPieges::ETATS_CONNUS_ARMES` : `detecte`, `fosse_ouverte`, `mare_acide`) — un piège caché ne se cible pas,
+    personne ne le sait là ; une Chute de blocs TOMBÉE (`bloc`) n'est plus un trou. Une Fosse longue est UN élément de
+    deux cases (ses entrées partagent `groupe_id`) ;
+  - une **plaque de terrain** dont la ligne de catalogue porte `effet.pontable` (Glace glissante, Glissière de glace,
+    Rivière gelée, Sables mouvants, Sol meuble, Mare, Trappe de téléportation) : toutes les cases de même `groupe_id`,
+    ou la case seule si elle n'a pas de groupe.
+  Il n'est offert que si : le lanceur VOIT AU MOINS UNE de ses cases (la ligne de vue des sorts visés,
+  `filtrerLigneDeVue()`) ; AUCUNE figure (héros, monstre, allié) ne se tient sur l'une de ses cases ; il n'est pas déjà
+  sous un pont. Aucun élément → le parchemin n'est pas offert (le menu ne propose pas un sort sans effet).
+  `POST choix {option_id: "lire_parchemin", parametres: {cle}}` : l'élément est fixé par l'entrée, revalidé (`entreeChoisie`).
+  **Effet** (point de passage unique `MoteurTerrain::poserPont()`), PERMANENT jusqu'à la fin de la quête (il vit dans
+  `cartes.grille`, donc dans la reprise) : chaque case de l'élément reçoit une entrée de terrain **Glace magique**
+  (`terrains.effet.pont`), qui REMPLACE l'entrée de terrain qui s'y trouvait (son `terrain_id` gardé en `sous_pont` sur
+  l'entrée, jamais relue par les règles) et prend `groupe_id: "pont-N"` ; chaque piège ARMÉ d'une de ces cases passe à
+  l'état **`sous_pont`** (`MoteurPieges::ETAT_SOUS_PONT`, hors `ETATS_ARMES` et `ETATS_CONNUS_ARMES`). Aucune règle
+  neuve dans les lecteurs : la Glace magique coûte 1, ne bloque rien, n'a ni jet ni dégât, et un piège `sous_pont` ne se
+  déclenche plus, ne se saute plus, ne se contourne plus, ne se désamorce plus. Conséquences : plus de chute, plus de
+  glissade, plus d'enlisement, plus de téléportation sur ces cases ; **les monstres l'empruntent** (la Glissière leur
+  était interdite, le pont non). Résultat : `{mode: "pose_pont", pont: true, cases, element: {nature, nom}}` (`nature` et non `type` : `type` est réservé aux types d'action du registre des annonces), journalisé,
+  une phrase au fil (« Aldric lit Pont de Glace : un pont de glace enjambe la Fosse »). `carte.pieges[]` ne publie pas un
+  piège `sous_pont` (le pont le couvre) ; `carte.terrain[]` publie la Glace magique comme tout terrain, avec
+  `pont: true` (décision publiée, voir `carte.terrain[]`).
 - ⚠ **`mode: vision_salle`** (*Clairvoyance*, 2026-10-08) : une entrée PAR SALLE
   NON DÉCOUVERTE, `salle: <index>`, nom avec le repère de la salle (« au est, à 2
   cases ») et **jamais** son contenu. Le résultat (`vide`, `monstres` par nom,
@@ -5038,6 +5071,9 @@ déduit ni du nom ni du coût (la Rivière gelée coûte 2 sans être « gênant
 serveur (`MotsClesTerrain::avantages()`, même traducteur que `/guide`) — « coûte 2 points pour y entrer »,
 « terrain gênant : coûte plus cher à traverser ». La légende l'affiche telle quelle ; le tableau de textes
 local n'est plus qu'un repli. Jamais vide (une case sans effet dit « sans effet à ce jour »).
+**`carte.terrain[].pont`** (`bool`, 2026-11-13) : la case est un PONT DE GLACE posé par le parchemin (tuile Glace
+magique, `terrains.effet.pont`, `MoteurTerrain::poserPont()`). Le client le dessine comme un pont de glace (teinte et
+icône propres) ; il ne le déduit pas du nom. Faux partout ailleurs.
 
 **`entites[].ignore_terrain_entravant` N'EXISTE PLUS** (retiré le 2026-10-15, sans lecteur). CE
 héros traverse-t-il le terrain gênant sans payer ? Décidé par `MoteurSorts::terrainEntravantIgnore()`

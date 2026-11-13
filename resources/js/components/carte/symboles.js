@@ -199,8 +199,9 @@ export const DANGER_ICONE = 'hexagon';
  * terrains, mais le joueur n'a besoin de distinguer que trois RISQUES —
  * `danger` (jet de dé de combat exigé au contact ou par tour : Glace
  * glissante, Glissière de glace, Rivière gelée, Chambre forte de glace),
- * `passage` (Tunnel de glace — téléportation, pas un jet) et `decor` (Glace
- * magique, Rebord de crevasse — sans effet à ce jour). Sept teintes
+ * `passage` (Tunnel de glace — téléportation, pas un jet), `decor` (Rebord de
+ * crevasse — sans effet à ce jour) et `pont` (la Glace magique posée par le
+ * parchemin, lot 4). Sept teintes
  * distinctes auraient demandé sept mémorisations pour un gain de lecture nul
  * — le joueur agit différemment face à un danger et face à un passage, pas
  * face à chacun des sept noms.
@@ -215,7 +216,9 @@ export const TERRAIN_TEINTES = {
     // jette pas de dé pour la traverser, on en ressort ailleurs. Son dé de passage et sa fin de
     // tour se lisent dans le texte du guide (`avantages`), pas dans la teinte.
     'Trappe de téléportation': 'passage',
-    'Glace magique': 'decor',
+    // PONT DE GLACE (lot 4, 2026-11-13) : la tuile posée par le parchemin. La teinte vient du DRAPEAU `pont` que publie le
+    // serveur (`categorieTerrain()`) ; cette ligne ne sert qu'à la légende d'une tuile sans drapeau (serveur plus ancien).
+    'Glace magique': 'pont',
     'Rebord de crevasse': 'decor',
     // Jungles of Delthrak (lots B et D, 2026-10-09) : trois teintes de plus
     // pour trois risques que le joueur doit lire d'un coup d'œil — `gene`
@@ -276,6 +279,13 @@ export const TERRAIN_ICONES = {
 export const TERRAIN_ICONE_DEFAUT = 'texture';
 
 /**
+ * PONT DE GLACE (lot 4, 2026-11-13) : la case couverte par le parchemin Pont de Glace. Sa teinte (`pont`, glacier clair à
+ * planches) et son icône de plaque sont lues sur le DRAPEAU `pont` publié par le serveur (`carte.terrain[].pont`), jamais
+ * sur le nom seul. Hors `TERRAIN_ICONES` : la Glace magique n'est pas une plaque du catalogue (`SymbolesCarteTest`).
+ */
+export const PONT_ICONE = 'ac_unit';
+
+/**
  * ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05) — le repère du
  * plateau d'origine : chaque quête commence et finit à son escalier, posé
  * 2×2 dans la salle de départ.
@@ -289,3 +299,9 @@ export const TERRAIN_ICONE_DEFAUT = 'texture';
 export const ESCALIER_ICONE = 'stairs';
 
 export const icone = (table, nom, defaut) => table[nom] ?? defaut;
+
+/**
+ * Catégorie de TEINTE d'une case de terrain publiée : un pont (drapeau serveur) prime sur la table par nom. Partagée
+ * par le rendu de la grille et la légende — une seule lecture (`DungeonGrid.vue`, `LegendeCarte.vue`).
+ */
+export const categorieTerrain = (t) => (t?.pont ? 'pont' : icone(TERRAIN_TEINTES, t?.nom, TERRAIN_TEINTE_DEFAUT));

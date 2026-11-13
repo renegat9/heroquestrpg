@@ -80,6 +80,7 @@ const CLES_SORT_ACTIVES = [
     'des_resistance',          // ResolveurTour::reduireParDesRouges() — d6 bruts, chaque 5-6 annule 1 dégât
     // ---- Wizards of Morcar — répertoires optionnels (2026-10-06) ----
     'pose_mur_magique',        // MoteurSorts::entreesPoseMurMagique() + ResolveurTour::poserMurMagiqueSort() — Mur de Pierre
+    'pose_pont',               // MoteurSorts::elementsPontables() + ResolveurTour::poserPontSort() — Pont de Glace (lot 4, 2026-11-13)
     'pioche_triple',           // ResolveurTour::piocherTresorConvoite() — Trésor convoité
     'vision_salle',            // MoteurSorts::entreesVisionSalle() + ResolveurTour::visionSalleSort() — Clairvoyance
     'oublie_sort',             // MoteurSorts::ciblesLegales() + ResolveurTour::oublierSortSort() — Unlearn (OubliSorts)
@@ -140,6 +141,8 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
         'rayon',
         // Un mur magique agit : il pose du mobilier attaquable sur la carte.
         'pose_mur_magique',
+        // Un pont de glace agit : il couvre un piège ou une plaque, et le franchissement n'y coûte plus rien (lot 4).
+        'pose_pont',
         // Trésor convoité agit : il remplit la bourse (ou pas, s'il ne tombe
         // que sur des dangers) — trois chances, jamais une promesse.
         'pioche_triple',
@@ -188,7 +191,8 @@ it('ne garde AUCUN sort que le seeder ne déclare pas', function () {
         // ⚠ 41 depuis Patinage (Spell Scroll — Skate, élément `parchemin`), 2026-11-12.
         // ⚠ 42 depuis Morsure du Froid (Spell Scroll — Chill, élément `parchemin`, zone de contact), 2026-11-13.
         // ⚠ 43 depuis Tempête de Glace (Spell Scroll — Ice Storm, élément `parchemin`, zone de carré), 2026-11-13.
-        ->and(Sort::count())->toBe(43);
+        // ⚠ 44 depuis Pont de Glace (Spell Scroll — Ice Bridge, élément `parchemin`, pose de terrain), 2026-11-13 (lot 4).
+        ->and(Sort::count())->toBe(44);
 });
 
 it('n\'expose de sorts qu\'aux classes lanceuses', function () {

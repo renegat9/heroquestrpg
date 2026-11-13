@@ -3479,9 +3479,13 @@ final class AssembleurCarte
         // campagne (tirée en auto, cochée en manuel) ; `null` partout.
         // Une boîte partagée (`boites_partagees`, EXT-CARTE2) ouvre le terrain à CHACUNE de ses boîtes :
         // la Trappe de téléportation sort sous le thème Mage du Miroir comme sous Kellar's Keep.
+        // ⚠ Un PONT (`effet.pont`, la Glace magique) n'entre JAMAIS dans ce tirage : il n'existe que posé par le parchemin
+        // Pont de Glace, en pleine quête (`MoteurTerrain::poserPont()`, 2026-11-13). Sans ce filtre, un thème glacé
+        // poserait des ponts sur des cartes où personne n'en a lu.
         $catalogue = Terrain::query()->orderBy('id')->get()
-            ->filter(fn (Terrain $t) => $t->boites() === []
-                || collect($t->boites())->contains(fn (string $boite) => $bestiaire?->contient($boite) ?? false))
+            ->filter(fn (Terrain $t) => empty(data_get($t->effet, 'pont'))
+                && ($t->boites() === []
+                    || collect($t->boites())->contains(fn (string $boite) => $bestiaire?->contient($boite) ?? false)))
             ->values();
 
         if ($catalogue->isEmpty()) {

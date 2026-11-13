@@ -1049,7 +1049,7 @@ final class EtatGroupe
      * brouillard répond directement à « cette case est-elle vue ? ».
      *
      * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
-     * @return list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string, groupe_id: ?string, ancre: bool, etendue: ?array{x: int, y: int, l: int, h: int}, entravant: bool, interdit_arret: bool, image_url: ?string, symbole_url: ?string}>
+     * @return list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string, groupe_id: ?string, ancre: bool, etendue: ?array{x: int, y: int, l: int, h: int}, entravant: bool, interdit_arret: bool, pont: bool, image_url: ?string, symbole_url: ?string}>
      */
     private function terrain(Carte $carte, array $cases): array
     {
@@ -1087,6 +1087,9 @@ final class EtatGroupe
                     // Mare ou un Brasier se traverse sans qu'on puisse s'y arrêter.
                     'entravant' => ! empty($type?->effet['entravant']),
                     'interdit_arret' => ! empty($type?->effet['interdit_arret']),
+                    // PONT DE GLACE (lot 4, 2026-11-13) : la case est un pont posé par le parchemin (`MoteurTerrain::poserPont()`).
+                    // Décision publiée : le client la dessine comme un pont, il ne la déduit ni du nom ni du coût.
+                    'pont' => ! empty($type?->effet['pont']),
                     // CE QUE FAIT la case, en phrases (verdict Jungle 2026-10-10 §3 : le terrain
                     // « entravant » n'avait aucun texte joueur). Même traducteur que `/guide`
                     // (`MotsClesTerrain::avantages()`) : la légende le lit, elle ne l'écrit plus.

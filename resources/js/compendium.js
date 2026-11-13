@@ -76,6 +76,8 @@ const EFFETS_BOOL = {
     franchit_mur: 'Franchit les murs',
     bloc_permanent: 'La case devient un bloc de pierre permanent (bloque le passage et la vue)',
     franchissable: 'Franchissable',
+    // Pont de Glace (lot 4, 2026-11-13) : un parchemin peut couvrir ce piège de sol, qui ne se déclenche plus sous la glace.
+    pontable: 'Peut être couvert par un Pont de Glace',
     permet_desamorcage: 'Permet le désamorçage',
     aleatoire: 'Aléatoire',
     automatique: 'Automatique',
@@ -183,6 +185,8 @@ const EFFETS_ENUM = {
     condition_bonus_attaque: 'Bonus d\'attaque',
     zone: 'Zone',
     pose_mur_magique: 'Pose (2 cases, 1 PV, 6 dés de défense)',
+    // Pont de Glace (lot 4, 2026-11-13) : une tuile de glace magique couvre un piège ou une plaque, permanente jusqu'à la fin de la quête.
+    pose_pont: 'Pose (un pont de glace sur un piège ou une plaque)',
     desarmage_special: 'Désarmement',
     reaction: 'Réaction',
     portee_recul: 'Repousse jusqu\'à (cases)',

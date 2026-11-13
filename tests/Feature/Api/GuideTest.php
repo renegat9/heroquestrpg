@@ -225,8 +225,9 @@ it('publie les cartes de glace du paquet : Chill et Ice Storm portées (parchemi
 
     expect($cartes['Spell Scroll — Chill']['porte'])->toBeTrue()
         ->and($cartes['Spell Scroll — Ice Storm']['porte'])->toBeTrue()
-        ->and($cartes['Spell Scroll — Ice Bridge']['porte'])->toBeFalse()
-        ->and($cartes['Spell Scroll — Ice Bridge']['manque'])->not->toBeEmpty('la dette du Pont de Glace reste nommée');
+        // Ice Bridge PORTÉE le 2026-11-13 (lot 4) : plus aucune carte de la boîte GLACE n'est écartée.
+        ->and($cartes['Spell Scroll — Ice Bridge']['porte'])->toBeTrue()
+        ->and($cartes['Spell Scroll — Ice Bridge']['manque'])->toBeNull();
 });
 
 it('publie ce que fait chaque objet, déjà traduit par le serveur', function () {
@@ -275,7 +276,8 @@ it('décrit chaque terrain en phrases, et dit « sans effet » quand rien ne se 
         ->and($terrains['Sable entravant']['cout_deplacement'])->toBe(2)
         ->and($terrains['Sable entravant']['avantages'])->toContain('coûte 2 points pour y entrer')
         // Une clé NON implémentée ne produit aucune promesse : le guide dit « sans effet ».
-        ->and($terrains['Glace magique']['avantages'])->toBe(['sans effet à ce jour'])
+        // Glace magique : la clé `pont` (lot 4, 2026-11-13) a son lecteur — la tuile fait donc une promesse, celle du pont.
+        ->and($terrains['Glace magique']['avantages'])->toBe(['pont de glace : se traverse sans danger'])
         ->and($terrains['Rebord de crevasse']['avantages'])->toBe(['sans effet à ce jour'])
         ->and($terrains['Mare']['boite_libelle'])->not->toBeNull();
 });

@@ -157,7 +157,7 @@ it('déclare le sol meuble : coût 1, boîte spirit_queen, pose SALLE, et la cl�
     expect($sol->boite)->toBe('spirit_queen')
         ->and($sol->pose)->toBe('salle')
         ->and($sol->cout_deplacement)->toBe(1)
-        ->and($sol->effet)->toBe(['arret_sur_impair' => 1])
+        ->and($sol->effet)->toBe(['pontable' => true, 'arret_sur_impair' => 1])
         ->and(MotsClesTerrain::connue('arret_sur_impair'))->toBeTrue();
 });
 

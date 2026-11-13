@@ -74,7 +74,9 @@ reason, and the two must never drift.
   figures a hero's zone spell hits — menu and resolution —, `MoteurSorts::zoneLegale()` for
   whether that zone is playable from the caster's square (room, walls, line of sight: menu and
   resolution alike), and `ResolveurTour::frapperSortDegats()` for striking one figure with a
-  hero's damage spell).
+  hero's damage spell); since 2026-11-13 (lot 4, Ice Bridge): `MoteurSorts::elementsPontables()` for
+  what a bridge may cover — menu and resolution alike — and `MoteurTerrain::poserPont()`, the only
+  write to `grille['terrain']` during a quest).
   Two copies of a rule too simple to notice drifting is this project's most repeated defect.
 - **`sortBy([$f, $g])` is never a multi-key sort** — Laravel reads a callable there as a
   *comparator*, and it never errors. It bit twice. → `docs/regles/sorts-dread.md`

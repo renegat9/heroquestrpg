@@ -920,3 +920,14 @@ of the Mirror — la fosse longue ».
 **La salle du boss a neuf colonnes et cinq rangées de sol** (`TuileSeeder`, migration `2026_10_31_150100_salle_du_boss_neuf_par_cinq`). À quatre rangées, le 4×4 couvrait toujours la case du parvis de la porte, et aucune salle du boss ne pouvait le recevoir. Sur 60 graines d'essai : 37 salles du boss offrent un lieu en 9 × 5. Décision à René : réserver le bloc 4×4 au mobilier de la salle du boss, ou la laisser sans mobilier.
 
 **Test** : `AdversairesNommesTest`, « PLACEMENT » (ancre tenue par toute l'emprise, occupants déplacés, de bout en bout sur 40 graines).
+
+## POSER DU TERRAIN EN PLEINE QUÊTE — `MoteurTerrain::poserPont()` (Ice Bridge, lot 4, 2026-11-13)
+
+Jusqu'ici `grille['terrain']` n'était peuplée qu'à l'assemblage. Le parchemin Pont de Glace est le premier à y écrire en pleine
+quête, et il ne le fait qu'à UN endroit : `MoteurTerrain::poserPont(Carte, cases, tuile)`. Il remplace l'entrée de terrain de chaque
+case couverte (l'ancienne reste en `sous_pont`), pose `groupe_id: "pont-N"`, et fait passer chaque piège ARMÉ des cases à l'état
+`sous_pont` (`MoteurPieges::ETAT_SOUS_PONT`, hors `ETATS_ARMES` et `ETATS_CONNUS_ARMES`). Le pont vit dans `cartes.grille` : il survit à la reprise.
+
+Règle de tirage : la tuile Glace magique (`effet.pont`) est EXCLUE du tirage aléatoire de `AssembleurCarte::placerTerrains()`. Un
+thème glacé ne doit jamais poser un pont sur une carte où personne n'en a lu. Le juge de ce qui se couvre est
+`MoteurSorts::elementsPontables()` (voir `sorts-heros.md`) — jamais cette méthode d'écriture seule.

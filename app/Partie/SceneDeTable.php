@@ -1817,6 +1817,23 @@ final class SceneDeTable
         // par le moteur (`ResolveurTour::oublierSortSort()`).
         // VOILE D'OMBRE (2026-10-08) : même forme — le texte (taille, jetons) est
         // décidé par `MoteurOmbre::poser()`.
+        // PONT DE GLACE (lot 4, 2026-11-13) : une pose décidée (`ResolveurTour::poserPontSort()`), sans cible : la scène dit
+        // ce que le pont couvre, jamais une figure touchée.
+        if (($a['mode'] ?? null) === 'pose_pont') {
+            return [
+                'genre' => 'sort',
+                'titre' => $acteur->nom.' lance '.$nomSort,
+                'sous_titre' => 'Pont de glace',
+                'acteurs' => $acteurs,
+                'jet' => null,
+                'deplacement' => null,
+                'figure' => null,
+                'objets' => $objets,
+                'issue' => ['ton' => 'info', 'libelle' => 'un pont de glace est posé — '.(string) ($a['element']['nom'] ?? 'un piège')
+                    .(isset($a['cases'][0]) ? " en {$a['cases'][0]['x']},{$a['cases'][0]['y']}" : '')],
+            ];
+        }
+
         if (in_array($a['mode'] ?? null, ['vision_salle', 'oubli_sort', 'pose_ombre'], true)) {
             return [
                 'genre' => 'sort',

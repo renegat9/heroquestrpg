@@ -94,6 +94,15 @@ final class MoteurPieges
      */
     public const ETAT_MARE = 'mare_acide';
 
+    /**
+     * SOUS UN PONT (Pont de Glace, *Ice Bridge*, lot 4 du plan parchemins-glace, 2026-11-13) : le piège armé que la tuile
+     * Glace magique couvre. Posé par `MoteurTerrain::poserPont()`, jamais par un déclenchement. Un héros qui marche sur la
+     * case ne déclenche RIEN, ne saute rien et ne désamorce rien : le piège n'est plus une menace, il est sous la glace.
+     * Hors `ETATS_ARMES` et `ETATS_CONNUS_ARMES` — les lecteurs existants n'ont donc rien à savoir de lui. Non publié
+     * (`EtatGroupe::pieges()`) : le pont couvre la case, et le client le dessine comme un pont (`carte.terrain[].pont`).
+     */
+    public const ETAT_SOUS_PONT = 'sous_pont';
+
     /** États d'un piège qui se déclenche encore quand on marche dessus. */
     public const ETATS_ARMES = [self::ETAT_CACHE, self::ETAT_DETECTE, self::ETAT_FOSSE_OUVERTE, self::ETAT_MARE];
 

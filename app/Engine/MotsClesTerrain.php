@@ -24,12 +24,10 @@ namespace App\Engine;
  *    talents) et `libelle` (le texte joueur).
  *  - `NON_IMPLEMENTES` — les clés que le catalogue PORTE mais qu'aucune
  *    couture ne lit encore, sur le patron `MotsClesSort::NON_IMPLEMENTES`.
- *    Trois entrées, et les trois sont des dettes ÉCRITES, jamais des oublis :
+ *    Deux entrées (la glace magique n'en est plus une depuis le lot 4, 2026-11-13), et les deux sont des dettes ÉCRITES, jamais des oublis :
  *     - `sens_unique` (Glissière de glace) — le SENS de la glissière n'est
  *       sourcé nulle part (`TerrainSeeder`, doc 18 §4 ne le précise pas) ;
  *       seuls `fin_tour`/`degats_pv_body` sont appliqués, sans redirection.
- *     - `support_sort` (Glace magique) — ancrage pour *Ice Wall* / *Ice Bridge*,
- *       des sorts du boss hors du périmètre de cette phase (plan §Phase 2).
  *     - `decor` (Rebord de crevasse) — lié au *Bottomless Chasm*, HORS
  *       PÉRIMÈTRE : le moteur n'a aucune mort permanente (arbitrage de René,
  *       plan §5.5). Volontairement sans mécanique, pour toujours.
@@ -263,6 +261,28 @@ final class MotsClesTerrain
             'libelle' => 'un saut raté enlise le héros : il abandonne {valeur} objets de son choix (à défaut, il tombe), son tour s\'achève, et il ressort de l\'autre côté à son tour suivant',
         ],
 
+        // PONT DE GLACE (*Ice Bridge*, Frozen Horror F5815 p. 4 ; plan parchemins-glace lot 4, 2026-11-13) — « a permanent
+        // bridge of Magic Ice tiles that enables heroes to cross over any pit, trap, chasm, crevasse, or icy square ». La
+        // tuile Glace magique porte `pont: true` : la case est un pont posé par `MoteurTerrain::poserPont()` (la SEULE
+        // écriture de terrain en pleine quête). Elle n'a ni coût propre (1), ni blocage, ni jet : c'est l'ABSENCE des
+        // effets de l'élément couvert qui fait la règle — `EtatGroupe::terrain()` le publie, et le client le dessine.
+        'pont' => [
+            'lecteur' => [
+                'App\Partie\EtatGroupe::terrain()',
+                'App\Partie\MoteurSorts::elementsPontables()',
+            ],
+            'libelle' => 'pont de glace : se traverse sans danger',
+        ],
+
+        // ÉLÉMENT QU'UN PONT PEUT COUVRIR (*Ice Bridge*, décisions de René du lot 0, 2026-11-13) : une plaque de la liste
+        // fermée (Glace glissante, Glissière de glace, Rivière gelée, Sables mouvants, Sol meuble, Mare, Trappe de
+        // téléportation). Le juge est UN seul : `MoteurSorts::elementsPontables()`, lu par le menu ET la résolution. Le
+        // libellé est celui du GUIDE : il dit ce que la case PEUT devenir, jamais une règle que la case n'a pas.
+        'pontable' => [
+            'lecteur' => 'App\Partie\MoteurSorts::elementsPontables()',
+            'libelle' => 'peut être couverte par un Pont de Glace',
+        ],
+
         // SOL MEUBLE (*Spirit Queen's Torment* q. 10 note B, p. 13, lot H des restes, 2026-10-29) : « When a hero moves into or
         // through this room, if the result of the movement dice is odd, they become stuck in the first square of their movement
         // and take 1 Body Point of damage. » La VALEUR est le nombre de PV de Body perdus à l'enlisement. Le DÉ est le d6 de
@@ -316,8 +336,6 @@ final class MotsClesTerrain
     public const NON_IMPLEMENTES = [
         'sens_unique' => 'Le SENS de la glissière n\'est sourcé nulle part (doc 18 §4, TerrainSeeder) — '
             .'seuls fin_tour/degats_pv_body s\'appliquent, sans redirection du héros.',
-        'support_sort' => 'Ancrage pour Ice Wall/Ice Bridge (sorts du boss, plan glace Phase 2) — hors périmètre '
-            .'de la phase 4b, pur décor tant qu\'aucun sort ne la lit.',
         'decor' => 'Rebord de crevasse, lié au Bottomless Chasm — HORS PÉRIMÈTRE : le moteur n\'a aucune mort '
             .'permanente (arbitrage de René, plan §5.5). Volontairement sans mécanique.',
     ];

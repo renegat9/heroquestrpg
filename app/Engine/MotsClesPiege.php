@@ -34,6 +34,13 @@ final class MotsClesPiege
             'lecteur' => 'App\Partie\MoteurPieges::declencher() + App\Partie\MoteurPieges::declencherEphemere()',
             'libelle' => 'perd un nombre fixe de PV de Body (la Fosse, l\'Aiguille empoisonnée)',
         ],
+        // PONT DE GLACE (*Ice Bridge*, lot 4, 2026-11-13) : le piège de sol peut être couvert par un pont de glace — l'élément
+        // est décidé par `MoteurSorts::elementsPontables()` (menu ET résolution), et le pont pose l'état `sous_pont`
+        // (`MoteurTerrain::poserPont()`). Clé lue en `data_get` à ce lecteur : la liste blanche des pièges de sol.
+        'pontable' => [
+            'lecteur' => 'App\Partie\MoteurSorts::elementsPontables()',
+            'libelle' => 'peut être couvert par un Pont de Glace (le héros passe dessus sans risque)',
+        ],
         'franchissable' => [
             'lecteur' => 'App\Partie\MoteurPieges::estFranchissable()',
             'libelle' => 'se saute par un jet de Body une fois détecté',

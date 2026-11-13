@@ -269,6 +269,22 @@ final class MotsClesSort
     // ------------------------------------------------------------------ ---
 
     /**
+     * Les POSES d'un sort de héros : un sort qui pose quelque chose SUR LA CARTE en pleine quête, avec le lecteur qui le
+     * pose. `lecteur` existe ET nomme la clé dans son fichier (`SortsZoneRegistreTest`, sur ce modèle).
+     *
+     * Pont de Glace (*Ice Bridge*, lot 4, 2026-11-13) : `MoteurSorts::elementsPontables()` juge QUOI couvrir (menu et
+     * résolution), `MoteurTerrain::poserPont()` écrit la tuile. Une pose qui n'est pas déclarée ici n'existe pas.
+     *
+     * @var array<string, array{lecteur: string, libelle: string}>
+     */
+    public const POSES = [
+        'pose_pont' => [
+            'lecteur' => 'App\Partie\MoteurSorts::elementsPontables',
+            'libelle' => 'pose une tuile de glace magique qui couvre un piège ou une plaque de terrain',
+        ],
+    ];
+
+    /**
      * Mots déclarés mais dont la MÉCANIQUE N'EXISTE PAS. Le catalogue peut les
      * porter — le moteur les ignore, et le guide ne doit pas les annoncer comme
      * acquis. Toute entrée d'ici est une dette explicite, pas un oubli.
