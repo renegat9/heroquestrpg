@@ -115,7 +115,59 @@ class Groupe extends Model
     public function personnages(): BelongsToMany
     {
         return $this->belongsToMany(Personnage::class, 'groupe_personnages', 'groupe_id', 'personnage_id')
-            ->withPivot(['ordre_initiative', 'actif', 'pret_arene', 'allie_arene_id']);
+            ->withPivot(['ordre_initiative', 'actif', 'pret_arene', 'allie_arene_id', 'pilote_joueur_id']);
+    }
+
+    /**
+     * MANETTE À PLUSIEURS HÉROS (lot M1, `docs/plan-mode-classique.md` §5) — le joueur qui JOUE ce héros dans ce groupe.
+     *
+     * Le PILOTE n'est pas le propriétaire : `personnages.joueur_id` dit à qui le héros appartient,
+     * `groupe_personnages.pilote_joueur_id` dit qui le joue ici, et `null` veut dire « son propriétaire ». Point de
+     * passage UNIQUE avec {@see self::herosPilotesPar()} : menu, choix, réactions et canal privé passent par eux, jamais
+     * par `joueur_id` relu sur place.
+     */
+    public function piloteDe(Personnage $personnage): int
+    {
+        $pilote = \Illuminate\Support\Facades\DB::table('groupe_personnages')
+            ->where('groupe_id', $this->id)
+            ->where('personnage_id', $personnage->id)
+            ->value('pilote_joueur_id');
+
+        return self::piloteResolu($pilote === null ? null : (int) $pilote, $personnage);
+    }
+
+    /**
+     * Le pilote d'un héros chargé AVEC son pivot (`self::personnages()` lit `pilote_joueur_id`) — sans requête par
+     * héros, pour un payload qui en sérialise plusieurs. Même règle que {@see self::piloteDe()}, par la même fonction.
+     */
+    public static function piloteDuPivot(Personnage $personnage): int
+    {
+        $pilote = $personnage->pivot?->pilote_joueur_id;
+
+        return self::piloteResolu($pilote === null ? null : (int) $pilote, $personnage);
+    }
+
+    /** LA règle, écrite une fois : une colonne vide désigne le propriétaire. */
+    private static function piloteResolu(?int $pilote, Personnage $personnage): int
+    {
+        return $pilote ?? (int) $personnage->joueur_id;
+    }
+
+    /**
+     * Les héros ACTIFS de ce groupe que ce joueur pilote : ceux qu'on lui a confiés, et les siens tant qu'ils ne sont
+     * confiés à personne. Le pendant en requête de {@see self::piloteDe()} — même règle, tenue au même endroit.
+     */
+    public function herosPilotesPar(int $joueurId): BelongsToMany
+    {
+        return $this->personnages()
+            ->wherePivot('actif', true)
+            ->where(function ($q) use ($joueurId) {
+                $q->where('groupe_personnages.pilote_joueur_id', $joueurId)
+                    ->orWhere(function ($q) use ($joueurId) {
+                        $q->whereNull('groupe_personnages.pilote_joueur_id')
+                            ->where('personnages.joueur_id', $joueurId);
+                    });
+            });
     }
 
     /** Personnages dont c'est le groupe actif. */

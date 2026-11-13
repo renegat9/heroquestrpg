@@ -52,9 +52,10 @@ class ReactionController extends Controller
         ]);
 
         /** @var Personnage|null $heros */
-        $heros = Personnage::query()
-            ->where('id', $donnees['personnage_id'])
-            ->where('joueur_id', $joueur->id)   // on ne réagit que pour SES héros
+        // On réagit pour le héros qu'on PILOTE dans ce groupe (lot M1) : la proposition est arrivée sur cette manette
+        // (`MoteurReactions` l'adresse à `Groupe::piloteDe()`), la réponse en vient donc aussi.
+        $heros = $groupe->herosPilotesPar((int) $joueur->id)
+            ->where('personnages.id', $donnees['personnage_id'])
             ->first();
 
         if ($heros === null) {

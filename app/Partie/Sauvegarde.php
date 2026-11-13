@@ -228,7 +228,7 @@ final class Sauvegarde
         // On les oublie AVANT de redispatcher : la fenêtre de rejeu est fermée
         // (POST choix renvoie « aucun menu » jusqu'à l'arrivée du menu régénéré).
         foreach ($this->herosActifs($groupe) as $heros) {
-            Cache::forget(GenererMenu::cleMenu($groupe->id, (int) $heros->joueur_id));
+            Cache::forget(GenererMenu::cleDuHeros($groupe, $heros));
         }
 
         Journal::ajouter($groupe, 'systeme', [
@@ -268,7 +268,7 @@ final class Sauvegarde
         }
 
         foreach ($this->herosActifs($groupe) as $personnage) {
-            GenererMenu::dispatch($groupe->id, (int) $personnage->joueur_id, (int) $personnage->id);
+            GenererMenu::lancerPour($groupe, $personnage);
         }
     }
 

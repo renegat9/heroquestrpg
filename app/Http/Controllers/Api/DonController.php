@@ -56,11 +56,9 @@ class DonController extends Controller
             ]);
         }
 
-        // Le DONNEUR doit être un héros du joueur authentifié.
-        $donneur = $groupe->personnages()
-            ->wherePivot('actif', true)
+        // Le DONNEUR doit être un héros que le joueur authentifié PILOTE (les siens, ou ceux qu'on lui a confiés).
+        $donneur = $groupe->herosPilotesPar((int) $joueur->id)
             ->where('personnages.id', $donnees['personnage_id'])
-            ->where('joueur_id', $joueur->id)
             ->first();
 
         if ($donneur === null) {

@@ -44,7 +44,9 @@ trait AutoriseLectureGroupe
             return false;
         }
 
-        if ($groupe->personnages()->wherePivot('actif', true)->where('joueur_id', $joueur->id)->exists()) {
+        // Membre = il PILOTE un héros actif OU en possède un (même confié) : un joueur qui ne pilote que le héros d'un
+        // absent lit tout de même le groupe (`PilotageHeros::estMembre()`, le seul prédicat d'appartenance).
+        if (app(\App\Partie\PilotageHeros::class)->estMembre($groupe, (int) $joueur->id)) {
             return true;
         }
 

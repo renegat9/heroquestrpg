@@ -58,10 +58,8 @@ class ForgeController extends Controller
             ]);
         }
 
-        $forgeron = $groupe->personnages()
-            ->wherePivot('actif', true)
+        $forgeron = $groupe->herosPilotesPar((int) $joueur->id)
             ->where('personnages.id', $donnees['personnage_id'])
-            ->where('joueur_id', $joueur->id)
             ->first();
 
         if ($forgeron === null) {

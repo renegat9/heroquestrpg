@@ -36,10 +36,8 @@ class EntrainementController extends Controller
             'attribut' => ['required', 'string'],
         ]);
 
-        $heros = $groupe->personnages()
-            ->wherePivot('actif', true)
+        $heros = $groupe->herosPilotesPar((int) $joueur->id)
             ->where('personnages.id', $donnees['personnage_id'])
-            ->where('joueur_id', $joueur->id)
             ->first();
 
         if ($heros === null) {

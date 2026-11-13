@@ -157,13 +157,21 @@ final class MenuCourant
         };
     }
 
-    /** Le héros ACTIF de CE joueur dans ce groupe (un seul par joueur et groupe). */
+    /**
+     * Le héros de CETTE MANETTE dans ce groupe : parmi ceux qu'elle pilote (`Groupe::herosPilotesPar()`, lot M1), celui
+     * qui a la main ; à défaut, le premier. Une manette peut piloter plusieurs héros — le sien et celui d'un absent, ou
+     * deux héros à une table de deux joueurs. Rendre toujours le premier laissait le second sans menu à son tour.
+     */
     private function herosDuJoueur(Groupe $groupe, int $joueurId): ?Personnage
     {
-        return $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('joueur_id', $joueurId)
-            ->first();
+        $pilotes = $groupe->herosPilotesPar($joueurId)->get();
+
+        if ($pilotes->count() <= 1 || GenererMenu::sansQuete($groupe)) {
+            return $pilotes->first();
+        }
+
+        return $pilotes->first(fn (Personnage $p) => $this->ordreDuTour->acteurPour($groupe, (int) $p->id) !== null)
+            ?? $pilotes->first();
     }
 
     /**

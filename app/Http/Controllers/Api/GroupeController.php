@@ -623,11 +623,10 @@ class GroupeController extends Controller
             'pret' => ['required', 'boolean'],
         ]);
 
-        // Vérification : le personnage appartient au joueur et est actif dans ce groupe.
-        $personnage = Personnage::query()
-            ->where('id', $donnees['personnage_id'])
-            ->where('joueur_id', $joueur->id)
-            ->where('groupe_actif_id', $groupe->id)
+        // Vérification : le héros est actif dans ce groupe ET ce joueur le PILOTE (les siens, ou ceux qu'on lui a confiés
+        // — sans quoi le héros d'un absent resterait « pas prêt » à jamais, et la quête ne partirait pas).
+        $personnage = $groupe->herosPilotesPar((int) $joueur->id)
+            ->where('personnages.id', $donnees['personnage_id'])
             ->first();
 
         if ($personnage === null) {

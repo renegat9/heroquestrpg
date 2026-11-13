@@ -194,8 +194,14 @@ note      { repere, quand{ declencheur, cible }, alors[ {effet, …} ], une_fois
   canaux. Aujourd'hui `joueur_id` est testé à une trentaine d'endroits dans
   les contrôleurs ; le lot M1 commence par les recenser et les faire passer
   par le prédicat.
-- **Menu** : la clé de cache devient (groupe, joueur, **héros**). Le serveur
-  publie `heros_pilotes[]` et `heros_a_la_main` — la manette n'en déduit rien.
+- **Menu** : ~~la clé de cache devient (groupe, joueur, héros)~~ — **révisé à
+  l'exécution** (2026-11-13). La case reste (groupe, **pilote**) : un seul
+  acteur a la main à la fois, l'entrée nomme son héros, et `MenuCourant`
+  rejette déjà une entrée qui ne désigne pas l'acteur. Changer la forme de la
+  clé aurait touché 173 usages dans 85 fichiers de test pour rien. Ce qui
+  change : le héros servi est celui qui **a la main** parmi les héros pilotés,
+  et le menu d'attente d'un héros hors tour n'écrase plus celui de l'autre.
+  Le serveur publiera `heros_pilotes[]` (M2) — la manette n'en déduit rien.
 - **Manette** : un bandeau de héros en tête ; elle bascule seule sur le héros
   dont c'est le tour. Hors tour, on consulte les fiches librement.
 - **Hub** : achats et équipement héros par héros, avec le même bandeau.
@@ -273,24 +279,104 @@ Un écran de bureau (pas la manette), route `/constructeur`.
 M1–M2 ne dépendent pas du reste et servent aussi le mode campagne actuel :
 ils peuvent partir en premier.
 
-## 10. Questions pour René
+## 8 bis. Un serveur MCP pour le constructeur (René, 2026-11-13)
 
-- **Q1 — Règles du tour.** « Fidèle » va-t-il jusqu'à retirer nos écarts
-  assumés en classique : déplacement à deux dés sans base, dague non perdue,
-  pas de niveaux ni de talents, pas de forge ni d'entraînement, le marché
-  réduit à l'armurerie ? Ma recommandation : **oui**, un profil de règles
-  `classique` lu en un seul point, sinon le mode n'est fidèle qu'à moitié.
-- **Q2 — Héros mort.** Au plateau, un héros mort est perdu et son joueur
-  repart d'un héros neuf. « Le groupe n'est jamais défait » veut-il dire que
-  le héros **revient** à la quête suivante (à quel prix ?), ou que la **place**
-  est permanente et le héros remplaçable ?
-- **Q3 — Or.** Bourse **par héros** comme au plateau, ou pot commun comme en
-  campagne aujourd'hui ?
-- **Q4 — Sortie.** En classique, garde-t-on le vote en salle de départ
-  (décision du 2026-10-10) ou revient-on à la sortie case par case, que R3
-  exige de toute façon quand la sortie n'est pas l'entrée ?
-- **Q5 — Spectateurs.** Un spectateur voit-il **tout** ce que voit la table,
-  ou seulement ce que le héros en jeu a découvert ? (Identique si la table
-  est allumée ; différent à distance.)
-- **Q6 — Ordre.** Commence-t-on par la manette multi-héros (M1–M2, utile dès
-  maintenant) ou par la chaîne quête construite (K0–K4) ?
+> « Il faudrait un MCP pour le constructeur afin qu'une IA puisse interagir avec. »
+
+Le constructeur a deux clients : l'écran (§8) et une IA, par le protocole MCP.
+Les deux passent par les **mêmes services** — c'est la règle « une règle, un
+point de passage » appliquée à l'édition : un outil MCP n'a ni sa validation
+ni son format, il appelle ce que la route HTTP appelle.
+
+| Outil | Ce qu'il fait | Service appelé |
+|---|---|---|
+| `catalogues` | Liste les slugs posables, par couche (mobilier, monstres, pièges, terrain, portes) et le vocabulaire `MotsClesQuete` | le même que la palette de l'écran |
+| `plateau` | Rend le plateau fixe : salles, couloirs, cases, coordonnées | `PlateauClassique` |
+| `campagnes` / `campagne` | Liste, lit, crée, renomme une campagne construite | `CampagnesConstruites` |
+| `quete_lire` / `quete_ecrire` | Lit ou remplace le document d'une quête | idem |
+| `quete_modifier` | Applique des opérations ciblées (ouvrir une salle, poser, retirer, ajouter une note) sans renvoyer tout le document | idem |
+| `valider` | Rend la liste des refus du serveur, nommés | `ValidationQuete` |
+| `apercu` | Rend le plateau de la quête en texte (grille de symboles) pour qu'une IA relise ce qu'elle a posé | `CarteConstruite::produire()` |
+| `exporter` / `importer` | Le fichier `.json` d'une campagne | idem import/export de l'écran |
+
+- **Aucun outil ne joue** : le MCP édite, il ne démarre pas de quête et ne
+  touche à aucun groupe. Les données de partie restent hors de sa portée par
+  construction, pas par prudence.
+- **Accès — lot P0 tranché le 2026-11-13** (étude d'un agent, dans un dossier
+  jetable ; le dépôt n'a pas été touché) :
+  - **Paquet** : `laravel/mcp` `^1.2`. Vérifié par un `composer require` réel
+    hors dépôt : une seule entrée au verrou, **aucun** paquet existant ne
+    change de version, PHP 8.3 accepté.
+  - **Transport** : **stdio**, lancé par
+    `docker compose exec -T app php artisan mcp:start constructeur`. Ni port,
+    ni jeton, ni réseau : la surface d'exposition est nulle, ce qui convient à
+    un outil qui n'a de sens que sur la machine de René.
+  - **HTTP** : seulement si un client distant le demande un jour ; alors un
+    middleware maison (jeton porteur comparé à une variable du `.env`, refus si
+    vide), **pas** `auth:joueur` — une IA s'y ferait passer pour un joueur.
+  - **Pièges relevés, non encore éprouvés** : tout avertissement PHP écrit sur
+    la sortie standard casse le protocole (lancer avec les erreurs sur la
+    sortie d'erreur) ; une session MCP ouverte garde l'ancien code après un
+    changement PHP, comme les workers de file ; une réponse d'outil trop longue
+    est tronquée côté client, donc l'export d'une campagne se rend par quête.
+- **Contenu** : l'outil est indifférent à ce qu'on y saisit, comme l'écran.
+  Le périmètre du §0 ne change pas : aucune quête de livret n'entre dans le
+  dépôt, et ce n'est pas Claude qui les saisit.
+
+| Lot | Contenu | Dépend de |
+|---|---|---|
+| **P0** | Choix du paquet MCP, du transport et de l'authentification (étude) | — |
+| **P1** | Serveur MCP : `catalogues`, `plateau`, `campagnes`, `quete_lire`, `quete_ecrire`, `valider`, `exporter`, `importer` | K1, P0 |
+| **P2** | `quete_modifier`, `apercu` | K2, P1 |
+
+## 9 bis. Avancement
+
+- **M1, côté serveur — fait le 2026-11-13** (non committé) :
+  - `groupe_personnages.pilote_joueur_id` ; `Groupe::piloteDe()`,
+    `piloteDuPivot()` et `herosPilotesPar()` — la règle « colonne vide = le
+    propriétaire » écrite **une** fois ;
+  - menu, choix, aperçu de trajet, réactions et purge branchés sur le pilote ;
+  - routes du hub (équipement, dons, forge, entraînement, talents, potions,
+    faveurs, sorts, mercenaires, compagnon, « prêt ») : elles contrôlent le
+    **pilote** ; marché, votes, clôture, sauvegardes et lecture de l'état
+    contrôlent l'**appartenance** (`PilotageHeros::estMembre()` : piloter ou
+    posséder un héros actif) ;
+  - `PUT /api/groupes/{identifiant}/pilote` (`App\Partie\PilotageHeros`), au
+    hub seulement, fermée à l'arène (`EtapesCampagne::PILOTAGE`) ;
+  - `pilote_joueur_id` publié par héros dans `GET /etat` ;
+  - un joueur qui quitte le groupe rend les héros qu'il pilotait.
+  - Tests : `MenuPlusieursHerosTest` (3), `PilotageHerosTest` (10).
+- **Ouvert, à trancher par René** :
+  - `PhaseMarche::membres()` et `VoteGroupe::membres()` comptent les membres
+    par **propriétaire**. Un absent dont le héros est confié reste donc
+    membre : il doit encore confirmer le marché et compte dans le partage du
+    pot. À revoir avec la bourse par héros (Q3), qui change ce partage de
+    toute façon.
+  - Le « prêt » d'un héros vit en cache (4 h) : état d'avant-quête, laissé tel
+    quel.
+- **Reste** : M2 (la manette : bandeau de héros, écran pour confier un héros).
+
+## 10. Décisions de René (2026-11-13)
+
+| # | Décision | Conséquence |
+|---|---|---|
+| **Q1** | **Oui** : un profil de règles `classique`, sans nos écarts. « Mais la dague se perd au lancer selon les règles, non ? » | Vérifié : **René a raison**. La carte d'équipement *Dagger* (`reference/16_armurerie.md` §2.1bis) dit qu'elle peut être lancée et qu'elle est **perdue** une fois lancée. La perte n'est donc pas un écart et **reste** en classique. La phrase de `CLAUDE.md` qui la range parmi les divergences date d'avant les photos des cartes : à corriger. Les écarts réellement retirés en classique : déplacement (deux dés rouges, sans base de classe), niveaux et talents, forge, entraînement |
+| **Q2** | Le groupe n'est **jamais dissous**. À la création, on choisit le mode de mort : **Story** ou **Heroic** (*Jungles of Delthrak*) | `groupes.mode_mort`. **Story est déjà en service** (`ResolveurTour::relevementsStory()`, décision du 2026-10-09) : c'est la politique de tous les groupes aujourd'hui. **Heroic est à construire** (lot H1) : état « hors de combat » avec jeton crâne posé au début du tour suivant, mort si le tour d'après commence avec le jeton. Voir Q7 |
+| **Q3** | **Bourse par héros**, échange possible **entre les quêtes** | En classique, l'or n'est pas versé au pot commun à l'arrivée ; `personnages.or` est la bourse. L'échange d'or passe par la séance d'échange du hub (`SeanceEchange`), jamais en quête |
+| **Q4** | **Sortie case par case** (porte de sortie ou escalier) | R3 entre dans la première série. Le vote en salle de départ (2026-10-10) reste la règle du mode campagne et **n'existe pas** en classique : entrée au registre, refus nommé |
+| **Q5** | **Pas de spoiler** : le spectateur voit ce que le héros voit | La manette spectatrice lit le même état que la manette du héros en jeu (brouillard compris), jamais l'état complet |
+| **Q6** | « Fais ce qu'il te semble le mieux » | Ordre retenu : **M1 → M2** (manette multi-héros, utile dès maintenant), puis K0 → K4, S1, B1 → B2, H1, K5, X1 |
+
+### Lot ajouté
+
+| Lot | Contenu | Dépend de |
+|---|---|---|
+| **H1** | `groupes.mode_mort` (`story`, `heroic`), choisi à la création d'un groupe classique et publié ; lecteur Heroic (jeton crâne, minuteur par héros, en colonne), annoncé et journalisé | K0 |
+
+### Question restante
+
+- **Q7 — Mort en Heroic.** Dans ce mode un héros peut mourir pour de bon. Le
+  groupe n'étant jamais dissous : le joueur crée-t-il un **nouveau héros** qui
+  prend la place (niveau de départ, équipement de départ), et que devient
+  l'équipement du mort — perdu, ou ramassable par un héros adjacent comme au
+  plateau ? À trancher avant H1, pas avant.

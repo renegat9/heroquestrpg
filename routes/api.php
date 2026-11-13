@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\GuideController;
 use App\Http\Controllers\Api\MarcheController;
 use App\Http\Controllers\Api\MercenaireController;
+use App\Http\Controllers\Api\PiloteController;
 use App\Http\Controllers\Api\PotionController;
 use App\Http\Controllers\Api\ParametresController;
 use App\Http\Controllers\Api\SauvegardeController;
@@ -190,6 +191,10 @@ Route::middleware('auth:joueur')->group(function () {
     // Don d'un objet à un autre héros du groupe (doc 01 §7) — au hub : répartition
     // du butin. Depuis SES héros vers n'importe quel héros actif du groupe.
     Route::post('/groupes/{identifiant}/dons', [DonController::class, 'donner']);
+
+    // Confier un héros à un autre joueur du groupe, ou le lui reprendre (`pilote_joueur_id: null`) — HUB uniquement.
+    // Le PILOTE joue ensuite le héros : équipement, achats, dons, menu (MANETTE À PLUSIEURS HÉROS, lot M1).
+    Route::put('/groupes/{identifiant}/pilote', [PiloteController::class, 'confier']);
 
     // Rechoix des 3 sorts elfiques — HUB uniquement, comme équiper / Forge /
     // dons. L'école élémentaire, elle, est définitive (doc 02 §7bis).

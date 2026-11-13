@@ -56,10 +56,8 @@ class SortsElfiquesController extends Controller
         }
 
         /** @var Personnage|null $elfe */
-        $elfe = $groupe->personnages()
-            ->wherePivot('actif', true)
+        $elfe = $groupe->herosPilotesPar((int) $joueur->id)
             ->where('personnages.id', $donnees['personnage_id'])
-            ->where('joueur_id', $joueur->id) // ses propres héros seulement
             ->first();
 
         if ($elfe === null) {
@@ -137,10 +135,8 @@ class SortsElfiquesController extends Controller
         }
 
         /** @var Personnage|null $personnage */
-        $personnage = $groupe->personnages()
-            ->wherePivot('actif', true)
+        $personnage = $groupe->herosPilotesPar((int) $joueur->id)
             ->where('personnages.id', $donnees['personnage_id'])
-            ->where('joueur_id', $joueur->id)
             ->first();
 
         if ($personnage === null) {

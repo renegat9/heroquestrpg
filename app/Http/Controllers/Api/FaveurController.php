@@ -101,10 +101,8 @@ class FaveurController extends Controller
         }
 
         /** @var Personnage|null $personnage */
-        $personnage = $groupe->personnages()
-            ->wherePivot('actif', true)
+        $personnage = $groupe->herosPilotesPar((int) $joueur->id) // les héros qu'il PILOTE (les siens, ou ceux confiés)
             ->where('personnages.id', $personnageId)
-            ->where('joueur_id', $joueur->id) // ses propres héros seulement
             ->first();
 
         if ($personnage === null) {

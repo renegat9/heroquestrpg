@@ -126,10 +126,8 @@ class CompetenceController extends Controller
             'element' => ['sometimes', 'string', Rule::in(MoteurSorts::ELEMENTS)],
         ]);
 
-        $personnage = $groupe->personnages()
-            ->wherePivot('actif', true)
+        $personnage = $groupe->herosPilotesPar((int) $joueur->id)
             ->where('personnages.id', $donnees['personnage_id'])
-            ->where('joueur_id', $joueur->id)
             ->first();
 
         if ($personnage === null) {

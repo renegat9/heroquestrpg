@@ -863,10 +863,8 @@ final class PhaseMarche
      */
     private function inventaireVendable(Groupe $groupe, int $joueurId, array $phase): array
     {
-        $personnageIds = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('joueur_id', $joueurId)
-            ->pluck('personnages.id');
+        // Les héros que ce joueur PILOTE (les siens, ou ceux qu'on lui a confiés) : même contrôle que `personnagesDuJoueur()`.
+        $personnageIds = $groupe->herosPilotesPar($joueurId)->pluck('personnages.id');
 
         $marchand = collect($phase['inventaire'])->keyBy('objet_id');
 
@@ -944,15 +942,13 @@ final class PhaseMarche
     }
 
     /**
-     * Héros actifs du joueur dans CE groupe.
+     * Héros actifs que ce joueur PILOTE dans CE groupe (les siens, ou ceux qu'on lui a confiés — `Groupe::herosPilotesPar()`).
      *
      * @return Collection<int, Personnage>
      */
     private function personnagesDuJoueur(Groupe $groupe, Joueur $joueur): Collection
     {
-        return $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('joueur_id', $joueur->id)
+        return $groupe->herosPilotesPar((int) $joueur->id)
             ->orderBy('groupe_personnages.ordre_initiative')
             ->get();
     }

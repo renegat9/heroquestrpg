@@ -102,7 +102,7 @@ une reprise qui échoue garde son menu à dessein.
                         "symbole_url": "/images/livrets/portes/fermee.webp|null", "symbole_rotation": "0|90"}]},
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
-     "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false, "en_choc": false,
+     "pilote_joueur_id": 2, "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false, "en_choc": false,
      "captif_porte": {"id": 5, "nom": "Le Prospecteur", "image_url": "/images/..."} ,
      "faveurs": [{"cle": "deadeye", "libelle": "Deadeye", "effet": "Les figures (héros et monstres) ne bloquent pas votre ligne de vue…"}],
      "...": "ou null — mode ESCORTÉ de la mission « secourir », voir ci-dessous"},
@@ -1067,6 +1067,40 @@ existantes :
 - `POST /api/groupes` (`personnage_id`) et `POST /api/groupes/{identifiant}/joueurs` refusent une doublure en
   **422**, avec le message d'un héros qui n'existe pas ou n'appartient pas au joueur.
 - `DELETE /api/personnages/{id}` répond **404** pour une doublure.
+
+### Pilote d'un héros — une manette, plusieurs héros (lot M1, 2026-11-13, `docs/plan-mode-classique.md` §5)
+
+Un héros a un **propriétaire** (`personnages.joueur_id`, son compte) et, dans un groupe, un **pilote** : le joueur
+qui le joue. `groupe_personnages.pilote_joueur_id` le nomme ; `null` = le propriétaire. Une manette pilote donc
+plusieurs héros dans deux cas : un joueur qui a engagé plusieurs des siens (`personnage_ids`), ou le héros d'un
+absent qu'on lui a confié. Un seul point de passage : `Groupe::piloteDe()` et `Groupe::herosPilotesPar()`.
+
+- **`GET /menu`, `POST /choix`, `POST /deplacement/apercu`** s'adressent à la manette du **pilote**. Parmi les héros
+  qu'elle pilote, c'est celui qui **a la main** qui est servi ; la réponse le nomme (`personnage_id`), la manette
+  ne le déduit pas. Le propriétaire d'un héros confié reçoit `menu: null` et un **422** s'il tente un choix.
+- **`.menu.propose`** part sur `joueur.{id}` du **pilote**. Une manette n'a qu'**un** menu à la fois : le menu
+  d'attente d'un héros hors tour n'est **ni mis en cache ni diffusé** quand un autre héros de la même manette a la
+  main.
+- **`.reaction.proposee`** et `POST /reaction` : même règle, la manette du pilote.
+- **`PUT /api/groupes/{identifiant}/pilote`** `{personnage_id, pilote_joueur_id|null}` — confier un héros (`App\Partie\PilotageHeros::confier()`,
+  route `PiloteController::confier`), `auth:joueur`. Réservée **au hub** (422 en quête, comme l'équipement). Refusée (422) si :
+  le héros n'est pas actif dans ce groupe ; le **demandeur** n'en est ni le PROPRIÉTAIRE ni le PILOTE actuel ; le nouveau
+  pilote ne possède ni ne pilote déjà un héros actif du groupe (un joueur étranger au groupe). `pilote_joueur_id: null`, ou
+  le propriétaire lui-même, rend le héros à son propriétaire (colonne remise à `null`). Réponse `200`
+  `{personnage_id, pilote_joueur_id}` : le pilote **résolu** (le propriétaire quand la colonne est `null`). Une diffusion
+  `.groupe.etat` suit, et le journal `systeme` porte `action: "pilote_change"`.
+- **`pilote_joueur_id`** (toujours un entier, jamais `null`) est publié par héros dans `entites[]` de `GET /etat`
+  (`type: "heros"`), lu d'un seul coup sur le pivot `groupe_personnages` : c'est le pilote résolu, le propriétaire quand la
+  colonne est vide.
+- **Contrôles du hub** (équiper, donner, forger, entraîner, compétence, potion, faveur, sorts elfiques, mercenaire, compagnon
+  offert, **prêt** `POST /pret`, achats et ventes du marché) : le héros visé se choisit parmi `herosPilotesPar()` — les siens
+  et ceux qu'on leur a confiés. Un héros confié à un autre joueur n'est donc plus commandable par son propriétaire ; il ne
+  peut plus non plus le déclarer prêt (sans quoi la quête ne partirait jamais sans lui). La **lecture** du groupe (`/etat`,
+  marché, votes, clôture, snapshots) et l'**appartenance** (`PilotageHeros::estMembre()`) admettent un joueur qui PILOTE OU
+  POSSÈDE un héros actif. Restent sur le PROPRIÉTAIRE, volontairement : création, adhésion, retrait d'un personnage.
+- ⚠ **Pas encore livré** (lot M2) : la liste `heros_pilotes[]` dans `GET /etat` (le pilote publie, la manette n'en déduit
+  rien) et le bandeau de héros de la manette. Le marché et les votes énumèrent encore leurs membres par PROPRIÉTAIRE
+  (`membres()`) : un propriétaire absent dont le héros est confié doit toujours confirmer.
 
 ### Héros d'arène (lot A6b, 2026-11-09)
 

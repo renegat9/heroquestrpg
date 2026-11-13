@@ -675,9 +675,18 @@ final class VoteGroupe
             }
 
             foreach ($personnages as $personnage) {
-                $groupe->personnages()->updateExistingPivot($personnage->id, ['actif' => false]);
+                // Un héros qui quitte le groupe n'y garde pas de pilote (lot M1).
+                $groupe->personnages()->updateExistingPivot($personnage->id, ['actif' => false, 'pilote_joueur_id' => null]);
                 $personnage->update(['groupe_actif_id' => null]);
             }
+
+            // MANETTE À PLUSIEURS HÉROS (lot M1) : les héros que le partant PILOTAIT pour d'autres reviennent à leur
+            // propriétaire. Sans cela il restait leur pilote après son départ — `Groupe::herosPilotesPar()` les lui
+            // rendait encore, et il pouvait toujours les jouer.
+            DB::table('groupe_personnages')
+                ->where('groupe_id', $groupe->id)
+                ->where('pilote_joueur_id', $joueurId)
+                ->update(['pilote_joueur_id' => null]);
 
             // En quête : ses héros quittent le donjon (sinon le tour des
             // monstres attendrait des héros partis).

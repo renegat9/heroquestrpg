@@ -554,7 +554,7 @@ final class DemarreurQuete
         HabillerMonstres::dispatch($groupe->id, $quete->id);
 
         foreach ($heros as $personnage) {
-            GenererMenu::dispatch($groupe->id, (int) $personnage->joueur_id, (int) $personnage->id);
+            GenererMenu::lancerPour($groupe, $personnage);
         }
 
         return $quete;

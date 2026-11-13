@@ -12,6 +12,7 @@ use App\Models\Mercenaire;
 use App\Models\PersonnageFaveur;
 use App\Partie\EtatGroupe;
 use App\Partie\FaveursHopekins;
+use App\Partie\PilotageHeros;
 use App\Partie\RecrutementHub;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
@@ -81,11 +82,8 @@ class MercenaireController extends Controller
         $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::MERCENAIRES);
         $joueur = Auth::guard('joueur')->user();
 
-        // Le joueur doit avoir un personnage actif dans ce groupe.
-        $membre = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('joueur_id', $joueur?->id)
-            ->exists();
+        // Le joueur doit avoir un personnage actif dans ce groupe (piloté ou possédé : `PilotageHeros::estMembre()`).
+        $membre = app(PilotageHeros::class)->estMembre($groupe, (int) $joueur?->id);
 
         if (! $membre) {
             throw ValidationException::withMessages([
@@ -103,9 +101,8 @@ class MercenaireController extends Controller
             'personnage_id' => ['sometimes', 'integer', 'min:1'],
         ]);
 
-        $mesHeros = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('joueur_id', $joueur?->id)
+        // Le recruteur est un héros que ce joueur PILOTE (les siens, ou ceux qu'on lui a confiés).
+        $mesHeros = $groupe->herosPilotesPar((int) $joueur?->id)
             ->orderBy('personnages.id')
             ->get();
 

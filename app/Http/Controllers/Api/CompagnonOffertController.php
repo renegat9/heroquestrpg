@@ -10,6 +10,7 @@ use App\Models\Groupe;
 use App\Models\Personnage;
 use App\Partie\CompagnonOffert;
 use App\Partie\EtatGroupe;
+use App\Partie\PilotageHeros;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -79,9 +80,8 @@ class CompagnonOffertController extends Controller
     {
         $joueur = Auth::guard('joueur')->user();
 
-        $mesHeros = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('joueur_id', $joueur?->id)
+        // Les héros que ce joueur PILOTE (les siens, ou ceux qu'on lui a confiés).
+        $mesHeros = $groupe->herosPilotesPar((int) $joueur?->id)
             ->orderBy('personnages.id')
             ->get();
 

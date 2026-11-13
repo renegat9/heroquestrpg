@@ -11,6 +11,7 @@ use App\Models\Joueur;
 use App\Partie\Marche\PhaseMarche;
 use App\Partie\Marche\ProfilMarche;
 use App\Partie\MoteurOracle;
+use App\Partie\PilotageHeros;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -148,10 +149,8 @@ class MarcheController extends Controller
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
         $joueur = Auth::guard('joueur')->user();
 
-        $estMembre = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('joueur_id', $joueur->id)
-            ->exists();
+        // Membre = il PILOTE un héros actif OU en possède un (même confié) : `PilotageHeros::estMembre()`.
+        $estMembre = app(PilotageHeros::class)->estMembre($groupe, (int) $joueur->id);
 
         if (! $estMembre) {
             throw ValidationException::withMessages([

@@ -396,10 +396,9 @@ class ChoixController extends Controller
 
     private function personnageLegal(Groupe $groupe, int $joueurId, int $personnageId): Personnage
     {
-        $personnage = $groupe->personnages()
-            ->wherePivot('actif', true)
+        // PILOTE, pas propriétaire (lot M1) : on joue le héros qu'on pilote — le sien, ou celui qu'on nous a confié.
+        $personnage = $groupe->herosPilotesPar($joueurId)
             ->where('personnages.id', $personnageId)
-            ->where('joueur_id', $joueurId)
             ->first();
 
         if ($personnage === null) {

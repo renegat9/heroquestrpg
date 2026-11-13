@@ -96,10 +96,9 @@ class EquipementController extends Controller
             ]);
         }
 
-        $personnage = $groupe->personnages()
-            ->wherePivot('actif', true)
+        // Le PILOTE joue le héros, pas son propriétaire (un héros confié reste à son compte, mais ne se commande plus là).
+        $personnage = $groupe->herosPilotesPar((int) $joueur->id)
             ->where('personnages.id', $donnees['personnage_id'])
-            ->where('joueur_id', $joueur->id)
             ->first();
 
         if ($personnage === null) {

@@ -54,7 +54,7 @@ final class ExecutionChoix
         $resolveur = app(ResolveurTour::class);
         $journalCombat = app(JournalCombat::class);
         $scenesDeTable = app(SceneDeTable::class);
-        $cleMenu = GenererMenu::cleMenu($groupe->id, (int) $personnage->joueur_id);
+        $cleMenu = GenererMenu::cleDuHeros($groupe, $personnage);
 
         // Résolution déterministe par le moteur (jamais par l'IA).
         if ($groupe->phase === 'quete') {

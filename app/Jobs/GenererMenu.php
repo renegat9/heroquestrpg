@@ -63,6 +63,22 @@ class GenererMenu implements ShouldQueue
     }
 
     /**
+     * MANETTE À PLUSIEURS HÉROS (lot M1) — la case de menu de la manette qui PILOTE ce héros. Une manette n'a qu'UNE
+     * case : en campagne, un seul acteur a la main à la fois, et l'entrée nomme son héros (`personnage_id`). Le pilote
+     * vient de `Groupe::piloteDe()`, jamais de `joueur_id` relu sur place.
+     */
+    public static function cleDuHeros(Groupe $groupe, Personnage $heros): string
+    {
+        return self::cleMenu((int) $groupe->id, $groupe->piloteDe($heros));
+    }
+
+    /** Lance le job du menu de CE héros, adressé à la manette qui le pilote ({@see self::cleDuHeros()}). */
+    public static function lancerPour(Groupe $groupe, Personnage $heros): void
+    {
+        self::dispatch((int) $groupe->id, $groupe->piloteDe($heros), (int) $heros->id);
+    }
+
+    /**
      * APRÈS UNE RÉSOLUTION — le point de passage de la relance des menus une fois le plateau modifié. TROIS appelants,
      * et seulement ceux-là (grep `relancerApresResolution` pour le vérifier) :
      *  - `ExecutionChoix::executer()` : tout choix d'un héros, reprise d'une attaque suspendue comprise ;
@@ -82,8 +98,8 @@ class GenererMenu implements ShouldQueue
     public static function relancerApresResolution(Groupe $groupe): void
     {
         foreach ($groupe->personnages()->wherePivot('actif', true)->get() as $heros) {
-            Cache::forget(self::cleMenu($groupe->id, (int) $heros->joueur_id));
-            self::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
+            Cache::forget(self::cleDuHeros($groupe, $heros));
+            self::lancerPour($groupe, $heros);
         }
     }
 
@@ -224,7 +240,16 @@ class GenererMenu implements ShouldQueue
         // et publie donc des destinations à la seule portée de base — vu en partie
         // de vérification le 2026-10-10 : ~12 s de liste tronquée au début du tour.
         // `MenuCourant::pour()` le jette et le recalcule.
-        $acteur = app(OrdreDuTour::class)->acteurPour($groupe, (int) $personnage->id);
+        $ordre = app(OrdreDuTour::class);
+        $acteur = $ordre->acteurPour($groupe, (int) $personnage->id);
+
+        // MANETTE À PLUSIEURS HÉROS (lot M1) : une manette n'a qu'UNE case de menu. Si ce héros n'a pas la main alors
+        // qu'un AUTRE héros de la même manette l'a, on ne publie rien : ni cache, ni diffusion. Sinon le menu d'attente
+        // de l'un remplaçait à l'écran le menu jouable de l'autre.
+        if ($acteur === null && $groupe->herosPilotesPar($this->joueurId)->get()
+            ->contains(fn (Personnage $p) => $p->id !== $personnage->id && $ordre->acteurPour($groupe, (int) $p->id) !== null)) {
+            return;
+        }
 
         Cache::put(self::cleMenu($groupe->id, $this->joueurId), [
             'personnage_id' => $personnage->id,
@@ -346,9 +371,11 @@ class GenererMenu implements ShouldQueue
             return Personnage::findOrFail($this->personnageId);
         }
 
-        return $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('joueur_id', $this->joueurId)
-            ->firstOrFail();
+        // Sans héros nommé : celui que cette manette pilote ET qui a la main, sinon le premier qu'elle pilote.
+        $pilotes = $groupe->herosPilotesPar($this->joueurId)->get();
+        $ordre = app(OrdreDuTour::class);
+
+        return $pilotes->first(fn (Personnage $p) => $ordre->acteurPour($groupe, (int) $p->id) !== null)
+            ?? $pilotes->firstOrFail();
     }
 }

@@ -20,6 +20,7 @@ use App\Partie\Entrainement;
 use App\Partie\Forge;
 use App\Partie\Marche\PhaseMarche;
 use App\Partie\MonteeNiveau;
+use App\Partie\PilotageHeros;
 use App\Partie\Sauvegarde;
 use App\Partie\Votes\VoteGroupe;
 
@@ -62,6 +63,8 @@ final class EtapesCampagne
     public const MERCENAIRES = 'mercenaires';
 
     public const DONS = 'dons';
+
+    public const PILOTAGE = 'pilotage_heros';
 
     public const VOTE_RETRAITE = 'vote_retraite';
 
@@ -146,6 +149,11 @@ final class EtapesCampagne
             'libelle' => 'don d\'objet entre héros',
             'remplacee_par' => 'rien : rien ne sort de l\'arène',
             'sites' => [[DonObjet::class, 'donner']],
+        ],
+        self::PILOTAGE => [
+            'libelle' => 'confier un héros à un autre joueur (pilote)',
+            'remplacee_par' => 'rien : un héros d\'arène est engagé par sa doublure, jamais confié',
+            'sites' => [[PilotageHeros::class, 'confier']],
         ],
         self::VOTE_RETRAITE => [
             'libelle' => 'vote de retraite',

@@ -338,7 +338,10 @@ final class ClotureCampagne
         $groupeId = (int) $groupe->id;
 
         // Relevé AVANT détachement, pour vider les menus en cache par joueur.
-        $joueurIds = $groupe->personnages()->pluck('joueur_id')->unique()->values();
+        // Les PILOTES comptent aussi (lot M1) : la case de menu est celle de la manette qui joue le héros.
+        $joueurIds = $groupe->personnages()->pluck('joueur_id')
+            ->merge($groupe->personnages()->pluck('groupe_personnages.pilote_joueur_id')->filter())
+            ->unique()->values();
 
         // Idem pour les illustrations : une fois les lignes parties, plus rien
         // ne dit quels fichiers leur appartenaient — un `dyn/quete/{id}.png`

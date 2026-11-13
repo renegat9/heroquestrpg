@@ -1387,6 +1387,9 @@ final class EtatGroupe
                     'nom' => $p->nom,
                     'classe' => $p->classe,
                     'niveau' => (int) $p->niveau,
+                    // MANETTE À PLUSIEURS HÉROS (lot M1) : le PILOTE qui joue ce héros dans ce groupe — le propriétaire
+                    // quand il ne l'a confié à personne. Publié, jamais re-dérivé : la manette ne lit pas `joueur_id`.
+                    'pilote_joueur_id' => Groupe::piloteDuPivot($p),
                     // Portrait unique du héros si généré, sinon image de classe.
                     'image_url' => app(BibliothequeImages::class)->urlHeros($p->id, $p->classe),
                     'x' => $etat?->position_x,

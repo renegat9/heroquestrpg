@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\Concerns\AutoriseLectureGroupe;
 use App\Http\Controllers\Controller;
 use App\Models\Groupe;
 use App\Models\Joueur;
+use App\Partie\PilotageHeros;
 use App\Partie\Votes\VoteGroupe;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -91,10 +92,8 @@ class VoteController extends Controller
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
         $joueur = Auth::guard('joueur')->user();
 
-        $estMembre = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('joueur_id', $joueur->id)
-            ->exists();
+        // Membre = il PILOTE un héros actif OU en possède un (même confié) : `PilotageHeros::estMembre()`.
+        $estMembre = app(PilotageHeros::class)->estMembre($groupe, (int) $joueur->id);
 
         if (! $estMembre) {
             throw ValidationException::withMessages([

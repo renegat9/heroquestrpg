@@ -935,7 +935,8 @@ final class MoteurReactions
         }
 
         ReactionProposee::dispatch(
-            (int) $repondant->joueur_id,
+            // La réaction va à la manette qui PILOTE le héros (lot M1), pas à son propriétaire.
+            $groupe->piloteDe($repondant),
             $groupe->identifiant,
             [
                 'personnage_id' => $repondant->id,
@@ -2178,7 +2179,7 @@ final class MoteurReactions
                 $groupe, $heros, (array) ($reprise['option'] ?? []), (array) ($reprise['parametres'] ?? []), $attaques,
             );
         } catch (ValidationException $e) {
-            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
+            GenererMenu::lancerPour($groupe, $heros);
 
             return [...$base, 'erreur' => collect($e->errors())->flatten()->first()];
         }
@@ -2403,7 +2404,7 @@ final class MoteurReactions
         } catch (ValidationException $e) {
             // L'action n'est plus légale (le plateau a bougé entre-temps) : rien
             // n'a été écrit, le menu est encore en cache — le joueur rejouera.
-            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
+            GenererMenu::lancerPour($groupe, $heros);
 
             return [...$base, 'erreur' => collect($e->errors())->flatten()->first()];
         }
@@ -2455,8 +2456,8 @@ final class MoteurReactions
 
         // Le menu en cache annonçait l'ancienne portée : on le régénère, comme
         // après tout choix.
-        Cache::forget(GenererMenu::cleMenu($groupe->id, (int) $heros->joueur_id));
-        GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
+        Cache::forget(GenererMenu::cleDuHeros($groupe, $heros));
+        GenererMenu::lancerPour($groupe, $heros);
 
         return [...$base, 'des_deplacement' => $nouveau->des, 'total' => $nouveau->total, ...($texte !== null ? ['texte' => $texte] : [])];
     }
