@@ -393,8 +393,11 @@ return [
 
             // ---- Sorts que nous n'avons pas ----
             ['carte' => 'Spell Scroll — Lightning Bolt', 'sort' => 'Éclair'],
-            ['carte' => 'Spell Scroll — Treasure Without Doom', 'sort' => 'Trésor sans Péril'],
-            ['carte' => 'Spell Scroll — Psychic Recovery', 'sort' => 'Récupération Psychique'],
+            // `paquet` (2026-11-13) : la carte vient de The Mage of the Mirror (F7539 p. 6 : « The Treasure Without Doom artifact card in
+            // this quest pack is a spell scroll ») — son parchemin ne tombe que sous ce thème (`ObjetSeeder::boitesDesParchemins()`).
+            ['carte' => 'Spell Scroll — Treasure Without Doom', 'paquet' => 'Mage of the Mirror', 'sort' => 'Trésor sans Péril'],
+            // `paquet` (2026-11-13) : carte de The Frozen Horror (« Artifact Reference », livret F5815 p. 35, doc 18).
+            ['carte' => 'Spell Scroll — Psychic Recovery', 'paquet' => 'Frozen Horror', 'sort' => 'Récupération Psychique'],
 
             // ---- Boîte GLACE : Warmth portée (phase 5, 2026-09-06), Skate portée (2026-11-12), Chill portée (2026-11-13), Ice Storm
             // portée (2026-11-13, lot 3), Ice Bridge portée (2026-11-13, lot 4) : les trois parchemins de glace sont portés.

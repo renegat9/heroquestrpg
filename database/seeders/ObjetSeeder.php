@@ -1289,6 +1289,7 @@ class ObjetSeeder extends Seeder
      */
     public const BOITE_DU_PAQUET = [
         'Frozen Horror' => 'horreur_des_glaces',
+        'Mage of the Mirror' => 'mage_du_miroir',
     ];
 
     /**

@@ -36,19 +36,29 @@ beforeEach(function () {
     ]);
 });
 
-it('lie chaque parchemin Frozen Horror du registre à la boîte horreur_des_glaces, et rien d\'autre', function () {
+it('lie chaque parchemin d\'une boîte d\'extension du registre à sa boîte, et rien d\'autre', function () {
     $attendus = collect(config('cartes.parchemins.cartes'))
-        ->filter(fn ($c) => ($c['paquet'] ?? null) === 'Frozen Horror' && isset($c['sort']))
-        ->map(fn ($c) => "Parchemin : {$c['sort']}")->values()->sort()->values()->all();
+        ->filter(fn ($c) => isset($c['sort'], ObjetSeeder::BOITE_DU_PAQUET[$c['paquet'] ?? '']))
+        ->mapWithKeys(fn ($c) => ["Parchemin : {$c['sort']}" => ObjetSeeder::BOITE_DU_PAQUET[$c['paquet']]])
+        ->sortKeys()->all();
 
-    expect($attendus)->toContain('Parchemin : Chaleur', 'Parchemin : Patinage', 'Parchemin : Morsure du Froid', 'Parchemin : Tempête de Glace');
+    expect($attendus)->toMatchArray([
+        'Parchemin : Chaleur' => 'horreur_des_glaces',
+        'Parchemin : Patinage' => 'horreur_des_glaces',
+        'Parchemin : Morsure du Froid' => 'horreur_des_glaces',
+        'Parchemin : Tempête de Glace' => 'horreur_des_glaces',
+        'Parchemin : Pont de Glace' => 'horreur_des_glaces',
+        // Artifact Reference de The Frozen Horror (F5815 p. 35) ; carte de The Mage of the Mirror (F7539 p. 6).
+        'Parchemin : Récupération Psychique' => 'horreur_des_glaces',
+        'Parchemin : Trésor sans Péril' => 'mage_du_miroir',
+    ]);
 
     $boites = Objet::where('categorie', 'parchemin')->where('nom', 'like', 'Parchemin : %')->whereNotNull('boite')
-        ->pluck('boite', 'nom');
+        ->pluck('boite', 'nom')->sortKeys()->all();
 
-    expect($boites->keys()->sort()->values()->all())->toBe($attendus)
-        ->and($boites->unique()->values()->all())->toBe(['horreur_des_glaces'])
-        ->and(Objet::where('nom', 'Parchemin : Boule de Feu')->value('boite'))->toBeNull('un parchemin du jeu de base reste tirable partout');
+    expect($boites)->toBe($attendus)
+        ->and(Objet::where('nom', 'Parchemin : Boule de Feu')->value('boite'))->toBeNull('un parchemin du jeu de base reste tirable partout')
+        ->and(Objet::where('nom', 'Parchemin : Éclair')->value('boite'))->toBeNull('Éclair paraît dans plusieurs boîtes : partout');
 });
 
 /** Tire un parchemin au Grimoire à demi calciné, vivier réduit aux parchemins Frozen Horror. */
