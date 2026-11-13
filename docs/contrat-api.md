@@ -751,6 +751,8 @@ glace »).
 
 **La Potion de force sur un jet de Body — `sur: body` (2026-11-06).** René, en partie : « une potion de force devrait aussi donner un bonus de 2 dés au test de force », au premier des deux. La potion porte `bonus_des_body: 2` à côté de `bonus_des_attaque` ; les cinq jets de Body d'un héros (épreuve ou action de Body, désamorçage, saut, levier, poussée) passent par `ResolveurTour::desDeBody()`, qui ajoute les dés, dépense le buff entier (annoncé comme toute fin de buff : « Renforcé (Potion de force) prend fin : dépensé sur un jet de Body ») et publie le modificateur sous le jet (`{source: "Potion de force", valeur: 2, sur: "body"}`). Une attaque qui vient d'abord dépense la potion comme avant.
 
+**Réduction d'un coup de Dread — le Brassard de Glace (2026-11-12).** Un coup de *Tempête de Glace* reçu par le porteur du Brassard porte `modificateurs: [{source: "Brassard de Glace", valeur: -1, sur: "degats"}]` dans son `sort_dread.resultats[]` (`MoteurDegats::dernierModificateurs()`, lu après `infligerAHeros()` par `MoteurDread::frapperHerosDeSort()`), et `JournalCombat::sortDread()` écrit une ligne « <héros> : Brassard de Glace réduit le coup de 1 » dans le fil, en ton `pare`. Une immunité n'a pas de modificateur : un coup annulé est `absorbe: true`, comme avant. Le Brassard n'immunise PAS contre la Tempête de Glace (sa nature n'est plus `froid`) ; il immunise contre Morsure de Froid et les terrains de glace, et contre *Gel de l'Esprit* par `immunite_sorts_nommes` (la cible ne retient pas le porteur, rien n'est publié de plus).
+
 **Un dé à PALIERS — `des.somme_atk` (2026-11-06).** *Canaliser l'Effroi* (résistance `paliers_d6`) ne se joue ni aux dés rouges ni au jet de Mind : UN d6, plus 1 par lanceur adjacent, dont le TOTAL choisit les dégâts par paliers. Chaque victime de `sort_dread.resultats[]` porte `de`, `lanceurs_adjacents` et `total`, et `JournalCombat::desJetUnilateral()` les met en forme : `atk: [de]` (un dé numérique), `touchante: []` (aucune face ne « réussit », le total décide), le bonus en `modificateurs` (`sur: attaque`), et `somme_atk` — la phrase de fin de ligne DÉCIDÉE par le serveur (« total 6 → 2 PV ») que `JetDes.vue` affiche à la place du compte de succès quand elle est présente. Avant ce champ, la table n'ouvrait aucune fenêtre pour ce sort et le fil ne montrait pas le dé (partie réelle, 2026-11-06).
 
 **Sort épargné — `sort_preserve` (2026-09-25).** Le résultat d'un `lancer_sort`
@@ -3888,6 +3890,13 @@ sacrifie le tour, récupère UN sort au choix (`parametres: {sort_id}`).
 réussite auto ; non-lanceur : jet de Mind à la difficulté du sort (1-3) ;
 **consommé dans tous les cas**, échec = gaspillé.
 
+**Patinage (Skate, 2026-11-12) — offert avant le premier pas seulement.** Un parchemin dont l'effet porte
+`bonus_deplacement` (le seul : *Patinage*) n'entre dans `parametres.parchemins[]` que tant que `deplacement_restant`
+est nul : son +N entre dans la réserve du tour au premier pas, et après ce pas il ne donnerait aucune case. Il se lit sur
+soi-même (`cible: soi`) ; son effet — les cases de déplacement en plus, la traversée des figures, ce tour seulement —
+sort dans `se_deplacer.parametres.destinations`, jamais recalculé par la manette (`MoteurSorts::options()`,
+`MoteurSorts::bonusDes()`, `MoteurSorts::franchitFigures()`).
+
 `GET /api/moi` : chaque personnage expose `sorts: [{sort_id, nom, element,
 type, disponible, description, image_url}]` (et l'onglet Sorts de la manette s'en nourrit ; rafraîchi
 aussi via `.groupe.etat` → re-GET). **`description`** (2026-10-09) : ce que le sort
@@ -4107,7 +4116,7 @@ contestée. Cinq cartes donnent « 1 d6 par point de Mind, un 6 libère »
 
 ⚠ **Payload unifié.** Un sort de Dread rend toujours
 `{type: "sort_dread", sort, resultats: [...]}` — une entrée par victime, même
-quand il n'y en a qu'une. Les clés par victime (`cible`, `degats`,
+quand il n'y en a qu'une. Les clés par victime (`cible`, `degats`, `modificateurs` (2026-11-12, la réduction d'un coup : Brassard de Glace), 
 `pv_body_apres`, `cible_tombee`, `effet_applique`, `contresort`,
 `rupture_immediate`, `absorbe`) vivent **dans `resultats[]`**, plus au niveau
 racine : un sort de contrôle peut désormais prendre toute une salle, et deux

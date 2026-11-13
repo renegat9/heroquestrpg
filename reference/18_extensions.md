@@ -773,8 +773,8 @@ hasard, utilisables par tout héros, usage unique (Frozen Horror, p. 11) —
 ⚠ Corrigé le 2026-10-05 : cette ligne disait « 3 artefacts... effets
 détaillés sur cartes non capturées en texte » et « 6 parchemins non
 nommés ». C'est inexact sur les deux points : il y a un **4ᵉ artefact**
-(*Armband of Ice*, absent de `config/cartes.php` — à ajouter, voir
-ci-dessous), et les 6 parchemins sont en fait **nommés et décrits en toutes
+(*Armband of Ice*, absent de `config/cartes.php` à l'époque — porté depuis le
+2026-11-12, voir ci-dessous), et les 6 parchemins sont en fait **nommés et décrits en toutes
 lettres** — texte extrait vide sur cette page (illustrations), d'où
 l'erreur de lecture initiale. Les dix cartes sont reproduites en
 intégralité dans le livret, page 35 (« Artifact Reference », page 18 du
@@ -790,9 +790,8 @@ PDF), relues sur le rendu PNG — voir transcription ci-dessous.
 - **Armband of Ice** — « *This powerful item grants its wearer immunity to
   Mind Freeze and Chill spells, plus immunity to damage from ice vaults and
   icy rivers for as long as it is worn. It also reduces the damage from an
-  Ice Storm spell by 1 point for the armband wearer only.* » ⚠ Absent de
-  `config/cartes.php` — les trois autres artefacts de cette page y sont
-  (Amulette du Nord, Anneau de Chaleur, Raquettes de Vitesse), pas celui-ci.
+  Ice Storm spell by 1 point for the armband wearer only.* » ⚠ Porté le
+  2026-11-12 (Brassard de Glace, `config/cartes.php`).
 - **Snowshoes of Speed** — « *These magical snowshoes add 2 squares to a
   hero's movement, and they also negate the effects of slippery ice for as
   long as they are worn. These can be used only on quests in cold, icy
@@ -826,7 +825,10 @@ PDF), relues sur le rendu PNG — voir transcription ci-dessous.
 des sorts du thème glace, *Psychic Recovery*≈Soin de l'Esprit, *Warmth*≈Soin
 du Corps ; *Ice Bridge* et *Skate* recoupent des effets de terrain déjà
 portés), rien à changer. Seul vrai trou : **Armband of Ice** n'a pas
-d'entrée catalogue.
+d'entrée catalogue. ⚠ **Daté (2026-11-12)** : l'Armband a son entrée
+(Brassard de Glace), et *Skate* n'est pas portée par un terrain existant :
+elle a sa couture propre (le sort *Patinage*, `bonus_deplacement`).
+
 
 ### 4. Nouveau mobilier, nouvelles tuiles
 
@@ -904,6 +906,11 @@ Entrance**.
 >   *Ice Storm*, *Ice Bridge*, *Skate*. Les entrées `manque` de `config/cartes.php`
 >   sont gardées, annotées « Écarté pour le moment (René, 2026-10-15) ».
 >   `docs/regles/artefacts.md`.
+>
+> **Revue du 2026-11-12 (René)** : *Armband of Ice* (Brassard de Glace) et *Skate*
+> (Patinage) sont PORTÉES — leurs manques avaient chacun une couture
+> (`immunite_sorts_nommes`, `reduit_degats_de_sort`, `bonus_deplacement`). *Chill*,
+> *Ice Storm* et *Ice Bridge* restent écartés.
 
 ---
 

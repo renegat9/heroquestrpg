@@ -57,6 +57,7 @@ class SortSeeder extends Seeder
         'Récupération Psychique' => "Rend au lanceur, ou à un héros de son choix, tous ses points de Mind perdus.",
         'Éclair' => "Un trait de foudre en ligne droite — horizontale, verticale ou diagonale — qui s'arrête au mur ou à une porte fermée : 2 points de Body à chaque héros et à chaque monstre sur son passage.",
         'Chaleur' => "Rend jusqu'à 3 points de Body au lanceur, ou à un héros de son choix, sans jamais dépasser son maximum.",
+        'Patinage' => "Le lanceur ajoute 6 à son jet de déplacement pour ce tour, et il peut traverser monstres et héros en se déplaçant. Il ne se lit qu'avant le premier pas du tour.",
         'Mur de Pierre' => "Un mur de pierre couvre 2 cases libres de figures : il a 1 point de Body et 6 dés de défense, et disparaît quand il est détruit.",
         'Invisibilité' => "Le lanceur devient invisible jusqu'au début de son prochain tour : il ne peut plus attaquer, mais personne ne peut l'attaquer et aucun sort ne l'atteint.",
         'Désapprentissage' => "Un lanceur de Dread en vue perd un sort tiré au hasard, pour toute la quête : ce sort est retiré du jeu jusqu'à la fin de la quête.",
@@ -462,6 +463,20 @@ class SortSeeder extends Seeder
             // apparaît.
             ['element' => 'parchemin', 'nom' => 'Chaleur', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['cible' => 'heros', 'soin_pv_body' => 3]],
+
+            // « This spell enables the spellcaster to move quickly through icy caverns and corridors. The spellcaster adds 6
+            // to their red dice movement roll and may pass through monsters and heroes during movement. The spell lasts only
+            // one turn. Scroll crumbles to dust once used. » (Spell Scroll — Skate, Frozen Horror, Artifact Reference p. 35,
+            // transcrit dans reference/18_extensions.md §3) — porté le 2026-11-12.
+            //
+            // ⚠ `bonus_deplacement: 6` est lu par `MoteurSorts::bonusDes()` au point de passage de l'allonge du tour
+            // (`ResolveurTour::pointsDeplacement()` et son miroir `MenuMoteur::porteeDuTour()`) — le même que la Potion de
+            // dextérité. `franchit_figures` est la traversée de Voile de Brume, `duree: ce_tour` tombe à « Terminer le tour ».
+            // ⚠ `cible: soi` : la carte ne vise que le lanceur (« the spellcaster adds… »).
+            // ⚠ `difficulte_parchemin: 2` n'est SOURCÉE par aucun livret (la carte ne chiffre aucune difficulté) : valeur de
+            // structure alignée sur Chaleur, décidée à défaut de source — à réviser si une meilleure apparaît.
+            ['element' => 'parchemin', 'nom' => 'Patinage', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'soi', 'bonus_deplacement' => 6, 'franchit_figures' => true, 'duree' => 'ce_tour']],
 
             // ================================================================
             // Wizards of Morcar (G1504, livret p. 11 + cartes TRANSCRITES

@@ -111,7 +111,10 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
         // cartes ne réserve la pièce par un tag de poids — le Magicien est écarté
         // de la Ceinture par `classe_interdite`, comme la Cuirasse de Peau de Dragon.
         'Diadème de braise forgée', 'Brassards du Sauvage', 'Brassard du Garde-Crocs',
-        'Le Crâne de Saphir', 'Ceinture de Puissance'];
+        'Le Crâne de Saphir', 'Ceinture de Puissance',
+        // ⚠ 2026-11-12 (The Frozen Horror, Armband of Ice) : un talisman sans restriction de classe sur sa carte — il ne
+        // porte pas de tag de maîtrise, comme l'Anneau de Chaleur.
+        'Brassard de Glace'];
 
     $portables = collect($data['objets'])
         ->whereIn('categorie', ['arme', 'armure'])

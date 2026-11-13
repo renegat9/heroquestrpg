@@ -498,6 +498,10 @@ moment où ce paragraphe a été écrit :
   le **Bracelet de Glace** et l'**Anneau de Chaleur** restent donc non portés —
   non plus faute de mécanique, mais faute de quoi que ce soit contre quoi
   résister.
+  ⚠ **Daté (2026-11-12)** : le Brassard de Glace est désormais porté, et la
+  Tempête de Glace n'a plus de nature `froid` (le Brassard la réduit de 1,
+  `reduit_degats_de_sort`, au lieu de l'annuler). `froid` a donc deux sources :
+  *Morsure de Froid* et les deux terrains de glace.
 
 Un sort sans `type_degat` est **neutre** : il ne déclenche ni immunité ni
 interdiction de régénération. C'est le cas de tous les autres.
@@ -897,7 +901,7 @@ dague-là.
 
 ⚠ **Compte et contenu DATÉS** : trois cartes de cette table (Orbe Céleste,
 Anneau de Chaleur, Raquettes de Vitesse) ont rejoint les portées le
-2026-09-10 et n'y figurent plus ; d'autres lignes ci-dessous (Bâton Ancien,
+2026-09-10, et le Brassard de Glace le 2026-11-12 ; aucune n'y figure plus ; d'autres lignes ci-dessous (Bâton Ancien,
 Baguette d'Os, Bottes elfiques…) l'étaient déjà avant cette passe sans que le
 tableau ait suivi. `config/cartes.php` reste la source vivante — ce tableau
 n'est qu'un instantané.
@@ -916,7 +920,6 @@ joueurs.
 | **Bracelet de Guérison** / Armband of Healing | KK / Witch Lord | Rend 2 PV, une fois par quête ; relève automatiquement le porteur tombé à 0 s'il n'a pas servi. | Charges par quête sur un objet porté, et déclenchement automatique à 0 PV. |
 | **Poudre d'Invisibilité** / Dust of Disappearance | KK / Witch Lord | Jetée sur un héros : il traverse tous les monstres à son prochain tour. | Traverser les **figures** (Traverser la Pierre traverse la roche, pas les créatures). |
 | **Bottes du Lièvre** / Rabbit Boots | Frozen Horror | Sauter une fosse par tour en évitant le bouclier noir sur 1 dé. | Franchir un piège par un **saut** : notre franchissement est un jet de Body. |
-| **Bracelet de Glace** / Armband of Ice | Frozen Horror | Immunise Mind Freeze et Chill, coffres et rivières gelées ; −1 dégâts d'Ice Storm (texte complet : `config/cartes.php`). | 2026-09-10 : la moitié TERRAIN est désormais portable (même mécanisme que l'Anneau de Chaleur, ported) — restent l'immunité à *Mind Freeze* lui-même (le sort ne porte aucun `type_degat` à intercepter) et la réduction d'1 point sur *Ice Storm* (non porté côté héros, ciblage de zone `NON_IMPLEMENTES`). |
 | **Bâton Ancien** / Ancient Staff | Mage of the Mirror | Contre un sort lancé sur son porteur (1 dé : rien / annulé / bâton détruit). | Contre-sort : rien n'interrompt un sort de Dread en cours de résolution. |
 | **Baguette d'Os** / Bone Wand | Mage of the Mirror | Contrôle tous les squelettes d'une salle pendant un tour, une fois par quête. | Contrôle de monstre : un monstre est joué par le moteur, jamais par un héros. |
 | **Bottes elfiques** / Elven Boots | Mage of the Mirror | Un dé rouge de plus au déplacement pour l'elfe ; détruites si trois dés donnent le même chiffre. | Notre déplacement est base + 1d6, pas des dés rouges cumulables — et rien ne détruit un objet porté sur un jet. |
@@ -1029,11 +1032,13 @@ dette périmée ment aussi sûrement qu'une clé décorative.
   Rivière gelée) et `MoteurSorts::absorbeDegat()` l'intercepte aux deux points
   de passage (`ResolveurTour::saignerParTerrain()`/`saignerSurRiviere()`),
   sans charge — immunité permanente tant que l'anneau est porté.
-- ***Armband of Ice*** reste non portée, mais plus pour la raison du
-  2026-09-06 : sa moitié TERRAIN est désormais atteignable (même mécanisme que
-  l'Anneau de Chaleur), il manque toujours l'immunité à *Mind Freeze*
-  spécifiquement (le sort ne porte aucun `type_degat`) et la réduction d'1
-  point sur *Ice Storm* côté héros.
+- ***Armband of Ice*** est portée depuis le 2026-11-12 (Brassard de Glace), sur
+  quatre clauses, chacune à son point de passage : Chill et les deux terrains de
+  glace par `immunite_degat: froid` ; *Mind Freeze* par `immunite_sorts_nommes`
+  (`Equipement::immuniseSortNomme()`, lu au choix de la cible) ; *Ice Storm* par
+  `reduit_degats_de_sort` (−1, `MoteurDegats::infligerAHeros()`, publié en
+  modificateur). La *Tempête de Glace* n'a donc plus de `type_degat` : sa carte la
+  range à part de Chill, et l'immunité au froid l'aurait annulée au lieu de la réduire.
 - ***Chill* / *Ice Storm*** (parchemins) frappent PLUSIEURS monstres à la fois
   — leurs jumeaux Dread le confirment (`ZONE_CONTACT`, `ZONE_CARRE_2X2`) — où
   le ciblage de zone côté héros est explicitement `NON_IMPLEMENTES`
@@ -1045,9 +1050,12 @@ dette périmée ment aussi sûrement qu'une clé décorative.
   la boîte est active (`DemarreurQuete::BOITES_THEMATIQUES`) depuis le
   2026-09-06 — « région gelée » est arbitrée comme le thème de boîte FIGÉ du
   groupe, faute d'une définition plus précise dans la source.
-- ***Ice Bridge* / *Skate*** demandent un mécanisme neuf (poser du terrain en
-  cours de quête ; moduler le jet de déplacement) plutôt qu'une couture
-  existante — non portées, dette nommée dans `config/cartes.php`.
+- ***Skate*** est portée depuis le 2026-11-12 (sort *Patinage*) : +6 au jet de
+  déplacement par `bonus_deplacement`, lu par `MoteurSorts::bonusDes()` au même
+  point que la Potion de dextérité, traversée des figures par `franchit_figures`
+  (Voile de Brume), `ce_tour`. Gardée : offerte seulement avant le premier pas du
+  tour. ***Ice Bridge*** reste non portée — elle pose du terrain en cours de quête,
+  mécanisme neuf, dette nommée dans `config/cartes.php`.
 
 **Trois artefacts de plus sont portés depuis le 2026-09-03**, et ils n'ont
 demandé **aucune mécanique neuve** — seulement de réunir sur un **objet** ce qui

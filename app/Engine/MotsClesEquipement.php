@@ -331,6 +331,10 @@ final class MotsClesEquipement
      * les dégâts de TERRAIN typés (`ResolveurTour::saignerParTerrain()` /
      * `saignerSurRiviere()`, Chambre forte de glace et Rivière gelée).
      *
+     * ⚠ `froid` (2026-11-12) couvre Morsure de Froid (Chill) et les deux terrains de glace, et RIEN d'autre : la Tempête
+     * de Glace n'en porte plus, parce que le Brassard de Glace la nomme à part (`REDUIT_DEGATS_DE_SORT`, réduction de 1, pas
+     * une immunité) et que l'Anneau de Chaleur ne la nomme pas du tout. Mind Freeze n'a aucune nature : `IMMUNITE_SORTS_NOMMES`.
+     *
      * ⚠ Depuis *Potion of Fire Resistance* (Wizards of Morcar, 2026-10-06),
      * cette même clé se porte aussi sur un BUFF de potion plutôt qu'un objet
      * ÉQUIPÉ — « completely unaffected by the next magical fire attack, spell
@@ -375,6 +379,36 @@ final class MotsClesEquipement
      * `MoteurDread::sortDreadMind()` avant `MoteurDegats::infligerMindAHeros()`.
      */
     public const ABSORBE_DEGATS_MIND = 'absorbe_degats_mind';
+
+    /**
+     * IMMUNITÉ À DES SORTS DE DREAD NOMMÉS — `['Gel de l\'Esprit']` : le porteur n'est JAMAIS la cible de ces sorts, et
+     * le moteur ne le choisit donc pas pour victime. La pièce déclare les NOMS ; le moteur ne connaît pas « Mind Freeze ».
+     *
+     * « This powerful item grants its wearer immunity to Mind Freeze and Chill spells » (Brassard de Glace, Frozen Horror
+     * p. 35). Chill, lui, est déjà couvert par `IMMUNITE_DEGAT: froid` (sa nature est `froid`) : cette clé-ci ne sert qu'à
+     * Mind Freeze, qui n'a AUCUNE nature de dégât — `IMMUNITE_DEGAT` ne pouvait pas l'atteindre.
+     *
+     * Immunité TOTALE sur les sorts listés, sans charge : une cible qui ne peut pas être choisie n'a rien à subir.
+     * Lecteur : `Partie\Equipement::immuniseSortNomme()`, consulté par `MoteurDread::cibleMindFreeze()` — le SEUL choix de
+     * cible de Gel de l'Esprit, lu aussi par `sortUtilisable()` : un boss qui ne voit que des porteurs ne le lance pas.
+     * (2026-11-12.)
+     */
+    public const IMMUNITE_SORTS_NOMMES = 'immunite_sorts_nommes';
+
+    /**
+     * RÉDUCTION DES COUPS D'UN SORT DE DREAD NOMMÉ — `{sort: 'Tempête de Glace', points: 1}` : chaque coup de ce sort reçu
+     * par le porteur fait N points de moins, plancher zéro.
+     *
+     * ⚠ PAS une immunité : « It also reduces the damage from an Ice Storm spell by 1 point for the armband wearer only »
+     * (Brassard de Glace). Une immunité à la nature `froid` l'annulerait entière — c'est pourquoi la Tempête de Glace n'a
+     * plus de `type_degat` (`SortDreadSeeder`, 2026-11-12).
+     *
+     * Lecteur : `Partie\Equipement::reductionDegatsDeSort()`, consulté par `MoteurDegats::infligerAHeros()` — le point de
+     * passage unique des dégâts de héros — pour un coup de `SOURCE_SORT_DREAD` seulement. Publié par
+     * `dernierModificateurs()` (`sur: degats`), donc dans `sort_dread.resultats[].modificateurs` : un effet automatique
+     * qui ne se dit pas est injouable. (2026-11-12.)
+     */
+    public const REDUIT_DEGATS_DE_SORT = 'reduit_degats_de_sort';
 
     // ------------------------------------------------------- ÉCONOMIE DE SORTS
 
@@ -1224,6 +1258,8 @@ final class MotsClesEquipement
         self::DEGATS_SAUF_BOUCLIER_NOIR,
         self::IMMUNITE_DEGAT,
         self::ABSORBE_DEGATS_MIND,
+        self::IMMUNITE_SORTS_NOMMES,
+        self::REDUIT_DEGATS_DE_SORT,
         self::RESTAURE_SORTS,
         self::SECOND_SORT_PAR_TOUR,
         self::SORT_NON_EPUISE,
@@ -1327,6 +1363,7 @@ final class MotsClesEquipement
         self::BONUS_DEPLACEMENT_INCONDITIONNEL, self::BONUS_DEPLACEMENT_PORTE,
         self::BONUS_DES_RESISTANCE_MENTALE, self::BONUS_PV_BODY_MAX, self::BONUS_PV_MIND_MAX,
         self::INCOMPATIBLE_DEUX_MAINS, self::IMMUNITE_DEGAT, self::ABSORBE_DEGATS_MIND,
+        self::IMMUNITE_SORTS_NOMMES, self::REDUIT_DEGATS_DE_SORT,
         self::PLANCHER_PV, self::REFLET_SORT_DREAD, self::RELANCE_ATTAQUE_MONSTRE,
         self::SAUT_PIEGE_DE_COMBAT, self::SECOND_SORT_PAR_TOUR, self::SORT_NON_EPUISE,
         self::SOIN_PV_BODY, self::IGNORE_TERRAIN_ENTRAVANT, self::FRANCHIT_MOBILIER,
@@ -1471,6 +1508,9 @@ final class MotsClesEquipement
         self::IMMUNITE_DEGAT => 'Immunise contre les dégâts de %s',
         self::ANNULE_PROCHAIN_SORT_DEGATS => 'Annule le prochain sort à dégâts subi',
         self::ABSORBE_DEGATS_MIND => 'Absorbe les dégâts de Mind, un point à la fois',
+        self::IMMUNITE_SORTS_NOMMES => 'Immunise contre les sorts : %s',
+        // Gabarit de repli seulement : `avantages()` rend cette clé structurée (« Réduit de N les dégâts de … »).
+        self::REDUIT_DEGATS_DE_SORT => 'Réduit les dégâts de %s',
         'reflet_sort_dread' => 'Renvoie un sort du maître du donjon',
         self::SORT_ID => 'Lance un sort',
 
@@ -1615,6 +1655,13 @@ final class MotsClesEquipement
             if ($cle === self::SORTS_DREAD_PORTEUR && is_array($valeur) && $valeur !== []) {
                 $lignes[] = 'Lance une fois par quête chacun de ces sorts du maître du donjon : '
                     .implode(', ', array_map('strval', $valeur)).' (+1 PV de Mind à chaque lancer)';
+
+                continue;
+            }
+
+            // BRASSARD DE GLACE : « reduces the damage from an Ice Storm spell by 1 point » — le nombre ET le sort se disent.
+            if ($cle === self::REDUIT_DEGATS_DE_SORT && is_array($valeur) && isset($valeur['sort'], $valeur['points'])) {
+                $lignes[] = sprintf('Réduit de %d les dégâts de %s', (int) $valeur['points'], $valeur['sort']);
 
                 continue;
             }

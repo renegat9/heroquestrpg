@@ -1203,7 +1203,7 @@ final class MoteurDread
             // que sur un héros qu'il ne risque pas de perdre contre (`cibleMindBurst()`).
             Mot::TYPE_MIND => data_get($sort->effet, 'resistance') === Mot::RESISTANCE_OPPOSITION_ECART
                 ? $this->cibleMindBurst($instance, $enVue) !== null
-                : $this->cibleMindFreeze($enVue) !== null,
+                : $this->cibleMindFreeze($enVue, $sort->nom) !== null,
             // Dominate : un héros en vue À JETER contre au moins un autre héros debout.
             Mot::TYPE_DOMINATION => $this->cibleDomination($enVue, $cibles) !== null,
             // Mur de Glace : au moins une case candidate a survécu au filtre
@@ -2408,6 +2408,9 @@ final class MoteurDread
                 'des_degats' => (int) data_get($sort->effet, 'des_degats', $calcul['degats']),
             ],
         );
+        // Ce que l'interception a RÉELLEMENT retiré (Brassard de Glace : −1 sur la Tempête de Glace). `dernierModificateurs()`
+        // ne garde que le DERNIER appel à `infligerAHeros()` : on le lit tout de suite. Publié, jamais silencieux (2026-11-12).
+        $modificateurs = $this->degats->dernierModificateurs();
         $this->sorts->reveillerHeros($personnage);
 
         if ((int) $personnage->pv_body === 0 && $subis > 0) {
@@ -2420,6 +2423,7 @@ final class MoteurDread
             'pv_body_apres' => (int) $personnage->pv_body,
             'cible_tombee' => (int) $personnage->pv_body === 0 && $subis > 0,
             ...$calcul['detail'],
+            ...($modificateurs !== [] ? ['modificateurs' => $modificateurs] : []),
         ];
     }
 
@@ -3038,7 +3042,7 @@ final class MoteurDread
             return $this->sortDreadMindBurst($groupe, $instance, $sort, $enVue, $acteur);
         }
 
-        $victime = $this->cibleMindFreeze($enVue);
+        $victime = $this->cibleMindFreeze($enVue, $sort->nom);
 
         if ($victime === null) {
             return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
@@ -3102,12 +3106,17 @@ final class MoteurDread
      * below 0 Mind Points » — le geler ne dirait rien de plus, `null` l'exclut
      * du calcul comme de la cible.
      *
+     * ⚠ BRASSARD DE GLACE (2026-11-12) : un porteur IMMUNISÉ à ce sort n'est jamais retenu — ni comme cible, ni comme
+     * raison de le lancer (`sortUtilisable()` passe par ici aussi) : un boss qui ne voit que des porteurs ne le lance pas.
+     * Le sort vise alors le héros suivant, s'il en reste un.
+     *
      * @param  Collection<int, EtatPersonnageQuete>  $enVue
      */
-    private function cibleMindFreeze(Collection $enVue): ?EtatPersonnageQuete
+    private function cibleMindFreeze(Collection $enVue, string $nomSort): ?EtatPersonnageQuete
     {
         return $enVue
             ->filter(fn (EtatPersonnageQuete $e) => (int) $e->personnage->pv_mind > 0)
+            ->reject(fn (EtatPersonnageQuete $e) => app(Equipement::class)->immuniseSortNomme($e->personnage, $nomSort))
             ->sortBy(fn (EtatPersonnageQuete $e) => (int) $e->personnage->pv_mind)
             ->first();
     }

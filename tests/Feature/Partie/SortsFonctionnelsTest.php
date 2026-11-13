@@ -83,6 +83,9 @@ const CLES_SORT_ACTIVES = [
     'oublie_sort',             // MoteurSorts::ciblesLegales() + ResolveurTour::oublierSortSort() — Unlearn (OubliSorts)
     'relance_jet',             // MoteurReactions::proposerRelanceJet() — Vision du futur (relance après un jet, sans action)
     'pose_ombre',              // MoteurSorts::entreesPoseOmbre() + MoteurOmbre::poser() — Voile d'ombre (carte.grille['ombre'])
+    // ---- Spell Scroll — Skate (2026-11-12) ----
+    'bonus_deplacement',       // MoteurSorts::bonusDes() — +6 au jet de déplacement, lu par ResolveurTour::pointsDeplacement()
+                               // et MenuMoteur::porteeDuTour() (le même point que la Potion de dextérité). Patinage seul.
 ];
 
 /**
@@ -110,6 +113,8 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
     // déplacement est un sort qu'on lance pour rien.
     $agissantes = ['des_degats', 'soin_pv_body', 'condition_appliquee', 'bonus_des_attaque',
         'bonus_des_defense', 'deplacement_multiplie', 'franchit_mur', 'saute_tour', 'ouvre_porte',
+        // Patinage (Skate) agit sur l'allonge du tour, comme la Potion de dextérité.
+        'bonus_deplacement',
         // Un sort de RÉACTION agit hors tour (Ailes sombres) : son effet n'est
         // ni un dégât ni un buff, il annule un coup — mais il agit bel et bien.
         'reaction',
@@ -178,7 +183,8 @@ it('ne garde AUCUN sort que le seeder ne déclare pas', function () {
         // 2026-10-08 — les NEUF sorts Morcar sont portés, plus aucune dette.
         ->and($attendus['detection'] ?? 0)->toBe(3)
         ->and($attendus['tenebres'] ?? 0)->toBe(3)
-        ->and(Sort::count())->toBe(40);
+        // ⚠ 41 depuis Patinage (Spell Scroll — Skate, élément `parchemin`), 2026-11-12.
+        ->and(Sort::count())->toBe(41);
 });
 
 it('n\'expose de sorts qu\'aux classes lanceuses', function () {

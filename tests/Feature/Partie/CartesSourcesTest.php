@@ -170,8 +170,8 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // sort du tour réutilisé, annulation de sort nouvelle — les trois
         // sans mécanique manquante.
         ->and($portees('potions'))->toBe(22)
-        // 34 artefacts portés sur 35 : seul le Brassard de Glace reste écarté
-        // (2 clauses sur 4 sans lecteur — voir sa dette, config/cartes.php).
+        // 51 artefacts portés sur 51 : le Brassard de Glace (Armband of Ice) est porté depuis le
+        // 2026-11-12 — ses quatre clauses ont chacune leur lecteur (`BrassardDeGlaceTest`).
         // ⚠ Trois de plus le 2026-09-03 — Poudre d'Invisibilité, Cape des
         // Ombres, Sceptre de Télékinésie : elles n'ont demandé AUCUNE mécanique
         // neuve, seulement de réunir sur un OBJET ce qui existait sur des sorts.
@@ -198,14 +198,15 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // ⚠ Trois de plus le 2026-10-23 (The Crypt of Perpetual Darkness) : la Lance du Dragon, la Couronne des
         // Ténèbres (sa clause « voir dans le noir » ÉCARTÉE, `docs/regles/artefacts.md`) et la Souris familière.
         // ⚠ Un de plus le 2026-10-29 (Prophecy of Telor, Talisman du Savoir maudit, portée malédiction comprise).
-        ->and($portees('artefacts'))->toBe(50)
+        // ⚠ Un de plus le 2026-11-12 (The Frozen Horror, Brassard de Glace) : la dernière carte de glace écartée à cette date.
+        ->and($portees('artefacts'))->toBe(51)
         // 15 parchemins sur 19 : 11 désignaient un sort que nous avions déjà,
         // trois ont été écrits le 2026-09-04 — Trésor sans Péril, Récupération
         // Psychique, Éclair — et *Warmth* a rejoint la liste le 2026-09-06
         // (phase 5, examen carte par carte de la boîte GLACE) : un soin fixe
         // de 3, sans zone ni résistance ni terrain, rien ne lui manquait que
-        // l'examen. Ne restent que 4 cartes de la boîte GLACE — Chill,
-        // Ice Storm, Ice Bridge, Skate — chacune avec sa dette PROPRE
-        // (config/cartes.php), plus « écartées en bloc ».
-        ->and($portesSort('parchemins'))->toBe(15);
+        // l'examen. Patinage (Skate) rejoint la liste le 2026-11-12 (`bonus_deplacement`,
+        // `franchit_figures`, `ce_tour`). Ne restent que 3 cartes de la boîte GLACE — Chill,
+        // Ice Storm, Ice Bridge — chacune avec sa dette PROPRE (config/cartes.php).
+        ->and($portesSort('parchemins'))->toBe(16);
 });

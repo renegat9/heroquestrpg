@@ -748,6 +748,24 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Anneau de Chaleur', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'talisman', 'boite' => 'horreur_des_glaces',
                 'effet' => ['immunite_degat' => 'froid']],
 
+            // « Brassard de Glace » / Armband of Ice (Frozen Horror, Artifact Reference p. 35, transcrit dans
+            // reference/18_extensions.md §3) : « This powerful item grants its wearer immunity to Mind Freeze and Chill
+            // spells, plus immunity to damage from ice vaults and icy rivers for as long as it is worn. It also reduces the
+            // damage from an Ice Storm spell by 1 point for the armband wearer only. » Porté le 2026-11-12 (René).
+            // Quatre clauses, trois clés, chacune lue à son point de passage (`docs/regles/artefacts.md`) :
+            //  - `immunite_degat: froid` : Morsure de Froid (Chill, nature froid) et les deux terrains de glace — la couture
+            //    de l'Anneau de Chaleur, sans rien de neuf ;
+            //  - `immunite_sorts_nommes` : Gel de l'Esprit, qui n'a AUCUNE nature (`MoteurDread::cibleMindFreeze()`) ;
+            //  - `reduit_degats_de_sort` : Tempête de Glace, −1 (`MoteurDegats::infligerAHeros()`). La Tempête n'a plus de
+            //    nature froid (SortDreadSeeder) : sans cela, l'immunité ci-dessus l'annulerait entière.
+            // Aucune charge : immunité permanente tant que portée, comme l'Anneau de Chaleur.
+            // ⚠ `prix_base` 0 : AUCUN prix imprimé sur la carte — « ⚠ non trouvé, on la trouve, on ne l'achète pas » (même
+            // traitement que la Potion d'aconit, reference/18 §Mage of the Mirror). `rarete: unique` ne s'achète ni ne se revend.
+            ['nom' => 'Brassard de Glace', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'talisman', 'boite' => 'horreur_des_glaces',
+                'effet' => ['immunite_degat' => 'froid',
+                    'immunite_sorts_nommes' => ["Gel de l'Esprit"],
+                    'reduit_degats_de_sort' => ['sort' => 'Tempête de Glace', 'points' => 1]]],
+
             // « Raquettes de Vitesse » / Snowshoes of Speed (Frozen Horror) :
             // « +2 cases de déplacement et annule la glace glissante.
             // Utilisables seulement dans les quêtes glacées » — ajoute au

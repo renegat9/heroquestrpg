@@ -152,11 +152,10 @@ return [
     | (migration `retirer_artefacts_hors_source`). Ils ne figurent plus ici : une
     | carte inventée n'est pas une dette, c'est une erreur.
     |
-    | ⚠ Les cartes de la boîte GLACE (Frozen Horror) sont recensées mais
-    | DÉLIBÉRÉMENT non portées (arbitrage de René) : leurs règles parlent de
-    | sorts de froid, de coffres de glace et de rivières gelées qui n'existent
-    | nulle part chez nous. Ce n'est pas un lecteur qui leur manque, c'est ce à
-    | quoi résister.
+    | ⚠ Les cartes de la boîte GLACE (Frozen Horror) sont portées une à une, dès que
+    | leur couture existe : l'Anneau de Chaleur et les Raquettes de Vitesse
+    | (2026-09-10), puis le Brassard de Glace (2026-11-12). Chill, Ice Storm et
+    | Ice Bridge restent dans la section « Parchemins ».
     */
     'artefacts' => [
         'source' => 'artifacts_part1.pdf + artifacts_part2.pdf',
@@ -240,40 +239,22 @@ return [
             // l'intercepter. Les deux terrains nommés par la carte portent
             // désormais `effet.type_degat: froid` (`TerrainSeeder`), lu par
             // `absorbeDegat()` aux DEUX call sites AVANT `infligerAHeros()` —
-            // la même couture qui couvre déjà tout sort de type froid (Chill
-            // compris, s'il touchait un jour le porteur). Sans charge sur sa
-            // carte : immunité PERMANENTE tant qu'elle est portée, comme tout
-            // objet sans compteur.
+            // la même couture que Morsure de Froid (Chill, seul sort de nature
+            // `froid` depuis 2026-11-12 : la Tempête de Glace en est sortie,
+            // et l'anneau NE protège PAS d'elle — sa carte ne nomme que Chill).
+            // Sans charge sur sa carte : immunité PERMANENTE tant qu'elle est
+            // portée, comme tout objet sans compteur.
             ['carte' => 'Ring of Warmth', 'paquet' => 'Frozen Horror', 'objet' => 'Anneau de Chaleur'],
 
-            // « Brassard de Glace » / Armband of Ice : NON porté, mais plus
-            // pour la raison écrite le 2026-09-06. Cette carte partage la
-            // MOITIÉ terrain de l'Anneau de Chaleur — désormais portable, et
-            // portée sur ce bracelet-ci aussi (`immunite_degat: froid` couvrirait
-            // les mêmes coffres/rivières). Ce qui reste RÉELLEMENT manquant,
-            // deux clauses sur quatre : (1) l'immunité à *Gel de l'Esprit*
-            // SPÉCIFIQUEMENT — la carte protège du SORT, pas d'un `type_degat`
-            // (Mind Freeze n'en porte aucun), et rien n'exclut un porteur de
-            // `MoteurDread::cibleMindFreeze()` ; (2) la réduction d'1 point sur
-            // *Ice Storm* côté héros — non portée, `Ice Storm` visant plusieurs
-            // monstres à la fois (`MotsClesSort::CIBLE_MONSTRES_ZONE`,
-            // explicitement `NON_IMPLEMENTES`). Porter ce bracelet sur sa seule
-            // moitié terrain laisserait un héros « immunisé au gel » se faire
-            // geler par Gel de l'Esprit sans la moindre résistance : exactement
-            // la carte à moitié tenue que ce registre existe pour ne jamais
-            // afficher.
-            ['carte' => 'Armband of Ice', 'paquet' => 'Frozen Horror', 'nom' => 'Brassard de Glace',
-                'texte' => "Immunise contre Mind Freeze et Chill, contre les coffres de glace et les rivières gelées, et réduit d'1 point les dégâts d'Ice Storm.",
-                'manque' => "GLACE — la moitié TERRAIN (coffres de glace, rivières gelées) est désormais "
-                    ."portable (même mécanisme que l'Anneau de Chaleur, `immunite_degat: froid`), mais DEUX "
-                    ."clauses sur quatre manquent encore un lecteur propre : l'immunité à *Gel de l'Esprit* "
-                    ."elle-même (le sort ne porte aucun `type_degat` que resterait à intercepter — il "
-                    ."faudrait exclure le porteur de `MoteurDread::cibleMindFreeze()`, rien ne le fait) et la "
-                    ."réduction d'1 point sur *Ice Storm* côté héros (le sort vise plusieurs monstres à la "
-                    ."fois, `MotsClesSort::CIBLE_MONSTRES_ZONE` reste `NON_IMPLEMENTES`). Porter ce bracelet "
-                    ."sur sa seule moitié terrain vendrait une immunité au gel qui laisse geler par Gel de "
-                    ."l'Esprit : exactement la carte à moitié tenue que ce registre existe pour ne jamais "
-                    .'afficher. Écarté pour le moment (René, 2026-10-15).'],
+            // « Brassard de Glace » / Armband of Ice (Frozen Horror, Artifact Reference p. 35 — transcrit dans
+            // `reference/18_extensions.md` §3) : PORTÉ le 2026-11-12, sur accord de René (« intégrer maintenant que leurs
+            // manques ont une couture »). Ses quatre clauses ont chacune un lecteur à un point de passage :
+            //  - Morsure de Froid (Chill) et les deux terrains de glace : `immunite_degat: froid` (la couture de l'Anneau de
+            //    Chaleur, `MoteurSorts::absorbeDegat()`) ;
+            //  - Gel de l'Esprit (Mind Freeze) : `immunite_sorts_nommes`, lu au choix de la cible (`MoteurDread::cibleMindFreeze()`) ;
+            //  - Tempête de Glace : `reduit_degats_de_sort`, −1 sur le coup (`MoteurDegats::infligerAHeros()`), publié en modificateur.
+            // ⚠ La Tempête de Glace n'est plus une source de `froid` (SortDreadSeeder) : la carte la nomme À PART de Chill.
+            ['carte' => 'Armband of Ice', 'paquet' => 'Frozen Horror', 'objet' => 'Brassard de Glace'],
 
             // « Raquettes de Vitesse » / Snowshoes of Speed : sa dette disait
             // les deux appelants de `deDeplacementAnnule()` (MenuMoteur,
@@ -415,8 +396,8 @@ return [
             ['carte' => 'Spell Scroll — Treasure Without Doom', 'sort' => 'Trésor sans Péril'],
             ['carte' => 'Spell Scroll — Psychic Recovery', 'sort' => 'Récupération Psychique'],
 
-            // ---- Boîte GLACE : 1 portée, 4 non prises en compte (phase 5,
-            // 2026-09-06 — examen carte par carte, plus « écartée en bloc »).
+            // ---- Boîte GLACE : Warmth portée (phase 5, 2026-09-06), Skate portée (2026-11-12) ; 3 non prises en
+            // compte — Chill, Ice Storm, Ice Bridge (examen carte par carte, plus « écartée en bloc »).
             //
             // ⚠ *Warmth* est le cas limite honnête que CLAUDE.md annonçait
             // depuis le 2026-08-15 : un soin fixe de 3, sans zone, sans
@@ -452,12 +433,11 @@ return [
                 'manque' => "GLACE — poser du TERRAIN en cours de quête (la couche `cartes.grille['terrain']` "
                     ."n'est peuplée qu'à l'assemblage, doc 18 §4/phase 4a) ET la résolution de sort qui le "
                     ."ferait, toutes deux hors périmètre — un mécanisme neuf, pas une couture existante. Écarté pour le moment (René, 2026-10-15)."],
-            ['carte' => 'Spell Scroll — Skate', 'paquet' => 'Frozen Horror', 'nom' => 'Patinage',
-                'texte' => '+6 au jet de déplacement et traversée des monstres et héros, pour un tour.',
-                'manque' => "GLACE — la traversée des figures a un précédent qui MARCHE (`franchit_figures`, "
-                    ."posé par le sort Voile de Brume), mais le « +6 au jet de déplacement » n'a aucun lecteur "
-                    ."symétrique câblable ici : le seul point qui module l'allonge (`Deplacement::calculer()`) "
-                    ."n'est appelé que par `MenuMoteur`/`ResolveurTour`, hors périmètre de cette phase. Écarté pour le moment (René, 2026-10-15)."],
+            // Spell Scroll — Skate (Frozen Horror) : PORTÉ le 2026-11-12. La traversée des figures est celle de Voile de Brume
+            // (`franchit_figures`, durée `ce_tour`) ; le « +6 au jet de déplacement » est `bonus_deplacement`, lu par
+            // `MoteurSorts::bonusDes()` au même point de passage que la Potion de dextérité. Porté par le sort `Patinage`
+            // (SortSeeder), donc un « Parchemin : Patinage » au sac.
+            ['carte' => 'Spell Scroll — Skate', 'paquet' => 'Frozen Horror', 'sort' => 'Patinage'],
         ],
     ],
 

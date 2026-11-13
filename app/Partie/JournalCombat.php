@@ -1745,6 +1745,12 @@ final class JournalCombat
             }
 
             $lignes[] = $ligne;
+
+            // BRASSARD DE GLACE (2026-11-12) : la réduction d'un coup de Dread se DIT, nommée par la pièce qui la porte.
+            // Un dégât plus faible sans explication serait un effet automatique inannoncé. Une ligne par modificateur.
+            foreach ((array) ($r['modificateurs'] ?? []) as $modificateur) {
+                $lignes[] = ['texte' => "{$cible} : {$modificateur['source']} réduit le coup de ".abs((int) $modificateur['valeur']), 'ton' => 'pare'];
+            }
         }
 
         foreach ((array) ($a['monstres_touches'] ?? []) as $m) {

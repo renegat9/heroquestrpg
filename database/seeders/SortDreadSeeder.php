@@ -144,12 +144,17 @@ class SortDreadSeeder extends Seeder
             // Each monster and hero in that area is attacked separately by the
             // spellcaster with 3 combat dice. There is no chance to defend.
             // Cannot be used in corridors. »
+            //
+            // ⚠ PAS de `type_degat` (2026-11-12, ex-`froid`). La carte du Brassard de Glace range la Tempête de Glace À PART
+            // de Chill : « immunity to Mind Freeze and Chill spells, … It also reduces the damage from an Ice Storm spell by
+            // 1 point ». Une nature `froid` la ferait tomber sous l'immunité de l'Anneau de Chaleur et du Brassard, qui
+            // l'annulerait entière. Elle reçoit désormais `reduit_degats_de_sort` (−1), lu par `MoteurDegats::infligerAHeros()`.
+            // Une source de froid en moins : Morsure de Froid et les deux terrains de glace restent les seuls de `froid`.
             ['nom' => 'Tempête de Glace', 'palier' => 'boss', 'type' => Mot::TYPE_DEGATS,
                 'effet' => [
                     'zone' => Mot::ZONE_CARRE_2X2,
                     'des_degats' => 3,
                     'defense_applicable' => false,
-                    'type_degat' => 'froid',
                     'touche_monstres' => true,
                     'hors_couloir' => true,
                 ]],

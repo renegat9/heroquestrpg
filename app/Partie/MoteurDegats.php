@@ -260,6 +260,22 @@ final class MoteurDegats
             }
         }
 
+        // BRASSARD DE GLACE (2026-11-12) : « reduces the damage from an Ice Storm spell by 1 point for the armband
+        // wearer only ». Une réduction de LA PIÈCE pour UN sort nommé — jamais une immunité, qui annulerait le coup.
+        // Même point de passage que la réduction de talent ci-dessus, même contrat : après l'écouteur (une réaction qui
+        // annule le coup ramène déjà à zéro), publiée par `dernierModificateurs()`, plancher zéro. Seuls les coups de
+        // Dread portent un nom de sort ici ; un tir ami ou un coup de monstre n'entre pas dans ce test.
+        if ($retenus > 0 && $source === self::SOURCE_SORT_DREAD && is_string($contexte['sort'] ?? null)) {
+            $reduction = app(Equipement::class)->reductionDegatsDeSort($heros, $contexte['sort']);
+
+            $valeurReduction = $reduction === null ? 0 : min($retenus, $reduction['points']);
+
+            if ($valeurReduction > 0) {
+                $retenus -= $valeurReduction;
+                $this->dernierModificateurs[] = ['source' => $reduction['piece'], 'valeur' => -$valeurReduction, 'sur' => 'degats'];
+            }
+        }
+
         if ($retenus === 0) {
             return 0;
         }

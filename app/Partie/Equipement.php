@@ -636,6 +636,56 @@ final class Equipement
         return $this->valeurEffetPorte($personnage, MotsClesEquipement::DEPLACEMENT_FIXE);
     }
 
+    /**
+     * Le porteur est-il IMMUNISÉ contre ce sort de Dread nommé ? — « immunity to Mind Freeze » (Brassard de Glace, Frozen
+     * Horror p. 35). Lu sur les pièces ÉQUIPÉES seulement : une pièce rangée au sac ne protège de rien.
+     *
+     * Lecteur unique de `IMMUNITE_SORTS_NOMMES` : `MoteurDread::cibleMindFreeze()`, qui ne retient jamais ce héros comme
+     * cible. (2026-11-12.)
+     */
+    public function immuniseSortNomme(Personnage $personnage, string $nomSort): bool
+    {
+        return $this->piecesPortant(MotsClesEquipement::IMMUNITE_SORTS_NOMMES, $personnage)
+            ->contains(fn (Objet $objet) => in_array($nomSort, (array) $objet->effet[MotsClesEquipement::IMMUNITE_SORTS_NOMMES], true));
+    }
+
+    /**
+     * La réduction que la pièce équipée porte contre les coups d'un sort de Dread NOMMÉ — `['piece' => …, 'points' => N]`,
+     * ou `null`. Lu par `MoteurDegats::infligerAHeros()` pour un coup de `SOURCE_SORT_DREAD`. La pièce est NOMMÉE dans le
+     * modificateur publié : le joueur voit d'où vient le dégât en moins. (2026-11-12.)
+     *
+     * @return array{piece: string, points: int}|null
+     */
+    public function reductionDegatsDeSort(Personnage $personnage, string $nomSort): ?array
+    {
+        foreach ($this->piecesPortant(MotsClesEquipement::REDUIT_DEGATS_DE_SORT, $personnage) as $objet) {
+            $reduction = (array) $objet->effet[MotsClesEquipement::REDUIT_DEGATS_DE_SORT];
+
+            if (($reduction['sort'] ?? null) === $nomSort && (int) ($reduction['points'] ?? 0) > 0) {
+                return ['piece' => $objet->nom, 'points' => (int) $reduction['points']];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Les OBJETS équipés (emplacements `SLOTS`) dont l'effet porte cette clé. Point de passage des lecteurs de pièces
+     * portées qui testent une clé de LISTE ou de MAP (`immuniseSortNomme()`, `reductionDegatsDeSort()`).
+     *
+     * @return \Illuminate\Support\Collection<int, Objet>
+     */
+    private function piecesPortant(string $cle, Personnage $personnage): \Illuminate\Support\Collection
+    {
+        return $personnage->inventaire()
+            ->whereIn('emplacement', self::SLOTS)
+            ->with('objet')
+            ->get()
+            ->map(fn (Inventaire $ligne) => $ligne->objet)
+            ->filter(fn (?Objet $objet) => $objet !== null && array_key_exists($cle, (array) $objet->effet))
+            ->values();
+    }
+
     public function estAccessible(Personnage $personnage, Objet $objet): bool
     {
         // LISTE BLANCHE INVERSÉE, une seule classe à la fois (Drakehide

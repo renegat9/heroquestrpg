@@ -1517,6 +1517,16 @@ final class MoteurSorts
                 continue;
             }
 
+            // PATINAGE (Spell Scroll — Skate, 2026-11-12) : son +N au jet de déplacement entre dans la RÉSERVE du tour au
+            // premier pas (`ResolveurTour::pointsDeplacement()`, miroir `MenuMoteur::porteeDuTour()`). Une fois ce pas fait,
+            // il n'y a plus rien où l'ajouter : le parchemin ne donnerait aucune case de plus et serait détruit pour rien.
+            // Donc il n'est pas offert — « le menu ne propose jamais ce que le résolveur ne peut pas honorer », ici une
+            // lecture sans effet. Lecteur unique de cette garde : `$etat->deplacement_restant`, la même réserve que lit
+            // `MenuMoteur` pour la portée offerte.
+            if (isset($sort->effet['bonus_deplacement']) && $etat?->deplacement_restant !== null) {
+                continue;
+            }
+
             $parchemins[] = $this->entreeSort(
                 "parchemin:{$ligne->id}",
                 $sort->nom,

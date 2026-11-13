@@ -19,14 +19,15 @@ namespace App\Engine;
  *  - **`feu`** : sources = Boule de Feu, Trait de Feu (catalogue), Tempête de
  *    feu (Dread) ; lecteurs = l'Anneau de Feu (immunité) et la régénération du
  *    troll (qu'une brûlure interrompt). Porté.
- *  - **`froid`** : sources = Morsure de Froid, Tempête de Glace (Dread,
- *    `SortDreadSeeder`, depuis le 2026-09-04), et depuis le 2026-09-10 les
- *    deux terrains de glace qui blessent (Chambre forte de glace, Rivière
- *    gelée — `TerrainSeeder`) ; lecteur = `MoteurSorts::absorbeDegat()`, le
- *    même point de passage que le feu, consulté par `ResolveurTour` aux TROIS
- *    chemins qui blessent un héros (tir ami, sort de Dread, terrain). Porté à
- *    son tour — c'est ce qui a rendu l'Anneau de Chaleur portable
- *    (`config/cartes.php`).
+ *  - **`froid`** : sources = Morsure de Froid (Dread, `SortDreadSeeder`, depuis
+ *    le 2026-09-04) et les deux terrains de glace qui blessent (Chambre forte
+ *    de glace, Rivière gelée — `TerrainSeeder`, depuis le 2026-09-10).
+ *    ⚠ La Tempête de Glace n'en est plus une depuis le 2026-11-12 : sa carte la
+ *    range à part de Chill, et le Brassard de Glace la réduit de 1 au lieu de
+ *    l'annuler (`reduit_degats_de_sort`). Lecteur = `MoteurSorts::absorbeDegat()`,
+ *    le même point de passage que le feu, consulté par `ResolveurTour` aux TROIS
+ *    chemins qui blessent un héros (tir ami, sort de Dread, terrain). Lecteurs
+ *    portés : l'Anneau de Chaleur et le Brassard de Glace (`config/cartes.php`).
  *  - **`acide`** (chantier EXT-CRYPTE, 2026-10-23) : sources = Souffle Acide
  *    (Dread, `SortDreadSeeder`, carte-sœur de Tempête de feu, Venim) et la Mare
  *    d'acide (`PiegeSeeder`, déclenchée par un pas). Lecteur = le même

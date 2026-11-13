@@ -469,6 +469,8 @@ câblés, aucun décoratif :
 | `attaque_double_contre` | Liste de `nom_base` contre lesquels l'arme accorde une SECONDE attaque ce tour. | « You may attack TWICE if you are fighting Orcs » |
 | `bonus_pv_body_max` | PV de Body **maximum** en plus tant que la pièce est portée. Les gagner donne les points, les perdre écrête la valeur courante. | « adds 2 Body points … to the totals » |
 | `bonus_pv_mind_max` | Idem pour le Mind. | idem |
+| `immunite_sorts_nommes` | Sorts de Dread NOMMÉS que le porteur ne peut être choisi pour recevoir (`["Gel de l'Esprit"]`). Ni nature, ni charge. Lu par `Equipement::immuniseSortNomme()` au choix de la cible de Gel de l'Esprit (2026-11-12). | « immunity to Mind Freeze and Chill spells » (Brassard de Glace) |
+| `reduit_degats_de_sort` | `{sort, points}` : chaque coup du sort nommé reçu par le porteur fait `points` de moins, plancher zéro. Lu par `MoteurDegats::infligerAHeros()`, publié en modificateur (2026-11-12). | « reduces the damage from an Ice Storm spell by 1 point for the armband wearer only » (Brassard de Glace) |
 
 ⚠ Les deux clés « contre » testent `monstres.nom_base`, le nom de **catalogue** —
 jamais le nom affiché, que l'IA habille à chaque quête (« Grull l'Éventreur ») :
@@ -597,9 +599,13 @@ Une nature n'a d'intérêt que si elle a **une source ET un lecteur** :
 - **`feu`** est complet — sources : Boule de Feu, Trait de Feu, Tempête de feu ;
   lecteurs : l'Anneau de Feu et la **régénération du troll**, qu'une brûlure
   interrompt définitivement (`instances_monstres.brule`).
-- **`froid`** est déclaré **sans source** : les six sorts de *The Frozen Horror*
-  sont nommés par le livret, leurs effets sont introuvables. `TypeDegat::SANS_SOURCE`
-  le dit dans le code.
+- **`froid`** a deux sources : *Morsure de Froid* (Chill, sort de Dread) et les deux
+  terrains de glace (Chambre forte de glace, Rivière gelée). Lecteurs : l'Anneau de
+  Chaleur et le Brassard de Glace (`immunite_degat: froid`). ⚠ **Daté (2026-11-12)** :
+  la *Tempête de Glace* n'a plus de nature `froid` — sa carte la range à part de Chill,
+  et son coup est réduit de 1 par le Brassard (`reduit_degats_de_sort`) au lieu d'être
+  annulé. *Mind Freeze* n'a aucune nature : le Brassard l'écarte par nom
+  (`immunite_sorts_nommes`). Le bloc historique « sans source » ci-dessus est périmé.
 
 ⚠ Un seul lecteur pour les deux chemins qui blessent un héros —
 `MoteurSorts::absorbeDegat()`, appelé par le tir ami d'un sort de héros **et**
