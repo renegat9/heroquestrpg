@@ -216,9 +216,9 @@ it('expose la provenance des cartes, portées et non portées', function () {
 });
 
 
-it('publie les cartes de glace du paquet : Chill et Ice Storm portées (parchemins), seul Ice Bridge reste écarté', function () {
-    // Plan parchemins-glace (2026-11-13) : la Morsure du Froid (lot 2) et la Tempête de Glace (lot 3) sont portées ;
-    // le Pont de Glace (lot 4) reste écarté, avec sa dette nommée — et le guide le dit comme les autres.
+it('publie les cartes de glace du paquet : Chill, Ice Storm et Ice Bridge portées (parchemins), plus aucune écartée', function () {
+    // Plan parchemins-glace (2026-11-13) : la Morsure du Froid (lot 2), la Tempête de Glace (lot 3) et le Pont de Glace
+    // (lot 4) sont portés — le guide n'a plus aucune carte grisée pour la boîte.
     $cartes = collect($this->getJson('/api/guide')->assertOk()->json('cartes'))
         ->flatMap(fn ($paquet) => $paquet['cartes'])
         ->keyBy('carte');

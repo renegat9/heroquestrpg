@@ -912,7 +912,7 @@ Entrance**.
 > **Revue du 2026-11-12 (René)** : *Armband of Ice* (Brassard de Glace) et *Skate*
 > (Patinage) sont PORTÉES — leurs manques avaient chacun une couture
 > (`immunite_sorts_nommes`, `reduit_degats_de_sort`, `bonus_deplacement`). *Chill*,
-> *Ice Storm* et *Ice Bridge* restent écartés.
+> *Ice Storm* et *Ice Bridge* restent écartés (état du 2026-11-12 ; tous deux portés le 2026-11-13, voir ci-dessous).
 >
 > **Décisions de René du 2026-11-13 (plan `docs/plan-parchemins-glace.md`, lot 0).**
 > *Chill* devient la **Morsure du Froid** (parchemin, `element: parchemin`, difficulté de

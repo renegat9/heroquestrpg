@@ -1066,8 +1066,9 @@ dette périmée ment aussi sûrement qu'une clé décorative.
   déplacement par `bonus_deplacement`, lu par `MoteurSorts::bonusDes()` au même
   point que la Potion de dextérité, traversée des figures par `franchit_figures`
   (Voile de Brume), `ce_tour`. Gardée : offerte seulement avant le premier pas du
-  tour. ***Ice Bridge*** reste non portée — elle pose du terrain en cours de quête,
-  mécanisme neuf, dette nommée dans `config/cartes.php`.
+  tour. ***Ice Bridge*** est portée depuis le 2026-11-13 (sort *Pont de Glace*) : la
+  pose de terrain en cours de quête (`MoteurTerrain::poserPont()`, tuile Glace
+  magique, pièges couverts à l'état `sous_pont`).
 
 **Trois artefacts de plus sont portés depuis le 2026-09-03**, et ils n'ont
 demandé **aucune mécanique neuve** — seulement de réunir sur un **objet** ce qui
