@@ -378,10 +378,24 @@ ni son format, il appelle ce que la route HTTP appelle.
   - `GET /moi` → `heros_pilotes[]` : la fiche d'un héros confié, hors du
     roster ; les décisions de forge de `/moi` suivent le pilote.
   - Suite complète : 3580 tests verts.
-  - ⚠ **Jamais vu à l'écran.** Ni le bandeau, ni son verrouillage, ni le rendu
-    à 360 px. La reprise d'une réaction après rechargement a été réécrite et
-    n'a pas été jouée. À vérifier par une partie de test à deux héros par
-    manette avant de tenir le lot pour bon.
+  - **Vu à l'écran le 2026-11-13**, sur la vraie stack, par une partie de test à
+    deux joueurs et deux héros chacun (`browser-shots/campagne/preparer-deux-heros.sh`,
+    captures `browser-shots/m2-*.mjs`, partie nettoyée ensuite) :
+    - au hub, le bandeau montre les deux héros, la pastille change le héros
+      affiché, et UN appui sur « Prêt » prête les deux héros du joueur ;
+    - en quête, le héros qui a la main porte « Son tour », l'autre pastille est
+      verrouillée ; à la fin de son tour la manette bascule SEULE sur le second
+      héros, avec sa fiche et son menu ;
+    - aucun débordement à 412 ni à 360 px.
+    - Défaut trouvé à l'écran et corrigé : entre l'état et l'arrivée du menu
+      du héros suivant, la manette restait une à deux secondes sur le héros
+      précédent, sans choix. Elle suit maintenant `a_la_main` dès que l'état
+      le publie (mesuré : le bon héros à +2,1 s, ses choix à +2,7 s).
+    - Au hub, les pastilles montrent l'icône de classe et non le portrait : le
+      roster du hub ne publie pas d'image. Cosmétique, laissé tel quel.
+  - ⚠ **Pas encore vu** : un héros CONFIÉ (pilote ≠ propriétaire) à l'écran —
+    la partie de test faisait posséder ses deux héros à chaque joueur ; et la
+    reprise d'une réaction après rechargement de la manette, réécrite au lot.
 - **Reste de M2** : l'écran qui confie un héros (la route existe, aucun bouton
   ne l'appelle encore).
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une

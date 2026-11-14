@@ -178,11 +178,15 @@ function aLaMain(id) {
     return !!(cur && cur.entite === 'heros' && cur.id === id);
 }
 
-/* Le héros dont le MENU est en cours, s'il a la main. Ce menu est sa décision : il prime sur le choix du
-   bandeau, et la manette s'y verrouille (on ne consulte pas un autre héros pendant son tour). */
+/* Le héros de cette manette qui A LA MAIN : celui du menu en cours, sinon celui que l'état désigne. Il prime sur
+   le choix du bandeau, et la manette s'y verrouille (on ne consulte pas un autre héros pendant son tour). */
 const heroAMenu = computed(() => {
     const id = store.state.menuPersonnageId;
-    return id != null && aLaMain(id) ? id : null;
+    if (id != null && aLaMain(id)) return id;
+    // Vu à l'écran le 2026-11-13 : entre l'état (« Brunehaut a la main ») et l'arrivée de SON menu, la manette
+    // restait une à deux secondes sur le héros précédent, sans aucun choix. Dès que le serveur dit qu'un héros de
+    // cette manette a la main, c'est lui qu'on affiche — son menu suit.
+    return herosPilotes.value.find((e) => aLaMain(e.id))?.id ?? null;
 });
 
 /* HÉROS COURANT (lot M2), dans l'ordre : 1) celui dont le menu a la main ; 2) celui que le joueur a choisi
