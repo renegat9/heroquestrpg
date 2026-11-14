@@ -34,8 +34,11 @@ it('rend le document complet de la quête demandée', function () {
 it('rend le détail d\'une autre quête de la même campagne, pas celui de la première', function () {
     $contenu = ReponseMcp::structure(ServeurConstructeur::tool(OutilQueteLire::class, ['campagne' => 'campagne-d-essai', 'quete' => 'la-crypte']));
 
+    // Comparé au document d'exemple, jamais à des coordonnées recopiées ici : l'exemple a été redessiné au lot K2
+    // (géométrie du moteur) et ce test avait gardé l'ancienne case du squelette.
     expect($contenu)->toEqual(DocumentExemple::secondeQuete())
-        ->and($contenu['monstres'])->toBe([['slug' => 'squelette', 'x' => 5, 'y' => 6]]);
+        ->and($contenu['monstres'])->toBe(DocumentExemple::secondeQuete()['monstres'])
+        ->and($contenu['monstres'])->not->toBe(DocumentExemple::premiereQuete()['monstres']);
 });
 
 it('rend une erreur d\'usage quand la quête n\'existe pas dans la campagne', function () {

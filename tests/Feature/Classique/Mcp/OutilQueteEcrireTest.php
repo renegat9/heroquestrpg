@@ -111,9 +111,10 @@ it('refuse une quête invalide, nomme le chemin, et ne modifie RIEN en base', fu
     $avantCampagne = app(CampagnesConstruites::class)->lire('campagne-d-essai');
     $avantProjection = QueteConstruite::query()->orderBy('rang')->get(['rang', 'slug', 'document'])->toArray();
 
-    // Le départ tombe dans « entree », que cette quête ferme : refus de la CAMPAGNE, la quête est à l'index 2.
+    // Le départ tombe dans l'INTÉRIEUR de « entree » (2..6 × 2..5), que cette quête ferme : refus de la CAMPAGNE, la
+    // quête est à l'index 2. (Avant le lot K2 le test visait (1,1), devenue une case d'anneau de mur.)
     $quete = troisiemeQueteInventee();
-    $quete['depart'] = ['x' => 1, 'y' => 1];
+    $quete['depart'] = ['x' => 3, 'y' => 3];
 
     $contenu = ReponseMcp::structure(ServeurConstructeur::tool(OutilQueteEcrire::class, [
         'campagne' => 'campagne-d-essai', 'quete' => $quete,
