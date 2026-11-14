@@ -208,6 +208,24 @@ it('termine la quête gagnée sans erreur, fait avancer la campagne et verse la 
     $this->postJson("/api/groupes/{$groupe->identifiant}/quetes")->assertCreated()->assertJsonPath('quete.titre', 'La crypte');
 });
 
+it('ne publie aucune boîte de bestiaire pour un groupe classique, et publie la consigne de l\'auteur', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = groupeClassique(herosLibre($alice, 'Albrecht'));
+
+    // Au hub comme en quête : la table affichait « First Light » à côté d'une campagne construite (vu à l'écran).
+    $etat = $this->getJson("/api/groupes/{$groupe->identifiant}/etat")->assertOk()->json('groupe');
+    expect($etat['mode'])->toBe('classique')
+        ->and($etat['theme_bestiaire'])->toBeNull()
+        ->and($etat['theme_bestiaire_libelle'])->toBeNull()
+        ->and($etat['bestiaire_mode'])->toBeNull()
+        ->and($etat['bestiaire_boites'])->toBe([]);
+
+    $this->postJson("/api/groupes/{$groupe->identifiant}/quetes")->assertCreated();
+    $etat = $this->getJson("/api/groupes/{$groupe->identifiant}/etat")->assertOk()->json();
+    expect($etat['groupe']['theme_bestiaire_libelle'])->toBeNull()
+        ->and(json_encode($etat, JSON_UNESCAPED_UNICODE))->toContain('Vaincre le gobelin qui garde l\'entrée.');
+});
+
 it('refuse le départ tant que le groupe n\'a pas la classe que la campagne exige, puis quand la campagne est finie', function () {
     $alice = connecterJoueur('alice');
     $nain = herosLibre($alice, 'Brunehaut', 'nain');

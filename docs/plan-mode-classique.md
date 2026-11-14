@@ -511,8 +511,28 @@ ni son format, il appelle ce que la route HTTP appelle.
     Q4 : case par case → lot R3) ; paquet de trésor vide (K3) ; pas d'alliés,
     recrutement fermé ; monstre errant non lu (K5) ; le marché lit le pot
     commun, que rien n'alimente en classique.
+  - **Vu à l'écran le 2026-11-14**, sur la vraie stack, avec une campagne
+    d'essai INVENTÉE (`browser-shots/campagne/essai-classique.json`), écrite
+    par le serveur MCP (`valider`, `campagne_ecrire`, `campagne_lire`), puis
+    jouée par deux comptes (`preparer-classique.sh`, captures
+    `classique-quete.mjs`, partie nettoyée et campagne d'essai retirée) :
+    - la quête part par la route ordinaire « prêt » ; la table montre son
+      titre, la consigne de l'auteur, le vestibule, l'escalier, le texte
+      d'ouverture ; la manette a son menu ;
+    - la porte sur le mur partagé s'ouvre ; la salle voisine se révèle avec
+      la table à sa place et les deux gobelins à leurs cases, sous leur nom
+      de catalogue ;
+    - les monstres jouent : un gobelin contourne la table, passe la porte et
+      attaque ; un nouveau tour s'ouvre ; aucune erreur aux journaux.
+    - Défaut trouvé à l'écran et corrigé : la table affichait une boîte de
+      bestiaire (« First Light ») à côté d'une campagne construite. Un groupe
+      classique n'en a pas : `EtatGroupe` ne la publie plus, comme pour
+      l'arène.
+  - **Pas encore vu** : la fin de la quête à l'écran (cible abattue, vote de
+    sortie, récompense annoncée) ; les deux salles restantes ; le piège du
+    couloir ; la porte secrète.
   - **Pas encore fait** : aucun écran ne propose de créer un groupe classique
-    ni de choisir une campagne ; rien n'a été vu à l'écran.
+    ni de choisir une campagne.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

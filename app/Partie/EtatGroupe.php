@@ -106,6 +106,9 @@ final class EtatGroupe
         // Bestiaire AUTO ou MANUEL (2026-09-28) : `BestiaireGroupe`, point de
         // passage unique — le libellé en sort déjà rédigé.
         $bestiaire = BestiaireGroupe::duGroupe($groupe);
+        // Ni un combat d'arène ni un groupe classique n'ont de bestiaire de campagne : rien de la rotation des boîtes
+        // n'est publié pour eux.
+        $sansBestiaire = $groupe->estArene() || $groupe->estClassique();
         $preambuleGroupe = [
             'id' => $groupe->id,
             'identifiant' => $groupe->identifiant,
@@ -127,10 +130,12 @@ final class EtatGroupe
             // MJ, tirée) est dans `bestiaire_boites`.
             // MODE ARÈNE : pas de bestiaire de campagne — le Defender est composé au salon (`groupe.arene`). Rien de
             // la rotation des boîtes n'est publié, sans quoi la table affichait une boîte tirée pour rien.
-            'theme_bestiaire' => $groupe->estArene() || $bestiaire->estFiltre() ? null : ($bestiaire->boites[0] ?? null),
-            'theme_bestiaire_libelle' => $groupe->estArene() ? null : $bestiaire->libelle(),
-            'bestiaire_mode' => $groupe->estArene() ? null : $bestiaire->mode,
-            'bestiaire_boites' => $groupe->estArene() ? [] : $bestiaire->boites,
+            // MODE CLASSIQUE (vu à l'écran le 2026-11-14) : pas de bestiaire de campagne non plus — les monstres sont ceux
+            // que l'auteur a posés. La table affichait « First Light » à côté d'une campagne construite.
+            'theme_bestiaire' => $sansBestiaire || $bestiaire->estFiltre() ? null : ($bestiaire->boites[0] ?? null),
+            'theme_bestiaire_libelle' => $sansBestiaire ? null : $bestiaire->libelle(),
+            'bestiaire_mode' => $sansBestiaire ? null : $bestiaire->mode,
+            'bestiaire_boites' => $sansBestiaire ? [] : $bestiaire->boites,
             // Scène sonore courante (boucle d'ambiance jouée par la table).
             'ambiance' => $this->sceneAmbiance($groupe, $queteCourante),
             // Illustration du lieu de repos (hub) — générée en arrière-plan
