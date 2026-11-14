@@ -5947,23 +5947,53 @@ versée aux **bourses des héros** — `par_heros` : le montant à chacun ; `gro
 allant une pièce chacun aux premiers héros de l'ordre du tour. Annoncée : `{type: "recompense_quete", quete_id, total,
 parts}` (fil de jeu : « Récompense de la quête : 10 pièces d'or (Albrecht +5, Brunehaut +5) »).
 
-### Sortie du donjon — case par case, par l'escalier (2026-11-14)
+### Accès d'une quête — entrer et sortir par un escalier ou par une porte (2026-11-14)
+
+René, 2026-11-14 : « dans certaines extensions ce sont des portes qui font l'entrée et la sortie en quête ». Un ACCÈS
+est un **escalier** ou une **porte** (`vocabulaires.types_acces`).
+
+- **`quete.depart`** — l'entrée : `{x, y}` ou `{type: "escalier", x, y}` (coin haut-gauche d'un bloc 2×2, entier dans
+  une salle ouverte), ou `{type: "porte", x, y, cote}` (une porte sur le mur d'une salle ouverte, côté `cote` de la
+  case d'intérieur `(x, y)`).
+- **`quete.sortie`** — obligatoire, nullable : `null` = on sort par où l'on est entré ; sinon un accès de la même forme.
+- Une **porte d'accès mène hors du donjon**. Ce n'est pas une porte du donjon : son mur reste de la roche, elle n'entre
+  pas dans `carte.portes`, et rien — la main, une clé, un sort — ne peut l'ouvrir. Le héros entre et sort depuis la
+  case `(x, y)` devant elle.
+- **Refus** : type inconnu (`valeur_invalide`) ; case dans une salle fermée (`depart_invalide`) ; escalier qui ne tient
+  pas dans une salle ouverte, porte hors d'une salle ouverte (`depart_hors_salle`) ; côté qui reste dans la salle
+  (`porte_sans_bord`) ; mur déjà percé par une autre porte, accès qui se recouvrent, meuble ou monstre sur une case
+  d'accès (`case_partagee`).
+- **Carte produite** : entrée par une porte → `carte.escalier = null`, et `spawn_heros` part de la case devant la
+  porte. `CarteConstruite::produire()` rend en plus `acces: {entree, sortie}`, chacun `{type, cases, porte}` avec
+  `porte = {x, y, cote, mur}` (la case de mur où elle est percée) ; le démarrage le fige dans **`quetes.acces`**.
+- **`carte.acces`** (`GET /etat`, `.groupe.etat`) : `[{role, type, libelle, x, y, l, h, cote, symbole_url}]` — une
+  entrée par accès que `carte.escalier` ne dessine pas déjà : une porte d'entrée ou de sortie (sur sa case de mur,
+  1×1) et un escalier de sortie distinct de l'entrée (2×2). `role` ∈ `entree | sortie | entree_sortie` ; `libelle` est
+  décidé par le serveur (« Porte de sortie »…). ⚠ Sous le **même brouillard** que l'escalier : un accès n'est publié
+  que si l'une de ses cases est visible — une porte de sortie dans une salle inconnue n'est pas montrée.
+
+### Sortie du donjon — en personne, case par case (2026-11-14)
 
 En mode classique on quitte le donjon EN PERSONNE (décision de René, Q4) : ni rassemblement en salle de départ, ni vote.
 
-- **Menu** : `{id: "sortir_escalier", libelle: "Quitter le donjon par l'escalier", type: "sortie_escalier"}`, offert au
-  héros dont c'est le tour quand la sortie est ouverte (`Quete::sortieDisponible()` : objectif accompli), qu'il est
-  debout et qu'il se tient sur une case de l'escalier — `Quete::peutSortirParEscalier()`, que le résolveur revalide
-  (422 sinon). `quitter_donjon` (le vote) n'est jamais offert à un groupe classique.
+- **Menu** : `{id: "sortir_donjon", libelle: "Quitter le donjon par l'escalier" | "… par la porte de sortie",
+  type: "sortie_en_personne"}`, offert au héros dont c'est le tour quand la sortie est ouverte
+  (`Quete::sortieDisponible()` : objectif accompli), qu'il est debout et qu'il se tient sur une **case de sortie** —
+  les marches, ou la case devant la porte de sortie (`Quete::sortieDuDonjon()`). Un seul prédicat,
+  `Quete::peutSortirEnPersonne()`, que le résolveur revalide (422 sinon). `quitter_donjon` (le vote) n'est jamais
+  offert à un groupe classique.
 - **Résolution** : le héros sort de la quête — sa ligne `etat_personnage_quete` est supprimée, comme pour un joueur
-  retiré en pleine quête ; il reste dans le groupe. Résultat `{type: "sortie_escalier", personnage_id, nom, restants,
-  sorti: true, quete?}`. Quand `restants` (héros debout encore dans le donjon) vaut 0, la quête est gagnée :
-  `quete` porte le résultat de `terminerQuete()`. Un héros à terre resté en arrière n'empêche pas la fin.
-- **Annonce** : « Albrecht quitte le donjon par l'escalier », suivie de « — plus personne ne reste dans le donjon »
-  pour le dernier.
+  retiré en pleine quête ; il reste dans le groupe. Résultat `{type: "sortie_en_personne", personnage_id, nom, par,
+  restants, sorti: true, quete?}` ; `par` ∈ `escalier | porte`. Quand `restants` (héros debout encore dans le donjon)
+  vaut 0, la quête est gagnée : `quete` porte le résultat de `terminerQuete()`. Un héros à terre resté en arrière
+  n'empêche pas la fin.
+- **Annonce** : « Albrecht quitte le donjon par la porte de sortie », suivie de « — plus personne ne reste dans le
+  donjon » pour le dernier.
 - **`quete.sortie`** : `salle_depart_requise: false`, `rassemble: true`, `absents: []`, et `consigne` =
-  « L'objectif est accompli : rejoignez l'escalier pour quitter le donjon, chacun son tour. » dès que la sortie est
-  ouverte.
+  « Objectif accompli : quittez le donjon par l'escalier | la porte de sortie. » dès que la sortie est ouverte
+  (courte à dessein : l'en-tête de la table coupait une consigne plus longue).
+- **`entites[].sorti`** (bool, héros) : le héros est dans le groupe mais plus dans la quête — il l'a quittée. Il
+  n'apparaît plus dans `initiative`, et sa manette affiche « Hors du donjon — tu attends que les autres en sortent ».
 - Battre en retraite reste un vote, inchangé.
 
 ### Étapes de campagne fermées à un groupe classique
@@ -5974,8 +6004,7 @@ génération de quête ; montée de niveau ; forge ; entraînement ; clôture ; 
 (provisoire). **Ouvertes** : adhésion, marché, dons, vote de retraite, purge, instantané, reprise, pilotage. Le
 compagnon animal offert ne s'ouvre pas.
 
-⚠ **Écarts provisoires, écrits** : la sortie se fait par l'**escalier** seulement — une porte de sortie distincte de
-l'entrée n'existe pas encore (lot K5) ; le paquet de trésor est **vide**, une fouille de salle ne trouve rien (lot K3) ; pas d'alliés ;
+⚠ **Écarts provisoires, écrits** : le paquet de trésor est **vide**, une fouille de salle ne trouve rien (lot K3) ; pas d'alliés ;
 le monstre errant de la quête n'est pas lu (lot K5) ; le marché lit toujours le pot commun, que rien n'alimente en
 classique — acheter avec sa bourse reste à faire.
 

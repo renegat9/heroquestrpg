@@ -732,8 +732,8 @@ final class ResolveurTour
                 // 1 PV de Body, sans carte. Lecture unique : `MoteurCheminee`.
                 'soin_cheminee' => $this->resoudreSoinCheminee($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $etat, $option, $acteur),
-                // SORTIE CASE PAR CASE (mode classique) : le héros quitte le donjon par l'escalier.
-                'sortie_escalier' => $this->resoudreSortieEscalier($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // SORTIE CASE PAR CASE (mode classique) : le héros quitte le donjon, par l'escalier ou la porte de sortie.
+                'sortie_en_personne' => $this->resoudreSortieEnPersonne($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'retraite' => $this->resoudreRetraite($groupe, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: false),
@@ -16544,8 +16544,8 @@ final class ResolveurTour
     }
 
     /**
-     * SORTIE CASE PAR CASE (mode classique, décision de René du 2026-11-13) — le héros qui se tient sur l'escalier,
-     * objectif accompli, QUITTE LE DONJON.
+     * SORTIE CASE PAR CASE (mode classique, décision de René du 2026-11-13) — le héros qui se tient sur une case de
+     * sortie (les marches de l'escalier, ou la case devant la porte de sortie), objectif accompli, QUITTE LE DONJON.
      *
      * Il sort de la quête par le chemin qui existe déjà pour un joueur retiré en pleine quête
      * (`VoteGroupe::detacherJoueur()`) : sa ligne `etat_personnage_quete` est supprimée. Le tour, les monstres et le
@@ -16560,26 +16560,30 @@ final class ResolveurTour
      * @param  array{type: string, id: int, nom: string}  $acteur
      * @return array<string, mixed>
      */
-    private function resoudreSortieEscalier(Groupe $groupe, Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat, array $option, array $acteur): array
+    private function resoudreSortieEnPersonne(Groupe $groupe, Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
-        if ($etat === null || ! $quete->peutSortirParEscalier($etat)) {
+        if ($etat === null || ! $quete->peutSortirEnPersonne($etat)) {
             throw ValidationException::withMessages([
-                'option_id' => $quete->sortieParEscalier() && ! $quete->sortieDisponible()
+                'option_id' => $quete->sortieEnPersonne() && ! $quete->sortieDisponible()
                     ? 'Vous n\'avez pas encore accompli ce pourquoi vous êtes venus.'
-                    : 'Il faut se tenir sur l\'escalier pour quitter le donjon.',
+                    : 'Il faut se tenir sur '.$quete->nomDeLaSortie().' pour quitter le donjon.',
             ]);
         }
+
+        $par = $quete->sortieDuDonjon()['type'];
 
         $etat->delete();
 
         $restants = $quete->etatsPersonnages()->where('tombe', false)->count();
 
         $payload = [
-            'type' => 'sortie_escalier',
+            'type' => 'sortie_en_personne',
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'personnage_id' => $personnage->id,
             'nom' => $personnage->nom,
+            // `escalier` ou `porte` : par où il est sorti — l'annonce le dit.
+            'par' => $par,
             'restants' => $restants,
             // Lu par `resoudre()` : le héros n'a plus de ligne d'état, rien ne doit plus y écrire.
             'sorti' => true,

@@ -9,10 +9,34 @@
     "largeur": 24,
     "hauteur": 16,
     "salles": [
-      {"id": "vestibule", "x": 2, "y": 2, "l": 5, "h": 4},
-      {"id": "salle-des-gardes", "x": 8, "y": 2, "l": 5, "h": 4},
-      {"id": "cellier", "x": 16, "y": 2, "l": 5, "h": 3},
-      {"id": "caveau", "x": 9, "y": 10, "l": 6, "h": 4}
+      {
+        "id": "vestibule",
+        "x": 2,
+        "y": 2,
+        "l": 5,
+        "h": 4
+      },
+      {
+        "id": "salle-des-gardes",
+        "x": 8,
+        "y": 2,
+        "l": 5,
+        "h": 4
+      },
+      {
+        "id": "cellier",
+        "x": 16,
+        "y": 2,
+        "l": 5,
+        "h": 3
+      },
+      {
+        "id": "caveau",
+        "x": 9,
+        "y": 10,
+        "l": 6,
+        "h": 4
+      }
     ]
   },
   "quetes": [
@@ -21,29 +45,103 @@
       "titre": "La cave aux gobelins",
       "ouverture": "L'escalier descend dans une cave humide. Des voix aiguës se disputent derrière la porte de l'est, et quelque chose de plus lourd remue plus bas.",
       "monstre_errant": "gobelin",
-      "salles_ouvertes": ["vestibule", "salle-des-gardes", "caveau"],
-      "portes": [
-        {"x": 6, "y": 3, "cote": "e", "type": "normale"},
-        {"x": 10, "y": 5, "cote": "s", "type": "normale"},
-        {"x": 11, "y": 10, "cote": "n", "type": "normale"},
-        {"x": 2, "y": 4, "cote": "o", "type": "secrete"}
+      "salles_ouvertes": [
+        "vestibule",
+        "salle-des-gardes",
+        "caveau"
       ],
-      "blocs": [{"x": 20, "y": 7}],
+      "portes": [
+        {
+          "x": 6,
+          "y": 3,
+          "cote": "e",
+          "type": "normale"
+        },
+        {
+          "x": 10,
+          "y": 5,
+          "cote": "s",
+          "type": "normale"
+        },
+        {
+          "x": 11,
+          "y": 10,
+          "cote": "n",
+          "type": "normale"
+        },
+        {
+          "x": 2,
+          "y": 4,
+          "cote": "o",
+          "type": "secrete"
+        }
+      ],
+      "blocs": [
+        {
+          "x": 20,
+          "y": 7
+        }
+      ],
       "mobilier": [
-        {"slug": "table", "x": 9, "y": 3, "rotation": 0},
-        {"slug": "coffre", "x": 14, "y": 13, "rotation": 0}
+        {
+          "slug": "table",
+          "x": 9,
+          "y": 3,
+          "rotation": 0
+        },
+        {
+          "slug": "coffre",
+          "x": 14,
+          "y": 13,
+          "rotation": 0
+        }
       ],
       "monstres": [
-        {"slug": "gobelin", "x": 12, "y": 2},
-        {"slug": "gobelin", "x": 8, "y": 5},
-        {"slug": "squelette", "x": 10, "y": 12},
-        {"slug": "fimir", "x": 13, "y": 11}
+        {
+          "slug": "gobelin",
+          "x": 12,
+          "y": 2
+        },
+        {
+          "slug": "gobelin",
+          "x": 8,
+          "y": 5
+        },
+        {
+          "slug": "squelette",
+          "x": 10,
+          "y": 12
+        },
+        {
+          "slug": "fimir",
+          "x": 13,
+          "y": 11
+        }
       ],
-      "pieges": [{"slug": "fosse", "x": 6, "y": 8}],
+      "pieges": [
+        {
+          "slug": "fosse",
+          "x": 6,
+          "y": 8
+        }
+      ],
       "terrain": [],
-      "depart": {"x": 2, "y": 2},
-      "recompense": {"or": 60, "partage": "groupe"},
-      "fin": {"type": "vaincre", "cibles": [3], "libelle": "Abattre le fimir qui règne sur le caveau."}
+      "depart": {
+        "x": 2,
+        "y": 2
+      },
+      "sortie": null,
+      "recompense": {
+        "or": 60,
+        "partage": "groupe"
+      },
+      "fin": {
+        "type": "vaincre",
+        "cibles": [
+          3
+        ],
+        "libelle": "Abattre le fimir qui règne sur le caveau."
+      }
     }
   ]
 }

@@ -144,6 +144,8 @@ final class DemarreurQueteConstruite
                     'type' => (string) data_get($queteDoc, 'fin.type'),
                     'libelle' => (string) data_get($queteDoc, 'fin.libelle'),
                 ],
+                // Par où l'on entre et par où l'on sort (escalier ou porte), figés ici : `Quete::sortieDuDonjon()`.
+                'acces' => $produit['acces'],
             ]);
 
             Carte::create([

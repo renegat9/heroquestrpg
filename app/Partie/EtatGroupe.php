@@ -325,14 +325,14 @@ final class EtatGroupe
         $ouverte = $quete->sortieDisponible();
 
         // SORTIE CASE PAR CASE (mode classique) : ni rassemblement ni absents — chacun sort par l'escalier. La consigne
-        // est celle de `Quete::consigneEscalier()`, publiée ici comme l'autre : aucun écran ne teste le mode.
-        if ($quete->sortieParEscalier()) {
+        // est celle de `Quete::consigneDeSortie()`, publiée ici comme l'autre : aucun écran ne teste le mode.
+        if ($quete->sortieEnPersonne()) {
             return [
                 'ouverte' => $ouverte,
                 'salle_depart_requise' => false,
                 'rassemble' => true,
                 'absents' => [],
-                'consigne' => $quete->consigneEscalier(),
+                'consigne' => $quete->consigneDeSortie(),
                 'consigne_extraction' => null,
             ];
         }
@@ -564,6 +564,9 @@ final class EtatGroupe
             // brouillard que les autres couches par pure CONSTANCE plutôt que
             // par nécessité. `null` sur une carte assemblée AVANT ce chantier.
             'escalier' => $this->escalier($carte, $cases),
+            // ACCÈS d'une quête construite (mode classique, 2026-11-14) : les portes d'entrée et de sortie, et un
+            // escalier de sortie distinct de l'entrée — ce que `escalier` ne montre pas déjà. Voir `acces()`.
+            'acces' => $this->acces($quete, $cases),
             'portes' => $portes,
         ];
     }
@@ -1048,6 +1051,68 @@ final class EtatGroupe
     }
 
     /**
+     * LES REPÈRES D'ACCÈS d'une quête construite — par où l'on est entré, par où l'on sort (`quetes.acces`).
+     *
+     * Une entrée de liste par accès que `escalier` ne dessine pas déjà : une PORTE d'entrée ou de sortie (posée sur sa
+     * case de mur, `mur`), et un ESCALIER de sortie distinct de l'entrée (son bloc 2×2). Le `role` et le `libelle` sont
+     * décidés ici ; l'écran ne déduit ni l'un ni l'autre, et ne recalcule aucune géométrie.
+     *
+     * ⚠ Sous le MÊME brouillard que l'escalier : un accès n'est publié que si l'une de ses cases est visible. Une porte
+     * de sortie au fond d'une salle inconnue n'est pas montrée — pas de carte dévoilée d'avance.
+     *
+     * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
+     * @return list<array<string, mixed>>
+     */
+    private function acces(?Quete $quete, array $cases): array
+    {
+        $acces = $quete?->acces;
+        if (! is_array($acces) || ! isset($acces['entree'], $acces['sortie'])) {
+            return [];
+        }
+
+        $meme = $acces['entree'] == $acces['sortie'];
+        $roles = $meme ? ['entree_sortie' => $acces['entree']] : ['entree' => $acces['entree'], 'sortie' => $acces['sortie']];
+        $publies = [];
+
+        foreach ($roles as $role => $a) {
+            $porte = ($a['type'] ?? null) === 'porte';
+            // L'escalier d'ENTRÉE est déjà dessiné par `carte.escalier`.
+            if (! $porte && $role !== 'sortie') {
+                continue;
+            }
+
+            $visible = false;
+            foreach ((array) ($a['cases'] ?? []) as $c) {
+                $visible = $visible || (($cases[(int) $c['y']][(int) $c['x']] ?? 'b') !== 'b');
+            }
+            if (! $visible) {
+                continue;
+            }
+
+            $premiere = $a['cases'][0];
+            $publies[] = [
+                'role' => $role,
+                'type' => $porte ? 'porte' : 'escalier',
+                'libelle' => match (true) {
+                    $porte && $role === 'entree' => 'Porte d\'entrée',
+                    $porte && $role === 'sortie' => 'Porte de sortie',
+                    $porte => 'Porte d\'entrée et de sortie',
+                    default => 'Escalier de sortie',
+                },
+                // Où le dessiner : la case de mur d'une porte (1×1), ou le bloc 2×2 d'un escalier.
+                'x' => $porte ? (int) $a['porte']['mur']['x'] : (int) $premiere['x'],
+                'y' => $porte ? (int) $a['porte']['mur']['y'] : (int) $premiere['y'],
+                'l' => $porte ? 1 : 2,
+                'h' => $porte ? 1 : 2,
+                'cote' => $porte ? (string) $a['porte']['cote'] : null,
+                'symbole_url' => $porte ? null : app(BibliothequeImages::class)->urlSymboleEscalier(),
+            ];
+        }
+
+        return $publies;
+    }
+
+    /**
      * Escalier d'entrée (chantier escalier-entrée, 2026-10-05) : `null`
      * absente/vide (carte sans la couche, ou entièrement sous le brouillard —
      * en pratique jamais, la salle 0 est toujours découverte).
@@ -1432,6 +1497,9 @@ final class EtatGroupe
                     // MANETTE À PLUSIEURS HÉROS (lot M1) : le PILOTE qui joue ce héros dans ce groupe — le propriétaire
                     // quand il ne l'a confié à personne. Publié, jamais re-dérivé : la manette ne lit pas `joueur_id`.
                     'pilote_joueur_id' => Groupe::piloteDuPivot($p),
+                    // SORTI DU DONJON : le héros est dans le groupe mais plus dans la quête (il l'a quittée en personne).
+                    // Publié pour que sa manette lui dise qu'il attend les autres, plutôt qu'un écran sans menu.
+                    'sorti' => $etat === null,
                     // Portrait unique du héros si généré, sinon image de classe.
                     'image_url' => app(BibliothequeImages::class)->urlHeros($p->id, $p->classe),
                     'x' => $etat?->position_x,
@@ -1761,6 +1829,13 @@ final class EtatGroupe
             ->wherePivot('actif', true)
             ->orderBy('groupe_personnages.ordre_initiative')
             ->get() as $p) {
+            // Un héros SORTI du donjon (mode classique : il a quitté la quête par l'escalier ou la porte de sortie) n'a
+            // plus de ligne d'état : il ne jouera plus. Vu à l'écran le 2026-11-14 — il restait dans la barre d'initiative
+            // comme un héros qui n'a pas encore joué.
+            if (! $etats->has($p->id)) {
+                continue;
+            }
+
             $heros->push([
                 'entite' => 'heros',
                 'id' => $p->id,

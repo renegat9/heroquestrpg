@@ -570,9 +570,29 @@ ni son format, il appelle ce que la route HTTP appelle.
   - tests : deux cas en jeu dans `PremiereQueteJouableTest` (pas de sortie
     avant l'objectif ni hors de l'escalier ; deux héros qui sortent l'un après
     l'autre, la quête gagnée au départ du dernier, chaque sortie annoncée).
-  - **Pas encore fait** : une porte de sortie distincte de l'entrée (K5) ;
-    rien de cette sortie n'a été vu à l'écran ; un héros sorti voit une
-    manette sans menu, sans message qui lui dise qu'il attend les autres.
+  - **Pas encore fait** : un héros sorti voit une manette sans menu, sans
+    message qui lui dise qu'il attend les autres.
+- **Entrer et sortir par une porte (R2, R3) — fait le 2026-11-14.** René :
+  « dans certaines extensions ce sont des portes qui font l'entrée et la
+  sortie en quête ». Le lot K5 n'a pas attendu :
+  - un ACCÈS est un escalier ou une porte ; `quete.depart` accepte les deux,
+    `quete.sortie` (nullable) déclare une sortie distincte de l'entrée ;
+  - une porte d'accès n'est PAS une porte du donjon : son mur reste de la
+    roche et elle n'entre pas dans `carte.portes`. Raison : le menu offre à
+    l'ouverture toute porte fermée (main, clé, bénédiction, souris) — rangée
+    là, elle finirait par s'ouvrir sur de la roche ;
+  - `Quete::sortieDuDonjon()` : les cases d'où l'on quitte le donjon, figées
+    au démarrage dans `quetes.acces`. Le prédicat de sortie les lit, quel que
+    soit leur type ; l'option s'appelle « Quitter le donjon par l'escalier »
+    ou « … par la porte de sortie » ;
+  - `carte.acces` : le serveur publie les repères que l'escalier ne dessine
+    pas déjà, sous le même brouillard — une porte de sortie dans une salle
+    inconnue n'est pas montrée. La carte les dessine sur leur case de mur ;
+  - tests : `AccesParPorteTest` (14) — carte, validation, publication, et une
+    quête jouée où l'on entre par une porte et sort par une autre.
+  - **Limite** : un escalier de sortie distinct est joué et publié, mais il
+    n'y a toujours qu'UN escalier dans `carte.escalier` ; le second passe par
+    `carte.acces`.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

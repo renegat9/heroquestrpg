@@ -37,6 +37,7 @@ function troisiemeQueteInventee(): array
         'pieges' => [],
         'terrain' => [],
         'depart' => ['x' => 8, 'y' => 2],
+        'sortie' => null,
         'recompense' => null,
         'fin' => ['type' => 'vaincre', 'cibles' => [0], 'libelle' => 'Vaincre le gobelin de la galerie.'],
     ];

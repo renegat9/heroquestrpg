@@ -150,6 +150,9 @@ const etatControle = computed(() => ETATS_CONTROLE[controleManette.value] ?? nul
    rejette toutes ses actions — la manette retire le menu et l'annonce
    clairement (il ne rejouera que relevé par un allié). ---- */
 const suisTombe = computed(() => monEntite.value?.tombe === true);
+// SORTI DU DONJON (mode classique) : le héros affiché a quitté la quête en personne. Décision publiée par le serveur
+// (`entites[].sorti`) — la manette ne la déduit pas de l'absence de position.
+const suisSorti = computed(() => monEntite.value?.sorti === true);
 
 /* ---- Les héros que CETTE manette pilote (lot M2) ----
    La décision est serveur : chaque héros d'`entites` porte `pilote_joueur_id` (le propriétaire quand rien
@@ -1679,6 +1682,13 @@ const navItems = computed(() => (scene.value === 'marche'
                             </p>
                         </div>
                         <!-- héros tombé : le moteur le saute, aucun menu n'est jouable -->
+                        <div v-else-if="tab === 'action' && suisSorti" style="text-align: center; padding: 30px 14px; color: var(--ink-500)">
+                            <MSym n="logout" :size="34" />
+                            <p style="font-family: var(--font-narr); font-weight: 700; font-size: 16px; margin: 10px 0 4px">Hors du donjon</p>
+                            <p style="font-family: var(--font-narr); font-style: italic; font-size: 14px; margin: 0">
+                                Tu as quitté le donjon — tu attends que les autres en sortent.
+                            </p>
+                        </div>
                         <div v-else-if="tab === 'action' && suisTombe" style="text-align: center; padding: 30px 14px; color: var(--ink-500)">
                             <MSym n="personal_injury" :size="34" />
                             <p style="font-family: var(--font-narr); font-weight: 700; font-size: 16px; margin: 10px 0 4px">À terre</p>

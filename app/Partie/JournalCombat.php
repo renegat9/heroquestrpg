@@ -171,8 +171,8 @@ final class JournalCombat
         'vote_resolu' => true,
         // MODE CLASSIQUE : la récompense d'une quête construite, versée aux bourses des héros.
         'recompense_quete' => true,
-        // MODE CLASSIQUE : un héros quitte le donjon par l'escalier.
-        'sortie_escalier' => true,
+        // MODE CLASSIQUE : un héros quitte le donjon en personne, par l'escalier ou par la porte de sortie.
+        'sortie_en_personne' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1245,8 +1245,8 @@ final class JournalCombat
             'monstres_reveles' => $this->monstresReveles($a),
             'vote_resolu' => $this->voteResolu($a),
             'recompense_quete' => $this->recompenseQuete($a),
-            'sortie_escalier' => [[
-                'texte' => ($a['nom'] ?? $acteurNom).' quitte le donjon par l\'escalier'
+            'sortie_en_personne' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' quitte le donjon par '.(($a['par'] ?? 'escalier') === 'porte' ? 'la porte de sortie' : 'l\'escalier')
                     .((int) ($a['restants'] ?? 0) === 0 ? ' — plus personne ne reste dans le donjon' : ''),
                 'ton' => 'succes',
             ]],

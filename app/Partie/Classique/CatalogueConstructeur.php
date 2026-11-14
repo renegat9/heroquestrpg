@@ -109,6 +109,7 @@ final class CatalogueConstructeur
                 'types_porte' => ValidationCampagne::TYPES_PORTE,
                 'partages' => ValidationCampagne::PARTAGES,
                 'types_fin' => ValidationCampagne::TYPES_FIN,
+                'types_acces' => ValidationCampagne::TYPES_ACCES,
                 'formats_acceptes' => ValidationCampagne::FORMATS_ACCEPTES,
             ],
         ];

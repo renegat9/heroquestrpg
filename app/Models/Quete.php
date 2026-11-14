@@ -45,6 +45,9 @@ class Quete extends Model
         // MODE CLASSIQUE (2026-11-14) : la condition de fin écrite par l'auteur d'une quête construite —
         // `{type: "vaincre", libelle}`. Lue par `objectif()`, `objectifAccompli()` et `objectifLibelle()` seulement.
         'objectif_construit',
+        // MODE CLASSIQUE (2026-11-14) : par où l'on entre et par où l'on sort — `{entree, sortie}`, chacun
+        // `{type: escalier|porte, cases: [{x, y}], porte?: {x, y, cote}}`. Lu par `casesDeSortie()` seulement.
+        'acces',
     ];
 
     protected function casts(): array
@@ -72,6 +75,7 @@ class Quete extends Model
             // ouverte avant la colonne : sa liste se lit sur sa roster.
             'effets_globaux' => 'array',
             'objectif_construit' => 'array',
+            'acces' => 'array',
         ];
     }
 
@@ -537,33 +541,70 @@ class Quete extends Model
      * @param  array{actif: bool, rassemble: bool, absents: list<array{personnage_id: int, nom: string}>}|null  $rassemblement
      */
     /**
-     * SORTIE CASE PAR CASE (mode classique, décision de René du 2026-11-13, Q4) : dans cette quête, chaque héros quitte
-     * le donjon EN PERSONNE, en se tenant sur l'escalier — il n'y a ni rassemblement en salle de départ ni vote de
-     * groupe. LE prédicat, lu par `MenuMoteur` (l'option), `ResolveurTour` (sa revalidation) et `EtatGroupe` (la
-     * consigne) : un groupe classique, sur une carte qui a un escalier.
+     * LES CASES D'OÙ L'ON QUITTE LE DONJON, et leur type — LE point de passage de la sortie en personne.
+     *
+     * Une quête construite les porte (`acces.sortie`, figé au démarrage) : les marches d'un escalier, ou la case
+     * devant une PORTE DE SORTIE — certaines campagnes entrent et sortent par des portes, pas par un escalier (René,
+     * 2026-11-14). À défaut, ce sont les marches de l'escalier de la carte.
+     *
+     * @return array{type: string, cases: list<array{x: int, y: int}>}
      */
-    public function sortieParEscalier(): bool
+    public function sortieDuDonjon(): array
     {
-        return (bool) $this->groupe?->estClassique() && ($this->carte?->casesEscalier() ?? []) !== [];
+        $sortie = data_get($this->acces, 'sortie');
+
+        if (is_array($sortie) && ! empty($sortie['cases'])) {
+            return [
+                'type' => (string) ($sortie['type'] ?? 'escalier'),
+                'cases' => array_map(fn ($c): array => ['x' => (int) $c['x'], 'y' => (int) $c['y']], (array) $sortie['cases']),
+            ];
+        }
+
+        return ['type' => 'escalier', 'cases' => $this->carte?->casesEscalier() ?? []];
     }
 
     /**
-     * Ce héros peut-il quitter le donjon par l'escalier MAINTENANT ? La sortie est ouverte (`sortieDisponible()` :
-     * l'objectif est accompli), il est debout, et il se tient sur une case de l'escalier. Menu et résolveur lisent ceci.
+     * SORTIE CASE PAR CASE (mode classique, décision de René du 2026-11-13, Q4) : dans cette quête, chaque héros quitte
+     * le donjon EN PERSONNE, depuis une case de sortie — il n'y a ni rassemblement en salle de départ ni vote de
+     * groupe. LE prédicat, lu par `MenuMoteur` (l'option), `ResolveurTour` (sa revalidation) et `EtatGroupe` (la
+     * consigne) : un groupe classique, dans une quête qui a des cases de sortie.
      */
-    public function peutSortirParEscalier(EtatPersonnageQuete $etat): bool
+    public function sortieEnPersonne(): bool
     {
-        return $this->sortieParEscalier()
-            && $this->sortieDisponible()
-            && ! $etat->tombe
-            && (bool) $this->carte?->surEscalier($etat->position_x, $etat->position_y);
+        return (bool) $this->groupe?->estClassique() && $this->sortieDuDonjon()['cases'] !== [];
     }
 
-    /** La consigne dite aux joueurs quand la sortie par l'escalier est ouverte ; `null` sinon. */
-    public function consigneEscalier(): ?string
+    /**
+     * Ce héros peut-il quitter le donjon MAINTENANT ? La sortie est ouverte (`sortieDisponible()` : l'objectif est
+     * accompli), il est debout, et il se tient sur une case de sortie. Menu et résolveur lisent ceci.
+     */
+    public function peutSortirEnPersonne(EtatPersonnageQuete $etat): bool
     {
-        return $this->sortieParEscalier() && $this->sortieDisponible()
-            ? 'L\'objectif est accompli : rejoignez l\'escalier pour quitter le donjon, chacun son tour.'
+        if (! $this->sortieEnPersonne() || ! $this->sortieDisponible() || $etat->tombe) {
+            return false;
+        }
+
+        foreach ($this->sortieDuDonjon()['cases'] as $case) {
+            if ($case['x'] === (int) $etat->position_x && $case['y'] === (int) $etat->position_y) {
+                return $etat->position_x !== null && $etat->position_y !== null;
+            }
+        }
+
+        return false;
+    }
+
+    /** Le lieu de sortie, dit aux joueurs : « l'escalier » ou « la porte de sortie ». */
+    public function nomDeLaSortie(): string
+    {
+        return $this->sortieDuDonjon()['type'] === 'porte' ? 'la porte de sortie' : 'l\'escalier';
+    }
+
+    /** La consigne dite aux joueurs quand la sortie en personne est ouverte ; `null` sinon. */
+    public function consigneDeSortie(): ?string
+    {
+        return $this->sortieEnPersonne() && $this->sortieDisponible()
+            // Courte : l'en-tête de la table la coupait (vu à l'écran le 2026-11-14).
+            ? 'Objectif accompli : quittez le donjon par '.$this->nomDeLaSortie().'.'
             : null;
     }
 

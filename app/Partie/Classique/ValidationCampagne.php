@@ -75,6 +75,8 @@ final class ValidationCampagne
      */
     private const PARTAGES_INTERDITS = [
         ['meuble', 'meuble'], ['meuble', 'monstre'], ['monstre', 'monstre'], ['escalier', 'meuble'], ['escalier', 'monstre'],
+        // Deux accès (l'entrée et la sortie) ne se recouvrent pas : sinon `sortie` se laisse à `null`.
+        ['escalier', 'escalier'],
     ];
 
     // ─── Vocabulaires fermés : publiés tels quels par GET /api/constructeur/catalogues ───────────────────────────
@@ -85,6 +87,17 @@ final class ValidationCampagne
     public const COTES = ['n', 'e', 's', 'o'];
     public const TYPES_PORTE = ['normale', 'secrete'];
     public const PARTAGES = ['groupe', 'par_heros'];
+
+    /**
+     * Par où l'on entre (`depart`) et par où l'on sort (`sortie`) : un ESCALIER (bloc 2×2), ou une PORTE sur le mur
+     * d'une salle ouverte. Les deux ont un lecteur : `CarteConstruite` pour l'entrée, `Quete::sortieDuDonjon()` pour
+     * la sortie.
+     */
+    public const ACCES_ESCALIER = 'escalier';
+
+    public const ACCES_PORTE = 'porte';
+
+    public const TYPES_ACCES = [self::ACCES_ESCALIER, self::ACCES_PORTE];
 
     // ─── Bornes : celles des colonnes de la migration `campagnes_construites` ─────────────────────────────────────
 
@@ -101,7 +114,7 @@ final class ValidationCampagne
     private const CLES_SALLE = ['id', 'x', 'y', 'l', 'h'];
     private const CLES_QUETE = [
         'slug', 'titre', 'ouverture', 'monstre_errant', 'salles_ouvertes', 'portes', 'blocs', 'mobilier',
-        'monstres', 'pieges', 'terrain', 'depart', 'recompense', 'fin',
+        'monstres', 'pieges', 'terrain', 'depart', 'sortie', 'recompense', 'fin',
     ];
     private const CLES_FIN = ['type', 'cibles', 'libelle'];
     private const CLES_PORTE = ['x', 'y', 'cote', 'type'];
@@ -397,6 +410,7 @@ final class ValidationCampagne
             $this->portes($quete, $chemin);
             $this->blocs($quete, $chemin);
             $this->depart($quete, $chemin);
+            $this->sortie($quete, $chemin);
             $this->poses($quete, $chemin, 'mobilier', 'mobilier', tourne: true);
             $this->poses($quete, $chemin, 'monstres', 'monstres');
             $this->poses($quete, $chemin, 'pieges', 'pieges');
@@ -623,20 +637,56 @@ final class ValidationCampagne
         if (!array_key_exists('depart', $quete)) {
             return;
         }
-        $position = self::chemin($chemin, 'depart');
-        $depart = $this->enObjet($quete['depart'], $position);
-        if ($depart === null) {
+        $this->acces($quete['depart'], self::chemin($chemin, 'depart'), 'départ');
+    }
+
+    /**
+     * `sortie` : par où l'on quitte le donjon. `null` = par où l'on est entré. Sinon un accès comme le départ — un
+     * escalier, ou une porte de sortie (René, 2026-11-14 : certaines campagnes entrent et sortent par des portes).
+     */
+    private function sortie(array $quete, string $chemin): void
+    {
+        if (!array_key_exists('sortie', $quete) || $quete['sortie'] === null) {
             return;
         }
-        $this->cles($depart, $position, self::CLES_CASE);
+        $this->acces($quete['sortie'], self::chemin($chemin, 'sortie'), 'sortie');
+    }
 
-        $cellule = $this->cellule($depart, $position);
+    /**
+     * UN ACCÈS — l'entrée ou la sortie. Deux formes, selon `type` (absent = `escalier`, la forme d'origine du départ) :
+     *
+     *  - `escalier` `{x, y}` : le coin haut-gauche d'un bloc 2×2, entier dans l'intérieur d'UNE salle ouverte ;
+     *  - `porte` `{type, x, y, cote}` : une porte sur le mur d'une salle ouverte, côté `cote` de la case d'intérieur
+     *    (x, y). Elle mène HORS du donjon : ce qu'il y a derrière ne compte pas, et elle ne s'ouvre jamais comme une
+     *    porte ordinaire (elle n'entre pas dans `portes`). Le héros entre et sort depuis la case (x, y).
+     *
+     * Les cases d'un accès ne portent ni meuble ni monstre, et deux accès ne se recouvrent pas.
+     */
+    private function acces(mixed $valeur, string $position, string $role): void
+    {
+        $acces = $this->enObjet($valeur, $position);
+        if ($acces === null) {
+            return;
+        }
+
+        $type = array_key_exists('type', $acces) ? $acces['type'] : self::ACCES_ESCALIER;
+        if (!in_array($type, self::TYPES_ACCES, true)) {
+            $this->refuser(self::chemin($position, 'type'), self::VALEUR_INVALIDE,
+                'le type d\'un accès est « escalier » ou « porte »');
+
+            return;
+        }
+
+        $attendues = $type === self::ACCES_PORTE ? ['type', 'x', 'y', 'cote'] : (array_key_exists('type', $acces) ? ['type', 'x', 'y'] : self::CLES_CASE);
+        $this->cles($acces, $position, $attendues);
+
+        $cellule = $this->cellule($acces, $position);
         if ($cellule === null) {
             return;
         }
         [$x, $y] = $cellule;
         if ($this->salleFermeeEn($x, $y)) {
-            $this->refuser($position, self::DEPART_INVALIDE, 'le départ tombe dans une salle fermée');
+            $this->refuser($position, self::DEPART_INVALIDE, "$role : la case tombe dans une salle fermée");
 
             return;
         }
@@ -644,19 +694,49 @@ final class ValidationCampagne
             return;
         }
 
-        $escalier = [[$x, $y], [$x + 1, $y], [$x, $y + 1], [$x + 1, $y + 1]];
         $salle = $this->salleEn($x, $y);
-        $tient = $salle !== null && isset($this->ouvertes[$salle]);
+        $ouverte = $salle !== null && isset($this->ouvertes[$salle]);
+
+        if ($type === self::ACCES_PORTE) {
+            $cote = $this->dans($acces, 'cote', $position, self::COTES);
+            if ($cote === null) {
+                return;
+            }
+            if (!$ouverte) {
+                $this->refuser($position, self::DEPART_HORS_SALLE, "$role : la porte doit être sur une case d'une salle ouverte");
+
+                return;
+            }
+            [$dx, $dy] = self::DECALAGES[$cote];
+            [$ex, $ey] = [$x + $dx, $y + $dy];
+            if ($this->salleEn($ex, $ey) === $salle) {
+                $this->refuser($position, self::PORTE_SANS_BORD, "$role : le côté « $cote » reste dans la même salle");
+
+                return;
+            }
+            if (isset($this->embrasures["$ex,$ey"])) {
+                $this->refuser($position, self::CASE_PARTAGEE, "$role : une autre porte occupe déjà le mur en ($ex, $ey)");
+
+                return;
+            }
+            $this->embrasures["$ex,$ey"] = true;
+            $this->occuper([[$x, $y]], 'escalier', $position, "la case de la porte de $role");
+
+            return;
+        }
+
+        $escalier = [[$x, $y], [$x + 1, $y], [$x, $y + 1], [$x + 1, $y + 1]];
+        $tient = $ouverte;
         foreach ($escalier as [$cx, $cy]) {
             $tient = $tient && $this->salleEn($cx, $cy) === $salle;
         }
         if (!$tient) {
             $this->refuser($position, self::DEPART_HORS_SALLE,
-                "le bloc 2×2 du départ doit tenir entier dans une salle ouverte (le départ depuis un couloir arrive avec le lot K5)");
+                "$role : le bloc 2×2 de l'escalier doit tenir entier dans une salle ouverte");
 
             return;
         }
-        $this->occuper($escalier, 'escalier', $position, "l'escalier de départ");
+        $this->occuper($escalier, 'escalier', $position, "l'escalier de $role");
     }
 
     /**

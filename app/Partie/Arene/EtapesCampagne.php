@@ -221,8 +221,9 @@ final class EtapesCampagne
         self::MERCENAIRES => 'les alliés d\'un groupe classique arrivent avec un lot ultérieur',
         self::DONS => null,
         self::VOTE_RETRAITE => null,
-        // Décision Q4 de René : on quitte le donjon case par case, par l'escalier (`Quete::peutSortirParEscalier()`).
-        self::VOTE_SORTIE => 'on quitte le donjon en personne, par l\'escalier : il n\'y a pas de vote de sortie',
+        // Décision Q4 de René : on quitte le donjon case par case, par l'escalier ou la porte de sortie
+        // (`Quete::peutSortirEnPersonne()`).
+        self::VOTE_SORTIE => 'on quitte le donjon en personne, par l\'escalier ou la porte de sortie : il n\'y a pas de vote de sortie',
         self::CLOTURE => 'un groupe classique n\'est jamais dissous : finir une campagne ramène au choix de campagne',
         self::RESUME => 'aucun travail d\'IA',
         // La purge reste possible, mais jamais automatique : seul `partie:purger`, avec sa confirmation, y mène.

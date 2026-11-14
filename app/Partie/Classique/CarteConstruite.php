@@ -152,9 +152,14 @@ final class CarteConstruite
             ];
         }
 
-        $escalier = ['x' => (int) $quete['depart']['x'], 'y' => (int) $quete['depart']['y'], 'l' => 2, 'h' => 2];
+        // ACCÈS : par où l'on entre et par où l'on sort ({@see self::acces()}). L'ENTRÉE ancre les héros : les marches
+        // d'un escalier, ou la case devant une porte d'entrée. La carte ne porte un `escalier` que si l'on entre par un
+        // escalier ; par une porte, il vaut `null` — le repli que tous ses lecteurs connaissent déjà.
+        $acces = self::acces($quete);
+        $ancre = $acces['entree']['ancre'];
+        $escalier = $acces['entree']['type'] === ValidationCampagne::ACCES_ESCALIER ? $ancre : null;
         $occupees = [];
-        foreach (Grille::cellulesEmprise($escalier['x'], $escalier['y'], 2, 2) as $c) {
+        foreach (Grille::cellulesEmprise($ancre['x'], $ancre['y'], $ancre['l'], $ancre['h']) as $c) {
             $occupees["{$c['x']},{$c['y']}"] = true;
         }
 
@@ -222,11 +227,17 @@ final class CarteConstruite
                 'terrain' => $terrain,
                 'dangers' => [],
                 'escalier' => $escalier,
-                'spawn_heros' => self::spawnsHeros($salleDepart, $escalier, $occupees),
+                'spawn_heros' => self::spawnsHeros($salleDepart, $ancre, $occupees),
                 'spawn_monstres' => [],
                 'spawn_figures_fixes' => [],
             ],
             'monstres' => $monstres,
+            // HORS de `carte` (dont les clés restent celles de l'assembleur) : par où l'on entre et par où l'on sort.
+            // `DemarreurQueteConstruite` les fige sur la quête (`quetes.acces`), `Quete::sortieDuDonjon()` les lit.
+            'acces' => [
+                'entree' => ['type' => $acces['entree']['type'], 'cases' => $acces['entree']['cases'], 'porte' => $acces['entree']['porte']],
+                'sortie' => ['type' => $acces['sortie']['type'], 'cases' => $acces['sortie']['cases'], 'porte' => $acces['sortie']['porte']],
+            ],
         ];
     }
 
@@ -235,7 +246,7 @@ final class CarteConstruite
      * case de chaque élément.
      *
      * `#` roche (mur, bloc, salle fermée) · `.` sol · `+` embrasure d'une porte normale · `?` embrasure d'une porte
-     * secrète · `<` escalier de départ · `M` monstre · `m` meuble (toute son emprise) · `^` piège · `~` terrain.
+     * secrète · `<` entrée · `>` sortie (si elle est distincte) · `M` monstre · `m` meuble (toute son emprise) · `^` piège · `~` terrain.
      *
      * @param  array<string, mixed>  $campagne
      * @param  array<string, mixed>  $quete
@@ -266,7 +277,11 @@ final class CarteConstruite
                 $grille[$c['y']][$c['x']] = 'm';
             }
         }
-        foreach (Grille::cellulesEmprise($carte['escalier']['x'], $carte['escalier']['y'], 2, 2) as $c) {
+        // ACCÈS : `<` les cases d'entrée, `>` celles de sortie quand elle est distincte de l'entrée.
+        foreach ($produit['acces']['sortie']['cases'] as $c) {
+            $grille[$c['y']][$c['x']] = '>';
+        }
+        foreach ($produit['acces']['entree']['cases'] as $c) {
             $grille[$c['y']][$c['x']] = '<';
         }
         foreach ($produit['monstres'] as $monstre) {
@@ -297,6 +312,47 @@ final class CarteConstruite
             'e' => ['embrasure' => ['x' => $x + 1, 'y' => $y], 'arete' => ['x' => $x + 1, 'y' => $y, 'cote' => 'e']],
             'o' => ['embrasure' => ['x' => $x - 1, 'y' => $y], 'arete' => ['x' => $x - 2, 'y' => $y, 'cote' => 'e']],
         };
+    }
+
+    /**
+     * LES ACCÈS d'une quête : l'entrée (`depart`) et la sortie (`sortie`, ou l'entrée quand elle est `null`).
+     *
+     * Chacun rend son `type` (`escalier` | `porte`), son `ancre` (le rectangle d'où partent les héros : le bloc 2×2 des
+     * marches, ou la case devant la porte), ses `cases` (celles d'où un héros entre ou quitte le donjon) et, pour une
+     * porte, `porte` = `{x, y, cote, mur}`. Une porte d'accès mène HORS du donjon : son embrasure reste de la roche, et elle
+     * n'entre pas dans `carte.portes` — rien ne peut l'ouvrir.
+     *
+     * @param  array<string, mixed>  $quete
+     * @return array{entree: array<string, mixed>, sortie: array<string, mixed>}
+     */
+    public static function acces(array $quete): array
+    {
+        $un = static function (array $acces): array {
+            $x = (int) $acces['x'];
+            $y = (int) $acces['y'];
+
+            if (($acces['type'] ?? ValidationCampagne::ACCES_ESCALIER) === ValidationCampagne::ACCES_PORTE) {
+                return [
+                    'type' => ValidationCampagne::ACCES_PORTE,
+                    'ancre' => ['x' => $x, 'y' => $y, 'l' => 1, 'h' => 1],
+                    'cases' => [['x' => $x, 'y' => $y]],
+                    // `mur` : la case de l'anneau où la porte est percée — celle où l'écran la dessine.
+                    'porte' => ['x' => $x, 'y' => $y, 'cote' => (string) $acces['cote'],
+                        'mur' => self::porteMoteur(['x' => $x, 'y' => $y, 'cote' => (string) $acces['cote']])['embrasure']],
+                ];
+            }
+
+            return [
+                'type' => ValidationCampagne::ACCES_ESCALIER,
+                'ancre' => ['x' => $x, 'y' => $y, 'l' => 2, 'h' => 2],
+                'cases' => Grille::cellulesEmprise($x, $y, 2, 2),
+                'porte' => null,
+            ];
+        };
+
+        $entree = $un((array) $quete['depart']);
+
+        return ['entree' => $entree, 'sortie' => is_array($quete['sortie'] ?? null) ? $un($quete['sortie']) : $entree];
     }
 
     /**
@@ -338,7 +394,16 @@ final class CarteConstruite
         foreach ($quete['blocs'] as $bloc) {
             $lignes[] = "  # bloc : case ({$bloc['x']}, {$bloc['y']})";
         }
-        $lignes[] = "  < escalier de départ : coin ({$quete['depart']['x']}, {$quete['depart']['y']}), 2×2";
+        $acces = self::acces($quete);
+        $dire = static fn (array $a): string => $a['type'] === ValidationCampagne::ACCES_PORTE
+            ? "porte, intérieur ({$a['porte']['x']}, {$a['porte']['y']}), côté {$a['porte']['cote']}"
+            : "escalier, coin ({$a['ancre']['x']}, {$a['ancre']['y']}), 2×2";
+        if (is_array($quete['sortie'] ?? null)) {
+            $lignes[] = '  < entrée : '.$dire($acces['entree']);
+            $lignes[] = '  > sortie : '.$dire($acces['sortie']);
+        } else {
+            $lignes[] = '  < entrée et sortie : '.$dire($acces['entree']);
+        }
         foreach ($quete['mobilier'] as $meuble) {
             $type = $this->catalogue->index('mobilier')[$meuble['slug']];
             [$l, $h] = ValidationCampagne::empriseMeuble((int) $type->largeur, (int) $type->hauteur, (int) $meuble['rotation']);

@@ -79,6 +79,10 @@ const props = defineProps({
      *  traversable, aucun des deux drapeaux du mobilier ne s'applique, donc un
      *  rendu dédié plutôt qu'une réutilisation de `furniture`. */
     stairs: { type: Object, default: null },
+    /** ACCÈS d'une quête construite (mode classique) : `[{role, type, libelle, x, y, l, h, cote, symbole_url}]`,
+     *  publiés par le serveur sous le brouillard. Une PORTE d'entrée ou de sortie se dessine sur sa case de mur ; un
+     *  escalier de sortie sur son bloc 2×2. Rien n'est déduit ici : ni le rôle, ni le libellé, ni la case. */
+    acces: { type: Array, default: () => [] },
     /** Anime le déplacement des enfants (FLIP sur les figurines) — table. */
     animate: { type: Boolean, default: false },
     /** Figurines (héros, alliés, captifs, monstres), forme de `entitesVersFigurines()` (store/game.js) :
@@ -474,6 +478,22 @@ const jetonsPlaces = computed(() => {
         >
             <div class="dg-stairs" title="Escalier d'entrée — on commence et on finit la quête ici">
                 <SymboleCarte :url="stairs.symbole_url" :icone="ESCALIER_ICONE" nom="Escalier d'entrée" />
+            </div>
+        </div>
+
+        <!-- ACCÈS (mode classique) : porte d'entrée, porte de sortie, escalier de sortie — voir la prop `acces`. -->
+        <div
+            v-for="a in acces"
+            :key="`acces-${a.role}-${a.x}-${a.y}`"
+            class="dg-acces-holder"
+            :style="{ gridColumn: `${a.x + 1} / span ${a.l}`, gridRow: `${a.y + 1} / span ${a.h}` }"
+        >
+            <div class="dg-acces" :class="[`dg-acces-${a.type}`, `dg-acces-${a.role}`]" :title="a.libelle">
+                <SymboleCarte
+                    :url="a.symbole_url"
+                    :icone="a.type === 'porte' ? (a.role === 'entree' ? 'login' : 'logout') : ESCALIER_ICONE"
+                    :nom="a.libelle"
+                />
             </div>
         </div>
 
@@ -909,6 +929,18 @@ const jetonsPlaces = computed(() => {
   background: oklch(0.6 0.03 85 / 0.14);
   box-shadow: inset 0 0 0 1.5px oklch(0.78 0.14 80 / 0.5); }
 .dg-stairs .msym { font-size: calc(var(--dg-icone) * 1.6); color: oklch(0.82 0.13 80);
+  filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
+
+/* ---- ACCÈS (mode classique) : une PORTE d'entrée ou de sortie, posée sur sa case de MUR — une pastille dorée pleine,
+   pour qu'on la lise comme un passage vers le dehors et non comme une porte du donjon ; la sortie est plus vive que
+   l'entrée. Un escalier de sortie reprend la teinte de l'escalier d'entrée. ---- */
+.dg-acces-holder { position: relative; pointer-events: none; z-index: 2; }
+.dg-acces { position: absolute; inset: 8%; border-radius: 6px; display: grid; place-items: center; overflow: hidden; }
+.dg-acces-porte { background: oklch(0.3 0.04 80 / 0.92); box-shadow: inset 0 0 0 1.5px oklch(0.78 0.14 80 / 0.55); }
+.dg-acces-porte.dg-acces-sortie, .dg-acces-porte.dg-acces-entree_sortie {
+  background: oklch(0.42 0.1 80 / 0.95); box-shadow: inset 0 0 0 2px oklch(0.86 0.15 85 / 0.9); }
+.dg-acces-escalier { inset: 4%; background: oklch(0.6 0.03 85 / 0.14); box-shadow: inset 0 0 0 1.5px oklch(0.78 0.14 80 / 0.5); }
+.dg-acces .msym { font-size: calc(var(--dg-icone) * 1.2); color: oklch(0.92 0.12 85);
   filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
 
 /* ---- dangers mobiles autonomes (2026-10-23) : un HEXAGONE de braise sombre quand le danger est en mouvement ; une fois le

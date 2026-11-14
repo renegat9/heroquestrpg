@@ -83,8 +83,9 @@ it('rend les mêmes clés de premier niveau que AssembleurCarte::assembler(), da
         ->and($clesProduites)->toHaveCount(17);
 });
 
-it('rend la carte et les monstres, et rien d\'autre au premier niveau', function () {
-    expect(array_keys(produitDeLExemple()))->toBe(['carte', 'monstres']);
+it('rend la carte, les monstres et les accès, et rien d\'autre au premier niveau', function () {
+    // Les accès (entrée, sortie) voyagent HORS de `carte`, dont les clés restent celles de l'assembleur.
+    expect(array_keys(produitDeLExemple()))->toBe(['carte', 'monstres', 'acces']);
 });
 
 // ─── Le moteur LA JOUE : la carte produite, chargée comme au jeu ───────────────────────────────────────────────────
@@ -332,7 +333,7 @@ Légende :
   + porte normale : intérieur (3, 2), côté n, embrasure (3, 1)
   ? porte secrète : intérieur (9, 5), côté s, embrasure (9, 6)
   # bloc : case (11, 7)
-  < escalier de départ : coin (2, 4), 2×2
+  < entrée et sortie : escalier, coin (2, 4), 2×2
   m table : ancre (4, 4), rotation 0, emprise 3×2
   M gobelin : case (5, 2)
   ^ fosse : case (2, 2)

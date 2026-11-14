@@ -69,6 +69,7 @@ final class DocumentExemple
             'pieges' => [['slug' => 'fosse', 'x' => 2, 'y' => 2]],
             'terrain' => [['slug' => 'glace-glissante', 'x' => 9, 'y' => 3]],
             'depart' => ['x' => 2, 'y' => 4],
+            'sortie' => null,
             'recompense' => ['or' => 10, 'partage' => 'groupe'],
             'fin' => ['type' => 'vaincre', 'cibles' => [0], 'libelle' => 'Vaincre le gobelin qui garde l\'entrée.'],
         ];
@@ -96,6 +97,7 @@ final class DocumentExemple
             'pieges' => [],
             'terrain' => [],
             'depart' => ['x' => 5, 'y' => 2],
+            'sortie' => null,
             'recompense' => null,
             'fin' => ['type' => 'vaincre', 'cibles' => [0], 'libelle' => 'Vaincre le squelette de la crypte.'],
         ];

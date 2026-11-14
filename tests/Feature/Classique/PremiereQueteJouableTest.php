@@ -288,24 +288,24 @@ it('n\'offre la sortie par l\'escalier qu\'une fois l\'objectif accompli, et seu
 
     // Sur l'escalier, mais l'objectif n'est pas accompli : ni sortie par l'escalier, ni vote de sortie.
     $ids = collect(menuClassique($groupe)['menu']['options'])->pluck('id');
-    expect($ids)->not->toContain('sortir_escalier')->not->toContain('quitter_donjon');
-    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'sortir_escalier'])->assertStatus(422);
+    expect($ids)->not->toContain('sortir_donjon')->not->toContain('quitter_donjon');
+    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'sortir_donjon'])->assertStatus(422);
     expect($this->getJson("/api/groupes/{$groupe->identifiant}/etat")->json('quete.sortie.consigne'))->toBeNull();
 
     // La cible tombe : la sortie s'ouvre, la consigne le dit, et le vote n'est toujours pas offert.
     InstanceMonstre::where('quete_id', $quete->id)->update(['etat' => 'vaincu']);
     $ids = collect(menuClassique($groupe)['menu']['options'])->pluck('id');
-    expect($ids)->toContain('sortir_escalier')->not->toContain('quitter_donjon');
+    expect($ids)->toContain('sortir_donjon')->not->toContain('quitter_donjon');
 
     $sortie = $this->getJson("/api/groupes/{$groupe->identifiant}/etat")->json('quete.sortie');
     expect($sortie['ouverte'])->toBeTrue()
         ->and($sortie['salle_depart_requise'])->toBeFalse()
-        ->and($sortie['consigne'])->toContain('rejoignez l\'escalier');
+        ->and($sortie['consigne'])->toBe('Objectif accompli : quittez le donjon par l\'escalier.');
 
     // Hors de l'escalier (2..3 × 4..5) : plus d'option, et le résolveur la refuse.
     $quete->etatsPersonnages()->where('personnage_id', $heros->id)->update(['position_x' => 5, 'position_y' => 2]);
-    expect(collect(menuClassique($groupe)['menu']['options'])->pluck('id'))->not->toContain('sortir_escalier');
-    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'sortir_escalier'])->assertStatus(422);
+    expect(collect(menuClassique($groupe)['menu']['options'])->pluck('id'))->not->toContain('sortir_donjon');
+    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'sortir_donjon'])->assertStatus(422);
 });
 
 it('fait sortir les héros un à un par l\'escalier, et gagne la quête au départ du dernier', function () {
@@ -324,7 +324,7 @@ it('fait sortir les héros un à un par l\'escalier, et gagne la quête au dépa
     // Albrecht (premier dans l'ordre du tour) quitte le donjon : la quête continue pour Brunehaut.
     $this->actingAs($alice, 'joueur');
     menuClassique($groupe);
-    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'sortir_escalier'])->assertAccepted();
+    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'sortir_donjon'])->assertAccepted();
 
     expect($quete->etatsPersonnages()->where('personnage_id', $albrecht->id)->exists())->toBeFalse()
         ->and($quete->refresh()->etat)->toBe('en_cours')
@@ -332,15 +332,23 @@ it('fait sortir les héros un à un par l\'escalier, et gagne la quête au dépa
         // Il reste dans le groupe : sortir du donjon n'est pas quitter le groupe.
         ->and($albrecht->refresh()->groupe_actif_id)->toBe($groupe->id);
 
+    // Vu à l'écran : il restait dans la barre d'initiative comme un héros qui n'a pas joué. Il en sort, et l'état le
+    // publie « sorti » pour que sa manette le lui dise.
+    $etat = $this->getJson("/api/groupes/{$groupe->identifiant}/etat")->assertOk()->json();
+    $entites = collect($etat['entites'])->where('type', 'heros')->keyBy('id');
+    expect(collect($etat['initiative'])->where('entite', 'heros')->pluck('id')->all())->toBe([$brunehaut->id])
+        ->and($entites[$albrecht->id]['sorti'])->toBeTrue()
+        ->and($entites[$brunehaut->id]['sorti'])->toBeFalse();
+
     // Lui n'a plus de menu ; elle a la main.
     expect(menuClassique($groupe)['menu'])->toBeNull();
     $this->actingAs($bob, 'joueur');
     $menu = menuClassique($groupe);
     expect($menu['personnage_id'])->toBe($brunehaut->id)
-        ->and(collect($menu['menu']['options'])->pluck('id'))->toContain('sortir_escalier');
+        ->and(collect($menu['menu']['options'])->pluck('id'))->toContain('sortir_donjon');
 
     // Brunehaut sort à son tour : plus aucun héros debout dans le donjon, la quête est gagnée.
-    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'sortir_escalier'])->assertAccepted();
+    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'sortir_donjon'])->assertAccepted();
 
     expect($quete->refresh()->etat)->toBe('terminee')
         ->and($groupe->refresh()->phase)->toBe('hub')
@@ -352,7 +360,7 @@ it('fait sortir les héros un à un par l\'escalier, et gagne la quête au dépa
     // Chaque sortie est annoncée, avec sa phrase.
     $sorties = \App\Models\Evenement::where('groupe_id', $groupe->id)->orderBy('sequence')->get()
         // L'ANNONCE (`action`), pas le `choix` du joueur, qui porte lui aussi le type de l'option.
-        ->filter(fn ($e) => $e->type === 'action' && ($e->payload['type'] ?? null) === 'sortie_escalier')->values();
+        ->filter(fn ($e) => $e->type === 'action' && ($e->payload['type'] ?? null) === 'sortie_en_personne')->values();
     $fil = app(\App\Partie\JournalCombat::class);
     expect($sorties)->toHaveCount(2)
         ->and($fil->depuisResultat($sorties[0]->payload, 'Albrecht')[0]['texte'])->toBe('Albrecht quitte le donjon par l\'escalier')
