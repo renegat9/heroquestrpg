@@ -164,7 +164,7 @@ it('refuse à l\'import un format inconnu : format_inconnu', function () {
 
 it('refuse à l\'import un slug de catalogue inconnu, en le nommant', function () {
     $doc = DocumentExemple::campagne();
-    $doc['quetes'][1]['pieges'] = [['slug' => 'piege-venu-d-ailleurs', 'x' => 5, 'y' => 6]];
+    $doc['quetes'][1]['pieges'] = [['slug' => 'piege-venu-d-ailleurs', 'x' => 4, 'y' => 3]];
 
     $levee = null;
     try {

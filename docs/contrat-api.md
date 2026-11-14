@@ -5759,14 +5759,56 @@ quete {
   mais ne fait pas paraître fermées toutes les cases ni inconnues toutes les salles qui en dépendent.
 - **Une position** (`mobilier`, `monstres`, `pieges`, `terrain`, `depart`, `portes`, `blocs`) est dans le plateau, et :
   - `monstres`, `pieges`, `terrain`, `mobilier` : jamais dans une **salle fermée** (`dans_salle_fermee`) ;
-  - `blocs` : sur une **case de couloir**, c'est-à-dire hors de toute salle, ouverte ou non (`bloc_hors_couloir`) ;
-  - `depart` : dans une salle **ouverte** ou dans un **couloir** (`depart_invalide` sinon) ;
-  - `portes` : sur une case d'une salle **ouverte**, et le côté `cote` mène à une case **du plateau** qui n'est **pas** dans
-    la même salle (`porte_sans_bord` sinon). Une porte entre deux salles ouvertes est valide.
-- Le **footprint** d'un meuble (`largeur`×`hauteur` du catalogue) n'est **pas** contrôlé en K1 : seule l'ancre `x, y` l'est.
-  Aucun contrôle de **doublon** de case (deux monstres au même endroit) non plus. Ce sont des décisions ouvertes, à
-  trancher avant le lot K2 (producteur de carte, qui pose réellement ces cases).
+  - `blocs` : sur une **case de couloir**, c'est-à-dire hors de toute salle, ouverte ou non, **et hors de tout anneau**
+    (`bloc_hors_couloir` dans une salle, `pose_sur_mur` sur un anneau — lot K2) ;
+  - `depart` : dans l'**intérieur** d'une salle **ouverte**, le bloc 2×2 entier (`depart_invalide` si le départ tombe dans
+    une salle fermée ; `depart_hors_salle` sinon, couloir compris — lot K2) ;
+  - `portes` : sur une case d'intérieur d'une salle **ouverte**, et le côté `cote` mène à une case qui n'est **pas** dans
+    la même salle (`porte_sans_bord` sinon). Une porte entre deux salles ouvertes est valide. Le côté donne la **roche**
+    (`porte_dans_la_roche`, lot K2) quand la case juste dehors est un anneau, une salle fermée — voir la géométrie ci-dessous.
+- Le **footprint** d'un meuble (`largeur`×`hauteur` du catalogue, tourné) et les **doublons** de case sont contrôlés depuis
+  le lot K2 (`mobilier_hors_salle`, `case_partagee`) : décisions prises là, voir « Géométrie » ci-dessous.
 - **Récompense** : `or` entier ≥ 0 ; `partage` parmi `groupe` et `par_heros`.
+
+### Géométrie : une salle, son anneau, ses couloirs (lot K2, 2026-11-13, `docs/plan-mode-classique.md` §3)
+
+Le plateau se dessine dans **la géométrie du moteur, où un mur est une case**. Les valeurs de K1 ne changent pas ; ce qui
+change est ce qu'elles DÉSIGNENT :
+
+- Une salle `{id, x, y, l, h}` décrit son **intérieur**. Son **anneau** de murs est la bordure qui l'entoure : le rectangle
+  moteur de la salle est `x-1, y-1, l+2, h+2`. Une salle fermée est de la **roche pleine**, intérieur et anneau.
+- Est **couloir** toute case du plateau qui n'est ni intérieur ni anneau d'**aucune** salle (ouverte ou fermée). Tout ce qui
+  n'est pas dans une salle est donc franchissable.
+- Deux salles peuvent **partager** des cases d'anneau. L'anneau d'une salle ne recouvre **jamais** l'intérieur d'une autre
+  (`anneau_sur_salle`). L'anneau d'une salle doit tenir sur le plateau (`anneau_hors_plateau`) : une salle reste à au moins
+  une case du bord.
+- **Porte.** Le côté `cote` d'une case d'intérieur `(x, y)` d'une salle ouverte désigne l'**embrasure** E, la case juste au-delà
+  de ce côté (sur l'anneau de la salle), et O, la case juste dehors. La porte moteur est l'arête E–O :
+
+  | `cote` | E (embrasure) | O (juste dehors) | arête moteur `{x, y, cote}` |
+  |---|---|---|---|
+  | `n` | (x, y-1) | (x, y-2) | (x, y-2, `s`) |
+  | `s` | (x, y+1) | (x, y+2) | (x, y+1, `s`) |
+  | `e` | (x+1, y) | (x+2, y) | (x+1, y, `e`) |
+  | `o` | (x-1, y) | (x-2, y) | (x-2, y, `e`) |
+
+  La correspondance est celle de `Grille::caseEmbrasure()` — un test la vérifie pour les quatre côtés. O doit être du
+  **couloir**, ou l'**intérieur d'une salle ouverte voisine** (le cas d'un mur partagé, où E est aussi l'anneau de cette
+  voisine). Sinon la porte donne dans la roche (`porte_dans_la_roche`). Une case O **hors plateau** reste `porte_sans_bord`,
+  comme en K1 : c'est le même défaut, il n'a qu'un code. Deux portes sur la même embrasure sont refusées (`case_partagee`).
+- **Meuble.** Son emprise part de l'ancre `(x, y)`, coin haut-gauche, et s'étend vers la droite et le bas : `l`×`h` du
+  catalogue pour `rotation` 0 ou 180, `h`×`l` pour 90 ou 270. Toute l'emprise est dans l'intérieur de la salle ouverte de
+  l'ancre (`mobilier_hors_salle`).
+- **Une case ne porte qu'un élément.** Refusés (`case_partagee`) : deux meubles ; un meuble et un monstre ; deux monstres ;
+  l'escalier et un meuble ou un monstre ; un bloc et n'importe quoi d'autre. Un piège ou un terrain ne partage une case
+  qu'avec un bloc : la consigne ne nomme pas les autres couples, et K2 ne les refuse pas.
+- **Départ.** `depart` désigne le coin haut-gauche d'un escalier 2×2, dans l'intérieur d'une salle ouverte. Le départ depuis
+  un couloir arrive avec le lot K5 (`depart_hors_salle` jusque-là).
+- **Pas de refus en cascade, encore ici** : les contrôles de géométrie qui dépendent des salles ouvertes ne tournent que si
+  `plateau.salles` et `quetes[].salles_ouvertes` sont lisibles. L'anneau et le recouvrement d'intérieurs, eux, ne dépendent
+  que des salles et tournent toujours.
+- **Aucune route** dans ce lot. Le producteur est le service `App\Partie\Classique\CarteConstruite::produire()`, qui REFUSE
+  (`CarteRefusee`) un document invalide : il ne répare rien. `apercu()` rend une quête en texte, pour la relire sans écran.
 
 ### Catalogues — `GET /api/constructeur/catalogues`
 
@@ -5820,6 +5862,13 @@ Forme : `{chemin, code, message}`. Le **chemin** est pointé depuis la racine : 
 | `porte_sans_bord` | Une porte n'est pas sur le bord d'une salle ouverte, ou son côté mène hors du plateau ou dans la même salle. |
 | `slug_non_concordant` | Le `slug` du document ne vaut pas celui de l'URL (PUT). |
 | `empreinte_invalide` | Un fichier importé porte une `empreinte` qui ne correspond pas à son document. |
+| `anneau_hors_plateau` | Lot K2 — l'anneau de mur d'une salle sort du plateau. |
+| `anneau_sur_salle` | Lot K2 — l'anneau de mur d'une salle recouvre l'intérieur d'une autre salle (deux intérieurs qui se chevauchent sont déjà `salles_se_chevauchent`). |
+| `pose_sur_mur` | Lot K2 — un bloc, un piège, un terrain ou un monstre tombe sur une case d'anneau. |
+| `depart_hors_salle` | Lot K2 — le bloc 2×2 du départ n'est pas entièrement dans l'intérieur d'une salle ouverte (couloir compris : « le départ depuis un couloir arrive avec le lot K5 »). |
+| `porte_dans_la_roche` | Lot K2 — la case juste dehors d'une porte est de la roche : salle fermée, ou anneau d'une salle non partagée. |
+| `mobilier_hors_salle` | Lot K2 — l'emprise d'un meuble, rotation comprise, sort de l'intérieur de sa salle ouverte, ou le meuble est posé hors de toute salle. |
+| `case_partagee` | Lot K2 — deux éléments sur une même case (couples listés dans « Géométrie »), ou deux portes sur une même embrasure. |
 
 ### Stockage
 
