@@ -154,6 +154,22 @@ note      { repere, quand{ declencheur, cible }, alors[ {effet, …} ], une_fois
   plateau. Deux raisons : le format reste générique (une extension peut avoir
   un autre plateau, René peut dessiner le sien), et le dépôt ne livre aucun
   plateau tiré d'une boîte — seulement un plateau d'exemple **inventé**.
+- **Géométrie : celle du MOTEUR, où un mur est une case** (décidé le
+  2026-11-13 à l'ouverture de K2, René ayant délégué). Dans ce moteur
+  `cases[y][x] === 'm'` est un mur, une salle est un intérieur entouré d'un
+  **anneau de cases de mur**, et une porte occupe une case de cet anneau
+  (`Grille::caseEmbrasure()`). Une salle du plateau `{x, y, l, h}` décrit donc
+  son **intérieur** ; son anneau l'entoure ; est **couloir** toute case qui
+  n'est ni un intérieur ni un anneau. Deux salles peuvent partager une case de
+  mur, jamais moins.
+  - Conséquence assumée : un plateau dessiné ainsi est plus grand qu'un
+    plateau où les murs sont des traits. Passer aux murs en arêtes est le
+    chantier de `docs/plan-murs-en-aretes.md` (six fichiers structurants, à
+    faire « à froid ») : il n'est pas ouvert ici. Le jour où il l'est, seul
+    `CarteConstruite` change, pas le format.
+  - `depart` désigne le coin haut-gauche d'un escalier 2×2, dans une salle
+    ouverte : c'est la salle de départ, la salle 0 du moteur. Le départ depuis
+    un couloir ou une porte d'entrée (R2) vient avec le lot K5.
 - **K1 ne porte pas les notes.** `notes[]` et `MotsClesQuete` entrent au lot
   K3, avec leurs lecteurs : un mot-clé que la validation accepterait sans que
   rien ne le joue serait une clé décorative. K1 = le contenu **statique**
