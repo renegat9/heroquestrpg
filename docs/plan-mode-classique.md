@@ -147,9 +147,18 @@ note      { repere, quand{ declencheur, cible }, alors[ {effet, …} ], une_fois
 - **Références par slug de catalogue**, jamais par id : c'est ce qui rend
   l'export portable d'une machine à l'autre. L'import refuse un slug inconnu
   en le nommant.
-- **Plateau fixe** : le plateau classique est une donnée unique (26×19, ses 22
-  salles et ses couloirs). Une quête dit quelles salles sont ouvertes et ce
-  qui s'y trouve ; elle ne redessine pas le plateau.
+- **Le plateau est une DONNÉE de la campagne, pas du code** (révisé le
+  2026-11-13, à l'ouverture de K1). `campagne.plateau` décrit des dimensions
+  et des salles rectangulaires ; tout le reste est couloir. Une quête dit
+  quelles salles sont ouvertes et ce qui s'y trouve ; elle ne redessine pas le
+  plateau. Deux raisons : le format reste générique (une extension peut avoir
+  un autre plateau, René peut dessiner le sien), et le dépôt ne livre aucun
+  plateau tiré d'une boîte — seulement un plateau d'exemple **inventé**.
+- **K1 ne porte pas les notes.** `notes[]` et `MotsClesQuete` entrent au lot
+  K3, avec leurs lecteurs : un mot-clé que la validation accepterait sans que
+  rien ne le joue serait une clé décorative. K1 = le contenu **statique**
+  d'une quête (salles ouvertes, portes, blocs, mobilier, monstres, pièges,
+  terrain, départ, monstre errant, textes, récompense).
 - **`mention`** : champ libre de crédit et de copyright, affiché à l'ouverture
   de la campagne.
 
