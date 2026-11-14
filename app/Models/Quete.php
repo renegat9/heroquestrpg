@@ -536,6 +536,37 @@ class Quete extends Model
      *
      * @param  array{actif: bool, rassemble: bool, absents: list<array{personnage_id: int, nom: string}>}|null  $rassemblement
      */
+    /**
+     * SORTIE CASE PAR CASE (mode classique, décision de René du 2026-11-13, Q4) : dans cette quête, chaque héros quitte
+     * le donjon EN PERSONNE, en se tenant sur l'escalier — il n'y a ni rassemblement en salle de départ ni vote de
+     * groupe. LE prédicat, lu par `MenuMoteur` (l'option), `ResolveurTour` (sa revalidation) et `EtatGroupe` (la
+     * consigne) : un groupe classique, sur une carte qui a un escalier.
+     */
+    public function sortieParEscalier(): bool
+    {
+        return (bool) $this->groupe?->estClassique() && ($this->carte?->casesEscalier() ?? []) !== [];
+    }
+
+    /**
+     * Ce héros peut-il quitter le donjon par l'escalier MAINTENANT ? La sortie est ouverte (`sortieDisponible()` :
+     * l'objectif est accompli), il est debout, et il se tient sur une case de l'escalier. Menu et résolveur lisent ceci.
+     */
+    public function peutSortirParEscalier(EtatPersonnageQuete $etat): bool
+    {
+        return $this->sortieParEscalier()
+            && $this->sortieDisponible()
+            && ! $etat->tombe
+            && (bool) $this->carte?->surEscalier($etat->position_x, $etat->position_y);
+    }
+
+    /** La consigne dite aux joueurs quand la sortie par l'escalier est ouverte ; `null` sinon. */
+    public function consigneEscalier(): ?string
+    {
+        return $this->sortieParEscalier() && $this->sortieDisponible()
+            ? 'L\'objectif est accompli : rejoignez l\'escalier pour quitter le donjon, chacun son tour.'
+            : null;
+    }
+
     public function consigneRassemblement(?array $rassemblement = null): ?string
     {
         $rassemblement ??= $this->rassemblementDepart();

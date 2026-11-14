@@ -553,6 +553,26 @@ ni son format, il appelle ce que la route HTTP appelle.
     classique (il s'ouvre par le code du groupe, comme toute table) ; aucun
     écran ne dit, au hub, quelle campagne joue le groupe ni à quelle quête il
     en est ; le marché du hub reste celui du pot commun.
+- **Sortie case par case (R3, par l'escalier) — fait le 2026-11-14** :
+  - un héros debout sur l'escalier, objectif accompli, quitte le donjon par
+    l'option `sortir_escalier` ; le vote de sortie est fermé au classique
+    (`EtapesCampagne`), l'écart provisoire est levé ;
+  - un seul prédicat, `Quete::peutSortirParEscalier()`, lu par le menu, le
+    résolveur et la consigne publiée ;
+  - le héros sort de la quête par le chemin d'un joueur retiré en pleine
+    quête : sa ligne d'état est supprimée. Tour, monstres et brouillard se
+    déduisent des héros présents — aucun de leurs lecteurs n'a eu à apprendre
+    un état « sorti ». La quête est gagnée quand plus aucun héros debout ne
+    reste ;
+  - défaut trouvé par le test en jeu et corrigé : le menu d'un héros déjà
+    sorti était recalculé avec ceux du groupe, et l'option supposait sa ligne
+    d'état présente ;
+  - tests : deux cas en jeu dans `PremiereQueteJouableTest` (pas de sortie
+    avant l'objectif ni hors de l'escalier ; deux héros qui sortent l'un après
+    l'autre, la quête gagnée au départ du dernier, chaque sortie annoncée).
+  - **Pas encore fait** : une porte de sortie distincte de l'entrée (K5) ;
+    rien de cette sortie n'a été vu à l'écran ; un héros sorti voit une
+    manette sans menu, sans message qui lui dise qu'il attend les autres.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

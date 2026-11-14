@@ -5947,16 +5947,35 @@ versée aux **bourses des héros** — `par_heros` : le montant à chacun ; `gro
 allant une pièce chacun aux premiers héros de l'ordre du tour. Annoncée : `{type: "recompense_quete", quete_id, total,
 parts}` (fil de jeu : « Récompense de la quête : 10 pièces d'or (Albrecht +5, Brunehaut +5) »).
 
+### Sortie du donjon — case par case, par l'escalier (2026-11-14)
+
+En mode classique on quitte le donjon EN PERSONNE (décision de René, Q4) : ni rassemblement en salle de départ, ni vote.
+
+- **Menu** : `{id: "sortir_escalier", libelle: "Quitter le donjon par l'escalier", type: "sortie_escalier"}`, offert au
+  héros dont c'est le tour quand la sortie est ouverte (`Quete::sortieDisponible()` : objectif accompli), qu'il est
+  debout et qu'il se tient sur une case de l'escalier — `Quete::peutSortirParEscalier()`, que le résolveur revalide
+  (422 sinon). `quitter_donjon` (le vote) n'est jamais offert à un groupe classique.
+- **Résolution** : le héros sort de la quête — sa ligne `etat_personnage_quete` est supprimée, comme pour un joueur
+  retiré en pleine quête ; il reste dans le groupe. Résultat `{type: "sortie_escalier", personnage_id, nom, restants,
+  sorti: true, quete?}`. Quand `restants` (héros debout encore dans le donjon) vaut 0, la quête est gagnée :
+  `quete` porte le résultat de `terminerQuete()`. Un héros à terre resté en arrière n'empêche pas la fin.
+- **Annonce** : « Albrecht quitte le donjon par l'escalier », suivie de « — plus personne ne reste dans le donjon »
+  pour le dernier.
+- **`quete.sortie`** : `salle_depart_requise: false`, `rassemble: true`, `absents: []`, et `consigne` =
+  « L'objectif est accompli : rejoignez l'escalier pour quitter le donjon, chacun son tour. » dès que la sortie est
+  ouverte.
+- Battre en retraite reste un vote, inchangé.
+
 ### Étapes de campagne fermées à un groupe classique
 
 `App\Partie\Arene\EtapesCampagne::CLASSIQUE` (une réponse par étape, testée dans les deux sens ; refus nommé
 `RefusClassique`). **Fermées** : squelette, habillage, récits, images de quête et de hub, résumé (travail d'IA) ;
-génération de quête ; montée de niveau ; forge ; entraînement ; clôture ; recrutement de mercenaires (provisoire).
-**Ouvertes** : adhésion, marché, dons, votes de retraite et de sortie, purge, instantané, reprise, pilotage. Le
+génération de quête ; montée de niveau ; forge ; entraînement ; clôture ; vote de sortie ; recrutement de mercenaires
+(provisoire). **Ouvertes** : adhésion, marché, dons, vote de retraite, purge, instantané, reprise, pilotage. Le
 compagnon animal offert ne s'ouvre pas.
 
-⚠ **Écarts provisoires, écrits** : la sortie du donjon passe encore par le **vote** (la décision est la sortie case
-par case, lot R3) ; le paquet de trésor est **vide**, une fouille de salle ne trouve rien (lot K3) ; pas d'alliés ;
+⚠ **Écarts provisoires, écrits** : la sortie se fait par l'**escalier** seulement — une porte de sortie distincte de
+l'entrée n'existe pas encore (lot K5) ; le paquet de trésor est **vide**, une fouille de salle ne trouve rien (lot K3) ; pas d'alliés ;
 le monstre errant de la quête n'est pas lu (lot K5) ; le marché lit toujours le pot commun, que rien n'alimente en
 classique — acheter avec sa bourse reste à faire.
 

@@ -732,6 +732,8 @@ final class ResolveurTour
                 // 1 PV de Body, sans carte. Lecture unique : `MoteurCheminee`.
                 'soin_cheminee' => $this->resoudreSoinCheminee($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $etat, $option, $acteur),
+                // SORTIE CASE PAR CASE (mode classique) : le héros quitte le donjon par l'escalier.
+                'sortie_escalier' => $this->resoudreSortieEscalier($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'retraite' => $this->resoudreRetraite($groupe, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: false),
@@ -797,6 +799,13 @@ final class ResolveurTour
             // ni créneau à consommer, ni fin de round — voir `gagnerParDestruction()`.
             if (! empty($resultat['objectif_detruit'])) {
                 return $resultat;
+            }
+
+            // SORTIE PAR L'ESCALIER : le héros n'est plus dans le donjon — sa ligne d'état n'existe plus. On rend la
+            // main ICI, avant tout ce qui écrit encore dessus (créneau, fin de tour). Quête terminée (il était le
+            // dernier debout) : le résultat la porte déjà. Sinon le tour continue pour les autres.
+            if (! empty($resultat['sorti'])) {
+                return isset($resultat['quete']) ? $resultat : $this->apresActionHeros($resultat, $groupe, $quete);
             }
 
             if ($bonusReserveArcanique) {
@@ -16532,6 +16541,57 @@ final class ResolveurTour
             $groupe->queteCourante,
             $choix === 'arreter' ? 'campagne_abandonnee' : 'retraite',
         ));
+    }
+
+    /**
+     * SORTIE CASE PAR CASE (mode classique, décision de René du 2026-11-13) — le héros qui se tient sur l'escalier,
+     * objectif accompli, QUITTE LE DONJON.
+     *
+     * Il sort de la quête par le chemin qui existe déjà pour un joueur retiré en pleine quête
+     * (`VoteGroupe::detacherJoueur()`) : sa ligne `etat_personnage_quete` est supprimée. Le tour, les monstres et le
+     * brouillard se déduisent des héros présents ; un héros sans ligne n'est plus un acteur ni une cible, sans qu'aucun
+     * de leurs lecteurs n'ait à connaître un état « sorti ». Le héros, lui, reste dans le groupe.
+     *
+     * Quand plus aucun héros DEBOUT ne reste dans le donjon, la quête est gagnée : `terminerQuete()`, le point de
+     * passage unique. Un héros à terre resté en arrière n'empêche pas la fin — même règle que le vote de sortie, qui
+     * ne compte que les héros debout.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array{type: string, id: int, nom: string}  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreSortieEscalier(Groupe $groupe, Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        if ($etat === null || ! $quete->peutSortirParEscalier($etat)) {
+            throw ValidationException::withMessages([
+                'option_id' => $quete->sortieParEscalier() && ! $quete->sortieDisponible()
+                    ? 'Vous n\'avez pas encore accompli ce pourquoi vous êtes venus.'
+                    : 'Il faut se tenir sur l\'escalier pour quitter le donjon.',
+            ]);
+        }
+
+        $etat->delete();
+
+        $restants = $quete->etatsPersonnages()->where('tombe', false)->count();
+
+        $payload = [
+            'type' => 'sortie_escalier',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'personnage_id' => $personnage->id,
+            'nom' => $personnage->nom,
+            'restants' => $restants,
+            // Lu par `resoudre()` : le héros n'a plus de ligne d'état, rien ne doit plus y écrire.
+            'sorti' => true,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        if ($restants === 0) {
+            $payload['quete'] = $this->terminerQuete($groupe, $quete);
+        }
+
+        return $payload;
     }
 
     private function resoudreQuitterDonjon(Groupe $groupe, Quete $quete, ?EtatPersonnageQuete $etat, array $option, array $acteur): array

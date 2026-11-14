@@ -263,3 +263,99 @@ it('refuse le départ tant que le groupe n\'a pas la classe que la campagne exig
     expect($demarreur->refusDeDepart($groupe->refresh()))->toContain('ont été jouées')
         ->and($groupe->estClassique())->toBeTrue();
 });
+
+/*
+ * SORTIE CASE PAR CASE (décision de René du 2026-11-13, Q4) : en mode classique on quitte le donjon EN PERSONNE, par
+ * l'escalier — ni rassemblement, ni vote. La quête est gagnée quand plus aucun héros debout ne reste dans le donjon.
+ */
+
+/** Le menu courant du joueur connecté, recalculé sur l'état présent. */
+function menuClassique(Groupe $groupe): array
+{
+    foreach ($groupe->personnages()->get() as $heros) {
+        \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($groupe, $heros));
+    }
+
+    return test()->getJson("/api/groupes/{$groupe->identifiant}/menu")->assertOk()->json();
+}
+
+it('n\'offre la sortie par l\'escalier qu\'une fois l\'objectif accompli, et seulement sur l\'escalier', function () {
+    $alice = connecterJoueur('alice');
+    $heros = herosLibre($alice, 'Albrecht');
+    $groupe = groupeClassique($heros);
+    $this->postJson("/api/groupes/{$groupe->identifiant}/quetes")->assertCreated();
+    $quete = Quete::findOrFail($groupe->refresh()->quete_courante_id);
+
+    // Sur l'escalier, mais l'objectif n'est pas accompli : ni sortie par l'escalier, ni vote de sortie.
+    $ids = collect(menuClassique($groupe)['menu']['options'])->pluck('id');
+    expect($ids)->not->toContain('sortir_escalier')->not->toContain('quitter_donjon');
+    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'sortir_escalier'])->assertStatus(422);
+    expect($this->getJson("/api/groupes/{$groupe->identifiant}/etat")->json('quete.sortie.consigne'))->toBeNull();
+
+    // La cible tombe : la sortie s'ouvre, la consigne le dit, et le vote n'est toujours pas offert.
+    InstanceMonstre::where('quete_id', $quete->id)->update(['etat' => 'vaincu']);
+    $ids = collect(menuClassique($groupe)['menu']['options'])->pluck('id');
+    expect($ids)->toContain('sortir_escalier')->not->toContain('quitter_donjon');
+
+    $sortie = $this->getJson("/api/groupes/{$groupe->identifiant}/etat")->json('quete.sortie');
+    expect($sortie['ouverte'])->toBeTrue()
+        ->and($sortie['salle_depart_requise'])->toBeFalse()
+        ->and($sortie['consigne'])->toContain('rejoignez l\'escalier');
+
+    // Hors de l'escalier (2..3 × 4..5) : plus d'option, et le résolveur la refuse.
+    $quete->etatsPersonnages()->where('personnage_id', $heros->id)->update(['position_x' => 5, 'position_y' => 2]);
+    expect(collect(menuClassique($groupe)['menu']['options'])->pluck('id'))->not->toContain('sortir_escalier');
+    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'sortir_escalier'])->assertStatus(422);
+});
+
+it('fait sortir les héros un à un par l\'escalier, et gagne la quête au départ du dernier', function () {
+    $alice = connecterJoueur('alice');
+    $bob = \App\Auth\JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    $albrecht = herosLibre($alice, 'Albrecht');
+    $groupe = groupeClassique($albrecht);
+    $brunehaut = herosLibre($bob, 'Brunehaut', 'nain');
+    $this->actingAs($bob, 'joueur');
+    $this->postJson("/api/groupes/{$groupe->identifiant}/joueurs", ['personnage_id' => $brunehaut->id])->assertOk();
+
+    $this->postJson("/api/groupes/{$groupe->identifiant}/quetes")->assertCreated();
+    $quete = Quete::findOrFail($groupe->refresh()->quete_courante_id);
+    InstanceMonstre::where('quete_id', $quete->id)->update(['etat' => 'vaincu']);
+
+    // Albrecht (premier dans l'ordre du tour) quitte le donjon : la quête continue pour Brunehaut.
+    $this->actingAs($alice, 'joueur');
+    menuClassique($groupe);
+    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'sortir_escalier'])->assertAccepted();
+
+    expect($quete->etatsPersonnages()->where('personnage_id', $albrecht->id)->exists())->toBeFalse()
+        ->and($quete->refresh()->etat)->toBe('en_cours')
+        ->and($groupe->refresh()->phase)->toBe('quete')
+        // Il reste dans le groupe : sortir du donjon n'est pas quitter le groupe.
+        ->and($albrecht->refresh()->groupe_actif_id)->toBe($groupe->id);
+
+    // Lui n'a plus de menu ; elle a la main.
+    expect(menuClassique($groupe)['menu'])->toBeNull();
+    $this->actingAs($bob, 'joueur');
+    $menu = menuClassique($groupe);
+    expect($menu['personnage_id'])->toBe($brunehaut->id)
+        ->and(collect($menu['menu']['options'])->pluck('id'))->toContain('sortir_escalier');
+
+    // Brunehaut sort à son tour : plus aucun héros debout dans le donjon, la quête est gagnée.
+    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'sortir_escalier'])->assertAccepted();
+
+    expect($quete->refresh()->etat)->toBe('terminee')
+        ->and($groupe->refresh()->phase)->toBe('hub')
+        ->and((int) $groupe->rang_quete)->toBe(2)
+        // La récompense de l'auteur (10 pièces à partager) est allée aux deux bourses.
+        ->and($albrecht->refresh()->or)->toBe(5)
+        ->and($brunehaut->refresh()->or)->toBe(5);
+
+    // Chaque sortie est annoncée, avec sa phrase.
+    $sorties = \App\Models\Evenement::where('groupe_id', $groupe->id)->orderBy('sequence')->get()
+        // L'ANNONCE (`action`), pas le `choix` du joueur, qui porte lui aussi le type de l'option.
+        ->filter(fn ($e) => $e->type === 'action' && ($e->payload['type'] ?? null) === 'sortie_escalier')->values();
+    $fil = app(\App\Partie\JournalCombat::class);
+    expect($sorties)->toHaveCount(2)
+        ->and($fil->depuisResultat($sorties[0]->payload, 'Albrecht')[0]['texte'])->toBe('Albrecht quitte le donjon par l\'escalier')
+        ->and($fil->depuisResultat($sorties[1]->payload, 'Brunehaut')[0]['texte'])
+        ->toBe('Brunehaut quitte le donjon par l\'escalier — plus personne ne reste dans le donjon');
+});

@@ -3319,7 +3319,21 @@ final class MenuMoteur
         // étapes de campagne (`EtapesCampagne::VOTE_SORTIE`, `VOTE_RETRAITE`) : le menu ne les offre donc jamais.
         $enArene = self::enArene($quete);
 
-        if (! $enArene && ! $aJoue && $peutSortir && $surEscalier && ! $voteOuvert) {
+        // SORTIE CASE PAR CASE (mode classique) : pas de vote ni de rassemblement — le héros qui se tient sur l'escalier,
+        // objectif accompli, quitte le donjon lui-même (`Quete::peutSortirParEscalier()`, que le résolveur revalide).
+        // Le vote `quitter_donjon` n'est alors JAMAIS offert : `EtapesCampagne` le ferme à ce mode.
+        $parEscalier = $quete->sortieParEscalier();
+        // `$etat` est nul pour un héros qui n'est plus dans le donjon — celui qui vient justement d'en sortir, dont le
+        // menu est recalculé avec ceux du groupe.
+        if ($parEscalier && ! $aJoue && $etat !== null && $quete->peutSortirParEscalier($etat)) {
+            $options[] = [
+                'id' => 'sortir_escalier',
+                'libelle' => 'Quitter le donjon par l\'escalier',
+                'type' => 'sortie_escalier',
+            ];
+        }
+
+        if (! $enArene && ! $parEscalier && ! $aJoue && $peutSortir && $surEscalier && ! $voteOuvert) {
             $options[] = [
                 'id' => 'quitter_donjon',
                 'libelle' => 'Quitter le donjon — proposer au groupe',

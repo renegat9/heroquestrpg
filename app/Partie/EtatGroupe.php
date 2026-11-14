@@ -323,6 +323,20 @@ final class EtatGroupe
     private function sortie(Quete $quete): array
     {
         $ouverte = $quete->sortieDisponible();
+
+        // SORTIE CASE PAR CASE (mode classique) : ni rassemblement ni absents — chacun sort par l'escalier. La consigne
+        // est celle de `Quete::consigneEscalier()`, publiée ici comme l'autre : aucun écran ne teste le mode.
+        if ($quete->sortieParEscalier()) {
+            return [
+                'ouverte' => $ouverte,
+                'salle_depart_requise' => false,
+                'rassemble' => true,
+                'absents' => [],
+                'consigne' => $quete->consigneEscalier(),
+                'consigne_extraction' => null,
+            ];
+        }
+
         $r = $quete->rassemblementDepart();
 
         return [
