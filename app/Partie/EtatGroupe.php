@@ -191,7 +191,13 @@ final class EtatGroupe
             // le seul point de passage. La manette affiche la ligne de son héros
             // sans rien recalculer — l'ancien contrôle « or < prix catalogue »
             // grisait un recrutement que le serveur aurait accepté.
-            $preambuleGroupe['recrutement'] = app(RecrutementHub::class)->publier($groupe);
+            // ⚠ Seulement si le recrutement est OUVERT à ce groupe (`EtapesCampagne`, par `Groupe::etapeOuverte()`). Vu à
+            // l'écran le 2026-11-14 : la manette d'un groupe CLASSIQUE affichait le panneau « Recruter un allié », sa
+            // « bourse commune » et le motif « deux quêtes achevées », alors que le recrutement lui est fermé — un
+            // écran qui offre ce que le serveur refusera. La décision est publiée : la manette ne teste pas le mode.
+            $recrutementOuvert = $groupe->etapeOuverte(\App\Partie\Arene\EtapesCampagne::MERCENAIRES);
+            $preambuleGroupe['recrutement_ouvert'] = $recrutementOuvert;
+            $preambuleGroupe['recrutement'] = $recrutementOuvert ? app(RecrutementHub::class)->publier($groupe) : null;
 
             // Annonces de FIN DE QUÊTE (entretien, faveur de Hopekins Rest,
             // Peacekeeper) : lues depuis le journal, jamais recalculées — un effet

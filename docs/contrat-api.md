@@ -1887,6 +1887,11 @@ contrôle à un autre joueur. Dès que son héros se relève, l'allié reprend s
 tour normal au round suivant, juste après lui. → `docs/regles/combat-et-tour.md`
 
 **Décision publiée (2026-10-08).** Le front ne calcule plus la disponibilité :
+**`groupe.recrutement_ouvert`** (bool, hub, 2026-11-14) : le recrutement est-il OUVERT à ce groupe — la réponse du
+registre des étapes (`EtapesCampagne`, par `Groupe::etapeOuverte()`), la même garde que `POST /mercenaires`. `false`
+pour un groupe **classique** : `groupe.recrutement` vaut alors `null` et la manette n'affiche pas le panneau
+« Recruter un allié ». Elle ne teste jamais le mode elle-même.
+
 `EtatGroupe.groupe.recrutement.offres` publie, au hub, pour CHAQUE allié non
 octroyé seul et CHAQUE héros actif du groupe, `{personnage_id, nom, prix,
 prix_catalogue, rabais_po, offert_par_faveur, recrutable, motif}` — `prix` est ce que ce héros paie
@@ -5840,7 +5845,12 @@ couche qui donnent le même slug font échouer l'index (`LogicException`) plutô
 
 ### Résumé d'une campagne (liste et réponse du PUT)
 
-`{slug, titre, auteur, mention, version_format, empreinte, nb_quetes, mise_a_jour}`.
+`{slug, titre, auteur, mention, version_format, empreinte, nb_quetes, mise_a_jour, jouable, prerequis_heros}`.
+
+- **`jouable`** (bool, 2026-11-14) : la campagne a au moins une quête — la condition de `POST /api/classique`. La page
+  du joueur ne propose pas d'ouvrir un groupe sur une campagne qui ne l'est pas.
+- **`prerequis_heros`** : `[{slug, nom}]`, les classes que la campagne exige, avec leur NOM décidé par le serveur
+  (le client ne traduit jamais un slug). Elles sont contrôlées au DÉPART de la quête, pas à l'ouverture du groupe.
 
 ### Refus — la forme et les codes
 

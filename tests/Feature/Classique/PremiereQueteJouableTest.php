@@ -226,6 +226,24 @@ it('ne publie aucune boîte de bestiaire pour un groupe classique, et publie la 
         ->and(json_encode($etat, JSON_UNESCAPED_UNICODE))->toContain('Vaincre le gobelin qui garde l\'entrée.');
 });
 
+it('publie au hub que le recrutement est fermé à un groupe classique, et ouvert à une campagne', function () {
+    $alice = connecterJoueur('alice');
+    $classique = groupeClassique(herosLibre($alice, 'Albrecht'));
+
+    // Vu à l'écran : la manette affichait le panneau de recrutement d'un groupe à qui la route le refuse.
+    $etat = $this->getJson("/api/groupes/{$classique->identifiant}/etat")->assertOk()->json('groupe');
+    expect($etat['recrutement_ouvert'])->toBeFalse()
+        ->and($etat['recrutement'])->toBeNull()
+        ->and($classique->etapeOuverte(\App\Partie\Arene\EtapesCampagne::MERCENAIRES))->toBeFalse()
+        ->and($classique->etapeOuverte(\App\Partie\Arene\EtapesCampagne::MARCHE))->toBeTrue();
+
+    $campagne = creerGroupe('table-campagne');
+    creerHeros($alice, $campagne, 'Brunehaut', 1);
+    $etat = $this->getJson('/api/groupes/table-campagne/etat')->assertOk()->json('groupe');
+    expect($etat['recrutement_ouvert'])->toBeTrue()
+        ->and($etat['recrutement'])->toBeArray();
+});
+
 it('refuse le départ tant que le groupe n\'a pas la classe que la campagne exige, puis quand la campagne est finie', function () {
     $alice = connecterJoueur('alice');
     $nain = herosLibre($alice, 'Brunehaut', 'nain');

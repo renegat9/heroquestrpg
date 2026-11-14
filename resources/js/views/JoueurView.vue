@@ -295,6 +295,60 @@ function initCreerGroupe(id) {
     montrerCreerGroupe.value = { ...montrerCreerGroupe.value, [id]: true };
 }
 
+/* ---- MODE CLASSIQUE : ouvrir un groupe sur une campagne CONSTRUITE (`POST /api/classique`) ----
+   La liste vient du serveur (`GET /constructeur/campagnes`), avec ses DÉCISIONS : `jouable` et les classes
+   exigées par leur nom. Cette page n'en déduit aucune. Rechargée à chaque ouverture du formulaire : une
+   campagne peut avoir été écrite entre-temps dans le constructeur. */
+const montrerClassique = ref({}); // { [perso.id]: bool }
+const nomClassique = ref({});
+const campagneClassique = ref({}); // { [perso.id]: slug }
+const campagnesConstruites = ref([]);
+const campagnesChargees = ref(false);
+const classiqueEnCours = ref({});
+const erreurClassique = ref({});
+
+async function initClassique(id) {
+    montrerCreerGroupe.value = { ...montrerCreerGroupe.value, [id]: false };
+    montrerClassique.value = { ...montrerClassique.value, [id]: true };
+    erreurClassique.value = { ...erreurClassique.value, [id]: '' };
+    campagnesChargees.value = false;
+    try {
+        const { campagnes } = await api.campagnesConstruites();
+        campagnesConstruites.value = campagnes ?? [];
+        // Présélection : la première campagne jouable, si aucune n'est encore choisie pour ce héros.
+        const choisie = campagnesConstruites.value.find((c) => c.slug === campagneClassique.value[id] && c.jouable);
+        if (!choisie) {
+            const premiere = campagnesConstruites.value.find((c) => c.jouable);
+            campagneClassique.value = { ...campagneClassique.value, [id]: premiere?.slug ?? '' };
+        }
+    } catch (e) {
+        campagnesConstruites.value = [];
+        erreurClassique.value = { ...erreurClassique.value, [id]: e.message };
+    } finally {
+        campagnesChargees.value = true;
+    }
+}
+
+async function ouvrirClassique(perso) {
+    const campagne = campagneClassique.value[perso.id];
+    if (!campagne || classiqueEnCours.value[perso.id]) return;
+    classiqueEnCours.value = { ...classiqueEnCours.value, [perso.id]: true };
+    erreurClassique.value = { ...erreurClassique.value, [perso.id]: '' };
+    try {
+        const { groupe } = await api.ouvrirClassique({
+            nom: (nomClassique.value[perso.id] || '').trim() || `Groupe de ${perso.nom}`,
+            campagne,
+            personnage_id: perso.id,
+        });
+        await rafraichirMoi();
+        router.push({ name: 'manette', params: { groupe: groupe.identifiant }, query: { perso: perso.id } });
+    } catch (e) {
+        erreurClassique.value = { ...erreurClassique.value, [perso.id]: e.message };
+    } finally {
+        classiqueEnCours.value = { ...classiqueEnCours.value, [perso.id]: false };
+    }
+}
+
 async function creerGroupe(perso) {
     const nom = (nomGroupe.value[perso.id] || '').trim() || `Groupe de ${perso.nom}`;
     creerGroupeEnCours.value = { ...creerGroupeEnCours.value, [perso.id]: true };
@@ -607,13 +661,77 @@ function libelleClasse(classe) {
                           </template>
                           <template v-else>
                             <!-- créer un groupe -->
-                            <div v-if="!montrerCreerGroupe[perso.id]" class="pcard-actions">
+                            <div v-if="!montrerCreerGroupe[perso.id] && !montrerClassique[perso.id]" class="pcard-actions">
                                 <button
                                     class="joueur-btn-action"
                                     @click="initCreerGroupe(perso.id)"
                                 >
                                     <MSym n="add_circle" /> Créer un groupe
                                 </button>
+                                <!-- MODE CLASSIQUE : un groupe sur une campagne construite, sans maître du jeu IA. -->
+                                <button
+                                    class="joueur-btn-ghost-sm"
+                                    @click="initClassique(perso.id)"
+                                >
+                                    <MSym n="menu_book" /> Mode classique
+                                </button>
+                            </div>
+                            <!-- MODE CLASSIQUE : choisir la campagne construite. Tout ce qui est affiché vient du serveur. -->
+                            <div v-if="montrerClassique[perso.id]" class="pcard-mini-form">
+                                <label class="joueur-lbl">Nom du groupe</label>
+                                <input
+                                    v-model="nomClassique[perso.id]"
+                                    class="joueur-input-sm"
+                                    :placeholder="`Groupe de ${perso.nom}`"
+                                />
+                                <label class="joueur-lbl">Campagne</label>
+                                <p v-if="!campagnesChargees" class="joueur-classique-vide">Chargement des campagnes…</p>
+                                <p v-else-if="!campagnesConstruites.length" class="joueur-classique-vide">
+                                    Aucune campagne n'a encore été écrite dans le constructeur.
+                                </p>
+                                <div v-else class="joueur-classique-liste">
+                                    <label
+                                        v-for="c in campagnesConstruites"
+                                        :key="c.slug"
+                                        class="joueur-classique-campagne"
+                                        :class="{ on: campagneClassique[perso.id] === c.slug, off: !c.jouable }"
+                                    >
+                                        <input
+                                            v-model="campagneClassique[perso.id]"
+                                            type="radio"
+                                            :value="c.slug"
+                                            :disabled="!c.jouable"
+                                        />
+                                        <span class="joueur-classique-titre">{{ c.titre }}</span>
+                                        <span class="joueur-classique-detail">
+                                            <template v-if="c.jouable">{{ c.nb_quetes }} quête{{ c.nb_quetes > 1 ? 's' : '' }}</template>
+                                            <template v-else>Aucune quête encore : rien à jouer</template>
+                                            <template v-if="c.prerequis_heros.length">
+                                                · exige {{ c.prerequis_heros.map((h) => libelleClasse(h.slug)).join(', ') }}
+                                            </template>
+                                        </span>
+                                        <span v-if="c.mention" class="joueur-classique-mention">{{ c.mention }}</span>
+                                    </label>
+                                </div>
+                                <p v-if="erreurClassique[perso.id]" class="joueur-err">
+                                    <MSym n="error" :size="14" /> {{ erreurClassique[perso.id] }}
+                                </p>
+                                <div class="joueur-mini-btns">
+                                    <button
+                                        class="joueur-btn-primary-sm"
+                                        :disabled="classiqueEnCours[perso.id] || !campagneClassique[perso.id]"
+                                        @click="ouvrirClassique(perso)"
+                                    >
+                                        <MSym n="menu_book" />
+                                        {{ classiqueEnCours[perso.id] ? 'Ouverture…' : 'Ouvrir le groupe' }}
+                                    </button>
+                                    <button
+                                        class="joueur-btn-ghost-sm"
+                                        @click="montrerClassique = { ...montrerClassique, [perso.id]: false }"
+                                    >
+                                        Annuler
+                                    </button>
+                                </div>
                             </div>
                             <div v-else class="pcard-mini-form">
                                 <label class="joueur-lbl">Nom de la campagne</label>
@@ -1175,6 +1293,18 @@ function libelleClasse(classe) {
 .joueur-mini-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 
 .joueur-radio-row { display: flex; gap: 8px; flex-wrap: wrap; }
+/* MODE CLASSIQUE — le choix de la campagne construite. Classes préfixées : ces <style> ne sont pas `scoped`. */
+.joueur-classique-liste { display: flex; flex-direction: column; gap: 6px; }
+.joueur-classique-campagne { display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; border-radius: 10px;
+    border: var(--line-strong); background: var(--stone-800); cursor: pointer; }
+.joueur-classique-campagne input { display: none; }
+.joueur-classique-campagne.on { border-color: var(--torch); background: oklch(0.76 0.155 65 / 0.08); }
+.joueur-classique-campagne.off { cursor: default; opacity: 0.55; }
+.joueur-classique-titre { font-size: 14px; font-weight: 700; color: var(--ink-200); }
+.joueur-classique-campagne.on .joueur-classique-titre { color: var(--torch); }
+.joueur-classique-detail { font-size: 12px; color: var(--ink-400); }
+.joueur-classique-mention { font-size: 11px; color: var(--ink-600); font-style: italic; }
+.joueur-classique-vide { margin: 0; font-size: 13px; color: var(--ink-400); }
 .joueur-radio { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
   color: var(--ink-400); padding: 7px 12px; border-radius: var(--r-md); border: var(--line);
   background: var(--stone-850); cursor: pointer; transition: border-color .15s, color .15s; }

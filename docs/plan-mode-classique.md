@@ -531,8 +531,28 @@ ni son format, il appelle ce que la route HTTP appelle.
   - **Pas encore vu** : la fin de la quête à l'écran (cible abattue, vote de
     sortie, récompense annoncée) ; les deux salles restantes ; le piège du
     couloir ; la porte secrète.
-  - **Pas encore fait** : aucun écran ne propose de créer un groupe classique
-    ni de choisir une campagne.
+- **L'écran qui ouvre un groupe classique — fait le 2026-11-14** :
+  - page du joueur : un bouton « Mode classique » sur chaque héros libre, puis
+    le nom du groupe et le choix de la campagne construite ;
+  - le résumé d'une campagne publie les DÉCISIONS : `jouable` (au moins une
+    quête) et `prerequis_heros` ; la page n'en déduit aucune. Le libellé d'une
+    classe passe par la table des classes du front, comme partout ailleurs ;
+  - **vu à l'écran** sur la vraie stack, avec trois campagnes d'essai
+    inventées écrites par le serveur MCP : le brouillon sans quête est grisé
+    et ne se choisit pas, la campagne jouable est présélectionnée, la
+    troisième dit « exige Nain » ; l'ouverture mène à la manette du groupe ;
+    aucun débordement à 412 px (`browser-shots/classique-ouvrir.mjs`).
+  - **Défaut trouvé à l'écran et corrigé** : au hub, la manette d'un groupe
+    classique affichait le panneau « Recruter un allié », une « bourse
+    commune » et le motif « deux quêtes achevées », alors que le recrutement
+    lui est fermé. Le serveur publie maintenant `groupe.recrutement_ouvert`,
+    lu dans le registre des étapes par `Groupe::etapeOuverte()` — la même
+    garde que la route. La manette ne teste pas le mode : le jour où le
+    recrutement rouvre en classique, le panneau revient sans toucher au front.
+  - **Pas encore fait** : l'écran de TABLE ne propose rien pour le mode
+    classique (il s'ouvre par le code du groupe, comme toute table) ; aucun
+    écran ne dit, au hub, quelle campagne joue le groupe ni à quelle quête il
+    en est ; le marché du hub reste celui du pot commun.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

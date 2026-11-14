@@ -204,3 +204,26 @@ it('lire() et exporter() rendent null pour un slug inconnu', function () {
     expect($service->lire('aucune'))->toBeNull()
         ->and($service->exporter('aucune'))->toBeNull();
 });
+
+
+/*
+ * CE QUE LA PAGE DU JOUEUR LIT (mode classique, 2026-11-14) : le résumé publie les DÉCISIONS — la campagne est-elle
+ * jouable, et quelles classes exige-t-elle, sous leur nom de catalogue. Le client ne déduit ni l'un ni l'autre.
+ */
+it('publie dans le résumé si la campagne est jouable et les classes qu\'elle exige, par leur nom', function () {
+    $service = app(CampagnesConstruites::class);
+    $service->enregistrer(DocumentExemple::campagne());
+
+    $brouillon = DocumentExemple::campagne();
+    $brouillon['slug'] = 'brouillon-sans-quete';
+    $brouillon['quetes'] = [];
+    $brouillon['prerequis_heros'] = [];
+    $service->enregistrer($brouillon);
+
+    $resumes = collect($service->lister())->keyBy('slug');
+
+    expect($resumes['campagne-d-essai']['jouable'])->toBeTrue()
+        ->and($resumes['campagne-d-essai']['prerequis_heros'])->toBe([['slug' => 'barbare', 'nom' => 'barbare']])
+        ->and($resumes['brouillon-sans-quete']['jouable'])->toBeFalse()
+        ->and($resumes['brouillon-sans-quete']['prerequis_heros'])->toBe([]);
+});

@@ -258,6 +258,10 @@ export function useApi() {
          * `personnage_id` requis par le contrat (perso libre du joueur).
          */
         creerGroupe: (payload) => request('POST', '/groupes', payload),
+        // MODE CLASSIQUE (contrat « Mode classique ») : les campagnes construites que le serveur propose
+        // (`{campagnes: [{slug, titre, nb_quetes, jouable, prerequis_heros, …}]}`), et l'ouverture d'un groupe dessus.
+        campagnesConstruites: () => request('GET', '/constructeur/campagnes'),
+        ouvrirClassique: (payload) => request('POST', '/classique', payload),
 
         /** POST /api/groupes/{identifiant}/joueurs {personnage_id} ou {nom, classe,
          *  elements?} → {personnage}. `elements` (magicien) : 2 éléments du

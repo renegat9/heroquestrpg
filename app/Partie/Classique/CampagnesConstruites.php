@@ -17,7 +17,10 @@ use Illuminate\Support\Facades\DB;
  */
 final class CampagnesConstruites
 {
-    public function __construct(private readonly ValidationCampagne $validation) {}
+    public function __construct(
+        private readonly ValidationCampagne $validation,
+        private readonly CatalogueConstructeur $catalogue,
+    ) {}
 
     /** @return list<array<string, mixed>> les résumés, triés par slug */
     public function lister(): array
@@ -215,6 +218,14 @@ final class CampagnesConstruites
             'empreinte' => $campagne->empreinte,
             'nb_quetes' => count($campagne->document['quetes'] ?? []),
             'mise_a_jour' => $campagne->updated_at?->toIso8601String(),
+            // DÉCISIONS publiées pour la page du joueur (mode classique) : elle ne les déduit pas.
+            // `jouable` : au moins une quête — la condition même de `GroupesClassiques::ouvrir()`.
+            'jouable' => count($campagne->document['quetes'] ?? []) > 0,
+            // Les classes exigées, avec leur nom de catalogue (un slug disparu du catalogue garde son slug pour nom).
+            'prerequis_heros' => array_map(
+                fn (string $slug): array => ['slug' => $slug, 'nom' => (string) ($this->catalogue->index('classes')[$slug]->nom ?? $slug)],
+                array_values(array_map('strval', (array) ($campagne->document['prerequis_heros'] ?? []))),
+            ),
         ];
     }
 }

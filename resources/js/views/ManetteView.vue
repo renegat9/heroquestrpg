@@ -1236,6 +1236,9 @@ const orCommun = computed(() => store.state.etat?.groupe?.or ?? 0);
 // chaque allié, le prix réel de CHAQUE héros (remise de Potion de charme comprise)
 // et le verdict (recrutable, motif). Le panneau choisit la ligne de son héros.
 const recrutementOffres = computed(() => store.state.etat?.groupe?.recrutement?.offres ?? []);
+// Le recrutement est-il ouvert à ce groupe ? Publié par le serveur (`groupe.recrutement_ouvert`) ; absent d'un état
+// antérieur à ce champ : ouvert, comme avant.
+const recrutementOuvert = computed(() => store.state.etat?.groupe?.recrutement_ouvert !== false);
 // Annonces de fin de quête au hub (chantier 1c, 2026-10-08) : la DÉCISION du
 // serveur (`groupe.mercenaires_entretien`, `groupe.faveur_hopekins`, déjà bornées
 // à la dernière quête achevée) — rendue telle quelle par `AnnonceHub`.
@@ -1834,8 +1837,9 @@ const navItems = computed(() => (scene.value === 'marche'
                             </div>
 
                             <!-- ---- recrutement d'alliés (hub, bourse commune) ---- -->
+                            <!-- `recrutement_ouvert` : la DÉCISION du serveur (registre des étapes). Fermé en mode classique. -->
                             <RecrutementHub
-                                v-if="auHub"
+                                v-if="auHub && recrutementOuvert"
                                 :catalogue="catalogueMercs"
                                 :recrues="recruesHub"
                                 :or="orCommun"

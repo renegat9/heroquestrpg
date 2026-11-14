@@ -142,6 +142,22 @@ class Groupe extends Model
         }
     }
 
+    /**
+     * Cette étape de campagne est-elle OUVERTE à ce groupe ? La vue booléenne de {@see self::exigerCampagne()}, par elle :
+     * une seule règle, lue par les routes (qui lèvent) et par les écrans (à qui `EtatGroupe` publie la décision plutôt
+     * que de leur laisser tester le mode).
+     */
+    public function etapeOuverte(string $etape): bool
+    {
+        try {
+            $this->exigerCampagne($etape);
+        } catch (\App\Partie\Arene\RefusArene|\App\Partie\Classique\RefusClassique) {
+            return false;
+        }
+
+        return true;
+    }
+
     /** Composition du groupe (+ initiative). */
     public function personnages(): BelongsToMany
     {
