@@ -119,7 +119,7 @@ it('LE bug (2026-09-10) : le moteur bloque toujours le passage — des DEUX côt
     $grille = Grille::depuisCarte($carte);
     $embrasure = Grille::caseEmbrasure(['x' => $hx, 'y' => $hy, 'cote' => 'e'], (array) ($carte->grille['salles'] ?? []));
 
-    expect($grille->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeTrue()
+    expect($grille->areteBloquee($hx, $hy, $hx + 1, $hy))->toBeTrue()
         ->and($grille->estTraversable($embrasure['x'], $embrasure['y']))->toBeFalse();
 });
 
@@ -184,7 +184,7 @@ it('la porte de LIAISON SUPPLÉMENTAIRE peint elle aussi sa case en roche, même
 
     // Et le moteur continue de bloquer, sur la carte réelle — des deux côtés.
     $grille = Grille::depuisCarte($quete->fresh()->carte);
-    expect($grille->porteBloqueEntre(1, 1, 2, 1))->toBeTrue()
+    expect($grille->areteBloquee(1, 1, 2, 1))->toBeTrue()
         ->and($grille->estTraversable(1, 1))->toBeFalse();
 });
 
@@ -216,7 +216,7 @@ it('après une fouille réussie, la porte est publiée FERMÉE (case et arête r
     expect($porte)->not->toBeNull()
         ->and($porte['etat'])->toBe('fermee')
         ->and($porte['embrasure'])->toBe(['x' => $embrasure['x'], 'y' => $embrasure['y']])
-        ->and(Grille::depuisCarte($carte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeTrue()
+        ->and(Grille::depuisCarte($carte)->areteBloquee($hx, $hy, $hx + 1, $hy))->toBeTrue()
         ->and(Grille::depuisCarte($carte)->estTraversable($embrasure['x'], $embrasure['y']))->toBeFalse();
 
     // …et elle s'ouvre alors comme n'importe quelle porte fermée. C'est la
@@ -226,7 +226,7 @@ it('après une fouille réussie, la porte est publiée FERMÉE (case et arête r
         ->assertStatus(202);
 
     $carteOuverte = $quete->fresh()->carte;
-    expect(Grille::depuisCarte($carteOuverte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeFalse()
+    expect(Grille::depuisCarte($carteOuverte)->areteBloquee($hx, $hy, $hx + 1, $hy))->toBeFalse()
         ->and(Grille::depuisCarte($carteOuverte)->estTraversable($embrasure['x'], $embrasure['y']))->toBeTrue();
 });
 

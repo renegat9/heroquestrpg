@@ -1699,7 +1699,7 @@ final class AssembleurCarte
      * qui aurait séparé cette case de l'intérieur du parent (ex-`porteDroite`)
      * n'est simplement JAMAIS enregistrée : deux cases de sol sans entrée dans
      * `portes[]` sont déjà, par construction, franchissables sans restriction
-     * (`Grille::porteBloqueEntre()`) — inutile de la poser « ouverte », l'absence
+     * (`Grille::areteBloquee()`) — inutile de la poser « ouverte », l'absence
      * suffit.
      *
      * ⚠ **`$voieUnique` (René, 2026-09-27) : la voie parallèle n'est pas

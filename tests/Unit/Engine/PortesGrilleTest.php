@@ -43,13 +43,13 @@ it('rend une porte verrouillée infranchissable et opaque, arête ET case d\'emb
     expect($bloquee->estTraversable(1, 0))->toBeTrue()
         ->and($bloquee->estTraversable(2, 0))->toBeFalse()
         // …et l'ARÊTE continue de couper passage et vue gauche↔droite.
-        ->and($bloquee->porteBloqueEntre(1, 0, 2, 0))->toBeTrue()
+        ->and($bloquee->areteBloquee(1, 0, 2, 0))->toBeTrue()
         ->and($bloquee->chemin(0, 0, 4, 0))->toBeNull()
         ->and($bloquee->ligneDeVue(0, 0, 4, 0))->toBeFalse();
 
     // La même porte ouverte laisse passer chemin ET vue, et redonne sa case.
     expect($ouverte->estTraversable(2, 0))->toBeTrue()
-        ->and($ouverte->porteBloqueEntre(1, 0, 2, 0))->toBeFalse()
+        ->and($ouverte->areteBloquee(1, 0, 2, 0))->toBeFalse()
         ->and($ouverte->chemin(0, 0, 4, 0))->not->toBeNull()
         ->and($ouverte->ligneDeVue(0, 0, 4, 0))->toBeTrue();
 });
@@ -59,13 +59,13 @@ it('rend une porte secrète non révélée infranchissable (arête et case), pui
     $revelee = grilleAvecPortes(['sssss'], [['x' => 1, 'y' => 0, 'cote' => 'e', 'etat' => 'ouverte']]);
 
     expect($secrete->estTraversable(2, 0))->toBeFalse()
-        ->and($secrete->porteBloqueEntre(1, 0, 2, 0))->toBeTrue()
+        ->and($secrete->areteBloquee(1, 0, 2, 0))->toBeTrue()
         ->and($secrete->chemin(0, 0, 4, 0))->toBeNull()
         ->and($secrete->ligneDeVue(0, 0, 4, 0))->toBeFalse();
 
     // Une fois révélée (etat ouverte), l'arête ET la case sont franchissables/transparentes.
     expect($revelee->estTraversable(2, 0))->toBeTrue()
-        ->and($revelee->porteBloqueEntre(1, 0, 2, 0))->toBeFalse()
+        ->and($revelee->areteBloquee(1, 0, 2, 0))->toBeFalse()
         ->and($revelee->ligneDeVue(0, 0, 4, 0))->toBeTrue()
         ->and($revelee->chemin(0, 0, 4, 0))->not->toBeNull();
 });
@@ -75,9 +75,9 @@ it('n\'affecte QUE son arête et sa case d\'embrasure : les cloisons/cases voisi
     // (2,0)→(2,1) restent libres, ainsi que la case (2,1) elle-même.
     $g = grilleAvecPortes(['sssss', 'sssss'], [['x' => 1, 'y' => 0, 'cote' => 'e', 'etat' => 'fermee']]);
 
-    expect($g->porteBloqueEntre(1, 0, 2, 0))->toBeTrue()
-        ->and($g->porteBloqueEntre(1, 0, 1, 1))->toBeFalse()
-        ->and($g->porteBloqueEntre(2, 0, 2, 1))->toBeFalse()
+    expect($g->areteBloquee(1, 0, 2, 0))->toBeTrue()
+        ->and($g->areteBloquee(1, 0, 1, 1))->toBeFalse()
+        ->and($g->areteBloquee(2, 0, 2, 1))->toBeFalse()
         ->and($g->estTraversable(2, 1))->toBeTrue()
         // On peut contourner par la rangée du bas (aucune porte).
         ->and($g->chemin(0, 0, 4, 0))->not->toBeNull();

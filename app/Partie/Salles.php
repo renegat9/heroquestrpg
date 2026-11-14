@@ -69,7 +69,7 @@ final class Salles
 
     /**
      * Les cases du COULOIR où se tient (x, y) : le réseau de cases hors salle, borné par la roche et les portes
-     * closes (`Grille::porteBloqueEntre()`), départ compris. Point de passage unique de « le même couloir » : lu par
+     * closes (`Grille::areteBloquee()`), départ compris. Point de passage unique de « le même couloir » : lu par
      * les sorts de zone du MJ (`MoteurDread::casesDuCouloir()` — Nuée d'Effroi, Souffle du Construit) et par le
      * fardeau du porteur d'un talisman maudit (`MoteurFardeau`). Deux copies de cette inondation auraient divergé.
      *
@@ -93,7 +93,7 @@ final class Salles
 
                 if (isset($vues[$cle])
                     || $grille->estRoche($nx, $ny)
-                    || $grille->porteBloqueEntre($courante['x'], $courante['y'], $nx, $ny)
+                    || $grille->areteBloquee($courante['x'], $courante['y'], $nx, $ny)
                     || self::indexDe($salles, $nx, $ny) !== null) {
                     continue;
                 }

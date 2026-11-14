@@ -187,7 +187,7 @@ it('bloque le pathfinding et la ligne de vue derrière une porte verrouillée (�
     $grille = Grille::depuisCarte($carte);
     $embrasure = Grille::caseEmbrasure(['x' => $hx, 'y' => $hy, 'cote' => 'e'], (array) ($carte->grille['salles'] ?? []));
 
-    expect($grille->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeTrue()
+    expect($grille->areteBloquee($hx, $hy, $hx + 1, $hy))->toBeTrue()
         ->and($grille->estTraversable($embrasure['x'], $embrasure['y']))->toBeFalse()
         ->and($grille->ligneDeVue($hx, $hy, $hx + 1, $hy))->toBeFalse();
 });
@@ -203,7 +203,7 @@ it('ouvre SANS clé une porte simplement fermée, sans consommer son tour (E2)',
     poserPortes($quete, [['x' => $hx, 'y' => $hy, 'cote' => 'e', 'etat' => 'fermee']]);
 
     // Elle barre le PAS est (arête) sans prendre de case.
-    expect(Grille::depuisCarte($quete->fresh()->carte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeTrue();
+    expect(Grille::depuisCarte($quete->fresh()->carte)->areteBloquee($hx, $hy, $hx + 1, $hy))->toBeTrue();
 
     // … et le menu propose de l'ouvrir À LA MAIN (pas de mention de clé).
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
@@ -220,7 +220,7 @@ it('ouvre SANS clé une porte simplement fermée, sans consommer son tour (E2)',
 
     // La porte est ouverte (état persistant) : l'arête ne bloque plus.
     expect($quete->fresh()->carte->grille['portes'][0]['etat'])->toBe('ouverte')
-        ->and(Grille::depuisCarte($quete->fresh()->carte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeFalse();
+        ->and(Grille::depuisCarte($quete->fresh()->carte)->areteBloquee($hx, $hy, $hx + 1, $hy))->toBeFalse();
 
     // Ouvrir est une INTERACTION LIBRE : aucun créneau consommé, le déplacement
     // du tour est intact → on s'arrête devant, on ouvre, on continue.

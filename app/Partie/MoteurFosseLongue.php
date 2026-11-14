@@ -208,8 +208,8 @@ final class MoteurFosseLongue
             // La réception : du sol où l'on peut s'arrêter, aucune porte entre elle et la fosse, et pas une autre case armée.
             if (! $grille->estTraversable($vx, $vy)
                 || $grille->arretInterdit($vx, $vy)
-                || $grille->porteBloqueEntre($partenaire['x'], $partenaire['y'], $vx, $vy)
-                || $grille->porteBloqueEntre($hx, $hy, $ax, $ay)
+                || $grille->areteBloquee($partenaire['x'], $partenaire['y'], $vx, $vy)
+                || $grille->areteBloquee($hx, $hy, $ax, $ay)
                 || self::indexAt($carte, $vx, $vy, MoteurPieges::ETATS_ARMES) !== null) {
                 continue;
             }
@@ -330,7 +330,7 @@ final class MoteurFosseLongue
 
             if (! $grille->estTraversable($vx, $vy)
                 || $grille->arretInterdit($vx, $vy)
-                || $grille->porteBloqueEntre($x, $y, $vx, $vy)
+                || $grille->areteBloquee($x, $y, $vx, $vy)
                 || self::indexAt($quete->carte, $vx, $vy, MoteurPieges::ETATS_ARMES) !== null) {
                 continue;
             }

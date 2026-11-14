@@ -198,7 +198,7 @@ final class MoteurSables
             // et qu'aucune porte ne sépare de la dernière case de sable.
             if (! $grille->estTraversable($cx, $cy)
                 || $grille->arretInterdit($cx, $cy)
-                || $grille->porteBloqueEntre($derniere['x'], $derniere['y'], $cx, $cy)) {
+                || $grille->areteBloquee($derniere['x'], $derniere['y'], $cx, $cy)) {
                 continue;
             }
 

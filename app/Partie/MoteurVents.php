@@ -68,7 +68,7 @@ final class MoteurVents
 
             // Un mur, un meuble, une porte fermée, un portail, une case inconnue, une figure : la poussée s'arrête AVANT.
             if (! $grille->estTraversable($nx, $ny) || $grille->estOccupeeParFigure($nx, $ny)
-                || $grille->porteBloqueEntre($cx, $cy, $nx, $ny) || $grille->estPortail($nx, $ny)) {
+                || $grille->areteBloquee($cx, $cy, $nx, $ny) || $grille->estPortail($nx, $ny)) {
                 break;
             }
 

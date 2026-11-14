@@ -80,7 +80,7 @@ final class Rayon
             // ce troisième test, un rayon lancé DEPUIS l'intérieur d'une salle
             // vers sa porte close la traverserait tout droit.
             if ($grille->estRoche($sx, $sy)
-                || $grille->porteBloqueEntre($x, $y, $sx, $sy)
+                || $grille->areteBloquee($x, $y, $sx, $sy)
                 || $grille->porteFermeeSurCase($sx, $sy)) {
                 return $cases;
             }
