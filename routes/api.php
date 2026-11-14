@@ -152,6 +152,8 @@ Route::delete('/arene/{identifiant}', [AreneController::class, 'quitter']);
 Route::middleware('auth:joueur')->group(function () {
     // MODE ARÈNE (lot A5) : un joueur ouvre un combat, y engage son héros d'arène, se dit prêt.
     Route::post('/arene', [AreneController::class, 'ouvrir']);
+    // MODE CLASSIQUE : ouvrir un groupe sur une campagne construite (docs/contrat-api.md « Mode classique »).
+    Route::post('/classique', [\App\Http\Controllers\Api\ClassiqueController::class, 'ouvrir']);
     Route::post('/arene/monstres', [AreneController::class, 'ouvrirMonstres']);
     Route::post('/arene/{identifiant}/camp', [AreneController::class, 'camp']);
     Route::post('/arene/{identifiant}/selection', [AreneController::class, 'selection']);

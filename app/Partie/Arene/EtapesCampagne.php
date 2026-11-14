@@ -191,4 +191,45 @@ final class EtapesCampagne
             'sites' => [[Sauvegarde::class, 'reprendre'], [Sauvegarde::class, 'redemarrerQuete'], [Sauvegarde::class, 'restaurer']],
         ],
     ];
+
+    /**
+     * MODE CLASSIQUE (`docs/plan-mode-classique.md` §1, §7) — ce que CHAQUE étape fait à un groupe classique : `null` =
+     * elle lui est ouverte, telle quelle ; une chaîne = elle lui est FERMÉE, et voici pourquoi.
+     *
+     * Testé dans les deux sens avec `self::ETAPES` : toute étape a sa réponse ici, et aucune réponse ne vise une étape
+     * qui n'existe pas. Une étape absente est fermée par `Groupe::exigerCampagne()`.
+     *
+     * Les fermetures suivent les décisions de René du 2026-11-13 (plan §10, Q1 et Q2) : aucun travail d'IA, pas de
+     * niveaux ni de talents, pas de forge ni d'entraînement, un groupe qui n'est jamais dissous.
+     *
+     * @var array<string, string|null>
+     */
+    public const CLASSIQUE = [
+        self::SQUELETTE => 'aucun travail d\'IA en classique : la campagne est écrite dans le constructeur',
+        self::ADHESION => null,
+        self::DEMARRAGE_QUETE => 'la quête n\'est pas générée : elle démarre par DemarreurQueteConstruite',
+        self::HABILLAGE => 'aucun travail d\'IA : un monstre garde son nom de catalogue',
+        self::RECITS => 'aucun travail d\'IA : les textes sont ceux de l\'auteur',
+        self::IMAGES_QUETE => 'aucun travail d\'IA',
+        self::IMAGE_HUB => 'aucun travail d\'IA',
+        self::MONTEE_NIVEAU => 'pas de niveaux ni de talents en classique',
+        self::MARCHE => null,
+        self::FORGE => 'pas de forge en classique',
+        self::ENTRAINEMENT => 'pas d\'entraînement en classique',
+        // ⚠ FERMÉ POUR L'INSTANT : `DemarreurQueteConstruite` ne pose pas encore les alliés sur la carte. À rouvrir avec
+        // le lot qui les pose — pas avant, un allié recruté resterait hors du donjon.
+        self::MERCENAIRES => 'les alliés d\'un groupe classique arrivent avec un lot ultérieur',
+        self::DONS => null,
+        self::VOTE_RETRAITE => null,
+        // ⚠ ÉCART TEMPORAIRE à la décision Q4 (sortie case par case, par l'escalier ou la porte de sortie) : tant que le
+        // lot R3 n'est pas fait, un groupe classique quitte le donjon par le vote existant. À fermer avec R3.
+        self::VOTE_SORTIE => null,
+        self::CLOTURE => 'un groupe classique n\'est jamais dissous : finir une campagne ramène au choix de campagne',
+        self::RESUME => 'aucun travail d\'IA',
+        // La purge reste possible, mais jamais automatique : seul `partie:purger`, avec sa confirmation, y mène.
+        self::PURGE => null,
+        self::SNAPSHOT => null,
+        self::REPRISE => null,
+        self::PILOTAGE => null,
+    ];
 }

@@ -98,6 +98,13 @@ final class CompagnonOffert
             return false;
         }
 
+        // MODE CLASSIQUE (2026-11-14) : pas d'offre. C'est une règle d'une boîte d'extension, et un groupe classique n'a
+        // pas encore d'alliés (`EtapesCampagne::CLASSIQUE` ferme le recrutement). Sans ce refus, l'offre bloquerait le
+        // départ de tout groupe de moins de quatre héros (`refusDeDepart()`), sans écran pour la trancher.
+        if ($groupe->estClassique()) {
+            return false;
+        }
+
         // Une quête qui existe, quel que soit son état, a déjà « commencé » la campagne :
         // les groupes en cours au moment du déploiement n'ont donc jamais cette offre.
         if ($groupe->quetes()->exists()) {

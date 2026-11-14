@@ -54,6 +54,9 @@ final class ValidationCampagne
     public const MOBILIER_HORS_SALLE = 'mobilier_hors_salle';
     public const CASE_PARTAGEE = 'case_partagee';
 
+    // Première quête jouable (2026-11-14) — la condition de fin : une cible de `fin.cibles` ne désigne aucun monstre posé.
+    public const CIBLE_INCONNUE = 'cible_inconnue';
+
     /** @var list<string> */
     public const CODES = [
         self::CLE_INCONNUE, self::CLE_PAS_ENCORE_PRISE, self::CLE_MANQUANTE, self::TYPE_INVALIDE,
@@ -63,7 +66,7 @@ final class ValidationCampagne
         self::BLOC_HORS_COULOIR, self::DEPART_INVALIDE, self::PORTE_SANS_BORD, self::SLUG_NON_CONCORDANT,
         self::EMPREINTE_INVALIDE,
         self::ANNEAU_HORS_PLATEAU, self::ANNEAU_SUR_SALLE, self::POSE_SUR_MUR, self::DEPART_HORS_SALLE,
-        self::PORTE_DANS_LA_ROCHE, self::MOBILIER_HORS_SALLE, self::CASE_PARTAGEE,
+        self::PORTE_DANS_LA_ROCHE, self::MOBILIER_HORS_SALLE, self::CASE_PARTAGEE, self::CIBLE_INCONNUE,
     ];
 
     /**
@@ -98,8 +101,9 @@ final class ValidationCampagne
     private const CLES_SALLE = ['id', 'x', 'y', 'l', 'h'];
     private const CLES_QUETE = [
         'slug', 'titre', 'ouverture', 'monstre_errant', 'salles_ouvertes', 'portes', 'blocs', 'mobilier',
-        'monstres', 'pieges', 'terrain', 'depart', 'recompense',
+        'monstres', 'pieges', 'terrain', 'depart', 'recompense', 'fin',
     ];
+    private const CLES_FIN = ['type', 'cibles', 'libelle'];
     private const CLES_PORTE = ['x', 'y', 'cote', 'type'];
     private const CLES_CASE = ['x', 'y'];
     private const CLES_MOBILIER = ['slug', 'x', 'y', 'rotation'];
@@ -107,7 +111,16 @@ final class ValidationCampagne
     private const CLES_RECOMPENSE = ['or', 'partage'];
 
     /** Clés déjà prévues par `docs/plan-mode-classique.md` §3, pas encore lues : le lot qui les prendra. */
-    private const LOTS_A_VENIR = ['notes' => 'K3', 'regles' => 'K3', 'fin' => 'K3', 'suite' => 'K4'];
+    private const LOTS_A_VENIR = ['notes' => 'K3', 'regles' => 'K3', 'suite' => 'K4'];
+
+    /**
+     * Les conditions de fin qu'une quête peut déclarer : SEULEMENT celles que le moteur sait jouer
+     * (`App\Models\Quete::OBJECTIFS_CONSTRUITS`, lu ici — une seule liste). Un type ajouté là sans lecteur serait une
+     * règle promise au joueur et jamais tenue.
+     */
+    public const TYPES_FIN = ['vaincre'];
+
+    private const LONGUEUR_LIBELLE_FIN = 300;
 
     /** Décalage d'une case vers chaque côté d'une porte. */
     private const DECALAGES = ['n' => [0, -1], 'e' => [1, 0], 's' => [0, 1], 'o' => [-1, 0]];
@@ -389,6 +402,7 @@ final class ValidationCampagne
             $this->poses($quete, $chemin, 'pieges', 'pieges');
             $this->poses($quete, $chemin, 'terrain', 'terrain');
             $this->recompense($quete, $chemin);
+            $this->fin($quete, $chemin);
         }
     }
 
@@ -710,6 +724,52 @@ final class ValidationCampagne
     }
 
     /** `recompense` : `null` (aucune), ou `{or, partage}`. */
+    /**
+     * LA CONDITION DE FIN — `fin: {type: "vaincre", cibles: [index…], libelle}`. Obligatoire : une quête qui ne peut pas
+     * se gagner n'est pas jouable. `cibles` désigne des monstres POSÉS de cette quête, par leur index dans `monstres` ;
+     * il en faut au moins une, sans doublon. `libelle` est la consigne dite aux joueurs, écrite par l'auteur : le moteur
+     * ne nomme jamais lui-même une cible, ce serait révéler une figure que le groupe n'a pas vue.
+     */
+    private function fin(array $quete, string $chemin): void
+    {
+        if (!array_key_exists('fin', $quete)) {
+            return; // déjà refusé par `cles()` : `cle_manquante`
+        }
+        $position = self::chemin($chemin, 'fin');
+        $fin = $this->enObjet($quete['fin'], $position);
+        if ($fin === null) {
+            return;
+        }
+        $this->cles($fin, $position, self::CLES_FIN);
+
+        $this->dans($fin, 'type', $position, self::TYPES_FIN);
+        $this->texte($fin, 'libelle', $position, nonVide: true, max: self::LONGUEUR_LIBELLE_FIN);
+
+        $nbMonstres = is_array($quete['monstres'] ?? null) ? count($quete['monstres']) : 0;
+        $cibles = $this->enListeDe($fin, 'cibles', $position);
+        $cheminCibles = self::chemin($position, 'cibles');
+
+        if (array_key_exists('cibles', $fin) && is_array($fin['cibles']) && $cibles === []) {
+            $this->refuser($cheminCibles, self::CIBLE_INCONNUE, 'Il faut au moins une cible : une quête sans cible à vaincre ne peut pas se gagner.');
+        }
+
+        $vues = [];
+        foreach ($cibles as $i => $cible) {
+            $ici = "$cheminCibles.$i";
+            if (!is_int($cible)) {
+                $this->refuser($ici, self::TYPE_INVALIDE, 'Une cible est l\'index (entier) d\'un monstre de `monstres`.');
+
+                continue;
+            }
+            if ($cible < 0 || $cible >= $nbMonstres) {
+                $this->refuser($ici, self::CIBLE_INCONNUE, "La cible $cible ne désigne aucun monstre posé : cette quête en pose $nbMonstres (index 0 à ".max(0, $nbMonstres - 1).').');
+            } elseif (isset($vues[$cible])) {
+                $this->refuser($ici, self::CIBLE_INCONNUE, "Le monstre $cible est déjà désigné comme cible.");
+            }
+            $vues[$cible] = true;
+        }
+    }
+
     private function recompense(array $quete, string $chemin): void
     {
         if (!array_key_exists('recompense', $quete) || $quete['recompense'] === null) {

@@ -5894,6 +5894,62 @@ Un import (`CampagnesConstruites::importer()`) retire `empreinte` s'il est prés
 importer redonne la même empreinte. Un slug de catalogue inconnu dans un fichier importé est refusé en le nommant
 (`catalogue_inconnu`).
 
+## Mode classique — première quête jouable (2026-11-14, `docs/plan-mode-classique.md` §7)
+
+Un groupe **classique** (`groupes.mode = "classique"`) joue les quêtes FIXES d'une campagne construite, sans aucun
+travail d'IA, et n'est jamais dissous. `groupes.campagne_construite_id` dit laquelle, `groupes.rang_quete` où il en est.
+
+### Ouvrir un groupe — `POST /api/classique` (`auth:joueur`)
+
+`{nom, campagne, personnage_id}` → **201** `{groupe: {id, identifiant, nom, mode: "classique", phase: "hub", campagne,
+rang_quete: 1, nb_quetes}}`. `campagne` est le slug d'une campagne construite ; `personnage_id` un héros que le joueur
+**possède**, libre, ni doublure ni héros d'arène. **422** : campagne inconnue ou sans quête (`campagne`), héros
+introuvable, d'arène ou déjà engagé (`personnage_id`). Aucun job n'est lancé. **Bourse par héros** : l'or du fondateur
+reste sur lui ; de même `POST /groupes/{id}/joueurs` ne verse rien au pot commun d'un groupe classique.
+
+### Démarrer — les routes ordinaires
+
+`POST /groupes/{id}/pret` et `POST /groupes/{id}/quetes` démarrent, pour un groupe classique, la quête de son rang par
+`App\Partie\Classique\DemarreurQueteConstruite` (un seul aiguillage, `GroupeController::demarrerLaQuete()`) :
+
+- la carte est celle de `CarteConstruite::produire()` ; les monstres sont ceux de l'auteur, à leur case, avec les
+  valeurs du catalogue (ni adaptation à la taille du groupe, ni élite), leur nom de catalogue ;
+- les héros partent de l'escalier, points de vie au maximum, sorts rechargés ;
+- le texte d'`ouverture` de la quête est diffusé en `.narration` ; aucun récit, habillage ni image d'IA ;
+- **refus de départ** (422 de `POST /pret`) : groupe sans campagne ; campagne dont toutes les quêtes sont jouées ;
+  **prérequis de héros** — une classe de `campagne.prerequis_heros` n'a aucun héros actif dans le groupe
+  (« … exige un héros de classe : Barbare. »).
+
+### Condition de fin — `quete.fin` (obligatoire)
+
+`fin: {type: "vaincre", cibles: [index…], libelle}`. `cibles` désigne des monstres POSÉS de la quête par leur index
+dans `monstres` (au moins un, sans doublon — sinon `cible_inconnue`) ; `libelle` est la consigne dite aux joueurs,
+écrite par l'auteur. Types offerts : ceux de `App\Models\Quete::OBJECTIFS_CONSTRUITS`, publiés par
+`GET /constructeur/catalogues` → `vocabulaires.types_fin`. Au démarrage : `quetes.objectif_construit = {type, libelle}`
+et `instances_monstres.objectif = true` sur chaque cible ; `Quete::objectif()` rend `vaincre_cibles`, accompli quand
+plus aucune cible n'est active. `EtatGroupe` publie la consigne comme pour tout objectif.
+
+### Fin d'une quête gagnée
+
+`ResolveurTour::terminerQuete()` rend en plus `classique: {rang_suivant, recompense: [{personnage_id, nom, or}]}`
+(`null` pour tout autre groupe) : `groupes.rang_quete` avance, **aucune montée de niveau**, et `quete.recompense` est
+versée aux **bourses des héros** — `par_heros` : le montant à chacun ; `groupe` : partage égal, le reste de la division
+allant une pièce chacun aux premiers héros de l'ordre du tour. Annoncée : `{type: "recompense_quete", quete_id, total,
+parts}` (fil de jeu : « Récompense de la quête : 10 pièces d'or (Albrecht +5, Brunehaut +5) »).
+
+### Étapes de campagne fermées à un groupe classique
+
+`App\Partie\Arene\EtapesCampagne::CLASSIQUE` (une réponse par étape, testée dans les deux sens ; refus nommé
+`RefusClassique`). **Fermées** : squelette, habillage, récits, images de quête et de hub, résumé (travail d'IA) ;
+génération de quête ; montée de niveau ; forge ; entraînement ; clôture ; recrutement de mercenaires (provisoire).
+**Ouvertes** : adhésion, marché, dons, votes de retraite et de sortie, purge, instantané, reprise, pilotage. Le
+compagnon animal offert ne s'ouvre pas.
+
+⚠ **Écarts provisoires, écrits** : la sortie du donjon passe encore par le **vote** (la décision est la sortie case
+par case, lot R3) ; le paquet de trésor est **vide**, une fouille de salle ne trouve rien (lot K3) ; pas d'alliés ;
+le monstre errant de la quête n'est pas lu (lot K5) ; le marché lit toujours le pot commun, que rien n'alimente en
+classique — acheter avec sa bourse reste à faire.
+
 ## Serveur MCP du constructeur (lot P1, 2026-11-13, `docs/plan-mode-classique.md` §8 bis)
 
 Une **IA** (Claude Code, Claude Desktop) compose une campagne construite par le protocole MCP. Ce serveur n'ajoute

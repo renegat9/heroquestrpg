@@ -206,3 +206,42 @@ it('rejoindre un combat d\'arène par la route de campagne est un refus NOMMÉ (
 
     expect(Personnage::find($id)->groupe_actif_id)->toBeNull();
 });
+
+/*
+ * MODE CLASSIQUE (`docs/plan-mode-classique.md` §7). Le registre répond pour lui aussi : chaque étape de campagne est
+ * OUVERTE (`null`) ou FERMÉE (sa raison) à un groupe classique. Dans les deux sens : aucune étape sans réponse, aucune
+ * réponse pour une étape qui n'existe pas — c'est ce qui oblige la prochaine étape ajoutée à se prononcer.
+ */
+it('chaque étape de campagne dit ce qu\'elle fait à un groupe classique, et rien d\'autre', function () {
+    expect(array_keys(EtapesCampagne::CLASSIQUE))->toEqualCanonicalizing(array_keys(EtapesCampagne::ETAPES));
+
+    foreach (EtapesCampagne::CLASSIQUE as $cle => $raison) {
+        expect($raison === null || (is_string($raison) && trim($raison) !== ''))
+            ->toBeTrue("« {$cle} » : la réponse est null (ouverte) ou une raison de fermeture non vide.");
+    }
+});
+
+it('la garde ferme à un groupe classique exactement les étapes que le registre ferme, par une erreur NOMMÉE', function () {
+    $classique = creerGroupe('table-classique');
+    $classique->update(['mode' => Groupe::MODE_CLASSIQUE]);
+
+    foreach (EtapesCampagne::CLASSIQUE as $cle => $raison) {
+        $leve = null;
+
+        try {
+            $classique->exigerCampagne($cle);
+        } catch (Throwable $e) {
+            $leve = $e;
+        }
+
+        if ($raison === null) {
+            expect($leve)->toBeNull("« {$cle} » est ouverte au classique, mais la garde a levé : ".$leve?->getMessage());
+        } else {
+            expect($leve)->toBeInstanceOf(\App\Partie\Classique\RefusClassique::class, "« {$cle} » devait être fermée au classique.")
+                ->and($leve->getMessage())->toContain($raison);
+        }
+    }
+
+    expect($classique->refresh()->estClassique())->toBeTrue()
+        ->and($classique->estArene())->toBeFalse();
+});

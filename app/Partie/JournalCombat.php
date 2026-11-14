@@ -169,6 +169,8 @@ final class JournalCombat
         'attaque_supplementaire_perdue' => true,
         'changement_phase' => true, 'reaction_monstre' => true, 'monstres_reveles' => true,
         'vote_resolu' => true,
+        // MODE CLASSIQUE : la récompense d'une quête construite, versée aux bourses des héros.
+        'recompense_quete' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1240,6 +1242,7 @@ final class JournalCombat
             'reaction_monstre' => $this->reactionMonstreJournalisee($a),
             'monstres_reveles' => $this->monstresReveles($a),
             'vote_resolu' => $this->voteResolu($a),
+            'recompense_quete' => $this->recompenseQuete($a),
             'soin_allie' => $this->soinAllie($a, $acteurNom),
             'tresor_tournoi' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' fouille le coffre ('.implode(' + ', (array) ($a['des'] ?? [])).' = '.(int) ($a['total'] ?? 0).') : '

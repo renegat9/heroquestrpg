@@ -487,6 +487,32 @@ ni son format, il appelle ce que la route HTTP appelle.
     l'auteur, pas tirés derrière les portes secrètes.
   - Le code de K2 a été relu dans sa production des salles et des portes, pas
     en entier.
+- **Première quête jouable (K0 + K4, et la condition de fin de K3) — fait le
+  2026-11-14** :
+  - `groupes.mode = classique` ; le registre `EtapesCampagne::CLASSIQUE`
+    répond pour chaque étape (ouverte, ou fermée avec sa raison), testé dans
+    les deux sens ; refus nommé `RefusClassique` ;
+  - `POST /api/classique` ouvre un groupe sur une campagne construite, sans
+    aucun travail d'IA ; bourse par héros (l'or reste sur le héros) ;
+  - `DemarreurQueteConstruite` : la carte de l'auteur, ses monstres à leur
+    case avec les valeurs du catalogue, son texte d'ouverture ; un seul
+    aiguillage du démarrage dans le contrôleur ;
+  - **condition de fin** `fin: {type: "vaincre", cibles, libelle}` — entrée au
+    vocabulaire, lecteur sur `Quete::objectif()` / `objectifAccompli()`, test
+    en jeu, puis la donnée ; la consigne est celle de l'auteur, le moteur ne
+    nomme jamais une cible ;
+  - **prérequis de héros** lus au départ (la partie simple du lot S1) ;
+  - fin de quête : pas de montée de niveau, la campagne avance, la
+    `recompense` de l'auteur va aux bourses des héros, annoncée
+    (`recompense_quete`). `recompense` avait été acceptée au lot K1 sans
+    lecteur : c'est réparé.
+  - Tests : `PremiereQueteJouableTest` (6, par les vraies routes).
+  - **Écarts provisoires, écrits au contrat** : sortie par le vote (décision
+    Q4 : case par case → lot R3) ; paquet de trésor vide (K3) ; pas d'alliés,
+    recrutement fermé ; monstre errant non lu (K5) ; le marché lit le pot
+    commun, que rien n'alimente en classique.
+  - **Pas encore fait** : aucun écran ne propose de créer un groupe classique
+    ni de choisir une campagne ; rien n'a été vu à l'écran.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

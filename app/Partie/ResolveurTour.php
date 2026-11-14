@@ -16894,7 +16894,14 @@ final class ResolveurTour
         // Montée de niveau par jalon (doc 01 §5) : quête sous_boss/boss_final
         // gagnée → +1 niveau par héros actif, broadcast `.niveau.monte` émis
         // AVANT le `.groupe.etat` final (null pour une quête normale).
-        $niveaux = $this->monteeNiveau->appliquer($groupe, $quete);
+        // MODE CLASSIQUE (2026-11-14) : pas de niveaux — l'étape est FERMÉE au registre (`EtapesCampagne::CLASSIQUE`), et
+        // c'est ici, à son seul appelant en fin de quête, qu'on ne l'appelle pas : la garde lèverait son erreur nommée au
+        // milieu d'une quête déjà marquée terminée. À la place, la campagne construite avance et la récompense de
+        // l'auteur est versée aux bourses (`FinDeQueteConstruite`).
+        $classique = $groupe->estClassique()
+            ? app(\App\Partie\Classique\FinDeQueteConstruite::class)->regler($groupe, $quete)
+            : null;
+        $niveaux = $classique === null ? $this->monteeNiveau->appliquer($groupe, $quete) : null;
 
         // FAVEUR DE HOPEKINS REST : AUCUN tirage ici (René, 2026-10-16). Le lieu se choisit AU HUB
         // qui suit cette victoire, par chaque héros (`FaveursHopekins::choisirLieu()`), dans une
@@ -16909,6 +16916,8 @@ final class ResolveurTour
 
         return [
             'etat' => 'terminee', 'or_butin' => $orButin, 'niveaux' => $niveaux,
+            // MODE CLASSIQUE : `{rang_suivant, recompense: [{personnage_id, nom, or}]}`, `null` pour tout autre groupe.
+            'classique' => $classique,
             'mercenaires_entretien' => $entretien,
             'peacekeeper' => $peacekeeper,
             // Brassards réveillés par cette victoire (Fangwarden Armlet) :

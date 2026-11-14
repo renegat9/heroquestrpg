@@ -301,6 +301,10 @@ function fixturesDesTypesAnnonces(): array
         'reaction_monstre' => ['nom' => 'Gruzbella', 'mecanique' => 'ignore_degats_attaque'],
         'monstres_reveles' => ['boss' => ['Gruulob'], 'texte' => 'Gruulob apparaît !'],
         'vote_resolu' => ['vote' => 'retraite', 'option_id' => 'continuer', 'applique' => false, 'texte' => 'Vote de retraite : on continue'],
+        // MODE CLASSIQUE : la récompense d'une quête construite, versée aux bourses (`FinDeQueteConstruite`).
+        'recompense_quete' => ['quete_id' => 1, 'total' => 10, 'parts' => [
+            ['personnage_id' => 1, 'nom' => 'Grom', 'or' => 5], ['personnage_id' => 2, 'nom' => 'Albrecht', 'or' => 5],
+        ]],
         // LE PATRON TOURELLE ET LES QUATRE ADVERSAIRES DE DELTHRAK (René, 2026-10-15).
         'apparition_a_la_vue' => ['monstre' => 'Crâne du Dread', 'instance_id' => 7, 'declencheur' => ['personnage_id' => 1, 'nom' => 'Grom'], 'position' => ['x' => 4, 'y' => 2]],
         'filet_silencieux' => ['monstre' => 'Deathspinner', 'instance_id' => 7, 'cible' => $cible, 'sort' => 'Canaliser l\'Effroi'],

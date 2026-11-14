@@ -28,6 +28,8 @@ class InstanceMonstre extends Model
         'etat',
         'elite',
         'revele',
+        // MODE CLASSIQUE (2026-11-14) : cette figure est une CIBLE de l'objectif « vaincre » de sa quête construite.
+        'objectif',
         // Brûlée : la régénération s'arrête définitivement (carte du troll,
         // « damage done by fire is permanent »).
         'brule',
@@ -86,6 +88,7 @@ class InstanceMonstre extends Model
             'habillage' => 'array',
             'formes_a_venir' => 'array',
             'revele' => 'boolean',
+            'objectif' => 'boolean',
             'elite' => 'boolean',
             'brule' => 'boolean',
             'usages_dread' => 'integer',

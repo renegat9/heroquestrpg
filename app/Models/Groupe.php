@@ -52,6 +52,9 @@ class Groupe extends Model
         // MODE ARÈNE, lot A9a : la variante (`coop` | `monstres`) et le salon Monster vs Monster.
         'arene_variante',
         'arene_mvm',
+        // MODE CLASSIQUE (2026-11-14) : la campagne construite que joue le groupe, et le rang de sa prochaine quête.
+        'campagne_construite_id',
+        'rang_quete',
     ];
 
     /**
@@ -68,7 +71,13 @@ class Groupe extends Model
 
     public const VARIANTE_MONSTRES = 'monstres';
 
-    public const MODES = [self::MODE_CAMPAGNE, self::MODE_ARENE];
+    /**
+     * MODE CLASSIQUE (`docs/plan-mode-classique.md`) : le groupe joue les quêtes FIXES d'une campagne construite, sans
+     * aucun travail d'IA, et n'est jamais dissous. Un seul prédicat, `estClassique()` ; la même garde que l'arène.
+     */
+    public const MODE_CLASSIQUE = 'classique';
+
+    public const MODES = [self::MODE_CAMPAGNE, self::MODE_ARENE, self::MODE_CLASSIQUE];
 
     protected function casts(): array
     {
@@ -92,6 +101,17 @@ class Groupe extends Model
         return $this->mode === self::MODE_ARENE;
     }
 
+    public function estClassique(): bool
+    {
+        return $this->mode === self::MODE_CLASSIQUE;
+    }
+
+    /** La campagne construite que joue un groupe classique (`null` pour tout autre groupe). */
+    public function campagneConstruite(): BelongsTo
+    {
+        return $this->belongsTo(CampagneConstruite::class, 'campagne_construite_id');
+    }
+
     /**
      * LA garde des étapes de campagne : un groupe d'arène qui en atteint une lève une erreur NOMMÉE, jamais un passage
      * en silence — sinon la première étape de campagne ajoutée plus tard s'appliquerait à l'arène sans que personne ne
@@ -108,6 +128,17 @@ class Groupe extends Model
 
         if ($mode === self::MODE_ARENE) {
             throw \App\Partie\Arene\RefusArene::etapeDeCampagne($this, $etape);
+        }
+
+        // MODE CLASSIQUE : chaque étape dit au registre si elle lui est OUVERTE (`null`) ou FERMÉE (sa raison). Une étape
+        // qui n'a rien déclaré est fermée : celle qu'on ajoutera plus tard ne s'appliquera pas en silence.
+        // ⚠ `array_key_exists`, pas `??` : une étape OUVERTE vaut `null`, que `??` prendrait pour une étape absente.
+        if ($mode === self::MODE_CLASSIQUE) {
+            $reponses = \App\Partie\Arene\EtapesCampagne::CLASSIQUE;
+
+            if (! array_key_exists($etape, $reponses) || $reponses[$etape] !== null) {
+                throw \App\Partie\Classique\RefusClassique::etapeFermee($this, $etape);
+            }
         }
     }
 

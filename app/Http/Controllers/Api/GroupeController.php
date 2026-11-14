@@ -407,8 +407,9 @@ class GroupeController extends Controller
                 ]);
                 $personnage->update(['groupe_actif_id' => $groupe->id]);
 
-                // L'or personnel est versé au pot commun à l'arrivée (doc 05 §4).
-                if ($personnage->or > 0) {
+                // L'or personnel est versé au pot commun à l'arrivée (doc 05 §4) — SAUF en mode classique, où chaque
+                // héros garde sa bourse (René, 2026-11-13).
+                if (! $groupe->estClassique() && $personnage->or > 0) {
                     $groupe->increment('or', $personnage->or);
                     $personnage->update(['or' => 0]);
                 }
@@ -613,6 +614,17 @@ class GroupeController extends Controller
      * démarre la quête (DemarreurQuete) et vide les statuts.
      * Broadcast PretsMaj à chaque changement.
      */
+    /**
+     * QUI démarre la quête de ce groupe — l'UNIQUE aiguillage, lu par `POST /pret` et `POST /quetes`. Un groupe
+     * classique joue la quête de son rang dans sa campagne construite ; tout autre groupe en génère une.
+     */
+    private function demarrerLaQuete(Groupe $groupe, DemarreurQuete $demarreur): \App\Models\Quete
+    {
+        return $groupe->estClassique()
+            ? app(\App\Partie\Classique\DemarreurQueteConstruite::class)->demarrer($groupe)
+            : $demarreur->demarrer($groupe);
+    }
+
     public function pret(Request $request, string $identifiant, DemarreurQuete $demarreur, EtatGroupe $etatGroupe): JsonResponse
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
@@ -663,7 +675,9 @@ class GroupeController extends Controller
         //  - la CAMPAGNE GAGNÉE (boss final vaincu, arc épuisé) : aucune quête ne part, `DemarreurQuete::refusDeDepart()`
         //    le dit ; refusé ici AVANT l'écriture du cache, pour qu'aucun « prêt » ne reste en attente d'un départ impossible.
         if ((bool) $donnees['pret'] && $groupe->phase === 'hub') {
-            $refus = $demarreur->refusDeDepart($groupe)
+            $refus = ($groupe->estClassique()
+                    ? app(\App\Partie\Classique\DemarreurQueteConstruite::class)->refusDeDepart($groupe)
+                    : $demarreur->refusDeDepart($groupe))
                 ?? app(CompagnonOffert::class)->refusDeDepart($groupe)
                 ?? FaveursHopekins::refusDeDepart($groupe, $personnage);
 
@@ -700,7 +714,7 @@ class GroupeController extends Controller
             // Vide les statuts avant le démarrage.
             Cache::forget($cleCache);
 
-            $quete = $demarreur->demarrer($groupe);
+            $quete = $this->demarrerLaQuete($groupe, $demarreur);
 
             return response()->json([
                 'quete_demarree' => true,
@@ -777,7 +791,7 @@ class GroupeController extends Controller
     {
         $groupe = $this->groupeLisible($request, $identifiant);
 
-        $quete = $demarreur->demarrer($groupe);
+        $quete = $this->demarrerLaQuete($groupe, $demarreur);
 
         return response()->json([
             'quete' => [

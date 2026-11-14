@@ -32,11 +32,13 @@ function troisiemeQueteInventee(): array
         'portes' => [],
         'blocs' => [],
         'mobilier' => [],
-        'monstres' => [],
+        // Un gobelin dans `galerie` (8..11 × 2..5), hors de l'escalier (8..9 × 2..3) : la cible de la condition de fin.
+        'monstres' => [['slug' => 'gobelin', 'x' => 11, 'y' => 5]],
         'pieges' => [],
         'terrain' => [],
         'depart' => ['x' => 8, 'y' => 2],
         'recompense' => null,
+        'fin' => ['type' => 'vaincre', 'cibles' => [0], 'libelle' => 'Vaincre le gobelin de la galerie.'],
     ];
 }
 

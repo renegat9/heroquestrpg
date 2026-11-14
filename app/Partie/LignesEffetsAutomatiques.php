@@ -822,6 +822,25 @@ trait LignesEffetsAutomatiques
      *
      * @return list<array{texte: string, ton: string}>
      */
+    /**
+     * MODE CLASSIQUE : la récompense d'une quête construite, versée aux BOURSES des héros
+     * (`FinDeQueteConstruite::regler()`). Une ligne, qui dit qui reçoit combien.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function recompenseQuete(array $a): array
+    {
+        $parts = collect((array) ($a['parts'] ?? []))
+            ->map(fn (array $p) => ($p['nom'] ?? 'Un héros').' +'.(int) ($p['or'] ?? 0))
+            ->implode(', ');
+
+        return [[
+            'texte' => 'Récompense de la quête : '.(int) ($a['total'] ?? 0).' pièces d\'or ('.$parts.')',
+            'ton' => 'succes',
+        ]];
+    }
+
     private function voteResolu(array $a): array
     {
         return [[

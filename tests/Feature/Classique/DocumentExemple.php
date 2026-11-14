@@ -70,6 +70,7 @@ final class DocumentExemple
             'terrain' => [['slug' => 'glace-glissante', 'x' => 9, 'y' => 3]],
             'depart' => ['x' => 2, 'y' => 4],
             'recompense' => ['or' => 10, 'partage' => 'groupe'],
+            'fin' => ['type' => 'vaincre', 'cibles' => [0], 'libelle' => 'Vaincre le gobelin qui garde l\'entrée.'],
         ];
     }
 
@@ -96,6 +97,7 @@ final class DocumentExemple
             'terrain' => [],
             'depart' => ['x' => 5, 'y' => 2],
             'recompense' => null,
+            'fin' => ['type' => 'vaincre', 'cibles' => [0], 'libelle' => 'Vaincre le squelette de la crypte.'],
         ];
     }
 }

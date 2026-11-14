@@ -104,6 +104,7 @@ it('payload() publie les couches posables, les classes et les vocabulaires lus d
             'cotes' => ValidationCampagne::COTES,
             'types_porte' => ValidationCampagne::TYPES_PORTE,
             'partages' => ValidationCampagne::PARTAGES,
+            'types_fin' => ValidationCampagne::TYPES_FIN,
             'formats_acceptes' => ValidationCampagne::FORMATS_ACCEPTES,
         ]);
 });

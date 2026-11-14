@@ -42,6 +42,9 @@ class Quete extends Model
         // Effets GLOBAUX de la quête (Gruulob, « All Goblins in this quest… »), figés
         // au démarrage par `EffetsGlobauxQuete::etablir()` — en colonne, jamais en cache.
         'effets_globaux',
+        // MODE CLASSIQUE (2026-11-14) : la condition de fin écrite par l'auteur d'une quête construite —
+        // `{type: "vaincre", libelle}`. Lue par `objectif()`, `objectifAccompli()` et `objectifLibelle()` seulement.
+        'objectif_construit',
     ];
 
     protected function casts(): array
@@ -68,6 +71,7 @@ class Quete extends Model
             // Effets globaux figés au démarrage (`EffetsGlobauxQuete`). NULL = quête
             // ouverte avant la colonne : sa liste se lit sur sa roster.
             'effets_globaux' => 'array',
+            'objectif_construit' => 'array',
         ];
     }
 
@@ -382,6 +386,14 @@ class Quete extends Model
             // TERMINÉE d'elle-même (`ResolveurTour`) — ce verdict sert la
             // bannière et les garde-fous, jamais un second chemin de fin.
             'detruire_element' => $this->elementObjectifDetruit(),
+            // QUÊTE CONSTRUITE (mode classique, 2026-11-14) : les figures que l'auteur a DÉSIGNÉES sont toutes tombées
+            // (`instances_monstres.objectif`). Une désignation, pas un palier de catalogue : la cible peut être un
+            // simple gobelin. Sans aucune cible posée, rien n'est actif : accompli — la validation du constructeur
+            // exige au moins une cible, et une donnée incomplète n'enferme jamais un groupe dans son donjon.
+            self::OBJECTIF_VAINCRE_CIBLES => ! $this->instancesMonstres()
+                ->where('objectif', true)
+                ->where('etat', 'actif')
+                ->exists(),
             default => true,
         };
     }
@@ -577,8 +589,21 @@ class Quete extends Model
      * déclare aucun. Même source que {@see self::objectifAccompli()} — un seul
      * lecteur de la donnée, deux usages.
      */
+    /** L'objectif d'une quête construite « vaincre » : les figures désignées par l'auteur. */
+    public const OBJECTIF_VAINCRE_CIBLES = 'vaincre_cibles';
+
+    /** Type de `objectif_construit` (le format du constructeur) → objectif lu par le moteur. Vocabulaire fermé. */
+    public const OBJECTIFS_CONSTRUITS = ['vaincre' => self::OBJECTIF_VAINCRE_CIBLES];
+
     public function objectif(): ?string
     {
+        // QUÊTE CONSTRUITE : l'objectif vient de l'auteur, pas d'un gabarit (elle n'en a pas). Il passe en premier —
+        // une quête construite n'a ni élément désigné par l'assembleur ni gabarit à consulter.
+        $construit = data_get($this->objectif_construit, 'type');
+        if (is_string($construit) && isset(self::OBJECTIFS_CONSTRUITS[$construit])) {
+            return self::OBJECTIFS_CONSTRUITS[$construit];
+        }
+
         // L'élément à détruire est désigné par la CARTE (clé `objectif` d'une
         // entrée de mobilier, posée à l'assemblage) et PRIME sur l'objectif du
         // gabarit : le gabarit « Confrontation finale » est commun à tous les
@@ -623,6 +648,9 @@ class Quete extends Model
             // le vote ordinaire.
             'secourir' => 'Retrouver '.($this->captif?->mercenaire?->nom ?? 'le captif')
                 .' et le ramener vivant à l\'escalier.',
+            // QUÊTE CONSTRUITE : la consigne est celle que l'AUTEUR a écrite. Le moteur n'en déduit rien — nommer
+            // lui-même les cibles révélerait une figure que le groupe n'a pas encore vue.
+            self::OBJECTIF_VAINCRE_CIBLES => ((string) data_get($this->objectif_construit, 'libelle', '')) ?: null,
             default => null,
         };
     }

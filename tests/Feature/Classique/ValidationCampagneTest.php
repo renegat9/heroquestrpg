@@ -140,6 +140,12 @@ function casDeRefus(): array
 
             return classiqueRefus($doc);
         }],
+        'cible de fin qui ne désigne aucun monstre posé' => [ValidationCampagne::CIBLE_INCONNUE, function (): array {
+            $doc = DocumentExemple::campagne();
+            $doc['quetes'][0]['fin']['cibles'] = [7];
+
+            return classiqueRefus($doc);
+        }],
         'deux monstres sur une même case' => [ValidationCampagne::CASE_PARTAGEE, function (): array {
             $doc = DocumentExemple::campagne();
             $doc['quetes'][0]['monstres'][] = ['slug' => 'gobelin', 'x' => 5, 'y' => 2]; // déjà un gobelin en (5, 2)
@@ -364,4 +370,35 @@ it('un anneau qui touche le bord sans en sortir est accepté : une salle à une 
     $doc['plateau']['salles'][0]['x'] = 1; // entree : son mur de gauche tombe en x = 0, encore sur le plateau
 
     expect(array_column(classiqueRefus($doc), 'code'))->not->toContain(ValidationCampagne::ANNEAU_HORS_PLATEAU);
+});
+
+
+/*
+ * LA CONDITION DE FIN (première quête jouable, 2026-11-14). Le format n'offre que ce que le moteur sait jouer : la liste
+ * des types vit dans `App\Models\Quete::OBJECTIFS_CONSTRUITS`, et la validation ne doit jamais en accepter un de plus.
+ */
+it('n\'offre comme conditions de fin que celles que le moteur sait jouer', function () {
+    expect(ValidationCampagne::TYPES_FIN)->toBe(array_keys(\App\Models\Quete::OBJECTIFS_CONSTRUITS));
+});
+
+it('exige une condition de fin : au moins une cible, sans doublon, et la consigne de l\'auteur', function () {
+    $sansFin = DocumentExemple::campagne();
+    unset($sansFin['quetes'][0]['fin']);
+    expect(collect(classiqueRefus($sansFin))->firstWhere('chemin', 'quetes.0.fin')['code'] ?? null)->toBe(ValidationCampagne::CLE_MANQUANTE);
+
+    $sansCible = DocumentExemple::campagne();
+    $sansCible['quetes'][0]['fin']['cibles'] = [];
+    expect(array_column(classiqueRefus($sansCible), 'code'))->toBe([ValidationCampagne::CIBLE_INCONNUE]);
+
+    $doublon = DocumentExemple::campagne();
+    $doublon['quetes'][0]['fin']['cibles'] = [0, 0];
+    expect(array_column(classiqueRefus($doublon), 'chemin'))->toBe(['quetes.0.fin.cibles.1']);
+
+    $sansConsigne = DocumentExemple::campagne();
+    $sansConsigne['quetes'][0]['fin']['libelle'] = '';
+    expect(array_column(classiqueRefus($sansConsigne), 'chemin'))->toBe(['quetes.0.fin.libelle']);
+
+    $typeInconnu = DocumentExemple::campagne();
+    $typeInconnu['quetes'][0]['fin']['type'] = 'nettoyer';
+    expect(array_column(classiqueRefus($typeInconnu), 'code'))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
 });
