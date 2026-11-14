@@ -433,6 +433,33 @@ ni son format, il appelle ce que la route HTTP appelle.
     constructeur (B2) et le serveur MCP (P1) appelleront.
   - La validation (700 lignes) a été relue dans sa structure, pas ligne à
     ligne.
+- **P1, le serveur MCP du constructeur — fait le 2026-11-13** (`6c70842`) :
+  `laravel/mcp` 1.2.0 (seul ajout au verrou, aucun paquet existant ne bouge),
+  `App\Mcp\ServeurConstructeur`, neuf outils (`catalogues`, `campagnes`,
+  `campagne_lire`, `quete_lire`, `campagne_ecrire`, `quete_ecrire`, `valider`,
+  `exporter`, `importer`), chacun branché sur le service que la route HTTP
+  appelle. Trois méthodes ajoutées au service (`lireSommaire`, `lireQuete`,
+  `ecrireQuete`). Un refus de validation est une réponse, pas une erreur de
+  protocole.
+  - Tests : 131 dans `tests/Feature/Classique`, dont un registre des outils
+    dans les deux sens. Suite complète dans la copie de l'agent : 3710 passés,
+    1 échec attendu (page d'accueil, pas de front construit dans une copie).
+  - **Éprouvé sur la vraie stack** : `initialize`, `tools/list`, `campagnes`
+    et `catalogues` par le transport réel — quatre lignes JSON-RPC valides,
+    sortie d'erreur vide.
+  - Lancement : `docker compose exec -T app php -d display_errors=stderr
+    artisan mcp:start constructeur`. Le `-d display_errors=stderr` est
+    nécessaire : sans lui, un avertissement PHP s'imprime sur la sortie
+    standard et casse le protocole (mesuré par l'agent).
+  - ⚠ **Après un `composer install --no-scripts`, lancer
+    `php artisan package:discover`** : sans cela Laravel ne connaît pas le
+    paquet, la commande `mcp` n'existe pas et les 28 tests du serveur
+    échouent. Constaté en ramenant le lot dans le dossier servi.
+  - **Pas encore éprouvé** : le raccordement depuis Claude Code lui-même ; le
+    cas d'une exception non rattrapée avec `APP_DEBUG=true`, qui pourrait
+    s'imprimer sur la sortie standard.
+  - `composer` a signalé 36 avis de sécurité touchant 9 paquets déjà présents :
+    non analysés, sans rapport avec ce lot.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration
