@@ -5836,3 +5836,124 @@ Un import (`CampagnesConstruites::importer()`) retire `empreinte` s'il est prés
 (`empreinte_invalide`) si elle diffère : un fichier modifié à la main après export doit retirer cette clé. Exporter puis
 importer redonne la même empreinte. Un slug de catalogue inconnu dans un fichier importé est refusé en le nommant
 (`catalogue_inconnu`).
+
+## Serveur MCP du constructeur (lot P1, 2026-11-13, `docs/plan-mode-classique.md` §8 bis)
+
+Une **IA** (Claude Code, Claude Desktop) compose une campagne construite par le protocole MCP. Ce serveur n'ajoute
+**aucune règle** : chaque outil appelle le service que la route HTTP du §K1 appelle (`CampagnesConstruites`,
+`CatalogueConstructeur`), avec la même validation et le même format. Un outil n'a ni sa validation ni son format. Si un
+outil a besoin d'une opération que le service n'offre pas, elle s'ajoute **au service**, jamais à l'outil (lot P1 : §
+« Méthodes ajoutées au service » ci-dessous).
+
+### Transport, lancement, raccordement
+
+- **Transport stdio seulement** : `Mcp::local('constructeur', ServeurConstructeur::class)` dans `routes/ai.php`. Aucune
+  route HTTP, aucun jeton, aucune authentification : la surface d'exposition est nulle. Le HTTP ne se fera que si un
+  client distant le demande (§8 bis) ; il devra alors avoir son propre middleware, **pas** `auth:joueur`.
+- **Lancement** (dans le conteneur `app`) : `php -d display_errors=stderr artisan mcp:start constructeur` (le flag est
+  expliqué à la puce suivante ; c'est la forme **retenue**).
+- **Raccordement à Claude Code** (à écrire ici, pas à exécuter depuis une copie de travail) :
+  `claude mcp add --transport stdio constructeur -- docker compose -f /home/reneg/heroquestrpg/docker-compose.yml exec -T app php -d display_errors=stderr artisan mcp:start constructeur`
+- **Sortie standard = JSON-RPC et rien d'autre.** Le transport écrit chaque message sur STDOUT ; un avertissement ou un
+  avis PHP imprimé là casse le protocole. Aucun `php.ini` actif ni `display_errors` n'est réglé dans l'image
+  (`docker/app/Dockerfile`), donc le défaut PHP s'applique : en CLI, `display_errors=1` écrit sur STDOUT. **Mesuré le
+  2026-11-13** (conteneur `php:8.3-cli` jetable, même version que le runtime) : avec `-d date.timezone=Essai/Invalide`
+  (une mauvaise configuration plausible), `mcp:start` écrit `Warning: PHP Startup: Invalid date.timezone value …` sur
+  STDOUT ; le validateur de lignes JSON-RPC échoue. Avec `-d display_errors=stderr`, le même avertissement part sur la
+  **sortie d'erreur** et STDOUT ne contient que du JSON-RPC. D'où le flag, dans les deux commandes ci-dessus.
+- **`APP_DEBUG=true`** (la valeur de `.env.example`) : d'après la lecture de `Server::handle()`, une exception qui s'échappe
+  de la boucle (hors d'un outil) y est relancée, puis la console l'affiche — présumément sur STDOUT, ce qui terminerait
+  la session. **Non éprouvé.** Les erreurs **des outils** ne passent pas par là : elles sont rendues en réponse
+  `isError`. Risque résiduel, non traité dans ce lot.
+- **Une session = un processus neuf.** `docker compose exec` lance le code tel qu'il est au moment de la connexion : après
+  une modification PHP, reconnecter le serveur (`/mcp` dans Claude Code). Une session ouverte garde l'ancien code, comme
+  les workers de file (`CLAUDE.md`, « Restart the queue workers »).
+- **Données** : la base de la stack (production). Le serveur **lit et écrit** `campagnes_construites` et
+  `quetes_construites`, et rien d'autre. Il ne touche à **aucun** groupe, personnage, joueur ni compte, **ne joue
+  aucune quête** et n'a **aucun outil de suppression**.
+
+### Instructions du serveur (texte donné au client à l'`initialize`)
+
+Ordre conseillé : `catalogues` → `campagne_lire` (ou `campagnes`) → `campagne_ecrire`, ou `quete_ecrire` pour une seule
+quête → `valider`. **Tout slug de catalogue (mobilier, monstres, pièges, terrain, classes) vient de `catalogues`** ; un
+slug inventé est refusé (`catalogue_inconnu`). Une campagne se rend par quête : `campagne_lire` ne donne pas le détail des
+quêtes, `quete_lire` le donne.
+
+### Outils (9)
+
+Les noms sont en français, sans accent. Chaque outil a une description en français et un schéma d'entrée typé. Les
+entrées sont validées par l'outil (type, présence) ; la validation **du contenu** est celle du service.
+
+| Outil | Entrée | Sortie (`structuredContent`, le même JSON en texte) | Service |
+|---|---|---|---|
+| `catalogues` | — | le corps de `GET /api/constructeur/catalogues` | `CatalogueConstructeur::payload()` |
+| `campagnes` | — | `{campagnes: [Résumé…]}` | `CampagnesConstruites::lister()` |
+| `campagne_lire` | `slug` (texte, requis) | le document de la campagne, **quêtes résumées** : chaque quête y est `{rang, slug, titre}` seulement | `CampagnesConstruites::lireSommaire()` |
+| `quete_lire` | `campagne`, `quete` (slugs, requis) | le **document complet** d'UNE quête (l'objet `quete` du §K1) | `CampagnesConstruites::lireQuete()` |
+| `campagne_ecrire` | `document` (objet, requis) | crée ou remplace la campagne entière : `{enregistree: true, campagne: Résumé}` ou `{enregistree: false, refus: [...]}` | `CampagnesConstruites::enregistrer()` |
+| `quete_ecrire` | `campagne` (slug), `quete` (objet, requis), `rang` (entier ≥ 1, facultatif) | même forme que `campagne_ecrire` | `CampagnesConstruites::ecrireQuete()` |
+| `valider` | `document` (objet, requis) | `{refus: [...]}` — **rien n'est enregistré** ; liste vide = valide | `CampagnesConstruites::valider()` |
+| `exporter` | `slug` (texte, requis) | le document plus `empreinte` (le fichier de l'export §K1) | `CampagnesConstruites::exporter()` |
+| `importer` | `document` (objet, requis ; `empreinte` acceptée et vérifiée) | même forme que `campagne_ecrire` | `CampagnesConstruites::importer()` |
+
+- **`Résumé`** : celui du §K1 (`slug, titre, auteur, mention, version_format, empreinte, nb_quetes, mise_a_jour`).
+- **`refus`** : la forme du §K1, `[{chemin, code, message}]`, les mêmes codes, en français.
+- **`quete_ecrire`** : remplace la quête **de même slug** — sans `rang`, à sa place ; avec `rang`, à ce rang (la quête est
+  alors déplacée). Une quête **nouvelle** s'insère à `rang` (1 = première), sinon à la fin. Le `rang` vaut de 1 au nombre
+  de quêtes **après retrait** de la quête remplacée, plus 1 ; hors de cet intervalle, erreur d'usage (ci-dessous).
+  La campagne **entière** est ensuite enregistrée par `enregistrer()` : revalidée, et un refus n'écrit **rien**. Les
+  chemins de refus sont ceux de la campagne (`quetes.2.monstres.0.slug`).
+- **Un refus de validation n'est PAS une erreur de protocole** : il est rendu dans la réponse, **sans** `isError`, pour
+  que l'IA le lise et corrige. `enregistree: false` signale qu'il n'y a rien à relire en base.
+- **`campagne_ecrire` refuse la clé `empreinte`** (`cle_inconnue`) : un fichier exporté passe par `importer`, qui la vérifie
+  puis la retire. Le contrat du §K1 ne change pas.
+- **Une erreur d'usage** est une réponse `isError: true` avec un message en français, pour : campagne introuvable
+  (« Aucune campagne construite « … ». »), quête introuvable (« La campagne « … » n'a pas de quête « … ». »), `rang` hors
+  de son intervalle, champ requis absent ou de mauvais type.
+- **Une réponse trop longue est tronquée côté client** : c'est pourquoi `campagne_lire` ne rend pas les quêtes en entier.
+  `exporter` et `importer` rendent le document entier, et seront le premier endroit à surveiller si une campagne grossit.
+
+### Méthodes ajoutées au service (lot P1)
+
+- `CampagnesConstruites::lireSommaire(string $slug): array` — le document, `quetes` réduit à `[{rang, slug, titre}]`.
+  Lève `ErreurConstructeur` si la campagne n'existe pas.
+- `CampagnesConstruites::lireQuete(string $campagne, string $quete): array` — l'objet `quete` du document source. Lève
+  `ErreurConstructeur` si la campagne ou la quête n'existe pas.
+- `CampagnesConstruites::ecrireQuete(string $campagne, array $quete, ?int $rang = null): CampagneConstruite` — la logique
+  de remplacement ou d'insertion ci-dessus, puis `enregistrer($document, $campagne)`. Lève `ErreurConstructeur` (campagne
+  introuvable, `rang` hors bornes) ou `RefusCampagne` (validation, rien écrit).
+- `App\Partie\Classique\ErreurConstructeur` (`RuntimeException`) : une demande qui ne peut pas être exécutée. Trois
+  constructeurs nommés (`campagneInconnue`, `queteInconnue`, `rangHorsBornes`), messages en français.
+
+### Serveur, registre, tests
+
+- Classe `App\Mcp\ServeurConstructeur` (`Laravel\Mcp\Server`) ; outils dans `App\Mcp\Outils\` (une classe par outil, nom
+  `Outil…`).
+- **Registre dans les deux sens** (test `tests/Feature/Classique/Mcp/RegistreTest.php`) : chaque classe d'outil de
+  `app/Mcp/Outils/` est déclarée sur le serveur, chaque outil déclaré existe et est servi par `tools/list`, et chaque outil
+  déclaré a son fichier de test `Outil<Nom>Test.php`.
+- Tests : `tests/Feature/Classique/Mcp/` — un fichier par outil, sur `Tests\Feature\Classique\DocumentExemple` (contenu
+  inventé) ; les aides de test du paquet (`Server::tool()`, `Server::tools()`).
+
+### Essai réel du transport stdio (2026-11-13, hors Pest)
+
+Conteneur `php:8.3-cli` jetable, base **sqlite fichier** migrée et semée (les cinq catalogues : 12 classes, 21 meubles,
+97 monstres, 16 pièges, 18 terrains) dans un dossier temporaire de la copie de travail. Aucune connexion à la base de la
+stack. Entrée : `initialize`, puis la notification `notifications/initialized`, puis `tools/list`, puis `tools/call`
+de `catalogues`. Vérifié : chaque ligne de la sortie standard est un objet JSON-RPC 2.0 valide ; la notification ne
+produit aucune réponse ; la sortie d'erreur est vide.
+
+Résultat : 3 lignes sur STDOUT, toutes valides (ids 1, 2, 3). `tools/list` rend les neuf noms ci-dessus ; `catalogues`
+rend 12 classes et 97 monstres, sans erreur.
+
+Témoin (même essai, `-d date.timezone=Essai/Invalide`) : sans `display_errors=stderr`, STDOUT contient en plus
+`Warning: PHP Startup: Invalid date.timezone value …`, et la validation échoue ; avec le flag, STDOUT reste propre.
+
+### Commandes retenues
+
+- Lancement : `php -d display_errors=stderr artisan mcp:start constructeur`
+- Raccordement : `claude mcp add --transport stdio constructeur -- docker compose -f /home/reneg/heroquestrpg/docker-compose.yml exec -T app php -d display_errors=stderr artisan mcp:start constructeur`
+
+**Écart avec la demande initiale** : la commande de raccordement ajoute `-d display_errors=stderr` (la version sans flag
+est celle du plan §8 bis). Motif : le témoin ci-dessus. Non vérifié ici : le raccordement réel (`docker compose exec`
+contre la stack), interdit dans ce lot ; à confirmer au premier `/mcp`.

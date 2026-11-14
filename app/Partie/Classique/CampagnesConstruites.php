@@ -34,6 +34,87 @@ final class CampagnesConstruites
         return CampagneConstruite::query()->where('slug', $slug)->first()?->document;
     }
 
+    /**
+     * Le document d'une campagne, ses quêtes RÉSUMÉES à `{rang, slug, titre}` (MCP `campagne_lire`). Le détail d'une quête
+     * se lit par {@see lireQuete()} : une réponse d'outil trop longue est tronquée côté client.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws ErreurConstructeur
+     */
+    public function lireSommaire(string $slug): array
+    {
+        $document = $this->lire($slug) ?? throw ErreurConstructeur::campagneInconnue($slug);
+
+        $quetes = [];
+        foreach (array_values($document['quetes']) as $indice => $quete) {
+            $quetes[] = ['rang' => $indice + 1, 'slug' => $quete['slug'], 'titre' => $quete['titre']];
+        }
+
+        return [...$document, 'quetes' => $quetes];
+    }
+
+    /**
+     * Le détail d'UNE quête, lu dans le document source (MCP `quete_lire`).
+     *
+     * @return array<string, mixed>
+     *
+     * @throws ErreurConstructeur
+     */
+    public function lireQuete(string $slugCampagne, string $slugQuete): array
+    {
+        $document = $this->lire($slugCampagne) ?? throw ErreurConstructeur::campagneInconnue($slugCampagne);
+
+        foreach ($document['quetes'] as $quete) {
+            if ($quete['slug'] === $slugQuete) {
+                return $quete;
+            }
+        }
+
+        throw ErreurConstructeur::queteInconnue($slugCampagne, $slugQuete);
+    }
+
+    /**
+     * Remplace la quête de même slug, ou l'ajoute, puis enregistre la campagne ENTIÈRE par {@see enregistrer()} : revalidée,
+     * donc un refus n'écrit rien.
+     *
+     * Placement : sans `$rang`, une quête remplacée garde sa place et une nouvelle va à la fin. Avec `$rang` (1 = première),
+     * la quête est placée à ce rang — une quête existante est alors DÉPLACÉE. Le rang vaut de 1 au nombre de quêtes après
+     * retrait de la quête remplacée, plus 1.
+     *
+     * @param  array<string, mixed>  $quete
+     *
+     * @throws ErreurConstructeur campagne introuvable, rang hors de son intervalle
+     * @throws RefusCampagne la campagne, une fois la quête posée, est refusée
+     */
+    public function ecrireQuete(string $slugCampagne, array $quete, ?int $rang = null): CampagneConstruite
+    {
+        $document = $this->lire($slugCampagne) ?? throw ErreurConstructeur::campagneInconnue($slugCampagne);
+
+        $quetes = array_values($document['quetes']);
+        $indiceAncienne = null;
+        if (is_string($quete['slug'] ?? null)) {
+            foreach ($quetes as $indice => $existante) {
+                if ($existante['slug'] === $quete['slug']) {
+                    $indiceAncienne = $indice;
+                    break;
+                }
+            }
+        }
+        if ($indiceAncienne !== null) {
+            array_splice($quetes, $indiceAncienne, 1);
+        }
+
+        $positions = count($quetes) + 1;
+        if ($rang !== null && ($rang < 1 || $rang > $positions)) {
+            throw ErreurConstructeur::rangHorsBornes($rang, $positions);
+        }
+        $indice = $rang !== null ? $rang - 1 : ($indiceAncienne ?? count($quetes));
+        array_splice($quetes, $indice, 0, [$quete]);
+
+        return $this->enregistrer([...$document, 'quetes' => $quetes], $slugCampagne);
+    }
+
     /** @return array<string, mixed>|null le document plus `empreinte` : le fichier exporté */
     public function exporter(string $slug): ?array
     {
