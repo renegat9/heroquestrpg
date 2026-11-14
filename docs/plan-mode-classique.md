@@ -398,6 +398,25 @@ ni son format, il appelle ce que la route HTTP appelle.
     reprise d'une réaction après rechargement de la manette, réécrite au lot.
 - **Reste de M2** : l'écran qui confie un héros (la route existe, aucun bouton
   ne l'appelle encore).
+- **K1, le format d'une campagne construite — fait le 2026-11-13** (`bccf855`) :
+  document de format 1, `CatalogueConstructeur` (une fonction de slug, un
+  index par couche), `ValidationCampagne` (21 codes de refus, testés dans les
+  deux sens), `CampagnesConstruites` (lister, lire, enregistrer, exporter avec
+  empreinte, importer), tables `campagnes_construites` et
+  `quetes_construites`, six routes sous `/api/constructeur`.
+  - Tests : 89 dans `tests/Feature/Classique`. Suite complète dans la copie de
+    l'agent : 3668 passés, 1 échec — la page d'accueil, faute de
+    `public/build/` dans une copie neuve ; ce test passe dans le dossier servi.
+  - Migration appliquée à la vraie base (sauvegarde relue d'abord) ; les
+    routes répondent sur la stack : 21 meubles, 97 monstres, 16 pièges,
+    18 terrains, 12 classes au catalogue.
+  - **Laissé au lot K2**, signalé par l'agent : l'emprise d'un meuble n'est
+    pas contrôlée (seule sa case d'ancrage l'est) ; deux éléments peuvent
+    occuper la même case sans refus.
+  - **Pas de route HTTP d'import** : l'import est un service, que l'écran du
+    constructeur (B2) et le serveur MCP (P1) appelleront.
+  - La validation (700 lignes) a été relue dans sa structure, pas ligne à
+    ligne.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration
