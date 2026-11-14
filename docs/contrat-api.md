@@ -5810,6 +5810,14 @@ change est ce qu'elles DÉSIGNENT :
 - **Aucune route** dans ce lot. Le producteur est le service `App\Partie\Classique\CarteConstruite::produire()`, qui REFUSE
   (`CarteRefusee`) un document invalide : il ne répare rien. `apercu()` rend une quête en texte, pour la relire sans écran.
 
+**Jonctions (`carte.aretes`, 2026-11-14).** La carte produite dit quelles salles chaque porte relie, dans la forme de
+l'assembleur : `aretes[i] = {a, b, porte_a, porte_b}` (index moteur des salles ; `porte_a` et `porte_b` valent les
+coordonnées de l'arête de la porte) et `portes[].jonction = i`, `portes[].boucle = false`. Une porte sur un mur
+**partagé** relie ses deux salles ; une porte qui donne sur un **couloir** ne relie que sa propre salle (`a === b`).
+C'est ce que lit le sort « ouvrir une porte au choix », qui n'offre que les portes d'une salle découverte.
+⚠ Limite assumée : la porte d'une salle encore inconnue, vue depuis le couloir, n'est pas offerte au sort — elle
+s'ouvre à la main, au contact. Le moteur ne retient pas quels couloirs ont été vus ; à revoir au lot K5.
+
 ### Catalogues — `GET /api/constructeur/catalogues`
 
 ```

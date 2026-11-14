@@ -460,6 +460,33 @@ ni son format, il appelle ce que la route HTTP appelle.
     s'imprimer sur la sortie standard.
   - `composer` a signalé 36 avis de sécurité touchant 9 paquets déjà présents :
     non analysés, sans rapport avec ce lot.
+- **K2, la carte d'une quête construite — fait le 2026-11-14** (`3dc58c5`,
+  puis les jonctions) : `CarteConstruite::produire()` rend la forme exacte de
+  `AssembleurCarte::assembler()` (parité des clés testée dans les deux sens)
+  plus la liste des monstres posés ; `apercu()` rend la quête en texte.
+  - Sept contrôles ajoutés à la validation : `anneau_hors_plateau`,
+    `anneau_sur_salle`, `pose_sur_mur`, `depart_hors_salle`,
+    `porte_dans_la_roche`, `mobilier_hors_salle`, `case_partagee`.
+  - Le moteur la joue (testé) : chemin de l'escalier au couloir par une porte
+    ouverte, aucun chemin porte fermée, salle fermée et bloc infranchissables,
+    embrasure conforme à `Grille::caseEmbrasure()` pour les quatre côtés.
+  - **Jonctions** : chaque porte porte sa jonction (`aretes`), sans quoi le
+    sort « ouvrir une porte au choix » n'offrait aucune porte. Une porte sur
+    un couloir ne relie que sa salle : la porte d'une salle inconnue vue du
+    couloir n'est pas offerte au sort (limite écrite, à revoir en K5).
+  - Tests : 182 dans `tests/Feature/Classique`. Suite complète sur l'état
+    fusionné (K1 + P1 + K2) : 3761 verts.
+  - `theme` des salles : `generique`. `spawn_monstres` vide : les monstres
+    voyagent à part, posés par l'auteur.
+  - **Limites connues, laissées au démarrage de quête ou à K5** : une porte
+    qui donne sur un bloc est acceptée ; un meuble « adossé au mur » peut être
+    posé au milieu d'une salle ; la jouabilité (salle sans case libre,
+    objectif inatteignable) n'est pas contrôlée ; un piège sous un meuble ou
+    sous l'escalier passe. Le démarrage d'une quête construite ne doit PAS
+    passer par `DeckFouille::sallesACoffre()` : les coffres y sont posés par
+    l'auteur, pas tirés derrière les portes secrètes.
+  - Le code de K2 a été relu dans sa production des salles et des portes, pas
+    en entier.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

@@ -223,14 +223,40 @@ it('les monstres voyagent dans `monstres`, pas dans `carte`, et portent l\'id du
         ->and($produit['carte']['spawn_figures_fixes'])->toBe([]);
 });
 
-it('les décisions de forme : aretes vides, passage_secret vrai dès qu\'une porte est secrète, pas de levier ni d\'épreuve', function () {
+it('les décisions de forme : passage_secret vrai dès qu\'une porte est secrète, pas de levier ni d\'épreuve', function () {
     $carte = produitDeLExemple(0)['carte'];
 
-    expect($carte['aretes'])->toBe([])
-        ->and($carte['passage_secret'])->toBeTrue()
+    expect($carte['passage_secret'])->toBeTrue()
         ->and($carte['leviers'])->toBe([])
         ->and($carte['epreuves'])->toBe([])
         ->and($carte['dangers'])->toBe([]);
+});
+
+/*
+ * JONCTIONS — quelles salles chaque porte relie, dans la forme de l'assembleur (`aretes[i] = {a, b, porte_a, porte_b}`,
+ * et `portes[].jonction = i`). Le sort « ouvrir une porte au choix » n'offre que les portes dont la jonction touche une
+ * salle DÉCOUVERTE : sans jonction, il n'en offrait aucune sur une carte construite.
+ *
+ * Première quête de l'exemple : `entree` est la salle 0 (elle contient le départ), `galerie` la salle 1.
+ */
+it('donne à chaque porte sa jonction : deux salles pour un mur partagé, sa seule salle pour un couloir', function () {
+    $carte = produitDeLExemple(0)['carte'];
+
+    expect(array_column($carte['portes'], 'jonction'))->toBe([0, 1, 2])
+        ->and(array_column($carte['portes'], 'boucle'))->toBe([false, false, false])
+        // Porte sur le mur partagé entre `entree` et `galerie`.
+        ->and([$carte['aretes'][0]['a'], $carte['aretes'][0]['b']])->toBe([0, 1])
+        // Porte de `entree` vers le couloir du nord : elle ne relie que sa salle.
+        ->and([$carte['aretes'][1]['a'], $carte['aretes'][1]['b']])->toBe([0, 0])
+        // Porte secrète de `galerie` vers le couloir du sud.
+        ->and([$carte['aretes'][2]['a'], $carte['aretes'][2]['b']])->toBe([1, 1]);
+
+    // Chaque jonction nomme le seuil de SA porte, aux coordonnées que lit la grille.
+    foreach ($carte['portes'] as $porte) {
+        $arete = $carte['aretes'][$porte['jonction']];
+        expect($arete['porte_a'])->toBe(['x' => $porte['x'], 'y' => $porte['y']])
+            ->and($arete['porte_b'])->toBe($arete['porte_a']);
+    }
 });
 
 it('la carte qui ne porte aucune porte secrète le dit : passage_secret est faux', function () {

@@ -99,11 +99,26 @@ final class CarteConstruite
         }
 
         // Portes : l'embrasure s'ouvre dans l'anneau ; l'arête moteur est celle que `Grille` lit.
+        // JONCTIONS (`aretes`) : quelles salles chaque porte relie. Le moteur le lit pour le sort « ouvrir une porte au
+        // choix » (`MoteurSorts::entreesPorteAuChoix()`), qui n'offre que les portes d'une salle DÉCOUVERTE. Une porte
+        // entre deux salles qui partagent un mur relie ces deux salles ; une porte qui donne sur un COULOIR ne relie que
+        // sa propre salle — un couloir n'est pas une salle, et le moteur ne retient pas quels couloirs ont été vus.
+        // ⚠ Limite assumée : la porte d'une salle encore inconnue, vue depuis le couloir, n'est donc pas offerte au sort
+        // (elle s'ouvre toujours à la main, au contact). L'offrir demanderait de les offrir TOUTES dès le premier tour,
+        // ce qui révélerait le donjon. À revoir quand les couloirs auront un état de découverte (lot K5).
         $portes = [];
+        $aretes = [];
         $passageSecret = false;
         foreach ($quete['portes'] as $porte) {
             $geo = self::porteMoteur($porte);
             $cases[$geo['embrasure']['y']][$geo['embrasure']['x']] = 's';
+
+            $salleA = $indexSalle[self::interieurEn($salles, (int) $porte['x'], (int) $porte['y'])];
+            $dehors = self::caseDehors($porte);
+            $idDehors = self::interieurEn($salles, $dehors['x'], $dehors['y']);
+            $salleB = $idDehors !== null && isset($indexSalle[$idDehors]) ? $indexSalle[$idDehors] : $salleA;
+            $seuil = ['x' => $geo['arete']['x'], 'y' => $geo['arete']['y']];
+            $aretes[] = ['a' => $salleA, 'b' => $salleB, 'porte_a' => $seuil, 'porte_b' => $seuil];
 
             $secrete = $porte['type'] === 'secrete';
             $passageSecret = $passageSecret || $secrete;
@@ -114,6 +129,9 @@ final class CarteConstruite
             if ($secrete) {
                 $entree['revele'] = false;
             }
+            // Comme dans l'assembleur : la porte porte le numéro de SA jonction ; aucune boucle n'est déclarée ici.
+            $entree['jonction'] = count($aretes) - 1;
+            $entree['boucle'] = false;
             $portes[] = $entree;
         }
 
@@ -195,7 +213,7 @@ final class CarteConstruite
                 'cases' => $cases,
                 'salles' => $sallesMoteur,
                 'portes' => $portes,
-                'aretes' => [],
+                'aretes' => $aretes,
                 'passage_secret' => $passageSecret,
                 'leviers' => [],
                 'pieges' => $pieges,
@@ -278,6 +296,26 @@ final class CarteConstruite
             's' => ['embrasure' => ['x' => $x, 'y' => $y + 1], 'arete' => ['x' => $x, 'y' => $y + 1, 'cote' => 's']],
             'e' => ['embrasure' => ['x' => $x + 1, 'y' => $y], 'arete' => ['x' => $x + 1, 'y' => $y, 'cote' => 'e']],
             'o' => ['embrasure' => ['x' => $x - 1, 'y' => $y], 'arete' => ['x' => $x - 2, 'y' => $y, 'cote' => 'e']],
+        };
+    }
+
+    /**
+     * La case située JUSTE DEHORS d'une porte K1 : au-delà de son embrasure, dans le sens de son côté. Un couloir, ou
+     * l'intérieur de la salle voisine quand les deux salles partagent le mur.
+     *
+     * @param  array{x: int, y: int, cote: string}  $porte
+     * @return array{x: int, y: int}
+     */
+    public static function caseDehors(array $porte): array
+    {
+        $x = (int) $porte['x'];
+        $y = (int) $porte['y'];
+
+        return match ($porte['cote']) {
+            'n' => ['x' => $x, 'y' => $y - 2],
+            's' => ['x' => $x, 'y' => $y + 2],
+            'e' => ['x' => $x + 2, 'y' => $y],
+            'o' => ['x' => $x - 2, 'y' => $y],
         };
     }
 
