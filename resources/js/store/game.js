@@ -32,6 +32,9 @@ const state = reactive({
     /** Non-null quand `menu` ci-dessus est le tour de l'allié contrôlé par
      *  mon héros (chantier 3a, 2026-10-04), pas le mien. */
     menuAllieId: null,
+    /** Héros À QUI appartient `menu` (`personnage_id` de .menu.propose et de
+     *  GET /menu, lot M2) : le héros qui a la main parmi ceux que la manette pilote. */
+    menuPersonnageId: null,
     /** Choix envoyé, en attente du prochain .groupe.etat (boutons désactivés). */
     menuEnAttente: false,
     /** Texte de narration courant du MJ. */
@@ -157,15 +160,17 @@ export function useGameStore() {
          *  tour de l'allié contrôlé par mon héros, pas le mien — voir
          *  `creneauxDuTour` dans ManetteView.vue, qui ne doit JAMAIS appliquer
          *  mes propres créneaux (a_deplace/a_agi) aux boutons d'un allié. */
-        setMenu(menu, allieId = null) {
+        setMenu(menu, allieId = null, personnageId = null) {
             state.menu = menu;
             state.menuAllieId = allieId ?? null;
+            state.menuPersonnageId = personnageId ?? null;
             state.menuEnAttente = false;
         },
         /** Retire le menu courant (ex. mon tour est fini : il devient périmé). */
         viderMenu() {
             state.menu = null;
             state.menuAllieId = null;
+            state.menuPersonnageId = null;
             state.menuEnAttente = false;
         },
         /** Le choix est parti (202) : boutons gelés jusqu'à MON prochain menu
@@ -1054,12 +1059,19 @@ export function panierDuJoueur(marche, joueurId) {
  * normalisée vers {inventaire_id, name, rar, rarLabel, icon, quantite,
  * revente} — revente = 50 % du prix marchand courant (M1), à défaut 50 % du
  * prix de base, à défaut le champ fourni par le serveur.
+ *
+ * `heroId` (lot M2) : le héros dont la manette vend le sac — celui qu'elle
+ * affiche. Sans lui, on prend le premier engagé du roster, ce qui vendait le
+ * sac du mauvais héros dès qu'un joueur en pilote plusieurs.
  */
-export function inventaireVendable(marche, joueurId, etat, personnages) {
+export function inventaireVendable(marche, joueurId, etat, personnages, heroId = null) {
     const monPanier = panierDuJoueur(marche, joueurId);
     const ids = new Set((personnages ?? []).map((p) => p.id));
-    const monEntite = (etat?.entites ?? []).find((e) => e.type === 'heros' && ids.has(e.id));
-    const monPerso = (personnages ?? []).find((p) => p.groupe_actif_id != null && ids.has(p.id));
+    const monEntite = (etat?.entites ?? []).find((e) => e.type === 'heros'
+        && (heroId != null ? e.id === heroId : ids.has(e.id)));
+    const monPerso = (personnages ?? []).find((p) => (heroId != null
+        ? p.id === heroId
+        : (p.groupe_actif_id != null && ids.has(p.id))));
 
     const brut = monPanier?.inventaire
         ?? monPanier?.inventaire_personnage

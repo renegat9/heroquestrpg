@@ -1098,9 +1098,23 @@ absent qu'on lui a confié. Un seul point de passage : `Groupe::piloteDe()` et `
   peut plus non plus le déclarer prêt (sans quoi la quête ne partirait jamais sans lui). La **lecture** du groupe (`/etat`,
   marché, votes, clôture, snapshots) et l'**appartenance** (`PilotageHeros::estMembre()`) admettent un joueur qui PILOTE OU
   POSSÈDE un héros actif. Restent sur le PROPRIÉTAIRE, volontairement : création, adhésion, retrait d'un personnage.
-- ⚠ **Pas encore livré** (lot M2) : la liste `heros_pilotes[]` dans `GET /etat` (le pilote publie, la manette n'en déduit
-  rien) et le bandeau de héros de la manette. Le marché et les votes énumèrent encore leurs membres par PROPRIÉTAIRE
-  (`membres()`) : un propriétaire absent dont le héros est confié doit toujours confirmer.
+- **`groupe.prets[]`** (`GET /etat` au hub), **`.prets.maj`** (`POST /pret`) et la réponse `ordre` de `PUT /ordre` :
+  chaque entrée est `{personnage_id, nom, classe, pilote_joueur_id, pret}`, par UN constructeur (`EtatGroupe::prets()`).
+  Au hub `entites` est vide : c'est sur ce roster que la manette lit quels héros elle pilote. `pilote_joueur_id` est
+  le pilote **résolu**, jamais `null`.
+- **`GET /api/moi` → `joueur.heros_pilotes[]`** : les héros **confiés** à ce joueur (actifs dans un groupe, pilotés par
+  lui, possédés par un autre), dans **exactement la forme** de `joueur.personnages[]` (sac, sorts, talents, faveurs…).
+  Ils n'entrent **jamais** dans `personnages`, qui reste le roster des héros possédés ; `supprimable` y vaut toujours
+  `false`. Les décisions de forge de `/moi` (`forgeable`, gratuité) suivent le **pilote**, comme `POST /forge` : le
+  nain qu'on m'a confié compte, celui que j'ai confié ne compte plus.
+- **Manette (lot M2)** : les héros pilotés par CETTE manette sont, en quête, les `entites[]` de type `heros` dont
+  `pilote_joueur_id` est l'id du joueur connecté ; au hub, les entrées de `groupe.prets[]` qui portent ce même pilote
+  — jamais `joueur_id`. Le **héros courant** est, dans l'ordre : celui dont le menu reçu (`.menu.propose` /
+  `GET /menu`, `personnage_id`) a la main ; sinon celui que le joueur a choisi sur le bandeau (retenu par groupe,
+  comme `?perso`) s'il est piloté ici ; sinon le premier piloté. Le **bandeau** n'existe que si la manette pilote plus
+  d'un héros, et il se verrouille pendant le tour d'un héros (son menu décide). La fiche vient de `personnages[]` ou
+  de `heros_pilotes[]`, fusionnés dans le store. Le « prêt » est envoyé **un héros après l'autre** (`POST /pret` par
+  héros piloté) : le serveur réécrit le tableau des prêts en cache, deux écritures simultanées s'annuleraient.
 
 **Qui décide, qui a une part** (2026-11-13). Deux listes, tenues par `App\Partie\PilotageHeros` :
 

@@ -128,6 +128,9 @@ export function useApi() {
                 // MODE ARÈNE (lot A5) : les doublures que ce joueur pilote dans un combat d'arène — JAMAIS dans le
                 // roster ; seule la manette les lit, pour la fiche de la doublure qu'elle pilote.
                 doublures: r?.joueur?.doublures ?? [],
+                // MANETTE À PLUSIEURS HÉROS (lot M2) : les héros qu'on a CONFIÉS à ce joueur — jamais dans le roster ;
+                // seule la manette les lit, pour la fiche (sac, sorts, talents) du héros qu'elle pilote.
+                heros_pilotes: r?.joueur?.heros_pilotes ?? [],
                 // Boîtes du bestiaire MANUEL, libellés décidés côté serveur.
                 boites_bestiaire: r?.boites_bestiaire ?? [],
                 // Longueurs de campagne proposables (2026-11-05), décidées côté serveur.

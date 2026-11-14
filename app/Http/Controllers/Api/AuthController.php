@@ -137,11 +137,19 @@ class AuthController extends Controller
         // MODE ARÈNE (lot A5) : le roster ET les doublures que ce joueur pilote dans un combat d'arène en cours — la
         // manette y lit la fiche (sorts, sac) de sa doublure. Les deux listes sont séparées à la sortie : une doublure
         // n'entre JAMAIS dans `personnages` (le roster), elle n'apparaît que sous `doublures`.
+        // MANETTE À PLUSIEURS HÉROS (lot M2) : les héros qu'on a CONFIÉS à ce joueur (`groupe_personnages.pilote_joueur_id`,
+        // actifs) passent par la MÊME sérialisation que les siens — la manette y lit leur fiche (sac, sorts, talents) —
+        // et sortent sous `heros_pilotes`, jamais dans `personnages` : le roster reste celui des héros qu'il POSSÈDE.
+        $idsConfies = \Illuminate\Support\Facades\DB::table('groupe_personnages')
+            ->where('pilote_joueur_id', $joueur->id)
+            ->where('actif', true)
+            ->pluck('personnage_id');
+
         $personnages = Personnage::query()
-            ->where('joueur_id', $joueur->id)
+            ->where(fn ($q) => $q->where('joueur_id', $joueur->id)->orWhereIn('id', $idsConfies))
             ->where(fn ($q) => $q->whereNull('doublure_de')->orWhereNotNull('groupe_actif_id'))
             ->with(['competences:competences.id,competences.nom,competences.description,competences.cout,competences.rang,competences.effet', 'sorts', 'groupeActif', 'inventaire.objet'])
-            ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id', 'or',
+            ->get(['id', 'joueur_id', 'nom', 'classe', 'niveau', 'groupe_actif_id', 'or',
                 'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max',
                 'attribut_body', 'attribut_mind', 'des_attaque', 'des_defense',
                 // ORACLE (First Light, FL-Q p. 6, lot C) : durables, visibles
@@ -172,14 +180,24 @@ class AuthController extends Controller
         // un de SES héros, actif dans le groupe, portant le nœud
         // `forge_amelioration`) — la manette ne doit donc jamais re-dériver
         // « ai-je un nain » ni « suis-je au hub » depuis `classe`/`phase`.
+        // « Contrôle » = PILOTE (lot M2), comme `ForgeController::appliquer()` : le nain qu'on lui a confié compte, celui
+        // qu'il a confié à un autre ne compte plus — sinon la manette offrirait une forge que le serveur refusera.
+        $idsConfiesAAutrui = \Illuminate\Support\Facades\DB::table('groupe_personnages')
+            ->whereIn('personnage_id', $personnages->where('joueur_id', $joueur->id)->pluck('id'))
+            ->where('actif', true)
+            ->whereNotNull('pilote_joueur_id')
+            ->where('pilote_joueur_id', '!=', $joueur->id)
+            ->pluck('personnage_id');
         $groupesAvecForgeronDuJoueur = $personnages
-            ->filter(fn ($p) => $p->groupe_actif_id !== null && app(Talents::class)->a($p, 'forge_amelioration'))
+            ->filter(fn ($p) => $p->groupe_actif_id !== null && ! $idsConfiesAAutrui->contains($p->id)
+                && app(Talents::class)->a($p, 'forge_amelioration'))
             ->pluck('groupe_actif_id')
             ->unique();
         // Le forgeron de chaque groupe (le nain du joueur qui regarde) : c'est lui que la
         // gratuité du Chef-d'œuvre interroge, avec le même prédicat que `POST /forge`.
         $forgeronParGroupe = $personnages
-            ->filter(fn ($p) => $p->groupe_actif_id !== null && app(Talents::class)->a($p, 'forge_amelioration'))
+            ->filter(fn ($p) => $p->groupe_actif_id !== null && ! $idsConfiesAAutrui->contains($p->id)
+                && app(Talents::class)->a($p, 'forge_amelioration'))
             ->keyBy('groupe_actif_id');
         $forge = app(Forge::class);
 
@@ -568,6 +586,12 @@ class AuthController extends Controller
         $idsDoublures = $personnages->whereNotNull('doublure_de')->pluck('id')->map(fn ($id) => (int) $id)->all();
         $profil['doublures'] = array_values(array_filter($profil['personnages'], fn (array $p) => in_array((int) $p['id'], $idsDoublures, true)));
         $profil['personnages'] = array_values(array_filter($profil['personnages'], fn (array $p) => ! in_array((int) $p['id'], $idsDoublures, true)));
+
+        // Les héros CONFIÉS à ce joueur (lot M2) : même forme que `personnages`, sortis du roster.
+        $idsDAutrui = $personnages->filter(fn ($p) => (int) $p->joueur_id !== (int) $joueur->id)
+            ->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $profil['heros_pilotes'] = array_values(array_filter($profil['personnages'], fn (array $p) => in_array((int) $p['id'], $idsDAutrui, true)));
+        $profil['personnages'] = array_values(array_filter($profil['personnages'], fn (array $p) => ! in_array((int) $p['id'], $idsDAutrui, true)));
 
         return $profil;
     }

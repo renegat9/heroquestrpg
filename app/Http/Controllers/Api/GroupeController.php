@@ -686,13 +686,8 @@ class GroupeController extends Controller
             ->get(['personnages.id', 'personnages.nom']);
         $personnagesActifs = $membresActifs->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        // Payload broadcast {prets: [{personnage_id, nom, pret}]} — le NOM évite
-        // « Perso n°59 » sur la manette des coéquipiers (roster non partagé).
-        $payloadPrets = $membresActifs->map(fn ($p) => [
-            'personnage_id' => (int) $p->id,
-            'nom' => $p->nom,
-            'pret' => (bool) ($prets[$p->id] ?? false),
-        ])->values()->all();
+        // Le roster du hub, par son UNIQUE constructeur (`EtatGroupe::prets()`) : il relit le cache qu'on vient d'écrire.
+        $payloadPrets = EtatGroupe::prets($groupe);
 
         broadcast(new PretsMaj($groupe, $payloadPrets));
 
@@ -760,16 +755,7 @@ class GroupeController extends Controller
         }
 
         // Rediffuse le roster réordonné (statuts prêt conservés).
-        $prets = Cache::get("partie:pret:{$groupe->id}", []);
-        $roster = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->orderBy('groupe_personnages.ordre_initiative')
-            ->get(['personnages.id', 'personnages.nom'])
-            ->map(fn ($p) => [
-                'personnage_id' => (int) $p->id,
-                'nom' => $p->nom,
-                'pret' => (bool) ($prets[$p->id] ?? false),
-            ])->values()->all();
+        $roster = EtatGroupe::prets($groupe);
 
         broadcast(new PretsMaj($groupe, $roster));
 

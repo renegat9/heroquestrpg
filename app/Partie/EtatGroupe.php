@@ -43,6 +43,37 @@ final class EtatGroupe
     }
 
     /**
+     * LE ROSTER DU HUB — les héros actifs dans l'ordre du tour, avec leur statut « prêt ». UN seul constructeur pour
+     * `groupe.prets` (`GET /etat`), `.prets.maj` (`POST /pret`) et la réponse de `PUT /ordre` : il y en avait trois
+     * copies, et la troisième aurait oublié le pilote.
+     *
+     * - `nom` : sinon la manette d'un coéquipier affichait « Perso n°59 », faute de roster partagé.
+     * - `pilote_joueur_id` et `classe` (lot M2) : au hub, `entites` est vide ; c'est donc ICI que la manette lit quels
+     *   héros elle pilote (bandeau de héros, « prêt » pour chacun). Le pilote est RÉSOLU (`Groupe::piloteDuPivot()`),
+     *   jamais `null`.
+     *
+     * @return list<array{personnage_id: int, nom: string, classe: string, pilote_joueur_id: int, pret: bool}>
+     */
+    public static function prets(Groupe $groupe): array
+    {
+        $prets = Cache::get("partie:pret:{$groupe->id}", []);
+
+        return $groupe->personnages()
+            ->wherePivot('actif', true)
+            ->orderBy('groupe_personnages.ordre_initiative') // roster affiché dans l'ordre du tour
+            ->get(['personnages.id', 'personnages.nom', 'personnages.classe', 'personnages.joueur_id'])
+            ->map(fn ($p) => [
+                'personnage_id' => (int) $p->id,
+                'nom' => $p->nom,
+                'classe' => $p->classe,
+                'pilote_joueur_id' => Groupe::piloteDuPivot($p),
+                'pret' => (bool) ($prets[$p->id] ?? false),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function payload(Groupe $groupe): array
@@ -118,21 +149,7 @@ final class EtatGroupe
 
         // En phase hub : expose les statuts « prêt » des personnages actifs.
         if ($groupe->phase === 'hub' && ! $groupe->estArene()) {
-            $prets = Cache::get("partie:pret:{$groupe->id}", []);
-            // On porte le NOM du héros (pas seulement l'id) : sinon la manette
-            // d'un joueur affichait « Perso n°59 » pour les coéquipiers dont elle
-            // n'a pas le roster.
-            $preambuleGroupe['prets'] = $groupe->personnages()
-                ->wherePivot('actif', true)
-                ->orderBy('groupe_personnages.ordre_initiative') // roster affiché dans l'ordre du tour
-                ->get(['personnages.id', 'personnages.nom'])
-                ->map(fn ($p) => [
-                    'personnage_id' => (int) $p->id,
-                    'nom' => $p->nom,
-                    'pret' => (bool) ($prets[$p->id] ?? false),
-                ])
-                ->values()
-                ->all();
+            $preambuleGroupe['prets'] = self::prets($groupe);
 
             // Alliés recrutés (3.5) exposés au hub : la carte étant absente, les
             // recrues ne sont pas dans `entites` (filtrées sur position) — ce bloc

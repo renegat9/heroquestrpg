@@ -330,3 +330,61 @@ it('garde sa part au propriétaire absent : le pot se divise entre les propriét
     $this->actingAs($carol, 'joueur');
     $this->postJson('/api/groupes/table-1/depart')->assertOk()->assertJsonPath('part', 100);
 });
+
+/*
+ * CE QUE LA MANETTE LIT (lot M2). Au hub, `entites` est vide : le pilote se lit sur le roster `prets`. Et la fiche
+ * d'un héros confié (sac, sorts, talents) sort de `/moi` sous `heros_pilotes`, jamais dans le roster du pilote.
+ */
+it('publie le pilote et la classe de chaque héros sur le roster du hub, par les trois chemins', function () {
+    $alice = compteDePilotage('alice');
+    $bob = compteDePilotage('bob');
+    $groupe = creerGroupe();
+    $deAlice = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $deBob = creerHeros($bob, $groupe, 'Bertrand', 2);
+
+    confierPilotage($alice, $deAlice, (int) $bob->id)->assertOk();
+
+    $attendu = [
+        ['personnage_id' => $deAlice->id, 'nom' => 'Albrecht', 'classe' => 'barbare', 'pilote_joueur_id' => (int) $bob->id, 'pret' => false],
+        ['personnage_id' => $deBob->id, 'nom' => 'Bertrand', 'classe' => 'barbare', 'pilote_joueur_id' => (int) $bob->id, 'pret' => false],
+    ];
+
+    // 1. GET /etat au hub.
+    $this->actingAs($bob, 'joueur');
+    expect($this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.prets'))->toBe($attendu);
+
+    // 2. PUT /ordre (même constructeur).
+    expect($this->putJson('/api/groupes/table-1/ordre', ['ordre' => [$deAlice->id, $deBob->id]])->assertOk()->json('ordre'))
+        ->toBe($attendu);
+
+    // 3. POST /pret : Bob prête le héros qu'on lui a confié.
+    $prets = $this->postJson('/api/groupes/table-1/pret', ['personnage_id' => $deAlice->id, 'pret' => true])
+        ->assertOk()->json('prets');
+    expect($prets[0])->toBe([...$attendu[0], 'pret' => true])
+        ->and($prets[1])->toBe($attendu[1]);
+});
+
+it('rend dans /moi la fiche du héros confié sous heros_pilotes, hors du roster', function () {
+    $alice = compteDePilotage('alice');
+    $bob = compteDePilotage('bob');
+    $groupe = creerGroupe();
+    $deAlice = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $deBob = creerHeros($bob, $groupe, 'Bertrand', 2);
+
+    confierPilotage($alice, $deAlice, (int) $bob->id)->assertOk();
+
+    // Bob : son roster ne contient que SON héros ; le héros confié est sous `heros_pilotes`, avec sa fiche.
+    $this->actingAs($bob, 'joueur');
+    $moi = $this->getJson('/api/moi')->assertOk()->json('joueur');
+    expect(collect($moi['personnages'])->pluck('id')->all())->toBe([$deBob->id])
+        ->and(collect($moi['heros_pilotes'])->pluck('id')->all())->toBe([$deAlice->id])
+        ->and($moi['heros_pilotes'][0])->toHaveKeys(['nom', 'classe', 'sorts', 'competences', 'supprimable'])
+        ->and($moi['heros_pilotes'][0]['supprimable'])->toBeFalse()
+        ->and(array_keys($moi['heros_pilotes'][0]))->toBe(array_keys($moi['personnages'][0]));
+
+    // Alice garde son héros dans son roster, et ne pilote celui de personne.
+    $this->actingAs($alice, 'joueur');
+    $moi = $this->getJson('/api/moi')->assertOk()->json('joueur');
+    expect(collect($moi['personnages'])->pluck('id')->all())->toBe([$deAlice->id])
+        ->and($moi['heros_pilotes'])->toBe([]);
+});

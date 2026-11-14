@@ -359,7 +359,27 @@ ni son format, il appelle ce que la route HTTP appelle.
   Les deux copies de `membres()` (marché, votes) passent par là.
 - **Laissé tel quel** : le « prêt » d'un héros vit en cache (4 h) — état
   d'avant-quête, pas un état de partie.
-- **Reste** : M2 (la manette : bandeau de héros, écran pour confier un héros).
+- **M2, la manette — fait le 2026-11-13** :
+  - la manette suit le héros du menu reçu (`personnage_id`) ; bandeau de héros
+    quand elle en pilote plusieurs, verrouillé pendant le tour d'un héros ;
+    « prêt » envoyé pour chaque héros piloté ;
+  - `EtatGroupe::prets()` : UN constructeur du roster du hub (il y en avait
+    trois), qui publie `pilote_joueur_id` et `classe` — au hub `entites` est
+    vide, c'est là que la manette lit qui pilote quoi ;
+  - `GET /moi` → `heros_pilotes[]` : la fiche d'un héros confié, hors du
+    roster ; les décisions de forge de `/moi` suivent le pilote.
+  - Suite complète : 3580 tests verts.
+  - ⚠ **Jamais vu à l'écran.** Ni le bandeau, ni son verrouillage, ni le rendu
+    à 360 px. La reprise d'une réaction après rechargement a été réécrite et
+    n'a pas été jouée. À vérifier par une partie de test à deux héros par
+    manette avant de tenir le lot pour bon.
+- **Reste de M2** : l'écran qui confie un héros (la route existe, aucun bouton
+  ne l'appelle encore).
+- **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
+  migration écrite ici manque à la vraie base tant qu'elle n'est pas
+  appliquée, et le code qui la lit est déjà en service. Toute migration
+  s'applique donc aussitôt écrite — sauvegarde relue d'abord — ou le travail
+  se fait dans un dossier séparé.
 
 ## 10. Décisions de René (2026-11-13)
 

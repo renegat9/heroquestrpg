@@ -47,10 +47,10 @@ const store = useGameStore();
 store.setGroupe(props.groupe);
 const api = useApi();
 
-/* ---- Personnage piloté sur CE téléphone ----
-   Transmis par JoueurView via ?perso=ID et mémorisé par groupe : un même
-   joueur peut contrôler PLUSIEURS personnages (sur des appareils distincts),
-   donc la manette ne peut pas deviner « le 1er engagé » sans se tromper. */
+/* ---- Héros choisi sur CE téléphone ----
+   Entré via JoueurView (?perso=ID), mémorisé par groupe, puis changé à la touche sur le bandeau de héros
+   (lot M2). Une manette peut piloter PLUSIEURS héros : ce n'est qu'un choix parmi ceux qu'elle pilote
+   (`heroCourantId`), jamais la seule source du héros affiché. */
 const route = useRoute();
 const CLE_PERSO = `manette:perso:${props.groupe}`;
 const persoIdActif = ref((() => {
@@ -66,9 +66,10 @@ const chargement = ref(true);
 const erreurChargement = ref('');
 onMounted(async () => {
     try {
-        const { joueur, personnages, doublures } = await api.moi();
+        const { joueur, personnages, doublures, heros_pilotes } = await api.moi();
         // MODE ARÈNE (lot A5) : la fiche d'une doublure vit sous `doublures` — la manette la cherche avec le roster.
-        store.setJoueur(joueur, [...personnages, ...doublures]);
+        // Lot M2 : la fiche d'un héros CONFIÉ vit sous `heros_pilotes` — cherchée avec le roster, comme une doublure.
+        store.setJoueur(joueur, [...personnages, ...doublures, ...heros_pilotes]);
         store.appliquerEtat(await api.getEtatReprise(props.groupe));
         desabonnements.push(
             souscrireGroupe(props.groupe, {
@@ -87,7 +88,7 @@ onMounted(async () => {
                 '.niveau.monte': (e) => {
                     store.setNiveauMonte(e);
                     // /moi rafraîchi : niveau + points_competence à jour.
-                    api.moi().then((r) => store.setJoueur(r.joueur, [...r.personnages, ...r.doublures])).catch(() => {});
+                    api.moi().then((r) => store.setJoueur(r.joueur, [...r.personnages, ...r.doublures, ...r.heros_pilotes])).catch(() => {});
                 },
                 '.cloture.ouverte': (e) => store.appliquerCloture(e),
                 '.cloture.maj': (e) => store.appliquerCloture(e),
@@ -95,7 +96,7 @@ onMounted(async () => {
                 '.prets.maj': (e) => store.appliquerPrets(e),
             }),
             souscrireJoueur(joueur.id, {
-                '.menu.propose': (e) => store.setMenu(e.menu, e.allie_id),
+                '.menu.propose': (e) => store.setMenu(e.menu, e.allie_id, e.personnage_id),
                 // Réaction hors tour : arrive PENDANT le tour d'un monstre,
                 // donc en dehors de toute boucle de menu.
                 '.reaction.proposee': (e) => { reactionProposee.value = e?.reaction ?? null; },
@@ -103,7 +104,7 @@ onMounted(async () => {
         );
         // Rattrapage du menu courant : à la reconnexion, on a raté le
         // `.menu.propose` déjà émis — on le récupère (régénéré si c'est notre tour).
-        api.getMenu(props.groupe).then((r) => { if (r?.menu) store.setMenu(r.menu, r.allie_id); }).catch(() => {});
+        api.getMenu(props.groupe).then((r) => { if (r?.menu) store.setMenu(r.menu, r.allie_id, r.personnage_id); }).catch(() => {});
 
         // Rattrapage : phase marché, vote ou clôture déjà en cours (reconnexion).
         api.getMarche(props.groupe).then((m) => store.appliquerMarche(m)).catch(() => {});
@@ -125,7 +126,7 @@ let moiTimer = null;
 function rafraichirMoi() {
     clearTimeout(moiTimer);
     moiTimer = setTimeout(() => {
-        api.moi().then((r) => store.setJoueur(r.joueur, [...r.personnages, ...r.doublures])).catch(() => {});
+        api.moi().then((r) => store.setJoueur(r.joueur, [...r.personnages, ...r.doublures, ...r.heros_pilotes])).catch(() => {});
     }, 300);
 }
 onUnmounted(() => clearTimeout(moiTimer));
@@ -150,17 +151,70 @@ const etatControle = computed(() => ETATS_CONTROLE[controleManette.value] ?? nul
    clairement (il ne rejouera que relevé par un allié). ---- */
 const suisTombe = computed(() => monEntite.value?.tombe === true);
 
-/* ---- mon héros : entité EtatGroupe ↔ personnage /moi. ---- */
-const monEntite = computed(() => {
-    const entites = store.state.etat?.entites ?? [];
-    // Priorité au personnage explicitement piloté sur ce téléphone.
-    if (persoIdActif.value) {
-        const mien = entites.find((e) => e.type === 'heros' && e.id === persoIdActif.value);
-        if (mien) return mien;
-    }
-    const ids = new Set((store.state.personnages ?? []).map((p) => p.id));
-    return entites.find((e) => e.type === 'heros' && ids.has(e.id)) ?? null;
+/* ---- Les héros que CETTE manette pilote (lot M2) ----
+   La décision est serveur : chaque héros d'`entites` porte `pilote_joueur_id` (le propriétaire quand rien
+   n'a été confié). On ne relit ni `joueur_id` ni le roster : le héros d'un absent confié à ce joueur
+   apparaît ici, et un des siens confié à un autre n'y apparaît plus. Au hub `entites` est vide : la même
+   décision se lit alors sur `prets`, le roster du hub, qui porte le pilote de chaque héros. */
+const herosPilotes = computed(() => {
+    const moi = store.state.joueur?.id;
+    if (moi == null) return [];
+    const enQuete = (store.state.etat?.entites ?? []).filter((e) => e.type === 'heros' && e.pilote_joueur_id === moi);
+    if (enQuete.length) return enQuete;
+    // AU HUB, `entites` est vide : le roster publié est `prets`, qui porte le pilote et la classe (`EtatGroupe::prets()`).
+    // Même forme minimale qu'une entité pour le bandeau : id, nom, classe.
+    return (store.state.prets ?? [])
+        .filter((r) => r.pilote_joueur_id === moi)
+        .map((r) => ({ id: r.personnage_id, nom: r.nom, classe: r.classe, type: 'heros' }));
 });
+
+/* Ce héros a-t-il la main ? Décidé par le serveur : le tour d'un allié qu'il contrôle (menu allié, qui n'est
+   envoyé que dans ce cas), sinon son `a_la_main` d'initiative. */
+function aLaMain(id) {
+    if (store.state.menuAllieId != null && store.state.menuPersonnageId === id) return true;
+    const mien = (store.state.etat?.initiative ?? []).find((o) => o.entite === 'heros' && o.id === id);
+    if (mien && 'a_la_main' in mien) return !!mien.a_la_main;
+    const cur = acteurCourant(store.state.etat?.initiative);
+    return !!(cur && cur.entite === 'heros' && cur.id === id);
+}
+
+/* Le héros dont le MENU est en cours, s'il a la main. Ce menu est sa décision : il prime sur le choix du
+   bandeau, et la manette s'y verrouille (on ne consulte pas un autre héros pendant son tour). */
+const heroAMenu = computed(() => {
+    const id = store.state.menuPersonnageId;
+    return id != null && aLaMain(id) ? id : null;
+});
+
+/* HÉROS COURANT (lot M2), dans l'ordre : 1) celui dont le menu a la main ; 2) celui que le joueur a choisi
+   sur le bandeau — ou entré par ?perso — s'il est piloté ici ; 3) le premier piloté. `null` quand aucun
+   héros n'est piloté ici (hub, ou une quête sans héros à moi) : la fiche est alors vide. */
+const heroCourantId = computed(() => {
+    const ids = herosPilotes.value.map((e) => e.id);
+    if (!ids.length) return null;
+    if (heroAMenu.value != null && ids.includes(heroAMenu.value)) return heroAMenu.value;
+    if (persoIdActif.value != null && ids.includes(persoIdActif.value)) return persoIdActif.value;
+    return ids[0];
+});
+
+/* ---- mon héros : entité EtatGroupe du héros courant. ---- */
+const monEntite = computed(() => {
+    if (heroCourantId.value == null) return null;
+    return (store.state.etat?.entites ?? []).find((e) => e.type === 'heros' && e.id === heroCourantId.value) ?? null;
+});
+
+/* Touche sur le bandeau : ce héros devient le courant de CE téléphone (retenu par groupe, comme ?perso).
+   Verrouillé pendant le tour d'un héros : c'est son menu qui décide, pas le joueur qui consulte. */
+function choisirHeros(id) {
+    if (heroAMenu.value != null) return;
+    if (!herosPilotes.value.some((e) => e.id === id)) return;
+    persoIdActif.value = id;
+    try { localStorage.setItem(CLE_PERSO, String(id)); } catch { /* stockage indispo */ }
+}
+
+/* Icône de classe d'une pastille du bandeau (repli si le portrait manque). */
+function iconeHeros(e) {
+    return CLASSES[(e.classe ?? '').toLowerCase()]?.ic ?? 'person';
+}
 
 /* ---- Fin de mon tour → retire le menu périmé. Quand un .groupe.etat arrive
    avec mon héros `a_joue=true` (mes deux créneaux sont consommés / tour passé),
@@ -178,8 +232,10 @@ watch(() => store.state.etat, () => {
     // `.groupe.etat` suivant (il s'en produit un à chaque action, y compris
     // pendant le tour de l'allié lui-même), rendant les boutons inatteignables.
     if (store.state.menuAllieId) return;
+    // Le menu appartient au héros qui l'a reçu (lot M2), pas forcément à celui qu'on affiche.
+    const idMenu = store.state.menuPersonnageId ?? monEntite.value.id;
     const moi = (store.state.etat?.initiative ?? [])
-        .find((o) => o.entite === 'heros' && o.id === monEntite.value.id);
+        .find((o) => o.entite === 'heros' && o.id === idMenu);
     if (moi?.a_joue) store.viderMenu();
 });
 
@@ -193,7 +249,7 @@ watch(() => store.state.menuEnAttente, (gele) => {
     if (!gele) return;
     veilleVerrou = setTimeout(() => {
         api.getMenu(props.groupe)
-            .then((r) => { r?.menu ? store.setMenu(r.menu, r.allie_id) : store.viderMenu(); })
+            .then((r) => { r?.menu ? store.setMenu(r.menu, r.allie_id, r.personnage_id) : store.viderMenu(); })
             .catch(() => store.annulerChoixEnAttente());
     }, 15000);
 });
@@ -233,17 +289,22 @@ function habiller(perso, nom, niveau, conds, img = null) {
 const hero = computed(() => {
     const p = monPerso.value;
     const e = monEntite.value;
-    if (e) return habiller(p, e.nom, e.niveau, badgesFigure(e), e.image_url ?? p?.portrait_url ?? null);
+    // Héros confié (piloté, non possédé) : pas de fiche /moi — l'entité d'EtatGroupe porte déjà les dés,
+    // les attributs et le niveau, c'est elle qui habille l'en-tête.
+    if (e) return habiller(p ?? e, e.nom, e.niveau, badgesFigure(e), e.image_url ?? p?.portrait_url ?? null);
     if (p) return habiller(p, p.nom, p.niveau, [], p.portrait_url ?? null);
     return habiller(null, '…', 1, []); // avant chargement (bref, sous garde chargement/erreurChargement)
 });
 
-/* ---- mon personnage (/moi enrichi : niveau, points_competence, sorts).
-   En quête : via mon entité d'EtatGroupe ; au hub (entites vides) : mon
-   personnage rattaché au groupe, à défaut le premier. ---- */
+/* ---- mon personnage (/moi enrichi : niveau, points_competence, sorts) : la FICHE du héros courant.
+   La fiche d'un héros POSSÉDÉ vient de `personnages`, celle d'un héros CONFIÉ de `heros_pilotes` (/moi) :
+   les deux sont fusionnées dans le store. Sans héros piloté ici, en quête : rien — le repli sur le roster
+   attribuerait à tort le héros d'un absent. Le repli final (?perso, puis le premier engagé) ne sert plus
+   qu'avant l'arrivée du premier état. ---- */
 const monPerso = computed(() => {
     const persos = store.state.personnages ?? [];
-    if (monEntite.value) return persos.find((p) => p.id === monEntite.value.id) ?? null;
+    if (heroCourantId.value != null) return persos.find((p) => p.id === heroCourantId.value) ?? null;
+    if ((store.state.etat?.entites ?? []).length) return null;
     // Au hub (entités vides) : le personnage piloté sur ce téléphone.
     if (persoIdActif.value) {
         const mien = persos.find((p) => p.id === persoIdActif.value);
@@ -253,6 +314,8 @@ const monPerso = computed(() => {
         ?? persos[0]
         ?? null;
 });
+/* Héros courant piloté (entité présente) mais fiche /moi absente : confié par son propriétaire. */
+const heroSansFiche = computed(() => monEntite.value != null && monPerso.value == null);
 const pointsCompetence = computed(() => monPerso.value?.points_competence ?? 0);
 
 /* ---- Talents acquis (fiche) : /moi porte l'ÉTAT D'USAGE de chaque nœud
@@ -321,16 +384,24 @@ const quitterArene = () => gesteArene(() => api.quitterArene(props.groupe), { qu
 const departBloque = computed(() => store.state.etat?.groupe?.depart_possible === false);
 const departMotif = computed(() => store.state.etat?.groupe?.depart_motif ?? '');
 const narrateurActif = computed(() => store.state.etat?.groupe?.narrateur_actif ?? false);
-const monPersonnageId = computed(() => monPerso.value?.id ?? null);
+/* Le héros courant : celui que les actions du hub visent (un héros confié n'a pas de fiche /moi, mais son
+   id suffit au serveur, qui revalide que ce joueur le pilote). */
+const monPersonnageId = computed(() => heroCourantId.value ?? monPerso.value?.id ?? null);
 const preEnAttente = ref(false);
 const erreurPret = ref('');
 
-const monPret = computed(() => {
-    if (!monPersonnageId.value) return false;
-    const prets = store.state.prets ?? [];
-    const mien = prets.find((r) => r.personnage_id === monPersonnageId.value);
-    return mien?.pret ?? false;
+/* HÉROS QUE CE JOUEUR PRÊTE (lot M2). Le serveur démarre la quête quand TOUS les héros actifs sont prêts :
+   un joueur qui en pilote plusieurs doit donc prêter chacun. `herosPilotes` les donne au hub (roster
+   `prets`) ; le repli sur le seul héros courant ne sert qu'avant l'arrivée du premier état. */
+const herosPrets = computed(() => {
+    const ids = herosPilotes.value.map((e) => e.id);
+    if (ids.length) return ids;
+    return monPersonnageId.value != null ? [monPersonnageId.value] : [];
 });
+const pretDe = (id) => (store.state.prets ?? []).some((r) => r.personnage_id === id && r.pret === true);
+
+/* « Prêt » du JOUEUR : vrai quand chacun de SES héros est prêt. */
+const monPret = computed(() => herosPrets.value.length > 0 && herosPrets.value.every(pretDe));
 
 const listePresence = computed(() =>
     pretsVersEtat(store.state.prets, store.state.personnages));
@@ -354,13 +425,17 @@ async function copierCode() {
 }
 
 async function basculerPret() {
-    if (!monPersonnageId.value || preEnAttente.value) return;
+    if (!herosPrets.value.length || preEnAttente.value) return;
     preEnAttente.value = true;
     erreurPret.value = '';
     const nouveau = !monPret.value;
     try {
-        await api.marquerPret(props.groupe, monPersonnageId.value, nouveau);
-        // Le serveur répond par .prets.maj (Reverb) ; pas besoin de re-GET.
+        // UN APRÈS L'AUTRE, jamais en parallèle : le serveur relit puis réécrit tout le tableau des prêts
+        // (cache) — deux écritures simultanées s'annuleraient. Le serveur répond par .prets.maj (Reverb).
+        for (const id of herosPrets.value) {
+            if (pretDe(id) === nouveau) continue;
+            await api.marquerPret(props.groupe, id, nouveau);
+        }
     } catch (e) {
         erreurPret.value = e.message;
     } finally {
@@ -480,6 +555,10 @@ const menuStore = computed(() => store.state.menu);
    (sinon : « tu reprendras la main »). */
 const cestMonTour = computed(() => {
     if (!monEntite.value) return false;
+    // Le menu appartient à UN héros de cette manette (lot M2) : s'il n'est pas celui qu'on affiche, ce n'est
+    // pas son tour, et son menu ne doit jamais s'afficher sous le nom d'un autre héros.
+    const idMenu = store.state.menuPersonnageId;
+    if (idMenu != null && idMenu !== monEntite.value.id) return false;
     // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) : sa présence SUFFIT
     // — le serveur ne publie `allie_id` sur CETTE manette que lorsque c'est
     // le tour de l'allié que mon héros contrôle (`OrdreDuTour::acteurActif()`
@@ -487,12 +566,8 @@ const cestMonTour = computed(() => {
     // pas qui contrôle quel allié : le re-dériver ici serait justement le
     // miroir que ce projet interdit.
     if (store.state.menuAllieId) return true;
-    // `a_la_main` : la DÉCISION du serveur sur MON héros — en arène, n'importe quel héros libre l'a (activation
-    // alternée), pas seulement le premier de la barre (validation de la PR #2).
-    const mien = (store.state.etat?.initiative ?? []).find((o) => o.entite === 'heros' && o.id === monEntite.value.id);
-    if (mien && 'a_la_main' in mien) return !!mien.a_la_main;
-    const cur = acteurCourant(store.state.etat?.initiative);
-    return !!(cur && cur.entite === 'heros' && cur.id === monEntite.value.id);
+    // `a_la_main` (aLaMain) : la DÉCISION du serveur sur MON héros — en arène, n'importe quel héros libre l'a.
+    return aLaMain(monEntite.value.id);
 });
 
 /* Menu effectivement jouable : le menu courant SEULEMENT quand c'est mon tour. */
@@ -571,14 +646,20 @@ function retourFeuille() {
 const reactionProposee = ref(null);
 const reactionEnCours = ref(false);
 
-// Le serveur expose la proposition sur l'entité du héros ; on la reprend tant
-// qu'on n'en affiche pas déjà une (le broadcast est plus riche : il porte la
-// description du sort).
-watch(monPerso, (p) => {
-    const attente = p?.reaction_en_attente;
-    if (attente && !reactionProposee.value) {
+// Le serveur expose la proposition sur l'entité du héros PILOTÉ (lot M2) — jamais sur /moi, qui ne la porte
+// pas : lue là, elle était toujours absente. Elle peut appartenir à un autre héros que celui affiché.
+// On la reprend quand elle APPARAÎT (au chargement, ou à son apparition), jamais sur un simple nouvel état
+// qui la redit : une réaction déjà répondue ne doit pas rouvrir la feuille. Le broadcast est plus riche
+// (il porte la description du sort) : il l'emporte tant qu'il est là.
+const reactionEnAttente = computed(() => {
+    const e = herosPilotes.value.find((h) => h.reaction_en_attente);
+    return e ? { id: e.id, attente: e.reaction_en_attente } : null;
+});
+watch(reactionEnAttente, (r, avant) => {
+    const attente = r?.attente;
+    if (attente && !avant && !reactionProposee.value) {
         reactionProposee.value = {
-            personnage_id: monPersonnageId.value,
+            personnage_id: r.id,
             sort: attente.nom,
             description: attente.description,
             // `action` décide du libellé du bouton ET du texte : sans elle, un
@@ -603,7 +684,7 @@ watch(monPerso, (p) => {
             degats: attente.degats,
             expire_dans: 20, // on ignore depuis quand elle attend : fenêtre courte
         };
-    } else if (!attente && reactionProposee.value) {
+    } else if (!r && avant && reactionProposee.value) {
         reactionProposee.value = null; // résolue ailleurs (expiration serveur)
     }
 });
@@ -1347,7 +1428,7 @@ const marcheLive = computed(() => {
     if (!store.state.marche || !panierLocal.value) return null;
     const m = store.state.marche;
     const joueurId = store.state.joueur?.id;
-    const inventaire = inventaireVendable(m, joueurId, store.state.etat, store.state.personnages);
+    const inventaire = inventaireVendable(m, joueurId, store.state.etat, store.state.personnages, monPersonnageId.value);
     const mienServeur = panierDuJoueur(m, joueurId);
     const local = montantPanier(panierLocal.value, m, inventaire);
     const serveur = montantPanier(mienServeur, m, inventaire);
@@ -1470,6 +1551,26 @@ const navItems = computed(() => (scene.value === 'marche'
                             <p>{{ erreurChargement }}</p>
                         </template>
                     </div>
+                    <!-- BANDEAU DE HÉROS (lot M2) : seulement quand cette manette pilote plus d'un héros. Une pastille
+                         par héros piloté ; toucher une pastille choisit le héros affiché, sauf pendant son tour (son menu
+                         décide). Le serveur tranche qui a la main : la pastille ne fait que le montrer. -->
+                    <nav v-if="herosPilotes.length > 1" class="bandeau-heros" aria-label="Héros pilotés par cette manette">
+                        <button
+                            v-for="e in herosPilotes"
+                            :key="e.id"
+                            type="button"
+                            class="bandeau-heros-pastille"
+                            :class="{ 'est-courant': e.id === heroCourantId, 'a-la-main': aLaMain(e.id) }"
+                            :disabled="heroAMenu != null && e.id !== heroAMenu"
+                            :aria-current="e.id === heroCourantId ? 'true' : null"
+                            :title="aLaMain(e.id) ? `${e.nom} : c'est son tour` : e.nom"
+                            @click="choisirHeros(e.id)"
+                        >
+                            <span class="bandeau-heros-portrait"><Vignette :src="e.image_url" :icon="iconeHeros(e)" fill :size="20" /></span>
+                            <span class="bandeau-heros-nom">{{ e.nom }}</span>
+                            <span v-if="aLaMain(e.id)" class="bandeau-heros-tour">Son tour</span>
+                        </button>
+                    </nav>
                     <!-- barre de statut -->
                     <div class="topbar">
                         <div class="hero-chip">
@@ -1543,6 +1644,12 @@ const navItems = computed(() => (scene.value === 'marche'
 
                     <!-- zone principale -->
                     <div class="body">
+                        <!-- FICHE ABSENTE (lot M2) : le héros est piloté ici mais sa fiche /moi n'est pas (encore) dans le
+                             store — un héros confié pendant que la manette était ouverte, avant le prochain /moi. L'en-tête
+                             et le menu, eux, viennent de l'état de quête. -->
+                        <p v-if="heroSansFiche && tab !== 'action'" class="manette-sans-fiche">
+                            La fiche de ce héros (sac, sorts, talents) n'est pas encore chargée sur ta manette.
+                        </p>
                         <!-- résultat d'un sort de RENSEIGNEMENT (Clairvoyance) ou d'OUBLI
                              (Unlearn), Wizards of Morcar : celui qui a lancé le sort le lit
                              ici, texte décidé par le serveur. Le fil ne dit que « X lance … ». -->
@@ -1970,4 +2077,78 @@ const navItems = computed(() => (scene.value === 'marche'
     text-align: center;
 }
 @keyframes dr-pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* Bandeau de héros (lot M2) — n'existe que si la manette pilote plus d'un héros. Classes préfixées : les
+   <style> de ces vues fuient (non scoped ailleurs). */
+.bandeau-heros {
+    flex: none;
+    display: flex;
+    gap: 6px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    background: var(--stone-900);
+    border-bottom: var(--line);
+}
+.bandeau-heros-pastille {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px 3px 3px;
+    border-radius: 999px;
+    border: 1px solid oklch(1 0 0 / 0.1);
+    background: var(--stone-850);
+    color: var(--ink-400);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.bandeau-heros-pastille.est-courant {
+    border-color: var(--torch, #c9a25a);
+    color: var(--parch-100);
+}
+.bandeau-heros-pastille.a-la-main {
+    box-shadow: 0 0 0 1px var(--torch, #c9a25a) inset;
+}
+.bandeau-heros-pastille:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+.bandeau-heros-portrait {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background: var(--stone-900);
+}
+.bandeau-heros-nom {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 700;
+}
+.bandeau-heros-tour {
+    flex: none;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--torch, #c9a25a);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.manette-sans-fiche {
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px dashed var(--ink-500, #9a9384);
+    color: var(--ink-400, #c8c0ae);
+    font-size: 13px;
+    line-height: 1.45;
+}
 </style>
