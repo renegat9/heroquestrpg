@@ -5692,3 +5692,147 @@ lot F, F1 (la force vaut pour toute grille) et F2 (la clé quitte le sac en fin 
 - À `terminerQuete()` (victoire et vote de sortie, ses deux chemins) et à `echouerQuete()` : les lignes d'inventaire dont l'objet
   porte l'effet `objet_de_quete` (`MotsClesEquipement::OBJET_DE_QUETE`) sont retirées, pour chaque héros du groupe
   (`Equipement::purgerObjetsDeQuete()`). Aucun champ publié : l'inventaire se relit après la fin de quête.
+
+## Constructeur de campagnes (lot K1, 2026-11-13, `docs/plan-mode-classique.md` §3, §8, §8 bis)
+
+Le **socle serveur** du constructeur : le format d'une campagne construite, sa validation, son stockage et son
+import/export. **Aucun écran ici** (le constructeur de bureau est le lot B1/B2) et **aucune quête jouée** : le producteur
+de carte est le lot K2, les notes « quand → alors » le lot K3. Un serveur MCP (§8 bis) appellera les **mêmes services**.
+
+Routes **PUBLIQUES**, comme `/api/parametres` (jeu en LAN) : aucune autorisation, aucune session de groupe. Rien de ce
+groupe de routes ne touche une partie en cours.
+
+| Méthode | Route | Corps | Réponse |
+|---|---|---|---|
+| GET | /api/constructeur/catalogues | — | **Catalogues** (voir plus bas) : slugs posables par couche, classes, vocabulaires fermés. 200. |
+| GET | /api/constructeur/campagnes | — | `{campagnes: [Résumé…]}` (voir plus bas). 200. |
+| GET | /api/constructeur/campagnes/{slug} | — | Le **document** de la campagne, tel que PUT l'accepte. 200, ou 404 si le slug est inconnu. |
+| PUT | /api/constructeur/campagnes/{slug} | le **document** (voir plus bas) | Crée ou remplace la campagne de ce slug. 200 `{campagne: Résumé}`. **422** `{message, refus: [Refus…]}` si le document est invalide, **ou si son `slug` ne vaut pas celui de l'URL** (code `slug_non_concordant`). Rien n'est enregistré en cas de refus. |
+| POST | /api/constructeur/validation | le **document** | 200 `{refus: [Refus…]}` — **valide sans rien enregistrer**. Liste vide = valide. |
+| GET | /api/constructeur/campagnes/{slug}/export | — | Le fichier `.json` : le document **plus** `empreinte` (clé de premier niveau, voir plus bas). Entête `Content-Disposition: attachment`. 200, ou 404. |
+
+Pas de route de **suppression** ni de **route HTTP d'import** dans ce lot : l'import est le service
+`CampagnesConstruites::importer()` (le MCP et les tests l'appellent) ; l'écran d'import viendra avec B2.
+
+### Le document (format 1)
+
+Le document EST l'objet `campagne` : **pas de clé englobante**. Toute clé absente de la liste ci-dessous est refusée
+(`cle_inconnue`, en la nommant). Une clé du format est **obligatoire** ; une clé marquée *nullable* accepte aussi `null`.
+
+```
+campagne {
+  format: 1,                       // entier ; seule la valeur 1 existe (sinon format_inconnu)
+  slug: "…",                       // [a-z0-9-]+, 100 caractères au plus ; identifie la campagne (unique)
+  titre: "…",                      // texte non vide, 200 caractères au plus
+  auteur: "…" | null,              // nullable, 200 caractères au plus
+  mention: "…" | null,             // crédit / copyright, texte libre — nullable, 500 caractères au plus
+  prerequis_heros: ["…"],          // slugs de classes_heros (nom de la classe) ; liste, peut être vide
+  plateau: {
+    largeur: n, hauteur: n,        // entiers ≥ 1
+    salles: [{ id, x, y, l, h }]   // rectangles ; id = [A-Za-z0-9_-]+, unique ; x, y ≥ 0 ; l, h ≥ 1
+  },                               // tout le reste du plateau est COULOIR
+  quetes: [ quete… ]               // dans l'ordre de jeu ; peut être vide (brouillon)
+}
+quete {
+  slug: "…",                       // [a-z0-9-]+, 100 caractères au plus ; unique entre les quêtes de la campagne
+  titre: "…",                      // texte non vide, 200 caractères au plus
+  ouverture: "…",                  // texte lu à la table (peut être vide)
+  monstre_errant: "…" | null,      // slug de monstre (catalogue `monstres`) — nullable
+  salles_ouvertes: [id…],          // ids de salles du plateau ; les autres salles sont FERMÉES (pleines)
+  portes:   [{ x, y, cote: n|e|s|o, type: normale|secrete }],
+  blocs:    [{ x, y }],            // cases de COULOIR condamnées
+  mobilier: [{ slug, x, y, rotation: 0|90|180|270 }],
+  monstres: [{ slug, x, y }],
+  pieges:   [{ slug, x, y }],
+  terrain:  [{ slug, x, y }],
+  depart:   { x, y },
+  recompense: { or: entier ≥ 0, partage: groupe|par_heros } | null   // nullable
+}
+```
+
+- **Clés réservées à un lot ultérieur** : `notes` (lot K3, message « pas encore pris en charge (lot K3) »), `regles` et
+  `fin` (lot K3), `suite` (lot K4) → code `cle_pas_encore_prise`, jamais `cle_inconnue`. Ces clés ne sont **pas** ignorées :
+  elles sont refusées en le nommant.
+- **Coordonnées** : entiers. Une coordonnée **négative** tombe hors du plateau (`hors_plateau`) ; un non-entier est un
+  `type_invalide`.
+- **Pas de refus en cascade** : une clé obligatoire absente (ou un plateau sans liste de salles) fait refuser CETTE clé,
+  mais ne fait pas paraître fermées toutes les cases ni inconnues toutes les salles qui en dépendent.
+- **Une position** (`mobilier`, `monstres`, `pieges`, `terrain`, `depart`, `portes`, `blocs`) est dans le plateau, et :
+  - `monstres`, `pieges`, `terrain`, `mobilier` : jamais dans une **salle fermée** (`dans_salle_fermee`) ;
+  - `blocs` : sur une **case de couloir**, c'est-à-dire hors de toute salle, ouverte ou non (`bloc_hors_couloir`) ;
+  - `depart` : dans une salle **ouverte** ou dans un **couloir** (`depart_invalide` sinon) ;
+  - `portes` : sur une case d'une salle **ouverte**, et le côté `cote` mène à une case **du plateau** qui n'est **pas** dans
+    la même salle (`porte_sans_bord` sinon). Une porte entre deux salles ouvertes est valide.
+- Le **footprint** d'un meuble (`largeur`×`hauteur` du catalogue) n'est **pas** contrôlé en K1 : seule l'ancre `x, y` l'est.
+  Aucun contrôle de **doublon** de case (deux monstres au même endroit) non plus. Ce sont des décisions ouvertes, à
+  trancher avant le lot K2 (producteur de carte, qui pose réellement ces cases).
+- **Récompense** : `or` entier ≥ 0 ; `partage` parmi `groupe` et `par_heros`.
+
+### Catalogues — `GET /api/constructeur/catalogues`
+
+```
+{
+  couches: {
+    mobilier: [{slug, nom}], monstres: [{slug, nom}], pieges: [{slug, nom}], terrain: [{slug, nom}]
+  },                                // `monstres` sert aussi à monstre_errant
+  classes: [{slug, nom}],           // prerequis_heros
+  vocabulaires: {
+    rotations: [0, 90, 180, 270], cotes: ["n","e","s","o"], types_porte: ["normale","secrete"],
+    partages: ["groupe","par_heros"], formats_acceptes: [1]
+  }
+}
+```
+
+Le **slug** d'une ligne de catalogue est `Str::slug()` de son nom (`monstres.nom_base`, `mobiliers.nom`, `pieges.nom`,
+`terrains.nom`, `classes_heros.nom`). Les tables n'ont **pas** de colonne slug et aucune n'est ajoutée : le calcul vit
+dans `App\Partie\Classique\CatalogueConstructeur` (`slug()` et un index slug → ligne par couche). Deux lignes d'une même
+couche qui donnent le même slug font échouer l'index (`LogicException`) plutôt que de se départager en silence.
+
+### Résumé d'une campagne (liste et réponse du PUT)
+
+`{slug, titre, auteur, mention, version_format, empreinte, nb_quetes, mise_a_jour}`.
+
+### Refus — la forme et les codes
+
+Forme : `{chemin, code, message}`. Le **chemin** est pointé depuis la racine : `quetes.0.monstres.2.slug`, `plateau.salles.1.l`,
+`""` pour le document entier. Le **message** est en français. Un tableau vide = document valide.
+
+| Code | Quand |
+|---|---|
+| `cle_inconnue` | Une clé ne figure pas dans le format (nommée dans le message). |
+| `cle_pas_encore_prise` | Une clé réservée à un lot ultérieur (`notes`, `regles`, `fin`, `suite`). |
+| `cle_manquante` | Une clé obligatoire est absente. |
+| `type_invalide` | Un type ne correspond pas (chaîne, entier, liste, objet). |
+| `valeur_invalide` | Une valeur hors de l'ensemble permis : titre vide, dimension < 1, `or` < 0, rotation, côté, type de porte, partage, salle de taille < 1. |
+| `format_inconnu` | `format` n'est pas 1. |
+| `slug_invalide` | Un slug de campagne ou de quête ne suit pas `[a-z0-9-]+`. |
+| `slug_en_double` | Deux quêtes portent le même slug. |
+| `salle_hors_plateau` | Une salle sort du plateau (ou commence hors de lui). |
+| `salle_id_en_double` | Deux salles portent le même id. |
+| `salles_se_chevauchent` | Deux salles partagent une case. |
+| `salle_inconnue` | `salles_ouvertes` cite un id qui n'est pas une salle du plateau. |
+| `catalogue_inconnu` | Un slug de `monstre_errant`, `mobilier`, `monstres`, `pieges` ou `terrain` n'existe pas dans son catalogue (nommé). |
+| `classe_inconnue` | Un slug de `prerequis_heros` n'est pas une classe de héros. |
+| `hors_plateau` | Une position (ou une coordonnée négative) sort du plateau. |
+| `dans_salle_fermee` | `monstres`, `pieges`, `terrain` ou `mobilier` tombe dans une salle fermée. |
+| `bloc_hors_couloir` | Un bloc tombe dans une salle, ouverte ou non. |
+| `depart_invalide` | `depart` tombe dans une salle fermée. |
+| `porte_sans_bord` | Une porte n'est pas sur le bord d'une salle ouverte, ou son côté mène hors du plateau ou dans la même salle. |
+| `slug_non_concordant` | Le `slug` du document ne vaut pas celui de l'URL (PUT). |
+| `empreinte_invalide` | Un fichier importé porte une `empreinte` qui ne correspond pas à son document. |
+
+### Stockage
+
+Table `campagnes_construites` : `slug` unique, `titre`, `auteur`, `mention`, `document` (JSON, la source complète),
+`version_format`, `empreinte`. Table `quetes_construites` : `campagne_construite_id` (cascade), `rang` (1-based, unique
+par campagne), `slug`, `titre`, `document` (JSON de la quête). **Les lignes de quêtes sont une projection** du document,
+réécrite à chaque enregistrement dans la même transaction. Rien n'est en cache.
+
+### Empreinte et export
+
+`empreinte` = sha256 du document **canonisé** : clés d'objet triées récursivement, listes dans leur ordre, JSON compact
+sans échappement d'Unicode ni des barres obliques. L'export est le document **plus** `empreinte` (clé de premier niveau).
+Un import (`CampagnesConstruites::importer()`) retire `empreinte` s'il est présent, **la recalcule** sur le reste, et refuse
+(`empreinte_invalide`) si elle diffère : un fichier modifié à la main après export doit retirer cette clé. Exporter puis
+importer redonne la même empreinte. Un slug de catalogue inconnu dans un fichier importé est refusé en le nommant
+(`catalogue_inconnu`).

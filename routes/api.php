@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\ChoixController;
 use App\Http\Controllers\Api\ClotureController;
 use App\Http\Controllers\Api\CompagnonOffertController;
 use App\Http\Controllers\Api\CompetenceController;
+use App\Http\Controllers\Api\ConstructeurController;
 use App\Http\Controllers\Api\DonController;
 use App\Http\Controllers\Api\EquipementController;
 use App\Http\Controllers\Api\FaveurController;
@@ -70,6 +71,18 @@ Route::get('/parametres', [ParametresController::class, 'index']);
 Route::put('/parametres', [ParametresController::class, 'mettreAJour']);
 Route::post('/parametres/test', [ParametresController::class, 'tester']);
 Route::post('/parametres/test-voix', [ParametresController::class, 'testerVoix']);
+
+// CONSTRUCTEUR DE CAMPAGNES (lot K1, docs/plan-mode-classique.md §8) — PUBLIC comme /api/parametres : jeu en LAN, et
+// rien de ce groupe ne touche une partie en cours. Pas de route de suppression ni d'import HTTP dans ce lot : voir
+// docs/contrat-api.md « Constructeur de campagnes (lot K1) ».
+Route::prefix('constructeur')->group(function () {
+    Route::get('/catalogues', [ConstructeurController::class, 'catalogues']);
+    Route::get('/campagnes', [ConstructeurController::class, 'campagnes']);
+    Route::get('/campagnes/{slug}', [ConstructeurController::class, 'lire']);
+    Route::put('/campagnes/{slug}', [ConstructeurController::class, 'enregistrer']);
+    Route::get('/campagnes/{slug}/export', [ConstructeurController::class, 'exporter']);
+    Route::post('/validation', [ConstructeurController::class, 'valider']);
+});
 
 // Page Système (état des services externes/internes, René 2026-10-02) —
 // PUBLIC comme /api/parametres : voir docs/contrat-api.md « Système ».
