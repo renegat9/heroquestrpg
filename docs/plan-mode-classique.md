@@ -628,11 +628,16 @@ ni son format, il appelle ce que la route HTTP appelle.
     redessinée (vestibule et salle des gardes accolés) : murs en traits,
     porte sur le bord commun, ouverte depuis sa case, salle voisine révélée
     avec sa table et ses gobelins ; aucune erreur aux journaux.
+  - **Vu à l'écran le 2026-11-15**, en complément : la carte de déplacement
+    de la manette dessine les murs en traits, la porte à cheval sur son bord
+    et les cases atteignables ; une PORTE D'ENTRÉE est dessinée sur le côté de
+    sa case, sur le trait du mur, à la table comme sur la manette
+    (`browser-shots/classique-deplacement.mjs`). Le repère est discret.
   - **Pas fait** : le générateur garde ses murs en cases (son accolement
     reste plafonné, comme avant) ; `docs/regles/carte-donjon.md` ne décrit
-    pas encore les murs en arêtes ; la manette (carte de déplacement) reçoit
-    le même dessin, mais je ne l'ai pas regardée ; une porte d'accès n'a été
-    vue à l'écran que dans l'ancienne géométrie.
+    pas encore les murs en arêtes ; une porte de SORTIE n'a pas été revue à
+    l'écran dans la nouvelle géométrie (elle suit le même dessin que
+    l'entrée, et les tests la couvrent).
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration
