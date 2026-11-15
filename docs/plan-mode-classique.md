@@ -638,6 +638,32 @@ ni son format, il appelle ce que la route HTTP appelle.
     pas encore les murs en arêtes ; une porte de SORTIE n'a pas été revue à
     l'écran dans la nouvelle géométrie (elle suit le même dessin que
     l'entrée, et les tests la couvrent).
+- **Fait le 2026-11-15 — le marché sur la bourse du héros** (Q3) :
+  - **Le défaut fermé** : neuf endroits écrivaient `groupes.or` chacun de son
+    côté (fouille, épreuve, reddition, transmutation, prime, butin, marché,
+    levée de malédiction). En classique, l'or trouvé en quête serait parti
+    dans un pot que le marché ne lit pas — et le marché aurait débité un pot
+    que rien n'alimente.
+  - **`App\Partie\Bourses`**, le point de passage : `verser()` (au héros qui
+    trouve ; partagé quand personne en particulier ne gagne), `payer()`,
+    `solde()`, `partager()`, `publiees()`. `FinDeQueteConstruite` y passe
+    aussi. `Bourses::HORS_PASSAGE` nomme, avec sa raison, chaque écriture qui
+    reste à part (étapes fermées au classique, reprise d'instantané) ;
+    `BoursesPointDePassageTest` scanne les sources dans les deux sens.
+  - **Le marché** : un achat est payé par le héros qui le reçoit, une vente
+    crédite celui qui possédait la pièce ; le garde-fou devient « la bourse
+    de CHAQUE héros ≥ 0 » ; la confirmation d'un panier à découvert est
+    refusée sur place ; `EtatMarche.bourses` publie solde et projection.
+  - **Écrans** : la manette lit la bourse du héros affiché (marché et sac),
+    l'achat va au héros affiché ; la table montre une pastille par héros.
+  - **Vu à l'écran et joué sur la vraie stack** (campagne d'essai inventée,
+    `browser-shots/classique-marche.mjs`, `HQ_AU_HUB=1 preparer-classique.sh`) :
+    la manette affiche « 40 or · Brunehaut », un bouclier à 150 la met à
+    −110, la confirmation est grisée avec sa phrase et le serveur la refuse
+    (422) ; la table montre une pastille par héros (« 40 → −110 ») et plus
+    d'or commun ; achat et vente appliqués : 300 → 150, 40 → 140, pot à 0.
+  - **Reste** : l'échange d'OR entre héros au hub (Q3, « entre les quêtes »)
+    — la séance d'échange ne déplace encore que des objets.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

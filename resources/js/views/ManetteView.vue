@@ -168,7 +168,7 @@ const herosPilotes = computed(() => {
     // Même forme minimale qu'une entité pour le bandeau : id, nom, classe.
     return (store.state.prets ?? [])
         .filter((r) => r.pilote_joueur_id === moi)
-        .map((r) => ({ id: r.personnage_id, nom: r.nom, classe: r.classe, type: 'heros' }));
+        .map((r) => ({ id: r.personnage_id, nom: r.nom, classe: r.classe, bourse: r.bourse ?? null, type: 'heros' }));
 });
 
 /* Ce héros a-t-il la main ? Décidé par le serveur : le tour d'un allié qu'il contrôle (menu allié, qui n'est
@@ -1235,6 +1235,9 @@ const catalogueMercs = ref([]);
 const recrutEnCours = ref(false);
 const recruesHub = computed(() => store.state.etat?.groupe?.mercenaires ?? []);
 const orCommun = computed(() => store.state.etat?.groupe?.or ?? 0);
+/* MODE CLASSIQUE — la bourse du héros affiché. Décision serveur (`entites[].bourse` en quête, `prets[].bourse` au
+   hub) : un nombre quand le groupe tient une bourse par héros, `null` quand il tient un pot commun. */
+const maBourse = computed(() => herosPilotes.value.find((h) => h.id === monPersonnageId.value)?.bourse ?? null);
 // DÉCISIONS de recrutement publiées au hub (`groupe.recrutement.offres`) : pour
 // chaque allié, le prix réel de CHAQUE héros (remise de Potion de charme comprise)
 // et le verdict (recrutable, motif). Le panneau choisit la ligne de son héros.
@@ -1427,7 +1430,10 @@ watch(() => store.state.marche, (m) => {
     if (panierLocal.value === null) {
         const mien = panierDuJoueur(m, store.state.joueur?.id);
         panierLocal.value = {
-            achats: (mien?.achats ?? []).map((a) => ({ objet_id: a.objet_id, quantite: a.quantite ?? 1 })),
+            // `personnage_id` : le héros qui reçoit l'achat — et qui le paie, en mode classique.
+            achats: (mien?.achats ?? []).map((a) => ({
+                objet_id: a.objet_id, quantite: a.quantite ?? 1, personnage_id: a.personnage_id ?? null,
+            })),
             ventes: (mien?.ventes ?? []).map((v) => (typeof v === 'object' ? v.inventaire_id : v)),
         };
     }
@@ -1438,25 +1444,44 @@ const marcheLive = computed(() => {
     if (!store.state.marche || !panierLocal.value) return null;
     const m = store.state.marche;
     const joueurId = store.state.joueur?.id;
-    const inventaire = inventaireVendable(m, joueurId, store.state.etat, store.state.personnages, monPersonnageId.value);
+    const heroId = monPersonnageId.value;
+    // Tous les sacs que ce joueur pilote (pour chiffrer une vente), puis celui du héros affiché (pour le montrer).
+    const tousLesSacs = inventaireVendable(m, joueurId, store.state.etat, store.state.personnages);
+    const inventaire = inventaireVendable(m, joueurId, store.state.etat, store.state.personnages, heroId);
     const mienServeur = panierDuJoueur(m, joueurId);
-    const local = montantPanier(panierLocal.value, m, inventaire);
-    const serveur = montantPanier(mienServeur, m, inventaire);
     const paniers = m.paniers ?? [];
+
+    // MODE CLASSIQUE : `bourses` publié = une bourse par héros (`null` = pot commun). Le solde et la projection sont
+    // ceux du serveur ; on n'y ajoute que l'avance du panier local pas encore envoyé, héros par héros.
+    const bourses = m.bourses ?? null;
+    const avance = (id) => montantPanier(panierLocal.value, m, tousLesSacs, id).net
+        - montantPanier(mienServeur, m, tousLesSacs, id).net;
+    const mienne = bourses?.find((b) => b.personnage_id === heroId) ?? null;
+    const mesHeros = new Set(herosPilotes.value.map((h) => h.id));
+    const aDecouvert = (bourses ?? []).find((b) => mesHeros.has(b.personnage_id) && b.projete + avance(b.personnage_id) < 0);
+
+    const local = montantPanier(panierLocal.value, m, tousLesSacs, bourses ? heroId : null);
     return {
         profil: m.profil,
         pseudo: mienServeur?.pseudo ?? store.state.joueur?.pseudo,
-        or: m.or_courant ?? 0,
+        or: mienne ? mienne.or : (m.or_courant ?? 0),
+        // Nom du héros dont on lit la bourse ; `null` = « or commun ».
+        bourseDe: bourses ? (mienne?.nom ?? '') : null,
         items: marcheVersEchoppe(m),
         inventaire,
-        achats: panierLocal.value.achats,
+        // Les achats du héros AFFICHÉ : ce sont ses quantités que l'échoppe montre et modifie.
+        achats: panierLocal.value.achats.filter((a) => (a.personnage_id ?? heroId) === heroId),
         ventes: panierLocal.value.ventes,
         confirme: !!mienServeur?.confirme || confirmEnvoyee.value,
         confirmes: paniers.filter((p) => p.confirme).length,
         membres: paniers.length,
         totalAchats: local.achats,
         totalVentes: local.ventes,
-        totalProjete: (m.total_projete ?? m.or_courant ?? 0) + (local.net - serveur.net),
+        totalProjete: bourses
+            ? (mienne ? mienne.projete + avance(heroId) : 0)
+            : (m.total_projete ?? m.or_courant ?? 0) + avance(null),
+        // Un des héros de ce joueur finirait à découvert : son nom (le serveur refuserait la confirmation).
+        decouvert: aDecouvert?.nom ?? null,
         erreur: marcheErreur.value,
     };
 });
@@ -1467,7 +1492,10 @@ async function envoyerPanier() {
     panierDirty = false;
     try {
         const r = await api.majPanier(props.groupe, {
-            achats: panierLocal.value.achats,
+            // Sans `personnage_id` (ligne posée avant que le héros soit connu), le serveur prend le premier héros.
+            achats: panierLocal.value.achats.map((a) => (a.personnage_id != null
+                ? a
+                : { objet_id: a.objet_id, quantite: a.quantite })),
             ventes: panierLocal.value.ventes.map((id) => ({ inventaire_id: id })),
         });
         if (r) store.appliquerMarche(r);
@@ -1484,17 +1512,22 @@ function planifierEnvoiPanier() {
 }
 function changerQuantite(objetId, delta) {
     const achats = [...panierLocal.value.achats];
-    const i = achats.findIndex((a) => a.objet_id === objetId);
-    // Contrat : stock null = illimité (commun) — ne pas le coercer à 0.
+    // Une ligne par (objet, héros) : l'achat va au héros AFFICHÉ — c'est lui qui le reçoit et, en mode classique,
+    // lui qui le paie.
+    const heroId = monPersonnageId.value ?? null;
+    const i = achats.findIndex((a) => a.objet_id === objetId && (a.personnage_id ?? heroId) === heroId);
+    // Contrat : stock null = illimité (commun) — ne pas le coercer à 0. Le stock est celui de l'objet : ce que mes
+    // autres héros en prennent déjà n'est plus à prendre.
     const stock = store.state.marche?.inventaire?.find((it) => it.objet_id === objetId)?.stock ?? null;
-    const plafond = stock === null ? Number.MAX_SAFE_INTEGER : stock;
+    const ailleurs = achats.reduce((s, a, j) => (j !== i && a.objet_id === objetId ? s + a.quantite : s), 0);
+    const plafond = stock === null ? Number.MAX_SAFE_INTEGER : Math.max(0, stock - ailleurs);
     const q = Math.max(0, Math.min(plafond, (i >= 0 ? achats[i].quantite : 0) + delta));
     if (q === 0) {
         if (i >= 0) achats.splice(i, 1);
     } else if (i >= 0) {
         achats[i] = { ...achats[i], quantite: q };
     } else {
-        achats.push({ objet_id: objetId, quantite: q });
+        achats.push({ objet_id: objetId, quantite: q, personnage_id: heroId });
     }
     panierLocal.value = { ...panierLocal.value, achats };
     planifierEnvoiPanier();
@@ -1896,6 +1929,7 @@ const navItems = computed(() => (scene.value === 'marche'
                             :equip-en-cours="equipEnCours"
                             :compagnons="compagnonsDeDon"
                             :or-commun="orCommun"
+                            :bourse="maBourse"
                             @equiper="equiper"
                             @desequiper="desequiper"
                             @donner="donner"

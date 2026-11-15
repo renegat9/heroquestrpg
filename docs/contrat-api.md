@@ -1024,12 +1024,12 @@ transaction. Le MJ IA choisit le profil de lieu ; sans LLM, profil `bourg`.
 | PUT | /groupes/{identifiant}/marche/panier | {achats:[{objet_id,quantite}], ventes:[{inventaire_id}]} | remplace le panier du joueur, annule sa confirmation |
 | POST | /groupes/{identifiant}/marche/confirmation | — | confirme ; si tous confirmés → application + clôture |
 | DELETE | /groupes/{identifiant}/marche | — | annule la phase (rien appliqué) — **membre OU table** |
-| POST | /groupes/{identifiant}/marche/lever-malediction | {personnage_id} | don de 800 po (bourse COMMUNE) qui lève la Malédiction de l'Oracle d'un héros (First Light, lot C) — **membre**, 422 si le héros n'est pas maudit ou si l'or manque. Immédiat, HORS du panier : `{leve, personnage_id, don, or}` + broadcast `.groupe.etat` |
+| POST | /groupes/{identifiant}/marche/lever-malediction | {personnage_id} | don de 800 po (bourse COMMUNE ; en mode classique, la bourse du héros MAUDIT — `or` rend alors son solde) qui lève la Malédiction de l'Oracle d'un héros (First Light, lot C) — **membre**, 422 si le héros n'est pas maudit ou si l'or manque. Immédiat, HORS du panier : `{leve, personnage_id, don, or}` + broadcast `.groupe.etat` |
 
 **EtatMarche** : `{profil, multiplicateur, inventaire: [{objet_id, nom, categorie,
 rarete, prix, stock}], paniers: [{joueur_id, pseudo, achats: [...], ventes: [...],
 confirme, inventaire: [{inventaire_id, personnage_id, objet_id, nom, categorie,
-rarete, emplacement, quantite, revente}]}], total_projete, or_courant}` — le
+rarete, emplacement, quantite, revente}]}], total_projete, or_courant, bourses}` — le
 `inventaire` de chaque panier liste ce que ce joueur peut vendre (héros actifs),
 avec le prix de revente M1 déjà calculé. Prix d'achat = prix_base × multiplicateur
 du profil (doc 04 §3) ; revente = 50 % du prix marchand courant (M1) ; rareté
@@ -1055,6 +1055,28 @@ consommables vont au **sac**, les consommables s'empilent hors capacité.
 Broadcasts canal `groupe.{identifiant}` : `.marche.ouvert` (EtatMarche),
 `.marche.maj` (EtatMarche, à chaque panier/confirmation), `.marche.finalise`
 ({applique: bool}) suivi de `.groupe.etat`.
+
+### Bourse par héros (mode classique, 2026-11-15)
+
+Un groupe classique ne tient pas de pot commun : **l'or vit sur chaque héros** (`personnages.or`), et `groupes.or`
+n'y est jamais écrit. Un seul point de passage décide où va et d'où vient une pièce : `App\Partie\Bourses`
+(`verser()`, `payer()`, `solde()`), lu par le marché, la fouille, les épreuves, la récompense de quête — testé dans
+les deux sens par `BoursesPointDePassageTest`. En campagne, rien ne change.
+
+- **`EtatMarche.bourses`** : `null` pour un groupe à pot commun ; en classique, la liste **déjà décidée**
+  `[{personnage_id, nom, or, projete}]` des héros actifs, dans l'ordre du tour — `or` est la bourse, `projete` ce
+  qu'il en restera une fois TOUS les paniers appliqués (ventes de ses pièces − achats qu'il reçoit). `or_courant` et
+  `total_projete` restent publiés mais valent le pot commun, soit 0 : l'écran lit `bourses !== null`, pas le mode.
+- **Qui paie** : le héros qui **reçoit** l'achat (`achats[].personnage_id` ; la manette envoie le héros affiché, à
+  défaut c'est le premier héros du joueur). Une vente crédite le héros qui possédait la pièce.
+- **`POST …/marche/confirmation`** répond **422** (`errors.achats` : « Or insuffisant : il manque N pièces d'or à la
+  bourse de X. ») si un des héros de CE joueur finirait à découvert ; le panier n'est alors pas confirmé. Au pot
+  commun ce refus n'existe qu'à l'application, le total dépendant des paniers des autres.
+- **`entites[].bourse`** (en quête) et **`groupe.prets[].bourse`** (au hub) : la bourse du héros, un entier en
+  classique, `null` au pot commun.
+- **Or gagné en quête** : à la bourse de celui qui le trouve (fouille, épreuve, potion de transmutation, prime
+  Peacekeeper) ; un gain que personne ne fait en particulier (reddition d'un monstre, butin de gabarit) est partagé
+  également entre les héros actifs, le reste aux premiers dans l'ordre du tour.
 
 ## Mode arène — doublures (lot A1, 2026-11-08, `docs/plan-mode-arene.md` §2)
 
@@ -1099,7 +1121,8 @@ absent qu'on lui a confié. Un seul point de passage : `Groupe::piloteDe()` et `
   marché, votes, clôture, snapshots) et l'**appartenance** (`PilotageHeros::estMembre()`) admettent un joueur qui PILOTE OU
   POSSÈDE un héros actif. Restent sur le PROPRIÉTAIRE, volontairement : création, adhésion, retrait d'un personnage.
 - **`groupe.prets[]`** (`GET /etat` au hub), **`.prets.maj`** (`POST /pret`) et la réponse `ordre` de `PUT /ordre` :
-  chaque entrée est `{personnage_id, nom, classe, pilote_joueur_id, pret}`, par UN constructeur (`EtatGroupe::prets()`).
+  chaque entrée est `{personnage_id, nom, classe, pilote_joueur_id, bourse, pret}`, par UN constructeur (`EtatGroupe::prets()`)
+  — `bourse` : voir « Bourse par héros ».
   Au hub `entites` est vide : c'est sur ce roster que la manette lit quels héros elle pilote. `pilote_joueur_id` est
   le pilote **résolu**, jamais `null`.
 - **`GET /api/moi` → `joueur.heros_pilotes[]`** : les héros **confiés** à ce joueur (actifs dans un groupe, pilotés par

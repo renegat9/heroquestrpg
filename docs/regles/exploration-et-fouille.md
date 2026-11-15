@@ -460,3 +460,34 @@ La fouille du trésor réveille les figures `fouille_de_la_salle` de la salle (`
 - **Fin de quête** : `objet_de_quete` (`MotsClesEquipement::OBJET_DE_QUETE`) — la clé quitte le sac à `terminerQuete()` et à
   `echouerQuete()`, par `Equipement::purgerObjetsDeQuete()`. Aucun autre objet n'a ce drapeau.
 - Règle complète, placement et tests : `docs/regles/carte-donjon.md` § « LA GRILLE DE FER ».
+
+## Où va l'or : `Bourses`, un seul point de passage (mode classique, 2026-11-15)
+
+**La règle.** Toute pièce gagnée ou dépensée en jeu passe par `App\Partie\Bourses` : `verser()`, `payer()`,
+`solde()`. C'est là, et nulle part ailleurs, que se décide la caisse :
+
+- **campagne** : le pot commun, `groupes.or` — qui trouve l'or n'a aucune importance ;
+- **classique** : la bourse du héros, `personnages.or` (René, 2026-11-13). L'or va à **celui qui le trouve** ; un
+  gain que personne en particulier ne fait (reddition d'un monstre, butin de gabarit) est **partagé également**
+  entre les héros actifs, le reste de la division aux premiers dans l'ordre du tour (décision écrite : le livret ne
+  dit pas qui garde le reste). `groupes.or` n'y est **jamais** écrit.
+
+**Pourquoi.** Avant ce lot, neuf endroits écrivaient `groupes.or` chacun de son côté — fouille de trésor, trésor de
+tournoi, épreuve « or », reddition, potion de transmutation, prime Peacekeeper, butin de fin de quête, marché, levée
+de malédiction. Le premier marché classique aurait débité un pot que rien n'alimente, pendant que l'or trouvé en
+quête dormait dans un pot que personne ne peut dépenser. Deux copies d'une règle trop simple pour qu'on la voie
+dériver : ici il y en avait neuf.
+
+**Ce qui reste à part, nommément.** `Bourses::HORS_PASSAGE` liste chaque écriture de `or` qui ne passe pas par la
+classe, avec sa raison : entrée en campagne, clôture, forge, entraînement, mercenaires (étapes fermées au classique
+par `EtapesCampagne`), et la reprise d'un instantané (qui remet l'or tel qu'il a été saisi). `BoursesPointDePassageTest`
+scanne `app/` dans les deux sens : une écriture non déclarée fait échouer la suite, une déclaration qui ne correspond
+plus à rien aussi. **Ouvrir une de ces étapes au classique, c'est d'abord la faire passer par `Bourses`.**
+
+**Le marché.** Un achat est payé par le héros qui le **reçoit** ; une vente crédite celui qui possédait la pièce
+(`PhaseMarche::netsParHeros()`, lu par le payload, la confirmation et l'application). Le garde-fou « total projeté ≥ 0 »
+devient « la bourse de CHAQUE héros ≥ 0 », et la confirmation d'un panier à découvert est refusée **sur place** : le
+net d'un héros ne dépend que du panier de son pilote, le menu n'offre donc pas ce que l'application refuserait. Le
+serveur publie `EtatMarche.bourses` (solde et projection par héros) ; l'écran lit `bourses !== null`, jamais le mode.
+
+**Pas encore** : l'échange d'or entre héros au hub. La séance d'échange ne déplace que des objets.

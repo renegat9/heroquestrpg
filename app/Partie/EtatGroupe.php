@@ -52,21 +52,25 @@ final class EtatGroupe
      *   héros elle pilote (bandeau de héros, « prêt » pour chacun). Le pilote est RÉSOLU (`Groupe::piloteDuPivot()`),
      *   jamais `null`.
      *
-     * @return list<array{personnage_id: int, nom: string, classe: string, pilote_joueur_id: int, pret: bool}>
+     * @return list<array{personnage_id: int, nom: string, classe: string, pilote_joueur_id: int, bourse: int|null, pret: bool}>
      */
     public static function prets(Groupe $groupe): array
     {
         $prets = Cache::get("partie:pret:{$groupe->id}", []);
+        $bourseParHeros = app(Bourses::class)->parHeros($groupe);
 
         return $groupe->personnages()
             ->wherePivot('actif', true)
             ->orderBy('groupe_personnages.ordre_initiative') // roster affiché dans l'ordre du tour
-            ->get(['personnages.id', 'personnages.nom', 'personnages.classe', 'personnages.joueur_id'])
+            ->get(['personnages.id', 'personnages.nom', 'personnages.classe', 'personnages.joueur_id', 'personnages.or'])
             ->map(fn ($p) => [
                 'personnage_id' => (int) $p->id,
                 'nom' => $p->nom,
                 'classe' => $p->classe,
                 'pilote_joueur_id' => Groupe::piloteDuPivot($p),
+                // MODE CLASSIQUE : la bourse de CE héros (`Bourses`) ; `null` quand le groupe tient un pot commun
+                // (`groupe.or`). L'écran lit ce `null`, il ne re-dérive pas le mode.
+                'bourse' => $bourseParHeros ? (int) $p->or : null,
                 'pret' => (bool) ($prets[$p->id] ?? false),
             ])
             ->values()
@@ -1530,12 +1534,14 @@ final class EtatGroupe
             ->get()
             ->keyBy('recruteur_personnage_id');
 
+        $bourseParHeros = app(Bourses::class)->parHeros($groupe);
+
         return $groupe->personnages()
             ->wherePivot('actif', true)
             ->orderBy('groupe_personnages.ordre_initiative')
             ->with('faveurs')
             ->get()
-            ->map(function (Personnage $p) use ($etats, $captifsPortes) {
+            ->map(function (Personnage $p) use ($etats, $captifsPortes, $bourseParHeros) {
                 $etat = $etats->get($p->id);
                 $porte = $captifsPortes->get($p->id);
 
@@ -1548,6 +1554,8 @@ final class EtatGroupe
                     // MANETTE À PLUSIEURS HÉROS (lot M1) : le PILOTE qui joue ce héros dans ce groupe — le propriétaire
                     // quand il ne l'a confié à personne. Publié, jamais re-dérivé : la manette ne lit pas `joueur_id`.
                     'pilote_joueur_id' => Groupe::piloteDuPivot($p),
+                    // MODE CLASSIQUE : la bourse de CE héros, où va l'or qu'il trouve ; `null` au pot commun.
+                    'bourse' => $bourseParHeros ? (int) $p->or : null,
                     // SORTI DU DONJON : le héros est dans le groupe mais plus dans la quête (il l'a quittée en personne).
                     // Publié pour que sa manette lui dise qu'il attend les autres, plutôt qu'un écran sans menu.
                     'sorti' => $etat === null,

@@ -11095,7 +11095,7 @@ final class ResolveurTour
             $payload['objet'] = $this->remettreButin(['objet_id' => (int) Objet::where('nom', $ligne['objet'])->value('id')], $personnage, 'objet');
             $payload['nom_objet'] = $ligne['objet'];
         } else {
-            $groupe->update(['or' => (int) $groupe->or + (int) $ligne['or']]);
+            app(Bourses::class)->verser($groupe, (int) $ligne['or'], $personnage);
             $payload['or'] = (int) $ligne['or'];
         }
 
@@ -11900,14 +11900,15 @@ final class ResolveurTour
             // an additional 25 gold coins. »
             //
             // ⚠ Le deck seulement : un coffre ne consomme aucune carte, son or
-            // n'en vient donc pas. Et l'or trouvé va au pot COMMUN, comme tout
-            // l'or du jeu chez nous — l'Explorateur enrichit le groupe, pas sa
-            // bourse.
+            // n'en vient donc pas. Et l'or trouvé va au pot COMMUN en campagne
+            // — l'Explorateur enrichit le groupe, pas sa bourse — ou à la
+            // bourse de CELUI QUI FOUILLE en classique : `Bourses::verser()`
+            // tranche, jamais ce site.
             $bonus = $or > 0 && empty($carte['coffre'])
                 ? (int) ($this->capacites->noeud($personnage, 'bonus_or_tresor')?->effet['valeur'] ?? 0)
                 : 0;
 
-            $groupe->update(['or' => (int) $groupe->or + $or + $bonus]);
+            app(Bourses::class)->verser($groupe, $or + $bonus, $personnage);
             $payload['or'] = $or + $bonus;
 
             if ($bonus > 0) {
@@ -12190,7 +12191,7 @@ final class ResolveurTour
         }
 
         return match ($mecanique) {
-            'or' => $this->epreuveOr($groupe, $valeur),
+            'or' => $this->epreuveOr($groupe, $personnage, $valeur),
             'objet' => $this->epreuveObjet($personnage, ['consommable']),
             'parchemin' => $this->epreuveParchemin($quete, $personnage),
             'soin_groupe' => $this->epreuveSoinGroupe($quete, $valeur),
@@ -12224,11 +12225,11 @@ final class ResolveurTour
         return ['oracle' => 'malediction'];
     }
 
-    /** Or versé à la bourse COMMUNE, comme tout l'or du jeu (M3). */
-    private function epreuveOr(Groupe $groupe, int $valeur): array
+    /** Or versé par `Bourses` : à la bourse COMMUNE en campagne (M3), à celle du héros qui réussit en classique. */
+    private function epreuveOr(Groupe $groupe, Personnage $personnage, int $valeur): array
     {
         $or = max(0, $valeur);
-        $groupe->update(['or' => (int) $groupe->or + $or]);
+        app(Bourses::class)->verser($groupe, $or, $personnage);
 
         return ['or' => $or];
     }
@@ -16905,10 +16906,13 @@ final class ResolveurTour
         // par l'IA et payé.
         $this->diffuserRecit($groupe, $this->narration->pourQuete($quete, 'victoire_quete'));
 
+        // Le butin du GABARIT : une quête construite (classique) n'a pas de gabarit, sa récompense est celle de
+        // l'auteur (`FinDeQueteConstruite`). Versé par `Bourses` comme tout l'or du jeu.
+        app(Bourses::class)->verser($groupe, $orButin);
+
         $groupe->update([
             'phase' => 'hub',
             'quete_courante_id' => null,
-            'or' => (int) $groupe->or + $orButin,
         ]);
 
         // ⚠ Les mercenaires RECRUTÉS (non captifs) PERSISTENT désormais

@@ -2,6 +2,7 @@
 // Panneau de phase marché — écran de table (doc 04 §5, vue partagée) :
 // or commun en permanence, panier consolidé étiqueté par joueur (achats et
 // ventes), total projeté recalculé en direct, état des confirmations.
+// Mode classique : `marche.bourses` remplace l'or commun par la bourse de chaque héros.
 import { computed } from 'vue';
 import MSym from '../ui/MSym.vue';
 import { marcheVersConsolide, PROFILS_MARCHE } from '../../store/game';
@@ -23,7 +24,17 @@ const totalProjete = computed(() => props.marche.total_projete ?? props.marche.o
     <div class="mkpanel">
         <div class="mk-head">
             <span class="mk-title"><MSym n="storefront" fill :size="22" /> Phase de marché{{ profilLabel ? ' · ' + profilLabel : '' }}</span>
-            <span class="mk-gold"><MSym n="paid" :size="18" /> {{ marche.or_courant ?? 0 }} or commun</span>
+            <!-- `bourses` publié = une bourse par héros (mode classique) : pas d'or commun à montrer. -->
+            <span v-if="!marche.bourses" class="mk-gold"><MSym n="paid" :size="18" /> {{ marche.or_courant ?? 0 }} or commun</span>
+        </div>
+
+        <!-- MODE CLASSIQUE : la bourse de chaque héros et ce qu'il en restera, tels que le serveur les publie. -->
+        <div v-if="marche.bourses" class="mk-bourses">
+            <span v-for="b in marche.bourses" :key="b.personnage_id" class="mk-bourse" :class="{ neg: b.projete < 0 }">
+                <span class="nm">{{ b.nom }}</span>
+                <MSym n="paid" :size="15" /> {{ b.or }}
+                <template v-if="b.projete !== b.or"> → <b>{{ b.projete }}</b></template>
+            </span>
         </div>
 
         <!-- panier consolidé, étiqueté par joueur -->
@@ -51,7 +62,8 @@ const totalProjete = computed(() => props.marche.total_projete ?? props.marche.o
             <span class="mk-confirms">
                 <MSym n="how_to_reg" :size="16" /> {{ confirmes }}/{{ consolide.length || '?' }} paniers confirmés
             </span>
-            <span class="mk-total">Total projeté <b>{{ totalProjete }} or</b></span>
+            <span v-if="!marche.bourses" class="mk-total">Total projeté <b>{{ totalProjete }} or</b></span>
+            <span v-else class="mk-total"></span>
             <button class="btn mk-cancel" @click="emit('annuler')">
                 <MSym n="close" :size="16" /> Annuler le marché
             </button>
@@ -71,6 +83,12 @@ const totalProjete = computed(() => props.marche.total_projete ?? props.marche.o
 .table-screen .mk-gold { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; color: var(--gold);
   font-variant-numeric: tabular-nums; background: oklch(0.74 0.15 78 / 0.1); border: 1px solid oklch(0.74 0.15 78 / 0.35);
   border-radius: 99px; padding: 6px 14px; font-size: 14px; }
+.table-screen .mk-bourses { display: flex; flex-wrap: wrap; gap: 8px; }
+.table-screen .mk-bourse { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--gold);
+  font-variant-numeric: tabular-nums; background: oklch(0.74 0.15 78 / 0.1); border: 1px solid oklch(0.74 0.15 78 / 0.35);
+  border-radius: 99px; padding: 5px 12px; font-size: 13px; }
+.table-screen .mk-bourse .nm { color: var(--parch-100); font-weight: 600; }
+.table-screen .mk-bourse.neg { color: var(--danger, #c33); border-color: var(--danger, #c33); }
 .table-screen .mk-baskets { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
 .table-screen .mk-basket { background: var(--stone-850); border: var(--line); border-radius: var(--r-md); padding: 10px 12px; transition: border-color .25s; }
 .table-screen .mk-basket.ok { border-color: var(--ok); }

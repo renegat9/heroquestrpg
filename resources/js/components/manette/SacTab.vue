@@ -22,6 +22,9 @@ const props = defineProps({
     // Bourse commune (EtatGroupe.groupe.or) — affichée en tête du sac, et pour griser une
     // amélioration de Forge trop chère dans la feuille de détail, comme RecrutementHub.
     orCommun: { type: Number, default: null },
+    // MODE CLASSIQUE : la bourse de CE héros (`entites[].bourse` / `prets[].bourse`), publiée par le serveur ; `null`
+    // quand le groupe tient un pot commun — c'est ce `null` qui décide de la ligne affichée, pas le mode.
+    bourse: { type: Number, default: null },
 });
 /**
  * Les emplacements où équiper cette pièce change VRAIMENT quelque chose.
@@ -118,7 +121,10 @@ const deborde = computed(() => {
         <!-- LA BOURSE COMMUNE (René, 2026-11-06 : « afficher le total de gold du groupe présentement »), au hub comme
              en quête : l'or trouvé y entre au moment de la fouille. La valeur publiée par le serveur
              (`EtatGroupe.groupe.or`), jamais recalculée ici ; même ligne que le recrutement au hub. -->
-        <div v-if="Number.isFinite(orCommun)" class="sac-bourse">
+        <div v-if="bourse !== null" class="sac-bourse">
+            <MSym n="paid" fill :size="15" /> Ma bourse : <b>{{ bourse }}</b> or
+        </div>
+        <div v-else-if="Number.isFinite(orCommun)" class="sac-bourse">
             <MSym n="paid" fill :size="15" /> Bourse commune : <b>{{ orCommun }}</b> or
         </div>
 

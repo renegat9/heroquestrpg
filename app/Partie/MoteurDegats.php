@@ -844,8 +844,10 @@ final class MoteurDegats
             $orGagne = (int) $reddition['or'];
             $groupe = $instance->quete?->groupe;
 
+            // Personne en particulier ne « trouve » cet or : au pot commun en campagne, partagé entre les héros en
+            // classique — `Bourses::verser()` sans bénéficiaire.
             if ($groupe !== null) {
-                $groupe->update(['or' => (int) $groupe->or + $orGagne]);
+                app(Bourses::class)->verser($groupe, $orGagne);
             }
 
             $this->journaliserReddition($instance, $orGagne);

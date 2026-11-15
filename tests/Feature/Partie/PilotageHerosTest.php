@@ -344,9 +344,10 @@ it('publie le pilote et la classe de chaque héros sur le roster du hub, par les
 
     confierPilotage($alice, $deAlice, (int) $bob->id)->assertOk();
 
+    // `bourse` : null, ce groupe tient un pot commun (elle n'est un entier qu'en mode classique — `Bourses`).
     $attendu = [
-        ['personnage_id' => $deAlice->id, 'nom' => 'Albrecht', 'classe' => 'barbare', 'pilote_joueur_id' => (int) $bob->id, 'pret' => false],
-        ['personnage_id' => $deBob->id, 'nom' => 'Bertrand', 'classe' => 'barbare', 'pilote_joueur_id' => (int) $bob->id, 'pret' => false],
+        ['personnage_id' => $deAlice->id, 'nom' => 'Albrecht', 'classe' => 'barbare', 'pilote_joueur_id' => (int) $bob->id, 'bourse' => null, 'pret' => false],
+        ['personnage_id' => $deBob->id, 'nom' => 'Bertrand', 'classe' => 'barbare', 'pilote_joueur_id' => (int) $bob->id, 'bourse' => null, 'pret' => false],
     ];
 
     // 1. GET /etat au hub.

@@ -277,7 +277,9 @@ class MoteurPotions
                 }
 
                 $piece->delete();
-                $buveur->groupeActif?->increment('or', $or);
+                if (($groupeDuBuveur = $buveur->groupeActif) !== null) {
+                    app(Bourses::class)->verser($groupeDuBuveur, $or, $buveur);
+                }
                 $applique['transmute'] = ['piece' => $nomPiece, 'or' => $or];
             } else {
                 $applique['transmute'] = ['piece' => null, 'or' => 0];

@@ -7,6 +7,7 @@ namespace App\Partie\Classique;
 use App\Models\Groupe;
 use App\Models\Personnage;
 use App\Models\Quete;
+use App\Partie\Bourses;
 use App\Partie\TamponAnnonces;
 
 /**
@@ -36,9 +37,10 @@ final class FinDeQueteConstruite
         $groupe->update(['rang_quete' => $rangSuivant]);
 
         $parts = $this->parts($groupe, $queteDoc['recompense'] ?? null);
+        $bourses = app(Bourses::class);
 
         foreach ($parts as $part) {
-            Personnage::whereKey($part['personnage_id'])->increment('or', $part['or']);
+            $bourses->verser($groupe, $part['or'], Personnage::find($part['personnage_id']));
         }
 
         if ($parts !== []) {
@@ -60,32 +62,10 @@ final class FinDeQueteConstruite
      */
     private function parts(Groupe $groupe, mixed $recompense): array
     {
-        $or = (int) data_get($recompense, 'or', 0);
-        if ($or <= 0) {
-            return [];
-        }
-
-        $heros = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->orderBy('groupe_personnages.ordre_initiative')
-            ->get(['personnages.id', 'personnages.nom']);
-
-        if ($heros->isEmpty()) {
-            return [];
-        }
-
-        $parHeros = data_get($recompense, 'partage') === 'par_heros';
-        $base = $parHeros ? $or : intdiv($or, $heros->count());
-        $reste = $parHeros ? 0 : $or % $heros->count();
-
-        $parts = [];
-        foreach ($heros->values() as $i => $h) {
-            $montant = $base + ($i < $reste ? 1 : 0);
-            if ($montant > 0) {
-                $parts[] = ['personnage_id' => (int) $h->id, 'nom' => (string) $h->nom, 'or' => $montant];
-            }
-        }
-
-        return $parts;
+        return app(Bourses::class)->partager(
+            $groupe,
+            (int) data_get($recompense, 'or', 0),
+            chacun: data_get($recompense, 'partage') === 'par_heros',
+        );
     }
 }

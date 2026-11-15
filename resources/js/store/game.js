@@ -1073,11 +1073,13 @@ export function inventaireVendable(marche, joueurId, etat, personnages, heroId =
         ? p.id === heroId
         : (p.groupe_actif_id != null && ids.has(p.id))));
 
-    const brut = monPanier?.inventaire
+    // Le panier publié porte les sacs de TOUS les héros que ce joueur pilote, chaque ligne avec son `personnage_id` :
+    // on ne garde que celui du héros affiché (les replis, eux, sont déjà ceux d'un seul héros).
+    const brut = (monPanier?.inventaire
         ?? monPanier?.inventaire_personnage
         ?? monEntite?.inventaire
         ?? monPerso?.inventaire
-        ?? [];
+        ?? []).filter((it) => heroId == null || it.personnage_id == null || it.personnage_id === heroId);
 
     const marchand = new Map((marche?.inventaire ?? []).map((it) => [it.objet_id, it]));
 
@@ -1098,21 +1100,33 @@ export function inventaireVendable(marche, joueurId, etat, personnages, heroId =
             icon: CATEGORIE_ICONES[(it.categorie ?? it.objet?.categorie ?? '').toLowerCase()] ?? 'category',
             quantite: it.quantite ?? 1,
             revente,
+            // À qui est la pièce : en mode classique sa vente crédite la bourse de CE héros.
+            personnage_id: it.personnage_id ?? null,
         };
     });
 }
 
-/** Montant net d'un panier {achats, ventes} : ventes − achats (or). */
-export function montantPanier(panier, marche, inventaire = []) {
+/**
+ * Montant net d'un panier {achats, ventes} : ventes − achats (or).
+ *
+ * `heroId` (mode classique, bourse par héros) : ne compte que les lignes de CE héros — les achats qu'il reçoit, les
+ * ventes de ses pièces. Ce n'est qu'une avance d'affichage entre deux envois du panier : le solde et la projection
+ * de référence viennent du serveur (`EtatMarche.bourses`), et c'est lui qui refuse un découvert.
+ */
+export function montantPanier(panier, marche, inventaire = [], heroId = null) {
     const marchand = new Map((marche?.inventaire ?? []).map((it) => [it.objet_id, it]));
     const vendable = new Map((inventaire ?? []).map((it) => [it.inventaire_id, it]));
+    const duHeros = (id) => heroId == null || id === heroId;
 
     const achats = (panier?.achats ?? []).reduce((s, a) => {
+        if (!duHeros(a.personnage_id ?? null)) return s;
         const prix = a.prix ?? marchand.get(a.objet_id)?.prix ?? 0;
         return s + prix * (a.quantite ?? 1);
     }, 0);
     const ventes = (panier?.ventes ?? []).reduce((s, v) => {
         const id = typeof v === 'object' ? v.inventaire_id : v;
+        const proprietaire = (typeof v === 'object' ? v.personnage_id : null) ?? vendable.get(id)?.personnage_id ?? null;
+        if (!duHeros(proprietaire)) return s;
         const revente = (typeof v === 'object' ? (v.revente ?? v.prix) : null)
             ?? vendable.get(id)?.revente ?? 0;
         return s + revente;

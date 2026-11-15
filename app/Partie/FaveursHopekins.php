@@ -936,7 +936,12 @@ final class FaveursHopekins
         }
 
         $total = array_sum(array_column($versements, 'or'));
-        $groupe->increment('or', $total);
+
+        // Par `Bourses` : au pot commun en campagne (un seul et même pot, peu importe qui a frappé), à la bourse du
+        // héros qui a vaincu en classique.
+        foreach ($versements as $versement) {
+            app(Bourses::class)->verser($groupe, $versement['or'], Personnage::find($versement['personnage_id']));
+        }
 
         // `quete_id` : l'annonce du hub ne vaut que pour la DERNIÈRE quête achevée
         // (`EtatGroupe::annonceDeQuete()`), comme l'entretien et la faveur.

@@ -7,6 +7,7 @@
 # pas au groupe : `nettoyer.sh` ne la touche pas.
 #
 #   ./preparer-classique.sh "nom du groupe" <slug de la campagne construite>
+#   HQ_AU_HUB=1 ./preparer-classique.sh …    → reste au hub (personne n'est déclaré prêt)
 #
 # Rend le code du groupe sur la sortie standard.
 set -eu
@@ -62,6 +63,13 @@ curl -s -b "$D/jar-table.txt" -c "$D/jar-table.txt" -X POST http://localhost/api
   -d "{\"code\":\"$CODE\"}" >/dev/null
 nohup "$D/battement.sh" >/dev/null 2>&1 & echo $! > "$D/battement.pid"
 sleep 3
+
+# HQ_AU_HUB=1 : s'arrêter AU HUB, sans déclarer personne prêt — pour éprouver le marché, le sac, l'échange (tout prêt
+# lance la quête d'office).
+if [ "${HQ_AU_HUB:-0}" = "1" ]; then
+  echo "$CODE"
+  exit 0
+fi
 
 for s in 1 2; do
   R=$(P "$s" POST "/groupes/$CODE/pret" "{\"personnage_id\":$(cat "$D/perso-$s.txt"),\"pret\":true}")

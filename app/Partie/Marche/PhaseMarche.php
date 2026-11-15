@@ -14,6 +14,7 @@ use App\Models\Inventaire;
 use App\Models\Joueur;
 use App\Models\Objet;
 use App\Models\Personnage;
+use App\Partie\Bourses;
 use App\Partie\Equipement;
 use App\Partie\EtatGroupe;
 use App\Partie\MoteurOracle;
@@ -43,6 +44,18 @@ use Illuminate\Validation\ValidationException;
  * Prix d'achat = prix_base × multiplicateur du profil ; revente = 50 % du
  * prix du marchand courant (M1), à défaut 50 % du prix de base. L'or est la
  * bourse commune du groupe (M3 : `groupes.or`).
+ *
+ * MODE CLASSIQUE — BOURSE PAR HÉROS (René, 2026-11-13 ; `App\Partie\Bourses`).
+ * Tout le reste est identique ; seule la CAISSE change, et avec elle le premier
+ * garde-fou : ce n'est plus « le total projeté du groupe ≥ 0 » mais « la bourse
+ * de CHAQUE héros ≥ 0 ». Un achat est payé par le héros qui le reçoit
+ * (`achats[].personnage_id`), une vente crédite le héros qui possédait la
+ * pièce — {@see netsParHeros()}, lu par le payload, par la confirmation et par
+ * l'application, jamais recalculé ailleurs. Un panier ne dépendant que des
+ * héros de son joueur, la confirmation est REFUSÉE dès qu'un de ses héros
+ * serait à découvert : au pot commun elle ne peut pas l'être (le total dépend
+ * des paniers des autres), ici le menu n'offre pas ce que l'application
+ * refusera.
  */
 final class PhaseMarche
 {
@@ -61,7 +74,7 @@ final class PhaseMarche
     /** Catégorie d'un parchemin (`ObjetSeeder`, un par sort) — hors marché, comme la carte sans prix. */
     public const CATEGORIE_PARCHEMIN = 'parchemin';
 
-    public function __construct(private readonly EtatGroupe $etatGroupe) {}
+    public function __construct(private readonly EtatGroupe $etatGroupe, private readonly Bourses $bourses) {}
 
     /** Clé du cache de la phase marché d'un groupe. */
     public static function cle(int $groupeId): string
@@ -275,6 +288,11 @@ final class PhaseMarche
             $phase['paniers'][$clePanier] = $this->panierVide($joueur);
         }
 
+        // MODE CLASSIQUE : un panier qui mettrait un de ses héros à découvert ne se confirme pas.
+        if ($this->bourses->parHeros($groupe)) {
+            $this->refuserBoursesADecouvert($groupe, $this->netsParHeros([$phase['paniers'][$clePanier]]));
+        }
+
         $phase['paniers'][$clePanier]['confirme'] = true;
 
         $tousConfirmes = collect($phase['paniers'])->every(fn ($p) => $p['confirme']);
@@ -373,12 +391,11 @@ final class PhaseMarche
      * quests, when visiting the armoury » — ici, au marché (c'est l'unique
      * passage à l'armurerie du hub, `PhaseMarche`/`MarcheController`).
      *
-     * ⚠ NOTRE arbitrage, écrit comme tel : la bourse débitée est la bourse
-     * COMMUNE (`groupes.or`), jamais la bourse personnelle du héros
-     * (`personnages.or`, purement cosmétique — la part reçue à la clôture).
-     * C'est ce que le marché débite déjà pour TOUT le reste (`appliquer()`,
-     * `$groupe->update(['or' => $total])`) : une seconde caisse pour ce seul
-     * don aurait été une règle de paiement inventée.
+     * ⚠ NOTRE arbitrage, écrit comme tel : la bourse débitée est CELLE DU
+     * MARCHÉ — la bourse COMMUNE en campagne (`groupes.or` ; `personnages.or`
+     * n'y est que la part reçue à la clôture), la bourse du héros MAUDIT en
+     * classique. `Bourses::payer()` tranche, comme pour tout le reste : une
+     * seconde caisse pour ce seul don aurait été une règle de paiement inventée.
      *
      * ⚠ Immédiat, HORS du panier/de la confirmation multi-joueurs : ce n'est
      * pas un achat qui entre en concurrence avec ceux des autres, rien à
@@ -398,16 +415,8 @@ final class PhaseMarche
         }
 
         return DB::transaction(function () use ($groupe, $personnage, $oracle) {
-            $groupe->refresh();
-
-            if ((int) $groupe->or < self::DON_LEVEE_MALEDICTION_ORACLE) {
-                $manque = self::DON_LEVEE_MALEDICTION_ORACLE - (int) $groupe->or;
-                throw ValidationException::withMessages([
-                    'or' => "Il manque {$manque} pièces d'or à la bourse commune pour ce don.",
-                ]);
-            }
-
-            $groupe->update(['or' => (int) $groupe->or - self::DON_LEVEE_MALEDICTION_ORACLE]);
+            // `Bourses::payer()` refuse (422, clé `or`) si l'or manque, sans rien débiter.
+            $this->bourses->payer($groupe, self::DON_LEVEE_MALEDICTION_ORACLE, $personnage);
             $oracle->leverMalediction($personnage);
 
             Journal::ajouter($groupe, 'systeme', [
@@ -423,7 +432,7 @@ final class PhaseMarche
                 'leve' => true,
                 'personnage_id' => $personnage->id,
                 'don' => self::DON_LEVEE_MALEDICTION_ORACLE,
-                'or' => (int) $groupe->fresh()->or,
+                'or' => $this->bourses->solde($groupe, $personnage),
             ];
         });
     }
@@ -723,10 +732,15 @@ final class PhaseMarche
                 }
             }
 
-            // Total projeté ≥ 0 : la bourse commune couvre l'ensemble.
+            // LA CAISSE. Pot commun : le total projeté ≥ 0, la bourse commune couvre l'ensemble. Classique : la
+            // bourse de CHAQUE héros ≥ 0.
+            $parHeros = $this->bourses->parHeros($groupe);
+            $nets = $parHeros ? $this->netsParHeros($paniers) : [];
             $total = (int) $groupe->or + $this->sommeVentes($paniers) - $this->sommeAchats($paniers);
 
-            if ($total < 0) {
+            if ($parHeros) {
+                $this->refuserBoursesADecouvert($groupe, $nets);
+            } elseif ($total < 0) {
                 throw ValidationException::withMessages([
                     'achats' => 'Or insuffisant : le total projeté de la bourse commune est négatif.',
                 ]);
@@ -775,14 +789,25 @@ final class PhaseMarche
                 }
             }
 
-            $groupe->update(['or' => $total]);
+            // Une écriture d'or par caisse, toujours par `Bourses` : le net du pot, ou le net de chaque héros.
+            foreach ($parHeros ? $nets : [0 => $total - (int) $groupe->or] as $personnageId => $net) {
+                $heros = $parHeros ? Personnage::findOrFail($personnageId) : null;
+
+                if ($net > 0) {
+                    $this->bourses->verser($groupe, $net, $heros);
+                } elseif ($net < 0) {
+                    $this->bourses->payer($groupe, -$net, $heros);
+                }
+            }
 
             Journal::ajouter($groupe, 'systeme', [
                 'action' => 'marche_finalise',
                 'profil' => $phase['profil'],
                 'achats' => $this->sommeAchats($paniers),
                 'ventes' => $this->sommeVentes($paniers),
-                'or_apres' => $total,
+                // Pot commun : son solde. Classique : `null`, et `bourses` porte celui de chaque héros.
+                'or_apres' => $parHeros ? null : $total,
+                'bourses' => $this->bourses->publiees($groupe),
                 'paniers' => array_values(array_map(fn ($p) => [
                     'joueur_id' => $p['joueur_id'],
                     'achats' => $p['achats'],
@@ -850,7 +875,79 @@ final class PhaseMarche
             'paniers' => $paniers,
             'total_projete' => $or + $this->sommeVentes($phase['paniers']) - $this->sommeAchats($phase['paniers']),
             'or_courant' => $or,
+            // MODE CLASSIQUE : la bourse de chaque héros et ce qu'il en restera, DÉJÀ décidés — `null` au pot commun.
+            // L'écran lit ce `null` pour dire « or commun » ; il ne re-dérive ni le mode ni le net d'un héros.
+            'bourses' => $this->boursesProjetees($groupe, $phase['paniers']),
         ];
+    }
+
+    /**
+     * Ce que des paniers font à la bourse de chaque héros : ventes de SES pièces − achats qu'IL reçoit. Le seul
+     * calcul du « net d'un héros » ; le payload, la confirmation et l'application le lisent tous les trois.
+     *
+     * @param  array<int|string, array<string, mixed>>  $paniers
+     * @return array<int, int> personnage_id => net (les héros sans mouvement n'y figurent pas)
+     */
+    private function netsParHeros(array $paniers): array
+    {
+        $nets = [];
+
+        foreach ($paniers as $panier) {
+            foreach ($panier['achats'] as $achat) {
+                $id = (int) $achat['personnage_id'];
+                $nets[$id] = ($nets[$id] ?? 0) - (int) $achat['total'];
+            }
+
+            foreach ($panier['ventes'] as $vente) {
+                $id = (int) $vente['personnage_id'];
+                $nets[$id] = ($nets[$id] ?? 0) + (int) $vente['total'];
+            }
+        }
+
+        return $nets;
+    }
+
+    /**
+     * @param  array<int|string, array<string, mixed>>  $paniers
+     * @return list<array{personnage_id: int, nom: string, or: int, projete: int}>|null
+     */
+    private function boursesProjetees(Groupe $groupe, array $paniers): ?array
+    {
+        $bourses = $this->bourses->publiees($groupe);
+
+        if ($bourses === null) {
+            return null;
+        }
+
+        $nets = $this->netsParHeros($paniers);
+
+        return array_map(
+            fn (array $b) => $b + ['projete' => $b['or'] + ($nets[$b['personnage_id']] ?? 0)],
+            $bourses,
+        );
+    }
+
+    /**
+     * MODE CLASSIQUE : refuse (422, clé `achats`) si un des héros nommés finirait à découvert.
+     *
+     * @param  array<int, int>  $nets  personnage_id => net, de {@see netsParHeros()}
+     */
+    private function refuserBoursesADecouvert(Groupe $groupe, array $nets): void
+    {
+        foreach ($nets as $personnageId => $net) {
+            if ($net >= 0) {
+                continue;
+            }
+
+            $heros = Personnage::findOrFail($personnageId);
+            $manque = -($this->bourses->solde($groupe, $heros) + $net);
+
+            if ($manque > 0) {
+                throw ValidationException::withMessages([
+                    'achats' => "Or insuffisant : il manque {$manque} pièces d'or à la bourse de {$heros->nom}.",
+                ]);
+            }
+        }
     }
 
     /**

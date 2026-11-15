@@ -17,7 +17,9 @@ const props = defineProps({
      *   inventaire: [{inventaire_id, name, rar, rarLabel, icon, revente}],
      *   achats: [{objet_id, quantite}], ventes: [inventaire_id…],
      *   confirme, confirmes, membres, totalAchats, totalVentes,
-     *   totalProjete, erreur }
+     *   totalProjete, erreur,
+     *   bourseDe (nom du héros en mode classique, null au pot commun),
+     *   decouvert (nom d'un de mes héros à découvert, ou null) }
      */
     live: { type: Object, default: null },
 });
@@ -68,7 +70,8 @@ function nonMaitrise(it) {
                 <MSym n="storefront" :size="16" fill /> Marché{{ profilLabel ? ' · ' + profilLabel : '' }}
             </span>
             <span style="display: flex; align-items: center; gap: 5px; color: var(--gold)">
-                <MSym n="paid" :size="16" />{{ live.or }} or commun
+                <!-- `bourseDe` : nom du héros dont on lit la bourse (mode classique) ; `null` = pot commun. -->
+                <MSym n="paid" :size="16" />{{ live.or }} or{{ live.bourseDe === null ? ' commun' : (live.bourseDe ? ' · ' + live.bourseDe : '') }}
             </span>
         </div>
 
@@ -150,20 +153,23 @@ function nonMaitrise(it) {
                 <span>{{ live.confirmes }}/{{ live.membres }}</span>
             </div>
             <div class="row total">
-                <span>Total projeté (groupe)</span>
+                <span>{{ live.bourseDe === null ? 'Total projeté (groupe)' : 'Ma bourse après le marché' }}</span>
                 <span :style="{ color: live.totalProjete < 0 ? 'var(--danger, #c33)' : null }">{{ live.totalProjete }} or</span>
             </div>
             <p v-if="live.erreur" class="mk-err">{{ live.erreur }}</p>
             <!-- Panier insolvable : on bloque la confirmation côté client (le serveur
                  la refusait déjà à la finalisation, mais rien n'empêchait de cliquer). -->
-            <p v-if="!live.confirme && live.totalProjete < 0" class="mk-err">
+            <p v-if="!live.confirme && live.bourseDe === null && live.totalProjete < 0" class="mk-err">
                 Total du groupe négatif — retire des achats ou vends davantage avant de confirmer.
+            </p>
+            <p v-if="!live.confirme && live.decouvert" class="mk-err">
+                La bourse de {{ live.decouvert }} ne couvre pas ses achats — retire des achats ou vends davantage.
             </p>
             <button
                 v-if="!live.confirme"
                 class="btn btn-torch btn-block"
                 style="margin-top: 12px"
-                :disabled="live.totalProjete < 0"
+                :disabled="live.totalProjete < 0 || !!live.decouvert"
                 @click="emit('confirmer')"
             >
                 <MSym n="shopping_cart_checkout" /> Confirmer mon panier
