@@ -8,6 +8,7 @@ use App\Events\EtatGroupeDiffuse;
 use App\Http\Controllers\Controller;
 use App\Models\Groupe;
 use App\Models\Inventaire;
+use App\Partie\Bourses;
 use App\Partie\DonObjet;
 use App\Partie\EtatGroupe;
 use App\Support\Journal;
@@ -35,7 +36,77 @@ class DonController extends Controller
     public function __construct(
         private readonly DonObjet $dons,
         private readonly EtatGroupe $etatGroupe,
+        private readonly Bourses $bourses,
     ) {}
+
+    /**
+     * POST /api/groupes/{identifiant}/dons-or {personnage_id, vers_personnage_id, montant}
+     *
+     * MODE CLASSIQUE — un héros donne de l'OR à un autre, au hub (René, Q3 : « échange possible entre les quêtes »).
+     * Mêmes règles d'autorisation que le don d'objet ci-dessous, pour les mêmes raisons : depuis un héros qu'on
+     * pilote, vers n'importe quel héros actif, sans confirmation du receveur. La caisse, elle, est celle de
+     * `Bourses::donner()` — au pot commun il n'y a rien à donner.
+     */
+    public function donnerOr(Request $request, string $identifiant): JsonResponse
+    {
+        $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
+        $joueur = Auth::guard('joueur')->user();
+
+        $donnees = $request->validate([
+            'personnage_id' => ['required', 'integer'],
+            'vers_personnage_id' => ['required', 'integer'],
+            'montant' => ['required', 'integer', 'min:1'],
+        ]);
+
+        if ($groupe->phase !== 'hub') {
+            throw ValidationException::withMessages([
+                'phase' => 'On ne partage l\'or qu\'au hub, entre deux quêtes.',
+            ]);
+        }
+
+        $donneur = $groupe->herosPilotesPar((int) $joueur->id)
+            ->where('personnages.id', $donnees['personnage_id'])
+            ->first();
+
+        if ($donneur === null) {
+            throw ValidationException::withMessages([
+                'personnage_id' => 'Ce personnage n\'est pas un héros actif de ce groupe contrôlé par vous.',
+            ]);
+        }
+
+        $receveur = $groupe->personnages()
+            ->wherePivot('actif', true)
+            ->where('personnages.id', $donnees['vers_personnage_id'])
+            ->first();
+
+        if ($receveur === null) {
+            throw ValidationException::withMessages([
+                'vers_personnage_id' => 'Ce héros n\'est pas actif dans ce groupe.',
+            ]);
+        }
+
+        $montant = (int) $donnees['montant'];
+        $this->bourses->donner($groupe, $donneur, $receveur, $montant);
+
+        Journal::ajouter($groupe, 'systeme', [
+            'action' => 'or_donne',
+            'montant' => $montant,
+            'de_personnage_id' => $donneur->id,
+            'vers_personnage_id' => $receveur->id,
+            'vers_nom' => $receveur->nom,
+        ], ['type' => 'personnage', 'id' => $donneur->id, 'nom' => $donneur->nom]);
+
+        // La bourse du RECEVEUR a changé sans qu'il ait rien fait : sa manette la lit dans `.groupe.etat`.
+        broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe)));
+
+        return response()->json([
+            'don_or' => [
+                'montant' => $montant,
+                'de' => ['personnage_id' => $donneur->id, 'nom' => $donneur->nom, 'bourse' => $this->bourses->solde($groupe, $donneur)],
+                'vers' => ['personnage_id' => $receveur->id, 'nom' => $receveur->nom, 'bourse' => $this->bourses->solde($groupe, $receveur)],
+            ],
+        ]);
+    }
 
     /** POST /api/groupes/{identifiant}/dons {personnage_id, inventaire_id, vers_personnage_id, quantite?} */
     public function donner(Request $request, string $identifiant): JsonResponse

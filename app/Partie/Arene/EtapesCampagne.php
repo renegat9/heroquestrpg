@@ -16,6 +16,7 @@ use App\Jobs\HabillerMonstres;
 use App\Partie\ClotureCampagne;
 use App\Partie\DemarreurQuete;
 use App\Partie\DonObjet;
+use App\Partie\Bourses;
 use App\Partie\Entrainement;
 use App\Partie\Forge;
 use App\Partie\Marche\PhaseMarche;
@@ -146,9 +147,9 @@ final class EtapesCampagne
             'sites' => [[MercenaireController::class, 'recruter']],
         ],
         self::DONS => [
-            'libelle' => 'don d\'objet entre héros',
+            'libelle' => 'don d\'objet ou d\'or entre héros',
             'remplacee_par' => 'rien : rien ne sort de l\'arène',
-            'sites' => [[DonObjet::class, 'donner']],
+            'sites' => [[DonObjet::class, 'donner'], [Bourses::class, 'donner']],
         ],
         self::PILOTAGE => [
             'libelle' => 'confier un héros à un autre joueur (pilote)',

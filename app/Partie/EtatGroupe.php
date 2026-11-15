@@ -199,6 +199,10 @@ final class EtatGroupe
             // l'écran le 2026-11-14 : la manette d'un groupe CLASSIQUE affichait le panneau « Recruter un allié », sa
             // « bourse commune » et le motif « deux quêtes achevées », alors que le recrutement lui est fermé — un
             // écran qui offre ce que le serveur refusera. La décision est publiée : la manette ne teste pas le mode.
+            // DON D'OR (mode classique, bourse par héros) : offert ou non, DÉCIDÉ ici — la même garde que la route
+            // (`Bourses::donOuvert()`). La manette n'affiche « Donner de l'or » que sur ce booléen.
+            $preambuleGroupe['don_or_ouvert'] = app(Bourses::class)->donOuvert($groupe);
+
             $recrutementOuvert = $groupe->etapeOuverte(\App\Partie\Arene\EtapesCampagne::MERCENAIRES);
             $preambuleGroupe['recrutement_ouvert'] = $recrutementOuvert;
             $preambuleGroupe['recrutement'] = $recrutementOuvert ? app(RecrutementHub::class)->publier($groupe) : null;

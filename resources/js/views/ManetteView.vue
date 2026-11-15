@@ -1227,6 +1227,23 @@ async function donner({ inventaireId, versPersonnageId, quantite }) {
     }
 }
 
+/* ---- Don d'OR à un compagnon (mode classique, hub). `don_or_ouvert` est la décision du serveur ; la bourse de
+   chacun revient par `.groupe.etat` (`prets[].bourse`), que le POST rediffuse. ---- */
+const donOrOuvert = computed(() => store.state.etat?.groupe?.don_or_ouvert === true);
+
+async function donnerOr({ versPersonnageId, montant }) {
+    if (equipEnCours.value || !monPersonnageId.value) return;
+    equipEnCours.value = true;
+    try {
+        await api.donnerOr(props.groupe, monPersonnageId.value, versPersonnageId, montant);
+        rafraichirMoi();
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        equipEnCours.value = false;
+    }
+}
+
 /* ---- Alliés / mercenaires (doc 14 §3.5) : au hub, recruter un renfort scripté
    contre la bourse COMMUNE. Le catalogue (statique) est chargé une fois ; les
    recrues et l'or vivent dans EtatGroupe (mis à jour en direct par le POST, qui
@@ -1930,6 +1947,8 @@ const navItems = computed(() => (scene.value === 'marche'
                             :compagnons="compagnonsDeDon"
                             :or-commun="orCommun"
                             :bourse="maBourse"
+                            :don-or-ouvert="donOrOuvert"
+                            @donner-or="donnerOr"
                             @equiper="equiper"
                             @desequiper="desequiper"
                             @donner="donner"

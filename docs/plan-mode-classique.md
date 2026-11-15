@@ -662,8 +662,14 @@ ni son format, il appelle ce que la route HTTP appelle.
     −110, la confirmation est grisée avec sa phrase et le serveur la refuse
     (422) ; la table montre une pastille par héros (« 40 → −110 ») et plus
     d'or commun ; achat et vente appliqués : 300 → 150, 40 → 140, pot à 0.
-  - **Reste** : l'échange d'OR entre héros au hub (Q3, « entre les quêtes »)
-    — la séance d'échange ne déplace encore que des objets.
+  - **Le don d'or entre héros** (Q3, « échange possible entre les quêtes ») :
+    `POST /groupes/{id}/dons-or`, au hub seulement, depuis un héros qu'on
+    pilote vers n'importe quel héros actif — les règles du don d'objet.
+    `Bourses::donner()` (atomique), inscrit au registre `EtapesCampagne::DONS`
+    à côté de `DonObjet::donner()` ; `groupe.don_or_ouvert` publie la
+    décision (`Bourses::donOuvert()`, la garde de la route). Sur la manette :
+    « Donner de l'or » à côté de la bourse, onglet Sac. Joué par l'interface
+    sur la vraie stack : 300 → 180 et 0 → 120.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

@@ -277,3 +277,72 @@ it('publie la bourse de chaque héros au hub d\'un groupe classique, et null pou
     app(Bourses::class)->payer($campagne, 60, $hero);
     expect((int) $campagne->fresh()->or)->toBe(80);
 });
+
+/*
+ * LE DON D'OR ENTRE HÉROS (René, Q3 : « échange possible entre les quêtes ») — au hub, d'une bourse à une autre.
+ */
+
+it('un héros donne de l\'or à un autre au hub : sa bourse baisse, celle du receveur monte, et l\'état le publie', function () {
+    [$groupe, , $albrecht, , $brunhild] = tableClassiqueADeux(orAlbrecht: 400, orBrunhild: 30);
+    $code = $groupe->identifiant;
+
+    // Le don d'or est OFFERT à ce groupe : décision publiée, la manette ne teste pas le mode.
+    $this->getJson("/api/groupes/{$code}/etat")->assertOk()->assertJsonPath('groupe.don_or_ouvert', true);
+
+    $this->postJson("/api/groupes/{$code}/dons-or", [
+        'personnage_id' => $albrecht->id, 'vers_personnage_id' => $brunhild->id, 'montant' => 120,
+    ])->assertOk()
+        ->assertJsonPath('don_or.montant', 120)
+        ->assertJsonPath('don_or.de.bourse', 280)
+        ->assertJsonPath('don_or.vers.nom', 'Brunhild')
+        ->assertJsonPath('don_or.vers.bourse', 150);
+
+    expect((int) $albrecht->fresh()->or)->toBe(280)
+        ->and((int) $brunhild->fresh()->or)->toBe(150)
+        ->and((int) $groupe->fresh()->or)->toBe(0);
+
+    $prets = collect($this->getJson("/api/groupes/{$code}/etat")->assertOk()->json('groupe.prets'))->keyBy('nom');
+    expect($prets['Albrecht']['bourse'])->toBe(280)
+        ->and($prets['Brunhild']['bourse'])->toBe(150);
+});
+
+it('refuse un don d\'or que la bourse ne couvre pas, à soi-même, depuis le héros d\'un autre, ou en pleine quête', function () {
+    [$groupe, , $albrecht, , $brunhild] = tableClassiqueADeux(orAlbrecht: 50, orBrunhild: 30);
+    $code = $groupe->identifiant;
+    $don = fn (int $de, int $vers, int $montant) => $this->postJson("/api/groupes/{$code}/dons-or", [
+        'personnage_id' => $de, 'vers_personnage_id' => $vers, 'montant' => $montant,
+    ]);
+
+    // Plus que la bourse : refusé, rien ne bouge.
+    expect($don($albrecht->id, $brunhild->id, 80)->assertStatus(422)->json('errors.or.0'))
+        ->toBe('Il manque 30 pièces d\'or à la bourse de Albrecht.');
+    // À soi-même.
+    $don($albrecht->id, $albrecht->id, 10)->assertStatus(422)->assertJsonValidationErrors('vers_personnage_id');
+    // Depuis le héros d'un autre joueur (Alice est connectée, Brunhild est à Bob).
+    $don($brunhild->id, $albrecht->id, 10)->assertStatus(422)->assertJsonValidationErrors('personnage_id');
+    // Un montant nul.
+    $don($albrecht->id, $brunhild->id, 0)->assertStatus(422)->assertJsonValidationErrors('montant');
+
+    // En pleine quête : on ne partage l'or qu'entre les quêtes.
+    $this->postJson("/api/groupes/{$code}/quetes")->assertCreated();
+    $don($albrecht->id, $brunhild->id, 10)->assertStatus(422)->assertJsonValidationErrors('phase');
+
+    expect((int) $albrecht->fresh()->or)->toBe(50)
+        ->and((int) $brunhild->fresh()->or)->toBe(30);
+});
+
+it('n\'offre pas le don d\'or à un groupe à pot commun, et le refuse', function () {
+    $alice = connecterJoueur('alice');
+    $campagne = creerGroupe('table-1');
+    $campagne->update(['or' => 100]);
+    $dagmar = creerHeros($alice, $campagne, 'Dagmar', 1);
+    $edda = creerHeros($alice, $campagne, 'Edda', 2);
+
+    $this->getJson('/api/groupes/table-1/etat')->assertOk()->assertJsonPath('groupe.don_or_ouvert', false);
+
+    $this->postJson('/api/groupes/table-1/dons-or', [
+        'personnage_id' => $dagmar->id, 'vers_personnage_id' => $edda->id, 'montant' => 10,
+    ])->assertStatus(422)->assertJsonValidationErrors('montant');
+
+    expect((int) $campagne->fresh()->or)->toBe(100);
+});

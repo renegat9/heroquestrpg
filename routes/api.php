@@ -206,6 +206,8 @@ Route::middleware('auth:joueur')->group(function () {
     // Don d'un objet à un autre héros du groupe (doc 01 §7) — au hub : répartition
     // du butin. Depuis SES héros vers n'importe quel héros actif du groupe.
     Route::post('/groupes/{identifiant}/dons', [DonController::class, 'donner']);
+    // MODE CLASSIQUE (bourse par héros) : donner de l'OR à un autre héros, au hub — `Bourses::donner()`.
+    Route::post('/groupes/{identifiant}/dons-or', [DonController::class, 'donnerOr']);
 
     // Confier un héros à un autre joueur du groupe, ou le lui reprendre (`pilote_joueur_id: null`) — HUB uniquement.
     // Le PILOTE joue ensuite le héros : équipement, achats, dons, menu (MANETTE À PLUSIEURS HÉROS, lot M1).

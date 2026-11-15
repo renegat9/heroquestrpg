@@ -1,0 +1,31 @@
+// MODE CLASSIQUE : le DON D'OR entre héros, au hub, depuis l'onglet Sac de la manette (`Bourses::donner()`).
+//   node browser-shots/classique-don-or.mjs <code> <ident du donneur> <préfixe> <montant> <nom du receveur>
+import { chromium } from 'playwright';
+const base = 'http://localhost';
+const [code, ident, prefixe, montant, receveur] = process.argv.slice(2);
+const out = '/work/browser-shots/classique';
+const b = await chromium.launch();
+const erreurs = [];
+const ctx = await b.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2 });
+const p = await ctx.newPage();
+p.on('pageerror', (e) => erreurs.push(e.message));
+await p.goto(base + '/joueur', { waitUntil: 'networkidle' });
+await p.fill('input[placeholder="ex. renegat"]', ident);
+await p.click('button:has-text("Entrer")');
+await p.waitForTimeout(2000);
+await p.goto(`${base}/manette/${code}`, { waitUntil: 'networkidle' });
+await p.waitForTimeout(3000);
+await p.click('nav >> text=Sac').catch(() => p.click('text=Sac'));
+await p.waitForTimeout(800);
+const bourse = () => p.evaluate(() => document.querySelector('.sac-bourse')?.innerText.replace(/\s+/g, ' ') ?? null);
+console.log('avant :', await bourse());
+await p.click('.sac-bourse button');
+await p.fill('.don-or-montant', String(montant));
+await p.waitForTimeout(300);
+await p.screenshot({ path: `${out}/${prefixe}-don-or-saisie.png` });
+await p.click(`.don-or button:has-text("${receveur}")`);
+await p.waitForTimeout(2500);
+console.log('après :', await bourse());
+await p.screenshot({ path: `${out}/${prefixe}-don-or-fait.png` });
+console.log('débordement :', await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), '| erreurs :', JSON.stringify(erreurs));
+await b.close();

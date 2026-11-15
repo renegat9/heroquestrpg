@@ -428,6 +428,15 @@ export function useApi() {
         /* Don d'un objet à un autre héros du groupe (hub) — depuis SON héros
            vers n'importe quel héros actif. Le serveur diffuse `.groupe.etat`,
            ce qui fait re-GET /moi à la manette du receveur. */
+        /* MODE CLASSIQUE (bourse par héros) : donner de l'OR à un autre héros actif, au hub. Le serveur diffuse
+           `.groupe.etat`, où chaque héros porte sa bourse à jour. */
+        donnerOr: (identifiant, personnageId, versPersonnageId, montant) =>
+            request('POST', `/groupes/${identifiant}/dons-or`, {
+                personnage_id: personnageId,
+                vers_personnage_id: versPersonnageId,
+                montant,
+            }),
+
         donner: (identifiant, personnageId, inventaireId, versPersonnageId, quantite = 1) =>
             request('POST', `/groupes/${identifiant}/dons`, {
                 personnage_id: personnageId,

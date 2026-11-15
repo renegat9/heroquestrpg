@@ -1074,6 +1074,17 @@ les deux sens par `BoursesPointDePassageTest`. En campagne, rien ne change.
   commun ce refus n'existe qu'à l'application, le total dépendant des paniers des autres.
 - **`entites[].bourse`** (en quête) et **`groupe.prets[].bourse`** (au hub) : la bourse du héros, un entier en
   classique, `null` au pot commun.
+- **`POST /api/groupes/{identifiant}/dons-or`** `{personnage_id, vers_personnage_id, montant}` — un héros donne de
+  l'or à un autre héros actif du groupe, **au hub, entre deux quêtes** (René, Q3 : « échange possible entre les
+  quêtes »). Même autorisation que le don d'objet : on donne DEPUIS un héros qu'on pilote, VERS n'importe quel héros
+  actif ; le receveur n'a rien à confirmer. Répond `{don_or: {montant, de: {personnage_id, nom, bourse},
+  vers: {personnage_id, nom, bourse}}}` + broadcast `.groupe.etat`. **422** : `phase` hors du hub ; `montant` pour un
+  groupe à pot commun (« l'or y est déjà à tous ») ; `vers_personnage_id` si le receveur est le donneur ou n'est pas
+  actif ; `or` si la bourse ne couvre pas (« Il manque N pièces d'or à la bourse de X. »). Point de passage :
+  `Bourses::donner()`.
+- **`groupe.don_or_ouvert`** (bool, hub) : le don d'or est-il offert à ce groupe — `true` pour un groupe classique,
+  `false` au pot commun et en arène. La manette n'affiche « Donner de l'or » que sur ce booléen (`Bourses::donOuvert()`,
+  la même garde que la route) ; elle ne teste pas le mode.
 - **Or gagné en quête** : à la bourse de celui qui le trouve (fouille, épreuve, potion de transmutation, prime
   Peacekeeper) ; un gain que personne ne fait en particulier (reddition d'un monstre, butin de gabarit) est partagé
   également entre les héros actifs, le reste aux premiers dans l'ordre du tour.

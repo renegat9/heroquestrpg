@@ -490,4 +490,9 @@ devient « la bourse de CHAQUE héros ≥ 0 », et la confirmation d'un panier �
 net d'un héros ne dépend que du panier de son pilote, le menu n'offre donc pas ce que l'application refuserait. Le
 serveur publie `EtatMarche.bourses` (solde et projection par héros) ; l'écran lit `bourses !== null`, jamais le mode.
 
-**Pas encore** : l'échange d'or entre héros au hub. La séance d'échange ne déplace que des objets.
+**Le don d'or** (René, Q3 : « échange possible entre les quêtes »). `Bourses::donner()` : un héros donne de l'or à
+un autre, **au hub seulement**, avec les règles d'autorisation du don d'objet (depuis un héros qu'on pilote, vers
+n'importe quel héros actif, sans confirmation du receveur — on joue autour d'une même table). Débit et crédit sont
+atomiques. Il n'existe qu'avec une bourse par héros : au pot commun l'or est déjà à tous, la route répond 422, et
+`groupe.don_or_ouvert` — `Bourses::donOuvert()`, la même garde — dit à la manette de ne pas l'offrir. En pleine quête
+l'or ne circule pas : la séance d'échange y déplace des objets, pas des pièces.

@@ -6,6 +6,8 @@ namespace App\Partie;
 
 use App\Models\Groupe;
 use App\Models\Personnage;
+use App\Partie\Arene\EtapesCampagne;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -133,6 +135,52 @@ final class Bourses
         }
 
         $groupe->decrement('or', $or);
+    }
+
+    /**
+     * Le DON D'OR est-il offert à ce groupe ? Il n'a de sens qu'avec une bourse par héros (au pot commun l'or est déjà
+     * à tous), et là où le don est ouvert (`EtapesCampagne::DONS` : fermé en arène). Lu par {@see donner()} ET publié
+     * (`groupe.don_or_ouvert`) : l'écran n'offre pas ce que la route refuserait.
+     */
+    public function donOuvert(Groupe $groupe): bool
+    {
+        return $this->parHeros($groupe) && $groupe->etapeOuverte(EtapesCampagne::DONS);
+    }
+
+    /**
+     * Un héros DONNE de l'or à un autre (mode classique, René Q3 : « échange possible entre les quêtes »). Le « entre
+     * les quêtes » — au hub — est jugé par l'appelant, comme pour le don d'objet ; ici, la caisse.
+     *
+     * Atomique : la bourse du donneur est débitée et celle du receveur créditée ensemble, ou rien ne bouge.
+     *
+     * @throws ValidationException `montant` (pot commun, montant nul), `vers_personnage_id` (soi-même), `or` (bourse
+     *                             insuffisante)
+     */
+    public function donner(Groupe $groupe, Personnage $donneur, Personnage $receveur, int $montant): void
+    {
+        // Écrit en toutes lettres : `EtapesCampagneTest` cherche cette garde, avec SA clé, dans chaque site déclaré.
+        $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::DONS);
+
+        if (! $this->donOuvert($groupe)) {
+            throw ValidationException::withMessages([
+                'montant' => 'Ce groupe tient une bourse commune : l\'or y est déjà à tous.',
+            ]);
+        }
+
+        if ((int) $donneur->id === (int) $receveur->id) {
+            throw ValidationException::withMessages([
+                'vers_personnage_id' => 'Un héros ne se donne pas d\'or à lui-même.',
+            ]);
+        }
+
+        if ($montant < 1) {
+            throw ValidationException::withMessages(['montant' => 'Le montant doit être d\'au moins une pièce d\'or.']);
+        }
+
+        DB::transaction(function () use ($groupe, $donneur, $receveur, $montant) {
+            $this->payer($groupe, $montant, $donneur);
+            $this->verser($groupe, $montant, $receveur);
+        });
     }
 
     /**

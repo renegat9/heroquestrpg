@@ -25,6 +25,8 @@ const props = defineProps({
     // MODE CLASSIQUE : la bourse de CE héros (`entites[].bourse` / `prets[].bourse`), publiée par le serveur ; `null`
     // quand le groupe tient un pot commun — c'est ce `null` qui décide de la ligne affichée, pas le mode.
     bourse: { type: Number, default: null },
+    // Le don d'or est-il offert à ce groupe ? Décision serveur (`groupe.don_or_ouvert`, la même garde que la route).
+    donOrOuvert: { type: Boolean, default: false },
 });
 /**
  * Les emplacements où équiper cette pièce change VRAIMENT quelque chose.
@@ -45,7 +47,7 @@ function titreEquiper(it, slot) {
     return remplace ? `Remplace ${remplace}, qui retourne au sac` : `Équiper ${it.nom}`;
 }
 
-const emit = defineEmits(['equiper', 'desequiper', 'donner', 'forger', 'boire']);
+const emit = defineEmits(['equiper', 'desequiper', 'donner', 'donner-or', 'forger', 'boire']);
 
 /* ---- Don d'un objet à un compagnon (hub, doc 01 §7). Le sélecteur s'ouvre
    sous la ligne concernée plutôt que dans une modale : le sac est déjà un
@@ -97,6 +99,26 @@ function confirmerDon(inventaireId, versPersonnageId, quantite = 1) {
 // Un don n'a de sens qu'au hub, et qu'avec au moins un compagnon.
 const peutDonner = computed(() => props.auHub && props.compagnons.length > 0);
 
+/* ---- Don d'OR (mode classique). Offert quand le serveur le dit (`donOrOuvert`), au hub, avec un compagnon et une
+   bourse non vide. Le montant est borné à la bourse AFFICHÉE pour ne pas proposer un don voué au refus ; c'est le
+   serveur qui tranche (422 si la bourse ne couvre pas). ---- */
+const peutDonnerOr = computed(() => props.donOrOuvert && peutDonner.value && (props.bourse ?? 0) > 0);
+const donOrEnCours = ref(false);
+const montantOr = ref(null);
+const montantOrValide = computed(() => Number.isInteger(montantOr.value) && montantOr.value >= 1 && montantOr.value <= (props.bourse ?? 0));
+
+function basculerDonOr() {
+    donOrEnCours.value = !donOrEnCours.value;
+    montantOr.value = null;
+}
+
+function confirmerDonOr(versPersonnageId) {
+    if (!montantOrValide.value) return;
+    emit('donner-or', { versPersonnageId, montant: montantOr.value });
+    donOrEnCours.value = false;
+    montantOr.value = null;
+}
+
 // Sac en dépassement : un butin de quête est remis MÊME sac plein (refuser un
 // artefact unique le perdrait à jamais). Le héros régularise en équipant la
 // pièce — elle quitte le sac — ou en écoulant au marché.
@@ -123,6 +145,30 @@ const deborde = computed(() => {
              (`EtatGroupe.groupe.or`), jamais recalculée ici ; même ligne que le recrutement au hub. -->
         <div v-if="bourse !== null" class="sac-bourse">
             <MSym n="paid" fill :size="15" /> Ma bourse : <b>{{ bourse }}</b> or
+            <button v-if="peutDonnerOr" class="sac-btn ghost" :disabled="equipEnCours" @click="basculerDonOr">
+                {{ donOrEnCours ? 'Annuler' : 'Donner de l\'or' }}
+            </button>
+        </div>
+        <div v-if="bourse !== null && donOrEnCours && peutDonnerOr" class="don-cible don-or">
+            <span class="don-lbl">Donner</span>
+            <input
+                v-model.number="montantOr"
+                class="don-or-montant"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                :max="bourse"
+                placeholder="or"
+                aria-label="Montant d'or à donner"
+            >
+            <span class="don-lbl">or à</span>
+            <button
+                v-for="c in compagnons"
+                :key="c.id"
+                class="sac-btn ghost"
+                :disabled="equipEnCours || !montantOrValide"
+                @click="confirmerDonOr(c.id)"
+            >{{ c.nom }}</button>
         </div>
         <div v-else-if="Number.isFinite(orCommun)" class="sac-bourse">
             <MSym n="paid" fill :size="15" /> Bourse commune : <b>{{ orCommun }}</b> or
@@ -402,6 +448,10 @@ const deborde = computed(() => {
     background: var(--panel-2, oklch(0.28 0.02 70 / 0.5));
 }
 .don-cible .sac-btn { margin-left: 0; }
+.don-or { margin: -4px 0 12px; }
+.don-or-montant { width: 74px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--stone-600, #4a4438);
+  background: var(--stone-900, #14110d); color: var(--parch-100, #f1e6cf); font: inherit; font-variant-numeric: tabular-nums; }
+.sac-bourse .sac-btn { margin-left: auto; }
 .don-lbl { font-size: 12px; color: var(--ink-300, #cfc3ad); }
 .sac-charge.trop { color: oklch(0.75 0.16 30); }
 .sac-alerte {
