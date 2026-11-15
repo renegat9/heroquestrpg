@@ -62,12 +62,12 @@ it('répond à initialize par une réponse JSON-RPC valide', function () {
         ->and($reponse['result']['serverInfo']['name'])->toBe('Constructeur de campagnes HeroQuest');
 });
 
-it('liste les neuf outils par tools/list, en JSON-RPC brut', function () {
+it('liste les onze outils par tools/list, en JSON-RPC brut', function () {
     [$reponse] = dialogueMcp(json_encode(['jsonrpc' => '2.0', 'id' => 2, 'method' => 'tools/list']));
 
     expect(collect($reponse['result']['tools'])->pluck('name')->all())->toBe([
-        'catalogues', 'campagnes', 'campagne_lire', 'quete_lire', 'campagne_ecrire',
-        'quete_ecrire', 'valider', 'exporter', 'importer',
+        'catalogues', 'campagnes', 'campagne_lire', 'quete_lire', 'apercu', 'campagne_ecrire',
+        'quete_ecrire', 'quete_modifier', 'valider', 'exporter', 'importer',
     ]);
 });
 

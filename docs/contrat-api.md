@@ -6091,9 +6091,9 @@ génération de quête ; montée de niveau ; forge ; entraînement ; clôture ; 
 (provisoire). **Ouvertes** : adhésion, marché, dons, vote de retraite, purge, instantané, reprise, pilotage. Le
 compagnon animal offert ne s'ouvre pas.
 
-⚠ **Écarts provisoires, écrits** : le paquet de trésor est **vide**, une fouille de salle ne trouve rien (lot K3) ; pas d'alliés ;
-le monstre errant de la quête n'est pas lu (lot K5) ; le marché lit toujours le pot commun, que rien n'alimente en
-classique — acheter avec sa bourse reste à faire.
+⚠ **Écart provisoire, écrit** : pas d'alliés (le recrutement est fermé à un groupe classique). Le paquet de trésor, le
+monstre errant et les notes sont en service depuis le lot K3 ; le marché lit la bourse de chaque héros (« Bourse par
+héros »).
 
 ## Serveur MCP du constructeur (lot P1, 2026-11-13, `docs/plan-mode-classique.md` §8 bis)
 
@@ -6135,9 +6135,10 @@ outil a besoin d'une opération que le service n'offre pas, elle s'ajoute **au s
 Ordre conseillé : `catalogues` → `campagne_lire` (ou `campagnes`) → `campagne_ecrire`, ou `quete_ecrire` pour une seule
 quête → `valider`. **Tout slug de catalogue (mobilier, monstres, pièges, terrain, classes) vient de `catalogues`** ; un
 slug inventé est refusé (`catalogue_inconnu`). Une campagne se rend par quête : `campagne_lire` ne donne pas le détail des
-quêtes, `quete_lire` le donne.
+quêtes, `quete_lire` le donne. Pour une modification ciblée d'une quête, `quete_modifier` évite de réécrire son document ;
+`apercu` rend sa carte en texte, pour la relire après une écriture.
 
-### Outils (9)
+### Outils (11)
 
 Les noms sont en français, sans accent. Chaque outil a une description en français et un schéma d'entrée typé. Les
 entrées sont validées par l'outil (type, présence) ; la validation **du contenu** est celle du service.
@@ -6148,8 +6149,10 @@ entrées sont validées par l'outil (type, présence) ; la validation **du conte
 | `campagnes` | — | `{campagnes: [Résumé…]}` | `CampagnesConstruites::lister()` |
 | `campagne_lire` | `slug` (texte, requis) | le document de la campagne, **quêtes résumées** : chaque quête y est `{rang, slug, titre}` seulement | `CampagnesConstruites::lireSommaire()` |
 | `quete_lire` | `campagne`, `quete` (slugs, requis) | le **document complet** d'UNE quête (l'objet `quete` du §K1) | `CampagnesConstruites::lireQuete()` |
+| `apercu` | `campagne`, `quete` (slugs, requis) | la carte de la quête **en texte** (`text`, sans `structuredContent`) : une ligne par rangée de cases, puis `Légende :` ; erreur d'usage si campagne ou quête inconnue, erreur si le document ne passe plus la validation | `CarteConstruite::apercu()`, sur `CampagnesConstruites::lireQuete()` et `lire()` |
 | `campagne_ecrire` | `document` (objet, requis) | crée ou remplace la campagne entière : `{enregistree: true, campagne: Résumé}` ou `{enregistree: false, refus: [...]}` | `CampagnesConstruites::enregistrer()` |
 | `quete_ecrire` | `campagne` (slug), `quete` (objet, requis), `rang` (entier ≥ 1, facultatif) | même forme que `campagne_ecrire` | `CampagnesConstruites::ecrireQuete()` |
+| `quete_modifier` | `campagne`, `quete` (slugs, requis), `operations` (liste d'au moins une opération `{op, chemin, valeur}`, requise) | même forme que `quete_ecrire` : `{enregistree: true, campagne: Résumé}` ou `{enregistree: false, refus: [...]}` | `CampagnesConstruites::ecrireQuete()`, après application des opérations sur une copie |
 | `valider` | `document` (objet, requis) | `{refus: [...]}` — **rien n'est enregistré** ; liste vide = valide | `CampagnesConstruites::valider()` |
 | `exporter` | `slug` (texte, requis) | le document plus `empreinte` (le fichier de l'export §K1) | `CampagnesConstruites::exporter()` |
 | `importer` | `document` (objet, requis ; `empreinte` acceptée et vérifiée) | même forme que `campagne_ecrire` | `CampagnesConstruites::importer()` |
@@ -6161,13 +6164,39 @@ entrées sont validées par l'outil (type, présence) ; la validation **du conte
   de quêtes **après retrait** de la quête remplacée, plus 1 ; hors de cet intervalle, erreur d'usage (ci-dessous).
   La campagne **entière** est ensuite enregistrée par `enregistrer()` : revalidée, et un refus n'écrit **rien**. Les
   chemins de refus sont ceux de la campagne (`quetes.2.monstres.0.slug`).
+- **`quete_modifier`** : modifie UNE quête sans renvoyer son document. `operations` est une liste ordonnée d'au moins
+  une opération (une liste vide est refusée). Chaque opération est `{op, chemin, valeur}`, vocabulaire FERMÉ :
+  - `op` : `ajouter` (ajoute `valeur` à la fin de la liste désignée), `retirer` (retire l'élément d'index désigné, par
+    exemple `monstres.2` ; **sans** `valeur`), `remplacer` (remplace la valeur désignée). `valeur` est exigée par
+    `ajouter` et `remplacer`, et `null` est une valeur : `remplacer` la met dans `sortie`, `monstre_errant`, `recompense`.
+  - `chemin` : pointé, relatif à la quête (`monstres`, `monstres.2`, `titre`, `fin.libelle`, `depart`). Une clé inconnue
+    d'une opération est refusée, jamais ignorée. `slug` ne se change pas par une opération (`quete_ecrire` pour une autre
+    quête).
+  - Les opérations s'appliquent dans l'ordre, sur une COPIE de la quête. La campagne est ensuite enregistrée par
+    `ecrireQuete()` sans `rang` : la quête garde sa place, et la campagne est revalidée. Un refus de validation n'écrit
+    **rien** et rend ses chemins (`quetes.N.…`), comme `quete_ecrire`.
+  - Une opération fautive (chemin absent, index hors de la liste, `op` inconnu, `ajouter` sur autre chose qu'une liste,
+    `valeur` absente ou en trop) est une **erreur d'usage** qui nomme son rang : « Opération n°2 : … ». Les opérations
+    sont toutes contrôlées avant toute écriture : une opération fautive en 2e place n'écrit pas la 1re.
+  - **Au service, pas à l'outil** : les opérations vivent dans `App\Partie\Classique\OperationsDeQuete`, appliquées et
+    enregistrées par `CampagnesConstruites::modifierQuete()` ; l'outil ne porte que l'entrée et la réponse.
+  - **Clé facultative** : `notes` peut être visée même quand la quête n'en a pas (`ajouter` une première note) ;
+    restée vide, elle n'est pas écrite dans le document.
+- **`apercu`** : rend la carte d'une quête en TEXTE, sans `structuredContent`. Une ligne par rangée de cases, puis
+  `Légende :` avec une ligne par élément (slug et case). Symboles : `.` sol, `#` roche (bloc, salle fermée), `+` porte
+  normale, `?` porte secrète (son côté est dans la légende : un bord de case ne se trace pas), `<` entrée, `>` sortie
+  (si elle est distincte), `M` monstre, `m` meuble (toute son emprise), `^` piège, `~` terrain. C'est la carte produite
+  par `CarteConstruite::produire()`, celle que le moteur jouera. Lecture seule. Une campagne enregistrée avant un
+  contrôle ajouté depuis peut ne plus passer la validation : `apercu` rend alors une erreur
+  (« Document refusé, aucune carte produite : … »), pas une carte.
 - **Un refus de validation n'est PAS une erreur de protocole** : il est rendu dans la réponse, **sans** `isError`, pour
   que l'IA le lise et corrige. `enregistree: false` signale qu'il n'y a rien à relire en base.
 - **`campagne_ecrire` refuse la clé `empreinte`** (`cle_inconnue`) : un fichier exporté passe par `importer`, qui la vérifie
   puis la retire. Le contrat du §K1 ne change pas.
 - **Une erreur d'usage** est une réponse `isError: true` avec un message en français, pour : campagne introuvable
   (« Aucune campagne construite « … ». »), quête introuvable (« La campagne « … » n'a pas de quête « … ». »), `rang` hors
-  de son intervalle, champ requis absent ou de mauvais type.
+  de son intervalle, champ requis absent ou de mauvais type, opération fautive de `quete_modifier` (nommée par son rang),
+  document d'`apercu` qui ne passe plus la validation.
 - **Une réponse trop longue est tronquée côté client** : c'est pourquoi `campagne_lire` ne rend pas les quêtes en entier.
   `exporter` et `importer` rendent le document entier, et seront le premier endroit à surveiller si une campagne grossit.
 

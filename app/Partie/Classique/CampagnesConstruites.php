@@ -78,6 +78,22 @@ final class CampagnesConstruites
     }
 
     /**
+     * Modifie UNE quête par opérations ciblées ({@see OperationsDeQuete}) puis enregistre la campagne ENTIÈRE, donc
+     * revalidée : une opération fautive ou un refus de validation n'écrit rien. La quête garde sa place.
+     *
+     * @param  array<int, mixed>  $operations  `[{op, chemin, valeur?}]`, appliquées dans l'ordre
+     *
+     * @throws ErreurConstructeur campagne ou quête introuvable ; opération fautive, nommée par son rang
+     * @throws RefusCampagne la campagne, une fois la quête modifiée, est refusée
+     */
+    public function modifierQuete(string $slugCampagne, string $slugQuete, array $operations): CampagneConstruite
+    {
+        $quete = app(OperationsDeQuete::class)->appliquer($this->lireQuete($slugCampagne, $slugQuete), $operations);
+
+        return $this->ecrireQuete($slugCampagne, $quete);
+    }
+
+    /**
      * Remplace la quête de même slug, ou l'ajoute, puis enregistre la campagne ENTIÈRE par {@see enregistrer()} : revalidée,
      * donc un refus n'écrit rien.
      *

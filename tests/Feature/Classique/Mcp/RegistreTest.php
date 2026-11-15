@@ -54,8 +54,8 @@ it('sert chaque outil déclaré sous son nom public, exactement ceux du contrat'
     $noms = array_map(fn (string $classe): string => (new $classe)->name(), outilsDeclares());
 
     expect($noms)->toBe([
-        'catalogues', 'campagnes', 'campagne_lire', 'quete_lire', 'campagne_ecrire',
-        'quete_ecrire', 'valider', 'exporter', 'importer',
+        'catalogues', 'campagnes', 'campagne_lire', 'quete_lire', 'apercu', 'campagne_ecrire',
+        'quete_ecrire', 'quete_modifier', 'valider', 'exporter', 'importer',
     ]);
     ServeurConstructeur::tools()->assertRegistered(outilsDeclares());
 });

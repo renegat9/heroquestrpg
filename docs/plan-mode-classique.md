@@ -723,6 +723,15 @@ ni son format, il appelle ce que la route HTTP appelle.
     gobelin, dans la salle. Capture `browser-shots/classique/81-…`.
   - **Écarts écrits** : le réveil de figures inertes (E4) reste une capacité
     de monstre du catalogue, pas un effet de note ; D5–D9, E5, E6, E8 : lot K5.
+- **Fait — lot P2 (2026-11-15)** : `quete_modifier` et `apercu`, le serveur MCP passe à onze outils.
+  - `apercu` rend en texte la carte d'une quête, telle que `CarteConstruite::apercu()` la produit ; lecture seule.
+  - `quete_modifier` applique `ajouter`, `retirer` et `remplacer` sur une copie de la quête, puis enregistre la campagne
+    entière par `ecrireQuete()` : une opération fautive, nommée par son rang, ou un refus de validation n'écrit rien.
+  - Les opérations vivent au SERVICE (`OperationsDeQuete`, par `CampagnesConstruites::modifierQuete()`), comme le
+    contrat le demande : l'agent les avait laissées dans l'outil, déplacées à l'intégration. Une quête sans `notes`
+    peut recevoir sa première note par `ajouter`.
+  - Tests : `tests/Feature/Classique/Mcp/` (`OutilApercuTest`, `OutilQueteModifierTest`, registre et serveur à onze outils).
+    Le raccordement réel depuis Claude Code n'est pas encore éprouvé, comme pour P1.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration
