@@ -634,8 +634,7 @@ ni son format, il appelle ce que la route HTTP appelle.
     sa case, sur le trait du mur, à la table comme sur la manette
     (`browser-shots/classique-deplacement.mjs`). Le repère est discret.
   - **Pas fait** : le générateur garde ses murs en cases (son accolement
-    reste plafonné, comme avant) ; `docs/regles/carte-donjon.md` ne décrit
-    pas encore les murs en arêtes ; une porte de SORTIE n'a pas été revue à
+    reste plafonné, comme avant) ; une porte de SORTIE n'a pas été revue à
     l'écran dans la nouvelle géométrie (elle suit le même dessin que
     l'entrée, et les tests la couvrent).
 - **Fait le 2026-11-15 — le marché sur la bourse du héros** (Q3) :
@@ -670,6 +669,23 @@ ni son format, il appelle ce que la route HTTP appelle.
     décision (`Bourses::donOuvert()`, la garde de la route). Sur la manette :
     « Donner de l'or » à côté de la bourse, onglet Sac. Joué par l'interface
     sur la vraie stack : 300 → 180 et 0 → 120.
+- **Fait le 2026-11-15 — les passages secrets après les murs en arêtes**
+  (René : « tu t'assureras que les passages secrets sont fonctionnels »).
+  - **Ce qui marchait** : la fouille trouve le passage (depuis la salle comme
+    depuis le couloir), il devient une porte fermée sur son arête, s'ouvre
+    depuis sa case, révèle l'autre côté, se franchit en un pas.
+  - **Deux défauts trouvés et corrigés**, tous deux pour une porte SUR ARÊTE
+    seulement : le talent de détection sentait le passage depuis la case d'à
+    côté et pas depuis la sienne ; la Potion de vision ne le voyait que depuis
+    le côté où l'auteur avait écrit la porte. `MoteurPortes::toucheLArete()`
+    est le prédicat commun du contact.
+  - **Tests** : `PassageSecretEnAreteTest` (7, par les vraies routes).
+  - **Joué sur la vraie stack dans les DEUX modes** : en classique (campagne
+    d'essai inventée) — trouvé à la fouille, ouvert, couloir révélé ; en RPG
+    (carte générée, passage forcé sur le groupe d'essai) — roche tant qu'il
+    est caché, porte dans son embrasure une fois trouvé, salle cachée révélée
+    et atteinte. Captures `browser-shots/classique/60…72`.
+  - `docs/regles/carte-donjon.md` décrit enfin les murs en arêtes.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

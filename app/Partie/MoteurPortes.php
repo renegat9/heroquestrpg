@@ -287,8 +287,7 @@ final class MoteurPortes
             // Une porte SUR UNE ARÊTE (carte à murs en arêtes) est à portée quand on se tient sur l'une de ses DEUX cases :
             // elle n'a pas d'embrasure à côté de laquelle se placer.
             if (Grille::porteSurArete($porte)) {
-                [$a, $b] = Grille::casesPorte($porte);
-                if (($a['x'] === $x && $a['y'] === $y) || ($b['x'] === $x && $b['y'] === $y)) {
+                if (self::toucheLArete($porte, $x, $y)) {
                     $trouvees[] = ['index' => $index, 'porte' => $porte];
                 }
 
@@ -302,6 +301,28 @@ final class MoteurPortes
         }
 
         return $trouvees;
+    }
+
+    /**
+     * La case (x, y) TOUCHE-t-elle une porte posée sur une arête ? Oui quand c'est l'une des deux cases dont cette
+     * arête est le bord commun — et seulement celles-là : la case voisine le long du mur touche un mur, pas la porte.
+     *
+     * LE point de passage du « contact » avec une porte sur arête : à portée de main ({@see portesAdjacentes()}) comme
+     * sentie par un talent ({@see detecterSecretesAdjacentes()}). Les deux lisaient « une case de distance » sur la
+     * case où l'auteur a écrit la porte : juste pour une porte à embrasure, qui a une case à elle ; faux ici, où cela
+     * désignait la voisine le long du mur et ignorait celui qui se tient sur la case de la porte.
+     *
+     * @param  array<string, mixed>  $porte
+     */
+    private static function toucheLArete(array $porte, int $x, int $y): bool
+    {
+        foreach (Grille::casesPorte($porte) as $case) {
+            if ($case['x'] === $x && $case['y'] === $y) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -475,7 +496,11 @@ final class MoteurPortes
 
         $reveles = $this->revelerSecretes(
             $groupe, $carte, $personnage,
-            fn (array $porte) => Grille::sontAdjacentes((int) $porte['x'], (int) $porte['y'], $x, $y),
+            // Sur une arête, « adjacente » veut dire qu'on TOUCHE son bord — l'une de ses deux cases. Une porte à
+            // embrasure garde sa géométrie d'origine : une case de distance.
+            fn (array $porte) => Grille::porteSurArete($porte)
+                ? self::toucheLArete($porte, $x, $y)
+                : Grille::sontAdjacentes((int) $porte['x'], (int) $porte['y'], $x, $y),
             'talent',
         );
 
@@ -501,7 +526,12 @@ final class MoteurPortes
     {
         return $this->revelerSecretes(
             $groupe, $carte, $personnage,
-            fn (array $porte) => $grille->ligneDeVue($x, $y, (int) $porte['x'], (int) $porte['y']),
+            // Sur une arête, la porte n'a pas de case : on la voit dès qu'on voit L'UNE des deux cases dont elle est le
+            // bord. Viser la seule case où l'auteur l'a écrite la rendait invisible depuis l'autre côté du mur — le
+            // regard devait traverser le passage qu'il cherchait. Une porte à embrasure garde sa géométrie d'origine.
+            fn (array $porte) => Grille::porteSurArete($porte)
+                ? collect(Grille::casesPorte($porte))->contains(fn (array $c) => $grille->ligneDeVue($x, $y, $c['x'], $c['y']))
+                : $grille->ligneDeVue($x, $y, (int) $porte['x'], (int) $porte['y']),
             'clairvoyance',
         );
     }

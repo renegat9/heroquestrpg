@@ -8,6 +8,8 @@
 # (3-5) · normale (7-10) · longue · tres_longue. Une campagne de plusieurs
 # quêtes est le SEUL moyen d'éprouver le marché : la première ouvre toujours
 # avec 0 or, et rien n'y est achetable.
+#
+# HQ_AU_HUB=1 : reste au hub (personne n'est déclaré prêt).
 set -eu
 D="$(cd "$(dirname "$0")" && pwd)"
 
@@ -88,6 +90,12 @@ if [ -n "$OFFRE" ]; then
   else
     P 1 POST "/groupes/$CODE/compagnon-offert" "{\"mercenaire_id\":$OFFRE}" >/dev/null && echo "  compagnon animal offert : pris (mercenaire $OFFRE, mené par le slot 1)" >&2
   fi
+fi
+# HQ_AU_HUB=1 : s'arrêter AU HUB, sans déclarer personne prêt (tout prêt lance la quête d'office) — pour régler le
+# groupe avant le départ, ou éprouver un écran du hub.
+if [ "${HQ_AU_HUB:-0}" = "1" ]; then
+  echo "$CODE"
+  exit 0
 fi
 for s in $(seq 1 $slot); do P "$s" POST "/groupes/$CODE/pret" "{\"personnage_id\":$(cat "$D/perso-$s.txt"),\"pret\":true}" >/dev/null; done
 echo "$CODE"

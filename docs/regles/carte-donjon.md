@@ -931,3 +931,45 @@ case couverte (l'ancienne reste en `sous_pont`), pose `groupe_id: "pont-N"`, et 
 Règle de tirage : la tuile Glace magique (`effet.pont`) est EXCLUE du tirage aléatoire de `AssembleurCarte::placerTerrains()`. Un
 thème glacé ne doit jamais poser un pont sur une carte où personne n'en a lu. Le juge de ce qui se couvre est
 `MoteurSorts::elementsPontables()` (voir `sorts-heros.md`) — jamais cette méthode d'écriture seule.
+
+## MURS EN ARÊTES ET PORTES SUR UNE ARÊTE — les cartes construites (mode classique, 2026-11-14/15)
+
+**Deux géométries cohabitent, et chaque porte dit la sienne.** Une carte GÉNÉRÉE (mode RPG, `AssembleurCarte`) garde
+ses murs en CASES et ses portes à EMBRASURE (`Grille::caseEmbrasure()`, ci-dessus) : rien n'y a changé, elle rend
+`murs: []`. Une carte CONSTRUITE (mode classique, `CarteConstruite`) suit le plateau : une salle est exactement ses
+cases, deux salles peuvent se toucher, un mur est le **bord commun de deux cases** (`grille['murs']`,
+`Grille::definirMurs()`), et une porte est une arête ouvrable — `arete: true` sur la porte, lu par
+`Grille::porteSurArete()`. Les murs en arêtes S'AJOUTENT aux cases de roche, ils ne les remplacent pas : c'est ce qui a
+permis de ne toucher ni aux campagnes en cours ni au générateur.
+
+**Un seul test d'arête** : `Grille::areteBloquee()` — mur et porte close y passent ensemble, pour le pas, la vue, les
+rayons, les poussées. Le brouillard le lit aussi (il avait sa propre copie, sur les portes seules).
+
+**Une porte sur une arête n'a pas de case à elle.** Trois lecteurs en dépendent, et tous trois lisaient d'abord « la
+case où la porte est écrite », ce qui est juste pour une embrasure et faux pour un bord :
+
+- **À portée de main** (`MoteurPortes::portesAdjacentes()`) : on se tient sur l'une de ses DEUX cases. Ni la voisine le
+  long du mur, ni la case d'en face en diagonale.
+- **Sentie par un talent** (`detecterSecretesAdjacentes()`, « Parler à la pierre ») : la même règle, par le même
+  prédicat (`MoteurPortes::toucheLArete()`). Trouvé le 2026-11-15 : le talent testait « à une case de la case écrite »,
+  donc il sentait le passage depuis la case d'À CÔTÉ — qui touche un mur — et ne le sentait pas depuis la case dont le
+  passage est le bord.
+- **Vue par la Potion de vision** (`revelerSecretesEnVue()`) : on la voit dès qu'on voit l'UNE de ses deux cases.
+  Trouvé le même jour : viser la seule case écrite rendait le passage invisible depuis l'autre côté du mur, le regard
+  devant traverser le passage qu'il cherchait. ⚠ Et « la case écrite » dépend de l'auteur : une porte posée côté ouest
+  (`cote: 'o'`) est normalisée sur la case de GAUCHE, donc hors de la salle — la potion bue dans la salle ne la voyait
+  jamais.
+
+Une porte à EMBRASURE garde ses trois géométries d'origine, inchangées : les deux branches sont gardées par
+`porteSurArete()`.
+
+**Le passage secret sur une arête.** Non trouvé, il est publié COMME UN MUR (`carte.murs`) et n'est pas publié comme
+porte ; il bloque le pas et la vue. La fouille de zone le révèle depuis la salle comme depuis le couloir (une porte est
+dans la zone si l'une de ses deux cases y tombe) ; trouvé, il devient une porte FERMÉE sur son arête, le mur qui le
+déguisait n'est plus publié, et ce qu'il cache reste dans le brouillard — trouver n'est pas franchir. Ouvert depuis sa
+case, il révèle l'autre côté et se franchit en un pas. → `PassageSecretEnAreteTest` (7 tests, par les vraies routes),
+`MursEnAretesEnJeuTest`.
+
+⚠ **Limite connue, écrite** : une carte construite n'a pas d'état de découverte pour ses COULOIRS. Ouvrir une porte qui
+donne sur un couloir les révèle donc tous, et avec eux les portes qu'on voit depuis un couloir (vu à l'écran le
+2026-11-15). Les salles, elles, restent cachées. À reprendre avec le lot K5.
