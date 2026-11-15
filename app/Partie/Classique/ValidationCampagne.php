@@ -45,10 +45,8 @@ final class ValidationCampagne
     public const SLUG_NON_CONCORDANT = 'slug_non_concordant';
     public const EMPREINTE_INVALIDE = 'empreinte_invalide';
 
-    // Lot K2 — la géométrie du moteur (un mur est une case) : `docs/contrat-api.md` « Géométrie : une salle, son anneau ».
-    public const ANNEAU_HORS_PLATEAU = 'anneau_hors_plateau';
-    public const ANNEAU_SUR_SALLE = 'anneau_sur_salle';
-    public const POSE_SUR_MUR = 'pose_sur_mur';
+    // Lot K2, repris le 2026-11-14 pour les MURS EN ARÊTES : une salle n'a plus d'anneau de murs — ses murs sont le
+    // pourtour de ses cases. Les refus `anneau_hors_plateau`, `anneau_sur_salle` et `pose_sur_mur` n'existent plus.
     public const DEPART_HORS_SALLE = 'depart_hors_salle';
     public const PORTE_DANS_LA_ROCHE = 'porte_dans_la_roche';
     public const MOBILIER_HORS_SALLE = 'mobilier_hors_salle';
@@ -65,7 +63,7 @@ final class ValidationCampagne
         self::CATALOGUE_INCONNU, self::CLASSE_INCONNUE, self::HORS_PLATEAU, self::DANS_SALLE_FERMEE,
         self::BLOC_HORS_COULOIR, self::DEPART_INVALIDE, self::PORTE_SANS_BORD, self::SLUG_NON_CONCORDANT,
         self::EMPREINTE_INVALIDE,
-        self::ANNEAU_HORS_PLATEAU, self::ANNEAU_SUR_SALLE, self::POSE_SUR_MUR, self::DEPART_HORS_SALLE,
+        self::DEPART_HORS_SALLE,
         self::PORTE_DANS_LA_ROCHE, self::MOBILIER_HORS_SALLE, self::CASE_PARTAGEE, self::CIBLE_INCONNUE,
     ];
 
@@ -160,7 +158,7 @@ final class ValidationCampagne
      */
     private array $occupees = [];
 
-    /** @var array<string, true> embrasures déjà ouvertes par une porte de la quête en cours : « x,y » */
+    /** @var array<string, true> BORDS de case déjà pris par une porte de la quête en cours (`cleBord()`) */
     private array $embrasures = [];
 
     /**
@@ -322,11 +320,6 @@ final class ValidationCampagne
             if ($x < 0 || $y < 0 || ($this->dimensions !== null
                 && ($x + $l > $this->dimensions[0] || $y + $h > $this->dimensions[1]))) {
                 $this->refuser($chemin, self::SALLE_HORS_PLATEAU, "la salle « $id » sort du plateau");
-            } elseif ($this->dimensions !== null && ($x + $l + 1 > $this->dimensions[0] || $y + $h + 1 > $this->dimensions[1]
-                || $x < 1 || $y < 1)) {
-                // Lot K2 : l'intérieur tient sur le plateau, mais son ANNEAU de murs (une case de plus, tout autour) non.
-                $this->refuser($chemin, self::ANNEAU_HORS_PLATEAU,
-                    "l'anneau de mur de la salle « $id » sort du plateau (une salle reste à une case du bord)");
             }
 
             foreach ($rectangles as $autre) {
@@ -341,30 +334,6 @@ final class ValidationCampagne
         }
 
         $this->salles = $rectangles;
-        $this->anneauxSurSalles();
-    }
-
-    /**
-     * Lot K2 : l'anneau de mur d'une salle ne recouvre JAMAIS l'intérieur d'une autre (`anneau_sur_salle`). Deux anneaux
-     * peuvent se partager des cases ; un anneau sur l'intérieur d'une autre salle ferait de celle-ci de la roche.
-     * Testé dans les DEUX sens (A sur B, puis B sur A). Deux intérieurs qui se chevauchent sont déjà refusés en amont.
-     */
-    private function anneauxSurSalles(): void
-    {
-        foreach ($this->salles as $a) {
-            foreach ($this->salles as $b) {
-                if ($a['id'] === $b['id'] || $this->interieursSeChevauchent($a, $b)) {
-                    continue;
-                }
-                // Intersection de l'anneau de A (le rectangle A élargi d'une case) avec l'intérieur de B.
-                $recouvre = $a['x'] - 1 <= $b['x'] + $b['l'] - 1 && $b['x'] <= $a['x'] + $a['l']
-                    && $a['y'] - 1 <= $b['y'] + $b['h'] - 1 && $b['y'] <= $a['y'] + $a['h'];
-                if ($recouvre) {
-                    $this->refuser("plateau.salles.{$a['i']}", self::ANNEAU_SUR_SALLE,
-                        "l'anneau de mur de la salle « {$a['id']} » recouvre l'intérieur de la salle « {$b['id']} »");
-                }
-            }
-        }
     }
 
     /** @param  array{x: int, y: int, l: int, h: int}  $a  @param  array{x: int, y: int, l: int, h: int}  $b */
@@ -447,8 +416,8 @@ final class ValidationCampagne
     }
 
     /**
-     * `portes` (lot K2 — la géométrie du moteur, `docs/contrat-api.md` « Géométrie »). Une porte se pose sur une case
-     * d'INTÉRIEUR d'une salle ouverte ; son embrasure est la case juste au-delà du côté, sur l'anneau de la salle.
+     * `portes` (`docs/contrat-api.md` « Géométrie »). Une porte se pose sur une case d'une salle ouverte, du côté
+     * `cote` : c'est le BORD COMMUN de cette case et de sa voisine (murs en arêtes, 2026-11-14).
      */
     private function portes(array $quete, string $chemin): void
     {
@@ -470,10 +439,9 @@ final class ValidationCampagne
     }
 
     /**
-     * La case d'intérieur (x, y) est dans une salle OUVERTE. E, la case juste au-delà du côté, est l'embrasure ; elle ne
-     * peut pas être dans la même salle (`porte_sans_bord`). O, la case juste dehors, doit être du COULOIR ou l'intérieur
-     * d'une autre salle ouverte, sinon la porte donne dans la roche (`porte_dans_la_roche`). Une O hors plateau reste
-     * `porte_sans_bord`, comme en K1. Deux portes sur une même embrasure : `case_partagee`.
+     * La case (x, y) est dans une salle OUVERTE. Sa VOISINE du côté `cote`, à un pas, ne peut pas être dans la même
+     * salle ni hors du plateau (`porte_sans_bord`) ; elle doit être du COULOIR ou une case d'une autre salle ouverte,
+     * sinon la porte donne dans la roche (`porte_dans_la_roche`). Deux portes sur un même bord : `case_partagee`.
      */
     private function porteSurUnBord(array $cellule, string $cote, string $position): void
     {
@@ -488,39 +456,48 @@ final class ValidationCampagne
             return;
         }
 
+        // MURS EN ARÊTES : la porte est le BORD de la case (x, y) du côté `cote`. La case VOISINE, à un pas, est ce sur
+        // quoi elle donne : un couloir, ou une case d'une autre salle ouverte quand les deux salles se touchent.
         [$dx, $dy] = self::DECALAGES[$cote];
-        [$ex, $ey] = [$x + $dx, $y + $dy];
-        [$ox, $oy] = [$x + 2 * $dx, $y + 2 * $dy];
+        [$ox, $oy] = [$x + $dx, $y + $dy];
         if (!$this->dansPlateau($ox, $oy)) {
             $this->refuser($position, self::PORTE_SANS_BORD, "le côté « $cote » donne hors du plateau");
 
             return;
         }
-        if ($this->salleEn($ex, $ey) === $salle) {
+        $voisine = $this->salleEn($ox, $oy);
+        if ($voisine === $salle) {
             $this->refuser($position, self::PORTE_SANS_BORD, "le côté « $cote » reste dans la même salle");
 
             return;
         }
-
-        $voisine = $this->salleEn($ox, $oy);
-        $dansLaRoche = $voisine !== null ? !isset($this->ouvertes[$voisine]) : $this->dansUnAnneau($ox, $oy);
-        if ($dansLaRoche) {
+        if ($voisine !== null && !isset($this->ouvertes[$voisine])) {
             $this->refuser($position, self::PORTE_DANS_LA_ROCHE,
-                "le côté « $cote » donne sur de la roche : une salle fermée, ou le mur d'une salle qui n'est pas partagée");
+                "le côté « $cote » donne sur de la roche : la salle « $voisine » est fermée dans cette quête");
 
             return;
         }
 
-        if (isset($this->embrasures["$ex,$ey"])) {
-            $this->refuser($position, self::CASE_PARTAGEE,
-                "une autre porte ouvre déjà l'embrasure ($ex, $ey)");
+        $bord = self::cleBord($x, $y, $cote);
+        if (isset($this->embrasures[$bord])) {
+            $this->refuser($position, self::CASE_PARTAGEE, "une autre porte occupe déjà ce bord de la case ($x, $y)");
         }
-        $this->embrasures["$ex,$ey"] = true;
+        $this->embrasures[$bord] = true;
+    }
+
+    /** La clé d'un BORD de case — le même pour les deux cases qui le partagent. */
+    private static function cleBord(int $x, int $y, string $cote): string
+    {
+        [$dx, $dy] = self::DECALAGES[$cote];
+        $a = "$x,$y";
+        $b = ($x + $dx).','.($y + $dy);
+
+        return $a <= $b ? "$a|$b" : "$b|$a";
     }
 
     /**
-     * `blocs` : cases de COULOIR, c'est-à-dire hors de toute salle (ouverte ou non) et hors de tout anneau (lot K2 :
-     * `pose_sur_mur` sur un anneau). Un bloc ne partage sa case avec rien.
+     * `blocs` : cases de COULOIR, c'est-à-dire hors de toute salle (ouverte ou non). Un bloc ne partage sa case avec
+     * rien.
      */
     private function blocs(array $quete, string $chemin): void
     {
@@ -540,8 +517,6 @@ final class ValidationCampagne
             if ($this->salleEn($x, $y) !== null) {
                 $this->refuser($position, self::BLOC_HORS_COULOIR,
                     'un bloc se pose sur une case de couloir, pas dans une salle');
-            } elseif ($this->dansUnAnneau($x, $y)) {
-                $this->refuser($position, self::POSE_SUR_MUR, "un bloc se pose sur l'anneau de mur d'une salle");
             } else {
                 $this->occuper([[$x, $y]], 'bloc', $position, 'le bloc');
             }
@@ -550,8 +525,8 @@ final class ValidationCampagne
 
     /**
      * `mobilier`, `monstres`, `pieges`, `terrain` : un slug de catalogue (`catalogue_inconnu`), une case hors salle fermée
-     * (`dans_salle_fermee`), un anneau de mur (`pose_sur_mur`, sauf pour le mobilier : son emprise répond à part, par
-     * `mobilier_hors_salle`), et un partage de case (`case_partagee`). Seul un élément VALIDE occupe sa case.
+     * (`dans_salle_fermee`), l'emprise d'un meuble entière dans sa salle (`mobilier_hors_salle`), et un partage de
+     * case (`case_partagee`). Seul un élément VALIDE occupe sa case.
      */
     private function poses(array $quete, string $chemin, string $cle, string $couche, bool $tourne = false): void
     {
@@ -576,10 +551,6 @@ final class ValidationCampagne
             [$x, $y] = $cellule;
             $nom = "« $slug »";
 
-            if ($couche !== 'mobilier' && $this->dansUnAnneau($x, $y)) {
-                $this->refuser($position, self::POSE_SUR_MUR, "$nom tombe sur l'anneau de mur d'une salle");
-                continue;
-            }
             if ($this->salleFermeeEn($x, $y)) {
                 $this->refuser($position, self::DANS_SALLE_FERMEE, "$nom tombe dans une salle fermée");
                 continue;
@@ -708,18 +679,18 @@ final class ValidationCampagne
                 return;
             }
             [$dx, $dy] = self::DECALAGES[$cote];
-            [$ex, $ey] = [$x + $dx, $y + $dy];
-            if ($this->salleEn($ex, $ey) === $salle) {
+            if ($this->salleEn($x + $dx, $y + $dy) === $salle) {
                 $this->refuser($position, self::PORTE_SANS_BORD, "$role : le côté « $cote » reste dans la même salle");
 
                 return;
             }
-            if (isset($this->embrasures["$ex,$ey"])) {
-                $this->refuser($position, self::CASE_PARTAGEE, "$role : une autre porte occupe déjà le mur en ($ex, $ey)");
+            $bord = self::cleBord($x, $y, $cote);
+            if (isset($this->embrasures[$bord])) {
+                $this->refuser($position, self::CASE_PARTAGEE, "$role : une autre porte occupe déjà ce bord de la case ($x, $y)");
 
                 return;
             }
-            $this->embrasures["$ex,$ey"] = true;
+            $this->embrasures[$bord] = true;
             $this->occuper([[$x, $y]], 'escalier', $position, "la case de la porte de $role");
 
             return;
@@ -785,22 +756,6 @@ final class ValidationCampagne
     public static function empriseMeuble(int $largeur, int $hauteur, int $rotation): array
     {
         return in_array($rotation, [90, 270], true) ? [$hauteur, $largeur] : [$largeur, $hauteur];
-    }
-
-    /** Une case d'ANNEAU : dans le rectangle moteur d'une salle (mur compris), et pas dans son intérieur. */
-    private function dansUnAnneau(int $x, int $y): bool
-    {
-        foreach ($this->salles as $salle) {
-            $dansLeRectangle = $x >= $salle['x'] - 1 && $x <= $salle['x'] + $salle['l']
-                && $y >= $salle['y'] - 1 && $y <= $salle['y'] + $salle['h'];
-            $dansLInterieur = $x >= $salle['x'] && $x < $salle['x'] + $salle['l']
-                && $y >= $salle['y'] && $y < $salle['y'] + $salle['h'];
-            if ($dansLeRectangle && ! $dansLInterieur) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /** `recompense` : `null` (aucune), ou `{or, partage}`. */

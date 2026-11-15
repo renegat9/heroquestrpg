@@ -593,6 +593,46 @@ ni son format, il appelle ce que la route HTTP appelle.
   - **Limite** : un escalier de sortie distinct est joué et publié, mais il
     n'y a toujours qu'UN escalier dans `carte.escalier` ; le second passe par
     `carte.acces`.
+- **MURS EN ARÊTES — fait le 2026-11-14/15.** René : « si on veut respecter
+  le plateau, il faudrait que les portes entre deux salles ne soient pas une
+  case mais le bord commun entre deux cases ». La géométrie du lot K2 (anneau
+  de cases de mur) est REMPLACÉE pour les quêtes construites. C'est le
+  chantier de `docs/plan-murs-en-aretes.md`, mené autrement que prévu : les
+  murs en arêtes S'AJOUTENT aux cases de roche au lieu de les remplacer.
+  - **Pourquoi ajouter et non remplacer** : les cartes des campagnes en cours
+    et le générateur ne sont pas touchés (une carte sans `murs` se comporte
+    exactement comme avant) ; la roche reste pour les salles fermées et le
+    dehors, ce qui garde son sens à Traverser la Pierre ; aucune migration.
+    Les quatre questions ouvertes du plan de septembre sont ainsi tranchées.
+  - **Étape 1, la grille** (`1d02650`) : `Grille::definirMurs()` ; UN test
+    d'arête, `areteBloquee()` (ex-`porteBloqueEntre`, 36 appels renommés) —
+    mur et porte close y passent ensemble, pour le pas, la vue, les rayons,
+    les poussées ; `porteSurArete()` (une porte sans embrasure) ; la vue en
+    diagonale s'arrête sur un coin fermé. Le plan craignait de devoir
+    réécrire la ligne de vue : elle testait déjà l'arête à chaque pas.
+  - **Étape 2, les lecteurs** : le brouillard s'arrête aux murs (il avait sa
+    propre copie du test d'arête, sur les portes seules) ; une porte sur une
+    arête est à portée depuis l'une de ses DEUX cases ; un passage secret non
+    trouvé est publié comme un mur ; `carte.murs` publié sous le brouillard.
+  - **Étape 3, les quêtes construites** : une salle est exactement ses
+    cases, deux salles peuvent se toucher, une porte est le bord de sa case.
+    Les refus `anneau_hors_plateau`, `anneau_sur_salle` et `pose_sur_mur`
+    disparaissent. `AssembleurCarte` rend `murs: []` pour la parité des clés.
+  - **Étape 4, l'écran** : murs en traits, portes à cheval sur leur bord,
+    portes d'accès sur le côté de leur case.
+  - **Tests** : `MursEnAretesTest` (6, dont la COMPARAISON demandée par le
+    plan : 576 paires de cases, murs fins contre murs épais, sans
+    divergence) ; `MursEnAretesEnJeuTest` (4, par les vraies routes) ; les
+    tests de géométrie de la carte construite réécrits, aperçu compris.
+  - **Vu à l'écran** sur la vraie stack, avec la campagne d'essai inventée
+    redessinée (vestibule et salle des gardes accolés) : murs en traits,
+    porte sur le bord commun, ouverte depuis sa case, salle voisine révélée
+    avec sa table et ses gobelins ; aucune erreur aux journaux.
+  - **Pas fait** : le générateur garde ses murs en cases (son accolement
+    reste plafonné, comme avant) ; `docs/regles/carte-donjon.md` ne décrit
+    pas encore les murs en arêtes ; la manette (carte de déplacement) reçoit
+    le même dessin, mais je ne l'ai pas regardée ; une porte d'accès n'a été
+    vue à l'écran que dans l'ancienne géométrie.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

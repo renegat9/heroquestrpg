@@ -103,24 +103,6 @@ function casDeRefus(): array
 
             return classiqueRefus($doc);
         }],
-        'l\'anneau d\'une salle sort du plateau' => [ValidationCampagne::ANNEAU_HORS_PLATEAU, function (): array {
-            $doc = DocumentExemple::campagne();
-            $doc['plateau']['salles'][0]['x'] = 0; // entree : l'intérieur tient, son mur de gauche tombe en x = -1
-
-            return classiqueRefus($doc);
-        }],
-        'l\'anneau d\'une salle recouvre l\'intérieur d\'une autre' => [ValidationCampagne::ANNEAU_SUR_SALLE, function (): array {
-            $doc = DocumentExemple::campagne();
-            $doc['plateau']['salles'][1]['x'] = 7; // galerie : intérieur en x 7–10, sans chevaucher entree, mais son mur de gauche (x 6) couvre entree
-
-            return classiqueRefus($doc);
-        }],
-        'un monstre posé sur un mur' => [ValidationCampagne::POSE_SUR_MUR, function (): array {
-            $doc = DocumentExemple::campagne();
-            $doc['quetes'][0]['monstres'][0] = ['slug' => 'gobelin', 'x' => 1, 'y' => 4]; // mur de gauche d'entree
-
-            return classiqueRefus($doc);
-        }],
         'départ hors salle (en couloir)' => [ValidationCampagne::DEPART_HORS_SALLE, function (): array {
             $doc = DocumentExemple::campagne();
             $doc['quetes'][0]['depart'] = ['x' => 12, 'y' => 9]; // couloir : le départ depuis un couloir attend le lot K5
@@ -337,7 +319,7 @@ it('refuse chaque couple d\'éléments qui ne peuvent pas partager une case, et 
     'un bloc et un monstre (gobelin sur le bloc)' => [['monstres', ['slug' => 'gobelin', 'x' => 11, 'y' => 7]], 'quetes.0.monstres.1'],
     'un bloc et un piège (fosse sur le bloc)' => [['pieges', ['slug' => 'fosse', 'x' => 11, 'y' => 7]], 'quetes.0.pieges.1'],
     'un bloc et un terrain (glace sur le bloc)' => [['terrain', ['slug' => 'glace-glissante', 'x' => 11, 'y' => 7]], 'quetes.0.terrain.1'],
-    'deux portes sur une même embrasure' => [['portes', ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale']], 'quetes.0.portes.3'],
+    'deux portes sur un même bord de case' => [['portes', ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale']], 'quetes.0.portes.3'],
 ]);
 
 it('n\'impose aucun partage refusé entre un piège ou un terrain et un meuble ou un monstre (décision K2)', function () {
@@ -365,11 +347,14 @@ it('une porte entre deux salles ouvertes qui partagent un mur est valide (l\'exe
         ->and(classiqueRefus($doc))->toBe([]);
 });
 
-it('un anneau qui touche le bord sans en sortir est accepté : une salle à une case du bord', function () {
-    $doc = DocumentExemple::campagne();
-    $doc['plateau']['salles'][0]['x'] = 1; // entree : son mur de gauche tombe en x = 0, encore sur le plateau
+it('accepte deux salles qui se touchent et une salle au bord du plateau : il n\'y a plus d\'anneau de murs', function () {
+    // L'exemple lui-même : `entree` (x 2–6) et `galerie` (x 7–10) partagent un bord.
+    expect(classiqueRefus(DocumentExemple::campagne()))->toBe([]);
 
-    expect(array_column(classiqueRefus($doc), 'code'))->not->toContain(ValidationCampagne::ANNEAU_HORS_PLATEAU);
+    // Une salle collée au bord gauche du plateau.
+    $doc = DocumentExemple::campagne();
+    $doc['plateau']['salles'][3] = ['id' => 'reserve', 'x' => 0, 'y' => 9, 'l' => 2, 'h' => 3];
+    expect(classiqueRefus($doc))->toBe([]);
 });
 
 

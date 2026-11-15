@@ -18,7 +18,7 @@
       },
       {
         "id": "salle-des-gardes",
-        "x": 8,
+        "x": 7,
         "y": 2,
         "l": 5,
         "h": 4
@@ -99,7 +99,7 @@
       "monstres": [
         {
           "slug": "gobelin",
-          "x": 12,
+          "x": 11,
           "y": 2
         },
         {

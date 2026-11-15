@@ -492,6 +492,9 @@ final class AssembleurCarte
             'cases' => $cases,
             'salles' => $salles,
             'portes' => $portes,
+            // MURS EN ARÊTES (2026-11-14) : aucun sur une carte générée, dont les murs sont des CASES. La clé existe pour
+            // que les deux producteurs de carte (celui-ci et `CarteConstruite`) rendent la même forme.
+            'murs' => [],
             // Liste des arêtes de l'arbre (doc « fog » à venir) : quelle porte
             // relie quelles deux salles — clé additive, ne casse aucun
             // consommateur existant de `salles`/`portes`.

@@ -32,8 +32,8 @@ function troisiemeQueteInventee(): array
         'portes' => [],
         'blocs' => [],
         'mobilier' => [],
-        // Un gobelin dans `galerie` (8..11 × 2..5), hors de l'escalier (8..9 × 2..3) : la cible de la condition de fin.
-        'monstres' => [['slug' => 'gobelin', 'x' => 11, 'y' => 5]],
+        // Un gobelin dans `galerie` (7..10 × 2..5), hors de l'escalier (8..9 × 2..3) : la cible de la condition de fin.
+        'monstres' => [['slug' => 'gobelin', 'x' => 10, 'y' => 5]],
         'pieges' => [],
         'terrain' => [],
         'depart' => ['x' => 8, 'y' => 2],
@@ -114,8 +114,8 @@ it('refuse une quête invalide, nomme le chemin, et ne modifie RIEN en base', fu
     $avantCampagne = app(CampagnesConstruites::class)->lire('campagne-d-essai');
     $avantProjection = QueteConstruite::query()->orderBy('rang')->get(['rang', 'slug', 'document'])->toArray();
 
-    // Le départ tombe dans l'INTÉRIEUR de « entree » (2..6 × 2..5), que cette quête ferme : refus de la CAMPAGNE, la
-    // quête est à l'index 2. (Avant le lot K2 le test visait (1,1), devenue une case d'anneau de mur.)
+    // Le départ tombe dans « entree » (2..6 × 2..5), que cette quête ferme : refus de la CAMPAGNE, la quête est à
+    // l'index 2.
     $quete = troisiemeQueteInventee();
     $quete['depart'] = ['x' => 3, 'y' => 3];
 

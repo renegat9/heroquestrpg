@@ -568,6 +568,8 @@ final class EtatGroupe
             // escalier de sortie distinct de l'entrée — ce que `escalier` ne montre pas déjà. Voir `acces()`.
             'acces' => $this->acces($quete, $cases),
             'portes' => $portes,
+            // MURS EN ARÊTES : les murs que l'écran dessine en traits, sous le brouillard. Voir `murs()`.
+            'murs' => $this->murs($carte, $cases),
         ];
     }
 
@@ -606,7 +608,9 @@ final class EtatGroupe
         // au-dessus).
         foreach ($aretes as $arete) {
             $etatArete = (string) ($arete['etat'] ?? 'ouverte');
-            if ($etatArete === MoteurPortes::ETAT_SECRETE && ! ($arete['revele'] ?? false)) {
+            // Une porte SUR UNE ARÊTE n'a pas de case à peindre : non trouvée, son arête est publiée comme un MUR
+            // (`murs()`), et rien ne la distingue du mur qui la prolonge.
+            if ($etatArete === MoteurPortes::ETAT_SECRETE && ! ($arete['revele'] ?? false) && ! Grille::porteSurArete($arete)) {
                 $embrasure = Grille::caseEmbrasure($arete, $salles);
                 $cases[$embrasure['y']][$embrasure['x']] = 'm';
             }
@@ -627,7 +631,7 @@ final class EtatGroupe
             ->get(['position_x', 'position_y'])
             ->map(fn ($e) => ['x' => (int) $e->position_x, 'y' => (int) $e->position_y])
             ->all();
-        $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $aretes, $positionsHeros);
+        $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $aretes, $positionsHeros, (array) ($carte->grille['murs'] ?? []));
 
         return $cases;
     }
@@ -647,7 +651,7 @@ final class EtatGroupe
      * @param  list<array{x: int, y: int, etat: string}>  $portes
      * @return list<list<string>>
      */
-    private function appliquerBrouillard(array $cases, array $salles, array $decouvertes, array $portes, array $positionsHeros = []): array
+    private function appliquerBrouillard(array $cases, array $salles, array $decouvertes, array $portes, array $positionsHeros = [], array $murs = []): array
     {
         if ($salles === []) {
             return $cases; // pas de métadonnées de salle (vieille carte) : rien à masquer
@@ -663,6 +667,12 @@ final class EtatGroupe
         foreach ($portes as $porte) {
             [$a, $b] = Grille::casesPorte($porte);
             $porteArete[Grille::cleArete($a['x'], $a['y'], $b['x'], $b['y'])] = (string) ($porte['etat'] ?? 'ouverte');
+        }
+        // MURS EN ARÊTES : un mur ferme son arête au brouillard comme une porte close — sans quoi la vue fuirait d'une
+        // salle vers le couloir qui la longe, à travers un mur qui n'occupe plus de case.
+        foreach ($murs as $mur) {
+            [$a, $b] = Grille::casesPorte($mur);
+            $porteArete[Grille::cleArete($a['x'], $a['y'], $b['x'], $b['y'])] = 'mur';
         }
         $porteFermeeEntre = fn (int $x1, int $y1, int $x2, int $y2): bool => (($porteArete[Grille::cleArete($x1, $y1, $x2, $y2)] ?? 'ouverte') !== 'ouverte');
 
@@ -791,7 +801,10 @@ final class EtatGroupe
                     'y' => (int) $p['y'],
                     'cote' => (string) ($p['cote'] ?? 'e'), // arête EST ('e') ou SUD ('s')
                     'etat' => $etatBrut,
-                    'embrasure' => Grille::caseEmbrasure($p, $salles),
+                    // Une porte SUR UNE ARÊTE (carte à murs en arêtes) n'a pas d'embrasure : `arete: true`, et l'écran la
+                    // dessine sur le bord commun de ses deux cases. La décision est publiée, jamais déduite.
+                    'embrasure' => Grille::porteSurArete($p) ? null : Grille::caseEmbrasure($p, $salles),
+                    'arete' => Grille::porteSurArete($p),
                 ];
                 // ⚠ Une illustration PAR ÉTAT : c'est l'état qui porte
                 // l'information, une image unique rendrait une porte close et
@@ -1051,10 +1064,48 @@ final class EtatGroupe
     }
 
     /**
+     * LES MURS EN ARÊTES visibles (`cartes.grille.murs`) : `[{x, y, cote}]`, le mur séparant la case (x, y) de sa voisine
+     * EST (`e`) ou SUD (`s`). Vide pour une carte à murs en cases.
+     *
+     * Sous le brouillard : un mur est publié quand l'UNE de ses deux cases est visible — on voit le mur de la salle où
+     * l'on se tient, pas ce qu'il y a derrière. Un passage secret NON TROUVÉ posé sur une arête est publié ici comme
+     * un mur ordinaire : rien ne le trahit.
+     *
+     * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
+     * @return list<array{x: int, y: int, cote: string}>
+     */
+    private function murs(Carte $carte, array $cases): array
+    {
+        $aretes = (array) ($carte->grille['murs'] ?? []);
+
+        foreach ((array) ($carte->grille['portes'] ?? []) as $porte) {
+            if (Grille::porteSurArete($porte)
+                && ($porte['etat'] ?? null) === MoteurPortes::ETAT_SECRETE && ! ($porte['revele'] ?? false)) {
+                $aretes[] = $porte;
+            }
+        }
+
+        $visible = fn (array $c): bool => ! in_array($cases[$c['y']][$c['x']] ?? 'b', ['b', 'm'], true);
+        $publies = [];
+
+        foreach ($aretes as $arete) {
+            if (! isset($arete['x'], $arete['y'])) {
+                continue;
+            }
+            [$a, $b] = Grille::casesPorte($arete);
+            if ($visible($a) || $visible($b)) {
+                $publies[] = ['x' => (int) $arete['x'], 'y' => (int) $arete['y'], 'cote' => (string) ($arete['cote'] ?? 'e')];
+            }
+        }
+
+        return $publies;
+    }
+
+    /**
      * LES REPÈRES D'ACCÈS d'une quête construite — par où l'on est entré, par où l'on sort (`quetes.acces`).
      *
-     * Une entrée de liste par accès que `escalier` ne dessine pas déjà : une PORTE d'entrée ou de sortie (posée sur sa
-     * case de mur, `mur`), et un ESCALIER de sortie distinct de l'entrée (son bloc 2×2). Le `role` et le `libelle` sont
+     * Une entrée de liste par accès que `escalier` ne dessine pas déjà : une PORTE d'entrée ou de sortie (posée sur le
+     * bord `cote` de sa case), et un ESCALIER de sortie distinct de l'entrée (son bloc 2×2). Le `role` et le `libelle` sont
      * décidés ici ; l'écran ne déduit ni l'un ni l'autre, et ne recalcule aucune géométrie.
      *
      * ⚠ Sous le MÊME brouillard que l'escalier : un accès n'est publié que si l'une de ses cases est visible. Une porte
@@ -1099,9 +1150,9 @@ final class EtatGroupe
                     $porte => 'Porte d\'entrée et de sortie',
                     default => 'Escalier de sortie',
                 },
-                // Où le dessiner : la case de mur d'une porte (1×1), ou le bloc 2×2 d'un escalier.
-                'x' => $porte ? (int) $a['porte']['mur']['x'] : (int) $premiere['x'],
-                'y' => $porte ? (int) $a['porte']['mur']['y'] : (int) $premiere['y'],
+                // Où le dessiner : le bord `cote` de la case (x, y) pour une porte, ou le bloc 2×2 d'un escalier.
+                'x' => $porte ? (int) $a['porte']['x'] : (int) $premiere['x'],
+                'y' => $porte ? (int) $a['porte']['y'] : (int) $premiere['y'],
                 'l' => $porte ? 1 : 2,
                 'h' => $porte ? 1 : 2,
                 'cote' => $porte ? (string) $a['porte']['cote'] : null,

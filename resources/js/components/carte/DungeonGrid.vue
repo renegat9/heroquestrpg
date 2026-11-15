@@ -207,14 +207,21 @@ const PORTE_VERROUS = {
 // fait une case » (2026-08-08), et chaque porte occupe maintenant sa PROPRE
 // case, jamais une arête partagée avec sa voisine — il n'y a donc plus deux
 // battants à confondre en un seul.
+// MURS EN ARÊTES (`carte.murs`, publiés sous le brouillard) : `{x, y, cote}` — le mur sépare la case (x, y) de sa voisine
+// EST (`e`) ou SUD (`s`). Un trait épais sur ce bord. Vide pour une carte à murs en cases, qui garde son rendu.
+const walls = computed(() => (props.carte.murs ?? []).map((m) => ({ x: m.x, y: m.y, cote: m.cote === 's' ? 's' : 'e' })));
+
 const doors = computed(() => (props.carte.portes ?? [])
-    .filter((p) => PORTE_ETATS[p.etat] && p.embrasure)
+    // MURS EN ARÊTES (2026-11-14) : une porte `arete: true` n'a pas d'embrasure — elle est le bord commun de sa case
+    // (x, y) et de sa voisine EST (`e`) ou SUD (`s`). Le serveur publie laquelle des deux formes ; rien n'est déduit.
+    .filter((p) => PORTE_ETATS[p.etat] && (p.embrasure || p.arete))
     .map((p) => {
         const verrou = p.verrou ? (PORTE_VERROUS[p.verrou] ?? p.verrou) : null;
 
         return {
-            x: p.embrasure.x,
-            y: p.embrasure.y,
+            x: p.arete ? p.x : p.embrasure.x,
+            y: p.arete ? p.y : p.embrasure.y,
+            surArete: !!p.arete,
             cote: p.cote === 's' ? 's' : 'e', // arête EST ('e') ou SUD ('s') — oriente le glyphe
             etat: p.etat,
             cadenas: p.etat === 'verrouillee',
@@ -488,7 +495,7 @@ const jetonsPlaces = computed(() => {
             class="dg-acces-holder"
             :style="{ gridColumn: `${a.x + 1} / span ${a.l}`, gridRow: `${a.y + 1} / span ${a.h}` }"
         >
-            <div class="dg-acces" :class="[`dg-acces-${a.type}`, `dg-acces-${a.role}`]" :title="a.libelle">
+            <div class="dg-acces" :class="[`dg-acces-${a.type}`, `dg-acces-${a.role}`, a.cote ? `cote-${a.cote}` : null]" :title="a.libelle">
                 <SymboleCarte
                     :url="a.symbole_url"
                     :icone="a.type === 'porte' ? (a.role === 'entree' ? 'login' : 'logout') : ESCALIER_ICONE"
@@ -564,8 +571,18 @@ const jetonsPlaces = computed(() => {
             </div>
         </div>
 
-        <!-- portes : battant CENTRÉ dans sa case d'embrasure (René, 2026-09-11 —
-             plus sur une arête, voir le commentaire de `doors` ci-dessus) -->
+        <!-- MURS EN ARÊTES : un trait sur le bord est ou sud de la case (voir `walls`). -->
+        <div
+            v-for="(m, i) in walls"
+            :key="`mur-${m.x}-${m.y}-${m.cote}-${i}`"
+            class="dg-mur-holder"
+            :style="{ gridColumn: m.x + 1, gridRow: m.y + 1 }"
+        >
+            <div class="dg-mur" :class="`cote-${m.cote}`" />
+        </div>
+
+        <!-- portes : battant CENTRÉ dans sa case d'embrasure (René, 2026-09-11) pour une carte à murs en cases ; posé À
+             CHEVAL sur le bord de sa case pour une porte sur une arête (`sur-arete`, 2026-11-14). -->
         <div
             v-for="(d, i) in doors"
             :key="`d-${d.x}-${d.y}-${d.cote}-${i}`"
@@ -577,15 +594,15 @@ const jetonsPlaces = computed(() => {
                  (il dit déjà l'état). -->
             <div
                 class="dg-door"
-                :class="[`cote-${d.cote}`, d.etat, { pierre: d.pierre && d.etat !== 'ouverte', miroir: d.miroir, grille: d.grille && d.etat !== 'ouverte', 'avec-symbole': d.symbole_url }]"
+                :class="[`cote-${d.cote}`, d.etat, { 'sur-arete': d.surArete, pierre: d.pierre && d.etat !== 'ouverte', miroir: d.miroir, grille: d.grille && d.etat !== 'ouverte', 'avec-symbole': d.symbole_url && !d.surArete }]"
                 :title="d.titre"
             >
-                <SymboleCarte v-if="d.symbole_url" :url="d.symbole_url" :icone="d.icone" :nom="d.titre" :tourne="d.symbole_rotation" />
+                <SymboleCarte v-if="d.symbole_url && !d.surArete" :url="d.symbole_url" :icone="d.icone" :nom="d.titre" :tourne="d.symbole_rotation" />
                 <!-- Le livret dessine la porte VERROUILLÉE exactement comme la fermée (même cadre) : sans badge, le verrou
                      disparaîtrait dès qu'il y a un pictogramme. Un petit cadenas dans le coin de la case, lisible à 24 px. -->
-                <MSym v-if="d.cadenas" n="lock" fill class="dg-door-lock" :class="{ 'dg-door-lock--badge': d.symbole_url }" />
-                <MSym v-else-if="!d.symbole_url && d.pierre && d.etat !== 'ouverte'" n="construction" fill class="dg-door-lock" />
-                <MSym v-else-if="!d.symbole_url && d.grille && d.etat !== 'ouverte'" n="fence" fill class="dg-door-lock" />
+                <MSym v-if="d.cadenas" n="lock" fill class="dg-door-lock" :class="{ 'dg-door-lock--badge': d.symbole_url && !d.surArete }" />
+                <MSym v-else-if="(!d.symbole_url || d.surArete) && d.pierre && d.etat !== 'ouverte'" n="construction" fill class="dg-door-lock" />
+                <MSym v-else-if="(!d.symbole_url || d.surArete) && d.grille && d.etat !== 'ouverte'" n="fence" fill class="dg-door-lock" />
             </div>
         </div>
 
@@ -939,6 +956,13 @@ const jetonsPlaces = computed(() => {
 .dg-acces-porte { background: oklch(0.3 0.04 80 / 0.92); box-shadow: inset 0 0 0 1.5px oklch(0.78 0.14 80 / 0.55); }
 .dg-acces-porte.dg-acces-sortie, .dg-acces-porte.dg-acces-entree_sortie {
   background: oklch(0.42 0.1 80 / 0.95); box-shadow: inset 0 0 0 2px oklch(0.86 0.15 85 / 0.9); }
+/* Porte d'accès : une barre sur le côté `cote` de sa case — c'est un BORD, comme les autres portes d'une carte à murs
+   en arêtes ; elle ne recouvre pas la case où le héros se tient. */
+.dg-acces-porte.cote-n { inset: -10% 12% auto 12%; height: 30%; }
+.dg-acces-porte.cote-s { inset: auto 12% -10% 12%; height: 30%; }
+.dg-acces-porte.cote-e { inset: 12% -10% 12% auto; width: 30%; }
+.dg-acces-porte.cote-o { inset: 12% auto 12% -10%; width: 30%; }
+.dg-acces-porte .msym { font-size: calc(var(--dg-icone) * 0.7); }
 .dg-acces-escalier { inset: 4%; background: oklch(0.6 0.03 85 / 0.14); box-shadow: inset 0 0 0 1.5px oklch(0.78 0.14 80 / 0.5); }
 .dg-acces .msym { font-size: calc(var(--dg-icone) * 1.2); color: oklch(0.92 0.12 85);
   filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
@@ -999,6 +1023,19 @@ const jetonsPlaces = computed(() => {
   display: grid; place-items: center; }
 .dg-door.cote-e { inset: 8% 24%; }
 .dg-door.cote-s { inset: 24% 8%; }
+/* PORTE SUR UNE ARÊTE (murs en arêtes, 2026-11-14) : le battant est posé À CHEVAL sur le bord est ou sud de sa case —
+   moitié dans chacune des deux cases qu'il sépare, comme sur un plateau. Il déborde donc de sa cellule de grille. */
+.dg-door.sur-arete.cote-e { inset: 12% -16% 12% auto; width: 32%; }
+.dg-door.sur-arete.cote-s { inset: auto 12% -16% 12%; height: 32%; }
+.dg-door.sur-arete .dg-door-lock { font-size: 0.42em; }
+
+/* ---- MURS EN ARÊTES : un trait épais sur le bord est ou sud de la case, centré sur la ligne qui sépare les deux cases.
+   Sous les portes (z-index 2 contre 3) : une porte posée sur le même alignement reste lisible. ---- */
+.dg-mur-holder { position: relative; pointer-events: none; z-index: 2; }
+.dg-mur { position: absolute; border-radius: 2px; background: oklch(0.72 0.03 75);
+  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55); }
+.dg-mur.cote-e { top: -2px; bottom: -2px; right: -2px; width: 4px; }
+.dg-mur.cote-s { left: -2px; right: -2px; bottom: -2px; height: 4px; }
 
 .dg-door.verrouillee { background: linear-gradient(150deg, #b98a3a, #6a4a1c); }
 

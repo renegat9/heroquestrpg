@@ -5764,56 +5764,59 @@ quete {
   mais ne fait pas paraître fermées toutes les cases ni inconnues toutes les salles qui en dépendent.
 - **Une position** (`mobilier`, `monstres`, `pieges`, `terrain`, `depart`, `portes`, `blocs`) est dans le plateau, et :
   - `monstres`, `pieges`, `terrain`, `mobilier` : jamais dans une **salle fermée** (`dans_salle_fermee`) ;
-  - `blocs` : sur une **case de couloir**, c'est-à-dire hors de toute salle, ouverte ou non, **et hors de tout anneau**
-    (`bloc_hors_couloir` dans une salle, `pose_sur_mur` sur un anneau — lot K2) ;
+  - `blocs` : sur une **case de couloir**, c'est-à-dire hors de toute salle, ouverte ou non (`bloc_hors_couloir`) ;
   - `depart` : dans l'**intérieur** d'une salle **ouverte**, le bloc 2×2 entier (`depart_invalide` si le départ tombe dans
     une salle fermée ; `depart_hors_salle` sinon, couloir compris — lot K2) ;
-  - `portes` : sur une case d'intérieur d'une salle **ouverte**, et le côté `cote` mène à une case qui n'est **pas** dans
-    la même salle (`porte_sans_bord` sinon). Une porte entre deux salles ouvertes est valide. Le côté donne la **roche**
-    (`porte_dans_la_roche`, lot K2) quand la case juste dehors est un anneau, une salle fermée — voir la géométrie ci-dessous.
+  - `portes` : sur une case d'une salle **ouverte**, et le côté `cote` mène à une case voisine qui n'est **pas** dans
+    la même salle (`porte_sans_bord` sinon). Une porte entre deux salles ouvertes qui se touchent est valide. Le côté
+    donne sur la **roche** (`porte_dans_la_roche`) quand la case voisine est dans une salle fermée — voir la géométrie
+    ci-dessous.
 - Le **footprint** d'un meuble (`largeur`×`hauteur` du catalogue, tourné) et les **doublons** de case sont contrôlés depuis
   le lot K2 (`mobilier_hors_salle`, `case_partagee`) : décisions prises là, voir « Géométrie » ci-dessous.
 - **Récompense** : `or` entier ≥ 0 ; `partage` parmi `groupe` et `par_heros`.
 
-### Géométrie : une salle, son anneau, ses couloirs (lot K2, 2026-11-13, `docs/plan-mode-classique.md` §3)
+### Géométrie : des salles qui se touchent, des murs en arêtes (2026-11-14, `docs/plan-murs-en-aretes.md`)
 
-Le plateau se dessine dans **la géométrie du moteur, où un mur est une case**. Les valeurs de K1 ne changent pas ; ce qui
-change est ce qu'elles DÉSIGNENT :
+René, 2026-11-14 : « si on veut respecter le plateau, il faudrait que les portes entre deux salles ne soient pas une
+case mais le bord commun entre deux cases ». La géométrie du lot K2 (une salle entourée d'un anneau de cases de mur)
+est **remplacée** pour les quêtes construites.
 
-- Une salle `{id, x, y, l, h}` décrit son **intérieur**. Son **anneau** de murs est la bordure qui l'entoure : le rectangle
-  moteur de la salle est `x-1, y-1, l+2, h+2`. Une salle fermée est de la **roche pleine**, intérieur et anneau.
-- Est **couloir** toute case du plateau qui n'est ni intérieur ni anneau d'**aucune** salle (ouverte ou fermée). Tout ce qui
-  n'est pas dans une salle est donc franchissable.
-- Deux salles peuvent **partager** des cases d'anneau. L'anneau d'une salle ne recouvre **jamais** l'intérieur d'une autre
-  (`anneau_sur_salle`). L'anneau d'une salle doit tenir sur le plateau (`anneau_hors_plateau`) : une salle reste à au moins
-  une case du bord.
-- **Porte.** Le côté `cote` d'une case d'intérieur `(x, y)` d'une salle ouverte désigne l'**embrasure** E, la case juste au-delà
-  de ce côté (sur l'anneau de la salle), et O, la case juste dehors. La porte moteur est l'arête E–O :
+- Une salle du plateau `{id, x, y, l, h}` est **exactement ses cases**. Il n'y a pas d'anneau de murs : deux salles
+  peuvent **se toucher**, et une salle peut toucher le bord du plateau. Deux salles ne se chevauchent pas
+  (`salles_se_chevauchent`).
+- Est **couloir** toute case du plateau qui n'est dans aucune salle. Une salle **fermée** (absente de
+  `salles_ouvertes`) est de la roche.
+- Une **porte** `{x, y, cote, type}` est le **bord** de la case `(x, y)` d'une salle ouverte, du côté `cote` — le bord
+  commun de cette case et de sa voisine. La voisine doit être du sol : un couloir, ou une case d'une autre salle
+  ouverte. Sinon : `porte_sans_bord` (elle reste dans la même salle, ou sort du plateau), `porte_dans_la_roche` (elle
+  donne sur une salle fermée). Deux portes sur un même bord : `case_partagee`.
 
-  | `cote` | E (embrasure) | O (juste dehors) | arête moteur `{x, y, cote}` |
-  |---|---|---|---|
-  | `n` | (x, y-1) | (x, y-2) | (x, y-2, `s`) |
-  | `s` | (x, y+1) | (x, y+2) | (x, y+1, `s`) |
-  | `e` | (x+1, y) | (x+2, y) | (x+1, y, `e`) |
-  | `o` | (x-1, y) | (x-2, y) | (x-2, y, `e`) |
+**Carte produite** (`CarteConstruite::produire()`) :
 
-  La correspondance est celle de `Grille::caseEmbrasure()` — un test la vérifie pour les quatre côtés. O doit être du
-  **couloir**, ou l'**intérieur d'une salle ouverte voisine** (le cas d'un mur partagé, où E est aussi l'anneau de cette
-  voisine). Sinon la porte donne dans la roche (`porte_dans_la_roche`). Une case O **hors plateau** reste `porte_sans_bord`,
-  comme en K1 : c'est le même défaut, il n'a qu'un code. Deux portes sur la même embrasure sont refusées (`case_partagee`).
-- **Meuble.** Son emprise part de l'ancre `(x, y)`, coin haut-gauche, et s'étend vers la droite et le bas : `l`×`h` du
-  catalogue pour `rotation` 0 ou 180, `h`×`l` pour 90 ou 270. Toute l'emprise est dans l'intérieur de la salle ouverte de
-  l'ancre (`mobilier_hors_salle`).
-- **Une case ne porte qu'un élément.** Refusés (`case_partagee`) : deux meubles ; un meuble et un monstre ; deux monstres ;
-  l'escalier et un meuble ou un monstre ; un bloc et n'importe quoi d'autre. Un piège ou un terrain ne partage une case
-  qu'avec un bloc : la consigne ne nomme pas les autres couples, et K2 ne les refuse pas.
-- **Départ.** `depart` désigne le coin haut-gauche d'un escalier 2×2, dans l'intérieur d'une salle ouverte. Le départ depuis
-  un couloir arrive avec le lot K5 (`depart_hors_salle` jusque-là).
-- **Pas de refus en cascade, encore ici** : les contrôles de géométrie qui dépendent des salles ouvertes ne tournent que si
-  `plateau.salles` et `quetes[].salles_ouvertes` sont lisibles. L'anneau et le recouvrement d'intérieurs, eux, ne dépendent
-  que des salles et tournent toujours.
-- **Aucune route** dans ce lot. Le producteur est le service `App\Partie\Classique\CarteConstruite::produire()`, qui REFUSE
-  (`CarteRefusee`) un document invalide : il ne répare rien. `apercu()` rend une quête en texte, pour la relire sans écran.
+- `cases` : `'s'` pour les salles ouvertes et le couloir, `'m'` pour les salles fermées et les blocs. **Aucun mur
+  n'est une case.**
+- **`murs`** : `[{x, y, cote}]`, de la forme des portes — le mur sépare la case `(x, y)` de sa voisine **est** (`e`) ou
+  **sud** (`s`). C'est le pourtour de chaque salle ouverte, là où il donne sur du sol et où aucune porte n'est posée.
+  Un mur commun à deux salles n'est écrit qu'une fois. `AssembleurCarte` rend `murs: []` : une carte générée garde ses
+  murs en cases, et les deux producteurs rendent les mêmes clés.
+- `salles[]` : le rectangle moteur d'une salle est exactement ses cases (`x, y, largeur: l, hauteur: h`).
+- `portes[]` : l'arête moteur de la porte — côté `n` → `{x, y: y-1, cote: 's'}` ; `s` → `{x, y, cote: 's'}` ;
+  `e` → `{x, y, cote: 'e'}` ; `o` → `{x: x-1, y, cote: 'e'}` — avec **`arete: true`** : la porte n'a **pas de case
+  d'embrasure** (`Grille::porteSurArete()`).
+
+**Dans le moteur** (`App\Partie\Grille`) : un mur en arête et une porte close passent par le MÊME test,
+`areteBloquee()` — le pas, la ligne de vue, les rayons, les poussées. En diagonale, la vue passe un coin de mur
+ouvert et s'arrête sur un coin fermé. Traverser la Pierre franchit un mur en arête. Une porte sur une arête se
+propose à l'ouverture quand le héros se tient sur l'une de ses **deux cases** (`MoteurPortes::portesAdjacentes()`).
+Une carte **sans** `murs` (toute carte générée, toute carte d'avant) n'est pas touchée.
+
+**État publié** (`GET /etat`, `.groupe.etat`) :
+
+- **`carte.murs`** : `[{x, y, cote}]`, les murs visibles — un mur est publié quand l'une de ses deux cases est sortie
+  du brouillard. Un passage secret **non trouvé** posé sur une arête y figure comme un mur ordinaire.
+- **`carte.portes[]`** : une porte sur une arête porte **`arete: true`** et **`embrasure: null`** ; l'écran la dessine
+  à cheval sur le bord est ou sud de sa case `(x, y)`. Une porte d'une carte à murs en cases garde `embrasure: {x, y}`.
+- Le **brouillard** s'arrête aux murs en arêtes comme aux portes closes.
 
 **Jonctions (`carte.aretes`, 2026-11-14).** La carte produite dit quelles salles chaque porte relie, dans la forme de
 l'assembleur : `aretes[i] = {a, b, porte_a, porte_b}` (index moteur des salles ; `porte_a` et `porte_b` valent les
@@ -5880,13 +5883,10 @@ Forme : `{chemin, code, message}`. Le **chemin** est pointé depuis la racine : 
 | `porte_sans_bord` | Une porte n'est pas sur le bord d'une salle ouverte, ou son côté mène hors du plateau ou dans la même salle. |
 | `slug_non_concordant` | Le `slug` du document ne vaut pas celui de l'URL (PUT). |
 | `empreinte_invalide` | Un fichier importé porte une `empreinte` qui ne correspond pas à son document. |
-| `anneau_hors_plateau` | Lot K2 — l'anneau de mur d'une salle sort du plateau. |
-| `anneau_sur_salle` | Lot K2 — l'anneau de mur d'une salle recouvre l'intérieur d'une autre salle (deux intérieurs qui se chevauchent sont déjà `salles_se_chevauchent`). |
-| `pose_sur_mur` | Lot K2 — un bloc, un piège, un terrain ou un monstre tombe sur une case d'anneau. |
 | `depart_hors_salle` | Lot K2 — le bloc 2×2 du départ n'est pas entièrement dans l'intérieur d'une salle ouverte (couloir compris : « le départ depuis un couloir arrive avec le lot K5 »). |
-| `porte_dans_la_roche` | Lot K2 — la case juste dehors d'une porte est de la roche : salle fermée, ou anneau d'une salle non partagée. |
+| `porte_dans_la_roche` | La case voisine sur laquelle donne une porte est de la roche : une salle fermée dans cette quête. |
 | `mobilier_hors_salle` | Lot K2 — l'emprise d'un meuble, rotation comprise, sort de l'intérieur de sa salle ouverte, ou le meuble est posé hors de toute salle. |
-| `case_partagee` | Lot K2 — deux éléments sur une même case (couples listés dans « Géométrie »), ou deux portes sur une même embrasure. |
+| `case_partagee` | Lot K2 — deux éléments sur une même case (couples listés dans « Géométrie »), ou deux portes sur un même bord de case. |
 
 ### Stockage
 
@@ -5965,10 +5965,10 @@ est un **escalier** ou une **porte** (`vocabulaires.types_acces`).
   d'accès (`case_partagee`).
 - **Carte produite** : entrée par une porte → `carte.escalier = null`, et `spawn_heros` part de la case devant la
   porte. `CarteConstruite::produire()` rend en plus `acces: {entree, sortie}`, chacun `{type, cases, porte}` avec
-  `porte = {x, y, cote, mur}` (la case de mur où elle est percée) ; le démarrage le fige dans **`quetes.acces`**.
+  `porte = {x, y, cote}` (le bord `cote` de la case `(x, y)`) ; le démarrage le fige dans **`quetes.acces`**.
 - **`carte.acces`** (`GET /etat`, `.groupe.etat`) : `[{role, type, libelle, x, y, l, h, cote, symbole_url}]` — une
-  entrée par accès que `carte.escalier` ne dessine pas déjà : une porte d'entrée ou de sortie (sur sa case de mur,
-  1×1) et un escalier de sortie distinct de l'entrée (2×2). `role` ∈ `entree | sortie | entree_sortie` ; `libelle` est
+  entrée par accès que `carte.escalier` ne dessine pas déjà : une porte d'entrée ou de sortie (`x, y` = sa case,
+  `cote` ∈ `n | e | s | o` = le bord où l'écran la dessine) et un escalier de sortie distinct de l'entrée (2×2). `role` ∈ `entree | sortie | entree_sortie` ; `libelle` est
   décidé par le serveur (« Porte de sortie »…). ⚠ Sous le **même brouillard** que l'escalier : un accès n'est publié
   que si l'une de ses cases est visible — une porte de sortie dans une salle inconnue n'est pas montrée.
 

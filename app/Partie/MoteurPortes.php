@@ -284,6 +284,17 @@ final class MoteurPortes
                 continue;
             }
 
+            // Une porte SUR UNE ARÊTE (carte à murs en arêtes) est à portée quand on se tient sur l'une de ses DEUX cases :
+            // elle n'a pas d'embrasure à côté de laquelle se placer.
+            if (Grille::porteSurArete($porte)) {
+                [$a, $b] = Grille::casesPorte($porte);
+                if (($a['x'] === $x && $a['y'] === $y) || ($b['x'] === $x && $b['y'] === $y)) {
+                    $trouvees[] = ['index' => $index, 'porte' => $porte];
+                }
+
+                continue;
+            }
+
             $embrasure = Grille::caseEmbrasure($porte, $salles);
             if (Grille::sontAdjacentes((int) $embrasure['x'], (int) $embrasure['y'], $x, $y)) {
                 $trouvees[] = ['index' => $index, 'porte' => $porte];
@@ -350,6 +361,14 @@ final class MoteurPortes
      */
     public function directionDepuis(Carte $carte, array $porte, int $x, int $y): ?string
     {
+        // Porte SUR UNE ARÊTE : la direction est celle de la case d'en face — l'autre bout de l'arête.
+        if (Grille::porteSurArete($porte)) {
+            [$a, $b] = Grille::casesPorte($porte);
+            $enFace = ($a['x'] === $x && $a['y'] === $y) ? $b : $a;
+
+            return Rayon::phrasePour($enFace['x'] - $x, $enFace['y'] - $y);
+        }
+
         $embrasure = Grille::caseEmbrasure($porte, (array) ($carte->grille['salles'] ?? []));
 
         return Rayon::phrasePour($embrasure['x'] - $x, $embrasure['y'] - $y);

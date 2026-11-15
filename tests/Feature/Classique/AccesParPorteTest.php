@@ -23,12 +23,12 @@ use Tests\Feature\Classique\DocumentExemple;
  * et la sortie en quête »). Un ACCÈS — `depart`, `sortie` — est un escalier ou une porte sur le mur d'une salle ouverte.
  *
  *  1. Entrée par une porte : la carte n'a pas d'escalier, les héros partent de la case devant la porte.
- *  2. Une porte d'accès n'est PAS une porte du donjon : son mur reste de la roche et elle n'entre pas dans
- *     `carte.portes` — rien, ni la main, ni une clé, ni un sort, ne peut l'ouvrir.
+ *  2. Une porte d'accès n'est PAS une porte du donjon : son bord reste muré et elle n'entre pas dans `carte.portes` —
+ *     rien, ni la main, ni une clé, ni un sort, ne peut l'ouvrir.
  *  3. La sortie est distincte de l'entrée quand la quête le dit ; sinon on sort par où l'on est entré.
  *  4. EN JEU : on ne quitte le donjon que depuis la case de SORTIE, objectif accompli.
  *
- * Plateau et quête : ceux de `DocumentExemple`, INVENTÉS. `entree` = intérieur 2..6 × 2..5, `galerie` = 8..11 × 2..5.
+ * Plateau et quête : ceux de `DocumentExemple`, INVENTÉS. `entree` = 2..6 × 2..5, `galerie` = 7..10 × 2..5 (elles se touchent).
  */
 beforeEach(function () {
     Http::fake();
@@ -37,7 +37,7 @@ beforeEach(function () {
 });
 
 /** L'exemple, où l'on entre par une porte à l'ouest de `entree` et où l'on sort par une porte au sud de `galerie`. */
-function campagneAPortes(?array $sortie = ['type' => 'porte', 'x' => 11, 'y' => 5, 'cote' => 's']): array
+function campagneAPortes(?array $sortie = ['type' => 'porte', 'x' => 10, 'y' => 5, 'cote' => 's']): array
 {
     $campagne = DocumentExemple::campagne();
     $campagne['quetes'][0]['depart'] = ['type' => 'porte', 'x' => 2, 'y' => 3, 'cote' => 'o'];
@@ -51,7 +51,7 @@ function refusDAcces(array $campagne): array
     return app(ValidationCampagne::class)->valider($campagne);
 }
 
-it('entre par une porte : pas d\'escalier, les héros partent de la case devant elle, le mur reste de la roche', function () {
+it('entre par une porte : pas d\'escalier, les héros partent de la case devant elle, son bord reste muré', function () {
     $campagne = campagneAPortes();
     expect(refusDAcces($campagne))->toBe([]);
 
@@ -62,17 +62,17 @@ it('entre par une porte : pas d\'escalier, les héros partent de la case devant 
         ->and($carte['spawn_heros'][0])->toBe(['x' => 2, 'y' => 3])
         // Les héros suivants s'installent au plus près, dans la salle d'entrée.
         ->and(max(abs($carte['spawn_heros'][1]['x'] - 2), abs($carte['spawn_heros'][1]['y'] - 3)))->toBe(1)
-        // Le mur derrière la porte d'entrée (1, 3) et celui de la porte de sortie (11, 6) restent de la roche…
-        ->and($carte['cases'][3][1])->toBe('m')
-        ->and($carte['cases'][6][11])->toBe('m')
+        // Le bord ouest de (2, 3) et le bord sud de (10, 5) restent MURÉS : ce sont des portes vers le dehors…
+        ->and(collect($carte['murs'])->contains(['x' => 1, 'y' => 3, 'cote' => 'e']))->toBeTrue()
+        ->and(collect($carte['murs'])->contains(['x' => 10, 'y' => 5, 'cote' => 's']))->toBeTrue()
         // …et aucune des deux n'est une porte du donjon : les trois portes ordinaires de la quête, rien de plus.
         ->and($carte['portes'])->toHaveCount(3);
 
-    // Chaque porte d'accès donne sa case de MUR (`mur`) : c'est là que l'écran la dessine, sans rien recalculer.
+    // Chaque porte d'accès est le bord `cote` de sa case : c'est là que l'écran la dessine, sans rien recalculer.
     expect($produit['acces']['entree'])->toBe(['type' => 'porte', 'cases' => [['x' => 2, 'y' => 3]],
-        'porte' => ['x' => 2, 'y' => 3, 'cote' => 'o', 'mur' => ['x' => 1, 'y' => 3]]])
-        ->and($produit['acces']['sortie'])->toBe(['type' => 'porte', 'cases' => [['x' => 11, 'y' => 5]],
-            'porte' => ['x' => 11, 'y' => 5, 'cote' => 's', 'mur' => ['x' => 11, 'y' => 6]]]);
+        'porte' => ['x' => 2, 'y' => 3, 'cote' => 'o']])
+        ->and($produit['acces']['sortie'])->toBe(['type' => 'porte', 'cases' => [['x' => 10, 'y' => 5]],
+            'porte' => ['x' => 10, 'y' => 5, 'cote' => 's']]);
 });
 
 it('sort par où l\'on est entré quand la quête ne déclare pas de sortie, par porte comme par escalier', function () {
@@ -89,12 +89,12 @@ it('sort par où l\'on est entré quand la quête ne déclare pas de sortie, par
 
 it('accepte un escalier de sortie distinct de l\'escalier d\'entrée', function () {
     $campagne = DocumentExemple::campagne();
-    $campagne['quetes'][0]['sortie'] = ['type' => 'escalier', 'x' => 10, 'y' => 4];
+    $campagne['quetes'][0]['sortie'] = ['type' => 'escalier', 'x' => 9, 'y' => 4];
     expect(refusDAcces($campagne))->toBe([]);
 
     $produit = app(CarteConstruite::class)->produire($campagne, $campagne['quetes'][0]);
-    expect($produit['acces']['sortie']['cases'])->toBe([['x' => 10, 'y' => 4], ['x' => 11, 'y' => 4], ['x' => 10, 'y' => 5], ['x' => 11, 'y' => 5]])
-        ->and(app(CarteConstruite::class)->apercu($campagne, $campagne['quetes'][0]))->toContain('> sortie : escalier, coin (10, 4), 2×2');
+    expect($produit['acces']['sortie']['cases'])->toBe([['x' => 9, 'y' => 4], ['x' => 10, 'y' => 4], ['x' => 9, 'y' => 5], ['x' => 10, 'y' => 5]])
+        ->and(app(CarteConstruite::class)->apercu($campagne, $campagne['quetes'][0]))->toContain('> sortie : escalier, coin (9, 4), 2×2');
 });
 
 it('refuse un accès mal posé, en nommant le chemin', function (array $acces, string $cle, string $code, ?string $chemin = null) {
@@ -139,7 +139,7 @@ it('EN JEU : on entre par une porte, et on ne quitte le donjon que depuis la por
 
     // Le héros part de la case devant la porte d'entrée ; la quête a figé ses accès.
     expect([$etat()->position_x, $etat()->position_y])->toBe([2, 3])
-        ->and($quete->sortieDuDonjon())->toBe(['type' => 'porte', 'cases' => [['x' => 11, 'y' => 5]]])
+        ->and($quete->sortieDuDonjon())->toBe(['type' => 'porte', 'cases' => [['x' => 10, 'y' => 5]]])
         ->and($quete->nomDeLaSortie())->toBe('la porte de sortie');
 
     // Objectif accompli, mais il est devant la porte d'ENTRÉE : aucune sortie offerte, le résolveur la refuse.
@@ -149,7 +149,7 @@ it('EN JEU : on entre par une porte, et on ne quitte le donjon que depuis la por
     expect($this->getJson("/api/groupes/{$code}/etat")->json('quete.sortie.consigne'))->toBe('Objectif accompli : quittez le donjon par la porte de sortie.');
 
     // Devant la porte de SORTIE : l'option est là, à son nom, et il quitte le donjon.
-    $etat()->update(['position_x' => 11, 'position_y' => 5]);
+    $etat()->update(['position_x' => 10, 'position_y' => 5]);
     $option = $menu()->firstWhere('id', 'sortir_donjon');
     expect($option['libelle'])->toBe('Quitter le donjon par la porte de sortie');
     $this->postJson("/api/groupes/{$code}/choix", ['option_id' => 'sortir_donjon'])->assertAccepted();
@@ -177,20 +177,20 @@ it('montre la porte d\'entrée dès le départ, et la porte de sortie seulement 
     $this->postJson("/api/groupes/{$code}/quetes")->assertCreated();
     $quete = Quete::findOrFail(Groupe::where('identifiant', $code)->value('quete_courante_id'));
 
-    // Au départ : seule la salle d'entrée est connue. La porte d'entrée est là, sur son mur (1, 3) ; la sortie, non.
+    // Au départ : seule la salle d'entrée est connue. La porte d'entrée est là, sur le bord ouest de (2, 3) ; la sortie, non.
     $carte = $this->getJson("/api/groupes/{$code}/etat")->assertOk()->json('carte');
     expect($carte['escalier'])->toBeNull()
         ->and($carte['acces'])->toBe([[
             'role' => 'entree', 'type' => 'porte', 'libelle' => 'Porte d\'entrée',
-            'x' => 1, 'y' => 3, 'l' => 1, 'h' => 1, 'cote' => 'o', 'symbole_url' => null,
+            'x' => 2, 'y' => 3, 'l' => 1, 'h' => 1, 'cote' => 'o', 'symbole_url' => null,
         ]]);
 
-    // La galerie (salle 1) est découverte : la porte de sortie apparaît, sur son mur (11, 6).
+    // La galerie (salle 1) est découverte : la porte de sortie apparaît, sur le bord sud de (10, 5).
     $quete->update(['salles_decouvertes' => [0, 1]]);
     $acces = collect($this->getJson("/api/groupes/{$code}/etat")->assertOk()->json('carte.acces'))->keyBy('role');
     expect($acces->keys()->all())->toBe(['entree', 'sortie'])
         ->and($acces['sortie']['libelle'])->toBe('Porte de sortie')
-        ->and([$acces['sortie']['x'], $acces['sortie']['y']])->toBe([11, 6]);
+        ->and([$acces['sortie']['x'], $acces['sortie']['y'], $acces['sortie']['cote']])->toBe([10, 5, 's']);
 });
 
 it('ne publie aucun repère d\'accès pour une quête qui entre et sort par son escalier', function () {

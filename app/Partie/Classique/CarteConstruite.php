@@ -19,16 +19,16 @@ use InvalidArgumentException;
  *
  * Un document qui ne passe pas {@see ValidationCampagne} est REFUSÉ ({@see CarteRefusee}), jamais réparé.
  *
- * La géométrie (un mur est une case) est celle de `docs/contrat-api.md` « Géométrie : une salle, son anneau, ses couloirs ».
+ * GÉOMÉTRIE — MURS EN ARÊTES (René, 2026-11-14 : « si on veut respecter le plateau, les portes entre deux salles ne
+ * sont pas une case mais le bord commun entre deux cases »). Une salle du plateau `{x, y, l, h}` est exactement ses
+ * cases : pas d'anneau de murs autour. Deux salles peuvent se toucher ; tout ce qui n'est dans aucune salle est
+ * couloir ; une salle fermée est de la roche. Les MURS sont le pourtour de chaque salle ouverte, posés sur les arêtes
+ * (`carte.murs`), et une porte est une arête de ce pourtour (`arete: true`), sans case d'embrasure.
  *
  * Décisions de forme, une fois pour toutes :
  * - `theme` : `'generique'` sur chaque salle. C'est le thème par défaut (celui que lit `GenererRecitsQuete` sans valeur)
  *   et le seul qui ne prétend rien : `'boss'` ferait décrire une salle de boss à l'IA.
- * - `aretes` : `[]`. Une arête relie deux SALLES par une jonction de couloir ; `DeckFouille` la lit pour les coffres
- *   derrière une porte secrète, et `MoteurSorts` pour l'option « ouvrir la porte » par sort. Or tout ce qui n'est pas
- *   dans une salle est couloir : les portes donnent sur un même champ continu, et le graphe des salles n'est pas défini
- *   par la géométrie seule. Le fabriquer serait inventer. Conséquence (rapport K2) : ces deux options sont muettes sur
- *   une carte construite tant que K5 ne tranche pas.
+ * - `aretes` : une jonction par porte (voir `produire()`), lue par `MoteurSorts` pour le sort « ouvrir une porte au choix ».
  * - `passage_secret` : vrai s'il existe au moins une porte `secrete`. `DemarreurQuete` le lit pour son compteur de pitié :
  *   une carte qui porte un passage secret ne doit pas compter comme une carte sans.
  * - `spawn_monstres`, `spawn_figures_fixes` : `[]`. Les monstres voyagent dans `monstres` (hors de `carte`), que le lot K5
@@ -86,19 +86,26 @@ final class CarteConstruite
             $indexSalle[$salle['id']] = $index;
         }
 
-        // Cases : roche partout ; intérieur d'une salle OUVERTE et couloir (tout ce qui n'est dans aucune salle) = sol.
+        // Cases : une salle OUVERTE et le couloir (tout ce qui n'est dans aucune salle) sont du sol ; une salle FERMÉE est
+        // de la roche. Aucune case n'est un mur : les murs sont des arêtes, plus bas.
         $cases = array_fill(0, $hauteur, array_fill(0, $largeur, 'm'));
+        $estSol = static function (int $x, int $y) use ($salles, $ouvertes, $largeur, $hauteur): bool {
+            if ($x < 0 || $y < 0 || $x >= $largeur || $y >= $hauteur) {
+                return false;
+            }
+            $salle = self::interieurEn($salles, $x, $y);
+
+            return $salle === null || isset($ouvertes[$salle]);
+        };
         for ($y = 0; $y < $hauteur; $y++) {
             for ($x = 0; $x < $largeur; $x++) {
-                $interieur = self::interieurEn($salles, $x, $y);
-                $sol = $interieur !== null ? isset($ouvertes[$interieur]) : ! self::dansUneRect($salles, $x, $y);
-                if ($sol) {
+                if ($estSol($x, $y)) {
                     $cases[$y][$x] = 's';
                 }
             }
         }
 
-        // Portes : l'embrasure s'ouvre dans l'anneau ; l'arête moteur est celle que `Grille` lit.
+        // Portes : chacune est le bord commun de sa case et de la case sur laquelle elle donne.
         // JONCTIONS (`aretes`) : quelles salles chaque porte relie. Le moteur le lit pour le sort « ouvrir une porte au
         // choix » (`MoteurSorts::entreesPorteAuChoix()`), qui n'offre que les portes d'une salle DÉCOUVERTE. Une porte
         // entre deux salles qui partagent un mur relie ces deux salles ; une porte qui donne sur un COULOIR ne relie que
@@ -108,10 +115,10 @@ final class CarteConstruite
         // ce qui révélerait le donjon. À revoir quand les couloirs auront un état de découverte (lot K5).
         $portes = [];
         $aretes = [];
+        $bordsDePorte = [];
         $passageSecret = false;
         foreach ($quete['portes'] as $porte) {
             $geo = self::porteMoteur($porte);
-            $cases[$geo['embrasure']['y']][$geo['embrasure']['x']] = 's';
 
             $salleA = $indexSalle[self::interieurEn($salles, (int) $porte['x'], (int) $porte['y'])];
             $dehors = self::caseDehors($porte);
@@ -125,7 +132,10 @@ final class CarteConstruite
             $entree = [
                 'x' => $geo['arete']['x'], 'y' => $geo['arete']['y'], 'cote' => $geo['arete']['cote'],
                 'etat' => $secrete ? MoteurPortes::ETAT_SECRETE : MoteurPortes::ETAT_FERMEE,
+                // SUR UNE ARÊTE : la porte est le bord commun de deux cases, sans embrasure (`Grille::porteSurArete()`).
+                'arete' => true,
             ];
+            $bordsDePorte[Grille::cleArete((int) $porte['x'], (int) $porte['y'], $dehors['x'], $dehors['y'])] = true;
             if ($secrete) {
                 $entree['revele'] = false;
             }
@@ -140,12 +150,40 @@ final class CarteConstruite
             $cases[(int) $bloc['y']][(int) $bloc['x']] = 'm';
         }
 
+        // MURS : le pourtour de chaque salle OUVERTE, là où il donne sur du sol (un couloir, ou une autre salle ouverte)
+        // et où aucune porte n'est posée. Face à la roche ou au bord du plateau, la roche suffit. Un mur partagé par
+        // deux salles n'est écrit qu'une fois. Un bloc est de la roche : il se pose après, et rien ne le mure.
+        $murs = [];
+        $vus = [];
+        foreach ($ordre as $salle) {
+            for ($y = $salle['y']; $y < $salle['y'] + $salle['h']; $y++) {
+                for ($x = $salle['x']; $x < $salle['x'] + $salle['l']; $x++) {
+                    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                        [$nx, $ny] = [$x + $dx, $y + $dy];
+                        if (self::interieurEn($salles, $nx, $ny) === $salle['id'] || ! $estSol($nx, $ny)) {
+                            continue;
+                        }
+                        $cle = Grille::cleArete($x, $y, $nx, $ny);
+                        if (isset($vus[$cle]) || isset($bordsDePorte[$cle])) {
+                            continue;
+                        }
+                        $vus[$cle] = true;
+                        // La forme des portes : l'arête EST ou SUD de la case la plus à gauche / la plus haute.
+                        $murs[] = $dx !== 0
+                            ? ['x' => min($x, $nx), 'y' => $y, 'cote' => 'e']
+                            : ['x' => $x, 'y' => min($y, $ny), 'cote' => 's'];
+                    }
+                }
+            }
+        }
+
         $sallesMoteur = [];
         foreach ($ordre as $salle) {
-            $x = $salle['x'] - 1;
-            $y = $salle['y'] - 1;
-            $w = $salle['l'] + 2;
-            $h = $salle['h'] + 2;
+            // Sans anneau : le rectangle moteur d'une salle est exactement ses cases.
+            $x = $salle['x'];
+            $y = $salle['y'];
+            $w = $salle['l'];
+            $h = $salle['h'];
             $sallesMoteur[] = [
                 'x' => $x, 'y' => $y, 'largeur' => $w, 'hauteur' => $h, 'theme' => self::THEME_SALLE,
                 'mediane_x' => $x + intdiv($w, 2), 'mediane_y' => $y + intdiv($h, 2),
@@ -218,6 +256,8 @@ final class CarteConstruite
                 'cases' => $cases,
                 'salles' => $sallesMoteur,
                 'portes' => $portes,
+                // MURS EN ARÊTES : `[{x, y, cote}]`, lus par `Grille::definirMurs()`, le brouillard et l'écran.
+                'murs' => $murs,
                 'aretes' => $aretes,
                 'passage_secret' => $passageSecret,
                 'leviers' => [],
@@ -245,8 +285,8 @@ final class CarteConstruite
      * La carte, en texte, pour relire une quête sans écran : une ligne par rangée, puis une légende qui donne le slug et la
      * case de chaque élément.
      *
-     * `#` roche (mur, bloc, salle fermée) · `.` sol · `+` embrasure d'une porte normale · `?` embrasure d'une porte
-     * secrète · `<` entrée · `>` sortie (si elle est distincte) · `M` monstre · `m` meuble (toute son emprise) · `^` piège · `~` terrain.
+     * `#` roche (bloc, salle fermée) · `.` sol · `+` case qui porte une porte normale · `?` une porte secrète (le côté
+     * est dans la légende ; les murs, des arêtes, ne se tracent pas ici) · `<` entrée · `>` sortie (si elle est distincte) · `M` monstre · `m` meuble (toute son emprise) · `^` piège · `~` terrain.
      *
      * @param  array<string, mixed>  $campagne
      * @param  array<string, mixed>  $quete
@@ -262,9 +302,10 @@ final class CarteConstruite
         foreach ($carte['cases'] as $y => $ligne) {
             $grille[$y] = array_map(static fn (string $case): string => $case === 's' ? '.' : '#', $ligne);
         }
-        foreach ($carte['portes'] as $porte) {
-            $embrasure = Grille::caseEmbrasure($porte, $carte['salles']);
-            $grille[$embrasure['y']][$embrasure['x']] = $porte['etat'] === MoteurPortes::ETAT_SECRETE ? '?' : '+';
+        // Une porte est un BORD de case : un caractère par case ne peut pas la tracer. On marque la case qui la porte ;
+        // la légende dit de quel côté elle est. (Un élément posé sur cette case s'écrit par-dessus, plus bas.)
+        foreach ($quete['portes'] as $porte) {
+            $grille[(int) $porte['y']][(int) $porte['x']] = $porte['type'] === 'secrete' ? '?' : '+';
         }
         foreach ($carte['terrain'] as $tuile) {
             $grille[$tuile['y']][$tuile['x']] = '~';
@@ -294,24 +335,24 @@ final class CarteConstruite
     }
 
     /**
-     * Les coordonnées moteur d'une porte K1 : l'embrasure (la case de l'anneau) et l'arête `{x, y, cote}` que lit `Grille`.
-     * La table est celle de `docs/contrat-api.md` (« Géométrie ») ; `CarteConstruiteTest` la vérifie contre
-     * `Grille::caseEmbrasure()` pour les quatre côtés.
+     * L'ARÊTE moteur d'une porte du format : `{x, y, cote}` désigne le bord de la case (x, y) du côté `cote` ; le moteur
+     * nomme une arête par sa case la plus à gauche (côté `e`) ou la plus haute (côté `s`). `CarteConstruiteTest` vérifie
+     * que `Grille::casesPorte()` rend bien les deux cases attendues, pour les quatre côtés.
      *
      * @param  array{x: int, y: int, cote: string}  $porte
-     * @return array{embrasure: array{x: int, y: int}, arete: array{x: int, y: int, cote: string}}
+     * @return array{arete: array{x: int, y: int, cote: string}}
      */
     public static function porteMoteur(array $porte): array
     {
         $x = (int) $porte['x'];
         $y = (int) $porte['y'];
 
-        return match ($porte['cote']) {
-            'n' => ['embrasure' => ['x' => $x, 'y' => $y - 1], 'arete' => ['x' => $x, 'y' => $y - 2, 'cote' => 's']],
-            's' => ['embrasure' => ['x' => $x, 'y' => $y + 1], 'arete' => ['x' => $x, 'y' => $y + 1, 'cote' => 's']],
-            'e' => ['embrasure' => ['x' => $x + 1, 'y' => $y], 'arete' => ['x' => $x + 1, 'y' => $y, 'cote' => 'e']],
-            'o' => ['embrasure' => ['x' => $x - 1, 'y' => $y], 'arete' => ['x' => $x - 2, 'y' => $y, 'cote' => 'e']],
-        };
+        return ['arete' => match ($porte['cote']) {
+            'n' => ['x' => $x, 'y' => $y - 1, 'cote' => 's'],
+            's' => ['x' => $x, 'y' => $y, 'cote' => 's'],
+            'e' => ['x' => $x, 'y' => $y, 'cote' => 'e'],
+            'o' => ['x' => $x - 1, 'y' => $y, 'cote' => 'e'],
+        }];
     }
 
     /**
@@ -319,8 +360,8 @@ final class CarteConstruite
      *
      * Chacun rend son `type` (`escalier` | `porte`), son `ancre` (le rectangle d'où partent les héros : le bloc 2×2 des
      * marches, ou la case devant la porte), ses `cases` (celles d'où un héros entre ou quitte le donjon) et, pour une
-     * porte, `porte` = `{x, y, cote, mur}`. Une porte d'accès mène HORS du donjon : son embrasure reste de la roche, et elle
-     * n'entre pas dans `carte.portes` — rien ne peut l'ouvrir.
+     * porte, `porte` = `{x, y, cote}`. Une porte d'accès mène HORS du donjon : son bord reste muré (ou face à la roche),
+     * et elle n'entre pas dans `carte.portes` — rien ne peut l'ouvrir.
      *
      * @param  array<string, mixed>  $quete
      * @return array{entree: array<string, mixed>, sortie: array<string, mixed>}
@@ -336,9 +377,8 @@ final class CarteConstruite
                     'type' => ValidationCampagne::ACCES_PORTE,
                     'ancre' => ['x' => $x, 'y' => $y, 'l' => 1, 'h' => 1],
                     'cases' => [['x' => $x, 'y' => $y]],
-                    // `mur` : la case de l'anneau où la porte est percée — celle où l'écran la dessine.
-                    'porte' => ['x' => $x, 'y' => $y, 'cote' => (string) $acces['cote'],
-                        'mur' => self::porteMoteur(['x' => $x, 'y' => $y, 'cote' => (string) $acces['cote']])['embrasure']],
+                    // La porte d'accès est le bord de la case (x, y) du côté `cote` : l'écran la dessine sur ce bord.
+                    'porte' => ['x' => $x, 'y' => $y, 'cote' => (string) $acces['cote']],
                 ];
             }
 
@@ -356,8 +396,8 @@ final class CarteConstruite
     }
 
     /**
-     * La case située JUSTE DEHORS d'une porte K1 : au-delà de son embrasure, dans le sens de son côté. Un couloir, ou
-     * l'intérieur de la salle voisine quand les deux salles partagent le mur.
+     * La case sur laquelle DONNE une porte du format : la voisine de (x, y) du côté `cote`, à un pas. Un couloir, ou une
+     * case de la salle voisine quand les deux salles se touchent.
      *
      * @param  array{x: int, y: int, cote: string}  $porte
      * @return array{x: int, y: int}
@@ -368,10 +408,10 @@ final class CarteConstruite
         $y = (int) $porte['y'];
 
         return match ($porte['cote']) {
-            'n' => ['x' => $x, 'y' => $y - 2],
-            's' => ['x' => $x, 'y' => $y + 2],
-            'e' => ['x' => $x + 2, 'y' => $y],
-            'o' => ['x' => $x - 2, 'y' => $y],
+            'n' => ['x' => $x, 'y' => $y - 1],
+            's' => ['x' => $x, 'y' => $y + 1],
+            'e' => ['x' => $x + 1, 'y' => $y],
+            'o' => ['x' => $x - 1, 'y' => $y],
         };
     }
 
@@ -386,10 +426,10 @@ final class CarteConstruite
     {
         $lignes = [];
         foreach ($quete['portes'] as $porte) {
-            $geo = self::porteMoteur($porte);
+            $dehors = self::caseDehors($porte);
             $nature = $porte['type'] === 'secrete' ? '? porte secrète' : '+ porte normale';
-            $lignes[] = "  $nature : intérieur ({$porte['x']}, {$porte['y']}), côté {$porte['cote']}, "
-                ."embrasure ({$geo['embrasure']['x']}, {$geo['embrasure']['y']})";
+            $lignes[] = "  $nature : case ({$porte['x']}, {$porte['y']}), côté {$porte['cote']}, "
+                ."donne sur ({$dehors['x']}, {$dehors['y']})";
         }
         foreach ($quete['blocs'] as $bloc) {
             $lignes[] = "  # bloc : case ({$bloc['x']}, {$bloc['y']})";
@@ -476,15 +516,4 @@ final class CarteConstruite
         return null;
     }
 
-    /** (x, y) est-elle dans le rectangle moteur d'une salle (mur compris), ouverte ou non ? */
-    private static function dansUneRect(array $salles, int $x, int $y): bool
-    {
-        foreach ($salles as $salle) {
-            if ($x >= $salle['x'] - 1 && $x <= $salle['x'] + $salle['l'] && $y >= $salle['y'] - 1 && $y <= $salle['y'] + $salle['h']) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }

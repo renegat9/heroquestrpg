@@ -25,7 +25,7 @@ use Tests\Feature\Classique\DocumentExemple;
  * Le producteur de carte d'une quête construite (MODE CLASSIQUE, lot K2). Tout le contenu est INVENTÉ
  * (tests/Feature/Classique/DocumentExemple.php) ; seuls les slugs de catalogue sont réels.
  *
- * Les valeurs attendues (embrasures, cases, spawns, aperçu) sont dérivées À LA MAIN du plan de l'exemple, pas copiées
+ * Les valeurs attendues (arêtes, murs, cases, spawns, aperçu) sont dérivées À LA MAIN du plan de l'exemple, pas copiées
  * depuis la sortie du producteur : un écart signale une erreur de l'un des deux, à trancher, jamais à recopier.
  */
 
@@ -57,7 +57,7 @@ function grilleDeLExemple(int $indice, ?callable $avant = null): Grille
 
 /**
  * Ouvre la porte moteur d'ARÊTE (x, y, cote) — ce que `MoteurPortes::ouvrir()` fait à la carte en jeu. Les coordonnées sont
- * celles de l'arête moteur (`CarteConstruite::porteMoteur()`), pas celles de la porte du document.
+ * celles de l'arête moteur (`CarteConstruite::porteMoteur()`) : la case la plus haute (côté `s`) ou la plus à gauche (`e`).
  */
 function ouvrirLaPorte(array &$carte, int $x, int $y, string $cote): void
 {
@@ -80,7 +80,7 @@ it('rend les mêmes clés de premier niveau que AssembleurCarte::assembler(), da
 
     expect(array_diff($clesProduites, $clesAssemblees))->toBe([])
         ->and(array_diff($clesAssemblees, $clesProduites))->toBe([])
-        ->and($clesProduites)->toHaveCount(17);
+        ->and($clesProduites)->toHaveCount(18); // `murs` s'est ajoutée aux deux producteurs (murs en arêtes)
 });
 
 it('rend la carte, les monstres et les accès, et rien d\'autre au premier niveau', function () {
@@ -95,19 +95,26 @@ it('depuis l\'escalier, la sortie vers le couloir du nord passe quand la porte e
     expect($fermee->chemin(2, 4, 3, 0))->toBeNull();
 
     $carte = produitDeLExemple(0)['carte'];
-    ouvrirLaPorte($carte, 3, 0, 's'); // la porte nord (3, 2) n : arête (3, 0)–(3, 1), embrasure (3, 1)
+    ouvrirLaPorte($carte, 3, 1, 's'); // la porte nord de (3, 2) : le bord commun de (3, 1) et (3, 2)
     $ouverte = Grille::depuisCarte(new Carte(['grille' => $carte]));
 
     expect($ouverte->chemin(2, 4, 3, 0))->not->toBeNull();
 });
 
-it('la porte nord ne s\'ouvre que par son embrasure : la case (3, 1) est traversable une fois ouverte, jamais fermée', function () {
-    expect(grilleDeLExemple(0)->estTraversable(3, 1))->toBeFalse();
+it('une porte est un BORD : ses deux cases restent du sol, fermée comme ouverte — seul le passage de l\'une à l\'autre change', function () {
+    $fermee = grilleDeLExemple(0);
+    // Le couloir (3, 1) et la case de salle (3, 2) : on s'y tient dans les deux cas, il n'y a pas de case d'embrasure.
+    expect($fermee->estTraversable(3, 1))->toBeTrue()
+        ->and($fermee->estTraversable(3, 2))->toBeTrue()
+        ->and($fermee->porteFermeeSurCase(3, 1))->toBeFalse()
+        ->and($fermee->areteBloquee(3, 1, 3, 2))->toBeTrue();
 
     $ouverte = grilleDeLExemple(0, function (array &$carte): void {
-        ouvrirLaPorte($carte, 3, 0, 's');
+        ouvrirLaPorte($carte, 3, 1, 's');
     });
-    expect($ouverte->estTraversable(3, 1))->toBeTrue();
+    expect($ouverte->areteBloquee(3, 1, 3, 2))->toBeFalse()
+        // Le mur d'à côté, lui, ne s'ouvre pas avec la porte.
+        ->and($ouverte->areteBloquee(4, 1, 4, 2))->toBeTrue();
 });
 
 it('une case de salle fermée est infranchissable : galerie, dans la seconde quête', function () {
@@ -127,15 +134,22 @@ it('une case de bloc est infranchissable, et la case voisine du couloir ne l\'es
         ->and($grille->estTraversable(12, 7))->toBeTrue();
 });
 
-it('la porte entre deux salles qui partagent un mur ne laisse passer qu\'une fois ouverte, par son embrasure (7, 3)', function () {
-    expect(grilleDeLExemple(0)->estTraversable(7, 3))->toBeFalse()
-        ->and(grilleDeLExemple(0)->chemin(2, 4, 8, 3))->toBeNull();
+it('la porte entre deux salles qui SE TOUCHENT est leur bord commun : un pas de l\'une à l\'autre, une fois ouverte', function () {
+    // `entree` (x 2–6) et `galerie` (x 7–10) : aucune case entre elles. La porte est le bord commun de (6, 3) et (7, 3).
+    $fermee = grilleDeLExemple(0);
+    expect($fermee->estTraversable(6, 3))->toBeTrue()
+        ->and($fermee->estTraversable(7, 3))->toBeTrue()
+        ->and($fermee->chemin(2, 4, 7, 3))->toBeNull()
+        ->and($fermee->ligneDeVue(5, 3, 8, 3))->toBeFalse();
 
     $ouverte = grilleDeLExemple(0, function (array &$carte): void {
-        ouvrirLaPorte($carte, 7, 3, 'e'); // la porte (6, 3) e : arête (7, 3)–(8, 3)
+        ouvrirLaPorte($carte, 6, 3, 'e');
     });
-    expect($ouverte->estTraversable(7, 3))->toBeTrue()
-        ->and($ouverte->chemin(2, 4, 8, 3))->not->toBeNull();
+    expect($ouverte->chemin(6, 3, 7, 3))->toBe([['x' => 7, 'y' => 3]])
+        ->and($ouverte->chemin(2, 4, 7, 3))->not->toBeNull()
+        ->and($ouverte->ligneDeVue(5, 3, 8, 3))->toBeTrue()
+        // À travers la porte, pas à travers le mur : une rangée plus haut, les deux salles ne se voient pas.
+        ->and($ouverte->ligneDeVue(6, 2, 7, 2))->toBeFalse();
 });
 
 it('le mobilier de la quête bloque le passage là où le jeu le lit : FabriqueGrille, la table en (4–6, 4–5)', function () {
@@ -148,33 +162,50 @@ it('le mobilier de la quête bloque le passage là où le jeu le lit : FabriqueG
         ->and($grille->estTraversable(3, 4))->toBeTrue(); // la marche de l'escalier, libre
 });
 
-// ─── Correspondance des portes : la table de `docs/contrat-api.md` contre `Grille::caseEmbrasure()` ─────────────────
+// ─── Correspondance des portes : l'arête moteur relie la case de la porte à la case sur laquelle elle donne ────────
 
-it('la table des portes correspond à Grille::caseEmbrasure(), pour les quatre côtés', function (int $indice, array $porteK1, array $embrasureAttendue, array $ouAttendue) {
-    $carte = produitDeLExemple($indice)['carte'];
-    $arete = CarteConstruite::porteMoteur($porteK1)['arete'];
+it('l\'arête moteur d\'une porte relie sa case à la case sur laquelle elle donne, pour les quatre côtés', function (array $porte, array $donneSur, array $areteAttendue) {
+    $arete = CarteConstruite::porteMoteur($porte)['arete'];
 
-    // Le moteur désigne l'embrasure de l'arête par la même règle que le jeu.
-    expect(Grille::caseEmbrasure($arete, $carte['salles']))->toBe($embrasureAttendue)
-        // L'arête relie bien l'embrasure à la case juste dehors, dans cet ordre.
-        ->and(Grille::casesPorte($arete))->toEqualCanonicalizing([$ouAttendue, $embrasureAttendue]);
+    expect($arete)->toBe($areteAttendue)
+        ->and(CarteConstruite::caseDehors($porte))->toBe($donneSur)
+        // Les deux cases que le moteur lit sur cette arête sont bien celle de la porte et celle d'en face.
+        ->and(Grille::casesPorte($arete))->toEqualCanonicalizing([['x' => $porte['x'], 'y' => $porte['y']], $donneSur]);
 })->with([
-    'nord : (3, 2) n → embrasure (3, 1), dehors (3, 0)' => [0, ['x' => 3, 'y' => 2, 'cote' => 'n'],
-        ['x' => 3, 'y' => 1], ['x' => 3, 'y' => 0]],
-    'est : (6, 3) e → embrasure (7, 3), dehors (8, 3) (salle voisine partagée)' => [0, ['x' => 6, 'y' => 3, 'cote' => 'e'],
-        ['x' => 7, 'y' => 3], ['x' => 8, 'y' => 3]],
-    'sud : (4, 5) s → embrasure (4, 6), dehors (4, 7)' => [1, ['x' => 4, 'y' => 5, 'cote' => 's'],
-        ['x' => 4, 'y' => 6], ['x' => 4, 'y' => 7]],
-    'ouest : (3, 10) o → embrasure (2, 10), dehors (1, 10)' => [1, ['x' => 3, 'y' => 10, 'cote' => 'o'],
-        ['x' => 2, 'y' => 10], ['x' => 1, 'y' => 10]],
+    'nord : (3, 2) n donne sur (3, 1)' => [['x' => 3, 'y' => 2, 'cote' => 'n'], ['x' => 3, 'y' => 1], ['x' => 3, 'y' => 1, 'cote' => 's']],
+    'est : (6, 3) e donne sur (7, 3), dans la salle voisine' => [['x' => 6, 'y' => 3, 'cote' => 'e'], ['x' => 7, 'y' => 3], ['x' => 6, 'y' => 3, 'cote' => 'e']],
+    'sud : (4, 5) s donne sur (4, 6)' => [['x' => 4, 'y' => 5, 'cote' => 's'], ['x' => 4, 'y' => 6], ['x' => 4, 'y' => 5, 'cote' => 's']],
+    'ouest : (3, 10) o donne sur (2, 10)' => [['x' => 3, 'y' => 10, 'cote' => 'o'], ['x' => 2, 'y' => 10], ['x' => 2, 'y' => 10, 'cote' => 'e']],
 ]);
 
-it('une porte secrète est posée fermée et non révélée, sur la case de sa porte', function () {
+it('une porte de la carte est posée sur une arête, sans embrasure ; la secrète est fermée et non révélée', function () {
     $carte = produitDeLExemple(0)['carte'];
-    $secrete = collect($carte['portes'])->first(fn (array $p) => $p['etat'] === 'secrete');
 
-    // Porte (9, 5) côté s : l'arête moteur est celle de l'embrasure (9, 6) vers le couloir (9, 7).
-    expect($secrete)->toMatchArray(['x' => 9, 'y' => 6, 'cote' => 's', 'etat' => 'secrete', 'revele' => false]);
+    expect(collect($carte['portes'])->every(fn (array $p) => Grille::porteSurArete($p)))->toBeTrue();
+
+    $secrete = collect($carte['portes'])->first(fn (array $p) => $p['etat'] === 'secrete');
+    // Porte (9, 5) côté s : le bord commun de (9, 5) et du couloir (9, 6).
+    expect($secrete)->toMatchArray(['x' => 9, 'y' => 5, 'cote' => 's', 'etat' => 'secrete', 'revele' => false, 'arete' => true]);
+});
+
+it('les MURS sont le pourtour des salles ouvertes, sur les arêtes — sauf là où une porte est posée', function () {
+    $murs = collect(produitDeLExemple(0)['carte']['murs']);
+    $a = fn (int $x, int $y, string $cote): bool => $murs->contains(['x' => $x, 'y' => $y, 'cote' => $cote]);
+
+    // Le bord commun d'`entree` et de `galerie` : muré sur toute sa hauteur, sauf au rang de la porte (y = 3).
+    expect($a(6, 2, 'e'))->toBeTrue()
+        ->and($a(6, 3, 'e'))->toBeFalse()
+        ->and($a(6, 4, 'e'))->toBeTrue()
+        ->and($a(6, 5, 'e'))->toBeTrue()
+        // Le mur nord d'`entree`, face au couloir : partout, sauf au droit de la porte de (3, 2).
+        ->and($a(2, 1, 's'))->toBeTrue()
+        ->and($a(3, 1, 's'))->toBeFalse()
+        // Le passage secret de (9, 5) n'est pas un mur de la carte : c'est une porte (l'écran le montre en mur).
+        ->and($a(9, 5, 's'))->toBeFalse()
+        ->and($a(8, 5, 's'))->toBeTrue()
+        // Aucun mur n'est écrit deux fois, et aucun ne borde une salle fermée (la roche suffit).
+        ->and($murs->unique()->count())->toBe($murs->count())
+        ->and($a(2, 9, 'e'))->toBeFalse();
 });
 
 // ─── Départ, meubles, décisions de forme ──────────────────────────────────────────────────────────────────────────
@@ -198,11 +229,11 @@ it('spawn_heros de la seconde quête part du départ en (5, 2), dans l\'entrée 
 it('la salle 0 est celle du départ, et la première de la liste moteur ; les autres suivent l\'ordre du plateau', function () {
     $salles = produitDeLExemple(0)['carte']['salles'];
 
-    // Moteur = rectangle mur compris : l'intérieur (2–6, 2–5) de `entree` devient (1–7, 1–6).
-    expect($salles[0])->toMatchArray(['x' => 1, 'y' => 1, 'largeur' => 7, 'hauteur' => 6, 'theme' => 'generique'])
-        ->and($salles[0]['mediane_x'])->toBe(1 + intdiv(7, 2))
-        ->and($salles[0]['mediane_y'])->toBe(1 + intdiv(6, 2))
-        ->and($salles[1])->toMatchArray(['x' => 7, 'y' => 1, 'largeur' => 6, 'hauteur' => 6])
+    // Sans anneau : le rectangle moteur d'une salle est exactement ses cases — `entree` (2–6, 2–5), `galerie` (7–10, 2–5).
+    expect($salles[0])->toMatchArray(['x' => 2, 'y' => 2, 'largeur' => 5, 'hauteur' => 4, 'theme' => 'generique'])
+        ->and($salles[0]['mediane_x'])->toBe(2 + intdiv(5, 2))
+        ->and($salles[0]['mediane_y'])->toBe(2 + intdiv(4, 2))
+        ->and($salles[1])->toMatchArray(['x' => 7, 'y' => 2, 'largeur' => 4, 'hauteur' => 4])
         ->and(count($salles))->toBe(2); // `reserve` est fermée, `crypte` n'est pas ouverte : deux salles seulement
 });
 
@@ -267,15 +298,15 @@ it('la carte qui ne porte aucune porte secrète le dit : passage_secret est faux
     expect(app(CarteConstruite::class)->produire($campagne, $campagne['quetes'][0])['carte']['passage_secret'])->toBeFalse();
 });
 
-it('les cases : roche hors des salles ouvertes, sol dans l\'intérieur ouvert et dans le couloir, embrasures ouvertes', function () {
+it('les cases : sol dans les salles ouvertes et le couloir, roche dans les salles fermées et sur un bloc — aucun mur n\'est une case', function () {
     $cases = produitDeLExemple(0)['carte']['cases'];
 
     expect($cases[0][0])->toBe('s')        // couloir
-        ->and($cases[1][1])->toBe('m')      // anneau de `entree` : mur
-        ->and($cases[1][3])->toBe('s')      // embrasure de la porte nord
-        ->and($cases[3][7])->toBe('s')      // embrasure de la porte est
-        ->and($cases[2][2])->toBe('s')      // intérieur de `entree`
-        ->and($cases[10][4])->toBe('m')     // intérieur de `crypte` : salle fermée, roche
+        ->and($cases[1][1])->toBe('s')      // couloir qui longe `entree` : plus de case de mur
+        ->and($cases[2][2])->toBe('s')      // `entree`
+        ->and($cases[3][7])->toBe('s')      // `galerie`, collée à `entree`
+        ->and($cases[10][4])->toBe('m')     // `crypte` : salle fermée, roche
+        ->and($cases[3][15])->toBe('m')     // `reserve` : salle fermée, roche
         ->and($cases[7][11])->toBe('m');    // bloc en couloir (11, 7)
 });
 
@@ -314,24 +345,24 @@ it('l\'aperçu de la première quête de l\'exemple est exactement celui qu\'on 
 
     expect($apercu)->toBe(<<<'TXT'
 ....................
-.##+##############..
-.#^..M.#....######..
-.#.....+.~..######..
-.#<<mmm#....######..
-.#<<mmm#....######..
-.########?###.......
+....................
+..^+.M........###...
+......+..~....###...
+..<<mmm.......###...
+..<<mmm..?..........
+....................
 ...........#........
-..######............
-..######............
-..######............
-..######............
-..######............
+....................
+...####.............
+...####.............
+...####.............
+....................
 ....................
 
 Légende :
-  + porte normale : intérieur (6, 3), côté e, embrasure (7, 3)
-  + porte normale : intérieur (3, 2), côté n, embrasure (3, 1)
-  ? porte secrète : intérieur (9, 5), côté s, embrasure (9, 6)
+  + porte normale : case (6, 3), côté e, donne sur (7, 3)
+  + porte normale : case (3, 2), côté n, donne sur (3, 1)
+  ? porte secrète : case (9, 5), côté s, donne sur (9, 6)
   # bloc : case (11, 7)
   < entrée et sortie : escalier, coin (2, 4), 2×2
   m table : ancre (4, 4), rotation 0, emprise 3×2

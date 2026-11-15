@@ -9,10 +9,11 @@ namespace Tests\Feature\Classique;
  * et textes ne reprennent rien d'un livret ni d'un plateau de jeu de société. Seuls les slugs de catalogue sont réels (ceux
  * des seeders) : les tests qui s'en servent seedent le catalogue avant.
  *
- * Plan inventé, géométrie du moteur (un mur est une case, `docs/contrat-api.md` « Géométrie »), plateau de 20 × 14 :
- * - `entree` : intérieur x 2–6, y 2–5 ; `galerie` : intérieur x 8–11, y 2–5. Elles PARTAGENT le mur x = 7.
- * - `crypte` : intérieur x 3–6, y 9–11, séparée de `entree` par une rangée de couloir (y = 7).
- * - `reserve` : intérieur x 14–16, y 2–4, toujours fermée (roche).
+ * Plan inventé, MURS EN ARÊTES (`docs/contrat-api.md` « Géométrie ») : une salle est exactement ses cases, ses murs sont
+ * son pourtour. Plateau de 20 × 14 :
+ * - `entree` : x 2–6, y 2–5 ; `galerie` : x 7–10, y 2–5. Elles SE TOUCHENT : le bord commun des colonnes 6 et 7.
+ * - `crypte` : x 3–6, y 9–11, séparée de `entree` par trois rangées de couloir (y 6–8).
+ * - `reserve` : x 14–16, y 2–4, toujours fermée (roche).
  * - Tout le reste est couloir.
  *
  * La première quête ouvre `entree` et `galerie` ; la seconde ouvre `entree` et `crypte`, et ferme donc `galerie`.
@@ -34,7 +35,7 @@ final class DocumentExemple
                 'hauteur' => 14,
                 'salles' => [
                     ['id' => 'entree', 'x' => 2, 'y' => 2, 'l' => 5, 'h' => 4],
-                    ['id' => 'galerie', 'x' => 8, 'y' => 2, 'l' => 4, 'h' => 4],
+                    ['id' => 'galerie', 'x' => 7, 'y' => 2, 'l' => 4, 'h' => 4],
                     ['id' => 'crypte', 'x' => 3, 'y' => 9, 'l' => 4, 'h' => 3],
                     ['id' => 'reserve', 'x' => 14, 'y' => 2, 'l' => 3, 'h' => 3],
                 ],
@@ -56,7 +57,7 @@ final class DocumentExemple
             'monstre_errant' => null,
             'salles_ouvertes' => ['entree', 'galerie'],
             'portes' => [
-                // Sur le mur partagé : de `entree` vers `galerie`, la case juste dehors est l'intérieur de `galerie`.
+                // Sur le bord commun de `entree` et `galerie` : la porte donne sur la case (7, 3) de `galerie`.
                 ['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale'],
                 // Vers le couloir du nord.
                 ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale'],
