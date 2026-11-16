@@ -45,6 +45,10 @@ function campagneAFausseSortie(array $fausses = [['x' => 10, 'y' => 2, 'cote' =>
     $campagne = DocumentExemple::campagne();
     $campagne['quetes'][0]['sortie'] = ['type' => 'porte', 'x' => 10, 'y' => 5, 'cote' => 's'];
     $campagne['quetes'][0]['fausses_sorties'] = $fausses;
+    // Une porte d'accès — vraie ou fausse — mène hors du plateau : un BLOC derrière chacune, sinon elle donnerait sur
+    // le couloir (`porte_sans_bord`).
+    $campagne['quetes'][0]['blocs'][] = ['x' => 10, 'y' => 6];
+    $campagne['quetes'][0]['blocs'][] = ['x' => 11, 'y' => 2];
 
     return $campagne;
 }

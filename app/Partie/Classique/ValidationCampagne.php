@@ -910,28 +910,30 @@ final class ValidationCampagne
                 return;
             }
             [$dx, $dy] = self::DECALAGES[$cote];
-            // DANS UN COULOIR (René, 2026-11-16 : « la porte de sortie peut aussi être dans un corridor », puis « la porte
-            // d'entrée peut aussi être sur un mur d'un corridor ») : une porte d'accès — entrée, sortie, vraie ou fausse —
-            // peut se poser sur une case de couloir, pourvu qu'elle soit contre quelque chose : le bord du plateau, de la
-            // roche (une salle fermée) ou un bloc. Le côté qui donne sur du sol n'est pas un mur, et une porte n'a rien à
-            // y faire. Entrée en couloir : les héros s'installent dans ce couloir (`CarteConstruite::spawnsCouloir()`).
-            if ($salle === null) {
-                $nx = $x + $dx;
-                $ny = $y + $dy;
-                $contre = !$this->dansPlateau($nx, $ny) || $this->salleFermeeEn($nx, $ny)
-                    || collect($this->occupees["$nx,$ny"] ?? [])->contains(fn (array $o) => $o['genre'] === 'bloc');
-                if (!$contre) {
-                    $this->refuser($position, self::PORTE_SANS_BORD,
-                        "$role : dans un couloir, une porte se pose contre le bord du plateau, de la roche ou un bloc — le côté « $cote » donne sur du sol");
-
-                    return;
-                }
-            } elseif (!$ouverte) {
+            // UNE PORTE D'ACCÈS MÈNE HORS DU PLATEAU (*Kellar's Keep*, F4543 : la porte de fer et la porte de bois sont
+            // « on the edge of the gameboard »). Où qu'elle soit posée — case de salle ouverte ou de couloir (René,
+            // 2026-11-16 : « la porte de sortie peut aussi être dans un corridor », puis « la porte d'entrée peut aussi
+            // être sur un mur d'un corridor ») —, son côté donne sur ce qui n'est pas le donjon : le bord du plateau, de
+            // la roche (une salle fermée) ou un bloc. Un côté qui donne sur du sol — un couloir, une autre salle ouverte —
+            // n'est pas un bord du plateau : la porte s'ouvrirait sur le donjon lui-même. Entrée en couloir : les héros
+            // s'installent dans ce couloir (`CarteConstruite::spawnsCouloir()`).
+            if ($salle !== null && !$ouverte) {
                 $this->refuser($position, self::DEPART_HORS_SALLE, "$role : la porte doit être sur une case d'une salle ouverte");
 
                 return;
-            } elseif ($this->salleEn($x + $dx, $y + $dy) === $salle) {
+            }
+            $nx = $x + $dx;
+            $ny = $y + $dy;
+            if ($salle !== null && $this->salleEn($nx, $ny) === $salle) {
                 $this->refuser($position, self::PORTE_SANS_BORD, "$role : le côté « $cote » reste dans la même salle");
+
+                return;
+            }
+            $dehors = !$this->dansPlateau($nx, $ny) || $this->salleFermeeEn($nx, $ny)
+                || collect($this->occupees["$nx,$ny"] ?? [])->contains(fn (array $o) => $o['genre'] === 'bloc');
+            if (!$dehors) {
+                $this->refuser($position, self::PORTE_SANS_BORD,
+                    "$role : une porte d'accès mène hors du plateau — elle se pose contre le bord du plateau, de la roche ou un bloc ; le côté « $cote » donne sur du sol");
 
                 return;
             }

@@ -36,12 +36,18 @@ beforeEach(function () {
     $this->seed([ClasseHerosSeeder::class, MobilierSeeder::class, MonstreSeeder::class, PiegeSeeder::class, TerrainSeeder::class]);
 });
 
-/** L'exemple, où l'on entre par une porte à l'ouest de `entree` et où l'on sort par une porte au sud de `galerie`. */
+/**
+ * L'exemple, où l'on entre par une porte à l'ouest de `entree` et où l'on sort par une porte au sud de `galerie`. Une
+ * porte d'accès mène HORS du plateau : derrière chacune, un BLOC (1, 3) et (10, 6) — sans eux, elles donneraient sur le
+ * couloir, et la validation les refuserait (`porte_sans_bord`).
+ */
 function campagneAPortes(?array $sortie = ['type' => 'porte', 'x' => 10, 'y' => 5, 'cote' => 's']): array
 {
     $campagne = DocumentExemple::campagne();
     $campagne['quetes'][0]['depart'] = ['type' => 'porte', 'x' => 2, 'y' => 3, 'cote' => 'o'];
     $campagne['quetes'][0]['sortie'] = $sortie;
+    $campagne['quetes'][0]['blocs'][] = ['x' => 1, 'y' => 3];
+    $campagne['quetes'][0]['blocs'][] = ['x' => 10, 'y' => 6];
 
     return $campagne;
 }
@@ -97,9 +103,12 @@ it('accepte un escalier de sortie distinct de l\'escalier d\'entrée', function 
         ->and(app(CarteConstruite::class)->apercu($campagne, $campagne['quetes'][0]))->toContain('> sortie : escalier, coin (9, 4), 2×2');
 });
 
-it('refuse un accès mal posé, en nommant le chemin', function (array $acces, string $cle, string $code, ?string $chemin = null) {
+it('refuse un accès mal posé, en nommant le chemin', function (array $acces, string $cle, string $code, ?string $chemin = null, array $blocs = []) {
     $campagne = DocumentExemple::campagne();
     $campagne['quetes'][0][$cle] = $acces;
+    foreach ($blocs as $bloc) {
+        $campagne['quetes'][0]['blocs'][] = $bloc;
+    }
 
     $refus = refusDAcces($campagne);
     expect(array_column($refus, 'code'))->toContain($code)
@@ -109,10 +118,13 @@ it('refuse un accès mal posé, en nommant le chemin', function (array $acces, s
     'porte sans côté' => [['type' => 'porte', 'x' => 2, 'y' => 3], 'depart', ValidationCampagne::CLE_MANQUANTE],
     'porte dans une salle fermée' => [['type' => 'porte', 'x' => 4, 'y' => 10, 'cote' => 's'], 'sortie', ValidationCampagne::DEPART_INVALIDE],
     'porte dont le côté reste dans la salle' => [['type' => 'porte', 'x' => 3, 'y' => 3, 'cote' => 'e'], 'depart', ValidationCampagne::PORTE_SANS_BORD],
-    'porte sur un mur déjà percé par une porte du donjon' => [['type' => 'porte', 'x' => 3, 'y' => 2, 'cote' => 'n'], 'sortie', ValidationCampagne::CASE_PARTAGEE],
+    // Une porte du DONJON donne toujours sur du sol : une porte d'accès sur son bord donne donc sur le donjon lui-même.
+    'porte sur le bord d\'une porte du donjon' => [['type' => 'porte', 'x' => 3, 'y' => 2, 'cote' => 'n'], 'sortie', ValidationCampagne::PORTE_SANS_BORD],
+    'porte de salle qui donne sur le couloir' => [['type' => 'porte', 'x' => 2, 'y' => 3, 'cote' => 'o'], 'depart', ValidationCampagne::PORTE_SANS_BORD],
+    'porte de salle qui donne sur une autre salle ouverte' => [['type' => 'porte', 'x' => 6, 'y' => 4, 'cote' => 'e'], 'sortie', ValidationCampagne::PORTE_SANS_BORD],
     // Les accès sont contrôlés AVANT le mobilier : c'est le meuble, posé ensuite sur la case de la porte, qui est refusé
     // — comme pour un meuble posé sur l'escalier.
-    'porte dont la case porte un meuble' => [['type' => 'porte', 'x' => 6, 'y' => 5, 'cote' => 's'], 'sortie', ValidationCampagne::CASE_PARTAGEE, 'quetes.0.mobilier.0'],
+    'porte dont la case porte un meuble' => [['type' => 'porte', 'x' => 6, 'y' => 5, 'cote' => 's'], 'sortie', ValidationCampagne::CASE_PARTAGEE, 'quetes.0.mobilier.0', [['x' => 6, 'y' => 6]]],
     'sortie qui recouvre l\'escalier d\'entrée' => [['type' => 'escalier', 'x' => 3, 'y' => 4], 'sortie', ValidationCampagne::CASE_PARTAGEE],
     'escalier de sortie à cheval sur un mur' => [['type' => 'escalier', 'x' => 6, 'y' => 2], 'sortie', ValidationCampagne::DEPART_HORS_SALLE],
 ]);

@@ -817,6 +817,12 @@ ni son format, il appelle ce que la route HTTP appelle.
   de quête (le bandeau ne ment pas), la quête est gagnée quand le dernier
   héros debout sort. « Trouver un objet puis sortir » reste la fin `drapeau`.
   Proposée dans le constructeur. Tests `FinSortirTest`.
+- **Fait le 2026-11-16 — une porte d'accès mène hors du plateau**, en salle
+  comme en couloir : son côté donne sur le bord du plateau, de la roche ou un
+  bloc, sinon `porte_sans_bord` (*Kellar's Keep* : « on the edge of the
+  gameboard »). Avant, une porte d'accès de salle pouvait donner sur un
+  couloir et « sortir » à travers du sol. Les campagnes de test et celle du
+  harnais posent un bloc derrière leurs portes.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

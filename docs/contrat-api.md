@@ -5934,10 +5934,10 @@ Forme : `{chemin, code, message}`. Le **chemin** est pointé depuis la racine : 
 | `dans_salle_fermee` | `monstres`, `pieges`, `terrain` ou `mobilier` tombe dans une salle fermée. |
 | `bloc_hors_couloir` | Un bloc tombe dans une salle, ouverte ou non. |
 | `depart_invalide` | `depart` tombe dans une salle fermée. |
-| `porte_sans_bord` | Une porte n'est pas sur le bord d'une salle ouverte, ou son côté mène hors du plateau ou dans la même salle. |
+| `porte_sans_bord` | Une porte du donjon n'est pas sur le bord d'une salle ouverte, ou son côté mène hors du plateau ou dans la même salle ; une porte d'ACCÈS (entrée, sortie, fausse sortie) a un côté qui donne sur du sol au lieu du bord du plateau, de la roche ou d'un bloc. |
 | `slug_non_concordant` | Le `slug` du document ne vaut pas celui de l'URL (PUT). |
 | `empreinte_invalide` | Un fichier importé porte une `empreinte` qui ne correspond pas à son document. |
-| `depart_hors_salle` | Lot K2 — le bloc 2×2 d'un escalier n'est pas entièrement dans l'intérieur d'une salle ouverte (couloir compris). Une porte d'accès, elle, peut être dans un couloir (`porte_sans_bord` si elle n'y est contre rien). |
+| `depart_hors_salle` | Lot K2 — le bloc 2×2 d'un escalier n'est pas entièrement dans l'intérieur d'une salle ouverte (couloir compris). Une porte d'accès, elle, peut être dans un couloir (`porte_sans_bord` si son côté donne sur du sol). |
 | `porte_dans_la_roche` | La case voisine sur laquelle donne une porte est de la roche : une salle fermée dans cette quête. |
 | `mobilier_hors_salle` | Lot K2 — l'emprise d'un meuble, rotation comprise, sort de l'intérieur de sa salle ouverte, ou le meuble est posé hors de toute salle. |
 | `case_partagee` | Lot K2 — deux éléments sur une même case (couples listés dans « Géométrie »), ou deux portes sur un même bord de case. |
@@ -6062,14 +6062,15 @@ René, 2026-11-14 : « dans certaines extensions ce sont des portes qui font l'e
 est un **escalier** ou une **porte** (`vocabulaires.types_acces`).
 
 - **`quete.depart`** — l'entrée : `{x, y}` ou `{type: "escalier", x, y}` (coin haut-gauche d'un bloc 2×2, entier dans
-  une salle ouverte), ou `{type: "porte", x, y, cote}` (une porte sur le mur d'une salle ouverte, côté `cote` de la
-  case d'intérieur `(x, y)`).
+  une salle ouverte), ou `{type: "porte", x, y, cote}` (une porte sur le bord `cote` de la case `(x, y)`, qui donne
+  hors du plateau — voir plus bas).
 - **`quete.sortie`** — obligatoire, nullable : `null` = on sort par où l'on est entré ; sinon un accès de la même forme.
-- **Une porte d'accès dans un couloir** (2026-11-16, René : « la porte de sortie peut aussi être dans un corridor »,
-  puis « la porte d'entrée peut aussi être sur un mur d'un corridor ») : une porte d'entrée, de sortie ou une fausse
-  sortie peut se poser sur une case de COULOIR, à condition que son côté `cote` donne sur le bord du plateau, sur de la
-  roche (une salle fermée) ou sur un bloc ; sinon `porte_sans_bord`. Un **escalier** reste dans une salle ouverte
-  (`depart_hors_salle`).
+- **Une porte d'accès mène HORS du plateau** (2026-11-16 — *Kellar's Keep* : la porte de fer et la porte de bois sont
+  « on the edge of the gameboard »). Une porte d'entrée, de sortie ou une fausse sortie se pose sur une case de salle
+  ouverte OU de couloir (René : « la porte de sortie peut aussi être dans un corridor », puis « la porte d'entrée peut
+  aussi être sur un mur d'un corridor »), et son côté `cote` donne TOUJOURS sur le bord du plateau, sur de la roche (une
+  salle fermée) ou sur un bloc ; un côté qui donne sur du sol — un couloir, une autre salle ouverte — est refusé
+  (`porte_sans_bord`). Un **escalier** reste dans une salle ouverte (`depart_hors_salle`).
 - **Entrée par une porte de couloir** : `spawn_heros` = la case devant la porte, puis les cases libres du même couloir,
   au plus près en pas. Aucune salle n'est « de départ » : `acces.salle_depart` vaut `null` (`0` sinon — la salle qui
   contient l'entrée), `quetes.salles_decouvertes` démarre vide, aucun monstre n'est vu d'emblée, et le couloir d'entrée
@@ -6078,7 +6079,7 @@ est un **escalier** ou une **porte** (`vocabulaires.types_acces`).
   pas dans `carte.portes`, et rien — la main, une clé, un sort — ne peut l'ouvrir. Le héros entre et sort depuis la
   case `(x, y)` devant elle.
 - **Refus** : type inconnu (`valeur_invalide`) ; case dans une salle fermée (`depart_invalide`) ; escalier qui ne tient
-  pas dans une salle ouverte (`depart_hors_salle`) ; côté qui reste dans la salle, ou porte de couloir contre rien
+  pas dans une salle ouverte (`depart_hors_salle`) ; côté qui reste dans la salle, ou qui donne sur du sol
   (`porte_sans_bord`) ; mur déjà percé par une autre porte, accès qui se recouvrent, meuble ou monstre sur une case
   d'accès (`case_partagee`).
 - **Carte produite** : entrée par une porte → `carte.escalier = null`, et `spawn_heros` part de la case devant la

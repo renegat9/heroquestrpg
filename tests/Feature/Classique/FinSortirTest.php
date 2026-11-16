@@ -114,6 +114,7 @@ it('ne nomme pas la sortie tant qu\'une fausse porte de sortie reste inconnue', 
 it('EN JEU : fin « sortir » par un ESCALIER, entré par une porte depuis hors du plateau', function () {
     $campagne = campagneASortir();
     $campagne['quetes'][0]['depart'] = ['type' => 'porte', 'x' => 2, 'y' => 3, 'cote' => 'o'];
+    $campagne['quetes'][0]['blocs'][] = ['x' => 1, 'y' => 3]; // derrière la porte d'entrée : elle mène hors du plateau
     $campagne['quetes'][0]['sortie'] = ['type' => 'escalier', 'x' => 9, 'y' => 4];
     $campagne['quetes'][0]['salles_ouvertes'] = ['entree', 'galerie'];
     expect(app(ValidationCampagne::class)->valider($campagne))->toBe([]);
