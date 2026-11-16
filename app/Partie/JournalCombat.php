@@ -180,6 +180,8 @@ final class JournalCombat
         // MODE HEROIC (lot H1) : un héros à terre prend le jeton crâne ; un héros qui le gardait meurt.
         'crane_pose' => true,
         'heros_mort' => true,
+        // MODE HEROIC (lot H1b) : les affaires d'un mort ramassées par un compagnon.
+        'depouille_ramassee' => true,
         // MODE CLASSIQUE : une note de quête vient de jouer (`NotesDeQuete`) — texte lu, or, objet, apparition, dégâts.
         'note_de_quete' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
@@ -1260,8 +1262,21 @@ final class JournalCombat
                 'ton' => 'chute',
             ]],
             'heros_mort' => [[
-                'texte' => ($a['nom'] ?? $acteurNom).' est mort',
+                'texte' => ($a['nom'] ?? $acteurNom).' est mort'.match ($a['affaires'] ?? null) {
+                    'au_sol' => ' — ses affaires restent au sol',
+                    'volees' => ' — seul, ses affaires sont aussitôt emportées par un monstre',
+                    default => '',
+                },
                 'ton' => 'mort',
+            ]],
+            'depouille_ramassee' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' ramasse les affaires de '.($a['mort'] ?? '?')
+                    .(($a['objets'] ?? []) === [] && (int) ($a['or'] ?? 0) === 0 ? ' : rien à prendre'
+                        : ' : '.implode(', ', array_filter([
+                            ...array_map('strval', (array) ($a['objets'] ?? [])),
+                            (int) ($a['or'] ?? 0) > 0 ? ((int) $a['or']).' pièces d\'or' : null,
+                        ]))),
+                'ton' => 'tresor',
             ]],
             'entree_donjon' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' entre dans le donjon par la porte d\'entrée',

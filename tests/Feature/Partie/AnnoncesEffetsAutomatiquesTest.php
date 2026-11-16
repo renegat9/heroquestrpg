@@ -308,7 +308,8 @@ function fixturesDesTypesAnnonces(): array
         'entree_donjon' => ['personnage_id' => 1, 'nom' => 'Grom', 'case' => ['x' => 19, 'y' => 7], 'deplacement_restant' => 5],
         // MODE HEROIC (lot H1) : le jeton crâne, puis la mort (`MortHeroic`).
         'crane_pose' => ['personnage_id' => 1, 'nom' => 'Grom'],
-        'heros_mort' => ['personnage_id' => 1, 'nom' => 'Grom'],
+        'heros_mort' => ['personnage_id' => 1, 'nom' => 'Grom', 'affaires' => 'au_sol'],
+        'depouille_ramassee' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'mort' => 'Grom', 'objets' => ['Épée large'], 'or' => 12],
         // MODE CLASSIQUE : la récompense d'une quête construite, versée aux bourses (`FinDeQueteConstruite`).
         'recompense_quete' => ['quete_id' => 1, 'total' => 10, 'parts' => [
             ['personnage_id' => 1, 'nom' => 'Grom', 'or' => 5], ['personnage_id' => 2, 'nom' => 'Albrecht', 'or' => 5],

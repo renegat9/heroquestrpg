@@ -88,6 +88,8 @@ const ICONE_TYPE = {
     sortie: 'logout',
     // HORS PLATEAU (mode classique) : franchir la porte d'entrée — l'inverse de la sortie.
     entree_donjon: 'login',
+    // MODE HEROIC (lot H1b) : ramasser les affaires d'un compagnon mort.
+    ramasser_depouille: 'backpack',
     retraite: 'directions_run',
     desamorcer: 'handyman',
     franchir: 'sprint',

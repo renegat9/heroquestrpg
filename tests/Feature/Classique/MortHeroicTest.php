@@ -165,3 +165,70 @@ it('Heroic : un TPK tue tous les héros à terre, et une reprise ne ressuscite p
     $this->postJson("/api/groupes/{$code}/reprise");
     expect(\App\Models\EtatPersonnageQuete::whereIn('personnage_id', [$albrecht->id, $brunehaut->id])->count())->toBe(0);
 });
+
+/*
+ * LES AFFAIRES DU MORT (lot H1b) — livret de règles de First Light (G0978, « Dead Heroes ») : un compagnon de la même
+ * salle ou du même couloir les ramasse, sans action ; personne là, un monstre les emporte — hors du jeu.
+ */
+function equiperBrunehaut(Personnage $brunehaut): void
+{
+    test()->seed(\Database\Seeders\ObjetSeeder::class);
+    \App\Models\Inventaire::create([
+        'personnage_id' => $brunehaut->id,
+        'objet_id' => \App\Models\Objet::where('nom', 'Épée courte')->value('id'),
+        'emplacement' => 'arme_principale', 'quantite' => 1,
+    ]);
+    $brunehaut->update(['or' => 15]);
+}
+
+it('EN JEU, Heroic : un compagnon dans la même salle ramasse les affaires du mort, sans action', function () {
+    ['code' => $code, 'groupe' => $groupe, 'quete' => $quete, 'albrecht' => $albrecht, 'brunehaut' => $brunehaut]
+        = partieHeroic($this);
+    equiperBrunehaut($brunehaut);
+    $orAlbrecht = (int) $albrecht->fresh()->or;
+    $quete->etatsPersonnages()->where('personnage_id', $brunehaut->id)->first()->update(['tombe' => true]);
+
+    finirLeRound($this, $groupe, $code, $albrecht);
+    finirLeRound($this, $groupe, $code, $albrecht);
+
+    // Elle meurt dans la salle d'Albrecht : ses affaires restent au sol, à sa case.
+    $mort = \App\Models\Evenement::where('groupe_id', $groupe->id)->get()
+        ->first(fn ($e) => ($e->payload['type'] ?? null) === 'heros_mort');
+    expect($mort->payload['affaires'])->toBe('au_sol')
+        ->and(collect($quete->refresh()->depouilles())->pluck('personnage_id')->all())->toBe([$brunehaut->id]);
+
+    // Albrecht reçoit l'option, gratuite ; il prend l'épée et l'or.
+    Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($groupe, $albrecht));
+    $option = collect($this->getJson("/api/groupes/{$code}/menu")->assertOk()->json('menu.options'))
+        ->firstWhere('id', 'ramasser_'.$brunehaut->id);
+    expect($option['libelle'])->toBe('Ramasser les affaires de Brunehaut')
+        ->and($option['creneau'])->toBe('interaction');
+
+    $this->postJson("/api/groupes/{$code}/choix", ['option_id' => 'ramasser_'.$brunehaut->id])->assertAccepted()
+        ->assertJsonPath('resultat.type', 'depouille_ramassee')
+        ->assertJsonPath('resultat.objets', ['Épée courte'])
+        ->assertJsonPath('resultat.or', 15);
+
+    expect($albrecht->inventaire()->whereHas('objet', fn ($q) => $q->where('nom', 'Épée courte'))->value('emplacement'))->toBe('sac')
+        ->and((int) $albrecht->fresh()->or)->toBe($orAlbrecht + 15)
+        ->and((int) $brunehaut->fresh()->or)->toBe(0)
+        ->and($quete->refresh()->depouilles())->toBe([]);
+});
+
+it('EN JEU, Heroic : mort seul dans sa salle, un monstre emporte ses affaires — rien n\'est supprimé', function () {
+    ['code' => $code, 'groupe' => $groupe, 'quete' => $quete, 'albrecht' => $albrecht, 'brunehaut' => $brunehaut]
+        = partieHeroic($this);
+    equiperBrunehaut($brunehaut);
+    // Albrecht attend dans le couloir, hors de la salle `entree`.
+    $quete->etatsPersonnages()->where('personnage_id', $albrecht->id)->update(['position_x' => 12, 'position_y' => 2]);
+    $quete->etatsPersonnages()->where('personnage_id', $brunehaut->id)->first()->update(['tombe' => true]);
+
+    finirLeRound($this, $groupe, $code, $albrecht);
+    finirLeRound($this, $groupe, $code, $albrecht);
+
+    $mort = \App\Models\Evenement::where('groupe_id', $groupe->id)->get()
+        ->first(fn ($e) => ($e->payload['type'] ?? null) === 'heros_mort');
+    expect($mort->payload['affaires'])->toBe('volees')
+        ->and($quete->refresh()->depouilles())->toBe([])
+        ->and($brunehaut->inventaire()->count())->toBe(1);
+});

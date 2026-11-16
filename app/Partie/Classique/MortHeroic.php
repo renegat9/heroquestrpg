@@ -99,6 +99,7 @@ final class MortHeroic
     public function mourir(Groupe $groupe, Quete $quete, EtatPersonnageQuete $etat): array
     {
         $heros = $etat->personnage;
+        $affaires = $this->laisserLesAffaires($quete, $etat);
         $heros?->update(['mort_le' => now()]);
         $etat->delete();
 
@@ -106,10 +107,53 @@ final class MortHeroic
             'type' => 'heros_mort',
             'personnage_id' => (int) $etat->personnage_id,
             'nom' => (string) ($heros->nom ?? ''),
+            // `au_sol` : un compagnon était là, les affaires attendent qu'on les ramasse ; `volees` : personne, un monstre
+            // s'en empare (lot H1b).
+            'affaires' => $affaires,
         ];
         Journal::ajouter($groupe, 'action', $payload);
 
         return $payload;
+    }
+
+    /**
+     * LES AFFAIRES DU MORT (lot H1b) — livret de règles de *First Light* (G0978, « Dead Heroes ») : elles « can be
+     * picked up by any other hero in the room with you, no action required », et « if there are no other heroes in the
+     * room or corridor with you when you die, a nearby monster skulks in, snatches your possessions, and absconds! The
+     * possessions are removed from the game ».
+     *
+     * La zone est celle de la fouille (`ZoneFouille` : la salle, ou le couloir, en entier). Un compagnon y compte s'il
+     * est DEBOUT (décision écrite : un héros à terre ne chasse pas un voleur). Les affaires au sol sont posées à la case
+     * du mort (`Quete::poserDepouille()`) ; volées, elles RESTENT sur la ligne du mort, hors du jeu — rien n'est
+     * supprimé.
+     */
+    private function laisserLesAffaires(Quete $quete, EtatPersonnageQuete $etat): string
+    {
+        $grille = (array) ($quete->carte?->grille ?? []);
+        if ($etat->horsPlateau() || $grille === []) {
+            return 'volees';
+        }
+
+        $zone = \App\Partie\ZoneFouille::de($grille, (int) $etat->position_x, (int) $etat->position_y);
+        $temoin = $quete->etatsPersonnages()
+            ->where('id', '!=', $etat->id)
+            ->where('tombe', false)
+            ->whereNotNull('position_x')
+            ->get()
+            ->contains(fn (EtatPersonnageQuete $autre) => $zone->contient((int) $autre->position_x, (int) $autre->position_y));
+
+        if (! $temoin) {
+            return 'volees';
+        }
+
+        $quete->poserDepouille([
+            'personnage_id' => (int) $etat->personnage_id,
+            'nom' => (string) ($etat->personnage->nom ?? ''),
+            'x' => (int) $etat->position_x,
+            'y' => (int) $etat->position_y,
+        ]);
+
+        return 'au_sol';
     }
 
     /**

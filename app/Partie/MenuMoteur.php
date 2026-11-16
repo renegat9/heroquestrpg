@@ -3393,6 +3393,23 @@ final class MenuMoteur
             ];
         }
 
+        // LES AFFAIRES D'UN MORT (mode Heroic, lot H1b) : « can be picked up by any other hero in the room with you, no
+        // action required » (livret de règles de First Light). Offertes au héros debout qui se tient dans la même salle
+        // ou le même couloir (`ZoneFouille`) que la case du mort — la liste que `resoudreRamasserDepouille()` revalide.
+        if (! $aJoue && $etat !== null && ! $etat->tombe && ! $etat->horsPlateau() && $quete->depouilles() !== []) {
+            $zone = ZoneFouille::de((array) ($quete->carte?->grille ?? []), (int) $etat->position_x, (int) $etat->position_y);
+            foreach ($quete->depouilles() as $depouille) {
+                if ($zone->contient($depouille['x'], $depouille['y'])) {
+                    $options[] = [
+                        'id' => 'ramasser_'.$depouille['personnage_id'],
+                        'libelle' => 'Ramasser les affaires de '.$depouille['nom'],
+                        'type' => 'ramasser_depouille',
+                        'parametres' => ['personnage_id' => $depouille['personnage_id']],
+                    ];
+                }
+            }
+        }
+
         if (! $enArene && ! $parEscalier && ! $aJoue && $peutSortir && $surEscalier && ! $voteOuvert) {
             $options[] = [
                 'id' => 'quitter_donjon',

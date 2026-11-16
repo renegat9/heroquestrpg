@@ -742,6 +742,8 @@ final class ResolveurTour
                 'sortie_en_personne' => $this->resoudreSortieEnPersonne($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // HORS PLATEAU (mode classique, René 2026-11-16) : le héros qui attend devant la porte d'entrée y entre.
                 'entree_donjon' => $this->resoudreEntreeDonjon($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // MODE HEROIC (lot H1b) : ramasser les affaires d'un mort, dans sa salle ou son couloir. Geste libre.
+                'ramasser_depouille' => $this->resoudreRamasserDepouille($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'retraite' => $this->resoudreRetraite($groupe, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: false),
@@ -16234,6 +16236,8 @@ final class ResolveurTour
             'desarmer_embrasement', 'liberer_captif', 'defausse_sables', 'memoire_parfaite', 'forcer_porte_condition', 'forcer_grille' => 'interaction',
             // ANNEAU DE SORT : déclarer le sort gardé ne coûte rien, le tour commence à peine.
             MoteurAnneauDeSort::TYPE => 'interaction',
+            // MODE HEROIC (lot H1b) : ramasser les affaires d'un mort — « no action required ».
+            'ramasser_depouille' => 'interaction',
             // TROPHÉES D'ARÈNE (lot T4) : « no action required » pour ramasser, et l'usage n'en demande pas davantage —
             // boire la potion d'une tuile ou défausser une tuile pour l'élan ne coûte aucun créneau.
             'trophee_potion', 'trophee_elan' => 'interaction',
@@ -16668,6 +16672,68 @@ final class ResolveurTour
             'deplacement_restant' => $restantApres,
         ];
 
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * RAMASSER LES AFFAIRES D'UN MORT (mode Heroic, lot H1b) — « no action required » : geste LIBRE (créneau
+     * `interaction`). Toutes les pièces qui peuvent quitter le mort passent au sac du héros (`DonObjet::transferer()`,
+     * améliorations de Forge comprises ; une pièce maudite portée reste sur lui, `Equipement::retirable()`), son or passe
+     * par `Bourses`. Le sac peut déborder, comme un butin de quête : refuser le ramassage perdrait les objets. Revalide
+     * ce que le menu a offert : les affaires sont au sol, dans la salle ou le couloir du héros.
+     *
+     * @return array<string, mixed>
+     */
+    private function resoudreRamasserDepouille(Groupe $groupe, Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $mortId = (int) data_get($option, 'parametres.personnage_id', 0);
+        $depouille = collect($quete->depouilles())->firstWhere('personnage_id', $mortId);
+
+        if ($etat === null || $etat->tombe || $etat->horsPlateau() || $depouille === null
+            || ! ZoneFouille::de((array) ($quete->carte?->grille ?? []), (int) $etat->position_x, (int) $etat->position_y)
+                ->contient($depouille['x'], $depouille['y'])) {
+            throw ValidationException::withMessages(['option_id' => 'Ces affaires ne sont pas à portée : il faut être dans la même salle ou le même couloir.']);
+        }
+
+        $mort = Personnage::findOrFail($mortId);
+        $equipement = app(Equipement::class);
+        $objets = [];
+
+        $or = DB::transaction(function () use ($groupe, $quete, $personnage, $mort, $equipement, &$objets, $depouille): int {
+            foreach ($mort->inventaire()->with('objet')->get() as $ligne) {
+                if ($ligne->objet === null || ! $equipement->retirable($ligne)) {
+                    continue;
+                }
+                $objets[] = (string) $ligne->objet->nom;
+                app(DonObjet::class)->transferer($ligne, $personnage, (int) $ligne->quantite);
+            }
+
+            $bourses = app(\App\Partie\Bourses::class);
+            $or = $bourses->parHeros($groupe) ? $bourses->solde($groupe, $mort) : 0;
+            if ($or > 0) {
+                $bourses->payer($groupe, $or, $mort);
+                $bourses->verser($groupe, $or, $personnage);
+            }
+
+            $quete->poserDepouille($depouille, garder: false);
+
+            return $or;
+        });
+
+        $equipement->recalculerCombat($personnage->fresh());
+
+        $payload = [
+            'type' => 'depouille_ramassee',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'personnage_id' => $personnage->id,
+            'nom' => $personnage->nom,
+            'mort' => $depouille['nom'],
+            'objets' => $objets,
+            'or' => $or,
+        ];
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;

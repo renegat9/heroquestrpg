@@ -6140,9 +6140,17 @@ Plan classique Q2 et Q7. Sources : *Jungles of Delthrak* (F9907 p. 8-9) ; livret
   422 (« … est mort : créez un nouveau héros pour reprendre votre place »).
 - **TPK en Heroic** : tous les héros à terre meurent (« all four heroes die »). Une **reprise** d'instantané
   (`POST /reprise`, `POST /quete/redemarrer`) ne ressuscite personne : les lignes d'état des morts ne sont pas recréées.
-- **Pas encore** (lots suivants) : l'équipement du mort (à ramasser dans la même salle ou le même couloir, volé sinon —
-  H1b) ; le soin d'un héros à terre par une potion donnée par un compagnon, et le lanceur qui se soigne en mourant
-  (H1c).
+- **Les affaires du mort** (lot H1b — « can be picked up by any other hero in the room with you, no action required » ;
+  sinon « a nearby monster […] snatches your possessions ») : à sa mort, si un compagnon DEBOUT se tient dans la même
+  salle ou le même couloir (la zone de la fouille), ses affaires restent au sol à sa case (`quetes.depouilles`) ;
+  sinon elles sont volées et restent sur le mort, hors du jeu (rien n'est supprimé). `heros_mort.affaires` ∈
+  `au_sol | volees` (fil : « … est mort — ses affaires restent au sol » / « — seul, ses affaires sont aussitôt
+  emportées par un monstre »). Tout héros debout dans cette zone reçoit l'option `ramasser_{id du mort}` (type
+  `ramasser_depouille`, créneau `interaction`, « Ramasser les affaires de Brunehaut ») : toutes les pièces qui peuvent
+  quitter le mort passent à son sac (une pièce maudite portée reste), son or à sa bourse ; le sac peut déborder.
+  Résultat `{type: "depouille_ramassee", personnage_id, nom, mort, objets: [noms], or}`.
+- **Pas encore** (lot H1c) : le soin d'un héros à terre par une potion donnée par un compagnon, et le lanceur qui se
+  soigne en mourant.
 
 ### Quête solo et spectateurs (lot S1, 2026-11-16)
 

@@ -855,6 +855,14 @@ ni son format, il appelle ce que la route HTTP appelle.
   sinon) ; H1c, la potion donnée par un compagnon à un héros à terre (au lieu
   du « relever » sans potion, écart du projet) et le lanceur qui se soigne en
   mourant.
+- **Fait le 2026-11-16 — lot H1b, les affaires du mort** (G0978, « Dead
+  Heroes »). À sa mort, si un compagnon debout se tient dans la même salle ou
+  le même couloir (zone de la fouille), ses affaires restent au sol
+  (`quetes.depouilles`, migration `2026_11_16_160000`, appliquée après
+  sauvegarde relue) et tout héros de cette zone peut les ramasser sans action
+  (`ramasser_depouille`, transfert par `DonObjet::transferer()`, or par
+  `Bourses`) ; sinon un monstre les emporte — elles restent sur le mort, hors
+  du jeu, rien n'est supprimé. Tests dans `MortHeroicTest`.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

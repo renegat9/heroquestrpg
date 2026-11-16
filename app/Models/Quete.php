@@ -51,6 +51,9 @@ class Quete extends Model
         // MODE CLASSIQUE (lot S1, 2026-11-16) : les héros ENGAGÉS, figés au départ — `null` = tout le groupe. Lu par
         // `participants()` / `participe()` seulement.
         'participants',
+        // MODE HEROIC (lot H1b, 2026-11-16) : les affaires d'un mort restées au sol — `[{personnage_id, nom, x, y}]`. Lu
+        // par `depouilles()` seulement.
+        'depouilles',
         // MODE CLASSIQUE (lot K3, 2026-11-15) : le document de la quête construite, FIGÉ au départ ; ses drapeaux ; ses
         // notes « une fois » déjà tirées. Lus par `documentConstruit()`, `NotesDeQuete` et `MonstreErrant`.
         'document_construit',
@@ -85,6 +88,7 @@ class Quete extends Model
             'objectif_construit' => 'array',
             'acces' => 'array',
             'participants' => 'array',
+            'depouilles' => 'array',
             'document_construit' => 'array',
             'drapeaux' => 'array',
             'notes_jouees' => 'array',
@@ -111,6 +115,29 @@ class Quete extends Model
         $participants = $this->participants();
 
         return $participants === null || in_array($personnageId, $participants, true);
+    }
+
+    /**
+     * Les AFFAIRES d'un héros mort restées au sol (lot H1b, Heroic) : `[{personnage_id, nom, x, y}]`, à la case de sa
+     * mort, jusqu'à ce qu'un héros de la même salle ou du même couloir les ramasse.
+     *
+     * @return list<array{personnage_id: int, nom: string, x: int, y: int}>
+     */
+    public function depouilles(): array
+    {
+        return array_values(array_map(static fn (array $d): array => [
+            'personnage_id' => (int) $d['personnage_id'], 'nom' => (string) $d['nom'], 'x' => (int) $d['x'], 'y' => (int) $d['y'],
+        ], (array) ($this->depouilles ?? [])));
+    }
+
+    /** Ajoute (ou retire, `$garder = false`) les affaires au sol d'un mort. État durable : en colonne. */
+    public function poserDepouille(array $depouille, bool $garder = true): void
+    {
+        $liste = array_values(array_filter($this->depouilles(), static fn (array $d) => $d['personnage_id'] !== (int) $depouille['personnage_id']));
+        if ($garder) {
+            $liste[] = $depouille;
+        }
+        $this->update(['depouilles' => $liste === [] ? null : $liste]);
     }
 
     /** Cette quête vient-elle du CONSTRUCTEUR (mode classique) plutôt que du générateur ? */
