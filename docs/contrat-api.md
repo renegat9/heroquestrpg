@@ -6149,8 +6149,17 @@ Plan classique Q2 et Q7. Sources : *Jungles of Delthrak* (F9907 p. 8-9) ; livret
   `ramasser_depouille`, créneau `interaction`, « Ramasser les affaires de Brunehaut ») : toutes les pièces qui peuvent
   quitter le mort passent à son sac (une pièce maudite portée reste), son or à sa bourse ; le sac peut déborder.
   Résultat `{type: "depouille_ramassee", personnage_id, nom, mort, objets: [noms], or}`.
-- **Pas encore** (lot H1c) : le soin d'un héros à terre par une potion donnée par un compagnon, et le lanceur qui se
-  soigne en mourant.
+- **Relever, en classique** (lot H1c — F9907 p. 8, « another hero can use an action to administer a healing potion to
+  an incapacitated hero […] so long as neither hero is adjacent to a monster » ; le mode Story y renvoie) : l'option
+  `relever` n'existe plus sans potion (écart du projet, absent du classique — Q1). Une option par potion de SOIN du sac
+  (`soin_pv_body` ou `soin_pv_body_de`) que le héros à terre peut boire : `id: relever_{cible}_{inventaire_id}`, type
+  `relever`, créneau `action`, `parametres.inventaire_id`, libellé « Faire boire « Potion de soin » à Brunehaut » ;
+  aucune si l'un des deux est au contact d'un monstre actif. La potion soigne et relève (le jeton crâne tombe avec).
+  Groupes non classiques : inchangé.
+- **Le lanceur qui se soigne en mourant** (« Heroic and Story mode only: If a hero spellcaster dies, they can
+  immediately heal themselves by casting an available healing spell, regardless of whether they had previously used an
+  action ») : déjà tenu par la réaction « Rester debout » (`soin_urgence`), qui offre les sorts de soin disponibles
+  quelle que soit l'action du tour.
 
 ### Quête solo et spectateurs (lot S1, 2026-11-16)
 

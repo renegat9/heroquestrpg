@@ -863,6 +863,12 @@ ni son format, il appelle ce que la route HTTP appelle.
   (`ramasser_depouille`, transfert par `DonObjet::transferer()`, or par
   `Bourses`) ; sinon un monstre les emporte — elles restent sur le mort, hors
   du jeu, rien n'est supprimé. Tests dans `MortHeroicTest`.
+- **Fait le 2026-11-16 — lot H1c, relever par une potion** (F9907 p. 8). En
+  classique, « relever » sans potion disparaît (écart du projet) : un
+  compagnon au contact fait boire une potion de soin de son sac, au prix de
+  son action, si aucun des deux ne touche un monstre ; le crâne tombe avec.
+  Le lanceur qui se soigne en mourant était déjà tenu par la réaction
+  « Rester debout ». Lot H1 terminé.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

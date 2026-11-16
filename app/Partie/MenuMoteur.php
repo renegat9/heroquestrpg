@@ -167,6 +167,41 @@ final class MenuMoteur
      * ⚠ `ResolveurTour::heroAuContact()` porte la MÊME règle et doit rester en
      * phase — le menu propose, le résolveur revalide.
      */
+    /**
+     * MODE CLASSIQUE (lot H1c) : aucune de ces cases n'est-elle au contact d'un monstre ACTIF ? Lu par le menu et par
+     * `ResolveurTour::resoudreRelever()` — « so long as neither hero is adjacent to a monster » (F9907 p. 8).
+     *
+     * @param  list<array{x: int, y: int}>  $cases
+     */
+    public static function aucunMonstreAuContact(Quete $quete, array $cases): bool
+    {
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->whereNotNull('position_x')->with('monstre')->get() as $instance) {
+            foreach ($cases as $case) {
+                if (self::monstreAuContact($instance, $case['x'], $case['y'])) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * MODE CLASSIQUE (lot H1c) : les potions de SOIN (Body) du sac de `$donneur` que `$buveur` peut boire — la classe
+     * suit qui BOIT, comme pour toute potion tendue à un voisin. Lu par le menu et par le résolveur.
+     *
+     * @return \Illuminate\Support\Collection<int, \App\Models\Inventaire>
+     */
+    public static function potionsDeSoin(Personnage $donneur, Personnage $buveur, Equipement $equipement): \Illuminate\Support\Collection
+    {
+        return $donneur->inventaire()->with('objet')->get()
+            ->filter(fn ($ligne) => $ligne->objet !== null
+                && $ligne->objet->categorie === 'consommable'
+                && (isset($ligne->objet->effet['soin_pv_body']) || isset($ligne->objet->effet['soin_pv_body_de']))
+                && $equipement->estAccessible($buveur, $ligne->objet))
+            ->values();
+    }
+
     private static function monstreAuContact(InstanceMonstre $instance, int $hx, int $hy, bool $diagonale = false): bool
     {
         $e = $instance->monstre->emprise();
@@ -2496,6 +2531,31 @@ final class MenuMoteur
                     ->estOccupeeParFigure((int) $allie->position_x, (int) $allie->position_y);
 
                 if (! $libre) {
+                    continue;
+                }
+
+                // MODE CLASSIQUE (lot H1c, *Jungles of Delthrak* F9907 p. 8, Heroic — Story renvoie à la même règle) :
+                // « Another hero can use an action to administer a healing potion to an incapacitated hero if they are on
+                // or adjacent to the incapacitated hero's equipment tile, so long as neither hero is adjacent to a
+                // monster. » Pas de « relever » sans potion — un écart du projet, que le classique n'a pas (Q1). Une
+                // option par potion de soin du sac ; aucune au contact d'un monstre. Liste que le résolveur revalide.
+                if ($groupe->estClassique()) {
+                    if (! self::aucunMonstreAuContact($quete, [
+                        ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y],
+                        ['x' => (int) $allie->position_x, 'y' => (int) $allie->position_y],
+                    ])) {
+                        continue;
+                    }
+                    foreach (self::potionsDeSoin($personnage, $allie->personnage, $this->equipement) as $ligne) {
+                        $options[] = [
+                            'id' => "relever_{$allie->personnage_id}_{$ligne->id}",
+                            'libelle' => "Faire boire « {$ligne->objet->nom} » à {$allie->personnage->nom}",
+                            'type' => 'relever',
+                            'cible_personnage_id' => (int) $allie->personnage_id,
+                            'parametres' => ['inventaire_id' => (int) $ligne->id],
+                        ];
+                    }
+
                     continue;
                 }
 

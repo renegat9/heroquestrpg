@@ -9156,6 +9156,41 @@ final class ResolveurTour
             ]);
         }
 
+        // MODE CLASSIQUE (lot H1c, F9907 p. 8) : on relève en faisant boire une POTION DE SOIN — l'action est dépensée
+        // (créneau de l'option), et ni l'un ni l'autre n'est au contact d'un monstre. Mêmes listes que le menu
+        // (`MenuMoteur::potionsDeSoin()`, `aucunMonstreAuContact()`). `boire()` soigne la cible et la remet debout ; le
+        // jeton crâne tombe avec (`EtatPersonnageQuete::booted()`).
+        if ($groupe->estClassique()) {
+            if (! MenuMoteur::aucunMonstreAuContact($quete, [
+                ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y],
+                ['x' => (int) $cible->position_x, 'y' => (int) $cible->position_y],
+            ])) {
+                throw ValidationException::withMessages(['option_id' => 'Impossible : un monstre est au contact.']);
+            }
+            $inventaireId = (int) data_get($option, 'parametres.inventaire_id', 0);
+            $ligne = MenuMoteur::potionsDeSoin($personnage, $cible->personnage, $this->equipement)->firstWhere('id', $inventaireId);
+            if ($ligne === null) {
+                throw ValidationException::withMessages(['option_id' => 'Il faut une potion de soin pour relever un compagnon.']);
+            }
+            $nomPotion = (string) $ligne->objet->nom;
+            $potion = app(MoteurPotions::class)->boire($personnage, $ligne, [], $cible->personnage);
+
+            $payload = [
+                'type' => 'relever',
+                'option_id' => $option['id'],
+                'libelle' => $option['libelle'] ?? null,
+                'personnage_id' => $personnage->id,
+                'cible' => $cible->personnage->nom,
+                'cible_personnage_id' => $cibleId,
+                'pv_body' => (int) $cible->personnage->fresh()->pv_body,
+                'potion' => $nomPotion,
+                'soin' => $potion,
+            ];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
         // Debout à 1 POINT de Body (décision de René, 2026-08-06).
         //
         // ⚠ INTENTION, à ne pas « corriger » une troisième fois. Cette valeur a

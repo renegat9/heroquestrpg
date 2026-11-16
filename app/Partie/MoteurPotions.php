@@ -722,7 +722,9 @@ class MoteurPotions
         $personnage->etatsQuete()
             ->where('quete_id', $queteId)
             ->where('tombe', true)
-            ->update(['tombe' => false]);
+            // Requête directe, donc sans le crochet de `EtatPersonnageQuete::booted()` : le jeton crâne du mode Heroic
+            // (lot H1) tombe ici avec la chute, à la main — un soin qui relève le fait défausser (F9907 p. 8).
+            ->update(['tombe' => false, 'crane' => false]);
     }
     /**
      * Rend au héros tout ce qu'une SOURCE de dégâts lui a coûté dans la quête,

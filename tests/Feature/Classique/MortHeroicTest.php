@@ -232,3 +232,48 @@ it('EN JEU, Heroic : mort seul dans sa salle, un monstre emporte ses affaires �
         ->and($quete->refresh()->depouilles())->toBe([])
         ->and($brunehaut->inventaire()->count())->toBe(1);
 });
+
+/*
+ * RELEVER EN CLASSIQUE (lot H1c, F9907 p. 8) : un compagnon fait boire une POTION DE SOIN à un héros à terre, au prix
+ * de son action, si aucun des deux n'est au contact d'un monstre. Pas de « relever » sans potion (écart du projet).
+ */
+it('EN JEU, classique : relever, c\'est faire boire une potion de soin — sans potion ni au contact d\'un monstre, rien', function () {
+    ['code' => $code, 'groupe' => $groupe, 'quete' => $quete, 'albrecht' => $albrecht, 'brunehaut' => $brunehaut]
+        = partieHeroic($this);
+    $this->seed(\Database\Seeders\ObjetSeeder::class);
+    $etatB = fn () => $quete->etatsPersonnages()->where('personnage_id', $brunehaut->id)->first();
+    $quete->etatsPersonnages()->where('personnage_id', $albrecht->id)->update(['position_x' => 2, 'position_y' => 4]);
+    $etatB()->update(['position_x' => 3, 'position_y' => 4, 'tombe' => true, 'crane' => true]);
+    $brunehaut->update(['pv_body' => 0]);
+    $releve = function () use ($groupe, $code, $albrecht) {
+        Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($groupe, $albrecht));
+
+        return collect($this->getJson("/api/groupes/{$code}/menu")->assertOk()->json('menu.options'))
+            ->filter(fn (array $o) => ($o['type'] ?? null) === 'relever')->values();
+    };
+
+    // Sans potion : rien à offrir.
+    expect($releve())->toHaveCount(0);
+
+    // Avec une potion de soin, mais un monstre au contact de Brunehaut : toujours rien.
+    $potion = \App\Models\Inventaire::create([
+        'personnage_id' => $albrecht->id, 'objet_id' => \App\Models\Objet::where('nom', 'Potion de soin')->value('id'),
+        'emplacement' => 'sac', 'quantite' => 1,
+    ]);
+    $gobelin = InstanceMonstre::where('quete_id', $quete->id)->firstOrFail();
+    $gobelin->update(['etat' => 'actif', 'revele' => true, 'position_x' => 4, 'position_y' => 4]);
+    expect($releve())->toHaveCount(0);
+
+    // Le monstre parti : l'option est là, nommée par la potion.
+    $gobelin->update(['etat' => 'vaincu']);
+    $option = $releve()->first();
+    expect($option['libelle'])->toBe('Faire boire « Potion de soin » à Brunehaut')
+        ->and($option['creneau'])->toBe('action');
+
+    $this->postJson("/api/groupes/{$code}/choix", ['option_id' => $option['id']])->assertAccepted();
+
+    expect((bool) $etatB()->tombe)->toBeFalse()
+        ->and((bool) $etatB()->crane)->toBeFalse()
+        ->and((int) $brunehaut->fresh()->pv_body)->toBeGreaterThan(0)
+        ->and(\App\Models\Inventaire::find($potion->id))->toBeNull();
+});
