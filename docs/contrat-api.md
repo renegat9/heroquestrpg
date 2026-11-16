@@ -6073,6 +6073,22 @@ est un **escalier** ou une **porte** (`vocabulaires.types_acces`).
   décidé par le serveur (« Porte de sortie »…). ⚠ Sous le **même brouillard** que l'escalier : un accès n'est publié
   que si l'une de ses cases est visible — une porte de sortie dans une salle inconnue n'est pas montrée.
 
+### Fausses portes de sortie (2026-11-16)
+
+`quete.fausses_sorties` (facultative) : `[{x, y, cote}]`, des portes posées comme une porte de sortie — sur le mur d'une
+salle ouverte, mêmes refus qu'un accès (`case_partagee`, `porte_sans_bord`, `depart_invalide`…). Règle sourcée : les
+fausses portes « cannot be opened at all » (livret de base).
+
+- **Indiscernables tant qu'on ne les a pas essayées** : `carte.acces[]` les publie avec `role: "sortie"` et le libellé
+  « Porte de sortie », comme la vraie ; le menu offre au héros posté devant elle, objectif accompli, la MÊME option
+  `sortir_donjon` au même libellé ; `quete.sortie.consigne` ne nomme pas le lieu (« Objectif accompli : quittez le
+  donjon. »).
+- **Choisie** : le résultat est `{type: "fausse_sortie", personnage_id, nom, porte: {x, y, cote}}` (fil : « … pousse la
+  porte de sortie : c'est une fausse porte, peinte sur le mur — elle ne s'ouvre pas »). Le héros reste dans le donjon,
+  son ACTION est dépensée (créneau de l'option). La porte est révélée pour tout le groupe (`quetes.acces.fausses_sorties[i]
+  .revelee`) : publiée `role: "fausse_sortie"`, libellé « Fausse porte — elle ne s'ouvre pas », et plus offerte.
+- Ce n'est pas offrir ce que le résolveur refuse : il ne refuse pas, il RÉVÈLE — l'issue de l'action.
+
 ### Sortie du donjon — en personne, case par case (2026-11-14)
 
 En mode classique on quitte le donjon EN PERSONNE (décision de René, Q4) : ni rassemblement en salle de départ, ni vote.

@@ -16593,6 +16593,28 @@ final class ResolveurTour
      */
     private function resoudreSortieEnPersonne(Groupe $groupe, Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
+        // FAUSSE PORTE DE SORTIE (René, 2026-11-16) : « cannot be opened at all » (livret de base). Le héros pousse une
+        // porte peinte sur le mur : il reste dans le donjon, son action est dépensée (le créneau de l'option), et la porte
+        // est désormais connue de tout le groupe — elle ne sera plus offerte.
+        if ($etat !== null && $quete->sortieOfferte($etat) === 'fausse') {
+            $index = (int) $quete->fausseSortieSous($etat);
+            $porte = (array) ($quete->faussesSorties()[$index]['porte'] ?? []);
+            $quete->revelerFausseSortie($index);
+
+            $payload = [
+                'type' => 'fausse_sortie',
+                'option_id' => $option['id'],
+                'libelle' => $option['libelle'] ?? null,
+                'personnage_id' => $personnage->id,
+                'nom' => $personnage->nom,
+                'porte' => $porte,
+            ];
+
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
         if ($etat === null || ! $quete->peutSortirEnPersonne($etat)) {
             throw ValidationException::withMessages([
                 'option_id' => $quete->sortieEnPersonne() && ! $quete->sortieDisponible()

@@ -173,6 +173,8 @@ final class JournalCombat
         'recompense_quete' => true,
         // MODE CLASSIQUE : un héros quitte le donjon en personne, par l'escalier ou par la porte de sortie.
         'sortie_en_personne' => true,
+        // MODE CLASSIQUE : un héros a poussé une FAUSSE porte de sortie — elle ne s'ouvre pas, il reste dans le donjon.
+        'fausse_sortie' => true,
         // MODE CLASSIQUE : une note de quête vient de jouer (`NotesDeQuete`) — texte lu, or, objet, apparition, dégâts.
         'note_de_quete' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
@@ -1248,6 +1250,10 @@ final class JournalCombat
             'vote_resolu' => $this->voteResolu($a),
             'recompense_quete' => $this->recompenseQuete($a),
             'note_de_quete' => $this->noteDeQuete($a),
+            'fausse_sortie' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' pousse la porte de sortie : c\'est une fausse porte, peinte sur le mur — elle ne s\'ouvre pas',
+                'ton' => 'echec',
+            ]],
             'sortie_en_personne' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' quitte le donjon par '.(($a['par'] ?? 'escalier') === 'porte' ? 'la porte de sortie' : 'l\'escalier')
                     .((int) ($a['restants'] ?? 0) === 0 ? ' — plus personne ne reste dans le donjon' : ''),

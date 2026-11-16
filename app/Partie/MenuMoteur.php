@@ -3326,10 +3326,12 @@ final class MenuMoteur
         $parEscalier = $quete->sortieEnPersonne();
         // `$etat` est nul pour un héros qui n'est plus dans le donjon — celui qui vient justement d'en sortir, dont le
         // menu est recalculé avec ceux du groupe.
-        if ($parEscalier && ! $aJoue && $etat !== null && $quete->peutSortirEnPersonne($etat)) {
+        // ⚠ Une FAUSSE porte de sortie encore inconnue reçoit la MÊME option, au même libellé (`Quete::sortieOfferte()`) :
+        // c'est le résolveur qui dira qu'elle ne s'ouvre pas.
+        if ($parEscalier && ! $aJoue && $etat !== null && $quete->sortieOfferte($etat) !== null) {
             $options[] = [
                 'id' => 'sortir_donjon',
-                'libelle' => 'Quitter le donjon par '.$quete->nomDeLaSortie(),
+                'libelle' => 'Quitter le donjon par '.$quete->nomDeLaSortieSous($etat),
                 'type' => 'sortie_en_personne',
             ];
         }
@@ -3443,9 +3445,10 @@ final class MenuMoteur
     {
         // Extraction : la personne à sauver doit être menée SUR l'escalier (distinct du
         // rassemblement des héros — René, 2026-10-10).
+        // SORTIE CASE PAR CASE (mode classique) : pas de rassemblement — la consigne est celle de la sortie en personne.
         $consignes = array_filter([
             $quete->consigneExtraction(),
-            $peutSortir ? $quete->consigneRassemblement($rassemblement) : null,
+            $quete->sortieEnPersonne() ? $quete->consigneDeSortie() : ($peutSortir ? $quete->consigneRassemblement($rassemblement) : null),
         ]);
 
         return $consignes === [] ? '' : ' '.implode(' ', $consignes);

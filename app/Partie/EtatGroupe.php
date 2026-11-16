@@ -1146,10 +1146,15 @@ final class EtatGroupe
         }
 
         $meme = $acces['entree'] == $acces['sortie'];
-        $roles = $meme ? ['entree_sortie' => $acces['entree']] : ['entree' => $acces['entree'], 'sortie' => $acces['sortie']];
+        $roles = $meme ? [['entree_sortie', $acces['entree']]] : [['entree', $acces['entree']], ['sortie', $acces['sortie']]];
+        // FAUSSES PORTES DE SORTIE : publiées EXACTEMENT comme la porte de sortie tant qu'on ne les a pas essayées — même
+        // rôle, même libellé, rien qui les trahisse dans le payload. Révélées, elles deviennent `fausse_sortie`.
+        foreach ((array) ($acces['fausses_sorties'] ?? []) as $fausse) {
+            $roles[] = [empty($fausse['revelee']) ? 'sortie' : 'fausse_sortie', $fausse];
+        }
         $publies = [];
 
-        foreach ($roles as $role => $a) {
+        foreach ($roles as [$role, $a]) {
             $porte = ($a['type'] ?? null) === 'porte';
             // L'escalier d'ENTRÉE est déjà dessiné par `carte.escalier`.
             if (! $porte && $role !== 'sortie') {
@@ -1169,6 +1174,7 @@ final class EtatGroupe
                 'role' => $role,
                 'type' => $porte ? 'porte' : 'escalier',
                 'libelle' => match (true) {
+                    $role === 'fausse_sortie' => 'Fausse porte — elle ne s\'ouvre pas',
                     $porte && $role === 'entree' => 'Porte d\'entrée',
                     $porte && $role === 'sortie' => 'Porte de sortie',
                     $porte => 'Porte d\'entrée et de sortie',

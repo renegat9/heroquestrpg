@@ -33,7 +33,7 @@ final class OperationsDeQuete
      * comme si elles étaient là (« ajouter » une première note à une quête qui n'en a pas) ; restées vides, elles ne
      * sont pas écrites dans le document.
      */
-    private const FACULTATIVES = ['notes' => []];
+    private const FACULTATIVES = ['notes' => [], 'fausses_sorties' => []];
 
     /**
      * Applique les opérations, dans l'ordre, sur une copie de la quête. Rend la quête modifiée ; la source n'est pas touchée.

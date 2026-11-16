@@ -555,7 +555,10 @@ class Quete extends Model
     {
         $carte = $this->carte;
 
-        if ($carte === null || $carte->salleDepart() === null) {
+        // SORTIE CASE PAR CASE (mode classique) : chacun sort en personne, il n'y a pas de salle où se rassembler. Sans
+        // ce repli, la situation du menu disait encore « Rejoignez la salle de départ pour quitter le donjon — il
+        // manque : … » à des héros postés devant la porte de sortie (vu à l'écran le 2026-11-16).
+        if ($carte === null || $carte->salleDepart() === null || $this->sortieEnPersonne()) {
             return ['actif' => false, 'rassemble' => true, 'absents' => []];
         }
 
@@ -640,13 +643,89 @@ class Quete extends Model
         return $this->sortieDuDonjon()['type'] === 'porte' ? 'la porte de sortie' : 'l\'escalier';
     }
 
+    /**
+     * Les FAUSSES PORTES DE SORTIE de la quête construite (`acces.fausses_sorties`, figées au départ) — René,
+     * 2026-11-16 : « une quête avait 2 portes de sortie mais l'une était une fausse ». Chacune :
+     * `{type: porte, cases: [{x, y}], porte: {x, y, cote}, revelee: bool}`.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function faussesSorties(): array
+    {
+        return array_values((array) data_get($this->acces, 'fausses_sorties', []));
+    }
+
+    /** L'index de la fausse sortie ENCORE NON RÉVÉLÉE devant laquelle se tient ce héros, ou `null`. */
+    public function fausseSortieSous(EtatPersonnageQuete $etat): ?int
+    {
+        foreach ($this->faussesSorties() as $i => $fausse) {
+            if (! empty($fausse['revelee'])) {
+                continue;
+            }
+            foreach ((array) $fausse['cases'] as $case) {
+                if ((int) $case['x'] === (int) $etat->position_x && (int) $case['y'] === (int) $etat->position_y) {
+                    return (int) $i;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * LA SORTIE OFFERTE à ce héros, là où il se tient — LE point de passage du menu et du résolveur :
+     *  - `vraie` : il peut quitter le donjon (`peutSortirEnPersonne()`) ;
+     *  - `fausse` : il se tient devant une fausse porte de sortie encore inconnue, AUX MÊMES CONDITIONS qu'une vraie
+     *    (objectif accompli, debout). Le menu lui offre la MÊME option, avec le même libellé : une fausse porte qu'on
+     *    reconnaîtrait au menu ne tromperait personne. Ce n'est pas offrir ce que le résolveur refusera : il ne refuse
+     *    pas, il RÉVÈLE que la porte est fausse — l'issue de l'action, comme une fouille qui ne trouve rien ;
+     *  - `null` : rien ici.
+     */
+    public function sortieOfferte(EtatPersonnageQuete $etat): ?string
+    {
+        if ($this->peutSortirEnPersonne($etat)) {
+            return 'vraie';
+        }
+
+        if ($this->sortieEnPersonne() && $this->sortieDisponible() && ! $etat->tombe && $etat->position_x !== null
+            && $this->fausseSortieSous($etat) !== null) {
+            return 'fausse';
+        }
+
+        return null;
+    }
+
+    /** Le lieu de sortie que ce héros a sous les pieds, dit aux joueurs — une fausse porte se nomme comme une vraie. */
+    public function nomDeLaSortieSous(EtatPersonnageQuete $etat): string
+    {
+        return $this->fausseSortieSous($etat) !== null ? 'la porte de sortie' : $this->nomDeLaSortie();
+    }
+
+    /** Une fausse sortie a été essayée : elle est révélée, pour tout le groupe. État durable, en colonne. */
+    public function revelerFausseSortie(int $index): void
+    {
+        $acces = (array) $this->acces;
+        if (isset($acces['fausses_sorties'][$index])) {
+            $acces['fausses_sorties'][$index]['revelee'] = true;
+            $this->update(['acces' => $acces]);
+        }
+    }
+
     /** La consigne dite aux joueurs quand la sortie en personne est ouverte ; `null` sinon. */
     public function consigneDeSortie(): ?string
     {
-        return $this->sortieEnPersonne() && $this->sortieDisponible()
-            // Courte : l'en-tête de la table la coupait (vu à l'écran le 2026-11-14).
-            ? 'Objectif accompli : quittez le donjon par '.$this->nomDeLaSortie().'.'
-            : null;
+        if (! $this->sortieEnPersonne() || ! $this->sortieDisponible()) {
+            return null;
+        }
+
+        // Tant qu'une fausse porte de sortie reste inconnue, la consigne ne NOMME pas le lieu : dire « par l'escalier »
+        // dénoncerait la porte comme fausse.
+        $inconnue = collect($this->faussesSorties())->contains(fn (array $f) => empty($f['revelee']));
+
+        // Courte : l'en-tête de la table la coupait (vu à l'écran le 2026-11-14).
+        return $inconnue
+            ? 'Objectif accompli : quittez le donjon.'
+            : 'Objectif accompli : quittez le donjon par '.$this->nomDeLaSortie().'.';
     }
 
     public function consigneRassemblement(?array $rassemblement = null): ?string

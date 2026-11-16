@@ -124,7 +124,7 @@ final class ValidationCampagne
     /** Les clés de `fin`, selon son type : chacune est lue par `Quete::objectifAccompli()`. */
     private const CLES_FIN = ['vaincre' => ['type', 'cibles', 'libelle'], 'drapeau' => ['type', 'drapeau', 'libelle']];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties'];
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
     private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
     private const CLES_QUAND = ['declencheur', 'cible'];
@@ -396,6 +396,7 @@ final class ValidationCampagne
             $this->blocs($quete, $chemin);
             $this->depart($quete, $chemin);
             $this->sortie($quete, $chemin);
+            $this->faussesSorties($quete, $chemin);
             $this->poses($quete, $chemin, 'mobilier', 'mobilier', tourne: true);
             $this->poses($quete, $chemin, 'monstres', 'monstres');
             $this->poses($quete, $chemin, 'pieges', 'pieges');
@@ -828,6 +829,28 @@ final class ValidationCampagne
             return;
         }
         $this->acces($quete['sortie'], self::chemin($chemin, 'sortie'), 'sortie');
+    }
+
+    /**
+     * `fausses_sorties` (facultative, René 2026-11-16 : « une quête avait 2 portes de sortie mais l'une était une
+     * fausse ») : des portes `{x, y, cote}` posées exactement comme une porte de sortie — sur le mur d'une salle
+     * ouverte — mais qui ne s'ouvrent pas (livret de base : les fausses portes « cannot be opened at all »). Mêmes
+     * contrôles qu'une porte de sortie : `acces()`, rôle « fausse sortie ». Elles ne partagent ni la case ni le bord
+     * d'un autre accès.
+     */
+    private function faussesSorties(array $quete, string $chemin): void
+    {
+        foreach ($this->enListeDe($quete, 'fausses_sorties', $chemin) as $i => $valeur) {
+            $position = self::chemin($chemin, 'fausses_sorties').".$i";
+            $porte = $this->enObjet($valeur, $position);
+            if ($porte === null) {
+                continue;
+            }
+            $this->cles($porte, $position, ['x', 'y', 'cote']);
+            if (array_key_exists('x', $porte) && array_key_exists('y', $porte) && array_key_exists('cote', $porte)) {
+                $this->acces(['type' => self::ACCES_PORTE] + $porte, $position, 'fausse sortie');
+            }
+        }
     }
 
     /**

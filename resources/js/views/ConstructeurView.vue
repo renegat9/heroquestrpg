@@ -259,6 +259,7 @@ const OUTILS = [
     ['cible', 'my_location', 'Cible de fin (un monstre)'],
     ['depart', 'login', 'Entrée'],
     ['sortie', 'logout', 'Sortie'],
+    ['fausse', 'block', 'Fausse porte de sortie (bord cliqué)'],
     ['gomme', 'ink_eraser', 'Effacer'],
 ];
 
@@ -364,6 +365,16 @@ function clicQuete(evt) {
             if (i < 0 || q.fin?.type !== 'vaincre') return;
             const j = q.fin.cibles.indexOf(i);
             if (j >= 0) q.fin.cibles.splice(j, 1); else q.fin.cibles.push(i);
+            return;
+        }
+        case 'fausse': {
+            // Une fausse porte de sortie : posée comme une porte de sortie, sur le bord d'une salle ouverte. Clé
+            // FACULTATIVE du format : absente quand la quête n'en a aucune.
+            const b = bordDeSalle(q, x, y, cote);
+            const liste = q.fausses_sorties ?? [];
+            const i = liste.findIndex((f) => memeBord(f, b));
+            if (i >= 0) liste.splice(i, 1); else liste.push(b);
+            if (liste.length) q.fausses_sorties = liste; else delete q.fausses_sorties;
             return;
         }
         case 'depart':
@@ -673,6 +684,12 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <line v-else v-bind="ligneBord(quete.sortie.x, quete.sortie.y, quete.sortie.cote)" class="g-porte-sortie" />
                                 </template>
                                 <line
+                                    v-for="(f, i) in (quete.fausses_sorties ?? [])"
+                                    :key="`f${i}`"
+                                    v-bind="ligneBord(f.x, f.y, f.cote)"
+                                    class="g-porte-fausse"
+                                />
+                                <line
                                     v-for="(p, i) in quete.portes"
                                     :key="`d${i}`"
                                     v-bind="ligneBord(p.x, p.y, p.cote)"
@@ -889,6 +906,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
 .g-porte-secrete { stroke: var(--mind-bright); stroke-width: 5; stroke-dasharray: 4 3; }
 .g-porte-entree { stroke: var(--ok); stroke-width: 7; }
 .g-porte-sortie { stroke: var(--torch); stroke-width: 7; stroke-dasharray: 5 3; }
+.g-porte-fausse { stroke: var(--danger); stroke-width: 7; stroke-dasharray: 2 3; }
 .g-monstre { fill: var(--ember-deep); stroke: var(--ember); stroke-width: 1.5; }
 .g-monstre.cible { stroke: var(--gold); stroke-width: 3.5; }
 .g-sigle { font-size: 10px; font-weight: 800; fill: var(--parch-100); text-anchor: middle; pointer-events: none; }

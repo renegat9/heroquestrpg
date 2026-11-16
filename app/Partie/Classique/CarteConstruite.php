@@ -280,6 +280,10 @@ final class CarteConstruite
             'acces' => [
                 'entree' => ['type' => $acces['entree']['type'], 'cases' => $acces['entree']['cases'], 'porte' => $acces['entree']['porte']],
                 'sortie' => ['type' => $acces['sortie']['type'], 'cases' => $acces['sortie']['cases'], 'porte' => $acces['sortie']['porte']],
+                'fausses_sorties' => array_map(
+                    static fn (array $f): array => ['type' => $f['type'], 'cases' => $f['cases'], 'porte' => $f['porte'], 'revelee' => false],
+                    $acces['fausses_sorties'],
+                ),
             ],
         ];
     }
@@ -321,7 +325,13 @@ final class CarteConstruite
                 $grille[$c['y']][$c['x']] = 'm';
             }
         }
-        // ACCÈS : `<` les cases d'entrée, `>` celles de sortie quand elle est distincte de l'entrée.
+        // ACCÈS : `<` les cases d'entrée, `>` celles de sortie quand elle est distincte de l'entrée, `x` celles d'une
+        // fausse porte de sortie (l'aperçu est pour l'AUTEUR : il les distingue, les joueurs non).
+        foreach ($produit['acces']['fausses_sorties'] as $f) {
+            foreach ($f['cases'] as $c) {
+                $grille[$c['y']][$c['x']] = 'x';
+            }
+        }
         foreach ($produit['acces']['sortie']['cases'] as $c) {
             $grille[$c['y']][$c['x']] = '>';
         }
@@ -395,7 +405,16 @@ final class CarteConstruite
 
         $entree = $un((array) $quete['depart']);
 
-        return ['entree' => $entree, 'sortie' => is_array($quete['sortie'] ?? null) ? $un($quete['sortie']) : $entree];
+        return [
+            'entree' => $entree,
+            'sortie' => is_array($quete['sortie'] ?? null) ? $un($quete['sortie']) : $entree,
+            // FAUSSES PORTES DE SORTIE : des portes d'accès comme les autres, qui ne s'ouvrent pas. `revelee` passe à
+            // vrai quand un héros a essayé d'en sortir (`Quete::revelerFausseSortie()`) ; avant, rien ne la distingue.
+            'fausses_sorties' => array_map(
+                static fn (array $porte): array => $un(['type' => ValidationCampagne::ACCES_PORTE] + $porte),
+                array_values((array) ($quete['fausses_sorties'] ?? [])),
+            ),
+        ];
     }
 
     /**
@@ -446,6 +465,9 @@ final class CarteConstruite
             $lignes[] = '  > sortie : '.$dire($acces['sortie']);
         } else {
             $lignes[] = '  < entrée et sortie : '.$dire($acces['entree']);
+        }
+        foreach ($acces['fausses_sorties'] as $fausse) {
+            $lignes[] = '  x FAUSSE porte de sortie (ne s\'ouvre pas) : '.$dire($fausse);
         }
         foreach ($quete['mobilier'] as $meuble) {
             $type = $this->catalogue->index('mobilier')[$meuble['slug']];

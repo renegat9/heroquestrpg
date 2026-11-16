@@ -303,6 +303,7 @@ function fixturesDesTypesAnnonces(): array
         'vote_resolu' => ['vote' => 'retraite', 'option_id' => 'continuer', 'applique' => false, 'texte' => 'Vote de retraite : on continue'],
         // MODE CLASSIQUE : un héros quitte le donjon en personne (`ResolveurTour::resoudreSortieEnPersonne()`).
         'sortie_en_personne' => ['personnage_id' => 1, 'nom' => 'Grom', 'par' => 'porte', 'restants' => 1],
+        'fausse_sortie' => ['personnage_id' => 1, 'nom' => 'Grom', 'porte' => ['x' => 10, 'y' => 2, 'cote' => 'e']],
         // MODE CLASSIQUE : la récompense d'une quête construite, versée aux bourses (`FinDeQueteConstruite`).
         'recompense_quete' => ['quete_id' => 1, 'total' => 10, 'parts' => [
             ['personnage_id' => 1, 'nom' => 'Grom', 'or' => 5], ['personnage_id' => 2, 'nom' => 'Albrecht', 'or' => 5],

@@ -498,7 +498,7 @@ const jetonsPlaces = computed(() => {
             <div class="dg-acces" :class="[`dg-acces-${a.type}`, `dg-acces-${a.role}`, a.cote ? `cote-${a.cote}` : null]" :title="a.libelle">
                 <SymboleCarte
                     :url="a.symbole_url"
-                    :icone="a.type === 'porte' ? (a.role === 'entree' ? 'login' : 'logout') : ESCALIER_ICONE"
+                    :icone="a.role === 'fausse_sortie' ? 'block' : (a.type === 'porte' ? (a.role === 'entree' ? 'login' : 'logout') : ESCALIER_ICONE)"
                     :nom="a.libelle"
                 />
             </div>
@@ -963,6 +963,10 @@ const jetonsPlaces = computed(() => {
 .dg-acces-porte.cote-e { inset: 12% -10% 12% auto; width: 30%; }
 .dg-acces-porte.cote-o { inset: 12% auto 12% -10%; width: 30%; }
 .dg-acces-porte .msym { font-size: calc(var(--dg-icone) * 0.7); }
+/* Une FAUSSE porte de sortie, une fois essayée : éteinte et barrée — on sait qu'elle ne s'ouvre pas. Avant, elle est
+   publiée comme la vraie (rôle `sortie`) et dessinée pareil. */
+.dg-acces-porte.dg-acces-fausse_sortie { background: oklch(0.26 0.02 30 / 0.92); box-shadow: inset 0 0 0 1.5px oklch(0.6 0.12 28 / 0.7); }
+.dg-acces-porte.dg-acces-fausse_sortie .msym { color: oklch(0.72 0.14 28); }
 .dg-acces-escalier { inset: 4%; background: oklch(0.6 0.03 85 / 0.14); box-shadow: inset 0 0 0 1.5px oklch(0.78 0.14 80 / 0.5); }
 .dg-acces .msym { font-size: calc(var(--dg-icone) * 1.2); color: oklch(0.92 0.12 85);
   filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }

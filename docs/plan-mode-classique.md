@@ -771,6 +771,17 @@ ni son format, il appelle ce que la route HTTP appelle.
   héros dans son bandeau (`browser-shots/classique-confier.mjs`,
   `classique-pilote-recu.mjs`). Reste : la manette du propriétaire qui a tout
   confié montre encore son héros et le bouton « Prêt ».
+- **Fait le 2026-11-16 — les fausses portes de sortie** (René : « une quête
+  avait 2 portes de sortie mais l'une était une fausse »). Clé facultative
+  `fausses_sorties` ; indiscernables de la vraie avant l'essai (repère, option
+  du menu, libellé, consigne) ; la pousser coûte l'action, ne fait pas sortir
+  et la révèle pour tout le groupe. Outil « Fausse porte de sortie » dans le
+  constructeur ; l'aperçu les marque `x`. `FaussesSortiesTest` ; joué sur la
+  vraie stack (captures `97-…`, `98-…`).
+  - **Défaut corrigé en passant** : en classique, la situation du menu disait
+    encore « Rejoignez la salle de départ pour quitter le donjon — il
+    manque : … », la consigne du vote de sortie d'une campagne.
+    `Quete::rassemblementDepart()` est inactif quand on sort en personne.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration
