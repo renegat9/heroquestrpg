@@ -6057,6 +6057,10 @@ est un **escalier** ou une **porte** (`vocabulaires.types_acces`).
   une salle ouverte), ou `{type: "porte", x, y, cote}` (une porte sur le mur d'une salle ouverte, côté `cote` de la
   case d'intérieur `(x, y)`).
 - **`quete.sortie`** — obligatoire, nullable : `null` = on sort par où l'on est entré ; sinon un accès de la même forme.
+- **Une porte de SORTIE dans un couloir** (2026-11-16, René : « la porte de sortie peut aussi être dans un corridor ») :
+  une porte de sortie — vraie ou fausse — peut se poser sur une case de COULOIR, à condition que son côté `cote` donne
+  sur le bord du plateau, sur de la roche (une salle fermée) ou sur un bloc ; sinon `porte_sans_bord`. L'**entrée**
+  reste dans une salle ouverte (`depart_hors_salle`) : les héros s'installent dans la salle de départ.
 - Une **porte d'accès mène hors du donjon**. Ce n'est pas une porte du donjon : son mur reste de la roche, elle n'entre
   pas dans `carte.portes`, et rien — la main, une clé, un sort — ne peut l'ouvrir. Le héros entre et sort depuis la
   case `(x, y)` devant elle.

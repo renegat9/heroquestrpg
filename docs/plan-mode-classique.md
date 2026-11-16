@@ -782,6 +782,11 @@ ni son format, il appelle ce que la route HTTP appelle.
     encore « Rejoignez la salle de départ pour quitter le donjon — il
     manque : … », la consigne du vote de sortie d'une campagne.
     `Quete::rassemblementDepart()` est inactif quand on sort en personne.
+- **Fait le 2026-11-16 — une porte de sortie dans un couloir** (René : « la
+  porte de sortie peut aussi être dans un corridor ») : vraie ou fausse, sur
+  une case de couloir, contre le bord du plateau, de la roche ou un bloc.
+  L'entrée reste dans une salle. Tests dans `AccesParPorteTest` ; vu à
+  l'écran (capture `99-…`).
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

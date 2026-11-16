@@ -858,7 +858,8 @@ final class ValidationCampagne
      *
      *  - `escalier` `{x, y}` : le coin haut-gauche d'un bloc 2×2, entier dans l'intérieur d'UNE salle ouverte ;
      *  - `porte` `{type, x, y, cote}` : une porte sur le mur d'une salle ouverte, côté `cote` de la case d'intérieur
-     *    (x, y). Elle mène HORS du donjon : ce qu'il y a derrière ne compte pas, et elle ne s'ouvre jamais comme une
+     *    (x, y) — ou, pour une SORTIE (vraie ou fausse), sur une case de COULOIR, contre le bord du plateau, de la roche
+     *    ou un bloc (René, 2026-11-16). Elle mène HORS du donjon : ce qu'il y a derrière ne compte pas, et elle ne s'ouvre jamais comme une
      *    porte ordinaire (elle n'entre pas dans `portes`). Le héros entre et sort depuis la case (x, y).
      *
      * Les cases d'un accès ne portent ni meuble ni monstre, et deux accès ne se recouvrent pas.
@@ -903,13 +904,28 @@ final class ValidationCampagne
             if ($cote === null) {
                 return;
             }
-            if (!$ouverte) {
+            [$dx, $dy] = self::DECALAGES[$cote];
+            // DANS UN COULOIR (René, 2026-11-16 : « la porte de sortie peut aussi être dans un corridor ») : une porte de
+            // SORTIE — vraie ou fausse — peut se poser sur une case de couloir, pourvu qu'elle soit contre quelque chose :
+            // le bord du plateau, de la roche (une salle fermée) ou un bloc. Le côté qui donne sur du sol n'est pas un
+            // mur, et une porte n'a rien à y faire. L'ENTRÉE, elle, reste dans une salle : les héros s'installent dans la
+            // salle de départ.
+            if ($salle === null && $role !== 'départ') {
+                $nx = $x + $dx;
+                $ny = $y + $dy;
+                $contre = !$this->dansPlateau($nx, $ny) || $this->salleFermeeEn($nx, $ny)
+                    || collect($this->occupees["$nx,$ny"] ?? [])->contains(fn (array $o) => $o['genre'] === 'bloc');
+                if (!$contre) {
+                    $this->refuser($position, self::PORTE_SANS_BORD,
+                        "$role : dans un couloir, une porte se pose contre le bord du plateau, de la roche ou un bloc — le côté « $cote » donne sur du sol");
+
+                    return;
+                }
+            } elseif (!$ouverte) {
                 $this->refuser($position, self::DEPART_HORS_SALLE, "$role : la porte doit être sur une case d'une salle ouverte");
 
                 return;
-            }
-            [$dx, $dy] = self::DECALAGES[$cote];
-            if ($this->salleEn($x + $dx, $y + $dy) === $salle) {
+            } elseif ($this->salleEn($x + $dx, $y + $dy) === $salle) {
                 $this->refuser($position, self::PORTE_SANS_BORD, "$role : le côté « $cote » reste dans la même salle");
 
                 return;
