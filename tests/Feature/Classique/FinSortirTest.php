@@ -106,3 +106,46 @@ it('ne nomme pas la sortie tant qu\'une fausse porte de sortie reste inconnue', 
 
     expect($quete->consigneDeSortie())->toBe('Trouvez la sortie et quittez le donjon.');
 });
+
+/*
+ * LA SORTIE PEUT ÊTRE UNE PORTE OU UN ESCALIER (René, 2026-11-16). Le cas du livret de Kellar's Keep : on entre par la
+ * porte de fer, et une quête se quitte par l'escalier en colimaçon. Escalier de sortie 2×2 dans `galerie` (9..10 × 4..5).
+ */
+it('EN JEU : fin « sortir » par un ESCALIER, entré par une porte depuis hors du plateau', function () {
+    $campagne = campagneASortir();
+    $campagne['quetes'][0]['depart'] = ['type' => 'porte', 'x' => 2, 'y' => 3, 'cote' => 'o'];
+    $campagne['quetes'][0]['sortie'] = ['type' => 'escalier', 'x' => 9, 'y' => 4];
+    $campagne['quetes'][0]['salles_ouvertes'] = ['entree', 'galerie'];
+    expect(app(ValidationCampagne::class)->valider($campagne))->toBe([]);
+
+    app(CampagnesConstruites::class)->enregistrer($campagne);
+    $alice = connecterJoueur('alice');
+    $heros = Personnage::create([
+        'joueur_id' => $alice->id, 'nom' => 'Albrecht', 'classe' => 'barbare', 'niveau' => 1,
+        'attribut_body' => 4, 'attribut_mind' => 2, 'pv_body_max' => 8, 'pv_body' => 8, 'pv_mind_max' => 2, 'pv_mind' => 2,
+        'des_attaque' => 3, 'des_defense' => 2, 'deplacement_base' => 4,
+    ]);
+    $code = $this->postJson('/api/classique', ['nom' => 'Les Essayeurs', 'campagne' => 'campagne-d-essai', 'personnage_id' => $heros->id])
+        ->assertCreated()->json('groupe.identifiant');
+    $groupe = Groupe::where('identifiant', $code)->firstOrFail();
+    $this->postJson("/api/groupes/{$code}/quetes")->assertCreated();
+    $quete = Quete::findOrFail($groupe->refresh()->quete_courante_id);
+    $etat = $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail();
+
+    expect($etat->horsPlateau())->toBeTrue()
+        ->and($quete->sortieDuDonjon()['type'])->toBe('escalier')
+        ->and($quete->consigneDeSortie())->toBe('Trouvez l\'escalier et quittez le donjon.');
+
+    // Il entre par la porte, puis (au tour suivant) se tient sur une marche de l'escalier de sortie : il sort.
+    Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($groupe, $heros));
+    $this->getJson("/api/groupes/{$code}/menu")->assertOk();
+    $this->postJson("/api/groupes/{$code}/choix", ['option_id' => 'entrer_donjon'])->assertAccepted();
+    $etat->refresh()->update(['position_x' => 10, 'position_y' => 5, 'a_joue' => false, 'a_deplace' => true]);
+    Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($groupe, $heros));
+    $option = collect($this->getJson("/api/groupes/{$code}/menu")->assertOk()->json('menu.options'))->firstWhere('id', 'sortir_donjon');
+    expect($option['libelle'] ?? null)->toBe('Quitter le donjon par l\'escalier');
+
+    $this->postJson("/api/groupes/{$code}/choix", ['option_id' => 'sortir_donjon'])->assertAccepted()
+        ->assertJsonPath('resultat.par', 'escalier');
+    expect($quete->refresh()->etat)->toBe('terminee');
+});
