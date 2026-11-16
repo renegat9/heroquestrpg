@@ -61,6 +61,9 @@ const condIcon = { poison: 'coronavirus', burn: 'local_fire_department', buff: '
                     <span>{{ f.effet }}</span>
                 </div>
             </div>
+            <div v-if="p.spectateur" class="grp-dehors">
+                <MSym n="visibility" fill :size="13" /> Spectateur — ne joue pas cette quête
+            </div>
             <div v-if="p.dehors" class="grp-dehors">
                 <MSym n="login" fill :size="13" /> Devant la porte d'entrée
             </div>

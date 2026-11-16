@@ -86,7 +86,7 @@ final class Bourses
 
         $parts = $beneficiaire !== null
             ? [['personnage_id' => (int) $beneficiaire->id, 'nom' => (string) $beneficiaire->nom, 'or' => $or]]
-            : $this->partager($groupe, $or);
+            : $this->partager($groupe, $or, parmi: $groupe->queteCourante?->participants());
 
         foreach ($parts as $part) {
             Personnage::whereKey($part['personnage_id'])->increment('or', $part['or']);
@@ -187,9 +187,13 @@ final class Bourses
      * Partage ÉGAL d'une somme entre les héros actifs. Le reste de la division va, une pièce chacun, aux premiers dans
      * l'ordre du tour (décision écrite : le livret ne dit pas qui garde le reste). Ne verse rien : il dit qui reçoit.
      *
+     * `$parmi` (lot S1) : les seuls héros qui peuvent recevoir — les participants d'une quête SOLO ; un spectateur « ne
+     * gagne rien ». `null` = tous les héros actifs.
+     *
+     * @param  list<int>|null  $parmi
      * @return list<array{personnage_id: int, nom: string, or: int}>
      */
-    public function partager(Groupe $groupe, int $or, bool $chacun = false): array
+    public function partager(Groupe $groupe, int $or, bool $chacun = false, ?array $parmi = null): array
     {
         if ($or <= 0) {
             return [];
@@ -197,6 +201,7 @@ final class Bourses
 
         $heros = $groupe->personnages()
             ->wherePivot('actif', true)
+            ->when($parmi !== null, fn ($q) => $q->whereIn('personnages.id', $parmi))
             ->orderBy('groupe_personnages.ordre_initiative')
             ->get(['personnages.id', 'personnages.nom']);
 

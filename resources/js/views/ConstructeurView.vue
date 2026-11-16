@@ -411,6 +411,15 @@ const LIBELLES_FIN = {
     drapeau: 'un drapeau posé par une note',
     sortir: 'trouver la sortie et quitter le donjon',
 };
+// QUÊTE SOLO (lot S1) : `regles.solo` — clé FACULTATIVE du format, absente quand la quête se joue à plusieurs. La
+// classe proposée est l'une de celles que la campagne EXIGE : la validation refuse les autres (`solo_sans_prerequis`).
+function changerSolo(classe) {
+    if (classe) quete.value.regles = { ...(quete.value.regles ?? {}), solo: classe };
+    else if (quete.value.regles) {
+        delete quete.value.regles.solo;
+        if (!Object.keys(quete.value.regles).length) delete quete.value.regles;
+    }
+}
 function basculerRecompense(avec) {
     quete.value.recompense = avec ? { or: 0, partage: (vocab.value.partages ?? ['groupe'])[0] } : null;
 }
@@ -726,6 +735,12 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <select :value="quete.monstre_errant ?? ''" class="cst-input" @change="quete.monstre_errant = $event.target.value || null">
                                         <option value="">aucun</option>
                                         <option v-for="m in couches.monstres" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
+                                    </select>
+                                </label>
+                                <label>Quête solo
+                                    <select :value="quete.regles?.solo ?? ''" class="cst-input" @change="changerSolo($event.target.value)">
+                                        <option value="">non — tout le groupe</option>
+                                        <option v-for="c in catalogues.classes.filter((k) => doc.prerequis_heros.includes(k.slug))" :key="c.slug" :value="c.slug">{{ c.nom }} seul</option>
                                     </select>
                                 </label>
                                 <label class="cst-case">

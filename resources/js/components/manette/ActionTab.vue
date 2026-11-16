@@ -32,6 +32,8 @@ const props = defineProps({
     /** Journal de combat mécanique (.combat.journal) : [{id, texte, ton}] —
      *  les plus anciennes en premier, la plus récente en bas. */
     journal: { type: Array, default: () => [] },
+    /** SPECTATEUR (lot S1, quête solo) : décision publiée (`entites[].spectateur`) — jamais « tu reprendras la main ». */
+    spectateur: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['choose']);
@@ -466,9 +468,9 @@ const ICONE_JOURNAL = {
 
     <!-- en attente (pas de menu : pas mon tour, ou pas encore arrivé) -->
     <div v-else>
-        <div class="turn-banner wait"><MSym n="hourglass_top" /> Le maître du jeu prépare la suite…</div>
+        <div class="turn-banner wait"><MSym n="hourglass_top" /> {{ spectateur ? 'La partie se joue sans toi cette fois' : 'Le maître du jeu prépare la suite…' }}</div>
         <InitMini :cur="initCur ?? '···'" :order="initOrder" />
-        <div class="empty-note">La partie se poursuit — tu reprendras la main dans un instant.</div>
+        <div class="empty-note">{{ spectateur ? 'Suis-la au fil du combat, ci-dessous.' : 'La partie se poursuit — tu reprendras la main dans un instant.' }}</div>
     </div>
 
     </div>

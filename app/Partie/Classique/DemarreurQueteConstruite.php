@@ -120,6 +120,21 @@ final class DemarreurQueteConstruite
         if ($heros->isEmpty()) {
             throw ValidationException::withMessages(['groupe' => 'Aucun héros actif dans ce groupe : rien à démarrer.']);
         }
+
+        // QUÊTE SOLO (lot S1, `regles.solo`) : seul le PREMIER héros de la classe désignée, dans l'ordre du tour, entre
+        // (décision écrite : le livret dit « le Barbare », un groupe de deux barbares n'en envoie qu'un). Les autres
+        // héros du groupe restent SPECTATEURS : pas de ligne d'état, rien à risquer ni à gagner. `null` = tout le groupe.
+        $participants = null;
+        $solo = data_get($queteDoc, 'regles.solo');
+        if (is_string($solo)) {
+            $elu = $heros->first(fn (Personnage $p) => CatalogueConstructeur::slug((string) $p->classe) === $solo);
+            if ($elu === null) {
+                $nom = $this->catalogue->index('classes')[$solo]->nom ?? $solo;
+                throw ValidationException::withMessages(['groupe' => "Cette quête se joue seul, avec un héros de classe : {$nom} — il n'y en a aucun dans le groupe."]);
+            }
+            $participants = [(int) $elu->id];
+            $heros = $heros->filter(fn (Personnage $p) => (int) $p->id === (int) $elu->id)->values();
+        }
         // HORS PLATEAU (René, 2026-11-16 — *Kellar's Keep* : « the heroes line up outside the door ») : par une porte
         // d'entrée, les héros attendent DEHORS et entrent un à un ; aucune case de départ n'est à compter.
         $dehors = $produit['acces']['entree']['type'] === ValidationCampagne::ACCES_PORTE;
@@ -134,7 +149,7 @@ final class DemarreurQueteConstruite
 
         $paquet = $this->deck->pourQueteConstruite();
 
-        $quete = DB::transaction(function () use ($groupe, $heros, $queteDoc, $carte, $produit, $monstres, $cibles, $rang, $paquet, $dehors): Quete {
+        $quete = DB::transaction(function () use ($groupe, $heros, $queteDoc, $carte, $produit, $monstres, $cibles, $rang, $paquet, $dehors, $participants): Quete {
             $quete = Quete::create([
                 'groupe_id' => $groupe->id,
                 'gabarit_id' => null,
@@ -162,6 +177,8 @@ final class DemarreurQueteConstruite
                 ],
                 // Par où l'on entre et par où l'on sort (escalier ou porte), figés ici : `Quete::sortieDuDonjon()`.
                 'acces' => $produit['acces'],
+                // Les héros engagés (lot S1) : `null` = tout le groupe ; une quête solo n'engage que son héros.
+                'participants' => $participants,
             ]);
 
             Carte::create([
@@ -196,7 +213,10 @@ final class DemarreurQueteConstruite
 
             foreach ($heros->values() as $i => $personnage) {
                 /** @var Personnage $personnage */
-                $groupe->personnages()->updateExistingPivot($personnage->id, ['ordre_initiative' => $i + 1]);
+                // Une quête solo ne renumérote pas l'ordre du tour : le groupe le retrouve tel quel à la quête suivante.
+                if ($participants === null) {
+                    $groupe->personnages()->updateExistingPivot($personnage->id, ['ordre_initiative' => $i + 1]);
+                }
                 $personnage->update([
                     'pv_body' => $personnage->pv_body_max,
                     'pv_mind' => $personnage->pv_mind_max,

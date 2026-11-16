@@ -1583,7 +1583,7 @@ final class EtatGroupe
             ->orderBy('groupe_personnages.ordre_initiative')
             ->with('faveurs')
             ->get()
-            ->map(function (Personnage $p) use ($etats, $captifsPortes, $bourseParHeros) {
+            ->map(function (Personnage $p) use ($etats, $captifsPortes, $bourseParHeros, $quete) {
                 $etat = $etats->get($p->id);
                 $porte = $captifsPortes->get($p->id);
 
@@ -1600,7 +1600,10 @@ final class EtatGroupe
                     'bourse' => $bourseParHeros ? (int) $p->or : null,
                     // SORTI DU DONJON : le héros est dans le groupe mais plus dans la quête (il l'a quittée en personne).
                     // Publié pour que sa manette lui dise qu'il attend les autres, plutôt qu'un écran sans menu.
-                    'sorti' => $etat === null,
+                    'sorti' => $etat === null && $quete->participe((int) $p->id),
+                    // SPECTATEUR (lot S1) : le héros n'est pas engagé dans cette quête (quête SOLO) — ni ligne d'état, ni
+                    // menu, rien à risquer ni à gagner. Décision publiée : la manette ne la déduit pas d'un `x` nul.
+                    'spectateur' => ! $quete->participe((int) $p->id),
                     // HORS PLATEAU (mode classique, René 2026-11-16) : le héros attend devant la porte d'entrée, sans case.
                     // Décision publiée : ni la carte ni la manette ne la déduisent d'un `x` nul.
                     'hors_plateau' => $etat !== null && $etat->horsPlateau(),

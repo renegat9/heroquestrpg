@@ -5934,6 +5934,7 @@ Forme : `{chemin, code, message}`. Le **chemin** est pointé depuis la racine : 
 | `dans_salle_fermee` | `monstres`, `pieges`, `terrain` ou `mobilier` tombe dans une salle fermée. |
 | `bloc_hors_couloir` | Un bloc tombe dans une salle, ouverte ou non. |
 | `depart_invalide` | `depart` tombe dans une salle fermée. |
+| `solo_sans_prerequis` | Lot S1 — `regles.solo` désigne une classe que la campagne n'exige pas (`prerequis_heros`). |
 | `porte_sans_bord` | Une porte du donjon n'est pas sur le bord d'une salle ouverte, ou son côté mène hors du plateau ou dans la même salle ; une porte d'ACCÈS (entrée, sortie, fausse sortie) a un côté qui donne sur du sol au lieu du bord du plateau, de la roche ou d'un bloc. |
 | `slug_non_concordant` | Le `slug` du document ne vaut pas celui de l'URL (PUT). |
 | `empreinte_invalide` | Un fichier importé porte une `empreinte` qui ne correspond pas à son document. |
@@ -6115,6 +6116,24 @@ au début de la quête.
 - Hors plateau, un héros n'est **ni cible, ni obstacle, ni dans une zone** : monstres, sorts, pièges et auras ne lisent
   que les héros qui ont une case. Il reste dans la quête : ordre du tour, fin de quête (« plus personne dans le
   donjon »), défaite (tous tombés) le comptent.
+
+### Quête solo et spectateurs (lot S1, 2026-11-16)
+
+`docs/plan-mode-classique.md` §6 — *The Frozen Horror*, *The Mage of the Mirror* : certaines quêtes ne se jouent
+qu'avec un héros désigné.
+
+- **Format** : `quete.regles` (facultative) = `{solo: classe}`. `regles` n'accepte que `solo` (`cle_inconnue` sinon) ;
+  `solo` est une classe du catalogue (`classe_inconnue`) que la campagne EXIGE dans `prerequis_heros`
+  (`solo_sans_prerequis` sinon : un groupe sans elle atteindrait une quête qu'il ne peut pas jouer).
+- **Au départ** : seul le PREMIER héros actif de cette classe, dans l'ordre du tour, entre (décision écrite : le livret
+  nomme « le Barbare », un groupe de deux barbares n'en envoie qu'un). Figé dans **`quetes.participants`** (liste
+  d'ids ; `null` = tout le groupe, toute quête sans règle solo). L'ordre du tour du groupe n'est pas renuméroté.
+- **Spectateur** : un héros actif du groupe absent de `participants`. Il n'a pas de ligne d'état, donc pas de tour ni de
+  menu ; il ne risque rien et ne gagne rien (`quete.recompense` ne va qu'aux participants, comme l'or partagé d'une
+  reddition). `entites[]` publie **`spectateur: true`** (`false` sinon) et `sorti: false` ; la manette montre
+  « Spectateur — Albrecht joue cette quête seul », la carte et le fil, sans menu ; la table, « Spectateur — ne joue pas
+  cette quête » sur sa fiche. Un héros SORTI, lui, est un participant qui a quitté le donjon (`sorti: true`).
+- **Constructeur** : « Quête solo » dans la fiche de la quête, parmi les classes exigées par la campagne.
 
 ### Fausses portes de sortie (2026-11-16)
 

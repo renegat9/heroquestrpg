@@ -154,6 +154,12 @@ const suisTombe = computed(() => monEntite.value?.tombe === true);
 // SORTI DU DONJON (mode classique) : le héros affiché a quitté la quête en personne. Décision publiée par le serveur
 // (`entites[].sorti`) — la manette ne la déduit pas de l'absence de position.
 const suisSorti = computed(() => monEntite.value?.sorti === true);
+// SPECTATEUR (lot S1, quête solo) : mon héros n'est pas engagé dans cette quête — décision publiée (`entites[].spectateur`).
+// Ceux qui jouent : les héros publiés NON spectateurs, nommés tels quels.
+const suisSpectateur = computed(() => monEntite.value?.spectateur === true);
+const herosEnJeu = computed(() => (store.state.etat?.entites ?? [])
+    .filter((e) => e.type === 'heros' && e.spectateur !== true)
+    .map((e) => e.nom));
 
 /* ---- Les héros que CETTE manette pilote (lot M2) ----
    La décision est serveur : chaque héros d'`entites` porte `pilote_joueur_id` (le propriétaire quand rien
@@ -1747,6 +1753,15 @@ const navItems = computed(() => (scene.value === 'marche'
                                 <MSym n="close" :size="16" />
                             </button>
                         </div>
+                        <!-- SPECTATEUR (lot S1, quête solo) : un bandeau, puis l'onglet Action SANS menu — l'ordre du tour et le
+                             fil du combat restent sous les yeux : « suis la partie ». -->
+                        <div v-if="tab === 'action' && suisSpectateur && !queteEchouee" class="manette-spectateur" role="status">
+                            <MSym n="visibility" :size="22" />
+                            <div>
+                                <b>Spectateur</b>
+                                <span>{{ herosEnJeu.join(', ') || 'Un autre héros' }} {{ herosEnJeu.length > 1 ? 'jouent' : 'joue' }} cette quête — tu suis la partie.</span>
+                            </div>
+                        </div>
                         <!-- quête échouée (TPK) : pas de menu, le sort du
                              groupe se joue sur l'écran de table -->
                         <div v-if="tab === 'action' && queteEchouee" style="text-align: center; padding: 30px 14px; color: var(--ink-500)">
@@ -1789,6 +1804,7 @@ const navItems = computed(() => (scene.value === 'marche'
                             :init-cur="initCur"
                             :sorts="mesSorts"
                             :journal="journalCombat"
+                            :spectateur="suisSpectateur"
                             @choose="choisirOption"
                             @open-spells="tab = 'sorts'"
                         />
@@ -2254,4 +2270,8 @@ const navItems = computed(() => (scene.value === 'marche'
     font-size: 13px;
     line-height: 1.45;
 }
+.manette-spectateur { display: flex; align-items: center; gap: 10px; margin: 10px 14px 0; padding: 10px 12px;
+  border-radius: 10px; background: var(--stone-800, #1d2230); color: var(--ink-300, #cfc6b0); }
+.manette-spectateur b { display: block; font-family: var(--font-narr); font-size: 15px; color: var(--parch-100, #f0e9d8); }
+.manette-spectateur div > span { font-family: var(--font-narr); font-style: italic; font-size: 13px; }
 </style>

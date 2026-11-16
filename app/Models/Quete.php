@@ -48,6 +48,9 @@ class Quete extends Model
         // MODE CLASSIQUE (2026-11-14) : par où l'on entre et par où l'on sort — `{entree, sortie}`, chacun
         // `{type: escalier|porte, cases: [{x, y}], porte?: {x, y, cote}}`. Lu par `casesDeSortie()` seulement.
         'acces',
+        // MODE CLASSIQUE (lot S1, 2026-11-16) : les héros ENGAGÉS, figés au départ — `null` = tout le groupe. Lu par
+        // `participants()` / `participe()` seulement.
+        'participants',
         // MODE CLASSIQUE (lot K3, 2026-11-15) : le document de la quête construite, FIGÉ au départ ; ses drapeaux ; ses
         // notes « une fois » déjà tirées. Lus par `documentConstruit()`, `NotesDeQuete` et `MonstreErrant`.
         'document_construit',
@@ -81,10 +84,33 @@ class Quete extends Model
             'effets_globaux' => 'array',
             'objectif_construit' => 'array',
             'acces' => 'array',
+            'participants' => 'array',
             'document_construit' => 'array',
             'drapeaux' => 'array',
             'notes_jouees' => 'array',
         ];
+    }
+
+    /**
+     * Les héros ENGAGÉS dans cette quête (lot S1) — `null` = tout le groupe : toute quête générée, toute quête construite
+     * sans règle solo. Une quête SOLO (`regles.solo`) n'engage que le héros désigné ; les autres sont SPECTATEURS.
+     *
+     * @return list<int>|null
+     */
+    public function participants(): ?array
+    {
+        return $this->participants === null ? null : array_values(array_map('intval', (array) $this->participants));
+    }
+
+    /**
+     * Ce héros est-il engagé dans cette quête ? Un héros SORTI l'est encore (il a quitté le donjon en personne) ; un
+     * SPECTATEUR ne l'a jamais été. Point de passage unique : publication (`EtatGroupe`) et récompense le lisent.
+     */
+    public function participe(int $personnageId): bool
+    {
+        $participants = $this->participants();
+
+        return $participants === null || in_array($personnageId, $participants, true);
     }
 
     /** Cette quête vient-elle du CONSTRUCTEUR (mode classique) plutôt que du générateur ? */

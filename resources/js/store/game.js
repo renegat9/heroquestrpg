@@ -793,6 +793,8 @@ export function entitesVersGroupe(entites, initiative) {
             low: !e.tombe && e.pv_body > 0 && e.pv_body * 4 <= e.pv_body_max,
             // HORS PLATEAU (mode classique) : le héros attend devant la porte d'entrée — décision publiée, jamais un `x` nul.
             dehors: e.hors_plateau === true,
+            // SPECTATEUR (lot S1, quête solo) : décision publiée — le héros n'est pas engagé dans cette quête.
+            spectateur: e.spectateur === true,
             // Faveurs de Hopekins Rest (`{cle, libelle, effet}`, décidé par le serveur) :
             // la fiche de la table les montre avec leur effet, sans rien recalculer.
             faveurs: e.faveurs ?? [],

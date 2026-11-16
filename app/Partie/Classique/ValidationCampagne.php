@@ -60,6 +60,9 @@ final class ValidationCampagne
     // autre note ou par la fin) qu'aucune note ne pose — la quête ne pourrait jamais le lever.
     public const CIBLE_DE_NOTE_INVALIDE = 'cible_de_note_invalide';
     public const DRAPEAU_JAMAIS_POSE = 'drapeau_jamais_pose';
+    // Lot S1 — une quête SOLO (`regles.solo`) désigne une classe que la campagne n'exige pas (`prerequis_heros`) : un
+    // groupe sans ce héros atteindrait une quête qu'il ne peut pas jouer.
+    public const SOLO_SANS_PREREQUIS = 'solo_sans_prerequis';
 
     /** @var list<string> */
     public const CODES = [
@@ -71,7 +74,7 @@ final class ValidationCampagne
         self::EMPREINTE_INVALIDE,
         self::DEPART_HORS_SALLE,
         self::PORTE_DANS_LA_ROCHE, self::MOBILIER_HORS_SALLE, self::CASE_PARTAGEE, self::CIBLE_INCONNUE,
-        self::CIBLE_DE_NOTE_INVALIDE, self::DRAPEAU_JAMAIS_POSE,
+        self::CIBLE_DE_NOTE_INVALIDE, self::DRAPEAU_JAMAIS_POSE, self::SOLO_SANS_PREREQUIS,
     ];
 
     /**
@@ -129,7 +132,12 @@ final class ValidationCampagne
         'sortir' => ['type', 'libelle'],
     ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles'];
+    /**
+     * Les RÈGLES DE QUÊTE (`docs/plan-mode-classique.md` §2.3), valables toute la quête — seulement celles que le moteur
+     * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
+     */
+    private const CLES_REGLES = ['solo'];
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
     private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
     private const CLES_QUAND = ['declencheur', 'cible'];
@@ -143,7 +151,7 @@ final class ValidationCampagne
     private const CLES_RECOMPENSE = ['or', 'partage'];
 
     /** Clés déjà prévues par `docs/plan-mode-classique.md` §3, pas encore lues : le lot qui les prendra. */
-    private const LOTS_A_VENIR = ['regles' => 'K5', 'suite' => 'K4'];
+    private const LOTS_A_VENIR = ['suite' => 'K5'];
 
     /**
      * Les conditions de fin qu'une quête peut déclarer : SEULEMENT celles que le moteur sait jouer
@@ -396,6 +404,7 @@ final class ValidationCampagne
             // d'abord, puis l'escalier de départ, puis le reste : chaque refus de partage porte sur le dernier venu.
             $this->occupees = [];
             $this->embrasures = [];
+            $this->regles($quete, $chemin, $document);
             $this->sallesOuvertes($quete, $chemin);
             $this->portes($quete, $chemin);
             $this->blocs($quete, $chemin);
@@ -1072,6 +1081,39 @@ final class ValidationCampagne
                 $this->refuser($ici, self::CIBLE_INCONNUE, "Le monstre $cible est déjà désigné comme cible.");
             }
             $vues[$cible] = true;
+        }
+    }
+
+    /**
+     * `regles` (facultative, lot S1) : `{solo: classe}` — une quête SOLO (*The Frozen Horror*, *The Mage of the Mirror*) :
+     * seul le premier héros de cette classe, dans l'ordre du tour, entre ; les autres regardent
+     * (`DemarreurQueteConstruite`, `quetes.participants`). La classe doit être EXIGÉE par la campagne
+     * (`prerequis_heros`) : sans quoi un groupe sans elle atteindrait une quête qu'il ne peut pas jouer.
+     */
+    private function regles(array $quete, string $chemin, array $document): void
+    {
+        if (!array_key_exists('regles', $quete)) {
+            return;
+        }
+        $position = self::chemin($chemin, 'regles');
+        $regles = $this->enObjet($quete['regles'], $position);
+        if ($regles === null) {
+            return;
+        }
+        $this->cles($regles, $position, [], self::CLES_REGLES);
+
+        if (!array_key_exists('solo', $regles)) {
+            return;
+        }
+        $classe = $regles['solo'];
+        $ici = self::chemin($position, 'solo');
+        if (!is_string($classe)) {
+            $this->refuser($ici, self::TYPE_INVALIDE, 'un nom de classe est attendu');
+        } elseif (!$this->catalogue->contient('classes', $classe)) {
+            $this->refuser($ici, self::CLASSE_INCONNUE, "« $classe » n'est pas une classe de héros");
+        } elseif (!in_array($classe, (array) ($document['prerequis_heros'] ?? []), true)) {
+            $this->refuser($ici, self::SOLO_SANS_PREREQUIS,
+                "quête solo pour « $classe » : la campagne doit exiger cette classe (prerequis_heros), sinon un groupe sans elle ne pourrait pas la jouer");
         }
     }
 

@@ -823,6 +823,20 @@ ni son format, il appelle ce que la route HTTP appelle.
   gameboard »). Avant, une porte d'accès de salle pouvait donner sur un
   couloir et « sortir » à travers du sol. Les campagnes de test et celle du
   harnais posent un bloc derrière leurs portes.
+- **Fait le 2026-11-16 — lot S1, quête solo et spectateurs** (§6). Format
+  `quete.regles: {solo: classe}` (`regles` n'accepte que `solo` ; la classe
+  doit être exigée par la campagne, sinon `solo_sans_prerequis`). Au départ,
+  seul le premier héros de cette classe dans l'ordre du tour entre, figé dans
+  `quetes.participants` (migration `2026_11_16_120000`, appliquée après
+  sauvegarde relue ; `null` = tout le groupe). Les autres héros sont
+  SPECTATEURS : pas de ligne d'état, donc ni tour ni menu (l'ordre du tour
+  saute déjà un héros sans ligne), rien à risquer, et la récompense comme
+  l'or partagé ne vont qu'aux participants (`Bourses::partager(parmi:)`).
+  Publié `entites[].spectateur` ; manette : bandeau « Spectateur », l'ordre du
+  tour et le fil, sans menu ; table : « Spectateur — ne joue pas cette
+  quête ». Constructeur : « Quête solo », parmi les classes exigées. Tests
+  `QueteSoloTest` ; vu à l'écran. Reste de S1 : la campagne grisée au choix
+  quand le groupe n'a pas la classe exigée (aujourd'hui refusée au départ).
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

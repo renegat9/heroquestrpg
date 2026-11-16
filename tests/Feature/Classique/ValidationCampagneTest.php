@@ -43,9 +43,15 @@ function casDeRefus(): array
 
             return classiqueRefus($doc);
         }],
-        'regles : clé d\'un lot ultérieur' => [ValidationCampagne::CLE_PAS_ENCORE_PRISE, function (): array {
+        'suite : clé d\'un lot ultérieur' => [ValidationCampagne::CLE_PAS_ENCORE_PRISE, function (): array {
             $doc = DocumentExemple::campagne();
-            $doc['quetes'][0]['regles'] = [];
+            $doc['quetes'][0]['suite'] = [];
+
+            return classiqueRefus($doc);
+        }],
+        'quête solo pour une classe que la campagne n\'exige pas' => [ValidationCampagne::SOLO_SANS_PREREQUIS, function (): array {
+            $doc = DocumentExemple::campagne();
+            $doc['quetes'][0]['regles'] = ['solo' => 'nain'];
 
             return classiqueRefus($doc);
         }],
@@ -264,12 +270,12 @@ it('ne déclare aucun code en double', function () {
 
 it('nomme la clé réservée à un lot ultérieur dans le message', function () {
     $doc = DocumentExemple::campagne();
-    $doc['quetes'][0]['regles'] = [];
+    $doc['quetes'][0]['suite'] = [];
 
     $refus = classiqueRefus($doc);
 
     expect($refus)->toHaveCount(1)
-        ->and($refus[0]['chemin'])->toBe('quetes.0.regles')
+        ->and($refus[0]['chemin'])->toBe('quetes.0.suite')
         ->and($refus[0]['message'])->toContain('pas encore pris en charge (lot K5)');
 });
 

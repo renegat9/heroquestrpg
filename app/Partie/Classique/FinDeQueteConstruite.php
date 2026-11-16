@@ -37,7 +37,7 @@ final class FinDeQueteConstruite
         $rangSuivant = (int) $quete->position_arc + 1;
         $groupe->update(['rang_quete' => $rangSuivant]);
 
-        $parts = $this->parts($groupe, $queteDoc['recompense'] ?? null);
+        $parts = $this->parts($groupe, $queteDoc['recompense'] ?? null, $quete->participants());
         $bourses = app(Bourses::class);
 
         foreach ($parts as $part) {
@@ -59,14 +59,17 @@ final class FinDeQueteConstruite
     /**
      * Qui reçoit combien. Une récompense absente, ou nulle, ne verse rien.
      *
+     * @param  list<int>|null  $participants
      * @return list<array{personnage_id: int, nom: string, or: int}>
      */
-    private function parts(Groupe $groupe, mixed $recompense): array
+    private function parts(Groupe $groupe, mixed $recompense, ?array $participants): array
     {
+        // Quête SOLO (lot S1) : seuls les participants reçoivent — un spectateur « ne gagne rien ».
         return app(Bourses::class)->partager(
             $groupe,
             (int) data_get($recompense, 'or', 0),
             chacun: data_get($recompense, 'partage') === 'par_heros',
+            parmi: $participants,
         );
     }
 }
