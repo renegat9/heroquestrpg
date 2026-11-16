@@ -655,7 +655,8 @@ final class EtatGroupe
             ->get(['position_x', 'position_y'])
             ->map(fn ($e) => ['x' => (int) $e->position_x, 'y' => (int) $e->position_y])
             ->all();
-        $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $aretes, $positionsHeros, (array) ($carte->grille['murs'] ?? []));
+        $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $aretes, $positionsHeros, (array) ($carte->grille['murs'] ?? []),
+            $quete->entreeEnCouloir());
 
         return $cases;
     }
@@ -675,7 +676,7 @@ final class EtatGroupe
      * @param  list<array{x: int, y: int, etat: string}>  $portes
      * @return list<list<string>>
      */
-    private function appliquerBrouillard(array $cases, array $salles, array $decouvertes, array $portes, array $positionsHeros = [], array $murs = []): array
+    private function appliquerBrouillard(array $cases, array $salles, array $decouvertes, array $portes, array $positionsHeros = [], array $murs = [], array $graines = []): array
     {
         if ($salles === []) {
             return $cases; // pas de métadonnées de salle (vieille carte) : rien à masquer
@@ -723,6 +724,21 @@ final class EtatGroupe
                     }
                 }
             }
+        }
+
+        // …et depuis l'ENTRÉE EN COULOIR : une quête construite qui entre par une porte de couloir (René, 2026-11-16) n'a
+        // aucune salle de départ — le couloir d'entrée en tient lieu, connu d'emblée comme l'est une salle de départ.
+        // Sans cette graine, le groupe s'éveillerait dans le noir complet, sans une case où marcher. Seulement la case
+        // de l'entrée, jamais « le couloir où se tient un héros » : ce serait changer le brouillard de toute partie (un
+        // héros passé par la roche avec Traverser la Pierre verrait le couloir où il débouche).
+        foreach ($graines as $h) {
+            $x = (int) $h['x'];
+            $y = (int) $h['y'];
+            if ($salleDe($x, $y) !== null || ($cases[$y][$x] ?? 'm') === 'm' || isset($visible["{$x},{$y}"])) {
+                continue;
+            }
+            $visible["{$x},{$y}"] = true;
+            $file[] = [$x, $y];
         }
 
         while ($file !== []) {

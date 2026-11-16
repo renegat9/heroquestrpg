@@ -36,7 +36,8 @@ use InvalidArgumentException;
  * - `leviers`, `epreuves`, `dangers` : `[]`. Le format de quête ne les décrit pas encore.
  * - `spawn_heros` : l'escalier d'abord, puis les autres cases libres de l'intérieur de la salle de départ, de la plus
  *   proche de l'escalier à la plus lointaine (même ordre que `AssembleurCarte::spawnsDepuisEscalier()`), plafonné à
- *   `AssembleurCarte::MAX_SPAWNS_HEROS`. « Libre » : ni meuble, ni monstre, ni piège, ni terrain.
+ *   `AssembleurCarte::MAX_SPAWNS_HEROS`. « Libre » : ni meuble, ni monstre, ni piège, ni terrain. Entrée par une porte
+ *   de COULOIR : la case devant elle, puis les cases libres du même couloir, au plus près en pas (`spawnsCouloir()`).
  */
 final class CarteConstruite
 {
@@ -72,6 +73,9 @@ final class CarteConstruite
         $ouvertes = array_fill_keys($quete['salles_ouvertes'], true);
 
         // Salle 0 = celle qui contient le départ (ouverte : la validation l'exige) ; les autres suivent l'ordre du plateau.
+        // Une porte d'ENTRÉE dans un COULOIR (René, 2026-11-16) n'est dans aucune salle : `$idDepart` vaut `null`, aucune
+        // salle n'est « de départ », et la salle 0 n'est que la première salle ouverte du plateau — `acces.salle_depart`
+        // le dit, pour que la quête ne la tienne pas pour découverte (`Quete::sallesDecouvertes()`).
         $idDepart = self::interieurEn($salles, (int) $quete['depart']['x'], (int) $quete['depart']['y']);
         $ordre = [];
         foreach ($salles as $salle) {
@@ -270,7 +274,9 @@ final class CarteConstruite
                 'terrain' => $terrain,
                 'dangers' => [],
                 'escalier' => $escalier,
-                'spawn_heros' => self::spawnsHeros($salleDepart, $ancre, $occupees),
+                'spawn_heros' => $idDepart === null
+                    ? self::spawnsCouloir($ancre, $cases, $salles, $occupees)
+                    : self::spawnsHeros($salleDepart, $ancre, $occupees),
                 'spawn_monstres' => [],
                 'spawn_figures_fixes' => [],
             ],
@@ -278,6 +284,10 @@ final class CarteConstruite
             // HORS de `carte` (dont les clés restent celles de l'assembleur) : par où l'on entre et par où l'on sort.
             // `DemarreurQueteConstruite` les fige sur la quête (`quetes.acces`), `Quete::sortieDuDonjon()` les lit.
             'acces' => [
+                // L'index de la salle de DÉPART — 0, celle qui contient l'entrée — ou `null` quand on entre par une porte
+                // de couloir. Lu par `Quete::sallesDecouvertes()` (la salle de départ est connue d'emblée, aucune autre)
+                // et par le démarrage (un monstre de la salle de départ est vu d'emblée).
+                'salle_depart' => $idDepart === null ? null : 0,
                 'entree' => ['type' => $acces['entree']['type'], 'cases' => $acces['entree']['cases'], 'porte' => $acces['entree']['porte']],
                 'sortie' => ['type' => $acces['sortie']['type'], 'cases' => $acces['sortie']['cases'], 'porte' => $acces['sortie']['porte']],
                 'fausses_sorties' => array_map(
@@ -540,6 +550,45 @@ final class CarteConstruite
         usort($libres, static fn (array $a, array $b): int => $distance($a) <=> $distance($b));
 
         return array_slice([...$marches, ...$libres], 0, AssembleurCarte::MAX_SPAWNS_HEROS);
+    }
+
+    /**
+     * `spawn_heros` d'une ENTRÉE EN COULOIR (René, 2026-11-16 : « la porte d'entrée peut aussi être sur un mur d'un
+     * corridor ») : la case devant la porte d'abord, puis les cases libres du MÊME couloir, de la plus proche à la plus
+     * lointaine EN PAS (parcours en largeur, orthogonal : un héros ne s'installe pas de l'autre côté d'un mur). Le
+     * parcours ne quitte jamais le couloir — ni salle, ni roche, ni bloc — et passe par-dessus une case prise sans s'y
+     * installer. Plafonné à `AssembleurCarte::MAX_SPAWNS_HEROS`, comme le départ en salle.
+     *
+     * @param  array{x: int, y: int, l: int, h: int}  $ancre
+     * @param  list<list<string>>  $cases  `s` sol, `m` roche — blocs déjà posés
+     * @param  list<array<string, mixed>>  $salles  les salles du PLATEAU (ouvertes et fermées)
+     * @param  array<string, true>  $occupees
+     * @return list<array{x: int, y: int}>
+     */
+    private static function spawnsCouloir(array $ancre, array $cases, array $salles, array $occupees): array
+    {
+        $depart = ['x' => $ancre['x'], 'y' => $ancre['y']];
+        $places = [$depart];
+        $vues = ["{$depart['x']},{$depart['y']}" => true];
+        $file = [$depart];
+
+        while ($file !== [] && count($places) < AssembleurCarte::MAX_SPAWNS_HEROS) {
+            $c = array_shift($file);
+            foreach ([[0, -1], [1, 0], [0, 1], [-1, 0]] as [$dx, $dy]) {
+                $nx = $c['x'] + $dx;
+                $ny = $c['y'] + $dy;
+                if (isset($vues["$nx,$ny"]) || ($cases[$ny][$nx] ?? 'm') !== 's' || self::interieurEn($salles, $nx, $ny) !== null) {
+                    continue;
+                }
+                $vues["$nx,$ny"] = true;
+                $file[] = ['x' => $nx, 'y' => $ny];
+                if (! isset($occupees["$nx,$ny"])) {
+                    $places[] = ['x' => $nx, 'y' => $ny];
+                }
+            }
+        }
+
+        return array_slice($places, 0, AssembleurCarte::MAX_SPAWNS_HEROS);
     }
 
     /** L'id de la salle dont l'INTÉRIEUR contient (x, y), ou `null`. Les intérieurs ne se chevauchent pas (validé). */

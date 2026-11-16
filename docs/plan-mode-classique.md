@@ -787,6 +787,18 @@ ni son format, il appelle ce que la route HTTP appelle.
   une case de couloir, contre le bord du plateau, de la roche ou un bloc.
   L'entrée reste dans une salle. Tests dans `AccesParPorteTest` ; vu à
   l'écran (capture `99-…`).
+- **Fait le 2026-11-16 — une porte d'entrée dans un couloir** (René : « la
+  porte d'entrée peut aussi être sur un mur d'un corridoir ») : mêmes règles
+  que la sortie de couloir. Les héros s'installent dans ce couloir, au plus
+  près de la porte en pas (`CarteConstruite::spawnsCouloir()`). Aucune salle
+  n'est alors « de départ » : `quetes.acces.salle_depart` vaut `null`, la
+  salle 0 n'est que la première salle ouverte et `Quete::sallesDecouvertes()`
+  ne la donne plus pour connue ; un monstre qui s'y tient dort. Le couloir
+  d'entrée tient lieu de salle de départ : le brouillard s'ouvre depuis la
+  case de la porte (`Quete::entreeEnCouloir()`, lu par
+  `EtatGroupe::appliquerBrouillard()`) — sans quoi le groupe partirait dans
+  le noir complet. Pas « le couloir où se tient un héros » : essayé, cela
+  changeait le brouillard de toute partie (Traverser la Pierre). Sans sortie déclarée, on ressort par cette porte.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

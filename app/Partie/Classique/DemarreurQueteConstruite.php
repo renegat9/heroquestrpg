@@ -122,7 +122,7 @@ final class DemarreurQueteConstruite
         }
         if ($heros->count() > count($carte['spawn_heros'])) {
             throw ValidationException::withMessages([
-                'groupe' => 'La salle de départ de cette quête n\'a que '.count($carte['spawn_heros']).' cases libres pour '.$heros->count().' héros.',
+                'groupe' => 'Le départ de cette quête n\'a que '.count($carte['spawn_heros']).' cases libres pour '.$heros->count().' héros.',
             ]);
         }
 
@@ -141,7 +141,8 @@ final class DemarreurQueteConstruite
                 'objectif_majeur' => false,
                 'etat' => 'en_cours',
                 'or_initial' => $groupe->or,
-                'salles_decouvertes' => [0],
+                // La salle de départ, connue d'emblée — aucune quand on entre par une porte de couloir.
+                'salles_decouvertes' => $produit['acces']['salle_depart'] === null ? [] : [0],
                 'tresors_fouilles' => [],
                 'deck_fouille' => $paquet['deck'],
                 'salles_coffre' => $paquet['salles_coffre'],
@@ -181,8 +182,10 @@ final class DemarreurQueteConstruite
                     'position_y' => (int) $pose['y'],
                     'etat' => 'actif',
                     'elite' => false,
-                    // Dormant tant que sa salle n'est pas découverte ; un monstre de la salle de départ est vu d'emblée.
-                    'revele' => Salles::indexDe($carte['salles'], (int) $pose['x'], (int) $pose['y']) === 0,
+                    // Dormant tant que sa salle n'est pas découverte ; un monstre de la salle de départ est vu d'emblée
+                    // (aucun quand on entre par une porte de couloir : il n'y a pas de salle de départ).
+                    'revele' => $produit['acces']['salle_depart'] !== null
+                        && Salles::indexDe($carte['salles'], (int) $pose['x'], (int) $pose['y']) === $produit['acces']['salle_depart'],
                     // L'ordre de `produit['monstres']` est celui de `quete.monstres` : `fin.cibles` y lit ses index.
                     'objectif' => in_array($i, $cibles, true),
                 ]);

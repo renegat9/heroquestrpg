@@ -858,8 +858,8 @@ final class ValidationCampagne
      *
      *  - `escalier` `{x, y}` : le coin haut-gauche d'un bloc 2×2, entier dans l'intérieur d'UNE salle ouverte ;
      *  - `porte` `{type, x, y, cote}` : une porte sur le mur d'une salle ouverte, côté `cote` de la case d'intérieur
-     *    (x, y) — ou, pour une SORTIE (vraie ou fausse), sur une case de COULOIR, contre le bord du plateau, de la roche
-     *    ou un bloc (René, 2026-11-16). Elle mène HORS du donjon : ce qu'il y a derrière ne compte pas, et elle ne s'ouvre jamais comme une
+     *    (x, y) — ou sur une case de COULOIR, contre le bord du plateau, de la roche ou un bloc (René, 2026-11-16 :
+     *    sortie d'abord, puis entrée). Elle mène HORS du donjon : ce qu'il y a derrière ne compte pas, et elle ne s'ouvre jamais comme une
      *    porte ordinaire (elle n'entre pas dans `portes`). Le héros entre et sort depuis la case (x, y).
      *
      * Les cases d'un accès ne portent ni meuble ni monstre, et deux accès ne se recouvrent pas.
@@ -905,12 +905,12 @@ final class ValidationCampagne
                 return;
             }
             [$dx, $dy] = self::DECALAGES[$cote];
-            // DANS UN COULOIR (René, 2026-11-16 : « la porte de sortie peut aussi être dans un corridor ») : une porte de
-            // SORTIE — vraie ou fausse — peut se poser sur une case de couloir, pourvu qu'elle soit contre quelque chose :
-            // le bord du plateau, de la roche (une salle fermée) ou un bloc. Le côté qui donne sur du sol n'est pas un
-            // mur, et une porte n'a rien à y faire. L'ENTRÉE, elle, reste dans une salle : les héros s'installent dans la
-            // salle de départ.
-            if ($salle === null && $role !== 'départ') {
+            // DANS UN COULOIR (René, 2026-11-16 : « la porte de sortie peut aussi être dans un corridor », puis « la porte
+            // d'entrée peut aussi être sur un mur d'un corridor ») : une porte d'accès — entrée, sortie, vraie ou fausse —
+            // peut se poser sur une case de couloir, pourvu qu'elle soit contre quelque chose : le bord du plateau, de la
+            // roche (une salle fermée) ou un bloc. Le côté qui donne sur du sol n'est pas un mur, et une porte n'a rien à
+            // y faire. Entrée en couloir : les héros s'installent dans ce couloir (`CarteConstruite::spawnsCouloir()`).
+            if ($salle === null) {
                 $nx = $x + $dx;
                 $ny = $y + $dy;
                 $contre = !$this->dansPlateau($nx, $ny) || $this->salleFermeeEn($nx, $ny)

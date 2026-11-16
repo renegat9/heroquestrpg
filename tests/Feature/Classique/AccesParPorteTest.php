@@ -237,7 +237,7 @@ it('accepte aussi une FAUSSE porte de sortie dans un couloir', function () {
     expect(refusDAcces($campagne))->toBe([]);
 });
 
-it('refuse une porte de couloir qui donne sur du sol, et une ENTRÉE dans un couloir', function (string $cle, array $acces, string $code) {
+it('refuse une porte de couloir qui donne sur du sol', function (string $cle, array $acces, string $code) {
     $campagne = campagneAPortes();
     $campagne['quetes'][0][$cle] = $acces;
 
@@ -247,7 +247,7 @@ it('refuse une porte de couloir qui donne sur du sol, et une ENTRÉE dans un cou
 })->with([
     'sortie qui donne sur le couloir' => ['sortie', ['type' => 'porte', 'x' => 12, 'y' => 2, 'cote' => 'e'], ValidationCampagne::PORTE_SANS_BORD],
     'sortie qui donne sur une salle ouverte' => ['sortie', ['type' => 'porte', 'x' => 11, 'y' => 3, 'cote' => 'o'], ValidationCampagne::PORTE_SANS_BORD],
-    'entrée dans un couloir' => ['depart', ['type' => 'porte', 'x' => 19, 'y' => 7, 'cote' => 'e'], ValidationCampagne::DEPART_HORS_SALLE],
+    'entrée qui donne sur le couloir' => ['depart', ['type' => 'porte', 'x' => 12, 'y' => 2, 'cote' => 'e'], ValidationCampagne::PORTE_SANS_BORD],
 ]);
 
 it('EN JEU : on quitte le donjon depuis la case de couloir devant la porte de sortie', function () {
@@ -271,6 +271,81 @@ it('EN JEU : on quitte le donjon depuis la case de couloir devant la porte de so
     $option = collect($this->getJson("/api/groupes/{$code}/menu")->assertOk()->json('menu.options'))->firstWhere('id', 'sortir_donjon');
     expect($option['libelle'])->toBe('Quitter le donjon par la porte de sortie');
 
+    $this->postJson("/api/groupes/{$code}/choix", ['option_id' => 'sortir_donjon'])->assertAccepted()
+        ->assertJsonPath('resultat.type', 'sortie_en_personne');
+    expect($quete->refresh()->etat)->toBe('terminee');
+});
+
+/*
+ * UNE PORTE D'ENTRÉE DANS UN COULOIR (René, 2026-11-16 : « la porte d'entrée peut aussi être sur un mur d'un
+ * corridor »). Mêmes règles qu'une porte de sortie de couloir ; les héros s'installent dans CE couloir, et aucune salle
+ * n'est connue d'emblée : la salle 0 n'est plus « la salle de départ », seulement la première salle ouverte.
+ */
+it('entre par une porte de couloir : les héros s\'installent dans le couloir, au plus près en pas', function () {
+    $campagne = campagneAPortes(null);
+    $campagne['quetes'][0]['depart'] = ['type' => 'porte', 'x' => 19, 'y' => 7, 'cote' => 'e'];
+
+    expect(refusDAcces($campagne))->toBe([]);
+
+    $produit = app(CarteConstruite::class)->produire($campagne, $campagne['quetes'][0]);
+    $spawns = $produit['carte']['spawn_heros'];
+    $salles = $produit['carte']['salles'];
+
+    expect($produit['acces']['salle_depart'])->toBeNull()
+        ->and($produit['carte']['escalier'])->toBeNull()
+        ->and($spawns[0])->toBe(['x' => 19, 'y' => 7])
+        // Toutes au couloir, jamais dans une salle, jamais sur la roche ni le bloc (11, 7).
+        ->and(collect($spawns)->every(fn (array $c) => \App\Partie\Salles::indexDe($salles, $c['x'], $c['y']) === null
+            && $produit['carte']['cases'][$c['y']][$c['x']] === 's'))->toBeTrue()
+        // Au plus près EN PAS : la deuxième place touche la porte.
+        ->and(abs($spawns[1]['x'] - 19) + abs($spawns[1]['y'] - 7))->toBe(1)
+        // Sans sortie déclarée, on ressort par cette même porte.
+        ->and($produit['acces']['sortie'])->toBe($produit['acces']['entree']);
+
+    // Une entrée en salle garde sa salle de départ.
+    $enSalle = campagneAPortes();
+    expect(app(CarteConstruite::class)->produire($enSalle, $enSalle['quetes'][0])['acces']['salle_depart'])->toBe(0);
+});
+
+it('EN JEU : entré par un couloir, aucune salle n\'est découverte, le couloir se voit, et l\'on ressort par la même porte', function () {
+    $campagne = campagneAPortes(null);
+    $campagne['quetes'][0]['depart'] = ['type' => 'porte', 'x' => 19, 'y' => 7, 'cote' => 'e'];
+    app(CampagnesConstruites::class)->enregistrer($campagne);
+    $alice = connecterJoueur('alice');
+    $heros = Personnage::create([
+        'joueur_id' => $alice->id, 'nom' => 'Albrecht', 'classe' => 'barbare', 'niveau' => 1,
+        'attribut_body' => 4, 'attribut_mind' => 2, 'pv_body_max' => 8, 'pv_body' => 8, 'pv_mind_max' => 2, 'pv_mind' => 2,
+        'des_attaque' => 3, 'des_defense' => 2, 'deplacement_base' => 4,
+    ]);
+    $code = $this->postJson('/api/classique', ['nom' => 'Les Essayeurs', 'campagne' => 'campagne-d-essai', 'personnage_id' => $heros->id])
+        ->assertCreated()->json('groupe.identifiant');
+    $groupe = Groupe::where('identifiant', $code)->firstOrFail();
+    $this->postJson("/api/groupes/{$code}/quetes")->assertCreated();
+    $quete = Quete::findOrFail($groupe->refresh()->quete_courante_id);
+    $etat = $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail();
+
+    // Le héros part de la case de couloir devant la porte ; aucune salle n'est connue, et le gobelin de `entree`
+    // (la salle 0 de la carte) dort.
+    expect([$etat->position_x, $etat->position_y])->toBe([19, 7])
+        ->and($quete->sallesDecouvertes())->toBe([])
+        ->and(InstanceMonstre::where('quete_id', $quete->id)->where('revele', true)->count())->toBe(0);
+
+    // Le couloir sous ses pieds se voit ; l'intérieur de `entree` reste sous le brouillard.
+    $carte = $this->getJson("/api/groupes/{$code}/etat")->assertOk()->json('carte');
+    expect($carte['cases'][7][19])->toBe('s')
+        ->and($carte['cases'][7][18])->toBe('s')
+        ->and($carte['cases'][3][4])->toBe('b')
+        ->and(collect($carte['acces'])->firstWhere('role', 'entree_sortie')['cote'] ?? null)->toBe('e');
+
+    // Il a de quoi marcher : le menu offre un déplacement.
+    Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($groupe, $heros));
+    $menu = collect($this->getJson("/api/groupes/{$code}/menu")->assertOk()->json('menu.options'));
+    expect($menu->firstWhere('id', 'se_deplacer')['parametres']['destinations'] ?? [])->not->toBeEmpty();
+
+    // Objectif accompli, depuis la même case : il ressort par la porte d'entrée.
+    InstanceMonstre::where('quete_id', $quete->id)->update(['etat' => 'vaincu']);
+    Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($groupe, $heros));
+    $this->getJson("/api/groupes/{$code}/menu")->assertOk();
     $this->postJson("/api/groupes/{$code}/choix", ['option_id' => 'sortir_donjon'])->assertAccepted()
         ->assertJsonPath('resultat.type', 'sortie_en_personne');
     expect($quete->refresh()->etat)->toBe('terminee');

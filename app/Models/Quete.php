@@ -119,8 +119,14 @@ class Quete extends Model
     }
 
     /**
-     * Index des salles déjà découvertes. La salle 0 (départ) l'est toujours :
+     * Index des salles déjà découvertes. La salle de DÉPART l'est toujours :
      * elle est semée par DemarreurQuete et ne dépend d'aucune révélation.
+     *
+     * C'est la salle 0 — sauf pour une quête CONSTRUITE qui entre par une
+     * porte de COULOIR (René, 2026-11-16) : aucune salle n'y est « de départ »
+     * (`acces.salle_depart` = `null`, écrit par `CarteConstruite::produire()`),
+     * et la salle 0 n'est alors que la première salle ouverte du plateau, à
+     * découvrir comme les autres. Sans la clé (toute autre quête), c'est 0.
      *
      * @return list<int>
      */
@@ -128,7 +134,25 @@ class Quete extends Model
     {
         $vues = array_map('intval', (array) ($this->salles_decouvertes ?? []));
 
-        return array_values(array_unique([0, ...$vues]));
+        return array_values(array_unique($this->entreeEnCouloir() !== [] ? $vues : [0, ...$vues]));
+    }
+
+    /**
+     * Les cases de l'ENTRÉE quand on entre par une porte de COULOIR (quête construite, René 2026-11-16 :
+     * `acces.salle_depart` = `null`) ; `[]` partout ailleurs. Ce couloir tient lieu de salle de départ : il n'y en a
+     * pas ({@see sallesDecouvertes()}), et le brouillard s'ouvre depuis ces cases (`EtatGroupe::appliquerBrouillard()`).
+     *
+     * @return list<array{x: int, y: int}>
+     */
+    public function entreeEnCouloir(): array
+    {
+        $acces = (array) ($this->acces ?? []);
+
+        if (! array_key_exists('salle_depart', $acces) || $acces['salle_depart'] !== null) {
+            return [];
+        }
+
+        return array_values((array) data_get($acces, 'entree.cases', []));
     }
 
     /**

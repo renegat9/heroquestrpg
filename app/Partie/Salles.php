@@ -45,7 +45,7 @@ final class Salles
      * zone non découverte » : lu par les éthérés et les figures de deux cases qui cherchent où s'arrêter
      * (`ResolveurTour::salleDecouverte()`), et par la place d'une forme qui grandit (`MoteurSynchroformes::ancrer()`).
      *
-     * Un couloir (`indexDe()` = `null`) n'est jamais « non découvert » ; la salle 0 l'est toujours (`Quete::sallesDecouvertes()`).
+     * Un couloir (`indexDe()` = `null`) n'est jamais « non découvert » ; la salle de départ l'est toujours (`Quete::sallesDecouvertes()`).
      *
      * @param  array<int|string, array{x: int|string, y: int|string, largeur: int|string, hauteur: int|string}>  $salles
      * @param  list<int>  $decouvertes
