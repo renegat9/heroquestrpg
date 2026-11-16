@@ -47,7 +47,7 @@ class ConstructeurController extends Controller
     public function enregistrer(Request $request, string $slug): JsonResponse
     {
         try {
-            $campagne = $this->campagnes->enregistrer($request->json()->all(), $slug);
+            $campagne = $this->campagnes->enregistrer(self::document($request), $slug);
         } catch (RefusCampagne $refusé) {
             return response()->json([
                 'message' => 'Campagne refusée : '.count($refusé->refus).' refus.',
@@ -61,7 +61,25 @@ class ConstructeurController extends Controller
     /** POST /api/constructeur/validation — rend les refus, sans rien enregistrer. */
     public function valider(Request $request): JsonResponse
     {
-        return response()->json(['refus' => $this->campagnes->valider($request->json()->all())]);
+        return response()->json(['refus' => $this->campagnes->valider(self::document($request))]);
+    }
+
+    /**
+     * Le document TEL QU'IL A ÉTÉ ENVOYÉ, lu dans le corps brut de la requête.
+     *
+     * ⚠ Jamais `$request->json()` : Laravel y a déjà fait passer `ConvertEmptyStringsToNull`, qui change tout texte vide
+     * en `null`. Un texte d'ouverture vide — permis par le format — arrivait donc `null` et la validation le refusait
+     * (« un texte est attendu ») ; une `mention` vide devenait `null` sans qu'on l'ait demandé. Trouvé en éprouvant
+     * l'écran du constructeur le 2026-11-16 : le serveur MCP, qui ne passe pas par ce middleware, ne l'avait jamais vu.
+     * Un document se valide tel que l'auteur l'a écrit.
+     *
+     * @return array<mixed>
+     */
+    private static function document(Request $request): array
+    {
+        $document = json_decode($request->getContent(), true);
+
+        return is_array($document) ? $document : [];
     }
 
     /** GET /api/constructeur/campagnes/{slug}/export — le document plus `empreinte`, en fichier téléchargeable. */

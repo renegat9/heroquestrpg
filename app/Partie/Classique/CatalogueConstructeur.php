@@ -103,6 +103,22 @@ final class CatalogueConstructeur
             $couches[$couche] = $this->palette($couche);
         }
 
+        // L'EMPRISE d'un meuble, PAR ROTATION, calculée par la règle même que la validation applique
+        // (`ValidationCampagne::empriseMeuble()`) : l'écran du constructeur la dessine, il ne la recalcule pas.
+        $meubles = $this->index('mobilier');
+        $couches['mobilier'] = array_map(
+            function (array $ligne) use ($meubles): array {
+                $meuble = $meubles[$ligne['slug']];
+                $emprises = [];
+                foreach (ValidationCampagne::ROTATIONS as $rotation) {
+                    $emprises[$rotation] = ValidationCampagne::empriseMeuble((int) $meuble->largeur, (int) $meuble->hauteur, $rotation);
+                }
+
+                return $ligne + ['emprises' => $emprises];
+            },
+            $couches['mobilier'],
+        );
+
         return [
             'couches' => $couches,
             'classes' => $this->palette('classes'),

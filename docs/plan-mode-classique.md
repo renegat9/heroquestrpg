@@ -742,6 +742,35 @@ ni son format, il appelle ce que la route HTTP appelle.
   - Tests : `PilotageHerosTest` — `pilotes_possibles` = exactement les joueurs que `confier()` accepte (un étranger refusé),
     `proprietaire_joueur_id` et `confie` avant, après un confier et après la reprise, liste absente hors hub.
   - Non vérifié dans un navigateur : le clic et le rendu sur téléphone restent à voir sur la vraie stack.
+- **Fait le 2026-11-16 — l'écran du constructeur (lots B1/B2)** : page
+  publique `/constructeur` (lien sur l'accueil), outil de bureau.
+  - **Campagne** : titre, slug, auteur, mention, classes exigées.
+  - **Plateau** : on trace les salles à la souris ; id et dimensions se
+    corrigent dans une liste. Renommer une salle met à jour les quêtes et les
+    notes qui la citent.
+  - **Quêtes** : liste ordonnée ; une carte où l'on pose, à l'outil, salles
+    ouvertes, portes (sur le bord cliqué, normale ou secrète), blocs,
+    meubles (rotation, emprise publiée par le serveur), monstres, pièges,
+    terrain, cibles de fin, entrée et sortie (escalier ou porte) ; la fiche
+    (ouverture, monstre errant, récompense, fin) ; les NOTES, champ par
+    champ, avec « choisir sur la carte » pour une case ou une apparition.
+  - **Le serveur décide** : validation en direct (débouncée), refus affichés
+    avec leur chemin, quête par quête ; le vocabulaire (couches, côtés,
+    déclencheurs, effets, emprise des meubles) vient du catalogue. Un slug
+    déjà pris par une AUTRE campagne demande confirmation avant d'écraser.
+  - **Défaut trouvé en l'éprouvant, corrigé** : la route HTTP changeait un
+    texte vide en `null` (middleware Laravel) ; elle lit désormais le corps
+    brut.
+  - **Éprouvé dans un navigateur** (`browser-shots/constructeur.mjs`) : une
+    campagne inventée tracée, posée, validée par le serveur et enregistrée
+    telle que dessinée.
+  - **Pas fait** : import d'un fichier depuis l'écran (le service existe,
+    pas la route) ; aperçu « en jeu » d'une quête.
+- **Vu à l'écran le 2026-11-16 — un héros confié** : Confier puis Reprendre
+  depuis la manette du propriétaire ; le joueur qui reçoit voit les deux
+  héros dans son bandeau (`browser-shots/classique-confier.mjs`,
+  `classique-pilote-recu.mjs`). Reste : la manette du propriétaire qui a tout
+  confié montre encore son héros et le bouton « Prêt ».
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

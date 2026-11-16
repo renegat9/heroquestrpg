@@ -107,3 +107,15 @@ it('GET /api/constructeur/campagnes/{slug}/export rend le document plus empreint
 
     $this->getJson('/api/constructeur/campagnes/aucune/export')->assertNotFound();
 });
+
+it('valide et enregistre un document TEL QU\'IL A ÉTÉ ENVOYÉ : un texte vide reste un texte vide', function () {
+    // `ConvertEmptyStringsToNull` changeait « » en null à l'entrée de la route : un texte d'ouverture vide, permis par
+    // le format, était refusé (« un texte est attendu »). Trouvé en éprouvant l'écran du constructeur (2026-11-16).
+    $document = \Tests\Feature\Classique\DocumentExemple::campagne();
+    $document['quetes'][0]['ouverture'] = '';
+
+    $this->postJson('/api/constructeur/validation', $document)->assertOk()->assertJsonPath('refus', []);
+
+    $this->putJson('/api/constructeur/campagnes/'.$document['slug'], $document)->assertOk();
+    expect($this->getJson('/api/constructeur/campagnes/'.$document['slug'])->json('quetes.0.ouverture'))->toBe('');
+});

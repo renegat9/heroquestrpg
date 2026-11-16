@@ -1,0 +1,33 @@
+// MODE CLASSIQUE : confier son héros à un autre joueur depuis la manette, au hub, puis le reprendre.
+//   node browser-shots/classique-confier.mjs <code> <ident du propriétaire> <préfixe>
+import { chromium } from 'playwright';
+const base = 'http://localhost';
+const [code, ident, prefixe] = process.argv.slice(2);
+const out = '/work/browser-shots/classique';
+const erreurs = [];
+const b = await chromium.launch();
+const p = await (await b.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2 })).newPage();
+p.on('pageerror', (e) => erreurs.push(e.message));
+await p.goto(base + '/joueur', { waitUntil: 'networkidle' });
+await p.fill('input[placeholder="ex. renegat"]', ident);
+await p.click('button:has-text("Entrer")');
+await p.waitForTimeout(2000);
+await p.goto(`${base}/manette/${code}`, { waitUntil: 'networkidle' });
+await p.waitForTimeout(3000);
+const lire = () => p.evaluate(() => [...document.querySelectorAll('.confier-ligne')].map((l) => l.innerText.replace(/\s+/g, ' ').trim()));
+console.log('avant :', JSON.stringify(await lire()));
+await p.locator('.confier-bloc').scrollIntoViewIfNeeded();
+await p.click('.confier-ligne .confier-btn:has-text("Confier")');
+await p.waitForTimeout(400);
+console.log('liste :', JSON.stringify(await p.evaluate(() => document.querySelector('.confier-choix')?.innerText.replace(/\s+/g, ' ').trim() ?? null)));
+await p.screenshot({ path: `${out}/${prefixe}-choix.png` });
+await p.click('.confier-choix .confier-btn');
+await p.waitForTimeout(2500);
+console.log('confié :', JSON.stringify(await lire()));
+await p.locator('.confier-bloc').scrollIntoViewIfNeeded();
+await p.screenshot({ path: `${out}/${prefixe}-confie.png` });
+await p.click('.confier-ligne .confier-btn:has-text("Reprendre")');
+await p.waitForTimeout(2500);
+console.log('repris :', JSON.stringify(await lire()));
+console.log('débordement :', await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), '| erreurs :', JSON.stringify(erreurs));
+await b.close();

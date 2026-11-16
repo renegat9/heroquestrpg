@@ -5743,8 +5743,13 @@ lot F, F1 (la force vaut pour toute grille) et F2 (la clé quitte le sac en fin 
 ## Constructeur de campagnes (lot K1, 2026-11-13, `docs/plan-mode-classique.md` §3, §8, §8 bis)
 
 Le **socle serveur** du constructeur : le format d'une campagne construite, sa validation, son stockage et son
-import/export. **Aucun écran ici** (le constructeur de bureau est le lot B1/B2) et **aucune quête jouée** : le producteur
-de carte est le lot K2, les notes « quand → alors » le lot K3. Un serveur MCP (§8 bis) appellera les **mêmes services**.
+import/export. Le producteur de carte est le lot K2, les notes « quand → alors » le lot K3. Le serveur MCP (§8 bis)
+appelle les **mêmes services**. **L'écran** (lots B1/B2, 2026-11-16) est la page publique `/constructeur` : il ne valide
+rien lui-même — chaque modification part à `POST /validation` (débouncée) et les refus affichés sont ceux du serveur.
+
+⚠ **Le document est lu dans le CORPS BRUT de la requête** (`ConstructeurController::document()`), jamais par
+`$request->json()` : le middleware `ConvertEmptyStringsToNull` y change tout texte vide en `null`, et un texte
+d'ouverture vide — permis — était refusé (trouvé en éprouvant l'écran, 2026-11-16).
 
 Routes **PUBLIQUES**, comme `/api/parametres` (jeu en LAN) : aucune autorisation, aucune session de groupe. Rien de ce
 groupe de routes ne touche une partie en cours.
@@ -5874,7 +5879,8 @@ s'ouvre à la main, au contact. Le moteur ne retient pas quels couloirs ont ét�
 ```
 {
   couches: {
-    mobilier: [{slug, nom}], monstres: [{slug, nom}], pieges: [{slug, nom}], terrain: [{slug, nom}]
+    mobilier: [{slug, nom, emprises: {0: [l, h], 90: [l, h], 180: [l, h], 270: [l, h]}}],   // emprise par rotation, décidée par le serveur
+    monstres: [{slug, nom}], pieges: [{slug, nom}], terrain: [{slug, nom}]
   },                                // `monstres` sert aussi à monstre_errant
   classes: [{slug, nom}],           // prerequis_heros
   objets:  [{slug, nom}],           // ce qu'une note de quête peut donner (effet `objet`)

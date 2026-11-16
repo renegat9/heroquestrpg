@@ -115,6 +115,16 @@ onMounted(async () => {
                     <MSym n="arrow_forward" :size="18" />
                 </RouterLink>
 
+                <!-- constructeur de campagnes du mode classique (outil de bureau) -->
+                <RouterLink to="/constructeur" class="acchoix-guide">
+                    <MSym n="architecture" fill :size="20" />
+                    <span class="acchoix-guide-txt">
+                        <b>Constructeur de campagnes</b>
+                        <em>Dessiner un plateau, poser les quêtes et leurs notes — pour le mode classique</em>
+                    </span>
+                    <MSym n="arrow_forward" :size="18" />
+                </RouterLink>
+
                 <!-- livret : asset généré, donc affiché seulement s'il est là -->
                 <a
                     v-if="livretDispo"

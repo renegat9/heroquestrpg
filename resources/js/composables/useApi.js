@@ -261,6 +261,12 @@ export function useApi() {
         // MODE CLASSIQUE (contrat « Mode classique ») : les campagnes construites que le serveur propose
         // (`{campagnes: [{slug, titre, nb_quetes, jouable, prerequis_heros, …}]}`), et l'ouverture d'un groupe dessus.
         campagnesConstruites: () => request('GET', '/constructeur/campagnes'),
+        // CONSTRUCTEUR DE CAMPAGNES (contrat « Constructeur de campagnes ») — routes publiques. Un document refusé
+        // répond 422 : l'`ApiError` porte alors `donnees.refus = [{chemin, code, message}]`.
+        constructeurCatalogues: () => request('GET', '/constructeur/catalogues'),
+        constructeurLire: (slug) => request('GET', `/constructeur/campagnes/${slug}`),
+        constructeurEnregistrer: (slug, document) => request('PUT', `/constructeur/campagnes/${slug}`, document),
+        constructeurValider: (document) => request('POST', '/constructeur/validation', document),
         ouvrirClassique: (payload) => request('POST', '/classique', payload),
 
         /** POST /api/groupes/{identifiant}/joueurs {personnage_id} ou {nom, classe,

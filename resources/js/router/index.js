@@ -10,6 +10,7 @@ import ClotureCampagneView from '../views/ClotureCampagneView.vue';
 import GuideView from '../views/GuideView.vue';
 import SystemeView from '../views/SystemeView.vue';
 import AreneMonstresView from '../views/AreneMonstresView.vue';
+import ConstructeurView from '../views/ConstructeurView.vue';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -28,6 +29,9 @@ const router = createRouter({
 
         // ---- page Système (public, état des services — voir docs/contrat-api.md) ----
         { path: '/systeme', name: 'systeme', component: SystemeView },
+
+        // ---- constructeur de campagnes du mode classique (public, comme /systeme — outil de bureau) ----
+        { path: '/constructeur', name: 'constructeur', component: ConstructeurView },
 
         // ---- écrans de jeu ----
         { path: '/table/:groupe', name: 'table', component: TableView, props: true },
