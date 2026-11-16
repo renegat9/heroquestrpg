@@ -196,6 +196,15 @@ class EtatPersonnageQuete extends Model
             ->first();
     }
 
+    /**
+     * Ce héros attend-il HORS DU PLATEAU, devant la porte d'entrée (mode classique, René 2026-11-16) ? Une ligne d'état
+     * sans case ne veut dire que cela : un héros sorti du donjon n'a plus de ligne (`resoudreSortieEnPersonne()`).
+     */
+    public function horsPlateau(): bool
+    {
+        return $this->position_x === null || $this->position_y === null;
+    }
+
     public function personnage(): BelongsTo
     {
         return $this->belongsTo(Personnage::class, 'personnage_id');

@@ -5600,9 +5600,9 @@ final class MoteurDread
             return null;
         }
 
-        // Occupées (hors le lanceur lui-même).
+        // Occupées (hors le lanceur lui-même). Un héros hors du plateau (mode classique) n'occupe aucune case.
         $occupees = [];
-        foreach ($quete->etatsPersonnages()->get() as $etat) {
+        foreach ($quete->etatsPersonnages()->whereNotNull('position_x')->get() as $etat) {
             $occupees["{$etat->position_x},{$etat->position_y}"] = true;
         }
         foreach ($quete->instancesMonstres()->where('etat', 'actif')->get() as $m) {

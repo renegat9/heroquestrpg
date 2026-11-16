@@ -210,7 +210,8 @@ final class ReactionsMj
     {
         $candidats = $quete->etatsPersonnages()->with('personnage')->orderBy('id')->get()
             ->filter(function (EtatPersonnageQuete $etat) use ($porteur, $portee, $exclu, $quete): bool {
-                if ($etat->personnage === null || $etat->tombe || (int) $etat->personnage->id === $exclu) {
+                // Hors du plateau (mode classique, `horsPlateau()`) : aucune case, aucune portée à mesurer.
+                if ($etat->personnage === null || $etat->tombe || $etat->horsPlateau() || (int) $etat->personnage->id === $exclu) {
                     return false;
                 }
 

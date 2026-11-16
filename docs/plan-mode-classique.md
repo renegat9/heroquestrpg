@@ -799,6 +799,17 @@ ni son format, il appelle ce que la route HTTP appelle.
   `EtatGroupe::appliquerBrouillard()`) — sans quoi le groupe partirait dans
   le noir complet. Pas « le couloir où se tient un héros » : essayé, cela
   changeait le brouillard de toute partie (Traverser la Pierre). Sans sortie déclarée, on ressort par cette porte.
+- **Fait le 2026-11-16 — les héros attendent hors du plateau** (René, après
+  la relecture de *Kellar's Keep* : « respectons la règle hors plateau » ;
+  F4543 : « the heroes line up outside the door »). Par une porte d'entrée,
+  chaque héros démarre SANS CASE (`EtatPersonnageQuete::horsPlateau()`), son
+  menu se réduit à « Entrer dans le donjon » (la case de la porte, une case de
+  son déplacement) ou « Terminer le tour » ; une porte bouchée fait attendre.
+  Une ligne sans case ne veut dire que « dehors » (un héros sorti n'a plus de
+  ligne). Les lecteurs qui parcourent tous les héros ignorent ceux qui n'ont
+  pas de case — la phase des monstres d'abord, par un seul point de passage
+  (`ResolveurTour::ciblesDesMonstres()`, six copies auparavant) : un gobelin
+  voisin de (0, 0) frappait le héros de dehors (test qui l'a reproduit).
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

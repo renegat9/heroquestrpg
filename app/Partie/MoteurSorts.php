@@ -4420,7 +4420,9 @@ final class MoteurSorts
      */
     private function ciblesHeros(Quete $quete): array
     {
+        // Sur le plateau seulement : un héros hors du plateau (mode classique) n'est la cible d'aucun sort.
         return $quete->etatsPersonnages()
+            ->whereNotNull('position_x')
             ->with('personnage')
             ->orderBy('personnage_id')
             ->get()

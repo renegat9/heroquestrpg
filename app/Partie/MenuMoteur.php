@@ -1470,6 +1470,55 @@ final class MenuMoteur
         return $direction === null ? '' : " {$direction}";
     }
 
+    /** Ce que coûte le pas qui fait entrer un héros hors plateau sur la case de la porte : une case, comme au plateau. */
+    public const COUT_ENTREE_DONJON = 1;
+
+    /**
+     * Le menu d'un héros qui attend HORS DU PLATEAU, devant la porte d'entrée. Deux gestes : entrer — se poser sur la
+     * case de la porte, ce qui coûte {@see COUT_ENTREE_DONJON} case du déplacement du tour — ou attendre. Entrer n'est
+     * offert que si la case est LIBRE et qu'il reste de quoi faire ce pas : le menu n'offre pas ce que le résolveur
+     * (`ResolveurTour::resoudreEntreeDonjon()`) refuserait. Le déplacement du tour se lance ici, au tour du héros, par
+     * le point de passage habituel (`deplacementDuTour()`).
+     *
+     * @return array{situation: string, options: list<array<string, mixed>>}
+     */
+    private function menuHorsPlateau(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): array
+    {
+        if ($etat->a_joue) {
+            return ['situation' => 'Vous attendez devant la porte d\'entrée.', 'options' => []];
+        }
+
+        $options = [];
+        $case = $quete->caseDEntree();
+        $portee = $this->deplacementDuTour($personnage, $etat);
+        $etat->refresh();
+        $points = $etat->deplacement_restant !== null
+            ? (int) $etat->deplacement_restant
+            : $this->porteeDuTour($personnage, (int) $portee['total'])['portee'];
+
+        $libre = $case !== null
+            && ! FabriqueGrille::pour($quete, exceptPersonnageId: (int) $personnage->id)->estOccupeeParFigure($case['x'], $case['y']);
+
+        if ($case !== null && $libre && ! $etat->a_deplace && $points >= self::COUT_ENTREE_DONJON
+            && ! $this->sorts->deplacementInterdit($personnage)) {
+            $options[] = [
+                'id' => 'entrer_donjon',
+                'libelle' => 'Entrer dans le donjon',
+                'type' => 'entree_donjon',
+                'parametres' => ['case' => $case, 'portee' => $points],
+            ];
+        }
+
+        $options[] = ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'];
+
+        return [
+            'situation' => $options[0]['id'] === 'entrer_donjon'
+                ? 'Vous attendez devant la porte d\'entrée : entrer coûte une case de votre déplacement.'
+                : 'Vous attendez devant la porte d\'entrée : quelqu\'un se tient sur le seuil.',
+            'options' => $this->avecCreneaux($options),
+        ];
+    }
+
     /**
      * Le menu complet d'un héros, AVANT le filtre d'attaque — voir {@see generer()}.
      *
@@ -1487,6 +1536,13 @@ final class MenuMoteur
         }
 
         $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+
+        // HORS DU PLATEAU (René, 2026-11-16 — *Kellar's Keep*, F4543 : « the heroes line up outside the door ») : le héros
+        // attend devant la porte d'entrée. Il n'est sur aucune case : AVANT tout crochet de début de tour qui lirait sa
+        // position, son menu se réduit à entrer — ou attendre.
+        if ($etat !== null && $etat->horsPlateau() && $quete->entreeHorsPlateau()) {
+            return $this->menuHorsPlateau($groupe, $quete, $personnage, $etat);
+        }
 
         // Tour = deux créneaux (doc 03 §28) : un DÉPLACEMENT + une ACTION. On
         // n'offre que les créneaux ENCORE LIBRES, plus « Terminer le tour ».
@@ -2244,6 +2300,7 @@ final class MenuMoteur
             // tire pas d'une salle à l'autre.
             $porteurs = $quete->etatsPersonnages()
                 ->where('jetons_rejeton', '>', 0)
+                ->whereNotNull('position_x') // hors du plateau (mode classique) : ni soi, ni compagnon au contact
                 ->with('personnage')
                 ->get()
                 ->filter(fn ($p) => (int) $p->personnage_id === (int) $etat->personnage_id

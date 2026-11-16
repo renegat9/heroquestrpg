@@ -118,7 +118,7 @@ final class Rayon
         $monstres = $quete->instancesMonstres()
             ->where('etat', 'actif')->where('revele', true)->with('monstre')->get();
 
-        $heros = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get();
+        $heros = $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get();
 
         $cadran = [];
 

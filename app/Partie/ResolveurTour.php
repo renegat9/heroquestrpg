@@ -622,8 +622,10 @@ final class ResolveurTour
 
             // Commandé (Commandement de Dread) : le moteur joue à la place du héros.
             if ($this->dread->herosSousCondition($personnage, 'Commandé')) {
+                // Sur le plateau seulement : un héros qui attend hors du plateau (mode classique) n'a pas de case.
                 $allies = $quete->etatsPersonnages()
                     ->where('tombe', false)
+                    ->whereNotNull('position_x')
                     ->with('personnage')
                     ->get()
                     ->filter(fn (EtatPersonnageQuete $e) => (int) $e->personnage_id !== (int) $personnage->id)
@@ -738,6 +740,8 @@ final class ResolveurTour
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $etat, $option, $acteur),
                 // SORTIE CASE PAR CASE (mode classique) : le héros quitte le donjon, par l'escalier ou la porte de sortie.
                 'sortie_en_personne' => $this->resoudreSortieEnPersonne($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // HORS PLATEAU (mode classique, René 2026-11-16) : le héros qui attend devant la porte d'entrée y entre.
+                'entree_donjon' => $this->resoudreEntreeDonjon($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'retraite' => $this->resoudreRetraite($groupe, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: false),
@@ -3177,7 +3181,7 @@ final class ResolveurTour
                 continue;
             }
 
-            foreach ($quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get() as $cible) {
+            foreach ($quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get() as $cible) {
                 $heros = $cible->personnage;
 
                 if ($heros === null
@@ -3661,6 +3665,7 @@ final class ResolveurTour
         $porteur = $quete->etatsPersonnages()
             ->where('personnage_id', $cibleId)
             ->where('jetons_rejeton', '>', 0)
+            ->whereNotNull('position_x')
             ->with('personnage')
             ->first();
 
@@ -13086,9 +13091,7 @@ final class ResolveurTour
             return null;
         }
 
-        $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
-            ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
-            ->values();
+        $cibles = $this->ciblesDesMonstres($quete);
 
         if ($cibles->isEmpty()) {
             return null;
@@ -13447,9 +13450,7 @@ final class ResolveurTour
             // SHIFT REALITY (Magrian, Rise of the Dread Moon p. 33) : « Use at the start of Zargon's turn. Magrian casts one
             // Dread spell it knows. » Au début du tour du MJ, comme le Fireburst et les dangers : la figure lance UN sort de son
             // répertoire, une fois par rencontre (`MoteurDread::realiteDecalee()`, qui porte le choix et le budget du sort).
-            $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
-                ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
-                ->values();
+            $cibles = $this->ciblesDesMonstres($quete);
 
             foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
                 ->whereNull('controle_par')->with('monstre')->orderBy('id')->get() as $figure) {
@@ -13510,11 +13511,7 @@ final class ResolveurTour
 
             $this->dread->definirMonstresDejaJoues($dejaJoues);
 
-            $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
-                // Voile de Brume : un héros caché (condition « inattaquable »)
-                // est ignoré du ciblage jusqu'à son prochain tour.
-                ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
-                ->values();
+            $cibles = $this->ciblesDesMonstres($quete);
 
             if ($cibles->isEmpty() && $this->alliesCiblables($quete)->isEmpty()) {
                 break; // plus personne debout (ou tout le monde est caché), allié compris
@@ -13570,9 +13567,7 @@ final class ResolveurTour
             foreach ($this->activationsImmediates($resultatMonstre) as $idActive) {
                 $active = $quete->instancesMonstres()->whereKey($idActive)
                     ->where('etat', 'actif')->where('revele', true)->with('monstre')->first();
-                $ciblesActive = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
-                    ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
-                    ->values();
+                $ciblesActive = $this->ciblesDesMonstres($quete);
 
                 if ($active === null || $ciblesActive->isEmpty()) {
                     continue;
@@ -14311,9 +14306,7 @@ final class ResolveurTour
     {
         $revelation = app(MoteurEmbuscade::class)->reveler($groupe, $quete, $instance, $declencheur);
 
-        $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
-            ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
-            ->values();
+        $cibles = $this->ciblesDesMonstres($quete);
 
         if ($cibles->isNotEmpty()) {
             $revelation['action'] = $this->jouerMonstre($groupe, $quete, $instance->fresh()->load('monstre'), $cibles);
@@ -14335,9 +14328,7 @@ final class ResolveurTour
     {
         $apparition = app(MoteurTourelle::class)->reveler($groupe, $instance, $declencheur);
 
-        $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
-            ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
-            ->values();
+        $cibles = $this->ciblesDesMonstres($quete);
 
         if ($cibles->isNotEmpty()) {
             $apparition['action'] = $this->jouerMonstre($groupe, $quete, $instance->fresh()->load('monstre'), $cibles);
@@ -14411,6 +14402,23 @@ final class ResolveurTour
      * @param  Collection<int, EtatPersonnageQuete>  $cibles
      * @return array<string, mixed>
      */
+    /**
+     * LES HÉROS QU'UN MONSTRE PEUT VISER — point de passage unique de la phase des monstres, de leur révélation et de
+     * leur apparition (six copies de la même requête jusqu'au 2026-11-16) : debout, sur le plateau, et pas cachés
+     * (Voile de Brume : un héros « inattaquable » est ignoré du ciblage jusqu'à son prochain tour).
+     *
+     * « Sur le plateau » : un héros qui attend HORS DU PLATEAU devant la porte d'entrée (mode classique, René
+     * 2026-11-16) n'a pas de case — lu `(int) null`, il était en (0, 0), et un gobelin voisin de ce coin le frappait.
+     *
+     * @return Collection<int, EtatPersonnageQuete>
+     */
+    private function ciblesDesMonstres(Quete $quete): Collection
+    {
+        return $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get()
+            ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
+            ->values();
+    }
+
     private function jouerMonstre(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Collection $cibles): array
     {
         $nomMonstre = $instance->nomAffiche();
@@ -16151,7 +16159,8 @@ final class ResolveurTour
         return match ($type) {
             // `saut_sables` : franchir les sables mouvants fait partie du MOUVEMENT, comme sauter une fosse.
             // `sortie_fosse` : se hisser hors du trou EST le déplacement du tour (Fosse longue, p. 6).
-            'deplacement', 'franchissement', 'saut_sables', 'sortie_fosse', 'descente_fosse' => 'mouvement',
+            // `entree_donjon` : le héros hors plateau franchit la porte d'entrée — un pas de son déplacement (mode classique).
+            'deplacement', 'franchissement', 'saut_sables', 'sortie_fosse', 'descente_fosse', 'entree_donjon' => 'mouvement',
             // Ouvrir une porte / actionner un levier = interaction LIBRE (E2) :
             // ne consomme ni le déplacement ni l'action — on s'arrête devant la
             // porte, on l'ouvre, puis on continue son mouvement s'il reste des points.
@@ -16591,6 +16600,58 @@ final class ResolveurTour
      * @param  array{type: string, id: int, nom: string}  $acteur
      * @return array<string, mixed>
      */
+    /**
+     * ENTRER DANS LE DONJON (mode classique, René 2026-11-16 — *Kellar's Keep*, F4543 : « the heroes line up outside the
+     * door ») : le héros qui attend hors du plateau se pose sur la case de la porte d'entrée. Ce pas coûte
+     * `MenuMoteur::COUT_ENTREE_DONJON` case de son déplacement du tour, payée par le point de passage des points de
+     * déplacement (`pointsDeplacement()`, comme un saut de fosse) ; le reste de ses points reste à jouer depuis cette
+     * case. Mêmes refus que le menu : déjà sur le plateau, case occupée, pas assez de déplacement.
+     *
+     * @return array<string, mixed>
+     */
+    private function resoudreEntreeDonjon(Groupe $groupe, Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $case = $quete->caseDEntree();
+
+        if ($etat === null || $case === null || ! $etat->horsPlateau()) {
+            throw ValidationException::withMessages(['option_id' => 'Ce héros est déjà dans le donjon.']);
+        }
+        if ($etat->a_deplace) {
+            throw ValidationException::withMessages(['option_id' => 'Le déplacement de ce tour est déjà joué.']);
+        }
+        if (FabriqueGrille::pour($quete, exceptPersonnageId: (int) $personnage->id)->estOccupeeParFigure($case['x'], $case['y'])) {
+            throw ValidationException::withMessages(['option_id' => 'Quelqu\'un se tient sur le seuil : la porte d\'entrée est bouchée.']);
+        }
+
+        $totalTour = (int) ($etat->deplacement_tour ?? $personnage->deplacement_base);
+        ['restant' => $restant] = $this->pointsDeplacement($personnage, $etat, $totalTour);
+
+        if ($restant < MenuMoteur::COUT_ENTREE_DONJON) {
+            throw ValidationException::withMessages(['option_id' => 'Pas assez de déplacement pour franchir la porte d\'entrée.']);
+        }
+
+        $restantApres = $restant - MenuMoteur::COUT_ENTREE_DONJON;
+        $etat->update([
+            'position_x' => $case['x'], 'position_y' => $case['y'],
+            'deplacement_restant' => $restantApres,
+            'a_deplace' => $restantApres <= 0,
+        ]);
+
+        $payload = [
+            'type' => 'entree_donjon',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'personnage_id' => $personnage->id,
+            'nom' => $personnage->nom,
+            'case' => $case,
+            'deplacement_restant' => $restantApres,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
     private function resoudreSortieEnPersonne(Groupe $groupe, Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
         // FAUSSE PORTE DE SORTIE (René, 2026-11-16) : « cannot be opened at all » (livret de base). Le héros pousse une

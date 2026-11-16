@@ -791,6 +791,8 @@ export function entitesVersGroupe(entites, initiative) {
             conds: badgesFigure(e),
             acting: estCourant(e, initiative),
             low: !e.tombe && e.pv_body > 0 && e.pv_body * 4 <= e.pv_body_max,
+            // HORS PLATEAU (mode classique) : le héros attend devant la porte d'entrée — décision publiée, jamais un `x` nul.
+            dehors: e.hors_plateau === true,
             // Faveurs de Hopekins Rest (`{cle, libelle, effet}`, décidé par le serveur) :
             // la fiche de la table les montre avec leur effet, sans rien recalculer.
             faveurs: e.faveurs ?? [],

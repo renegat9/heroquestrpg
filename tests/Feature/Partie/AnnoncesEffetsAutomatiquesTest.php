@@ -304,6 +304,8 @@ function fixturesDesTypesAnnonces(): array
         // MODE CLASSIQUE : un héros quitte le donjon en personne (`ResolveurTour::resoudreSortieEnPersonne()`).
         'sortie_en_personne' => ['personnage_id' => 1, 'nom' => 'Grom', 'par' => 'porte', 'restants' => 1],
         'fausse_sortie' => ['personnage_id' => 1, 'nom' => 'Grom', 'porte' => ['x' => 10, 'y' => 2, 'cote' => 'e']],
+        // MODE CLASSIQUE : un héros hors plateau entre par la porte d'entrée (`ResolveurTour::resoudreEntreeDonjon()`).
+        'entree_donjon' => ['personnage_id' => 1, 'nom' => 'Grom', 'case' => ['x' => 19, 'y' => 7], 'deplacement_restant' => 5],
         // MODE CLASSIQUE : la récompense d'une quête construite, versée aux bourses (`FinDeQueteConstruite`).
         'recompense_quete' => ['quete_id' => 1, 'total' => 10, 'parts' => [
             ['personnage_id' => 1, 'nom' => 'Grom', 'or' => 5], ['personnage_id' => 2, 'nom' => 'Albrecht', 'or' => 5],

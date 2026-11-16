@@ -1601,6 +1601,9 @@ final class EtatGroupe
                     // SORTI DU DONJON : le héros est dans le groupe mais plus dans la quête (il l'a quittée en personne).
                     // Publié pour que sa manette lui dise qu'il attend les autres, plutôt qu'un écran sans menu.
                     'sorti' => $etat === null,
+                    // HORS PLATEAU (mode classique, René 2026-11-16) : le héros attend devant la porte d'entrée, sans case.
+                    // Décision publiée : ni la carte ni la manette ne la déduisent d'un `x` nul.
+                    'hors_plateau' => $etat !== null && $etat->horsPlateau(),
                     // Portrait unique du héros si généré, sinon image de classe.
                     'image_url' => app(BibliothequeImages::class)->urlHeros($p->id, $p->classe),
                     'x' => $etat?->position_x,

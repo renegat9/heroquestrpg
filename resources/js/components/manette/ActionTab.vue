@@ -84,6 +84,8 @@ const ICONE_TYPE = {
     // 2026-09-18 : « un bonhomme qui court »). `directions_run` est le coureur
     // simple, distinct.
     sortie: 'logout',
+    // HORS PLATEAU (mode classique) : franchir la porte d'entrée — l'inverse de la sortie.
+    entree_donjon: 'login',
     retraite: 'directions_run',
     desamorcer: 'handyman',
     franchir: 'sprint',

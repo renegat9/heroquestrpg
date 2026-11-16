@@ -61,6 +61,9 @@ const condIcon = { poison: 'coronavirus', burn: 'local_fire_department', buff: '
                     <span>{{ f.effet }}</span>
                 </div>
             </div>
+            <div v-if="p.dehors" class="grp-dehors">
+                <MSym n="login" fill :size="13" /> Devant la porte d'entrée
+            </div>
             <div v-if="p.low" class="downed-tag">
                 <MSym n="warning" fill /> État critique — à protéger
             </div>
@@ -75,5 +78,8 @@ const condIcon = { poison: 'coronavirus', burn: 'local_fire_department', buff: '
 .grp-faveur { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.35;
   color: var(--ink-300, #cfc6b0); }
 .grp-faveur > .msym { flex: none; margin-top: 1px; color: var(--torch, #c9a25a); }
+.grp-dehors { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; font-style: italic;
+  color: var(--ink-300, #cfc6b0); }
+.grp-dehors > .msym { color: var(--ok, #6fbf73); }
 .grp-faveur b { color: var(--parch-100, #f0e9d8); font-weight: 700; }
 </style>

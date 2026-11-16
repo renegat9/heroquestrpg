@@ -120,7 +120,10 @@ final class DemarreurQueteConstruite
         if ($heros->isEmpty()) {
             throw ValidationException::withMessages(['groupe' => 'Aucun héros actif dans ce groupe : rien à démarrer.']);
         }
-        if ($heros->count() > count($carte['spawn_heros'])) {
+        // HORS PLATEAU (René, 2026-11-16 — *Kellar's Keep* : « the heroes line up outside the door ») : par une porte
+        // d'entrée, les héros attendent DEHORS et entrent un à un ; aucune case de départ n'est à compter.
+        $dehors = $produit['acces']['entree']['type'] === ValidationCampagne::ACCES_PORTE;
+        if (! $dehors && $heros->count() > count($carte['spawn_heros'])) {
             throw ValidationException::withMessages([
                 'groupe' => 'Le départ de cette quête n\'a que '.count($carte['spawn_heros']).' cases libres pour '.$heros->count().' héros.',
             ]);
@@ -131,7 +134,7 @@ final class DemarreurQueteConstruite
 
         $paquet = $this->deck->pourQueteConstruite();
 
-        $quete = DB::transaction(function () use ($groupe, $heros, $queteDoc, $carte, $produit, $monstres, $cibles, $rang, $paquet): Quete {
+        $quete = DB::transaction(function () use ($groupe, $heros, $queteDoc, $carte, $produit, $monstres, $cibles, $rang, $paquet, $dehors): Quete {
             $quete = Quete::create([
                 'groupe_id' => $groupe->id,
                 'gabarit_id' => null,
@@ -203,8 +206,9 @@ final class DemarreurQueteConstruite
 
                 $quete->etatsPersonnages()->create([
                     'personnage_id' => $personnage->id,
-                    'position_x' => $carte['spawn_heros'][$i]['x'],
-                    'position_y' => $carte['spawn_heros'][$i]['y'],
+                    // Sans case quand on entre par une porte : le héros attend devant elle (`Quete::entreeHorsPlateau()`).
+                    'position_x' => $dehors ? null : $carte['spawn_heros'][$i]['x'],
+                    'position_y' => $dehors ? null : $carte['spawn_heros'][$i]['y'],
                     'a_joue' => false,
                     'tombe' => false,
                 ]);

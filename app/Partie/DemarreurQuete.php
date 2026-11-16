@@ -924,8 +924,8 @@ final class DemarreurQuete
     private function caseLibrePresDuRecruteur(Quete $quete, GroupeMercenaire $allie): ?array
     {
         $quete->unsetRelation('carte');
-        $etat = $quete->etatsPersonnages()->where('personnage_id', $allie->recruteur_personnage_id)->first()
-            ?? $quete->etatsPersonnages()->orderBy('id')->first();
+        $etat = $quete->etatsPersonnages()->where('personnage_id', $allie->recruteur_personnage_id)->whereNotNull('position_x')->first()
+            ?? $quete->etatsPersonnages()->whereNotNull('position_x')->orderBy('id')->first();
 
         if ($etat === null) {
             return null;

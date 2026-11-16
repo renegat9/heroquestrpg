@@ -6083,6 +6083,31 @@ est un **escalier** ou une **porte** (`vocabulaires.types_acces`).
   décidé par le serveur (« Porte de sortie »…). ⚠ Sous le **même brouillard** que l'escalier : un accès n'est publié
   que si l'une de ses cases est visible — une porte de sortie dans une salle inconnue n'est pas montrée.
 
+### Les héros attendent HORS DU PLATEAU devant la porte d'entrée (2026-11-16)
+
+René, 2026-11-16 : « respectons la règle hors plateau ». Livret de *Kellar's Keep* (F4543, règles de la boîte) : les
+héros n'entrent pas par l'escalier mais par une porte de fer sur le bord du plateau, et « line up outside the door »
+au début de la quête.
+
+- **Quand** : une quête CONSTRUITE dont l'entrée (`quete.depart`) est une **porte** (`Quete::entreeHorsPlateau()`).
+  Une entrée par escalier ne change pas : les héros partent des marches.
+- **Au départ** : chaque héros a sa ligne d'état, **sans case** (`position_x`/`position_y` = `null`). Une ligne sans
+  case veut dire « dehors, devant la porte » ; un héros SORTI, lui, n'a plus de ligne. `entites[]` publie `x: null,
+  y: null`, `sorti: false` et **`hors_plateau: true`** (`false` partout ailleurs) : la carte ne le pose nulle part, la
+  manette dit qu'il attend devant la porte.
+- **Son menu** : `entrer_donjon` (type `entree_donjon`, créneau `mouvement`, libellé « Entrer dans le donjon »,
+  `parametres: {case: {x, y}, portee}`) et `attendre` (« Terminer le tour »). Rien d'autre : il n'est pas sur le
+  plateau. `entrer_donjon` n'est offert que si la case de la porte est LIBRE (aucune figure) et qu'il reste au moins
+  une case de déplacement ; sinon il attend son tour suivant — comme la file devant la porte du plateau.
+- **Entrer** (`POST choix`, `option_id: entrer_donjon`) : le héros est posé sur la case de la porte, ce qui **coûte
+  une case** de son déplacement du tour (lancé à l'ouverture de son tour, comme d'habitude). Le reste de ses points
+  reste à jouer : son menu suivant offre « Continuer à se déplacer » depuis cette case. Résultat `{type:
+  "entree_donjon", personnage_id, nom, case: {x, y}, deplacement_restant}` (fil : « Albrecht entre dans le donjon par
+  la porte d'entrée »). Refus 422 si la case est occupée ou si le héros est déjà sur le plateau.
+- Hors plateau, un héros n'est **ni cible, ni obstacle, ni dans une zone** : monstres, sorts, pièges et auras ne lisent
+  que les héros qui ont une case. Il reste dans la quête : ordre du tour, fin de quête (« plus personne dans le
+  donjon »), défaite (tous tombés) le comptent.
+
 ### Fausses portes de sortie (2026-11-16)
 
 `quete.fausses_sorties` (facultative) : `[{x, y, cote}]`, des portes posées comme une porte de sortie — sur le mur d'une

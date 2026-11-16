@@ -414,7 +414,8 @@ final class MoteurDanger
     {
         $fiche = Danger::find((int) $entree['danger_id']);
         $carte = $quete->carte;
-        $debout = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get();
+        // Sur le plateau seulement : un héros hors du plateau (mode classique) n'a pas de case où la brume glisserait.
+        $debout = $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get();
 
         if ($fiche === null || $carte === null || $debout->isEmpty()) {
             return [null, $entree];

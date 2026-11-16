@@ -138,6 +138,31 @@ class Quete extends Model
     }
 
     /**
+     * Les héros commencent-ils HORS DU PLATEAU, devant la porte d'entrée ? Oui pour une quête CONSTRUITE qui entre par
+     * une PORTE (René, 2026-11-16 : « respectons la règle hors plateau » — *Kellar's Keep*, F4543 : « the heroes line
+     * up outside the door »). Une ligne d'état sans case veut alors dire « dehors, devant la porte ».
+     */
+    public function entreeHorsPlateau(): bool
+    {
+        return data_get($this->acces, 'entree.type') === 'porte';
+    }
+
+    /**
+     * La case DEVANT la porte d'entrée, sur laquelle un héros hors plateau entre ; `null` sans entrée par une porte.
+     *
+     * @return array{x: int, y: int}|null
+     */
+    public function caseDEntree(): ?array
+    {
+        if (! $this->entreeHorsPlateau()) {
+            return null;
+        }
+        $case = data_get($this->acces, 'entree.cases.0');
+
+        return is_array($case) ? ['x' => (int) $case['x'], 'y' => (int) $case['y']] : null;
+    }
+
+    /**
      * Les cases de l'ENTRÉE quand on entre par une porte de COULOIR (quête construite, René 2026-11-16 :
      * `acces.salle_depart` = `null`) ; `[]` partout ailleurs. Ce couloir tient lieu de salle de départ : il n'y en a
      * pas ({@see sallesDecouvertes()}), et le brouillard s'ouvre depuis ces cases (`EtatGroupe::appliquerBrouillard()`).

@@ -82,7 +82,9 @@ reason, and the two must never drift.
   by `BoursesPointDePassageTest` → `docs/regles/exploration-et-fouille.md`; also since 2026-11-15, classic mode:
   `App\Partie\Classique\NotesDeQuete::signaler()` for every quest NOTE (« when → then ») — engine seams only
   SIGNAL an event, the closed vocabulary is `App\Engine\MotsClesQuete`, tested both ways by `MotsClesQueteTest` —,
-  `DeckFouille::PAQUET_DE_TRESOR` for the 24-card treasure deck, and `CaseLibre::proche()` for the nearest free cell).
+  `DeckFouille::PAQUET_DE_TRESOR` for the 24-card treasure deck, and `CaseLibre::proche()` for the nearest free cell; since 2026-11-16, classic mode: a hero state with NO cell
+  (`EtatPersonnageQuete::horsPlateau()`) means « waiting outside the entrance door » — every reader that walks ALL the
+  heroes for geometry (targets, zones, auras, traps) skips it, monsters through `ResolveurTour::ciblesDesMonstres()`).
   Two copies of a rule too simple to notice drifting is this project's most repeated defect.
 - **`sortBy([$f, $g])` is never a multi-key sort** — Laravel reads a callable there as a
   *comparator*, and it never errors. It bit twice. → `docs/regles/sorts-dread.md`
