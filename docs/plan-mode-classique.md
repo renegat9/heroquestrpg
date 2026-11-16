@@ -732,6 +732,16 @@ ni son format, il appelle ce que la route HTTP appelle.
     peut recevoir sa première note par `ajouter`.
   - Tests : `tests/Feature/Classique/Mcp/` (`OutilApercuTest`, `OutilQueteModifierTest`, registre et serveur à onze outils).
     Le raccordement réel depuis Claude Code n'est pas encore éprouvé, comme pour P1.
+- **Fait — confier un héros depuis la manette** (2026-11-15, reste du lot M2) : au hub, le propriétaire d'un héros le
+  confie à un joueur présent, ou le lui reprend ; un absent laisse son héros à un présent.
+  - Serveur : `groupe.pilotes_possibles` publie la règle même de `PUT /pilote` (`PilotageHeros::pilotesPossibles()`, le même
+    ensemble que `estMembre()`), et chaque entrée de `groupe.prets[]` porte `proprietaire_joueur_id` et `confie`, décidés
+    ici et non re-dérivés par l'écran. Contrat : `docs/contrat-api.md`, section « Pilote d'un héros ».
+  - Front : `ConfierHeros.vue`, dans le bloc « Prêt pour la quête » de la manette, pour les seuls héros dont ce joueur est
+    propriétaire. « Reprendre » se lit sur `prets[]` (tous les héros du groupe), pas sur les héros pilotés.
+  - Tests : `PilotageHerosTest` — `pilotes_possibles` = exactement les joueurs que `confier()` accepte (un étranger refusé),
+    `proprietaire_joueur_id` et `confie` avant, après un confier et après la reprise, liste absente hors hub.
+  - Non vérifié dans un navigateur : le clic et le rendu sur téléphone restent à voir sur la vraie stack.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

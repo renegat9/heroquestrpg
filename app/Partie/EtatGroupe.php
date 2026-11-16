@@ -51,8 +51,10 @@ final class EtatGroupe
      * - `pilote_joueur_id` et `classe` (lot M2) : au hub, `entites` est vide ; c'est donc ICI que la manette lit quels
      *   héros elle pilote (bandeau de héros, « prêt » pour chacun). Le pilote est RÉSOLU (`Groupe::piloteDuPivot()`),
      *   jamais `null`.
+     * - `proprietaire_joueur_id` et `confie` (reste du lot M2) : la manette du PROPRIÉTAIRE affiche « Confier » ou
+     *   « Confié à … » sur CE roster — `confie` est décidé ici (pilote résolu ≠ propriétaire), jamais re-comparé à l'écran.
      *
-     * @return list<array{personnage_id: int, nom: string, classe: string, pilote_joueur_id: int, bourse: int|null, pret: bool}>
+     * @return list<array{personnage_id: int, nom: string, classe: string, pilote_joueur_id: int, proprietaire_joueur_id: int, confie: bool, bourse: int|null, pret: bool}>
      */
     public static function prets(Groupe $groupe): array
     {
@@ -63,16 +65,23 @@ final class EtatGroupe
             ->wherePivot('actif', true)
             ->orderBy('groupe_personnages.ordre_initiative') // roster affiché dans l'ordre du tour
             ->get(['personnages.id', 'personnages.nom', 'personnages.classe', 'personnages.joueur_id', 'personnages.or'])
-            ->map(fn ($p) => [
-                'personnage_id' => (int) $p->id,
-                'nom' => $p->nom,
-                'classe' => $p->classe,
-                'pilote_joueur_id' => Groupe::piloteDuPivot($p),
-                // MODE CLASSIQUE : la bourse de CE héros (`Bourses`) ; `null` quand le groupe tient un pot commun
-                // (`groupe.or`). L'écran lit ce `null`, il ne re-dérive pas le mode.
-                'bourse' => $bourseParHeros ? (int) $p->or : null,
-                'pret' => (bool) ($prets[$p->id] ?? false),
-            ])
+            ->map(function ($p) use ($prets, $bourseParHeros) {
+                $pilote = Groupe::piloteDuPivot($p);
+                $proprietaire = (int) $p->joueur_id;
+
+                return [
+                    'personnage_id' => (int) $p->id,
+                    'nom' => $p->nom,
+                    'classe' => $p->classe,
+                    'pilote_joueur_id' => $pilote,
+                    'proprietaire_joueur_id' => $proprietaire,
+                    'confie' => $pilote !== $proprietaire,
+                    // MODE CLASSIQUE : la bourse de CE héros (`Bourses`) ; `null` quand le groupe tient un pot commun
+                    // (`groupe.or`). L'écran lit ce `null`, il ne re-dérive pas le mode.
+                    'bourse' => $bourseParHeros ? (int) $p->or : null,
+                    'pret' => (bool) ($prets[$p->id] ?? false),
+                ];
+            })
             ->values()
             ->all();
     }
@@ -159,6 +168,13 @@ final class EtatGroupe
         // En phase hub : expose les statuts « prêt » des personnages actifs.
         if ($groupe->phase === 'hub' && ! $groupe->estArene()) {
             $preambuleGroupe['prets'] = self::prets($groupe);
+
+            // Reste du lot M2 : à qui un héros de ce groupe peut être CONFIÉ — la règle même de `PUT /pilote`
+            // (`PilotageHeros::pilotesPossibles()`), décidée ici : l'écran ne re-dérive pas l'appartenance.
+            $preambuleGroupe['pilotes_possibles'] = app(PilotageHeros::class)->pilotesPossibles($groupe)
+                ->map(fn (\App\Models\Joueur $j) => ['joueur_id' => (int) $j->id, 'pseudo' => (string) $j->pseudo])
+                ->values()
+                ->all();
 
             // Alliés recrutés (3.5) exposés au hub : la carte étant absente, les
             // recrues ne sont pas dans `entites` (filtrées sur position) — ce bloc

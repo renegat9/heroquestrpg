@@ -310,6 +310,15 @@ export function useApi() {
         /** PUT /api/groupes/{identifiant}/ordre {ordre:[personnage_id]} — réordonne le tour (hub). */
         reordonnerGroupe: (identifiant, ordre) => request('PUT', `/groupes/${identifiant}/ordre`, { ordre }),
 
+        /* MANETTE À PLUSIEURS HÉROS (reste du lot M2) : confier un héros à un autre joueur du groupe
+           (`pilote_joueur_id`), ou le lui reprendre (`null`). Hub seulement ; le serveur revalide la règle et diffuse
+           `.groupe.etat` (où `prets[]` porte le nouveau pilote). `pilote_joueur_id` est envoyé même vide. */
+        confierHeros: (identifiant, personnageId, piloteJoueurId) =>
+            request('PUT', `/groupes/${identifiant}/pilote`, {
+                personnage_id: personnageId,
+                pilote_joueur_id: piloteJoueurId,
+            }),
+
         /**
          * POST /api/groupes/{identifiant}/choix {option_id, parametres?} → 202.
          * La résolution arrive ensuite par Reverb (.groupe.etat / .menu.propose).

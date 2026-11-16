@@ -28,6 +28,7 @@ import CibleSheet from '../components/manette/CibleSheet.vue';
 import DeplacementSheet from '../components/manette/DeplacementSheet.vue';
 import ConfirmationSheet from '../components/manette/ConfirmationSheet.vue';
 import ChoixListeSheet from '../components/manette/ChoixListeSheet.vue';
+import ConfierHeros from '../components/manette/ConfierHeros.vue';
 import EchangeSheet from '../components/manette/EchangeSheet.vue';
 import VoteSheet from '../components/manette/VoteSheet.vue';
 import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
@@ -412,6 +413,29 @@ const monPret = computed(() => herosPrets.value.length > 0 && herosPrets.value.e
 
 const listePresence = computed(() =>
     pretsVersEtat(store.state.prets, store.state.personnages));
+
+/* ---- Confier un héros à un autre joueur (reste du lot M2, hub seulement). Les héros qu'on POSSÈDE viennent du
+   roster `prets` : un héros confié n'apparaît plus dans `herosPilotes` de son propriétaire, donc on ne s'y fie pas.
+   `groupe.pilotes_possibles` est la liste décidée par le serveur (la règle de `PUT /pilote`). ---- */
+const monJoueurId = computed(() => store.state.joueur?.id ?? null);
+const herosPossedes = computed(() =>
+    (store.state.prets ?? []).filter((r) => r.proprietaire_joueur_id === monJoueurId.value));
+const pilotesPossibles = computed(() => store.state.etat?.groupe?.pilotes_possibles ?? []);
+const confierEnCours = ref(false);
+
+async function confierHeros({ personnageId, piloteJoueurId }) {
+    if (confierEnCours.value) return;
+    confierEnCours.value = true;
+    try {
+        await api.confierHeros(props.groupe, personnageId, piloteJoueurId);
+        // Comme `donner()` : /moi relu. Le roster `prets` (qui porte le nouveau pilote) revient par `.groupe.etat`.
+        rafraichirMoi();
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        confierEnCours.value = false;
+    }
+}
 
 // Copier le code de groupe (clipboard si dispo — sinon repli execCommand,
 // car en HTTP le navigateur peut bloquer navigator.clipboard).
@@ -1855,6 +1879,14 @@ const navItems = computed(() => (scene.value === 'marche'
                                         {{ r.nom }}
                                     </div>
                                 </div>
+                                <!-- CONFIER un héros (reste du lot M2) : les héros dont ce joueur est le propriétaire, « Confier » ou « Reprendre » -->
+                                <ConfierHeros
+                                    :heros-possedes="herosPossedes"
+                                    :pilotes-possibles="pilotesPossibles"
+                                    :mon-joueur-id="monJoueurId"
+                                    :en-cours="confierEnCours"
+                                    @confier="confierHeros"
+                                />
                                 <!-- narrateur actif / en attente -->
                                 <div class="pret-narrateur" :class="{ actif: narrateurActif }">
                                     <MSym :n="narrateurActif ? 'cast_connected' : 'cast'" :size="14" />

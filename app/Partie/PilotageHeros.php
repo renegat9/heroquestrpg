@@ -7,6 +7,7 @@ namespace App\Partie;
 use App\Models\Groupe;
 use App\Models\Personnage;
 use App\Support\Journal;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -20,16 +21,38 @@ use Illuminate\Validation\ValidationException;
 class PilotageHeros
 {
     /**
+     * LA règle d'appartenance, écrite une fois : les joueurs qui PILOTENT ou POSSÈDENT un héros actif (ids uniques).
+     * Un pilote est forcément membre (`confier()` le refuse sinon) et un propriétaire l'est toujours.
+     *
+     * @return Collection<int, int>
+     */
+    private function idsMembres(Groupe $groupe): Collection
+    {
+        return $groupe->personnages()->wherePivot('actif', true)->get()
+            ->flatMap(fn (Personnage $p) => [Groupe::piloteDuPivot($p), (int) $p->joueur_id])
+            ->unique()
+            ->values();
+    }
+
+    /**
      * Un joueur est MEMBRE du groupe s'il PILOTE un héros actif, OU s'il POSSÈDE un héros actif — même confié à un autre.
      * C'est le prédicat d'appartenance du marché, des votes, de la clôture, des snapshots et de la lecture de l'état.
      */
     public function estMembre(Groupe $groupe, int $joueurId): bool
     {
-        return $groupe->herosPilotesPar($joueurId)->exists()
-            || $groupe->personnages()
-                ->wherePivot('actif', true)
-                ->where('personnages.joueur_id', $joueurId)
-                ->exists();
+        return $this->idsMembres($groupe)->contains($joueurId);
+    }
+
+    /**
+     * LES JOUEURS À QUI UN HÉROS DE CE GROUPE PEUT ÊTRE CONFIÉ : exactement ceux que `confier()` accepte (il applique
+     * {@see self::estMembre()}, le même ensemble). Publié au hub (`groupe.pilotes_possibles`) : l'écran ne re-dérive pas
+     * la règle. Le propriétaire y figure aussi — il est membre, et « rendre » à soi-même est permis.
+     *
+     * @return \Illuminate\Support\Collection<int, \App\Models\Joueur>
+     */
+    public function pilotesPossibles(Groupe $groupe): \Illuminate\Support\Collection
+    {
+        return \App\Models\Joueur::whereIn('id', $this->idsMembres($groupe))->orderBy('id')->get();
     }
 
     /**
@@ -64,7 +87,8 @@ class PilotageHeros
 
     /**
      * Confie `$heros` à `$piloteJoueurId` (`null` ou le propriétaire : rendu à son propriétaire). Refus en français, en
-     * `ValidationException`. Le demandeur doit être le propriétaire du héros OU son pilote actuel.
+     * `ValidationException`. Le demandeur doit être le propriétaire du héros OU son pilote actuel. Le nouveau pilote doit
+     * figurer dans {@see self::pilotesPossibles()} — la même règle (`estMembre()`), publiée au hub.
      */
     public function confier(Groupe $groupe, Personnage $heros, ?int $piloteJoueurId, int $demandeurJoueurId): void
     {

@@ -335,7 +335,7 @@ it('garde sa part au propriétaire absent : le pot se divise entre les propriét
  * CE QUE LA MANETTE LIT (lot M2). Au hub, `entites` est vide : le pilote se lit sur le roster `prets`. Et la fiche
  * d'un héros confié (sac, sorts, talents) sort de `/moi` sous `heros_pilotes`, jamais dans le roster du pilote.
  */
-it('publie le pilote et la classe de chaque héros sur le roster du hub, par les trois chemins', function () {
+it('publie le pilote, la classe et le propriétaire de chaque héros sur le roster du hub, par les trois chemins', function () {
     $alice = compteDePilotage('alice');
     $bob = compteDePilotage('bob');
     $groupe = creerGroupe();
@@ -346,8 +346,10 @@ it('publie le pilote et la classe de chaque héros sur le roster du hub, par les
 
     // `bourse` : null, ce groupe tient un pot commun (elle n'est un entier qu'en mode classique — `Bourses`).
     $attendu = [
-        ['personnage_id' => $deAlice->id, 'nom' => 'Albrecht', 'classe' => 'barbare', 'pilote_joueur_id' => (int) $bob->id, 'bourse' => null, 'pret' => false],
-        ['personnage_id' => $deBob->id, 'nom' => 'Bertrand', 'classe' => 'barbare', 'pilote_joueur_id' => (int) $bob->id, 'bourse' => null, 'pret' => false],
+        ['personnage_id' => $deAlice->id, 'nom' => 'Albrecht', 'classe' => 'barbare', 'pilote_joueur_id' => (int) $bob->id,
+            'proprietaire_joueur_id' => (int) $alice->id, 'confie' => true, 'bourse' => null, 'pret' => false],
+        ['personnage_id' => $deBob->id, 'nom' => 'Bertrand', 'classe' => 'barbare', 'pilote_joueur_id' => (int) $bob->id,
+            'proprietaire_joueur_id' => (int) $bob->id, 'confie' => false, 'bourse' => null, 'pret' => false],
     ];
 
     // 1. GET /etat au hub.
@@ -388,4 +390,89 @@ it('rend dans /moi la fiche du héros confié sous heros_pilotes, hors du roster
     $moi = $this->getJson('/api/moi')->assertOk()->json('joueur');
     expect(collect($moi['personnages'])->pluck('id')->all())->toBe([$deAlice->id])
         ->and($moi['heros_pilotes'])->toBe([]);
+});
+
+/*
+ * RESTE DU LOT M2 — ce que la manette du PROPRIÉTAIRE affiche pour confier un héros : `groupe.pilotes_possibles` (la
+ * règle même de `confier()`, publiée) et `prets[].proprietaire_joueur_id` / `prets[].confie` (décidés côté serveur).
+ */
+it('publie au hub les joueurs à qui un héros peut être confié, exactement ceux que confier() accepte', function () {
+    $alice = compteDePilotage('alice');
+    $bob = compteDePilotage('bob');
+    $carol = compteDePilotage('carol');
+    $dave = compteDePilotage('dave'); // un compte, mais aucun héros dans CE groupe : un étranger
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+    $deBob = creerHeros($bob, $groupe, 'Bertrand', 2);
+    $deCarol = creerHeros($carol, $groupe, 'Cassandre', 3);
+
+    $this->actingAs($bob, 'joueur');
+    $publies = collect($this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.pilotes_possibles'));
+
+    expect($publies->all())->toBe([
+        ['joueur_id' => (int) $alice->id, 'pseudo' => 'alice'],
+        ['joueur_id' => (int) $bob->id, 'pseudo' => 'bob'],
+        ['joueur_id' => (int) $carol->id, 'pseudo' => 'carol'],
+    ]);
+
+    // La liste publiée EST la règle : chaque joueur listé est accepté par la route, chaque autre est refusé.
+    $idsPublies = $publies->pluck('joueur_id')->map(fn ($id) => (int) $id)->all();
+    foreach ([$alice, $bob, $carol, $dave] as $cible) {
+        $reponse = confierPilotage($bob, $deBob, (int) $cible->id);
+        if (in_array((int) $cible->id, $idsPublies, true)) {
+            $reponse->assertOk();
+        } else {
+            $reponse->assertStatus(422)->assertJsonValidationErrors(['pilote_joueur_id']);
+        }
+        confierPilotage($bob, $deBob, null)->assertOk(); // rendu à Bob avant le tour suivant
+    }
+
+    // Un joueur dont le seul héros quitte le groupe n'est plus à qui confier : la liste suit, et confier() le refuse.
+    $groupe->personnages()->updateExistingPivot($deCarol->id, ['actif' => false]);
+    $this->actingAs($bob, 'joueur');
+    $idsApres = collect($this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.pilotes_possibles'))
+        ->pluck('joueur_id')->map(fn ($id) => (int) $id)->all();
+    expect($idsApres)->toBe([(int) $alice->id, (int) $bob->id]);
+    confierPilotage($bob, $deBob, (int) $carol->id)->assertStatus(422)->assertJsonValidationErrors(['pilote_joueur_id']);
+});
+
+it('ne publie pilotes_possibles qu\'au hub', function () {
+    $alice = compteDePilotage('alice');
+    $bob = compteDePilotage('bob');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+    creerHeros($bob, $groupe, 'Bertrand', 2);
+
+    $this->actingAs($bob, 'joueur');
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+
+    $this->getJson('/api/groupes/table-1/etat')->assertOk()->assertJsonMissingPath('groupe.pilotes_possibles');
+});
+
+it('publie proprietaire_joueur_id et confie sur le roster, avant un confier, après, puis après la reprise', function () {
+    $alice = compteDePilotage('alice');
+    $bob = compteDePilotage('bob');
+    $groupe = creerGroupe();
+    $deAlice = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $deBob = creerHeros($bob, $groupe, 'Bertrand', 2);
+
+    $roster = function () {
+        return collect($this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.prets'))->keyBy('personnage_id');
+    };
+    $this->actingAs($bob, 'joueur');
+
+    // Avant : chacun pilote le sien, rien n'est confié.
+    expect($roster()[$deAlice->id])->toMatchArray(['proprietaire_joueur_id' => (int) $alice->id, 'pilote_joueur_id' => (int) $alice->id, 'confie' => false])
+        ->and($roster()[$deBob->id])->toMatchArray(['proprietaire_joueur_id' => (int) $bob->id, 'pilote_joueur_id' => (int) $bob->id, 'confie' => false]);
+
+    // Après un confier : le héros de Bob est piloté par Alice, et le dit.
+    confierPilotage($bob, $deBob, (int) $alice->id)->assertOk();
+    $this->actingAs($bob, 'joueur');
+    expect($roster()[$deBob->id])->toMatchArray(['proprietaire_joueur_id' => (int) $bob->id, 'pilote_joueur_id' => (int) $alice->id, 'confie' => true])
+        ->and($roster()[$deAlice->id])->toMatchArray(['proprietaire_joueur_id' => (int) $alice->id, 'pilote_joueur_id' => (int) $alice->id, 'confie' => false]);
+
+    // Après la reprise : la colonne reprend null, le pilote résolu redevient Bob, et `confie` retombe à false.
+    confierPilotage($bob, $deBob, null)->assertOk();
+    $this->actingAs($bob, 'joueur');
+    expect($roster()[$deBob->id])->toMatchArray(['proprietaire_joueur_id' => (int) $bob->id, 'pilote_joueur_id' => (int) $bob->id, 'confie' => false]);
 });

@@ -245,8 +245,8 @@ campagne.
 boss ou sous-boss révélé l'emporte), `hub` | `victoire` (boss final vaincu) |
 `defaite` (dernière quête échouée) au hub.
 
-`groupe.prets` et `groupe.mercenaires` ne sont présents **qu'en phase hub**
-(statuts « prêt » des héros actifs ; alliés déjà recrutés — voir §Alliés).
+`groupe.prets`, `groupe.pilotes_possibles` et `groupe.mercenaires` ne sont présents **qu'en phase hub**
+(statuts « prêt » des héros actifs ; joueurs à qui confier un héros ; alliés déjà recrutés — voir §Alliés).
 `quete`/`carte`/`entites`/`initiative` sont `null`/`[]` en phase hub —
 **sauf après un TPK** : tant que la dernière quête est `echouee` (ni reprise,
 ni nouvelle quête), elle reste exposée (avec sa carte et ses entités) pour le
@@ -1132,8 +1132,16 @@ absent qu'on lui a confié. Un seul point de passage : `Groupe::piloteDe()` et `
   marché, votes, clôture, snapshots) et l'**appartenance** (`PilotageHeros::estMembre()`) admettent un joueur qui PILOTE OU
   POSSÈDE un héros actif. Restent sur le PROPRIÉTAIRE, volontairement : création, adhésion, retrait d'un personnage.
 - **`groupe.prets[]`** (`GET /etat` au hub), **`.prets.maj`** (`POST /pret`) et la réponse `ordre` de `PUT /ordre` :
-  chaque entrée est `{personnage_id, nom, classe, pilote_joueur_id, bourse, pret}`, par UN constructeur (`EtatGroupe::prets()`)
-  — `bourse` : voir « Bourse par héros ».
+  chaque entrée est `{personnage_id, nom, classe, pilote_joueur_id, proprietaire_joueur_id, confie, bourse, pret}`, par UN
+  constructeur (`EtatGroupe::prets()`) — `bourse` : voir « Bourse par héros ». **`proprietaire_joueur_id`** (entier, jamais
+  `null`) : le propriétaire du héros (`personnages.joueur_id`). **`confie`** (bool) : `true` quand le pilote résolu n'est
+  pas le propriétaire ; l'écran lit ce bool, il ne compare pas les deux ids.
+- **`groupe.pilotes_possibles`** (`GET /etat` au hub, comme `prets`) : `[{joueur_id, pseudo}]`, les joueurs à qui un héros
+  de CE groupe peut être confié, triés par id. C'est la règle même que `PUT /pilote` applique (`PilotageHeros::confier()`
+  refuse tout autre joueur) : elle se calcule UNE fois, `PilotageHeros::pilotesPossibles()`, sur le même ensemble que
+  `estMembre()` (les joueurs qui PILOTENT ou POSSÈDENT un héros actif). Le propriétaire y figure — il est membre, et
+  « rendre » un héros à soi-même est permis — ; l'écran retire le joueur connecté de la liste qu'il affiche pour SON héros.
+  Absent hors hub (et en arène), comme `prets`. Publié dans `.groupe.etat` (diffusion complète), pas dans `.prets.maj`.
   Au hub `entites` est vide : c'est sur ce roster que la manette lit quels héros elle pilote. `pilote_joueur_id` est
   le pilote **résolu**, jamais `null`.
 - **`GET /api/moi` → `joueur.heros_pilotes[]`** : les héros **confiés** à ce joueur (actifs dans un groupe, pilotés par
