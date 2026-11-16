@@ -810,6 +810,13 @@ ni son format, il appelle ce que la route HTTP appelle.
   pas de case — la phase des monstres d'abord, par un seul point de passage
   (`ResolveurTour::ciblesDesMonstres()`, six copies auparavant) : un gobelin
   voisin de (0, 0) frappait le héros de dehors (test qui l'a reproduit).
+- **Fait le 2026-11-16 — la fin « sortir »** (relecture de *Kellar's Keep* :
+  « find the wooden exit door », l'objectif de presque toutes ses quêtes).
+  `fin: {type: "sortir", libelle}` : la sortie est ouverte dès le départ
+  (`Quete::sortieDisponible()`), l'objectif n'est jamais « accompli » en cours
+  de quête (le bandeau ne ment pas), la quête est gagnée quand le dernier
+  héros debout sort. « Trouver un objet puis sortir » reste la fin `drapeau`.
+  Proposée dans le constructeur. Tests `FinSortirTest`.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

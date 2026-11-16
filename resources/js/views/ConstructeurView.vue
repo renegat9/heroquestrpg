@@ -401,8 +401,16 @@ const sigle = (slug) => (nomDe('monstres', slug) ?? slug).slice(0, 2);
 // ---------------------------------------------------------------- fin, récompense
 function changerTypeFin(type) {
     const libelle = quete.value.fin?.libelle ?? '';
-    quete.value.fin = type === 'drapeau' ? { type, drapeau: '', libelle } : { type, cibles: [], libelle };
+    // Les clés de chaque type sont celles de la validation (`ValidationCampagne::CLES_FIN`) : « sortir » n'en a pas d'autre.
+    quete.value.fin = type === 'drapeau' ? { type, drapeau: '', libelle }
+        : type === 'sortir' ? { type, libelle }
+        : { type, cibles: [], libelle };
 }
+const LIBELLES_FIN = {
+    vaincre: 'vaincre des monstres désignés',
+    drapeau: 'un drapeau posé par une note',
+    sortir: 'trouver la sortie et quitter le donjon',
+};
 function basculerRecompense(avec) {
     quete.value.recompense = avec ? { or: 0, partage: (vocab.value.partages ?? ['groupe'])[0] } : null;
 }
@@ -733,10 +741,11 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                             <div class="cst-ligne">
                                 <label>Fin
                                     <select :value="quete.fin?.type" class="cst-input" @change="changerTypeFin($event.target.value)">
-                                        <option v-for="t in vocab.types_fin" :key="t" :value="t">{{ t === 'vaincre' ? 'vaincre des monstres désignés' : 'un drapeau posé par une note' }}</option>
+                                        <option v-for="t in vocab.types_fin" :key="t" :value="t">{{ LIBELLES_FIN[t] ?? t }}</option>
                                     </select>
                                 </label>
                                 <label v-if="quete.fin?.type === 'drapeau'">Drapeau <input v-model="quete.fin.drapeau" class="cst-input" /></label>
+                                <span v-else-if="quete.fin?.type === 'sortir'" class="cst-sous">La sortie de la quête est ouverte dès le départ ; la quête est gagnée quand le dernier héros debout l'a franchie.</span>
                                 <span v-else class="cst-sous">Cibles : {{ (quete.fin?.cibles ?? []).map((c) => quete.monstres[c] ? libelleMonstre(quete.monstres[c], c) : `monstre ${c} (absent)`).join(' ; ') || 'aucune — outil « Cible » sur un monstre' }}</span>
                             </div>
                             <label>Consigne dite aux joueurs <input v-model="quete.fin.libelle" class="cst-input" /></label>

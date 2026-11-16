@@ -5887,7 +5887,7 @@ s'ouvre à la main, au contact. Le moteur ne retient pas quels couloirs ont ét�
   objets:  [{slug, nom}],           // ce qu'une note de quête peut donner (effet `objet`)
   vocabulaires: {
     rotations: [0, 90, 180, 270], cotes: ["n","e","s","o"], types_porte: ["normale","secrete"],
-    partages: ["groupe","par_heros"], types_fin: ["vaincre","drapeau"], types_acces: ["escalier","porte"],
+    partages: ["groupe","par_heros"], types_fin: ["vaincre","drapeau","sortir"], types_acces: ["escalier","porte"],
     declencheurs_de_note: { <déclencheur>: {cibles: [...], signale_par, libelle} },   // `MotsClesQuete::DECLENCHEURS`
     effets_de_note: { <effet>: {parametres: [...], optionnels: [...], lecteur, libelle} },   // `MotsClesQuete::EFFETS`
     formats_acceptes: [1]
@@ -6030,7 +6030,14 @@ notes: [{
 
 ### Condition de fin — `quete.fin` (obligatoire)
 
-Deux types. **`drapeau`** (lot K3) : `fin: {type: "drapeau", drapeau: nom, libelle}` — accomplie quand une NOTE a posé
+Trois types. **`sortir`** (2026-11-16, René, après la relecture de *Kellar's Keep* : « find the wooden exit door ») :
+`fin: {type: "sortir", libelle}` — trouver la sortie et quitter le donjon. La sortie de la quête (`sortie`, ou l'entrée
+quand elle vaut `null`) est ouverte **dès le départ** : l'option `sortir_donjon` est offerte au héros qui s'y tient,
+sans autre condition. L'objectif n'est jamais « accompli » en cours de quête (`quete.objectif_accompli: false`, le
+bandeau ne ment pas) ; la quête est gagnée quand le dernier héros debout est sorti. `quete.sortie.consigne` : « Trouvez
+la porte de sortie et quittez le donjon. » (« l'escalier » pour un escalier ; « Trouvez la sortie et quittez le
+donjon. » tant qu'une fausse porte de sortie reste inconnue). `Quete::objectif()` rend `sortir_donjon`.
+« Trouver un objet, PUIS sortir » s'écrit avec la fin `drapeau` : la sortie s'ouvre quand la note pose le drapeau. **`drapeau`** (lot K3) : `fin: {type: "drapeau", drapeau: nom, libelle}` — accomplie quand une NOTE a posé
 ce drapeau ; c'est ce qui dit « trouver l'objet » (la note de fouille le pose) comme « atteindre ce point » (la note
 d'entrée le pose). Le drapeau doit être posé par au moins une note de la quête (`drapeau_jamais_pose` sinon).
 `Quete::objectif()` rend alors `drapeau_pose`. **`vaincre`** :

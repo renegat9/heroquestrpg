@@ -122,7 +122,12 @@ final class ValidationCampagne
         'monstres', 'pieges', 'terrain', 'depart', 'sortie', 'recompense', 'fin',
     ];
     /** Les clés de `fin`, selon son type : chacune est lue par `Quete::objectifAccompli()`. */
-    private const CLES_FIN = ['vaincre' => ['type', 'cibles', 'libelle'], 'drapeau' => ['type', 'drapeau', 'libelle']];
+    private const CLES_FIN = [
+        'vaincre' => ['type', 'cibles', 'libelle'],
+        'drapeau' => ['type', 'drapeau', 'libelle'],
+        // « sortir » : trouver la sortie et quitter le donjon (Kellar's Keep). Rien à désigner : la sortie de la quête.
+        'sortir' => ['type', 'libelle'],
+    ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
     private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties'];
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
@@ -145,7 +150,7 @@ final class ValidationCampagne
      * (`App\Models\Quete::OBJECTIFS_CONSTRUITS`, lu ici — une seule liste). Un type ajouté là sans lecteur serait une
      * règle promise au joueur et jamais tenue.
      */
-    public const TYPES_FIN = ['vaincre', 'drapeau'];
+    public const TYPES_FIN = ['vaincre', 'drapeau', 'sortir'];
 
     private const LONGUEUR_LIBELLE_FIN = 300;
 
@@ -1028,6 +1033,10 @@ final class ValidationCampagne
 
         $this->dans($fin, 'type', $position, self::TYPES_FIN);
         $this->texte($fin, 'libelle', $position, nonVide: true, max: self::LONGUEUR_LIBELLE_FIN);
+
+        if ($type === 'sortir') {
+            return; // la sortie (`sortie`, ou l'entrée quand elle vaut `null`) est déjà validée comme accès
+        }
 
         if ($type === 'drapeau') {
             $drapeau = $this->nomDeDrapeau($fin, 'drapeau', $position);

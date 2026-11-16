@@ -488,6 +488,9 @@ class Quete extends Model
                 ->exists(),
             // QUÊTE CONSTRUITE, fin « drapeau » (lot K3) : le drapeau désigné par l'auteur a été posé par une note.
             self::OBJECTIF_DRAPEAU => $this->aDrapeau((string) data_get($this->objectif_construit, 'drapeau', '')),
+            // QUÊTE CONSTRUITE, fin « sortir » : accomplie en SORTANT, ce qui termine la quête — jamais avant. La sortie
+            // ouverte d'emblée ne passe pas par ici (`sortieDisponible()`) : le bandeau ne dit pas « accompli » au départ.
+            self::OBJECTIF_SORTIR => false,
             default => true,
         };
     }
@@ -566,7 +569,9 @@ class Quete extends Model
      */
     public function sortieDisponible(): bool
     {
-        return $this->objectifAccompli()
+        // Fin « sortir » : trouver la sortie EST l'objectif — elle est ouverte dès le départ.
+        return $this->objectif() === self::OBJECTIF_SORTIR
+            || $this->objectifAccompli()
             // REPLI anti-blocage : un donjon entièrement vidé libère la sortie
             // même si l'objectif reste hors d'atteinte. SAUF « détruire un
             // élément » (`donjonVideOuvreLaSortie()`).
@@ -771,6 +776,13 @@ class Quete extends Model
         // dénoncerait la porte comme fausse.
         $inconnue = collect($this->faussesSorties())->contains(fn (array $f) => empty($f['revelee']));
 
+        // Fin « sortir » : la sortie est ouverte d'emblée, rien n'est encore « accompli » — il faut la TROUVER.
+        if ($this->objectif() === self::OBJECTIF_SORTIR) {
+            return $inconnue
+                ? 'Trouvez la sortie et quittez le donjon.'
+                : 'Trouvez '.$this->nomDeLaSortie().' et quittez le donjon.';
+        }
+
         // Courte : l'en-tête de la table la coupait (vu à l'écran le 2026-11-14).
         return $inconnue
             ? 'Objectif accompli : quittez le donjon.'
@@ -840,8 +852,20 @@ class Quete extends Model
      */
     public const OBJECTIF_DRAPEAU = 'drapeau_pose';
 
+    /**
+     * L'objectif d'une quête construite « sortir » (René, 2026-11-16, après la relecture de *Kellar's Keep* : « find the
+     * wooden exit door ») : trouver la sortie et quitter le donjon. La sortie est ouverte DÈS LE DÉPART
+     * ({@see sortieDisponible()}) ; l'objectif, lui, n'est jamais « accompli » en cours de quête — il l'est quand le
+     * dernier héros debout est sorti, et la quête se termine alors (`ResolveurTour::resoudreSortieEnPersonne()`).
+     */
+    public const OBJECTIF_SORTIR = 'sortir_donjon';
+
     /** Type de `objectif_construit` (le format du constructeur) → objectif lu par le moteur. Vocabulaire fermé. */
-    public const OBJECTIFS_CONSTRUITS = ['vaincre' => self::OBJECTIF_VAINCRE_CIBLES, 'drapeau' => self::OBJECTIF_DRAPEAU];
+    public const OBJECTIFS_CONSTRUITS = [
+        'vaincre' => self::OBJECTIF_VAINCRE_CIBLES,
+        'drapeau' => self::OBJECTIF_DRAPEAU,
+        'sortir' => self::OBJECTIF_SORTIR,
+    ];
 
     public function objectif(): ?string
     {
@@ -898,7 +922,7 @@ class Quete extends Model
                 .' et le ramener vivant à l\'escalier.',
             // QUÊTE CONSTRUITE : la consigne est celle que l'AUTEUR a écrite. Le moteur n'en déduit rien — nommer
             // lui-même les cibles révélerait une figure que le groupe n'a pas encore vue.
-            self::OBJECTIF_VAINCRE_CIBLES, self::OBJECTIF_DRAPEAU => ((string) data_get($this->objectif_construit, 'libelle', '')) ?: null,
+            self::OBJECTIF_VAINCRE_CIBLES, self::OBJECTIF_DRAPEAU, self::OBJECTIF_SORTIR => ((string) data_get($this->objectif_construit, 'libelle', '')) ?: null,
             default => null,
         };
     }
