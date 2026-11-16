@@ -268,6 +268,10 @@ export function useApi() {
         constructeurEnregistrer: (slug, document) => request('PUT', `/constructeur/campagnes/${slug}`, document),
         constructeurValider: (document) => request('POST', '/constructeur/validation', document),
         ouvrirClassique: (payload) => request('POST', '/classique', payload),
+        // Le CHOIX de campagne au hub (fin du lot S1) : `{choix_ouvert, choix_motif, campagnes: [{slug, titre, …,
+        // choisissable, motif}]}` — la DÉCISION par campagne vient du serveur —, et le choix lui-même.
+        campagnesDuGroupe: (identifiant) => request('GET', `/groupes/${identifiant}/campagnes`),
+        choisirCampagne: (identifiant, campagne) => request('PUT', `/groupes/${identifiant}/campagne`, { campagne }),
 
         /** POST /api/groupes/{identifiant}/joueurs {personnage_id} ou {nom, classe,
          *  elements?} → {personnage}. `elements` (magicien) : 2 éléments du

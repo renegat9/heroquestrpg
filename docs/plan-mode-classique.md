@@ -836,7 +836,25 @@ ni son format, il appelle ce que la route HTTP appelle.
   tour et le fil, sans menu ; table : « Spectateur — ne joue pas cette
   quête ». Constructeur : « Quête solo », parmi les classes exigées. Tests
   `QueteSoloTest` ; vu à l'écran. Reste de S1 : la campagne grisée au choix
-  quand le groupe n'a pas la classe exigée (aujourd'hui refusée au départ).
+  quand le groupe n'a pas la classe exigée (aujourd'hui refusée au départ) —
+  fait le même jour, entrée suivante.
+- **Fait le 2026-11-16 — fin du lot S1 : choisir sa campagne au hub** (§6,
+  §7). Il n'existait aucun moyen de changer de campagne : « finir une
+  campagne ramène au choix » n'était qu'écrit. `App\Partie\Classique\
+  ChoixCampagne` est le point de passage des prérequis de héros (liste, choix
+  et départ) et de l'ouverture du choix. Décision écrite : le choix n'est
+  ouvert qu'au hub, campagne FINIE, PAS COMMENCÉE (`rang_quete = 1`) ou
+  disparue — une campagne en cours ne se quitte pas d'un geste. `GET
+  /groupes/{id}/campagnes` publie chaque campagne avec `choisissable` et le
+  `motif` du gris ; `PUT /groupes/{id}/campagne` lit la même règle, remet le
+  groupe à la quête 1 (héros, or, équipement gardés) et efface les « prêt ».
+  Le hub publie `groupe.classique` (campagne, quête N sur M, `choix_ouvert`).
+  Défaut corrigé au passage : `depart_possible` ne lisait que la branche
+  générée — « Prêt » était offert à un groupe classique sans la classe exigée,
+  puis refusé ; `DemarreurQuete::refusDeDepart()` aiguille désormais seul, et
+  « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
+  « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
+  vu à l'écran.
 - **Fait le 2026-11-16 — lot H1a, mode Heroic** (Q2, Q7). Règle lue au début
   du lot, comme Q7 l'exigeait : *Jungles of Delthrak* (F9907 p. 8-9) pour le
   jeton crâne, livret de règles de *First Light* (G0978, « Dead Heroes ») pour

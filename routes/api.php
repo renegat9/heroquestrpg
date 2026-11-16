@@ -154,6 +154,9 @@ Route::middleware('auth:joueur')->group(function () {
     Route::post('/arene', [AreneController::class, 'ouvrir']);
     // MODE CLASSIQUE : ouvrir un groupe sur une campagne construite (docs/contrat-api.md « Mode classique »).
     Route::post('/classique', [\App\Http\Controllers\Api\ClassiqueController::class, 'ouvrir']);
+    // Le CHOIX de campagne au hub (fin du lot S1) : la liste avec sa décision, et le choix.
+    Route::get('/groupes/{identifiant}/campagnes', [\App\Http\Controllers\Api\ClassiqueController::class, 'campagnes']);
+    Route::put('/groupes/{identifiant}/campagne', [\App\Http\Controllers\Api\ClassiqueController::class, 'choisir']);
     Route::post('/arene/monstres', [AreneController::class, 'ouvrirMonstres']);
     Route::post('/arene/{identifiant}/camp', [AreneController::class, 'camp']);
     Route::post('/arene/{identifiant}/selection', [AreneController::class, 'selection']);

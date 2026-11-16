@@ -691,9 +691,7 @@ class GroupeController extends Controller
         //  - la CAMPAGNE GAGNÉE (boss final vaincu, arc épuisé) : aucune quête ne part, `DemarreurQuete::refusDeDepart()`
         //    le dit ; refusé ici AVANT l'écriture du cache, pour qu'aucun « prêt » ne reste en attente d'un départ impossible.
         if ((bool) $donnees['pret'] && $groupe->phase === 'hub') {
-            $refus = ($groupe->estClassique()
-                    ? app(\App\Partie\Classique\DemarreurQueteConstruite::class)->refusDeDepart($groupe)
-                    : $demarreur->refusDeDepart($groupe))
+            $refus = $demarreur->refusDeDepart($groupe)
                 ?? app(CompagnonOffert::class)->refusDeDepart($groupe)
                 ?? FaveursHopekins::refusDeDepart($groupe, $personnage);
 

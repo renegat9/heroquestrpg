@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Events\EtatGroupeDiffuse;
+use App\Models\Groupe;
 use App\Models\Personnage;
+use App\Partie\Classique\ChoixCampagne;
 use App\Partie\Classique\GroupesClassiques;
+use App\Partie\EtatGroupe;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -61,5 +65,41 @@ class ClassiqueController extends Controller
                 'nb_quetes' => (int) $groupe->nb_quetes_total,
             ],
         ], 201);
+    }
+
+    /** GET /api/groupes/{identifiant}/campagnes — chaque campagne construite, avec la DÉCISION pour ce groupe. */
+    public function campagnes(string $identifiant, ChoixCampagne $choix): JsonResponse
+    {
+        $groupe = $this->groupeDuJoueur($identifiant);
+
+        return response()->json($choix->publier($groupe));
+    }
+
+    /** PUT /api/groupes/{identifiant}/campagne {campagne} — le groupe repart à la quête 1 de cette campagne. */
+    public function choisir(Request $request, string $identifiant, ChoixCampagne $choix, EtatGroupe $etatGroupe): JsonResponse
+    {
+        $groupe = $this->groupeDuJoueur($identifiant);
+        $donnees = $request->validate(['campagne' => ['required', 'string', 'max:100']]);
+
+        $groupe = $choix->choisir($groupe, $donnees['campagne']);
+        broadcast(new EtatGroupeDiffuse($groupe, $etatGroupe->payload($groupe)));
+
+        return response()->json([
+            'groupe' => [
+                'campagne' => $groupe->campagneConstruite->slug,
+                'rang_quete' => (int) $groupe->rang_quete,
+                'nb_quetes' => (int) $groupe->nb_quetes_total,
+            ],
+        ]);
+    }
+
+    /** Le groupe, si ce joueur y pilote un héros actif (403 sinon). */
+    private function groupeDuJoueur(string $identifiant): Groupe
+    {
+        $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
+        $joueur = Auth::guard('joueur')->user();
+        abort_unless($groupe->herosPilotesPar((int) $joueur->id)->exists(), 403, 'Vous ne pilotez aucun héros de ce groupe.');
+
+        return $groupe;
     }
 }

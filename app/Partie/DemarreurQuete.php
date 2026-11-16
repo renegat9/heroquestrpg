@@ -143,6 +143,13 @@ final class DemarreurQuete
      */
     public function refusDeDepart(Groupe $groupe): ?string
     {
+        // MODE CLASSIQUE : le refus est celui de la campagne construite (prérequis de héros, campagne finie). Un seul
+        // aiguillage, lu par `POST /pret` ET par le hub (`EtatGroupe`, `depart_possible`) — avant, le hub ne lisait que
+        // la branche générée et « Prêt » était offert à un groupe classique que `POST /pret` refusait.
+        if ($groupe->estClassique()) {
+            return app(\App\Partie\Classique\DemarreurQueteConstruite::class)->refusDeDepart($groupe);
+        }
+
         if ($groupe->victoireFinaleAcquise()) {
             return 'La campagne est gagnée (boss final vaincu) : aucune nouvelle quête ne peut démarrer. Clôturez la campagne.';
         }

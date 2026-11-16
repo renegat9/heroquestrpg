@@ -72,18 +72,11 @@ final class DemarreurQueteConstruite
         }
 
         // PRÉREQUIS DE HÉROS (`campagne.prerequis_heros`) : chaque classe exigée doit avoir un héros ACTIF dans le
-        // groupe. Lu au DÉPART, quand le groupe est composé — pas à sa création, où il n'a que son fondateur.
-        $exigees = array_map('strval', (array) ($campagne->document['prerequis_heros'] ?? []));
-        if ($exigees !== []) {
-            $presentes = $groupe->personnages()->wherePivot('actif', true)->pluck('classe')
-                ->map(fn ($classe) => CatalogueConstructeur::slug((string) $classe))->all();
-            $manquantes = array_values(array_diff($exigees, $presentes));
-
-            if ($manquantes !== []) {
-                $noms = collect($manquantes)->map(fn (string $slug) => $this->catalogue->index('classes')[$slug]->nom ?? $slug)->implode(', ');
-
-                return '« '.$campagne->titre.' » exige un héros de classe : '.$noms.'.';
-            }
+        // groupe. Lu au DÉPART, quand le groupe est composé — pas à sa création, où il n'a que son fondateur. La règle
+        // est celle du choix de campagne (`ChoixCampagne`, qui grise la même campagne au hub).
+        $motif = app(ChoixCampagne::class)->motifPrerequis($groupe, $campagne);
+        if ($motif !== null) {
+            return '« '.$campagne->titre.' » '.lcfirst($motif);
         }
 
         return null;
@@ -98,6 +91,13 @@ final class DemarreurQueteConstruite
         $campagne = $groupe->campagneConstruite;
         if ($campagne === null) {
             throw RefusClassique::sansCampagne($groupe);
+        }
+
+        // Le lancement par la TABLE (`POST /quetes`) passe outre les « prêt », jamais les prérequis de héros : une quête
+        // solo d'une classe absente n'aurait personne à faire entrer.
+        $motif = app(ChoixCampagne::class)->motifPrerequis($groupe, $campagne);
+        if ($motif !== null) {
+            throw ValidationException::withMessages(['groupe' => '« '.$campagne->titre.' » '.lcfirst($motif)]);
         }
 
         $document = (array) $campagne->document;

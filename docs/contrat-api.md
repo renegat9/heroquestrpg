@@ -6179,6 +6179,33 @@ qu'avec un héros désigné.
   cette quête » sur sa fiche. Un héros SORTI, lui, est un participant qui a quitté le donjon (`sorti: true`).
 - **Constructeur** : « Quête solo » dans la fiche de la quête, parmi les classes exigées par la campagne.
 
+### Choisir sa campagne au hub (fin du lot S1, 2026-11-16)
+
+`docs/plan-mode-classique.md` §6 et §7 : un groupe classique n'est jamais dissous ; finir une campagne ramène au CHOIX
+de campagne, et une campagne dont le groupe n'a pas une classe exigée est montrée GRISÉE avec sa raison. Point de
+passage unique : `App\Partie\Classique\ChoixCampagne` (le choix, les classes manquantes — que le refus de départ lit
+aussi —, et quand le choix est ouvert).
+
+- **Quand le choix est ouvert** (décision écrite) : au hub, et seulement quand la campagne du groupe est **finie**
+  (toutes ses quêtes jouées), **pas commencée** (`rang_quete = 1`) ou **disparue**. Une campagne en cours ne se quitte
+  pas : on perdrait sa progression d'un geste.
+- **`groupe.classique`** (`GET /etat`, au hub d'un groupe classique ; absent sinon) : `{campagne: {slug, titre} | null,
+  rang_quete, nb_quetes, prochaine_quete: titre | null, terminee: bool, choix_ouvert: bool, choix_motif: texte | null}`.
+  `choix_motif` dit pourquoi le choix est fermé (« La campagne est en cours… »).
+- **`GET /api/groupes/{id}/campagnes`** (`auth:joueur`, membre actif) → `{choix_ouvert, choix_motif, campagnes: [{slug,
+  titre, auteur, nb_quetes, prerequis_heros: [{slug, nom}], actuelle: bool, choisissable: bool, motif: texte | null}]}`.
+  `motif` est la raison du gris : « Aucune quête : rien à jouer. », « Exige un héros de classe : Barbare. ». La
+  campagne actuelle est choisissable quand elle est finie : la choisir la REJOUE depuis la quête 1.
+- **`PUT /api/groupes/{id}/campagne`** `{campagne: slug}` (`auth:joueur`, joueur qui pilote un héros actif du groupe) →
+  **200** `{groupe: {campagne, rang_quete: 1, nb_quetes}}`. **422** : choix fermé (`campagne`, avec `choix_motif`),
+  campagne inconnue, ou grisée (son `motif`). La liste et la route lisent la même règle. Le groupe repart à la
+  quête 1 ; héros, or et équipement restent ; les « prêt » sont remis à zéro. Journal `systeme` `campagne_choisie`.
+  `.groupe.etat` est diffusé.
+- **Refus de départ publié au hub** : `groupe.depart_possible` / `depart_motif` lisent, pour un groupe classique,
+  `DemarreurQueteConstruite::refusDeDepart()` — classe exigée manquante, campagne finie. Avant, ils ne lisaient que la
+  victoire d'une campagne générée : « Prêt » était offert, puis refusé. Le lancement par la table (`POST /quetes`) est
+  soumis au même refus.
+
 ### Fausses portes de sortie (2026-11-16)
 
 `quete.fausses_sorties` (facultative) : `[{x, y, cote}]`, des portes posées comme une porte de sortie — sur le mur d'une

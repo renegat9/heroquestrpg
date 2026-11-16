@@ -29,6 +29,7 @@ import DeplacementSheet from '../components/manette/DeplacementSheet.vue';
 import ConfirmationSheet from '../components/manette/ConfirmationSheet.vue';
 import ChoixListeSheet from '../components/manette/ChoixListeSheet.vue';
 import ConfierHeros from '../components/manette/ConfierHeros.vue';
+import ChoixCampagneHub from '../components/manette/ChoixCampagneHub.vue';
 import EchangeSheet from '../components/manette/EchangeSheet.vue';
 import VoteSheet from '../components/manette/VoteSheet.vue';
 import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
@@ -400,6 +401,9 @@ const quitterArene = () => gesteArene(() => api.quitterArene(props.groupe), { qu
 // Le client ne redérive ni la victoire ni le motif.
 const departBloque = computed(() => store.state.etat?.groupe?.depart_possible === false);
 const departMotif = computed(() => store.state.etat?.groupe?.depart_motif ?? '');
+// MODE CLASSIQUE (fin du lot S1) : la campagne du groupe et l'ouverture de son choix — `groupe.classique`, décidé par
+// le serveur (`ChoixCampagne`). Absent pour tout autre groupe.
+const classiqueHub = computed(() => store.state.etat?.groupe?.classique ?? null);
 const narrateurActif = computed(() => store.state.etat?.groupe?.narrateur_actif ?? false);
 /* Le héros courant : celui que les actions du hub visent (un héros confié n'a pas de fiche /moi, mais son
    id suffit au serveur, qui revalide que ce joueur le pilote). */
@@ -1888,6 +1892,9 @@ const navItems = computed(() => (scene.value === 'marche'
                                 :en-cours="choixRepertoireEnCours"
                                 @choisir="choisirRepertoireFaveur"
                             />
+
+                            <!-- ---- campagne construite du groupe et son choix (mode classique, hub) ---- -->
+                            <ChoixCampagneHub v-if="auHub && classiqueHub" :groupe="groupe" :classique="classiqueHub" />
 
                             <!-- ---- bouton Prêt (phase hub, mode connecté) ---- -->
                             <div v-if="auHub" class="pret-hub">

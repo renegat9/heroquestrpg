@@ -208,6 +208,12 @@ final class EtatGroupe
             $preambuleGroupe['depart_possible'] = $motifDepart === null;
             $preambuleGroupe['depart_motif'] = $motifDepart;
 
+            // MODE CLASSIQUE (fin du lot S1) : la campagne, la quête qui vient, et si le CHOIX de campagne est ouvert —
+            // décidé par `ChoixCampagne`, la manette n'affiche « Choisir une campagne » que sur `choix_ouvert`.
+            if ($groupe->estClassique()) {
+                $preambuleGroupe['classique'] = app(\App\Partie\Classique\ChoixCampagne::class)->resumeHub($groupe);
+            }
+
             // DÉCISIONS de recrutement, héros par héros (prix réel avec la Potion
             // de charme, recrutable ou non, et le motif) : `RecrutementHub` est
             // le seul point de passage. La manette affiche la ligne de son héros
