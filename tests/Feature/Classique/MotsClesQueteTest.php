@@ -170,3 +170,20 @@ it('refuse un objet, un monstre ou une cible que la quête ne connaît pas', fun
         'quetes.0.notes.0.alors', ValidationCampagne::VALEUR_INVALIDE,
     ],
 ]);
+
+it('l\'aperçu d\'une quête relit ses notes : quand, sur quoi, et quels effets', function () {
+    $this->seed([ClasseHerosSeeder::class, ObjetSeeder::class, MobilierSeeder::class, MonstreSeeder::class, PiegeSeeder::class, TerrainSeeder::class]);
+    $doc = DocumentExemple::campagne();
+    $doc['quetes'][0]['notes'] = [
+        ['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree']],
+            'alors' => [['effet' => 'texte', 'texte' => 'Un texte.'], ['effet' => 'drapeau', 'nom' => 'vu']]],
+        ['repere' => 'C', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 4, 'y' => 3]], 'si_drapeau' => 'vu'],
+            'alors' => [['effet' => 'degats', 'body' => 1]], 'une_fois' => false],
+    ];
+
+    $apercu = app(\App\Partie\Classique\CarteConstruite::class)->apercu($doc, $doc['quetes'][0]);
+    $texte = is_array($apercu) ? json_encode($apercu, JSON_UNESCAPED_UNICODE) : (string) $apercu;
+
+    expect($texte)->toContain('note A : fouille_tresor — salle entree → texte, drapeau')
+        ->toContain('note C : entree — case (4, 3), si « vu » → degats (à chaque fois)');
+});

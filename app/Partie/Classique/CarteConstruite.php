@@ -466,6 +466,19 @@ final class CarteConstruite
             $lignes[] = "  monstre errant (hors carte) : {$quete['monstre_errant']}";
         }
 
+        // NOTES (lot K3) : hors carte elles aussi, mais c'est ce que l'auteur veut relire — quand, sur quoi, et quoi.
+        foreach ((array) ($quete['notes'] ?? []) as $note) {
+            $cible = (array) data_get($note, 'quand.cible', []);
+            $sur = collect($cible)->map(fn ($valeur, $cle) => $cle.' '.(is_array($valeur)
+                ? '('.implode(', ', $valeur).')'
+                : $valeur))->implode(', ');
+            $effets = collect((array) ($note['alors'] ?? []))->pluck('effet')->implode(', ');
+            $condition = data_get($note, 'quand.si_drapeau') !== null ? ', si « '.data_get($note, 'quand.si_drapeau').' »' : '';
+            $repete = ($note['une_fois'] ?? true) ? '' : ' (à chaque fois)';
+
+            $lignes[] = '  note '.($note['repere'] ?? '?').' : '.data_get($note, 'quand.declencheur')." — {$sur}{$condition} → {$effets}{$repete}";
+        }
+
         return $lignes;
     }
 
