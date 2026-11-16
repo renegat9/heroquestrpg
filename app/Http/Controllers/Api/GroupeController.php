@@ -145,6 +145,11 @@ class GroupeController extends Controller
                     'personnage_id' => "« {$personnageFondateur->nom} » est déjà engagé dans un groupe actif.",
                 ]);
             }
+
+            // Lot H1 : un héros MORT (mode Heroic) n'est plus engageable — la mort est définitive.
+            if ($personnageFondateur->estMort()) {
+                throw ValidationException::withMessages(['personnage_id' => self::refusHerosMort($personnageFondateur)]);
+            }
         }
 
         // `array_key_exists`, pas `??` : une liste VIDE est un choix (jeu de base
@@ -202,6 +207,12 @@ class GroupeController extends Controller
     private static function refusHerosArene(Personnage $personnage): string
     {
         return "« {$personnage->nom} » est un héros d'arène : il n'entre jamais en campagne.";
+    }
+
+    /** Lot H1 : le refus d'engager un héros MORT (mode Heroic) — une seule phrase, lue aussi par `GroupesClassiques`. */
+    public static function refusHerosMort(Personnage $personnage): string
+    {
+        return "« {$personnage->nom} » est mort : créez un nouveau héros pour reprendre votre place.";
     }
 
     /**
@@ -390,6 +401,11 @@ class GroupeController extends Controller
 
         DB::transaction(function () use ($groupe, $personnages) {
             foreach ($personnages as $personnage) {
+                // Lot H1 : un héros MORT (mode Heroic) n'est plus engageable — la mort est définitive.
+                if ($personnage->estMort()) {
+                    throw ValidationException::withMessages(['personnage_ids' => self::refusHerosMort($personnage)]);
+                }
+
                 if ($personnage->groupe_actif_id !== null && $personnage->groupe_actif_id !== $groupe->id) {
                     throw ValidationException::withMessages([
                         'personnage_ids' => "« {$personnage->nom} » est déjà engagé dans un autre groupe actif.",

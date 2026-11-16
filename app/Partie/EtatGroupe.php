@@ -129,6 +129,8 @@ final class EtatGroupe
             'phase' => $groupe->phase,
             // MODE ARÈNE (lot A5) : `campagne` ou `arene` — les écrans affichent le salon au lieu du hub de campagne.
             'mode' => $groupe->mode ?? Groupe::MODE_CAMPAGNE,
+            // Lot H1 : `story` ou `heroic` — en Heroic, un héros à terre prend un crâne, puis meurt.
+            'mode_mort' => $groupe->mode_mort ?? Groupe::MORT_STORY,
             'or' => (int) $groupe->or,
             'etat' => $groupe->etat,
             'narrateur_actif' => $narrateurActif,
@@ -1600,7 +1602,11 @@ final class EtatGroupe
                     'bourse' => $bourseParHeros ? (int) $p->or : null,
                     // SORTI DU DONJON : le héros est dans le groupe mais plus dans la quête (il l'a quittée en personne).
                     // Publié pour que sa manette lui dise qu'il attend les autres, plutôt qu'un écran sans menu.
-                    'sorti' => $etat === null && $quete->participe((int) $p->id),
+                    'sorti' => $etat === null && $quete->participe((int) $p->id) && ! $p->estMort(),
+                    // Lot H1 (Heroic) : MORT pendant cette quête — hors du jeu, il reste au groupe jusqu'au hub.
+                    'mort' => $p->estMort(),
+                    // Lot H1 (Heroic) : à terre avec le jeton crâne — il mourra au début de son prochain tour.
+                    'crane' => (bool) ($etat?->crane ?? false),
                     // SPECTATEUR (lot S1) : le héros n'est pas engagé dans cette quête (quête SOLO) — ni ligne d'état, ni
                     // menu, rien à risquer ni à gagner. Décision publiée : la manette ne la déduit pas d'un `x` nul.
                     'spectateur' => ! $quete->participe((int) $p->id),

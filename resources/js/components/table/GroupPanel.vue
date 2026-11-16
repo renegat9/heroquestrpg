@@ -61,6 +61,12 @@ const condIcon = { poison: 'coronavirus', burn: 'local_fire_department', buff: '
                     <span>{{ f.effet }}</span>
                 </div>
             </div>
+            <div v-if="p.mort" class="grp-dehors grp-mort">
+                <MSym n="skull" fill :size="13" /> Mort — hors du jeu
+            </div>
+            <div v-else-if="p.crane" class="grp-dehors grp-mort">
+                <MSym n="skull" fill :size="13" /> Au seuil de la mort — à soigner avant son prochain tour
+            </div>
             <div v-if="p.spectateur" class="grp-dehors">
                 <MSym n="visibility" fill :size="13" /> Spectateur — ne joue pas cette quête
             </div>
@@ -84,5 +90,6 @@ const condIcon = { poison: 'coronavirus', burn: 'local_fire_department', buff: '
 .grp-dehors { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; font-style: italic;
   color: var(--ink-300, #cfc6b0); }
 .grp-dehors > .msym { color: var(--ok, #6fbf73); }
+.grp-mort, .grp-mort > .msym { color: var(--body-bright, #e0563f); }
 .grp-faveur b { color: var(--parch-100, #f0e9d8); font-weight: 700; }
 </style>

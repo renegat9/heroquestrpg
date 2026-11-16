@@ -837,6 +837,24 @@ ni son format, il appelle ce que la route HTTP appelle.
   quête ». Constructeur : « Quête solo », parmi les classes exigées. Tests
   `QueteSoloTest` ; vu à l'écran. Reste de S1 : la campagne grisée au choix
   quand le groupe n'a pas la classe exigée (aujourd'hui refusée au départ).
+- **Fait le 2026-11-16 — lot H1a, mode Heroic** (Q2, Q7). Règle lue au début
+  du lot, comme Q7 l'exigeait : *Jungles of Delthrak* (F9907 p. 8-9) pour le
+  jeton crâne, livret de règles de *First Light* (G0978, « Dead Heroes ») pour
+  la mort — le livret de règles 2021 (F3649) n'a pas de texte extractible.
+  `groupes.mode_mort` (`story` par défaut, `heroic`) choisi à la création ;
+  en Heroic, pas de relèvement Story : le héros à terre prend le crâne à
+  l'ouverture du round suivant et meurt à celle d'après
+  (`App\Partie\Classique\MortHeroic`, point de passage unique de la mort).
+  `personnages.mort_le` : définitif, la ligne n'est jamais supprimée ; le mort
+  reste au groupe jusqu'au hub (publié `mort`), ne reçoit rien, puis quitte le
+  groupe ; il n'est plus engageable (422) ; un TPK Heroic tue tous les héros à
+  terre ; une reprise ne ressuscite personne. Migration
+  `2026_11_16_140000`, appliquée après sauvegarde relue. Tests
+  `MortHeroicTest` ; vu à l'écran (crâne, puis mort). Restent : H1b,
+  l'équipement du mort (à ramasser dans la même salle ou le même couloir, volé
+  sinon) ; H1c, la potion donnée par un compagnon à un héros à terre (au lieu
+  du « relever » sans potion, écart du projet) et le lanceur qui se soigne en
+  mourant.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

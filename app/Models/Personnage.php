@@ -18,6 +18,8 @@ class Personnage extends Model
     protected $fillable = [
         'joueur_id',
         'groupe_actif_id',
+        // Lot H1 (mode Heroic) : la mort est DÉFINITIVE. La ligne reste (jamais supprimée), marquée.
+        'mort_le',
         'nom',
         'classe',
         'niveau',
@@ -118,7 +120,18 @@ class Personnage extends Model
             'malediction_oracle' => 'boolean',
             'entraine_body' => 'boolean',
             'entraine_mind' => 'boolean',
+            'mort_le' => 'datetime',
         ];
+    }
+
+    /**
+     * Ce héros est-il MORT (lot H1, mode Heroic) ? Définitif : il n'est plus engageable dans aucun groupe, et le roster
+     * le montre comme tel. Livret de règles de *First Light* (G0978, « Dead Heroes ») : « you may rename your hero and
+     * play them as a new character in the next quest » — chez nous, un héros NEUF que le joueur crée.
+     */
+    public function estMort(): bool
+    {
+        return $this->mort_le !== null;
     }
 
     /**

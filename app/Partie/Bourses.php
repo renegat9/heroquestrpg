@@ -188,7 +188,7 @@ final class Bourses
      * l'ordre du tour (décision écrite : le livret ne dit pas qui garde le reste). Ne verse rien : il dit qui reçoit.
      *
      * `$parmi` (lot S1) : les seuls héros qui peuvent recevoir — les participants d'une quête SOLO ; un spectateur « ne
-     * gagne rien ». `null` = tous les héros actifs.
+     * gagne rien ». `null` = tous les héros actifs. Un héros MORT (mode Heroic) n'est jamais compté.
      *
      * @param  list<int>|null  $parmi
      * @return list<array{personnage_id: int, nom: string, or: int}>
@@ -202,6 +202,8 @@ final class Bourses
         $heros = $groupe->personnages()
             ->wherePivot('actif', true)
             ->when($parmi !== null, fn ($q) => $q->whereIn('personnages.id', $parmi))
+            // Un héros MORT (lot H1, Heroic) ne reçoit plus rien : il est hors du jeu.
+            ->whereNull('personnages.mort_le')
             ->orderBy('groupe_personnages.ordre_initiative')
             ->get(['personnages.id', 'personnages.nom']);
 

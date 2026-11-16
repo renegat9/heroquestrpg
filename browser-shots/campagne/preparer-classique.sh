@@ -47,7 +47,8 @@ for spec in barbare:Albrecht nain:Brunehaut; do
   echo "  joueur $slot ($IDENT) : $NH ($CL) id=$(cat "$D/perso-$slot.txt")" >&2
 done
 
-R=$(P 1 POST /classique "{\"nom\":\"$NOM\",\"campagne\":\"$CAMPAGNE\",\"personnage_id\":$(cat "$D/perso-1.txt")}")
+# Lot H1 : HQ_MODE_MORT=heroic ouvre un groupe Heroic (story par défaut).
+R=$(P 1 POST /classique "{\"nom\":\"$NOM\",\"campagne\":\"$CAMPAGNE\",\"personnage_id\":$(cat "$D/perso-1.txt"),\"mode_mort\":\"${HQ_MODE_MORT:-story}\"}")
 CODE=$(echo "$R" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['groupe']['identifiant'])") \
   || { echo "✗ POST /classique a échoué : $R" >&2; exit 1; }
 echo "$CODE" > "$D/groupe.txt"

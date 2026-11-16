@@ -6117,6 +6117,33 @@ au début de la quête.
   que les héros qui ont une case. Il reste dans la quête : ordre du tour, fin de quête (« plus personne dans le
   donjon »), défaite (tous tombés) le comptent.
 
+### Mode de mort : Story ou Heroic (lot H1, 2026-11-16)
+
+Plan classique Q2 et Q7. Sources : *Jungles of Delthrak* (F9907 p. 8-9) ; livret de règles de *First Light* (G0978,
+« Dead Heroes »).
+
+- **Choix** : `POST /api/classique` accepte `mode_mort` ∈ `story` (défaut) | `heroic` (422 sur `mode_mort` sinon) ; la
+  réponse et le préambule du groupe (`GET /etat`) publient `groupe.mode_mort`. Une fois pour toutes : rien ne le change
+  ensuite. Tous les groupes existants sont `story`.
+- **Story** (inchangé) : un héros à 0 Body est à terre, jamais mort ; il regagne 1 Body à l'ouverture d'un round sans
+  monstre actif quand un compagnon est debout.
+- **Heroic** : pas de relèvement par le corps. À l'ouverture du round qui suit sa chute, le héros à terre prend le
+  **jeton crâne** (`entites[].crane: true`, annonce `{type: "crane_pose", personnage_id, nom}` — « Brunehaut est au
+  seuil de la mort : sans soin avant son prochain tour, c'est la mort ») ; s'il est encore à terre avec le crâne
+  à l'ouverture du round suivant, il **meurt** (`{type: "heros_mort", personnage_id, nom}`). Tout soin qui le relève lui
+  fait défausser le crâne.
+- **La mort est définitive** : `personnages.mort_le` est posé, la ligne du héros n'est jamais supprimée. Le mort sort de
+  la quête (plus de ligne d'état) mais reste au groupe jusqu'au retour au hub : `entites[].mort: true`, `sorti: false` ;
+  la manette de son joueur montre « {nom} est mort », l'ordre du tour et le fil ; la table, « Mort — hors du jeu ». Il
+  ne reçoit aucune récompense. Au hub, il quitte le groupe (pivot inactif) ; son joueur crée un héros neuf et rejoint
+  le groupe par son code. `/moi` le publie `mort: true`, `disponible: false` ; fonder ou rejoindre un groupe avec lui :
+  422 (« … est mort : créez un nouveau héros pour reprendre votre place »).
+- **TPK en Heroic** : tous les héros à terre meurent (« all four heroes die »). Une **reprise** d'instantané
+  (`POST /reprise`, `POST /quete/redemarrer`) ne ressuscite personne : les lignes d'état des morts ne sont pas recréées.
+- **Pas encore** (lots suivants) : l'équipement du mort (à ramasser dans la même salle ou le même couloir, volé sinon —
+  H1b) ; le soin d'un héros à terre par une potion donnée par un compagnon, et le lanceur qui se soigne en mourant
+  (H1c).
+
 ### Quête solo et spectateurs (lot S1, 2026-11-16)
 
 `docs/plan-mode-classique.md` §6 — *The Frozen Horror*, *The Mage of the Mirror* : certaines quêtes ne se jouent

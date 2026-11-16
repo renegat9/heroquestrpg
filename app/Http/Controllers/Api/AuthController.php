@@ -150,6 +150,8 @@ class AuthController extends Controller
             ->where(fn ($q) => $q->whereNull('doublure_de')->orWhereNotNull('groupe_actif_id'))
             ->with(['competences:competences.id,competences.nom,competences.description,competences.cout,competences.rang,competences.effet', 'sorts', 'groupeActif', 'inventaire.objet'])
             ->get(['id', 'joueur_id', 'nom', 'classe', 'niveau', 'groupe_actif_id', 'or',
+                // Lot H1 (Heroic) : la mort, lue par `estMort()` — `disponible` et `mort` en dépendent.
+                'mort_le',
                 'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max',
                 'attribut_body', 'attribut_mind', 'des_attaque', 'des_defense',
                 // ORACLE (First Light, FL-Q p. 6, lot C) : durables, visibles
@@ -207,7 +209,8 @@ class AuthController extends Controller
             'identifiant' => $joueur->identifiant,
             'personnages' => $personnages
                 ->map(function ($p) use ($personnages, $idsDejaEnQuete, $idsAvecHistorique, $groupesAvecForgeronDuJoueur, $forgeronParGroupe, $forge) {
-                    $disponible = $p->groupe_actif_id === null;
+                    // Un héros MORT (lot H1, Heroic) n'est jamais disponible : la mort est définitive.
+                    $disponible = $p->groupe_actif_id === null && ! $p->estMort();
                     // Les deux préalables de `ForgeController::appliquer()` avant
                     // même de regarder l'objet : le groupe est au hub, et LE
                     // JOUEUR QUI REGARDE (pas forcément CE personnage) contrôle
@@ -550,6 +553,8 @@ class AuthController extends Controller
                         // sur la manette — `App\Partie\Entrainement::options()`, le même prédicat que la route.
                         'entrainement' => $p->groupeActif === null ? [] : app(\App\Partie\Entrainement::class)->options($p, $p->groupeActif),
                         'disponible' => $disponible,
+                        // Lot H1 (mode Heroic) : mort, définitivement — le roster le montre, rien ne l'engage plus.
+                        'mort' => $p->estMort(),
                         // Contrat DELETE /personnages/{id} : le bouton
                         // « Supprimer » du roster (JoueurView.vue) LIT ce
                         // booléen au lieu de re-dériver « libre + jamais

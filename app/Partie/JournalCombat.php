@@ -177,6 +177,9 @@ final class JournalCombat
         'fausse_sortie' => true,
         // MODE CLASSIQUE : un héros qui attendait hors du plateau franchit la porte d'entrée.
         'entree_donjon' => true,
+        // MODE HEROIC (lot H1) : un héros à terre prend le jeton crâne ; un héros qui le gardait meurt.
+        'crane_pose' => true,
+        'heros_mort' => true,
         // MODE CLASSIQUE : une note de quête vient de jouer (`NotesDeQuete`) — texte lu, or, objet, apparition, dégâts.
         'note_de_quete' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
@@ -1252,6 +1255,14 @@ final class JournalCombat
             'vote_resolu' => $this->voteResolu($a),
             'recompense_quete' => $this->recompenseQuete($a),
             'note_de_quete' => $this->noteDeQuete($a),
+            'crane_pose' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' est au seuil de la mort : sans soin avant son prochain tour, c\'est la mort',
+                'ton' => 'chute',
+            ]],
+            'heros_mort' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' est mort',
+                'ton' => 'mort',
+            ]],
             'entree_donjon' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' entre dans le donjon par la porte d\'entrée',
                 'ton' => 'info',

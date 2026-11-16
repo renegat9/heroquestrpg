@@ -27,6 +27,8 @@ class ClassiqueController extends Controller
             'nom' => ['required', 'string', 'max:120'],
             'campagne' => ['required', 'string', 'max:100'],
             'personnage_id' => ['required', 'integer'],
+            // Lot H1 : `story` (défaut) ou `heroic` — `GroupesClassiques::ouvrir()` le revalide.
+            'mode_mort' => ['sometimes', 'string'],
         ]);
 
         // Le fondateur est un héros que ce joueur POSSÈDE, comme pour toute création de groupe ; jamais une doublure ni
@@ -44,7 +46,7 @@ class ClassiqueController extends Controller
             throw ValidationException::withMessages(['personnage_id' => "« {$fondateur->nom} » est un héros d'arène : il n'entre jamais en campagne."]);
         }
 
-        $groupe = $groupes->ouvrir($donnees['nom'], $donnees['campagne'], $fondateur);
+        $groupe = $groupes->ouvrir($donnees['nom'], $donnees['campagne'], $fondateur, $donnees['mode_mort'] ?? \App\Models\Groupe::MORT_STORY);
 
         return response()->json([
             'groupe' => [
@@ -52,6 +54,7 @@ class ClassiqueController extends Controller
                 'identifiant' => $groupe->identifiant,
                 'nom' => $groupe->nom,
                 'mode' => $groupe->mode,
+                'mode_mort' => $groupe->mode_mort,
                 'phase' => $groupe->phase,
                 'campagne' => $groupe->campagneConstruite->slug,
                 'rang_quete' => (int) $groupe->rang_quete,

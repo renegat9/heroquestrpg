@@ -302,6 +302,12 @@ function initCreerGroupe(id) {
 const montrerClassique = ref({}); // { [perso.id]: bool }
 const nomClassique = ref({});
 const campagneClassique = ref({}); // { [perso.id]: slug }
+// MODE DE MORT (lot H1) : `story` (défaut) ou `heroic`, choisi une fois pour toutes à l'ouverture du groupe.
+const modeMortClassique = ref({}); // { [perso.id]: 'story' | 'heroic' }
+const MODES_MORT = [
+    { v: 'story', l: 'Story', d: 'à 0 Body, le héros est à terre, jamais mort ; il se relève quand le combat est fini' },
+    { v: 'heroic', l: 'Heroic', d: 'à terre, il prend un crâne au tour suivant ; sans soin avant le tour d\'après, il meurt — définitivement' },
+];
 const campagnesConstruites = ref([]);
 const campagnesChargees = ref(false);
 const classiqueEnCours = ref({});
@@ -339,6 +345,7 @@ async function ouvrirClassique(perso) {
             nom: (nomClassique.value[perso.id] || '').trim() || `Groupe de ${perso.nom}`,
             campagne,
             personnage_id: perso.id,
+            mode_mort: modeMortClassique.value[perso.id] || 'story',
         });
         await rafraichirMoi();
         router.push({ name: 'manette', params: { groupe: groupe.identifiant }, query: { perso: perso.id } });
@@ -577,6 +584,9 @@ function libelleClasse(classe) {
                             >
                                 <MSym n="check_circle" :size="13" fill /> Libre
                             </div>
+                            <div v-else-if="statutPersonnage(perso).mort" class="pcard-badge engage">
+                                <MSym n="skull" :size="13" fill /> Mort
+                            </div>
                             <div v-else class="pcard-badge engage">
                                 <MSym n="group" :size="13" fill /> {{ statutPersonnage(perso).nom ?? 'Engagé' }}
                             </div>
@@ -584,7 +594,7 @@ function libelleClasse(classe) {
 
                         <!-- indicateur narrateur actif si engagé -->
                         <div
-                            v-if="!statutPersonnage(perso).disponible"
+                            v-if="!statutPersonnage(perso).disponible && !statutPersonnage(perso).mort"
                             class="pcard-narrateur"
                             :class="{ actif: statutPersonnage(perso).narrateur_actif }"
                         >
@@ -597,7 +607,7 @@ function libelleClasse(classe) {
                         </div>
 
                         <!-- code du groupe (à donner au narrateur / aux autres joueurs) -->
-                        <div v-if="!statutPersonnage(perso).disponible" class="pcard-code">
+                        <div v-if="!statutPersonnage(perso).disponible && !statutPersonnage(perso).mort" class="pcard-code">
                             <span class="pcard-code-lbl">Code du groupe</span>
                             <button
                                 class="pcard-code-val"
@@ -711,6 +721,19 @@ function libelleClasse(classe) {
                                             </template>
                                         </span>
                                         <span v-if="c.mention" class="joueur-classique-mention">{{ c.mention }}</span>
+                                    </label>
+                                </div>
+                                <div class="joueur-classique-liste">
+                                    <span class="joueur-classique-titre">Mode de mort</span>
+                                    <label
+                                        v-for="m in MODES_MORT"
+                                        :key="m.v"
+                                        class="joueur-classique-campagne"
+                                        :class="{ on: (modeMortClassique[perso.id] || 'story') === m.v }"
+                                    >
+                                        <input v-model="modeMortClassique[perso.id]" type="radio" :value="m.v" :checked="(modeMortClassique[perso.id] || 'story') === m.v" />
+                                        <span class="joueur-classique-titre">{{ m.l }}</span>
+                                        <span class="joueur-classique-detail">{{ m.d }}</span>
                                     </label>
                                 </div>
                                 <p v-if="erreurClassique[perso.id]" class="joueur-err">

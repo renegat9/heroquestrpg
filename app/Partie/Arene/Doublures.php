@@ -65,6 +65,7 @@ final class Doublures
         'chef_oeuvre_quete_id' => 'état de campagne : la forge du hub',
         'recrutements_a_rabais' => 'état de campagne : le recrutement de mercenaires au hub',
         'rabais_recrutement_po' => 'état de campagne : le recrutement de mercenaires au hub',
+        'mort_le' => 'état de campagne : la mort en mode Heroic (lot H1) ; une doublure n\'en hérite pas',
     ];
 
     /**

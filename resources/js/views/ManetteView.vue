@@ -151,6 +151,9 @@ const etatControle = computed(() => ETATS_CONTROLE[controleManette.value] ?? nul
    rejette toutes ses actions — la manette retire le menu et l'annonce
    clairement (il ne rejouera que relevé par un allié). ---- */
 const suisTombe = computed(() => monEntite.value?.tombe === true);
+// MODE HEROIC (lot H1) : décisions publiées — le jeton crâne de mon héros à terre, et sa mort.
+const suisMort = computed(() => monEntite.value?.mort === true);
+const jaiLeCrane = computed(() => monEntite.value?.crane === true);
 // SORTI DU DONJON (mode classique) : le héros affiché a quitté la quête en personne. Décision publiée par le serveur
 // (`entites[].sorti`) — la manette ne la déduit pas de l'absence de position.
 const suisSorti = computed(() => monEntite.value?.sorti === true);
@@ -1755,6 +1758,13 @@ const navItems = computed(() => (scene.value === 'marche'
                         </div>
                         <!-- SPECTATEUR (lot S1, quête solo) : un bandeau, puis l'onglet Action SANS menu — l'ordre du tour et le
                              fil du combat restent sous les yeux : « suis la partie ». -->
+                        <div v-if="tab === 'action' && suisMort && !queteEchouee" class="manette-spectateur manette-mort" role="status">
+                            <MSym n="skull" :size="22" />
+                            <div>
+                                <b>{{ monEntite?.nom }} est mort</b>
+                                <span>Hors du jeu pour le reste de la quête — tu suis la partie. Au hub, crée un nouveau héros pour reprendre ta place.</span>
+                            </div>
+                        </div>
                         <div v-if="tab === 'action' && suisSpectateur && !queteEchouee" class="manette-spectateur" role="status">
                             <MSym n="visibility" :size="22" />
                             <div>
@@ -1782,7 +1792,8 @@ const navItems = computed(() => (scene.value === 'marche'
                             <MSym n="personal_injury" :size="34" />
                             <p style="font-family: var(--font-narr); font-weight: 700; font-size: 16px; margin: 10px 0 4px">À terre</p>
                             <p style="font-family: var(--font-narr); font-style: italic; font-size: 14px; margin: 0">
-                                Tu es tombé au combat — seul un allié peut te relever.
+                                <template v-if="jaiLeCrane">Au seuil de la mort : si personne ne te soigne avant ton prochain tour, tu meurs.</template>
+                                <template v-else>Tu es tombé au combat — seul un allié peut te relever.</template>
                             </p>
                         </div>
                         <!-- contrôle Dread (endormi / commandé) : le tour se résout sans moi -->
@@ -1804,7 +1815,7 @@ const navItems = computed(() => (scene.value === 'marche'
                             :init-cur="initCur"
                             :sorts="mesSorts"
                             :journal="journalCombat"
-                            :spectateur="suisSpectateur"
+                            :spectateur="suisSpectateur || suisMort"
                             @choose="choisirOption"
                             @open-spells="tab = 'sorts'"
                         />
@@ -2272,6 +2283,7 @@ const navItems = computed(() => (scene.value === 'marche'
 }
 .manette-spectateur { display: flex; align-items: center; gap: 10px; margin: 10px 14px 0; padding: 10px 12px;
   border-radius: 10px; background: var(--stone-800, #1d2230); color: var(--ink-300, #cfc6b0); }
+.manette-mort > .msym, .manette-mort b { color: var(--body-bright, #e0563f); }
 .manette-spectateur b { display: block; font-family: var(--font-narr); font-size: 15px; color: var(--parch-100, #f0e9d8); }
 .manette-spectateur div > span { font-family: var(--font-narr); font-style: italic; font-size: 13px; }
 </style>

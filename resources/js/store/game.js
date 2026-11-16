@@ -795,6 +795,9 @@ export function entitesVersGroupe(entites, initiative) {
             dehors: e.hors_plateau === true,
             // SPECTATEUR (lot S1, quête solo) : décision publiée — le héros n'est pas engagé dans cette quête.
             spectateur: e.spectateur === true,
+            // MODE HEROIC (lot H1) : le jeton crâne d'un héros à terre, et la mort — décisions publiées.
+            crane: e.crane === true,
+            mort: e.mort === true,
             // Faveurs de Hopekins Rest (`{cle, libelle, effet}`, décidé par le serveur) :
             // la fiche de la table les montre avec leur effet, sans rien recalculer.
             faveurs: e.faveurs ?? [],
@@ -1487,6 +1490,8 @@ export function resumeDuJoueur(payload, personnages = []) {
  */
 export function statutPersonnage(personnage) {
     if (!personnage) return { disponible: true, supprimable: false };
+    // MORT (lot H1, mode Heroic) : décision publiée par /moi — ni libre, ni engagé.
+    if (personnage.mort === true) return { disponible: false, supprimable: false, mort: true };
     if (personnage.disponible !== false && personnage.groupe == null) {
         // ⚠ `supprimable` est une DÉCISION publiée par /moi (contrat DELETE
         // /personnages/{id}), jamais re-dérivée ici : « jamais joué » se lit

@@ -415,6 +415,8 @@ final class Sauvegarde
                     'a_deplace' => (bool) $e->a_deplace,
                     'a_agi' => (bool) $e->a_agi,
                     'tombe' => (bool) $e->tombe,
+                    // MODE HEROIC (lot H1) : le jeton crâne d'un héros à terre.
+                    'crane' => (bool) $e->crane,
                     // ⚠ Compteurs PAR QUÊTE (2026-09-02) : ils manquaient au
                     // snapshot exactement comme les usages de Dread du boss
                     // juste au-dessus, et pour le même prix — une `/reprise` ou
@@ -693,7 +695,15 @@ final class Sauvegarde
     {
         EtatPersonnageQuete::query()->where('quete_id', $queteId)->delete();
 
+        // MODE HEROIC (lot H1) : la mort est DÉFINITIVE — une reprise d'instantané ne ressuscite personne. Le mort n'a
+        // pas de ligne d'état, comme à l'instant de sa mort (`MortHeroic::mourir()`).
+        $morts = \App\Models\Personnage::whereIn('id', array_column($etats, 'personnage_id'))
+            ->whereNotNull('mort_le')->pluck('id')->map(fn ($id) => (int) $id)->all();
+
         foreach ($etats as $etat) {
+            if (in_array((int) $etat['personnage_id'], $morts, true)) {
+                continue;
+            }
             EtatPersonnageQuete::create([
                 'personnage_id' => $etat['personnage_id'],
                 'quete_id' => $queteId,
@@ -703,6 +713,7 @@ final class Sauvegarde
                 'a_deplace' => $etat['a_deplace'] ?? false,
                 'a_agi' => $etat['a_agi'] ?? false,
                 'tombe' => $etat['tombe'],
+                'crane' => $etat['crane'] ?? false,
                 // Les `??` ne sont pas décoratifs : un snapshot pris AVANT le
                 // 2026-09-02 ne porte aucune de ces quatre clés, et une
                 // campagne en vol doit pouvoir se reprendre sans elles.

@@ -34,6 +34,8 @@ class EtatPersonnageQuete extends Model
         // ARÈNE, lot T5 : la manœuvre de base du combattant seul est ouverte (`App\Partie\Arene\ManoeuvreSolo`).
         'manoeuvre_arene',
         'tombe',
+        // Lot H1 (mode Heroic) : le jeton crâne d'un héros hors de combat. Effacé quand il se relève (`booted()`).
+        'crane',
         'garde_tenace_utilisee',
         'bonus_sort_utilise',
         'attaque_supplementaire',
@@ -125,6 +127,15 @@ class EtatPersonnageQuete extends Model
      */
     protected static function booted(): void
     {
+        // MODE HEROIC (lot H1, F9907 p. 8) : « When an incapacitated hero receives healing, they are brought back from
+        // the verge of death. That hero discards any skull tile they possess. » Observé sur la COLONNE, comme l'annonce
+        // ci-dessous : un héros se relève par trop de chemins (potion, sort, compagnon, relèvement) pour câbler chacun.
+        static::saving(function (self $etat): void {
+            if ($etat->isDirty('tombe') && ! $etat->tombe) {
+                $etat->crane = false;
+            }
+        });
+
         static::updated(function (self $etat): void {
             if (! $etat->wasChanged('tombe')) {
                 return;
@@ -151,6 +162,7 @@ class EtatPersonnageQuete extends Model
             'a_deplace' => 'boolean',
             'a_agi' => 'boolean',
             'tombe' => 'boolean',
+            'crane' => 'boolean',
             'garde_tenace_utilisee' => 'boolean',
             'bonus_sort_utilise' => 'boolean',
             'attaque_supplementaire' => 'boolean',

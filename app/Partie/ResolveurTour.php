@@ -13750,6 +13750,11 @@ final class ResolveurTour
      */
     private function relevementsStory(Groupe $groupe, Quete $quete): array
     {
+        // HEROIC (lot H1) : pas de relèvement par le corps — c'est le mode Story qui le donne (F9907 p. 8-9).
+        if ($groupe->estHeroic()) {
+            return [];
+        }
+
         if (! $this->combatTermine($quete)) {
             return [];
         }
@@ -14028,6 +14033,13 @@ final class ResolveurTour
             $actions[] = $relevement;
         }
 
+        // MODE HEROIC (lot H1, F9907 p. 8) : à la place du relèvement Story, le JETON CRÂNE — un héros à terre le prend
+        // au début de son tour suivant, et meurt s'il le commence avec. Avant le verdict de chute : une mort qui laisse
+        // le groupe sans héros debout est un TPK, jugé plus bas.
+        foreach (app(\App\Partie\Classique\MortHeroic::class)->cranes($groupe, $quete) as $crane) {
+            $actions[] = $crane;
+        }
+
         // VOILE D'OMBRE : « at the start of the spellcaster's turn, remove a
         // shadow token ». Un lanceur DEBOUT le voit tomber à l'ouverture de SON
         // tour (`MenuMoteur::deplacementDuTour()`) ; un lanceur TOMBÉ n'ouvre plus
@@ -14158,6 +14170,15 @@ final class ResolveurTour
         }
 
         Journal::ajouter($groupe, 'systeme', $payload);
+
+        // MODE HEROIC (lot H1) : tous les héros à terre, plus personne pour les soigner — ils meurent tous (« all four
+        // heroes die », livret de règles de First Light). Puis les morts quittent le groupe.
+        if ($groupe->estClassique()) {
+            $morts = app(\App\Partie\Classique\MortHeroic::class);
+            $morts->tousMorts($groupe, $quete);
+            $morts->retirerLesMorts($groupe);
+        }
+
         $groupe->update(['phase' => 'hub', 'quete_courante_id' => null]);
 
         // Les alliés APPELÉS (Raptor du Fangwarden Armlet) ne survivent à aucune
@@ -17083,6 +17104,12 @@ final class ResolveurTour
             ? app(\App\Partie\Classique\FinDeQueteConstruite::class)->regler($groupe, $quete)
             : null;
         $niveaux = $classique === null ? $this->monteeNiveau->appliquer($groupe, $quete) : null;
+
+        // MODE HEROIC (lot H1) : les morts de la quête quittent le groupe — APRÈS la récompense, qu'ils ne reçoivent pas
+        // (`Bourses::partager()` les écarte).
+        if ($groupe->estClassique()) {
+            app(\App\Partie\Classique\MortHeroic::class)->retirerLesMorts($groupe);
+        }
 
         // FAVEUR DE HOPEKINS REST : AUCUN tirage ici (René, 2026-10-16). Le lieu se choisit AU HUB
         // qui suit cette victoire, par chaque héros (`FaveursHopekins::choisirLieu()`), dans une

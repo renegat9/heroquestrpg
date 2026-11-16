@@ -55,6 +55,8 @@ class Groupe extends Model
         // MODE CLASSIQUE (2026-11-14) : la campagne construite que joue le groupe, et le rang de sa prochaine quête.
         'campagne_construite_id',
         'rang_quete',
+        // MODE CLASSIQUE, lot H1 (2026-11-16) : `story` ou `heroic` — vocabulaire fermé `self::MODES_MORT`.
+        'mode_mort',
     ];
 
     /**
@@ -78,6 +80,24 @@ class Groupe extends Model
     public const MODE_CLASSIQUE = 'classique';
 
     public const MODES = [self::MODE_CAMPAGNE, self::MODE_ARENE, self::MODE_CLASSIQUE];
+
+    /**
+     * MODE DE MORT (lot H1, *Jungles of Delthrak* F9907 p. 8-9 ; plan classique Q2) — `story` : un héros à 0 Body est
+     * hors de combat, jamais mort, et se relève d'un point de Body quand aucun monstre n'est actif (la politique de
+     * tous les groupes, `ResolveurTour::relevementsStory()`) ; `heroic` : hors de combat, il prend un jeton crâne au
+     * début de son tour suivant, et MEURT s'il commence un tour avec. Choisi à la création d'un groupe classique.
+     */
+    public const MORT_STORY = 'story';
+
+    public const MORT_HEROIC = 'heroic';
+
+    public const MODES_MORT = [self::MORT_STORY, self::MORT_HEROIC];
+
+    /** Ce groupe joue-t-il en Heroic (la mort est possible, et définitive) ? */
+    public function estHeroic(): bool
+    {
+        return $this->mode_mort === self::MORT_HEROIC;
+    }
 
     protected function casts(): array
     {

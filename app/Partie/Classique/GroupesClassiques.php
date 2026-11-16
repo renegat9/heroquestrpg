@@ -23,8 +23,16 @@ use Illuminate\Validation\ValidationException;
  */
 final class GroupesClassiques
 {
-    public function ouvrir(string $nom, string $slugCampagne, Personnage $fondateur): Groupe
+    public function ouvrir(string $nom, string $slugCampagne, Personnage $fondateur, string $modeMort = Groupe::MORT_STORY): Groupe
     {
+        // MODE DE MORT (lot H1) : choisi à la création, une fois pour toutes — vocabulaire fermé `Groupe::MODES_MORT`.
+        if (! in_array($modeMort, Groupe::MODES_MORT, true)) {
+            throw ValidationException::withMessages(['mode_mort' => 'Le mode de mort est « story » ou « heroic ».']);
+        }
+        if ($fondateur->estMort()) {
+            throw ValidationException::withMessages(['personnage_id' => \App\Http\Controllers\Api\GroupeController::refusHerosMort($fondateur)]);
+        }
+
         $campagne = CampagneConstruite::where('slug', $slugCampagne)->first();
 
         if ($campagne === null) {
@@ -40,7 +48,7 @@ final class GroupesClassiques
             throw ValidationException::withMessages(['personnage_id' => "« {$fondateur->nom} » est déjà engagé dans un groupe actif."]);
         }
 
-        return DB::transaction(function () use ($nom, $campagne, $nbQuetes, $fondateur): Groupe {
+        return DB::transaction(function () use ($nom, $campagne, $nbQuetes, $fondateur, $modeMort): Groupe {
             $groupe = Groupe::create([
                 'identifiant' => $this->identifiantLibre($nom),
                 'nom' => $nom,
@@ -54,6 +62,7 @@ final class GroupesClassiques
                 'mode' => Groupe::MODE_CLASSIQUE,
                 'campagne_construite_id' => $campagne->id,
                 'rang_quete' => 1,
+                'mode_mort' => $modeMort,
             ]);
 
             $groupe->personnages()->attach($fondateur->id, ['ordre_initiative' => 1, 'actif' => true]);
