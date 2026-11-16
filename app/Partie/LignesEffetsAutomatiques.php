@@ -841,6 +841,62 @@ trait LignesEffetsAutomatiques
         ]];
     }
 
+    /**
+     * NOTE DE QUÊTE (mode classique, `NotesDeQuete`) : une ligne par effet, dans l'ordre où l'auteur les a écrits.
+     * Le TEXTE lu à la table est dit tel quel ; le drapeau, lui, ne se raconte pas — il se lit plus tard.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function noteDeQuete(array $a): array
+    {
+        $heros = (string) ($a['personnage'] ?? 'Le groupe');
+        $lignes = [];
+
+        foreach ((array) ($a['effets'] ?? []) as $effet) {
+            switch ($effet['effet'] ?? null) {
+                case 'texte':
+                    if (trim((string) ($effet['texte'] ?? '')) !== '') {
+                        $lignes[] = ['texte' => (string) $effet['texte'], 'ton' => 'info'];
+                    }
+                    break;
+                case 'or':
+                    if ((int) ($effet['or'] ?? 0) > 0) {
+                        $parts = (array) ($effet['parts'] ?? []);
+                        $lignes[] = [
+                            'texte' => count($parts) > 1
+                                ? 'Le groupe trouve '.(int) $effet['or'].' pièces d\'or ('.collect($parts)->map(fn (array $p) => ($p['nom'] ?? 'Un héros').' +'.(int) ($p['or'] ?? 0))->implode(', ').')'
+                                : "{$heros} trouve ".(int) $effet['or'].' pièces d\'or',
+                            'ton' => 'tresor',
+                        ];
+                    }
+                    break;
+                case 'objet':
+                    if (isset($effet['objet']['nom'])) {
+                        $quantite = (int) ($effet['quantite'] ?? 1);
+                        $lignes[] = [
+                            'texte' => ($effet['receveur'] ?? $heros).' trouve '.$effet['objet']['nom'].($quantite > 1 ? " ×{$quantite}" : '')
+                                .(! empty($effet['sac_deborde']) ? ' — son sac déborde' : ''),
+                            'ton' => 'tresor',
+                        ];
+                    }
+                    break;
+                case 'apparition':
+                    $noms = collect((array) ($effet['monstres'] ?? []))->reject(fn (array $m) => ! empty($m['sans_place']))->pluck('nom');
+                    if ($noms->isNotEmpty()) {
+                        $lignes[] = ['texte' => $noms->implode(', ').($noms->count() > 1 ? ' surgissent !' : ' surgit !'), 'ton' => 'subit'];
+                    }
+                    break;
+                case 'degats':
+                    if ((int) ($effet['degats'] ?? 0) > 0) {
+                        $lignes[] = ['texte' => ($effet['nom'] ?? $heros).' perd '.(int) $effet['degats'].' point(s) de Corps', 'ton' => 'degats'];
+                    }
+                    break;
+            }
+        }
+
+        return $lignes;
+    }
+
     private function voteResolu(array $a): array
     {
         return [[

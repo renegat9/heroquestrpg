@@ -185,6 +185,9 @@ final class CarteConstruite
             $w = $salle['l'];
             $h = $salle['h'];
             $sallesMoteur[] = [
+                // `id` : le nom que l'AUTEUR donne à la salle. Le moteur compte en index ; les notes de quête, elles,
+                // désignent une salle par ce nom (`NotesDeQuete::cibleAtteinte()`).
+                'id' => $salle['id'],
                 'x' => $x, 'y' => $y, 'largeur' => $w, 'hauteur' => $h, 'theme' => self::THEME_SALLE,
                 'mediane_x' => $x + intdiv($w, 2), 'mediane_y' => $y + intdiv($h, 2),
             ];

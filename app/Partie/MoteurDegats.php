@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\MotsClesQuete;
+use App\Partie\Classique\NotesDeQuete;
 use App\Events\HerosVaSubirDegats;
 use App\Models\EtatPersonnageQuete;
 use App\Models\InstanceMonstre;
@@ -854,6 +856,17 @@ final class MoteurDegats
         }
 
         $instance->update(['pv_body' => 0, 'etat' => 'vaincu']);
+
+        // NOTE DE QUÊTE (mode classique, D4) : une figure POSÉE PAR L'AUTEUR vient de tomber. Ici, et nulle part
+        // ailleurs : c'est le point de passage unique de la mort (après ses phases, après sa reddition).
+        if ($instance->quete !== null) {
+            $notes = app(NotesDeQuete::class);
+            $rang = $notes->rangDuMonstre($instance->quete, $instance);
+
+            if ($rang !== null) {
+                $notes->signaler($instance->quete, MotsClesQuete::MORT, ['monstre' => $rang], $auteurHeros);
+            }
+        }
 
         // « If a Dread Sorcerer has an active spell and is killed, the effects of that spell immediately
         // end » (*Against the Ogre Horde* p. 10) : lu ICI, au point de passage unique de la mort — tout

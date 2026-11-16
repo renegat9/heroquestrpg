@@ -307,6 +307,11 @@ function fixturesDesTypesAnnonces(): array
         'recompense_quete' => ['quete_id' => 1, 'total' => 10, 'parts' => [
             ['personnage_id' => 1, 'nom' => 'Grom', 'or' => 5], ['personnage_id' => 2, 'nom' => 'Albrecht', 'or' => 5],
         ]],
+        // MODE CLASSIQUE : une note de quête jouée (`NotesDeQuete`) — une ligne par effet.
+        'note_de_quete' => ['repere' => 'A', 'declencheur' => 'fouille_tresor', 'personnage' => 'Grom', 'effets' => [
+            ['effet' => 'texte', 'texte' => 'Sous une dalle, une bourse.'],
+            ['effet' => 'or', 'or' => 60, 'parts' => [['personnage_id' => 1, 'nom' => 'Grom', 'or' => 60]]],
+        ]],
         // LE PATRON TOURELLE ET LES QUATRE ADVERSAIRES DE DELTHRAK (René, 2026-10-15).
         'apparition_a_la_vue' => ['monstre' => 'Crâne du Dread', 'instance_id' => 7, 'declencheur' => ['personnage_id' => 1, 'nom' => 'Grom'], 'position' => ['x' => 4, 'y' => 2]],
         'filet_silencieux' => ['monstre' => 'Deathspinner', 'instance_id' => 7, 'cible' => $cible, 'sort' => 'Canaliser l\'Effroi'],

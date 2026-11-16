@@ -30,8 +30,9 @@ final class FinDeQueteConstruite
      */
     public function regler(Groupe $groupe, Quete $quete): array
     {
-        $document = (array) ($groupe->campagneConstruite?->document ?? []);
-        $queteDoc = (array) ($document['quetes'][(int) $quete->position_arc - 1] ?? []);
+        // Le document FIGÉ au départ de la quête (`quetes.document_construit`), jamais la campagne : l'auteur peut
+        // l'avoir corrigée depuis, et la récompense promise à l'ouverture est celle qui se verse.
+        $queteDoc = $quete->documentConstruit();
 
         $rangSuivant = (int) $quete->position_arc + 1;
         $groupe->update(['rang_quete' => $rangSuivant]);

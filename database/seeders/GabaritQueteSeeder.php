@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Partie\Fouille\DeckFouille;
 use App\Models\GabaritQuete;
 use Illuminate\Database\Seeder;
 
@@ -64,19 +65,7 @@ class GabaritQueteSeeder extends Seeder
                         // 1 défense, 6 errants. Montants sourcés par ses photos
                         // (reference/16 §7.4) : gemme 35, or 15, or 25, bijoux 50. Aucune
                         // quantité ne se change sans source.
-                        'cartes' => [
-                            'gemme' => 2,          // 35 po
-                            'or_25' => 2,
-                            'or_15' => 2,
-                            'bijoux' => 2,         // 50 po
-                            'piege_trou' => 2,
-                            'piege_fleches' => 2,
-                            'potion_soin' => 3,
-                            'potion_heroisme' => 1,
-                            'potion_force' => 1,
-                            'potion_defense' => 1,
-                            'errant' => 6,
-                        ],
+                        'cartes' => DeckFouille::PAQUET_DE_TRESOR,
                         'or' => 25,                // repli si un montant manque
                         'or_coffre' => 90,
                         // Potions du COFFRE ORDINAIRE (derrière une porte secrète), lues par
@@ -167,19 +156,7 @@ class GabaritQueteSeeder extends Seeder
                         // 1 défense, 6 errants. Montants sourcés par ses photos
                         // (reference/16 §7.4) : gemme 35, or 15, or 25, bijoux 50. Aucune
                         // quantité ne se change sans source.
-                        'cartes' => [
-                            'gemme' => 2,
-                            'or_25' => 2,
-                            'or_15' => 2,
-                            'bijoux' => 2,
-                            'piege_trou' => 2,
-                            'piege_fleches' => 2,
-                            'potion_soin' => 3,
-                            'potion_heroisme' => 1,
-                            'potion_force' => 1,
-                            'potion_defense' => 1,
-                            'errant' => 6,
-                        ],
+                        'cartes' => DeckFouille::PAQUET_DE_TRESOR,
                         'or' => 25,
                         'or_coffre' => 90,
                         // Potions du COFFRE ORDINAIRE (derrière une porte secrète), lues par
@@ -231,19 +208,7 @@ class GabaritQueteSeeder extends Seeder
                         // 1 défense, 6 errants. Montants sourcés par ses photos
                         // (reference/16 §7.4) : gemme 35, or 15, or 25, bijoux 50. Aucune
                         // quantité ne se change sans source.
-                        'cartes' => [
-                            'gemme' => 2,          // 35 po
-                            'or_25' => 2,
-                            'or_15' => 2,
-                            'bijoux' => 2,         // 50 po
-                            'piege_trou' => 2,
-                            'piege_fleches' => 2,
-                            'potion_soin' => 3,
-                            'potion_heroisme' => 1,
-                            'potion_force' => 1,
-                            'potion_defense' => 1,
-                            'errant' => 6,
-                        ],
+                        'cartes' => DeckFouille::PAQUET_DE_TRESOR,
                         'or' => 25,                // repli si un montant manque
                         'or_coffre' => 180,
                         // Potions du COFFRE ORDINAIRE (derrière une porte secrète), lues par
@@ -405,19 +370,7 @@ class GabaritQueteSeeder extends Seeder
                         // 1 défense, 6 errants. Montants sourcés par ses photos
                         // (reference/16 §7.4) : gemme 35, or 15, or 25, bijoux 50. Aucune
                         // quantité ne se change sans source.
-                        'cartes' => [
-                            'gemme' => 2,          // 35 po
-                            'or_25' => 2,
-                            'or_15' => 2,
-                            'bijoux' => 2,         // 50 po
-                            'piege_trou' => 2,
-                            'piege_fleches' => 2,
-                            'potion_soin' => 3,
-                            'potion_heroisme' => 1,
-                            'potion_force' => 1,
-                            'potion_defense' => 1,
-                            'errant' => 6,
-                        ],
+                        'cartes' => DeckFouille::PAQUET_DE_TRESOR,
                         'or' => 25,                // repli si un montant manque
                         'or_coffre' => 300,
                         // Potions du COFFRE ORDINAIRE (derrière une porte secrète), lues par

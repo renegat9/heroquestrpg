@@ -173,6 +173,8 @@ final class JournalCombat
         'recompense_quete' => true,
         // MODE CLASSIQUE : un héros quitte le donjon en personne, par l'escalier ou par la porte de sortie.
         'sortie_en_personne' => true,
+        // MODE CLASSIQUE : une note de quête vient de jouer (`NotesDeQuete`) — texte lu, or, objet, apparition, dégâts.
+        'note_de_quete' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1245,6 +1247,7 @@ final class JournalCombat
             'monstres_reveles' => $this->monstresReveles($a),
             'vote_resolu' => $this->voteResolu($a),
             'recompense_quete' => $this->recompenseQuete($a),
+            'note_de_quete' => $this->noteDeQuete($a),
             'sortie_en_personne' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' quitte le donjon par '.(($a['par'] ?? 'escalier') === 'porte' ? 'la porte de sortie' : 'l\'escalier')
                     .((int) ($a['restants'] ?? 0) === 0 ? ' — plus personne ne reste dans le donjon' : ''),
@@ -3254,6 +3257,9 @@ final class JournalCombat
                 'ton' => 'tresor',
             ]],
             'piege' => [],
+            // NOTE DE QUÊTE (mode classique) : la salle a répondu par une note de l'auteur, que `NotesDeQuete` a déjà
+            // annoncée effet par effet (`note_de_quete`). Rien à redire ici — surtout pas « fouille en vain ».
+            'note' => [],
             // ⚠ « En vain » n'est vrai QUE si rien n'était à prendre. Deux cas
             // distincts s'y cachaient : un meuble dont le butin existait mais
             // que PERSONNE du groupe ne pouvait utiliser (`objet_indisponible`,

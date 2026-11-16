@@ -686,6 +686,43 @@ ni son format, il appelle ce que la route HTTP appelle.
     est caché, porte dans son embrasure une fois trouvé, salle cachée révélée
     et atteinte. Captures `browser-shots/classique/60…72`.
   - `docs/regles/carte-donjon.md` décrit enfin les murs en arêtes.
+- **Fait le 2026-11-15 — lot K3 : le paquet de trésor, le monstre errant et
+  les NOTES de quête** (« quand → alors »).
+  - **Paquet de trésor** : une quête construite part avec les 24 cartes du
+    plateau, mélangées (`DeckFouille::PAQUET_DE_TRESOR`, désormais la SEULE
+    déclaration — le seeder la recopiait quatre fois). Avant, le paquet était
+    vide et « Fouiller — trésor » ne trouvait jamais rien.
+  - **Monstre errant** : celui que l'auteur désigne (`monstre_errant`), lu
+    par `MonstreErrant::deLaQuete()` ; une quête qui n'en désigne aucun n'en
+    a pas.
+  - **Document figé** : `quetes.document_construit` garde la quête telle
+    qu'elle était au départ ; notes, errant et récompense s'y lisent.
+  - **Vocabulaire fermé** `App\Engine\MotsClesQuete` — déclencheurs
+    `fouille_tresor`, `entree` (salle ou case), `ouverture_porte`, `mort` ;
+    effets `texte`, `or`, `objet`, `apparition`, `degats`, `drapeau`.
+    Lecteur unique `NotesDeQuete` ; les coutures du moteur ne font que
+    signaler. `quand.si_drapeau` conditionne une note à un drapeau.
+  - **Fin « drapeau »** : accomplie quand une note pose le drapeau désigné.
+    Elle couvre F2 (trouver un objet, puis sortir) et F3 (atteindre un point)
+    sans mot-clé de plus.
+  - **Validation** : une note mal formée est refusée en la nommant ; un
+    drapeau lu que personne ne pose aussi (`drapeau_jamais_pose`).
+  - **Tests** : `NotesDeQueteTest` (11, par les vraies routes — chaque mot
+    du vocabulaire y est joué), `MotsClesQueteTest` (registre dans les deux
+    sens, refus de validation).
+  - **Défaut trouvé en jouant, corrigé** : « la case libre la plus proche »
+    traversait un mur. Une apparition dont la case était prise naissait dans
+    le couloir, derrière le mur de la salle (le monstre errant avait le même
+    défaut). `CaseLibre` n'accepte plus qu'une case JOIGNABLE en trois pas
+    sans traverser mur, porte close ni roche ; et la validation refuse une
+    apparition dessinée sur un meuble.
+  - **Joué sur la vraie stack** (campagne d'essai inventée, trois notes) :
+    la fouille du vestibule répond par sa note (texte lu au bandeau du maître
+    du jeu, 60 po à la bourse du fouilleur, aucune carte tirée) ; l'entrée
+    dans la salle des gardes lit son texte et fait surgir un troisième
+    gobelin, dans la salle. Capture `browser-shots/classique/81-…`.
+  - **Écarts écrits** : le réveil de figures inertes (E4) reste une capacité
+    de monstre du catalogue, pas un effet de note ; D5–D9, E5, E6, E8 : lot K5.
 - **Leçon du 2026-11-13** : ce dossier est SERVI en direct par la stack. Une
   migration écrite ici manque à la vraie base tant qu'elle n'est pas
   appliquée, et le code qui la lit est déjà en service. Toute migration

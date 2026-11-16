@@ -13,6 +13,7 @@ use App\Models\InstanceMonstre;
 use App\Models\Monstre;
 use App\Models\Personnage;
 use App\Models\Quete;
+use App\Partie\Fouille\DeckFouille;
 use App\Partie\EffetsGlobauxQuete;
 use App\Partie\EtatGroupe;
 use App\Partie\GardePersonnelle;
@@ -37,10 +38,13 @@ use Illuminate\Validation\ValidationException;
  * repartent à leurs points de vie maximaux, sorts rechargés ; les effets globaux et la garde personnelle des monstres
  * du catalogue s'établissent ; le premier round s'ouvre ; un instantané de début de quête est pris.
  *
+ * LE PAQUET DE TRÉSOR est celui du plateau, mélangé (`DeckFouille::pourQueteConstruite()`) ; le MONSTRE ERRANT est
+ * celui que l'auteur désigne (`MonstreErrant::deLaQuete()`). Le DOCUMENT de la quête est figé sur la quête
+ * (`quetes.document_construit`) : notes, monstre errant et récompense se lisent là, jamais dans la campagne, que
+ * l'auteur peut corriger pendant que des héros sont dans le donjon.
+ *
  * Ce qui n'existe PAS encore ici, écrit pour ne pas être oublié :
- * - le paquet de trésor : il est vide, une fouille de salle ne trouve rien (il arrive avec les notes, lot K3) ;
- * - les alliés : `EtapesCampagne::CLASSIQUE` ferme le recrutement, donc aucun n'est à poser ;
- * - le monstre errant de la quête (lot K5).
+ * - les alliés : `EtapesCampagne::CLASSIQUE` ferme le recrutement, donc aucun n'est à poser.
  */
 final class DemarreurQueteConstruite
 {
@@ -51,6 +55,7 @@ final class DemarreurQueteConstruite
         private readonly MoteurDread $dread,
         private readonly Sauvegarde $sauvegarde,
         private readonly EtatGroupe $etatGroupe,
+        private readonly DeckFouille $deck,
     ) {}
 
     /** Pourquoi ce groupe classique ne peut pas partir en quête, ou `null`. Lu par `POST /pret` avant tout démarrage. */
@@ -124,7 +129,9 @@ final class DemarreurQueteConstruite
         $monstres = Monstre::whereIn('id', array_column($produit['monstres'], 'monstre_id'))->get()->keyBy('id');
         $cibles = array_map('intval', (array) data_get($queteDoc, 'fin.cibles', []));
 
-        $quete = DB::transaction(function () use ($groupe, $heros, $queteDoc, $carte, $produit, $monstres, $cibles, $rang): Quete {
+        $paquet = $this->deck->pourQueteConstruite();
+
+        $quete = DB::transaction(function () use ($groupe, $heros, $queteDoc, $carte, $produit, $monstres, $cibles, $rang, $paquet): Quete {
             $quete = Quete::create([
                 'groupe_id' => $groupe->id,
                 'gabarit_id' => null,
@@ -136,13 +143,18 @@ final class DemarreurQueteConstruite
                 'or_initial' => $groupe->or,
                 'salles_decouvertes' => [0],
                 'tresors_fouilles' => [],
-                'deck_fouille' => [],
-                'salles_coffre' => [],
+                'deck_fouille' => $paquet['deck'],
+                'salles_coffre' => $paquet['salles_coffre'],
+                'document_construit' => $queteDoc,
+                'drapeaux' => [],
+                'notes_jouees' => [],
                 'coffres_ouverts' => [],
                 // La condition de fin de l'auteur : le type (lu par `Quete::objectif()`) et la consigne dite aux joueurs.
                 'objectif_construit' => [
                     'type' => (string) data_get($queteDoc, 'fin.type'),
                     'libelle' => (string) data_get($queteDoc, 'fin.libelle'),
+                    // Fin « drapeau » : le drapeau qu'une note doit poser (`Quete::OBJECTIF_DRAPEAU`).
+                    'drapeau' => data_get($queteDoc, 'fin.drapeau'),
                 ],
                 // Par où l'on entre et par où l'on sort (escalier ou porte), figés ici : `Quete::sortieDuDonjon()`.
                 'acces' => $produit['acces'],

@@ -79,7 +79,10 @@ reason, and the two must never drift.
   write to `grille['terrain']` during a quest; since 2026-11-15: `App\Partie\Bourses` — `verser()` / `payer()` —
   for every gold piece won or spent in play: common pot in a campaign, the HERO's purse in classic mode, where
   `groupes.or` is never written. Every other write of `or` is named in `Bourses::HORS_PASSAGE`, scanned both ways
-  by `BoursesPointDePassageTest` → `docs/regles/exploration-et-fouille.md`).
+  by `BoursesPointDePassageTest` → `docs/regles/exploration-et-fouille.md`; also since 2026-11-15, classic mode:
+  `App\Partie\Classique\NotesDeQuete::signaler()` for every quest NOTE (« when → then ») — engine seams only
+  SIGNAL an event, the closed vocabulary is `App\Engine\MotsClesQuete`, tested both ways by `MotsClesQueteTest` —,
+  `DeckFouille::PAQUET_DE_TRESOR` for the 24-card treasure deck, and `CaseLibre::proche()` for the nearest free cell).
   Two copies of a rule too simple to notice drifting is this project's most repeated defect.
 - **`sortBy([$f, $g])` is never a multi-key sort** — Laravel reads a callable there as a
   *comparator*, and it never errors. It bit twice. → `docs/regles/sorts-dread.md`

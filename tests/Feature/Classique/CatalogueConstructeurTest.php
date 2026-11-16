@@ -99,12 +99,17 @@ it('payload() publie les couches posables, les classes et les vocabulaires lus d
 
     expect(array_keys($payload['couches']))->toBe(['mobilier', 'monstres', 'pieges', 'terrain'])
         ->and($payload['classes'])->not->toBeEmpty()
+        // Ce qu'une note de quête peut donner (effet `objet`) : la palette des objets du catalogue.
+        ->and($payload)->toHaveKey('objets')
         ->and($payload['vocabulaires'])->toBe([
             'rotations' => ValidationCampagne::ROTATIONS,
             'cotes' => ValidationCampagne::COTES,
             'types_porte' => ValidationCampagne::TYPES_PORTE,
             'partages' => ValidationCampagne::PARTAGES,
             'types_fin' => ValidationCampagne::TYPES_FIN,
+            // Le vocabulaire des notes de quête, publié TEL QUEL depuis `MotsClesQuete` — la liste que le moteur joue.
+            'declencheurs_de_note' => \App\Engine\MotsClesQuete::DECLENCHEURS,
+            'effets_de_note' => \App\Engine\MotsClesQuete::EFFETS,
             'types_acces' => ValidationCampagne::TYPES_ACCES,
             'formats_acceptes' => ValidationCampagne::FORMATS_ACCEPTES,
         ]);

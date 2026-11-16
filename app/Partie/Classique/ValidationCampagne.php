@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie\Classique;
 
+use App\Engine\MotsClesQuete;
 use App\Partie\Grille;
 
 /**
@@ -55,6 +56,11 @@ final class ValidationCampagne
     // Première quête jouable (2026-11-14) — la condition de fin : une cible de `fin.cibles` ne désigne aucun monstre posé.
     public const CIBLE_INCONNUE = 'cible_inconnue';
 
+    // Lot K3 (2026-11-15) — les notes de quête : une cible mal formée pour son déclencheur ; un drapeau lu (par une
+    // autre note ou par la fin) qu'aucune note ne pose — la quête ne pourrait jamais le lever.
+    public const CIBLE_DE_NOTE_INVALIDE = 'cible_de_note_invalide';
+    public const DRAPEAU_JAMAIS_POSE = 'drapeau_jamais_pose';
+
     /** @var list<string> */
     public const CODES = [
         self::CLE_INCONNUE, self::CLE_PAS_ENCORE_PRISE, self::CLE_MANQUANTE, self::TYPE_INVALIDE,
@@ -65,6 +71,7 @@ final class ValidationCampagne
         self::EMPREINTE_INVALIDE,
         self::DEPART_HORS_SALLE,
         self::PORTE_DANS_LA_ROCHE, self::MOBILIER_HORS_SALLE, self::CASE_PARTAGEE, self::CIBLE_INCONNUE,
+        self::CIBLE_DE_NOTE_INVALIDE, self::DRAPEAU_JAMAIS_POSE,
     ];
 
     /**
@@ -114,7 +121,16 @@ final class ValidationCampagne
         'slug', 'titre', 'ouverture', 'monstre_errant', 'salles_ouvertes', 'portes', 'blocs', 'mobilier',
         'monstres', 'pieges', 'terrain', 'depart', 'sortie', 'recompense', 'fin',
     ];
-    private const CLES_FIN = ['type', 'cibles', 'libelle'];
+    /** Les clés de `fin`, selon son type : chacune est lue par `Quete::objectifAccompli()`. */
+    private const CLES_FIN = ['vaincre' => ['type', 'cibles', 'libelle'], 'drapeau' => ['type', 'drapeau', 'libelle']];
+    /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
+    private const CLES_QUETE_OPTIONNELLES = ['notes'];
+    private const CLES_NOTE = ['repere', 'quand', 'alors'];
+    private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
+    private const CLES_QUAND = ['declencheur', 'cible'];
+    private const CLES_QUAND_OPTIONNELLES = ['si_drapeau'];
+    private const LONGUEUR_REPERE = 40;
+    private const LONGUEUR_DRAPEAU = 40;
     private const CLES_PORTE = ['x', 'y', 'cote', 'type'];
     private const CLES_CASE = ['x', 'y'];
     private const CLES_MOBILIER = ['slug', 'x', 'y', 'rotation'];
@@ -122,14 +138,14 @@ final class ValidationCampagne
     private const CLES_RECOMPENSE = ['or', 'partage'];
 
     /** Clés déjà prévues par `docs/plan-mode-classique.md` §3, pas encore lues : le lot qui les prendra. */
-    private const LOTS_A_VENIR = ['notes' => 'K3', 'regles' => 'K3', 'suite' => 'K4'];
+    private const LOTS_A_VENIR = ['regles' => 'K5', 'suite' => 'K4'];
 
     /**
      * Les conditions de fin qu'une quête peut déclarer : SEULEMENT celles que le moteur sait jouer
      * (`App\Models\Quete::OBJECTIFS_CONSTRUITS`, lu ici — une seule liste). Un type ajouté là sans lecteur serait une
      * règle promise au joueur et jamais tenue.
      */
-    public const TYPES_FIN = ['vaincre'];
+    public const TYPES_FIN = ['vaincre', 'drapeau'];
 
     private const LONGUEUR_LIBELLE_FIN = 300;
 
@@ -355,7 +371,7 @@ final class ValidationCampagne
             if ($quete === null) {
                 continue;
             }
-            $this->cles($quete, $chemin, self::CLES_QUETE);
+            $this->cles($quete, $chemin, self::CLES_QUETE, self::CLES_QUETE_OPTIONNELLES);
 
             $slug = $this->slug($quete, 'slug', $chemin);
             if ($slug !== null) {
@@ -385,8 +401,199 @@ final class ValidationCampagne
             $this->poses($quete, $chemin, 'pieges', 'pieges');
             $this->poses($quete, $chemin, 'terrain', 'terrain');
             $this->recompense($quete, $chemin);
-            $this->fin($quete, $chemin);
+            // Les notes AVANT la fin : une fin « drapeau » n'est gagnable que si une note pose ce drapeau.
+            $drapeauxPoses = $this->notes($quete, $chemin);
+            $this->fin($quete, $chemin, $drapeauxPoses);
         }
+    }
+
+    /**
+     * `notes` (lot K3) : « quand → alors », dans le vocabulaire fermé de `App\Engine\MotsClesQuete` — la SEULE liste,
+     * celle que `NotesDeQuete` joue. Rend les noms des drapeaux qu'au moins une note pose.
+     *
+     * @return array<string, true>
+     */
+    private function notes(array $quete, string $chemin): array
+    {
+        $notes = $this->enListeDe($quete, 'notes', $chemin);
+        $poses = [];
+        $lus = []; // drapeau lu par `si_drapeau` → chemin de sa première lecture
+
+        foreach ($notes as $i => $valeur) {
+            $position = self::chemin($chemin, 'notes').".$i";
+            $note = $this->enObjet($valeur, $position);
+            if ($note === null) {
+                continue;
+            }
+            $this->cles($note, $position, self::CLES_NOTE, self::CLES_NOTE_OPTIONNELLES);
+            $this->texte($note, 'repere', $position, nonVide: true, max: self::LONGUEUR_REPERE);
+            if (array_key_exists('une_fois', $note) && !is_bool($note['une_fois'])) {
+                $this->refuser(self::chemin($position, 'une_fois'), self::TYPE_INVALIDE, 'true ou false est attendu');
+            }
+
+            if (array_key_exists('quand', $note) && ($quand = $this->enObjet($note['quand'], "$position.quand")) !== null) {
+                $this->cles($quand, "$position.quand", self::CLES_QUAND, self::CLES_QUAND_OPTIONNELLES);
+                $declencheur = $this->dans($quand, 'declencheur', "$position.quand", array_keys(MotsClesQuete::DECLENCHEURS));
+                if ($declencheur !== null && array_key_exists('cible', $quand)) {
+                    $this->cibleDeNote($quete, $quand['cible'], "$position.quand.cible", (string) $declencheur);
+                }
+                $drapeau = $this->nomDeDrapeau($quand, 'si_drapeau', "$position.quand");
+                if ($drapeau !== null) {
+                    $lus[$drapeau] ??= "$position.quand.si_drapeau";
+                }
+            }
+
+            $alors = $this->enListeDe($note, 'alors', $position);
+            if (array_key_exists('alors', $note) && is_array($note['alors']) && $alors === []) {
+                $this->refuser("$position.alors", self::VALEUR_INVALIDE, 'Une note sans effet ne fait rien : il en faut au moins un.');
+            }
+            foreach ($alors as $j => $effet) {
+                $drapeau = $this->effetDeNote($effet, "$position.alors.$j");
+                if ($drapeau !== null) {
+                    $poses[$drapeau] = true;
+                }
+            }
+        }
+
+        foreach ($lus as $drapeau => $ou) {
+            if (!isset($poses[$drapeau])) {
+                $this->refuser($ou, self::DRAPEAU_JAMAIS_POSE,
+                    "aucune note de cette quête ne pose le drapeau « $drapeau » : cette note ne jouerait jamais");
+            }
+        }
+
+        return $poses;
+    }
+
+    /** La cible d'une note : UNE clé, parmi celles que son déclencheur accepte, et qui désigne quelque chose de posé. */
+    private function cibleDeNote(array $quete, mixed $valeur, string $position, string $declencheur): void
+    {
+        $cible = $this->enObjet($valeur, $position);
+        if ($cible === null) {
+            return;
+        }
+        $permises = MotsClesQuete::DECLENCHEURS[$declencheur]['cibles'];
+        $cles = array_map('strval', array_keys($cible));
+        if (count($cles) !== 1 || !in_array($cles[0], $permises, true)) {
+            $this->refuser($position, self::CIBLE_DE_NOTE_INVALIDE,
+                "« $declencheur » vise exactement une de ces cibles : ".implode(', ', $permises));
+
+            return;
+        }
+
+        switch ($cles[0]) {
+            case 'salle':
+                if (!is_string($cible['salle'])) {
+                    $this->refuser("$position.salle", self::TYPE_INVALIDE, 'un identifiant de salle est attendu');
+                } elseif ($this->ouvertesFiables && !isset($this->ouvertes[$cible['salle']])) {
+                    $this->refuser("$position.salle", self::SALLE_INCONNUE,
+                        "« {$cible['salle']} » n'est pas une salle ouverte de cette quête : rien ne peut s'y produire");
+                }
+                break;
+            case 'case':
+                if (($case = $this->enObjet($cible['case'], "$position.case")) !== null) {
+                    $this->cles($case, "$position.case", self::CLES_CASE);
+                    $this->cellule($case, "$position.case");
+                }
+                break;
+            case 'porte':
+            case 'monstre':
+                $liste = $cles[0] === 'porte' ? 'portes' : 'monstres';
+                $nombre = is_array($quete[$liste] ?? null) ? count($quete[$liste]) : 0;
+                $index = $cible[$cles[0]];
+                if (!is_int($index)) {
+                    $this->refuser("$position.{$cles[0]}", self::TYPE_INVALIDE, "l'index (entier) d'un élément de `$liste` est attendu");
+                } elseif ($index < 0 || $index >= $nombre) {
+                    $this->refuser("$position.{$cles[0]}", self::CIBLE_INCONNUE,
+                        "l'index $index ne désigne rien dans `$liste` : cette quête en pose $nombre");
+                }
+                break;
+        }
+    }
+
+    /** Un effet de note. Rend le nom du drapeau qu'il pose, ou `null`. */
+    private function effetDeNote(mixed $valeur, string $position): ?string
+    {
+        $effet = $this->enObjet($valeur, $position);
+        if ($effet === null) {
+            return null;
+        }
+        if (!array_key_exists('effet', $effet)) {
+            $this->refuser("$position.effet", self::CLE_MANQUANTE, 'clé obligatoire absente : « effet »');
+
+            return null;
+        }
+        $nom = $this->dans($effet, 'effet', $position, array_keys(MotsClesQuete::EFFETS));
+        if ($nom === null) {
+            return null;
+        }
+        $definition = MotsClesQuete::EFFETS[$nom];
+        $this->cles($effet, $position, ['effet', ...$definition['parametres']], $definition['optionnels']);
+
+        switch ($nom) {
+            case MotsClesQuete::TEXTE:
+                $this->texte($effet, 'texte', $position, nonVide: true);
+                break;
+            case MotsClesQuete::OR:
+                $this->entier($effet, 'or', $position, min: 1);
+                break;
+            case MotsClesQuete::OBJET:
+                $this->slugCatalogue($effet, 'slug', $position, 'objets');
+                $this->entier($effet, 'quantite', $position, min: 1);
+                break;
+            case MotsClesQuete::DEGATS:
+                $this->entier($effet, 'body', $position, min: 1);
+                break;
+            case MotsClesQuete::DRAPEAU:
+                return $this->nomDeDrapeau($effet, 'nom', $position);
+            case MotsClesQuete::APPARITION:
+                $monstres = $this->enListeDe($effet, 'monstres', $position);
+                if (array_key_exists('monstres', $effet) && is_array($effet['monstres']) && $monstres === []) {
+                    $this->refuser("$position.monstres", self::VALEUR_INVALIDE, 'Une apparition sans monstre ne fait rien : il en faut au moins un.');
+                }
+                foreach ($monstres as $k => $pose) {
+                    $ici = "$position.monstres.$k";
+                    if (($pose = $this->enObjet($pose, $ici)) === null) {
+                        continue;
+                    }
+                    $this->cles($pose, $ici, self::CLES_POSE);
+                    $this->slugCatalogue($pose, 'slug', $ici, 'monstres');
+                    $case = $this->cellule($pose, $ici);
+                    if ($case !== null && $this->salleFermeeEn($case[0], $case[1])) {
+                        $this->refuser($ici, self::DANS_SALLE_FERMEE, "la case ({$case[0]}, {$case[1]}) est dans une salle fermée : la figure y serait dans la roche");
+                    } elseif ($case !== null) {
+                        // Sur un meuble ou un bloc, la figure ne peut pas paraître LÀ : le moteur la poserait sur la
+                        // case libre la plus proche, ailleurs que là où l'auteur l'a dessinée. On le lui dit.
+                        foreach ($this->occupees["{$case[0]},{$case[1]}"] ?? [] as $occupant) {
+                            if (in_array($occupant['genre'], ['meuble', 'bloc'], true)) {
+                                $this->refuser($ici, self::CASE_PARTAGEE,
+                                    "la case ({$case[0]}, {$case[1]}) est prise par {$occupant['nom']} : une figure ne peut pas y apparaître");
+                                break;
+                            }
+                        }
+                    }
+                }
+                break;
+        }
+
+        return null;
+    }
+
+    /** Le nom d'un drapeau : lettres, chiffres, _ et -. Rend le nom, ou `null` (absent, ou refusé). */
+    private function nomDeDrapeau(array $objet, string $cle, string $chemin): ?string
+    {
+        $valeur = $this->texte($objet, $cle, $chemin);
+        if ($valeur === null) {
+            return null;
+        }
+        if (!preg_match('/\A[A-Za-z0-9_-]{1,'.self::LONGUEUR_DRAPEAU.'}\z/', $valeur)) {
+            $this->refuser(self::chemin($chemin, $cle), self::VALEUR_INVALIDE,
+                '« '.$valeur.' » : lettres, chiffres, _ et - seulement, '.self::LONGUEUR_DRAPEAU.' caractères au plus');
+
+            return null;
+        }
+
+        return $valeur;
     }
 
     /** Pose les salles ouvertes de la quête (`$this->ouvertes`) ; une salle inconnue est refusée en la nommant. */
@@ -765,7 +972,8 @@ final class ValidationCampagne
      * il en faut au moins une, sans doublon. `libelle` est la consigne dite aux joueurs, écrite par l'auteur : le moteur
      * ne nomme jamais lui-même une cible, ce serait révéler une figure que le groupe n'a pas vue.
      */
-    private function fin(array $quete, string $chemin): void
+    /** @param  array<string, true>  $drapeauxPoses  les drapeaux qu'une note de la quête pose ({@see notes()}) */
+    private function fin(array $quete, string $chemin, array $drapeauxPoses = []): void
     {
         if (!array_key_exists('fin', $quete)) {
             return; // déjà refusé par `cles()` : `cle_manquante`
@@ -775,10 +983,22 @@ final class ValidationCampagne
         if ($fin === null) {
             return;
         }
-        $this->cles($fin, $position, self::CLES_FIN);
+        // Les clés dépendent du type : « vaincre » désigne des cibles, « drapeau » un drapeau qu'une note pose.
+        $type = is_string($fin['type'] ?? null) && isset(self::CLES_FIN[$fin['type']]) ? $fin['type'] : 'vaincre';
+        $this->cles($fin, $position, self::CLES_FIN[$type]);
 
         $this->dans($fin, 'type', $position, self::TYPES_FIN);
         $this->texte($fin, 'libelle', $position, nonVide: true, max: self::LONGUEUR_LIBELLE_FIN);
+
+        if ($type === 'drapeau') {
+            $drapeau = $this->nomDeDrapeau($fin, 'drapeau', $position);
+            if ($drapeau !== null && !isset($drapeauxPoses[$drapeau])) {
+                $this->refuser(self::chemin($position, 'drapeau'), self::DRAPEAU_JAMAIS_POSE,
+                    "aucune note de cette quête ne pose le drapeau « $drapeau » : la quête ne pourrait pas se gagner");
+            }
+
+            return;
+        }
 
         $nbMonstres = is_array($quete['monstres'] ?? null) ? count($quete['monstres']) : 0;
         $cibles = $this->enListeDe($fin, 'cibles', $position);
@@ -859,11 +1079,11 @@ final class ValidationCampagne
      * Présence des clés obligatoires (`cle_manquante`) et contrôle des clés inconnues : refusées en les nommant
      * (`cle_inconnue`), ou `cle_pas_encore_prise` pour une clé réservée à un lot ultérieur.
      */
-    private function cles(array $objet, string $chemin, array $attendues): void
+    private function cles(array $objet, string $chemin, array $attendues, array $optionnelles = []): void
     {
         foreach (array_keys($objet) as $cle) {
             $cle = (string) $cle;
-            if (in_array($cle, $attendues, true)) {
+            if (in_array($cle, $attendues, true) || in_array($cle, $optionnelles, true)) {
                 continue;
             }
             if (isset(self::LOTS_A_VENIR[$cle])) {

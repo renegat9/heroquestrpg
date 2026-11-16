@@ -43,6 +43,31 @@ use App\Partie\MoteurPortes;
  */
 final class DeckFouille
 {
+    /**
+     * LE PAQUET DE TRÉSOR du plateau : 24 cartes (livret 2021, boîte F2847 « Contents » ; First Light G0978 p. 4).
+     * RÉPARTITION sourcée le 2026-11-05 par le décompte du paquet First Light de René (`treasures_first_light.txt`,
+     * Drive) ; montants sourcés par ses photos (`reference/16_armurerie.md` §7.4 : gemme 35, or 15, or 25, bijoux 50).
+     * Aucune quantité ne se change sans source.
+     *
+     * UNE seule déclaration : les gabarits du générateur (`GabaritQueteSeeder`) et les quêtes construites du mode
+     * classique ({@see pourQueteConstruite()}) la lisent tous deux. Elle était recopiée quatre fois dans le seeder.
+     *
+     * @var array<string, int> type de carte → nombre d'exemplaires
+     */
+    public const PAQUET_DE_TRESOR = [
+        'gemme' => 2,          // 35 po
+        'or_25' => 2,
+        'or_15' => 2,
+        'bijoux' => 2,         // 50 po
+        'piege_trou' => 2,
+        'piege_fleches' => 2,
+        'potion_soin' => 3,
+        'potion_heroisme' => 1,
+        'potion_force' => 1,
+        'potion_defense' => 1,
+        'errant' => 6,
+    ];
+
     /** La carte repart SOUS le paquet : « Return this card to the bottom of the deck ». */
     public const REMISE_SOUS_LE_PAQUET = 'remise_sous_le_paquet';
 
@@ -231,6 +256,28 @@ final class DeckFouille
      * @param  array<string, mixed>  $carte
      * @return list<int>
      */
+    /**
+     * MODE CLASSIQUE — le paquet d'une quête CONSTRUITE : les 24 cartes du plateau, mélangées, et rien d'autre.
+     * « Sans trésor spécial prévu par le livret de quêtes, on tire une carte du paquet Trésor, mélangé avant chaque
+     * quête » (LR p. 14). Le trésor spécial, lui, est une NOTE de la quête (`NotesDeQuete`), pas une carte.
+     *
+     * Ni coffre à artefact ni salle à coffre : ce sont des inventions du générateur. Ni cartes d'extension : un groupe
+     * classique n'a pas de bestiaire de boîte.
+     *
+     * @return array{deck: list<array<string, mixed>>, salle_artefact: null, artefact_objet_id: null, salles_coffre: list<int>}
+     */
+    public function pourQueteConstruite(): array
+    {
+        $prng = new PrngLineaire(random_int(0, 0x7FFFFFFF));
+
+        return [
+            'deck' => $prng->melanger($this->cartes(['cartes' => self::PAQUET_DE_TRESOR], 0)),
+            'salle_artefact' => null,
+            'artefact_objet_id' => null,
+            'salles_coffre' => [],
+        ];
+    }
+
     private function sallesACoffre(array $carte, ?int $salleArtefact): array
     {
         $aretes = (array) data_get($carte, 'aretes', []);

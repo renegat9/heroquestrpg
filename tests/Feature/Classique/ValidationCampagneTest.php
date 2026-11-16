@@ -43,9 +43,9 @@ function casDeRefus(): array
 
             return classiqueRefus($doc);
         }],
-        'notes : clé d\'un lot ultérieur' => [ValidationCampagne::CLE_PAS_ENCORE_PRISE, function (): array {
+        'regles : clé d\'un lot ultérieur' => [ValidationCampagne::CLE_PAS_ENCORE_PRISE, function (): array {
             $doc = DocumentExemple::campagne();
-            $doc['quetes'][0]['notes'] = [];
+            $doc['quetes'][0]['regles'] = [];
 
             return classiqueRefus($doc);
         }],
@@ -119,6 +119,22 @@ function casDeRefus(): array
         'meuble dont l\'emprise sort de sa salle' => [ValidationCampagne::MOBILIER_HORS_SALLE, function (): array {
             $doc = DocumentExemple::campagne();
             $doc['quetes'][0]['mobilier'][0] = ['slug' => 'table', 'x' => 5, 'y' => 4, 'rotation' => 0]; // x 5–7 : 7 est le mur
+
+            return classiqueRefus($doc);
+        }],
+        'note dont la cible ne convient pas à son déclencheur' => [ValidationCampagne::CIBLE_DE_NOTE_INVALIDE, function (): array {
+            $doc = DocumentExemple::campagne();
+            // Une fouille de trésor vise une SALLE, pas une porte.
+            $doc['quetes'][0]['notes'] = [[
+                'repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['porte' => 0]],
+                'alors' => [['effet' => 'or', 'or' => 10]],
+            ]];
+
+            return classiqueRefus($doc);
+        }],
+        'fin qui attend un drapeau qu\'aucune note ne pose' => [ValidationCampagne::DRAPEAU_JAMAIS_POSE, function (): array {
+            $doc = DocumentExemple::campagne();
+            $doc['quetes'][0]['fin'] = ['type' => 'drapeau', 'drapeau' => 'relique', 'libelle' => 'Trouver la relique.'];
 
             return classiqueRefus($doc);
         }],
@@ -246,15 +262,15 @@ it('ne déclare aucun code en double', function () {
     expect(array_unique(ValidationCampagne::CODES))->toHaveCount(count(ValidationCampagne::CODES));
 });
 
-it('nomme la clé réservée au lot K3 dans le message', function () {
+it('nomme la clé réservée à un lot ultérieur dans le message', function () {
     $doc = DocumentExemple::campagne();
-    $doc['quetes'][0]['notes'] = [];
+    $doc['quetes'][0]['regles'] = [];
 
     $refus = classiqueRefus($doc);
 
     expect($refus)->toHaveCount(1)
-        ->and($refus[0]['chemin'])->toBe('quetes.0.notes')
-        ->and($refus[0]['message'])->toContain('pas encore pris en charge (lot K3)');
+        ->and($refus[0]['chemin'])->toBe('quetes.0.regles')
+        ->and($refus[0]['message'])->toContain('pas encore pris en charge (lot K5)');
 });
 
 it('nomme le chemin exact d\'un slug de catalogue inconnu', function () {

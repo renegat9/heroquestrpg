@@ -6,6 +6,7 @@ namespace App\Partie;
 
 use App\Models\Monstre;
 use App\Models\Quete;
+use App\Partie\Classique\CatalogueConstructeur;
 
 /**
  * LE monstre errant d'une quête — point de passage unique (René, 2026-11-08 : « ajuste aussi les monstres errants
@@ -40,6 +41,15 @@ final class MonstreErrant
 {
     public function deLaQuete(Quete $quete): ?Monstre
     {
+        // QUÊTE CONSTRUITE (mode classique) : le monstre errant est celui que l'AUTEUR désigne — « the wandering
+        // monster (listed in the quest notes) », dit la carte. Rien n'est choisi à sa place : une quête qui n'en
+        // désigne aucun n'en a pas, et sa carte « monstre errant » ne fait rien sortir.
+        if ($quete->estConstruite()) {
+            $slug = $quete->documentConstruit()['monstre_errant'] ?? null;
+
+            return $slug === null ? null : (app(CatalogueConstructeur::class)->index('monstres')[(string) $slug] ?? null);
+        }
+
         $bestiaire = BestiaireGroupe::duGroupe($quete->groupe);
 
         $candidats = Monstre::query()

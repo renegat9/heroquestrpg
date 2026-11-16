@@ -136,11 +136,22 @@ it('EN JEU — le mort-vivant sort au CONTACT ORTHOGONAL du fouilleur, actif et 
         ->and((bool) $cree->revele)->toBeTrue();
 });
 
-it('EN JEU — les quatre voisines orthogonales murées : repli sur la case libre la plus proche, jamais en diagonale seule', function () {
-    // Le héros en (3,4) : (2,4), (4,4), (3,3), (3,5) sont des murs. Seules les DIAGONALES restent libres — la
-    // règle du projet ne les compte pas pour un cercueil : la créature se pose à distance 2, sans contact.
-    $murs = [['x' => 2, 'y' => 4], ['x' => 4, 'y' => 4], ['x' => 3, 'y' => 3], ['x' => 3, 'y' => 5]];
-    $ctx = tombeauScene($murs);
+it('EN JEU — les quatre voisines orthogonales PRISES : repli sur la case libre la plus proche, jamais en diagonale seule', function () {
+    // Le héros en (3,4) : (2,4), (4,4), (3,3), (3,5) sont occupées par des figures. Seules les DIAGONALES restent
+    // libres au contact — la règle du projet ne les compte pas pour un cercueil : la créature se pose à distance 2.
+    //
+    // ⚠ Des FIGURES, et plus des murs (2026-11-15). Le test murait le héros de quatre cases de roche, et la créature
+    // sortait alors… derrière un mur. `CaseLibre` ne pose plus rien de l'autre côté d'un mur : un héros emmuré n'a
+    // aucune case où faire sortir quoi que ce soit (cas ci-dessous). L'intention de ce test — le repli de rayon 2
+    // quand le contact est pris — se joue avec ce qui prend VRAIMENT les cases en partie : des figures.
+    $ctx = tombeauScene();
+    $gobelin = \App\Models\Monstre::where('nom_base', 'Gobelin')->where('tier', 'base')->firstOrFail();
+    foreach ([[2, 4], [4, 4], [3, 3], [3, 5]] as [$x, $y]) {
+        $ctx['quete']->instancesMonstres()->create([
+            'monstre_id' => $gobelin->id, 'pv_body' => 1, 'pv_mind' => 1,
+            'position_x' => $x, 'position_y' => $y, 'etat' => 'actif', 'elite' => false, 'revele' => true,
+        ]);
+    }
 
     $payload = tombeauFouille($ctx, ['issue' => 'monstre', 'monstre' => 'Zombie']);
     $cree = $ctx['quete']->instancesMonstres()->whereKey($payload['monstre']['instance_id'])->firstOrFail();
@@ -152,6 +163,18 @@ it('EN JEU — les quatre voisines orthogonales murées : repli sur la case libr
     expect($payload['issue'])->toBe('monstre')
         ->and($dx + $dy)->toBe(2)
         ->and($dx === $dy)->toBeFalse();
+});
+
+it('EN JEU — un héros EMMURÉ : rien ne sort de l\'autre côté d\'un mur', function () {
+    // (2,4), (4,4), (3,3), (3,5) sont de la ROCHE. Avant le 2026-11-15, la créature naissait en (1,4), derrière le
+    // mur. Une figure ne se pose que là où l'on peut aller depuis le fouilleur sans traverser un mur (`CaseLibre`).
+    $murs = [['x' => 2, 'y' => 4], ['x' => 4, 'y' => 4], ['x' => 3, 'y' => 3], ['x' => 3, 'y' => 5]];
+    $ctx = tombeauScene($murs);
+    $avant = $ctx['quete']->instancesMonstres()->count();
+
+    tombeauFouille($ctx, ['issue' => 'monstre', 'monstre' => 'Zombie']);
+
+    expect($ctx['quete']->instancesMonstres()->count())->toBe($avant);
 });
 
 it('EN JEU — un monstre qui n\'est pas un mort-vivant de BASE ne sort pas : la fouille le dit (monstre_indisponible)', function () {

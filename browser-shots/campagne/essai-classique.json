@@ -44,7 +44,7 @@
       "slug": "la-cave-aux-gobelins",
       "titre": "La cave aux gobelins",
       "ouverture": "L'escalier descend dans une cave humide. Des voix aiguës se disputent derrière la porte de l'est, et quelque chose de plus lourd remue plus bas.",
-      "monstre_errant": "gobelin",
+      "monstre_errant": "orque",
       "salles_ouvertes": [
         "vestibule",
         "salle-des-gardes",
@@ -141,7 +141,72 @@
           3
         ],
         "libelle": "Abattre le fimir qui règne sur le caveau."
-      }
+      },
+      "notes": [
+        {
+          "repere": "A",
+          "quand": {
+            "declencheur": "fouille_tresor",
+            "cible": {
+              "salle": "vestibule"
+            }
+          },
+          "alors": [
+            {
+              "effet": "texte",
+              "texte": "Derrière une tenture mangée aux mites, une niche : quelqu'un y a caché sa solde."
+            },
+            {
+              "effet": "or",
+              "or": 60
+            }
+          ]
+        },
+        {
+          "repere": "B",
+          "quand": {
+            "declencheur": "entree",
+            "cible": {
+              "salle": "salle-des-gardes"
+            }
+          },
+          "alors": [
+            {
+              "effet": "texte",
+              "texte": "Les gobelins lèvent la tête de leurs dés. L'un d'eux siffle entre ses dents : un troisième sort de l'ombre."
+            },
+            {
+              "effet": "apparition",
+              "monstres": [
+                {
+                  "slug": "gobelin",
+                  "x": 11,
+                  "y": 5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "repere": "C",
+          "quand": {
+            "declencheur": "ouverture_porte",
+            "cible": {
+              "porte": 3
+            }
+          },
+          "alors": [
+            {
+              "effet": "texte",
+              "texte": "Le pan de mur pivote. Dans l'embrasure, accrochée à un clou, une dague oubliée."
+            },
+            {
+              "effet": "objet",
+              "slug": "dague"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

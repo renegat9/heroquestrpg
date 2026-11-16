@@ -496,3 +496,41 @@ n'importe quel héros actif, sans confirmation du receveur — on joue autour d'
 atomiques. Il n'existe qu'avec une bourse par héros : au pot commun l'or est déjà à tous, la route répond 422, et
 `groupe.don_or_ouvert` — `Bourses::donOuvert()`, la même garde — dit à la manette de ne pas l'offrir. En pleine quête
 l'or ne circule pas : la séance d'échange y déplace des objets, pas des pièces.
+
+## Quêtes construites : le paquet de trésor, le monstre errant, les notes de quête (mode classique, lot K3, 2026-11-15)
+
+**Le paquet de trésor est celui du plateau.** 24 cartes, mélangées au départ de chaque quête construite
+(`DeckFouille::pourQueteConstruite()`). La répartition vit dans UNE constante, `DeckFouille::PAQUET_DE_TRESOR` — le
+seeder des gabarits la recopiait quatre fois, à l'identique. Ni coffre à artefact ni salle à coffre : ce sont des
+inventions du générateur. Pendant deux jours le paquet d'une quête classique a été vide : « Fouiller — trésor » était
+offert et ne trouvait jamais rien (vu en jeu le 2026-11-15).
+
+**Le monstre errant est celui que l'auteur désigne** (`quete.monstre_errant`, lu par `MonstreErrant::deLaQuete()`,
+qui reste le seul point de passage). Rien n'est choisi à sa place : la carte dit « the wandering monster (listed in the
+quest notes) ». Une quête qui n'en désigne aucun n'en a pas, et sa carte ne fait rien sortir.
+
+**Les notes — `App\Partie\Classique\NotesDeQuete`, lecteur unique.** `ResolveurTour` et `MoteurDegats` ne lisent
+jamais une note : ils SIGNALENT (`signaler()`) une salle fouillée, une case foulée, une porte ouverte, une figure
+tombée. Le vocabulaire est fermé (`App\Engine\MotsClesQuete`) et tenu dans les deux sens par `MotsClesQueteTest` : un
+mot que la validation accepterait sans que rien ne le joue serait une règle promise et jamais tenue.
+
+Arbitrages, écrits :
+
+- **Fouille** : la salle dont une note attend CETTE fouille rend ce que la note dit et ne pioche pas (LR p. 14 : la
+  carte se tire « sans trésor spécial prévu par le livret »). UN point décide lequel des deux s'applique :
+  `ResolveurTour::resoudreFouilleTresor()`, par `NotesDeQuete::attend()`. Une fois le trésor spécial pris, la salle n'en
+  a plus : les fouilles suivantes piochent. Le livret ne tranche pas ce second cas ; l'auteur qui veut que chaque héros
+  trouve le sien écrit `une_fois: false`.
+- **Entrée** : « entrer dans une salle », c'est y arriver depuis une case qui n'en était pas — s'y promener ne rejoue
+  rien. « Passer sur une case » compte même sans s'y arrêter : le trajet d'une marche est signalé case par case. Une
+  action qui déplace autrement (un saut, un sort) ne compte que sa case d'arrivée.
+- **Mort** : seules les figures POSÉES par l'auteur ont un rang (`NotesDeQuete::rangDuMonstre()` : les N premières
+  créées de la quête). Un errant ou une apparition qui tombe ne déclenche rien.
+- **Qui reçoit** : le héros qui déclenche. Une figure tombée sans qu'un héros ne l'achève (un piège) n'a pas de
+  déclencheur : l'or est partagé, l'objet va au premier héros de l'ordre du tour, les dégâts ne touchent personne.
+- **Une note est marquée jouée AVANT ses effets** : un effet qui re-signale ne la fait pas boucler.
+- **Tout est figé et durable** : `quetes.document_construit` (la quête telle qu'elle était au départ — l'auteur peut
+  corriger sa campagne pendant que des héros sont dans le donjon), `quetes.notes_jouees`, `quetes.drapeaux`. Rien en
+  cache.
+- **`CaseLibre`** : la case libre la plus proche (apparition dont la case est prise, errant, mort-vivant du tombeau)
+  n'a plus qu'un calcul.

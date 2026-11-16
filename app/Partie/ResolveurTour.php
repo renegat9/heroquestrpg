@@ -13,6 +13,7 @@ use App\Engine\DureeEffet;
 use App\Engine\JetCompetence;
 use App\Engine\MotsClesEquipement;
 use App\Engine\MotsClesMobilier;
+use App\Engine\MotsClesQuete;
 use App\Engine\MotsClesSort;
 use App\Engine\MotsClesSortDread;
 use App\Engine\MotsClesTalent;
@@ -47,6 +48,7 @@ use App\Models\Quete;
 use App\Models\Sort;
 use App\Models\SortDread;
 use App\Models\Terrain;
+use App\Partie\Classique\NotesDeQuete;
 use App\Partie\Audio\BanqueBarks;
 use App\Partie\Fouille\DeckFouille;
 use App\Partie\Narration\BibliothequeNarration;
@@ -458,6 +460,8 @@ final class ResolveurTour
 
         $etats = $quete->etatsPersonnages()->get();
         $etat = $etats->firstWhere('personnage_id', $personnage->id);
+        // La case du héros AVANT l'action : les notes de quête « entrée » comparent avec celle d'après.
+        $positionAvant = $etat?->position_x === null ? null : ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
 
         if ($etat === null) {
             throw ValidationException::withMessages(['personnage_id' => 'Ce héros ne participe pas à la quête en cours.']);
@@ -595,7 +599,7 @@ final class ResolveurTour
         app(TamponAnnonces::class)->ouvrir();
 
         try {
-        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique, $bonusHeroisme, $perdSecondeFrappe, $enManoeuvre) {
+        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique, $bonusHeroisme, $perdSecondeFrappe, $enManoeuvre, $positionAvant) {
             $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
 
             // Endormi (Sommeil de Dread ou sort héros en tir ami) : le héros
@@ -897,6 +901,10 @@ final class ResolveurTour
             // Entrée dans une salle encore inexplorée (déplacement classique OU
             // Traverser la Pierre) → description de la nouvelle salle par le MJ.
             $this->decouvrirSalle($groupe, $quete, $etat, $personnage);
+
+            // NOTES DE QUÊTE (mode classique, D2) : les cases que cette action a fait fouler, et la salle où elle a
+            // fait entrer. Au même crochet que la découverte de salle — tout ce qui déplace un héros y passe.
+            $this->signalerEntrees($quete, $personnage, $positionAvant, $etat->fresh(), $resultat);
 
             // DREAD SKULL : « As soon as a hero sees a Dread Skull, place it on the board » —
             // ce que l'action vient de MONTRER (une porte ouverte, un sort de vision) paraît ici,
@@ -9258,6 +9266,9 @@ final class ResolveurTour
         $cause = $aMain ? 'main' : 'cle';
         $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], $cause, $acteur);
 
+        // NOTE DE QUÊTE (mode classique, D3) : la porte de `quete.portes` qui vient de s'ouvrir.
+        app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::OUVERTURE_PORTE, ['porte' => (int) $cible['index']], $personnage);
+
         // Comme au plateau : le contenu de la salle (monstres compris) se
         // révèle à l'OUVERTURE de la porte, pas en attendant qu'un héros y
         // mette les pieds (doc 06/14 — cf. decouvrirSalle pour le détail).
@@ -11371,7 +11382,16 @@ final class ResolveurTour
             'salle' => $salle,
         ];
 
-        if ($coffre) {
+        // NOTE DE QUÊTE (mode classique, D1) : la salle dont une note attend CETTE fouille rend ce que la note dit, et
+        // aucune carte n'est tirée (LR p. 14 : la carte se pioche « sans trésor spécial prévu par le livret »). UN seul
+        // point décide lequel des deux s'applique : ici. `NotesDeQuete` annonce chaque effet ; le résultat de la
+        // fouille dit seulement que c'est une note qui a répondu.
+        $cibleNote = ['salle' => $salle];
+
+        if (app(NotesDeQuete::class)->attend($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote)) {
+            $notes = app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote, $personnage);
+            $payload = $entete + ['issue' => 'note', 'notes' => array_column($notes, 'repere')];
+        } elseif ($coffre) {
             $quete->marquerCoffreOuvert($salle);
             $carte = $this->deck->carteCoffre($quete, $salle);
             $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
@@ -12675,34 +12695,44 @@ final class ResolveurTour
      *
      * @return array{x: int, y: int}|null
      */
+    /**
+     * NOTES DE QUÊTE, déclencheur « entrée » (mode classique) : signale chaque case que le héros vient de fouler, et
+     * la salle où il vient d'ENTRER (la case d'avant n'en était pas). Le trajet d'une marche est celui que le
+     * résultat publie (`chemin`) ; toute autre action qui déplace (un saut, un sort) ne compte que sa case d'arrivée.
+     *
+     * @param  array{x: int, y: int}|null  $avant  la case du héros AVANT l'action
+     * @param  array<string, mixed>  $resultat
+     */
+    private function signalerEntrees(Quete $quete, Personnage $personnage, ?array $avant, ?EtatPersonnageQuete $etat, array $resultat): void
+    {
+        if (! $quete->estConstruite() || $avant === null || $etat === null || $etat->position_x === null) {
+            return;
+        }
+
+        $arrivee = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+        $trajet = ($resultat['type'] ?? null) === 'deplacement' && is_array($resultat['chemin'] ?? null) && $resultat['chemin'] !== []
+            ? array_map(fn (array $c) => ['x' => (int) $c['x'], 'y' => (int) $c['y']], $resultat['chemin'])
+            : ($arrivee === $avant ? [] : [$arrivee]);
+
+        $notes = app(NotesDeQuete::class);
+        $precedente = $avant;
+
+        foreach ($trajet as $case) {
+            if ($case !== $precedente) {
+                $salle = $this->salleA($quete, $case['x'], $case['y']);
+                $entre = $salle !== null && $salle !== $this->salleA($quete, $precedente['x'], $precedente['y']);
+
+                $notes->signaler($quete, MotsClesQuete::ENTREE, ['case' => $case, 'salle' => $entre ? $salle : null], $personnage);
+            }
+
+            $precedente = $case;
+        }
+    }
+
     private function caseLibreProche(Quete $quete, int $x, int $y, bool $orthogonal = false): ?array
     {
-        $grille = $this->grille($quete);
-        $voisines = $orthogonal
-            ? [[1, 0], [-1, 0], [0, 1], [0, -1]]
-            : [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
-
-        foreach ($voisines as [$dx, $dy]) {
-            if ($grille->estTraversable($x + $dx, $y + $dy)) {
-                return ['x' => $x + $dx, 'y' => $y + $dy];
-            }
-        }
-
-        // Repli : anneau Manhattan 2 puis 3 (le rayon 1 est déjà couvert ci-dessus).
-        for ($rayon = 2; $rayon <= 3; $rayon++) {
-            for ($dx = -$rayon; $dx <= $rayon; $dx++) {
-                $dy = $rayon - abs($dx);
-                foreach (array_unique([$dy, -$dy]) as $signeY) {
-                    $cx = $x + $dx;
-                    $cy = $y + $signeY;
-                    if ($grille->estTraversable($cx, $cy)) {
-                        return ['x' => $cx, 'y' => $cy];
-                    }
-                }
-            }
-        }
-
-        return null;
+        // Le calcul vit dans `CaseLibre` : les notes de quête du mode classique posent leurs apparitions par lui aussi.
+        return CaseLibre::proche($this->grille($quete), $x, $y, $orthogonal);
     }
 
     /**

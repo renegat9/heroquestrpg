@@ -48,6 +48,11 @@ class Quete extends Model
         // MODE CLASSIQUE (2026-11-14) : par où l'on entre et par où l'on sort — `{entree, sortie}`, chacun
         // `{type: escalier|porte, cases: [{x, y}], porte?: {x, y, cote}}`. Lu par `casesDeSortie()` seulement.
         'acces',
+        // MODE CLASSIQUE (lot K3, 2026-11-15) : le document de la quête construite, FIGÉ au départ ; ses drapeaux ; ses
+        // notes « une fois » déjà tirées. Lus par `documentConstruit()`, `NotesDeQuete` et `MonstreErrant`.
+        'document_construit',
+        'drapeaux',
+        'notes_jouees',
     ];
 
     protected function casts(): array
@@ -76,7 +81,41 @@ class Quete extends Model
             'effets_globaux' => 'array',
             'objectif_construit' => 'array',
             'acces' => 'array',
+            'document_construit' => 'array',
+            'drapeaux' => 'array',
+            'notes_jouees' => 'array',
         ];
+    }
+
+    /** Cette quête vient-elle du CONSTRUCTEUR (mode classique) plutôt que du générateur ? */
+    public function estConstruite(): bool
+    {
+        return $this->document_construit !== null;
+    }
+
+    /** Ce drapeau de quête a-t-il été posé (effet `drapeau` d'une note) ? */
+    public function aDrapeau(string $nom): bool
+    {
+        return ! empty(((array) $this->drapeaux)[$nom]);
+    }
+
+    /** Pose un drapeau de quête — état durable, en colonne. Lu par une autre note, ou par la condition de fin. */
+    public function poserDrapeau(string $nom): void
+    {
+        if ($nom !== '' && ! $this->aDrapeau($nom)) {
+            $this->update(['drapeaux' => [...(array) $this->drapeaux, $nom => true]]);
+        }
+    }
+
+    /**
+     * Le document de la quête construite, tel qu'il était AU DÉPART — jamais relu dans la campagne, que l'auteur peut
+     * corriger pendant la partie. `[]` pour une quête générée.
+     *
+     * @return array<string, mixed>
+     */
+    public function documentConstruit(): array
+    {
+        return (array) ($this->document_construit ?? []);
     }
 
     /**
@@ -398,6 +437,8 @@ class Quete extends Model
                 ->where('objectif', true)
                 ->where('etat', 'actif')
                 ->exists(),
+            // QUÊTE CONSTRUITE, fin « drapeau » (lot K3) : le drapeau désigné par l'auteur a été posé par une note.
+            self::OBJECTIF_DRAPEAU => $this->aDrapeau((string) data_get($this->objectif_construit, 'drapeau', '')),
             default => true,
         };
     }
@@ -664,8 +705,15 @@ class Quete extends Model
     /** L'objectif d'une quête construite « vaincre » : les figures désignées par l'auteur. */
     public const OBJECTIF_VAINCRE_CIBLES = 'vaincre_cibles';
 
+    /**
+     * L'objectif d'une quête construite « drapeau » : un drapeau de quête, posé par une NOTE, est levé. C'est ce qui
+     * dit « trouver l'objet » (la note de fouille pose le drapeau) comme « atteindre ce point » (la note d'entrée le
+     * pose) : une seule condition de fin, écrite par l'auteur.
+     */
+    public const OBJECTIF_DRAPEAU = 'drapeau_pose';
+
     /** Type de `objectif_construit` (le format du constructeur) → objectif lu par le moteur. Vocabulaire fermé. */
-    public const OBJECTIFS_CONSTRUITS = ['vaincre' => self::OBJECTIF_VAINCRE_CIBLES];
+    public const OBJECTIFS_CONSTRUITS = ['vaincre' => self::OBJECTIF_VAINCRE_CIBLES, 'drapeau' => self::OBJECTIF_DRAPEAU];
 
     public function objectif(): ?string
     {
@@ -722,7 +770,7 @@ class Quete extends Model
                 .' et le ramener vivant à l\'escalier.',
             // QUÊTE CONSTRUITE : la consigne est celle que l'AUTEUR a écrite. Le moteur n'en déduit rien — nommer
             // lui-même les cibles révélerait une figure que le groupe n'a pas encore vue.
-            self::OBJECTIF_VAINCRE_CIBLES => ((string) data_get($this->objectif_construit, 'libelle', '')) ?: null,
+            self::OBJECTIF_VAINCRE_CIBLES, self::OBJECTIF_DRAPEAU => ((string) data_get($this->objectif_construit, 'libelle', '')) ?: null,
             default => null,
         };
     }

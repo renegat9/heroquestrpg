@@ -7,6 +7,7 @@ namespace App\Partie\Classique;
 use App\Models\ClasseHeros;
 use App\Models\Mobilier;
 use App\Models\Monstre;
+use App\Models\Objet;
 use App\Models\Piege;
 use App\Models\Terrain;
 use Illuminate\Database\Eloquent\Model;
@@ -30,6 +31,8 @@ final class CatalogueConstructeur
         'pieges' => [Piege::class, 'nom'],
         'terrain' => [Terrain::class, 'nom'],
         'classes' => [ClasseHeros::class, 'nom'],
+        // Ce qu'une note de quête peut DONNER (effet `objet`, lot K3) : lu par `NotesDeQuete::effetObjet()`.
+        'objets' => [Objet::class, 'nom'],
     ];
 
     /** Les couches qu'une quête pose sur la carte (`monstre_errant` lit `monstres`, `prerequis_heros` lit `classes`). */
@@ -103,12 +106,17 @@ final class CatalogueConstructeur
         return [
             'couches' => $couches,
             'classes' => $this->palette('classes'),
+            'objets' => $this->palette('objets'),
             'vocabulaires' => [
                 'rotations' => ValidationCampagne::ROTATIONS,
                 'cotes' => ValidationCampagne::COTES,
                 'types_porte' => ValidationCampagne::TYPES_PORTE,
                 'partages' => ValidationCampagne::PARTAGES,
                 'types_fin' => ValidationCampagne::TYPES_FIN,
+                // Les notes de quête (lot K3) : le vocabulaire fermé que `NotesDeQuete` joue, tel quel — chaque
+                // déclencheur avec les cibles qu'il accepte, chaque effet avec ses paramètres.
+                'declencheurs_de_note' => \App\Engine\MotsClesQuete::DECLENCHEURS,
+                'effets_de_note' => \App\Engine\MotsClesQuete::EFFETS,
                 'types_acces' => ValidationCampagne::TYPES_ACCES,
                 'formats_acceptes' => ValidationCampagne::FORMATS_ACCEPTES,
             ],

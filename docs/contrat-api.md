@@ -5789,9 +5789,10 @@ quete {
 }
 ```
 
-- **Clés réservées à un lot ultérieur** : `notes` (lot K3, message « pas encore pris en charge (lot K3) »), `regles` et
-  `fin` (lot K3), `suite` (lot K4) → code `cle_pas_encore_prise`, jamais `cle_inconnue`. Ces clés ne sont **pas** ignorées :
-  elles sont refusées en le nommant.
+- **`notes`** (facultative, lot K3) : voir « Notes de quête » plus bas.
+- **Clés réservées à un lot ultérieur** : `regles` (lot K5, message « pas encore pris en charge (lot K5) ») et `suite`
+  (lot K4) → code `cle_pas_encore_prise`, jamais `cle_inconnue`. Ces clés ne sont **pas** ignorées : elles sont refusées
+  en le nommant.
 - **Coordonnées** : entiers. Une coordonnée **négative** tombe hors du plateau (`hors_plateau`) ; un non-entier est un
   `type_invalide`.
 - **Pas de refus en cascade** : une clé obligatoire absente (ou un plateau sans liste de salles) fait refuser CETTE clé,
@@ -5868,9 +5869,13 @@ s'ouvre à la main, au contact. Le moteur ne retient pas quels couloirs ont ét�
     mobilier: [{slug, nom}], monstres: [{slug, nom}], pieges: [{slug, nom}], terrain: [{slug, nom}]
   },                                // `monstres` sert aussi à monstre_errant
   classes: [{slug, nom}],           // prerequis_heros
+  objets:  [{slug, nom}],           // ce qu'une note de quête peut donner (effet `objet`)
   vocabulaires: {
     rotations: [0, 90, 180, 270], cotes: ["n","e","s","o"], types_porte: ["normale","secrete"],
-    partages: ["groupe","par_heros"], formats_acceptes: [1]
+    partages: ["groupe","par_heros"], types_fin: ["vaincre","drapeau"], types_acces: ["escalier","porte"],
+    declencheurs_de_note: { <déclencheur>: {cibles: [...], signale_par, libelle} },   // `MotsClesQuete::DECLENCHEURS`
+    effets_de_note: { <effet>: {parametres: [...], optionnels: [...], lecteur, libelle} },   // `MotsClesQuete::EFFETS`
+    formats_acceptes: [1]
   }
 }
 ```
@@ -5897,7 +5902,7 @@ Forme : `{chemin, code, message}`. Le **chemin** est pointé depuis la racine : 
 | Code | Quand |
 |---|---|
 | `cle_inconnue` | Une clé ne figure pas dans le format (nommée dans le message). |
-| `cle_pas_encore_prise` | Une clé réservée à un lot ultérieur (`notes`, `regles`, `fin`, `suite`). |
+| `cle_pas_encore_prise` | Une clé réservée à un lot ultérieur (`regles`, `suite`). |
 | `cle_manquante` | Une clé obligatoire est absente. |
 | `type_invalide` | Un type ne correspond pas (chaîne, entier, liste, objet). |
 | `valeur_invalide` | Une valeur hors de l'ensemble permis : titre vide, dimension < 1, `or` < 0, rotation, côté, type de porte, partage, salle de taille < 1. |
@@ -5921,6 +5926,9 @@ Forme : `{chemin, code, message}`. Le **chemin** est pointé depuis la racine : 
 | `porte_dans_la_roche` | La case voisine sur laquelle donne une porte est de la roche : une salle fermée dans cette quête. |
 | `mobilier_hors_salle` | Lot K2 — l'emprise d'un meuble, rotation comprise, sort de l'intérieur de sa salle ouverte, ou le meuble est posé hors de toute salle. |
 | `case_partagee` | Lot K2 — deux éléments sur une même case (couples listés dans « Géométrie »), ou deux portes sur un même bord de case. |
+| `cible_inconnue` | Une cible de `fin.cibles`, ou la `porte` / le `monstre` visé par une note, ne désigne rien de posé dans la quête. |
+| `cible_de_note_invalide` | Lot K3 — la `cible` d'une note n'a pas exactement une clé, ou pas une de celles que son déclencheur accepte. |
+| `drapeau_jamais_pose` | Lot K3 — un drapeau lu par `quand.si_drapeau` ou par une `fin` de type `drapeau` n'est posé par aucune note de la quête. |
 
 ### Stockage
 
@@ -5964,8 +5972,53 @@ reste sur lui ; de même `POST /groupes/{id}/joueurs` ne verse rien au pot commu
   **prérequis de héros** — une classe de `campagne.prerequis_heros` n'a aucun héros actif dans le groupe
   (« … exige un héros de classe : Barbare. »).
 
+### Notes de quête — `quete.notes` (lot K3, 2026-11-15)
+
+Ce que le plateau appelle les notes du livret : **quand** tel événement se produit, **alors** tels effets s'appliquent.
+Vocabulaire FERMÉ, `App\Engine\MotsClesQuete`, publié tel quel par `GET /constructeur/catalogues` ; lecteur unique,
+`App\Partie\Classique\NotesDeQuete` — les coutures du moteur ne font que lui SIGNALER un événement.
+
+```
+notes: [{
+  repere:  texte non vide (40 car. au plus) — la lettre de la note sur le plan de l'auteur,
+  quand:   { declencheur, cible: { UNE clé }, si_drapeau?: nom },
+  alors:   [ { effet, …paramètres } ],        // au moins un, joués dans l'ordre
+  une_fois?: bool                              // défaut true
+}]
+```
+
+| Déclencheur | `cible` | Signalé quand |
+|---|---|---|
+| `fouille_tresor` | `{salle: id}` | un héros fouille le trésor de la salle |
+| `entree` | `{salle: id}` ou `{case: {x, y}}` | un héros ENTRE dans la salle (la case d'avant n'en était pas), ou passe sur la case — même sans s'y arrêter, le trajet d'une marche compte |
+| `ouverture_porte` | `{porte: index dans quete.portes}` | la porte est ouverte |
+| `mort` | `{monstre: index dans quete.monstres}` | la figure POSÉE par l'auteur tombe (jamais un errant ni une apparition) |
+
+| Effet | Paramètres | Ce qui se passe |
+|---|---|---|
+| `texte` | `texte` | lu à la table (bandeau du maître du jeu) et gardé au journal |
+| `or` | `or` ≥ 1 | à la bourse du héros qui déclenche (`Bourses`) ; sans héros déclencheur, partagé |
+| `objet` | `slug` (catalogue `objets`), `quantite?` ≥ 1 | dans le sac du héros qui déclenche, même plein (butin de quête) |
+| `apparition` | `monstres: [{slug, x, y}]` | figures révélées sur les cases écrites, ou la plus proche si la case est prise |
+| `degats` | `body` ≥ 1 | points de Corps perdus par le héros qui déclenche (`MoteurDegats`) |
+| `drapeau` | `nom` | pose un drapeau de quête (`quetes.drapeaux`), relu par `si_drapeau` ou par la fin |
+
+- **La fouille** : une salle dont une note attend CETTE fouille rend ce que la note dit — `resultat.issue = "note"`,
+  `resultat.notes = [repères]` — et **aucune carte de trésor n'est tirée**. Sans note, la salle pioche dans le paquet
+  de trésor du plateau (24 cartes, `DeckFouille::PAQUET_DE_TRESOR`, mélangé au départ) ; sa carte « monstre errant »
+  fait sortir `quete.monstre_errant`, ou rien si la quête n'en désigne pas.
+- **Une fois** : marquée jouée (`quetes.notes_jouees`) AVANT ses effets ; une note `une_fois: false` tire à chaque fois.
+- **Annonce** : chaque note jouée est un événement `{type: "note_de_quete", repere, declencheur, personnage, effets:
+  [{effet, …}]}` (fil de jeu : une ligne par effet ; le drapeau ne se raconte pas).
+- **Figé au départ** : `quetes.document_construit` garde le document de la quête tel qu'il était à son démarrage ; une
+  campagne corrigée pendant la partie ne change pas les notes des héros déjà dans le donjon.
+
 ### Condition de fin — `quete.fin` (obligatoire)
 
+Deux types. **`drapeau`** (lot K3) : `fin: {type: "drapeau", drapeau: nom, libelle}` — accomplie quand une NOTE a posé
+ce drapeau ; c'est ce qui dit « trouver l'objet » (la note de fouille le pose) comme « atteindre ce point » (la note
+d'entrée le pose). Le drapeau doit être posé par au moins une note de la quête (`drapeau_jamais_pose` sinon).
+`Quete::objectif()` rend alors `drapeau_pose`. **`vaincre`** :
 `fin: {type: "vaincre", cibles: [index…], libelle}`. `cibles` désigne des monstres POSÉS de la quête par leur index
 dans `monstres` (au moins un, sans doublon — sinon `cible_inconnue`) ; `libelle` est la consigne dite aux joueurs,
 écrite par l'auteur. Types offerts : ceux de `App\Models\Quete::OBJECTIFS_CONSTRUITS`, publiés par
