@@ -161,6 +161,8 @@ final class ValidationCampagne
     private const CLES_CASE = ['x', 'y'];
     private const CLES_MOBILIER = ['slug', 'x', 'y', 'rotation'];
     private const CLES_POSE = ['slug', 'x', 'y'];
+    // Lot K5d (R6) : les drapeaux d'un piège de quête, lus par `MoteurPieges::trouvable()` / `desarmable()`.
+    private const CLES_PIEGE_OPTIONNELLES = ['introuvable', 'indesarmable'];
     private const CLES_RECOMPENSE = ['or', 'partage'];
 
     /** Clés déjà prévues par `docs/plan-mode-classique.md` §3, pas encore lues : le lot qui les prendra. */
@@ -831,7 +833,13 @@ final class ValidationCampagne
             if ($pose === null) {
                 continue;
             }
-            $this->cles($pose, $position, $tourne ? self::CLES_MOBILIER : self::CLES_POSE);
+            $this->cles($pose, $position, $tourne ? self::CLES_MOBILIER : self::CLES_POSE,
+                $couche === 'pieges' ? self::CLES_PIEGE_OPTIONNELLES : []);
+            foreach ($couche === 'pieges' ? self::CLES_PIEGE_OPTIONNELLES : [] as $drapeau) {
+                if (array_key_exists($drapeau, $pose) && !is_bool($pose[$drapeau])) {
+                    $this->refuser(self::chemin($position, $drapeau), self::TYPE_INVALIDE, 'true ou false est attendu');
+                }
+            }
 
             $slug = $this->slugCatalogue($pose, 'slug', $position, $couche);
             if ($slug === null) {

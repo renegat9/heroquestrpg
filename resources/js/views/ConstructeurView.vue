@@ -240,7 +240,7 @@ function retirerQuete(i) {
 
 // ---------------------------------------------------------------- quêtes : outils de la carte
 const outil = ref('salle');
-const choix = reactive({ typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
+const choix = reactive({ piegeIntrouvable: false, piegeIndesarmable: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
 watch(catalogues, (c) => {
     if (!c) return;
     choix.mobilier ||= c.couches.mobilier?.[0]?.slug ?? '';
@@ -380,7 +380,15 @@ function clicQuete(evt) {
         case 'terrain': {
             const liste = outil.value === 'piege' ? q.pieges : q.terrain;
             const i = liste.findIndex(ici);
-            if (i >= 0) liste.splice(i, 1); else liste.push({ slug: outil.value === 'piege' ? choix.piege : choix.terrain, x, y });
+            if (i >= 0) liste.splice(i, 1);
+            else if (outil.value === 'piege') {
+                // Lot K5d : les drapeaux du piège, posés seulement quand ils valent true.
+                liste.push({
+                    slug: choix.piege, x, y,
+                    ...(choix.piegeIntrouvable ? { introuvable: true } : {}),
+                    ...(choix.piegeIndesarmable ? { indesarmable: true } : {}),
+                });
+            } else liste.push({ slug: choix.terrain, x, y });
             return;
         }
         case 'cible': {
@@ -698,6 +706,10 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                             <select v-if="outil === 'piege'" v-model="choix.piege" class="cst-input">
                                 <option v-for="m in couches.pieges" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
                             </select>
+                            <template v-if="outil === 'piege'">
+                                <label class="cst-case"><input v-model="choix.piegeIntrouvable" type="checkbox" /> introuvable</label>
+                                <label class="cst-case"><input v-model="choix.piegeIndesarmable" type="checkbox" /> indésarmable</label>
+                            </template>
                             <select v-if="outil === 'terrain'" v-model="choix.terrain" class="cst-input">
                                 <option v-for="m in couches.terrain" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
                             </select>

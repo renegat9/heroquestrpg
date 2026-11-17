@@ -2580,7 +2580,8 @@ final class MenuMoteur
                     // (colonne jusque-là lue seulement par GuideController)
                     // devient ici une vraie garde : jamais d'option sur un
                     // piège qui en vaut `'non'`.
-                    if (($adjacent['piege']?->desarmable ?? 'oui') === 'non') {
+                    // Lot K5d : la décision de `MoteurPieges::desarmable()` (carte OU drapeau de la quête).
+                    if (! $adjacent['desarmable']) {
                         continue;
                     }
 

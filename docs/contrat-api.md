@@ -5795,7 +5795,7 @@ quete {
   blocs:    [{ x, y }],            // cases de COULOIR condamnées
   mobilier: [{ slug, x, y, rotation: 0|90|180|270 }],
   monstres: [{ slug, x, y }],
-  pieges:   [{ slug, x, y }],
+  pieges:   [{ slug, x, y, introuvable?, indesarmable? }],   // drapeaux : lot K5d, voir « Pièges de quête »
   terrain:  [{ slug, x, y }],
   depart:   { x, y },
   recompense: { or: entier ≥ 0, partage: groupe|par_heros } | null   // nullable
@@ -6214,6 +6214,18 @@ groupe (`rang_quete`), le marché du hub ne s'ouvre pas. La quête jouée, la r�
 - Au même endroit, **`groupe.cloture_ouverte`** (bool, tout groupe au hub) : la clôture est-elle offerte
   (`Groupe::etapeOuverte(EtapesCampagne::CLOTURE)`) ? `false` pour un groupe classique : la table ne montre plus
   « Clôturer » (vu à l'écran le 2026-11-16 : le bouton était offert, la route le refusait).
+
+### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
+
+Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le
+catalogue dit déjà de certains pièges (`detectable: false`, `desarmable: "non"`), posé ici par l'auteur sur n'importe
+lequel. `quete.pieges[]` accepte deux drapeaux facultatifs, booléens (`type_invalide` sinon) : **`introuvable`** (aucune
+fouille, aucun objet, aucun sort ne le révèle ; seul le pas qui marche dessus le déclenche) et **`indesarmable`** (une
+fois connu, il se saute mais ne se désamorce pas). `false` revient à les omettre.
+
+- Points de passage : `MoteurPieges::trouvable(entree, piege)` et `MoteurPieges::desarmable(entree, piege)` — le drapeau
+  de la quête OU la carte du catalogue. Lus par la fouille, l'avertissement du Sens du piège, le menu ET le résolveur du
+  désamorçage (qui ne revalidait pas `desarmable: "non"` avant ce lot).
 
 ### Choisir sa campagne au hub (fin du lot S1, 2026-11-16)
 

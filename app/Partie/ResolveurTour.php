@@ -5141,6 +5141,14 @@ final class ResolveurTour
             ]);
         }
 
+        // Le menu n'offre pas ce que le résolveur refuse — et le résolveur le revalide (lot K5d : avant, seul le menu
+        // lisait `desarmable: "non"`).
+        if (! $cible['desarmable']) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Ce piège ne se désamorce pas : il faut le sauter.',
+            ]);
+        }
+
         // LAME BALANÇOIRE (Against the Ogre Horde p. 5) : procédure PROPRE à
         // ce piège, jamais le jet de Body ni le dé « sans outils » ci-dessous.
         // « The dwarf may automatically disarm a swinging blade trap once it

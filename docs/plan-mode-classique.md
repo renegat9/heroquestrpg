@@ -855,6 +855,13 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-16 — lot K5d : pièges introuvables, indésarmables**
+  (R6, partie pièges). `quete.pieges[]` accepte `introuvable` et
+  `indesarmable` (booléens) ; points de passage `MoteurPieges::trouvable()` et
+  `desarmable()` — le drapeau de la quête OU la carte du catalogue. Défaut
+  corrigé au passage : le résolveur du désamorçage ne revalidait pas
+  `desarmable: "non"` (seul le menu le lisait). Reste de R6 : les zones non
+  fouillables. Constructeur : deux cases sur l'outil piège.
 - **Fait le 2026-11-16 — lot K5c : le marché fermé avant une quête** (R8).
   `quete.regles.marche_ferme: true` : tant que cette quête est la prochaine du
   groupe, le marché du hub ne s'ouvre pas. Point de passage

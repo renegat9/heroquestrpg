@@ -1714,7 +1714,9 @@ final class MoteurPieges
                 // Une fosse OUVERTE se saute mais ne se désamorce pas : le menu
                 // et le résolveur lisent cet état pour trier les deux gestes.
                 'etat' => (string) $entree['etat'],
-                'piege' => Piege::find($entree['piege_id']),
+                'piege' => $piege = Piege::find($entree['piege_id']),
+                // Lot K5d : la décision, lue par le menu ET le résolveur (`desarmable()`).
+                'desarmable' => self::desarmable($entree, $piege),
             ];
         }
 
@@ -2094,7 +2096,7 @@ final class MoteurPieges
             // searching » couvre aussi l'avertissement du Sens du piège —
             // sans quoi l'Explorateur apprendrait l'existence d'un piège que
             // la carte dit introuvable par tout autre moyen que le marcher.
-            if ($piege?->detectable === false) {
+            if (! self::trouvable($entree, $piege)) {
                 continue;
             }
 
@@ -2106,6 +2108,29 @@ final class MoteurPieges
         }
 
         return $caches;
+    }
+
+    /**
+     * Ce piège peut-il être TROUVÉ (fouille, objet, sort, Sens du piège) ? Point de passage unique (lot K5d) : la carte
+     * du catalogue (`detectable: false`, Wizards of Morcar) OU le drapeau `introuvable` que l'auteur d'une quête
+     * construite pose sur l'entrée de la carte. Le pas qui marche dessus le déclenche toujours.
+     *
+     * @param  array<string, mixed>  $entree
+     */
+    public static function trouvable(array $entree, ?Piege $piege): bool
+    {
+        return $piege?->detectable !== false && empty($entree['introuvable']);
+    }
+
+    /**
+     * Ce piège CONNU peut-il être désamorcé ? Point de passage unique (lot K5d), lu par le menu ET le résolveur : la
+     * carte du catalogue (`desarmable: "non"`, fosse des ténèbres) OU le drapeau `indesarmable` de la quête.
+     *
+     * @param  array<string, mixed>  $entree
+     */
+    public static function desarmable(array $entree, ?Piege $piege): bool
+    {
+        return ($piege?->desarmable ?? 'oui') !== 'non' && empty($entree['indesarmable']);
     }
 
     /** Index du piège encore ARMÉ (caché ou détecté) posé sur une case (null sinon). */
@@ -2143,7 +2168,7 @@ final class MoteurPieges
             // Potion de Vision partagent ce MÊME révélateur privé). Seul le
             // pas qui marche dessus le déclenche (`controlerChemin()`,
             // via `indexPiegeArme()`, qui ne lit JAMAIS `detectable`).
-            if (Piege::find($entree['piege_id'])?->detectable === false) {
+            if (! self::trouvable($entree, Piege::find($entree['piege_id']))) {
                 continue;
             }
 

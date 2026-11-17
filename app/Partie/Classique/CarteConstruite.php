@@ -237,6 +237,10 @@ final class CarteConstruite
             $pieges[] = [
                 'x' => $x, 'y' => $y, 'piege_id' => (int) $cataloguePieges[$piege['slug']]->id,
                 'etat' => MoteurPieges::ETAT_CACHE,
+                // Lot K5d : les drapeaux de l'auteur, lus par `MoteurPieges::trouvable()` / `desarmable()`. Posés
+                // seulement quand ils valent true — jamais une clé `false` décorative.
+                ...(($piege['introuvable'] ?? false) === true ? ['introuvable' => true] : []),
+                ...(($piege['indesarmable'] ?? false) === true ? ['indesarmable' => true] : []),
             ];
             $occupees["$x,$y"] = true;
         }
