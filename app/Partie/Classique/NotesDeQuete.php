@@ -14,6 +14,8 @@ use App\Partie\Bourses;
 use App\Partie\CaseLibre;
 use App\Partie\FabriqueGrille;
 use App\Partie\MoteurDegats;
+use App\Partie\MoteurPieges;
+use App\Partie\MoteurPortes;
 use App\Partie\RangementObjet;
 use App\Partie\ResolveurTour;
 use App\Partie\TamponAnnonces;
@@ -337,5 +339,33 @@ final class NotesDeQuete
         $index = (int) ($effet['porte'] ?? -1);
 
         return ['porte' => $index, 'ouverte' => app(ResolveurTour::class)->ouvrirPorteParNote($quete, $index)];
+    }
+
+    /**
+     * E6 (lot K5b) — un bloc tombe sur la case écrite, s'il est LIBRE (ni figure, ni meuble, ni bloc, ni embrasure de
+     * porte close : `Grille::estTraversable()`). Décision écrite : sur une case prise, rien ne tombe — un bloc posé
+     * ailleurs que là où l'auteur l'a dessiné pourrait fermer un autre chemin — et l'annonce le dit.
+     */
+    private function effetBloc(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $x = (int) ($effet['x'] ?? -1);
+        $y = (int) ($effet['y'] ?? -1);
+        $carte = $quete->carte;
+        $libre = $carte !== null && FabriqueGrille::pour($quete->fresh())->estTraversable($x, $y);
+
+        if ($libre) {
+            app(MoteurPieges::class)->poserBloc($carte, $x, $y);
+        }
+
+        return ['x' => $x, 'y' => $y, 'tombe' => $libre];
+    }
+
+    /** E5 (lot K5b) — la porte secrète `porte` de `quete.portes` est révélée à tous ; déjà connue : rien. */
+    private function effetRevelerPorte(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $index = (int) ($effet['porte'] ?? -1);
+        $carte = $quete->carte;
+
+        return ['porte' => $index, 'revelee' => $carte !== null && app(MoteurPortes::class)->revelerParNote($carte, $index)];
     }
 }

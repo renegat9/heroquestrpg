@@ -195,3 +195,54 @@ it('EN JEU : la porte de pierre s\'offre à forcer, pas à ouvrir', function () 
     expect($options->where('type', 'ouvrir_porte')->all())->toBe([])
         ->and($options->where('type', 'forcer_porte_pierre')->count())->toBe(1);
 });
+
+/*
+ * LOT K5b — un BLOC qui tombe (E6) et une porte secrète RÉVÉLÉE (E5), par note. Au premier tour du MJ : un bloc en
+ * (8, 7), dans le couloir ; un second sur la case du héros, (6, 3) — prise, rien n'y tombe ; et la porte secrète 2,
+ * en (9, 5) côté sud, se dévoile.
+ */
+it('refuse un bloc dans la roche et une porte à révéler qui n\'est pas secrète', function () {
+    $refus = app(ValidationCampagne::class)->valider(campagneVerrouillee(['type' => 'note'], [
+        ['repere' => 'A', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]],
+            'alors' => [['effet' => 'bloc', 'x' => 15, 'y' => 3], ['effet' => 'reveler_porte', 'porte' => 1]]],
+    ]));
+
+    expect(collect($refus)->map(fn (array $r) => $r['chemin'].' '.$r['code'])->all())
+        ->toContain('quetes.0.notes.0.alors.0 '.ValidationCampagne::DANS_SALLE_FERMEE)
+        ->toContain('quetes.0.notes.0.alors.1.porte '.ValidationCampagne::VALEUR_INVALIDE);
+});
+
+it('EN JEU : un bloc tombe sur la case libre et ferme le passage, pas sur la case prise ; la porte secrète se dévoile', function () {
+    $campagne = DocumentExemple::campagne();
+    $campagne['quetes'][0]['notes'] = [
+        ['repere' => 'A', 'quand' => ['declencheur' => MotsClesQuete::TOUR_DU_MJ, 'cible' => ['tour' => 1]], 'alors' => [
+            ['effet' => MotsClesQuete::BLOC, 'x' => 8, 'y' => 7],
+            ['effet' => MotsClesQuete::BLOC, 'x' => 6, 'y' => 3],
+            ['effet' => MotsClesQuete::REVELER_PORTE, 'porte' => 2],
+        ]],
+    ];
+    expect(app(ValidationCampagne::class)->valider($campagne))->toBe([]);
+    ['groupe' => $groupe, 'quete' => $quete, 'heros' => $heros] = partieVerrouillee($this, $campagne);
+    expect(data_get($quete->carte->grille, 'portes.2.etat'))->toBe(MoteurPortes::ETAT_SECRETE);
+
+    optionsPorteVerrouillee($this, $groupe, $heros);
+    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'attendre'])->assertAccepted();
+
+    $quete->refresh();
+    $grilleMoteur = \App\Partie\FabriqueGrille::pour($quete);
+    expect($grilleMoteur->estTraversable(8, 7))->toBeFalse()
+        ->and(collect($quete->carte->grille['pieges'])->where('etat', \App\Partie\MoteurPieges::ETAT_BLOC)->map(fn ($p) => [$p['x'], $p['y']])->values()->all())->toBe([[8, 7]])
+        ->and(data_get($quete->carte->grille, 'portes.2.etat'))->toBe(MoteurPortes::ETAT_FERMEE)
+        ->and(data_get($quete->carte->grille, 'portes.2.revele'))->toBeTrue();
+
+    $note = \App\Models\Evenement::where('groupe_id', $groupe->id)->get()->first(fn ($e) => ($e->payload['type'] ?? null) === 'note_de_quete');
+    expect(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($note->payload, 'Le maître du jeu'))->pluck('texte')->all())->toBe([
+        'Un bloc de pierre s\'abat et ferme le passage',
+        'Le plafond gronde, mais aucun bloc ne tombe : la case est occupée',
+        'Une porte secrète se dévoile',
+    ]);
+
+    // Publié : le bloc reste sur la carte, à jamais (la table et la manette le dessinent).
+    $pieges = $this->getJson("/api/groupes/{$groupe->identifiant}/etat")->assertOk()->json('carte.pieges');
+    expect(collect($pieges)->contains(fn ($p) => $p['x'] === 8 && $p['y'] === 7))->toBeTrue();
+});

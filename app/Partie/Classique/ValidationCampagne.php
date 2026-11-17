@@ -582,6 +582,19 @@ final class ValidationCampagne
             case MotsClesQuete::OUVRIR_PORTE:
                 $this->indexDe($quete, 'portes', $effet['porte'] ?? null, "$position.porte");
                 break;
+            case MotsClesQuete::REVELER_PORTE:
+                $index = $effet['porte'] ?? null;
+                $this->indexDe($quete, 'portes', $index, "$position.porte");
+                if (is_int($index) && is_array($quete['portes'][$index] ?? null) && ($quete['portes'][$index]['type'] ?? null) !== 'secrete') {
+                    $this->refuser("$position.porte", self::VALEUR_INVALIDE, "la porte $index n'est pas secrète : il n'y a rien à révéler");
+                }
+                break;
+            case MotsClesQuete::BLOC:
+                $case = $this->cellule($effet, $position);
+                if ($case !== null && $this->salleFermeeEn($case[0], $case[1])) {
+                    $this->refuser($position, self::DANS_SALLE_FERMEE, "la case ({$case[0]}, {$case[1]}) est dans une salle fermée : c'est déjà de la roche");
+                }
+                break;
             case MotsClesQuete::APPARITION:
                 $monstres = $this->enListeDe($effet, 'monstres', $position);
                 if (array_key_exists('monstres', $effet) && is_array($effet['monstres']) && $monstres === []) {

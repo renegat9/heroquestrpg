@@ -490,7 +490,7 @@ function changerUneFois(note, valeur) {
 function effetParDefaut(nom) {
     const effet = { effet: nom };
     for (const p of effetsNote.value[nom]?.parametres ?? []) {
-        effet[p] = { texte: '', or: 10, body: 1, slug: catalogues.value?.objets?.[0]?.slug ?? '', nom: 'drapeau', monstres: [], porte: 0 }[p] ?? '';
+        effet[p] = { texte: '', or: 10, body: 1, slug: catalogues.value?.objets?.[0]?.slug ?? '', nom: 'drapeau', monstres: [], porte: 0, x: 0, y: 0 }[p] ?? '';
     }
     return effet;
 }
@@ -852,6 +852,13 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         <select v-else-if="p === 'slug'" v-model="effet.slug" class="cst-input">
                                             <option v-for="o in catalogues.objets" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
                                         </select>
+                                        <!-- Lot K5b : la case d'un bloc qui tombe — x et y ensemble, choisis aussi sur la carte. -->
+                                        <template v-else-if="p === 'x'">
+                                            <input v-model.number="effet.x" type="number" class="cst-input cst-num" title="x" />
+                                            <input v-model.number="effet.y" type="number" class="cst-input cst-num" title="y" />
+                                            <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(effet, `le bloc de la note ${note.repere}`)"><MSym n="pin_drop" :size="16" /></button>
+                                        </template>
+                                        <template v-else-if="p === 'y'" />
                                         <select v-else-if="p === 'porte'" v-model.number="effet.porte" class="cst-input">
                                             <option v-for="(d, k) in quete.portes" :key="k" :value="k">{{ libellePorte(d, k) }}</option>
                                         </select>

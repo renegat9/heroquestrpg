@@ -855,6 +855,16 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-16 — lot K5b : le bloc qui tombe et la porte secrète
+  révélée** (E6, E5 en partie). Effets de note `bloc {x, y}` — le même
+  obstacle permanent qu'une Chute de blocs déclenchée
+  (`MoteurPieges::poserBloc()`, `ETAT_BLOC`) — et `reveler_porte {porte}`
+  (`MoteurPortes::revelerParNote()`, une porte secrète devient close).
+  Décision écrite : un bloc ne tombe que sur une case LIBRE ; sur une case
+  prise, rien ne tombe et l'annonce le dit (un bloc posé ailleurs fermerait un
+  autre chemin). La « porte factice » d'E6 n'a pas de mot à elle : une porte au
+  verrou `note` qu'aucune note n'ouvre. Reste d'E5 : poser une tuile, un
+  meuble.
 - **Fait le 2026-11-16 — lot K5a : portes verrouillées et tour du MJ** (§2 —
   E6 en partie, D5). `portes[].verrou` offre à l'auteur les verrous que le
   moteur jouait déjà sur une carte générée : `cle` (un objet du catalogue),

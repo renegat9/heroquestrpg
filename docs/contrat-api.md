@@ -6020,6 +6020,8 @@ notes: [{
 | `degats` | `body` ≥ 1 | points de Corps perdus par le héros qui déclenche (`MoteurDegats`) |
 | `drapeau` | `nom` | pose un drapeau de quête (`quetes.drapeaux`), relu par `si_drapeau` ou par la fin |
 | `ouvrir_porte` | `porte` (index dans `quete.portes`) | la porte s'ouvre, quel que soit son verrou, et les salles qu'elle borde se révèlent comme à une ouverture à la main ; déjà ouverte, rien (lot K5a) |
+| `bloc` | `x`, `y` | un bloc de pierre tombe sur la case : elle bloque le passage et la vue jusqu'à la fin de la quête (le même obstacle que la chute de blocs). Ne tombe que sur une case LIBRE — une figure, un meuble ou un bloc déjà là : rien ne tombe, et l'annonce le dit (lot K5b) |
+| `reveler_porte` | `porte` (index dans `quete.portes`) | la porte SECRÈTE est révélée à tous : elle devient une porte close ordinaire. Une porte déjà connue : rien (lot K5b) |
 
 - **La fouille** : une salle dont une note attend CETTE fouille rend ce que la note dit — `resultat.issue = "note"`,
   `resultat.notes = [repères]` — et **aucune carte de trésor n'est tirée**. Sans note, la salle pioche dans le paquet

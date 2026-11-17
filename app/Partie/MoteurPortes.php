@@ -600,6 +600,22 @@ final class MoteurPortes
     }
 
     /**
+     * RÉVÈLE une porte secrète sans fouille (effet de note `reveler_porte`, mode classique, lot K5b) : elle devient une
+     * porte close ordinaire, comme une porte trouvée en fouillant. Rend `false` si ce n'est pas une porte secrète
+     * encore cachée.
+     */
+    public function revelerParNote(Carte $carte, int $index): bool
+    {
+        $porte = $this->portes($carte)[$index] ?? null;
+        if ($porte === null || ($porte['etat'] ?? null) !== self::ETAT_SECRETE || ($porte['revele'] ?? false)) {
+            return false;
+        }
+        $this->changer($carte, $index, ['revele' => true, 'etat' => self::ETAT_FERMEE]);
+
+        return true;
+    }
+
+    /**
      * Ouvre la porte fermée d'index donné (verrou satisfait) — état persistant.
      * Journalise l'ouverture.
      *

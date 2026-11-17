@@ -1731,6 +1731,22 @@ final class MoteurPieges
      * Change l'état d'un piège — et, pour une FOSSE LONGUE (deux cases liées par `groupe_id`), de TOUTES ses cases : une
      * fosse ouverte l'est d'un bloc, jamais à moitié (`MoteurFosseLongue::groupeDe()`, le même lien que le terrain).
      */
+    /**
+     * UN BLOC TOMBE (effet de note `bloc`, mode classique, lot K5b) : la case devient le même obstacle permanent qu'une
+     * Chute de blocs déclenchée (`ETAT_BLOC`, lu par `FabriqueGrille::pour()`, dessiné par la carte), sans piège à
+     * détecter — l'entrée est posée DÉJÀ dans cet état. L'appelant a vérifié que la case est libre.
+     */
+    public function poserBloc(Carte $carte, int $x, int $y): void
+    {
+        $grille = $carte->grille;
+        $grille['pieges'][] = [
+            'x' => $x, 'y' => $y,
+            'piege_id' => (int) Piege::query()->where('effet->bloc_permanent', true)->value('id') ?: null,
+            'etat' => self::ETAT_BLOC,
+        ];
+        $carte->update(['grille' => $grille]);
+    }
+
     public function changerEtat(Carte $carte, int $index, string $etat): void
     {
         $grille = $carte->grille;

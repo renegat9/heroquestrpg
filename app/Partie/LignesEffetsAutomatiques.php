@@ -891,6 +891,17 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => ($effet['nom'] ?? $heros).' perd '.(int) $effet['degats'].' point(s) de Corps', 'ton' => 'degats'];
                     }
                     break;
+                case 'bloc':
+                    // Lot K5b : une case prise ne reçoit rien — l'annonce le dit plutôt que de se taire.
+                    $lignes[] = ! empty($effet['tombe'])
+                        ? ['texte' => 'Un bloc de pierre s\'abat et ferme le passage', 'ton' => 'subit']
+                        : ['texte' => 'Le plafond gronde, mais aucun bloc ne tombe : la case est occupée', 'ton' => 'info'];
+                    break;
+                case 'reveler_porte':
+                    if (! empty($effet['revelee'])) {
+                        $lignes[] = ['texte' => 'Une porte secrète se dévoile', 'ton' => 'info'];
+                    }
+                    break;
                 case 'ouvrir_porte':
                     // Lot K5a : une porte déjà ouverte ne se raconte pas.
                     if (! empty($effet['ouverte'])) {
