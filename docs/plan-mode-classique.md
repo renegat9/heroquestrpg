@@ -855,6 +855,16 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-17 — le déplacement classique à deux dés** (décision Q1,
+  jamais codée jusque-là). `Groupe::socleDeDeplacement()` : RPG `{base de
+  classe, 1 dé}`, classique `{0, 2 dés}` — lu par les trois calculs du jet
+  (jet du tour, relance de *Vision du futur*, repli du résolveur). « Un seul dé
+  rouge » (plate, choc) barre en classique UN des deux dés, le dernier (lancé,
+  rayé : le joueur voit ce qu'il aurait eu) ; les Bottes elfiques en ajoutent
+  un ; Évanescence suit la règle du livret (somme ≥ 9). Publié
+  `des_annules` (table et manette barrent ceux-là seulement) ; la phrase ne
+  nomme pas une base nulle. Tests `DeplacementTest` (moteur),
+  `DeplacementClassiqueTest`.
 - **Décisions de René du 2026-11-17 sur les restes de K5** (réponses à la liste
   « ce qui reste ») :
   1. **R4, l'équipement confisqué** : oui. Source lue : *Rise of the Dread Moon*

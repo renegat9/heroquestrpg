@@ -66,11 +66,16 @@ final class Deplacement
      * une valeur fixe, `$deAnnule` décide seul si cette valeur (fixe ou
      * lancée) compte dans `$total`.
      */
+    /**
+     * @param  int  $desDeBase  dés lancés sans bonus : 1 en mode RPG (base de classe + 1d6), 2 en mode CLASSIQUE (deux dés
+     *                          rouges, sans base — décision Q1, `Groupe::socleDeDeplacement()`).
+     */
     public function calculer(
         int $base,
         bool $deAnnule = false,
         int $desSupplementaires = 0,
         bool $sansMenace = false,
+        int $desDeBase = 1,
     ): ResultatDeplacement {
         if ($base < 0) {
             throw new \InvalidArgumentException("Base de déplacement invalide : {$base}.");
@@ -78,17 +83,32 @@ final class Deplacement
 
         $des = [];
 
-        for ($i = 0; $i <= max(0, $desSupplementaires); $i++) {
+        for ($i = 0, $n = max(1, $desDeBase) + max(0, $desSupplementaires); $i < $n; $i++) {
             $des[] = $sansMenace ? self::VALEUR_SANS_MENACE : $this->des->d6();
         }
+
+        // « Un seul dé rouge » : RPG (un dé de base) — le dé ne compte pas, ni ceux des bottes, le héros avance de sa
+        // base (René, 2026-09-24, inchangé) ; CLASSIQUE (deux dés de base) — UN dé de moins, le dernier lancé est barré.
+        $desAnnules = array_fill(0, count($des), false);
+        if ($deAnnule) {
+            if ($desDeBase <= 1) {
+                $desAnnules = array_fill(0, count($des), true);
+            } else {
+                $desAnnules[count($des) - 1] = true;
+            }
+        }
+        $comptes = array_sum(array_map(fn (int $d, bool $barre) => $barre ? 0 : $d, $des, $desAnnules));
 
         return new ResultatDeplacement(
             base: $base,
             de: $des[0],
-            total: $deAnnule ? max(1, $base) : max(1, $base + array_sum($des)),
+            total: max(1, $base + $comptes),
             deAnnule: $deAnnule,
             des: $des,
             sansMenace: $sansMenace,
+            // Publié en mode CLASSIQUE seulement (deux dés de base) : le mode RPG garde sa forme d'avant, où `de_annule`
+            // barre tout (René, 2026-11-17 : la branche du classique ne change rien au RPG ni à l'arène).
+            desAnnules: $deAnnule && $desDeBase > 1 ? $desAnnules : [],
         );
     }
 }

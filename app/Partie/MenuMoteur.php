@@ -49,6 +49,9 @@ final class MenuMoteur
      */
     private const RUPTURE_EVANESCENCE = 5;
 
+    /** Mode classique : deux dés rouges, la règle du livret — « 9, 10, 11, or 12 » rompt l'Évanescence. */
+    private const RUPTURE_EVANESCENCE_CLASSIQUE = 9;
+
     public function __construct(
         private readonly MoteurPieges $pieges,
         private readonly MoteurPortes $portes,
@@ -889,6 +892,10 @@ final class MenuMoteur
         // reste la garde d'unicité : un menu recalculé pendant le tour ne
         // relance rien et n'annonce rien deux fois.
         $groupe = $etat->quete?->groupe;
+        // LE SOCLE (décision Q1 du mode classique, 2026-11-17) : RPG, base de classe + 1 d6 ; CLASSIQUE, deux dés rouges sans
+        // base. `Groupe::socleDeDeplacement()`, le point de passage des trois calculs du jet.
+        $socle = $groupe?->socleDeDeplacement($personnage) ?? ['base' => $base, 'des' => 1];
+        $base = $socle['base'];
 
         if ($etat->deplacement_tour === null && ! $etat->tombe && ! $etat->a_joue
             && $groupe !== null && $this->ordreDuTour->estSonTour($groupe, (int) $personnage->id)) {
@@ -967,6 +974,7 @@ final class MenuMoteur
                     $deAnnule,
                     (int) (($bottes?->objet?->effet ?? [])[MotsClesEquipement::DE_DEPLACEMENT_SUPPLEMENTAIRE] ?? 0),
                     $sansMenace,
+                    $socle['des'],
                 );
 
             // Détail RÉEL du jet, persisté au lancer — une colonne, jamais un
@@ -983,6 +991,7 @@ final class MenuMoteur
                     'des' => $jet->des,
                     'de_annule' => $jet->deAnnule,
                     'de_annule_par' => $jet->deAnnule ? $deAnnulePar : null,
+                    ...($jet->desAnnules !== [] ? ['des_annules' => $jet->desAnnules] : []), // classique seulement
                     'sans_menace' => $jet->sansMenace,
                 ],
             ]);
@@ -1003,6 +1012,7 @@ final class MenuMoteur
                     'de_annule_par' => $deAnnulePar,
                     'des_supplementaires' => (int) (($bottes?->objet?->effet ?? [])[MotsClesEquipement::DE_DEPLACEMENT_SUPPLEMENTAIRE] ?? 0),
                     'sans_menace' => $sansMenace,
+                    'des_de_base' => $socle['des'],
                 ],
             );
 
@@ -1038,6 +1048,9 @@ final class MenuMoteur
             'des' => array_values((array) $detail['des']),
             'de_annule' => (bool) $detail['de_annule'],
             'de_annule_par' => $detail['de_annule_par'] ?? null,
+            // Lesquels sont barrés (2026-11-17, mode classique : un des deux dés) — la manette barre ceux-là seulement.
+            // Absente en mode RPG : son payload ne change pas (René, 2026-11-17).
+            ...(($detail['des_annules'] ?? []) !== [] ? ['des_annules' => array_values((array) $detail['des_annules'])] : []),
             'total' => $total,
             'sans_menace' => (bool) ($detail['sans_menace'] ?? false),
         ];
@@ -1105,6 +1118,7 @@ final class MenuMoteur
                     'bonus_equipement' => $bonusEquipement,
                     'de_annule' => $jet->deAnnule,
                     'de_annule_par' => $jet->deAnnule ? $deAnnulePar : null,
+                    ...($jet->desAnnules !== [] ? ['des_annules' => $jet->desAnnules] : []), // classique seulement
                     // UNTHREATENED MOVEMENT (FL-Q p. 7) : DÉCISION publiée par
                     // le serveur, jamais recalculée par la table.
                     'sans_menace' => $jet->sansMenace,
@@ -1146,8 +1160,12 @@ final class MenuMoteur
         // ⚠ C'est bien le JET DU TOUR qui décide, pas le déplacement
         // effectif : le sort tient ou tombe avant que le héros n'ait fait
         // un pas.
-        if ($jet->de >= self::RUPTURE_EVANESCENCE) {
-            $this->sorts->rompreEvanescence($personnage, $jet->de);
+        // MODE CLASSIQUE (2026-11-17) : deux dés rouges comme au plateau, donc la règle du livret telle quelle — « 8 or
+        // lower » le sort tient, 9 à 12 il tombe. La somme des dés LANCÉS (un dé barré par l'armure a été lancé).
+        $classique = (bool) $etat->quete?->groupe?->estClassique();
+        $valeur = $classique ? array_sum($jet->des) : $jet->de;
+        if ($valeur >= ($classique ? self::RUPTURE_EVANESCENCE_CLASSIQUE : self::RUPTURE_EVANESCENCE)) {
+            $this->sorts->rompreEvanescence($personnage, $valeur);
         }
     }
 
@@ -1166,6 +1184,7 @@ final class MenuMoteur
             (bool) $params['de_annule'],
             (int) $params['des_supplementaires'],
             (bool) $params['sans_menace'],
+            (int) ($params['des_de_base'] ?? 1),
         );
 
         $etat->update([
@@ -1175,6 +1194,7 @@ final class MenuMoteur
                 'des' => $jet->des,
                 'de_annule' => $jet->deAnnule,
                 'de_annule_par' => $jet->deAnnule ? ($params['de_annule_par'] ?? null) : null,
+                ...($jet->desAnnules !== [] ? ['des_annules' => $jet->desAnnules] : []), // classique seulement
                 'sans_menace' => $jet->sansMenace,
             ],
         ]);

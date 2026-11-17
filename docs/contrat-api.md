@@ -6166,6 +6166,24 @@ au début de la quête.
   que les héros qui ont une case. Il reste dans la quête : ordre du tour, fin de quête (« plus personne dans le
   donjon »), défaite (tous tombés) le comptent.
 
+### Le déplacement du mode classique : deux dés rouges, sans base (décision Q1, codée le 2026-11-17)
+
+`docs/plan-mode-classique.md` Q1 : en classique, nos écarts sont retirés — le héros lance **DEUX dés rouges**, sans la
+base de sa classe (le mode RPG garde « base + 1d6 », écart voulu de René). Décidé en novembre, jamais codé : relevé par
+René le 2026-11-17 (« ne confonds pas le mode RPG et le mode classique »).
+
+- **Point de passage** : `Groupe::socleDeDeplacement(Personnage)` → `{base, des}` — RPG `{base de classe, 1}`, classique
+  `{0, 2}`. Lu par les TROIS calculs du jet (le jet du tour, la relance de *Vision du futur*, le repli du résolveur).
+- **« Un seul dé rouge »** (armure de plates, état de choc) : au plateau, il RETIRE un des deux dés. En classique, les
+  deux dés sont lancés et le DERNIER est barré (le joueur voit ce qu'il aurait eu, comme en RPG) ; en RPG, inchangé, le
+  seul dé est barré. Les **Bottes elfiques** ajoutent un dé dans les deux modes. *Unthreatened Movement* : chaque dé
+  compte 4, dans les deux modes.
+- **`deplacement.des_annules`** (scène `.table.scene` et `detail_deplacement_tour`) : `[bool]`, de la longueur de `des` —
+  quels dés sont barrés. La table barre ceux-là, et seulement eux ; `de_annule` reste vrai dès qu'un dé est barré.
+  `base` vaut 0 en classique et la phrase `calcul` ne la nomme pas (« dés 3 + 5 = 8 cases »).
+- **Évanescence** : au plateau, « 8 or lower on the red movement dice » le sort tient, 9 à 12 il tombe. En classique,
+  la somme des dés lancés décide (≥ 9) ; en RPG, inchangé (un d6, rupture à 5+, décision de René du 2026-08-12).
+
 ### Mode de mort : Story ou Heroic (lot H1, 2026-11-16)
 
 Plan classique Q2 et Q7. Sources : *Jungles of Delthrak* (F9907 p. 8-9) ; livret de règles de *First Light* (G0978,
@@ -6236,9 +6254,11 @@ groupe (`rang_quete`), le marché du hub ne s'ouvre pas. La quête jouée, la r�
 
 - Point de passage unique : `PhaseMarche::motifFermeture(Groupe)` — lu par `POST /groupes/{id}/marche` (**422**
   `groupe` avec le motif) et publié au hub : **`groupe.marche_ouvert`** (bool) et **`groupe.marche_motif`** (texte ou
-  `null`), pour tout groupe au hub. La table masque « Ouvrir le marché » et affiche le motif à sa place.
+  `null`), pour un groupe CLASSIQUE au hub — absentes pour un groupe RPG ou d'arène, dont le payload ne change pas
+  (René, 2026-11-17 : la branche du mode classique ne touche ni le RPG ni l'arène). La table masque « Ouvrir le marché »
+  et affiche le motif à sa place.
 - Motif : « Le marché est fermé avant « {titre de la quête} ». »
-- Au même endroit, **`groupe.cloture_ouverte`** (bool, tout groupe au hub) : la clôture est-elle offerte
+- Au même endroit, **`groupe.cloture_ouverte`** (bool, groupe CLASSIQUE au hub seulement) : la clôture est-elle offerte
   (`Groupe::etapeOuverte(EtapesCampagne::CLOTURE)`) ? `false` pour un groupe classique : la table ne montre plus
   « Clôturer » (vu à l'écran le 2026-11-16 : le bouton était offert, la route le refusait).
 

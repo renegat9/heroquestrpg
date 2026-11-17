@@ -34,5 +34,12 @@ final readonly class ResultatDeplacement
         /** @var list<int> */
         public array $des = [],
         public bool $sansMenace = false,
+        /**
+         * Quels dés de `des` sont BARRÉS (« un seul dé rouge ») — même longueur que `des`. Mode classique (2026-11-17) :
+         * deux dés lancés, le dernier barré ; mode RPG : tous barrés quand `deAnnule`. Vide = aucun.
+         *
+         * @var list<bool>
+         */
+        public array $desAnnules = [],
     ) {}
 }

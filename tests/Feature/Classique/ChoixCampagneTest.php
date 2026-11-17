@@ -177,14 +177,20 @@ it('ferme le marché avant la quête qui l\'interdit, le publie au hub, et le ro
         ->toContain('quetes.0.regles.marche_ferme');
 });
 
-it('publie au hub que la clôture est fermée à un groupe classique, et ouverte à une campagne', function () {
+it('publie au hub que la clôture est fermée à un groupe classique, et ne change rien au payload d\'une campagne RPG', function () {
     [$groupe] = naineAuHub($this);
-    expect($this->getJson("/api/groupes/{$groupe->identifiant}/etat")->json('groupe.cloture_ouverte'))->toBeFalse();
+    $classique = $this->getJson("/api/groupes/{$groupe->identifiant}/etat")->json('groupe');
+    expect($classique['cloture_ouverte'])->toBeFalse()
+        ->and($classique)->toHaveKey('marche_ouvert');
 
+    // La branche du mode classique ne touche pas le mode RPG (René, 2026-11-17) : aucune de ces clés n'y est publiée.
     $bruno = connecterJoueur('bruno');
     $campagne = creerGroupe('table-campagne');
     creerHeros($bruno, $campagne, 'Bertrand', 1);
-    expect($this->getJson('/api/groupes/table-campagne/etat')->json('groupe.cloture_ouverte'))->toBeTrue();
+    expect($this->getJson('/api/groupes/table-campagne/etat')->json('groupe'))
+        ->not->toHaveKey('cloture_ouverte')
+        ->not->toHaveKey('marche_ouvert')
+        ->not->toHaveKey('marche_motif');
 });
 
 /*

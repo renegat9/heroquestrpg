@@ -961,7 +961,13 @@ final class Grille
             ? max(abs($x1 - $x2), abs($y1 - $y2)) === 1
             : abs($x1 - $x2) + abs($y1 - $y2) === 1;
 
-        return $geometrique && self::contactLibre(
+        // Carte GÉNÉRÉE (mode RPG) : aucun mur en arête — la géométrie seule, exactement comme avant (2026-11-17). Seule une
+        // carte CONSTRUITE (mode classique) a des murs en arêtes.
+        if (! $geometrique || $this->murs === []) {
+            return $geometrique;
+        }
+
+        return self::contactLibre(
             fn (string $cle): bool => isset($this->murs[$cle]) || (isset($this->portes[$cle]) && $this->portes[$cle] !== 'ouverte'),
             $x1, $y1, $x2, $y2,
         );

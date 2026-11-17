@@ -1132,7 +1132,9 @@ final class ResolveurTour
     {
         $vide = ['chemin' => [], 'cout' => 0, 'pieges' => [], 'traverse_roche' => false, 'enlise_sol' => false, 'bonus_courant' => 0];
 
-        $base = (int) $personnage->deplacement_base + $this->equipement->bonusDeplacementActif($personnage, $quete);
+        // LE SOCLE (Q1 du mode classique, 2026-11-17) : le même que le menu, `Groupe::socleDeDeplacement()`.
+        $socle = $quete->groupe->socleDeDeplacement($personnage);
+        $base = $socle['base'] + $this->equipement->bonusDeplacementActif($personnage, $quete);
         $totalTour = $etat->deplacement_tour ?? $base;
         ['restant' => $restant] = $this->pointsDeplacement($personnage, $etat, $totalTour, consommer: false);
 
@@ -1229,7 +1231,9 @@ final class ResolveurTour
         // Raquettes de Vitesse : symétrique de `deDeplacementAnnule()`, même
         // point de passage que `MenuMoteur::deplacementDuTour()` — sous peine
         // que ce repli recalcule un total que le menu n'a pas annoncé.
-        $base = (int) $personnage->deplacement_base + $this->equipement->bonusDeplacementActif($personnage, $quete);
+        // LE SOCLE (Q1 du mode classique, 2026-11-17) : le même que le menu, `Groupe::socleDeDeplacement()`.
+        $socle = $quete->groupe->socleDeDeplacement($personnage);
+        $base = $socle['base'] + $this->equipement->bonusDeplacementActif($personnage, $quete);
         // UNTHREATENED MOVEMENT (FL-Q p. 7) : même prédicat que le menu
         // (`Quete::monstreActifRevele()`) — ce repli ne doit jamais annoncer
         // un total que `MenuMoteur::deplacementDuTour()` n'aurait pas donné.
@@ -1238,7 +1242,7 @@ final class ResolveurTour
         // repli rendait son d6 à un héros en choc dont le menu n'avait pas
         // mémorisé le jet.
         $totalTour = $etat->deplacement_tour ?? (new Deplacement($this->des))
-            ->calculer($base, $this->equipement->deDeplacementAnnule($personnage) || $personnage->estEnChoc(), sansMenace: ! $quete->monstreActifRevele())
+            ->calculer($base, $this->equipement->deDeplacementAnnule($personnage) || $personnage->estEnChoc(), sansMenace: ! $quete->monstreActifRevele(), desDeBase: $socle['des'])
             ->total;
         // ⚠ Face RÉELLE d'abord (colonne persistée par le menu), jamais
         // reconstituée par soustraction — même défaut, même correctif que
@@ -5165,8 +5169,9 @@ final class ResolveurTour
         }
 
         // Le menu n'offre pas ce que le résolveur refuse — et le résolveur le revalide (lot K5d : avant, seul le menu
-        // lisait `desarmable: "non"`).
-        if (! $cible['desarmable']) {
+        // lisait `desarmable: "non"`). MODE CLASSIQUE SEULEMENT : la branche `mode-classique` ne change rien au mode RPG
+        // ni à l'arène (René, 2026-11-17).
+        if (! $cible['desarmable'] && $groupe->estClassique()) {
             throw ValidationException::withMessages([
                 'option_id' => 'Ce piège ne se désamorce pas : il faut le sauter.',
             ]);
@@ -5784,7 +5789,7 @@ final class ResolveurTour
         // Sauter FAIT PARTIE DU MOUVEMENT (E3) : le saut se paie sur les points
         // de déplacement restants du tour (héros → fosse → réception = 2 cases ;
         // le saut par le bout, deux cases de fosse + la réception = 3).
-        $totalTour = (int) ($etat->deplacement_tour ?? $personnage->deplacement_base);
+        $totalTour = (int) ($etat->deplacement_tour ?? $quete->groupe->socleDeDeplacement($personnage)['base']);
         ['restant' => $restant] = $this->pointsDeplacement($personnage, $etat, $totalTour);
 
         if ($restant < $cout) {
@@ -5980,7 +5985,7 @@ final class ResolveurTour
         array $option,
         array $acteur,
     ): array {
-        $totalTour = (int) ($etat->deplacement_tour ?? $personnage->deplacement_base);
+        $totalTour = (int) ($etat->deplacement_tour ?? $quete->groupe->socleDeDeplacement($personnage)['base']);
         ['restant' => $restant] = $this->pointsDeplacement($personnage, $etat, $totalTour);
 
         $payload = $this->sables()->resoudreSaut($groupe, $quete, $personnage, $etat, $option, $restant, $acteur);
@@ -13494,8 +13499,11 @@ final class ResolveurTour
             // DÉBUT DU TOUR DU MJ (lot K5a, déclencheur de note `tour_du_mj`) : le compteur avance, PUIS les notes qui
             // l'attendent jouent — avant le moindre monstre, pour qu'une figure apparue ou une porte ouverte par la note
             // soit déjà là quand Zargon joue. `quetes.tours_mj` : une colonne, jamais le cache.
-            $quete->increment('tours_mj');
-            app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::TOUR_DU_MJ, ['tour' => (int) $quete->tours_mj]);
+            // Quête CONSTRUITE seulement (mode classique) : une quête RPG ou d'arène n'écrit rien de neuf (René, 2026-11-17).
+            if ($quete->estConstruite()) {
+                $quete->increment('tours_mj');
+                app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::TOUR_DU_MJ, ['tour' => (int) $quete->tours_mj]);
+            }
 
             // GRÉSIL AVEUGLANT (*Blinding Sleet*, Storm Master) : « until the start
             // of Zargon's next turn » — le grésil tombe ICI, avant que le moindre
@@ -16724,7 +16732,7 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Quelqu\'un se tient sur le seuil : la porte d\'entrée est bouchée.']);
         }
 
-        $totalTour = (int) ($etat->deplacement_tour ?? $personnage->deplacement_base);
+        $totalTour = (int) ($etat->deplacement_tour ?? $quete->groupe->socleDeDeplacement($personnage)['base']);
         ['restant' => $restant] = $this->pointsDeplacement($personnage, $etat, $totalTour);
 
         if ($restant < MenuMoteur::COUT_ENTREE_DONJON) {

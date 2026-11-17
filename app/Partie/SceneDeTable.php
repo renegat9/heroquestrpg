@@ -2171,9 +2171,19 @@ final class SceneDeTable
         // serveur, jamais recalculée ici — seulement mise en phrase.
         $sansMenace = (bool) ($d['sans_menace'] ?? false);
 
+        // QUELS dés sont barrés (2026-11-17) : en classique, « un seul dé rouge » barre UN des deux dés ; en RPG, tous.
+        // Décision publiée par `Deplacement::calculer()` ; à défaut (appelant antérieur), `de_annule` les barre tous.
+        $annules = array_values(array_map('boolval', (array) ($d['des_annules'] ?? [])));
+        if (count($annules) !== count($d['des'])) {
+            $annules = array_fill(0, count($d['des']), $deAnnule);
+        }
+        $comptes = array_values(array_filter($d['des'], fn ($de, $i) => ! $annules[$i], ARRAY_FILTER_USE_BOTH));
+        $tousBarres = $comptes === [] && $d['des'] !== [];
+
         // ⚠ Chaque nombre NOMMÉ : « 3 + 5 = 8 » ne disait pas lequel était le
-        // dé (constaté sur la première capture en partie réelle).
-        $termes = ['base '.$d['base']];
+        // dé (constaté sur la première capture en partie réelle). Mode classique : pas de base (deux dés rouges seuls), on ne
+        // la nomme donc pas.
+        $termes = $d['base'] > 0 || $comptes === [] ? ['base '.$d['base']] : [];
 
         if ($d['bonus_equipement'] > 0) {
             $termes[] = $d['bonus_equipement'].' (équipement)';
@@ -2182,18 +2192,18 @@ final class SceneDeTable
         // Le dé ANNULÉ ne rejoint pas la somme — l'Armure de plates fait
         // perdre le d6, elle ne retranche pas un chiffre de son résultat
         // (contrat, 2026-09-24 : « pas de chiffre négatif »).
-        if (! $deAnnule) {
-            $termes[] = (count($d['des']) > 1 ? 'dés ' : 'dé ').implode(' + ', $d['des'])
+        if ($comptes !== []) {
+            $termes[] = (count($comptes) > 1 ? 'dés ' : 'dé ').implode(' + ', $comptes)
                 .($sansMenace ? ' (sans menace : compté 4)' : '');
         }
 
         $calcul = implode(' + ', $termes);
 
         if ($deAnnule) {
-            $calcul .= ' ('.($deAnnulePar ?? 'armure').' : le dé ne compte pas)';
+            $calcul .= ' ('.($deAnnulePar ?? 'armure').($tousBarres ? ' : le dé ne compte pas)' : ' : un dé ne compte pas)');
         }
 
-        $brut = $d['base'] + $d['bonus_equipement'] + ($deAnnule ? 0 : array_sum($d['des']));
+        $brut = $d['base'] + $d['bonus_equipement'] + array_sum($comptes);
 
         // « le total ne descend jamais sous une case » : la phrase ne doit pas
         // laisser croire à un total de 0.
@@ -2218,7 +2228,8 @@ final class SceneDeTable
             // Voyelles seulement : devant un h, l'élision dépend du prénom.
             'titre' => (preg_match('/^[aeiouyàâäéèêëîïôöùûü]/iu', (string) $heros->nom) ? "Au tour d'" : 'Au tour de ').$heros->nom,
             'sous_titre' => match (true) {
-                $sansMenace => 'Sans monstre actif — dé compté 4',
+                // Le pluriel : mode classique seulement (base nulle) — le mode RPG garde son texte d'avant.
+                $sansMenace => count($d['des']) > 1 && $d['base'] === 0 ? 'Sans monstre actif — chaque dé compté 4' : 'Sans monstre actif — dé compté 4',
                 count($d['des']) > 1 => 'Jet de déplacement — '.count($d['des']).' dés',
                 default => 'Jet de déplacement',
             },
@@ -2231,6 +2242,9 @@ final class SceneDeTable
                 // d'ici, jamais recalculés par le composant Vue.
                 'de_annule' => $deAnnule,
                 'de_annule_par' => $deAnnule ? $deAnnulePar : null,
+                // Lesquels barrer (2026-11-17) : la table barre CEUX-LÀ, et seulement eux. Mode CLASSIQUE seulement (le jet
+                // les a publiés) : la scène d'un groupe RPG garde sa forme d'avant.
+                ...(($d['des_annules'] ?? []) !== [] ? ['des_annules' => $annules] : []),
                 // UNTHREATENED MOVEMENT (FL-Q p. 7) : DÉCISION publiée, jamais
                 // recalculée côté client.
                 'sans_menace' => $sansMenace,

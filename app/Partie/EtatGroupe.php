@@ -210,13 +210,16 @@ final class EtatGroupe
 
             // MARCHÉ FERMÉ avant la prochaine quête (lot K5c, R8) : la décision de `PhaseMarche::motifFermeture()`, la
             // même que la route — la table masque « Ouvrir le marché » sur ce booléen.
-            $motifMarche = app(\App\Partie\Marche\PhaseMarche::class)->motifFermeture($groupe);
-            $preambuleGroupe['marche_ouvert'] = $motifMarche === null;
-            $preambuleGroupe['marche_motif'] = $motifMarche;
-
             // CLÔTURE offerte ou non (vu à l'écran le 2026-11-16) : la table proposait « Clôturer » à un groupe classique,
             // à qui `EtapesCampagne::CLASSIQUE` la ferme. La décision du registre des étapes, publiée telle quelle.
-            $preambuleGroupe['cloture_ouverte'] = $groupe->etapeOuverte(\App\Partie\Arene\EtapesCampagne::CLOTURE);
+            // ⚠ Les deux clés ne sont publiées que pour un groupe CLASSIQUE : la branche `mode-classique` ne change rien au
+            // payload d'un groupe RPG ni d'arène (René, 2026-11-17) — sans clé, la table garde son affichage d'avant.
+            if ($groupe->estClassique()) {
+                $motifMarche = app(\App\Partie\Marche\PhaseMarche::class)->motifFermeture($groupe);
+                $preambuleGroupe['marche_ouvert'] = $motifMarche === null;
+                $preambuleGroupe['marche_motif'] = $motifMarche;
+                $preambuleGroupe['cloture_ouverte'] = $groupe->etapeOuverte(\App\Partie\Arene\EtapesCampagne::CLOTURE);
+            }
 
             // MODE CLASSIQUE (fin du lot S1) : la campagne, la quête qui vient, et si le CHOIX de campagne est ouvert —
             // décidé par `ChoixCampagne`, la manette n'affiche « Choisir une campagne » que sur `choix_ouvert`.

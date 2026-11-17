@@ -111,3 +111,40 @@ describe('Deplacement — Unthreatened Movement (FL-Q p. 7, First Light, 2026-09
             ->and($resultat->sansMenace)->toBeFalse();
     });
 });
+
+/*
+ * MODE CLASSIQUE (décision Q1, codée le 2026-11-17) : deux dés rouges, sans base. « Un seul dé rouge » (armure de
+ * plates, choc) en barre UN — le dernier lancé ; les Bottes elfiques en ajoutent un. Le mode RPG est inchangé.
+ */
+it('classique : deux dés sans base, la somme des deux', function () {
+    $jet = (new Deplacement(new LanceurDeterministe([3, 5])))->calculer(0, desDeBase: 2);
+
+    expect($jet->des)->toBe([3, 5])
+        ->and($jet->total)->toBe(8)
+        ->and($jet->desAnnules)->toBe([]);
+});
+
+it('classique : « un seul dé rouge » lance les deux et barre le dernier', function () {
+    $jet = (new Deplacement(new LanceurDeterministe([3, 5])))->calculer(0, deAnnule: true, desDeBase: 2);
+
+    expect($jet->des)->toBe([3, 5])
+        ->and($jet->desAnnules)->toBe([false, true])
+        ->and($jet->total)->toBe(3);
+});
+
+it('classique : les bottes ajoutent un troisième dé ; avec la plate, un des trois est barré', function () {
+    $bottes = (new Deplacement(new LanceurDeterministe([3, 5, 2])))->calculer(0, desSupplementaires: 1, desDeBase: 2);
+    $plate = (new Deplacement(new LanceurDeterministe([3, 5, 2])))->calculer(0, deAnnule: true, desSupplementaires: 1, desDeBase: 2);
+
+    expect($bottes->total)->toBe(10)
+        ->and($plate->desAnnules)->toBe([false, false, true])
+        ->and($plate->total)->toBe(8);
+});
+
+it('RPG inchangé : base + un d6, et la plate barre tous les dés, bottes comprises', function () {
+    $jet = (new Deplacement(new LanceurDeterministe([4, 6])))->calculer(4, deAnnule: true, desSupplementaires: 1);
+
+    expect($jet->total)->toBe(4)
+        // Rien de neuf publié en RPG : `des_annules` est propre au mode classique (René, 2026-11-17).
+        ->and($jet->desAnnules)->toBe([]);
+});

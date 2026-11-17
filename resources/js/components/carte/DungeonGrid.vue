@@ -221,7 +221,9 @@ const doors = computed(() => (props.carte.portes ?? [])
     .map((p) => {
         // Une porte OUVERTE ne dit plus son verrou au survol (vu en partie d'agents, lot X1 : « Porte ouverte — ne s'ouvre
         // pas d'ici »). Le type reste publié : la grille de fer ouverte s'en sert pour son dessin.
-        const verrou = p.verrou && p.etat !== 'ouverte' ? (PORTE_VERROUS[p.verrou] ?? p.verrou) : null;
+        // Mode classique SEULEMENT (une porte sur une arête n'existe que sur une carte construite) : le mode RPG garde
+        // l'affichage d'avant.
+        const verrou = p.verrou && (p.etat !== 'ouverte' || !p.arete) ? (PORTE_VERROUS[p.verrou] ?? p.verrou) : null;
 
         return {
             x: p.arete ? p.x : p.embrasure.x,

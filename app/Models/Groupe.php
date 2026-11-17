@@ -96,6 +96,20 @@ class Groupe extends Model
     public const MODES_MORT = [self::MORT_STORY, self::MORT_HEROIC];
 
     /** Ce groupe joue-t-il en Heroic (la mort est possible, et définitive) ? */
+    /**
+     * LE SOCLE DU DÉPLACEMENT (décision Q1 du mode classique, codée le 2026-11-17) : mode RPG, la base de la classe et UN
+     * d6 (écart voulu de René) ; mode CLASSIQUE, DEUX dés rouges sans base, comme au plateau. Point de passage unique,
+     * lu par les trois calculs du jet (`MenuMoteur`, sa relance, le repli de `ResolveurTour`).
+     *
+     * @return array{base: int, des: int}
+     */
+    public function socleDeDeplacement(Personnage $personnage): array
+    {
+        return $this->estClassique()
+            ? ['base' => 0, 'des' => 2]
+            : ['base' => (int) $personnage->deplacement_base, 'des' => 1];
+    }
+
     public function estHeroic(): bool
     {
         return $this->mode_mort === self::MORT_HEROIC;

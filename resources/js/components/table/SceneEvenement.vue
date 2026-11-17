@@ -75,6 +75,13 @@ const duel = computed(() => acteurs.value.some((a) => a.role === 'defenseur'));
 
 /* Le ✕ est visuel : l'aria-label porte la même information en mots, pour un
  * lecteur d'écran — la décision reste celle publiée par le serveur. */
+/* QUEL dé est barré (2026-11-17) : la DÉCISION du serveur (`des_annules`) — en mode classique, un seul des deux dés.
+ * À défaut (scène antérieure), `de_annule` les barre tous. */
+const deBarre = (i) => {
+    const d = props.scene.deplacement;
+    return Array.isArray(d?.des_annules) && d.des_annules.length === d.des.length ? !!d.des_annules[i] : !!d?.de_annule;
+};
+
 const depAriaLabel = computed(() => {
     const d = props.scene.deplacement;
     if (!d) return '';
@@ -140,14 +147,14 @@ const depAriaLabel = computed(() => {
                         v-for="(valeur, i) in scene.deplacement.des"
                         :key="i"
                         class="scn-d6"
-                        :class="{ 'scn-d6--annule': scene.deplacement.de_annule }"
+                        :class="{ 'scn-d6--annule': deBarre(i) }"
                     >
                         <i v-for="point in POINTS_D6[valeur] ?? []" :key="point" :class="'scn-pt' + point" />
-                        <span v-if="scene.deplacement.de_annule" class="scn-d6-croix" aria-hidden="true">✕</span>
+                        <span v-if="deBarre(i)" class="scn-d6-croix" aria-hidden="true">✕</span>
                     </span>
                 </div>
                 <p v-if="scene.deplacement.de_annule" class="scn-depl-annule">
-                    {{ scene.deplacement.de_annule_par }} — le dé ne compte pas
+                    {{ scene.deplacement.de_annule_par }} — {{ scene.deplacement.des.every((_, i) => deBarre(i)) ? 'le dé ne compte pas' : 'un dé ne compte pas' }}
                 </p>
                 <p class="scn-calcul">{{ scene.deplacement.calcul }}</p>
             </div>

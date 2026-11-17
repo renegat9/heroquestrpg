@@ -39,6 +39,10 @@ const props = defineProps({
     // que le serveur a décidé.
     deAnnule: { type: Boolean, default: false },
     deAnnulePar: { type: [String, null], default: null },
+    // Tous les dés du tour, et lesquels sont BARRÉS (2026-11-17) — décision du serveur. Mode classique : deux dés, sans
+    // base ; « un seul dé rouge » en barre UN. Vides = ancien affichage « base + dé ».
+    des: { type: Array, default: () => [] },
+    desAnnules: { type: Array, default: () => [] },
     // UNTHREATENED MOVEMENT (FL-Q p. 7, First Light, 2026-09-30) : DÉCISION
     // serveur (`Quete::monstreActifRevele()`, `Deplacement::calculer()`) —
     // sans monstre actif révélé sur le plateau, le dé COMPTE 4 au lieu
@@ -284,7 +288,18 @@ onMounted(async () => {
                     <span class="dep-portee">{{ portee }}</span>
                     <span class="dep-portee-lbl">{{ portee > 1 ? 'points' : 'point' }}</span>
                 </div>
-                <div class="dep-detail" v-if="de != null">
+                <div class="dep-detail" v-if="des.length > 1 && base === 0">
+                    <!-- MODE CLASSIQUE SEULEMENT (base nulle : deux dés rouges, sans base) : chaque dé nommé, le barré rayé.
+                         Le mode RPG (base > 0) garde l'affichage d'avant, ci-dessous. -->
+                    <template v-if="base > 0">{{ base }} +</template>
+                    <template v-for="(valeur, i) in des" :key="i">
+                        <span v-if="i > 0">+</span>
+                        <span v-if="!desAnnules[i] && !(deAnnule && desAnnules.length !== des.length)">dé {{ valeur }}</span>
+                        <span v-else class="dep-de-annule"><span class="dep-de-barre">dé {{ valeur }}</span><b class="dep-de-x" aria-hidden="true">✕</b></span>
+                    </template>
+                    <template v-if="sansMenace"> (sans menace)</template>
+                </div>
+                <div class="dep-detail" v-else-if="de != null">
                     {{ base }}
                     <span v-if="!deAnnule">+ dé {{ de }}<template v-if="sansMenace"> (sans menace)</template></span>
                     <!-- Dé ANNULÉ (Armure de plates) : montré, rayé, jamais
@@ -307,14 +322,14 @@ onMounted(async () => {
                  la RAISON prend sa propre ligne, au rang de l'indication qui
                  suit. -->
             <p v-if="deAnnule" class="dep-de-note">
-                <MSym n="shield" :size="14" /> {{ deAnnulePar }} — le dé ne compte pas
+                <MSym n="shield" :size="14" /> {{ deAnnulePar }} — {{ des.length > 1 && base === 0 && desAnnules.some((b) => !b) ? 'un dé ne compte pas' : 'le dé ne compte pas' }}
             </p>
             <!-- UNTHREATENED MOVEMENT (FL-Q p. 7) : même emplacement que la
                  note ci-dessus, pour la même raison — un effet automatique
                  que rien n'annonce est injouable. Les deux ne cohabitent
                  jamais (un dé annulé n'a plus de valeur à commenter). -->
             <p v-else-if="sansMenace" class="dep-de-note">
-                <MSym n="casino" :size="14" /> Aucun monstre actif — le dé compte 4 au lieu d'être lancé
+                <MSym n="casino" :size="14" /> Aucun monstre actif — {{ des.length > 1 && base === 0 ? 'chaque dé compte 4' : 'le dé compte 4' }} au lieu d'être lancé
             </p>
 
             <!-- CHUTE DE BLOCS — avertissement du livret p. 14 : « the hero
