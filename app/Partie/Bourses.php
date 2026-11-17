@@ -50,6 +50,8 @@ final class Bourses
         'App\Partie\Sauvegarde::restaurer' => 'reprise d\'un instantané : remet le pot EXACTEMENT tel qu\'il a été saisi, ce n\'est ni un gain ni une dépense',
         'App\Partie\Sauvegarde::restaurerHeros' => 'reprise d\'un instantané : remet la bourse du héros EXACTEMENT telle qu\'elle a été saisie',
         'App\Partie\FaveursHopekins::reglerEntretien' => 'entretien des mercenaires : aucun mercenaire dans un groupe classique (EtapesCampagne::MERCENAIRES)',
+        'App\Partie\Classique\Confiscation::confisquer' => 'équipement confisqué (lot K5j) : la bourse du héros passe à la consigne de la quête, ni gain ni dépense',
+        'App\Partie\Classique\Confiscation::rendre' => 'équipement confisqué (lot K5j) : la consigne rend au héros EXACTEMENT la bourse qu\'elle avait prise',
     ];
 
     /** Ce groupe tient-il une bourse par héros (classique) plutôt qu'un pot commun ? */

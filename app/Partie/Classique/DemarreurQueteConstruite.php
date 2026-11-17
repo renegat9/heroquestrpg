@@ -256,6 +256,17 @@ final class DemarreurQueteConstruite
 
         EffetsGlobauxQuete::annoncer($groupe, $quete);
 
+        // ÉQUIPEMENT CONFISQUÉ (lot K5j, `regles.confiscation`) : chaque héros qui ENTRE laisse tout à la consigne, AVANT
+        // le premier round et l'instantané de départ (une reprise retrouve les héros les mains vides, et la consigne).
+        $confiscation = app(Confiscation::class);
+        if ($confiscation->salle($quete->refresh()) !== null) {
+            foreach ($quete->etatsPersonnages()->with('personnage')->get() as $etatHeros) {
+                if ($etatHeros->personnage !== null) {
+                    app(\App\Partie\TamponAnnonces::class)->annoncer($groupe, $confiscation->confisquer($quete, $etatHeros->personnage));
+                }
+            }
+        }
+
         app(ResolveurTour::class)->ouvrirPremierRound($groupe, $quete);
 
         if ($quete->refresh()->etat === 'en_cours') {

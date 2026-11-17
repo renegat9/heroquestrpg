@@ -61,7 +61,23 @@ class Quete extends Model
         'notes_jouees',
         // Lot K5a : les tours du maître du jeu commencés, lus par le déclencheur de note `tour_du_mj`.
         'tours_mj',
+        // Lot K5j (R4) : l'équipement confisqué en attente — lu et écrit par `App\Partie\Classique\Confiscation` seul.
+        'consignes',
     ];
+
+    /**
+     * RIEN NE SE PERD (lot K5j, équipement confisqué) : quand la quête cesse d'être en cours — gagnée, perdue, retraite,
+     * arrêt —, tout ce qui attend encore à la consigne est rendu à son propriétaire. Le seul point de passage de cette
+     * garantie : un changement d'état, d'où qu'il vienne. Une quête sans consigne (RPG, arène) n'y fait rien.
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (Quete $quete): void {
+            if ($quete->wasChanged('etat') && $quete->etat !== 'en_cours' && ! empty($quete->consignes)) {
+                app(\App\Partie\Classique\Confiscation::class)->rendreTout($quete);
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -95,6 +111,7 @@ class Quete extends Model
             'drapeaux' => 'array',
             'notes_jouees' => 'array',
             'tours_mj' => 'integer',
+            'consignes' => 'array',
         ];
     }
 

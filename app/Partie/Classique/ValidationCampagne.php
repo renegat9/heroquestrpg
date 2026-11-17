@@ -148,7 +148,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation'];
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
     private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
     private const CLES_QUAND = ['declencheur', 'cible'];
@@ -1233,6 +1233,22 @@ final class ValidationCampagne
         }
         if (array_key_exists('sans_fouille', $regles)) {
             $this->sansFouille($quete, $regles['sans_fouille'], self::chemin($position, 'sans_fouille'));
+        }
+        // Lot K5j (R4) : l'équipement confisqué attend dans une salle OUVERTE, qu'on peut fouiller.
+        if (array_key_exists('confiscation', $regles)) {
+            $ici = self::chemin($position, 'confiscation');
+            $confiscation = $this->enObjet($regles['confiscation'], $ici);
+            if ($confiscation !== null) {
+                $this->cles($confiscation, $ici, ['salle']);
+                $salle = $confiscation['salle'] ?? null;
+                if (array_key_exists('salle', $confiscation) && !is_string($salle)) {
+                    $this->refuser("$ici.salle", self::TYPE_INVALIDE, 'un identifiant de salle est attendu');
+                } elseif (is_string($salle) && $this->ouvertesFiables && !isset($this->ouvertes[$salle])) {
+                    $this->refuser("$ici.salle", self::SALLE_INCONNUE, "« $salle » n'est pas une salle ouverte de cette quête : les affaires y seraient hors d'atteinte");
+                } elseif (is_string($salle) && in_array($salle, (array) ($regles['sans_fouille'] ?? []), true)) {
+                    $this->refuser("$ici.salle", self::VALEUR_INVALIDE, "« $salle » ne se fouille pas : personne ne pourrait y reprendre ses affaires");
+                }
+            }
         }
 
         if (!array_key_exists('solo', $regles)) {

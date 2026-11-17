@@ -184,6 +184,8 @@ final class JournalCombat
         'depouille_ramassee' => true,
         // MODE CLASSIQUE : une note de quête vient de jouer (`NotesDeQuete`) — texte lu, or, objet, apparition, dégâts.
         'note_de_quete' => true,
+        // MODE CLASSIQUE (lot K5j) : l'équipement confisqué au départ d'une quête.
+        'confiscation' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1268,6 +1270,12 @@ final class JournalCombat
                     default => '',
                 },
                 'ton' => 'mort',
+            ]],
+            // ÉQUIPEMENT CONFISQUÉ (lot K5j) : au départ, le héros laisse tout à la consigne.
+            'confiscation' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' doit tout laisser : '.self::affairesConsignees((int) ($a['objets'] ?? 0), (int) ($a['or'] ?? 0))
+                    .' — tout attend quelque part dans le donjon',
+                'ton' => 'subit',
             ]],
             'depouille_ramassee' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' ramasse les affaires de '.($a['mort'] ?? '?')
@@ -3080,6 +3088,23 @@ final class JournalCombat
      *
      * @param  array<string, mixed>  $a
      */
+    /**
+     * Les affaires d'une consigne (lot K5j), dites juste : « 1 objet », « 3 objets et 30 pièces d'or », « 30 pièces
+     * d'or » — jamais « 0 pièces d'or » ni « objet(s) ».
+     */
+    private static function affairesConsignees(int $objets, int $or): string
+    {
+        $parts = array_filter([
+            $objets > 0 ? $objets.' '.($objets > 1 ? 'objets' : 'objet') : null,
+            $or > 0 ? $or.' pièce'.($or > 1 ? 's' : '').' d\'or' : null,
+        ]);
+
+        return $parts === [] ? 'rien' : implode(' et ', $parts);
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     */
     private static function jetReussi(array $a): bool
     {
         return isset($a['issue'])
@@ -3303,6 +3328,12 @@ final class JournalCombat
             // NOTE DE QUÊTE (mode classique) : la salle a répondu par une note de l'auteur, que `NotesDeQuete` a déjà
             // annoncée effet par effet (`note_de_quete`). Rien à redire ici — surtout pas « fouille en vain ».
             'note' => [],
+            // ÉQUIPEMENT CONFISQUÉ (lot K5j) : le fouilleur reprend SES affaires à la consigne.
+            'consigne' => [[
+                'texte' => "{$acteurNom} reprend ses affaires confisquées : "
+                    .self::affairesConsignees((int) ($a['consigne']['objets'] ?? 0), (int) ($a['consigne']['or'] ?? 0)),
+                'ton' => 'tresor',
+            ]],
             // ⚠ « En vain » n'est vrai QUE si rien n'était à prendre. Deux cas
             // distincts s'y cachaient : un meuble dont le butin existait mais
             // que PERSONNE du groupe ne pouvait utiliser (`objet_indisponible`,

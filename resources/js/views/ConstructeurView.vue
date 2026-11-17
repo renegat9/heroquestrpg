@@ -469,6 +469,15 @@ function basculerSansFouille(id, coche) {
         if (!Object.keys(quete.value.regles).length) delete quete.value.regles;
     }
 }
+// Lot K5j (R4) : `regles.confiscation` — tout est pris au départ, repris en fouillant la salle choisie ; « non » retire
+// la clé (jamais une clé vide).
+function changerConfiscation(salle) {
+    if (salle) quete.value.regles = { ...(quete.value.regles ?? {}), confiscation: { salle } };
+    else if (quete.value.regles) {
+        delete quete.value.regles.confiscation;
+        if (!Object.keys(quete.value.regles).length) delete quete.value.regles;
+    }
+}
 function basculerRecompense(avec) {
     quete.value.recompense = avec ? { or: 0, partage: (vocab.value.partages ?? ['groupe'])[0] } : null;
 }
@@ -843,6 +852,12 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <span v-if="quete.salles_ouvertes.length" class="cst-lbl">Ne se fouille pas :</span>
                                 <label v-for="s in quete.salles_ouvertes" :key="`sf-${s}`" class="cst-case">
                                     <input type="checkbox" :checked="(quete.regles?.sans_fouille ?? []).includes(s)" @change="basculerSansFouille(s, $event.target.checked)" /> {{ s }}
+                                </label>
+                                <label v-if="quete.salles_ouvertes.length">Équipement confisqué
+                                    <select :value="quete.regles?.confiscation?.salle ?? ''" class="cst-input" @change="changerConfiscation($event.target.value)">
+                                        <option value="">non</option>
+                                        <option v-for="s in quete.salles_ouvertes" :key="`cf-${s}`" :value="s">repris dans {{ s }}</option>
+                                    </select>
                                 </label>
                                 <label class="cst-case">
                                     <input type="checkbox" :checked="quete.recompense !== null" @change="basculerRecompense($event.target.checked)" /> Récompense

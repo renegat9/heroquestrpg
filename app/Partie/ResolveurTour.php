@@ -11477,7 +11477,16 @@ final class ResolveurTour
         // fouille dit seulement que c'est une note qui a répondu.
         $cibleNote = ['salle' => $salle];
 
-        if (app(NotesDeQuete::class)->attend($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote)) {
+        // ÉQUIPEMENT CONFISQUÉ (lot K5j) : « Each hero may search this room to retrieve all their confiscated equipment
+        // and valuables » (F6646 p. 11). Le héros qui a encore des affaires à la consigne les reprend ici, et rien
+        // d'autre n'est tiré — comme une note. Mode classique seulement (`Confiscation::salle()` : quête construite).
+        $confiscation = app(\App\Partie\Classique\Confiscation::class);
+        $salleConsigne = $confiscation->salle($quete);
+
+        if ($salleConsigne !== null && $confiscation->enAttente($quete, (int) $personnage->id)
+            && data_get($quete->carte?->grille, "salles.{$salle}.id") === $salleConsigne) {
+            $payload = $entete + ['issue' => 'consigne', 'consigne' => $confiscation->rendre($quete, $personnage)];
+        } elseif (app(NotesDeQuete::class)->attend($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote)) {
             $notes = app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote, $personnage);
             $payload = $entete + ['issue' => 'note', 'notes' => array_column($notes, 'repere')];
         } elseif ($coffre) {

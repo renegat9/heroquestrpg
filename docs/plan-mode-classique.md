@@ -855,6 +855,17 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-17 — lot K5j : l'équipement confisqué** (R4, décision de
+  René : tout, comme *Rise of the Dread Moon*). `quete.regles.confiscation:
+  {salle}` : au départ, chaque héros qui entre laisse inventaire et or à la
+  consigne (`quetes.consignes`, migration `2026_11_17_100000`, appliquée après
+  sauvegarde relue) ; il reprend SES affaires en fouillant le trésor de la
+  salle. Point de passage `App\Partie\Classique\Confiscation`. Rien ne se
+  perd (décisions écrites) : tout ce qui n'est pas repris est rendu au
+  changement d'état de la quête (`Quete::booted()`), et la consigne est saisie
+  et restaurée avec l'instantané. Sans arme, les dés de la classe (1 dé,
+  F6646 p. 5) — rien à coder. Mode classique seulement. Tests
+  `ConfiscationTest` ; constructeur : « Équipement confisqué ».
 - **Fait le 2026-11-17 — le déplacement classique à deux dés** (décision Q1,
   jamais codée jusque-là). `Groupe::socleDeDeplacement()` : RPG `{base de
   classe, 1 dé}`, classique `{0, 2 dés}` — lu par les trois calculs du jet

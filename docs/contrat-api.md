@@ -6246,6 +6246,25 @@ qu'avec un héros désigné.
   cette quête » sur sa fiche. Un héros SORTI, lui, est un participant qui a quitté le donjon (`sorti: true`).
 - **Constructeur** : « Quête solo » dans la fiche de la quête, parmi les classes exigées par la campagne.
 
+### Équipement confisqué — `regles.confiscation` (lot K5j, R4, 2026-11-17)
+
+Source : *Rise of the Dread Moon* (F6646 p. 11) — « All their equipment and valuables have been confiscated », et « Each
+hero may search this room to retrieve all their confiscated equipment and valuables ». Décision de René (2026-11-17) :
+TOUT est confisqué, comme la source — armes, armures, sac, or. Les sorts restent. Sans arme, le héros frappe avec les dés
+de sa classe (1 dé, comme le dit le même livret p. 5 : « A hero with no weapons rolls one Attack die »).
+
+- **Format** : `quete.regles.confiscation: {salle: id}` — une salle OUVERTE de la quête (`salle_inconnue` sinon), où les
+  affaires attendent ; pas une salle `sans_fouille` (`valeur_invalide` : on ne pourrait pas les reprendre).
+- **Au départ** (`App\Partie\Classique\Confiscation`, point de passage unique) : pour chaque héros qui ENTRE, toutes ses
+  lignes d'inventaire et son or passent à la CONSIGNE de la quête (`quetes.consignes`, `{personnage_id: {or, objets:
+  [lignes], rendue: false}}`) ; ses caractéristiques de combat sont recalculées. Annoncé (`confiscation`).
+- **La reprise** : un héros qui FOUILLE LE TRÉSOR de cette salle reprend SES affaires — `resultat.issue = "consigne"`,
+  aucune carte tirée (comme une note). Une fois par héros ; un héros qui a déjà repris les siennes fouille normalement.
+- **Jamais perdu** (décision écrite) : à la FIN de la quête, quelle qu'elle soit (gagnée, perdue, retraite, arrêt), tout
+  ce qui n'a pas été repris est rendu à son propriétaire (`Quete::booted()`, au changement d'état). La consigne est
+  SAISIE et RESTAURÉE avec l'instantané (`Sauvegarde`) : une reprise ne fait ni perdre ni doubler un objet.
+- Mode classique seulement : aucune quête RPG ni d'arène n'a de consigne.
+
 ### Marché fermé avant une quête — `regles.marche_ferme` (lot K5c, 2026-11-16)
 
 Plan §2.3 R8 (*Rise of the Dread Moon*, *The Frozen Horror* : « marché fermé ou service interdit avant la quête »).
