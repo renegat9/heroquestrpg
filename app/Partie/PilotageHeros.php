@@ -94,6 +94,14 @@ class PilotageHeros
     {
         $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::PILOTAGE);
 
+        // Confier un héros : mode CLASSIQUE seulement, « pour le moment » (René, 2026-11-17 : la manette à plusieurs
+        // héros est réservée au classique ; la branche ne change rien au RPG).
+        if (! $groupe->estClassique()) {
+            throw ValidationException::withMessages([
+                'groupe' => 'Confier un héros n\'est ouvert qu\'aux groupes du mode classique, pour le moment.',
+            ]);
+        }
+
         if ($groupe->phase !== 'hub') {
             throw ValidationException::withMessages([
                 'phase' => 'On ne confie un héros qu\'au hub, entre deux quêtes.',

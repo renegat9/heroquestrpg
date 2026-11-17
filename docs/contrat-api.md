@@ -1116,7 +1116,9 @@ absent qu'on lui a confié. Un seul point de passage : `Groupe::piloteDe()` et `
   main.
 - **`.reaction.proposee`** et `POST /reaction` : même règle, la manette du pilote.
 - **`PUT /api/groupes/{identifiant}/pilote`** `{personnage_id, pilote_joueur_id|null}` — confier un héros (`App\Partie\PilotageHeros::confier()`,
-  route `PiloteController::confier`), `auth:joueur`. Réservée **au hub** (422 en quête, comme l'équipement). Refusée (422) si :
+  route `PiloteController::confier`), `auth:joueur`. Réservée **au hub** (422 en quête, comme l'équipement), et **au mode
+  CLASSIQUE** « pour le moment » (René, 2026-11-17 : la manette à plusieurs héros est réservée au classique) — un groupe RPG
+  reçoit 422 `groupe`. Refusée (422) si :
   le héros n'est pas actif dans ce groupe ; le **demandeur** n'en est ni le PROPRIÉTAIRE ni le PILOTE actuel ; le nouveau
   pilote ne possède ni ne pilote déjà un héros actif du groupe (un joueur étranger au groupe). `pilote_joueur_id: null`, ou
   le propriétaire lui-même, rend le héros à son propriétaire (colonne remise à `null`). Réponse `200`
@@ -1136,7 +1138,8 @@ absent qu'on lui a confié. Un seul point de passage : `Groupe::piloteDe()` et `
   constructeur (`EtatGroupe::prets()`) — `bourse` : voir « Bourse par héros ». **`proprietaire_joueur_id`** (entier, jamais
   `null`) : le propriétaire du héros (`personnages.joueur_id`). **`confie`** (bool) : `true` quand le pilote résolu n'est
   pas le propriétaire ; l'écran lit ce bool, il ne compare pas les deux ids.
-- **`groupe.pilotes_possibles`** (`GET /etat` au hub, comme `prets`) : `[{joueur_id, pseudo}]`, les joueurs à qui un héros
+- **`groupe.pilotes_possibles`** (`GET /etat` au hub d'un groupe CLASSIQUE seulement, depuis le 2026-11-17 ; absent pour un
+  groupe RPG) : `[{joueur_id, pseudo}]`, les joueurs à qui un héros
   de CE groupe peut être confié, triés par id. C'est la règle même que `PUT /pilote` applique (`PilotageHeros::confier()`
   refuse tout autre joueur) : elle se calcule UNE fois, `PilotageHeros::pilotesPossibles()`, sur le même ensemble que
   `estMembre()` (les joueurs qui PILOTENT ou POSSÈDENT un héros actif). Le propriétaire y figure — il est membre, et

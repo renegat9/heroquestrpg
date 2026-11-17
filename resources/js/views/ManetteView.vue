@@ -404,6 +404,9 @@ const departMotif = computed(() => store.state.etat?.groupe?.depart_motif ?? '')
 // MODE CLASSIQUE (fin du lot S1) : la campagne du groupe et l'ouverture de son choix — `groupe.classique`, décidé par
 // le serveur (`ChoixCampagne`). Absent pour tout autre groupe.
 const classiqueHub = computed(() => store.state.etat?.groupe?.classique ?? null);
+// La MANETTE À PLUSIEURS HÉROS (bandeau, confier un héros) : mode CLASSIQUE seulement, « pour le moment » (René,
+// 2026-11-17). Le mode est publié par le serveur (`groupe.mode`) ; le RPG et l'arène gardent leur manette d'avant.
+const modeClassique = computed(() => store.state.etat?.groupe?.mode === 'classique');
 const narrateurActif = computed(() => store.state.etat?.groupe?.narrateur_actif ?? false);
 /* Le héros courant : celui que les actions du hub visent (un héros confié n'a pas de fiche /moi, mais son
    id suffit au serveur, qui revalide que ce joueur le pilote). */
@@ -1651,7 +1654,7 @@ const navItems = computed(() => (scene.value === 'marche'
                     <!-- BANDEAU DE HÉROS (lot M2) : seulement quand cette manette pilote plus d'un héros. Une pastille
                          par héros piloté ; toucher une pastille choisit le héros affiché, sauf pendant son tour (son menu
                          décide). Le serveur tranche qui a la main : la pastille ne fait que le montrer. -->
-                    <nav v-if="herosPilotes.length > 1" class="bandeau-heros" aria-label="Héros pilotés par cette manette">
+                    <nav v-if="modeClassique && herosPilotes.length > 1" class="bandeau-heros" aria-label="Héros pilotés par cette manette">
                         <button
                             v-for="e in herosPilotes"
                             :key="e.id"
@@ -1913,8 +1916,10 @@ const navItems = computed(() => (scene.value === 'marche'
                                         {{ r.nom }}
                                     </div>
                                 </div>
-                                <!-- CONFIER un héros (reste du lot M2) : les héros dont ce joueur est le propriétaire, « Confier » ou « Reprendre » -->
+                                <!-- CONFIER un héros (reste du lot M2) : les héros dont ce joueur est le propriétaire, « Confier » ou « Reprendre ».
+                                     Mode classique seulement (René, 2026-11-17). -->
                                 <ConfierHeros
+                                    v-if="modeClassique"
                                     :heros-possedes="herosPossedes"
                                     :pilotes-possibles="pilotesPossibles"
                                     :mon-joueur-id="monJoueurId"

@@ -50,10 +50,19 @@ function confierPilotage(JoueurAuthentifiable $demandeur, Personnage $heros, ?in
 {
     test()->actingAs($demandeur, 'joueur');
 
-    return test()->putJson('/api/groupes/table-1/pilote', [
+    // CONFIER est réservé au mode CLASSIQUE « pour le moment » (René, 2026-11-17). Ces tests éprouvent le pilotage
+    // lui-même, qui ne dépend pas du mode : le geste passe donc par un groupe classique, le temps de l'appel ; le refus
+    // en mode RPG a son propre test plus bas.
+    $groupe = Groupe::where('identifiant', 'table-1')->firstOrFail();
+    $mode = $groupe->mode;
+    $groupe->update(['mode' => Groupe::MODE_CLASSIQUE]);
+    $reponse = test()->putJson('/api/groupes/table-1/pilote', [
         'personnage_id' => $heros->id,
         'pilote_joueur_id' => $piloteJoueurId,
     ]);
+    $groupe->update(['mode' => $mode]);
+
+    return $reponse;
 }
 
 function piloteEnBase(Personnage $heros, Groupe $groupe): ?int
@@ -402,6 +411,8 @@ it('publie au hub les joueurs à qui un héros peut être confié, exactement ce
     $carol = compteDePilotage('carol');
     $dave = compteDePilotage('dave'); // un compte, mais aucun héros dans CE groupe : un étranger
     $groupe = creerGroupe();
+    // La liste n'est publiée qu'à un groupe CLASSIQUE (René, 2026-11-17) : ce test n'ouvre pas de quête, il en prend un.
+    $groupe->update(['mode' => Groupe::MODE_CLASSIQUE]);
     creerHeros($alice, $groupe, 'Albrecht', 1);
     $deBob = creerHeros($bob, $groupe, 'Bertrand', 2);
     $deCarol = creerHeros($carol, $groupe, 'Cassandre', 3);
@@ -475,4 +486,18 @@ it('publie proprietaire_joueur_id et confie sur le roster, avant un confier, apr
     confierPilotage($bob, $deBob, null)->assertOk();
     $this->actingAs($bob, 'joueur');
     expect($roster()[$deBob->id])->toMatchArray(['proprietaire_joueur_id' => (int) $bob->id, 'pilote_joueur_id' => (int) $bob->id, 'confie' => false]);
+});
+
+it('refuse de confier un héros dans un groupe RPG : réservé au mode classique, pour le moment', function () {
+    $alice = compteDePilotage('alice');
+    $bruno = compteDePilotage('bruno');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+    creerHeros($bruno, $groupe, 'Bertrand', 2);
+
+    test()->actingAs($alice, 'joueur');
+    test()->putJson('/api/groupes/table-1/pilote', ['personnage_id' => $heros->id, 'pilote_joueur_id' => $bruno->id])
+        ->assertStatus(422)->assertJsonValidationErrors('groupe');
+    expect(piloteEnBase($heros, $groupe))->toBeNull()
+        ->and(test()->getJson('/api/groupes/table-1/etat')->json('groupe'))->not->toHaveKey('pilotes_possibles');
 });

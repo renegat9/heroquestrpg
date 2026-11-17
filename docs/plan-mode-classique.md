@@ -855,6 +855,15 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Décision de René du 2026-11-17 — la manette à plusieurs héros, mode
+  classique seulement « pour le moment »** (et la branche ne doit rien changer
+  au RPG ni à l'arène). Les lots M1–M2 avaient été faits pour servir aussi le
+  RPG ; désormais : le bandeau de héros et l'écran « Confier » ne s'affichent
+  que pour un groupe classique (`groupe.mode`), `PUT /pilote` refuse un groupe
+  RPG (422), et `pilotes_possibles` n'est publié qu'au classique. Ce qui reste
+  commun, sans effet visible pour un RPG à un héros par joueur : le menu par
+  héros et le « prêt » de chaque héros piloté (un joueur RPG pouvait déjà
+  engager plusieurs héros avant M1).
 - **Fait le 2026-11-17 — lot K5j : l'équipement confisqué** (R4, décision de
   René : tout, comme *Rise of the Dread Moon*). `quete.regles.confiscation:
   {salle}` : au départ, chaque héros qui entre laisse inventaire et or à la

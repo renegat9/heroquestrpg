@@ -173,10 +173,14 @@ final class EtatGroupe
 
             // Reste du lot M2 : à qui un héros de ce groupe peut être CONFIÉ — la règle même de `PUT /pilote`
             // (`PilotageHeros::pilotesPossibles()`), décidée ici : l'écran ne re-dérive pas l'appartenance.
-            $preambuleGroupe['pilotes_possibles'] = app(PilotageHeros::class)->pilotesPossibles($groupe)
-                ->map(fn (\App\Models\Joueur $j) => ['joueur_id' => (int) $j->id, 'pseudo' => (string) $j->pseudo])
-                ->values()
-                ->all();
+            // Mode CLASSIQUE seulement (René, 2026-11-17) : un groupe RPG ne publie pas cette liste — on n'y confie pas
+            // de héros, pour le moment.
+            if ($groupe->estClassique()) {
+                $preambuleGroupe['pilotes_possibles'] = app(PilotageHeros::class)->pilotesPossibles($groupe)
+                    ->map(fn (\App\Models\Joueur $j) => ['joueur_id' => (int) $j->id, 'pseudo' => (string) $j->pseudo])
+                    ->values()
+                    ->all();
+            }
 
             // Alliés recrutés (3.5) exposés au hub : la carte étant absente, les
             // recrues ne sont pas dans `entites` (filtrées sur position) — ce bloc
