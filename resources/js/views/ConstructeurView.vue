@@ -459,6 +459,16 @@ function changerMarcheFerme(ferme) {
         if (!Object.keys(quete.value.regles).length) delete quete.value.regles;
     }
 }
+// Lot K5e (R6) : `regles.sans_fouille` — les salles ouvertes qu'on ne fouille pas ; la clé disparaît quand la liste est vide.
+function basculerSansFouille(id, coche) {
+    const liste = new Set(quete.value.regles?.sans_fouille ?? []);
+    if (coche) liste.add(id); else liste.delete(id);
+    if (liste.size) quete.value.regles = { ...(quete.value.regles ?? {}), sans_fouille: [...liste] };
+    else if (quete.value.regles) {
+        delete quete.value.regles.sans_fouille;
+        if (!Object.keys(quete.value.regles).length) delete quete.value.regles;
+    }
+}
 function basculerRecompense(avec) {
     quete.value.recompense = avec ? { or: 0, partage: (vocab.value.partages ?? ['groupe'])[0] } : null;
 }
@@ -801,6 +811,10 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 </label>
                                 <label class="cst-case">
                                     <input type="checkbox" :checked="quete.regles?.marche_ferme === true" @change="changerMarcheFerme($event.target.checked)" /> Marché fermé avant la quête
+                                </label>
+                                <span v-if="quete.salles_ouvertes.length" class="cst-lbl">Ne se fouille pas :</span>
+                                <label v-for="s in quete.salles_ouvertes" :key="`sf-${s}`" class="cst-case">
+                                    <input type="checkbox" :checked="(quete.regles?.sans_fouille ?? []).includes(s)" @change="basculerSansFouille(s, $event.target.checked)" /> {{ s }}
                                 </label>
                                 <label class="cst-case">
                                     <input type="checkbox" :checked="quete.recompense !== null" @change="basculerRecompense($event.target.checked)" /> Récompense

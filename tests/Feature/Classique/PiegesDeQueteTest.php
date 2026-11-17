@@ -102,3 +102,66 @@ it('EN JEU : un piège indésarmable, une fois connu, n\'offre pas « désamorce
 
     expect($ids->contains(fn (string $id) => str_starts_with($id, 'desamorcer_2_2')))->toBe(! $indesarmable);
 })->with(['indésarmable' => [true], 'ordinaire' => [false]]);
+
+/*
+ * SALLES QU'ON NE FOUILLE PAS (lot K5e, fin de R6) : `regles.sans_fouille`. La salle `entree` de la quête 1 ; la héroïne
+ * s'y tient, en (3, 2), salle vide de monstres (le gobelin est vaincu) : sans la règle, les deux fouilles sont offertes.
+ */
+it('valide sans_fouille : salles ouvertes, sans doublon, et pas de note qui attendrait leur fouille', function (array $regle, ?string $chemin, ?string $code, array $notes = []) {
+    $campagne = DocumentExemple::campagne();
+    $campagne['quetes'][0]['regles'] = ['sans_fouille' => $regle];
+    if ($notes !== []) {
+        $campagne['quetes'][0]['notes'] = $notes;
+    }
+    $refus = app(ValidationCampagne::class)->valider($campagne);
+    if ($code === null) {
+        expect($refus)->toBe([]);
+
+        return;
+    }
+    expect(collect($refus)->contains(fn (array $r) => $r['chemin'] === $chemin && $r['code'] === $code))->toBeTrue(json_encode($refus, JSON_UNESCAPED_UNICODE));
+})->with([
+    'une salle ouverte' => [['entree'], null, null],
+    'salle fermée dans cette quête' => [['crypte'], 'quetes.0.regles.sans_fouille.0', ValidationCampagne::SALLE_INCONNUE],
+    'doublon' => [['entree', 'entree'], 'quetes.0.regles.sans_fouille.1', ValidationCampagne::VALEUR_INVALIDE],
+    'liste vide' => [[], 'quetes.0.regles.sans_fouille', ValidationCampagne::TYPE_INVALIDE],
+    'une note attend sa fouille' => [['entree'], 'quetes.0.regles.sans_fouille', ValidationCampagne::VALEUR_INVALIDE,
+        [['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree']], 'alors' => [['effet' => 'or', 'or' => 5]]]]],
+]);
+
+it('EN JEU : dans une salle qu\'on ne fouille pas, aucune fouille n\'est offerte, et le résolveur les refuse', function (bool $interdite) {
+    $campagne = DocumentExemple::campagne();
+    $campagne['prerequis_heros'] = [];
+    if ($interdite) {
+        $campagne['quetes'][0]['regles'] = ['sans_fouille' => ['entree']];
+    }
+    app(CampagnesConstruites::class)->enregistrer($campagne);
+    $alice = connecterJoueur('alice');
+    $heros = Personnage::create([
+        'joueur_id' => $alice->id, 'nom' => 'Albrecht', 'classe' => 'barbare', 'niveau' => 1,
+        'attribut_body' => 4, 'attribut_mind' => 2, 'pv_body_max' => 8, 'pv_body' => 8, 'pv_mind_max' => 2, 'pv_mind' => 2,
+        'des_attaque' => 3, 'des_defense' => 2, 'deplacement_base' => 4,
+    ]);
+    $code = $this->postJson('/api/classique', ['nom' => 'Les Essayeurs', 'campagne' => 'campagne-d-essai', 'personnage_id' => $heros->id])
+        ->assertCreated()->json('groupe.identifiant');
+    $groupe = Groupe::where('identifiant', $code)->firstOrFail();
+    $this->postJson("/api/groupes/{$code}/quetes")->assertCreated();
+    $quete = Quete::findOrFail($groupe->refresh()->quete_courante_id);
+    \App\Models\InstanceMonstre::where('quete_id', $quete->id)->update(['etat' => 'vaincu']);
+    $quete->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3]);
+
+    expect($quete->fouilleInterditeEn(3, 3))->toBe($interdite)
+        ->and($quete->fouilleInterditeEn(8, 3))->toBeFalse(); // la galerie, elle, se fouille
+
+    Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($groupe, $heros));
+    $ids = collect($this->getJson("/api/groupes/{$code}/menu")->assertOk()->json('menu.options'))->pluck('id');
+    expect($ids->contains('fouiller'))->toBe(! $interdite)
+        ->and($ids->contains('fouiller_tresor'))->toBe(! $interdite);
+
+    if ($interdite) {
+        // Le résolveur revalide, même quand une option forgée lui parvient.
+        $resolveur = app(\App\Partie\ResolveurTour::class);
+        expect(fn () => $resolveur->resoudre($groupe->refresh(), $heros->fresh(), ['id' => 'fouiller_tresor', 'type' => 'fouille_tresor']))
+            ->toThrow(\Illuminate\Validation\ValidationException::class);
+    }
+})->with(['interdite' => [true], 'ordinaire' => [false]]);

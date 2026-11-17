@@ -4954,6 +4954,12 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Option de jet invalide (attribut body|mind, difficulté 1-4).']);
         }
 
+        // Lot K5e : une salle qu'on ne fouille pas (`regles.sans_fouille`) — le menu ne l'offre pas, le résolveur refuse.
+        if (in_array($option['id'], self::OPTIONS_FOUILLE_ZONE, true) && $etat->position_x !== null
+            && $quete->fouilleInterditeEn((int) $etat->position_x, (int) $etat->position_y)) {
+            throw ValidationException::withMessages(['option_id' => 'Cette salle ne se fouille pas.']);
+        }
+
         // `avantage_jet_mind` : +1 dé si le CONTEXTE proposé correspond à celui
         // d'un nœud acquis. La correspondance se fait sur `effet.contexte`, plus
         // sur le nom du nœud — une table `contexte => nom` ne connaissait que
@@ -11380,6 +11386,11 @@ final class ResolveurTour
 
         if ($salle === null) {
             throw ValidationException::withMessages(['option_id' => 'On ne fouille un trésor que dans une salle.']);
+        }
+
+        // Lot K5e : salle qu'on ne fouille pas (`regles.sans_fouille`) — trésor et trésor caché passent ici tous deux.
+        if ($quete->fouilleInterditeEn((int) $etat->position_x, (int) $etat->position_y)) {
+            throw ValidationException::withMessages(['option_id' => 'Cette salle ne se fouille pas.']);
         }
 
         // Une seule fouille de trésor par salle (anti-farm) : on marque la

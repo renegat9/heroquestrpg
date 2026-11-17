@@ -175,6 +175,22 @@ class Quete extends Model
     }
 
     /**
+     * SALLE QU'ON NE FOUILLE PAS (mode classique, lot K5e, plan §2.3 R6) : la case est dans une salle que
+     * `regles.sans_fouille` nomme (par l'`id` de l'auteur, porté par la salle de la carte). Prédicat unique, lu par le
+     * menu (aucune fouille offerte) et le résolveur (les quatre fouilles refusées).
+     */
+    public function fouilleInterditeEn(int $x, int $y): bool
+    {
+        $interdites = (array) data_get($this->documentConstruit(), 'regles.sans_fouille', []);
+        if ($interdites === [] || $this->carte === null) {
+            return false;
+        }
+        $index = \App\Partie\Salles::indexDe((array) ($this->carte->grille['salles'] ?? []), $x, $y);
+
+        return $index !== null && in_array(data_get($this->carte->grille, "salles.{$index}.id"), $interdites, true);
+    }
+
+    /**
      * Index des salles déjà découvertes. La salle de DÉPART l'est toujours :
      * elle est semée par DemarreurQuete et ne dépend d'aucune révélation.
      *

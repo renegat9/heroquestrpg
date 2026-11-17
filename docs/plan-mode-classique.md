@@ -855,6 +855,13 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-16 — lot K5e : les salles qu'on ne fouille pas** (fin de
+  R6). `quete.regles.sans_fouille: [ids]` : aucune des quatre fouilles (zone,
+  Parler à la pierre, trésor, trésor caché) n'est offerte dans ces salles, et
+  le résolveur les refuse. Prédicat unique `Quete::fouilleInterditeEn()`.
+  Refusé à la validation : une note qui attendrait la fouille de trésor d'une
+  telle salle. Défaut corrigé au passage : `regles` était validé avant les
+  salles ouvertes de SA quête. Constructeur : une case par salle ouverte.
 - **Fait le 2026-11-16 — lot K5d : pièges introuvables, indésarmables**
   (R6, partie pièges). `quete.pieges[]` accepte `introuvable` et
   `indesarmable` (booléens) ; points de passage `MoteurPieges::trouvable()` et

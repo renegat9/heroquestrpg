@@ -149,7 +149,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille'];
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
     private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
     private const CLES_QUAND = ['declencheur', 'cible'];
@@ -419,8 +419,9 @@ final class ValidationCampagne
             // d'abord, puis l'escalier de départ, puis le reste : chaque refus de partage porte sur le dernier venu.
             $this->occupees = [];
             $this->embrasures = [];
-            $this->regles($quete, $chemin, $document);
             $this->sallesOuvertes($quete, $chemin);
+            // Après les salles ouvertes : `regles.sans_fouille` les lit (lot K5e).
+            $this->regles($quete, $chemin, $document);
             $this->portes($quete, $chemin);
             $this->blocs($quete, $chemin);
             $this->depart($quete, $chemin);
@@ -1186,6 +1187,9 @@ final class ValidationCampagne
         if (array_key_exists('marche_ferme', $regles) && !is_bool($regles['marche_ferme'])) {
             $this->refuser(self::chemin($position, 'marche_ferme'), self::TYPE_INVALIDE, 'true ou false est attendu');
         }
+        if (array_key_exists('sans_fouille', $regles)) {
+            $this->sansFouille($quete, $regles['sans_fouille'], self::chemin($position, 'sans_fouille'));
+        }
 
         if (!array_key_exists('solo', $regles)) {
             return;
@@ -1199,6 +1203,36 @@ final class ValidationCampagne
         } elseif (!in_array($classe, (array) ($document['prerequis_heros'] ?? []), true)) {
             $this->refuser($ici, self::SOLO_SANS_PREREQUIS,
                 "quête solo pour « $classe » : la campagne doit exiger cette classe (prerequis_heros), sinon un groupe sans elle ne pourrait pas la jouer");
+        }
+    }
+
+    /** `regles.sans_fouille` (lot K5e) : des salles OUVERTES, sans doublon, qu'aucune note de fouille de trésor n'attend. */
+    private function sansFouille(array $quete, mixed $valeur, string $chemin): void
+    {
+        if (!is_array($valeur) || !array_is_list($valeur) || $valeur === []) {
+            $this->refuser($chemin, self::TYPE_INVALIDE, 'une liste non vide d\'identifiants de salle est attendue');
+
+            return;
+        }
+        $vues = [];
+        foreach ($valeur as $i => $id) {
+            $ici = "$chemin.$i";
+            if (!is_string($id)) {
+                $this->refuser($ici, self::TYPE_INVALIDE, 'un identifiant de salle est attendu');
+            } elseif (isset($vues[$id])) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, "« $id » est déjà dans la liste");
+            } elseif ($this->ouvertesFiables && !isset($this->ouvertes[$id])) {
+                $this->refuser($ici, self::SALLE_INCONNUE, "« $id » n'est pas une salle ouverte de cette quête");
+            } else {
+                $vues[$id] = true;
+            }
+        }
+        foreach ((array) ($quete['notes'] ?? []) as $note) {
+            if (is_array($note) && data_get($note, 'quand.declencheur') === MotsClesQuete::FOUILLE_TRESOR
+                && isset($vues[(string) data_get($note, 'quand.cible.salle')])) {
+                $this->refuser($chemin, self::VALEUR_INVALIDE,
+                    'la salle « '.data_get($note, 'quand.cible.salle').' » ne se fouille pas, mais la note « '.($note['repere'] ?? '?').' » attend sa fouille de trésor : elle ne jouerait jamais');
+            }
         }
     }
 

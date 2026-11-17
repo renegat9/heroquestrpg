@@ -6223,6 +6223,11 @@ lequel. `quete.pieges[]` accepte deux drapeaux facultatifs, booléens (`type_inv
 fouille, aucun objet, aucun sort ne le révèle ; seul le pas qui marche dessus le déclenche) et **`indesarmable`** (une
 fois connu, il se saute mais ne se désamorce pas). `false` revient à les omettre.
 
+- **Salles qu'on ne fouille pas** (fin de R6) : `quete.regles.sans_fouille: [id de salle ouverte…]` (au moins une,
+  sans doublon ; `salle_inconnue` pour une salle qui n'est pas ouverte dans cette quête ; `valeur_invalide` si une note
+  attend la fouille de trésor de cette salle — elle ne jouerait jamais). Un héros dans l'une d'elles ne se voit offrir
+  AUCUNE fouille — zone, Parler à la pierre, trésor, trésor caché — et le résolveur refuse les quatre (422). Prédicat
+  unique : `Quete::fouilleInterditeEn(x, y)`.
 - Points de passage : `MoteurPieges::trouvable(entree, piege)` et `MoteurPieges::desarmable(entree, piege)` — le drapeau
   de la quête OU la carte du catalogue. Lus par la fouille, l'avertissement du Sens du piège, le menu ET le résolveur du
   désamorçage (qui ne revalidait pas `desarmable: "non"` avant ce lot).

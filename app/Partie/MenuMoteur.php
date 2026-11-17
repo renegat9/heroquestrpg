@@ -834,6 +834,11 @@ final class MenuMoteur
             return false; // couloir : pas de fouille de trésor
         }
 
+        // Lot K5e : salle qu'on ne fouille pas (`regles.sans_fouille`).
+        if ($quete->fouilleInterditeEn((int) $etat->position_x, (int) $etat->position_y)) {
+            return false;
+        }
+
         // Comme au plateau : CHAQUE héros fouille une fois par salle, et tire
         // sa propre carte. La fouille était close pour tout le groupe dès le
         // premier — les autres n'avaient jamais leur chance.
@@ -3316,7 +3321,10 @@ final class MenuMoteur
             // MODE ARÈNE (2026-11-09) : pas de fouille de zone dans le hall — ni piège caché, ni porte secrète à y
             // trouver, et la seule fouille du tournoi est celle d'un coffre, à la table 2d6 (livret F9528 p. 13,
             // lot T5). Retrait écrit, pas un oubli : `docs/plan-tournoi-worlds-end.md` §1.
-            if (! self::enArene($quete)) {
+            // SALLE QU'ON NE FOUILLE PAS (lot K5e, `regles.sans_fouille`) : aucune des quatre fouilles n'est offerte.
+            $fouilleInterdite = $quete->fouilleInterditeEn($px, $py);
+
+            if (! self::enArene($quete) && ! $fouilleInterdite) {
                 $options[] = [
                     'id' => 'fouiller',
                     'libelle' => 'Fouiller la zone — jet de Mind',
@@ -3331,7 +3339,7 @@ final class MenuMoteur
             // ET portes secrètes en une action.
             $pierre = $this->styles->sourceActivable($personnage, $etat, 'fouille_complete');
 
-            if ($pierre !== null) {
+            if ($pierre !== null && ! $fouilleInterdite) {
                 $options[] = [
                     'id' => 'fouiller_pierre',
                     'libelle' => "{$pierre['nom']} — fouiller sans risque d'échec",
