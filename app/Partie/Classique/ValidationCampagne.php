@@ -611,25 +611,41 @@ final class ValidationCampagne
                     }
                     $this->cles($pose, $ici, self::CLES_POSE);
                     $this->slugCatalogue($pose, 'slug', $ici, 'monstres');
-                    $case = $this->cellule($pose, $ici);
-                    if ($case !== null && $this->salleFermeeEn($case[0], $case[1])) {
-                        $this->refuser($ici, self::DANS_SALLE_FERMEE, "la case ({$case[0]}, {$case[1]}) est dans une salle fermée : la figure y serait dans la roche");
-                    } elseif ($case !== null) {
-                        // Sur un meuble ou un bloc, la figure ne peut pas paraître LÀ : le moteur la poserait sur la
-                        // case libre la plus proche, ailleurs que là où l'auteur l'a dessinée. On le lui dit.
-                        foreach ($this->occupees["{$case[0]},{$case[1]}"] ?? [] as $occupant) {
-                            if (in_array($occupant['genre'], ['meuble', 'bloc'], true)) {
-                                $this->refuser($ici, self::CASE_PARTAGEE,
-                                    "la case ({$case[0]}, {$case[1]}) est prise par {$occupant['nom']} : une figure ne peut pas y apparaître");
-                                break;
-                            }
-                        }
-                    }
+                    $this->caseDArrivee($pose, $ici, 'la figure');
                 }
+                break;
+            case MotsClesQuete::TELEPORTER:
+                $this->caseDArrivee($effet, $position, 'le héros');
                 break;
         }
 
         return null;
+    }
+
+    /**
+     * La case où une figure PARAÎT (apparition, téléportation — lot K5f) : dans le plateau, hors salle fermée, et ni sur
+     * un meuble ni sur un bloc — le moteur la poserait alors sur la case libre la plus proche, ailleurs que là où l'auteur
+     * l'a dessinée. On le lui dit.
+     */
+    private function caseDArrivee(array $objet, string $ici, string $qui): void
+    {
+        $case = $this->cellule($objet, $ici);
+        if ($case === null) {
+            return;
+        }
+        if ($this->salleFermeeEn($case[0], $case[1])) {
+            $this->refuser($ici, self::DANS_SALLE_FERMEE, "la case ({$case[0]}, {$case[1]}) est dans une salle fermée : $qui y serait dans la roche");
+
+            return;
+        }
+        foreach ($this->occupees["{$case[0]},{$case[1]}"] ?? [] as $occupant) {
+            if (in_array($occupant['genre'], ['meuble', 'bloc'], true)) {
+                $this->refuser($ici, self::CASE_PARTAGEE,
+                    "la case ({$case[0]}, {$case[1]}) est prise par {$occupant['nom']} : $qui ne peut pas y paraître");
+
+                return;
+            }
+        }
     }
 
     /** Le nom d'un drapeau : lettres, chiffres, _ et -. Rend le nom, ou `null` (absent, ou refusé). */

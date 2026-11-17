@@ -112,6 +112,9 @@ final class MotsClesQuete
     /** E5 — une porte secrète est révélée à tous, sans fouille (lot K5b). */
     public const REVELER_PORTE = 'reveler_porte';
 
+    /** E8 — le héros qui déclenche est emporté sur une case (ou la plus proche libre) ; la salle d'arrivée se révèle (lot K5f). */
+    public const TELEPORTER = 'teleporter';
+
     /**
      * Effet → ses paramètres (obligatoires, puis optionnels), et la méthode de `NotesDeQuete` qui le joue.
      *
@@ -127,13 +130,14 @@ final class MotsClesQuete
         self::OUVRIR_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetOuvrirPorte', 'libelle' => 'ouvrir une porte'],
         self::BLOC => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetBloc', 'libelle' => 'faire tomber un bloc'],
         self::REVELER_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetRevelerPorte', 'libelle' => 'révéler une porte secrète'],
+        self::TELEPORTER => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetTeleporter', 'libelle' => 'téléporter le héros'],
     ];
 
     /**
      * Ce qui n'est PAS ici, et pourquoi (« retirer du contenu est un choix écrit ») :
      * - le RÉVEIL de figures inertes (E4) : il existe, mais par la capacité `passif_jusqua` d'un monstre du catalogue
      *   (`MoteurDormants`), pas par une note ;
-     * - D6 à D9, E8, E9 et le reste d'E5 (poser une tuile, un meuble) : seconde série (lot K5), une à la fois, chacune
+     * - D6 à D9, la salle tournante d'E8 (sortie tirée au dé), E9 et le reste d'E5 (poser une tuile, un meuble) : seconde série (lot K5), une à la fois, chacune
      *   avec son lecteur. D5 et l'ouverture de porte d'E6 sont entrés au lot K5a ; le bloc qui tombe (E6) et la porte
      *   secrète révélée (E5) au lot K5b. La « porte factice » d'E6 n'a pas de mot à elle : c'est une porte au verrou
      *   `note` qu'aucune note n'ouvre.

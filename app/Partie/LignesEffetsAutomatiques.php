@@ -897,6 +897,11 @@ trait LignesEffetsAutomatiques
                         ? ['texte' => 'Un bloc de pierre s\'abat et ferme le passage', 'ton' => 'subit']
                         : ['texte' => 'Le plafond gronde, mais aucun bloc ne tombe : la case est occupée', 'ton' => 'info'];
                     break;
+                case 'teleporter':
+                    $lignes[] = ! empty($effet['teleporte'])
+                        ? ['texte' => ($effet['nom'] ?? $heros).' disparaît, et reparaît ailleurs', 'ton' => 'subit']
+                        : ['texte' => 'Un sortilège cherche une proie à emporter, et n\'en trouve pas', 'ton' => 'info'];
+                    break;
                 case 'reveler_porte':
                     if (! empty($effet['revelee'])) {
                         $lignes[] = ['texte' => 'Une porte secrète se dévoile', 'ton' => 'info'];

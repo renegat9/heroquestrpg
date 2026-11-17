@@ -855,6 +855,18 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-16 — lot K5f : la téléportation** (E8, sans la salle
+  tournante). Effet de note `teleporter {x, y}` : le héros qui déclenche est
+  posé sur la case (ou la plus proche libre, `CaseLibre`), la salle d'arrivée
+  se révèle (`ResolveurTour::revelerSalleEn()`). Téléporté en pleine marche, il
+  ne déclenche plus les cases suivantes de son trajet. Sans héros déclencheur
+  ou sans case libre : rien, annoncé. La validation de la case d'arrivée est
+  celle d'une apparition (`caseDArrivee()`, une seule copie).
+  **Reporté, nommément — R5 et la « charge » de F4** : une charge qui réduit le
+  déplacement demande une valeur (combien de cases, quelle règle de chute)
+  qu'aucun livret relu ne donne ; `MoteurFardeau`, que le tableau §2.3 citait,
+  est le jet du talisman maudit, pas une charge. Rien n'est semé sans source :
+  à reprendre quand René tranchera la règle.
 - **Fait le 2026-11-16 — lot K5e : les salles qu'on ne fouille pas** (fin de
   R6). `quete.regles.sans_fouille: [ids]` : aucune des quatre fouilles (zone,
   Parler à la pierre, trésor, trésor caché) n'est offerte dans ces salles, et

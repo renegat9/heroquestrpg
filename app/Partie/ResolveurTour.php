@@ -12788,6 +12788,12 @@ final class ResolveurTour
                 $entre = $salle !== null && $salle !== $this->salleA($quete, $precedente['x'], $precedente['y']);
 
                 $notes->signaler($quete, MotsClesQuete::ENTREE, ['case' => $case, 'salle' => $entre ? $salle : null], $personnage);
+
+                // TÉLÉPORTÉ par la note (lot K5f) : il n'a pas foulé la suite du trajet — elle ne déclenche plus rien.
+                $ici = $etat->fresh();
+                if ($ici !== null && ((int) $ici->position_x !== $arrivee['x'] || (int) $ici->position_y !== $arrivee['y'])) {
+                    break;
+                }
             }
 
             $precedente = $case;
@@ -16920,6 +16926,18 @@ final class ResolveurTour
      * n'existe pas ou est déjà ouverte (rien ne se passe). Ne signale PAS `ouverture_porte` : une note n'en déclenche pas
      * une autre.
      */
+    /**
+     * Révèle la salle qui contient la case, si elle ne l'est pas déjà — pour un héros DÉPOSÉ là sans y marcher (effet de
+     * note `teleporter`, lot K5f). La même révélation qu'une entrée (`revelerSalle()`).
+     */
+    public function revelerSalleEn(Quete $quete, int $x, int $y, ?Personnage $decouvreur = null): void
+    {
+        $salle = $this->salleA($quete, $x, $y);
+        if ($salle !== null) {
+            $this->revelerSalle($quete->groupe, $quete, $salle, $decouvreur);
+        }
+    }
+
     public function ouvrirPorteParNote(Quete $quete, int $index): bool
     {
         $carte = $quete->carte;

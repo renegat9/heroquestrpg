@@ -6022,6 +6022,7 @@ notes: [{
 | `ouvrir_porte` | `porte` (index dans `quete.portes`) | la porte s'ouvre, quel que soit son verrou, et les salles qu'elle borde se révèlent comme à une ouverture à la main ; déjà ouverte, rien (lot K5a) |
 | `bloc` | `x`, `y` | un bloc de pierre tombe sur la case : elle bloque le passage et la vue jusqu'à la fin de la quête (le même obstacle que la chute de blocs). Ne tombe que sur une case LIBRE — une figure, un meuble ou un bloc déjà là : rien ne tombe, et l'annonce le dit (lot K5b) |
 | `reveler_porte` | `porte` (index dans `quete.portes`) | la porte SECRÈTE est révélée à tous : elle devient une porte close ordinaire. Une porte déjà connue : rien (lot K5b) |
+| `teleporter` | `x`, `y` | le héros qui déclenche est emporté sur la case (ou la plus proche libre, comme une apparition), et la salle d'arrivée se révèle (fil : « Albrecht disparaît, et reparaît ailleurs »). Sans héros déclencheur (tour du MJ, mort d'une figure) ou sans case libre : rien, et l'annonce le dit. Un héros téléporté pendant une marche ne déclenche plus les cases suivantes de son trajet (lot K5f) |
 
 - **La fouille** : une salle dont une note attend CETTE fouille rend ce que la note dit — `resultat.issue = "note"`,
   `resultat.notes = [repères]` — et **aucune carte de trésor n'est tirée**. Sans note, la salle pioche dans le paquet

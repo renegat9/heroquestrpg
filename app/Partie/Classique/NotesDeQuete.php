@@ -368,4 +368,31 @@ final class NotesDeQuete
 
         return ['porte' => $index, 'revelee' => $carte !== null && app(MoteurPortes::class)->revelerParNote($carte, $index)];
     }
+
+    /**
+     * E8 (lot K5f) — le héros qui déclenche est emporté sur la case écrite, ou la plus proche libre (`CaseLibre`, comme
+     * une apparition) ; la salle d'arrivée se révèle (`ResolveurTour::revelerSalleEn()`). Sans héros dans le donjon, ou
+     * sans case libre alentour : rien.
+     */
+    private function effetTeleporter(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $etat = $heros === null ? null : $quete->etatsPersonnages()->where('personnage_id', $heros->id)->first();
+        if ($etat === null || $etat->horsPlateau()) {
+            return ['teleporte' => false, 'nom' => $heros?->nom];
+        }
+
+        $place = CaseLibre::iciOuProche(
+            FabriqueGrille::pour($quete->fresh(), exceptPersonnageId: (int) $heros->id),
+            (int) ($effet['x'] ?? -1),
+            (int) ($effet['y'] ?? -1),
+        );
+        if ($place === null) {
+            return ['teleporte' => false, 'nom' => $heros->nom];
+        }
+
+        $etat->update(['position_x' => $place['x'], 'position_y' => $place['y']]);
+        app(ResolveurTour::class)->revelerSalleEn($quete, $place['x'], $place['y'], $heros);
+
+        return ['teleporte' => true, 'nom' => $heros->nom, 'x' => $place['x'], 'y' => $place['y']];
+    }
 }

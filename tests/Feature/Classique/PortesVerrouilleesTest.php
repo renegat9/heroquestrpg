@@ -246,3 +246,63 @@ it('EN JEU : un bloc tombe sur la case libre et ferme le passage, pas sur la cas
     $pieges = $this->getJson("/api/groupes/{$groupe->identifiant}/etat")->assertOk()->json('carte.pieges');
     expect(collect($pieges)->contains(fn ($p) => $p['x'] === 8 && $p['y'] === 7))->toBeTrue();
 });
+
+/*
+ * LOT K5f — TÉLÉPORTATION (E8). La case (4, 3) de `entree` porte une note `entree` → `teleporter` en (9, 4), dans la
+ * `galerie`. Le héros marche de (2, 3) à (5, 3) : il passe sur (4, 3), est emporté ; la case (5, 3), qu'il n'a pas
+ * foulée, a sa propre note qui ne doit PAS jouer.
+ */
+it('valide la case d\'arrivée d\'une téléportation comme celle d\'une apparition', function () {
+    $campagne = DocumentExemple::campagne();
+    $campagne['quetes'][0]['notes'] = [
+        ['repere' => 'A', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 4, 'y' => 3]]], 'alors' => [['effet' => 'teleporter', 'x' => 15, 'y' => 3]]],
+        ['repere' => 'B', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 3, 'y' => 3]]], 'alors' => [['effet' => 'teleporter', 'x' => 4, 'y' => 4]]],
+    ];
+    $refus = collect(app(ValidationCampagne::class)->valider($campagne))->map(fn (array $r) => $r['chemin'].' '.$r['code'])->all();
+
+    expect($refus)->toContain('quetes.0.notes.0.alors.0 '.ValidationCampagne::DANS_SALLE_FERMEE)
+        ->toContain('quetes.0.notes.1.alors.0 '.ValidationCampagne::CASE_PARTAGEE);
+});
+
+it('EN JEU : la case piégée téléporte le héros dans la galerie, révélée ; la suite du trajet ne déclenche rien', function () {
+    $campagne = DocumentExemple::campagne();
+    $campagne['quetes'][0]['notes'] = [
+        ['repere' => 'A', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 4, 'y' => 3]]], 'alors' => [['effet' => MotsClesQuete::TELEPORTER, 'x' => 9, 'y' => 4]]],
+        ['repere' => 'B', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 5, 'y' => 3]]], 'alors' => [['effet' => 'or', 'or' => 50]]],
+    ];
+    expect(app(ValidationCampagne::class)->valider($campagne))->toBe([]);
+    ['groupe' => $groupe, 'quete' => $quete, 'heros' => $heros] = partieVerrouillee($this, $campagne);
+    $quete->etatsPersonnages()->update(['position_x' => 2, 'position_y' => 3]);
+    $orAvant = (int) $heros->fresh()->or;
+    $galerie = collect($quete->carte->grille['salles'])->search(fn (array $s) => $s['id'] === 'galerie');
+
+    $deplacer = optionsPorteVerrouillee($this, $groupe, $heros)->firstWhere('id', 'se_deplacer');
+    expect(collect($deplacer['parametres']['destinations'])->contains(fn ($d) => $d['x'] === 5 && $d['y'] === 3))->toBeTrue();
+    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'se_deplacer', 'parametres' => ['x' => 5, 'y' => 3]])->assertAccepted();
+
+    $etat = $quete->etatsPersonnages()->firstOrFail();
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([9, 4])
+        ->and(in_array($galerie, (array) $quete->refresh()->salles_decouvertes, true))->toBeTrue()
+        ->and($quete->notes_jouees)->toBe([0])
+        ->and((int) $heros->fresh()->or)->toBe($orAvant);
+
+    $note = \App\Models\Evenement::where('groupe_id', $groupe->id)->get()->first(fn ($e) => ($e->payload['type'] ?? null) === 'note_de_quete');
+    expect(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($note->payload, 'Albrecht'))->pluck('texte')->all())
+        ->toBe(['Albrecht disparaît, et reparaît ailleurs']);
+});
+
+it('sans héros déclencheur, la téléportation ne fait rien et le dit', function () {
+    $campagne = DocumentExemple::campagne();
+    $campagne['quetes'][0]['notes'] = [
+        ['repere' => 'A', 'quand' => ['declencheur' => MotsClesQuete::TOUR_DU_MJ, 'cible' => ['tour' => 1]], 'alors' => [['effet' => MotsClesQuete::TELEPORTER, 'x' => 9, 'y' => 4]]],
+    ];
+    ['groupe' => $groupe, 'quete' => $quete, 'heros' => $heros] = partieVerrouillee($this, $campagne);
+
+    optionsPorteVerrouillee($this, $groupe, $heros);
+    $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'attendre'])->assertAccepted();
+
+    $etat = $quete->etatsPersonnages()->firstOrFail();
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([6, 3]);
+    $note = \App\Models\Evenement::where('groupe_id', $groupe->id)->get()->first(fn ($e) => ($e->payload['type'] ?? null) === 'note_de_quete');
+    expect($note->payload['effets'][0]['teleporte'])->toBeFalse();
+});
