@@ -148,7 +148,8 @@ final class ValidationCampagne
      * Les RÈGLES DE QUÊTE (`docs/plan-mode-classique.md` §2.3), valables toute la quête — seulement celles que le moteur
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
-    private const CLES_REGLES = ['solo'];
+    // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
+    private const CLES_REGLES = ['solo', 'marche_ferme'];
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
     private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
     private const CLES_QUAND = ['declencheur', 'cible'];
@@ -1173,6 +1174,10 @@ final class ValidationCampagne
             return;
         }
         $this->cles($regles, $position, [], self::CLES_REGLES);
+
+        if (array_key_exists('marche_ferme', $regles) && !is_bool($regles['marche_ferme'])) {
+            $this->refuser(self::chemin($position, 'marche_ferme'), self::TYPE_INVALIDE, 'true ou false est attendu');
+        }
 
         if (!array_key_exists('solo', $regles)) {
             return;

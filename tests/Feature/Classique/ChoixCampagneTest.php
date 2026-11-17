@@ -147,3 +147,42 @@ it('refuse la liste et le choix à qui ne pilote aucun héros du groupe, et à u
         ->assertStatus(422)->assertJsonPath('errors.campagne.0', 'Seul un groupe classique choisit une campagne construite.');
     expect($this->getJson('/api/groupes/table-campagne/etat')->json('groupe'))->not->toHaveKey('classique');
 });
+
+/*
+ * MARCHÉ FERMÉ AVANT UNE QUÊTE (lot K5c, R8) : `regles.marche_ferme` sur la quête 1 de la campagne ouverte. Au hub, tant
+ * qu'elle est la prochaine, le marché ne s'ouvre pas — publié et refusé ; la quête jouée (rang 2), il rouvre.
+ */
+it('ferme le marché avant la quête qui l\'interdit, le publie au hub, et le rouvre ensuite', function () {
+    $campagne = DocumentExemple::campagne();
+    $campagne['slug'] = 'campagne-ouverte';
+    $campagne['titre'] = 'Campagne ouverte';
+    $campagne['prerequis_heros'] = [];
+    $campagne['quetes'][0]['regles'] = ['marche_ferme' => true];
+    expect(app(\App\Partie\Classique\ValidationCampagne::class)->valider($campagne))->toBe([]);
+    app(CampagnesConstruites::class)->enregistrer($campagne);
+    [$groupe] = naineAuHub($this, 'campagne-ouverte');
+
+    $etat = $this->getJson("/api/groupes/{$groupe->identifiant}/etat")->assertOk()->json('groupe');
+    expect($etat['marche_ouvert'])->toBeFalse()
+        ->and($etat['marche_motif'])->toBe('Le marché est fermé avant « La première marche ».');
+    $this->postJson("/api/groupes/{$groupe->identifiant}/marche")->assertStatus(422)
+        ->assertJsonPath('errors.groupe.0', 'Le marché est fermé avant « La première marche ».');
+
+    $groupe->update(['rang_quete' => 2]);
+    expect($this->getJson("/api/groupes/{$groupe->identifiant}/etat")->json('groupe.marche_ouvert'))->toBeTrue();
+    $this->postJson("/api/groupes/{$groupe->identifiant}/marche")->assertCreated();
+
+    $campagne['quetes'][0]['regles'] = ['marche_ferme' => 'oui'];
+    expect(collect(app(\App\Partie\Classique\ValidationCampagne::class)->valider($campagne))->pluck('chemin'))
+        ->toContain('quetes.0.regles.marche_ferme');
+});
+
+it('publie au hub que la clôture est fermée à un groupe classique, et ouverte à une campagne', function () {
+    [$groupe] = naineAuHub($this);
+    expect($this->getJson("/api/groupes/{$groupe->identifiant}/etat")->json('groupe.cloture_ouverte'))->toBeFalse();
+
+    $bruno = connecterJoueur('bruno');
+    $campagne = creerGroupe('table-campagne');
+    creerHeros($bruno, $campagne, 'Bertrand', 1);
+    expect($this->getJson('/api/groupes/table-campagne/etat')->json('groupe.cloture_ouverte'))->toBeTrue();
+});

@@ -6201,6 +6201,20 @@ qu'avec un héros désigné.
   cette quête » sur sa fiche. Un héros SORTI, lui, est un participant qui a quitté le donjon (`sorti: true`).
 - **Constructeur** : « Quête solo » dans la fiche de la quête, parmi les classes exigées par la campagne.
 
+### Marché fermé avant une quête — `regles.marche_ferme` (lot K5c, 2026-11-16)
+
+Plan §2.3 R8 (*Rise of the Dread Moon*, *The Frozen Horror* : « marché fermé ou service interdit avant la quête »).
+`quete.regles.marche_ferme: true` (booléen ; `false` revient à l'omettre) : tant que CETTE quête est la prochaine du
+groupe (`rang_quete`), le marché du hub ne s'ouvre pas. La quête jouée, la règle tombe.
+
+- Point de passage unique : `PhaseMarche::motifFermeture(Groupe)` — lu par `POST /groupes/{id}/marche` (**422**
+  `groupe` avec le motif) et publié au hub : **`groupe.marche_ouvert`** (bool) et **`groupe.marche_motif`** (texte ou
+  `null`), pour tout groupe au hub. La table masque « Ouvrir le marché » et affiche le motif à sa place.
+- Motif : « Le marché est fermé avant « {titre de la quête} ». »
+- Au même endroit, **`groupe.cloture_ouverte`** (bool, tout groupe au hub) : la clôture est-elle offerte
+  (`Groupe::etapeOuverte(EtapesCampagne::CLOTURE)`) ? `false` pour un groupe classique : la table ne montre plus
+  « Clôturer » (vu à l'écran le 2026-11-16 : le bouton était offert, la route le refusait).
+
 ### Choisir sa campagne au hub (fin du lot S1, 2026-11-16)
 
 `docs/plan-mode-classique.md` §6 et §7 : un groupe classique n'est jamais dissous ; finir une campagne ramène au CHOIX

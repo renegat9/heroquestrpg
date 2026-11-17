@@ -855,6 +855,12 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-16 — lot K5c : le marché fermé avant une quête** (R8).
+  `quete.regles.marche_ferme: true` : tant que cette quête est la prochaine du
+  groupe, le marché du hub ne s'ouvre pas. Point de passage
+  `PhaseMarche::motifFermeture()`, lu par la route et publié au hub
+  (`marche_ouvert` / `marche_motif`) ; la table masque « Ouvrir le marché » et
+  dit pourquoi. Constructeur : case « Marché fermé avant la quête ».
 - **Fait le 2026-11-16 — lot K5b : le bloc qui tombe et la porte secrète
   révélée** (E6, E5 en partie). Effets de note `bloc {x, y}` — le même
   obstacle permanent qu'une Chute de blocs déclenchée

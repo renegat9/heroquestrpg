@@ -63,9 +63,9 @@ it('valide une quête solo pour une classe exigée, et refuse les autres', funct
 
 it('refuse une règle de quête inconnue', function () {
     $campagne = campagneSolo();
-    $campagne['quetes'][0]['regles']['marche_ferme'] = true;
+    $campagne['quetes'][0]['regles']['pleine_lune'] = true;
 
-    expect(collect(app(ValidationCampagne::class)->valider($campagne))->pluck('chemin'))->toContain('quetes.0.regles.marche_ferme');
+    expect(collect(app(ValidationCampagne::class)->valider($campagne))->pluck('chemin'))->toContain('quetes.0.regles.pleine_lune');
 });
 
 it('EN JEU : seul le barbare entre ; la naine regarde, sans tour ni menu, et ne gagne rien', function () {

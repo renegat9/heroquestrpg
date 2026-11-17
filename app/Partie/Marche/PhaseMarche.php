@@ -89,9 +89,30 @@ final class PhaseMarche
      *
      * @return array<string, mixed> EtatMarche
      */
+    /**
+     * MARCHÉ FERMÉ AVANT UNE QUÊTE (mode classique, lot K5c, plan §2.3 R8) : la prochaine quête du groupe porte
+     * `regles.marche_ferme`. Point de passage unique — lu par `ouvrir()` et publié au hub (`EtatGroupe`,
+     * `marche_ouvert` / `marche_motif`). Rend le motif, ou `null` si rien n'interdit le marché.
+     */
+    public function motifFermeture(Groupe $groupe): ?string
+    {
+        if (! $groupe->estClassique() || $groupe->campagneConstruite === null) {
+            return null;
+        }
+        $prochaine = ((array) ($groupe->campagneConstruite->document['quetes'] ?? []))[(int) $groupe->rang_quete - 1] ?? null;
+
+        return is_array($prochaine) && data_get($prochaine, 'regles.marche_ferme') === true
+            ? 'Le marché est fermé avant « '.($prochaine['titre'] ?? 'la prochaine quête').' ».'
+            : null;
+    }
+
     public function ouvrir(Groupe $groupe, ?string $profil = null): array
     {
         $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::MARCHE);
+
+        if (($motif = $this->motifFermeture($groupe)) !== null) {
+            throw ValidationException::withMessages(['groupe' => $motif]);
+        }
 
         if ($groupe->phase !== 'hub') {
             throw ValidationException::withMessages([

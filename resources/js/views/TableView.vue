@@ -678,6 +678,11 @@ const compagnonOffertHub = computed(() => etat.value?.groupe?.compagnon_offert ?
 // hub). Campagne gagnée : pas de « Lancer la quête » ; le motif publié par le serveur s'affiche à la place.
 const departBloque = computed(() => etat.value?.groupe?.depart_possible === false);
 const departMotif = computed(() => etat.value?.groupe?.depart_motif ?? '');
+// MARCHÉ FERMÉ avant la prochaine quête (lot K5c) : la décision du serveur (`marche_ouvert` / `marche_motif`).
+const marcheFerme = computed(() => etat.value?.groupe?.marche_ouvert === false);
+const marcheMotif = computed(() => etat.value?.groupe?.marche_motif ?? '');
+// CLÔTURE : décision du serveur (`cloture_ouverte`, registre des étapes) — fermée à un groupe classique.
+const clotureFermee = computed(() => etat.value?.groupe?.cloture_ouverte === false);
 async function lancerQuete() {
     if (compagnonOffertHub.value && !lancementAConfirmer.value) {
         lancementAConfirmer.value = true;
@@ -1065,16 +1070,20 @@ watch(() => store.state.clotureTerminee, (t) => {
                             <MSym n="flag" fill :size="15" />
                             <span>{{ departMotif }}</span>
                         </p>
+                        <p v-if="marcheFerme" class="hub-depart-motif">
+                            <MSym n="storefront" :size="15" />
+                            <span>{{ marcheMotif }}</span>
+                        </p>
                         <div style="display: flex; gap: 10px">
                             <button v-if="!departBloque" class="btn torch" :disabled="lancementEnCours" @click="lancerQuete">
                                 <MSym n="play_arrow" />
                                 {{ lancementEnCours ? 'Préparation…'
                                     : (lancementAConfirmer ? 'Lancer sans compagnon' : 'Lancer la quête') }}
                             </button>
-                            <button class="btn" :disabled="ouvertureMarche" @click="ouvrirMarche">
+                            <button v-if="!marcheFerme" class="btn" :disabled="ouvertureMarche" @click="ouvrirMarche">
                                 <MSym n="storefront" /> {{ ouvertureMarche ? 'Ouverture…' : 'Ouvrir le marché' }}
                             </button>
-                            <button class="btn" :disabled="ouvertureCloture" @click="ouvrirCloture(false)">
+                            <button v-if="!clotureFermee" class="btn" :disabled="ouvertureCloture" @click="ouvrirCloture(false)">
                                 <MSym n="workspace_premium" /> {{ ouvertureCloture ? 'Ouverture…' : 'Clôturer' }}
                             </button>
                         </div>

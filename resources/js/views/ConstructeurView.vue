@@ -443,6 +443,14 @@ function changerSolo(classe) {
         if (!Object.keys(quete.value.regles).length) delete quete.value.regles;
     }
 }
+// Lot K5c (R8) : `regles.marche_ferme` — présent seulement quand il vaut true, jamais une clé `false` décorative.
+function changerMarcheFerme(ferme) {
+    if (ferme) quete.value.regles = { ...(quete.value.regles ?? {}), marche_ferme: true };
+    else if (quete.value.regles) {
+        delete quete.value.regles.marche_ferme;
+        if (!Object.keys(quete.value.regles).length) delete quete.value.regles;
+    }
+}
 function basculerRecompense(avec) {
     quete.value.recompense = avec ? { or: 0, partage: (vocab.value.partages ?? ['groupe'])[0] } : null;
 }
@@ -778,6 +786,9 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         <option value="">non — tout le groupe</option>
                                         <option v-for="c in catalogues.classes.filter((k) => doc.prerequis_heros.includes(k.slug))" :key="c.slug" :value="c.slug">{{ c.nom }} seul</option>
                                     </select>
+                                </label>
+                                <label class="cst-case">
+                                    <input type="checkbox" :checked="quete.regles?.marche_ferme === true" @change="changerMarcheFerme($event.target.checked)" /> Marché fermé avant la quête
                                 </label>
                                 <label class="cst-case">
                                     <input type="checkbox" :checked="quete.recompense !== null" @change="basculerRecompense($event.target.checked)" /> Récompense
