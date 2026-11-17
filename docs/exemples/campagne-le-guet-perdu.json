@@ -1,0 +1,429 @@
+{
+  "format": 1,
+  "slug": "exemple-le-guet-perdu",
+  "titre": "Exemple — Le guet perdu",
+  "auteur": "Exemple du mode classique (lot X1)",
+  "mention": "Campagne d'exemple ORIGINALE : plateau, quêtes, personnages et textes inventés pour le projet. Rien n'est tiré d'un livret.",
+  "prerequis_heros": [],
+  "plateau": {
+    "largeur": 24,
+    "hauteur": 16,
+    "salles": [
+      {
+        "id": "corps-de-garde",
+        "x": 2,
+        "y": 2,
+        "l": 5,
+        "h": 4
+      },
+      {
+        "id": "armurerie",
+        "x": 8,
+        "y": 2,
+        "l": 4,
+        "h": 4
+      },
+      {
+        "id": "puits",
+        "x": 14,
+        "y": 2,
+        "l": 5,
+        "h": 4
+      },
+      {
+        "id": "chapelle",
+        "x": 2,
+        "y": 10,
+        "l": 5,
+        "h": 4
+      },
+      {
+        "id": "crypte",
+        "x": 9,
+        "y": 10,
+        "l": 5,
+        "h": 4
+      },
+      {
+        "id": "reliquaire",
+        "x": 17,
+        "y": 10,
+        "l": 4,
+        "h": 4
+      }
+    ]
+  },
+  "quetes": [
+    {
+      "slug": "le-guet-silencieux",
+      "titre": "Le guet silencieux",
+      "ouverture": "Le poste de guet du col ne répond plus depuis trois nuits. L'escalier descend dans le corps de garde, où les braises sont froides. Quelque part dans l'armurerie dort le sceau du capitaine : sans lui, personne n'ouvrira la crypte qui s'étend sous la colline.",
+      "monstre_errant": "gobelin",
+      "salles_ouvertes": [
+        "corps-de-garde",
+        "armurerie",
+        "puits"
+      ],
+      "portes": [
+        {
+          "x": 6,
+          "y": 3,
+          "cote": "e",
+          "type": "normale"
+        },
+        {
+          "x": 8,
+          "y": 3,
+          "cote": "o",
+          "type": "normale",
+          "verrou": {
+            "type": "note"
+          }
+        },
+        {
+          "x": 11,
+          "y": 4,
+          "cote": "e",
+          "type": "normale"
+        },
+        {
+          "x": 14,
+          "y": 4,
+          "cote": "o",
+          "type": "normale"
+        },
+        {
+          "x": 4,
+          "y": 5,
+          "cote": "s",
+          "type": "secrete"
+        }
+      ],
+      "blocs": [],
+      "mobilier": [
+        {
+          "slug": "table",
+          "x": 3,
+          "y": 4,
+          "rotation": 0
+        },
+        {
+          "slug": "ratelier-darmes",
+          "x": 11,
+          "y": 2,
+          "rotation": 0
+        },
+        {
+          "slug": "coffre",
+          "x": 18,
+          "y": 5,
+          "rotation": 0
+        }
+      ],
+      "monstres": [
+        {
+          "slug": "gobelin",
+          "x": 9,
+          "y": 4
+        },
+        {
+          "slug": "orque",
+          "x": 16,
+          "y": 3
+        },
+        {
+          "slug": "gobelin",
+          "x": 17,
+          "y": 4
+        }
+      ],
+      "pieges": [
+        {
+          "slug": "fosse",
+          "x": 12,
+          "y": 4
+        }
+      ],
+      "terrain": [],
+      "depart": {
+        "x": 2,
+        "y": 2
+      },
+      "sortie": null,
+      "recompense": {
+        "or": 40,
+        "partage": "groupe"
+      },
+      "regles": {
+        "sans_fouille": [
+          "corps-de-garde"
+        ]
+      },
+      "notes": [
+        {
+          "repere": "A",
+          "quand": {
+            "declencheur": "tour_du_mj",
+            "cible": {
+              "tour": 2
+            }
+          },
+          "alors": [
+            {
+              "effet": "texte",
+              "texte": "Un claquement métallique résonne à l'est : la grille de l'armurerie se lève d'elle-même."
+            },
+            {
+              "effet": "ouvrir_porte",
+              "porte": 1
+            }
+          ]
+        },
+        {
+          "repere": "B",
+          "quand": {
+            "declencheur": "fouille_tresor",
+            "cible": {
+              "salle": "armurerie"
+            }
+          },
+          "alors": [
+            {
+              "effet": "texte",
+              "texte": "Sous un bouclier fendu, enveloppé dans un tabard aux couleurs du guet : le sceau du capitaine, et une fiole intacte."
+            },
+            {
+              "effet": "objet",
+              "slug": "potion-de-guerison"
+            },
+            {
+              "effet": "drapeau",
+              "nom": "sceau_trouve",
+              "campagne": true
+            }
+          ]
+        },
+        {
+          "repere": "C",
+          "quand": {
+            "declencheur": "entree",
+            "cible": {
+              "salle": "puits"
+            }
+          },
+          "alors": [
+            {
+              "effet": "texte",
+              "texte": "Une chaîne grince dans le puits. Quelque chose remonte, os contre pierre."
+            },
+            {
+              "effet": "apparition",
+              "monstres": [
+                {
+                  "slug": "squelette",
+                  "x": 15,
+                  "y": 2
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "repere": "D",
+          "quand": {
+            "declencheur": "fouille_zone",
+            "cible": {
+              "salle": "puits"
+            }
+          },
+          "alors": [
+            {
+              "effet": "texte",
+              "texte": "Les pierres du puits sont humides et lisses : aucun passage, aucun mécanisme. Seulement l'écho."
+            }
+          ]
+        }
+      ],
+      "fin": {
+        "type": "drapeau",
+        "drapeau": "sceau_trouve",
+        "libelle": "Trouver le sceau du capitaine dans l'armurerie, puis remonter par l'escalier."
+      }
+    },
+    {
+      "slug": "la-crypte-scellee",
+      "titre": "La crypte scellée",
+      "ouverture": "Le sceau du capitaine ouvre la porte basse de la chapelle. Derrière, la crypte du guet ; plus loin, la salle du reliquaire, dont la porte ferme d'une serrure de laiton. La seule porte de l'est, qui mène hors de la colline, s'ouvre au fond du reliquaire.",
+      "monstre_errant": "squelette",
+      "salles_ouvertes": [
+        "chapelle",
+        "crypte",
+        "reliquaire"
+      ],
+      "portes": [
+        {
+          "x": 6,
+          "y": 12,
+          "cote": "e",
+          "type": "normale"
+        },
+        {
+          "x": 9,
+          "y": 12,
+          "cote": "o",
+          "type": "normale"
+        },
+        {
+          "x": 13,
+          "y": 11,
+          "cote": "e",
+          "type": "normale"
+        },
+        {
+          "x": 17,
+          "y": 11,
+          "cote": "o",
+          "type": "normale",
+          "verrou": {
+            "type": "cle",
+            "objet": "cle-de-laiton"
+          }
+        }
+      ],
+      "blocs": [
+        {
+          "x": 1,
+          "y": 11
+        },
+        {
+          "x": 21,
+          "y": 12
+        }
+      ],
+      "mobilier": [
+        {
+          "slug": "tombeau",
+          "x": 10,
+          "y": 12,
+          "rotation": 0
+        },
+        {
+          "slug": "coffre",
+          "x": 20,
+          "y": 10,
+          "rotation": 0
+        }
+      ],
+      "monstres": [
+        {
+          "slug": "squelette",
+          "x": 10,
+          "y": 11
+        },
+        {
+          "slug": "zombie",
+          "x": 12,
+          "y": 10
+        },
+        {
+          "slug": "momie",
+          "x": 19,
+          "y": 12
+        }
+      ],
+      "pieges": [
+        {
+          "slug": "piege-a-lances",
+          "x": 15,
+          "y": 11,
+          "indesarmable": true
+        }
+      ],
+      "terrain": [],
+      "depart": {
+        "type": "porte",
+        "x": 2,
+        "y": 11,
+        "cote": "o"
+      },
+      "sortie": {
+        "type": "porte",
+        "x": 20,
+        "y": 12,
+        "cote": "e"
+      },
+      "recompense": {
+        "or": 25,
+        "partage": "par_heros"
+      },
+      "regles": {
+        "marche_ferme": true
+      },
+      "notes": [
+        {
+          "repere": "A",
+          "quand": {
+            "declencheur": "entree",
+            "cible": {
+              "salle": "chapelle"
+            },
+            "si_drapeau": "sceau_trouve"
+          },
+          "alors": [
+            {
+              "effet": "texte",
+              "texte": "Le sceau du capitaine s'échauffe dans votre main : dans une niche de la chapelle, une offrande oubliée attend son porteur."
+            },
+            {
+              "effet": "or",
+              "or": 20
+            }
+          ]
+        },
+        {
+          "repere": "B",
+          "quand": {
+            "declencheur": "fouille_tresor",
+            "cible": {
+              "salle": "crypte"
+            }
+          },
+          "alors": [
+            {
+              "effet": "texte",
+              "texte": "Entre deux dalles disjointes, une petite clé de laiton noircie."
+            },
+            {
+              "effet": "objet",
+              "slug": "cle-de-laiton"
+            }
+          ]
+        },
+        {
+          "repere": "C",
+          "quand": {
+            "declencheur": "tour_du_mj",
+            "cible": {
+              "tour": 6
+            }
+          },
+          "alors": [
+            {
+              "effet": "texte",
+              "texte": "Le plafond du couloir nord gronde. Une pierre se détache et barre l'ancien passage."
+            },
+            {
+              "effet": "bloc",
+              "x": 7,
+              "y": 9
+            }
+          ]
+        }
+      ],
+      "fin": {
+        "type": "sortir",
+        "libelle": "Ouvrir la porte du reliquaire avec la bonne clé, le traverser, et quitter la colline par la porte de l'est."
+      }
+    }
+  ]
+}

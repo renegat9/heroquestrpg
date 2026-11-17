@@ -3304,7 +3304,8 @@ mitoyenne — un passage dérobé directement dans un mur partagé entre deux
 salles, plus fidèle au plateau qu'un cul-de-sac de couloir ; sa case se peint
 en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
 
-- **EtatGroupe.carte** gagne `portes: [{x, y, cote, etat, embrasure: {x, y}, verrou?, image_url?}]` —
+- **EtatGroupe.carte** gagne `portes: [{x, y, cote, etat, embrasure: {x, y} | null, arete, verrou?, image_url?}]` —
+  (`embrasure: null` et `arete: true` pour une porte sur une arête, carte construite : voir « Géométrie » plus bas) —
   une porte connue est rendue comme une porte, centrée sur sa case `embrasure`
   (§Symboles de la carte et légende plus haut), une `verrouillee` porte un
   cadenas (`verrou` = type du verrou).

@@ -194,6 +194,8 @@ it('la fin « drapeau » : la quête est accomplie quand une note a posé le dra
     menuDeNote($this, 4, 3);
     jouerNote($this, 'fouiller_tresor')->assertStatus(202)->assertJsonPath('resultat.issue', 'note');
 
+    // Au tour SUIVANT (la fouille a pris l'action de ce tour-ci : quitter le donjon la demande aussi, lot X1).
+    $this->quete->etatsPersonnages()->update(['a_agi' => false, 'a_joue' => false, 'a_deplace' => false]);
     expect($this->quete->fresh()->objectifAccompli())->toBeTrue()
         ->and(menuDeNote($this, 2, 4)->pluck('id'))->toContain('sortir_donjon');
 });

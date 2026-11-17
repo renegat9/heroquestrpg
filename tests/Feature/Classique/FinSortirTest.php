@@ -150,3 +150,12 @@ it('EN JEU : fin « sortir » par un ESCALIER, entré par une porte depuis hors 
         ->assertJsonPath('resultat.par', 'escalier');
     expect($quete->refresh()->etat)->toBe('terminee');
 });
+
+it('n\'offre pas la sortie au héros qui a déjà agi ce tour (vu en partie d\'agents, lot X1)', function () {
+    ['code' => $code, 'groupe' => $groupe, 'quete' => $quete, 'heros' => $heros] = partieASortir($this);
+    $quete->etatsPersonnages()->where('personnage_id', $heros->id)->update(['position_x' => 19, 'position_y' => 7, 'a_agi' => true]);
+    Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($groupe, $heros));
+
+    $ids = collect($this->getJson("/api/groupes/{$code}/menu")->assertOk()->json('menu.options'))->pluck('id');
+    expect($ids)->not->toContain('sortir_donjon');
+});

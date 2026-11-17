@@ -219,7 +219,9 @@ const doors = computed(() => (props.carte.portes ?? [])
     // (x, y) et de sa voisine EST (`e`) ou SUD (`s`). Le serveur publie laquelle des deux formes ; rien n'est déduit.
     .filter((p) => PORTE_ETATS[p.etat] && (p.embrasure || p.arete))
     .map((p) => {
-        const verrou = p.verrou ? (PORTE_VERROUS[p.verrou] ?? p.verrou) : null;
+        // Une porte OUVERTE ne dit plus son verrou au survol (vu en partie d'agents, lot X1 : « Porte ouverte — ne s'ouvre
+        // pas d'ici »). Le type reste publié : la grille de fer ouverte s'en sert pour son dessin.
+        const verrou = p.verrou && p.etat !== 'ouverte' ? (PORTE_VERROUS[p.verrou] ?? p.verrou) : null;
 
         return {
             x: p.arete ? p.x : p.embrasure.x,

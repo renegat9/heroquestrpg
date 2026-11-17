@@ -59,6 +59,15 @@ ouvrables = {o.get("id") for o in ((menu_tete.get("menu") or {}).get("options") 
 print(f"PHASE {g.get('phase')} | quête: {(etat.get('quete') or {}).get('titre','—')}")
 if moi is None:
     print("(héros absent de la quête)"); sys.exit(0)
+# HORS DU PLATEAU (mode classique, lot X1) : le héros attend devant la porte d'entrée, ou il est SORTI — il n'a pas de
+# case. Rien à mesurer : on montre le menu (l'option d'entrée) et on s'arrête là. Avant, toute distance plantait
+# (`int - NoneType`), vu en partie d'agents le 2026-11-17.
+if moi.get("x") is None or moi.get("y") is None:
+    etat_txt = "SORTI du donjon" if moi.get("sorti") else ("SPECTATEUR" if moi.get("spectateur") else "HORS DU PLATEAU (devant la porte d'entrée)")
+    print(f"MOI {moi['nom']} — {etat_txt} — {moi.get('pv_body')} PV")
+    for o in ((menu_tete.get("menu") or {}).get("options") or []):
+        print(f"  [{o.get('id')}] {o.get('libelle')} ({o.get('type')})")
+    sys.exit(0)
 
 print(f"MOI {moi['nom']} en ({moi['x']},{moi['y']}) — {moi.get('pv_body')} PV | "
       f"joué={moi.get('a_joue')} déplacé={moi.get('a_deplace')} agi={moi.get('a_agi')} "
@@ -153,12 +162,23 @@ portes_carte = carte.get("portes") or []
 def distance_embrasure(p):
     e = p.get("embrasure")
     if e is None:
-        return None
+        if not p.get("arete"):
+            return None
+        dx, dy = {"e": (1, 0), "s": (0, 1), "o": (-1, 0), "n": (0, -1)}.get(p.get("cote"), (0, 0))
+        return min(abs(p["x"] - moi["x"]) + abs(p["y"] - moi["y"]),
+                   abs(p["x"] + dx - moi["x"]) + abs(p["y"] + dy - moi["y"]))
     return abs(e["x"] - moi["x"]) + abs(e["y"] - moi["y"])
 
 def texte_embrasure(p):
     e = p.get("embrasure")
-    return f"embrasure ({e['x']},{e['y']})" if e else "⚠ embrasure NON publiée"
+    if e:
+        return f"embrasure ({e['x']},{e['y']})"
+    # PORTE SUR UNE ARÊTE (carte construite, mode classique) : pas d'embrasure — on l'ouvre en se tenant sur l'UNE de
+    # ses deux cases, (x,y) ou sa voisine du côté `cote`. Ce n'est pas une donnée manquante (lot X1, 2026-11-17).
+    if p.get("arete"):
+        dx, dy = {"e": (1, 0), "s": (0, 1), "o": (-1, 0), "n": (0, -1)}.get(p.get("cote"), (0, 0))
+        return f"porte sur une arête : se tenir en ({p['x']},{p['y']}) ou ({p['x'] + dx},{p['y'] + dy})"
+    return "⚠ embrasure NON publiée"
 
 verrouillees = [p for p in portes_carte if p.get("etat") == "verrouillee"]
 if verrouillees:

@@ -59,6 +59,16 @@ et `pilote.py` sait y descendre depuis le **2026-09-02** — avant ça, tous deu
 ne lisaient que `parametres.cibles`, donc voyaient un menu SANS AUCUN SORT et
 faisaient jouer un lanceur muet, sans la moindre erreur.
 
+⚠ **Une CIBLE se passe toujours en `cible_id` + `cible_type`** (rappelé après la partie d'agents du 2026-11-17, lot X1) :
+`choix attaquer '{"cible_id":1290,"cible_type":"monstre"}'`, et pour boire une potion
+`choix utiliser_objet '{"cle":"objet:823","cible_id":503}'` (le héros qui boit). Une clé inventée (`cible`) n'est
+pas lue : le serveur répond « Cible invalide… », comme pour une cible absente de la liste.
+
+⚠ **Mode classique — une porte SUR UNE ARÊTE** (`arete: true`, `embrasure: null`, carte construite) : on l'ouvre en se
+tenant sur l'UNE de ses deux cases — `(x, y)` ou sa voisine du côté `cote` —, jamais depuis une case plus loin. `vue.py`
+l'écrit (« porte sur une arête : se tenir en… »). Le héros qui attend HORS DU PLATEAU, ou qui est SORTI, n'a pas de case :
+`vue.py` montre alors seulement son menu (l'option `entrer_donjon`).
+
 ⚠ **`POST /potions` n'existe plus** (2026-09-01) : on boit par `/choix`, via
 `utiliser_objet`. Le verbe `hq.sh potion` a donc été retiré le 2026-09-02 — il
 appelait une route disparue et rendait un 404 muet, exactement le « joueur

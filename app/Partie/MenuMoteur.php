@@ -3454,7 +3454,10 @@ final class MenuMoteur
         // menu est recalculé avec ceux du groupe.
         // ⚠ Une FAUSSE porte de sortie encore inconnue reçoit la MÊME option, au même libellé (`Quete::sortieOfferte()`) :
         // c'est le résolveur qui dira qu'elle ne s'ouvre pas.
-        if ($parEscalier && ! $aJoue && $etat !== null && $quete->sortieOfferte($etat) !== null) {
+        // ⚠ Quitter le donjon prend l'ACTION (créneau par défaut de `sortie_en_personne` — le même que la fausse porte,
+        // indiscernable) : déjà agi, l'option n'est pas offerte. Vu en partie d'agents le 2026-11-17 (lot X1) : offerte
+        // après une fouille, puis refusée « Tu as déjà agi ce tour ».
+        if ($parEscalier && ! $aJoue && $etat !== null && ! $etat->a_agi && $quete->sortieOfferte($etat) !== null) {
             $options[] = [
                 'id' => 'sortir_donjon',
                 'libelle' => 'Quitter le donjon par '.$quete->nomDeLaSortieSous($etat),
