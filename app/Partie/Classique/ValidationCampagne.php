@@ -26,7 +26,6 @@ final class ValidationCampagne
     // porte l'un d'eux (tests/Feature/Classique/ValidationCampagneTest.php). ──────────────────────────────────────
 
     public const CLE_INCONNUE = 'cle_inconnue';
-    public const CLE_PAS_ENCORE_PRISE = 'cle_pas_encore_prise';
     public const CLE_MANQUANTE = 'cle_manquante';
     public const TYPE_INVALIDE = 'type_invalide';
     public const VALEUR_INVALIDE = 'valeur_invalide';
@@ -69,7 +68,7 @@ final class ValidationCampagne
 
     /** @var list<string> */
     public const CODES = [
-        self::CLE_INCONNUE, self::CLE_PAS_ENCORE_PRISE, self::CLE_MANQUANTE, self::TYPE_INVALIDE,
+        self::CLE_INCONNUE, self::CLE_MANQUANTE, self::TYPE_INVALIDE,
         self::VALEUR_INVALIDE, self::FORMAT_INCONNU, self::SLUG_INVALIDE, self::SLUG_EN_DOUBLE,
         self::SALLE_HORS_PLATEAU, self::SALLE_ID_EN_DOUBLE, self::SALLES_SE_CHEVAUCHENT, self::SALLE_INCONNUE,
         self::CATALOGUE_INCONNU, self::CLASSE_INCONNUE, self::HORS_PLATEAU, self::DANS_SALLE_FERMEE,
@@ -143,7 +142,7 @@ final class ValidationCampagne
         'sortir' => ['type', 'libelle'],
     ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite'];
     /**
      * Les RÈGLES DE QUÊTE (`docs/plan-mode-classique.md` §2.3), valables toute la quête — seulement celles que le moteur
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
@@ -166,7 +165,6 @@ final class ValidationCampagne
     private const CLES_RECOMPENSE = ['or', 'partage'];
 
     /** Clés déjà prévues par `docs/plan-mode-classique.md` §3, pas encore lues : le lot qui les prendra. */
-    private const LOTS_A_VENIR = ['suite' => 'K5'];
 
     /**
      * Les conditions de fin qu'une quête peut déclarer : SEULEMENT celles que le moteur sait jouer
@@ -404,6 +402,11 @@ final class ValidationCampagne
     {
         $slugs = [];
         $this->drapeauxDeCampagne = [];
+        // Lot K5i : un embranchement peut viser une quête PLUS LOIN dans la liste — on connaît tous les slugs d'avance.
+        $tousLesSlugs = array_values(array_filter(array_map(
+            fn ($q) => is_array($q) && is_string($q['slug'] ?? null) ? $q['slug'] : null,
+            is_array($document['quetes'] ?? null) ? $document['quetes'] : [],
+        )));
 
         foreach ($this->enListeDe($document, 'quetes', '') as $i => $valeur) {
             $chemin = "quetes.$i";
@@ -449,6 +452,8 @@ final class ValidationCampagne
             $this->campagneDeLaQuete = [];
             $drapeauxPoses = $this->notes($quete, $chemin) + $this->drapeauxDeCampagne;
             $this->fin($quete, $chemin, $drapeauxPoses);
+            // Lot K5i (C2) : les embranchements, après les notes (leurs drapeaux) et avec les slugs de TOUTE la campagne.
+            $this->suite($quete, $chemin, $drapeauxPoses + $this->campagneDeLaQuete, $tousLesSlugs, is_string($quete['slug'] ?? null) ? $quete['slug'] : null);
             $this->drapeauxDeCampagne += $this->campagneDeLaQuete;
         }
     }
@@ -1275,6 +1280,59 @@ final class ValidationCampagne
         }
     }
 
+    /**
+     * `quete.suite` (lot K5i, C2) : des embranchements `{quete: slug | fin: true, si_drapeau?}`, lus dans l'ordre à la
+     * victoire (`FinDeQueteConstruite::rangSuivant()`).
+     *
+     * @param  array<string, true>  $drapeauxPoses  posés par cette quête, ou « de campagne » par une quête précédente
+     * @param  list<string>  $slugs  ceux de toutes les quêtes de la campagne
+     */
+    private function suite(array $quete, string $chemin, array $drapeauxPoses, array $slugs, ?string $soi): void
+    {
+        if (!array_key_exists('suite', $quete)) {
+            return;
+        }
+        $position = self::chemin($chemin, 'suite');
+        $branches = $this->enListeDe($quete, 'suite', $chemin);
+        if (is_array($quete['suite']) && $branches === []) {
+            $this->refuser($position, self::VALEUR_INVALIDE, 'une suite sans embranchement ne dit rien : retirez la clé');
+
+            return;
+        }
+        $derniere = count($branches) - 1;
+        foreach ($branches as $i => $valeur) {
+            $ici = "$position.$i";
+            $branche = $this->enObjet($valeur, $ici);
+            if ($branche === null) {
+                continue;
+            }
+            $this->cles($branche, $ici, [], ['quete', 'fin', 'si_drapeau']);
+            $versQuete = array_key_exists('quete', $branche);
+            $versFin = array_key_exists('fin', $branche);
+            if ($versQuete === $versFin) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'un embranchement mène à une quête (`quete`) OU à la fin (`fin: true`), un seul');
+            } elseif ($versFin && $branche['fin'] !== true) {
+                $this->refuser("$ici.fin", self::TYPE_INVALIDE, 'true est attendu');
+            } elseif ($versQuete) {
+                $cible = $branche['quete'];
+                if (!is_string($cible)) {
+                    $this->refuser("$ici.quete", self::TYPE_INVALIDE, 'le slug d\'une quête est attendu');
+                } elseif ($cible === $soi || !in_array($cible, $slugs, true)) {
+                    $this->refuser("$ici.quete", self::CIBLE_INCONNUE,
+                        $cible === $soi ? 'une quête ne mène pas à elle-même' : "« $cible » n'est le slug d'aucune quête de la campagne");
+                }
+            }
+            $drapeau = $this->nomDeDrapeau($branche, 'si_drapeau', $ici);
+            if ($drapeau !== null && !isset($drapeauxPoses[$drapeau])) {
+                $this->refuser("$ici.si_drapeau", self::DRAPEAU_JAMAIS_POSE,
+                    "aucune note de cette quête, ni drapeau de campagne d'une quête précédente, ne pose « $drapeau »");
+            }
+            if (!array_key_exists('si_drapeau', $branche) && $i !== $derniere) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'un embranchement sans drapeau est toujours pris : il doit être le dernier');
+            }
+        }
+    }
+
     private function recompense(array $quete, string $chemin): void
     {
         if (!array_key_exists('recompense', $quete) || $quete['recompense'] === null) {
@@ -1327,7 +1385,7 @@ final class ValidationCampagne
 
     /**
      * Présence des clés obligatoires (`cle_manquante`) et contrôle des clés inconnues : refusées en les nommant
-     * (`cle_inconnue`), ou `cle_pas_encore_prise` pour une clé réservée à un lot ultérieur.
+     * (`cle_inconnue`). Plus aucune clé n'est réservée à un lot ultérieur depuis le lot K5i (`cle_pas_encore_prise` retiré).
      */
     private function cles(array $objet, string $chemin, array $attendues, array $optionnelles = []): void
     {
@@ -1336,12 +1394,7 @@ final class ValidationCampagne
             if (in_array($cle, $attendues, true) || in_array($cle, $optionnelles, true)) {
                 continue;
             }
-            if (isset(self::LOTS_A_VENIR[$cle])) {
-                $this->refuser(self::chemin($chemin, $cle), self::CLE_PAS_ENCORE_PRISE,
-                    "« $cle » : pas encore pris en charge (lot ".self::LOTS_A_VENIR[$cle].')');
-            } else {
-                $this->refuser(self::chemin($chemin, $cle), self::CLE_INCONNUE, "clé inconnue « $cle »");
-            }
+            $this->refuser(self::chemin($chemin, $cle), self::CLE_INCONNUE, "clé inconnue « $cle »");
         }
 
         foreach ($attendues as $cle) {

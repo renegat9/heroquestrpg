@@ -855,6 +855,16 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-16 — lot K5i : la campagne ramifiée** (C2).
+  `quete.suite` : des embranchements `{quete: slug | fin: true, si_drapeau?}`
+  lus dans l'ordre à la VICTOIRE ; le premier retenu décide de la quête
+  suivante (ou de la fin de la campagne), sinon l'ordre. Point de passage
+  `FinDeQueteConstruite::rangSuivant()`. Validation : une destination, une
+  autre quête de la campagne, un drapeau posable (quête ou campagne
+  précédente), l'embranchement sans drapeau en dernier. `suite` était la
+  dernière clé réservée : le code `cle_pas_encore_prise`, qui n'avait plus
+  rien à refuser, est retiré (choix écrit). Constructeur : éditeur
+  « Suite (campagne ramifiée) », fait par un agent Haiku, relu et vu à l'écran.
 - **Fait le 2026-11-16 — lot K5h : les drapeaux de campagne** (C4). L'effet
   `drapeau` accepte `campagne: true` : posé sur le groupe
   (`groupes.drapeaux_campagne`, migration `2026_11_16_200000`, appliquée après

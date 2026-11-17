@@ -5803,9 +5803,9 @@ quete {
 ```
 
 - **`notes`** (facultative, lot K3) : voir « Notes de quête » plus bas.
-- **Clés réservées à un lot ultérieur** : `regles` (lot K5, message « pas encore pris en charge (lot K5) ») et `suite`
-  (lot K4) → code `cle_pas_encore_prise`, jamais `cle_inconnue`. Ces clés ne sont **pas** ignorées : elles sont refusées
-  en le nommant.
+- **Clés réservées à un lot ultérieur** : il n'y en a plus. `regles` est entrée au lot S1, `suite` au lot K5i ; le
+  code `cle_pas_encore_prise`, qui n'avait plus rien à refuser, est RETIRÉ (2026-11-16, choix écrit : un code de refus
+  qu'aucune règle ne produit est une clé décorative). Une clé hors du format est `cle_inconnue`.
 - **Coordonnées** : entiers. Une coordonnée **négative** tombe hors du plateau (`hors_plateau`) ; un non-entier est un
   `type_invalide`.
 - **Pas de refus en cascade** : une clé obligatoire absente (ou un plateau sans liste de salles) fait refuser CETTE clé,
@@ -5917,7 +5917,6 @@ Forme : `{chemin, code, message}`. Le **chemin** est pointé depuis la racine : 
 | Code | Quand |
 |---|---|
 | `cle_inconnue` | Une clé ne figure pas dans le format (nommée dans le message). |
-| `cle_pas_encore_prise` | Une clé réservée à un lot ultérieur (`regles`, `suite`). |
 | `cle_manquante` | Une clé obligatoire est absente. |
 | `type_invalide` | Un type ne correspond pas (chaîne, entier, liste, objet). |
 | `valeur_invalide` | Une valeur hors de l'ensemble permis : titre vide, dimension < 1, `or` < 0, rotation, côté, type de porte, partage, salle de taille < 1. |
@@ -6062,6 +6061,21 @@ d'une note et la fin `drapeau` voient donc les deux. Validation : un `si_drapeau
 le drapeau est posé par une note de CETTE quête, ou posé `campagne: true` par une note d'une quête PRÉCÉDENTE
 (`drapeau_jamais_pose` sinon). Choisir une campagne (`PUT /groupes/{id}/campagne`) efface les drapeaux de campagne :
 ils appartiennent à une partie de cette campagne.
+
+### Campagne ramifiée — `quete.suite` (lot K5i, 2026-11-16)
+
+Plan §2.5 C2 (*Jungles of Delthrak*) : la quête suivante dépend d'un résultat. `quete.suite` (facultative) est une liste
+d'EMBRANCHEMENTS lus dans l'ordre à la VICTOIRE de la quête : `[{quete: slug, si_drapeau?: nom} | {fin: true,
+si_drapeau?: nom}]`. Le premier dont le drapeau est posé (`Quete::aDrapeau()` : quête ou campagne), ou qui n'en demande
+pas, décide : `quete` → le groupe passe à cette quête (`rang_quete` = son rang) ; `fin` → la campagne est finie (le
+choix de campagne se rouvre). Aucun embranchement retenu, ou pas de `suite` : la quête suivante dans l'ordre, comme
+avant. Une quête perdue ne lit pas `suite`.
+
+- Validation : chaque embranchement a `quete` OU `fin: true`, jamais les deux (`valeur_invalide`) ; `quete` est le slug
+  d'une AUTRE quête de la campagne (`cible_inconnue`) ; `si_drapeau` doit être posé par une note de cette quête ou « de
+  campagne » par une quête précédente (`drapeau_jamais_pose`) ; un embranchement sans `si_drapeau` doit être le DERNIER
+  (`valeur_invalide` : ceux qui le suivraient ne joueraient jamais).
+- Point de passage : `FinDeQueteConstruite::rangSuivant()` ; `resultat.quete.classique.rang_suivant` le publie.
 
 ### Condition de fin — `quete.fin` (obligatoire)
 

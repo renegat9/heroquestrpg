@@ -473,6 +473,34 @@ function basculerRecompense(avec) {
     quete.value.recompense = avec ? { or: 0, partage: (vocab.value.partages ?? ['groupe'])[0] } : null;
 }
 
+// ---------------------------------------------------------------- suite (campagne ramifiée)
+// Lot K5i (C2) : `quete.suite` — embranchements lus À LA VICTOIRE, dans l'ordre : le premier dont le drapeau est posé (ou
+// qui n'en porte pas) décide ; sans embranchement retenu, la quête suivante dans l'ordre. Une entrée est `{quete: slug}`
+// ou `{fin: true}`, plus `si_drapeau` facultatif. La clé disparaît quand la liste est vide : le serveur ne tolère ni
+// `suite: []` ni `si_drapeau: ''`. Un embranchement sans drapeau doit être le dernier — l'aide le dit, le serveur le refuse.
+// Une quête retirée ou renommée laisse ses embranchements pointer dans le vide : le serveur le nomme, on ne corrige pas.
+const autresQuetes = computed(() => (doc.value?.quetes ?? []).filter((q) => q !== quete.value));
+function ajouterEmbranchement() {
+    if (!Array.isArray(quete.value.suite)) quete.value.suite = [];
+    quete.value.suite.push(autresQuetes.value.length ? { quete: autresQuetes.value[0].slug } : { fin: true });
+}
+function retirerEmbranchement(i) {
+    quete.value.suite.splice(i, 1);
+    if (!quete.value.suite.length) delete quete.value.suite;
+}
+// `__fin__` = fin de la campagne ; sinon le slug d'une autre quête. Le drapeau de l'embranchement est conservé.
+function changerDestination(i, valeur) {
+    const entree = quete.value.suite[i];
+    const nouvelle = valeur === '__fin__' ? { fin: true } : { quete: valeur };
+    if (entree.si_drapeau !== undefined) nouvelle.si_drapeau = entree.si_drapeau;
+    quete.value.suite.splice(i, 1, nouvelle);
+}
+// Un drapeau vide n'est jamais gardé : la clé disparaît.
+function changerSiDrapeauSuite(i, valeur) {
+    const entree = quete.value.suite[i];
+    if (valeur.trim() === '') delete entree.si_drapeau; else entree.si_drapeau = valeur.trim();
+}
+
 // ---------------------------------------------------------------- notes « quand → alors »
 const declencheurs = computed(() => vocab.value.declencheurs_de_note ?? {});
 const effetsNote = computed(() => vocab.value.effets_de_note ?? {});
@@ -826,6 +854,21 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     </select>
                                 </template>
                             </div>
+                            <div class="cst-suite">
+                                <div class="cst-ligne">
+                                    <span class="cst-lbl">Suite (campagne ramifiée)</span>
+                                    <button type="button" class="cst-btn ghost" @click="ajouterEmbranchement"><MSym n="add" :size="14" /> embranchement</button>
+                                </div>
+                                <span class="cst-sous">À la victoire : le premier embranchement dont le drapeau est posé décide. Sans embranchement retenu, la quête suivante dans l'ordre. Un embranchement sans drapeau doit être le dernier.</span>
+                                <div v-for="(embranchement, i) in (quete.suite ?? [])" :key="i" class="cst-ligne">
+                                    <select :value="embranchement.fin ? '__fin__' : embranchement.quete" class="cst-input" @change="changerDestination(i, $event.target.value)">
+                                        <option v-for="autre in autresQuetes" :key="autre.slug" :value="autre.slug">vers « {{ autre.titre }} »</option>
+                                        <option value="__fin__">fin de la campagne</option>
+                                    </select>
+                                    <input :value="embranchement.si_drapeau ?? ''" class="cst-input" placeholder="si le drapeau (toujours)" @change="changerSiDrapeauSuite(i, $event.target.value)" />
+                                    <button type="button" class="cst-icone" title="Retirer l'embranchement" @click="retirerEmbranchement(i)"><MSym n="close" :size="16" /></button>
+                                </div>
+                            </div>
                             <div class="cst-ligne">
                                 <label>Fin
                                     <select :value="quete.fin?.type" class="cst-input" @change="changerTypeFin($event.target.value)">
@@ -995,6 +1038,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
 .cst-grille-cadre { overflow: auto; max-width: 100%; border: var(--line); border-radius: var(--r-md); background: var(--stone-900); }
 .cst-grille { display: block; cursor: crosshair; user-select: none; }
 .cst-notes { display: flex; flex-direction: column; gap: 10px; }
+.cst-suite { display: flex; flex-direction: column; gap: 8px; }
 .cst-note { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: var(--r-md); border: var(--line); background: var(--stone-900); }
 .cst-effet { display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; padding-left: 14px; border-left: 2px solid var(--stone-700); }
 .cst-apparitions { display: flex; flex-direction: column; gap: 4px; }

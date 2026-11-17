@@ -34,7 +34,7 @@ final class FinDeQueteConstruite
         // l'avoir corrigée depuis, et la récompense promise à l'ouverture est celle qui se verse.
         $queteDoc = $quete->documentConstruit();
 
-        $rangSuivant = (int) $quete->position_arc + 1;
+        $rangSuivant = $this->rangSuivant($groupe, $quete);
         $groupe->update(['rang_quete' => $rangSuivant]);
 
         $parts = $this->parts($groupe, $queteDoc['recompense'] ?? null, $quete->participants());
@@ -54,6 +54,38 @@ final class FinDeQueteConstruite
         }
 
         return ['rang_suivant' => $rangSuivant, 'recompense' => $parts];
+    }
+
+    /**
+     * LA QUÊTE SUIVANTE (lot K5i, C2 — campagne ramifiée) : le premier embranchement de `quete.suite` dont le drapeau
+     * est posé (`Quete::aDrapeau()`, quête puis campagne), ou qui n'en demande pas, décide — `quete` : le rang de cette
+     * quête dans la campagne ; `fin` : au-delà de la dernière (la campagne est finie, le choix de campagne se rouvre).
+     * Sans embranchement retenu : la quête suivante dans l'ordre. Le document FIGÉ de la quête dit les embranchements ;
+     * la campagne actuelle dit les rangs (un slug disparu entre-temps retombe sur l'ordre).
+     */
+    public function rangSuivant(Groupe $groupe, Quete $quete): int
+    {
+        $parDefaut = (int) $quete->position_arc + 1;
+        $quetes = array_values((array) ($groupe->campagneConstruite?->document['quetes'] ?? []));
+
+        foreach ((array) ($quete->documentConstruit()['suite'] ?? []) as $branche) {
+            $condition = $branche['si_drapeau'] ?? null;
+            if ($condition !== null && ! $quete->aDrapeau((string) $condition)) {
+                continue;
+            }
+            if (($branche['fin'] ?? false) === true) {
+                return count($quetes) + 1;
+            }
+            foreach ($quetes as $rang => $doc) {
+                if (($doc['slug'] ?? null) === ($branche['quete'] ?? null)) {
+                    return $rang + 1;
+                }
+            }
+
+            return $parDefaut;
+        }
+
+        return $parDefaut;
     }
 
     /**

@@ -43,12 +43,6 @@ function casDeRefus(): array
 
             return classiqueRefus($doc);
         }],
-        'suite : clé d\'un lot ultérieur' => [ValidationCampagne::CLE_PAS_ENCORE_PRISE, function (): array {
-            $doc = DocumentExemple::campagne();
-            $doc['quetes'][0]['suite'] = [];
-
-            return classiqueRefus($doc);
-        }],
         'quête solo pour une classe que la campagne n\'exige pas' => [ValidationCampagne::SOLO_SANS_PREREQUIS, function (): array {
             $doc = DocumentExemple::campagne();
             $doc['quetes'][0]['regles'] = ['solo' => 'nain'];
@@ -274,7 +268,7 @@ it('ne déclare aucun code en double', function () {
     expect(array_unique(ValidationCampagne::CODES))->toHaveCount(count(ValidationCampagne::CODES));
 });
 
-it('nomme la clé réservée à un lot ultérieur dans le message', function () {
+it('refuse une suite vide en la nommant (lot K5i : `suite` n\'est plus réservée)', function () {
     $doc = DocumentExemple::campagne();
     $doc['quetes'][0]['suite'] = [];
 
@@ -282,7 +276,7 @@ it('nomme la clé réservée à un lot ultérieur dans le message', function () 
 
     expect($refus)->toHaveCount(1)
         ->and($refus[0]['chemin'])->toBe('quetes.0.suite')
-        ->and($refus[0]['message'])->toContain('pas encore pris en charge (lot K5)');
+        ->and($refus[0]['code'])->toBe(ValidationCampagne::VALEUR_INVALIDE);
 });
 
 it('nomme le chemin exact d\'un slug de catalogue inconnu', function () {
