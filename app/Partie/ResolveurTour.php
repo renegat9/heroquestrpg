@@ -9386,6 +9386,8 @@ final class ResolveurTour
 
         if ($reussi) {
             $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], 'porte_pierre_forcee', $acteur);
+            // NOTE DE QUÊTE (D3) : un héros qui ouvre une porte par la force l'ouvre aussi (lot K5a).
+            app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::OUVERTURE_PORTE, ['porte' => (int) $cible['index']], $personnage);
 
             // Comme toute ouverture de porte : la salle derrière se révèle
             // (monstres compris), jamais en attendant qu'un héros y entre.
@@ -9465,6 +9467,8 @@ final class ResolveurTour
 
         if ($reussi) {
             $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], $grille ? 'force_grille' : 'porte_condition', $acteur);
+            // NOTE DE QUÊTE (D3) : un héros qui ouvre une porte par la force l'ouvre aussi (lot K5a).
+            app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::OUVERTURE_PORTE, ['porte' => (int) $cible['index']], $personnage);
 
             // Comme toute ouverture de porte : la salle derrière se révèle, jamais en attendant qu'un héros y entre.
             foreach ($this->sallesAdjacentesPorte($quete, $cible['porte']) as $salleAdjacente) {
@@ -13443,6 +13447,12 @@ final class ResolveurTour
 
         if ($debutDeRound) {
 
+            // DÉBUT DU TOUR DU MJ (lot K5a, déclencheur de note `tour_du_mj`) : le compteur avance, PUIS les notes qui
+            // l'attendent jouent — avant le moindre monstre, pour qu'une figure apparue ou une porte ouverte par la note
+            // soit déjà là quand Zargon joue. `quetes.tours_mj` : une colonne, jamais le cache.
+            $quete->increment('tours_mj');
+            app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::TOUR_DU_MJ, ['tour' => (int) $quete->tours_mj]);
+
             // GRÉSIL AVEUGLANT (*Blinding Sleet*, Storm Master) : « until the start
             // of Zargon's next turn » — le grésil tombe ICI, avant que le moindre
             // monstre ne joue, et la chute est ANNONCÉE (un effet qui s'arrête en
@@ -16885,6 +16895,27 @@ final class ResolveurTour
      *
      * @param  list<array<string, mixed>>  $portes
      */
+    /**
+     * Ouvre la porte d'index `$index` SANS héros — l'effet de note `ouvrir_porte` (lot K5a), « la porte que seul le
+     * maître du jeu ouvre » — et révèle les salles qu'elle borde, comme une ouverture à la main. Rend `false` si la porte
+     * n'existe pas ou est déjà ouverte (rien ne se passe). Ne signale PAS `ouverture_porte` : une note n'en déclenche pas
+     * une autre.
+     */
+    public function ouvrirPorteParNote(Quete $quete, int $index): bool
+    {
+        $carte = $quete->carte;
+        $porte = $carte === null ? null : data_get($carte->grille, "portes.{$index}");
+
+        if (! is_array($porte) || ($porte['etat'] ?? null) === MoteurPortes::ETAT_OUVERTE) {
+            return false;
+        }
+
+        $this->portes->ouvrir($quete->groupe, $carte, $index, MoteurPortes::VERROU_NOTE);
+        $this->revelerDerriere($quete->groupe, $quete, [$porte]);
+
+        return true;
+    }
+
     private function revelerDerriere(Groupe $groupe, Quete $quete, array $portes): void
     {
         foreach ($portes as $porte) {

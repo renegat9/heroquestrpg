@@ -15,6 +15,7 @@ use App\Partie\CaseLibre;
 use App\Partie\FabriqueGrille;
 use App\Partie\MoteurDegats;
 use App\Partie\RangementObjet;
+use App\Partie\ResolveurTour;
 use App\Partie\TamponAnnonces;
 use App\Support\Journal;
 use LogicException;
@@ -164,6 +165,11 @@ final class NotesDeQuete
             return isset($contexte['case'])
                 && (int) data_get($cible, 'case.x') === (int) $contexte['case']['x']
                 && (int) data_get($cible, 'case.y') === (int) $contexte['case']['y'];
+        }
+
+        // D5 (lot K5a) : le N-ième tour du MJ, ou n'importe lequel après lui — `une_fois` dit s'il tire une fois ou à chaque.
+        if (array_key_exists('tour', $cible)) {
+            return isset($contexte['tour']) && (int) $contexte['tour'] >= (int) $cible['tour'];
         }
 
         foreach (['porte', 'monstre'] as $cle) {
@@ -319,5 +325,17 @@ final class NotesDeQuete
         $quete->poserDrapeau($nom);
 
         return ['nom' => $nom];
+    }
+
+    /**
+     * E6 (lot K5a) — la porte `porte` de `quete.portes` s'ouvre, quel que soit son verrou, et les salles qu'elle borde se
+     * révèlent : `ResolveurTour::ouvrirPorteParNote()`, la couture des ouvertures sans héros. Déjà ouverte : rien.
+     * Elle ne SIGNALE pas `ouverture_porte` : une note n'en déclenche pas une autre.
+     */
+    private function effetOuvrirPorte(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $index = (int) ($effet['porte'] ?? -1);
+
+        return ['porte' => $index, 'ouverte' => app(ResolveurTour::class)->ouvrirPorteParNote($quete, $index)];
     }
 }

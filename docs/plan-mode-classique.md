@@ -855,6 +855,21 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-16 — lot K5a : portes verrouillées et tour du MJ** (§2 —
+  E6 en partie, D5). `portes[].verrou` offre à l'auteur les verrous que le
+  moteur jouait déjà sur une carte générée : `cle` (un objet du catalogue),
+  `pierre`, `condition` (`MoteurPortes::CONDITIONS`), plus `note` — la porte
+  « que seul le maître du jeu ouvre » (`MoteurPortes::VERROU_NOTE`), qu'aucun
+  geste de héros n'ouvre. Effet de note `ouvrir_porte` (ouvre et révèle,
+  `ResolveurTour::ouvrirPorteParNote()`, sans signaler `ouverture_porte` : une
+  note n'en déclenche pas une autre). Déclencheur `tour_du_mj {tour: N}` : au
+  début du tour de Zargon, avant le premier monstre, à partir du N-ième
+  (`quetes.tours_mj`, migration `2026_11_16_180000`, appliquée après sauvegarde
+  relue). Au passage, ouvrir une porte PAR LA FORCE (pierre, condition)
+  signale aussi `ouverture_porte` — avant, seule l'ouverture à la main le
+  faisait. Constructeur : verrou à la pose d'une porte, cible « à partir du
+  tour », effet « ouvrir une porte ». Reste d'E6 : bloc qui tombe, porte
+  factice hors des accès. Tests `PortesVerrouilleesTest`.
 - **Fait le 2026-11-16 — lot H1a, mode Heroic** (Q2, Q7). Règle lue au début
   du lot, comme Q7 l'exigeait : *Jungles of Delthrak* (F9907 p. 8-9) pour le
   jeton crâne, livret de règles de *First Light* (G0978, « Dead Heroes ») pour

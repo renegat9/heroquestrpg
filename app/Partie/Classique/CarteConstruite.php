@@ -143,6 +143,11 @@ final class CarteConstruite
             if ($secrete) {
                 $entree['revele'] = false;
             }
+            // VERROU (lot K5a) : la forme que `MoteurPortes` lit déjà sur une carte générée. Une porte `note` ou `cle` est
+            // VERROUILLÉE (cadenas) ; la pierre et la condition restent des portes CLOSES qu'un jet ouvre.
+            if (is_array($porte['verrou'] ?? null)) {
+                $entree = [...$entree, ...$this->verrouMoteur((array) $porte['verrou'])];
+            }
             // Comme dans l'assembleur : la porte porte le numéro de SA jonction ; aucune boucle n'est déclarée ici.
             $entree['jonction'] = count($aretes) - 1;
             $entree['boucle'] = false;
@@ -296,6 +301,29 @@ final class CarteConstruite
                 ),
             ],
         ];
+    }
+
+    /**
+     * Le verrou d'une porte construite, dans la forme du moteur (`MoteurPortes`) : `etat` et `verrou`.
+     *
+     * @param  array<string, mixed>  $verrou  `{type: note|cle|pierre|condition, objet?, condition?}` (validé)
+     * @return array{etat: string, verrou: array<string, mixed>}
+     */
+    private function verrouMoteur(array $verrou): array
+    {
+        return match ($verrou['type']) {
+            MoteurPortes::VERROU_NOTE => ['etat' => MoteurPortes::ETAT_VERROUILLEE, 'verrou' => ['type' => MoteurPortes::VERROU_NOTE]],
+            MoteurPortes::VERROU_CLE => ['etat' => MoteurPortes::ETAT_VERROUILLEE, 'verrou' => [
+                'type' => MoteurPortes::VERROU_CLE,
+                'objet_id' => (int) $this->catalogue->index('objets')[(string) $verrou['objet']]->id,
+            ]],
+            MoteurPortes::VERROU_PIERRE => ['etat' => MoteurPortes::ETAT_FERMEE, 'verrou' => ['type' => MoteurPortes::VERROU_PIERRE]],
+            MoteurPortes::VERROU_CONDITION => ['etat' => MoteurPortes::ETAT_FERMEE, 'verrou' => [
+                'type' => MoteurPortes::VERROU_CONDITION,
+                'nom' => (string) $verrou['condition'],
+                ...MoteurPortes::CONDITIONS[(string) $verrou['condition']],
+            ]],
+        };
     }
 
     /**
@@ -460,6 +488,11 @@ final class CarteConstruite
         foreach ($quete['portes'] as $porte) {
             $dehors = self::caseDehors($porte);
             $nature = $porte['type'] === 'secrete' ? '? porte secrète' : '+ porte normale';
+            if (is_array($porte['verrou'] ?? null)) {
+                $nature .= ' verrouillée ('.($porte['verrou']['type'] ?? '?')
+                    .(isset($porte['verrou']['objet']) ? ' '.$porte['verrou']['objet'] : '')
+                    .(isset($porte['verrou']['condition']) ? ' '.$porte['verrou']['condition'] : '').')';
+            }
             $lignes[] = "  $nature : case ({$porte['x']}, {$porte['y']}), côté {$porte['cote']}, "
                 ."donne sur ({$dehors['x']}, {$dehors['y']})";
         }

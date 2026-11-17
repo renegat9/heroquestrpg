@@ -5791,7 +5791,7 @@ quete {
   ouverture: "…",                  // texte lu à la table (peut être vide)
   monstre_errant: "…" | null,      // slug de monstre (catalogue `monstres`) — nullable
   salles_ouvertes: [id…],          // ids de salles du plateau ; les autres salles sont FERMÉES (pleines)
-  portes:   [{ x, y, cote: n|e|s|o, type: normale|secrete }],
+  portes:   [{ x, y, cote: n|e|s|o, type: normale|secrete, verrou? }],   // verrou : lot K5a, voir « Portes verrouillées »
   blocs:    [{ x, y }],            // cases de COULOIR condamnées
   mobilier: [{ slug, x, y, rotation: 0|90|180|270 }],
   monstres: [{ slug, x, y }],
@@ -6009,6 +6009,7 @@ notes: [{
 | `entree` | `{salle: id}` ou `{case: {x, y}}` | un héros ENTRE dans la salle (la case d'avant n'en était pas), ou passe sur la case — même sans s'y arrêter, le trajet d'une marche compte |
 | `ouverture_porte` | `{porte: index dans quete.portes}` | la porte est ouverte |
 | `mort` | `{monstre: index dans quete.monstres}` | la figure POSÉE par l'auteur tombe (jamais un errant ni une apparition) |
+| `tour_du_mj` | `{tour: N}` (entier ≥ 1) | le tour du maître du jeu commence (avant le premier monstre), à partir du N-ième de la quête : une fois au N-ième (`une_fois` par défaut), ou à chacun à partir du N-ième (`une_fois: false`). Aucun héros ne déclenche (lot K5a) |
 
 | Effet | Paramètres | Ce qui se passe |
 |---|---|---|
@@ -6018,6 +6019,7 @@ notes: [{
 | `apparition` | `monstres: [{slug, x, y}]` | figures révélées sur les cases écrites, ou la plus proche si la case est prise |
 | `degats` | `body` ≥ 1 | points de Corps perdus par le héros qui déclenche (`MoteurDegats`) |
 | `drapeau` | `nom` | pose un drapeau de quête (`quetes.drapeaux`), relu par `si_drapeau` ou par la fin |
+| `ouvrir_porte` | `porte` (index dans `quete.portes`) | la porte s'ouvre, quel que soit son verrou, et les salles qu'elle borde se révèlent comme à une ouverture à la main ; déjà ouverte, rien (lot K5a) |
 
 - **La fouille** : une salle dont une note attend CETTE fouille rend ce que la note dit — `resultat.issue = "note"`,
   `resultat.notes = [repères]` — et **aucune carte de trésor n'est tirée**. Sans note, la salle pioche dans le paquet
@@ -6028,6 +6030,24 @@ notes: [{
   [{effet, …}]}` (fil de jeu : une ligne par effet ; le drapeau ne se raconte pas).
 - **Figé au départ** : `quetes.document_construit` garde le document de la quête tel qu'il était à son démarrage ; une
   campagne corrigée pendant la partie ne change pas les notes des héros déjà dans le donjon.
+
+### Portes verrouillées — `portes[].verrou` (lot K5a, 2026-11-16)
+
+Les verrous que le moteur joue déjà sur une carte générée (`MoteurPortes`), offerts à l'auteur. Facultatif, sur une
+porte `normale` seulement (`verrou_sur_porte_secrete` sinon). Vocabulaire fermé publié par `GET /constructeur/catalogues`
+→ `vocabulaires.verrous_de_porte` et `vocabulaires.conditions_de_porte`.
+
+| `verrou` | Ce qui l'ouvre | Sur la carte |
+|---|---|---|
+| `{type: "note"}` | **rien qu'un héros puisse faire** : seul l'effet de note `ouvrir_porte` l'ouvre (« la porte que seul le maître du jeu ouvre ») | `etat: "verrouillee"`, `verrou: "note"` (cadenas) |
+| `{type: "cle", objet: slug}` | un héros au contact qui porte cet objet du catalogue `objets` (`slug_inconnu` sinon) : option « Ouvrir la porte (clé) ». L'objet se donne par une note (`objet`) | `etat: "verrouillee"`, `verrou: "cle"` |
+| `{type: "pierre"}` | porte de pierre : les dés d'attaque DE BASE du héros, deux crânes l'ouvrent (option « Forcer la porte de pierre ») | `etat: "fermee"`, `verrou: "pierre"` |
+| `{type: "condition", condition}` | `condition` ∈ `porte_verrouillee` (deux dés rouges, total sous le Corps de départ) ou `porte_de_l_est` (deux dés, au plus l'Esprit actuel ; un seul pour le Nain) ; un échec finit le tour | `etat: "fermee"`, `verrou: "condition"` |
+
+- Une porte verrouillée bloque le passage et la vue comme toute porte close. Un HÉROS qui l'ouvre — à la main, à la
+  clé, par la force — signale `ouverture_porte` aux notes ; l'ouverture PAR une note ne signale rien (une note n'en
+  déclenche pas une autre, et deux notes ne peuvent pas s'ouvrir l'une l'autre en boucle).
+- `quetes.tours_mj` (entier, 0 au départ) compte les tours du maître du jeu commencés ; c'est lui que `tour_du_mj` lit.
 
 ### Condition de fin — `quete.fin` (obligatoire)
 

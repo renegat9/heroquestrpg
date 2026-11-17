@@ -103,6 +103,8 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
             'alors' => [['effet' => 'objet', 'slug' => 'dague', 'quantite' => 1]]],
         ['repere' => 'E', 'quand' => ['declencheur' => 'mort', 'cible' => ['monstre' => 0]],
             'alors' => [['effet' => 'objet', 'slug' => 'dague']]],
+        ['repere' => 'F', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 3]],
+            'alors' => [['effet' => 'ouvrir_porte', 'porte' => 1]]],
     ];
 
     expect(app(ValidationCampagne::class)->valider($doc))->toBe([]);

@@ -100,13 +100,24 @@ final class MoteurPortes
      */
     public const VERROU_GRILLE = 'grille';
 
+    /**
+     * PORTE QUE SEULE UNE NOTE OUVRE (mode classique, lot K5a — « porte que seul le maître du jeu ouvre », plan §2.2 E6) :
+     * `etat: verrouillee`, `verrou.type = note`. Aucun geste de héros ne l'ouvre — ni la main (`ouvrableAMain()` exige
+     * `fermee`), ni une clé (elle n'est pas dans `VERROUS_A_CLE`), ni la force ; seul l'effet de note `ouvrir_porte`
+     * (`ResolveurTour::ouvrirPorteParNote()`). Posée par l'auteur d'une quête construite, jamais par l'assembleur.
+     */
+    public const VERROU_NOTE = 'note';
+
     /** Le nom du catalogue de la clé d'une grille (F7539 p. 6, « Brass Key »). Hors marché, unique, jamais dans le butin. */
     public const CLE_DE_LAITON = 'Clé de laiton';
 
     /**
      * Les verrous qu'une CLÉ ouvre (`possedeCle()`, `ouvrir_porte` « (clé) »). Une seule liste : le menu et le résolveur la lisent.
      */
-    public const VERROUS_A_CLE = ['cle', self::VERROU_GRILLE];
+    public const VERROUS_A_CLE = [self::VERROU_CLE, self::VERROU_GRILLE];
+
+    /** Le verrou à CLÉ : un héros au contact qui porte l'objet `verrou.objet_id` l'ouvre (`possedeCle()`). */
+    public const VERROU_CLE = 'cle';
 
     /**
      * La FORCE d'une grille : les paramètres de la porte verrouillée de Kellar's Keep, copiés tels quels — deux dés rouges,

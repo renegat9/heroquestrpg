@@ -185,6 +185,9 @@ const PORTE_VERROUS = {
     // GRILLE DE FER (Mage of the Mirror, F7539 quête 10 note G, 2026-10-29) : close, elle bloque aussi la vue. Une clé la lève,
     // sinon deux dés rouges sous le Corps de départ.
     grille: 'grille de fer — clé, ou 2 dés rouges',
+    // Lot K5a (mode classique) : verrous de porte posés par le constructeur.
+    note: 'ne s\'ouvre pas d\'ici',
+    condition: 'porte verrouillée — jet de dés',
 };
 
 // Portes (René, 2026-09-11 : « la porte doit être centrale à sa case,

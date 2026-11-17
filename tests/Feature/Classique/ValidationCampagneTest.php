@@ -55,6 +55,12 @@ function casDeRefus(): array
 
             return classiqueRefus($doc);
         }],
+        'verrou sur une porte secrète' => [ValidationCampagne::VERROU_SUR_PORTE_SECRETE, function (): array {
+            $doc = DocumentExemple::campagne();
+            $doc['quetes'][0]['portes'][2]['verrou'] = ['type' => 'note'];
+
+            return classiqueRefus($doc);
+        }],
         'clé obligatoire absente' => [ValidationCampagne::CLE_MANQUANTE, function (): array {
             $doc = DocumentExemple::campagne();
             unset($doc['titre']);

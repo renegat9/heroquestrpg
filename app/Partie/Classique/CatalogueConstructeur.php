@@ -134,6 +134,10 @@ final class CatalogueConstructeur
                 'declencheurs_de_note' => \App\Engine\MotsClesQuete::DECLENCHEURS,
                 'effets_de_note' => \App\Engine\MotsClesQuete::EFFETS,
                 'types_acces' => ValidationCampagne::TYPES_ACCES,
+                // Lot K5a : les verrous d'une porte, et les conditions d'une porte `condition` (`MoteurPortes::CONDITIONS`).
+                'verrous_de_porte' => ValidationCampagne::VERROUS_DE_PORTE,
+                'conditions_de_porte' => collect(\App\Partie\MoteurPortes::CONDITIONS)
+                    ->map(fn (array $c, string $nom) => ['nom' => $nom, 'libelle' => $c['libelle']])->values()->all(),
                 'formats_acceptes' => ValidationCampagne::FORMATS_ACCEPTES,
             ],
         ];

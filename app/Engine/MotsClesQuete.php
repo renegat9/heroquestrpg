@@ -36,12 +36,19 @@ final class MotsClesQuete
     public const MORT = 'mort';
 
     /**
+     * D5 — le tour du maître du jeu commence (avant le premier monstre), à partir du N-ième de la quête (lot K5a). Aucun
+     * héros ne déclenche : un effet qui vise « le héros qui déclenche » prend le premier de l'ordre du tour, ou rien.
+     */
+    public const TOUR_DU_MJ = 'tour_du_mj';
+
+    /**
      * Déclencheur → les formes de `quand.cible` qu'il accepte, et qui le signale.
      *
      * - `salle` : l'`id` d'une salle du plateau ;
      * - `case` : `{x, y}` ;
      * - `porte` : l'index d'une porte dans `quete.portes` ;
-     * - `monstre` : l'index d'un monstre dans `quete.monstres`.
+     * - `monstre` : l'index d'un monstre dans `quete.monstres` ;
+     * - `tour` : un rang de tour du MJ (≥ 1) — atteint à partir de ce tour-là (`quetes.tours_mj`).
      *
      * @var array<string, array{cibles: list<string>, signale_par: string, libelle: string}>
      */
@@ -66,6 +73,11 @@ final class MotsClesQuete
             'signale_par' => 'MoteurDegats::infligerAMonstreBrut()',
             'libelle' => 'la figure tombe',
         ],
+        self::TOUR_DU_MJ => [
+            'cibles' => ['tour'],
+            'signale_par' => 'ResolveurTour::phaseMonstres()',
+            'libelle' => 'le tour du maître du jeu commence, à partir du N-ième',
+        ],
     ];
 
     // ─── Effets (« alors ») ───────────────────────────────────────────────────────────────────────────────────────
@@ -89,6 +101,12 @@ final class MotsClesQuete
     public const DRAPEAU = 'drapeau';
 
     /**
+     * E6 — ouvrir une porte de la quête, quel que soit son verrou (lot K5a) : c'est ce qui ouvre la porte « que seul le
+     * maître du jeu ouvre » (`portes[].verrou.type = note`). Les salles qu'elle borde se révèlent comme à la main.
+     */
+    public const OUVRIR_PORTE = 'ouvrir_porte';
+
+    /**
      * Effet → ses paramètres (obligatoires, puis optionnels), et la méthode de `NotesDeQuete` qui le joue.
      *
      * @var array<string, array{parametres: list<string>, optionnels: list<string>, lecteur: string, libelle: string}>
@@ -100,12 +118,14 @@ final class MotsClesQuete
         self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
         self::DEGATS => ['parametres' => ['body'], 'optionnels' => [], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
         self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => [], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],
+        self::OUVRIR_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetOuvrirPorte', 'libelle' => 'ouvrir une porte'],
     ];
 
     /**
      * Ce qui n'est PAS ici, et pourquoi (« retirer du contenu est un choix écrit ») :
      * - le RÉVEIL de figures inertes (E4) : il existe, mais par la capacité `passif_jusqua` d'un monstre du catalogue
      *   (`MoteurDormants`), pas par une note ;
-     * - D5 à D9, E5, E6, E8, E9 : seconde série (lot K5), une à la fois, chacune avec son lecteur.
+     * - D6 à D9, E5, E8, E9 et le reste d'E6 (bloc tombé, porte factice) : seconde série (lot K5), une à la fois, chacune
+     *   avec son lecteur. D5 et l'ouverture de porte d'E6 sont entrés au lot K5a.
      */
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Partie\Classique;
 
 use App\Engine\MotsClesQuete;
+use App\Partie\MoteurPortes;
 use App\Partie\Grille;
 
 /**
@@ -63,6 +64,8 @@ final class ValidationCampagne
     // Lot S1 — une quête SOLO (`regles.solo`) désigne une classe que la campagne n'exige pas (`prerequis_heros`) : un
     // groupe sans ce héros atteindrait une quête qu'il ne peut pas jouer.
     public const SOLO_SANS_PREREQUIS = 'solo_sans_prerequis';
+    // Lot K5a — un VERROU sur une porte secrète : on la trouve, puis elle s'ouvre ; elle n'a rien à verrouiller.
+    public const VERROU_SUR_PORTE_SECRETE = 'verrou_sur_porte_secrete';
 
     /** @var list<string> */
     public const CODES = [
@@ -75,6 +78,7 @@ final class ValidationCampagne
         self::DEPART_HORS_SALLE,
         self::PORTE_DANS_LA_ROCHE, self::MOBILIER_HORS_SALLE, self::CASE_PARTAGEE, self::CIBLE_INCONNUE,
         self::CIBLE_DE_NOTE_INVALIDE, self::DRAPEAU_JAMAIS_POSE, self::SOLO_SANS_PREREQUIS,
+        self::VERROU_SUR_PORTE_SECRETE,
     ];
 
     /**
@@ -94,6 +98,13 @@ final class ValidationCampagne
     public const ROTATIONS = [0, 90, 180, 270];
     public const COTES = ['n', 'e', 's', 'o'];
     public const TYPES_PORTE = ['normale', 'secrete'];
+
+    /**
+     * Lot K5a — les VERROUS qu'une porte construite peut porter (`portes[].verrou.type`) : ceux que le moteur joue déjà
+     * (`MoteurPortes`), plus `note`, la porte que seule une note ouvre. Les conditions d'une porte `condition` sont les
+     * clés de `MoteurPortes::CONDITIONS`, lues telles quelles (publiées `conditions_de_porte`).
+     */
+    public const VERROUS_DE_PORTE = [MoteurPortes::VERROU_NOTE, MoteurPortes::VERROU_CLE, MoteurPortes::VERROU_PIERRE, MoteurPortes::VERROU_CONDITION];
     public const PARTAGES = ['groupe', 'par_heros'];
 
     /**
@@ -145,6 +156,7 @@ final class ValidationCampagne
     private const LONGUEUR_REPERE = 40;
     private const LONGUEUR_DRAPEAU = 40;
     private const CLES_PORTE = ['x', 'y', 'cote', 'type'];
+    private const CLES_PORTE_OPTIONNELLES = ['verrou'];
     private const CLES_CASE = ['x', 'y'];
     private const CLES_MOBILIER = ['slug', 'x', 'y', 'rotation'];
     private const CLES_POSE = ['slug', 'x', 'y'];
@@ -463,7 +475,7 @@ final class ValidationCampagne
                 $this->refuser("$position.alors", self::VALEUR_INVALIDE, 'Une note sans effet ne fait rien : il en faut au moins un.');
             }
             foreach ($alors as $j => $effet) {
-                $drapeau = $this->effetDeNote($effet, "$position.alors.$j");
+                $drapeau = $this->effetDeNote($effet, "$position.alors.$j", $quete);
                 if ($drapeau !== null) {
                     $poses[$drapeau] = true;
                 }
@@ -513,21 +525,27 @@ final class ValidationCampagne
                 break;
             case 'porte':
             case 'monstre':
-                $liste = $cles[0] === 'porte' ? 'portes' : 'monstres';
-                $nombre = is_array($quete[$liste] ?? null) ? count($quete[$liste]) : 0;
-                $index = $cible[$cles[0]];
-                if (!is_int($index)) {
-                    $this->refuser("$position.{$cles[0]}", self::TYPE_INVALIDE, "l'index (entier) d'un élément de `$liste` est attendu");
-                } elseif ($index < 0 || $index >= $nombre) {
-                    $this->refuser("$position.{$cles[0]}", self::CIBLE_INCONNUE,
-                        "l'index $index ne désigne rien dans `$liste` : cette quête en pose $nombre");
-                }
+                $this->indexDe($quete, $cles[0] === 'porte' ? 'portes' : 'monstres', $cible[$cles[0]], "$position.{$cles[0]}");
+                break;
+            case 'tour':
+                $this->entier($cible, 'tour', $position, min: 1);
                 break;
         }
     }
 
+    /** `$index` désigne un élément de `quete[$liste]` (une porte, un monstre posé) : un entier, dans la liste. */
+    private function indexDe(array $quete, string $liste, mixed $index, string $chemin): void
+    {
+        $nombre = is_array($quete[$liste] ?? null) ? count($quete[$liste]) : 0;
+        if (!is_int($index)) {
+            $this->refuser($chemin, self::TYPE_INVALIDE, "l'index (entier) d'un élément de `$liste` est attendu");
+        } elseif ($index < 0 || $index >= $nombre) {
+            $this->refuser($chemin, self::CIBLE_INCONNUE, "l'index $index ne désigne rien dans `$liste` : cette quête en pose $nombre");
+        }
+    }
+
     /** Un effet de note. Rend le nom du drapeau qu'il pose, ou `null`. */
-    private function effetDeNote(mixed $valeur, string $position): ?string
+    private function effetDeNote(mixed $valeur, string $position, array $quete): ?string
     {
         $effet = $this->enObjet($valeur, $position);
         if ($effet === null) {
@@ -561,6 +579,9 @@ final class ValidationCampagne
                 break;
             case MotsClesQuete::DRAPEAU:
                 return $this->nomDeDrapeau($effet, 'nom', $position);
+            case MotsClesQuete::OUVRIR_PORTE:
+                $this->indexDe($quete, 'portes', $effet['porte'] ?? null, "$position.porte");
+                break;
             case MotsClesQuete::APPARITION:
                 $monstres = $this->enListeDe($effet, 'monstres', $position);
                 if (array_key_exists('monstres', $effet) && is_array($effet['monstres']) && $monstres === []) {
@@ -649,14 +670,52 @@ final class ValidationCampagne
             if ($porte === null) {
                 continue;
             }
-            $this->cles($porte, $position, self::CLES_PORTE);
+            $this->cles($porte, $position, self::CLES_PORTE, self::CLES_PORTE_OPTIONNELLES);
 
             $cote = $this->dans($porte, 'cote', $position, self::COTES);
             $this->dans($porte, 'type', $position, self::TYPES_PORTE);
+            if (array_key_exists('verrou', $porte)) {
+                $this->verrou($porte, "$position.verrou");
+            }
             $cellule = $this->cellule($porte, $position);
             if ($cellule !== null && $cote !== null) {
                 $this->porteSurUnBord($cellule, $cote, $position);
             }
+        }
+    }
+
+    /** Le verrou d'une porte (lot K5a) : un type de `VERROUS_DE_PORTE`, et les seules clés que ce type lit. */
+    private function verrou(array $porte, string $chemin): void
+    {
+        $verrou = $this->enObjet($porte['verrou'], $chemin);
+        if ($verrou === null) {
+            return;
+        }
+        if (($porte['type'] ?? null) === 'secrete') {
+            $this->refuser($chemin, self::VERROU_SUR_PORTE_SECRETE,
+                'une porte secrète ne porte pas de verrou : on la trouve, puis elle s\'ouvre');
+
+            return;
+        }
+        if (!array_key_exists('type', $verrou)) {
+            $this->refuser("$chemin.type", self::CLE_MANQUANTE, 'clé obligatoire absente : « type »');
+
+            return;
+        }
+        $type = $this->dans($verrou, 'type', $chemin, self::VERROUS_DE_PORTE);
+        switch ($type) {
+            case MoteurPortes::VERROU_CLE:
+                $this->cles($verrou, $chemin, ['type', 'objet']);
+                $this->slugCatalogue($verrou, 'objet', $chemin, 'objets');
+                break;
+            case MoteurPortes::VERROU_CONDITION:
+                $this->cles($verrou, $chemin, ['type', 'condition']);
+                $this->dans($verrou, 'condition', $chemin, array_keys(MoteurPortes::CONDITIONS));
+                break;
+            case MoteurPortes::VERROU_NOTE:
+            case MoteurPortes::VERROU_PIERRE:
+                $this->cles($verrou, $chemin, ['type']);
+                break;
         }
     }
 

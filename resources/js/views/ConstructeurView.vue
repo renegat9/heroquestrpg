@@ -240,13 +240,16 @@ function retirerQuete(i) {
 
 // ---------------------------------------------------------------- quêtes : outils de la carte
 const outil = ref('salle');
-const choix = reactive({ typePorte: 'normale', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
+const choix = reactive({ typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
 watch(catalogues, (c) => {
     if (!c) return;
     choix.mobilier ||= c.couches.mobilier?.[0]?.slug ?? '';
     choix.monstre ||= c.couches.monstres?.[0]?.slug ?? '';
     choix.piege ||= c.couches.pieges?.[0]?.slug ?? '';
     choix.terrain ||= c.couches.terrain?.[0]?.slug ?? '';
+    // Verrous de porte (lot K5a) : premier objet et première condition du catalogue, pour que la liste ne soit jamais vide.
+    choix.objetVerrou ||= c.objets?.[0]?.slug ?? '';
+    choix.conditionVerrou ||= c.vocabulaires?.conditions_de_porte?.[0]?.nom ?? '';
 });
 const OUTILS = [
     ['salle', 'meeting_room', 'Ouvrir / fermer une salle'],
@@ -262,6 +265,17 @@ const OUTILS = [
     ['fausse', 'block', 'Fausse porte de sortie (bord cliqué)'],
     ['gomme', 'ink_eraser', 'Effacer'],
 ];
+
+// Verrous de porte (lot K5a) : libellés des types que `vocab.verrous_de_porte` publie.
+const LIBELLES_VERROU = { note: "s'ouvre par une note", cle: 'à clé', pierre: 'de pierre', condition: 'à condition' };
+/** Le verrou choisi dans la barre d'outils. Rien du tout sans verrou : jamais de clé `verrou` vide. */
+function verrouChoisi() {
+    const v = choix.verrouPorte;
+    if (choix.typePorte !== 'normale' || !v) return {};
+    if (v === 'cle') return { verrou: { type: 'cle', objet: choix.objetVerrou } };
+    if (v === 'condition') return { verrou: { type: 'condition', condition: choix.conditionVerrou } };
+    return { verrou: { type: v } };
+}
 
 /** Une porte posée sur le bord du COULOIR se ramène au bord de la salle ouverte d'en face (la même arête). */
 function bordDeSalle(q, x, y, cote) {
@@ -292,6 +306,15 @@ function recaler(q, liste, i) {
         // en silence l'élément suivant, qui a pris son index.
         if (c[cle] === i) c[cle] = -1; else if (c[cle] > i) c[cle] -= 1;
     });
+    // Lot K5a : l'effet `ouvrir_porte` désigne une porte par son index, comme une cible : même recalage.
+    if (liste === 'portes') {
+        (q.notes ?? []).forEach((note) => {
+            (note.alors ?? []).forEach((effet) => {
+                if (effet.effet !== 'ouvrir_porte' || typeof effet.porte !== 'number') return;
+                if (effet.porte === i) effet.porte = -1; else if (effet.porte > i) effet.porte -= 1;
+            });
+        });
+    }
 }
 
 // Choisir une case sur la carte pour un champ de note (`case`, apparition) : le prochain clic la remplit.
@@ -329,7 +352,7 @@ function clicQuete(evt) {
                 q.portes.splice(i, 1);
                 recaler(q, 'portes', i);
             } else {
-                q.portes.push({ ...b, type: choix.typePorte });
+                q.portes.push({ ...b, type: choix.typePorte, ...verrouChoisi() });
             }
             return;
         }
@@ -427,7 +450,7 @@ function basculerRecompense(avec) {
 // ---------------------------------------------------------------- notes « quand → alors »
 const declencheurs = computed(() => vocab.value.declencheurs_de_note ?? {});
 const effetsNote = computed(() => vocab.value.effets_de_note ?? {});
-const LIBELLES_PARAM = { texte: 'Texte lu', or: 'Or', body: 'Points de Corps', slug: 'Objet', quantite: 'Quantité', nom: 'Nom du drapeau', monstres: 'Monstres' };
+const LIBELLES_PARAM = { texte: 'Texte lu', or: 'Or', body: 'Points de Corps', slug: 'Objet', quantite: 'Quantité', nom: 'Nom du drapeau', monstres: 'Monstres', porte: 'Porte' };
 
 function notes() {
     if (!Array.isArray(quete.value.notes)) quete.value.notes = [];
@@ -446,6 +469,7 @@ function cibleParDefaut(genre) {
         case: { case: { x: 0, y: 0 } },
         porte: { porte: 0 },
         monstre: { monstre: 0 },
+        tour: { tour: 1 },
     }[genre];
 }
 const genreDeCible = (note) => Object.keys(note.quand?.cible ?? {})[0] ?? '';
@@ -466,7 +490,7 @@ function changerUneFois(note, valeur) {
 function effetParDefaut(nom) {
     const effet = { effet: nom };
     for (const p of effetsNote.value[nom]?.parametres ?? []) {
-        effet[p] = { texte: '', or: 10, body: 1, slug: catalogues.value?.objets?.[0]?.slug ?? '', nom: 'drapeau', monstres: [] }[p] ?? '';
+        effet[p] = { texte: '', or: 10, body: 1, slug: catalogues.value?.objets?.[0]?.slug ?? '', nom: 'drapeau', monstres: [], porte: 0 }[p] ?? '';
     }
     return effet;
 }
@@ -476,7 +500,7 @@ function changerEffet(note, j, nom) {
 function changerOptionnel(effet, cle, valeur) {
     if (valeur === '' || valeur === null) delete effet[cle]; else effet[cle] = Number(valeur);
 }
-const libellePorte = (p, i) => `porte ${i} — (${p.x}, ${p.y}) ${p.cote}${p.type === 'secrete' ? ', secrète' : ''}`;
+const libellePorte = (p, i) => `porte ${i} — (${p.x}, ${p.y}) ${p.cote}${p.type === 'secrete' ? ', secrète' : ''}${p.verrou ? ` — verrou ${p.verrou.type}` : ''}`;
 const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} (${m.x}, ${m.y})`;
 </script>
 
@@ -640,6 +664,18 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                             <select v-if="outil === 'porte'" v-model="choix.typePorte" class="cst-input">
                                 <option v-for="t in vocab.types_porte" :key="t" :value="t">{{ t === 'secrete' ? 'secrète' : t }}</option>
                             </select>
+                            <template v-if="outil === 'porte' && choix.typePorte === 'normale'">
+                                <select v-model="choix.verrouPorte" class="cst-input" title="Verrou de la porte">
+                                    <option value="">sans verrou</option>
+                                    <option v-for="v in vocab.verrous_de_porte" :key="v" :value="v">{{ LIBELLES_VERROU[v] ?? v }}</option>
+                                </select>
+                                <select v-if="choix.verrouPorte === 'cle'" v-model="choix.objetVerrou" class="cst-input">
+                                    <option v-for="o in catalogues.objets" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
+                                </select>
+                                <select v-if="choix.verrouPorte === 'condition'" v-model="choix.conditionVerrou" class="cst-input">
+                                    <option v-for="c in vocab.conditions_de_porte" :key="c.nom" :value="c.nom">{{ c.libelle }}</option>
+                                </select>
+                            </template>
                             <template v-if="outil === 'mobilier'">
                                 <select v-model="choix.mobilier" class="cst-input">
                                     <option v-for="m in couches.mobilier" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
@@ -799,6 +835,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <select v-else-if="genreDeCible(note) === 'monstre'" v-model.number="note.quand.cible.monstre" class="cst-input">
                                         <option v-for="(m, k) in quete.monstres" :key="k" :value="k">{{ libelleMonstre(m, k) }}</option>
                                     </select>
+                                    <label v-else-if="genreDeCible(note) === 'tour'">à partir du tour <input v-model.number="note.quand.cible.tour" type="number" min="1" class="cst-input cst-num" /></label>
                                     <button type="button" class="cst-icone" title="Retirer la note" @click="quete.notes.splice(i, 1)"><MSym n="delete" :size="16" /></button>
                                 </div>
                                 <div class="cst-ligne">
@@ -814,6 +851,9 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         <label v-else-if="p === 'or' || p === 'body'">{{ LIBELLES_PARAM[p] }} <input v-model.number="effet[p]" type="number" min="1" class="cst-input cst-num" /></label>
                                         <select v-else-if="p === 'slug'" v-model="effet.slug" class="cst-input">
                                             <option v-for="o in catalogues.objets" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
+                                        </select>
+                                        <select v-else-if="p === 'porte'" v-model.number="effet.porte" class="cst-input">
+                                            <option v-for="(d, k) in quete.portes" :key="k" :value="k">{{ libellePorte(d, k) }}</option>
                                         </select>
                                         <label v-else-if="p === 'nom'">{{ LIBELLES_PARAM[p] }} <input v-model="effet.nom" class="cst-input" /></label>
                                         <div v-else-if="p === 'monstres'" class="cst-apparitions">

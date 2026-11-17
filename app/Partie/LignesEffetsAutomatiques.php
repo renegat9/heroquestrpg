@@ -891,6 +891,12 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => ($effet['nom'] ?? $heros).' perd '.(int) $effet['degats'].' point(s) de Corps', 'ton' => 'degats'];
                     }
                     break;
+                case 'ouvrir_porte':
+                    // Lot K5a : une porte déjà ouverte ne se raconte pas.
+                    if (! empty($effet['ouverte'])) {
+                        $lignes[] = ['texte' => 'Une porte s\'ouvre d\'elle-même', 'ton' => 'info'];
+                    }
+                    break;
             }
         }
 

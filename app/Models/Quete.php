@@ -59,6 +59,8 @@ class Quete extends Model
         'document_construit',
         'drapeaux',
         'notes_jouees',
+        // Lot K5a : les tours du maître du jeu commencés, lus par le déclencheur de note `tour_du_mj`.
+        'tours_mj',
     ];
 
     protected function casts(): array
@@ -92,6 +94,7 @@ class Quete extends Model
             'document_construit' => 'array',
             'drapeaux' => 'array',
             'notes_jouees' => 'array',
+            'tours_mj' => 'integer',
         ];
     }
 

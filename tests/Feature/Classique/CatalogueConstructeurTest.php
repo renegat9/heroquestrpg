@@ -111,6 +111,8 @@ it('payload() publie les couches posables, les classes et les vocabulaires lus d
             'declencheurs_de_note' => \App\Engine\MotsClesQuete::DECLENCHEURS,
             'effets_de_note' => \App\Engine\MotsClesQuete::EFFETS,
             'types_acces' => ValidationCampagne::TYPES_ACCES,
+            'verrous_de_porte' => ValidationCampagne::VERROUS_DE_PORTE,
+            'conditions_de_porte' => collect(\App\Partie\MoteurPortes::CONDITIONS)->map(fn (array $c, string $nom) => ['nom' => $nom, 'libelle' => $c['libelle']])->values()->all(),
             'formats_acceptes' => ValidationCampagne::FORMATS_ACCEPTES,
         ]);
 });
