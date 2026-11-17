@@ -855,6 +855,24 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Lot K5 : ce qui reste, nommément (2026-11-16, après K5i)** — « retirer du
+  contenu est un choix écrit » :
+  - **R4, l'équipement confisqué** jusqu'à un point de la carte (sorts
+    interdits d'ici là) : il toucherait d'un coup les caractéristiques de combat
+    (`Equipement::recalculerCombat()`), l'usage des objets et les sorts ; aucune
+    règle générique écrite dans les livrets relus, seulement des notes de
+    quêtes. À trancher avec René avant d'ouvrir le chantier.
+  - **R5 et la charge de F4** : voir K5f — aucune valeur sourcée.
+  - **D9, l'objet ramassé ou rapporté** : en classique, un objet de quête vient
+    d'une note, qui pose déjà un drapeau au même moment ; le butin de fouille,
+    lui, est tiré au hasard. Reporté faute de cas qu'une note ne couvre pas.
+  - **D6, le passage du dernier héros** (effondrement derrière le groupe), **le
+    reste d'E5** (poser un meuble ou une tuile en cours de quête), **la salle
+    tournante d'E8** et **R9, le monstre saisi par l'auteur** (bloc de stats et
+    sorts propres) : chacun touche la carte ou le catalogue en cours de quête ;
+    un lot chacun, après X1.
+  - Cosmétique relevé à l'écran (K5f) : le fil annonce la découverte d'une salle
+    avant le texte de la note qui la provoque.
 - **Fait le 2026-11-16 — lot K5i : la campagne ramifiée** (C2).
   `quete.suite` : des embranchements `{quete: slug | fin: true, si_drapeau?}`
   lus dans l'ordre à la VICTOIRE ; le premier retenu décide de la quête
