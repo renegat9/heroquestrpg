@@ -6010,6 +6010,7 @@ notes: [{
 | `ouverture_porte` | `{porte: index dans quete.portes}` | la porte est ouverte |
 | `mort` | `{monstre: index dans quete.monstres}` | la figure POSÉE par l'auteur tombe (jamais un errant ni une apparition) |
 | `tour_du_mj` | `{tour: N}` (entier ≥ 1) | le tour du maître du jeu commence (avant le premier monstre), à partir du N-ième de la quête : une fois au N-ième (`une_fois` par défaut), ou à chacun à partir du N-ième (`une_fois: false`). Aucun héros ne déclenche (lot K5a) |
+| `fouille_zone` | `{salle: id}` | un héros RÉUSSIT la fouille de la zone (pièges et portes secrètes) dans la salle. La note REMPLACE ce que le jet aurait révélé — rien n'est trouvé que ce que la note dit (résultat imposé : « rien », ou `reveler_porte` d'UNE porte) ; `resultat.issue = "note"`, `resultat.notes = [repères]`. Un jet raté ne trouve rien, note ou pas (lot K5g) |
 
 | Effet | Paramètres | Ce qui se passe |
 |---|---|---|

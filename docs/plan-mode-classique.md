@@ -855,6 +855,13 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-16 — lot K5g : la fouille de zone à résultat imposé**
+  (D7). Déclencheur `fouille_zone {salle}` : quand un héros RÉUSSIT la fouille
+  de la zone dans la salle, la note remplace ce que le jet aurait révélé
+  (`resultat.issue = "note"`), comme la note de fouille de trésor — « rien »,
+  ou `reveler_porte` d'une seule porte. Décision écrite : un jet raté ne
+  trouve rien, note ou pas. Le fil dit « … fouille la zone… », la note dit le
+  reste.
 - **Fait le 2026-11-16 — lot K5f : la téléportation** (E8, sans la salle
   tournante). Effet de note `teleporter {x, y}` : le héros qui déclenche est
   posé sur la case (ou la plus proche libre, `CaseLibre`), la salle d'arrivée

@@ -5043,8 +5043,20 @@ final class ResolveurTour
             && $quete->carte !== null && $etat->position_x !== null) {
             $zone = ZoneFouille::de((array) $quete->carte->grille, (int) $etat->position_x, (int) $etat->position_y);
 
-            $payload['pieges_reveles'] = $this->pieges->revelerAutour($groupe, $quete->carte, $personnage, $zone);
-            $payload['portes_revelees'] = $this->portes->revelerSecretesAutour($groupe, $quete->carte, $personnage, $zone);
+            // NOTE DE QUÊTE (D7, lot K5g) : une salle dont une note attend CETTE fouille rend ce que la note dit, et le jet
+            // ne révèle rien d'autre — le résultat imposé par l'auteur, comme la note de fouille de trésor.
+            $salleIci = $this->salleA($quete, (int) $etat->position_x, (int) $etat->position_y);
+            $notes = app(NotesDeQuete::class);
+
+            if ($salleIci !== null && $notes->attend($quete, MotsClesQuete::FOUILLE_ZONE, ['salle' => $salleIci])) {
+                $jouees = $notes->signaler($quete, MotsClesQuete::FOUILLE_ZONE, ['salle' => $salleIci], $personnage);
+                $payload['notes'] = array_column($jouees, 'repere');
+                $payload['pieges_reveles'] = [];
+                $payload['portes_revelees'] = [];
+            } else {
+                $payload['pieges_reveles'] = $this->pieges->revelerAutour($groupe, $quete->carte, $personnage, $zone);
+                $payload['portes_revelees'] = $this->portes->revelerSecretesAutour($groupe, $quete->carte, $personnage, $zone);
+            }
         }
 
         // ÉPREUVE (2026-08-24) : la tentative est dépensée QUOI QU'IL ARRIVE —
@@ -5099,7 +5111,9 @@ final class ResolveurTour
             // la RECHERCHE : `reussite` = quelque chose a été trouvé (`a_trouve`),
             // `rien` = la recherche a réussi sans rien trouver, `echec` = le jet a
             // raté (inchangé). `succes` reste le résultat brut du dé.
-            if (! $payload['a_trouve'] && $payload['issue'] !== 'echec') {
+            if (isset($payload['notes'])) {
+                $payload['issue'] = 'note'; // la note a répondu (lot K5g) : ni « trouvé » ni « rien », ce qu'elle dit
+            } elseif (! $payload['a_trouve'] && $payload['issue'] !== 'echec') {
                 $payload['issue'] = 'rien';
             }
         }

@@ -306,3 +306,36 @@ it('sans héros déclencheur, la téléportation ne fait rien et le dit', functi
     $note = \App\Models\Evenement::where('groupe_id', $groupe->id)->get()->first(fn ($e) => ($e->payload['type'] ?? null) === 'note_de_quete');
     expect($note->payload['effets'][0]['teleporte'])->toBeFalse();
 });
+
+/*
+ * LOT K5g — LA FOUILLE DE ZONE À RÉSULTAT IMPOSÉ (D7). La porte secrète 2, en (9, 5) côté sud, est dans la `galerie`.
+ * Une note sur la fouille de zone de la galerie : sans elle, un jet réussi trouve la porte ; avec une note « rien »,
+ * il ne trouve rien ; avec une note `reveler_porte`, c'est la note qui la révèle.
+ */
+it('EN JEU : la note de fouille de zone remplace ce que le jet aurait trouvé', function (?array $alors, bool $revelee) {
+    $campagne = DocumentExemple::campagne();
+    if ($alors !== null) {
+        $campagne['quetes'][0]['notes'] = [
+            ['repere' => 'Z', 'quand' => ['declencheur' => MotsClesQuete::FOUILLE_ZONE, 'cible' => ['salle' => 'galerie']], 'alors' => $alors],
+        ];
+    }
+    expect(app(ValidationCampagne::class)->valider($campagne))->toBe([]);
+    ['groupe' => $groupe, 'quete' => $quete, 'heros' => $heros] = partieVerrouillee($this, $campagne);
+    $quete->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+
+    optionsPorteVerrouillee($this, $groupe, $heros);
+    desFiges([1, 4]); // Mind 2 dés : un crâne, réussite
+    $reponse = $this->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'fouiller'])->assertAccepted();
+
+    expect($reponse->json('resultat.issue'))->toBe($alors === null ? 'reussite' : 'note')
+        ->and($reponse->json('resultat.portes_revelees'))->toHaveCount($alors === null ? 1 : 0)
+        ->and(data_get($quete->carte->fresh()->grille, 'portes.2.revele') ?? false)->toBe($revelee);
+    if ($alors !== null) {
+        expect($reponse->json('resultat.notes'))->toBe(['Z'])
+            ->and(app(\App\Partie\JournalCombat::class)->depuisResultat($reponse->json('resultat'), 'Albrecht')[0]['texte'])->toBe('Albrecht fouille la zone…');
+    }
+})->with([
+    'sans note : le jet trouve la porte' => [null, true],
+    'note « rien »' => [[['effet' => 'texte', 'texte' => 'Rien qu\'une odeur de moisi.']], false],
+    'note qui révèle la porte' => [[['effet' => 'reveler_porte', 'porte' => 2]], true],
+]);

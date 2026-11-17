@@ -3028,6 +3028,11 @@ final class JournalCombat
             // pièges ou des passages. ≠ réussite sans trouvaille (ci-dessous), qui dit que la
             // zone est SÛRE (verdict Jungle 2026-10-10 §3 : « rien » / « rien de suspect »
             // se lisaient pareil alors que leur sens est opposé).
+            // NOTE DE QUÊTE (lot K5g) : la salle a répondu par une note, annoncée effet par effet (`note_de_quete`) —
+            // surtout pas « aucun piège ni passage » : c'est la note qui dit ce qu'on trouve.
+            if (($a['issue'] ?? null) === 'note') {
+                return [['texte' => "{$acteurNom} fouille la zone…", 'ton' => 'info']];
+            }
             if (! self::jetReussi($a)) {
                 return [['texte' => "{$acteurNom} fouille la zone : jet raté — rien n'est révélé (la zone peut encore cacher des pièges ou des passages)", 'ton' => 'echec']];
             }

@@ -42,6 +42,12 @@ final class MotsClesQuete
     public const TOUR_DU_MJ = 'tour_du_mj';
 
     /**
+     * D7 — un héros RÉUSSIT la fouille de la zone dans une salle (lot K5g). La note REMPLACE ce que le jet aurait révélé :
+     * le résultat est celui que l'auteur impose (« rien », une seule porte), comme la note de fouille de trésor.
+     */
+    public const FOUILLE_ZONE = 'fouille_zone';
+
+    /**
      * Déclencheur → les formes de `quand.cible` qu'il accepte, et qui le signale.
      *
      * - `salle` : l'`id` d'une salle du plateau ;
@@ -72,6 +78,11 @@ final class MotsClesQuete
             'cibles' => ['monstre'],
             'signale_par' => 'MoteurDegats::infligerAMonstreBrut()',
             'libelle' => 'la figure tombe',
+        ],
+        self::FOUILLE_ZONE => [
+            'cibles' => ['salle'],
+            'signale_par' => 'ResolveurTour::resoudreJet()',
+            'libelle' => 'un héros réussit la fouille de la zone (pièges, portes secrètes) dans la salle',
         ],
         self::TOUR_DU_MJ => [
             'cibles' => ['tour'],
@@ -137,7 +148,7 @@ final class MotsClesQuete
      * Ce qui n'est PAS ici, et pourquoi (« retirer du contenu est un choix écrit ») :
      * - le RÉVEIL de figures inertes (E4) : il existe, mais par la capacité `passif_jusqua` d'un monstre du catalogue
      *   (`MoteurDormants`), pas par une note ;
-     * - D6 à D9, la salle tournante d'E8 (sortie tirée au dé), E9 et le reste d'E5 (poser une tuile, un meuble) : seconde série (lot K5), une à la fois, chacune
+     * - D6, D8 (hors terrain), D9, la salle tournante d'E8 (sortie tirée au dé), E9 et le reste d'E5 (poser une tuile, un meuble) : seconde série (lot K5), une à la fois, chacune
      *   avec son lecteur. D5 et l'ouverture de porte d'E6 sont entrés au lot K5a ; le bloc qui tombe (E6) et la porte
      *   secrète révélée (E5) au lot K5b. La « porte factice » d'E6 n'a pas de mot à elle : c'est une porte au verrou
      *   `note` qu'aucune note n'ouvre.
