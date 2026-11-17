@@ -863,15 +863,29 @@ ni son format, il appelle ce que la route HTTP appelle.
      equipment and valuables » ; à mains nues, « A hero with no weapons rolls one
      Attack die » (F6646 p. 5). René : si seules armes et armures sont prises,
      le sac et l'or restent ; les sorts fonctionnent ; une note ou un coffre rend
-     l'équipement. ⚠ Écart avec la source (qui prend aussi les objets de valeur)
-     soumis à René, voir la question posée le même jour.
+     l'équipement. **Tranché le même jour : TOUT, comme la source** — armes,
+     armures, sac et or ; chaque héros récupère ses affaires en fouillant la
+     salle désignée.
   2. **R5 / F4, la charge** : le porteur lance UN dé de déplacement au lieu de
      deux ; il agit normalement ; s'il tombe, un autre héros la reprend sur sa
      case ; la quête est terminée dès que tous les héros encore vivants sont
-     sortis. ⚠ Notre déplacement est « base de classe + 1d6 » (écart voulu) :
-     la traduction de « un dé au lieu de deux » est soumise à René.
+     sortis. **Précisé par René** : en mode CLASSIQUE on lance DEUX dés de
+     déplacement — ne pas confondre avec le mode RPG (base + 1d6). Le porteur en
+     lance UN.
+     ⚠ **Défaut relevé du même coup** : la décision Q1 (« déplacement : deux dés
+     rouges, sans base de classe » en classique) n'a JAMAIS été codée —
+     `MenuMoteur::deplacementDuTour()` lance « base + 1d6 » pour tout groupe.
+     Premier lot à faire, avant la charge (qui en dépend).
   3. **Le brouillard des couloirs** : respecter le plateau ; une salle s'affiche
-     dès qu'un héros est devant sa porte quand elle est ouverte.
+     dès qu'un héros est devant sa porte quand elle est ouverte. **Tranché** : les
+     couloirs se dévoilent à VUE (ligne de vue des héros), les salles entières à
+     l'ouverture de leur porte ; ouvrir une porte ne révèle plus tous les
+     couloirs.
+  - **Ordre retenu** : (a) le déplacement classique à deux dés (Q1, jamais
+    codé) ; (b) R4 l'équipement confisqué ; (c) R5/F4 la charge ; (d) les
+    couloirs à vue ; (e) R9 les monstres de l'auteur ; puis D6, E5, la salle
+    tournante et la quête double ; K6 après la base ; la relecture de tous les
+    livrets à la fin.
   4. **R9, les monstres de l'auteur** : proposer les deux — un monstre du
      catalogue promu sous-boss ou boss, ou un monstre créé par l'auteur.
   5. **Salle tournante et quête double** : les deux, au moment opportun.
