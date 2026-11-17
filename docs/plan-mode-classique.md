@@ -855,6 +855,29 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Décisions de René du 2026-11-17 sur les restes de K5** (réponses à la liste
+  « ce qui reste ») :
+  1. **R4, l'équipement confisqué** : oui. Source lue : *Rise of the Dread Moon*
+     (F6646 p. 11) — « All their equipment and valuables have been confiscated »,
+     et « Each hero may search this room to retrieve all their confiscated
+     equipment and valuables » ; à mains nues, « A hero with no weapons rolls one
+     Attack die » (F6646 p. 5). René : si seules armes et armures sont prises,
+     le sac et l'or restent ; les sorts fonctionnent ; une note ou un coffre rend
+     l'équipement. ⚠ Écart avec la source (qui prend aussi les objets de valeur)
+     soumis à René, voir la question posée le même jour.
+  2. **R5 / F4, la charge** : le porteur lance UN dé de déplacement au lieu de
+     deux ; il agit normalement ; s'il tombe, un autre héros la reprend sur sa
+     case ; la quête est terminée dès que tous les héros encore vivants sont
+     sortis. ⚠ Notre déplacement est « base de classe + 1d6 » (écart voulu) :
+     la traduction de « un dé au lieu de deux » est soumise à René.
+  3. **Le brouillard des couloirs** : respecter le plateau ; une salle s'affiche
+     dès qu'un héros est devant sa porte quand elle est ouverte.
+  4. **R9, les monstres de l'auteur** : proposer les deux — un monstre du
+     catalogue promu sous-boss ou boss, ou un monstre créé par l'auteur.
+  5. **Salle tournante et quête double** : les deux, au moment opportun.
+  6. **K6, les mécaniques d'une seule boîte** : toutes, une fois la base finie.
+  7. **D9 et la fidélité générale** : à la fin du travail, faire le tour de TOUS
+     les livrets pour valider ce qui manque.
 - **Fait le 2026-11-17 — lot X1, puis le contact à travers un mur.** La
   campagne d'exemple ORIGINALE (`docs/exemples/`) a été jouée par deux agents
   Haiku : finie, deux quêtes gagnées (verdict
