@@ -944,10 +944,15 @@ final class MenuMoteur
             // D'ARMURE. Le choc, lui, « applies to every creature » (confirmé
             // Hasbro) : un Chevalier en choc perd son dé comme n'importe qui.
             $enChoc = $personnage->estEnChoc();
-            $deAnnule = $deAnnuleEquipement || $enChoc;
+            // LA CHARGE (mode classique, lot K5k) : « 1 dé au lieu de 2 » (René, 2026-11-17) — la même mécanique que
+            // la plate ; les deux ensemble ne barrent qu'un dé (une union, comme le choc).
+            $chargeEtat = $etat->quete !== null ? app(\App\Partie\Classique\Charge::class)->etat($etat->quete) : null;
+            $porteCharge = $chargeEtat !== null && (int) ($chargeEtat['porteur_id'] ?? 0) === (int) $personnage->id;
+            $deAnnule = $deAnnuleEquipement || $enChoc || $porteCharge;
             $deAnnulePar = match (true) {
                 $enChoc && $deAnnuleEquipement => "{$sourceEquipement} + État de choc",
                 $enChoc => 'État de choc',
+                $porteCharge && ! $deAnnuleEquipement => 'Charge : '.$chargeEtat['nom'],
                 default => $sourceEquipement,
             };
 
@@ -3498,6 +3503,17 @@ final class MenuMoteur
                     ];
                 }
             }
+        }
+
+        // LA CHARGE (mode classique, lot K5k) : la prendre, debout, sur sa case ou au contact — `Charge::prenable()`, le
+        // prédicat que le résolveur revalide. Interaction libre.
+        $charge = app(\App\Partie\Classique\Charge::class);
+        if (! $aJoue && $etat !== null && $charge->prenable($quete, $etat)) {
+            $options[] = [
+                'id' => 'prendre_charge',
+                'libelle' => 'Prendre : '.$charge->etat($quete)['nom'],
+                'type' => 'prendre_charge',
+            ];
         }
 
         if (! $enArene && ! $parEscalier && ! $aJoue && $peutSortir && $surEscalier && ! $voteOuvert) {

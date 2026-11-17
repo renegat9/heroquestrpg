@@ -90,6 +90,8 @@ const ICONE_TYPE = {
     entree_donjon: 'login',
     // MODE HEROIC (lot H1b) : ramasser les affaires d'un compagnon mort.
     ramasser_depouille: 'backpack',
+    // Lot K5k : prendre la charge à ramener.
+    prendre_charge: 'inventory_2',
     retraite: 'directions_run',
     desamorcer: 'handyman',
     franchir: 'sprint',

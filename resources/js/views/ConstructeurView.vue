@@ -434,14 +434,22 @@ function changerTypeFin(type) {
     const libelle = quete.value.fin?.libelle ?? '';
     // Les clés de chaque type sont celles de la validation (`ValidationCampagne::CLES_FIN`) : « sortir » n'en a pas d'autre.
     quete.value.fin = type === 'drapeau' ? { type, drapeau: '', libelle }
-        : type === 'sortir' ? { type, libelle }
+        : type === 'sortir' || type === 'ramener' ? { type, libelle }
         : { type, cibles: [], libelle };
+    // « ramener » (lot K5k) exige une charge : on en pose une à compléter, plutôt que de laisser un refus muet.
+    if (type === 'ramener' && !quete.value.charge) quete.value.charge = { nom: '', x: 0, y: 0 };
 }
 const LIBELLES_FIN = {
     vaincre: 'vaincre des monstres désignés',
     drapeau: 'un drapeau posé par une note',
     sortir: 'trouver la sortie et quitter le donjon',
+    ramener: 'ramener une charge hors du donjon',
 };
+// Lot K5k (R5) : `quete.charge` — l'objet encombrant à porter ; la clé disparaît quand on la retire.
+function basculerCharge(avec) {
+    if (avec) quete.value.charge = { nom: '', x: 0, y: 0 };
+    else delete quete.value.charge;
+}
 // QUÊTE SOLO (lot S1) : `regles.solo` — clé FACULTATIVE du format, absente quand la quête se joue à plusieurs. La
 // classe proposée est l'une de celles que la campagne EXIGE : la validation refuse les autres (`solo_sans_prerequis`).
 function changerSolo(classe) {
@@ -892,9 +900,20 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 </label>
                                 <label v-if="quete.fin?.type === 'drapeau'">Drapeau <input v-model="quete.fin.drapeau" class="cst-input" /></label>
                                 <span v-else-if="quete.fin?.type === 'sortir'" class="cst-sous">La sortie de la quête est ouverte dès le départ ; la quête est gagnée quand le dernier héros debout l'a franchie.</span>
+                                <span v-else-if="quete.fin?.type === 'ramener'" class="cst-sous">La sortie est ouverte dès le départ ; la quête est gagnée si la charge est sortie avec le dernier héros debout, perdue sinon.</span>
                                 <span v-else class="cst-sous">Cibles : {{ (quete.fin?.cibles ?? []).map((c) => quete.monstres[c] ? libelleMonstre(quete.monstres[c], c) : `monstre ${c} (absent)`).join(' ; ') || 'aucune — outil « Cible » sur un monstre' }}</span>
                             </div>
                             <label>Consigne dite aux joueurs <input v-model="quete.fin.libelle" class="cst-input" /></label>
+                            <!-- Lot K5k (R5) : la charge à porter — son porteur lance un dé de déplacement de moins. -->
+                            <div class="cst-ligne">
+                                <label class="cst-case"><input type="checkbox" :checked="!!quete.charge" @change="basculerCharge($event.target.checked)" /> Charge à porter</label>
+                                <template v-if="quete.charge">
+                                    <input v-model="quete.charge.nom" class="cst-input" maxlength="40" placeholder="nom (ex. le coffre du trésorier)" />
+                                    <input v-model.number="quete.charge.x" type="number" class="cst-input cst-num" title="x" />
+                                    <input v-model.number="quete.charge.y" type="number" class="cst-input cst-num" title="y" />
+                                    <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(quete.charge, 'la charge')"><MSym n="pin_drop" :size="16" /></button>
+                                </template>
+                            </div>
                         </div>
 
                         <!-- notes -->

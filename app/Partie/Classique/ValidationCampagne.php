@@ -140,9 +140,11 @@ final class ValidationCampagne
         'drapeau' => ['type', 'drapeau', 'libelle'],
         // « sortir » : trouver la sortie et quitter le donjon (Kellar's Keep). Rien à désigner : la sortie de la quête.
         'sortir' => ['type', 'libelle'],
+        // « ramener » (lot K5k, F4) : ramener la charge de la quête hors du donjon — exige `charge`.
+        'ramener' => ['type', 'libelle'],
     ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge'];
     /**
      * Les RÈGLES DE QUÊTE (`docs/plan-mode-classique.md` §2.3), valables toute la quête — seulement celles que le moteur
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
@@ -171,7 +173,7 @@ final class ValidationCampagne
      * (`App\Models\Quete::OBJECTIFS_CONSTRUITS`, lu ici — une seule liste). Un type ajouté là sans lecteur serait une
      * règle promise au joueur et jamais tenue.
      */
-    public const TYPES_FIN = ['vaincre', 'drapeau', 'sortir'];
+    public const TYPES_FIN = ['vaincre', 'drapeau', 'sortir', 'ramener'];
 
     private const LONGUEUR_LIBELLE_FIN = 300;
 
@@ -452,6 +454,12 @@ final class ValidationCampagne
             $this->campagneDeLaQuete = [];
             $drapeauxPoses = $this->notes($quete, $chemin) + $this->drapeauxDeCampagne;
             $this->fin($quete, $chemin, $drapeauxPoses);
+            // Lot K5k (R5) : la charge, `{nom, x, y}` sur une case où un objet peut être posé — comme une apparition.
+            if (array_key_exists('charge', $quete) && ($charge = $this->enObjet($quete['charge'], "$chemin.charge")) !== null) {
+                $this->cles($charge, "$chemin.charge", ['nom', 'x', 'y']);
+                $this->texte($charge, 'nom', "$chemin.charge", nonVide: true, max: 40);
+                $this->caseDArrivee($charge, "$chemin.charge", 'la charge');
+            }
             // Lot K5i (C2) : les embranchements, après les notes (leurs drapeaux) et avec les slugs de TOUTE la campagne.
             $this->suite($quete, $chemin, $drapeauxPoses + $this->campagneDeLaQuete, $tousLesSlugs, is_string($quete['slug'] ?? null) ? $quete['slug'] : null);
             $this->drapeauxDeCampagne += $this->campagneDeLaQuete;
@@ -1173,6 +1181,15 @@ final class ValidationCampagne
 
         if ($type === 'sortir') {
             return; // la sortie (`sortie`, ou l'entrée quand elle vaut `null`) est déjà validée comme accès
+        }
+
+        // « ramener » (lot K5k) : la sortie comme « sortir », et une CHARGE à ramener.
+        if ($type === 'ramener') {
+            if (!array_key_exists('charge', $quete)) {
+                $this->refuser(self::chemin($chemin, 'charge'), self::CLE_MANQUANTE, 'la fin « ramener » demande une charge à ramener (`charge`)');
+            }
+
+            return;
         }
 
         if ($type === 'drapeau') {

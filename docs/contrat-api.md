@@ -6249,6 +6249,30 @@ qu'avec un héros désigné.
   cette quête » sur sa fiche. Un héros SORTI, lui, est un participant qui a quitté le donjon (`sorti: true`).
 - **Constructeur** : « Quête solo » dans la fiche de la quête, parmi les classes exigées par la campagne.
 
+### La charge à porter et à ramener — `quete.charge`, fin `ramener` (lot K5k, R5/F4, 2026-11-17)
+
+Décisions de René (2026-11-17) : le porteur lance **UN** dé de déplacement au lieu de deux ; il agit normalement ; s'il
+tombe, un autre héros reprend la charge sur sa case ; la quête est terminée dès que tous les héros encore vivants sont
+sortis.
+
+- **Format** : `quete.charge` (facultative) = `{nom, x, y}` — un objet encombrant posé sur une case libre de la carte
+  (`nom` : texte non vide, 40 caractères au plus ; la case : dans le plateau, hors salle fermée, ni meuble ni bloc —
+  mêmes refus qu'une apparition). Fin **`ramener`** : `fin: {type: "ramener", libelle}` — exige une `charge`
+  (`cle_manquante` sinon). La sortie est ouverte dès le départ, comme la fin `sortir`.
+- **État** (`quetes.charge`, `App\Partie\Classique\Charge`, point de passage unique) : `{nom, x, y, porteur_id, sortie}`.
+- **Ramasser** : option `prendre_charge` (« Prendre : {nom} », interaction LIBRE), offerte au héros DEBOUT qui se tient
+  sur la case de la charge ou au contact (`Grille::sontAdjacentes(…, carte:)`) quand elle est au sol ; le résolveur
+  revalide. Annonce `charge_prise`.
+- **Porter** : le porteur lance un dé de moins — en classique, ses deux dés tombent et le second est barré, raison « Charge :
+  {nom} » (même mécanique que l'armure de plates ; les deux ensemble ne barrent qu'un dé).
+- **Tomber** : le porteur à terre LÂCHE la charge sur sa case (`EtatPersonnageQuete::booted()`, au passage à `tombe`) ;
+  annonce `charge_lachee`.
+- **Sortir** : le porteur qui quitte le donjon l'emporte (`sortie: true`). Fin `ramener` : quand le dernier héros debout
+  sort, la quête est GAGNÉE si la charge est sortie ; sinon elle est PERDUE (« la charge est restée dans le donjon » :
+  le groupe la rejoue), décision écrite.
+- **Publié** : `carte.charge = {nom, x, y}` tant qu'elle est au sol (la table la dessine), `entites[].charge = nom` sur
+  son porteur ; `null`/absent sinon. Instantané : saisie et restaurée. Mode classique seulement.
+
 ### Équipement confisqué — `regles.confiscation` (lot K5j, R4, 2026-11-17)
 
 Source : *Rise of the Dread Moon* (F6646 p. 11) — « All their equipment and valuables have been confiscated », et « Each

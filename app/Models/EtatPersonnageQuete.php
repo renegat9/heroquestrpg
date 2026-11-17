@@ -141,6 +141,12 @@ class EtatPersonnageQuete extends Model
                 return;
             }
 
+            // LA CHARGE (mode classique, lot K5k) : un porteur à terre la lâche sur sa case — observé sur la colonne, comme
+            // le crâne : un héros tombe par trop de chemins pour câbler chacun.
+            if ($etat->tombe && $etat->quete !== null) {
+                app(\App\Partie\Classique\Charge::class)->lacherSiPorteur($etat->quete, $etat);
+            }
+
             $cle = $etat->tombe ? 'heros_tombe' : 'heros_releve';
 
             try {

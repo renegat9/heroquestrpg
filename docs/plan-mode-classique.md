@@ -855,6 +855,18 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-17 — lot K5k : la charge à porter et à ramener** (R5, F4 ;
+  décisions de René). `quete.charge {nom, x, y}` et la fin `ramener` ; état
+  `quetes.charge` (migration `2026_11_17_120000`, appliquée après sauvegarde
+  relue), point de passage `App\Partie\Classique\Charge`. Prendre :
+  interaction libre, debout, sur sa case ou au contact (murs compris). Le
+  porteur lance ses deux dés, le second barré « Charge : … » (la plate et la
+  charge ensemble n'en barrent qu'un). À terre, il la lâche sur sa case
+  (`EtatPersonnageQuete::booted()`). Sorti, il l'emporte ; fin `ramener` :
+  gagnée si la charge est sortie avec le dernier héros debout, PERDUE sinon
+  (décision écrite) — sans faire mourir en Heroic un compagnon resté à terre
+  (ce n'est pas un TPK). Publié `carte.charge` (la table la dessine) et
+  `entites[].charge`. Mode classique seulement. Tests `ChargeTest`.
 - **Décision de René du 2026-11-17 — la manette à plusieurs héros, mode
   classique seulement « pour le moment »** (et la branche ne doit rien changer
   au RPG ni à l'arène). Les lots M1–M2 avaient été faits pour servir aussi le

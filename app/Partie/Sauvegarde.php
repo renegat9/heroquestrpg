@@ -348,6 +348,8 @@ final class Sauvegarde
                 // doit ni perdre un objet repris après l'instantané, ni le doubler. Seulement quand il y en a une (mode
                 // classique) : l'instantané d'une quête RPG ou d'arène garde sa forme d'avant (René, 2026-11-17).
                 ...($quete->consignes !== null ? ['consignes' => $quete->consignes] : []),
+                // LA CHARGE (lot K5k) : où elle est, qui la porte — mode classique seulement.
+                ...($quete->charge !== null ? ['charge' => $quete->charge] : []),
                 // Récits pré-générés : PLACEMENT, pas tirage — ils sont
                 // restaurés tels quels. Les régénérer à chaque reprise
                 // rachèterait au LLM des textes déjà payés, et un
@@ -560,7 +562,7 @@ final class Sauvegarde
         $champs['salles_decouvertes'] = (array) ($quete['salles_decouvertes'] ?? [0]);
         $champs['tresors_fouilles'] = (array) ($quete['tresors_fouilles'] ?? []);
 
-        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'coffres_ouverts', 'artefact_objet_id', 'recits', 'effets_globaux', 'consignes'] as $champ) {
+        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'coffres_ouverts', 'artefact_objet_id', 'recits', 'effets_globaux', 'consignes', 'charge'] as $champ) {
             if (array_key_exists($champ, $quete)) {
                 $champs[$champ] = $quete[$champ];
             }

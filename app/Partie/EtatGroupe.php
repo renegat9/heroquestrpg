@@ -616,6 +616,10 @@ final class EtatGroupe
             // ACCÈS d'une quête construite (mode classique, 2026-11-14) : les portes d'entrée et de sortie, et un
             // escalier de sortie distinct de l'entrée — ce que `escalier` ne montre pas déjà. Voir `acces()`.
             'acces' => $this->acces($quete, $cases),
+            // LA CHARGE (lot K5k) : au sol, à sa case — la table la dessine. Quête à charge seulement (mode classique).
+            ...(($charge = app(\App\Partie\Classique\Charge::class)->etat($quete)) !== null
+                ? ['charge' => $charge['porteur_id'] === null && ! $charge['sortie'] ? ['nom' => $charge['nom'], 'x' => $charge['x'], 'y' => $charge['y']] : null]
+                : []),
             'portes' => $portes,
             // MURS EN ARÊTES : les murs que l'écran dessine en traits, sous le brouillard. Voir `murs()`.
             'murs' => $this->murs($carte, $cases),
@@ -1602,13 +1606,15 @@ final class EtatGroupe
             ->keyBy('recruteur_personnage_id');
 
         $bourseParHeros = app(Bourses::class)->parHeros($groupe);
+        // LA CHARGE (mode classique, lot K5k) : `entites[].charge` n'existe que pour une quête qui en a une.
+        $chargeEtat = app(\App\Partie\Classique\Charge::class)->etat($quete);
 
         return $groupe->personnages()
             ->wherePivot('actif', true)
             ->orderBy('groupe_personnages.ordre_initiative')
             ->with('faveurs')
             ->get()
-            ->map(function (Personnage $p) use ($etats, $captifsPortes, $bourseParHeros, $quete) {
+            ->map(function (Personnage $p) use ($etats, $captifsPortes, $bourseParHeros, $quete, $chargeEtat) {
                 $etat = $etats->get($p->id);
                 $porte = $captifsPortes->get($p->id);
 
@@ -1636,6 +1642,8 @@ final class EtatGroupe
                     // HORS PLATEAU (mode classique, René 2026-11-16) : le héros attend devant la porte d'entrée, sans case.
                     // Décision publiée : ni la carte ni la manette ne la déduisent d'un `x` nul.
                     'hors_plateau' => $etat !== null && $etat->horsPlateau(),
+                    // LA CHARGE (lot K5k) : le nom de la charge que porte ce héros, sinon `null` — quête à charge seulement.
+                    ...($chargeEtat !== null ? ['charge' => (int) ($chargeEtat['porteur_id'] ?? 0) === (int) $p->id ? $chargeEtat['nom'] : null] : []),
                     // Portrait unique du héros si généré, sinon image de classe.
                     'image_url' => app(BibliothequeImages::class)->urlHeros($p->id, $p->classe),
                     'x' => $etat?->position_x,

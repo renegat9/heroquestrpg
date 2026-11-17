@@ -311,6 +311,8 @@ function fixturesDesTypesAnnonces(): array
         'heros_mort' => ['personnage_id' => 1, 'nom' => 'Grom', 'affaires' => 'au_sol'],
         'depouille_ramassee' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'mort' => 'Grom', 'objets' => ['Épée large'], 'or' => 12],
         'confiscation' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'objets' => 3, 'or' => 30],
+        'charge_prise' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'charge' => 'le coffre'],
+        'charge_lachee' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'charge' => 'le coffre'],
         // MODE CLASSIQUE : la récompense d'une quête construite, versée aux bourses (`FinDeQueteConstruite`).
         'recompense_quete' => ['quete_id' => 1, 'total' => 10, 'parts' => [
             ['personnage_id' => 1, 'nom' => 'Grom', 'or' => 5], ['personnage_id' => 2, 'nom' => 'Albrecht', 'or' => 5],

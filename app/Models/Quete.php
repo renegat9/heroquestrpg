@@ -63,6 +63,8 @@ class Quete extends Model
         'tours_mj',
         // Lot K5j (R4) : l'équipement confisqué en attente — lu et écrit par `App\Partie\Classique\Confiscation` seul.
         'consignes',
+        // Lot K5k (R5/F4) : la charge à porter et à ramener — lue et écrite par `App\Partie\Classique\Charge` seule.
+        'charge',
     ];
 
     /**
@@ -112,6 +114,7 @@ class Quete extends Model
             'notes_jouees' => 'array',
             'tours_mj' => 'integer',
             'consignes' => 'array',
+            'charge' => 'array',
         ];
     }
 
@@ -970,6 +973,9 @@ class Quete extends Model
         'vaincre' => self::OBJECTIF_VAINCRE_CIBLES,
         'drapeau' => self::OBJECTIF_DRAPEAU,
         'sortir' => self::OBJECTIF_SORTIR,
+        // Lot K5k : ramener la charge — la sortie ouverte dès le départ, comme `sortir` ; la victoire exige la charge
+        // sortie (`ResolveurTour::resoudreSortieEnPersonne()`, `Charge::ramenee()`).
+        'ramener' => self::OBJECTIF_SORTIR,
     ];
 
     public function objectif(): ?string

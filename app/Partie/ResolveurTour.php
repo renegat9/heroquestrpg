@@ -744,6 +744,8 @@ final class ResolveurTour
                 'entree_donjon' => $this->resoudreEntreeDonjon($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // MODE HEROIC (lot H1b) : ramasser les affaires d'un mort, dans sa salle ou son couloir. Geste libre.
                 'ramasser_depouille' => $this->resoudreRamasserDepouille($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // MODE CLASSIQUE (lot K5k) : prendre la charge, sur sa case ou au contact. Geste libre.
+                'prendre_charge' => $this->resoudrePrendreCharge($groupe, $quete, $personnage, $etat, $acteur),
                 'retraite' => $this->resoudreRetraite($groupe, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: false),
@@ -14283,7 +14285,11 @@ final class ResolveurTour
         // heroes die », livret de règles de First Light). Puis les morts quittent le groupe.
         if ($groupe->estClassique()) {
             $morts = app(\App\Partie\Classique\MortHeroic::class);
-            $morts->tousMorts($groupe, $quete);
+            // Une charge abandonnée (lot K5k) n'est pas un TPK : les héros sont SORTIS, un compagnon resté à terre ne
+            // meurt pas pour autant — la quête se rejoue, comme une sortie sans l'objet.
+            if ($cause !== 'charge_abandonnee') {
+                $morts->tousMorts($groupe, $quete);
+            }
             $morts->retirerLesMorts($groupe);
         }
 
@@ -16331,6 +16337,8 @@ final class ResolveurTour
             MoteurAnneauDeSort::TYPE => 'interaction',
             // MODE HEROIC (lot H1b) : ramasser les affaires d'un mort — « no action required ».
             'ramasser_depouille' => 'interaction',
+            // LA CHARGE (lot K5k) : la prendre ne coûte ni le déplacement ni l'action (« action normale » ensuite, René).
+            'prendre_charge' => 'interaction',
             // TROPHÉES D'ARÈNE (lot T4) : « no action required » pour ramasser, et l'usage n'en demande pas davantage —
             // boire la potion d'une tuile ou défausser une tuile pour l'élan ne coûte aucun créneau.
             'trophee_potion', 'trophee_elan' => 'interaction',
@@ -16866,6 +16874,10 @@ final class ResolveurTour
 
         $par = $quete->sortieDuDonjon()['type'];
 
+        // LA CHARGE (lot K5k) : son porteur l'emporte hors du donjon.
+        $charge = app(\App\Partie\Classique\Charge::class);
+        $charge->sortirAvec($quete, (int) $personnage->id);
+
         $etat->delete();
 
         $restants = $quete->etatsPersonnages()->where('tombe', false)->count();
@@ -16886,8 +16898,28 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         if ($restants === 0) {
-            $payload['quete'] = $this->terminerQuete($groupe, $quete);
+            // FIN « RAMENER » (lot K5k) : le dernier héros debout est sorti SANS la charge — la quête est perdue, le groupe
+            // la rejoue (décision écrite, `Charge`). Sinon, gagnée comme toute sortie.
+            if (data_get($quete->objectif_construit, 'type') === 'ramener' && ! $charge->ramenee($quete->refresh())) {
+                $this->echouerQuete($groupe, $quete, 'charge_abandonnee');
+                $payload['quete'] = ['etat' => 'echouee', 'cause' => 'charge_abandonnee'];
+            } else {
+                $payload['quete'] = $this->terminerQuete($groupe, $quete);
+            }
         }
+
+        return $payload;
+    }
+
+    /** LA CHARGE (mode classique, lot K5k) : le héros la prend — `Charge::prenable()` revalidé ici, comme au menu. */
+    private function resoudrePrendreCharge(Groupe $groupe, Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat, array $acteur): array
+    {
+        $charge = app(\App\Partie\Classique\Charge::class);
+        if ($etat === null || ! $charge->prenable($quete, $etat)) {
+            throw ValidationException::withMessages(['option_id' => 'La charge n\'est pas à ta portée.']);
+        }
+        $payload = $charge->prendre($quete, $personnage);
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
     }

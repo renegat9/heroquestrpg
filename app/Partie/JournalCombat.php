@@ -186,6 +186,9 @@ final class JournalCombat
         'note_de_quete' => true,
         // MODE CLASSIQUE (lot K5j) : l'équipement confisqué au départ d'une quête.
         'confiscation' => true,
+        // MODE CLASSIQUE (lot K5k) : la charge prise, ou lâchée par un porteur à terre.
+        'charge_prise' => true,
+        'charge_lachee' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1270,6 +1273,15 @@ final class JournalCombat
                     default => '',
                 },
                 'ton' => 'mort',
+            ]],
+            // LA CHARGE (lot K5k) : prise, ou lâchée par un porteur à terre.
+            'charge_prise' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' prend '.($a['charge'] ?? 'la charge').' — un seul dé de déplacement pour qui la porte',
+                'ton' => 'info',
+            ]],
+            'charge_lachee' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' tombe et lâche '.($a['charge'] ?? 'la charge').' : elle reste sur sa case',
+                'ton' => 'subit',
             ]],
             // ÉQUIPEMENT CONFISQUÉ (lot K5j) : au départ, le héros laisse tout à la consigne.
             'confiscation' => [[
