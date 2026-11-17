@@ -855,6 +855,15 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-17 — lot X1, puis le contact à travers un mur.** La
+  campagne d'exemple ORIGINALE (`docs/exemples/`) a été jouée par deux agents
+  Haiku : finie, deux quêtes gagnées (verdict
+  `docs/verdict-x1-campagne-exemple-2026-11-17.md`). Le défaut grave relevé —
+  une momie et un barbare se frappant à travers un mur en arête — est corrigé
+  à son point de passage : `Grille::sontAdjacentes(…, carte:)` coupe le contact
+  par un mur ou une porte close sur l'arête ; tout appel de `app/` passe la
+  carte (`ContactAtraversMurTest`, dans les deux sens) ; trois copies de la
+  boucle d'emprise délèguent à `InstanceMonstre::touche()`.
 - **Lot K5 : ce qui reste, nommément (2026-11-16, après K5i)** — « retirer du
   contenu est un choix écrit » :
   - **R4, l'équipement confisqué** jusqu'à un point de la carte (sorts

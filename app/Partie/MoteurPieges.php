@@ -1646,7 +1646,7 @@ final class MoteurPieges
             $groupe,
             $carte,
             $personnage,
-            fn (array $entree) => Grille::sontAdjacentes((int) $entree['x'], (int) $entree['y'], $x, $y),
+            fn (array $entree) => Grille::sontAdjacentes((int) $entree['x'], (int) $entree['y'], $x, $y, carte: $carte),
             'oeil_du_mineur',
         );
 
@@ -1703,7 +1703,7 @@ final class MoteurPieges
             if (! in_array($entree['etat'] ?? null, self::ETATS_CONNUS_ARMES, true)) {
                 continue;
             }
-            if (! Grille::sontAdjacentes((int) $entree['x'], (int) $entree['y'], $x, $y)) {
+            if (! Grille::sontAdjacentes((int) $entree['x'], (int) $entree['y'], $x, $y, carte: $carte)) {
                 continue;
             }
 
@@ -1963,7 +1963,7 @@ final class MoteurPieges
         $dy = $piege['y'] - $depart['y'];
 
         // Le saut part d'une case AU CONTACT du piège — le contact passe par son point de passage (`ContactOrthogonalTest`).
-        if (! Grille::sontAdjacentes($depart['x'], $depart['y'], $piege['x'], $piege['y']) || $quete->carte === null) {
+        if (! Grille::sontAdjacentes($depart['x'], $depart['y'], $piege['x'], $piege['y'], carte: $quete->carte) || $quete->carte === null) {
             return [];
         }
 
@@ -2086,7 +2086,7 @@ final class MoteurPieges
             if (($entree['etat'] ?? null) !== self::ETAT_CACHE) {
                 continue;
             }
-            if (! Grille::sontAdjacentes((int) $entree['x'], (int) $entree['y'], $x, $y)) {
+            if (! Grille::sontAdjacentes((int) $entree['x'], (int) $entree['y'], $x, $y, carte: $carte)) {
                 continue;
             }
 

@@ -963,10 +963,11 @@ final class MoteurDread
         $nomMonstre = $instance->nomAffiche();
         // `$quete` : lu pour le flanc du tacticien — la méthode l'utilisait sans jamais le définir.
         $quete = $instance->quete;
-        $adjacents ??= $cibles->filter(function (EtatPersonnageQuete $c) use ($instance) {
+        $adjacents ??= $cibles->filter(function (EtatPersonnageQuete $c) use ($instance, $quete) {
             return Grille::sontAdjacentes(
                 (int) $instance->position_x, (int) $instance->position_y,
                 (int) $c->position_x, (int) $c->position_y,
+                carte: $quete?->carte,
             );
         });
 
@@ -2183,7 +2184,8 @@ final class MoteurDread
                 && Grille::sontAdjacentes(
                     (int) $m->position_x, (int) $m->position_y,
                     (int) $instance->position_x, (int) $instance->position_y,
-                )
+                carte: $quete->carte,
+            )
                 && in_array($sort->nom, $this->repertoireDe($m), true))
             ->count();
     }
@@ -3934,6 +3936,7 @@ final class MoteurDread
         $porteur = $cibles->first(fn (EtatPersonnageQuete $c) => Grille::sontAdjacentes(
             (int) $c->position_x, (int) $c->position_y,
             (int) $instance->position_x, (int) $instance->position_y,
+            carte: $instance->quete?->carte,
         ));
 
         if ($porteur === null) {
@@ -4130,7 +4133,8 @@ final class MoteurDread
         $porteur = $cibles->first(fn (EtatPersonnageQuete $c) => Grille::sontAdjacentes(
             (int) $c->position_x, (int) $c->position_y,
             (int) $instance->position_x, (int) $instance->position_y,
-        ));
+        carte: $quete->carte,
+    ));
 
         if ($porteur === null || $porteur->personnage === null) {
             return null; // personne au contact : tour normal (il attaquera)
@@ -4241,7 +4245,8 @@ final class MoteurDread
             ->contains(fn (InstanceMonstre $autre) => Grille::sontAdjacentes(
                 (int) $autre->position_x, (int) $autre->position_y,
                 (int) $cible->position_x, (int) $cible->position_y,
-            ));
+            carte: $quete->carte,
+        ));
     }
 
     /**
@@ -4522,7 +4527,7 @@ final class MoteurDread
 
         foreach ($voisines as $v) {
             if ($legale($v['x'], $v['y'])
-                && Grille::sontAdjacentes((int) $v['x'], (int) $v['y'], (int) $c['x'], (int) $c['y'])
+                && Grille::sontAdjacentes((int) $v['x'], (int) $v['y'], (int) $c['x'], (int) $c['y'], carte: $quete->carte)
                 && ! ($v['x'] === $lx && $v['y'] === $ly)) {
                 return ['cases' => [['x' => $c['x'], 'y' => $c['y']], ['x' => $v['x'], 'y' => $v['y']]]];
             }
@@ -5013,7 +5018,8 @@ final class MoteurDread
             if ($grille->sontAdjacentes(
                 (int) $instance->position_x, (int) $instance->position_y,
                 (int) $cible->position_x, (int) $cible->position_y,
-            )) {
+            carte: $quete->carte,
+        )) {
                 return null; // Déjà au contact : pas de charge.
             }
         }
@@ -5744,7 +5750,8 @@ final class MoteurDread
             if (Grille::sontAdjacentes(
                 (int) $etat->position_x, (int) $etat->position_y,
                 (int) $allieEtat->position_x, (int) $allieEtat->position_y,
-            )) {
+            carte: $quete->carte,
+        )) {
                 return [$allieEtat->personnage, $allieEtat, true];
             }
         }

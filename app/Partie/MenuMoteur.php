@@ -85,7 +85,7 @@ final class MenuMoteur
         $adjacentes = [];
 
         foreach ((array) ($carte->grille['glace'] ?? []) as $cellule) {
-            if (Grille::sontAdjacentes((int) $cellule['x'], (int) $cellule['y'], $x, $y)) {
+            if (Grille::sontAdjacentes((int) $cellule['x'], (int) $cellule['y'], $x, $y, carte: $carte)) {
                 $adjacentes[] = ['x' => (int) $cellule['x'], 'y' => (int) $cellule['y']];
             }
         }
@@ -202,24 +202,14 @@ final class MenuMoteur
             ->values();
     }
 
+    /**
+     * La figure touche-t-elle la case du héros ? C'est `InstanceMonstre::touche()` — son emprise entière, la carte de SA
+     * quête (un mur en arête coupe le contact, lot X1, 2026-11-17). Ce n'était plus qu'une seconde copie de la même
+     * boucle sur l'emprise, qui ne lisait pas les murs : elle délègue désormais.
+     */
     private static function monstreAuContact(InstanceMonstre $instance, int $hx, int $hy, bool $diagonale = false): bool
     {
-        $e = $instance->monstre->emprise();
-
-        for ($dy = 0; $dy < $e['h']; $dy++) {
-            for ($dx = 0; $dx < $e['l']; $dx++) {
-                // Point de passage unique : `$diagonale` (arme longue) ouvre les
-                // 8 cases, sinon le contact reste orthogonal.
-                if (Grille::sontAdjacentes(
-                    (int) $instance->position_x + $dx, (int) $instance->position_y + $dy,
-                    $hx, $hy, $diagonale,
-                )) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return $instance->touche($hx, $hy, $diagonale);
     }
 
     /**
@@ -501,7 +491,8 @@ final class MenuMoteur
                     && ($e->personnage_id === $personnage->id || $grille->sontAdjacentes(
                         (int) $etat->position_x, (int) $etat->position_y,
                         (int) $e->position_x, (int) $e->position_y,
-                    ))
+                    carte: $quete->carte,
+                ))
                     && ($e->personnage_id === $personnage->id || ! MaledictionLoupGarou::estEnLoup($e->personnage))
                     && $accessible($e->personnage))
                 ->map(fn (EtatPersonnageQuete $e) => [
@@ -2347,6 +2338,7 @@ final class MenuMoteur
                     || Grille::sontAdjacentes(
                         (int) $p->position_x, (int) $p->position_y,
                         (int) $etat->position_x, (int) $etat->position_y,
+                        carte: $quete->carte,
                     ));
 
             foreach ($porteurs as $porteur) {
@@ -2380,6 +2372,7 @@ final class MenuMoteur
                     && ((int) $e->personnage_id === (int) $etat->personnage_id || Grille::sontAdjacentes(
                         (int) $e->position_x, (int) $e->position_y,
                         (int) $etat->position_x, (int) $etat->position_y,
+                        carte: $quete->carte,
                     ))
                     && $this->sorts->entravesLiberables($e->personnage)->isNotEmpty())
                 ->values();
@@ -2396,6 +2389,7 @@ final class MenuMoteur
                     && ((int) $e->personnage_id === (int) $etat->personnage_id || Grille::sontAdjacentes(
                         (int) $e->position_x, (int) $e->position_y,
                         (int) $etat->position_x, (int) $etat->position_y,
+                        carte: $quete->carte,
                     ))
                     && $this->sorts->liensDe($e->personnage) !== null)
                 ->values();
@@ -2446,6 +2440,7 @@ final class MenuMoteur
                         && Grille::sontAdjacentes(
                             (int) $e->position_x, (int) $e->position_y,
                             (int) $etat->position_x, (int) $etat->position_y,
+                            carte: $quete->carte,
                         )
                         && $e->personnage !== null
                         && (int) $e->personnage->pv_body < (int) $e->personnage->pv_body_max)
@@ -2519,6 +2514,7 @@ final class MenuMoteur
                     && Grille::sontAdjacentes(
                         (int) $e->position_x, (int) $e->position_y,
                         (int) $etat->position_x, (int) $etat->position_y,
+                        carte: $quete->carte,
                     ));
 
             foreach ($allies as $allie) {
@@ -2761,6 +2757,7 @@ final class MenuMoteur
                     && Grille::sontAdjacentes(
                         (int) $e->position_x, (int) $e->position_y,
                         (int) $etat->position_x, (int) $etat->position_y,
+                        carte: $quete->carte,
                     ));
 
             if ($voisins->isNotEmpty()) {
@@ -3029,6 +3026,7 @@ final class MenuMoteur
                 ->filter(fn (GroupeMercenaire $c) => Grille::sontAdjacentes(
                     (int) $c->position_x, (int) $c->position_y,
                     (int) $etat->position_x, (int) $etat->position_y,
+                    carte: $quete->carte,
                 ));
 
             foreach ($captifs as $captif) {

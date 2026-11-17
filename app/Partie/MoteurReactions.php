@@ -679,21 +679,9 @@ final class MoteurReactions
         // Emprise comprise : une grande figurine est au contact par n'importe
         // laquelle de ses cases (3.9), comme pour l'attaque du héros. Contact
         // ORTHOGONAL : c'est celui qui a permis au monstre de frapper.
-        $emprise = $instance->monstre->emprise();
-
-        for ($dy = 0; $dy < $emprise['h']; $dy++) {
-            for ($dx = 0; $dx < $emprise['l']; $dx++) {
-                if (Grille::sontAdjacentes(
-                    (int) $instance->position_x + $dx, (int) $instance->position_y + $dy,
-                    (int) $etat->position_x, (int) $etat->position_y,
-                    $diagonale,
-                )) {
-                    return $instance;
-                }
-            }
-        }
-
-        return null;
+        // `InstanceMonstre::touche()` : l'emprise entière, et les murs en arêtes de SA carte (lot X1, 2026-11-17) — c'était
+        // une copie de la même boucle, qui ne lisait pas les murs.
+        return $instance->touche((int) $etat->position_x, (int) $etat->position_y, $diagonale) ? $instance : null;
     }
 
     /**
@@ -882,6 +870,7 @@ final class MoteurReactions
             if (! Grille::sontAdjacentes(
                 (int) $etat->position_x, (int) $etat->position_y,
                 (int) $etatVictime->position_x, (int) $etatVictime->position_y,
+                carte: $etatVictime->quete?->carte,
             )) {
                 continue;
             }

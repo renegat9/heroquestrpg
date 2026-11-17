@@ -945,6 +945,16 @@ permis de ne toucher ni aux campagnes en cours ni au générateur.
 **Un seul test d'arête** : `Grille::areteBloquee()` — mur et porte close y passent ensemble, pour le pas, la vue, les
 rayons, les poussées. Le brouillard le lit aussi (il avait sa propre copie, sur les portes seules).
 
+**Et le CONTACT** (2026-11-17, relevé en partie d'agents, lot X1 : une momie et un barbare se sont frappés de part et
+d'autre d'un mur). Le contact passait par `Grille::sontAdjacentes()`, purement géométrique : sur une carte générée c'était
+juste — le mur y est une case —, sur une carte construite deux cases séparées par un mur en arête restaient « au
+contact ». `sontAdjacentes(…, carte:)` coupe désormais le contact par un mur ou une porte close sur l'arête commune (en
+diagonale : par les DEUX chemins du coin) ; `Grille::auContact()` fait de même avec les murs de la grille qu'on tient
+(`adjacenteAEmprise()`). Tout appel dans `app/` passe `carte:`, sauf les exceptions nommées de `ContactAtraversMurTest`
+(tenu dans les deux sens). Trois copies de la boucle « l'emprise d'un monstre touche-t-elle cette case » (`MenuMoteur`,
+`ResolveurTour::heroAuContact()`, `MoteurReactions`) délèguent maintenant à `InstanceMonstre::touche()`, qui lit la carte
+de sa quête. Une carte générée n'y voit aucune différence.
+
 **Une porte sur une arête n'a pas de case à elle.** Trois lecteurs en dépendent, et tous trois lisaient d'abord « la
 case où la porte est écrite », ce qui est juste pour une embrasure et faux pour un bord :
 

@@ -89,7 +89,7 @@ final class MoteurEpreuves
             // de passage `Grille::sontAdjacentes()` ne retient pas.
             $surLaCase = (int) $entree['x'] === $x && (int) $entree['y'] === $y;
 
-            if (! $surLaCase && ! Grille::sontAdjacentes((int) $entree['x'], (int) $entree['y'], $x, $y)) {
+            if (! $surLaCase && ! Grille::sontAdjacentes((int) $entree['x'], (int) $entree['y'], $x, $y, carte: $carte)) {
                 continue;
             }
 

@@ -166,7 +166,7 @@ final class HerosJoueParLeMj
             $adjacent = $victimes
                 ->map(fn (EtatPersonnageQuete $v) => $v->fresh())
                 ->filter(fn (?EtatPersonnageQuete $v) => $v !== null && ! $v->tombe && $v->position_x !== null
-                    && $this->enContact($controle, (int) $etat->position_x, (int) $etat->position_y, (int) $v->position_x, (int) $v->position_y))
+                    && $this->enContact($controle, (int) $etat->position_x, (int) $etat->position_y, (int) $v->position_x, (int) $v->position_y, $quete->carte))
                 ->sortBy(fn (EtatPersonnageQuete $v) => (int) $v->personnage->pv_body)
                 ->first();
 
@@ -214,11 +214,11 @@ final class HerosJoueParLeMj
         $ay = (int) $etat->position_y;
 
         if ($controle->cible === ControleMj::CIBLE_MONSTRE) {
-            return $this->enContact($controle, $ax, $ay, $but['x'], $but['y']);
+            return $this->enContact($controle, $ax, $ay, $but['x'], $but['y'], $etat->quete?->carte);
         }
 
         return $victimes->contains(fn (EtatPersonnageQuete $v) => $v->position_x !== null
-            && $this->enContact($controle, $ax, $ay, (int) $v->position_x, (int) $v->position_y));
+            && $this->enContact($controle, $ax, $ay, (int) $v->position_x, (int) $v->position_y, $etat->quete?->carte));
     }
 
     /**
@@ -226,9 +226,10 @@ final class HerosJoueParLeMj
      * même distinction que `ResolveurTour::heroAuContact()` — UN seul prédicat pour la garde de marche, le coup au
      * contact et le choix de la cible de tir, et c'est le point de passage `Grille::sontAdjacentes()`.
      */
-    private function enContact(ControleMj $controle, int $ax, int $ay, int $bx, int $by): bool
+    private function enContact(ControleMj $controle, int $ax, int $ay, int $bx, int $by, ?\App\Models\Carte $carte): bool
     {
-        return Grille::sontAdjacentes($ax, $ay, $bx, $by, $controle->diagonales);
+        // `$carte` : un mur en arête coupe le contact (lot X1, 2026-11-17).
+        return Grille::sontAdjacentes($ax, $ay, $bx, $by, $controle->diagonales, carte: $carte);
     }
 
     /** L'arme que le héros tient dans la main droite (la seule qu'un coup de MJ emploie), ou `null` = mains nues. */
@@ -262,7 +263,7 @@ final class HerosJoueParLeMj
         $figuresBloquent = $this->faveurs->figuresBloquentPour($personnage);
 
         return $victimes
-            ->filter(fn (EtatPersonnageQuete $v) => ! $this->enContact($controle, $case['x'], $case['y'], (int) $v->position_x, (int) $v->position_y)
+            ->filter(fn (EtatPersonnageQuete $v) => ! $this->enContact($controle, $case['x'], $case['y'], (int) $v->position_x, (int) $v->position_y, $v->quete?->carte)
                 && $grille->ligneDeVue($case['x'], $case['y'], (int) $v->position_x, (int) $v->position_y, figuresBloquent: $figuresBloquent))
             ->sortBy(fn (EtatPersonnageQuete $v) => (int) $v->personnage->pv_body)
             ->first();

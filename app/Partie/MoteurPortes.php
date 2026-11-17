@@ -306,7 +306,7 @@ final class MoteurPortes
             }
 
             $embrasure = Grille::caseEmbrasure($porte, $salles);
-            if (Grille::sontAdjacentes((int) $embrasure['x'], (int) $embrasure['y'], $x, $y)) {
+            if (Grille::sontAdjacentes((int) $embrasure['x'], (int) $embrasure['y'], $x, $y, carte: $carte)) {
                 $trouvees[] = ['index' => $index, 'porte' => $porte];
             }
         }
@@ -441,7 +441,7 @@ final class MoteurPortes
         $adjacents = [];
 
         foreach ((array) ($carte->grille['leviers'] ?? []) as $levier) {
-            if (Grille::sontAdjacentes((int) $levier['x'], (int) $levier['y'], $x, $y)) {
+            if (Grille::sontAdjacentes((int) $levier['x'], (int) $levier['y'], $x, $y, carte: $carte)) {
                 $levierId = (string) ($levier['levier_id'] ?? '');
 
                 $adjacents[] = [
@@ -511,7 +511,7 @@ final class MoteurPortes
             // embrasure garde sa géométrie d'origine : une case de distance.
             fn (array $porte) => Grille::porteSurArete($porte)
                 ? self::toucheLArete($porte, $x, $y)
-                : Grille::sontAdjacentes((int) $porte['x'], (int) $porte['y'], $x, $y),
+                : Grille::sontAdjacentes((int) $porte['x'], (int) $porte['y'], $x, $y, carte: $carte),
             'talent',
         );
 

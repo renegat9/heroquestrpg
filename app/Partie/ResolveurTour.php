@@ -2869,7 +2869,7 @@ final class ResolveurTour
 
         $e = $instance->monstre?->emprise() ?? ['l' => 1, 'h' => 1];
         $auContact = collect(Grille::cellulesEmprise((int) $instance->position_x, (int) $instance->position_y, $e['l'], $e['h']))
-            ->contains(fn (array $c) => Grille::sontAdjacentes($c['x'], $c['y'], (int) $etat->position_x, (int) $etat->position_y, true));
+            ->contains(fn (array $c) => Grille::sontAdjacentes($c['x'], $c['y'], (int) $etat->position_x, (int) $etat->position_y, true, carte: $quete->carte));
 
         if (! $auContact || ! $trophees->defausser($quete, \App\Partie\Arene\TropheesArene::DEFENDER, \App\Partie\Arene\TropheesArene::RIPOSTE)) {
             return null;
@@ -3684,7 +3684,8 @@ final class ResolveurTour
         if (! $surSoi && ! Grille::sontAdjacentes(
             (int) $porteur->position_x, (int) $porteur->position_y,
             (int) $etat->position_x, (int) $etat->position_y,
-        )) {
+        carte: $quete->carte,
+    )) {
             throw ValidationException::withMessages([
                 'option_id' => 'Trop loin : on arrache un rejeton sur soi ou sur un compagnon au contact.',
             ]);
@@ -3868,6 +3869,7 @@ final class ResolveurTour
 
             $auContact = $heros->contains(fn ($h) => Grille::sontAdjacentes(
                 (int) $h->position_x, (int) $h->position_y, $x, $y,
+                carte: $instance->quete?->carte,
             ));
 
             if (! $auContact) {
@@ -4000,7 +4002,8 @@ final class ResolveurTour
         foreach ($chemin as $index => $case) {
             $adjacent = $gardiens->contains(fn (InstanceMonstre $i) => Grille::sontAdjacentes(
                 (int) $i->position_x, (int) $i->position_y, (int) $case['x'], (int) $case['y'],
-            ));
+            carte: $quete->carte,
+        ));
 
             if (! $adjacent) {
                 continue;
@@ -5687,7 +5690,7 @@ final class ResolveurTour
             || isset($entree['groupe_id'])
             || ! $this->pieges->estFosse(Piege::find($entree['piege_id']))
             || $etat->a_deplace
-            || ! Grille::sontAdjacentes((int) $etat->position_x, (int) $etat->position_y, $x, $y)) {
+            || ! Grille::sontAdjacentes((int) $etat->position_x, (int) $etat->position_y, $x, $y, carte: $quete->carte)) {
             throw ValidationException::withMessages([
                 'option_id' => 'Impossible de descendre dans cette fosse : il faut une fosse ouverte, au contact.',
             ]);
@@ -8759,7 +8762,8 @@ final class ResolveurTour
             && Grille::sontAdjacentes(
                 (int) $allieEtat->position_x, (int) $allieEtat->position_y,
                 (int) $etat->position_x, (int) $etat->position_y,
-            );
+            carte: $quete->carte,
+        );
 
         if (! $encoreAdjacent) {
             throw ValidationException::withMessages(['parametres' => 'Cet allié ne peut plus participer à l\'échange.']);
@@ -8931,7 +8935,7 @@ final class ResolveurTour
         $brume = $moteur->entreeBrume($quete, $index);
         $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
 
-        if ($etat === null || ! Grille::sontAdjacentes((int) $etat->position_x, (int) $etat->position_y, (int) $brume['x'], (int) $brume['y'])) {
+        if ($etat === null || ! Grille::sontAdjacentes((int) $etat->position_x, (int) $etat->position_y, (int) $brume['x'], (int) $brume['y'], carte: $quete->carte)) {
             throw ValidationException::withMessages(['option_id' => 'Cette brume n\'est pas au contact du héros.']);
         }
 
@@ -9163,7 +9167,8 @@ final class ResolveurTour
         $adjacent = Grille::sontAdjacentes(
             (int) $etat->position_x, (int) $etat->position_y,
             (int) $cible->position_x, (int) $cible->position_y,
-        );
+        carte: $quete->carte,
+    );
 
         if (! $adjacent) {
             throw ValidationException::withMessages(['option_id' => 'L\'allié tombé doit être sur une case adjacente.']);
@@ -14294,28 +14299,15 @@ final class ResolveurTour
      * quand le héros, lui, le peut — le livret qualifie explicitement cette
      * case de « safe » (p. 14, cf. reference/16_armurerie.md §6.2).
      *
-     * ⚠ `MenuMoteur::monstreAuContact()` porte la MÊME règle : garder les deux
-     * en phase, sinon le menu propose une attaque que le résolveur refuse.
+     * `MenuMoteur::monstreAuContact()` et celle-ci délèguent toutes deux à `InstanceMonstre::touche()` (2026-11-17).
      */
     private function heroAuContact(InstanceMonstre $instance, int $hx, int $hy, bool $diagonale = false): bool
     {
-        $e = $instance->monstre->emprise();
-
-        for ($dy = 0; $dy < $e['h']; $dy++) {
-            for ($dx = 0; $dx < $e['l']; $dx++) {
-                // Point de passage unique : `$diagonale` (arme longue) ouvre les
-                // 8 cases, sinon le contact reste orthogonal.
-                if (Grille::sontAdjacentes(
-                    (int) $instance->position_x + $dx, (int) $instance->position_y + $dy,
-                    $hx, $hy, $diagonale,
-                )) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        // `InstanceMonstre::touche()` : l'emprise entière, et les murs en arêtes de SA carte (lot X1, 2026-11-17) — le
+        // point de passage du menu aussi (`MenuMoteur::monstreAuContact()`) : les deux ne peuvent plus diverger.
+        return $instance->touche($hx, $hy, $diagonale);
     }
+
 
     /**
      * GORE — les coups de corne que ce héros subit en FINISSANT son tour.
@@ -15853,7 +15845,7 @@ final class ResolveurTour
         // ferait reculer le monstre sur une case que le moteur considère encore
         // au contact : il tirerait quand même en mêlée.
         $colle = fn (int $x, int $y): bool => $cibles->contains(
-            fn (EtatPersonnageQuete $c) => Grille::sontAdjacentes($x, $y, (int) $c->position_x, (int) $c->position_y),
+            fn (EtatPersonnageQuete $c) => Grille::sontAdjacentes($x, $y, (int) $c->position_x, (int) $c->position_y, carte: $quete->carte),
         );
         // Distance à l'ennemi le PLUS PROCHE : c'est elle qu'on maximise, pas la
         // somme — s'éloigner d'un héros en se collant à un autre n'est pas fuir.
@@ -17387,7 +17379,8 @@ final class ResolveurTour
             ->filter(fn (EtatPersonnageQuete $voisin) => Grille::sontAdjacentes(
                 (int) $voisin->position_x, (int) $voisin->position_y,
                 (int) $cible->position_x, (int) $cible->position_y,
-            )) as $voisin) {
+            carte: $quete->carte,
+        )) as $voisin) {
             if ($voisin->personnage === null) {
                 continue;
             }
@@ -17702,7 +17695,8 @@ final class ResolveurTour
         $contact = Grille::sontAdjacentes(
             (int) $etat->position_x, (int) $etat->position_y,
             (int) $captif->position_x, (int) $captif->position_y,
-        );
+        carte: $quete->carte,
+    );
 
         if (! $contact) {
             throw ValidationException::withMessages(['option_id' => 'Ce captif n\'est pas à ton contact.']);

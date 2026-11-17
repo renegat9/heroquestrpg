@@ -50,7 +50,8 @@ reason, and the two must never drift.
   forecourt, floor of playable cells held: `AssembleurCarte::casesPourFiguresFixes()` and
   `parvis()`; since 2026-10-23: `Grille::sontAdjacentes()` for EVERY contact — orthogonal,
   diagonals only where a card or a text names them, `$diagonales` — garde-fou
-  `ContactOrthogonalTest`, → `docs/regles/combat-et-tour.md`; since 2026-10-29:
+  `ContactOrthogonalTest`; since 2026-11-17 every call passes `carte:` so an edge wall or a closed door cuts contact on a
+  built map (`ContactAtraversMurTest`, both ways), and a monster's footprint contact is `InstanceMonstre::touche()`, → `docs/regles/combat-et-tour.md`; since 2026-10-29:
   `Equipement::retirable()` for every way a piece leaves a hero — unequip, give, sell,
   discard, transmute, quicksand — and `MoteurSorts::consommerParchemin()` for every scroll
   use, reading and *Vision du futur* alike, charges included; since 2026-10-31:

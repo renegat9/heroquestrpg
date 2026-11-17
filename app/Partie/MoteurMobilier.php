@@ -113,7 +113,7 @@ final class MoteurMobilier
                 continue;
             }
 
-            if ($this->adjacentAEmprise($entree, $x, $y)) {
+            if ($this->adjacentAEmprise($entree, $x, $y, $carte)) {
                 $trouves[] = [
                     'index' => (int) $index,
                     'entree' => $entree,
@@ -520,7 +520,7 @@ final class MoteurMobilier
                 continue;
             }
 
-            if ($this->adjacentAEmprise($entree, $x, $y)) {
+            if ($this->adjacentAEmprise($entree, $x, $y, $carte)) {
                 $trouves[] = [
                     'index' => (int) $index,
                     'entree' => $entree,
@@ -694,7 +694,7 @@ final class MoteurMobilier
                 continue;
             }
 
-            if ($this->adjacentAEmprise($entree, $x, $y)) {
+            if ($this->adjacentAEmprise($entree, $x, $y, $carte)) {
                 $trouves[] = [
                     'index' => (int) $index,
                     'entree' => $entree,
@@ -745,7 +745,7 @@ final class MoteurMobilier
                 continue;
             }
 
-            if ($this->adjacentAEmprise($entree, $x, $y)) {
+            if ($this->adjacentAEmprise($entree, $x, $y, $carte)) {
                 $trouves[] = [
                     'index' => (int) $index,
                     'entree' => $entree,
@@ -790,7 +790,7 @@ final class MoteurMobilier
     {
         return array_values(array_filter(
             $this->dangersDeLaCarte($carte),
-            fn (array $danger) => $this->frappe($danger['entree']) && $this->adjacentAEmprise($danger['entree'], $x, $y),
+            fn (array $danger) => $this->frappe($danger['entree']) && $this->adjacentAEmprise($danger['entree'], $x, $y, $carte),
         ));
     }
 
@@ -1050,7 +1050,7 @@ final class MoteurMobilier
 
         [$a, $b] = [$cases[0], $cases[1]];
 
-        if (! Grille::sontAdjacentes((int) $a['x'], (int) $a['y'], (int) $b['x'], (int) $b['y'])) {
+        if (! Grille::sontAdjacentes((int) $a['x'], (int) $a['y'], (int) $b['x'], (int) $b['y'], carte: $carte)) {
             throw new RuntimeException('Les deux cases d\'un mur magique doivent être orthogonalement contiguës.');
         }
 
@@ -1086,7 +1086,7 @@ final class MoteurMobilier
         ];
     }
 
-    private function adjacentAEmprise(array $entree, int $x, int $y): bool
+    private function adjacentAEmprise(array $entree, int $x, int $y, Carte $carte): bool
     {
         $ox = (int) $entree['x'];
         $oy = (int) $entree['y'];
@@ -1095,7 +1095,7 @@ final class MoteurMobilier
             for ($dy = 0; $dy < (int) ($entree['h'] ?? 1); $dy++) {
                 // `diagonale` : un texte qui la NOMME — le coffre du tournoi se fouille « adjacent or diagonal »
                 // (F9528 p. 13). Ailleurs, le contact reste orthogonal.
-                if (Grille::sontAdjacentes($ox + $dx, $oy + $dy, $x, $y, (bool) ($entree['diagonale'] ?? false))) {
+                if (Grille::sontAdjacentes($ox + $dx, $oy + $dy, $x, $y, (bool) ($entree['diagonale'] ?? false), carte: $carte)) {
                     return true;
                 }
             }

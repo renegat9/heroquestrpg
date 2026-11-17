@@ -445,7 +445,8 @@ class InstanceMonstre extends Model
     public function touche(int $x, int $y, bool $diagonales = false): bool
     {
         foreach ($this->cases() as $c) {
-            if (Grille::sontAdjacentes($c['x'], $c['y'], $x, $y, $diagonales)) {
+            // La carte de SA quête : un mur en arête coupe le contact (lot X1, 2026-11-17).
+            if (Grille::sontAdjacentes($c['x'], $c['y'], $x, $y, $diagonales, carte: $this->quete?->carte)) {
                 return true;
             }
         }

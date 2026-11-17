@@ -718,7 +718,8 @@ final class FaveursHopekins
             ->filter(fn (EtatPersonnageQuete $e) => Grille::sontAdjacentes(
                 (int) $e->position_x, (int) $e->position_y,
                 (int) $etatTombe->position_x, (int) $etatTombe->position_y,
-            ))
+            carte: $quete->carte,
+        ))
             ->filter(fn (EtatPersonnageQuete $e) => $e->personnage !== null
                 && $this->possede($e->personnage, self::HEALING_HANDS))
             ->map(fn (EtatPersonnageQuete $e) => ['personnage' => $e->personnage, 'etat' => $e])
@@ -766,7 +767,7 @@ final class FaveursHopekins
 
         // « the 8 spaces immediately surrounding you » (carte Hold the Line,
         // reference/18_extensions.md) : exception ÉCRITE au contact orthogonal.
-        $adjacente = fn (int $hx, int $hy, int $mx, int $my): bool => Grille::sontAdjacentes($hx, $hy, $mx, $my, true);
+        $adjacente = fn (int $hx, int $hy, int $mx, int $my): bool => Grille::sontAdjacentes($hx, $hy, $mx, $my, true, carte: $quete->carte);
 
         $porteurs = $quete->etatsPersonnages()
             ->where('tombe', false)

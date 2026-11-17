@@ -928,14 +928,85 @@ final class Grille
      *
      * Ne pas réécrire la formule ailleurs : `abs(...) + abs(...) === 1` est une
      * copie, et c'est exactement le défaut que ce point évite.
+     *
+     * MURS EN ARÊTES (carte construite, mode classique — relevé en partie d'agents le 2026-11-17, lot X1) : deux cases
+     * voisines de part et d'autre d'un MUR ne sont pas au contact — une momie et un barbare s'y étaient frappés. Avec
+     * `$carte`, un mur ou une porte close sur l'arête commune COUPE le contact ; en diagonale, il est coupé si les DEUX
+     * chemins par le coin le sont. Une carte générée n'a pas de mur en arête et ses portes ont une case : rien n'y
+     * change. Tout appel dans `app/` passe `carte:` ou est nommé dans la liste des exceptions de
+     * `ContactAtraversMurTest` (tenue dans les deux sens).
      */
-    public static function sontAdjacentes(int $x1, int $y1, int $x2, int $y2, bool $diagonales = false): bool
+    public static function sontAdjacentes(int $x1, int $y1, int $x2, int $y2, bool $diagonales = false, ?\App\Models\Carte $carte = null): bool
     {
-        if ($diagonales) {
-            return max(abs($x1 - $x2), abs($y1 - $y2)) === 1;
+        $geometrique = $diagonales
+            ? max(abs($x1 - $x2), abs($y1 - $y2)) === 1
+            : abs($x1 - $x2) + abs($y1 - $y2) === 1;
+
+        if (! $geometrique || $carte === null) {
+            return $geometrique;
         }
 
-        return abs($x1 - $x2) + abs($y1 - $y2) === 1;
+        $coupees = self::aretesQuiCoupent($carte);
+
+        return $coupees === [] || self::contactLibre(fn (string $cle): bool => isset($coupees[$cle]), $x1, $y1, $x2, $y2);
+    }
+
+    /**
+     * Le même contact, sur CETTE grille : ses murs en arêtes et ses portes non ouvertes coupent le contact. Pour les
+     * lecteurs qui tiennent déjà une grille (`adjacenteAEmprise()`) — une seule règle, `contactLibre()`.
+     */
+    public function auContact(int $x1, int $y1, int $x2, int $y2, bool $diagonales = false): bool
+    {
+        $geometrique = $diagonales
+            ? max(abs($x1 - $x2), abs($y1 - $y2)) === 1
+            : abs($x1 - $x2) + abs($y1 - $y2) === 1;
+
+        return $geometrique && self::contactLibre(
+            fn (string $cle): bool => isset($this->murs[$cle]) || (isset($this->portes[$cle]) && $this->portes[$cle] !== 'ouverte'),
+            $x1, $y1, $x2, $y2,
+        );
+    }
+
+    /**
+     * Deux cases déjà voisines géométriquement : le contact passe-t-il ? Orthogonal : leur arête commune n'est pas
+     * coupée. Diagonal : un des deux chemins par le coin, (x2, y1) ou (x1, y2), est libre de bout en bout.
+     *
+     * @param  callable(string): bool  $coupee  l'arête (clé `cleArete()`) coupe-t-elle le contact ?
+     */
+    private static function contactLibre(callable $coupee, int $x1, int $y1, int $x2, int $y2): bool
+    {
+        if ($x1 === $x2 || $y1 === $y2) {
+            return ! $coupee(self::cleArete($x1, $y1, $x2, $y2));
+        }
+
+        return (! $coupee(self::cleArete($x1, $y1, $x2, $y1)) && ! $coupee(self::cleArete($x2, $y1, $x2, $y2)))
+            || (! $coupee(self::cleArete($x1, $y1, $x1, $y2)) && ! $coupee(self::cleArete($x1, $y2, $x2, $y2)));
+    }
+
+    /**
+     * Les arêtes qui coupent le contact sur cette carte : ses murs en arêtes, et ses portes SUR UNE ARÊTE non ouvertes.
+     * Les portes à embrasure n'y figurent pas : leur case close est déjà infranchissable et inoccupable.
+     *
+     * @return array<string, true>
+     */
+    private static function aretesQuiCoupent(\App\Models\Carte $carte): array
+    {
+        $grille = (array) $carte->grille;
+        $coupees = [];
+        foreach ((array) ($grille['murs'] ?? []) as $mur) {
+            if (isset($mur['x'], $mur['y'])) {
+                [$a, $b] = self::casesPorte($mur);
+                $coupees[self::cleArete($a['x'], $a['y'], $b['x'], $b['y'])] = true;
+            }
+        }
+        foreach ((array) ($grille['portes'] ?? []) as $porte) {
+            if (self::porteSurArete($porte) && ($porte['etat'] ?? null) !== 'ouverte' && isset($porte['x'], $porte['y'])) {
+                [$a, $b] = self::casesPorte($porte);
+                $coupees[self::cleArete($a['x'], $a['y'], $b['x'], $b['y'])] = true;
+            }
+        }
+
+        return $coupees;
     }
 
     /**
@@ -967,7 +1038,8 @@ final class Grille
     public function adjacenteAEmprise(int $x, int $y, int $l, int $h, int $tx, int $ty, bool $diagonales = false): bool
     {
         foreach ($this->cellulesEmprise($x, $y, $l, $h) as $c) {
-            if (self::sontAdjacentes($c['x'], $c['y'], $tx, $ty, $diagonales)) {
+            // Les murs en arêtes et les portes closes de CETTE grille coupent le contact (lot X1, 2026-11-17).
+            if ($this->auContact($c['x'], $c['y'], $tx, $ty, $diagonales)) {
                 return true;
             }
         }

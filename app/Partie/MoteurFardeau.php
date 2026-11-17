@@ -179,7 +179,7 @@ final class MoteurFardeau
                 $bonus += (int) ($params['compagnon_meme_zone'] ?? 0);
             }
 
-            if (Grille::sontAdjacentes($x, $y, $cx, $cy)) {
+            if (Grille::sontAdjacentes($x, $y, $cx, $cy, carte: $quete->carte)) {
                 $bonus += (int) ($params['compagnon_adjacent'] ?? 0);
             }
         }

@@ -563,7 +563,7 @@ final class MoteurDanger
         $brumes = [];
 
         foreach ($this->entrees($carte) as $index => $entree) {
-            if (($entree['etat'] ?? null) === self::ETAT_ACTIF && Grille::sontAdjacentes($x, $y, (int) $entree['x'], (int) $entree['y'])) {
+            if (($entree['etat'] ?? null) === self::ETAT_ACTIF && Grille::sontAdjacentes($x, $y, (int) $entree['x'], (int) $entree['y'], carte: $carte)) {
                 $brumes[] = ['index' => $index, 'nom' => (string) ($entree['nom'] ?? '')];
             }
         }

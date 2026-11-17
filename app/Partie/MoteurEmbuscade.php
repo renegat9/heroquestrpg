@@ -119,13 +119,13 @@ final class MoteurEmbuscade
         }
 
         return $quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get()
-            ->filter(function (InstanceMonstre $i) use ($casesFoulees) {
+            ->filter(function (InstanceMonstre $i) use ($casesFoulees, $quete) {
                 if (! self::estDeguise($i) || $i->position_x === null) {
                     return false;
                 }
 
                 foreach ($casesFoulees as $c) {
-                    if (Grille::sontAdjacentes((int) $c['x'], (int) $c['y'], (int) $i->position_x, (int) $i->position_y, true)) {
+                    if (Grille::sontAdjacentes((int) $c['x'], (int) $c['y'], (int) $i->position_x, (int) $i->position_y, true, carte: $quete->carte)) {
                         return true;
                     }
                 }
