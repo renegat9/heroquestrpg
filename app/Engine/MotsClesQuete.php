@@ -137,7 +137,7 @@ final class MotsClesQuete
         self::OBJET => ['parametres' => ['slug'], 'optionnels' => ['quantite'], 'lecteur' => 'effetObjet', 'libelle' => 'donner un objet au héros'],
         self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
         self::DEGATS => ['parametres' => ['body'], 'optionnels' => [], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
-        self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => [], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],
+        self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => ['campagne'], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],
         self::OUVRIR_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetOuvrirPorte', 'libelle' => 'ouvrir une porte'],
         self::BLOC => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetBloc', 'libelle' => 'faire tomber un bloc'],
         self::REVELER_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetRevelerPorte', 'libelle' => 'révéler une porte secrète'],

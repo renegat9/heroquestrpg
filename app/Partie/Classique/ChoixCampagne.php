@@ -168,6 +168,8 @@ final class ChoixCampagne
                 // `theme` porte le titre affiché au hub, `nb_quetes_total` le nombre réel de quêtes (`GroupesClassiques`).
                 'theme' => $campagne->titre,
                 'nb_quetes_total' => count((array) ($campagne->document['quetes'] ?? [])),
+                // Lot K5h : les drapeaux de campagne appartiennent à une partie de CETTE campagne.
+                'drapeaux_campagne' => null,
             ]);
 
             Journal::ajouter($groupe, 'systeme', [

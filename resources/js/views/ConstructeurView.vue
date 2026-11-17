@@ -913,9 +913,15 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             <button type="button" class="cst-btn ghost" @click="effet.monstres.push({ slug: choix.monstre, x: 0, y: 0 })"><MSym n="add" :size="14" /> monstre</button>
                                         </div>
                                     </template>
-                                    <label v-for="p in (effetsNote[effet.effet]?.optionnels ?? [])" :key="`o${p}`">{{ LIBELLES_PARAM[p] ?? p }}
-                                        <input :value="effet[p] ?? ''" type="number" min="1" class="cst-input cst-num" @change="changerOptionnel(effet, p, $event.target.value)" />
-                                    </label>
+                                    <template v-for="p in (effetsNote[effet.effet]?.optionnels ?? [])" :key="`o${p}`">
+                                        <!-- Lot K5h : `campagne` est un booléen — posé seulement quand il vaut true. -->
+                                        <label v-if="p === 'campagne'" class="cst-case">
+                                            <input type="checkbox" :checked="effet.campagne === true" @change="$event.target.checked ? (effet.campagne = true) : delete effet.campagne" /> de campagne (reste d'une quête à l'autre)
+                                        </label>
+                                        <label v-else>{{ LIBELLES_PARAM[p] ?? p }}
+                                            <input :value="effet[p] ?? ''" type="number" min="1" class="cst-input cst-num" @change="changerOptionnel(effet, p, $event.target.value)" />
+                                        </label>
+                                    </template>
                                     <button type="button" class="cst-icone" title="Retirer l'effet" @click="note.alors.splice(j, 1)"><MSym n="close" :size="16" /></button>
                                 </div>
                                 <button type="button" class="cst-btn ghost" @click="note.alors.push(effetParDefaut('texte'))"><MSym n="add" :size="14" /> effet</button>

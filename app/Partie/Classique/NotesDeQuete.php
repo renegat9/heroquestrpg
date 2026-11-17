@@ -324,6 +324,12 @@ final class NotesDeQuete
     private function effetDrapeau(Quete $quete, array $effet, ?Personnage $heros): array
     {
         $nom = (string) ($effet['nom'] ?? '');
+        // Lot K5h : `campagne: true` le pose sur le GROUPE, d'une quête à l'autre ; sinon sur la quête.
+        if (($effet['campagne'] ?? false) === true) {
+            $quete->poserDrapeauDeCampagne($nom);
+
+            return ['nom' => $nom, 'campagne' => true];
+        }
         $quete->poserDrapeau($nom);
 
         return ['nom' => $nom];

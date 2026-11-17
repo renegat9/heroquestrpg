@@ -6019,7 +6019,7 @@ notes: [{
 | `objet` | `slug` (catalogue `objets`), `quantite?` ≥ 1 | dans le sac du héros qui déclenche, même plein (butin de quête) |
 | `apparition` | `monstres: [{slug, x, y}]` | figures révélées sur les cases écrites, ou la plus proche si la case est prise |
 | `degats` | `body` ≥ 1 | points de Corps perdus par le héros qui déclenche (`MoteurDegats`) |
-| `drapeau` | `nom` | pose un drapeau de quête (`quetes.drapeaux`), relu par `si_drapeau` ou par la fin |
+| `drapeau` | `nom`, `campagne?` (booléen) | pose un drapeau de quête (`quetes.drapeaux`), relu par `si_drapeau` ou par la fin ; avec `campagne: true`, un drapeau de CAMPAGNE (`groupes.drapeaux_campagne`, lot K5h) qui survit à la quête et se lit dans les suivantes |
 | `ouvrir_porte` | `porte` (index dans `quete.portes`) | la porte s'ouvre, quel que soit son verrou, et les salles qu'elle borde se révèlent comme à une ouverture à la main ; déjà ouverte, rien (lot K5a) |
 | `bloc` | `x`, `y` | un bloc de pierre tombe sur la case : elle bloque le passage et la vue jusqu'à la fin de la quête (le même obstacle que la chute de blocs). Ne tombe que sur une case LIBRE — une figure, un meuble ou un bloc déjà là : rien ne tombe, et l'annonce le dit (lot K5b) |
 | `reveler_porte` | `porte` (index dans `quete.portes`) | la porte SECRÈTE est révélée à tous : elle devient une porte close ordinaire. Une porte déjà connue : rien (lot K5b) |
@@ -6052,6 +6052,16 @@ porte `normale` seulement (`verrou_sur_porte_secrete` sinon). Vocabulaire fermé
   clé, par la force — signale `ouverture_porte` aux notes ; l'ouverture PAR une note ne signale rien (une note n'en
   déclenche pas une autre, et deux notes ne peuvent pas s'ouvrir l'une l'autre en boucle).
 - `quetes.tours_mj` (entier, 0 au départ) compte les tours du maître du jeu commencés ; c'est lui que `tour_du_mj` lit.
+
+### Drapeaux de campagne — l'état reporté d'une quête à l'autre (lot K5h, 2026-11-16)
+
+Plan §2.5 C4. L'effet `drapeau` accepte **`campagne: true`** : le drapeau est posé sur le GROUPE
+(`groupes.drapeaux_campagne`, objet `{nom: true}` comme `quetes.drapeaux`, `null` au départ) et non sur la quête ; il reste posé d'une quête à
+l'autre. **Un seul lecteur** : `Quete::aDrapeau(nom)` regarde les drapeaux de la quête, PUIS ceux de la campagne — `si_drapeau`
+d'une note et la fin `drapeau` voient donc les deux. Validation : un `si_drapeau` (ou une fin `drapeau`) est accepté si
+le drapeau est posé par une note de CETTE quête, ou posé `campagne: true` par une note d'une quête PRÉCÉDENTE
+(`drapeau_jamais_pose` sinon). Choisir une campagne (`PUT /groupes/{id}/campagne`) efface les drapeaux de campagne :
+ils appartiennent à une partie de cette campagne.
 
 ### Condition de fin — `quete.fin` (obligatoire)
 

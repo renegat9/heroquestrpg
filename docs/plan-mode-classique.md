@@ -855,6 +855,14 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-16 — lot K5h : les drapeaux de campagne** (C4). L'effet
+  `drapeau` accepte `campagne: true` : posé sur le groupe
+  (`groupes.drapeaux_campagne`, migration `2026_11_16_200000`, appliquée après
+  sauvegarde relue), il survit à la quête. Lecteur unique `Quete::aDrapeau()` :
+  la quête, puis la campagne. La validation accepte qu'une quête lise un
+  drapeau posé « de campagne » par une quête PRÉCÉDENTE. Choisir une campagne
+  les efface. Constructeur : case « de campagne » sur l'effet drapeau. C2 (la
+  campagne ramifiée, clé réservée `suite`) s'appuiera dessus.
 - **Fait le 2026-11-16 — lot K5g : la fouille de zone à résultat imposé**
   (D7). Déclencheur `fouille_zone {salle}` : quand un héros RÉUSSIT la fouille
   de la zone dans la salle, la note remplace ce que le jet aurait révélé

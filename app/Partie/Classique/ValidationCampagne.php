@@ -185,6 +185,17 @@ final class ValidationCampagne
     /** @var list<array{chemin: string, code: string, message: string}> */
     private array $refus = [];
 
+    /**
+     * Lot K5h : les drapeaux de CAMPAGNE posés par les quêtes DÉJÀ validées (dans l'ordre de jeu) — une quête peut les lire
+     * (`si_drapeau`, fin `drapeau`). `$campagneDeLaQuete` : ceux que la quête en cours pose, versés après elle.
+     *
+     * @var array<string, true>
+     */
+    private array $drapeauxDeCampagne = [];
+
+    /** @var array<string, true> */
+    private array $campagneDeLaQuete = [];
+
     /** @var array{0: int, 1: int}|null largeur et hauteur du plateau, quand elles sont valides */
     private ?array $dimensions = null;
 
@@ -392,6 +403,7 @@ final class ValidationCampagne
     private function quetes(array $document): void
     {
         $slugs = [];
+        $this->drapeauxDeCampagne = [];
 
         foreach ($this->enListeDe($document, 'quetes', '') as $i => $valeur) {
             $chemin = "quetes.$i";
@@ -432,9 +444,12 @@ final class ValidationCampagne
             $this->poses($quete, $chemin, 'pieges', 'pieges');
             $this->poses($quete, $chemin, 'terrain', 'terrain');
             $this->recompense($quete, $chemin);
-            // Les notes AVANT la fin : une fin « drapeau » n'est gagnable que si une note pose ce drapeau.
-            $drapeauxPoses = $this->notes($quete, $chemin);
+            // Les notes AVANT la fin : une fin « drapeau » n'est gagnable que si une note pose ce drapeau — de cette quête,
+            // ou de campagne par une quête précédente (lot K5h).
+            $this->campagneDeLaQuete = [];
+            $drapeauxPoses = $this->notes($quete, $chemin) + $this->drapeauxDeCampagne;
             $this->fin($quete, $chemin, $drapeauxPoses);
+            $this->drapeauxDeCampagne += $this->campagneDeLaQuete;
         }
     }
 
@@ -487,9 +502,9 @@ final class ValidationCampagne
         }
 
         foreach ($lus as $drapeau => $ou) {
-            if (!isset($poses[$drapeau])) {
+            if (!isset($poses[$drapeau]) && !isset($this->drapeauxDeCampagne[$drapeau])) {
                 $this->refuser($ou, self::DRAPEAU_JAMAIS_POSE,
-                    "aucune note de cette quête ne pose le drapeau « $drapeau » : cette note ne jouerait jamais");
+                    "aucune note de cette quête, ni drapeau de campagne d'une quête précédente, ne pose « $drapeau » : cette note ne jouerait jamais");
             }
         }
 
@@ -582,7 +597,15 @@ final class ValidationCampagne
                 $this->entier($effet, 'body', $position, min: 1);
                 break;
             case MotsClesQuete::DRAPEAU:
-                return $this->nomDeDrapeau($effet, 'nom', $position);
+                if (array_key_exists('campagne', $effet) && !is_bool($effet['campagne'])) {
+                    $this->refuser(self::chemin($position, 'campagne'), self::TYPE_INVALIDE, 'true ou false est attendu');
+                }
+                $nom = $this->nomDeDrapeau($effet, 'nom', $position);
+                if ($nom !== null && ($effet['campagne'] ?? false) === true) {
+                    $this->campagneDeLaQuete[$nom] = true; // lot K5h : lisible par les quêtes suivantes
+                }
+
+                return $nom;
             case MotsClesQuete::OUVRIR_PORTE:
                 $this->indexDe($quete, 'portes', $effet['porte'] ?? null, "$position.porte");
                 break;

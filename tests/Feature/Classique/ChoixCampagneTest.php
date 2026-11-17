@@ -186,3 +186,62 @@ it('publie au hub que la clôture est fermée à un groupe classique, et ouverte
     creerHeros($bruno, $campagne, 'Bertrand', 1);
     expect($this->getJson('/api/groupes/table-campagne/etat')->json('groupe.cloture_ouverte'))->toBeTrue();
 });
+
+/*
+ * DRAPEAUX DE CAMPAGNE (lot K5h, C4). Quête 1 : sa note de fouille de trésor pose `cle_trouvee` DE CAMPAGNE. Quête 2 : une
+ * note lit `si_drapeau: cle_trouvee` — validée parce qu'une quête PRÉCÉDENTE le pose ; en jeu, le drapeau survit à la quête 1.
+ */
+function campagneADrapeau(bool $deCampagne): array
+{
+    $campagne = DocumentExemple::campagne();
+    $campagne['slug'] = 'campagne-ouverte';
+    $campagne['prerequis_heros'] = [];
+    $campagne['quetes'][0]['notes'] = [
+        ['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree']],
+            'alors' => [['effet' => 'drapeau', 'nom' => 'cle_trouvee', ...($deCampagne ? ['campagne' => true] : [])]]],
+    ];
+    $campagne['quetes'][1]['notes'] = [
+        ['repere' => 'B', 'quand' => ['declencheur' => 'entree', 'cible' => ['salle' => 'crypte'], 'si_drapeau' => 'cle_trouvee'],
+            'alors' => [['effet' => 'or', 'or' => 20]]],
+    ];
+
+    return $campagne;
+}
+
+it('valide un drapeau lu par une quête suivante seulement s\'il est posé « de campagne »', function () {
+    expect(app(\App\Partie\Classique\ValidationCampagne::class)->valider(campagneADrapeau(true)))->toBe([]);
+
+    $refus = app(\App\Partie\Classique\ValidationCampagne::class)->valider(campagneADrapeau(false));
+    expect(collect($refus)->pluck('code', 'chemin')->all())
+        ->toMatchArray(['quetes.1.notes.0.quand.si_drapeau' => \App\Partie\Classique\ValidationCampagne::DRAPEAU_JAMAIS_POSE]);
+
+    $campagne = campagneADrapeau(true);
+    $campagne['quetes'][0]['notes'][0]['alors'][0]['campagne'] = 'oui';
+    expect(collect(app(\App\Partie\Classique\ValidationCampagne::class)->valider($campagne))->pluck('chemin'))
+        ->toContain('quetes.0.notes.0.alors.0.campagne');
+});
+
+it('EN JEU : le drapeau de campagne survit à la quête, se lit dans la suivante, et s\'efface au changement de campagne', function () {
+    app(CampagnesConstruites::class)->enregistrer(campagneADrapeau(true));
+    [$groupe] = naineAuHub($this, 'campagne-ouverte');
+    $this->postJson("/api/groupes/{$groupe->identifiant}/quetes")->assertCreated();
+    $quete1 = \App\Models\Quete::findOrFail($groupe->refresh()->quete_courante_id);
+
+    app(\App\Partie\Classique\NotesDeQuete::class)->signaler($quete1, \App\Engine\MotsClesQuete::FOUILLE_TRESOR, ['salle' => 0]);
+    expect($groupe->refresh()->drapeaux_campagne)->toBe(['cle_trouvee' => true])
+        ->and($quete1->refresh()->drapeaux)->toBeEmpty()
+        ->and($quete1->aDrapeau('cle_trouvee'))->toBeTrue();
+
+    // Une quête suivante du même groupe lit le drapeau de campagne.
+    $quete2 = $quete1->replicate();
+    $quete2->drapeaux = null;
+    $quete2->save();
+    expect($quete2->aDrapeau('cle_trouvee'))->toBeTrue();
+
+    // Changer de campagne efface les drapeaux de campagne.
+    $quete1->update(['etat' => 'terminee']);
+    $quete2->delete();
+    $groupe->update(['phase' => 'hub', 'quete_courante_id' => null, 'rang_quete' => 3]);
+    $this->putJson("/api/groupes/{$groupe->identifiant}/campagne", ['campagne' => 'campagne-des-nains'])->assertOk();
+    expect($groupe->refresh()->drapeaux_campagne)->toBeNull();
+});

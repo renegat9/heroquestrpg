@@ -150,9 +150,25 @@ class Quete extends Model
     }
 
     /** Ce drapeau de quête a-t-il été posé (effet `drapeau` d'une note) ? */
+    /**
+     * Le drapeau est-il posé ? LECTEUR UNIQUE (lot K5h) : ceux de la quête, PUIS ceux de la campagne
+     * (`groupes.drapeaux_campagne`) — `si_drapeau` d'une note et la fin `drapeau` voient donc les deux.
+     */
     public function aDrapeau(string $nom): bool
     {
-        return ! empty(((array) $this->drapeaux)[$nom]);
+        return ! empty(((array) $this->drapeaux)[$nom])
+            || ! empty(((array) ($this->groupe?->drapeaux_campagne ?? []))[$nom]);
+    }
+
+    /**
+     * Pose un drapeau de CAMPAGNE (lot K5h) : sur le groupe, il survit à la quête. État durable, en colonne.
+     */
+    public function poserDrapeauDeCampagne(string $nom): void
+    {
+        $groupe = $this->groupe;
+        if ($nom !== '' && $groupe !== null && empty(((array) $groupe->drapeaux_campagne)[$nom])) {
+            $groupe->update(['drapeaux_campagne' => [...(array) $groupe->drapeaux_campagne, $nom => true]]);
+        }
     }
 
     /** Pose un drapeau de quête — état durable, en colonne. Lu par une autre note, ou par la condition de fin. */

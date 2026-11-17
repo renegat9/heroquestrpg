@@ -57,6 +57,8 @@ class Groupe extends Model
         'rang_quete',
         // MODE CLASSIQUE, lot H1 (2026-11-16) : `story` ou `heroic` — vocabulaire fermé `self::MODES_MORT`.
         'mode_mort',
+        // Lot K5h : drapeaux de CAMPAGNE `{nom: true}`, posés par une note (`drapeau` + `campagne: true`), lus par `Quete::aDrapeau()`.
+        'drapeaux_campagne',
     ];
 
     /**
@@ -103,6 +105,7 @@ class Groupe extends Model
     {
         return [
             'plan_campagne' => 'array',
+            'drapeaux_campagne' => 'array',
             'ton' => 'array',
             'boites_bestiaire' => 'array',
             'arene_defender' => 'array',
