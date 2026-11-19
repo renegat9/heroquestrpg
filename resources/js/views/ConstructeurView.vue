@@ -516,7 +516,7 @@ const aDesReglesDeLivret = computed(() => {
     const q = quete.value;
     if (!q) return false;
     const r = q.regles ?? {};
-    return ['primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau'].some((k) => k in r)
+    return ['primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre'].some((k) => k in r)
         || (q.dangers ?? []).length > 0 || (q.monstres ?? []).some(aUnProfil) || (q.terrain ?? []).some((t) => 'paire_id' in t);
 });
 // `paire_id` (K5o) : seulement sur un terrain qui téléporte vers sa jumelle — décidé par le catalogue (`paire`).
@@ -1000,6 +1000,34 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             <ProfilMonstre :monstre="m" :objets="catalogues.objets" :pointer="pointer" :libelle="`monstre ${i}`" />
                                         </div>
                                     </template>
+                                </div>
+
+                                <!-- Lot K6 (Jungles of Delthrak, « Order of Play ») : les héros choisissent l'ordre à chaque round. -->
+                                <div class="cst-bloc">
+                                    <label class="cst-case"><input type="checkbox" :checked="quete.regles?.ordre_libre === true" @change="poserRegle('ordre_libre', $event.target.checked ? true : undefined)" /> Ordre libre : à chaque round, les héros jouent dans l'ordre qu'ils veulent</label>
+                                </div>
+
+                                <!-- Lot K6 (Spirit Queen's Torment) : les dégâts convertis en Esprit. -->
+                                <div class="cst-bloc">
+                                    <div class="cst-ligne">
+                                        <label>Dégâts en Esprit
+                                            <select :value="quete.regles?.degats_en_mind === true ? 'tous' : (Array.isArray(quete.regles?.degats_en_mind) ? 'monstres' : '')" class="cst-input"
+                                                @change="poserRegle('degats_en_mind', $event.target.value === 'tous' ? true : ($event.target.value === 'monstres' ? [choix.monstre] : undefined))">
+                                                <option value="">non</option>
+                                                <option value="tous">tout dégât subi entame l'Esprit</option>
+                                                <option value="monstres">les coups de certains monstres</option>
+                                            </select>
+                                        </label>
+                                        <template v-if="Array.isArray(quete.regles?.degats_en_mind)">
+                                            <span v-for="(slug, k) in quete.regles.degats_en_mind" :key="`em${slug}`" class="cst-puce on">{{ nomDe('monstres', slug) }}
+                                                <button v-if="quete.regles.degats_en_mind.length > 1" type="button" class="cst-icone" title="Retirer" @click="quete.regles.degats_en_mind.splice(k, 1)"><MSym n="close" :size="12" /></button>
+                                            </span>
+                                            <select class="cst-input" @change="$event.target.value && quete.regles.degats_en_mind.push($event.target.value); $event.target.value = ''">
+                                                <option value="">+ monstre…</option>
+                                                <option v-for="m in couches.monstres.filter((c) => !quete.regles.degats_en_mind.includes(c.slug))" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
+                                            </select>
+                                        </template>
+                                    </div>
                                 </div>
 
                                 <div class="cst-bloc">

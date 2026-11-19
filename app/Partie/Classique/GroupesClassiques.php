@@ -27,7 +27,7 @@ final class GroupesClassiques
     {
         // MODE DE MORT (lot H1) : choisi à la création, une fois pour toutes — vocabulaire fermé `Groupe::MODES_MORT`.
         if (! in_array($modeMort, Groupe::MODES_MORT, true)) {
-            throw ValidationException::withMessages(['mode_mort' => 'Le mode de mort est « story » ou « heroic ».']);
+            throw ValidationException::withMessages(['mode_mort' => 'Le mode de mort est « story », « heroic » ou « standard ».']);
         }
         if ($fondateur->estMort()) {
             throw ValidationException::withMessages(['personnage_id' => \App\Http\Controllers\Api\GroupeController::refusHerosMort($fondateur)]);

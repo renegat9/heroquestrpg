@@ -66,6 +66,17 @@ final class EffetsGlobauxQuete
             $effets[$monstre->nom_base] = self::entree($monstre, $params);
         }
 
+        // RÈGLE DE QUÊTE CONSTRUITE (mode classique, lot K6) : les dégâts convertis en Mind — même canal d'annonce et de
+        // bandeau qu'un effet de créature, sans volée (le lecteur de dés d'attaque ne la voit pas).
+        $enMind = \App\Partie\Classique\DegatsEnMind::regle($quete);
+        if ($enMind !== null) {
+            $catalogue = app(\App\Partie\Classique\CatalogueConstructeur::class)->index('monstres');
+            $effets['regle_degats_en_mind'] = [
+                'source' => 'regle_de_quete', 'titre' => 'Esprits', 'faction' => '', 'volee' => 'aucune', 'des' => 0,
+                'texte' => \App\Partie\Classique\DegatsEnMind::texte($enMind, fn (string $s) => (string) ($catalogue[$s]->nom ?? $s)),
+            ];
+        }
+
         return array_values($effets);
     }
 

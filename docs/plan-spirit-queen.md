@@ -90,6 +90,13 @@ livret, et une troisième à nuancer :
 
 ### Lot B — Les quatre tours élémentaires, complétion libre (q. 10-13, p. 25-31) — ⛔ ÉCARTÉ le 2026-10-23 (propre à une quête, voir la décision en fin de document)
 
+> **Correction du 2026-11-19 (relecture du livret, René a tranché « chaîne fixe »)** : l'« ordre choisi par les
+> joueurs » ci-dessous ne vient d'aucune phrase du livret. Une seule tour a une porte au sol (la Terre, p. 25) ; chaque
+> passerelle n'apparaît qu'après l'artefact de la tour (Terre → Eau → Air → Feu → la Flèche) ; « It is especially
+> important that these quests be played in order » (p. 5). En mode classique, c'est une `suite` linéaire, un artefact
+> posé par une note `objet` + `drapeau`, une porte révélée par `reveler_porte` : tout existe. Ce document est un relevé
+> daté, laissé tel quel au-dessous.
+
 | Élément | Citation | Chez nous |
 |---|---|---|
 | Quatre tours visitables dans l'ordre choisi par les joueurs, chacune gardant un artefact élémentaire, les quatre nécessaires pour débloquer la cinquième (finale) | « Each tower is empowered by an artifact. All four must be gained to access the final tower » (q. 11, p. 27). Terre → **Armure de Borin** (q. 10, p. 25) ; Eau → **Élixir de Vie** (q. 11, p. 27) ; Air → **Cape du Magicien** (q. 12, p. 29) ; Feu → **Anneau de Sort** (q. 13, p. 31) | Changement STRUCTUREL : le moteur suppose une progression strictement linéaire de quête en quête (`positionArc` séquentiel, `JalonsCampagne`). Une campagne à embranchement choisi par les joueurs demande une notion de « quêtes disponibles en parallèle avec prérequis cumulatifs » — rien d'équivalent au moteur actuel |

@@ -6193,11 +6193,17 @@ René le 2026-11-17 (« ne confonds pas le mode RPG et le mode classique »).
 Plan classique Q2 et Q7. Sources : *Jungles of Delthrak* (F9907 p. 8-9) ; livret de règles de *First Light* (G0978,
 « Dead Heroes »).
 
-- **Choix** : `POST /api/classique` accepte `mode_mort` ∈ `story` (défaut) | `heroic` (422 sur `mode_mort` sinon) ; la
+- **Choix** : `POST /api/classique` accepte `mode_mort` ∈ `story` (défaut) | `heroic` | `standard` (422 sur `mode_mort` sinon) ; la
   réponse et le préambule du groupe (`GET /etat`) publient `groupe.mode_mort`. Une fois pour toutes : rien ne le change
   ensuite. Tous les groupes existants sont `story`.
 - **Story** (inchangé) : un héros à 0 Body est à terre, jamais mort ; il regagne 1 Body à l'ouverture d'un round sans
-  monstre actif quand un compagnon est debout.
+  monstre actif quand un compagnon est debout. **Depuis le 2026-11-19 (lot K6, René)** : si TOUT le groupe est à terre,
+  tous meurent (F9907 p. 9 : « If all heroes are incapacitated, then they've died »), comme en Heroic.
+- **Standard** (lot K6, 2026-11-19 — `mode_mort: "standard"`, la règle de base, G0978 « Dead Heroes ») : à 0 Body le
+  héros MEURT (`heros_mort`), sauf s'il se sauve lui-même — la réaction « Rester debout » (sa potion ou son sort de
+  soin) : tant qu'elle lui est offerte, on attend sa réponse ; refusée ou expirée, il meurt. Tranché après chaque action
+  d'un héros et au verdict de chute (`MortHeroic::mortsStandard()`) : aucun compagnon ne peut plus le soigner. Pas de
+  relèvement par le corps.
 - **Heroic** : pas de relèvement par le corps. À l'ouverture du round qui suit sa chute, le héros à terre prend le
   **jeton crâne** (`entites[].crane: true`, annonce `{type: "crane_pose", personnage_id, nom}` — « Brunehaut est au
   seuil de la mort : sans soin avant son prochain tour, c'est la mort ») ; s'il est encore à terre avec le crâne
@@ -6249,6 +6255,28 @@ qu'avec un héros désigné.
   « Spectateur — Albrecht joue cette quête seul », la carte et le fil, sans menu ; la table, « Spectateur — ne joue pas
   cette quête » sur sa fiche. Un héros SORTI, lui, est un participant qui a quitté le donjon (`sorti: true`).
 - **Constructeur** : « Quête solo » dans la fiche de la quête, parmi les classes exigées par la campagne.
+
+### L'ordre libre — `regles.ordre_libre` (lot K6, 2026-11-19)
+
+*Jungles of Delthrak* (F9907 p. 8-9, règle optionnelle « Order of Play ») : « heroes may decide the order in which they
+take their turns in a round […] Zargon takes their turn only after all heroes have taken their turns ». René : à chaque
+round. `regles.ordre_libre: true` (refus `type_invalide` sinon) : tout héros debout qui n'a pas joué ce round a la main
+(`entites[].a_la_main`), jusqu'à ce que l'un d'eux ENTAME son tour (un pas, un créneau) — il la garde alors seul jusqu'au
+bout. La même règle que l'activation de l'arène (`OrdreDuTour::mainPartagee()`), Zargon après tous les héros. Le menu
+de chaque héros libre est servi ; le résolveur revalide (`estSonTour()`). Constructeur : case « Ordre libre ».
+
+### Les dégâts convertis en Mind — `regles.degats_en_mind` (lot K6, 2026-11-19)
+
+*Spirit Queen's Torment* q. 8 : « all damage heroes take will affect their Mind Points instead of their Body Points » ;
+q. 9 : « all Orcs are still spirits, and the damage they deal is to Mind Points ». René : « tout dégât ».
+- `regles.degats_en_mind: true` : tout dégât qu'un héros subit (coups, pièges, poison, sorts de Dread) entame son Mind ;
+  `[slug…]` (monstres du catalogue) : seuls les coups de ces monstres. Refus `type_invalide`, `valeur_invalide`,
+  `catalogue_inconnu`.
+- Le coup se calcule comme d'habitude (dés, réactions, réductions) ; seule la jauge change, au point de passage
+  `MoteurDegats::infligerAHeros()` (lecteur `Classique\DegatsEnMind`). Le prix d'une Furie (`sacrifice`) reste en Body.
+  Mind à 0 : l'état de choc, jamais une chute.
+- Annoncé au départ et publié dans `quete.effets_globaux` (`source: "regle_de_quete"`, `titre: "Esprits"`, `texte`).
+- Constructeur : « Dégâts en Esprit » dans le bloc des livrets.
 
 ### La quête double — `quete.double` (lot K5p, R10, 2026-11-18)
 

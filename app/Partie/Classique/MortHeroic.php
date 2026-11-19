@@ -11,8 +11,9 @@ use App\Support\Journal;
 
 /**
  * LA MORT EN MODE HEROIC (lot H1, `docs/plan-mode-classique.md` §10, Q2 et Q7) — point de passage unique de la mort d'un
- * héros. Rien d'autre dans le projet ne tue un héros : en Story (tous les autres groupes), un héros à terre ne meurt
- * jamais (`ResolveurTour::relevementsStory()`).
+ * héros. Rien d'autre dans le projet ne tue un héros. Depuis le lot K6 (René, 2026-11-19) : le mode STANDARD (mort à 0
+ * Body, `mortsStandard()`) et, en Story, la mort de tout un groupe à terre (`tousMorts()`). Un héros SEUL à terre en
+ * Story ne meurt jamais (`ResolveurTour::relevementsStory()`).
  *
  * Sources, lues au début du lot comme Q7 l'exigeait :
  * - *Jungles of Delthrak* (F9907 p. 8-9), mode Heroic : « heroes do not die when their Body Points are reduced to 0 but
@@ -82,12 +83,38 @@ final class MortHeroic
      */
     public function tousMorts(Groupe $groupe, Quete $quete): array
     {
-        if (! $groupe->estHeroic()) {
+        // Heroic, et STORY aussi (René, 2026-11-19 — F9907 p. 9 : « If all heroes are incapacitated, then they've
+        // died ») : tous à terre, ils meurent. (En Standard, ils sont déjà morts un à un.)
+        if (! $groupe->estClassique()) {
             return [];
         }
 
         return $quete->etatsPersonnages()->where('tombe', true)->with('personnage')->orderBy('id')->get()
             ->map(fn (EtatPersonnageQuete $etat) => $this->mourir($groupe, $quete, $etat))
+            ->all();
+    }
+
+    /**
+     * MODE STANDARD (lot K6) : chaque héros à terre MEURT, sauf celui à qui « Rester debout » est encore offert (sa potion
+     * ou son sort de soin : le seul salut que la règle de base lui laisse) — on attend sa réponse, que la résolution de
+     * la réaction fait repasser ici par `ResolveurTour::verdictDeChute()`. Rend les annonces.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function mortsStandard(Groupe $groupe, Quete $quete): array
+    {
+        if (! $groupe->estStandard() || $quete->etat !== 'en_cours') {
+            return [];
+        }
+
+        return $quete->etatsPersonnages()->where('tombe', true)->with('personnage')->orderBy('id')->get()
+            ->reject(fn (EtatPersonnageQuete $etat) => in_array(
+                (string) data_get($etat->reaction_en_attente, 'action', ''),
+                \App\Engine\ReactionEffet::ACTIONS_RELEVANTES,
+                true,
+            ))
+            ->map(fn (EtatPersonnageQuete $etat) => $this->mourir($groupe, $quete, $etat))
+            ->values()
             ->all();
     }
 

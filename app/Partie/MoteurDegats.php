@@ -283,6 +283,12 @@ final class MoteurDegats
             return 0;
         }
 
+        // DÉGÂTS CONVERTIS EN MIND (mode classique, lot K6 — *Spirit Queen's Torment*) : le coup est calculé, seule la
+        // jauge change. `DegatsEnMind`, lecteur unique de `regles.degats_en_mind` ; une quête sans la règle n'y entre pas.
+        if (app(\App\Partie\Classique\DegatsEnMind::class)->convertit($heros, $source, $contexte)) {
+            return $this->infligerMindAHeros($heros, $retenus, $source, $contexte);
+        }
+
         $avant = (int) $heros->pv_body;
         $heros->update(['pv_body' => max(0, $avant - $retenus)]);
 

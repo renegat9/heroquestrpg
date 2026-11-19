@@ -153,7 +153,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite'];
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
     private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
@@ -1465,6 +1465,27 @@ final class ValidationCampagne
 
         if (array_key_exists('marche_ferme', $regles) && !is_bool($regles['marche_ferme'])) {
             $this->refuser(self::chemin($position, 'marche_ferme'), self::TYPE_INVALIDE, 'true ou false est attendu');
+        }
+        // Lot K6 (*Spirit Queen's Torment*) : `degats_en_mind` — `true` (tout dégât) ou une liste de slugs de monstres.
+        if (array_key_exists('degats_en_mind', $regles)) {
+            $ici = self::chemin($position, 'degats_en_mind');
+            $valeur = $regles['degats_en_mind'];
+            if ($valeur !== true && !is_array($valeur)) {
+                $this->refuser($ici, self::TYPE_INVALIDE, 'true (tout dégât) ou une liste de monstres est attendu');
+            } elseif (is_array($valeur)) {
+                if ($valeur === [] || !array_is_list($valeur)) {
+                    $this->refuser($ici, self::VALEUR_INVALIDE, 'au moins un monstre, en liste, est attendu');
+                }
+                foreach ($valeur as $k => $slug) {
+                    if (!is_string($slug) || !$this->catalogue->contient('monstres', $slug)) {
+                        $this->refuser("$ici.$k", self::CATALOGUE_INCONNU, '« '.(is_string($slug) ? $slug : '?').' » n\'existe pas dans le catalogue « monstres »');
+                    }
+                }
+            }
+        }
+        // Lot K6 (*Jungles of Delthrak*, « Order of Play ») : `ordre_libre` — présent seulement quand il vaut true.
+        if (array_key_exists('ordre_libre', $regles) && $regles['ordre_libre'] !== true) {
+            $this->refuser(self::chemin($position, 'ordre_libre'), self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
         }
         if (array_key_exists('fouille_piege_un_par_un', $regles) && !is_bool($regles['fouille_piege_un_par_un'])) {
             $this->refuser(self::chemin($position, 'fouille_piege_un_par_un'), self::TYPE_INVALIDE, 'true ou false est attendu');

@@ -12969,8 +12969,20 @@ final class ResolveurTour
         return $resultat;
     }
 
+    /** MODE STANDARD (lot K6) : les morts de `MortHeroic::mortsStandard()`, annoncées au fil. Rien hors Standard. */
+    private function annoncerMortsStandard(Groupe $groupe, Quete $quete): void
+    {
+        foreach (app(\App\Partie\Classique\MortHeroic::class)->mortsStandard($groupe, $quete) as $annonce) {
+            app(TamponAnnonces::class)->annoncer($groupe, $annonce);
+        }
+    }
+
     private function apresActionHeros(array $resultat, Groupe $groupe, Quete $quete): array
     {
+        // MODE STANDARD (lot K6) : le héros tombé pendant cette action (piège, tir ami) meurt maintenant, avant qu'un
+        // compagnon puisse le soigner — « you can't be saved by a fellow hero's spell or potion ».
+        $this->annoncerMortsStandard($groupe, $quete);
+
         // Hook post-combat (portes « monstres_vaincus ») aussi sur les chemins
         // à retour anticipé (héros endormi/commandé).
         $this->revelerDerriere($groupe, $quete, $this->portes->ouvrirParMonstresVaincus($groupe, $quete));
@@ -13907,8 +13919,9 @@ final class ResolveurTour
      */
     private function relevementsStory(Groupe $groupe, Quete $quete): array
     {
-        // HEROIC (lot H1) : pas de relèvement par le corps — c'est le mode Story qui le donne (F9907 p. 8-9).
-        if ($groupe->estHeroic()) {
+        // HEROIC (lot H1) et STANDARD (lot K6) : pas de relèvement par le corps — c'est le mode Story qui le donne (F9907
+        // p. 8-9) ; en Standard, un héros à terre est déjà mort (`MortHeroic::mortsStandard()`).
+        if ($groupe->estHeroic() || $groupe->estStandard()) {
             return [];
         }
 
@@ -14271,6 +14284,9 @@ final class ResolveurTour
         if ($quete->etat !== 'en_cours') {
             return self::CHUTE_TPK; // déjà tranché
         }
+
+        // MODE STANDARD (lot K6) : un héros à terre qui ne s'est pas sauvé lui-même est mort — tranché AVANT le TPK.
+        $this->annoncerMortsStandard($groupe, $quete);
 
         if ($quete->etatsPersonnages()->where('tombe', false)->exists()) {
             return self::CHUTE_DEBOUT;

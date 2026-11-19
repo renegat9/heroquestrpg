@@ -871,6 +871,40 @@ ni son format, il appelle ce que la route HTTP appelle.
   dangers, paires de terrain — `paire` publié par le catalogue), booléens et
   `destinations_d6` des notes ; vu à l'écran sur les campagnes saisies.
   Trois campagnes des livrets saisies en base (34 quêtes, 0 refus).
+- **Fait le 2026-11-19 — lot K6, première tranche** (relevé de trois agents
+  Haiku sur les livrets et le code ; décisions de René du jour) :
+  - *Spirit Queen's Torment*, les tours : **chaîne fixe** du livret (Terre →
+    Eau → Air → Feu, « these quests be played in order ») — rien à coder,
+    `suite` + `objet` + `drapeau` + `reveler_porte` ; l'« ordre libre » de
+    `reference/18` et du plan Spirit Queen était une lecture erronée, corrigée.
+  - **Dégâts convertis en Mind** (`regles.degats_en_mind`, « tout dégât ») :
+    `true` ou une liste de monstres ; lecteur unique `Classique\DegatsEnMind`
+    branché dans `MoteurDegats::infligerAHeros()` au moment d'écrire la
+    jauge ; la Furie reste en Body ; annoncé et publié par
+    `EffetsGlobauxQuete`. Tests `DegatsEnMindTest`.
+  - **Mode de mort Standard** et **Story mortel au TPK** : `Groupe::MORT_STANDARD`
+    (mort à 0 Body, sauf « Rester debout » encore offert — tranché après chaque
+    action d'un héros et au verdict de chute, `MortHeroic::mortsStandard()`) ;
+    `tousMorts()` vaut pour tout groupe classique. Radio « Standard » à la
+    création. Tests `MortStandardTest`.
+  - **Ordre libre** (`regles.ordre_libre`, à chaque round) : la règle de main
+    partagée de l'arène, `OrdreDuTour::mainPartagee()`. Tests `OrdreLibreTest`.
+  - **Décisions de René du 2026-11-19 pour la seconde tranche** :
+    1. **Déguisement** : équiper une armure interdite le fait perdre (comme
+       une arme interdite ou un sort).
+    2. **Salles spéciales** (place publique, salle tournante, salle du trône,
+       salle du Gremlin — R11) : « quand on assigne une salle spéciale sur le
+       plateau, elle remplace les salles du plateau en dessous pour la
+       quête ; dans le jeu il faut juste gérer la salle spéciale sans tenir
+       compte des salles qui ne sont pas présentes ». Une primitive : une salle
+       PROPRE À LA QUÊTE, qui efface les salles et les murs qu'elle recouvre,
+       et se révèle à l'ouverture de sa porte comme toute salle. Périmètre
+       « fusion + murs de la place ».
+    3. **Réputation** : tout, mercenaires compris (« ce sont des alliés, on
+       les gère déjà en RPG ») — les ouvrir en classique.
+    4. Choix par défaut écrits (non tranchés par René) : obscurité magique,
+       plancher d'un dé comme la Fosse, compteur par héros et par quête ;
+       glyphes, le Feu = la cheminée.
 - **Fait le 2026-11-18 — lot K5p : la quête double** (R10 ; René : « faire
   les 2 au moment opportun »). Le livret tranche ce que la doc 18 supposait :
   *The Heart of Ice* est SÉQUENTIELLE (« they cannot enter Quest 10 until all

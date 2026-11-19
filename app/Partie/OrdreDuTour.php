@@ -77,7 +77,7 @@ final class OrdreDuTour
      */
     public function acteurPour(Groupe $groupe, int $personnageId, ?Collection $etats = null): ?array
     {
-        if ($groupe->estArene()) {
+        if ($this->mainPartagee($groupe)) {
             $etats ??= $groupe->queteCourante?->etatsPersonnages()->get();
 
             if ($etats === null) {
@@ -199,6 +199,23 @@ final class OrdreDuTour
      *
      * @param  Collection<int, EtatPersonnageQuete>|null  $etats
      */
+    /**
+     * LA MAIN PARTAGÉE : l'arène (activation alternée, lot T2) et, depuis le lot K6 (René, 2026-11-19), une quête construite
+     * en `regles.ordre_libre` — *Jungles of Delthrak* F9907 p. 8-9, « Order of Play » : « heroes may decide the order in
+     * which they take their turns in a round […] Zargon takes their turn only after all heroes have taken their turns ».
+     * À chaque round, tout héros debout qui n'a pas joué a la main, jusqu'à ce que l'un d'eux ENTAME son tour — la même
+     * règle que l'arène, jamais une seconde copie.
+     */
+    private function mainPartagee(Groupe $groupe): bool
+    {
+        if ($groupe->estArene()) {
+            return true;
+        }
+        $quete = $groupe->queteCourante;
+
+        return $quete !== null && $quete->estConstruite() && data_get($quete->documentConstruit(), 'regles.ordre_libre') === true;
+    }
+
     public function allieActifId(Groupe $groupe, ?Collection $etats = null): ?int
     {
         $acteur = $this->acteurActif($groupe, $etats);
@@ -209,7 +226,7 @@ final class OrdreDuTour
     public function estSonTourAllie(Groupe $groupe, int $allieId, ?Collection $etats = null): bool
     {
         // ARÈNE : plusieurs acteurs ont la main à la fois — l'allié l'a-t-il, lui ?
-        if ($groupe->estArene()) {
+        if ($this->mainPartagee($groupe)) {
             $etats ??= $groupe->queteCourante?->etatsPersonnages()->get();
 
             return $etats !== null && in_array($allieId, array_column(
@@ -244,7 +261,7 @@ final class OrdreDuTour
         }
 
         // ARÈNE : « quelqu'un a-t-il encore la main ? » — le premier des héros qui l'ont (voir `acteurPour()`).
-        if ($groupe->estArene()) {
+        if ($this->mainPartagee($groupe)) {
             return $this->acteursALaMainEnArene($groupe, $etats)[0] ?? null;
         }
 

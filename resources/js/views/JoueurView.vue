@@ -305,8 +305,9 @@ const campagneClassique = ref({}); // { [perso.id]: slug }
 // MODE DE MORT (lot H1) : `story` (défaut) ou `heroic`, choisi une fois pour toutes à l'ouverture du groupe.
 const modeMortClassique = ref({}); // { [perso.id]: 'story' | 'heroic' }
 const MODES_MORT = [
-    { v: 'story', l: 'Story', d: 'à 0 Body, le héros est à terre, jamais mort ; il se relève quand le combat est fini' },
+    { v: 'story', l: 'Story', d: 'à 0 Body, le héros est à terre ; il se relève quand le combat est fini — mais si tout le groupe tombe, tous meurent' },
     { v: 'heroic', l: 'Heroic', d: 'à terre, il prend un crâne au tour suivant ; sans soin avant le tour d\'après, il meurt — définitivement' },
+    { v: 'standard', l: 'Standard', d: 'la règle de base : à 0 Body il meurt, sauf s\'il boit aussitôt sa potion ou se soigne lui-même' },
 ];
 const campagnesConstruites = ref([]);
 const campagnesChargees = ref(false);

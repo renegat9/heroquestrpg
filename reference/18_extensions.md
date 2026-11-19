@@ -1822,7 +1822,7 @@ tiles**, **Stranger tiles**.
   décision mènent à des quêtes différentes (2 puis 3 embranchements
   distincts, jusqu'à 3 conclusions), certains chemins n'étant accessibles
   que si une quête optionnelle précédente a été jouée. *Coût :* même
-  famille que les tours au choix libre de Spirit Queen's Torment, en plus
+  famille que les tours de Spirit Queen's Torment (en fait une chaîne fixe — correction du 2026-11-19), en plus
   poussé — un graphe de quêtes avec conditions d'accès (quête complétée
   précédemment) plutôt qu'une simple liste ordonnée.
 - **Terrain destructible avec ses propres points de vie** (Crystal
@@ -1860,8 +1860,8 @@ tiles**, **Stranger tiles**.
   >   dit pas. `docs/regles/vocabulaires-effets.md`.
   > - **Campagne à embranchements : ÉCARTÉE.** Aucun graphe de quêtes pour
   >   cette boîte. L'idée — des quêtes à conditions d'accès — est notée pour
-  >   **Spirit Queen's Torment**, dont les tours au choix libre sont le point
-  >   de comparaison. `docs/plan-delthrak.md`, mise à jour du 2026-10-09.
+  >   **Spirit Queen's Torment**, dont les tours (une chaîne fixe, correction
+  >   du 2026-11-19) étaient le point de comparaison. `docs/plan-delthrak.md`, mise à jour du 2026-10-09.
   > - **Ordre de tour choisi par les joueurs : REPORTÉ.** Le « coût mineur »
   >   ci-dessus est contredit par la décision C1 (initiative figée pour toute la
   >   quête, `reference/03_combat.md`) : la règle la lève à chaque round, et il
@@ -3140,7 +3140,7 @@ magiques) — le carton confirme simplement les trois pièges déjà cités.
 | Rise of the Dread Moon | 2022/23 | 0 | 7 (Dread Cultist, Elven Archer/Warrior, Assassin, Magus Guard, Specter, Dread Wraith) | Monstres éthérés, déguisements, jetons de réputation, planques, artisanat de potions |
 | Path of the Wandering Monk | 2023 | 1 (Moine)⚠ | 0 | — (pack de héros seul) |
 | Prophecy of Telor | 2023 | 0 | 0 (variantes nommées seulement) | Artefact maudit à jet automatique, KO non létal ciblé, transformation forcée réversible |
-| Spirit Queen's Torment | 2023 | 1 (Barde)⚠ | 0 (variantes nommées seulement) | 4 tours au choix libre, dégâts convertis en Mind, résolution alternative de boss |
+| Spirit Queen's Torment | 2023 | 1 (Barde)⚠ | 0 (variantes nommées seulement) | 4 tours en chaîne fixe (Terre → Eau → Air → Feu ; « au choix libre » était une lecture erronée, corrigée le 2026-11-19), dégâts convertis en Mind, résolution alternative de boss |
 | Jungles of Delthrak | 2024 | 2 (Explorateur confirmé, Berserker probable)⚠ | 9 (Blightcrawler, Blightweaver, Giant Ape, Goblin/Skeleton Archer, Raptor, Serpent, Skullblight, Spawnling) | 3 modes de difficulté/mort, campagne ramifiée, terrain destructible, jetons de dégât différé |
 | The Crypt of Perpetual Darkness | 2024/25 | 0 | 0 (variantes nommées seulement) | Piège d'acide permanent, monstre-piège auto-déclenché, obscurité magique pénalisante |
 | First Light | 2024 | 0 | 0 (reprise intégrale du bestiaire de base) + Qwindrak the Warlock (Move 6 · Att 3 · Déf 6 · Body 3 · Mind 6) ; Dragon (Move 10 · Att 5 · Déf 5 · Body 7 · Mind 6, Draconic Flight, Ball of Flame à volonté) | Livret de règles : aucune. Livret de quêtes (scan p. 6-7, §6) : Oracle (bénédiction/malédiction), cor des Hearthkin, Healing Hearth, Sly Storage, sorts Dread 1×/quête par monstre, entrée/sortie fléchées |

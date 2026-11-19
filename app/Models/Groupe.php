@@ -93,7 +93,21 @@ class Groupe extends Model
 
     public const MORT_HEROIC = 'heroic';
 
-    public const MODES_MORT = [self::MORT_STORY, self::MORT_HEROIC];
+    /**
+     * `standard` (lot K6, René 2026-11-19 — *Jungles of Delthrak* F9907 p. 8 : « hero death proceeds as written in the
+     * HeroQuest Game System rulebook ») : à 0 Body le héros MEURT, sauf s'il se sauve lui-même aussitôt — sa potion ou
+     * son sort de soin (la réaction « Rester debout ») ; un compagnon ne peut plus rien pour lui (livret de règles G0978,
+     * « Dead Heroes »). Point de passage : `MortHeroic::mortsStandard()`.
+     */
+    public const MORT_STANDARD = 'standard';
+
+    public const MODES_MORT = [self::MORT_STORY, self::MORT_HEROIC, self::MORT_STANDARD];
+
+    /** Ce groupe joue-t-il en Standard (mort à 0 Body, sauf soin de soi-même) ? */
+    public function estStandard(): bool
+    {
+        return $this->mode_mort === self::MORT_STANDARD;
+    }
 
     /** Ce groupe joue-t-il en Heroic (la mort est possible, et définitive) ? */
     /**
