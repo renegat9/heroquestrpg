@@ -263,6 +263,30 @@ la salle ne doit contenir aucun monstre actif **révélé**.
 
 ---
 
+## Mode classique : la campagne d'essai
+
+Un groupe classique joue une **campagne construite**. Le harnais en apporte une, INVENTÉE :
+`essai-classique.json` (slug `essai-la-cave-aux-gobelins`), et `essai-classique-portes.json`.
+
+```bash
+./campagne-essai.sh charger essai-classique.json          # valide puis enregistre
+HQ_AU_HUB=1 ./preparer-classique.sh "Essai" essai-la-cave-aux-gobelins   # au hub ; sans HQ_AU_HUB, la quête part
+# … la partie …
+./nettoyer.sh                                             # le groupe, ses héros, ses comptes
+./campagne-essai.sh retirer essai-la-cave-aux-gobelins    # puis la campagne d'essai
+```
+
+- Pour une règle à éprouver (`regles.marche_ferme`, une note…), on copie le JSON dans le scratchpad, on le modifie,
+  et on le charge : il garde son slug `essai-*`.
+- ⚠ **Seules les campagnes `essai-*` se chargent et se retirent**, et `campagne-essai.sh` refuse tout autre slug.
+  Les campagnes que René a saisies (`heroquest-livret-de-quetes`, `la-forteresse-de-kellar`,
+  `le-retour-du-seigneur-sorcier`…) sont de la **production**, comme les groupes : un agent ne les écrase, ne les
+  modifie ni ne les supprime **jamais**. À écrire dans chaque brief, avec l'interdiction de purge.
+- `preparer-classique.sh` vérifie que la campagne existe **avant** de créer les comptes (2026-11-19 : un
+  `POST /classique` refusé laissait deux comptes et deux héros sans groupe). Si un `preparer-*.sh` s'interrompt quand
+  même avant le groupe, `nettoyer.sh` reprend les comptes de `ident-*.txt` et leurs héros de `perso-*.txt`, à
+  condition qu'ils ne soient engagés dans aucun groupe — ne pas relancer `preparer` avant, il écraserait ces fichiers.
+
 ## ⚠ Tout ce qu'un agent fabrique doit appartenir au GROUPE DE HARNAIS
 
 `nettoyer.sh` est **ciblé** : il ne reprend que le groupe de `groupe.txt` et les

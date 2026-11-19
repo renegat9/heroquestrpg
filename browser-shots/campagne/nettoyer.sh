@@ -60,7 +60,30 @@ arreter_battements
 CODE="$(cat "$D/groupe.txt" 2>/dev/null || true)"
 
 if [ -z "$CODE" ]; then
-  echo "Aucun groupe.txt : rien à purger côté serveur."
+  # SANS GROUPE (2026-11-19) : un `preparer-*.sh` interrompu après les inscriptions laisse des comptes et des héros
+  # sans groupe. Ce sont les SIENS — leurs identifiants sont dans ident-*.txt / perso-*.txt — : on les reprend, et
+  # seulement eux, et seulement un héros de CE compte qui n'est engagé dans AUCUN groupe.
+  IDENTS=$(cat "$D"/ident-*.txt 2>/dev/null | grep -E '^[A-Za-z0-9_-]+$' | sed "s/.*/'&'/" | paste -sd, - || true)
+  PERSOS=$(cat "$D"/perso-*.txt 2>/dev/null | grep -E '^[0-9]+$' | paste -sd, - || true)
+  if [ -z "$IDENTS" ]; then
+    echo "Aucun groupe.txt ni ident-*.txt : rien à purger côté serveur."
+  elif [ "$GARDER" = "1" ]; then
+    echo "Aucun groupe.txt ; --garder-comptes : comptes $IDENTS laissés en place."
+  else
+    docker compose -f "$D/../../docker-compose.yml" exec -T app php artisan tinker --execute="
+      \$joueurs = \App\Models\Joueur::whereIn('identifiant', [$IDENTS])->get();
+      \$heros = \App\Models\Personnage::whereIn('id', [${PERSOS:-0}])->whereIn('joueur_id', \$joueurs->pluck('id'))
+          ->whereDoesntHave('groupes')->get();
+      foreach (\$heros as \$p) { \$p->delete(); }
+      echo '  sans groupe : '.\$heros->count().\" héros du harnais supprimé(s)\n\";
+      foreach (\$joueurs as \$j) {
+        if (\App\Models\Personnage::where('joueur_id', \$j->id)->exists()) { echo '  ⚠ compte '.\$j->identifiant.\" garde des héros — NON supprimé, à signaler\n\"; continue; }
+        try { \$j->delete(); } catch (\Throwable \$e) { echo '  ⚠ compte '.\$j->identifiant.' NON supprimé : '.\$e->getMessage().\"\n\"; }
+      }
+      \$restants = \App\Models\Joueur::whereIn('identifiant', [$IDENTS])->count();
+      echo '  '.(\$joueurs->count() - \$restants).'/'.\$joueurs->count().\" compte(s) du harnais supprimé(s)\n\";
+    " 2>&1 | grep -vE '^\s*$|INFO' || true
+  fi
 else
   # ⚠ Passer par ClotureCampagne::purger() et non par des DELETE : le service
   # emporte aussi les caches de phase, la bible Qdrant du groupe et ses

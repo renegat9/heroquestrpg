@@ -27,6 +27,17 @@ if [ -x "$D/../../image-tools/sauvegarder.sh" ]; then
 fi
 
 NOM="$1"; CAMPAGNE="$2"
+
+# La campagne D'ABORD, avant de créer quoi que ce soit (2026-11-19) : un `POST /classique` refusé laissait deux comptes
+# et deux héros sans groupe — `nettoyer.sh` les reprend désormais, mais ne rien créer vaut mieux.
+# Une campagne d'essai se charge avec `./campagne-essai.sh charger <fichier.json>`.
+code_campagne=$(curl -s -o /dev/null -w '%{http_code}' -H 'Accept: application/json' \
+  "http://localhost/api/constructeur/campagnes/$CAMPAGNE")
+if [ "$code_campagne" != "200" ]; then
+  echo "✗ Aucune campagne construite « $CAMPAGNE » (HTTP $code_campagne) — rien n'a été créé." >&2
+  echo "  Une campagne d'essai : ./campagne-essai.sh charger essai-classique.json" >&2
+  exit 1
+fi
 SUF=$(date +%H%M%S)
 
 X() { grep -oP 'XSRF-TOKEN\s+\K[^\s]+' "$D/jar-$1.txt" | tail -1 | sed 's/%3D/=/g'; }

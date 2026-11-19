@@ -27,6 +27,8 @@ harnais — cette skill l'amorce, elle ne le remplace pas et **ne le recopie pas
 > ❌ `partie:purger --supprimer --tout`, ❌ `migrate:fresh`, ❌ tout `DELETE` sur
 > `groupes` / `personnages` / `joueurs`. Nettoyer **uniquement** avec
 > `browser-shots/campagne/nettoyer.sh`, qui ne vise que le groupe qu'il a créé.
+> Les campagnes construites sont aussi de la **production** : seules les campagnes
+> `essai-*` se chargent et se retirent, avec `browser-shots/campagne/campagne-essai.sh`.
 
 Sans cette phrase **explicite**, un agent purge **de bonne foi** : il voit une base
 encombrée de campagnes de test et fait le ménage. C'est un ordre que la consigne
