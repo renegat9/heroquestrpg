@@ -90,8 +90,10 @@ it('la validation accepte exactement ce vocabulaire : un mot inconnu est refusé
 });
 
 it('une note complète, de chaque déclencheur et de chaque effet, passe la validation', function () {
-    $this->seed([ClasseHerosSeeder::class, ObjetSeeder::class, MobilierSeeder::class, MonstreSeeder::class, PiegeSeeder::class, TerrainSeeder::class]);
+    $this->seed([ClasseHerosSeeder::class, ObjetSeeder::class, MobilierSeeder::class, MonstreSeeder::class, PiegeSeeder::class, TerrainSeeder::class, \Database\Seeders\MercenaireSeeder::class]);
     $doc = DocumentExemple::campagne();
+    // Lot K6 : `debloquer_mercenaire` désigne un mercenaire que la campagne offre.
+    $doc['mercenaires'] = ['regime' => 'debloques', 'offerts' => ['eclaireur']];
     $doc['quetes'][0]['notes'] = [
         ['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree']],
             'alors' => [['effet' => 'texte', 'texte' => 'Un texte.'], ['effet' => 'or', 'or' => 10], ['effet' => 'drapeau', 'nom' => 'vu']]],
@@ -109,6 +111,11 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
             'alors' => [['effet' => 'bloc', 'x' => 7, 'y' => 3], ['effet' => 'detruire_objet', 'slug' => 'dague']]],
         ['repere' => 'F', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 3]],
             'alors' => [['effet' => 'ouvrir_porte', 'porte' => 1], ['effet' => 'bloc', 'x' => 8, 'y' => 7], ['effet' => 'reveler_porte', 'porte' => 2], ['effet' => 'teleporter', 'x' => 8, 'y' => 3]]],
+        // Lot K6 (*Dread Moon*) : la réputation, l'offre, le mercenaire débloqué.
+        ['repere' => 'I', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 4]],
+            'alors' => [['effet' => 'reputation', 'jetons' => 1],
+                ['effet' => 'offre', 'libelle' => 'Payer le passeur', 'cout' => ['or' => 200], 'alors' => [['effet' => 'reputation', 'jetons' => 1]]],
+                ['effet' => 'debloquer_mercenaire', 'slug' => 'eclaireur']]],
     ];
 
     expect(app(ValidationCampagne::class)->valider($doc))->toBe([]);

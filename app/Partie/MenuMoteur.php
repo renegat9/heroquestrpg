@@ -3488,6 +3488,23 @@ final class MenuMoteur
             ];
         }
 
+        // LES OFFRES (mode classique, lot K6) : les choix que les notes de l'auteur ont déclarés, payables par CE héros
+        // (`Reputation::payables()`, que le résolveur revalide). Geste libre.
+        if (! $aJoue && $etat !== null && ! $etat->tombe && $quete->estConstruite()) {
+            foreach (app(\App\Partie\Classique\Reputation::class)->payables($quete, $personnage) as $i => $offre) {
+                $cout = array_filter([
+                    (int) ($offre['cout']['or'] ?? 0) > 0 ? $offre['cout']['or'].' po' : null,
+                    (int) ($offre['cout']['reputation'] ?? 0) > 0 ? $offre['cout']['reputation'].' jeton(s) de réputation' : null,
+                ]);
+                $options[] = [
+                    'id' => 'offre_'.$i,
+                    'libelle' => $offre['libelle'].($cout !== [] ? ' ('.implode(', ', $cout).')' : ''),
+                    'type' => 'offre',
+                    'parametres' => ['offre' => $i],
+                ];
+            }
+        }
+
         // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, à tout moment de son tour. Geste libre.
         if (! $aJoue && $etat !== null && $etat->deguise) {
             $options[] = ['id' => 'retirer_deguisement', 'libelle' => 'Retirer son déguisement', 'type' => 'retirer_deguisement'];

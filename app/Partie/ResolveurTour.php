@@ -744,6 +744,8 @@ final class ResolveurTour
                 'entree_donjon' => $this->resoudreEntreeDonjon($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // MODE HEROIC (lot H1b) : ramasser les affaires d'un mort, dans sa salle ou son couloir. Geste libre.
                 'ramasser_depouille' => $this->resoudreRamasserDepouille($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // LES OFFRES (mode classique, lot K6) : accepter le choix qu'une note a déclaré. Geste libre.
+                'offre' => $this->resoudreOffre($groupe, $quete, $personnage, $option, $acteur),
                 // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, de soi-même. Geste libre.
                 'retirer_deguisement' => $this->resoudreRetirerDeguisement($groupe, $personnage, $etat, $acteur),
                 // GLYPHES (mode classique, lot K6) : détruire un glyphe découvert — parchemin ou cheminée. Geste libre.
@@ -16456,6 +16458,8 @@ final class ResolveurTour
             'detruire_glyphe' => 'interaction',
             // DÉGUISEMENT (lot K6) : « they may surrender their disguise token and disguise (no action required) ».
             'retirer_deguisement' => 'interaction',
+            // OFFRES (lot K6) : accepter ne coûte que ce que l'offre dit.
+            'offre' => 'interaction',
             // TROPHÉES D'ARÈNE (lot T4) : « no action required » pour ramasser, et l'usage n'en demande pas davantage —
             // boire la potion d'une tuile ou défausser une tuile pour l'élan ne coûte aucun créneau.
             'trophee_potion', 'trophee_elan' => 'interaction',
@@ -17053,6 +17057,15 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Tu as déjà agi ce tour.']);
         }
         $payload = app(\App\Partie\Classique\QueteDouble::class)->passer($groupe, $quete, $personnage, $etat);
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** LES OFFRES (mode classique, lot K6) : le héros accepte une offre — `Reputation::payables()` revalidé ici. */
+    private function resoudreOffre(Groupe $groupe, Quete $quete, Personnage $personnage, array $option, array $acteur): array
+    {
+        $payload = app(\App\Partie\Classique\Reputation::class)->accepter($quete, $personnage, (int) ($option['parametres']['offre'] ?? -1));
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;

@@ -1306,6 +1306,8 @@ const maBourse = computed(() => herosPilotes.value.find((h) => h.id === monPerso
 const recrutementOffres = computed(() => store.state.etat?.groupe?.recrutement?.offres ?? []);
 // MODE CLASSIQUE (lot K6) : la règle d'embauche de la campagne (`groupe.recrutement.classique`), absente au RPG.
 const recrutementRegle = computed(() => store.state.etat?.groupe?.recrutement?.classique ?? null);
+// LA RÉPUTATION (mode classique, lot K6) : les jetons du groupe (`groupe.reputation`, classique seulement).
+const reputationGroupe = computed(() => store.state.etat?.groupe?.reputation ?? 0);
 // Le recrutement est-il ouvert à ce groupe ? Publié par le serveur (`groupe.recrutement_ouvert`) ; absent d'un état
 // antérieur à ce champ : ouvert, comme avant.
 const recrutementOuvert = computed(() => store.state.etat?.groupe?.recrutement_ouvert !== false);
@@ -1417,12 +1419,12 @@ async function chargerMercenaires() {
 }
 // Charge le catalogue dès qu'on est au hub (le recrutement n'y est possible que là).
 watch(auHub, (v) => { if (v) chargerMercenaires(); }, { immediate: true });
-async function recruter(mercenaireId) {
+async function recruter(mercenaireId, paiement = null) {
     if (recrutEnCours.value) return;
     recrutEnCours.value = true;
     try {
         // Le héros de CETTE manette : le serveur applique la ligne de prix qu'elle affiche.
-        await api.recruterMercenaire(props.groupe, mercenaireId, monPersonnageId.value);
+        await api.recruterMercenaire(props.groupe, mercenaireId, monPersonnageId.value, paiement);
         // recrues + or arrivent par .groupe.etat (EtatGroupeDiffuse) — rien à recharger.
     } catch (e) {
         store.setNarration(e.message);
@@ -1987,6 +1989,9 @@ const navItems = computed(() => (scene.value === 'marche'
                             <!-- ---- recrutement d'alliés (hub, bourse commune) ---- -->
                             <!-- `recrutement_ouvert` : la DÉCISION du serveur (registre des étapes) ; en classique, ouvert seulement si
                                  la campagne offre des mercenaires (lot K6), avec sa règle (`recrutement.classique`). -->
+                            <p v-if="auHub && reputationGroupe > 0" class="manette-deguise" role="status">
+                                <MSym n="military_tech" :size="16" /> Réputation du groupe : {{ reputationGroupe }} jeton{{ reputationGroupe > 1 ? 's' : '' }}
+                            </p>
                             <RecrutementHub
                                 v-if="auHub && recrutementOuvert"
                                 :catalogue="catalogueMercs"

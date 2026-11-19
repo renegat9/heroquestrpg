@@ -141,6 +141,19 @@ final class MotsClesQuete
     /** E9 — détruire un objet précis (artefact, arme, armure) dans l'inventaire des héros présents dans la salle (*The Cold Halls*, q. 2 note D). */
     public const DETRUIRE_OBJET = 'detruire_objet';
 
+    /** C5 (lot K6, *Dread Moon*) — le groupe gagne (ou perd) des jetons de réputation. */
+    public const REPUTATION = 'reputation';
+
+    /**
+     * C5 (lot K6, *Dread Moon*) — l'auteur DÉCLARE un choix : un libellé, un coût (or du héros, jetons du groupe) et des
+     * effets joués quand un héros l'accepte au menu (« Zargon must declare when the heroes have the opportunity to spend a
+     * reputation token »). Les offres d'un même `groupe` s'excluent. `Classique\Reputation`.
+     */
+    public const OFFRE = 'offre';
+
+    /** Lot K6 (*Dread Moon*) — un mercenaire de la campagne devient engageable (« choose one elven mercenary to unlock »). */
+    public const DEBLOQUER_MERCENAIRE = 'debloquer_mercenaire';
+
     /**
      * Effet → ses paramètres (obligatoires, puis optionnels), et la méthode de `NotesDeQuete` qui le joue.
      *
@@ -158,6 +171,9 @@ final class MotsClesQuete
         self::REVELER_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetRevelerPorte', 'libelle' => 'révéler une porte secrète'],
         self::TELEPORTER => ['parametres' => ['x', 'y'], 'optionnels' => ['destinations_d6'], 'lecteur' => 'effetTeleporter', 'libelle' => 'téléporter le héros'],
         self::DETRUIRE_OBJET => ['parametres' => ['slug'], 'optionnels' => ['toute_la_salle'], 'lecteur' => 'effetDetruireObjet', 'libelle' => 'détruire un objet du héros'],
+        self::REPUTATION => ['parametres' => ['jetons'], 'optionnels' => [], 'lecteur' => 'effetReputation', 'libelle' => 'gagner ou perdre des jetons de réputation'],
+        self::OFFRE => ['parametres' => ['libelle', 'alors'], 'optionnels' => ['cout', 'groupe'], 'lecteur' => 'effetOffre', 'libelle' => 'proposer un choix (coût, effets)'],
+        self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],
     ];
 
     /**

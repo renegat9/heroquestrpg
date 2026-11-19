@@ -487,10 +487,13 @@ export function useApi() {
         /** POST /groupes/{id}/mercenaires {mercenaire_id, personnage_id?} — recrute
          *  contre la bourse commune pour CE héros (le prix et le verdict viennent de
          *  `groupe.recrutement`). 422 : pas au hub, or insuffisant, 2ᵉ animal, plafond. */
-        recruterMercenaire: (identifiant, mercenaireId, personnageId = null) =>
-            request('POST', `/groupes/${identifiant}/mercenaires`, personnageId
-                ? { mercenaire_id: mercenaireId, personnage_id: personnageId }
-                : { mercenaire_id: mercenaireId }),
+        // `paiement: 'jeton'` (mode classique, régime `debloques`, lot K6) : un jeton de réputation au lieu de l'or.
+        recruterMercenaire: (identifiant, mercenaireId, personnageId = null, paiement = null) =>
+            request('POST', `/groupes/${identifiant}/mercenaires`, {
+                mercenaire_id: mercenaireId,
+                ...(personnageId ? { personnage_id: personnageId } : {}),
+                ...(paiement ? { paiement } : {}),
+            }),
 
         /** POST /groupes/{id}/compagnon-offert {mercenaire_id, personnage_id?} — PREND le compagnon
          *  animal OFFERT (Against the Ogre Horde, gratuit, une fois, groupe de moins de 4 héros) pour

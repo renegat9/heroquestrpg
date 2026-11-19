@@ -59,6 +59,8 @@ class Groupe extends Model
         'mode_mort',
         // Lot K5h : drapeaux de CAMPAGNE `{nom: true}`, posés par une note (`drapeau` + `campagne: true`), lus par `Quete::aDrapeau()`.
         'drapeaux_campagne',
+        // Lot K6 (*Dread Moon*) : les jetons de réputation du groupe — `Classique\Reputation` seul.
+        'jetons_reputation',
     ];
 
     /**
@@ -134,6 +136,7 @@ class Groupe extends Model
         return [
             'plan_campagne' => 'array',
             'drapeaux_campagne' => 'array',
+            'jetons_reputation' => 'integer',
             'ton' => 'array',
             'boites_bestiaire' => 'array',
             'arene_defender' => 'array',

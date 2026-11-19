@@ -99,6 +99,23 @@ final class MercenairesCampagne
         }
     }
 
+    /** Débloque un mercenaire (régime `debloques`, campagne) ; rend son nom, ou `null` s'il n'est pas offert. */
+    public function debloquer(Groupe $groupe, string $slug): ?string
+    {
+        $regle = $this->regle($groupe);
+        if ($regle === null || ! in_array($slug, (array) $regle['offerts'], true)) {
+            return null;
+        }
+        $drapeaux = (array) $groupe->fresh()->drapeaux_campagne;
+        $drapeaux['_mercenaires'] = array_values(array_unique([...(array) ($drapeaux['_mercenaires'] ?? []), $slug]));
+        $groupe->update(['drapeaux_campagne' => $drapeaux]);
+
+        return (string) (app(CatalogueConstructeur::class)->index('mercenaires')[$slug]->nom ?? $slug);
+    }
+
+    /** Embauché contre un jeton : « remains with the hero […] in following quests, no payment required ». */
+    public const PAYE_A_VIE = 65535;
+
     /** Le rang de la quête que le prochain départ ouvrira : celui pour lequel on engage au hub. */
     public static function rangAPayer(Groupe $groupe): int
     {

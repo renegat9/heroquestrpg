@@ -79,8 +79,15 @@ final class RecrutementHub
      *
      * @return array{cle: string, message: string}|null
      */
-    public function blocage(Groupe $groupe, Mercenaire $mercenaire, Personnage $recruteur): ?array
+    public function blocage(Groupe $groupe, Mercenaire $mercenaire, Personnage $recruteur, bool $parJeton = false): ?array
     {
+        // MODE CLASSIQUE, régime `debloques` (lot K6) : payer d'un jeton de réputation plutôt que d'or.
+        if ($parJeton) {
+            return $groupe->estClassique()
+                ? $this->verdictClassique($groupe, $mercenaire, $recruteur, $this->contexte($groupe), parJeton: true)
+                : ['cle' => 'paiement', 'message' => 'Un jeton de réputation ne s\'échange que dans une campagne classique qui le permet.'];
+        }
+
         return $this->verdict($groupe, $mercenaire, $recruteur, $this->contexte($groupe));
     }
 
@@ -123,8 +130,12 @@ final class RecrutementHub
                         'offert_par_faveur' => $prix['gratuit_faveur'],
                         'recrutable' => $motif === null,
                         'motif' => $motif['message'] ?? null,
-                        // MODE CLASSIQUE (lot K6) : la bourse de CE héros, d'où l'or sortira — clé absente au RPG.
-                        ...($groupe->estClassique() ? ['bourse' => app(Bourses::class)->solde($groupe, $h)] : []),
+                        // MODE CLASSIQUE (lot K6) : la bourse de CE héros, d'où l'or sortira, et l'embauche contre un jeton de
+                        // réputation (régime `debloques`) — clés absentes au RPG.
+                        ...($groupe->estClassique() ? [
+                            'bourse' => app(Bourses::class)->solde($groupe, $h),
+                            'payable_par_jeton' => $this->verdictClassique($groupe, $mercenaire, $h, $contexte, parJeton: true) === null,
+                        ] : []),
                     ];
                 })->values()->all();
 
@@ -154,8 +165,11 @@ final class RecrutementHub
      * @param  array<string, mixed>  $contexte
      * @return array{cle: string, message: string}|null
      */
-    private function verdictClassique(Groupe $groupe, Mercenaire $mercenaire, Personnage $recruteur, array $contexte): ?array
+    private function verdictClassique(Groupe $groupe, Mercenaire $mercenaire, Personnage $recruteur, array $contexte, bool $parJeton = false): ?array
     {
+        if (! $contexte['hub']) {
+            return ['cle' => 'groupe', 'message' => "Le recrutement n'est possible qu'au hub, entre deux quêtes."];
+        }
         $campagne = app(\App\Partie\Classique\MercenairesCampagne::class);
         if (! $campagne->ouvert($groupe)) {
             return ['cle' => 'groupe', 'message' => 'Cette campagne n\'offre aucun mercenaire.'];
@@ -166,10 +180,26 @@ final class RecrutementHub
         if (\App\Partie\Classique\MercenairesCampagne::prochaineSolo($groupe)) {
             return ['cle' => 'groupe', 'message' => 'La prochaine quête se joue seul : aucun mercenaire ne s\'y engage.'];
         }
-        $prix = $this->prixPour($recruteur, $mercenaire, isset($contexte['gratuits'][$recruteur->id]))['prix'];
-        $solde = app(Bourses::class)->solde($groupe, $recruteur);
-        if ($solde < $prix) {
-            return ['cle' => 'mercenaire_id', 'message' => "Or insuffisant : {$prix} requis, {$solde} dans la bourse de {$recruteur->nom}."];
+        $regime = $campagne->regle($groupe)['regime'] ?? null;
+        // *Dread Moon* p. 11 : « More than one of the same type of mercenary cannot be hired for the same quest. »
+        if ($regime === 'debloques' && GroupeMercenaire::where('groupe_id', $groupe->id)->where('etat', 'actif')
+            ->where('mercenaire_id', $mercenaire->id)->exists()) {
+            return ['cle' => 'mercenaire_id', 'message' => "Un « {$mercenaire->nom} » sert déjà le groupe : un seul de chaque type."];
+        }
+        if ($parJeton) {
+            // « a hero may spend one reputation token to hire a mercenary instead of paying the listed cost ».
+            if ($regime !== 'debloques') {
+                return ['cle' => 'paiement', 'message' => 'Cette campagne ne s\'engage pas contre un jeton de réputation.'];
+            }
+            if (app(\App\Partie\Classique\Reputation::class)->jetons($groupe) < 1) {
+                return ['cle' => 'paiement', 'message' => 'Le groupe n\'a aucun jeton de réputation.'];
+            }
+        } else {
+            $prix = $this->prixPour($recruteur, $mercenaire, isset($contexte['gratuits'][$recruteur->id]))['prix'];
+            $solde = app(Bourses::class)->solde($groupe, $recruteur);
+            if ($solde < $prix) {
+                return ['cle' => 'mercenaire_id', 'message' => "Or insuffisant : {$prix} requis, {$solde} dans la bourse de {$recruteur->nom}."];
+            }
         }
         if ($mercenaire->animal && $contexte['animal_pris']) {
             return ['cle' => 'mercenaire_id', 'message' => 'Le groupe a déjà un compagnon animal (un seul autorisé).'];

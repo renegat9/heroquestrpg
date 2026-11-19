@@ -199,6 +199,9 @@ final class JournalCombat
         // MERCENAIRES D'UNE CAMPAGNE (lot K6) : au départ d'une quête, renouvelé à moitié prix ou congédié.
         'mercenaire_retenu' => true,
         'mercenaire_congedie' => true,
+        // RÉPUTATION (lot K6) : gagnée en fin de quête, dépensée (offre, embauche) ; une offre acceptée.
+        'reputation' => true,
+        'offre_prise' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1292,6 +1295,15 @@ final class JournalCombat
             'charge_lachee' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' tombe et lâche '.($a['charge'] ?? 'la charge').' : elle reste sur sa case',
                 'ton' => 'subit',
+            ]],
+            'reputation' => [[
+                'texte' => ((int) ($a['variation'] ?? 0) > 0 ? 'Le groupe gagne ' : 'Le groupe dépense ').abs((int) ($a['variation'] ?? 0))
+                    .' jeton(s) de réputation (total : '.(int) ($a['total'] ?? 0).')',
+                'ton' => (int) ($a['variation'] ?? 0) > 0 ? 'succes' : 'info',
+            ]],
+            'offre_prise' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' accepte : '.($a['libelle'] ?? 'l\'offre'),
+                'ton' => 'info',
             ]],
             'mercenaire_retenu' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' garde '.($a['mercenaire'] ?? 'son mercenaire').' pour cette quête ('.(int) ($a['or'] ?? 0).' po)',

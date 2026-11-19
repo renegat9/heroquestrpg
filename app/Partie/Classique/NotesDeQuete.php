@@ -202,9 +202,13 @@ final class NotesDeQuete
      * @param  array<string, mixed>  $note
      * @return array<string, mixed>
      */
+    /** Le repère de la note en train de se jouer — lu par `effetOffre()`, qui garde la trace de qui l'a déclarée. */
+    private string $repereEnCours = '';
+
     private function jouer(Quete $quete, array $note, string $declencheur, ?Personnage $heros): array
     {
         $effets = [];
+        $this->repereEnCours = (string) ($note['repere'] ?? '');
 
         foreach ((array) ($note['alors'] ?? []) as $effet) {
             $nom = (string) ($effet['effet'] ?? '');
@@ -247,6 +251,42 @@ final class NotesDeQuete
     }
 
     /** E2 — l'or va à la bourse du héros qui déclenche (`Bourses`) ; sans lui, il est partagé. */
+    /**
+     * Joue une liste d'effets hors d'une note qui se déclenche — ceux d'une OFFRE acceptée (`Reputation::accepter()`) —, par
+     * les mêmes lecteurs, annoncés comme une note sous le même repère. Rend le résultat (`note_de_quete`).
+     *
+     * @param  list<array<string, mixed>>  $effets
+     * @return array<string, mixed>
+     */
+    public function jouerEffets(Quete $quete, array $effets, string $repere, ?Personnage $heros): array
+    {
+        return $this->jouer($quete, ['repere' => $repere, 'alors' => $effets], 'offre', $heros);
+    }
+
+    /** C5 (lot K6) — des jetons de réputation pour le groupe (ou en moins, jamais sous zéro). */
+    private function effetReputation(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $n = (int) ($effet['jetons'] ?? 0);
+
+        return ['jetons' => $n, 'total' => app(Reputation::class)->ajuster($quete->groupe, $n, 'note')];
+    }
+
+    /** C5 (lot K6) — l'offre devient un choix au menu ; rien ne se paie ni ne se joue avant qu'un héros l'accepte. */
+    private function effetOffre(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        app(Reputation::class)->declarer($quete, $effet, $this->repereEnCours);
+
+        return ['libelle' => (string) ($effet['libelle'] ?? '')];
+    }
+
+    /** Lot K6 — un mercenaire de la campagne devient engageable (`MercenairesCampagne::debloquer()`). */
+    private function effetDebloquerMercenaire(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $nom = app(MercenairesCampagne::class)->debloquer($quete->groupe, (string) ($effet['slug'] ?? ''));
+
+        return ['mercenaire' => $nom];
+    }
+
     private function effetOr(Quete $quete, array $effet, ?Personnage $heros): array
     {
         $or = max(0, (int) ($effet['or'] ?? 0));

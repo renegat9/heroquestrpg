@@ -6256,6 +6256,30 @@ qu'avec un héros désigné.
   cette quête » sur sa fiche. Un héros SORTI, lui, est un participant qui a quitté le donjon (`sorti: true`).
 - **Constructeur** : « Quête solo » dans la fiche de la quête, parmi les classes exigées par la campagne.
 
+### La réputation et les offres — `recompense.reputation`, effets `reputation`, `offre`, `debloquer_mercenaire` (lot K6, 2026-11-19)
+
+*Rise of the Dread Moon* p. 8 et 11. René : « tout ».
+- `groupes.jetons_reputation` (migration `2026_11_19_180000`) : les jetons du GROUPE, publiés `groupe.reputation` (groupe
+  classique seulement, au hub comme en quête) ; lecteur unique `Classique\Reputation`.
+- `recompense.reputation: n` (≥ 1) : versé à la victoire (« one reputation token at the end of each quest »).
+- Effet `reputation {jetons}` (non nul ; jamais sous zéro) ; effet `debloquer_mercenaire {slug}` (un mercenaire OFFERT par
+  la campagne — refus `catalogue_inconnu` sinon — devient engageable, `groupes.drapeaux_campagne._mercenaires`).
+- Effet `offre {libelle, alors: [effets], cout?: {or?, reputation?}, groupe?}` : l'auteur DÉCLARE un choix ; il devient
+  l'option `offre_<i>` (geste libre) de tout héros qui peut payer (or de SA bourse, jetons du groupe). L'accepter paie, joue
+  `alors` par les lecteurs des notes (`NotesDeQuete::jouerEffets()`, annoncé sous le repère de la note), et ferme les
+  offres du même `groupe` (« choose one elven mercenary to unlock »). Une offre ne déclare pas une autre offre ; les
+  drapeaux posés par ses effets comptent comme posés. État en base (`quetes.drapeaux._offres`). Résultat
+  `offre_prise`.
+- Embauche contre un jeton (régime `debloques`) : `POST /mercenaires {paiement: "jeton"}` — un jeton du groupe au lieu de
+  l'or ; le mercenaire reste sans plus rien coûter (« no payment required ») ; `decisions[].payable_par_jeton`
+  (décidé par le serveur, la manette affiche le bouton). Un seul mercenaire de chaque type (« More than one of the same
+  type of mercenary cannot be hired »).
+- **Reporté, nommé** : la vente d'un jeton au marché (« sold between quests for 250 gold coins each, which must
+  immediately be used to purchase something […] Any excess gold is lost ») — elle touche au règlement atomique des
+  paniers du marché et à son écran.
+- Constructeur : réputation de la récompense ; effets `reputation`, `offre` (libellé, coût, groupe, effets en JSON validé
+  par le serveur), `debloquer_mercenaire` (parmi les mercenaires de la campagne).
+
 ### Les mercenaires d'une campagne classique — `mercenaires` (lot K6, 2026-11-19)
 
 René : « chaque campagne choisit sa règle ». Clé de CAMPAGNE `mercenaires: {regime, offerts: [slug…]}` (refus

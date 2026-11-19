@@ -99,7 +99,10 @@ class MercenaireController extends Controller
             // `achats[].personnage_id` au marché. La manette l'envoie : c'est
             // le héros dont elle affiche le prix publié (`groupe.recrutement`).
             'personnage_id' => ['sometimes', 'integer', 'min:1'],
+            // MODE CLASSIQUE, régime `debloques` (lot K6) : payer d'un jeton de réputation plutôt que d'or.
+            'paiement' => ['sometimes', 'string', 'in:or,jeton'],
         ]);
+        $parJeton = ($donnees['paiement'] ?? 'or') === 'jeton';
 
         // Le recruteur est un héros que ce joueur PILOTE (les siens, ou ceux qu'on lui a confiés).
         $mesHeros = $groupe->herosPilotesPar((int) $joueur?->id)
@@ -124,7 +127,7 @@ class MercenaireController extends Controller
         // `RecrutementHub`, la même que `EtatGroupe.groupe.recrutement` publie.
         // Premier motif = refus, rangé sous la clé de requête qui le concerne.
         $recrutement = app(RecrutementHub::class);
-        $motif = $recrutement->blocage($groupe, $mercenaire, $recruteur);
+        $motif = $recrutement->blocage($groupe, $mercenaire, $recruteur, $parJeton);
 
         if ($motif !== null) {
             throw ValidationException::withMessages([$motif['cle'] => $motif['message']]);
@@ -134,14 +137,18 @@ class MercenaireController extends Controller
         // Mercenaries for 25 gold coins each less than normal » — un ÉTAT DURABLE
         // du recruteur, consommé UN par recrutement dans la transaction ci-dessous.
         $prix = $recrutement->prixPour($recruteur, $mercenaire, $recrutement->gratuitPour($groupe, $recruteur));
-        $prixAPayerActuel = $prix['prix'];
+        $prixAPayerActuel = $parJeton ? 0 : $prix['prix'];
         $rabais = $prix['rabais_po'];
 
-        $recrue = DB::transaction(function () use ($groupe, $mercenaire, $recruteur, $prixAPayerActuel, $prix) {
+        $recrue = DB::transaction(function () use ($groupe, $mercenaire, $recruteur, $prixAPayerActuel, $prix, $parJeton) {
+            // Le JETON (lot K6) : dépensé dans la même transaction que l'embauche.
+            if ($parJeton) {
+                app(\App\Partie\Classique\Reputation::class)->ajuster($groupe, -1, 'embauche');
+            }
             // FAVEUR *Mercenary Guild* (Hopekins Rest) : le droit à UN mercenaire offert est relu
             // SOUS VERROU, dans la transaction — deux requêtes simultanées du même héros ne
             // prennent pas deux fois ce qui n'est offert qu'une fois.
-            if ($prix['gratuit_faveur']) {
+            if ($prix['gratuit_faveur'] && ! $parJeton) {
                 $faveur = PersonnageFaveur::query()
                     ->where('personnage_id', $recruteur->id)
                     ->where('cle', FaveursHopekins::MERCENARY_GUILD)
@@ -165,7 +172,7 @@ class MercenaireController extends Controller
 
             // La potion se consomme recrutement par recrutement : UN rabais
             // dépensé ici, dans la même transaction que l'or.
-            if ($prix['remise_active']) {
+            if ($prix['remise_active'] && ! $parJeton) {
                 $recruteur->decrement('recrutements_a_rabais');
             }
 
@@ -176,12 +183,14 @@ class MercenaireController extends Controller
                 'pv_body' => (int) $mercenaire->pv_body,
                 'etat' => 'actif',
                 // MODE CLASSIQUE (lot K6) : engagé pour la prochaine quête de la campagne (`MercenairesCampagne::auDepart()`).
-                'paye_jusqu_au_rang' => $groupe->estClassique() ? \App\Partie\Classique\MercenairesCampagne::rangAPayer($groupe) : null,
+                // Contre un jeton : « will remain with the hero in following quests, no payment required ».
+                'paye_jusqu_au_rang' => ! $groupe->estClassique() ? null
+                    : ($parJeton ? \App\Partie\Classique\MercenairesCampagne::PAYE_A_VIE : \App\Partie\Classique\MercenairesCampagne::rangAPayer($groupe)),
             ]);
 
             // La faveur retient l'allié engagé à son titre : tant qu'il sert ce héros, le droit
             // est consommé ; mort ou parti, il se rouvre (`FaveursHopekins`, section Mercenary Guild).
-            if ($prix['gratuit_faveur']) {
+            if ($prix['gratuit_faveur'] && ! $parJeton) {
                 FaveursHopekins::lierMercenaireOffert($recruteur, $recrue);
             }
 

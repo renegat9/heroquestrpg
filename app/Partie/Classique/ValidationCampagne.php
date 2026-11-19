@@ -170,6 +170,12 @@ final class ValidationCampagne
     private const CLES_PIEGE_OPTIONNELLES = ['introuvable', 'indesarmable'];
     private const CLES_TERRAIN_OPTIONNELLES = ['paire_id', 'cachee'];
     private const CLES_RECOMPENSE = ['or', 'partage'];
+    /** Lot K6 (*Dread Moon*) : `recompense.reputation` — des jetons de réputation pour le groupe. */
+    private const CLES_RECOMPENSE_OPTIONNELLES = ['reputation'];
+    /** Les mercenaires que la campagne offre (`mercenaires.offerts`) — lus par l'effet `debloquer_mercenaire`. @var list<string> */
+    private array $mercenairesOfferts = [];
+    /** Les drapeaux posés par les effets d'une OFFRE (imbriqués) — versés aux drapeaux posés de la quête. @var array<string, true> */
+    private array $posesDOffres = [];
 
     /** Clés déjà prévues par `docs/plan-mode-classique.md` §3, pas encore lues : le lot qui les prendra. */
 
@@ -262,6 +268,8 @@ final class ValidationCampagne
     public function valider(array $document, ?string $slugAttendu = null): array
     {
         $this->refus = [];
+        $this->mercenairesOfferts = [];
+        $this->posesDOffres = [];
         $this->dimensions = null;
         $this->salles = [];
         $this->ouvertes = [];
@@ -331,6 +339,7 @@ final class ValidationCampagne
             return;
         }
         $this->cles($mercenaires, 'mercenaires', ['regime', 'offerts']);
+        $this->mercenairesOfferts = array_values(array_filter((array) ($mercenaires['offerts'] ?? []), 'is_string'));
         $this->dans($mercenaires, 'regime', 'mercenaires', self::REGIMES_MERCENAIRES);
         $offerts = $this->enListeDe($mercenaires, 'offerts', 'mercenaires');
         if (array_key_exists('offerts', $mercenaires) && is_array($mercenaires['offerts']) && $offerts === []) {
@@ -757,6 +766,10 @@ final class ValidationCampagne
             }
         }
 
+        // OFFRES (lot K6) : les drapeaux que posent les effets d'une offre acceptée comptent aussi.
+        $poses += $this->posesDOffres;
+        $this->posesDOffres = [];
+
         // GLYPHES (lot K6) : détruire un glyphe pose le drapeau que l'auteur lui donne — lisible par les notes.
         foreach ((array) ($quete['glyphes'] ?? []) as $glyphe) {
             if (is_array($glyphe) && is_string($glyphe['drapeau'] ?? null)) {
@@ -848,6 +861,44 @@ final class ValidationCampagne
         switch ($nom) {
             case MotsClesQuete::TEXTE:
                 $this->texte($effet, 'texte', $position, nonVide: true);
+                break;
+            // Lot K6 (*Dread Moon*) : la réputation, l'offre déclarée, le mercenaire débloqué.
+            case MotsClesQuete::REPUTATION:
+                $jetons = $this->entier($effet, 'jetons', $position);
+                if ($jetons === 0) {
+                    $this->refuser("$position.jetons", self::VALEUR_INVALIDE, 'un nombre de jetons non nul est attendu');
+                }
+                break;
+            case MotsClesQuete::OFFRE:
+                $this->texte($effet, 'libelle', $position, nonVide: true, max: 120);
+                if (array_key_exists('groupe', $effet)) {
+                    $this->identifiant($effet, 'groupe', $position);
+                }
+                if (array_key_exists('cout', $effet) && ($cout = $this->enObjet($effet['cout'], "$position.cout")) !== null) {
+                    $this->cles($cout, "$position.cout", [], ['or', 'reputation']);
+                    $this->entier($cout, 'or', "$position.cout", min: 0);
+                    $this->entier($cout, 'reputation', "$position.cout", min: 0);
+                }
+                $sousEffets = $this->enListeDe($effet, 'alors', $position);
+                if (array_key_exists('alors', $effet) && is_array($effet['alors']) && $sousEffets === []) {
+                    $this->refuser("$position.alors", self::VALEUR_INVALIDE, 'une offre sans effet ne fait rien : il en faut au moins un');
+                }
+                foreach ($sousEffets as $k => $sousEffet) {
+                    if (is_array($sousEffet) && ($sousEffet['effet'] ?? null) === MotsClesQuete::OFFRE) {
+                        $this->refuser("$position.alors.$k", self::VALEUR_INVALIDE, 'une offre ne déclare pas une autre offre');
+
+                        continue;
+                    }
+                    $drapeauImbrique = $this->effetDeNote($sousEffet, "$position.alors.$k", $quete);
+                    if ($drapeauImbrique !== null) {
+                        $this->posesDOffres[$drapeauImbrique] = true;
+                    }
+                }
+                break;
+            case MotsClesQuete::DEBLOQUER_MERCENAIRE:
+                if (array_key_exists('slug', $effet) && !in_array($effet['slug'], $this->mercenairesOfferts, true)) {
+                    $this->refuser("$position.slug", self::CATALOGUE_INCONNU, 'ce mercenaire n\'est pas offert par la campagne (`mercenaires.offerts`)');
+                }
                 break;
             case MotsClesQuete::OR:
                 $this->entier($effet, 'or', $position, min: 1);
@@ -1802,9 +1853,10 @@ final class ValidationCampagne
         if ($recompense === null) {
             return;
         }
-        $this->cles($recompense, $position, self::CLES_RECOMPENSE);
+        $this->cles($recompense, $position, self::CLES_RECOMPENSE, self::CLES_RECOMPENSE_OPTIONNELLES);
 
         $this->entier($recompense, 'or', $position, min: 0);
+        $this->entier($recompense, 'reputation', $position, min: 1);
         $this->dans($recompense, 'partage', $position, self::PARTAGES);
     }
 

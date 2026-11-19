@@ -94,3 +94,25 @@ it('retenu_moitie : au départ suivant, le recruteur paie la moitié — ou le m
     expect(GroupeMercenaire::where('groupe_id', $groupe->id)->exists())->toBe($reste)
         ->and((int) $heros->refresh()->or)->toBe($reste ? $or - 25 : $or);
 })->with(['bourse suffisante' => [30, true], 'bourse trop maigre' => [10, false]]);
+
+it('debloques : rien d\'offert avant le déblocage ; ensuite payé d\'un jeton, il reste sans plus rien coûter ; un seul de chaque type', function () {
+    ['code' => $code, 'groupe' => $groupe, 'heros' => $heros, 'eclaireur' => $eclaireur] = groupeAMercenaires($this, 'debloques');
+    $this->postJson("/api/groupes/{$code}/mercenaires", ['mercenaire_id' => $eclaireur->id])->assertStatus(422);
+
+    expect(app(MercenairesCampagne::class)->debloquer($groupe->refresh(), 'eclaireur'))->toBe('Éclaireur');
+    $groupe->refresh()->update(['jetons_reputation' => 1]);
+    expect(collect($this->getJson("/api/groupes/{$code}/etat")->json('groupe.recrutement.offres'))->first()['decisions'][0]['payable_par_jeton'] ?? null)->toBeTrue();
+
+    $this->postJson("/api/groupes/{$code}/mercenaires", ['mercenaire_id' => $eclaireur->id, 'paiement' => 'jeton'])->assertSuccessful();
+    $allie = GroupeMercenaire::where('groupe_id', $groupe->id)->firstOrFail();
+    expect((int) $groupe->refresh()->jetons_reputation)->toBe(0)
+        ->and((int) $heros->refresh()->or)->toBe(100)
+        ->and((int) $allie->paye_jusqu_au_rang)->toBe(MercenairesCampagne::PAYE_A_VIE);
+
+    app(MercenairesCampagne::class)->auDepart($groupe->refresh(), 2);
+    expect(GroupeMercenaire::where('groupe_id', $groupe->id)->exists())->toBeTrue()
+        ->and((int) $heros->refresh()->or)->toBe(100);
+
+    // Un second Éclaireur : refusé (« one of each type »).
+    $this->postJson("/api/groupes/{$code}/mercenaires", ['mercenaire_id' => $eclaireur->id])->assertStatus(422);
+});

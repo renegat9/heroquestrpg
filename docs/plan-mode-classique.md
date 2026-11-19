@@ -871,6 +871,18 @@ ni son format, il appelle ce que la route HTTP appelle.
   dangers, paires de terrain — `paire` publié par le catalogue), booléens et
   `destinations_d6` des notes ; vu à l'écran sur les campagnes saisies.
   Trois campagnes des livrets saisies en base (34 quêtes, 0 refus).
+- **Fait le 2026-11-19 — lot K6 : la réputation et les offres** (tranche B,
+  *Dread Moon*). `groupes.jetons_reputation` (migration après sauvegarde
+  relue) ; `recompense.reputation` ; effets `reputation`, `offre` (un choix
+  déclaré par l'auteur, payé d'or ou de jetons, qui joue ses effets — offres
+  exclusives par `groupe`) et `debloquer_mercenaire` ; embauche contre un
+  jeton (gardé sans plus rien payer), un seul mercenaire de chaque type. Les
+  quatre elfes ont les fiches des mercenaires de *Frozen Horror* (pas de
+  doublon). **Reporté, nommé** : la vente d'un jeton au marché (250 po à
+  dépenser aussitôt) — elle touche au règlement atomique des paniers.
+  Lecteur unique `Classique\Reputation`. Tests dans `NotesDeQueteTest` et
+  `MercenairesCampagneTest`. **K6 est fait**, à cette vente près ; reste la
+  relecture de tous les livrets.
 - **Fait le 2026-11-19 — lot K6 : les mercenaires d'une campagne classique**
   (tranche A ; René : « chaque campagne choisit sa règle »). Clé de campagne
   `mercenaires {regime, offerts}` — `par_quete`, `retenu_moitie`, `debloques`

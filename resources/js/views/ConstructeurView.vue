@@ -693,12 +693,22 @@ function changerUneFois(note, valeur) {
 function effetParDefaut(nom) {
     const effet = { effet: nom };
     for (const p of effetsNote.value[nom]?.parametres ?? []) {
-        effet[p] = { texte: '', or: 10, body: 1, slug: catalogues.value?.objets?.[0]?.slug ?? '', nom: 'drapeau', monstres: [], porte: 0, x: 0, y: 0 }[p] ?? '';
+        effet[p] = { texte: '', or: 10, body: 1, slug: nom === 'debloquer_mercenaire' ? (doc.value.mercenaires?.offerts?.[0] ?? '') : (catalogues.value?.objets?.[0]?.slug ?? ''),
+            nom: 'drapeau', monstres: [], porte: 0, x: 0, y: 0, jetons: 1, libelle: '', alors: [{ effet: 'texte', texte: '' }] }[p] ?? '';
     }
     return effet;
 }
 function changerEffet(note, j, nom) {
     note.alors.splice(j, 1, effetParDefaut(nom));
+}
+// Lot K6 : l'offre — ses effets en JSON (refusé s'il ne se lit pas), son coût (une clé vide disparaît).
+function changerAlorsOffre(effet, texte) {
+    try { effet.alors = JSON.parse(texte); } catch { erreur.value = 'Les effets de l\'offre ne sont pas du JSON lisible.'; }
+}
+function changerCoutOffre(effet, cle, valeur) {
+    const cout = { ...(effet.cout ?? {}) };
+    if (valeur === '' || valeur === null) delete cout[cle]; else cout[cle] = Number(valeur);
+    if (Object.keys(cout).length) effet.cout = cout; else delete effet.cout;
 }
 function changerOptionnel(effet, cle, valeur) {
     if (valeur === '' || valeur === null) delete effet[cle]; else effet[cle] = Number(valeur);
@@ -1035,6 +1045,9 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 </label>
                                 <template v-if="quete.recompense">
                                     <label>Or <input v-model.number="quete.recompense.or" type="number" min="0" class="cst-input cst-num" /></label>
+                                    <!-- Lot K6 (Dread Moon) : des jetons de réputation pour le groupe. -->
+                                    <label>Réputation <input :value="quete.recompense.reputation ?? ''" type="number" min="1" class="cst-input cst-num" placeholder="—"
+                                        @change="$event.target.value ? (quete.recompense.reputation = Number($event.target.value)) : delete quete.recompense.reputation" /></label>
                                     <select v-model="quete.recompense.partage" class="cst-input">
                                         <option v-for="p in vocab.partages" :key="p" :value="p">{{ p === 'par_heros' ? 'par héros' : 'à partager' }}</option>
                                     </select>
@@ -1339,9 +1352,19 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <template v-for="p in (effetsNote[effet.effet]?.parametres ?? [])" :key="p">
                                         <textarea v-if="p === 'texte'" v-model="effet.texte" rows="2" class="cst-input cst-large" :placeholder="LIBELLES_PARAM[p]" />
                                         <label v-else-if="p === 'or' || p === 'body'">{{ LIBELLES_PARAM[p] }} <input v-model.number="effet[p]" type="number" min="1" class="cst-input cst-num" /></label>
+                                        <!-- Lot K6 : débloquer un mercenaire — parmi ceux que la CAMPAGNE offre. -->
+                                        <select v-else-if="p === 'slug' && effet.effet === 'debloquer_mercenaire'" v-model="effet.slug" class="cst-input">
+                                            <option v-for="sl in (doc.mercenaires?.offerts ?? [])" :key="sl" :value="sl">{{ (catalogues.mercenaires ?? []).find((m) => m.slug === sl)?.nom ?? sl }}</option>
+                                        </select>
                                         <select v-else-if="p === 'slug'" v-model="effet.slug" class="cst-input">
                                             <option v-for="o in catalogues.objets" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
                                         </select>
+                                        <!-- Lot K6 (Dread Moon) : la réputation et l'offre. -->
+                                        <label v-else-if="p === 'jetons'">Jetons (négatif : en moins) <input v-model.number="effet.jetons" type="number" class="cst-input cst-num" /></label>
+                                        <label v-else-if="p === 'libelle'">Libellé de l'offre <input v-model="effet.libelle" class="cst-input" maxlength="120" /></label>
+                                        <label v-else-if="p === 'alors'" class="cst-large">Effets si un héros accepte (JSON, validé par le serveur)
+                                            <textarea :value="JSON.stringify(effet.alors, null, 1)" rows="3" class="cst-input cst-large" @change="changerAlorsOffre(effet, $event.target.value)" />
+                                        </label>
                                         <!-- Lot K5b : la case d'un bloc qui tombe — x et y ensemble, choisis aussi sur la carte. -->
                                         <template v-else-if="p === 'x'">
                                             <input v-model.number="effet.x" type="number" class="cst-input cst-num" title="x" />
@@ -1369,8 +1392,14 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         </div>
                                     </template>
                                     <template v-for="p in (effetsNote[effet.effet]?.optionnels ?? [])" :key="`o${p}`">
+                                        <!-- Lot K6 : le coût d'une offre (or de la bourse du héros, jetons du groupe), le groupe d'offres exclusives. -->
+                                        <template v-if="p === 'cout'">
+                                            <label>coût : po <input :value="effet.cout?.or ?? ''" type="number" min="0" class="cst-input cst-num" @change="changerCoutOffre(effet, 'or', $event.target.value)" /></label>
+                                            <label>jetons <input :value="effet.cout?.reputation ?? ''" type="number" min="0" class="cst-input cst-num" @change="changerCoutOffre(effet, 'reputation', $event.target.value)" /></label>
+                                        </template>
+                                        <label v-else-if="p === 'groupe'">exclusive avec le groupe <input :value="effet.groupe ?? ''" class="cst-input" placeholder="(seule)" @change="$event.target.value.trim() ? (effet.groupe = $event.target.value.trim()) : delete effet.groupe" /></label>
                                         <!-- Lot K5h : `campagne` est un booléen — posé seulement quand il vaut true. -->
-                                        <label v-if="p === 'campagne'" class="cst-case">
+                                        <label v-else-if="p === 'campagne'" class="cst-case">
                                             <input type="checkbox" :checked="effet.campagne === true" @change="$event.target.checked ? (effet.campagne = true) : delete effet.campagne" /> de campagne (reste d'une quête à l'autre)
                                         </label>
                                         <label v-else-if="BOOLEENS_EFFET[p]" class="cst-case">

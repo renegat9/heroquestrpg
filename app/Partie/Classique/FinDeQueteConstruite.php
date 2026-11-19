@@ -48,6 +48,12 @@ final class FinDeQueteConstruite
             $bourses->verser($groupe, $part['or'], Personnage::find($part['personnage_id']));
         }
 
+        // LA RÉPUTATION (lot K6, *Dread Moon* : « one reputation token at the end of each quest ») : `recompense.reputation`.
+        $jetons = (int) data_get($queteDoc, 'recompense.reputation', 0);
+        if ($jetons > 0) {
+            app(Reputation::class)->ajuster($groupe, $jetons, 'fin_de_quete');
+        }
+
         if ($parts !== []) {
             app(TamponAnnonces::class)->annoncer($groupe, [
                 'type' => 'recompense_quete',

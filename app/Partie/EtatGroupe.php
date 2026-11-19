@@ -131,6 +131,9 @@ final class EtatGroupe
             'mode' => $groupe->mode ?? Groupe::MODE_CAMPAGNE,
             // Lot H1 : `story` ou `heroic` — en Heroic, un héros à terre prend un crâne, puis meurt.
             'mode_mort' => $groupe->mode_mort ?? Groupe::MORT_STORY,
+            // LA RÉPUTATION (mode classique, lot K6) : les jetons du groupe, au hub comme en quête (une offre s'y paie) —
+            // clé d'un groupe classique seulement.
+            ...($groupe->estClassique() ? ['reputation' => (int) $groupe->jetons_reputation] : []),
             'or' => (int) $groupe->or,
             'etat' => $groupe->etat,
             'narrateur_actif' => $narrateurActif,

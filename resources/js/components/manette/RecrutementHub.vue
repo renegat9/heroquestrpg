@@ -121,6 +121,10 @@ const maBourse = computed(() => {
                 <template v-if="motif(m)">{{ motif(m) }}</template>
                 <template v-else><MSym n="handshake" :size="16" /> Recruter</template>
             </button>
+            <!-- MODE CLASSIQUE, régime `debloques` (lot K6) : un jeton de réputation au lieu de l'or — décidé par le serveur. -->
+            <button v-if="decision(m)?.payable_par_jeton" class="recrut-btn" :disabled="enCours" @click="emit('recruter', m.id, 'jeton')">
+                <MSym n="military_tech" :size="16" /> Engager pour 1 jeton de réputation — il reste sans plus rien coûter
+            </button>
         </div>
 
         <template v-if="recrues.length">

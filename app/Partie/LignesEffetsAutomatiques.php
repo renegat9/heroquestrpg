@@ -910,6 +910,21 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => 'Une porte secrète se dévoile', 'ton' => 'info'];
                     }
                     break;
+                // Lot K6 (*Dread Moon*) : la réputation, l'offre déclarée, le mercenaire débloqué.
+                case 'reputation':
+                    if ((int) ($effet['jetons'] ?? 0) !== 0) {
+                        $n = (int) $effet['jetons'];
+                        $lignes[] = ['texte' => ($n > 0 ? 'Le groupe gagne ' : 'Le groupe perd ').abs($n).' jeton(s) de réputation (total : '.(int) ($effet['total'] ?? 0).')', 'ton' => $n > 0 ? 'succes' : 'subit'];
+                    }
+                    break;
+                case 'offre':
+                    $lignes[] = ['texte' => 'Une occasion se présente : '.($effet['libelle'] ?? '…'), 'ton' => 'info'];
+                    break;
+                case 'debloquer_mercenaire':
+                    if (isset($effet['mercenaire'])) {
+                        $lignes[] = ['texte' => $effet['mercenaire'].' accepte de servir le groupe : on pourra l\'engager', 'ton' => 'succes'];
+                    }
+                    break;
                 case 'ouvrir_porte':
                     // Lot K5a : une porte déjà ouverte ne se raconte pas.
                     if (! empty($effet['ouverte'])) {

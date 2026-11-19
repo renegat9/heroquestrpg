@@ -597,6 +597,47 @@ it('PLACE PUBLIQUE (K6) : un monstre de la place dort ; il s\'éveille à la vue
         ->and($dormants->estDormant($orque->fresh()))->toBeFalse();
 });
 
+it('RÉPUTATION (K6) : des jetons par note ; une offre payée d\'un jeton joue ses effets ; deux offres d\'un groupe s\'excluent', function () {
+    queteAvecNotes($this, [
+        ['repere' => 'B', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 5, 'y' => 3]]], 'alors' => [
+            ['effet' => 'reputation', 'jetons' => 2],
+            ['effet' => 'offre', 'libelle' => 'Graisser la patte du garde', 'cout' => ['reputation' => 1], 'groupe' => 'garde', 'alors' => [['effet' => 'or', 'or' => 10]]],
+            ['effet' => 'offre', 'libelle' => 'Menacer le garde', 'groupe' => 'garde', 'alors' => [['effet' => 'texte', 'texte' => 'Il recule.']]],
+        ]],
+    ]);
+    $reputation = app(\App\Partie\Classique\Reputation::class);
+    app(\App\Partie\Classique\NotesDeQuete::class)->signaler($this->quete->fresh(), 'entree', ['case' => ['x' => 5, 'y' => 3], 'salle' => null], $this->heros);
+
+    expect($reputation->jetons($this->groupe))->toBe(2)
+        ->and($this->getJson("/api/groupes/{$this->code}/etat")->json('groupe.reputation'))->toBe(2);
+    $options = menuDeNote($this, 4, 3);
+    expect($options->firstWhere('id', 'offre_0')['libelle'] ?? null)->toBe('Graisser la patte du garde (1 jeton(s) de réputation)')
+        ->and($options->pluck('id'))->toContain('offre_1');
+
+    $avant = (int) $this->heros->fresh()->or;
+    jouerNote($this, 'offre_0', ['offre' => 0])->assertStatus(202)->assertJsonPath('resultat.type', 'offre_prise');
+    expect($reputation->jetons($this->groupe))->toBe(1)
+        ->and((int) $this->heros->fresh()->or)->toBe($avant + 10)
+        ->and(menuDeNote($this, 4, 3)->pluck('id'))->not->toContain('offre_1'); // même groupe : fermée
+});
+
+it('RÉPUTATION (K6) : `recompense.reputation` à la victoire ; une offre n\'en déclare pas une autre', function () {
+    queteAvecNotes($this, [], ['recompense' => ['or' => 0, 'partage' => 'groupe', 'reputation' => 1]]);
+    app(\App\Partie\Classique\FinDeQueteConstruite::class)->regler($this->groupe->refresh(), $this->quete->fresh());
+    expect(app(\App\Partie\Classique\Reputation::class)->jetons($this->groupe))->toBe(1);
+
+    $campagne = DocumentExemple::campagne();
+    $campagne['quetes'][0]['notes'] = [['repere' => 'A', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 5, 'y' => 3]]], 'alors' => [
+        ['effet' => 'offre', 'libelle' => 'Choix', 'alors' => [['effet' => 'offre', 'libelle' => 'Encore', 'alors' => [['effet' => 'or', 'or' => 1]]]]],
+        ['effet' => 'reputation', 'jetons' => 0],
+        ['effet' => 'debloquer_mercenaire', 'slug' => 'eclaireur'],
+    ]]];
+    $refus = collect(app(\App\Partie\Classique\ValidationCampagne::class)->valider($campagne))->map(fn ($r) => $r['chemin'].' '.$r['code'])->all();
+    expect($refus)->toContain('quetes.0.notes.0.alors.0.alors.0 '.\App\Partie\Classique\ValidationCampagne::VALEUR_INVALIDE)
+        ->toContain('quetes.0.notes.0.alors.1.jetons '.\App\Partie\Classique\ValidationCampagne::VALEUR_INVALIDE)
+        ->toContain('quetes.0.notes.0.alors.2.slug '.\App\Partie\Classique\ValidationCampagne::CATALOGUE_INCONNU);
+});
+
 it('PROFIL DE MONSTRE (R9) et PRIMES (K5n) : nom, stats, arme requise et prime par monstre abattu', function () {
     queteAvecNotes($this, [], [
         'monstres' => [[
