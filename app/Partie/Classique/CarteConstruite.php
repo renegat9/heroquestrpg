@@ -71,8 +71,12 @@ final class CarteConstruite
 
         $largeur = (int) $campagne['plateau']['largeur'];
         $hauteur = (int) $campagne['plateau']['hauteur'];
-        $salles = array_values($campagne['plateau']['salles']);
-        $ouvertes = array_fill_keys($quete['salles_ouvertes'], true);
+        // SALLES SPÉCIALES (lot K6, R11) : EN TÊTE de la liste — la première salle qui contient une case la possède
+        // (`interieurEn()`). Une salle du plateau qu'elles touchent n'est jamais ouverte (la validation le refuse) : son
+        // reste est de la roche, et le mur se pose au bord de la salle spéciale, comme entre toute salle et la roche.
+        $speciales = array_values((array) ($quete['salles_speciales'] ?? []));
+        $salles = [...$speciales, ...array_values($campagne['plateau']['salles'])];
+        $ouvertes = array_fill_keys([...$quete['salles_ouvertes'], ...array_column($speciales, 'id')], true);
 
         // Salle 0 = celle qui contient le départ (ouverte : la validation l'exige) ; les autres suivent l'ordre du plateau.
         // Une porte d'ENTRÉE dans un COULOIR (René, 2026-11-16) n'est dans aucune salle : `$idDepart` vaut `null`, aucune

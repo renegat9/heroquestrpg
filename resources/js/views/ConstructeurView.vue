@@ -516,8 +516,8 @@ const aDesReglesDeLivret = computed(() => {
     const q = quete.value;
     if (!q) return false;
     const r = q.regles ?? {};
-    return ['primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre'].some((k) => k in r)
-        || (q.dangers ?? []).length > 0 || (q.monstres ?? []).some(aUnProfil) || (q.terrain ?? []).some((t) => 'paire_id' in t);
+    return ['primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement'].some((k) => k in r)
+        || (q.dangers ?? []).length > 0 || (q.glyphes ?? []).length > 0 || (q.salles_speciales ?? []).length > 0 || (q.monstres ?? []).some(aUnProfil) || (q.terrain ?? []).some((t) => 'paire_id' in t);
 });
 // `paire_id` (K5o) : seulement sur un terrain qui téléporte vers sa jumelle — décidé par le catalogue (`paire`).
 const terrainsAPaire = computed(() => (quete.value?.terrain ?? []).map((t, i) => ({ t, i })).filter(({ t }) => couches.value.terrain?.find((c) => c.slug === t.slug)?.paire));
@@ -651,6 +651,29 @@ function changerGenreCible(note, genre) {
 }
 function changerSiDrapeau(note, valeur) {
     if (valeur.trim() === '') delete note.quand.si_drapeau; else note.quand.si_drapeau = valeur.trim();
+}
+// Lot K6 : `sauf_drapeau` — la note ne joue que si ce drapeau N'est PAS posé (le glyphe resté actif).
+function changerSaufDrapeau(note, valeur) {
+    if (valeur.trim() === '') delete note.quand.sauf_drapeau; else note.quand.sauf_drapeau = valeur.trim();
+}
+// Lot K6 (R11) : `quete.salles_speciales` — une salle propre à la quête qui remplace les salles du plateau qu'elle touche.
+function ajouterSalleSpeciale() {
+    if (!Array.isArray(quete.value.salles_speciales)) quete.value.salles_speciales = [];
+    quete.value.salles_speciales.push({ id: `speciale-${quete.value.salles_speciales.length + 1}`, x: 0, y: 0, l: 3, h: 3 });
+}
+function retirerSalleSpeciale(i) {
+    quete.value.salles_speciales.splice(i, 1);
+    if (!quete.value.salles_speciales.length) delete quete.value.salles_speciales;
+}
+// Lot K6 (First Light) : `quete.glyphes` — la clé disparaît quand la liste est vide.
+function ajouterGlyphe() {
+    if (!Array.isArray(quete.value.glyphes)) quete.value.glyphes = [];
+    const n = quete.value.glyphes.length + 1;
+    quete.value.glyphes.push({ id: `glyphe-${n}`, salle: quete.value.salles_ouvertes[0] ?? '', detruit_par: 'parchemin', drapeau: `glyphe_${n}_detruit` });
+}
+function retirerGlyphe(i) {
+    quete.value.glyphes.splice(i, 1);
+    if (!quete.value.glyphes.length) delete quete.value.glyphes;
 }
 function changerUneFois(note, valeur) {
     if (valeur) delete note.une_fois; else note.une_fois = false;
@@ -886,6 +909,11 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     />
                                     <text :x="s.x * CASE + 4" :y="s.y * CASE + 13" class="g-id">{{ s.id }}</text>
                                 </template>
+                                <!-- Lot K6 (R11) : les salles spéciales de la quête, par-dessus les salles du plateau. -->
+                                <template v-for="sp in (quete.salles_speciales ?? [])" :key="`gsp-${sp.id}`">
+                                    <rect :x="sp.x * CASE" :y="sp.y * CASE" :width="sp.l * CASE" :height="sp.h * CASE" class="g-salle g-speciale" />
+                                    <text :x="sp.x * CASE + 4" :y="sp.y * CASE + 13" class="g-id">{{ sp.id }}</text>
+                                </template>
                                 <g class="g-quadrillage">
                                     <line v-for="i in L + 1" :key="`v${i}`" :x1="(i - 1) * CASE" y1="0" :x2="(i - 1) * CASE" :y2="H * CASE" />
                                     <line v-for="j in H + 1" :key="`h${j}`" x1="0" :y1="(j - 1) * CASE" :x2="L * CASE" :y2="(j - 1) * CASE" />
@@ -1000,6 +1028,62 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             <ProfilMonstre :monstre="m" :objets="catalogues.objets" :pointer="pointer" :libelle="`monstre ${i}`" />
                                         </div>
                                     </template>
+                                </div>
+
+                                <!-- Lot K6 (R11) : les salles spéciales (place publique, salle tournante, salle du trône…) — elles
+                                     remplacent, pour cette quête, les salles du plateau qu'elles touchent. -->
+                                <div class="cst-bloc">
+                                    <div class="cst-ligne">
+                                        <span class="cst-sous">Salles spéciales (remplacent les salles du plateau en dessous)</span>
+                                        <button type="button" class="cst-btn ghost" @click="ajouterSalleSpeciale"><MSym n="add" :size="14" /> salle spéciale</button>
+                                    </div>
+                                    <div v-for="(sp, i) in (quete.salles_speciales ?? [])" :key="`sp${i}`" class="cst-ligne">
+                                        <input v-model="sp.id" class="cst-input" title="identifiant" />
+                                        <label>x <input v-model.number="sp.x" type="number" min="0" class="cst-input cst-num" /></label>
+                                        <label>y <input v-model.number="sp.y" type="number" min="0" class="cst-input cst-num" /></label>
+                                        <label>largeur <input v-model.number="sp.l" type="number" min="1" class="cst-input cst-num" /></label>
+                                        <label>hauteur <input v-model.number="sp.h" type="number" min="1" class="cst-input cst-num" /></label>
+                                        <label class="cst-case"><input type="checkbox" :checked="sp.place === true" @change="$event.target.checked ? (sp.place = true) : delete sp.place" /> place publique</label>
+                                        <button type="button" class="cst-icone" title="Coin haut-gauche sur la carte" @click="pointer(sp, `le coin de ${sp.id}`)"><MSym n="pin_drop" :size="16" /></button>
+                                        <button type="button" class="cst-icone" title="Retirer" @click="retirerSalleSpeciale(i)"><MSym n="close" :size="16" /></button>
+                                    </div>
+                                </div>
+
+                                <!-- Lot K6 (First Light) : les glyphes magiques — découverts par une fouille de la zone, détruits par le
+                                     parchemin-clé ou au feu de la cheminée de leur salle ; détruire pose le drapeau que les notes lisent. -->
+                                <div class="cst-bloc">
+                                    <div class="cst-ligne">
+                                        <span class="cst-sous">Glyphes magiques</span>
+                                        <button type="button" class="cst-btn ghost" @click="ajouterGlyphe"><MSym n="add" :size="14" /> glyphe</button>
+                                    </div>
+                                    <div v-for="(g, i) in (quete.glyphes ?? [])" :key="`gl${i}`" class="cst-ligne">
+                                        <input v-model="g.id" class="cst-input" title="identifiant" />
+                                        <select v-model="g.salle" class="cst-input">
+                                            <option v-for="s in quete.salles_ouvertes" :key="`gs-${s}`" :value="s">{{ s }}</option>
+                                        </select>
+                                        <select v-model="g.detruit_par" class="cst-input">
+                                            <option value="parchemin">détruit par le parchemin-clé</option>
+                                            <option value="cheminee">détruit au feu de la cheminée</option>
+                                        </select>
+                                        <label>pose le drapeau <input v-model="g.drapeau" class="cst-input" /></label>
+                                        <button type="button" class="cst-icone" title="Retirer" @click="retirerGlyphe(i)"><MSym n="close" :size="16" /></button>
+                                    </div>
+                                </div>
+
+                                <!-- Lot K6 (The Crypt of Perpetual Darkness) : la salle de l'obscurité magique. -->
+                                <div class="cst-bloc">
+                                    <label>Obscurité magique dans
+                                        <select :value="quete.regles?.obscurite_magique?.salle ?? ''" class="cst-input" @change="poserRegle('obscurite_magique', $event.target.value ? { salle: $event.target.value } : undefined)">
+                                            <option value="">— aucune salle —</option>
+                                            <option v-for="s in quete.salles_ouvertes" :key="`ob-${s}`" :value="s">{{ s }}</option>
+                                        </select>
+                                    </label>
+                                    <span class="cst-sous">−2 dés aux deux premières attaques d'un héros qui ne voit pas dans le noir (la Couronne des Ténèbres le lève).</span>
+                                </div>
+
+                                <!-- Lot K6 (Dread Moon) : le déguisement — chaque héros sans armure voyante le prend au départ. -->
+                                <div class="cst-bloc">
+                                    <label class="cst-case"><input type="checkbox" :checked="quete.regles?.deguisement === true" @change="poserRegle('deguisement', $event.target.checked ? true : undefined)" /> Déguisement permis (Dread Moon) — les monstres d'une place publique ignorent les héros déguisés</label>
                                 </div>
 
                                 <!-- Lot K6 (Jungles of Delthrak, « Order of Play ») : les héros choisissent l'ordre à chaque round. -->
@@ -1205,6 +1289,16 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 </div>
                                 <div class="cst-ligne">
                                     <label>si le drapeau <input :value="note.quand.si_drapeau ?? ''" class="cst-input" placeholder="(toujours)" @change="changerSiDrapeau(note, $event.target.value)" /></label>
+                                    <label>sauf si le drapeau <input :value="note.quand.sauf_drapeau ?? ''" class="cst-input" placeholder="(aucun)" @change="changerSaufDrapeau(note, $event.target.value)" /></label>
+                                    <!-- Lot K6 (Dread Moon) : le héros qui déclenche est déguisé, ou non. -->
+                                    <label>héros
+                                        <select :value="note.quand.si_deguise === true ? 'oui' : (note.quand.si_deguise === false ? 'non' : '')" class="cst-input"
+                                            @change="$event.target.value === '' ? delete note.quand.si_deguise : (note.quand.si_deguise = $event.target.value === 'oui')">
+                                            <option value="">déguisé ou non</option>
+                                            <option value="oui">déguisé seulement</option>
+                                            <option value="non">à découvert seulement</option>
+                                        </select>
+                                    </label>
                                     <label class="cst-case"><input type="checkbox" :checked="note.une_fois !== false" @change="changerUneFois(note, $event.target.checked)" /> une seule fois</label>
                                 </div>
                                 <div v-for="(effet, j) in note.alors" :key="j" class="cst-effet">
@@ -1325,6 +1419,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
 .cst-livrets summary { cursor: pointer; }
 .cst-bloc { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 .cst-icone.on { color: var(--torch); border-color: var(--torch); }
+.g-speciale { stroke: oklch(0.78 0.14 80); stroke-width: 2; stroke-dasharray: 6 3; }
 .g-passage { fill: oklch(0.7 0.12 250 / 0.18); stroke: oklch(0.75 0.13 250); stroke-width: 3; stroke-dasharray: 5 3; }
 .g-terrain.cachee { opacity: .45; font-style: italic; }
 .cst-puces { display: flex; flex-wrap: wrap; gap: 4px; }

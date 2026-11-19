@@ -744,6 +744,10 @@ final class ResolveurTour
                 'entree_donjon' => $this->resoudreEntreeDonjon($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // MODE HEROIC (lot H1b) : ramasser les affaires d'un mort, dans sa salle ou son couloir. Geste libre.
                 'ramasser_depouille' => $this->resoudreRamasserDepouille($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, de soi-même. Geste libre.
+                'retirer_deguisement' => $this->resoudreRetirerDeguisement($groupe, $personnage, $etat, $acteur),
+                // GLYPHES (mode classique, lot K6) : détruire un glyphe découvert — parchemin ou cheminée. Geste libre.
+                'detruire_glyphe' => $this->resoudreDetruireGlyphe($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // QUÊTE DOUBLE (lot K5p) : emprunter le passage vers l'autre moitié — l'action, comme la sortie.
                 'passage_double' => $this->resoudrePassageDouble($groupe, $quete, $personnage, $etat, $acteur),
                 // MODE CLASSIQUE (lot K5k) : prendre la charge, sur sa case ou au contact. Geste libre.
@@ -2150,6 +2154,10 @@ final class ResolveurTour
             $armePrincipale = null;
         }
 
+        // DÉGUISEMENT (mode classique, lot K6 — *Dread Moon*) : attaquer avec une arme autre que dague, épée courte,
+        // hachette ou bâton (ou à mains nues) le fait perdre. Une quête sans la règle n'y entre pas (`deguise` faux).
+        app(\App\Partie\Classique\Deguisement::class)->surAttaque($groupe, $etat, $personnage, $armePrincipale);
+
         // Courage (doc 02 §7) : +2 dés à la PROCHAINE attaque, consommé ici.
         // Le contexte `au_contact` sert aux bonus CONDITIONNELS — la
         // Métamorphose du Druide n'accorde son dé qu'« en attaquant un monstre
@@ -2332,6 +2340,16 @@ final class ResolveurTour
         $desAttaqueEffectifs = MoteurFosseLongue::appliquerMalus(
             $desAttaqueEffectifs, MoteurFosseLongue::malusDesCombat($etat),
         );
+
+        // OBSCURITÉ MAGIQUE (mode classique, lot K6 — *The Crypt of Perpetual Darkness* q. 10) : −2 dés aux deux premières
+        // attaques d'un héros qui ne voit pas dans le noir, jamais moins d'un dé. Une quête sans la règle n'y entre pas.
+        $obscurite = app(\App\Partie\Classique\ObscuriteMagique::class);
+        $malusObscurite = $obscurite->malus($quete, $etat, $personnage);
+        if ($malusObscurite > 0) {
+            $desAttaqueEffectifs = MoteurFosseLongue::appliquerMalus($desAttaqueEffectifs, $malusObscurite);
+            $obscurite->compter($etat);
+            $meta['obscurite'] = $malusObscurite;
+        }
 
         // ⚠ Le plafond s'applique EN DERNIER, sur le total. Un malus s'ajoutait
         // à la somme et pouvait être compensé par un bonus ; un plafond, non —
@@ -5063,7 +5081,7 @@ final class ResolveurTour
             $salleIci = $this->salleA($quete, (int) $etat->position_x, (int) $etat->position_y);
             $notes = app(NotesDeQuete::class);
 
-            if ($salleIci !== null && $notes->attend($quete, MotsClesQuete::FOUILLE_ZONE, ['salle' => $salleIci])) {
+            if ($salleIci !== null && $notes->attend($quete, MotsClesQuete::FOUILLE_ZONE, ['salle' => $salleIci], $personnage)) {
                 $jouees = $notes->signaler($quete, MotsClesQuete::FOUILLE_ZONE, ['salle' => $salleIci], $personnage);
                 $payload['notes'] = array_column($jouees, 'repere');
                 $payload['pieges_reveles'] = [];
@@ -5071,6 +5089,14 @@ final class ResolveurTour
             } else {
                 $payload['pieges_reveles'] = $this->pieges->revelerAutour($groupe, $quete->carte, $personnage, $zone);
                 $payload['portes_revelees'] = $this->portes->revelerSecretesAutour($groupe, $quete->carte, $personnage, $zone);
+            }
+
+            // GLYPHES (mode classique, lot K6) : « The first player to search for traps discovers the arcane glyphs » —
+            // la même fouille, note ou non. Annoncés au fil.
+            if ($salleIci !== null) {
+                foreach (app(\App\Partie\Classique\Glyphes::class)->decouvrir($quete->fresh(), $salleIci, $personnage) as $annonce) {
+                    app(TamponAnnonces::class)->annoncer($groupe, $annonce);
+                }
             }
         }
 
@@ -7226,6 +7252,11 @@ final class ResolveurTour
         array $option,
         array $parametres,
     ): array {
+        // DÉGUISEMENT (mode classique, lot K6) : « Refrain from casting spells » — tout sort lancé le fait perdre.
+        if ($quete->groupe !== null) {
+            app(\App\Partie\Classique\Deguisement::class)->surSort($quete->groupe, $etat, $lanceur);
+        }
+
         // Second mode (Génie : « ouvre une porte au choix OU attaque ») — traité
         // AVANT tout garde-fou de ciblage, parce qu'il ne vise pas une figure
         // mais une PORTE. Placé plus bas, il n'était jamais atteint : le
@@ -8727,6 +8758,11 @@ final class ResolveurTour
         $ligne = $equiper
             ? $this->equipement->equiper($personnage, $ligne, $slot)
             : $this->equipement->desequiper($personnage, $ligne);
+
+        // DÉGUISEMENT (mode classique, lot K6 ; René, 2026-11-19) : ÉQUIPER une armure interdite le fait perdre.
+        if ($equiper) {
+            app(\App\Partie\Classique\Deguisement::class)->surEquipement($groupe, EtatPersonnageQuete::enQuete($personnage), $personnage);
+        }
 
         $payload = [
             'type' => $equiper ? 'equiper' : 'desequiper',
@@ -11485,6 +11521,10 @@ final class ResolveurTour
         // fouille dit seulement que c'est une note qui a répondu.
         $cibleNote = ['salle' => $salle];
 
+        // GLYPHES (mode classique, lot K6) : un glyphe encore actif de cette salle est « disturbed by looting » — le
+        // parchemin ne peut plus rien pour lui. La conséquence est la note de l'auteur, juste dessous.
+        app(\App\Partie\Classique\Glyphes::class)->piller($quete, (int) $salle);
+
         // ÉQUIPEMENT CONFISQUÉ (lot K5j) : « Each hero may search this room to retrieve all their confiscated equipment
         // and valuables » (F6646 p. 11). Le héros qui a encore des affaires à la consigne les reprend ici, et rien
         // d'autre n'est tiré — comme une note. Mode classique seulement (`Confiscation::salle()` : quête construite).
@@ -11494,7 +11534,7 @@ final class ResolveurTour
         if ($salleConsigne !== null && $confiscation->enAttente($quete, (int) $personnage->id)
             && data_get($quete->carte?->grille, "salles.{$salle}.id") === $salleConsigne) {
             $payload = $entete + ['issue' => 'consigne', 'consigne' => $confiscation->rendre($quete, $personnage)];
-        } elseif (app(NotesDeQuete::class)->attend($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote)) {
+        } elseif (app(NotesDeQuete::class)->attend($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote, $personnage)) {
             $notes = app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote, $personnage);
             $payload = $entete + ['issue' => 'note', 'notes' => array_column($notes, 'repere')];
         } elseif ($coffre) {
@@ -16412,6 +16452,10 @@ final class ResolveurTour
             'ramasser_depouille' => 'interaction',
             // LA CHARGE (lot K5k) : la prendre ne coûte ni le déplacement ni l'action (« action normale » ensuite, René).
             'prendre_charge' => 'interaction',
+            // GLYPHES (lot K6) : « no action required » pour le parchemin ; le livret ne dit rien pour la bûche jetée au feu.
+            'detruire_glyphe' => 'interaction',
+            // DÉGUISEMENT (lot K6) : « they may surrender their disguise token and disguise (no action required) ».
+            'retirer_deguisement' => 'interaction',
             // TROPHÉES D'ARÈNE (lot T4) : « no action required » pour ramasser, et l'usage n'en demande pas davantage —
             // boire la potion d'une tuile ou défausser une tuile pour l'élan ne coûte aucun créneau.
             'trophee_potion', 'trophee_elan' => 'interaction',
@@ -16998,6 +17042,30 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Tu as déjà agi ce tour.']);
         }
         $payload = app(\App\Partie\Classique\QueteDouble::class)->passer($groupe, $quete, $personnage, $etat);
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** DÉGUISEMENT (mode classique, lot K6) : le héros rend son jeton. */
+    private function resoudreRetirerDeguisement(Groupe $groupe, Personnage $personnage, ?EtatPersonnageQuete $etat, array $acteur): array
+    {
+        if ($etat === null || ! $etat->deguise) {
+            throw ValidationException::withMessages(['option_id' => 'Tu n\'es pas déguisé.']);
+        }
+        $payload = app(\App\Partie\Classique\Deguisement::class)->retirer($etat, $personnage);
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** GLYPHES (mode classique, lot K6) : le héros détruit un glyphe — `Glyphes::destructibles()` revalidé ici, comme au menu. */
+    private function resoudreDetruireGlyphe(Groupe $groupe, Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        if ($etat === null) {
+            throw ValidationException::withMessages(['option_id' => 'Ce glyphe n\'est pas à ta portée.']);
+        }
+        $payload = app(\App\Partie\Classique\Glyphes::class)->detruire($quete, $etat, $personnage, (string) ($option['parametres']['glyphe'] ?? ''));
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;

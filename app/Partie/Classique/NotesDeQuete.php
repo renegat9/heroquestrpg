@@ -83,9 +83,7 @@ final class NotesDeQuete
                 continue;
             }
 
-            $condition = data_get($note, 'quand.si_drapeau');
-
-            if ($condition !== null && ! $quete->aDrapeau((string) $condition)) {
+            if (! $this->conditionRemplie($quete, (array) $note, $heros)) {
                 continue;
             }
 
@@ -105,7 +103,7 @@ final class NotesDeQuete
      *
      * @param  array<string, mixed>  $contexte
      */
-    public function attend(Quete $quete, string $declencheur, array $contexte): bool
+    public function attend(Quete $quete, string $declencheur, array $contexte, ?Personnage $heros = null): bool
     {
         if (! $quete->estConstruite()) {
             return false;
@@ -121,14 +119,31 @@ final class NotesDeQuete
                 continue;
             }
 
-            $condition = data_get($note, 'quand.si_drapeau');
-
-            if ($condition === null || $quete->aDrapeau((string) $condition)) {
+            if ($this->conditionRemplie($quete, (array) $note, $heros)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * La condition d'une note — UN seul endroit, lu par `signaler()` et `attend()` : `si_drapeau` (le drapeau est posé) et,
+     * depuis le lot K6, `sauf_drapeau` (il ne l'est PAS — la fouille du trésor d'un autel dont le glyphe n'a pas été
+     * détruit). `Quete::aDrapeau()` les lit, quête puis campagne.
+     */
+    private function conditionRemplie(Quete $quete, array $note, ?Personnage $heros = null): bool
+    {
+        $si = data_get($note, 'quand.si_drapeau');
+        $sauf = data_get($note, 'quand.sauf_drapeau');
+        // DÉGUISEMENT (lot K6, *Dread Moon*) : `si_deguise` — le héros qui déclenche est (true) ou n'est pas (false)
+        // déguisé : « the Thief steals 25 gold unless that hero is disguised », le bloc qui tombe sous un héros à découvert.
+        $deguise = data_get($note, 'quand.si_deguise');
+        $estDeguise = $heros !== null && (bool) ($quete->etatsPersonnages()->where('personnage_id', $heros->id)->value('deguise') ?? false);
+
+        return ($si === null || $quete->aDrapeau((string) $si))
+            && ($sauf === null || ! $quete->aDrapeau((string) $sauf))
+            && ($deguise === null || ($heros !== null && $estDeguise === (bool) $deguise));
     }
 
     /** Le rang d'une figure parmi les monstres POSÉS par l'auteur (`quete.monstres`), ou `null` si elle n'en est pas. */

@@ -191,6 +191,11 @@ final class JournalCombat
         'charge_lachee' => true,
         // QUÊTE DOUBLE (lot K5p) : un héros emprunte le passage vers l'autre moitié.
         'passage_double' => true,
+        // GLYPHES (lot K6) : découvert par une fouille, détruit par le parchemin ou au feu.
+        'glyphe_decouvert' => true,
+        'glyphe_detruit' => true,
+        // DÉGUISEMENT (lot K6) : perdu par une arme, un sort, une armure, ou rendu.
+        'deguisement_perdu' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1285,6 +1290,26 @@ final class JournalCombat
                 'texte' => ($a['nom'] ?? $acteurNom).' tombe et lâche '.($a['charge'] ?? 'la charge').' : elle reste sur sa case',
                 'ton' => 'subit',
             ]],
+            'deguisement_perdu' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).match ($a['raison'] ?? '') {
+                    'arme' => ' frappe avec une arme trop voyante : son déguisement tombe',
+                    'sort' => ' lance un sort : son déguisement tombe',
+                    'armure' => ' revêt une armure trop voyante : son déguisement tombe',
+                    default => ' retire son déguisement',
+                },
+                'ton' => 'subit',
+            ]],
+            // GLYPHES (lot K6).
+            'glyphe_decouvert' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' découvre un glyphe magique gravé ici',
+                'ton' => 'info',
+            ]],
+            'glyphe_detruit' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).(($a['par'] ?? '') === 'cheminee'
+                    ? ' jette le glyphe au feu : il brûle, le piège est désarmé'
+                    : ' détruit le glyphe avec le parchemin-clé, qui disparaît'),
+                'ton' => 'succes',
+            ]],
             // QUÊTE DOUBLE (lot K5p) : le héros quitte le plateau ; le dernier fait basculer la partie.
             'passage_double' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' emprunte le passage vers '.($a['vers'] ?? 'l\'autre moitié de la quête')
@@ -1918,7 +1943,10 @@ final class JournalCombat
         $degats = (int) ($a['degats'] ?? 0);
         $des = $this->detailDes($a);
         $forge = $this->suffixeForge($a);
-        $oracle = $this->suffixeOracle($a);
+        $oracle = $this->suffixeOracle($a)
+            // OBSCURITÉ MAGIQUE (mode classique, lot K6) : le malus a joué — un effet automatique que rien n'annonce est
+            // injouable. Clé présente seulement quand il a joué.
+            .(! empty($a['obscurite']) ? ' — dans l\'obscurité magique (−'.(int) $a['obscurite'].' dés)' : '');
 
         // Un TIR se dit, quel que soit l'archer : héros (arc, arbalète, arme jetée), allié,
         // mercenaire. Le serveur publie `portee`, le même champ que celui de l'attaque d'un

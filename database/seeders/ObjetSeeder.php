@@ -901,13 +901,13 @@ class ObjetSeeder extends Seeder
 
             // « Crown of Shadows: Armor—This helmet gives you 1 extra Defend die and allows you to see normally in
             // darkness, both magical and nonmagical. » — la moitié « 1 dé de défense » est portée (`des_defense`,
-            // slot `casque`, comme la Diadème de braise). ÉCARTÉE : la moitié « voir dans le noir ». Son seul
-            // lecteur possible serait l'obscurité magique de l'antre de Venim, écartée le 2026-10-23
-            // (`docs/plan-crypte-tenebres.md`, lot F) : sans lecteur, une clé `vision_nocturne` serait décorative.
-            // L'écart est écrit ici et dans `docs/regles/artefacts.md`. ⚠ `metallique` : non trouvé (comme la Lance).
+            // slot `casque`, comme la Diadème de braise). La moitié « voir dans le noir » l'est aussi depuis le lot K6
+            // (2026-11-19) : `vision_nocturne`, lue par l'obscurité magique d'une quête construite du mode classique
+            // (`Classique\ObscuriteMagique`) — l'écart du 2026-10-23 est levé (migration `2026_11_19_120000`).
+            // ⚠ `metallique` : non trouvé (comme la Lance).
             ['nom' => 'Couronne des Ténèbres', 'categorie' => 'armure', 'metallique' => false, 'rarete' => 'unique',
                 'prix_base' => 0, 'emplacement' => 'casque', 'tag_equipement' => null, 'boite' => 'crypte_tenebres',
-                'effet' => ['des_defense' => 1]],
+                'effet' => ['des_defense' => 1, 'vision_nocturne' => true]],
 
             // « A hero can release the mouse in front of any closed door in any quest to receive a telepathic
             // message about what monsters and furniture lie behind the door (if any). When the mouse is used once
@@ -1058,6 +1058,15 @@ class ObjetSeeder extends Seeder
             // trouvé), `hors_marche` (ni à l'étal, ni revendable), rareté `unique` (jamais tirée dans une table de butin), et QUITTE
             // le sac en fin de quête (`objet_de_quete`, F2 du plan restes 2026-10-29). Elle se trouve dans un râtelier : la première
             // fouille de celui-ci la donne (`ResolveurTour::resoudreFouilleMobilier()`, `objet_fixe` posé par l'assembleur).
+            // « Glyph Key Scroll » (livret de quêtes de First Light, p. 6) : « Use this scroll at any time to destroy a
+            // discovered magical glyph, no action required. This scroll has no effect on magical glyphs disturbed by
+            // looting. After you use this scroll, it disappears. » Objet que la QUÊTE donne (q. 6 : « Ask which hero will
+            // carry the Glyph Key Scroll ») : `tresor`, comme la clé de laiton — hors marché, hors des pioches
+            // d'artefacts, retiré du sac à la fin de la quête. Mode classique (lot K6, 2026-11-19) : son seul lecteur est
+            // le glyphe d'une quête construite (`Classique\Glyphes`) ; l'écart du 2026-10-23 (aucun glyphe en donjon
+            // généré) est levé.
+            ['nom' => 'Parchemin-clé des glyphes', 'categorie' => 'tresor', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'sac',
+                'effet' => ['hors_marche' => true, 'objet_de_quete' => true, 'detruit_glyphe' => true]],
             ['nom' => 'Clé de laiton', 'categorie' => 'tresor', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'sac',
                 'boite' => 'mage_du_miroir', 'effet' => ['hors_marche' => true, 'objet_de_quete' => true]],
             ['nom' => 'Potion de soin mineur', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',

@@ -160,6 +160,9 @@ const jaiLeCrane = computed(() => monEntite.value?.crane === true);
 const suisSorti = computed(() => monEntite.value?.sorti === true);
 // QUÊTE DOUBLE (lot K5p) : passé dans l'autre moitié, il attend que tout le groupe le rejoigne (`entites[].passe`).
 const suisPasse = computed(() => monEntite.value?.passe === true);
+// DÉGUISEMENT (mode classique, lot K6 — Dread Moon) : il porte son jeton (`entites[].deguise`, publié seulement dans une
+// quête qui le permet). La manette rappelle ce qui le ferait tomber.
+const suisDeguise = computed(() => monEntite.value?.deguise === true);
 // SPECTATEUR (lot S1, quête solo) : mon héros n'est pas engagé dans cette quête — décision publiée (`entites[].spectateur`).
 // Ceux qui jouent : les héros publiés NON spectateurs, nommés tels quels.
 const suisSpectateur = computed(() => monEntite.value?.spectateur === true);
@@ -1767,6 +1770,9 @@ const navItems = computed(() => (scene.value === 'marche'
                         </div>
                         <!-- SPECTATEUR (lot S1, quête solo) : un bandeau, puis l'onglet Action SANS menu — l'ordre du tour et le
                              fil du combat restent sous les yeux : « suis la partie ». -->
+                        <p v-if="tab === 'action' && suisDeguise" class="manette-deguise" role="status">
+                            <MSym n="theater_comedy" :size="16" /> Déguisé — dague, épée courte, hachette, bâton ou mains nues ; aucun sort ; ni armure ni bouclier
+                        </p>
                         <div v-if="tab === 'action' && suisMort && !queteEchouee" class="manette-spectateur manette-mort" role="status">
                             <MSym n="skull" :size="22" />
                             <div>
@@ -2184,6 +2190,7 @@ const navItems = computed(() => (scene.value === 'marche'
 </template>
 
 <style scoped>
+.manette-deguise { display: flex; align-items: center; gap: 6px; margin: 4px 0 8px; padding: 6px 10px; border-radius: 10px; font-size: 12.5px; color: var(--parch-100); background: oklch(0.32 0.05 300 / 0.55); }
 /* Résultat d'un sort de renseignement / d'oubli (Wizards of Morcar). */
 .manette-res-sort {
   display: flex; gap: 10px; align-items: flex-start; margin: 0 0 10px; padding: 10px 12px;

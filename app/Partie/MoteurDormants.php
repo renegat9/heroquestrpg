@@ -53,7 +53,13 @@ final class MoteurDormants
     {
         $passif = $instance->capaciteParametree(self::CAPACITE);
 
-        return is_array($passif) && is_string($passif['declencheur'] ?? null) ? $passif['declencheur'] : null;
+        if (is_array($passif) && is_string($passif['declencheur'] ?? null)) {
+            return $passif['declencheur'];
+        }
+
+        // LA PLACE PUBLIQUE (mode classique, lot K6 — *Dread Moon*) : une figure posée sur une place est inactive jusqu'à ce
+        // qu'on l'attaque ou qu'un héros non déguisé l'ait en vue. `Classique\Deguisement`, seul juge de « sur une place ».
+        return app(\App\Partie\Classique\Deguisement::class)->declencheurDePlace($instance);
     }
 
     /**
@@ -131,6 +137,11 @@ final class MoteurDormants
      */
     public function attaqueSubie(Quete $quete, InstanceMonstre $cible): array
     {
+        // LA PLACE PUBLIQUE (lot K6) : « inactive unless they are attacked » — la figure attaquée s'éveille, elle seule.
+        if ($this->declencheur($cible) === \App\Partie\Classique\Deguisement::DECLENCHEUR_PLACE) {
+            return $this->estDormant($cible) ? $this->eveiller(collect([$cible]), 'attaquee') : [];
+        }
+
         if ($this->declencheur($cible) !== 'attaque_du_groupe') {
             return [];
         }
@@ -157,6 +168,14 @@ final class MoteurDormants
      */
     public function reveilDuTourMJ(Quete $quete, InstanceMonstre $instance): ?array
     {
+        // LA PLACE PUBLIQUE (lot K6) : « or an undisguised hero enters their line of sight » — lu au tour du MJ, la figure
+        // joue ce tour-là.
+        if ($this->declencheur($instance) === \App\Partie\Classique\Deguisement::DECLENCHEUR_PLACE && $this->estDormant($instance)) {
+            return app(\App\Partie\Classique\Deguisement::class)->vueParUnNonDeguise($quete, $instance)
+                ? ($this->eveiller(collect([$instance]), 'vue_non_deguise')[0] ?? null)
+                : null;
+        }
+
         if ($this->declencheur($instance) !== 'groupe_dans_la_salle' || ! $this->estDormant($instance)) {
             return null;
         }

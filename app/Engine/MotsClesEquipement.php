@@ -166,6 +166,14 @@ final class MotsClesEquipement
     public const ANNULE_GLACE_GLISSANTE = 'annule_glace_glissante';
 
     /**
+     * VOIR DANS LE NOIR — *Crown of Shadows* (G1798 p. 27) : « allows you to see normally in darkness, both magical and
+     * nonmagical ». Lève, pour son porteur, le malus de l'OBSCURITÉ MAGIQUE d'une quête construite (mode classique, lot
+     * K6 : « Any hero who cannot see in magical darkness has -2 combat dice the first and second time they attack »).
+     * Lecteur : `Classique\ObscuriteMagique::malus()`, par `Equipement::voitDansLeNoir()`.
+     */
+    public const VISION_NOCTURNE = 'vision_nocturne';
+
+    /**
      * Déplacement FIXE, qui REMPLACE le calcul base+1d6 en entier — « fixes
      * your movement at 8 spaces instead of rolling the dice » (*Drakehide
      * Cuirass*, Wizards of Morcar, doc 18). À la différence de
@@ -477,6 +485,14 @@ final class MotsClesEquipement
      * dwarf) » (LR p. 19). Lecteur : `Partie\MoteurPieges`.
      */
     public const PERMET_DESAMORCAGE = 'permet_desamorcage';
+
+    /**
+     * DÉTRUIT UN GLYPHE — *Glyph Key Scroll* (livret de quêtes de First Light, p. 6) : « Use this scroll at any time to
+     * destroy a discovered magical glyph, no action required. This scroll has no effect on magical glyphs disturbed by
+     * looting. After you use this scroll, it disappears. » Objet d'une quête construite (mode classique, lot K6).
+     * Lecteur : `Classique\Glyphes`, par `Equipement::parcheminDeGlyphe()`.
+     */
+    public const DETRUIT_GLYPHE = 'detruit_glyphe';
 
     /**
      * Tue d'office les créatures dont le `monstres.nom_base` est listé — Eau
@@ -1234,6 +1250,7 @@ final class MotsClesEquipement
         self::DEPLACEMENT_SANS_D6,
         self::BONUS_DEPLACEMENT_PORTE,
         self::ANNULE_GLACE_GLISSANTE,
+        self::VISION_NOCTURNE,
         self::DEGATS_FIXES,
         self::ANNULE_BOUCLIERS_DEFENSE,
         self::RELANCE_DE_ATTAQUE_RATE,
@@ -1266,6 +1283,7 @@ final class MotsClesEquipement
         self::SECOND_SORT_PAR_TOUR,
         self::SORT_NON_EPUISE,
         self::PERMET_DESAMORCAGE,
+        self::DETRUIT_GLYPHE,
         self::TUE_CREATURES,
         self::POSE_CHAUSSE_TRAPPES,
         self::ENFUME_MONSTRE_ADJACENT,
@@ -1361,7 +1379,7 @@ final class MotsClesEquipement
         self::RELANCE_DES_ATTAQUE, self::RELANCE_DES_ATTAQUE_SUR_FACE,
         // Défense, jauges, déplacement, réactions (armure, talisman, bottes)
         self::DES_DEFENSE, self::DES_ATTAQUE_AU_CONTACT, self::DE_DEPLACEMENT_SUPPLEMENTAIRE,
-        self::DEPLACEMENT_FIXE, self::DEPLACEMENT_SANS_D6, self::ANNULE_GLACE_GLISSANTE,
+        self::DEPLACEMENT_FIXE, self::DEPLACEMENT_SANS_D6, self::ANNULE_GLACE_GLISSANTE, self::VISION_NOCTURNE,
         self::BONUS_DEPLACEMENT_INCONDITIONNEL, self::BONUS_DEPLACEMENT_PORTE,
         self::BONUS_DES_RESISTANCE_MENTALE, self::BONUS_PV_BODY_MAX, self::BONUS_PV_MIND_MAX,
         self::INCOMPATIBLE_DEUX_MAINS, self::IMMUNITE_DEGAT, self::ABSORBE_DEGATS_MIND,
@@ -1467,6 +1485,8 @@ final class MotsClesEquipement
         'bonus_deplacement' => '+%s de déplacement',
         self::BONUS_DEPLACEMENT_PORTE => '+%s de déplacement (quêtes glacées)',
         self::ANNULE_GLACE_GLISSANTE => 'Ignore la Glace glissante',
+        self::DETRUIT_GLYPHE => 'Détruit un glyphe magique découvert, sans action — puis disparaît',
+        self::VISION_NOCTURNE => 'Voit dans l\'obscurité, même magique',
         self::DEPLACEMENT_FIXE => 'Déplacement fixe de %s cases (aucun dé)',
         self::BONUS_DEPLACEMENT_INCONDITIONNEL => '+%s de déplacement',
         self::FRANCHIT_MOBILIER => 'Traverse le mobilier (sans s\'y arrêter)',

@@ -6256,6 +6256,64 @@ qu'avec un héros désigné.
   cette quête » sur sa fiche. Un héros SORTI, lui, est un participant qui a quitté le donjon (`sorti: true`).
 - **Constructeur** : « Quête solo » dans la fiche de la quête, parmi les classes exigées par la campagne.
 
+### Le déguisement et la place publique — `regles.deguisement`, `salles_speciales[].place`, `quand.si_deguise` (lot K6, 2026-11-19)
+
+*Rise of the Dread Moon* (F6646 p. 9 et 4-5). René : équiper une armure interdite fait perdre le déguisement.
+- `regles.deguisement: true` : au départ, chaque héros SANS armure interdite prend son jeton
+  (`etat_personnage_quete.deguise`, migration `2026_11_19_140000`, publié `entites[].deguise` dans une telle quête
+  seulement ; la manette le rappelle). Il le perd en attaquant avec une autre arme que dague, épée courte, hachette ou
+  bâton — mains nues permises, artefacts reconnus sous leur nom d'armurerie (`est_une`) —, en lançant un sort, ou en
+  ÉQUIPANT une armure autre que casque, brassards ou cape (`deguisement_perdu` au fil, `raison` : `arme`, `sort`,
+  `armure`, `rendu`). Option `retirer_deguisement` (geste libre). Lecteur unique `Classique\Deguisement`.
+- `salles_speciales[].place: true` : une PLACE PUBLIQUE — ses monstres sont inactifs (`MoteurDormants`, déclencheur
+  `vue_non_deguise`) jusqu'à ce qu'on les attaque (`monstre_s_eveille`, cause `attaquee`) ou qu'au tour du MJ un héros
+  debout NON déguisé les ait en ligne de vue (cause `vue_non_deguise`). « or active monster » n'est pas porté.
+- `quand.si_deguise: true|false` : la note ne joue que si le héros qui la déclenche est (ou n'est pas) déguisé.
+- Constructeur : case « Déguisement permis », case « place publique » d'une salle spéciale, « héros déguisé » en note.
+
+### Les salles spéciales — `quete.salles_speciales` (lot K6, R11, 2026-11-19)
+
+René : « quand on assigne une salle spéciale sur le plateau, elle remplace les salles du plateau en dessous pour la
+quête ; dans le jeu il faut juste gérer la salle spéciale sans tenir compte des salles qui ne sont pas présentes ». La
+place publique (*Dread Moon* : « Any room a plaza is placed over completely will not count as having walls… If it cuts
+into other rooms without covering them completely, the boundaries of the plaza will count as walls »), la salle
+tournante et la salle du trône (*Witch Lord*), la salle du Gremlin (*Frozen Horror*).
+- `quete.salles_speciales: [{id, x, y, l, h}]` — dans le plateau, ids distincts de ceux du plateau, sans chevauchement
+  entre elles (refus `salle_id_en_double`, `salle_hors_plateau`, `salles_se_chevauchent`). Toujours OUVERTE (inutile de
+  la lister dans `salles_ouvertes`).
+- Une salle du plateau qu'elle touche, même en partie, est ABSENTE de la quête : elle ne peut pas être ouverte
+  (`salles_se_chevauchent`), son reste est de la roche, et le mur se pose au bord de la salle spéciale. Le moteur ne voit
+  qu'une salle de plus (`carte.salles`), jamais deux rectangles superposés ; elle se révèle à l'ouverture de sa porte
+  comme toute salle — ce qui couvre « place the tile as soon as a door is opened ».
+- Constructeur : « Salles spéciales » dans le bloc des livrets, dessinées en pointillés sur la carte.
+
+### Les glyphes magiques — `quete.glyphes`, `quand.sauf_drapeau` (lot K6, 2026-11-19)
+
+*First Light*, livret de quêtes : q. 6 note D (« The first player to search for traps discovers the arcane glyphs […] If
+a hero uses Glyph Key Scroll to destroy the glyphs… »), q. 8 note C (« a Dread glyph carved into a log. Throwing it into
+the fireplace quickly burns the glyph and disarms the trap »), p. 6 (*Glyph Key Scroll* : « destroy a discovered magical
+glyph, no action required […] no effect on magical glyphs disturbed by looting […] it disappears »).
+- `quete.glyphes: [{id, salle, detruit_par: "parchemin" | "cheminee", drapeau}]` — salle ouverte ; « cheminee » exige
+  une Cheminée posée dans la salle (refus `salle_inconnue`, `valeur_invalide`).
+- DÉCOUVERT par une fouille de la zone réussie dans sa salle (`glyphe_decouvert` au fil) ; DÉTRUIT par l'option
+  `detruire_glyphe_<id>` (geste libre, debout dans la salle) — le *Parchemin-clé des glyphes* (catalogue, `tresor`,
+  `detruit_glyphe`, objet de quête) est consommé, ou la bûche jetée au feu — ce qui pose `drapeau` (`glyphe_detruit`) ;
+  PILLÉ quand le trésor de la salle est fouillé avant : il ne se détruit plus. État en base (`drapeaux._glyphes`),
+  lecteur unique `Classique\Glyphes`.
+- Les conséquences sont les notes de l'auteur : nouveau `quand.sauf_drapeau` (la note ne joue que si le drapeau n'est
+  PAS posé), à côté de `si_drapeau` ; un drapeau de glyphe compte comme posé pour la validation.
+
+### L'obscurité magique — `regles.obscurite_magique` (lot K6, 2026-11-19)
+
+*The Crypt of Perpetual Darkness* (G1798 p. 25, q. 10 note C) : « Any hero who cannot see in magical darkness has -2
+combat dice the first and second time they attack, and then they may attack as normal. The monsters here do not suffer
+from this effect. » `regles.obscurite_magique: {salle: <id d'une salle ouverte>}` (refus `salle_inconnue` sinon).
+Choix écrits par défaut : la case de l'ATTAQUANT dans la salle, jamais moins d'un dé (comme la Fosse), compteur par
+héros et par quête (`capacites_utilisees.obscurite_magique`), toute frappe d'un héros (point de passage
+`ResolveurTour::frapper()`, lecteur `Classique\ObscuriteMagique`). Le résultat de l'attaque porte `obscurite: 2` quand
+le malus a joué (clé absente sinon) ; le fil le dit. La *Crown of Shadows* porte désormais `vision_nocturne` (catalogue
+`MotsClesEquipement::VISION_NOCTURNE`, migration `2026_11_19_120000`) : son porteur ne subit rien.
+
 ### L'ordre libre — `regles.ordre_libre` (lot K6, 2026-11-19)
 
 *Jungles of Delthrak* (F9907 p. 8-9, règle optionnelle « Order of Play ») : « heroes may decide the order in which they

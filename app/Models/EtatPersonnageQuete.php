@@ -34,6 +34,8 @@ class EtatPersonnageQuete extends Model
         // ARÈNE, lot T5 : la manœuvre de base du combattant seul est ouverte (`App\Partie\Arene\ManoeuvreSolo`).
         'manoeuvre_arene',
         'tombe',
+        // Lot K6 (*Dread Moon*) : le héros porte son jeton de déguisement dans cette quête — `Classique\Deguisement` seul.
+        'deguise',
         // Lot H1 (mode Heroic) : le jeton crâne d'un héros hors de combat. Effacé quand il se relève (`booted()`).
         'crane',
         'garde_tenace_utilisee',
@@ -168,6 +170,7 @@ class EtatPersonnageQuete extends Model
             'a_deplace' => 'boolean',
             'a_agi' => 'boolean',
             'tombe' => 'boolean',
+            'deguise' => 'boolean',
             'crane' => 'boolean',
             'garde_tenace_utilisee' => 'boolean',
             'bonus_sort_utilise' => 'boolean',

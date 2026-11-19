@@ -65,6 +65,9 @@ trait LignesEffetsAutomatiques
             'attaque' => "{$monstre} s'éveille — l'un de ses compagnons vient d'être attaqué",
             'groupe_reuni' => "{$monstre} s'éveille : tous les héros sont réunis dans sa salle",
             'fouille' => "{$monstre} prend vie — un héros fouille le trésor de la salle",
+            // LA PLACE PUBLIQUE (mode classique, lot K6).
+            'attaquee' => "{$monstre} sort de sa torpeur — on l'attaque",
+            'vue_non_deguise' => "{$monstre} vous a repérés : un héros sans déguisement est en vue",
             default => "{$monstre} s'éveille",
         };
 

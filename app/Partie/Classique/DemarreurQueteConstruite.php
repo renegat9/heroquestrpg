@@ -305,6 +305,9 @@ final class DemarreurQueteConstruite
         // liste, ce qui fait jouer ce brouillard à la quête (une quête démarrée avant garde l'ancien).
         app(CouloirsVus::class)->mettreAJour($quete->refresh());
 
+        // LE DÉGUISEMENT (lot K6, `regles.deguisement`) : chaque héros sans armure interdite prend son jeton.
+        app(Deguisement::class)->poserAuDepart($quete->refresh());
+
         // LA CHARGE (lot K5k, `quete.charge`) : posée au sol à sa case, avant l'instantané de départ.
         app(Charge::class)->poser($quete->refresh());
 

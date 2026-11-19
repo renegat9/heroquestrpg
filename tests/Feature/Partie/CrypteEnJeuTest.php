@@ -420,12 +420,13 @@ it('la Lance du Dragon est interdite au magicien, et seulement à lui', function
     expect(app(Equipement::class)->estAccessible($ctx['heros']->fresh(), $lance))->toBeTrue();
 });
 
-it('la Couronne des Ténèbres porte son dé de défense au casque ; sa vision dans le noir est écartée', function () {
+it('la Couronne des Ténèbres porte son dé de défense au casque, et sa vision dans le noir depuis le lot K6', function () {
     $couronne = Objet::where('nom', 'Couronne des Ténèbres')->firstOrFail();
 
+    // `vision_nocturne` : l'écart du 2026-10-23 est levé — son lecteur est l'obscurité magique du mode classique.
     expect($couronne->emplacement)->toBe('casque')
         ->and($couronne->effet['des_defense'])->toBe(1)
-        ->and(array_key_exists('vision_nocturne', (array) $couronne->effet))->toBeFalse()
+        ->and($couronne->effet['vision_nocturne'] ?? null)->toBeTrue()
         ->and($couronne->boite)->toBe('crypte_tenebres');
 });
 

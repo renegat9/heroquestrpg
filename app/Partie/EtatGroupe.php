@@ -1674,6 +1674,8 @@ final class EtatGroupe
                     // HORS PLATEAU (mode classique, René 2026-11-16) : le héros attend devant la porte d'entrée, sans case.
                     // Décision publiée : ni la carte ni la manette ne la déduisent d'un `x` nul.
                     'hors_plateau' => $etat !== null && $etat->horsPlateau(),
+                    // LE DÉGUISEMENT (lot K6) : il porte son jeton — quête qui le permet seulement.
+                    ...(\App\Partie\Classique\Deguisement::permis($quete) ? ['deguise' => (bool) ($etat?->deguise ?? false)] : []),
                     // LA CHARGE (lot K5k) : le nom de la charge que porte ce héros, sinon `null` — quête à charge seulement.
                     ...($chargeEtat !== null ? ['charge' => (int) ($chargeEtat['porteur_id'] ?? 0) === (int) $p->id ? $chargeEtat['nom'] : null] : []),
                     // Portrait unique du héros si généré, sinon image de classe.

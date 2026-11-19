@@ -3488,6 +3488,26 @@ final class MenuMoteur
             ];
         }
 
+        // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, à tout moment de son tour. Geste libre.
+        if (! $aJoue && $etat !== null && $etat->deguise) {
+            $options[] = ['id' => 'retirer_deguisement', 'libelle' => 'Retirer son déguisement', 'type' => 'retirer_deguisement'];
+        }
+
+        // GLYPHES (mode classique, lot K6) : détruire un glyphe découvert de sa salle — `Glyphes::destructibles()`, la liste
+        // que le résolveur revalide. Geste libre.
+        if (! $aJoue && $etat !== null) {
+            foreach (app(\App\Partie\Classique\Glyphes::class)->destructibles($quete, $etat, $personnage) as $glyphe) {
+                $options[] = [
+                    'id' => 'detruire_glyphe_'.$glyphe['id'],
+                    'libelle' => $glyphe['detruit_par'] === \App\Partie\Classique\Glyphes::CHEMINEE
+                        ? 'Jeter le glyphe au feu'
+                        : 'Détruire le glyphe (parchemin-clé)',
+                    'type' => 'detruire_glyphe',
+                    'parametres' => ['glyphe' => $glyphe['id']],
+                ];
+            }
+        }
+
         // QUÊTE DOUBLE (lot K5p, *The Frozen Horror* q. 9-10) : emprunter le passage vers l'autre moitié — le héros quitte le
         // plateau ; quand plus aucun héros debout n'y reste, la partie bascule. Même créneau que la sortie (l'action) :
         // déjà agi, rien n'est offert. `Quete::peutPasser()`, que le résolveur revalide.

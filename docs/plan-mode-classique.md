@@ -871,6 +871,40 @@ ni son format, il appelle ce que la route HTTP appelle.
   dangers, paires de terrain — `paire` publié par le catalogue), booléens et
   `destinations_d6` des notes ; vu à l'écran sur les campagnes saisies.
   Trois campagnes des livrets saisies en base (34 quêtes, 0 refus).
+- **Fait le 2026-11-19 — lot K6 : le déguisement et la place publique**
+  (*Dread Moon*). `regles.deguisement`, jeton au départ pour qui ne porte pas
+  d'armure interdite (colonne `etat_personnage_quete.deguise`, migration
+  `2026_11_19_140000` après sauvegarde relue), perdu par une arme voyante, un
+  sort ou une armure équipée, rendu par un geste libre ; `quand.si_deguise`
+  pour les notes ; `salles_speciales[].place` : monstres inactifs jusqu'à
+  l'attaque ou la vue d'un héros non déguisé (nouveau déclencheur de
+  `MoteurDormants`, décidé par `Classique\Deguisement`). Le Voleur de la q. 2
+  n'a pas de bloc de stats dans les livrets : non porté (« non trouvé »).
+- **Fait le 2026-11-19 — lot K6 : les salles spéciales** (R11 et la place
+  publique ; René : « elle remplace les salles du plateau en dessous pour la
+  quête »). `quete.salles_speciales [{id, x, y, l, h}]`, toujours ouvertes,
+  posées EN TÊTE de la liste des salles (la première salle qui contient une
+  case la possède) ; une salle du plateau qu'elles touchent est absente —
+  jamais ouverte (refus), son reste est de la roche murée au bord. Le moteur
+  ne voit jamais deux rectangles superposés. Constructeur : « Salles
+  spéciales », dessinées en pointillés. Tests `SallesSpecialesTest`.
+- **Fait le 2026-11-19 — lot K6 : l'obscurité magique et les glyphes.**
+  - **Obscurité magique** (*Crypt* q. 10) : `regles.obscurite_magique {salle}`,
+    −2 dés aux deux premières attaques d'un héros dans la salle, jamais moins
+    d'un dé, compteur par héros et par quête (`capacites_utilisees`), point de
+    passage `ResolveurTour::frapper()`, lecteur `Classique\ObscuriteMagique`,
+    annoncé au fil (`obscurite` dans le résultat). La *Couronne des Ténèbres*
+    porte enfin `vision_nocturne` (`MotsClesEquipement`, migration
+    `2026_11_19_120000` appliquée après sauvegarde relue) : l'écart du
+    2026-10-23 est levé.
+  - **Glyphes** (*First Light* q. 6 et 8) : `quete.glyphes [{id, salle,
+    detruit_par, drapeau}]`, découverts par la fouille de zone, détruits au
+    *Parchemin-clé des glyphes* (catalogue `tresor`, objet de quête, hors des
+    pioches RPG ; `db:seed --class=ObjetSeeder` passé) ou au feu de la
+    cheminée, pillés par la fouille du trésor ; `quand.sauf_drapeau` pour les
+    notes, la condition des notes regroupée en un seul endroit
+    (`NotesDeQuete::conditionRemplie()`). Constructeur : salle obscure,
+    glyphes, « sauf si le drapeau ».
 - **Fait le 2026-11-19 — lot K6, première tranche** (relevé de trois agents
   Haiku sur les livrets et le code ; décisions de René du jour) :
   - *Spirit Queen's Torment*, les tours : **chaîne fixe** du livret (Terre →

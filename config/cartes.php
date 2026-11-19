@@ -291,9 +291,8 @@ return [
             // photos. Trois pièces portées, chacune avec sa ou ses clauses :
             // « Dragon Spear » — 3 dés, 4 contre un dragon, diagonale, interdite au magicien : PORTÉE en entier.
             ['carte' => 'Dragon Spear', 'paquet' => 'The Crypt of Perpetual Darkness', 'objet' => 'Lance du Dragon'],
-            // « Crown of Shadows » — « 1 extra Defend die » PORTÉ ; « allows you to see normally in darkness » ÉCARTÉ
-            // (aucun lecteur sans l'obscurité magique de l'antre de Venim, écartée le 2026-10-23) : écart écrit dans
-            // `docs/regles/artefacts.md`. La carte reste portée : sa moitié de défense est jouable.
+            // « Crown of Shadows » — « 1 extra Defend die » PORTÉ ; « allows you to see normally in darkness » PORTÉ depuis
+            // le lot K6 (2026-11-19, `vision_nocturne`, lu par l'obscurité magique du mode classique).
             ['carte' => 'Crown of Shadows', 'paquet' => 'The Crypt of Perpetual Darkness', 'objet' => 'Couronne des Ténèbres'],
             // « Wizard's familiar » (le livret ne la nomme qu'en texte : quête 2 note B, « a mouse ») — objet à charge
             // unique de la campagne, trouvé en fouillant (carte de trésor `DeckFouille::cartesCrypte()`).

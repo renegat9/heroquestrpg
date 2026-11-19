@@ -147,18 +147,18 @@ final class ValidationCampagne
         'ramener' => ['type', 'libelle'],
     ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'dangers', 'double'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'dangers', 'double', 'glyphes', 'salles_speciales'];
     /**
      * Les RÈGLES DE QUÊTE (`docs/plan-mode-classique.md` §2.3), valables toute la quête — seulement celles que le moteur
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite'];
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
     private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
     private const CLES_QUAND = ['declencheur', 'cible'];
-    private const CLES_QUAND_OPTIONNELLES = ['si_drapeau'];
+    private const CLES_QUAND_OPTIONNELLES = ['si_drapeau', 'sauf_drapeau', 'si_deguise'];
     private const LONGUEUR_REPERE = 40;
     private const LONGUEUR_DRAPEAU = 40;
     private const CLES_PORTE = ['x', 'y', 'cote', 'type'];
@@ -453,7 +453,15 @@ final class ValidationCampagne
             // d'abord, puis l'escalier de départ, puis le reste : chaque refus de partage porte sur le dernier venu.
             $this->occupees = [];
             $this->embrasures = [];
+            // SALLES SPÉCIALES (lot K6, R11) : posées EN TÊTE de la liste des salles le temps de cette quête — la première
+            // salle qui contient une case la possède (`salleEn()`), et les salles du plateau qu'elles touchent sont absentes.
+            $sallesDuPlateau = $this->salles;
+            $speciales = $this->sallesSpeciales($quete, $chemin, $sallesDuPlateau);
+            $this->salles = [...$speciales, ...$sallesDuPlateau];
             $this->sallesOuvertes($quete, $chemin);
+            foreach ($speciales as $speciale) {
+                $this->ouvertes[$speciale['id']] = true;
+            }
             // Après les salles ouvertes : `regles.sans_fouille` les lit (lot K5e).
             $this->regles($quete, $chemin, $document);
             $this->portes($quete, $chemin);
@@ -468,6 +476,7 @@ final class ValidationCampagne
             $this->poses($quete, $chemin, 'pieges', 'pieges');
             $this->poses($quete, $chemin, 'terrain', 'terrain');
             $this->dangers($quete, $chemin);
+            $this->glyphes($quete, $chemin);
             $this->recompense($quete, $chemin);
             // Les notes AVANT la fin : une fin « drapeau » n'est gagnable que si une note pose ce drapeau — de cette quête,
             // ou de campagne par une quête précédente (lot K5h).
@@ -506,7 +515,71 @@ final class ValidationCampagne
                 }
             }
             $this->drapeauxDeCampagne += $this->campagneDeLaQuete;
+            $this->salles = $sallesDuPlateau;
         }
+    }
+
+    /**
+     * `quete.salles_speciales` (lot K6, R11 — René, 2026-11-19 : « quand on assigne une salle spéciale sur le plateau, elle
+     * remplace les salles du plateau en dessous pour la quête ») : `[{id, x, y, l, h}]` — la place publique de *Dread Moon*,
+     * la salle tournante et la salle du trône de *Witch Lord*, la salle du Gremlin de *Frozen Horror*. Toujours ouverte. Une
+     * salle du plateau qu'elle touche, même en partie, est ABSENTE de la quête : jamais ouverte (refus), son reste est de la
+     * roche, murée au bord de la salle spéciale. Rend les rectangles valides.
+     *
+     * @param  list<array{id: string, x: int, y: int, l: int, h: int}>  $plateau
+     * @return list<array{id: string, x: int, y: int, l: int, h: int}>
+     */
+    private function sallesSpeciales(array $quete, string $chemin, array $plateau): array
+    {
+        if (!array_key_exists('salles_speciales', $quete)) {
+            return [];
+        }
+        $rectangles = [];
+        $idsPlateau = array_column($plateau, 'id');
+        foreach ($this->enListeDe($quete, 'salles_speciales', $chemin) as $i => $valeur) {
+            $ici = self::chemin($chemin, 'salles_speciales').".$i";
+            $salle = $this->enObjet($valeur, $ici);
+            if ($salle === null) {
+                continue;
+            }
+            // `place` (lot K6, *Dread Moon*) : une place publique — ses monstres restent inactifs (`Classique\Deguisement`).
+            $this->cles($salle, $ici, self::CLES_SALLE, ['place']);
+            if (array_key_exists('place', $salle) && $salle['place'] !== true) {
+                $this->refuser("$ici.place", self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+            }
+            $id = $this->identifiant($salle, 'id', $ici);
+            $x = $this->entier($salle, 'x', $ici, min: 0);
+            $y = $this->entier($salle, 'y', $ici, min: 0);
+            $l = $this->entier($salle, 'l', $ici, min: 1);
+            $h = $this->entier($salle, 'h', $ici, min: 1);
+            if ($id === null || $x === null || $y === null || $l === null || $h === null) {
+                continue;
+            }
+            if (in_array($id, $idsPlateau, true) || in_array($id, array_column($rectangles, 'id'), true)) {
+                $this->refuser("$ici.id", self::SALLE_ID_EN_DOUBLE, "l'id « $id » est déjà pris par une autre salle");
+
+                continue;
+            }
+            if ($this->dimensions !== null && ($x + $l > $this->dimensions[0] || $y + $h > $this->dimensions[1])) {
+                $this->refuser($ici, self::SALLE_HORS_PLATEAU, "la salle spéciale « $id » sort du plateau");
+            }
+            $rect = ['id' => $id, 'x' => $x, 'y' => $y, 'l' => $l, 'h' => $h, 'i' => (int) $i];
+            foreach ($rectangles as $autre) {
+                if ($this->interieursSeChevauchent($rect, $autre)) {
+                    $this->refuser($ici, self::SALLES_SE_CHEVAUCHENT, "la salle spéciale « $id » chevauche la salle spéciale « {$autre['id']} »");
+                }
+            }
+            // Une salle du plateau qu'elle touche est absente de la quête : elle ne peut pas être ouverte.
+            foreach ($plateau as $dessous) {
+                if ($this->interieursSeChevauchent($rect, $dessous) && in_array($dessous['id'], (array) ($quete['salles_ouvertes'] ?? []), true)) {
+                    $this->refuser($ici, self::SALLES_SE_CHEVAUCHENT,
+                        "la salle spéciale « $id » recouvre « {$dessous['id']} », qui ne peut donc pas être ouverte dans cette quête");
+                }
+            }
+            $rectangles[] = $rect;
+        }
+
+        return $rectangles;
     }
 
     /**
@@ -628,9 +701,14 @@ final class ValidationCampagne
                 if ($declencheur !== null && array_key_exists('cible', $quand)) {
                     $this->cibleDeNote($quete, $quand['cible'], "$position.quand.cible", (string) $declencheur);
                 }
-                $drapeau = $this->nomDeDrapeau($quand, 'si_drapeau', "$position.quand");
-                if ($drapeau !== null) {
-                    $lus[$drapeau] ??= "$position.quand.si_drapeau";
+                if (array_key_exists('si_deguise', $quand) && !is_bool($quand['si_deguise'])) {
+                    $this->refuser("$position.quand.si_deguise", self::TYPE_INVALIDE, 'true ou false est attendu');
+                }
+                foreach (['si_drapeau', 'sauf_drapeau'] as $cleCondition) {
+                    $drapeau = $this->nomDeDrapeau($quand, $cleCondition, "$position.quand");
+                    if ($drapeau !== null) {
+                        $lus[$drapeau] ??= "$position.quand.$cleCondition";
+                    }
                 }
             }
 
@@ -643,6 +721,13 @@ final class ValidationCampagne
                 if ($drapeau !== null) {
                     $poses[$drapeau] = true;
                 }
+            }
+        }
+
+        // GLYPHES (lot K6) : détruire un glyphe pose le drapeau que l'auteur lui donne — lisible par les notes.
+        foreach ((array) ($quete['glyphes'] ?? []) as $glyphe) {
+            if (is_array($glyphe) && is_string($glyphe['drapeau'] ?? null)) {
+                $poses[$glyphe['drapeau']] = true;
             }
         }
 
@@ -1483,6 +1568,21 @@ final class ValidationCampagne
                 }
             }
         }
+        // Lot K6 (*The Crypt of Perpetual Darkness*) : `obscurite_magique: {salle}` — une salle OUVERTE de la quête.
+        if (array_key_exists('obscurite_magique', $regles)) {
+            $ici = self::chemin($position, 'obscurite_magique');
+            $obscurite = $this->enObjet($regles['obscurite_magique'], $ici);
+            if ($obscurite !== null) {
+                $this->cles($obscurite, $ici, ['salle']);
+                if (array_key_exists('salle', $obscurite) && !in_array($obscurite['salle'], (array) ($quete['salles_ouvertes'] ?? []), true)) {
+                    $this->refuser("$ici.salle", self::SALLE_INCONNUE, 'la salle obscure doit être une salle ouverte de la quête');
+                }
+            }
+        }
+        // Lot K6 (*Dread Moon*) : `deguisement` — présent seulement quand il vaut true.
+        if (array_key_exists('deguisement', $regles) && $regles['deguisement'] !== true) {
+            $this->refuser(self::chemin($position, 'deguisement'), self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+        }
         // Lot K6 (*Jungles of Delthrak*, « Order of Play ») : `ordre_libre` — présent seulement quand il vaut true.
         if (array_key_exists('ordre_libre', $regles) && $regles['ordre_libre'] !== true) {
             $this->refuser(self::chemin($position, 'ordre_libre'), self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
@@ -1673,6 +1773,46 @@ final class ValidationCampagne
 
         $this->entier($recompense, 'or', $position, min: 0);
         $this->dans($recompense, 'partage', $position, self::PARTAGES);
+    }
+
+    /**
+     * `quete.glyphes` (facultative, lot K6 — *First Light*) : `[{id, salle, detruit_par: parchemin|cheminee, drapeau}]`.
+     * La salle est une salle OUVERTE ; « cheminee » exige une Cheminée posée dans cette salle.
+     */
+    private function glyphes(array $quete, string $chemin): void
+    {
+        if (! array_key_exists('glyphes', $quete)) {
+            return;
+        }
+        $ids = [];
+        foreach ($this->enListeDe($quete, 'glyphes', $chemin) as $i => $valeur) {
+            $ici = self::chemin($chemin, 'glyphes').".$i";
+            $glyphe = $this->enObjet($valeur, $ici);
+            if ($glyphe === null) {
+                continue;
+            }
+            $this->cles($glyphe, $ici, ['id', 'salle', 'detruit_par', 'drapeau']);
+            $id = $this->identifiant($glyphe, 'id', $ici);
+            if ($id !== null && isset($ids[$id])) {
+                $this->refuser("$ici.id", self::VALEUR_INVALIDE, "« $id » est déjà l'identifiant d'un autre glyphe");
+            }
+            $ids[(string) $id] = true;
+            if (array_key_exists('salle', $glyphe) && !in_array($glyphe['salle'], (array) ($quete['salles_ouvertes'] ?? []), true)) {
+                $this->refuser("$ici.salle", self::SALLE_INCONNUE, 'le glyphe doit être dans une salle ouverte de la quête');
+            }
+            $moyen = $this->dans($glyphe, 'detruit_par', $ici, \App\Partie\Classique\Glyphes::MOYENS);
+            $this->nomDeDrapeau($glyphe, 'drapeau', $ici);
+            if ($moyen === \App\Partie\Classique\Glyphes::CHEMINEE && is_string($glyphe['salle'] ?? null)) {
+                $salle = collect($this->salles)->firstWhere('id', $glyphe['salle']);
+                $avecCheminee = $salle !== null && collect((array) ($quete['mobilier'] ?? []))->contains(fn ($m) => is_array($m)
+                    && ($m['slug'] ?? null) === 'cheminee'
+                    && (int) ($m['x'] ?? -1) >= $salle['x'] && (int) $m['x'] < $salle['x'] + $salle['l']
+                    && (int) ($m['y'] ?? -1) >= $salle['y'] && (int) $m['y'] < $salle['y'] + $salle['h']);
+                if (! $avecCheminee) {
+                    $this->refuser("$ici.detruit_par", self::VALEUR_INVALIDE, 'aucune Cheminée n\'est posée dans la salle de ce glyphe');
+                }
+            }
+        }
     }
 
     /** `quete.dangers` (facultative, lot K5o) : rocher roulant (`{type: "rocher", run: [{x, y}…]}`) et brume de la mort (`{type: "brume", x, y}`). */

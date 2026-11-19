@@ -313,6 +313,9 @@ function fixturesDesTypesAnnonces(): array
         'confiscation' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'objets' => 3, 'or' => 30],
         'charge_prise' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'charge' => 'le coffre'],
         'passage_double' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'vers' => 'La crypte', 'restants' => 1],
+        'glyphe_decouvert' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'glyphe' => 'autel'],
+        'deguisement_perdu' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'raison' => 'sort'],
+        'glyphe_detruit' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'glyphe' => 'autel', 'par' => 'parchemin'],
         'charge_lachee' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'charge' => 'le coffre'],
         // MODE CLASSIQUE : la récompense d'une quête construite, versée aux bourses (`FinDeQueteConstruite`).
         'recompense_quete' => ['quete_id' => 1, 'total' => 10, 'parts' => [

@@ -626,6 +626,19 @@ final class Equipement
         return $this->valeurEffetPorte($personnage, MotsClesEquipement::ANNULE_GLACE_GLISSANTE) > 0;
     }
 
+    /** Le *Glyph Key Scroll* de ce héros (où qu'il le porte), ou `null` — lot K6, `Classique\Glyphes`. */
+    public function parcheminDeGlyphe(Personnage $personnage): ?Inventaire
+    {
+        return $personnage->inventaire()->with('objet')->get()
+            ->first(fn (Inventaire $ligne) => ! empty(($ligne->objet?->effet ?? [])[MotsClesEquipement::DETRUIT_GLYPHE]));
+    }
+
+    /** VOIR DANS LE NOIR (*Crown of Shadows*) : une pièce PORTÉE lève le malus de l'obscurité magique (lot K6). */
+    public function voitDansLeNoir(Personnage $personnage): bool
+    {
+        return $this->valeurEffetPorte($personnage, MotsClesEquipement::VISION_NOCTURNE) > 0;
+    }
+
     /**
      * Déplacement FIXE porté par une pièce équipée (Drakehide Cuirass : 8
      * cases, aucun dé) — 0 si rien ne le porte. Lu au SEUL point de passage

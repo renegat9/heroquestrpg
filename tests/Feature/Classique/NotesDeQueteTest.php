@@ -459,6 +459,144 @@ it('E5 : `cachee` n\'accepte que true', function () {
         ->toContain('quetes.0.terrain.0.cachee');
 });
 
+it('OBSCURITÉ MAGIQUE (K6) : −2 dés aux deux premières attaques dans la salle obscure, jamais moins d\'un ; la Couronne la lève', function () {
+    queteAvecNotes($this, [], ['regles' => ['obscurite_magique' => ['salle' => 'entree']]], gobelinRetire: false);
+    $obscurite = app(\App\Partie\Classique\ObscuriteMagique::class);
+    $etat = fn () => $this->quete->etatsPersonnages()->where('personnage_id', $this->heros->id)->firstOrFail();
+
+    // Une vraie attaque, depuis l'entrée obscure, au contact du gobelin en (5, 2) : 3 dés − 2, le malus est dit.
+    $gobelin = $this->quete->instancesMonstres()->firstOrFail();
+    menuDeNote($this, 4, 2);
+    $attaque = jouerNote($this, 'attaquer', ['cible_id' => $gobelin->id])->assertStatus(202)->json('resultat');
+    expect($attaque['obscurite'] ?? null)->toBe(2)
+        ->and($attaque['des_attaque_effectifs'])->toBe(1);
+
+    // La deuxième attaque est encore gênée, la troisième non.
+    expect($obscurite->malus($this->quete->fresh(), $etat(), $this->heros))->toBe(2);
+    $obscurite->compter($etat());
+    expect($obscurite->malus($this->quete->fresh(), $etat(), $this->heros))->toBe(0);
+
+    // Hors de la salle obscure, rien ; la Couronne des Ténèbres portée, rien non plus.
+    $etat()->update(['capacites_utilisees' => []]);
+    $etat()->update(['position_x' => 8, 'position_y' => 3]);
+    expect($obscurite->malus($this->quete->fresh(), $etat(), $this->heros))->toBe(0);
+    $etat()->update(['position_x' => 4, 'position_y' => 2]);
+    // La ligne du catalogue (migrée le 2026-11-19 : `vision_nocturne`).
+    $couronne = \App\Models\Objet::where('nom', 'Couronne des Ténèbres')->firstOrFail();
+    expect($couronne->effet['vision_nocturne'] ?? null)->toBeTrue();
+    $this->heros->inventaire()->create(['objet_id' => $couronne->id, 'emplacement' => 'casque', 'quantite' => 1]);
+    expect($obscurite->malus($this->quete->fresh(), $etat(), $this->heros->fresh()))->toBe(0);
+});
+
+it('GLYPHES (K6) : découvert, détruit au parchemin-clé (qui disparaît), et la note du trésor lit `si_drapeau` / `sauf_drapeau`', function () {
+    queteAvecNotes($this, [
+        ['repere' => 'D', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree'], 'sauf_drapeau' => 'autel_libre'],
+            'alors' => [['effet' => 'degats', 'body' => 2]]],
+        ['repere' => 'E', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree'], 'si_drapeau' => 'autel_libre'],
+            'alors' => [['effet' => 'or', 'or' => 10]]],
+    ], ['glyphes' => [['id' => 'autel', 'salle' => 'entree', 'detruit_par' => 'parchemin', 'drapeau' => 'autel_libre']]]);
+    $glyphes = app(\App\Partie\Classique\Glyphes::class);
+    $parchemin = \App\Models\Objet::where('nom', 'Parchemin-clé des glyphes')->first()
+        ?? \App\Models\Objet::create(['nom' => 'Parchemin-clé des glyphes', 'categorie' => 'tresor', 'rarete' => 'unique', 'prix_base' => 0,
+            'emplacement' => 'sac', 'effet' => ['hors_marche' => true, 'objet_de_quete' => true, 'detruit_glyphe' => true]]);
+    $this->heros->inventaire()->create(['objet_id' => $parchemin->id, 'emplacement' => 'sac', 'quantite' => 1]);
+
+    // Caché : rien à détruire. Découvert par la fouille de la zone : le menu l'offre.
+    expect(menuDeNote($this, 4, 3)->pluck('id'))->not->toContain('detruire_glyphe_autel');
+    $entree = \App\Partie\Salles::indexDe($this->quete->carte->grille['salles'], 4, 3);
+    expect($glyphes->decouvrir($this->quete->fresh(), $entree, $this->heros))->toHaveCount(1);
+    expect(menuDeNote($this, 4, 3)->firstWhere('id', 'detruire_glyphe_autel')['libelle'] ?? null)->toBe('Détruire le glyphe (parchemin-clé)');
+
+    jouerNote($this, 'detruire_glyphe_autel', ['glyphe' => 'autel'])->assertStatus(202)->assertJsonPath('resultat.type', 'glyphe_detruit');
+    expect($this->quete->fresh()->aDrapeau('autel_libre'))->toBeTrue()
+        ->and(app(\App\Partie\Equipement::class)->parcheminDeGlyphe($this->heros->fresh()))->toBeNull();
+
+    // La fouille du trésor : la note « si » joue (10 po), la note « sauf » non (aucun dégât).
+    $avant = (int) $this->heros->fresh()->pv_body;
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class)->signaler($this->quete->fresh(), 'fouille_tresor', ['salle' => $entree], $this->heros);
+    expect(array_column($notes, 'repere'))->toBe(['E'])
+        ->and((int) $this->heros->fresh()->pv_body)->toBe($avant);
+});
+
+it('GLYPHES (K6) : la cheminée doit être dans la salle ; un `sauf_drapeau` jamais posé est refusé', function () {
+    $campagne = DocumentExemple::campagne();
+    $campagne['quetes'][0]['glyphes'] = [['id' => 'buche', 'salle' => 'entree', 'detruit_par' => 'cheminee', 'drapeau' => 'feu']];
+    $campagne['quetes'][0]['notes'] = [['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree'], 'sauf_drapeau' => 'jamais'],
+        'alors' => [['effet' => 'or', 'or' => 5]]]];
+    $refus = collect(app(\App\Partie\Classique\ValidationCampagne::class)->valider($campagne))->map(fn ($r) => $r['chemin'].' '.$r['code'])->all();
+
+    expect($refus)->toContain('quetes.0.glyphes.0.detruit_par '.\App\Partie\Classique\ValidationCampagne::VALEUR_INVALIDE)
+        ->toContain('quetes.0.notes.0.quand.sauf_drapeau '.\App\Partie\Classique\ValidationCampagne::DRAPEAU_JAMAIS_POSE);
+});
+
+it('DÉGUISEMENT (K6) : jeton au départ ; arme voyante, armure, sort ou geste libre le font tomber ; `si_deguise` en note', function () {
+    queteAvecNotes($this, [
+        ['repere' => 'A', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 5, 'y' => 3]], 'si_deguise' => false],
+            'alors' => [['effet' => 'or', 'or' => 7]]],
+    ], ['regles' => ['deguisement' => true]]);
+    $deguisement = app(\App\Partie\Classique\Deguisement::class);
+    $etat = fn () => $this->quete->etatsPersonnages()->where('personnage_id', $this->heros->id)->firstOrFail();
+
+    // Au départ, sans armure interdite : déguisé, et publié.
+    expect($etat()->deguise)->toBeTrue()
+        ->and(collect($this->getJson("/api/groupes/{$this->code}/etat")->json('entites'))->firstWhere('id', $this->heros->id)['deguise'] ?? null)->toBeTrue();
+
+    // Une dague ne le trahit pas ; une épée large, si.
+    $deguisement->surAttaque($this->groupe, $etat(), $this->heros, \App\Models\Objet::where('nom', 'Dague')->first());
+    expect($etat()->deguise)->toBeTrue();
+    $deguisement->surAttaque($this->groupe, $etat(), $this->heros, \App\Models\Objet::where('nom', 'Épée large')->first());
+    expect($etat()->deguise)->toBeFalse();
+
+    // Un sort, une armure de plates équipée : même chute.
+    $etat()->update(['deguise' => true]);
+    $deguisement->surSort($this->groupe, $etat(), $this->heros);
+    expect($etat()->deguise)->toBeFalse();
+    $etat()->update(['deguise' => true]);
+    $plates = \App\Models\Objet::where('nom', 'Armure de plates')->first();
+    $this->heros->inventaire()->create(['objet_id' => $plates->id, 'emplacement' => 'armure', 'quantite' => 1]);
+    $deguisement->surEquipement($this->groupe, $etat(), $this->heros->fresh());
+    expect($etat()->deguise)->toBeFalse();
+
+    // Le geste libre « Retirer son déguisement » n'existe que déguisé.
+    $this->heros->inventaire()->where('objet_id', $plates->id)->delete();
+    $etat()->update(['deguise' => true]);
+    expect(menuDeNote($this, 4, 3)->pluck('id'))->toContain('retirer_deguisement');
+    jouerNote($this, 'retirer_deguisement')->assertStatus(202)->assertJsonPath('resultat.type', 'deguisement_perdu');
+    expect($etat()->deguise)->toBeFalse();
+
+    // `si_deguise: false` : la note ne joue que pour un héros à découvert.
+    $etat()->update(['deguise' => true]);
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class);
+    expect($notes->signaler($this->quete->fresh(), 'entree', ['case' => ['x' => 5, 'y' => 3], 'salle' => null], $this->heros))->toBe([]);
+    $etat()->update(['deguise' => false]);
+    expect(array_column($notes->signaler($this->quete->fresh(), 'entree', ['case' => ['x' => 5, 'y' => 3], 'salle' => null], $this->heros), 'repere'))->toBe(['A']);
+});
+
+it('PLACE PUBLIQUE (K6) : un monstre de la place dort ; il s\'éveille à la vue d\'un héros non déguisé, ou attaqué', function () {
+    queteAvecNotes($this, [], [
+        'regles' => ['deguisement' => true],
+        'salles_speciales' => [['id' => 'place', 'x' => 13, 'y' => 2, 'l' => 3, 'h' => 3, 'place' => true]],
+        'monstres' => [['slug' => 'gobelin', 'x' => 5, 'y' => 2], ['slug' => 'orque', 'x' => 14, 'y' => 3]],
+    ], gobelinRetire: false);
+    $dormants = app(\App\Partie\MoteurDormants::class);
+    $orque = $this->quete->instancesMonstres()->where('position_x', 14)->firstOrFail();
+    $gobelin = $this->quete->instancesMonstres()->where('position_x', 5)->firstOrFail();
+    $etat = fn () => $this->quete->etatsPersonnages()->where('personnage_id', $this->heros->id)->firstOrFail();
+
+    expect($dormants->estDormant($orque))->toBeTrue()
+        ->and($dormants->estDormant($gobelin))->toBeFalse();
+
+    // Déguisé, sur la place, en vue de l'orque : il reste inactif. À découvert : il s'éveille. (Depuis le couloir, le mur de
+    // la place coupe la vue — rien ne se passe.)
+    $etat()->update(['position_x' => 12, 'position_y' => 3, 'deguise' => false]);
+    expect($dormants->reveilDuTourMJ($this->quete->fresh(), $orque->fresh()))->toBeNull();
+    $etat()->update(['position_x' => 13, 'position_y' => 4, 'deguise' => true]);
+    expect($dormants->reveilDuTourMJ($this->quete->fresh(), $orque->fresh()))->toBeNull();
+    $etat()->update(['deguise' => false]);
+    expect($dormants->reveilDuTourMJ($this->quete->fresh(), $orque->fresh())['cause'] ?? null)->toBe('vue_non_deguise')
+        ->and($dormants->estDormant($orque->fresh()))->toBeFalse();
+});
+
 it('PROFIL DE MONSTRE (R9) et PRIMES (K5n) : nom, stats, arme requise et prime par monstre abattu', function () {
     queteAvecNotes($this, [], [
         'monstres' => [[
