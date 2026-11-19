@@ -260,6 +260,10 @@ final class DemarreurQueteConstruite
         app(Charge::class)->poser($quete->refresh());
 
         // ÉQUIPEMENT CONFISQUÉ (lot K5j, `regles.confiscation`) : chaque héros qui ENTRE laisse tout à la consigne, AVANT
+        // LE BROUILLARD DES COULOIRS (2026-11-17) : ce que les héros voient en entrant — la colonne passe de `null` à une
+        // liste, ce qui fait jouer ce brouillard à la quête (une quête démarrée avant garde l'ancien).
+        app(CouloirsVus::class)->mettreAJour($quete->refresh());
+
         // le premier round et l'instantané de départ (une reprise retrouve les héros les mains vides, et la consigne).
         $confiscation = app(Confiscation::class);
         if ($confiscation->salle($quete->refresh()) !== null) {

@@ -350,6 +350,8 @@ final class Sauvegarde
                 ...($quete->consignes !== null ? ['consignes' => $quete->consignes] : []),
                 // LA CHARGE (lot K5k) : où elle est, qui la porte — mode classique seulement.
                 ...($quete->charge !== null ? ['charge' => $quete->charge] : []),
+                // Le brouillard des couloirs vus (carte construite) — mode classique seulement.
+                ...($quete->couloirs_vus !== null ? ['couloirs_vus' => $quete->couloirs_vus] : []),
                 // Récits pré-générés : PLACEMENT, pas tirage — ils sont
                 // restaurés tels quels. Les régénérer à chaque reprise
                 // rachèterait au LLM des textes déjà payés, et un
@@ -562,7 +564,7 @@ final class Sauvegarde
         $champs['salles_decouvertes'] = (array) ($quete['salles_decouvertes'] ?? [0]);
         $champs['tresors_fouilles'] = (array) ($quete['tresors_fouilles'] ?? []);
 
-        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'coffres_ouverts', 'artefact_objet_id', 'recits', 'effets_globaux', 'consignes', 'charge'] as $champ) {
+        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'coffres_ouverts', 'artefact_objet_id', 'recits', 'effets_globaux', 'consignes', 'charge', 'couloirs_vus'] as $champ) {
             if (array_key_exists($champ, $quete)) {
                 $champs[$champ] = $quete[$champ];
             }

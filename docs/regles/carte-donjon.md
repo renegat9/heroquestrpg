@@ -980,6 +980,9 @@ déguisait n'est plus publié, et ce qu'il cache reste dans le brouillard — tr
 case, il révèle l'autre côté et se franchit en un pas. → `PassageSecretEnAreteTest` (7 tests, par les vraies routes),
 `MursEnAretesEnJeuTest`.
 
-⚠ **Limite connue, écrite** : une carte construite n'a pas d'état de découverte pour ses COULOIRS. Ouvrir une porte qui
-donne sur un couloir les révèle donc tous, et avec eux les portes qu'on voit depuis un couloir (vu à l'écran le
-2026-11-15). Les salles, elles, restent cachées. À reprendre avec le lot K5.
+**Les couloirs se dévoilent à VUE** (René, 2026-11-17 : « respecter le plateau » — levée de la limite écrite le
+2026-11-15). Une carte construite garde dans `quetes.couloirs_vus` les cases de couloir qu'un héros a eues en ligne de
+vue (`App\Partie\Classique\CouloirsVus`, mis à jour après chaque résolution et au départ) ; le brouillard ne montre
+qu'elles — ouvrir une porte ne révèle plus tous les couloirs, seulement ce qu'on voit par elle. Une salle, elle, se
+révèle entière à l'ouverture de sa porte, comme avant. Une quête démarrée avant ce lot (`couloirs_vus` nul) et toute
+carte générée gardent l'ancien brouillard. → `CouloirsVusTest`.

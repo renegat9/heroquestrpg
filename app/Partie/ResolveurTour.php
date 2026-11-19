@@ -914,6 +914,10 @@ final class ResolveurTour
             // fait entrer. Au même crochet que la découverte de salle — tout ce qui déplace un héros y passe.
             $this->signalerEntrees($quete, $personnage, $positionAvant, $etat->fresh(), $resultat);
 
+            // LE BROUILLARD DES COULOIRS (mode classique, 2026-11-17) : ce que les héros VOIENT maintenant, après le pas,
+            // la porte ouverte, la téléportation. Une quête RPG ou d'arène n'y fait rien (`CouloirsVus`).
+            app(\App\Partie\Classique\CouloirsVus::class)->mettreAJour($quete->fresh());
+
             // DREAD SKULL : « As soon as a hero sees a Dread Skull, place it on the board » —
             // ce que l'action vient de MONTRER (une porte ouverte, un sort de vision) paraît ici,
             // depuis la case de chaque héros debout. La marche, elle, l'a déjà fait case par case

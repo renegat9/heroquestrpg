@@ -65,6 +65,8 @@ class Quete extends Model
         'consignes',
         // Lot K5k (R5/F4) : la charge à porter et à ramener — lue et écrite par `App\Partie\Classique\Charge` seule.
         'charge',
+        // Brouillard des couloirs d'une carte construite (2026-11-17) : cases « x,y » vues — `CouloirsVus` seule.
+        'couloirs_vus',
     ];
 
     /**
@@ -115,6 +117,7 @@ class Quete extends Model
             'tours_mj' => 'integer',
             'consignes' => 'array',
             'charge' => 'array',
+            'couloirs_vus' => 'array',
         ];
     }
 

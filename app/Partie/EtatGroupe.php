@@ -685,7 +685,7 @@ final class EtatGroupe
             ->map(fn ($e) => ['x' => (int) $e->position_x, 'y' => (int) $e->position_y])
             ->all();
         $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $aretes, $positionsHeros, (array) ($carte->grille['murs'] ?? []),
-            $quete->entreeEnCouloir());
+            $quete->entreeEnCouloir(), app(\App\Partie\Classique\CouloirsVus::class)->vus($quete));
 
         return $cases;
     }
@@ -705,7 +705,7 @@ final class EtatGroupe
      * @param  list<array{x: int, y: int, etat: string}>  $portes
      * @return list<list<string>>
      */
-    private function appliquerBrouillard(array $cases, array $salles, array $decouvertes, array $portes, array $positionsHeros = [], array $murs = [], array $graines = []): array
+    private function appliquerBrouillard(array $cases, array $salles, array $decouvertes, array $portes, array $positionsHeros = [], array $murs = [], array $graines = [], ?array $couloirsVus = null): array
     {
         if ($salles === []) {
             return $cases; // pas de métadonnées de salle (vieille carte) : rien à masquer
@@ -770,6 +770,17 @@ final class EtatGroupe
             $file[] = [$x, $y];
         }
 
+        // LE BROUILLARD DES COULOIRS (carte construite, 2026-11-17) : les cases de couloir VUES par un héros sont visibles,
+        // elles seules — un couloir ne se dévoile plus en entier par la porte qu'on vient d'ouvrir. `null` (carte
+        // générée, ou quête démarrée avant) : l'ancien brouillard, inchangé.
+        foreach (array_keys($couloirsVus ?? []) as $cle) {
+            if (! isset($visible[$cle])) {
+                $visible[$cle] = true;
+                [$cx, $cy] = array_map('intval', explode(',', (string) $cle));
+                $file[] = [$cx, $cy];
+            }
+        }
+
         while ($file !== []) {
             [$x, $y] = array_pop($file);
             foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
@@ -788,6 +799,10 @@ final class EtatGroupe
                 // L'intérieur d'une salle NON découverte reste masqué (il faut y ENTRER).
                 $r = $salleDe($nx, $ny);
                 if ($r !== null && ! in_array($r, $decouvertes, true)) {
+                    continue;
+                }
+                // Un couloir que personne n'a VU reste masqué (carte construite, `$couloirsVus`).
+                if ($r === null && $couloirsVus !== null && ! isset($couloirsVus["{$nx},{$ny}"])) {
                     continue;
                 }
                 $visible["{$nx},{$ny}"] = true;

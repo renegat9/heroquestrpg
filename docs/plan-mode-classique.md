@@ -855,6 +855,13 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-17 — le brouillard des couloirs** (décision de René :
+  « respecter le plateau »). `quetes.couloirs_vus` (migration
+  `2026_11_17_140000`, appliquée après sauvegarde relue), `CouloirsVus` : les
+  couloirs se dévoilent à VUE (ligne de vue des héros, cumulée), les salles à
+  l'ouverture de leur porte. Ouvrir une porte ne révèle plus tous les
+  couloirs. Une quête démarrée avant et toute carte générée gardent l'ancien
+  brouillard. Tests `CouloirsVusTest`.
 - **Fait le 2026-11-17 — lot K5k : la charge à porter et à ramener** (R5, F4 ;
   décisions de René). `quete.charge {nom, x, y}` et la fin `ramener` ; état
   `quetes.charge` (migration `2026_11_17_120000`, appliquée après sauvegarde

@@ -6249,6 +6249,15 @@ qu'avec un héros désigné.
   cette quête » sur sa fiche. Un héros SORTI, lui, est un participant qui a quitté le donjon (`sorti: true`).
 - **Constructeur** : « Quête solo » dans la fiche de la quête, parmi les classes exigées par la campagne.
 
+### Le brouillard des couloirs d'une carte construite (2026-11-17)
+
+René : « respecter le plateau ; une salle s'affiche dès qu'un héros est devant sa porte quand elle est ouverte » —
+tranché : les couloirs à VUE, les salles à l'ouverture. `quetes.couloirs_vus` (liste de cases « x,y », `CouloirsVus`)
+retient les cases de couloir qu'un héros a eues en ligne de vue (`Grille::ligneDeVue()`, murs en arêtes et portes closes
+compris), mises à jour après chaque résolution et au départ de la quête. `carte.cases` ne dévoile d'un couloir que ces
+cases — plus tout le couloir derrière une porte ouverte. Saisie et restaurée avec l'instantané. Une quête démarrée avant
+(colonne nulle) et toute carte générée (RPG, arène) gardent l'ancien brouillard.
+
 ### La charge à porter et à ramener — `quete.charge`, fin `ramener` (lot K5k, R5/F4, 2026-11-17)
 
 Décisions de René (2026-11-17) : le porteur lance **UN** dé de déplacement au lieu de deux ; il agit normalement ; s'il
