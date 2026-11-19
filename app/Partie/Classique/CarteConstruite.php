@@ -255,6 +255,8 @@ final class CarteConstruite
             $terrain[] = [
                 'x' => $x, 'y' => $y, 'terrain_id' => (int) $catalogueTerrain[$tuile['slug']]->id,
                 ...(isset($tuile['paire_id']) ? ['paire_id' => (string) $tuile['paire_id']] : []),
+                // E5 : posée au premier pas d'un héros — lue par `EtatGroupe::terrain()` contre les cases foulées.
+                ...(($tuile['cachee'] ?? false) === true ? ['cachee' => true] : []),
             ];
             $occupees["$x,$y"] = true;
         }

@@ -6275,7 +6275,10 @@ citées en commentaire dans le code). Mode classique seulement : chaque lecteur 
   `drapeau_jamais_pose`) ; effet **`detruire_objet {slug, toute_la_salle?}`** (E9) ; `toute_la_salle` sur `degats` ;
   `destinations_d6 {"1".."6": {x, y}}` sur `teleporter` ; `nombre_d6` sur `apparition` ; `si_absent_du_groupe` sur
   `objet` ; `quete.dangers` (`{type: "rocher", run: [{x, y}…]}` ≥ 2 cases, `{type: "brume", x, y}`, en couloir
-  seulement), joués par `MoteurDanger` ; `paire_id` sur un terrain posé. Une fouille de salle où un piège a été
+  seulement), joués par `MoteurDanger` ; `paire_id` sur un terrain posé ; **`cachee: true` sur un terrain posé**
+  (E5, 2026-11-18, *The Frozen Horror* p. 3 : glace glissante, glissière « posées seulement quand un héros y marche ») :
+  la tuile manque à `carte.terrain` tant qu'aucun héros n'a foulé sa case (`drapeaux._passages`) ; son effet joue dès
+  ce premier pas. Constructeur : « posée au premier pas » sur l'outil Terrain. Une fouille de salle où un piège a été
   désarmé ne réveille pas ses dormants ; les dormants `attaque_du_groupe` d'un couloir s'éveillent ensemble.
 - **Constructeur** (2026-11-18) : bloc « Règles des livrets » de la fiche de quête — profil d'auteur de chaque monstre
   posé (et de chaque apparition d'une note), primes, pacifiés, portes à téléportation (table 2d6 créée pleine), fouille

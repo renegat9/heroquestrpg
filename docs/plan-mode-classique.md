@@ -50,7 +50,7 @@ dite avec nos mots. « État » dit si un lecteur moteur existe.
 | D3 | **Ouverture** d'une porte désignée | base, Witch Lord, Kellar's | à faire (les dormants en sont un cas) |
 | D4 | **Mort** d'une figure nommée | tous | partiel (objectif « tuer le boss ») |
 | D5 | **Début du tour du MJ**, à chaque tour ou à partir d'un tour donné | Witch Lord, Kellar's, Morcar | à faire |
-| D6 | **Dernier héros passé** un point (effondrement derrière le groupe) | base | à faire |
+| D6 | **Dernier héros passé** un point (effondrement derrière le groupe) | base | fait (K5l) |
 | D7 | Fouille de **portes secrètes** ou de **pièges** à un endroit donné | base, Kellar's | à faire (résultat imposé : « rien », ou « un seul ») |
 | D8 | Héros qui **termine son déplacement** dans une zone | Kellar's, Frozen Horror | fait pour le terrain et la salle dangereuse |
 | D9 | Objet de quête **ramassé** ou **rapporté** | base, Kellar's, Witch Lord | à faire |
@@ -63,10 +63,10 @@ dite avec nos mots. « État » dit si un lecteur moteur existe.
 | E2 | **Donner** or, objet du catalogue, artefact, potion au fouilleur | lecteurs existants ; à déclencher sur ordre |
 | E3 | **Faire apparaître** des monstres (liste et cases fixes, ou « N par tour » tiré au dé) | invocation existante ; apparition scriptée à faire |
 | E4 | **Réveiller** des figures inertes ; figure **invulnérable tant qu'elle n'a pas agi** | fait (dormants) |
-| E5 | **Révéler** ou **poser** un élément : porte secrète, tuile, meuble, passage | partiel (passage secret) |
+| E5 | **Révéler** ou **poser** un élément : porte secrète, tuile, meuble, passage | fait — porte secrète (K5b), tuile posée au premier pas (`cachee`, 2026-11-18) ; aucun meuble posé en cours de quête dans les livrets relus |
 | E6 | **Fermer** un chemin : bloc tombé, porte factice, porte que seul le MJ ouvre | partiel (chute de blocs ; fausse porte à faire) |
 | E7 | **Dégâts** ou **jet** imposé (dé de combat à l'entrée, piège de coffre avec valeur fixée) | lecteurs existants (`MoteurDegats`, `MoteurPieges`) |
-| E8 | **Déplacer** un héros : téléportation, sortie tirée au dé (salle tournante), glissade | partiel (trappes appariées) ; salle tournante à faire |
+| E8 | **Déplacer** un héros : téléportation, sortie tirée au dé (salle tournante), glissade | fait — `teleporter` (K5f), salle tournante par `destinations_d6` (K5o), portes 2d6 (K5n) |
 | E9 | **Remplacer** une figure par une autre (métamorphe, boss à formes) | fait |
 | E10 | **Marquer** un drapeau de quête, relu par un autre déclencheur ou par la condition de fin | à faire — c'est la pièce qui relie tout |
 
@@ -870,6 +870,16 @@ ni son format, il appelle ce que la route HTTP appelle.
   dangers, paires de terrain — `paire` publié par le catalogue), booléens et
   `destinations_d6` des notes ; vu à l'écran sur les campagnes saisies.
   Trois campagnes des livrets saisies en base (34 quêtes, 0 refus).
+- **Fait le 2026-11-18 — E5, la tuile posée au premier pas.** Inventaire des
+  livrets : « poser en cours de quête » = la glace glissante et la glissière
+  (*The Frozen Horror* p. 3), l'escalier posé quand on regarde dans la salle
+  (le brouillard le fait), la porte secrète (K5b), la salle tournante
+  (`destinations_d6`). Aucun meuble posé en cours de quête : pas de mécanique
+  inventée pour lui (choix écrit). `terrain[].cachee: true` : la tuile manque à
+  `carte.terrain` tant qu'aucun héros n'a foulé sa case — lue sur les passages
+  que D6 retient déjà (`drapeaux._passages`), sans nouvel état ni nouvelle
+  écriture dans la grille ; son effet joue dès ce premier pas. Constructeur :
+  « posée au premier pas » sur l'outil Terrain.
 - **Fait le 2026-11-17 — le brouillard des couloirs** (décision de René :
   « respecter le plateau »). `quetes.couloirs_vus` (migration
   `2026_11_17_140000`, appliquée après sauvegarde relue), `CouloirsVus` : les

@@ -165,7 +165,7 @@ final class ValidationCampagne
     private const CLES_POSE = ['slug', 'x', 'y'];
     // Lot K5d (R6) : les drapeaux d'un piège de quête, lus par `MoteurPieges::trouvable()` / `desarmable()`.
     private const CLES_PIEGE_OPTIONNELLES = ['introuvable', 'indesarmable'];
-    private const CLES_TERRAIN_OPTIONNELLES = ['paire_id'];
+    private const CLES_TERRAIN_OPTIONNELLES = ['paire_id', 'cachee'];
     private const CLES_RECOMPENSE = ['or', 'partage'];
 
     /** Clés déjà prévues par `docs/plan-mode-classique.md` §3, pas encore lues : le lot qui les prendra. */
@@ -937,6 +937,10 @@ final class ValidationCampagne
                 $couche === 'pieges' ? self::CLES_PIEGE_OPTIONNELLES : ($couche === 'monstres' ? self::CLES_MONSTRE_OPTIONNELLES : ($couche === 'terrain' ? self::CLES_TERRAIN_OPTIONNELLES : [])));
             if ($couche === 'monstres') {
                 $this->profilDeMonstre($pose, $position);
+            }
+            // E5 (2026-11-18) : `cachee: true` — la tuile n'est posée qu'au premier pas d'un héros (*Slippery Ice*, *Ice Slide*).
+            if ($couche === 'terrain' && array_key_exists('cachee', $pose) && $pose['cachee'] !== true) {
+                $this->refuser(self::chemin($position, 'cachee'), self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
             }
             if ($couche === 'terrain' && array_key_exists('paire_id', $pose)) {
                 $this->identifiant($pose, 'paire_id', $position);

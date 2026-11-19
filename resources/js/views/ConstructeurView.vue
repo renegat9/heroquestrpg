@@ -242,7 +242,7 @@ function retirerQuete(i) {
 
 // ---------------------------------------------------------------- quêtes : outils de la carte
 const outil = ref('salle');
-const choix = reactive({ piegeIntrouvable: false, piegeIndesarmable: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
+const choix = reactive({ terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
 watch(catalogues, (c) => {
     if (!c) return;
     choix.mobilier ||= c.couches.mobilier?.[0]?.slug ?? '';
@@ -390,7 +390,7 @@ function clicQuete(evt) {
                     ...(choix.piegeIntrouvable ? { introuvable: true } : {}),
                     ...(choix.piegeIndesarmable ? { indesarmable: true } : {}),
                 });
-            } else liste.push({ slug: choix.terrain, x, y });
+            } else liste.push({ slug: choix.terrain, x, y, ...(choix.terrainCache ? { cachee: true } : {}) });
             return;
         }
         case 'cible': {
@@ -834,6 +834,8 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                             <select v-if="outil === 'terrain'" v-model="choix.terrain" class="cst-input">
                                 <option v-for="m in couches.terrain" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
                             </select>
+                            <!-- E5 : la tuile n'est posée qu'au premier pas d'un héros (glace glissante, glissière). -->
+                            <label v-if="outil === 'terrain'" class="cst-case"><input v-model="choix.terrainCache" type="checkbox" /> posée au premier pas</label>
                             <template v-if="outil === 'depart' || outil === 'sortie'">
                                 <select v-model="choix.acces" class="cst-input">
                                     <option v-for="t in vocab.types_acces" :key="t" :value="t">{{ t === 'escalier' ? 'escalier (2×2, coin haut-gauche)' : 'porte (bord cliqué)' }}</option>
@@ -868,7 +870,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <text :x="m.x * CASE + 5" :y="m.y * CASE + 16" class="g-txt">{{ nomDe('mobilier', m.slug).slice(0, 3) }}</text>
                                 </template>
                                 <text v-for="(p, i) in quete.pieges" :key="`p${i}`" :x="p.x * CASE + CASE / 2" :y="p.y * CASE + 18" class="g-piege">▲</text>
-                                <text v-for="(t, i) in quete.terrain" :key="`t${i}`" :x="t.x * CASE + CASE / 2" :y="t.y * CASE + 18" class="g-terrain">≈</text>
+                                <text v-for="(t, i) in quete.terrain" :key="`t${i}`" :x="t.x * CASE + CASE / 2" :y="t.y * CASE + 18" class="g-terrain" :class="{ cachee: t.cachee }">≈</text>
                                 <template v-if="quete.depart">
                                     <rect v-if="quete.depart.type !== 'porte'" :x="quete.depart.x * CASE + 1" :y="quete.depart.y * CASE + 1" :width="2 * CASE - 2" :height="2 * CASE - 2" class="g-entree" />
                                     <line v-else v-bind="ligneBord(quete.depart.x, quete.depart.y, quete.depart.cote)" class="g-porte-entree" />
@@ -1232,6 +1234,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
 .cst-livrets summary { cursor: pointer; }
 .cst-bloc { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 .cst-icone.on { color: var(--torch); border-color: var(--torch); }
+.g-terrain.cachee { opacity: .45; font-style: italic; }
 .cst-puces { display: flex; flex-wrap: wrap; gap: 4px; }
 .cst-puce { font: inherit; font-size: 12px; padding: 3px 8px; border-radius: 12px; border: var(--line); background: var(--stone-850); color: var(--ink-300); cursor: pointer; }
 .cst-puce.on { color: var(--torch); border-color: var(--torch); }

@@ -438,6 +438,27 @@ it('DERNIER HÉROS PASSÉ (D6) : un compagnon À TERRE ou hors du plateau ne ret
     expect($this->quete->fresh()->tousLesHerosOntFranchi(4, 2))->toBeTrue();
 });
 
+it('E5, TUILE POSÉE AU PREMIER PAS : une glace `cachee` manque à la carte jusqu\'à ce qu\'un héros y marche', function () {
+    queteAvecNotes($this, [], ['terrain' => [['slug' => 'glace-glissante', 'x' => 4, 'y' => 2, 'cachee' => true]]]);
+    $terrain = fn () => collect($this->getJson("/api/groupes/{$this->code}/etat")->json('carte.terrain'))
+        ->map(fn ($t) => "{$t['x']},{$t['y']}")->all();
+
+    menuDeNote($this, 3, 2);
+    expect($terrain())->not->toContain('4,2'); // sa case est visible, la tuile non
+
+    desFiges([6, 6, 6, 6]);
+    jouerNote($this, 'se_deplacer', ['x' => 4, 'y' => 2])->assertStatus(202);
+    expect($terrain())->toContain('4,2'); // le pas l'a posée
+});
+
+it('E5 : `cachee` n\'accepte que true', function () {
+    $campagne = DocumentExemple::campagne();
+    $campagne['quetes'][0]['terrain'][0]['cachee'] = 'oui';
+
+    expect(collect(app(\App\Partie\Classique\ValidationCampagne::class)->valider($campagne))->pluck('chemin')->all())
+        ->toContain('quetes.0.terrain.0.cachee');
+});
+
 it('PROFIL DE MONSTRE (R9) et PRIMES (K5n) : nom, stats, arme requise et prime par monstre abattu', function () {
     queteAvecNotes($this, [], [
         'monstres' => [[

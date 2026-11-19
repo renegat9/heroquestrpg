@@ -1301,8 +1301,14 @@ final class EtatGroupe
      */
     private function terrain(Carte $carte, array $cases): array
     {
+        // E5, LA TUILE POSÉE AU PREMIER PAS (carte construite, 2026-11-18 — *The Frozen Horror* p. 3 : « Do not place a
+        // slippery ice tile on the gameboard until a hero steps on the appropriate square ») : une tuile `cachee` ne paraît
+        // qu'une fois sa case foulée par un héros — les passages que retient déjà `Quete::noterPassageSurCase()`. Son effet,
+        // lui, joue dès ce premier pas : c'est le pas qui la pose.
+        $foulees = (array) data_get($carte->quete?->drapeaux, '_passages', []);
         $visibles = collect($carte->grille['terrain'] ?? [])
-            ->filter(fn (array $entree) => ($cases[(int) $entree['y']][(int) $entree['x']] ?? 'b') !== 'b');
+            ->filter(fn (array $entree) => ($cases[(int) $entree['y']][(int) $entree['x']] ?? 'b') !== 'b')
+            ->filter(fn (array $entree) => empty($entree['cachee']) || ! empty($foulees["{$entree['x']},{$entree['y']}"]));
 
         $catalogue = Terrain::query()
             ->whereIn('id', $visibles->pluck('terrain_id')->filter()->unique())
