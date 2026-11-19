@@ -3152,7 +3152,7 @@ final class ResolveurTour
                 // Un SORT DE DREAD lancé par un héros (`$immuniseAuxSorts`, le même prédicat que la zone du MJ,
                 // `MoteurDread::monstresDuSort()`) : `Monstre::immuniseAuxSorts()` passe sans la toucher.
                 if (($immuniseAuxSorts !== null && $immuniseAuxSorts($instance))
-                    || ($sortMagique && $sort !== null && ($this->sorts->sortRefuseSur($instance->monstre->immunitesSorts(), $sort)
+                    || ($sortMagique && $sort !== null && ($this->sorts->sortRefuseSur($instance->immunitesSorts(), $sort)
                     || $this->sorts->terrorisePour($instance, $lanceur)))) {
                     $touches[] = [
                         'type' => 'monstre',
@@ -8156,7 +8156,7 @@ final class ResolveurTour
             // (Guardian Effigy) ou immunisée à la condition que ce sort poserait (Bloomrot Scion :
             // sommeil, tour perdu) n'est pas touchée — et la salle le SAIT : annoncé, sans jet.
             // TERROR (Magrian) : la zone du lanceur ne la touche pas non plus, pour le héros qui la lance.
-            if ($this->sorts->sortRefuseSur($instance->monstre->immunitesSorts(), $sort)
+            if ($this->sorts->sortRefuseSur($instance->immunitesSorts(), $sort)
                 || $this->sorts->terrorisePour($instance, $lanceur)
                 || array_intersect($this->sorts->conditionsPoseesSurMonstre($sort), $instance->monstre->conditionsImmunisees()) !== []) {
                 $touches[] = ['type' => 'monstre', 'instance_id' => $instance->id,
@@ -12820,13 +12820,54 @@ final class ResolveurTour
 
         $notes = app(NotesDeQuete::class);
         $precedente = $avant;
+        $tablePortes = data_get($quete->documentConstruit(), 'regles.portes_teleportation');
+        $bordsDePorte = [];
+        if (is_array($tablePortes) && $quete->carte !== null) {
+            foreach ((array) ($quete->carte->grille['portes'] ?? []) as $p) {
+                $dx = ($p['cote'] ?? 'e') === 'e' ? 1 : (($p['cote'] ?? '') === 'o' ? -1 : 0);
+                $dy = ($p['cote'] ?? '') === 's' ? 1 : (($p['cote'] ?? '') === 'n' ? -1 : 0);
+                $bordsDePorte[Grille::cleArete((int) $p['x'], (int) $p['y'], (int) $p['x'] + $dx, (int) $p['y'] + $dy)] = true;
+            }
+        }
 
         foreach ($trajet as $case) {
             if ($case !== $precedente) {
+                if ($quete->tousLesHerosOntFranchi($precedente['x'], $precedente['y'])) {
+                    $notes->signaler($quete, MotsClesQuete::DERNIER_HEROS_PASSE, ['case' => $precedente], $personnage);
+                }
+
+                // PORTES À TÉLÉPORTATION `2d6` (mode classique, lot K5n, *Castle of Mystery* q. 10) : franchir une porte
+                // interrompt la marche, lance 2d6 et téléporte sur la case correspondante (1 dégât de collision si occupée).
+                if ($bordsDePorte !== [] && isset($bordsDePorte[Grille::cleArete($precedente['x'], $precedente['y'], $case['x'], $case['y'])])) {
+                    $total = $this->des->d6() + $this->des->d6();
+                    $cible = $tablePortes[(string) $total] ?? null;
+                    if (is_array($cible) && isset($cible['x'], $cible['y'])) {
+                        $tx = (int) $cible['x'];
+                        $ty = (int) $cible['y'];
+                        $monstreOcc = $quete->instancesMonstres()->where('etat', 'actif')->where('position_x', $tx)->where('position_y', $ty)->first();
+                        if ($monstreOcc !== null) {
+                            $this->degats->infligerAMonstre($monstreOcc, 1, MoteurDegats::SOURCE_PIEGE, [], $personnage);
+                        }
+                        $herosOcc = $quete->etatsPersonnages()->where('personnage_id', '!=', $personnage->id)->where('tombe', false)->where('position_x', $tx)->where('position_y', $ty)->first();
+                        if ($herosOcc !== null && $herosOcc->personnage !== null) {
+                            $this->degats->infligerAHeros($herosOcc->personnage, 1, MoteurDegats::SOURCE_PIEGE);
+                        }
+                        $place = CaseLibre::iciOuProche($this->grille($quete, exceptPersonnageId: (int) $personnage->id), $tx, $ty) ?? ['x' => $tx, 'y' => $ty];
+                        $etat->update(['position_x' => $place['x'], 'position_y' => $place['y'], 'deplacement_restant' => 0]);
+                        $this->revelerSalleEn($quete, $place['x'], $place['y'], $personnage);
+                        break;
+                    }
+                }
+
                 $salle = $this->salleA($quete, $case['x'], $case['y']);
                 $entre = $salle !== null && $salle !== $this->salleA($quete, $precedente['x'], $precedente['y']);
 
                 $notes->signaler($quete, MotsClesQuete::ENTREE, ['case' => $case, 'salle' => $entre ? $salle : null], $personnage);
+                $quete->noterPassageSurCase($case['x'], $case['y'], (int) $personnage->id);
+
+                if ($case !== $arrivee && $quete->tousLesHerosOntFranchi($case['x'], $case['y'])) {
+                    $notes->signaler($quete, MotsClesQuete::DERNIER_HEROS_PASSE, ['case' => $case], $personnage);
+                }
 
                 // TÉLÉPORTÉ par la note (lot K5f) : il n'a pas foulé la suite du trajet — elle ne déclenche plus rien.
                 $ici = $etat->fresh();
@@ -13276,7 +13317,7 @@ final class ResolveurTour
         $reelle = $this->grille($quete, exceptInstanceId: $instance->id);
         $destinations = [];
 
-        foreach ($grille->casesAtteignables((int) $instance->position_x, (int) $instance->position_y, (int) $instance->monstre->deplacement) as $cle => $chemin) {
+        foreach ($grille->casesAtteignables((int) $instance->position_x, (int) $instance->position_y, $instance->deplacementEffectif()) as $cle => $chemin) {
             [$x, $y] = array_map(intval(...), explode(',', (string) $cle));
 
             if ($chemin !== [] && $this->trajetDeLaMarche($quete, $instance, $grille, $reelle, $chemin)['arrivee'] === ['x' => $x, 'y' => $y]) {
@@ -13324,7 +13365,7 @@ final class ResolveurTour
 
         // ⚠ POINTS de déplacement, pas nombre de cases (doc 18 §4, Rivière Gelée) : `pasAffordables()` compte les points
         // réellement dépensés et rend l'INDEX que `derniereCaseOuSArreter()` attend.
-        $pas = $grille->pasAffordables($chemin, (int) $instance->monstre->deplacement);
+        $pas = $grille->pasAffordables($chemin, $instance->deplacementEffectif());
 
         if ($instance->monstre->grandeTaille()) {
             // Déplacement multi-cases (3.9) — SIMPLIFICATION assumée : le BFS calcule le chemin de l'ANCRE (coin
@@ -14775,6 +14816,16 @@ final class ResolveurTour
      */
     private function jouerMonstreEveille(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Collection $cibles, string $nomMonstre, array $acteur): array
     {
+        if ($quete->estConstruite()) {
+            if ($instance->deplacementEffectif() === 0 && (int) data_get($instance->habillage, 'profil_quete.attaque', 1) === 0) {
+                return ['monstre' => $nomMonstre, 'action' => 'immobile'];
+            }
+            $pacifies = (array) data_get($quete->documentConstruit(), 'regles.monstres_pacifies_par_drapeau', []);
+            $slugBase = \App\Partie\Classique\CatalogueConstructeur::slug((string) ($instance->monstre?->nom_base ?? ''));
+            if (isset($pacifies[$slugBase]) && $quete->aDrapeau((string) $pacifies[$slugBase])) {
+                return ['monstre' => $nomMonstre, 'action' => 'immobile'];
+            }
+        }
 
         // Tempête : « un monstre choisi PASSE SON PROCHAIN TOUR » (Kellar's Keep
         // p. 15). Le tour entier saute — ni déplacement ni attaque —, et la
@@ -15895,7 +15946,7 @@ final class ResolveurTour
 
         $meilleure = null; // [clé, gain, chemin]
 
-        foreach ($grille->casesAtteignables($ix, $iy, (int) $instance->monstre->deplacement) as $cle => $chemin) {
+        foreach ($grille->casesAtteignables($ix, $iy, $instance->deplacementEffectif()) as $cle => $chemin) {
             [$x, $y] = array_map(intval(...), explode(',', $cle));
 
             if ($salle !== null && ! $this->dansSalle($salle, $x, $y)) {
@@ -18019,11 +18070,11 @@ final class ResolveurTour
      */
     private function immuniteDuCoup(InstanceMonstre $instance, ?Objet $arme): ?string
     {
-        if ($instance->monstre->casseArmeExemptees() !== null) {
+        if ($instance->casseArmeExemptees() !== null) {
             return self::SANS_EFFET_INVULNERABLE;
         }
 
-        $sources = $instance->monstre->immunitesSorts()['sources'];
+        $sources = $instance->immunitesSorts()['sources'];
 
         return $sources !== null && ! in_array((string) $arme?->nom, $sources, true) ? self::SANS_EFFET_SOURCE : null;
     }
@@ -18040,7 +18091,7 @@ final class ResolveurTour
         ?Inventaire $ligne,
         ?Objet $arme,
     ): ?string {
-        $exemptees = $instance->monstre->casseArmeExemptees() ?? [];
+        $exemptees = $instance->casseArmeExemptees() ?? [];
 
         if ($ligne === null || ! $ligne->exists || $arme === null || in_array((string) $arme->nom, $exemptees, true)) {
             return null;

@@ -855,6 +855,18 @@ ni son format, il appelle ce que la route HTTP appelle.
   « Lancer la quête » (table) ne passe plus outre les prérequis. Manette : bloc
   « Campagne » au hub (`ChoixCampagneHub.vue`). Tests `ChoixCampagneTest` ;
   vu à l'écran.
+- **Fait le 2026-11-18 — lots K5l à K5o : ce qu'il fallait aux livrets**
+  (travail parallèle de René, intégré et documenté le même jour). D6
+  `dernier_heros_passe` ; R9 profil de monstre d'auteur ; primes par monstre,
+  portes à téléportation 2d6, dégâts sur jet ; fouille de piège un par un,
+  monstres pacifiés par drapeau, `detruire_objet`, dangers (rocher, brume),
+  tables d6 de destinations et d'apparitions. Détail : contrat §« Ce qu'il
+  fallait aux livrets ». Corrigé à l'intégration : `etat_personnage_quete`
+  n'a pas de `pv_body` — sous SQLite la condition passait toujours (nom de
+  colonne lu comme une chaîne), MariaDB aurait refusé la requête au deuxième
+  pas de toute marche ; filtré sur `tombe` et la présence sur le plateau, test
+  du compagnon à terre. Reste : les éditeurs du constructeur pour ces clés.
+  Trois campagnes des livrets saisies en base (34 quêtes, 0 refus).
 - **Fait le 2026-11-17 — le brouillard des couloirs** (décision de René :
   « respecter le plateau »). `quetes.couloirs_vus` (migration
   `2026_11_17_140000`, appliquée après sauvegarde relue), `CouloirsVus` : les

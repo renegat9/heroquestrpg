@@ -146,7 +146,103 @@ class InstanceMonstre extends Model
             return (int) $garde[$volee];
         }
 
+        $profilQuete = data_get($this->habillage, "profil_quete.{$volee}");
+        if ($profilQuete !== null) {
+            return (int) $profilQuete;
+        }
+
         return (int) $this->monstre->{$volee};
+    }
+
+    /**
+     * Score de déplacement effectif de la figure : la valeur propre posée par l'auteur d'une quête construite (lot K5m,
+     * R9 : le Seigneur Sorcier de la q. 12 se déplace d'1 case), sinon la fiche du catalogue.
+     */
+    public function deplacementEffectif(): int
+    {
+        $profil = data_get($this->habillage, 'profil_quete.deplacement');
+
+        return $profil !== null ? (int) $profil : (int) ($this->monstre?->deplacement ?? 0);
+    }
+
+    /**
+     * Échelle des immunités aux sorts et aux armes de CETTE instance : celle du catalogue (`Monstre::immunitesSorts()`),
+     * surchargée par `vulnerable_uniquement_a` quand l'auteur de la quête l'impose (lot K5m, R9 : Seigneur Sorcier q. 12
+     * et q. 14).
+     *
+     * @return array{totale: bool, sauf: ?list<string>, elements: ?list<string>, sources: ?list<string>}
+     */
+    public function immunitesSorts(): array
+    {
+        $base = $this->monstre !== null
+            ? $this->monstre->immunitesSorts()
+            : ['totale' => false, 'sauf' => null, 'elements' => null, 'sources' => null];
+
+        $sources = data_get($this->habillage, 'profil_quete.vulnerable_uniquement_a');
+        if (is_array($sources)) {
+            $base['sources'] = array_values(array_map('strval', $sources));
+        }
+        if (is_array(data_get($this->habillage, 'profil_quete.invulnerable_casse_arme'))) {
+            $base['totale'] = true;
+        }
+
+        return $base;
+    }
+
+    /**
+     * Liste des armes exemptées de casse sur une figure invulnérable (`invulnerable_casse_arme`, Witch Lord q. 10 note A),
+     * ou `null` si la figure n'est pas de cette famille.
+     *
+     * @return ?list<string>
+     */
+    public function casseArmeExemptees(): ?array
+    {
+        $profil = data_get($this->habillage, 'profil_quete.invulnerable_casse_arme');
+        if (is_array($profil)) {
+            return array_values(array_map('strval', $profil));
+        }
+
+        return $this->monstre?->casseArmeExemptees();
+    }
+
+    /**
+     * Construit l'`habillage` d'une figure posée ou apparue dans une quête construite à partir des clés R9 éventuelles
+     * (`nom`, `deplacement`, `attaque`, `defense`, `vulnerable_uniquement_a`, `fuite`). `null` si aucune clé R9 n'est
+     * présente.
+     *
+     * @param  array<string, mixed>  $pose
+     * @return array<string, mixed>|null
+     */
+    public static function habillageDeQuete(array $pose, \App\Partie\Classique\CatalogueConstructeur $catalogue): ?array
+    {
+        $habillage = [];
+        if (isset($pose['nom']) && is_string($pose['nom']) && trim($pose['nom']) !== '') {
+            $habillage['nom'] = trim($pose['nom']);
+        }
+
+        $profil = [];
+        foreach (['deplacement', 'attaque', 'defense'] as $cle) {
+            if (isset($pose[$cle]) && is_int($pose[$cle])) {
+                $profil[$cle] = $pose[$cle];
+            }
+        }
+        foreach (['vulnerable_uniquement_a', 'invulnerable_casse_arme'] as $cleListe) {
+            if (array_key_exists($cleListe, $pose) && is_array($pose[$cleListe])) {
+                $objets = $catalogue->index('objets');
+                $profil[$cleListe] = array_values(array_filter(array_map(
+                    static fn ($slug) => is_string($slug) && isset($objets[$slug]) ? (string) $objets[$slug]->nom : null,
+                    $pose[$cleListe],
+                )));
+            }
+        }
+        if (isset($pose['fuite']) && is_array($pose['fuite']) && isset($pose['fuite']['x'], $pose['fuite']['y'])) {
+            $profil['fuite'] = ['x' => (int) $pose['fuite']['x'], 'y' => (int) $pose['fuite']['y']];
+        }
+        if ($profil !== []) {
+            $habillage['profil_quete'] = $profil;
+        }
+
+        return $habillage === [] ? null : $habillage;
     }
 
     /**

@@ -6249,6 +6249,35 @@ qu'avec un héros désigné.
   cette quête » sur sa fiche. Un héros SORTI, lui, est un participant qui a quitté le donjon (`sorti: true`).
 - **Constructeur** : « Quête solo » dans la fiche de la quête, parmi les classes exigées par la campagne.
 
+### Ce qu'il fallait aux livrets — lots K5l à K5o (2026-11-18)
+
+Ajouts au format d'une quête construite, tous FACULTATIFS, nés de la saisie des trois campagnes des livrets (quêtes
+citées en commentaire dans le code). Mode classique seulement : chaque lecteur passe par `Quete::estConstruite()`, par
+`documentConstruit()` ou par `habillage.profil_quete`, que seule une quête construite pose.
+
+- **K5l, déclencheur `dernier_heros_passe`** (D6), cible `case` : signalé quand chaque héros debout ET sur le plateau a
+  foulé la case et qu'aucun ne s'y tient plus — un `bloc` posé en effet tombe derrière le groupe sans écraser personne.
+  Passages retenus dans `quetes.drapeaux._passages` (clé réservée ; un nom de drapeau d'auteur n'est jamais une liste).
+- **K5m, profil de monstre d'auteur** (R9) sur un monstre posé ou une `apparition` : `nom`, `deplacement`, `attaque`,
+  `defense`, `pv_body`, `pv_mind`, `vulnerable_uniquement_a` (slugs d'objets : seules ces armes le blessent),
+  `invulnerable_casse_arme` (invulnérable ; une arme qui le frappe se brise, sauf celles listées) et `fuite {x, y}` (son
+  refuge quand il fuit). Les PV sont posés sur l'instance, le reste dans `habillage.nom` / `habillage.profil_quete`, lus
+  par `InstanceMonstre::statDeBase()`, `deplacementEffectif()`, `immunitesSorts()`, `casseArmeExemptees()` et
+  `MoteurDread::sortDreadFuite()`. Un monstre `deplacement: 0` et `attaque: 0` ne fait rien à son tour.
+- **K5n, `regles.primes_monstres` `{slug: or}`** : versée à l'abatteur par `Bourses::verser()`, errants compris ;
+  **`regles.portes_teleportation` `{"2".."12": {x, y}}`** : franchir une porte arrête la marche, 2d6 désignent la case
+  d'arrivée (1 point de Corps à la figure qui l'occupe), la salle d'arrivée se révèle ; **effet `degats`** : `sur_jet`
+  (1d6, sous le seuil le héros esquive) et `avec_casque` (seuil quand il porte un Casque).
+- **K5o** : `regles.fouille_piege_un_par_un` (une fouille ne révèle que le piège caché le plus proche, et rien tant
+  qu'un piège déjà révélé de la zone reste armé) ; `regles.monstres_pacifies_par_drapeau {slug: drapeau}` (le drapeau
+  posé, ces monstres restent immobiles — drapeau posé par une note de la quête ou de campagne, sinon
+  `drapeau_jamais_pose`) ; effet **`detruire_objet {slug, toute_la_salle?}`** (E9) ; `toute_la_salle` sur `degats` ;
+  `destinations_d6 {"1".."6": {x, y}}` sur `teleporter` ; `nombre_d6` sur `apparition` ; `si_absent_du_groupe` sur
+  `objet` ; `quete.dangers` (`{type: "rocher", run: [{x, y}…]}` ≥ 2 cases, `{type: "brume", x, y}`, en couloir
+  seulement), joués par `MoteurDanger` ; `paire_id` sur un terrain posé. Une fouille de salle où un piège a été
+  désarmé ne réveille pas ses dormants ; les dormants `attaque_du_groupe` d'un couloir s'éveillent ensemble.
+- **Constructeur** : ces clés ne s'éditent pas encore à l'écran — elles passent par le JSON importé.
+
 ### Le brouillard des couloirs d'une carte construite (2026-11-17)
 
 René : « respecter le plateau ; une salle s'affiche dès qu'un héros est devant sa porte quand elle est ouverte » —

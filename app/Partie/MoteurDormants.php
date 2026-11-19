@@ -137,10 +137,13 @@ final class MoteurDormants
 
         $salle = $this->salleDe($quete, $cible);
 
-        // Hors salle, la figure seule : et seulement si elle DORT encore. Une figure éveillée qui a marché jusque dans un
-        // couloir, puis été attaquée, n'a rien à réveiller — sans ce filtre elle annonçait un faux « s'éveille ».
+        // Hors salle, la figure seule (ou tous les dormants `attaque_du_groupe` en quête construite, Kellar q. 5 note B :
+        // les squelettes des rois nains dans les alcôves s'éveillent tous dès que l'un d'eux est attaqué).
         $membres = $salle === null
-            ? collect([$cible])->filter(fn (InstanceMonstre $m) => $this->estDormant($m))->values()
+            ? ($quete->estConstruite()
+                ? $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->with('monstre')->orderBy('id')->get()
+                    ->filter(fn (InstanceMonstre $m) => $this->declencheur($m) === 'attaque_du_groupe' && $this->estDormant($m))->values()
+                : collect([$cible])->filter(fn (InstanceMonstre $m) => $this->estDormant($m))->values())
             : $this->dormantsDeLaSalle($quete, $salle, 'attaque_du_groupe');
 
         return $this->eveiller($membres, 'attaque');
@@ -180,6 +183,20 @@ final class MoteurDormants
      */
     public function fouilleDeSalle(Quete $quete, int $salle): array
     {
+        if ($quete->estConstruite() && $quete->carte !== null) {
+            $desc = ($quete->carte->grille['salles'] ?? [])[$salle] ?? null;
+            if (is_array($desc)) {
+                $desarmeDansSalle = collect((array) ($quete->carte->grille['pieges'] ?? []))->contains(
+                    static fn (array $p): bool => ($p['etat'] ?? null) === MoteurPieges::ETAT_DESARME
+                        && (int) $p['x'] >= (int) $desc['x'] && (int) $p['x'] < (int) $desc['x'] + (int) $desc['largeur']
+                        && (int) $p['y'] >= (int) $desc['y'] && (int) $p['y'] < (int) $desc['y'] + (int) $desc['hauteur']
+                );
+                if ($desarmeDansSalle) {
+                    return [];
+                }
+            }
+        }
+
         return $this->eveiller($this->dormantsDeLaSalle($quete, $salle, 'fouille_de_la_salle'), 'fouille');
     }
 

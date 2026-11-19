@@ -42,6 +42,13 @@ final class MotsClesQuete
     public const TOUR_DU_MJ = 'tour_du_mj';
 
     /**
+     * D6 — le DERNIER héros debout franchit une case désignée (lot K5l, *Barak Tor* q. 12 note C : « collapses
+     * automatically after the last hero passes by it »). Signalé quand chaque héros debout a foulé la case et qu'aucun
+     * ne s'y tient plus : un bloc posé en effet tombe derrière le groupe sans écraser personne.
+     */
+    public const DERNIER_HEROS_PASSE = 'dernier_heros_passe';
+
+    /**
      * D7 — un héros RÉUSSIT la fouille de la zone dans une salle (lot K5g). La note REMPLACE ce que le jet aurait révélé :
      * le résultat est celui que l'auteur impose (« rien », une seule porte), comme la note de fouille de trésor.
      */
@@ -89,6 +96,11 @@ final class MotsClesQuete
             'signale_par' => 'ResolveurTour::phaseMonstres()',
             'libelle' => 'le tour du maître du jeu commence, à partir du N-ième',
         ],
+        self::DERNIER_HEROS_PASSE => [
+            'cibles' => ['case'],
+            'signale_par' => 'ResolveurTour::signalerEntrees()',
+            'libelle' => 'le dernier héros en vie franchit la case',
+        ],
     ];
 
     // ─── Effets (« alors ») ───────────────────────────────────────────────────────────────────────────────────────
@@ -126,6 +138,9 @@ final class MotsClesQuete
     /** E8 — le héros qui déclenche est emporté sur une case (ou la plus proche libre) ; la salle d'arrivée se révèle (lot K5f). */
     public const TELEPORTER = 'teleporter';
 
+    /** E9 — détruire un objet précis (artefact, arme, armure) dans l'inventaire des héros présents dans la salle (*The Cold Halls*, q. 2 note D). */
+    public const DETRUIRE_OBJET = 'detruire_objet';
+
     /**
      * Effet → ses paramètres (obligatoires, puis optionnels), et la méthode de `NotesDeQuete` qui le joue.
      *
@@ -134,14 +149,15 @@ final class MotsClesQuete
     public const EFFETS = [
         self::TEXTE => ['parametres' => ['texte'], 'optionnels' => [], 'lecteur' => 'effetTexte', 'libelle' => 'lire un texte à la table'],
         self::OR => ['parametres' => ['or'], 'optionnels' => [], 'lecteur' => 'effetOr', 'libelle' => 'donner de l\'or au héros'],
-        self::OBJET => ['parametres' => ['slug'], 'optionnels' => ['quantite'], 'lecteur' => 'effetObjet', 'libelle' => 'donner un objet au héros'],
-        self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
-        self::DEGATS => ['parametres' => ['body'], 'optionnels' => [], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
+        self::OBJET => ['parametres' => ['slug'], 'optionnels' => ['quantite', 'si_absent_du_groupe'], 'lecteur' => 'effetObjet', 'libelle' => 'donner un objet au héros'],
+        self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
+        self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
         self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => ['campagne'], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],
         self::OUVRIR_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetOuvrirPorte', 'libelle' => 'ouvrir une porte'],
         self::BLOC => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetBloc', 'libelle' => 'faire tomber un bloc'],
         self::REVELER_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetRevelerPorte', 'libelle' => 'révéler une porte secrète'],
-        self::TELEPORTER => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetTeleporter', 'libelle' => 'téléporter le héros'],
+        self::TELEPORTER => ['parametres' => ['x', 'y'], 'optionnels' => ['destinations_d6'], 'lecteur' => 'effetTeleporter', 'libelle' => 'téléporter le héros'],
+        self::DETRUIRE_OBJET => ['parametres' => ['slug'], 'optionnels' => ['toute_la_salle'], 'lecteur' => 'effetDetruireObjet', 'libelle' => 'détruire un objet du héros'],
     ];
 
     /**

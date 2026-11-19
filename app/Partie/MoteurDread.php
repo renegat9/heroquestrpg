@@ -912,7 +912,7 @@ final class MoteurDread
         $max = (int) $instance->pvBodyMax();
         $pv = (int) $instance->pv_body;
 
-        if ($this->aCapacite($instance, 'fuit_si_affaibli')) {
+        if ($this->aCapacite($instance, 'fuit_si_affaibli') || is_array(data_get($instance->habillage, 'profil_quete.fuite'))) {
             return $pv <= intdiv($max, 3);
         }
 
@@ -4968,12 +4968,28 @@ final class MoteurDread
         // possible ici est la case libre la plus éloignée des héros, et c'est
         // ce que la donnée déclare — un mot inconnu ne téléporte nulle part
         // plutôt que d'inventer un ailleurs.
-        $caseCible = data_get($sort->effet, 'teleportation') === self::FUITE_CASE_ELOIGNEE
-            ? $this->caseLaPlusEloignee($quete, $instance, $cibles)
-            : null;
+        $refuge = data_get($instance->habillage, 'profil_quete.fuite');
+        if (is_array($refuge) && isset($refuge['x'], $refuge['y'])) {
+            $caseCible = CaseLibre::iciOuProche(
+                FabriqueGrille::pour($quete->fresh(), exceptInstanceId: (int) $instance->id),
+                (int) $refuge['x'],
+                (int) $refuge['y'],
+            );
+        } else {
+            $caseCible = data_get($sort->effet, 'teleportation') === self::FUITE_CASE_ELOIGNEE
+                ? $this->caseLaPlusEloignee($quete, $instance, $cibles)
+                : null;
+        }
 
         if ($caseCible !== null) {
-            $instance->update(['position_x' => $caseCible['x'], 'position_y' => $caseCible['y']]);
+            $champs = ['position_x' => $caseCible['x'], 'position_y' => $caseCible['y']];
+            if (is_array($refuge) && $quete->carte !== null) {
+                $salleRefuge = Salles::indexDe((array) ($quete->carte->grille['salles'] ?? []), $caseCible['x'], $caseCible['y']);
+                if ($salleRefuge !== null && ! in_array($salleRefuge, $quete->sallesDecouvertes(), true)) {
+                    $champs['revele'] = false;
+                }
+            }
+            $instance->update($champs);
         }
 
         $payload = [

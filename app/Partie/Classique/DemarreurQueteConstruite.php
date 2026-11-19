@@ -190,14 +190,17 @@ final class DemarreurQueteConstruite
 
             foreach ($produit['monstres'] as $i => $pose) {
                 $monstre = $monstres->get((int) $pose['monstre_id']);
+                $docMonstre = (array) ($queteDoc['monstres'][$i] ?? []);
+                $pvBody = isset($docMonstre['pv_body']) ? (int) $docMonstre['pv_body'] : (int) $monstre->pv_body;
+                $pvMind = isset($docMonstre['pv_mind']) ? (int) $docMonstre['pv_mind'] : (int) $monstre->pv_mind;
 
                 InstanceMonstre::create([
                     'quete_id' => $quete->id,
                     'monstre_id' => $monstre->id,
-                    // Valeurs du catalogue, telles quelles : ni adaptation à la taille du groupe, ni élite tirée.
-                    'pv_body' => (int) $monstre->pv_body,
-                    'pv_body_max' => (int) $monstre->pv_body,
-                    'pv_mind' => (int) $monstre->pv_mind,
+                    // Valeurs du catalogue, ou surcharges R9 de l'auteur : ni adaptation à la taille du groupe, ni élite tirée.
+                    'pv_body' => $pvBody,
+                    'pv_body_max' => $pvBody,
+                    'pv_mind' => $pvMind,
                     'position_x' => (int) $pose['x'],
                     'position_y' => (int) $pose['y'],
                     'etat' => 'actif',
@@ -208,6 +211,7 @@ final class DemarreurQueteConstruite
                         && Salles::indexDe($carte['salles'], (int) $pose['x'], (int) $pose['y']) === $produit['acces']['salle_depart'],
                     // L'ordre de `produit['monstres']` est celui de `quete.monstres` : `fin.cibles` y lit ses index.
                     'objectif' => in_array($i, $cibles, true),
+                    'habillage' => InstanceMonstre::habillageDeQuete($docMonstre, $this->catalogue),
                 ]);
             }
 
@@ -256,14 +260,14 @@ final class DemarreurQueteConstruite
 
         EffetsGlobauxQuete::annoncer($groupe, $quete);
 
-        // LA CHARGE (lot K5k, `quete.charge`) : posée au sol à sa case, avant l'instantané de départ.
-        app(Charge::class)->poser($quete->refresh());
-
-        // ÉQUIPEMENT CONFISQUÉ (lot K5j, `regles.confiscation`) : chaque héros qui ENTRE laisse tout à la consigne, AVANT
         // LE BROUILLARD DES COULOIRS (2026-11-17) : ce que les héros voient en entrant — la colonne passe de `null` à une
         // liste, ce qui fait jouer ce brouillard à la quête (une quête démarrée avant garde l'ancien).
         app(CouloirsVus::class)->mettreAJour($quete->refresh());
 
+        // LA CHARGE (lot K5k, `quete.charge`) : posée au sol à sa case, avant l'instantané de départ.
+        app(Charge::class)->poser($quete->refresh());
+
+        // ÉQUIPEMENT CONFISQUÉ (lot K5j, `regles.confiscation`) : chaque héros qui ENTRE laisse tout à la consigne, AVANT
         // le premier round et l'instantané de départ (une reprise retrouve les héros les mains vides, et la consigne).
         $confiscation = app(Confiscation::class);
         if ($confiscation->salle($quete->refresh()) !== null) {

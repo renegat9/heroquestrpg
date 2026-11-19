@@ -1620,6 +1620,49 @@ final class MoteurPieges
      */
     public function revelerAutour(Groupe $groupe, Carte $carte, Personnage $personnage, ZoneFouille $zone): array
     {
+        // Lot K5o (*The Spiral Passage*, q. 3 note B) : `regles.fouille_piege_un_par_un` — une fouille dans la zone ne
+        // révèle qu'UN seul piège à la fois (le plus proche du fouilleur), et seulement si aucun piège déjà détecté
+        // de la zone n'est encore armé (« After a discovered trap has been sprung or disarmed, the next trap can be found »).
+        $quete = $carte->quete;
+        if ($quete !== null && $quete->estConstruite()
+            && ! empty(data_get($quete->documentConstruit(), 'regles.fouille_piege_un_par_un'))) {
+            foreach ((array) ($carte->grille['pieges'] ?? []) as $entree) {
+                if (in_array($entree['etat'] ?? null, self::ETATS_CONNUS_ARMES, true)
+                    && $zone->contient((int) $entree['x'], (int) $entree['y'])) {
+                    return [];
+                }
+            }
+            $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+            $hx = (int) ($etat?->position_x ?? 0);
+            $hy = (int) ($etat?->position_y ?? 0);
+            $meilleurIndex = null;
+            $meilleureDist = PHP_INT_MAX;
+            foreach ((array) ($carte->grille['pieges'] ?? []) as $index => $entree) {
+                if (($entree['etat'] ?? null) !== self::ETAT_CACHE
+                    || ! $zone->contient((int) $entree['x'], (int) $entree['y'])
+                    || ! self::trouvable($entree, Piege::find($entree['piege_id']))) {
+                    continue;
+                }
+                $d = abs((int) $entree['x'] - $hx) + abs((int) $entree['y'] - $hy);
+                if ($d < $meilleureDist) {
+                    $meilleureDist = $d;
+                    $meilleurIndex = $index;
+                }
+            }
+            if ($meilleurIndex === null) {
+                return [];
+            }
+            $cible = $carte->grille['pieges'][$meilleurIndex];
+
+            return $this->reveler(
+                $groupe,
+                $carte,
+                $personnage,
+                fn (array $entree) => (int) $entree['x'] === (int) $cible['x'] && (int) $entree['y'] === (int) $cible['y'],
+                'fouille',
+            );
+        }
+
         return $this->reveler(
             $groupe,
             $carte,

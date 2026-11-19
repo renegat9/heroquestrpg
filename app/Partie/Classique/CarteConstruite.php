@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Partie\Classique;
 
+use App\Models\Danger;
 use App\Partie\AssembleurCarte;
 use App\Partie\Grille;
+use App\Partie\MoteurDanger;
 use App\Partie\MoteurPieges;
 use App\Partie\MoteurPortes;
 use InvalidArgumentException;
@@ -250,7 +252,10 @@ final class CarteConstruite
         foreach ($quete['terrain'] as $tuile) {
             $x = (int) $tuile['x'];
             $y = (int) $tuile['y'];
-            $terrain[] = ['x' => $x, 'y' => $y, 'terrain_id' => (int) $catalogueTerrain[$tuile['slug']]->id];
+            $terrain[] = [
+                'x' => $x, 'y' => $y, 'terrain_id' => (int) $catalogueTerrain[$tuile['slug']]->id,
+                ...(isset($tuile['paire_id']) ? ['paire_id' => (string) $tuile['paire_id']] : []),
+            ];
             $occupees["$x,$y"] = true;
         }
 
@@ -261,6 +266,34 @@ final class CarteConstruite
             $y = (int) $monstre['y'];
             $monstres[] = ['monstre_id' => (int) $catalogueMonstres[$monstre['slug']]->id, 'x' => $x, 'y' => $y];
             $occupees["$x,$y"] = true;
+        }
+
+        $dangers = [];
+        if (($quete['dangers'] ?? []) !== []) {
+            $idsDanger = Danger::query()->pluck('id', 'nom')->all();
+            foreach ($quete['dangers'] as $danger) {
+                if (($danger['type'] ?? null) === 'rocher') {
+                    $run = array_values(array_map(static fn (array $c): array => [(int) $c['x'], (int) $c['y']], $danger['run']));
+                    $dangers[] = [
+                        'danger_id' => isset($idsDanger['Rocher roulant']) ? (int) $idsDanger['Rocher roulant'] : null,
+                        'nom' => 'Rocher roulant',
+                        'etat' => MoteurDanger::ETAT_ATTENTE,
+                        'run' => $run,
+                        'i' => 0,
+                        'x' => $run[0][0],
+                        'y' => $run[0][1],
+                        'franchi' => [],
+                    ];
+                } elseif (($danger['type'] ?? null) === 'brume') {
+                    $dangers[] = [
+                        'danger_id' => isset($idsDanger['Brume de la mort']) ? (int) $idsDanger['Brume de la mort'] : null,
+                        'nom' => 'Brume de la mort',
+                        'etat' => MoteurDanger::ETAT_ACTIF,
+                        'x' => (int) $danger['x'],
+                        'y' => (int) $danger['y'],
+                    ];
+                }
+            }
         }
 
         $salleDepart = $sallesMoteur === [] ? null : $ordre[0];
@@ -281,7 +314,7 @@ final class CarteConstruite
                 'mobilier' => $mobilier,
                 'epreuves' => [],
                 'terrain' => $terrain,
-                'dangers' => [],
+                'dangers' => $dangers,
                 'escalier' => $escalier,
                 'spawn_heros' => $idDepart === null
                     ? self::spawnsCouloir($ancre, $cases, $salles, $occupees)

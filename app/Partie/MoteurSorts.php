@@ -2190,7 +2190,7 @@ final class MoteurSorts
      */
     private function monstreAtteignable(InstanceMonstre $instance, Sort $sort, Personnage $lanceur): bool
     {
-        return ! $this->sortRefuseSur($instance->monstre->immunitesSorts(), $sort)
+        return ! $this->sortRefuseSur($instance->immunitesSorts(), $sort)
             && ! app(MoteurDormants::class)->estIntouchable($instance)
             && ! $this->terrorisePour($instance, $lanceur)
             && array_intersect($this->conditionsPoseesSurMonstre($sort), $instance->monstre->conditionsImmunisees()) === [];
@@ -4371,7 +4371,7 @@ final class MoteurSorts
                     // TERROR (Magrian) : la liste n'est pas bâtie par héros. Or la fenêtre d'une Terreur est EXACTEMENT le tour
                     // du héros qu'elle vise, pendant lequel nul autre ne joue : une figure terrorisée y compte donc comme
                     // immunisée totale. Le contrôle exact par héros reste `terrorisePour()` (coups, rayons, balayage, menu).
-                    'immunites' => array_merge($i->monstre->immunitesSorts(), [
+                    'immunites' => array_merge($i->immunitesSorts(), [
                         'totale' => $i->monstre->immuniseAuxSorts()
                             || app(MoteurDormants::class)->estIntouchable($i)
                             || $this->monstreA($i, self::MONSTRE_TERRORISE),

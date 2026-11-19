@@ -203,6 +203,52 @@ class Quete extends Model
     }
 
     /**
+     * Lot K5l (D6, `dernier_heros_passe`) : retient que ce héros a foulé la case (x, y). État durable dans `drapeaux`
+     * sous la clé réservée `_passages` (les noms de drapeaux d'auteur n'acceptent pas de liste).
+     */
+    public function noterPassageSurCase(int $x, int $y, int $personnageId): void
+    {
+        $drapeaux = (array) $this->drapeaux;
+        $cle = "{$x},{$y}";
+        $passages = (array) ($drapeaux['_passages'][$cle] ?? []);
+        if (! in_array($personnageId, $passages, true)) {
+            $passages[] = $personnageId;
+            $drapeaux['_passages'][$cle] = $passages;
+            $this->update(['drapeaux' => $drapeaux]);
+        }
+    }
+
+    /**
+     * Lot K5l (D6) : TOUS les héros encore debout dans le donjon ont-ils foulé la case (x, y), sans qu'aucun ne s'y
+     * tienne encore ? Lu par `ResolveurTour::signalerEntrees()` après chaque pas.
+     */
+    public function tousLesHerosOntFranchi(int $x, int $y): bool
+    {
+        $passages = array_map('intval', (array) data_get($this->drapeaux, "_passages.{$x},{$y}", []));
+        if ($passages === []) {
+            return false;
+        }
+
+        // Debout ET sur le plateau : `etat_personnage_quete` n'a pas de `pv_body` — sous SQLite, un nom de colonne inconnu
+        // entre guillemets devient une CHAÎNE et la condition passait toujours ; MariaDB, lui, refusait la requête.
+        $debout = $this->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->get();
+        if ($debout->isEmpty()) {
+            return false;
+        }
+
+        foreach ($debout as $etat) {
+            if ((int) $etat->position_x === $x && (int) $etat->position_y === $y) {
+                return false;
+            }
+            if (! in_array((int) $etat->personnage_id, $passages, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Le document de la quête construite, tel qu'il était AU DÉPART — jamais relu dans la campagne, que l'auteur peut
      * corriger pendant la partie. `[]` pour une quête générée.
      *

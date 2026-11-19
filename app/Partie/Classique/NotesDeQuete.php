@@ -252,6 +252,16 @@ final class NotesDeQuete
             return ['objet' => null];
         }
 
+        if (! empty($effet['si_absent_du_groupe'])) {
+            $dejaPossede = $quete->groupe->personnages()
+                ->wherePivot('actif', true)
+                ->whereHas('inventaire', fn ($q) => $q->where('objet_id', $objet->id))
+                ->exists();
+            if ($dejaPossede) {
+                return ['objet' => null, 'deja_possede' => true];
+            }
+        }
+
         $quantite = max(1, (int) ($effet['quantite'] ?? 1));
         $deborde = ! RangementObjet::peutRanger($receveur, $objet, $quantite);
         RangementObjet::ranger($objet, (int) $receveur->id, $quantite);
@@ -269,8 +279,13 @@ final class NotesDeQuete
     {
         $catalogue = $this->catalogue->index('monstres');
         $apparus = [];
+        $poses = (array) ($effet['monstres'] ?? []);
+        if (! empty($effet['nombre_d6'])) {
+            $nb = app(\App\Engine\Des\LanceurDes::class)->d6();
+            $poses = array_slice($poses, 0, $nb);
+        }
 
-        foreach ((array) ($effet['monstres'] ?? []) as $pose) {
+        foreach ($poses as $pose) {
             $monstre = $catalogue[(string) ($pose['slug'] ?? '')] ?? null;
 
             if ($monstre === null) {
@@ -287,16 +302,19 @@ final class NotesDeQuete
                 continue;
             }
 
+            $pvBody = isset($pose['pv_body']) ? (int) $pose['pv_body'] : (int) $monstre->pv_body;
+            $pvMind = isset($pose['pv_mind']) ? (int) $pose['pv_mind'] : (int) $monstre->pv_mind;
             $instance = $quete->instancesMonstres()->create([
                 'monstre_id' => $monstre->id,
-                'pv_body' => (int) $monstre->pv_body,
-                'pv_body_max' => (int) $monstre->pv_body,
-                'pv_mind' => (int) $monstre->pv_mind,
+                'pv_body' => $pvBody,
+                'pv_body_max' => $pvBody,
+                'pv_mind' => $pvMind,
                 'position_x' => $place['x'],
                 'position_y' => $place['y'],
                 'etat' => 'actif',
                 'elite' => false,
                 'revele' => true, // posée sous les yeux des héros
+                'habillage' => InstanceMonstre::habillageDeQuete((array) $pose, $this->catalogue),
             ]);
 
             // Le nom AFFICHÉ de la figure (`InstanceMonstre::nomAffiche()`), jamais le nom de catalogue.
@@ -306,7 +324,7 @@ final class NotesDeQuete
         return ['monstres' => $apparus];
     }
 
-    /** E7 — des points de Corps perdus par le héros qui déclenche, par `MoteurDegats` (réductions comprises). */
+    /** E7 — des points de Corps perdus par le héros qui déclenche (ou tous ceux de sa salle si `toute_la_salle`), par `MoteurDegats` (réductions comprises). */
     private function effetDegats(Quete $quete, array $effet, ?Personnage $heros): array
     {
         $body = max(0, (int) ($effet['body'] ?? 0));
@@ -315,9 +333,67 @@ final class NotesDeQuete
             return ['degats' => 0];
         }
 
+        // Lot K5n (*Quest for the Spirit Blade*, q. 13) : `sur_jet` (et `avec_casque` si le héros porte un Casque)
+        // lance 1d6 rouge ; en dessous du seuil, le héros esquive l'éboulement sans perdre de point de Corps.
+        $jet = null;
+        if (isset($effet['sur_jet'])) {
+            $seuil = (int) $effet['sur_jet'];
+            if (isset($effet['avec_casque'])
+                && $heros->inventaire()->where('equipe', true)->whereHas('objet', fn ($q) => $q->where('nom', 'Casque'))->exists()) {
+                $seuil = (int) $effet['avec_casque'];
+            }
+            $jet = app(\App\Engine\Des\LanceurDes::class)->d6();
+            if ($jet < $seuil) {
+                return ['degats' => 0, 'nom' => $heros->nom, 'jet' => $jet];
+            }
+        }
+
+        // Lot K5o (*Belorn's Mine*, q. 8 note A ; *Grin's Crag*, q. 10 note A) : `toute_la_salle: true` blesse tous les
+        // héros debout présents dans la même salle que le héros qui déclenche.
+        if (! empty($effet['toute_la_salle'])) {
+            $cibles = $this->herosDansMemeSalle($quete, $heros);
+            $total = 0;
+            $touches = [];
+            foreach ($cibles as $cible) {
+                $s = (int) app(MoteurDegats::class)->infligerAHeros($cible, $body, MoteurDegats::SOURCE_PIEGE, ['note_de_quete' => true]);
+                $total += $s;
+                $touches[] = ['nom' => $cible->nom, 'degats' => $s];
+            }
+
+            return ['degats' => $total, 'nom' => $heros->nom, 'cibles' => $touches, ...($jet !== null ? ['jet' => $jet] : [])];
+        }
+
         $subis = app(MoteurDegats::class)->infligerAHeros($heros, $body, MoteurDegats::SOURCE_PIEGE, ['note_de_quete' => true]);
 
-        return ['degats' => (int) $subis, 'nom' => $heros->nom];
+        return ['degats' => (int) $subis, 'nom' => $heros->nom, ...($jet !== null ? ['jet' => $jet] : [])];
+    }
+
+    /**
+     * Tous les héros debout dans la même salle que `$heros` (ou `[$heros]` s'il est en couloir).
+     *
+     * @return list<Personnage>
+     */
+    private function herosDansMemeSalle(Quete $quete, Personnage $heros): array
+    {
+        $etatHeros = $quete->etatsPersonnages()->where('personnage_id', $heros->id)->first();
+        if ($etatHeros === null || $etatHeros->horsPlateau()) {
+            return [$heros];
+        }
+        $salles = (array) ($quete->carte?->grille['salles'] ?? []);
+        $salleIdx = \App\Partie\Salles::indexDe($salles, (int) $etatHeros->position_x, (int) $etatHeros->position_y);
+        if ($salleIdx === null) {
+            return [$heros];
+        }
+
+        $cibles = [];
+        foreach ($quete->etatsPersonnages()->where('tombe', false)->with('personnage')->orderBy('id')->get() as $etat) {
+            if ($etat->personnage !== null && ! $etat->horsPlateau()
+                && \App\Partie\Salles::indexDe($salles, (int) $etat->position_x, (int) $etat->position_y) === $salleIdx) {
+                $cibles[] = $etat->personnage;
+            }
+        }
+
+        return $cibles !== [] ? $cibles : [$heros];
     }
 
     /** E10 — le drapeau est posé sur la quête (`quetes.drapeaux`) ; il ne s'annonce pas, il se LIT. */
@@ -387,18 +463,58 @@ final class NotesDeQuete
             return ['teleporte' => false, 'nom' => $heros?->nom];
         }
 
+        $cibleX = (int) ($effet['x'] ?? -1);
+        $cibleY = (int) ($effet['y'] ?? -1);
+        $jet = null;
+
+        // Lot K5o (*Grin's Crag* q. 10 note A ; *The Cold Halls* q. 2 note A) : `destinations_d6` lance 1d6 rouge pour
+        // choisir par quelle porte / case le héros ressort de la salle tournante ou du Nuage de la Terreur.
+        if (is_array($effet['destinations_d6'] ?? null)) {
+            $jet = app(\App\Engine\Des\LanceurDes::class)->d6();
+            $dest = $effet['destinations_d6'][(string) $jet] ?? null;
+            if (is_array($dest) && isset($dest['x'], $dest['y'])) {
+                $cibleX = (int) $dest['x'];
+                $cibleY = (int) $dest['y'];
+            }
+        }
+
         $place = CaseLibre::iciOuProche(
             FabriqueGrille::pour($quete->fresh(), exceptPersonnageId: (int) $heros->id),
-            (int) ($effet['x'] ?? -1),
-            (int) ($effet['y'] ?? -1),
+            $cibleX,
+            $cibleY,
         );
         if ($place === null) {
-            return ['teleporte' => false, 'nom' => $heros->nom];
+            return ['teleporte' => false, 'nom' => $heros->nom, ...($jet !== null ? ['jet' => $jet] : [])];
         }
 
         $etat->update(['position_x' => $place['x'], 'position_y' => $place['y']]);
         app(ResolveurTour::class)->revelerSalleEn($quete, $place['x'], $place['y'], $heros);
 
-        return ['teleporte' => true, 'nom' => $heros->nom, 'x' => $place['x'], 'y' => $place['y']];
+        return ['teleporte' => true, 'nom' => $heros->nom, 'x' => $place['x'], 'y' => $place['y'], ...($jet !== null ? ['jet' => $jet] : [])];
+    }
+
+    /**
+     * E9 (lot K5o, *The Cold Halls* q. 2 note D) — détruit l'objet `slug` dans l'inventaire du héros qui déclenche (ou de
+     * tous les héros présents dans sa salle si `toute_la_salle: true`), et recalcule ses statistiques de combat.
+     */
+    private function effetDetruireObjet(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $objet = $this->catalogue->index('objets')[(string) ($effet['slug'] ?? '')] ?? null;
+        if (! $objet instanceof Objet || $heros === null) {
+            return ['detruits' => []];
+        }
+
+        $cibles = ! empty($effet['toute_la_salle']) ? $this->herosDansMemeSalle($quete, $heros) : [$heros];
+        $detruits = [];
+
+        foreach ($cibles as $cible) {
+            $supprimes = $cible->inventaire()->where('objet_id', $objet->id)->delete();
+            if ($supprimes > 0) {
+                app(\App\Partie\Equipement::class)->recalculerCombat($cible->fresh());
+                $detruits[] = ['personnage' => $cible->nom, 'objet' => $objet->nom];
+            }
+        }
+
+        return ['objet' => $objet->nom, 'detruits' => $detruits];
     }
 }

@@ -144,13 +144,14 @@ final class ValidationCampagne
         'ramener' => ['type', 'libelle'],
     ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'dangers'];
     /**
      * Les RÈGLES DE QUÊTE (`docs/plan-mode-classique.md` §2.3), valables toute la quête — seulement celles que le moteur
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau'];
+    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite'];
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
     private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
     private const CLES_QUAND = ['declencheur', 'cible'];
@@ -164,6 +165,7 @@ final class ValidationCampagne
     private const CLES_POSE = ['slug', 'x', 'y'];
     // Lot K5d (R6) : les drapeaux d'un piège de quête, lus par `MoteurPieges::trouvable()` / `desarmable()`.
     private const CLES_PIEGE_OPTIONNELLES = ['introuvable', 'indesarmable'];
+    private const CLES_TERRAIN_OPTIONNELLES = ['paire_id'];
     private const CLES_RECOMPENSE = ['or', 'partage'];
 
     /** Clés déjà prévues par `docs/plan-mode-classique.md` §3, pas encore lues : le lot qui les prendra. */
@@ -448,11 +450,20 @@ final class ValidationCampagne
             $this->poses($quete, $chemin, 'monstres', 'monstres');
             $this->poses($quete, $chemin, 'pieges', 'pieges');
             $this->poses($quete, $chemin, 'terrain', 'terrain');
+            $this->dangers($quete, $chemin);
             $this->recompense($quete, $chemin);
             // Les notes AVANT la fin : une fin « drapeau » n'est gagnable que si une note pose ce drapeau — de cette quête,
             // ou de campagne par une quête précédente (lot K5h).
             $this->campagneDeLaQuete = [];
             $drapeauxPoses = $this->notes($quete, $chemin) + $this->drapeauxDeCampagne;
+            if (is_array($pacifies = data_get($quete, 'regles.monstres_pacifies_par_drapeau'))) {
+                foreach ($pacifies as $slugMonstre => $drapeauPacifie) {
+                    if (is_string($drapeauPacifie) && $drapeauPacifie !== '' && ! isset($drapeauxPoses[$drapeauPacifie])) {
+                        $this->refuser("$chemin.regles.monstres_pacifies_par_drapeau.$slugMonstre", self::DRAPEAU_JAMAIS_POSE,
+                            "aucune note de cette quête, ni drapeau de campagne d'une quête précédente, ne pose « $drapeauPacifie »");
+                    }
+                }
+            }
             $this->fin($quete, $chemin, $drapeauxPoses);
             // Lot K5k (R5) : la charge, `{nom, x, y}` sur une case où un objet peut être posé — comme une apparition.
             if (array_key_exists('charge', $quete) && ($charge = $this->enObjet($quete['charge'], "$chemin.charge")) !== null) {
@@ -605,9 +616,27 @@ final class ValidationCampagne
             case MotsClesQuete::OBJET:
                 $this->slugCatalogue($effet, 'slug', $position, 'objets');
                 $this->entier($effet, 'quantite', $position, min: 1);
+                if (array_key_exists('si_absent_du_groupe', $effet) && ! is_bool($effet['si_absent_du_groupe'])) {
+                    $this->refuser("$position.si_absent_du_groupe", self::TYPE_INVALIDE, 'true ou false est attendu');
+                }
                 break;
             case MotsClesQuete::DEGATS:
                 $this->entier($effet, 'body', $position, min: 1);
+                foreach (['sur_jet', 'avec_casque'] as $cleJet) {
+                    $jet = $this->entier($effet, $cleJet, $position, min: 1);
+                    if ($jet !== null && $jet > 6) {
+                        $this->refuser("$position.$cleJet", self::VALEUR_INVALIDE, 'doit être entre 1 et 6');
+                    }
+                }
+                if (array_key_exists('toute_la_salle', $effet) && ! is_bool($effet['toute_la_salle'])) {
+                    $this->refuser("$position.toute_la_salle", self::TYPE_INVALIDE, 'true ou false est attendu');
+                }
+                break;
+            case MotsClesQuete::DETRUIRE_OBJET:
+                $this->slugCatalogue($effet, 'slug', $position, 'objets');
+                if (array_key_exists('toute_la_salle', $effet) && ! is_bool($effet['toute_la_salle'])) {
+                    $this->refuser("$position.toute_la_salle", self::TYPE_INVALIDE, 'true ou false est attendu');
+                }
                 break;
             case MotsClesQuete::DRAPEAU:
                 if (array_key_exists('campagne', $effet) && !is_bool($effet['campagne'])) {
@@ -636,6 +665,9 @@ final class ValidationCampagne
                 }
                 break;
             case MotsClesQuete::APPARITION:
+                if (array_key_exists('nombre_d6', $effet) && ! is_bool($effet['nombre_d6'])) {
+                    $this->refuser("$position.nombre_d6", self::TYPE_INVALIDE, 'true ou false est attendu');
+                }
                 $monstres = $this->enListeDe($effet, 'monstres', $position);
                 if (array_key_exists('monstres', $effet) && is_array($effet['monstres']) && $monstres === []) {
                     $this->refuser("$position.monstres", self::VALEUR_INVALIDE, 'Une apparition sans monstre ne fait rien : il en faut au moins un.');
@@ -645,13 +677,28 @@ final class ValidationCampagne
                     if (($pose = $this->enObjet($pose, $ici)) === null) {
                         continue;
                     }
-                    $this->cles($pose, $ici, self::CLES_POSE);
+                    $this->cles($pose, $ici, self::CLES_POSE, self::CLES_MONSTRE_OPTIONNELLES);
                     $this->slugCatalogue($pose, 'slug', $ici, 'monstres');
                     $this->caseDArrivee($pose, $ici, 'la figure');
+                    $this->profilDeMonstre($pose, $ici);
                 }
                 break;
             case MotsClesQuete::TELEPORTER:
                 $this->caseDArrivee($effet, $position, 'le héros');
+                if (array_key_exists('destinations_d6', $effet)) {
+                    $ici = "$position.destinations_d6";
+                    $table = $this->enObjet($effet['destinations_d6'], $ici);
+                    if ($table !== null) {
+                        $attendues = array_map('strval', range(1, 6));
+                        $this->cles($table, $ici, $attendues);
+                        foreach ($attendues as $face) {
+                            if (array_key_exists($face, $table) && ($dest = $this->enObjet($table[$face], "$ici.$face")) !== null) {
+                                $this->cles($dest, "$ici.$face", self::CLES_CASE);
+                                $this->caseDArrivee($dest, "$ici.$face", 'le héros');
+                            }
+                        }
+                    }
+                }
                 break;
         }
 
@@ -887,7 +934,13 @@ final class ValidationCampagne
                 continue;
             }
             $this->cles($pose, $position, $tourne ? self::CLES_MOBILIER : self::CLES_POSE,
-                $couche === 'pieges' ? self::CLES_PIEGE_OPTIONNELLES : []);
+                $couche === 'pieges' ? self::CLES_PIEGE_OPTIONNELLES : ($couche === 'monstres' ? self::CLES_MONSTRE_OPTIONNELLES : ($couche === 'terrain' ? self::CLES_TERRAIN_OPTIONNELLES : [])));
+            if ($couche === 'monstres') {
+                $this->profilDeMonstre($pose, $position);
+            }
+            if ($couche === 'terrain' && array_key_exists('paire_id', $pose)) {
+                $this->identifiant($pose, 'paire_id', $position);
+            }
             foreach ($couche === 'pieges' ? self::CLES_PIEGE_OPTIONNELLES : [] as $drapeau) {
                 if (array_key_exists($drapeau, $pose) && !is_bool($pose[$drapeau])) {
                     $this->refuser(self::chemin($position, $drapeau), self::TYPE_INVALIDE, 'true ou false est attendu');
@@ -921,6 +974,46 @@ final class ValidationCampagne
             }
             $this->occuper([[$x, $y]], $couche === 'monstres' ? 'monstre' : ($couche === 'pieges' ? 'piege' : 'terrain'),
                 $position, $nom);
+        }
+    }
+
+    /**
+     * Lot K5m (R9) : surcharges optionnelles d'un monstre posé ou apparu (`nom`, `deplacement`, `attaque`, `defense`,
+     * `pv_body`, `pv_mind`, `vulnerable_uniquement_a`, `fuite`).
+     */
+    private function profilDeMonstre(array $pose, string $position): void
+    {
+        $this->texte($pose, 'nom', $position, nonVide: true, max: self::LONGUEUR_SLUG);
+        $this->entier($pose, 'deplacement', $position, min: 0);
+        $this->entier($pose, 'attaque', $position, min: 0);
+        $this->entier($pose, 'defense', $position, min: 1);
+        $this->entier($pose, 'pv_body', $position, min: 1);
+        $this->entier($pose, 'pv_mind', $position, min: 0);
+
+        foreach (['vulnerable_uniquement_a', 'invulnerable_casse_arme'] as $cleListe) {
+            if (array_key_exists($cleListe, $pose)) {
+                $ici = self::chemin($position, $cleListe);
+                $sources = $this->enListe($pose[$cleListe], $ici);
+                if ($sources !== null) {
+                    foreach ($sources as $i => $slug) {
+                        $cheminSource = "$ici.$i";
+                        if (! is_string($slug)) {
+                            $this->refuser($cheminSource, self::TYPE_INVALIDE, 'un slug d\'objet est attendu');
+                        } elseif (! $this->catalogue->contient('objets', $slug)) {
+                            $this->refuser($cheminSource, self::CATALOGUE_INCONNU, "« $slug » n'existe pas dans le catalogue « objets »");
+                        }
+                    }
+                }
+            }
+        }
+
+        if (array_key_exists('fuite', $pose)) {
+            $ici = self::chemin($position, 'fuite');
+            $fuite = $this->enObjet($pose['fuite'], $ici);
+            if ($fuite !== null) {
+                $this->cles($fuite, $ici, self::CLES_CASE);
+                $this->caseDArrivee($fuite, $ici, 'le refuge de fuite');
+            }
         }
     }
 
@@ -1248,6 +1341,25 @@ final class ValidationCampagne
         if (array_key_exists('marche_ferme', $regles) && !is_bool($regles['marche_ferme'])) {
             $this->refuser(self::chemin($position, 'marche_ferme'), self::TYPE_INVALIDE, 'true ou false est attendu');
         }
+        if (array_key_exists('fouille_piege_un_par_un', $regles) && !is_bool($regles['fouille_piege_un_par_un'])) {
+            $this->refuser(self::chemin($position, 'fouille_piege_un_par_un'), self::TYPE_INVALIDE, 'true ou false est attendu');
+        }
+        if (array_key_exists('monstres_pacifies_par_drapeau', $regles)) {
+            $ici = self::chemin($position, 'monstres_pacifies_par_drapeau');
+            $pacifies = $this->enObjet($regles['monstres_pacifies_par_drapeau'], $ici);
+            if ($pacifies !== null) {
+                if ($pacifies === []) {
+                    $this->refuser($ici, self::VALEUR_INVALIDE, 'au moins un monstre est attendu');
+                }
+                foreach ($pacifies as $slug => $drapeau) {
+                    $cleSlug = (string) $slug;
+                    if (! $this->catalogue->contient('monstres', $cleSlug)) {
+                        $this->refuser("$ici.$cleSlug", self::CATALOGUE_INCONNU, "« $cleSlug » n'existe pas dans le catalogue « monstres »");
+                    }
+                    $this->nomDeDrapeau($pacifies, $cleSlug, $ici);
+                }
+            }
+        }
         if (array_key_exists('sans_fouille', $regles)) {
             $this->sansFouille($quete, $regles['sans_fouille'], self::chemin($position, 'sans_fouille'));
         }
@@ -1264,6 +1376,41 @@ final class ValidationCampagne
                     $this->refuser("$ici.salle", self::SALLE_INCONNUE, "« $salle » n'est pas une salle ouverte de cette quête : les affaires y seraient hors d'atteinte");
                 } elseif (is_string($salle) && in_array($salle, (array) ($regles['sans_fouille'] ?? []), true)) {
                     $this->refuser("$ici.salle", self::VALEUR_INVALIDE, "« $salle » ne se fouille pas : personne ne pourrait y reprendre ses affaires");
+                }
+            }
+        }
+        // Lot K5n : primes par monstre abattu (*Bastion of Dread*, q. 11) — `{slug_monstre: or >= 1}`.
+        if (array_key_exists('primes_monstres', $regles)) {
+            $ici = self::chemin($position, 'primes_monstres');
+            $primes = $this->enObjet($regles['primes_monstres'], $ici);
+            if ($primes !== null) {
+                if ($primes === []) {
+                    $this->refuser($ici, self::VALEUR_INVALIDE, 'au moins un monstre est attendu');
+                }
+                foreach ($primes as $slug => $or) {
+                    $cleSlug = (string) $slug;
+                    if (! $this->catalogue->contient('monstres', $cleSlug)) {
+                        $this->refuser("$ici.$cleSlug", self::CATALOGUE_INCONNU, "« $cleSlug » n'existe pas dans le catalogue « monstres »");
+                    }
+                    $this->entier($primes, $cleSlug, $ici, min: 1);
+                }
+            }
+        }
+        // Lot K5n : portes à téléportation `2d6` (*Castle of Mystery*, q. 10) — clés « 2 » à « 12 » vers `{x, y}`.
+        if (array_key_exists('portes_teleportation', $regles)) {
+            $ici = self::chemin($position, 'portes_teleportation');
+            $table = $this->enObjet($regles['portes_teleportation'], $ici);
+            if ($table !== null) {
+                $attendues = array_map('strval', range(2, 12));
+                $this->cles($table, $ici, $attendues);
+                foreach ($attendues as $somme) {
+                    if (array_key_exists($somme, $table) && ($dest = $this->enObjet($table[$somme], "$ici.$somme")) !== null) {
+                        $this->cles($dest, "$ici.$somme", self::CLES_CASE);
+                        $case = $this->cellule($dest, "$ici.$somme");
+                        if ($case !== null && $this->salleFermeeEn($case[0], $case[1])) {
+                            $this->refuser("$ici.$somme", self::DANS_SALLE_FERMEE, "la case ({$case[0]}, {$case[1]}) est dans une salle fermée");
+                        }
+                    }
                 }
             }
         }
@@ -1380,6 +1527,47 @@ final class ValidationCampagne
 
         $this->entier($recompense, 'or', $position, min: 0);
         $this->dans($recompense, 'partage', $position, self::PARTAGES);
+    }
+
+    /** `quete.dangers` (facultative, lot K5o) : rocher roulant (`{type: "rocher", run: [{x, y}…]}`) et brume de la mort (`{type: "brume", x, y}`). */
+    private function dangers(array $quete, string $chemin): void
+    {
+        if (! array_key_exists('dangers', $quete)) {
+            return;
+        }
+        foreach ($this->enListeDe($quete, 'dangers', $chemin) as $i => $valeur) {
+            $ici = self::chemin($chemin, 'dangers').".$i";
+            $danger = $this->enObjet($valeur, $ici);
+            if ($danger === null) {
+                continue;
+            }
+            $type = $this->dans($danger, 'type', $ici, ['rocher', 'brume']);
+            if ($type === 'brume') {
+                $this->cles($danger, $ici, ['type', 'x', 'y']);
+                $case = $this->cellule($danger, $ici);
+                if ($case !== null && $this->sallesPosees && $this->salleEn($case[0], $case[1]) !== null) {
+                    $this->refuser($ici, self::BLOC_HORS_COULOIR, 'la brume de la mort ne se pose que dans un couloir');
+                }
+            } elseif ($type === 'rocher') {
+                $this->cles($danger, $ici, ['type', 'run']);
+                $run = $this->enListeDe($danger, 'run', $ici);
+                if (array_key_exists('run', $danger) && is_array($danger['run']) && count($run) < 2) {
+                    $this->refuser("$ici.run", self::VALEUR_INVALIDE, 'le trajet d\'un rocher roulant compte au moins 2 cases');
+                }
+                foreach ($run as $k => $pt) {
+                    $casePt = $this->enObjet($pt, "$ici.run.$k");
+                    if ($casePt !== null) {
+                        $this->cles($casePt, "$ici.run.$k", self::CLES_CASE);
+                        $coord = $this->cellule($casePt, "$ici.run.$k");
+                        if ($coord !== null && $this->sallesPosees && $this->salleEn($coord[0], $coord[1]) !== null) {
+                            $this->refuser("$ici.run.$k", self::BLOC_HORS_COULOIR, 'le rocher roulant ne roule que dans un couloir');
+                        }
+                    }
+                }
+            } else {
+                $this->cles($danger, $ici, ['type'], ['x', 'y', 'run']);
+            }
+        }
     }
 
     // ─── Outils communs : chacun est la SEULE copie de sa règle ───────────────────────────────────────────────────

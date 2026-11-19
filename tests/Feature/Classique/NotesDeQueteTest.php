@@ -396,3 +396,128 @@ it('une apparition dont la case est prise naît dans la salle, pas derrière son
         // Tous deux DANS `galerie` (x 7–10, y 2–5) : aucun dans le couloir, à l'est du mur.
         ->and($apparus->every(fn ($m) => $m->position_x >= 7 && $m->position_x <= 10 && $m->position_y >= 2 && $m->position_y <= 5))->toBeTrue();
 });
+
+it('DERNIER HÉROS PASSÉ (D6) : le bloc ne tombe pas sous les pieds du héros, mais derrière lui dès qu\'il a franchi la case', function () {
+    queteAvecNotes($this, [[
+        'repere' => 'C',
+        'quand' => ['declencheur' => 'dernier_heros_passe', 'cible' => ['case' => ['x' => 4, 'y' => 2]]],
+        'alors' => [['effet' => 'bloc', 'x' => 4, 'y' => 2]],
+    ]]);
+
+    // Le héros s'arrête SUR (4, 2) : il n'a pas encore dépassé la case, rien ne s'effondre sur lui.
+    desFiges([6, 6]);
+    menuDeNote($this, 3, 2);
+    jouerNote($this, 'se_deplacer', ['x' => 4, 'y' => 2])->assertStatus(202);
+    expect(\App\Partie\FabriqueGrille::pour($this->quete->fresh(), exceptPersonnageId: (int) $this->heros->id)->estTraversable(4, 2))->toBeTrue();
+
+    // Au pas suivant, il quitte (4, 2) pour (5, 2) : tous les héros debout ont franchi (4, 2), le bloc tombe derrière lui.
+    $this->quete->etatsPersonnages()->update(['a_deplace' => false, 'deplacement_tour' => 6, 'deplacement_restant' => 6]);
+    menuDeNote($this, 4, 2);
+    jouerNote($this, 'se_deplacer', ['x' => 5, 'y' => 2])->assertStatus(202);
+    expect(\App\Partie\FabriqueGrille::pour($this->quete->fresh(), exceptPersonnageId: (int) $this->heros->id)->estTraversable(4, 2))->toBeFalse();
+});
+
+it('DERNIER HÉROS PASSÉ (D6) : un compagnon À TERRE ou hors du plateau ne retient pas le bloc', function () {
+    queteAvecNotes($this, []);
+    $bob = Personnage::create([
+        'joueur_id' => $this->heros->joueur_id, 'nom' => 'Brunehaut', 'classe' => 'nain', 'niveau' => 1, 'or' => 0,
+        'attribut_body' => 4, 'attribut_mind' => 3, 'pv_body_max' => 7, 'pv_body' => 0, 'pv_mind_max' => 3, 'pv_mind' => 3,
+        'des_attaque' => 2, 'des_defense' => 2, 'deplacement_base' => 4,
+    ]);
+    $this->quete->etatsPersonnages()->create(['personnage_id' => $bob->id, 'position_x' => 1, 'position_y' => 1, 'tombe' => true]);
+    $this->quete->etatsPersonnages()->where('personnage_id', $this->heros->id)->update(['position_x' => 5, 'position_y' => 2]);
+    $this->quete->noterPassageSurCase(4, 2, (int) $this->heros->id);
+
+    // Brunehaut est à terre : seul Albrecht, debout, compte — et il a franchi (4, 2).
+    expect($this->quete->fresh()->tousLesHerosOntFranchi(4, 2))->toBeTrue();
+
+    // Relevée sans avoir foulé la case : elle retient le bloc. Hors du plateau (attend dehors) : elle ne compte plus.
+    $this->quete->etatsPersonnages()->where('personnage_id', $bob->id)->update(['tombe' => false]);
+    expect($this->quete->fresh()->tousLesHerosOntFranchi(4, 2))->toBeFalse();
+    $this->quete->etatsPersonnages()->where('personnage_id', $bob->id)->update(['position_x' => null, 'position_y' => null]);
+    expect($this->quete->fresh()->tousLesHerosOntFranchi(4, 2))->toBeTrue();
+});
+
+it('PROFIL DE MONSTRE (R9) et PRIMES (K5n) : nom, stats, arme requise et prime par monstre abattu', function () {
+    queteAvecNotes($this, [], [
+        'monstres' => [[
+            'slug' => 'seigneur-sorcier-de-barak-tor', 'x' => 5, 'y' => 2,
+            'nom' => 'Seigneur Sorcier éveillé', 'deplacement' => 1, 'attaque' => 2, 'defense' => 5, 'pv_body' => 2, 'pv_mind' => 6,
+            'vulnerable_uniquement_a' => ['lame-des-esprits'],
+        ]],
+        'regles' => ['primes_monstres' => ['seigneur-sorcier-de-barak-tor' => 50]],
+    ], gobelinRetire: false);
+
+    $boss = $this->quete->instancesMonstres()->firstOrFail();
+    expect($boss->nomAffiche())->toBe('Seigneur Sorcier éveillé')
+        ->and($boss->deplacementEffectif())->toBe(1)
+        ->and($boss->attaqueEffective())->toBe(2)
+        ->and($boss->defenseEffective())->toBe(5)
+        ->and((int) $boss->pv_body)->toBe(2);
+
+    // Sans la Lame des Esprits, un coup à mains nues est sans effet (`source`).
+    desFiges([1, 1, 1, 1, 1, 1, 1, 1]);
+    menuDeNote($this, 5, 3);
+    $sansEffet = jouerNote($this, 'attaquer', ['cible_id' => $boss->id])->assertStatus(202)->json('resultat');
+    expect($sansEffet['sans_effet'])->toBe('source')
+        ->and((int) $boss->fresh()->pv_body)->toBe(2);
+
+    // Équipé de la Lame des Esprits, le coup porte et la prime de 50 po est versée à sa mort.
+    $lame = Objet::where('nom', 'Lame des Esprits')->firstOrFail();
+    \App\Partie\RangementObjet::ranger($lame, (int) $this->heros->id, 1);
+    $ligneLame = Inventaire::where('personnage_id', $this->heros->id)->where('objet_id', $lame->id)->firstOrFail();
+    app(\App\Partie\Equipement::class)->equiper($this->heros, $ligneLame);
+    $this->quete->etatsPersonnages()->update(['a_agi' => false]);
+    desFiges([1, 1, 1, 1, 1, 1, 4, 4, 4, 4, 4]);
+    menuDeNote($this, 5, 3);
+    jouerNote($this, 'attaquer', ['cible_id' => $boss->id])->assertStatus(202);
+
+    expect($boss->fresh()->etat)->toBe('vaincu')
+        ->and((int) $this->heros->fresh()->or)->toBe(50);
+});
+
+it('joue detruire_objet, toute_la_salle, destinations_d6, fouille_piege_un_par_un, monstres_pacifies_par_drapeau et dangers', function () {
+    queteAvecNotes($this, [
+        [
+            'repere' => 'A',
+            'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree']],
+            'alors' => [
+                ['effet' => 'detruire_objet', 'slug' => 'dague', 'toute_la_salle' => true],
+                ['effet' => 'degats', 'body' => 1, 'toute_la_salle' => true],
+                ['effet' => 'teleporter', 'x' => 8, 'y' => 3, 'destinations_d6' => [
+                    '1' => ['x' => 8, 'y' => 3],
+                    '2' => ['x' => 9, 'y' => 3],
+                    '3' => ['x' => 10, 'y' => 3],
+                    '4' => ['x' => 8, 'y' => 4],
+                    '5' => ['x' => 9, 'y' => 4],
+                    '6' => ['x' => 10, 'y' => 4],
+                ]],
+                ['effet' => 'drapeau', 'nom' => 'pacifie'],
+            ],
+        ],
+    ], [
+        'regles' => [
+            'fouille_piege_un_par_un' => true,
+            'monstres_pacifies_par_drapeau' => ['gobelin' => 'pacifie'],
+        ],
+        'dangers' => [
+            ['type' => 'rocher', 'run' => [['x' => 7, 'y' => 1], ['x' => 8, 'y' => 1]]],
+            ['type' => 'brume', 'x' => 7, 'y' => 8],
+        ],
+    ]);
+
+    $dague = Objet::where('nom', 'Dague')->firstOrFail();
+    \App\Partie\RangementObjet::ranger($dague, $this->heros->id);
+
+    $pvAvant = (int) $this->heros->fresh()->pv_body;
+    desFiges([4]); // d6 = 4 -> (8, 4)
+    menuDeNote($this, 2, 2);
+    jouerNote($this, 'fouiller_tresor')->assertStatus(202);
+
+    expect($this->heros->inventaire()->where('objet_id', $dague->id)->exists())->toBeFalse()
+        ->and((int) $this->heros->fresh()->pv_body)->toBe($pvAvant - 1)
+        ->and($this->quete->etatsPersonnages()->first()->only(['position_x', 'position_y']))->toBe(['position_x' => 8, 'position_y' => 4])
+        ->and(count($this->quete->carte->grille['dangers']))->toBe(2);
+});
+
+

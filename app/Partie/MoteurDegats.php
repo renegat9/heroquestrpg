@@ -866,6 +866,18 @@ final class MoteurDegats
             if ($rang !== null) {
                 $notes->signaler($instance->quete, MotsClesQuete::MORT, ['monstre' => $rang], $auteurHeros);
             }
+
+            // PRIMES PAR MONSTRE ABATTU (mode classique, lot K5n, *Bastion of Dread* q. 11) : `regles.primes_monstres`
+            // associe un slug de catalogue à une prime en or, versée à l'abatteur (ou partagée sans héros), errants compris.
+            $primes = (array) data_get($instance->quete->documentConstruit(), 'regles.primes_monstres', []);
+            if ($primes !== [] && $instance->monstre !== null && $instance->quete->groupe !== null) {
+                $slugMonstre = \App\Partie\Classique\CatalogueConstructeur::slug((string) $instance->monstre->nom_base);
+                $prime = (int) ($primes[$slugMonstre] ?? 0);
+                if ($prime > 0) {
+                    app(Bourses::class)->verser($instance->quete->groupe, $prime, $auteurHeros);
+                    $orGagne += $prime;
+                }
+            }
         }
 
         // « If a Dread Sorcerer has an active spell and is killed, the effects of that spell immediately
