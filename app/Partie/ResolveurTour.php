@@ -16890,6 +16890,17 @@ final class ResolveurTour
             'deplacement_restant' => $restantApres,
         ];
 
+        // LES ALLIÉS (lot K6) : ceux de ce héros, restés dehors faute de case, le suivent — la case libre la plus proche de
+        // lui (`PoseDesAllies`, le même placement qu'au départ).
+        $pose = app(PoseDesAllies::class);
+        foreach (GroupeMercenaire::where('groupe_id', $groupe->id)->where('etat', 'actif')->whereNull('position_x')
+            ->where('recruteur_personnage_id', $personnage->id)->orderBy('id')->get() as $allie) {
+            $place = $pose->caseLibrePresDuRecruteur($quete->fresh(), $allie);
+            if ($place !== null) {
+                $allie->update(['position_x' => $place['x'], 'position_y' => $place['y']]);
+            }
+        }
+
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;

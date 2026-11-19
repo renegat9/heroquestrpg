@@ -155,7 +155,11 @@ class MercenaireController extends Controller
                 }
             }
 
-            if ($prixAPayerActuel > 0) {
+            // MODE CLASSIQUE (lot K6) : le recruteur paie de SA bourse, par le point de passage de tout l'or. Le RPG garde son
+            // pot commun.
+            if ($prixAPayerActuel > 0 && $groupe->estClassique()) {
+                app(\App\Partie\Bourses::class)->payer($groupe, $prixAPayerActuel, $recruteur);
+            } elseif ($prixAPayerActuel > 0) {
                 $groupe->decrement('or', $prixAPayerActuel);
             }
 
@@ -171,6 +175,8 @@ class MercenaireController extends Controller
                 'recruteur_personnage_id' => $recruteur->id,
                 'pv_body' => (int) $mercenaire->pv_body,
                 'etat' => 'actif',
+                // MODE CLASSIQUE (lot K6) : engagé pour la prochaine quête de la campagne (`MercenairesCampagne::auDepart()`).
+                'paye_jusqu_au_rang' => $groupe->estClassique() ? \App\Partie\Classique\MercenairesCampagne::rangAPayer($groupe) : null,
             ]);
 
             // La faveur retient l'allié engagé à son titre : tant qu'il sert ce héros, le droit

@@ -10,6 +10,7 @@
 // ligne de SON héros et l'affiche : il ne compare plus l'or au prix catalogue
 // — c'est cette comparaison qui grisait un recrutement que le serveur aurait
 // accepté avec le rabais.
+import { computed } from 'vue';
 import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
 
@@ -30,6 +31,8 @@ const props = defineProps({
     rabais: { type: Object, default: null },
     // Un recrutement est en cours (gèle les boutons).
     enCours: { type: Boolean, default: false },
+    // MODE CLASSIQUE (lot K6) : `groupe.recrutement.classique` — {regime, texte}, absent au RPG.
+    regle: { type: Object, default: null },
 });
 const emit = defineEmits(['recruter']);
 
@@ -48,15 +51,31 @@ function motif(m) {
 }
 
 const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' };
+
+// MODE CLASSIQUE (lot K6) : la règle de la campagne et la bourse du héros, publiées par le serveur
+// (`groupe.recrutement.classique`, `decisions[].bourse`) ; seuls les mercenaires qu'elle offre sont listés.
+const classique = computed(() => props.regle ?? null);
+const visibles = computed(() => (classique.value ? props.catalogue.filter((m) => decision(m)) : props.catalogue));
+const maBourse = computed(() => {
+    for (const o of props.offres) {
+        const d = o.decisions.find((x) => x.personnage_id === props.personnageId);
+        if (d && d.bourse !== undefined) return d.bourse;
+    }
+    return null;
+});
 </script>
 
 <template>
     <div class="recrut">
         <div class="sect-title"><MSym n="groups" :size="16" /> Recruter un allié</div>
-        <div class="recrut-bourse">
+        <template v-if="classique">
+            <div class="recrut-bourse"><MSym n="paid" fill :size="15" /> Ta bourse : <b>{{ maBourse ?? 0 }}</b> or</div>
+            <p class="recrut-note">{{ classique.texte }}</p>
+        </template>
+        <div v-else class="recrut-bourse">
             <MSym n="paid" fill :size="15" /> Bourse commune : <b>{{ or }}</b> or
         </div>
-        <p class="recrut-note">
+        <p v-if="!classique" class="recrut-note">
             L'allié est un renfort scripté, embauché avec l'or du groupe. Il reste
             avec vous d'une quête à l'autre contre 10 po d'entretien par quête ;
             impayé, il quitte le groupe.
@@ -67,7 +86,7 @@ const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' 
             à {{ rabais.po }} po de moins.
         </p>
 
-        <div v-for="m in catalogue" :key="m.id" class="recrut-carte" :class="{ off: !!motif(m) }">
+        <div v-for="m in visibles" :key="m.id" class="recrut-carte" :class="{ off: !!motif(m) }">
             <div class="recrut-tete">
                 <span class="recrut-ic"><Vignette :src="m.image_url" :icon="TYPE_ICON[m.type] || 'swords'" /></span>
                 <div class="recrut-nom">

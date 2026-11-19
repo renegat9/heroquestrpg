@@ -538,6 +538,18 @@ function basculerRecompense(avec) {
     quete.value.recompense = avec ? { or: 0, partage: (vocab.value.partages ?? ['groupe'])[0] } : null;
 }
 
+// ---------------------------------------------------------------- mercenaires de la campagne (lot K6)
+// `mercenaires {regime, offerts}` — clé de CAMPAGNE ; disparaît quand on choisit « aucun mercenaire ».
+function changerRegimeMercenaires(regime) {
+    if (!regime) delete doc.value.mercenaires;
+    else doc.value.mercenaires = { regime, offerts: doc.value.mercenaires?.offerts ?? [] };
+}
+function basculerMercenaire(slug) {
+    const liste = doc.value.mercenaires.offerts;
+    const i = liste.indexOf(slug);
+    if (i >= 0) liste.splice(i, 1); else liste.push(slug);
+}
+
 // ---------------------------------------------------------------- quête double (lot K5p, R10)
 // `quete.double` : la PREMIÈRE moitié dans l'ordre est la principale (`{quete, passage}`), la seconde `{quete}` — et sa fin,
 // sa sortie, sa récompense valent `null` (ce sont celles de la principale). Choisir l'autre moitié règle les DEUX quêtes :
@@ -763,6 +775,25 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 :class="{ on: doc.prerequis_heros.includes(c.slug) }"
                                 @click="basculerClasse(c.slug)"
                             >{{ c.nom }}</button>
+                        </div>
+                    </div>
+                    <!-- Lot K6 : les mercenaires de la campagne — sa règle d'embauche et ceux qu'elle offre. -->
+                    <div>
+                        <span class="cst-lbl">Mercenaires</span>
+                        <div class="cst-ligne">
+                            <select :value="doc.mercenaires?.regime ?? ''" class="cst-input" @change="changerRegimeMercenaires($event.target.value)">
+                                <option value="">aucun mercenaire</option>
+                                <option value="par_quete">payés pour une quête à la fois (Frozen Horror)</option>
+                                <option value="retenu_moitie">gardés pour la moitié du prix (Ogre Horde)</option>
+                                <option value="debloques">débloqués par les notes (Dread Moon)</option>
+                            </select>
+                        </div>
+                        <div v-if="doc.mercenaires" class="cst-puces">
+                            <button
+                                v-for="m in (catalogues.mercenaires ?? [])" :key="m.slug" type="button" class="cst-puce"
+                                :class="{ on: doc.mercenaires.offerts.includes(m.slug) }"
+                                @click="basculerMercenaire(m.slug)"
+                            >{{ m.nom }}</button>
                         </div>
                     </div>
                     <ul v-if="refusHorsQuetes.length" class="cst-refus">

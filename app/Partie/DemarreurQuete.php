@@ -383,33 +383,9 @@ final class DemarreurQuete
             // vie ici, remise à `'actif'` par l'update ci-dessous.
             $slot = $heros->count();
 
-            // ⚠ ÉTAT DE TOUR ET POSITION REMIS À ZÉRO (René, 2026-11-13, reste du verdict arène) : un allié qui survit à
-            // une quête y a souvent joué son dernier round — `a_joue`/`a_deplace`/`a_agi` restaient vrais, et il perdait
-            // son premier round de la quête suivante. Sa position, elle, est une case de l'ANCIENNE carte : effacée AVANT
-            // tout placement, pour qu'aucun allié pas encore posé n'occupe une case fantôme de la nouvelle grille.
-            GroupeMercenaire::where('groupe_id', $groupe->id)->where('etat', 'actif')
-                ->update(['a_joue' => false, 'a_deplace' => false, 'a_agi' => false, 'position_x' => null, 'position_y' => null]);
-
-            foreach (GroupeMercenaire::where('groupe_id', $groupe->id)->where('etat', 'actif')
-                ->with('mercenaire')->orderBy('id')->get() as $allie) {
-                $case = $carte['spawn_heros'][$slot] ?? null;
-
-                if ($case !== null) {
-                    $slot++;
-                } else {
-                    // Plus de case de départ (8 dans la salle de l'escalier) : la case libre ATTEIGNABLE la plus proche
-                    // de son héros (René, 2026-11-13) — jamais sur sa case (une case, une figure), jamais à travers un
-                    // mur. Rien d'atteignable : l'allié reste en réserve, hors plateau.
-                    $case = $this->caseLibrePresDuRecruteur($quete, $allie);
-                }
-
-                $allie->update([
-                    'pv_body' => (int) $allie->mercenaire->pv_body,
-                    'position_x' => $case['x'] ?? null,
-                    'position_y' => $case['y'] ?? null,
-                    'etat' => 'actif',
-                ]);
-            }
+            // La pose elle-même — remise à zéro, cases de départ restantes, case libre près du recruteur — vit dans
+            // `PoseDesAllies` depuis le 2026-11-19 : la quête construite du mode classique la partage (lot K6).
+            app(PoseDesAllies::class)->poser($groupe, $quete, $carte['spawn_heros'], $slot);
 
             // CAPTIF À SECOURIR (gabarit « secourir », chantier 3b,
             // 2026-10-04) : posé DANS la salle-artefact — même salle qu'un
@@ -920,39 +896,6 @@ final class DemarreurQuete
      * @param  array<string, mixed>  $salle  {x, y, largeur, hauteur}
      * @return array{x: int, y: int}|null
      */
-    /**
-     * La case libre la plus proche du héros qui a recruté l'allié — au sens du DÉPLACEMENT (`Grille::casesAtteignables()`,
-     * la grille réelle : figures, meubles, portes closes), donc jamais de l'autre côté d'un mur. À coût égal, la plus
-     * haute puis la plus à gauche (ordre stable). Sans recruteur en jeu, depuis la première case de départ. `null` si rien
-     * n'est atteignable dans un rayon de 12 points.
-     *
-     * @return array{x: int, y: int}|null
-     */
-    private function caseLibrePresDuRecruteur(Quete $quete, GroupeMercenaire $allie): ?array
-    {
-        $quete->unsetRelation('carte');
-        $etat = $quete->etatsPersonnages()->where('personnage_id', $allie->recruteur_personnage_id)->whereNotNull('position_x')->first()
-            ?? $quete->etatsPersonnages()->whereNotNull('position_x')->orderBy('id')->first();
-
-        if ($etat === null) {
-            return null;
-        }
-
-        $grille = FabriqueGrille::pour($quete);
-        $meilleure = null;
-
-        foreach ($grille->casesAtteignables((int) $etat->position_x, (int) $etat->position_y, 12) as $cle => $chemin) {
-            [$x, $y] = array_map(intval(...), explode(',', (string) $cle));
-            $rang = [$grille->coutChemin($chemin), $y, $x];
-
-            if ($meilleure === null || $rang < $meilleure[0]) {
-                $meilleure = [$rang, ['x' => $x, 'y' => $y]];
-            }
-        }
-
-        return $meilleure[1] ?? null;
-    }
-
     private function caseLibreDansSalle(array $carte, array $salle): ?array
     {
         if ($salle === [] || ! isset($salle['x'], $salle['y'], $salle['largeur'], $salle['hauteur'])) {

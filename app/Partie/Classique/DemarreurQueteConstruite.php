@@ -45,7 +45,7 @@ use Illuminate\Validation\ValidationException;
  * l'auteur peut corriger pendant que des héros sont dans le donjon.
  *
  * Ce qui n'existe PAS encore ici, écrit pour ne pas être oublié :
- * - les alliés : `EtapesCampagne::CLASSIQUE` ferme le recrutement, donc aucun n'est à poser.
+ * - les alliés : posés par `PoseDesAllies` quand la campagne en offre (lot K6, `MercenairesCampagne`), jamais en solo.
  */
 final class DemarreurQueteConstruite
 {
@@ -177,6 +177,11 @@ final class DemarreurQueteConstruite
         ?array $participants, bool $dehors, ?Quete $moitieDe = null): Quete
     {
         $carte = $produit['carte'];
+        // LES MERCENAIRES (lot K6) : au départ d'une NOUVELLE quête (pas d'une seconde moitié), chaque allié non payé pour
+        // elle part, ou se renouvelle à moitié prix, selon la règle de la campagne.
+        if ($moitieDe === null) {
+            app(MercenairesCampagne::class)->auDepart($groupe, $rang);
+        }
         $monstres = Monstre::whereIn('id', array_column($produit['monstres'], 'monstre_id'))->get()->keyBy('id');
         $cibles = array_map('intval', (array) data_get($queteDoc, 'fin.cibles', []));
 
@@ -280,6 +285,9 @@ final class DemarreurQueteConstruite
             }
 
             $groupe->update(['phase' => 'quete', 'quete_courante_id' => $quete->id]);
+
+            // LES ALLIÉS (lot K6) : sur les cases de départ restantes, comme au RPG (`PoseDesAllies`) ; jamais en solo.
+            app(MercenairesCampagne::class)->poserPourLaQuete($groupe, $quete, (array) ($carte['spawn_heros'] ?? []), $heros->count());
 
             EffetsGlobauxQuete::etablir($quete);
             GardePersonnelle::etablir($quete, $carte);

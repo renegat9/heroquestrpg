@@ -45,6 +45,8 @@ class GroupeMercenaire extends Model
         'groupe_id',
         'mercenaire_id',
         'recruteur_personnage_id',
+        // Mode classique (lot K6) : le rang de la dernière quête pour laquelle il est payé — `MercenairesCampagne`.
+        'paye_jusqu_au_rang',
         // `objets.id` de l'objet qui a APPELÉ cet allié (Fangwarden Armlet) ;
         // `null` = recruté ou octroyé. Un allié appelé ne survit pas à la quête.
         'invoque_par_objet_id',

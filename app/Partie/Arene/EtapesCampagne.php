@@ -217,9 +217,9 @@ final class EtapesCampagne
         self::MARCHE => null,
         self::FORGE => 'pas de forge en classique',
         self::ENTRAINEMENT => 'pas d\'entraînement en classique',
-        // ⚠ FERMÉ POUR L'INSTANT : `DemarreurQueteConstruite` ne pose pas encore les alliés sur la carte. À rouvrir avec
-        // le lot qui les pose — pas avant, un allié recruté resterait hors du donjon.
-        self::MERCENAIRES => 'les alliés d\'un groupe classique arrivent avec un lot ultérieur',
+        // OUVERT depuis le lot K6 (2026-11-19) : chaque campagne déclare sa règle d'embauche (`mercenaires`), et
+        // `Classique\MercenairesCampagne` décide — une campagne sans la clé n'offre personne (`RecrutementHub`).
+        self::MERCENAIRES => null,
         self::DONS => null,
         self::VOTE_RETRAITE => null,
         // Décision Q4 de René : on quitte le donjon case par case, par l'escalier ou la porte de sortie

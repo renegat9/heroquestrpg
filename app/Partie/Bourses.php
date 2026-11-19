@@ -46,10 +46,10 @@ final class Bourses
         'App\Jobs\CloturerCampagne::handle' => 'partage du pot à la clôture d\'une campagne : étape fermée au classique (EtapesCampagne::CLOTURE)',
         'App\Partie\Entrainement::entrainer' => 'étape fermée au classique (EtapesCampagne::ENTRAINEMENT)',
         'App\Partie\Forge::appliquer' => 'étape fermée au classique (EtapesCampagne::FORGE)',
-        'App\Http\Controllers\Api\MercenaireController::recruter' => 'étape fermée au classique (EtapesCampagne::MERCENAIRES)',
+        'App\Http\Controllers\Api\MercenaireController::recruter' => 'pot commun du RPG ; en classique, le recruteur paie de sa bourse par Bourses::payer (lot K6)',
         'App\Partie\Sauvegarde::restaurer' => 'reprise d\'un instantané : remet le pot EXACTEMENT tel qu\'il a été saisi, ce n\'est ni un gain ni une dépense',
         'App\Partie\Sauvegarde::restaurerHeros' => 'reprise d\'un instantané : remet la bourse du héros EXACTEMENT telle qu\'elle a été saisie',
-        'App\Partie\FaveursHopekins::reglerEntretien' => 'entretien des mercenaires : aucun mercenaire dans un groupe classique (EtapesCampagne::MERCENAIRES)',
+        'App\Partie\FaveursHopekins::reglerEntretien' => 'entretien des mercenaires du RPG : jamais pour un groupe classique (garde estClassique, lot K6 — Classique\MercenairesCampagne règle les siens par Bourses)',
         'App\Partie\Classique\Confiscation::confisquer' => 'équipement confisqué (lot K5j) : la bourse du héros passe à la consigne de la quête, ni gain ni dépense',
         'App\Partie\Classique\Confiscation::rendre' => 'équipement confisqué (lot K5j) : la consigne rend au héros EXACTEMENT la bourse qu\'elle avait prise',
     ];

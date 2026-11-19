@@ -6256,6 +6256,28 @@ qu'avec un héros désigné.
   cette quête » sur sa fiche. Un héros SORTI, lui, est un participant qui a quitté le donjon (`sorti: true`).
 - **Constructeur** : « Quête solo » dans la fiche de la quête, parmi les classes exigées par la campagne.
 
+### Les mercenaires d'une campagne classique — `mercenaires` (lot K6, 2026-11-19)
+
+René : « chaque campagne choisit sa règle ». Clé de CAMPAGNE `mercenaires: {regime, offerts: [slug…]}` (refus
+`valeur_invalide`, `catalogue_inconnu` — jamais un captif scénarisé ni un allié d'un seul effet) :
+- `par_quete` (*The Frozen Horror* p. 6) : engagé pour la prochaine quête, payé de la bourse du recruteur ; au départ de
+  la suivante, s'il n'est pas réengagé, il part (`mercenaire_congedie`). Jamais en quête solo (refus au recrutement, et
+  aucun allié n'entre dans une quête solo).
+- `retenu_moitie` (*Against the Ogre Horde* p. 8) : au départ de chaque nouvelle quête, le recruteur paie la moitié du
+  prix, arrondie au-dessous (*Dread Moon* p. 11 : « rounded down » — `mercenaire_retenu`), sinon il part.
+- `debloques` (*Rise of the Dread Moon*) : seuls les mercenaires débloqués par une note (lot suivant, avec la
+  réputation) sont offerts ; gardés ensuite à moitié prix, comme `retenu_moitie`. Les quatre mercenaires elfes (Striker,
+  Glaive, Arbalist, Scout, p. 10-11) ont les mêmes lignes et capacités que l'Estafier, le Fauchard, l'Arbalétrier et
+  l'Éclaireur du catalogue (*Frozen Horror*) : la campagne offre ces fiches, sans doublon (choix écrit).
+- Ni statut de Gardien, ni plafond ; l'entretien du RPG ne s'applique jamais à un groupe classique. Point de passage
+  `Classique\MercenairesCampagne` (lu par `RecrutementHub` et au départ de la quête), colonne
+  `groupe_mercenaires.paye_jusqu_au_rang` (migration `2026_11_19_160000`). Les alliés sont posés par `PoseDesAllies`
+  (extrait du démarrage RPG, sans changement de règle) ; ceux qui restent dehors suivent leur recruteur par la porte
+  d'entrée, et dans une moitié de quête double.
+- Publication : `groupe.recrutement_ouvert` vrai seulement si la campagne en offre ; `groupe.recrutement.classique:
+  {regime, texte}` (la règle, dite par le serveur) et `decisions[].bourse` (la bourse du héros) — clés absentes au RPG.
+  `GET /api/constructeur/catalogues` publie `mercenaires: [{slug, nom}]` (les recrutables).
+
 ### Le déguisement et la place publique — `regles.deguisement`, `salles_speciales[].place`, `quand.si_deguise` (lot K6, 2026-11-19)
 
 *Rise of the Dread Moon* (F6646 p. 9 et 4-5). René : équiper une armure interdite fait perdre le déguisement.

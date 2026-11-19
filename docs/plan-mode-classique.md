@@ -871,6 +871,17 @@ ni son format, il appelle ce que la route HTTP appelle.
   dangers, paires de terrain — `paire` publié par le catalogue), booléens et
   `destinations_d6` des notes ; vu à l'écran sur les campagnes saisies.
   Trois campagnes des livrets saisies en base (34 quêtes, 0 refus).
+- **Fait le 2026-11-19 — lot K6 : les mercenaires d'une campagne classique**
+  (tranche A ; René : « chaque campagne choisit sa règle »). Clé de campagne
+  `mercenaires {regime, offerts}` — `par_quete`, `retenu_moitie`, `debloques`
+  (les débloqués viendront avec la réputation) ; `Classique\MercenairesCampagne`
+  décide (recrutement sans Gardien ni plafond, payé de la bourse du recruteur,
+  jamais en solo ; congé ou renouvellement à moitié prix au départ de chaque
+  quête, colonne `paye_jusqu_au_rang`, migration après sauvegarde relue).
+  L'étape `MERCENAIRES` est ouverte au classique ; l'entretien du RPG ne s'y
+  applique jamais. La pose des alliés est extraite dans `PoseDesAllies` (RPG
+  inchangé). Manette : la règle et la bourse du héros, publiées par le serveur.
+  Tests `MercenairesCampagneTest`.
 - **Fait le 2026-11-19 — lot K6 : le déguisement et la place publique**
   (*Dread Moon*). `regles.deguisement`, jeton au départ pour qui ne porte pas
   d'armure interdite (colonne `etat_personnage_quete.deguise`, migration
@@ -935,7 +946,14 @@ ni son format, il appelle ce que la route HTTP appelle.
        et se révèle à l'ouverture de sa porte comme toute salle. Périmètre
        « fusion + murs de la place ».
     3. **Réputation** : tout, mercenaires compris (« ce sont des alliés, on
-       les gère déjà en RPG ») — les ouvrir en classique.
+       les gère déjà en RPG ») — les ouvrir en classique. **Mercenaires
+       (René, 2026-11-19) : chaque campagne choisit sa règle** — clé de
+       campagne `mercenaires {regime, offerts}` : `par_quete` (*Frozen
+       Horror* : payé avant chaque quête, congédié à la fin, jamais en quête
+       solo), `retenu_moitie` (*Ogre Horde* : gardé d'une quête à l'autre pour
+       la moitié du prix), `debloques` (*Dread Moon* : débloqués par une note,
+       payables d'un jeton de réputation) ; jamais de statut de Gardien ; l'or
+       vient de la bourse du recruteur.
     4. Choix par défaut écrits (non tranchés par René) : obscurité magique,
        plancher d'un dé comme la Fosse, compteur par héros et par quête ;
        glyphes, le Feu = la cheminée.

@@ -1304,6 +1304,8 @@ const maBourse = computed(() => herosPilotes.value.find((h) => h.id === monPerso
 // chaque allié, le prix réel de CHAQUE héros (remise de Potion de charme comprise)
 // et le verdict (recrutable, motif). Le panneau choisit la ligne de son héros.
 const recrutementOffres = computed(() => store.state.etat?.groupe?.recrutement?.offres ?? []);
+// MODE CLASSIQUE (lot K6) : la règle d'embauche de la campagne (`groupe.recrutement.classique`), absente au RPG.
+const recrutementRegle = computed(() => store.state.etat?.groupe?.recrutement?.classique ?? null);
 // Le recrutement est-il ouvert à ce groupe ? Publié par le serveur (`groupe.recrutement_ouvert`) ; absent d'un état
 // antérieur à ce champ : ouvert, comme avant.
 const recrutementOuvert = computed(() => store.state.etat?.groupe?.recrutement_ouvert !== false);
@@ -1983,13 +1985,15 @@ const navItems = computed(() => (scene.value === 'marche'
                             </div>
 
                             <!-- ---- recrutement d'alliés (hub, bourse commune) ---- -->
-                            <!-- `recrutement_ouvert` : la DÉCISION du serveur (registre des étapes). Fermé en mode classique. -->
+                            <!-- `recrutement_ouvert` : la DÉCISION du serveur (registre des étapes) ; en classique, ouvert seulement si
+                                 la campagne offre des mercenaires (lot K6), avec sa règle (`recrutement.classique`). -->
                             <RecrutementHub
                                 v-if="auHub && recrutementOuvert"
                                 :catalogue="catalogueMercs"
                                 :recrues="recruesHub"
                                 :or="orCommun"
                                 :offres="recrutementOffres"
+                                :regle="recrutementRegle"
                                 :personnage-id="monPersonnageId"
                                 :rabais="monPerso?.rabais_recrutement ?? null"
                                 :en-cours="recrutEnCours"

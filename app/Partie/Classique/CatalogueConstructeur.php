@@ -33,6 +33,8 @@ final class CatalogueConstructeur
         'classes' => [ClasseHeros::class, 'nom'],
         // Ce qu'une note de quête peut DONNER (effet `objet`, lot K3) : lu par `NotesDeQuete::effetObjet()`.
         'objets' => [Objet::class, 'nom'],
+        // Les mercenaires qu'une campagne offre (lot K6, clé de campagne `mercenaires`) : `Classique\MercenairesCampagne`.
+        'mercenaires' => [\App\Models\Mercenaire::class, 'nom'],
     ];
 
     /** Les couches qu'une quête pose sur la carte (`monstre_errant` lit `monstres`, `prerequis_heros` lit `classes`). */
@@ -131,6 +133,12 @@ final class CatalogueConstructeur
             'couches' => $couches,
             'classes' => $this->palette('classes'),
             'objets' => $this->palette('objets'),
+            // Lot K6 : les mercenaires RECRUTABLES (ni captif scénarisé ni allié d'un seul effet) — `mercenaires.offerts`.
+            'mercenaires' => array_values(array_filter($this->palette('mercenaires'), function (array $ligne): bool {
+                $m = $this->index('mercenaires')[$ligne['slug']];
+
+                return ! $m->captif && ! $m->octroi_seul;
+            })),
             'vocabulaires' => [
                 'rotations' => ValidationCampagne::ROTATIONS,
                 'cotes' => ValidationCampagne::COTES,

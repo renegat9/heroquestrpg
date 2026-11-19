@@ -244,7 +244,9 @@ final class EtatGroupe
             // (`Bourses::donOuvert()`). La manette n'affiche « Donner de l'or » que sur ce booléen.
             $preambuleGroupe['don_or_ouvert'] = app(Bourses::class)->donOuvert($groupe);
 
-            $recrutementOuvert = $groupe->etapeOuverte(\App\Partie\Arene\EtapesCampagne::MERCENAIRES);
+            $recrutementOuvert = $groupe->etapeOuverte(\App\Partie\Arene\EtapesCampagne::MERCENAIRES)
+                // MODE CLASSIQUE (lot K6) : ouvert seulement si la campagne offre des mercenaires.
+                && (! $groupe->estClassique() || app(\App\Partie\Classique\MercenairesCampagne::class)->ouvert($groupe));
             $preambuleGroupe['recrutement_ouvert'] = $recrutementOuvert;
             $preambuleGroupe['recrutement'] = $recrutementOuvert ? app(RecrutementHub::class)->publier($groupe) : null;
 

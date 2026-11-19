@@ -1341,6 +1341,13 @@ final class FaveursHopekins
      */
     public function reglerEntretien(Groupe $groupe, int $queteId): ?array
     {
+        // MODE CLASSIQUE (lot K6) : les mercenaires suivent la règle de LEUR campagne (`Classique\MercenairesCampagne`,
+        // réglée au départ de chaque quête), jamais cet entretien du RPG — qui écrirait un pot commun que le classique
+        // n'a pas.
+        if ($groupe->estClassique()) {
+            return null;
+        }
+
         $mercenaires = GroupeMercenaire::where('groupe_id', $groupe->id)
             ->where('etat', 'actif')
             // Le compagnon animal OFFERT (Against the Ogre Horde p. 8-9, « at no cost ») ne

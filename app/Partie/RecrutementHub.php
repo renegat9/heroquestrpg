@@ -100,10 +100,13 @@ final class RecrutementHub
             ->orderBy('groupe_personnages.ordre_initiative')
             ->get();
 
+        $classique = app(\App\Partie\Classique\MercenairesCampagne::class);
         $offres = Mercenaire::query()
             ->where('octroi_seul', false)
             ->orderBy('prix')
             ->get()
+            // MODE CLASSIQUE (lot K6) : seuls ceux que la campagne offre (et, en `debloques`, qu'elle a débloqués).
+            ->filter(fn (Mercenaire $m) => ! $groupe->estClassique() || $classique->offre($groupe, $m))
             ->map(function (Mercenaire $mercenaire) use ($groupe, $heros, $contexte) {
                 $decisions = $heros->map(function (Personnage $h) use ($groupe, $mercenaire, $contexte) {
                     $prix = $this->prixPour($h, $mercenaire, isset($contexte['gratuits'][$h->id]));
@@ -120,6 +123,8 @@ final class RecrutementHub
                         'offert_par_faveur' => $prix['gratuit_faveur'],
                         'recrutable' => $motif === null,
                         'motif' => $motif['message'] ?? null,
+                        // MODE CLASSIQUE (lot K6) : la bourse de CE héros, d'où l'or sortira — clé absente au RPG.
+                        ...($groupe->estClassique() ? ['bourse' => app(Bourses::class)->solde($groupe, $h)] : []),
                     ];
                 })->values()->all();
 
@@ -128,7 +133,49 @@ final class RecrutementHub
             ->values()
             ->all();
 
-        return ['offres' => $offres];
+        // MODE CLASSIQUE (lot K6) : la règle d'embauche de la campagne, dite par le serveur — la manette ne connaît ni
+        // l'entretien du RPG ni la bourse commune. Clé absente au RPG.
+        $regle = app(\App\Partie\Classique\MercenairesCampagne::class)->regle($groupe);
+
+        return ['offres' => $offres, ...($regle !== null ? ['classique' => [
+            'regime' => $regle['regime'],
+            'texte' => match ($regle['regime']) {
+                'par_quete' => 'Chaque mercenaire s\'engage pour la prochaine quête seulement, payé de la bourse de son recruteur ; il faut le réengager avant la suivante. Jamais en quête solo.',
+                'retenu_moitie' => 'Engagé au prix plein, un mercenaire reste d\'une quête à l\'autre si son recruteur paie la moitié de son prix au départ de chaque nouvelle quête ; sinon, il part.',
+                default => 'Les mercenaires se débloquent au fil des quêtes ; chacun s\'engage pour la prochaine quête, payé de la bourse de son recruteur.',
+            },
+        ]] : [])];
+    }
+
+    /**
+     * MODE CLASSIQUE (lot K6) : la campagne offre-t-elle CE mercenaire (débloqué, en `debloques`), la prochaine quête
+     * n'est-elle pas solo, et la bourse du recruteur suffit-elle ? Le compagnon animal reste unique.
+     *
+     * @param  array<string, mixed>  $contexte
+     * @return array{cle: string, message: string}|null
+     */
+    private function verdictClassique(Groupe $groupe, Mercenaire $mercenaire, Personnage $recruteur, array $contexte): ?array
+    {
+        $campagne = app(\App\Partie\Classique\MercenairesCampagne::class);
+        if (! $campagne->ouvert($groupe)) {
+            return ['cle' => 'groupe', 'message' => 'Cette campagne n\'offre aucun mercenaire.'];
+        }
+        if ($mercenaire->octroi_seul || ! $campagne->offre($groupe, $mercenaire)) {
+            return ['cle' => 'mercenaire_id', 'message' => "« {$mercenaire->nom} » n'est pas à engager dans cette campagne."];
+        }
+        if (\App\Partie\Classique\MercenairesCampagne::prochaineSolo($groupe)) {
+            return ['cle' => 'groupe', 'message' => 'La prochaine quête se joue seul : aucun mercenaire ne s\'y engage.'];
+        }
+        $prix = $this->prixPour($recruteur, $mercenaire, isset($contexte['gratuits'][$recruteur->id]))['prix'];
+        $solde = app(Bourses::class)->solde($groupe, $recruteur);
+        if ($solde < $prix) {
+            return ['cle' => 'mercenaire_id', 'message' => "Or insuffisant : {$prix} requis, {$solde} dans la bourse de {$recruteur->nom}."];
+        }
+        if ($mercenaire->animal && $contexte['animal_pris']) {
+            return ['cle' => 'mercenaire_id', 'message' => 'Le groupe a déjà un compagnon animal (un seul autorisé).'];
+        }
+
+        return null;
     }
 
     /**
@@ -193,6 +240,12 @@ final class RecrutementHub
     {
         if (! $contexte['hub']) {
             return ['cle' => 'groupe', 'message' => "Le recrutement n'est possible qu'au hub, entre deux quêtes."];
+        }
+
+        // MODE CLASSIQUE (lot K6) : la règle de la CAMPAGNE (`Classique\MercenairesCampagne`) — ni Gardien ni plafond ;
+        // l'or est celui de la bourse du recruteur.
+        if ($groupe->estClassique()) {
+            return $this->verdictClassique($groupe, $mercenaire, $recruteur, $contexte);
         }
 
         // STATUT DE GARDIEN : 2 quêtes achevées, pour TOUS les groupes. Les

@@ -274,7 +274,7 @@ final class ValidationCampagne
             return $this->refus;
         }
 
-        $this->cles($document, '', self::CLES_CAMPAGNE);
+        $this->cles($document, '', self::CLES_CAMPAGNE, ['mercenaires']);
         $this->format($document);
 
         $slug = $this->slug($document, 'slug', '');
@@ -287,6 +287,7 @@ final class ValidationCampagne
         $this->texte($document, 'auteur', '', nullable: true, max: self::LONGUEUR_AUTEUR);
         $this->texte($document, 'mention', '', nullable: true, max: self::LONGUEUR_MENTION);
         $this->prerequis($document);
+        $this->mercenaires($document);
         $this->plateau($document);
         $this->quetes($document);
 
@@ -309,6 +310,38 @@ final class ValidationCampagne
         if (!in_array($format, self::FORMATS_ACCEPTES, true)) {
             $this->refuser('format', self::FORMAT_INCONNU,
                 "format $format inconnu (formats acceptés : ".implode(', ', self::FORMATS_ACCEPTES).')');
+        }
+    }
+
+    /** Les régimes d'embauche (lot K6 ; René, 2026-11-19 : « chaque campagne choisit sa règle »). */
+    public const REGIMES_MERCENAIRES = ['par_quete', 'retenu_moitie', 'debloques'];
+
+    /**
+     * `mercenaires` (facultative, lot K6) : `{regime, offerts: [slug…]}` — le régime d'embauche (*Frozen Horror*
+     * `par_quete`, *Ogre Horde* `retenu_moitie`, *Dread Moon* `debloques`) et les mercenaires du catalogue qu'elle offre :
+     * jamais un captif scénarisé ni un allié d'un seul effet.
+     */
+    private function mercenaires(array $document): void
+    {
+        if (!array_key_exists('mercenaires', $document)) {
+            return;
+        }
+        $mercenaires = $this->enObjet($document['mercenaires'], 'mercenaires');
+        if ($mercenaires === null) {
+            return;
+        }
+        $this->cles($mercenaires, 'mercenaires', ['regime', 'offerts']);
+        $this->dans($mercenaires, 'regime', 'mercenaires', self::REGIMES_MERCENAIRES);
+        $offerts = $this->enListeDe($mercenaires, 'offerts', 'mercenaires');
+        if (array_key_exists('offerts', $mercenaires) && is_array($mercenaires['offerts']) && $offerts === []) {
+            $this->refuser('mercenaires.offerts', self::VALEUR_INVALIDE, 'au moins un mercenaire est attendu');
+        }
+        foreach ($offerts as $i => $slug) {
+            $mercenaire = is_string($slug) ? ($this->catalogue->index('mercenaires')[$slug] ?? null) : null;
+            if ($mercenaire === null || $mercenaire->captif || $mercenaire->octroi_seul) {
+                $this->refuser("mercenaires.offerts.$i", self::CATALOGUE_INCONNU,
+                    '« '.(is_string($slug) ? $slug : '?').' » n\'est pas un mercenaire recrutable du catalogue');
+            }
         }
     }
 

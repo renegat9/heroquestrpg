@@ -160,6 +160,9 @@ final class QueteDouble
 
         $groupe->update(['phase' => 'quete', 'quete_courante_id' => $quete->id]);
 
+        // LES ALLIÉS (lot K6) suivent le groupe dans la moitié reprise, près du passage.
+        app(MercenairesCampagne::class)->poserPourLaQuete($groupe, $quete->refresh(), $arrivee, $heros->count());
+
         app(\App\Partie\Classique\CouloirsVus::class)->mettreAJour($quete->refresh());
         app(ResolveurTour::class)->ouvrirPremierRound($groupe, $quete);
         app(Sauvegarde::class)->snapshotter($groupe->refresh(), Sauvegarde::ETIQUETTE_DEBUT_QUETE);

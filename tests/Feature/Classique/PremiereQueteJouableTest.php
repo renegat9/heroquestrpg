@@ -226,15 +226,16 @@ it('ne publie aucune boîte de bestiaire pour un groupe classique, et publie la 
         ->and(json_encode($etat, JSON_UNESCAPED_UNICODE))->toContain('Vaincre le gobelin qui garde l\'entrée.');
 });
 
-it('publie au hub que le recrutement est fermé à un groupe classique, et ouvert à une campagne', function () {
+it('publie au hub que le recrutement est fermé à un groupe classique dont la campagne n\'offre aucun mercenaire, et ouvert à une campagne', function () {
     $alice = connecterJoueur('alice');
     $classique = groupeClassique(herosLibre($alice, 'Albrecht'));
 
-    // Vu à l'écran : la manette affichait le panneau de recrutement d'un groupe à qui la route le refuse.
+    // Vu à l'écran : la manette affichait le panneau de recrutement d'un groupe à qui la route le refuse. Depuis le lot K6,
+    // l'étape est OUVERTE au classique, mais une campagne sans clé `mercenaires` n'offre personne : le panneau reste caché.
     $etat = $this->getJson("/api/groupes/{$classique->identifiant}/etat")->assertOk()->json('groupe');
     expect($etat['recrutement_ouvert'])->toBeFalse()
         ->and($etat['recrutement'])->toBeNull()
-        ->and($classique->etapeOuverte(\App\Partie\Arene\EtapesCampagne::MERCENAIRES))->toBeFalse()
+        ->and($classique->etapeOuverte(\App\Partie\Arene\EtapesCampagne::MERCENAIRES))->toBeTrue()
         ->and($classique->etapeOuverte(\App\Partie\Arene\EtapesCampagne::MARCHE))->toBeTrue();
 
     $campagne = creerGroupe('table-campagne');

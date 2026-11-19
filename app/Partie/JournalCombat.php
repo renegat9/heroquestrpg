@@ -196,6 +196,9 @@ final class JournalCombat
         'glyphe_detruit' => true,
         // DÉGUISEMENT (lot K6) : perdu par une arme, un sort, une armure, ou rendu.
         'deguisement_perdu' => true,
+        // MERCENAIRES D'UNE CAMPAGNE (lot K6) : au départ d'une quête, renouvelé à moitié prix ou congédié.
+        'mercenaire_retenu' => true,
+        'mercenaire_congedie' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1289,6 +1292,14 @@ final class JournalCombat
             'charge_lachee' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' tombe et lâche '.($a['charge'] ?? 'la charge').' : elle reste sur sa case',
                 'ton' => 'subit',
+            ]],
+            'mercenaire_retenu' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' garde '.($a['mercenaire'] ?? 'son mercenaire').' pour cette quête ('.(int) ($a['or'] ?? 0).' po)',
+                'ton' => 'info',
+            ]],
+            'mercenaire_congedie' => [[
+                'texte' => ($a['mercenaire'] ?? 'Un mercenaire').' quitte le service'.(isset($a['nom']) ? ' de '.$a['nom'] : '').' : il n\'est pas engagé pour cette quête',
+                'ton' => 'info',
             ]],
             'deguisement_perdu' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).match ($a['raison'] ?? '') {
