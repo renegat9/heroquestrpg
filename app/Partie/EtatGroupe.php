@@ -222,9 +222,10 @@ final class EtatGroupe
             // ⚠ Les deux clés ne sont publiées que pour un groupe CLASSIQUE : la branche `mode-classique` ne change rien au
             // payload d'un groupe RPG ni d'arène (René, 2026-11-17) — sans clé, la table garde son affichage d'avant.
             if ($groupe->estClassique()) {
-                $motifMarche = app(\App\Partie\Marche\PhaseMarche::class)->motifFermeture($groupe);
-                $preambuleGroupe['marche_ouvert'] = $motifMarche === null;
-                $preambuleGroupe['marche_motif'] = $motifMarche;
+                // Un marché fermé s'ouvre quand même, restreint, si le groupe a un jeton de réputation à échanger (K6).
+                $accesMarche = app(\App\Partie\Marche\PhaseMarche::class)->accesAuHub($groupe);
+                $preambuleGroupe['marche_ouvert'] = $accesMarche['ouvert'];
+                $preambuleGroupe['marche_motif'] = $accesMarche['motif'];
                 $preambuleGroupe['cloture_ouverte'] = $groupe->etapeOuverte(\App\Partie\Arene\EtapesCampagne::CLOTURE);
             }
 

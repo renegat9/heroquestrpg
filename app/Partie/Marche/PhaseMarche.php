@@ -74,7 +74,40 @@ final class PhaseMarche
     /** Catégorie d'un parchemin (`ObjetSeeder`, un par sort) — hors marché, comme la carte sans prix. */
     public const CATEGORIE_PARCHEMIN = 'parchemin';
 
+    /**
+     * LA VENTE D'UN JETON DE RÉPUTATION (mode classique, lot K6 — *Rise of the Dread Moon* p. 5) : « Reputation tokens
+     * can be sold between quests for 250 gold coins each, which must immediately be used to purchase something from the
+     * Underground Market. Any excess gold from the sale of the reputation token is lost. This exchange can be done even if
+     * a hero cannot visit shops between quests. »
+     *
+     * Dans le PANIER, jamais à part : le jeton finance des achats, et les achats ont déjà leur règlement atomique (stock,
+     * sac, bourses). `paniers[].jetons: [{personnage_id, nombre}]` ouvre un CRÉDIT de 250 po par jeton sur les achats de
+     * CE héros, dépensé avant sa bourse ; le reste est perdu. Un seul calcul, {@see netsParHeros()} ; les jetons ne
+     * quittent le groupe qu'à l'application ({@see appliquer()}, `Classique\Reputation::ajuster()`).
+     */
+    public const VALEUR_JETON_REPUTATION = 250;
+
     public function __construct(private readonly EtatGroupe $etatGroupe, private readonly Bourses $bourses) {}
+
+    /**
+     * Le marché peut-il s'ouvrir au hub, et que dit-on ? Point de passage unique — lu par `ouvrir()` et publié par
+     * `EtatGroupe` (`marche_ouvert` / `marche_motif`). Un marché FERMÉ s'ouvre quand même, RESTREINT à l'échange d'un
+     * jeton de réputation, si le groupe en a un (« even if a hero cannot visit shops »).
+     *
+     * @return array{ouvert: bool, motif: ?string, restreint: bool}
+     */
+    public function accesAuHub(Groupe $groupe): array
+    {
+        $motif = $this->motifFermeture($groupe);
+        if ($motif === null) {
+            return ['ouvert' => true, 'motif' => null, 'restreint' => false];
+        }
+        $jetons = $groupe->estClassique() ? (int) Groupe::whereKey($groupe->id)->value('jetons_reputation') : 0;
+
+        return $jetons > 0
+            ? ['ouvert' => true, 'motif' => $motif.' Seul l\'échange d\'un jeton de réputation est possible.', 'restreint' => true]
+            : ['ouvert' => false, 'motif' => $motif, 'restreint' => false];
+    }
 
     /** Clé du cache de la phase marché d'un groupe. */
     public static function cle(int $groupeId): string
@@ -110,8 +143,9 @@ final class PhaseMarche
     {
         $groupe->exigerCampagne(\App\Partie\Arene\EtapesCampagne::MARCHE);
 
-        if (($motif = $this->motifFermeture($groupe)) !== null) {
-            throw ValidationException::withMessages(['groupe' => $motif]);
+        $acces = $this->accesAuHub($groupe);
+        if (! $acces['ouvert']) {
+            throw ValidationException::withMessages(['groupe' => $acces['motif']]);
         }
 
         if ($groupe->phase !== 'hub') {
@@ -227,6 +261,8 @@ final class PhaseMarche
             'multiplicateur' => $config['multiplicateur'],
             'inventaire' => $inventaire,
             'paniers' => $paniers,
+            // Classique, marché fermé, mais un jeton à échanger : seuls les achats couverts par un jeton.
+            ...($acces['restreint'] ? ['restreint' => true] : []),
         ];
 
         Cache::put(self::cle($groupe->id), $phase, now()->addMinutes(self::TTL_MINUTES));
@@ -259,9 +295,10 @@ final class PhaseMarche
      *
      * @param  list<array{objet_id: int, quantite?: int, personnage_id?: int}>  $achats
      * @param  list<array{inventaire_id: int}>  $ventes
+     * @param  list<array{personnage_id: int, nombre?: int}>  $jetons  jetons de réputation vendus (classique)
      * @return array<string, mixed> EtatMarche
      */
-    public function majPanier(Groupe $groupe, Joueur $joueur, array $achats, array $ventes): array
+    public function majPanier(Groupe $groupe, Joueur $joueur, array $achats, array $ventes, array $jetons = []): array
     {
         $phase = $this->phaseOuverte($groupe);
 
@@ -276,11 +313,20 @@ final class PhaseMarche
 
         $lignesAchat = $this->validerAchats($achats, $inventaire, $personnages);
         $lignesVente = $this->validerVentes($ventes, $inventaire, $personnages);
+        $lignesJetons = $this->validerJetons($groupe, $jetons, $personnages);
+
+        if (! empty($phase['restreint']) && $lignesVente !== []) {
+            throw ValidationException::withMessages([
+                'ventes' => 'Le marché est fermé : seul l\'échange d\'un jeton de réputation est possible, rien ne se vend.',
+            ]);
+        }
 
         $phase['paniers'][(string) $joueur->id] = [
             ...$this->panierVide($joueur),
             'achats' => $lignesAchat,
             'ventes' => $lignesVente,
+            // Clé du mode classique seulement : un panier RPG ou d'arène ne change pas.
+            ...($groupe->estClassique() ? ['jetons' => $lignesJetons] : []),
         ];
 
         Cache::put(self::cle($groupe->id), $phase, now()->addMinutes(self::TTL_MINUTES));
@@ -309,8 +355,10 @@ final class PhaseMarche
             $phase['paniers'][$clePanier] = $this->panierVide($joueur);
         }
 
-        // MODE CLASSIQUE : un panier qui mettrait un de ses héros à découvert ne se confirme pas.
+        // MODE CLASSIQUE : un panier qui mettrait un de ses héros à découvert ne se confirme pas ; ses jetons doivent
+        // servir, et le groupe doit les avoir.
         if ($this->bourses->parHeros($groupe)) {
+            $this->refuserJetonsInvalides($groupe, [$phase['paniers'][$clePanier]], ! empty($phase['restreint']));
             $this->refuserBoursesADecouvert($groupe, $this->netsParHeros([$phase['paniers'][$clePanier]]));
         }
 
@@ -760,6 +808,8 @@ final class PhaseMarche
             $total = (int) $groupe->or + $this->sommeVentes($paniers) - $this->sommeAchats($paniers);
 
             if ($parHeros) {
+                // Les jetons de TOUS les paniers : le groupe doit les avoir (deux joueurs ont pu vendre le même).
+                $this->refuserJetonsInvalides($groupe, $paniers, ! empty($phase['restreint']));
                 $this->refuserBoursesADecouvert($groupe, $nets);
             } elseif ($total < 0) {
                 throw ValidationException::withMessages([
@@ -819,6 +869,12 @@ final class PhaseMarche
                 } elseif ($net < 0) {
                     $this->bourses->payer($groupe, -$net, $heros);
                 }
+            }
+
+            // Les jetons vendus quittent le groupe, ici seulement : annoncé (`reputation`, raison « marche »).
+            $vendus = array_sum($this->jetonsParHeros($paniers));
+            if ($vendus > 0) {
+                app(\App\Partie\Classique\Reputation::class)->ajuster($groupe, -$vendus, 'marche');
             }
 
             Journal::ajouter($groupe, 'systeme', [
@@ -899,6 +955,12 @@ final class PhaseMarche
             // MODE CLASSIQUE : la bourse de chaque héros et ce qu'il en restera, DÉJÀ décidés — `null` au pot commun.
             // L'écran lit ce `null` pour dire « or commun » ; il ne re-dérive ni le mode ni le net d'un héros.
             'bourses' => $this->boursesProjetees($groupe, $phase['paniers']),
+            // Classique seulement : les jetons du groupe, la valeur d'un jeton, et si la phase est restreinte au jeton.
+            ...($groupe->estClassique() ? ['reputation' => [
+                'jetons' => (int) Groupe::whereKey($groupe->id)->value('jetons_reputation'),
+                'valeur' => self::VALEUR_JETON_REPUTATION,
+                'restreint' => ! empty($phase['restreint']),
+            ]] : []),
         ];
     }
 
@@ -912,13 +974,15 @@ final class PhaseMarche
     private function netsParHeros(array $paniers): array
     {
         $nets = [];
+        $achats = $this->achatsParHeros($paniers);
+        $credits = $this->jetonsParHeros($paniers);
+
+        // Les achats, moins le crédit des jetons vendus pour ce héros (le crédit en trop est perdu, jamais versé).
+        foreach ($achats + $credits as $id => $_) {
+            $nets[$id] = -max(0, ($achats[$id] ?? 0) - ($credits[$id] ?? 0) * self::VALEUR_JETON_REPUTATION);
+        }
 
         foreach ($paniers as $panier) {
-            foreach ($panier['achats'] as $achat) {
-                $id = (int) $achat['personnage_id'];
-                $nets[$id] = ($nets[$id] ?? 0) - (int) $achat['total'];
-            }
-
             foreach ($panier['ventes'] as $vente) {
                 $id = (int) $vente['personnage_id'];
                 $nets[$id] = ($nets[$id] ?? 0) + (int) $vente['total'];
@@ -926,6 +990,108 @@ final class PhaseMarche
         }
 
         return $nets;
+    }
+
+    /**
+     * @param  array<int|string, array<string, mixed>>  $paniers
+     * @return array<int, int> personnage_id => total de ses achats
+     */
+    private function achatsParHeros(array $paniers): array
+    {
+        $achats = [];
+        foreach ($paniers as $panier) {
+            foreach ($panier['achats'] as $achat) {
+                $id = (int) $achat['personnage_id'];
+                $achats[$id] = ($achats[$id] ?? 0) + (int) $achat['total'];
+            }
+        }
+
+        return $achats;
+    }
+
+    /**
+     * @param  array<int|string, array<string, mixed>>  $paniers
+     * @return array<int, int> personnage_id => jetons de réputation vendus pour lui
+     */
+    private function jetonsParHeros(array $paniers): array
+    {
+        $jetons = [];
+        foreach ($paniers as $panier) {
+            foreach ((array) ($panier['jetons'] ?? []) as $ligne) {
+                $id = (int) $ligne['personnage_id'];
+                $jetons[$id] = ($jetons[$id] ?? 0) + (int) $ligne['nombre'];
+            }
+        }
+
+        return $jetons;
+    }
+
+    /**
+     * Les lignes `jetons` d'un panier, vérifiées dans leur forme (classique, héros du joueur, pas plus que le groupe
+     * n'en a). L'usage (« must immediately be used ») se vérifie à la confirmation : on pose le jeton avant les achats.
+     *
+     * @param  list<array<string, mixed>>  $jetons
+     * @param  Collection<int, Personnage>  $personnages
+     * @return list<array{personnage_id: int, nombre: int}>
+     */
+    private function validerJetons(Groupe $groupe, array $jetons, Collection $personnages): array
+    {
+        if ($jetons === []) {
+            return [];
+        }
+        if (! $groupe->estClassique()) {
+            throw ValidationException::withMessages(['jetons' => 'Les jetons de réputation n\'existent qu\'en mode classique.']);
+        }
+
+        $parHeros = [];
+        foreach ($jetons as $ligne) {
+            $id = (int) ($ligne['personnage_id'] ?? 0);
+            if (! $personnages->contains('id', $id)) {
+                throw ValidationException::withMessages(['jetons' => 'Un jeton se vend pour un de vos héros actifs du groupe.']);
+            }
+            $parHeros[$id] = ($parHeros[$id] ?? 0) + max(1, (int) ($ligne['nombre'] ?? 1));
+        }
+
+        $disponibles = (int) Groupe::whereKey($groupe->id)->value('jetons_reputation');
+        if (array_sum($parHeros) > $disponibles) {
+            throw ValidationException::withMessages(['jetons' => "Le groupe n'a que {$disponibles} jeton(s) de réputation."]);
+        }
+
+        return array_map(fn (int $id, int $n) => ['personnage_id' => $id, 'nombre' => $n], array_keys($parHeros), $parHeros);
+    }
+
+    /**
+     * Les jetons de ces paniers sont-ils légitimes ? Le groupe les a tous (tous paniers confondus) ; chaque jeton sert
+     * (« must immediately be used » : achats du héros > 250 × (n − 1)) ; dans une phase RESTREINTE (marché fermé), seuls
+     * les achats couverts par un jeton (≤ 250 × n), la bourse n'y entre pas. 422 `jetons` sinon.
+     *
+     * @param  array<int|string, array<string, mixed>>  $paniers
+     */
+    private function refuserJetonsInvalides(Groupe $groupe, array $paniers, bool $restreint): void
+    {
+        $jetons = $this->jetonsParHeros($paniers);
+        $achats = $this->achatsParHeros($paniers);
+        $disponibles = (int) Groupe::whereKey($groupe->id)->value('jetons_reputation');
+
+        if (array_sum($jetons) > $disponibles) {
+            throw ValidationException::withMessages(['jetons' => "Le groupe n'a que {$disponibles} jeton(s) de réputation à vendre, tous paniers confondus."]);
+        }
+
+        foreach ($jetons as $id => $n) {
+            if (($achats[$id] ?? 0) <= ($n - 1) * self::VALEUR_JETON_REPUTATION) {
+                $nom = Personnage::whereKey($id)->value('nom');
+                throw ValidationException::withMessages(['jetons' => "Un jeton vendu doit servir aussitôt : les achats de {$nom} n'en utilisent pas ".($n > 1 ? "les {$n}" : 'le prix').'.']);
+            }
+        }
+
+        if ($restreint) {
+            foreach ($achats as $id => $total) {
+                if ($total > ($jetons[$id] ?? 0) * self::VALEUR_JETON_REPUTATION) {
+                    $nom = Personnage::whereKey($id)->value('nom');
+                    throw ValidationException::withMessages(['jetons' => "Le marché est fermé : les achats de {$nom} doivent tenir dans ses jetons (".self::VALEUR_JETON_REPUTATION.' po chacun).']);
+                }
+            }
+        }
     }
 
     /**
@@ -941,9 +1107,16 @@ final class PhaseMarche
         }
 
         $nets = $this->netsParHeros($paniers);
+        $jetons = $this->jetonsParHeros($paniers);
+        $achats = $this->achatsParHeros($paniers);
 
         return array_map(
-            fn (array $b) => $b + ['projete' => $b['or'] + ($nets[$b['personnage_id']] ?? 0)],
+            fn (array $b) => $b + [
+                'projete' => $b['or'] + ($nets[$b['personnage_id']] ?? 0),
+                // La vente d'un jeton (lot K6) : combien pour lui, et le crédit qui ne servira pas — déjà décidés.
+                'jetons' => $jetons[$b['personnage_id']] ?? 0,
+                'or_perdu' => max(0, ($jetons[$b['personnage_id']] ?? 0) * self::VALEUR_JETON_REPUTATION - ($achats[$b['personnage_id']] ?? 0)),
+            ],
             $bourses,
         );
     }

@@ -1070,7 +1070,8 @@ watch(() => store.state.clotureTerminee, (t) => {
                             <MSym n="flag" fill :size="15" />
                             <span>{{ departMotif }}</span>
                         </p>
-                        <p v-if="marcheFerme" class="hub-depart-motif">
+                        <!-- Le motif s'affiche aussi marché OUVERT mais restreint au jeton de réputation (lot K6). -->
+                        <p v-if="marcheMotif" class="hub-depart-motif">
                             <MSym n="storefront" :size="15" />
                             <span>{{ marcheMotif }}</span>
                         </p>

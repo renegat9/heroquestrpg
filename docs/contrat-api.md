@@ -1021,7 +1021,7 @@ transaction. Le MJ IA choisit le profil de lieu ; sans LLM, profil `bourg`.
 |---|---|---|---|
 | POST | /groupes/{identifiant}/marche | {profil?} | ouvre la phase (422 si pas au hub ou déjà ouverte) — **membre OU table** (bouton sur l'écran de table, même règle que la clôture) |
 | GET | /groupes/{identifiant}/marche | — | EtatMarche, ou `{marche: null}` (200) si aucune phase ouverte — sonde de rattrapage à chaque chargement de hub, donc pas de 404 |
-| PUT | /groupes/{identifiant}/marche/panier | {achats:[{objet_id,quantite}], ventes:[{inventaire_id}]} | remplace le panier du joueur, annule sa confirmation |
+| PUT | /groupes/{identifiant}/marche/panier | {achats:[{objet_id,quantite}], ventes:[{inventaire_id}], jetons?:[{personnage_id,nombre}] (classique)} | remplace le panier du joueur, annule sa confirmation |
 | POST | /groupes/{identifiant}/marche/confirmation | — | confirme ; si tous confirmés → application + clôture |
 | DELETE | /groupes/{identifiant}/marche | — | annule la phase (rien appliqué) — **membre OU table** |
 | POST | /groupes/{identifiant}/marche/lever-malediction | {personnage_id} | don de 800 po (bourse COMMUNE ; en mode classique, la bourse du héros MAUDIT — `or` rend alors son solde) qui lève la Malédiction de l'Oracle d'un héros (First Light, lot C) — **membre**, 422 si le héros n'est pas maudit ou si l'or manque. Immédiat, HORS du panier : `{leve, personnage_id, don, or}` + broadcast `.groupe.etat` |
@@ -1072,6 +1072,22 @@ les deux sens par `BoursesPointDePassageTest`. En campagne, rien ne change.
 - **`POST …/marche/confirmation`** répond **422** (`errors.achats` : « Or insuffisant : il manque N pièces d'or à la
   bourse de X. ») si un des héros de CE joueur finirait à découvert ; le panier n'est alors pas confirmé. Au pot
   commun ce refus n'existe qu'à l'application, le total dépendant des paniers des autres.
+- **La vente d'un jeton de réputation** (lot K6, *Rise of the Dread Moon* p. 5 : « Reputation tokens can be sold
+  between quests for 250 gold coins each, which must immediately be used to purchase something from the Underground
+  Market. Any excess gold from the sale of the reputation token is lost. This exchange can be done even if a hero cannot
+  visit shops between quests. ») — classique seulement. Le panier accepte **`jetons: [{personnage_id, nombre}]`**
+  (facultatif ; 422 `jetons` pour un groupe non classique, un héros qui n'est pas au joueur, ou plus de jetons que le
+  groupe n'en a, tous paniers confondus). Chaque jeton ouvre un **crédit de 250 po** sur les achats de CE héros dans
+  CE panier, dépensé avant sa bourse ; le reste du crédit est **perdu**. « Must immediately be used » : chaque jeton
+  doit servir — 422 si les achats du héros ne dépassent pas `250 × (nombre − 1)`. Les jetons ne sont retirés au groupe
+  (`groupes.jetons_reputation`, annonce `reputation`, `raison: "marche"`) qu'à l'application atomique des paniers.
+  Publié, déjà décidé : **`EtatMarche.reputation`** `{jetons, valeur: 250, restreint}` (classique seulement) et, dans
+  chaque `bourses[]`, **`jetons`** (vendus pour lui) et **`or_perdu`** (le crédit qui ne servira pas) ; `projete`
+  tient compte du crédit.
+  - **Marché fermé** (`regles.marche_ferme`) : si le groupe a au moins un jeton, la phase s'ouvre quand même,
+    **restreinte** (`reputation.restreint: true`) : aucune vente, et seuls les achats couverts par un jeton
+    (`achats du héros ≤ 250 × nombre`) — 422 sinon. Au hub, `groupe.marche_ouvert` vaut alors `true` et
+    `groupe.marche_motif` garde le motif, complété de « Seul l'échange d'un jeton de réputation est possible. »
 - **`entites[].bourse`** (en quête) et **`groupe.prets[].bourse`** (au hub) : la bourse du héros, un entier en
   classique, `null` au pot commun.
 - **`POST /api/groupes/{identifiant}/dons-or`** `{personnage_id, vers_personnage_id, montant}` — un héros donne de

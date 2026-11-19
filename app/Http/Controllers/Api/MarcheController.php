@@ -79,10 +79,14 @@ class MarcheController extends Controller
             'achats.*.personnage_id' => ['sometimes', 'integer', 'min:1'],
             'ventes' => ['present', 'array'],
             'ventes.*.inventaire_id' => ['required', 'integer', 'min:1'],
+            // Mode classique (lot K6) : les jetons de réputation vendus pour un héros, 250 po d'achats chacun.
+            'jetons' => ['sometimes', 'array'],
+            'jetons.*.personnage_id' => ['required', 'integer', 'min:1'],
+            'jetons.*.nombre' => ['sometimes', 'integer', 'min:1', 'max:99'],
         ]);
 
         return response()->json(
-            $this->marche->majPanier($groupe, $joueur, $donnees['achats'], $donnees['ventes'])
+            $this->marche->majPanier($groupe, $joueur, $donnees['achats'], $donnees['ventes'], $donnees['jetons'] ?? [])
         );
     }
 

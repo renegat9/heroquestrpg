@@ -24,7 +24,7 @@ const props = defineProps({
     live: { type: Object, default: null },
 });
 
-const emit = defineEmits(['qty', 'vendre', 'confirmer']);
+const emit = defineEmits(['qty', 'vendre', 'confirmer', 'jetons']);
 
 /* Détail d'un article : on n'achète pas à l'aveugle (René, 2026-09-04). Les
    phrases viennent du serveur — `MotsClesEquipement::avantages()` traduit
@@ -121,7 +121,32 @@ function nonMaitrise(it) {
         </div>
         <p v-if="!live.items.length" class="mk-vide">L'échoppe est vide ici.</p>
 
+        <!-- LA VENTE D'UN JETON DE RÉPUTATION (classique, lot K6) : 250 po par jeton, à dépenser dans ce panier. -->
+        <template v-if="live.reputation && (live.reputation.jetons > 0 || live.jetonsHeros > 0)">
+            <div class="sect-title" style="margin-top: 16px"><MSym n="military_tech" :size="16" /> Jetons de réputation</div>
+            <p v-if="live.reputation.restreint" class="mk-vide">Le marché est fermé : seuls les achats payés par un jeton sont possibles.</p>
+            <div class="item">
+                <span class="ic"><MSym n="military_tech" fill /></span>
+                <div>
+                    <div class="nm">Vendre un jeton · {{ live.reputation.valeur }} or</div>
+                    <div class="rar">À dépenser aussitôt pour {{ hero.name }} — le reste est perdu · {{ live.reputation.jetons }} au groupe</div>
+                    <div v-if="live.orPerdu > 0" class="mk-nonmaitrise">{{ live.orPerdu }} or seraient perdus</div>
+                </div>
+                <div class="qty-ctl">
+                    <button class="btn btn-sm btn-ghost qty-pas" :class="{ 'qty-vide': live.jetonsHeros === 0 }"
+                        :aria-hidden="live.jetonsHeros === 0" :tabindex="live.jetonsHeros === 0 ? -1 : 0"
+                        @click="emit('jetons', -1)"><MSym n="remove" :size="16" /></button>
+                    <span class="qv" :class="{ 'qty-vide': live.jetonsHeros === 0 }">{{ live.jetonsHeros }}</span>
+                    <button class="btn btn-sm qty-pas" :class="live.jetonsHeros > 0 ? 'btn-torch' : 'btn-ghost'"
+                        :disabled="live.jetonsEngages >= live.reputation.jetons"
+                        @click="emit('jetons', 1)"><MSym n="add" :size="16" /></button>
+                </div>
+            </div>
+        </template>
+
         <!-- ventes : inventaire du personnage du joueur (revente 50 %) -->
+        <!-- Phase RESTREINTE (marché fermé, jeton seulement) : rien ne se vend. -->
+        <template v-if="!live.reputation?.restreint">
         <div class="sect-title" style="margin-top: 16px"><MSym n="currency_exchange" :size="16" /> Vendre (50 %)</div>
         <div v-for="it in live.inventaire" :key="it.inventaire_id" class="item">
             <span class="ic"><MSym :n="it.icon" /></span>
@@ -137,6 +162,7 @@ function nonMaitrise(it) {
             </button>
         </div>
         <p v-if="!live.inventaire.length" class="mk-vide">Ton sac ne contient rien à vendre.</p>
+        </template>
 
         <!-- récapitulatif personnel + total projeté du groupe -->
         <div class="basket-foot">

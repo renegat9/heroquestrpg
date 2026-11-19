@@ -34,8 +34,11 @@ const totalProjete = computed(() => props.marche.total_projete ?? props.marche.o
                 <span class="nm">{{ b.nom }}</span>
                 <MSym n="paid" :size="15" /> {{ b.or }}
                 <template v-if="b.projete !== b.or"> → <b>{{ b.projete }}</b></template>
+                <!-- La vente d'un jeton de réputation (lot K6) : décidée par le serveur, `jetons` / `or_perdu`. -->
+                <template v-if="b.jetons"> · <MSym n="military_tech" :size="15" /> {{ b.jetons }} jeton{{ b.jetons > 1 ? 's' : '' }}<template v-if="b.or_perdu"> ({{ b.or_perdu }} perdus)</template></template>
             </span>
         </div>
+        <p v-if="marche.reputation?.restreint" class="mk-restreint">Marché fermé : seuls les achats payés par un jeton de réputation.</p>
 
         <!-- panier consolidé, étiqueté par joueur -->
         <div class="mk-baskets">
@@ -84,6 +87,7 @@ const totalProjete = computed(() => props.marche.total_projete ?? props.marche.o
   font-variant-numeric: tabular-nums; background: oklch(0.74 0.15 78 / 0.1); border: 1px solid oklch(0.74 0.15 78 / 0.35);
   border-radius: 99px; padding: 6px 14px; font-size: 14px; }
 .table-screen .mk-bourses { display: flex; flex-wrap: wrap; gap: 8px; }
+.table-screen .mk-restreint { margin: 8px 0 0; font-size: 13px; font-style: italic; color: var(--ink-500, #9a8f80); }
 .table-screen .mk-bourse { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--gold);
   font-variant-numeric: tabular-nums; background: oklch(0.74 0.15 78 / 0.1); border: 1px solid oklch(0.74 0.15 78 / 0.35);
   border-radius: 99px; padding: 5px 12px; font-size: 13px; }

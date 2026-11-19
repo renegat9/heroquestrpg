@@ -1501,6 +1501,8 @@ watch(() => store.state.marche, (m) => {
                 objet_id: a.objet_id, quantite: a.quantite ?? 1, personnage_id: a.personnage_id ?? null,
             })),
             ventes: (mien?.ventes ?? []).map((v) => (typeof v === 'object' ? v.inventaire_id : v)),
+            // Mode classique (lot K6) : les jetons de réputation vendus, par héros.
+            jetons: (mien?.jetons ?? []).map((j) => ({ personnage_id: j.personnage_id, nombre: j.nombre })),
         };
     }
 }, { immediate: true });
@@ -1548,6 +1550,12 @@ const marcheLive = computed(() => {
             : (m.total_projete ?? m.or_courant ?? 0) + avance(null),
         // Un des héros de ce joueur finirait à découvert : son nom (le serveur refuserait la confirmation).
         decouvert: aDecouvert?.nom ?? null,
+        // LA VENTE D'UN JETON (classique, lot K6) : publié par le serveur, `null` hors classique. `jetonsHeros` est la
+        // saisie locale du héros affiché ; `orPerdu` et `restreint` sont des décisions du serveur.
+        reputation: m.reputation ?? null,
+        jetonsHeros: (panierLocal.value.jetons ?? []).find((j) => j.personnage_id === heroId)?.nombre ?? 0,
+        jetonsEngages: (panierLocal.value.jetons ?? []).reduce((s, j) => s + j.nombre, 0),
+        orPerdu: mienne?.or_perdu ?? 0,
         erreur: marcheErreur.value,
     };
 });
@@ -1563,6 +1571,7 @@ async function envoyerPanier() {
                 ? a
                 : { objet_id: a.objet_id, quantite: a.quantite })),
             ventes: panierLocal.value.ventes.map((id) => ({ inventaire_id: id })),
+            jetons: store.state.marche?.reputation ? (panierLocal.value.jetons ?? []) : null,
         });
         if (r) store.appliquerMarche(r);
     } catch (e) {
@@ -1596,6 +1605,19 @@ function changerQuantite(objetId, delta) {
         achats.push({ objet_id: objetId, quantite: q, personnage_id: heroId });
     }
     panierLocal.value = { ...panierLocal.value, achats };
+    planifierEnvoiPanier();
+}
+/* Un jeton de réputation de plus (ou de moins) vendu pour le héros AFFICHÉ — c'est lui que le crédit paie. */
+function changerJetons(delta) {
+    const heroId = monPersonnageId.value;
+    if (!heroId) return;
+    const jetons = (panierLocal.value.jetons ?? []).filter((j) => j.personnage_id !== heroId);
+    const autres = jetons.reduce((s, j) => s + j.nombre, 0);
+    const actuel = (panierLocal.value.jetons ?? []).find((j) => j.personnage_id === heroId)?.nombre ?? 0;
+    const max = Math.max(0, (store.state.marche?.reputation?.jetons ?? 0) - autres);
+    const n = Math.max(0, Math.min(max, actuel + delta));
+    if (n > 0) jetons.push({ personnage_id: heroId, nombre: n });
+    panierLocal.value = { ...panierLocal.value, jetons };
     planifierEnvoiPanier();
 }
 function basculerVente(inventaireId) {
@@ -1868,6 +1890,7 @@ const navItems = computed(() => (scene.value === 'marche'
                             :live="marcheLive"
                             @qty="changerQuantite"
                             @vendre="basculerVente"
+                            @jetons="changerJetons"
                             @confirmer="confirmerMonPanier"
                         />
                         <!-- hub connecté, marché pas (ou plus) ouvert -->

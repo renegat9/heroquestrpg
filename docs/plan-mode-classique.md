@@ -878,11 +878,23 @@ ni son format, il appelle ce que la route HTTP appelle.
   exclusives par `groupe`) et `debloquer_mercenaire` ; embauche contre un
   jeton (gardé sans plus rien payer), un seul mercenaire de chaque type. Les
   quatre elfes ont les fiches des mercenaires de *Frozen Horror* (pas de
-  doublon). **Reporté, nommé** : la vente d'un jeton au marché (250 po à
-  dépenser aussitôt) — elle touche au règlement atomique des paniers.
-  Lecteur unique `Classique\Reputation`. Tests dans `NotesDeQueteTest` et
-  `MercenairesCampagneTest`. **K6 est fait**, à cette vente près ; reste la
-  relecture de tous les livrets.
+  doublon). Lecteur unique `Classique\Reputation`. Tests dans `NotesDeQueteTest` et
+  `MercenairesCampagneTest`.
+- **Fait le 2026-11-19 — lot K6 : la vente d'un jeton de réputation**
+  (*Dread Moon* p. 5 : 250 po « must immediately be used », l'excédent
+  perdu, « even if a hero cannot visit shops »). DANS le panier, pas à part :
+  `paniers[].jetons [{personnage_id, nombre}]` ouvre un crédit de 250 po par
+  jeton sur les achats de ce héros, dépensé avant sa bourse
+  (`PhaseMarche::netsParHeros()`, le seul calcul) ; chaque jeton doit servir
+  (achats > 250 × (n − 1)) ; le total du groupe est revérifié à la
+  confirmation et à l'application, où seulement les jetons quittent le groupe.
+  Marché fermé : `PhaseMarche::accesAuHub()` l'ouvre RESTREINT si le groupe a
+  un jeton (pas de vente, achats ≤ crédit). Publié : `EtatMarche.reputation`,
+  `bourses[].jetons` / `or_perdu`. Manette (ligne « Vendre un jeton », or
+  perdu affiché) et table (pastille). Vu à l'écran et appliqué sur la vraie
+  stack (`browser-shots/classique-jeton.mjs`, groupe et campagne d'essai
+  nettoyés). `VenteJetonReputationTest`. **K6 est fait** ; reste la relecture
+  de tous les livrets.
 - **Fait le 2026-11-19 — lot K6 : les mercenaires d'une campagne classique**
   (tranche A ; René : « chaque campagne choisit sa règle »). Clé de campagne
   `mercenaires {regime, offerts}` — `par_quete`, `retenu_moitie`, `debloques`

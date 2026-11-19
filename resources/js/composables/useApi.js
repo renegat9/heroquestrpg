@@ -377,8 +377,9 @@ export function useApi() {
          * ventes: [{inventaire_id}]} — remplace le panier du joueur et
          * annule sa confirmation (broadcast .marche.maj).
          */
-        majPanier: (identifiant, { achats = [], ventes = [] } = {}) =>
-            request('PUT', `/groupes/${identifiant}/marche/panier`, { achats, ventes }),
+        majPanier: (identifiant, { achats = [], ventes = [], jetons = null } = {}) =>
+            // `jetons` (mode classique, lot K6) : jetons de réputation vendus, [{personnage_id, nombre}] — omis sinon.
+            request('PUT', `/groupes/${identifiant}/marche/panier`, jetons ? { achats, ventes, jetons } : { achats, ventes }),
 
         /** POST /groupes/{id}/marche/confirmation — si tous confirmés → application + clôture. */
         confirmerPanier: (identifiant) =>
