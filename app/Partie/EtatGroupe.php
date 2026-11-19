@@ -1212,12 +1212,17 @@ final class EtatGroupe
         foreach ((array) ($acces['fausses_sorties'] ?? []) as $fausse) {
             $roles[] = [empty($fausse['revelee']) ? 'sortie' : 'fausse_sortie', $fausse];
         }
+        // QUÊTE DOUBLE (lot K5p) : le passage de la principale vers l'autre moitié. (La seconde revient par son départ,
+        // déjà dessiné ; dans une seconde moitié, l'entrée n'est donc pas « l'entrée et la sortie » du donjon.)
+        if (is_array($acces['passage'] ?? null)) {
+            $roles[] = ['passage', $acces['passage']];
+        }
         $publies = [];
 
         foreach ($roles as [$role, $a]) {
             $porte = ($a['type'] ?? null) === 'porte';
             // L'escalier d'ENTRÉE est déjà dessiné par `carte.escalier`.
-            if (! $porte && $role !== 'sortie') {
+            if (! $porte && $role !== 'sortie' && $role !== 'passage') {
                 continue;
             }
 
@@ -1235,6 +1240,7 @@ final class EtatGroupe
                 'type' => $porte ? 'porte' : 'escalier',
                 'libelle' => match (true) {
                     $role === 'fausse_sortie' => 'Fausse porte — elle ne s\'ouvre pas',
+                    $role === 'passage' => 'Passage vers '.$quete->titreDeLAutreMoitie(),
                     $porte && $role === 'entree' => 'Porte d\'entrée',
                     $porte && $role === 'sortie' => 'Porte de sortie',
                     $porte => 'Porte d\'entrée et de sortie',
@@ -1629,13 +1635,16 @@ final class EtatGroupe
         $bourseParHeros = app(Bourses::class)->parHeros($groupe);
         // LA CHARGE (mode classique, lot K5k) : `entites[].charge` n'existe que pour une quête qui en a une.
         $chargeEtat = app(\App\Partie\Classique\Charge::class)->etat($quete);
+        // QUÊTE DOUBLE (lot K5p) : les héros passés dans l'autre moitié, qui attendent les autres.
+        $passeDouble = $quete->casesDuPassage() !== [];
+        $passes = $passeDouble ? app(\App\Partie\Classique\QueteDouble::class)->passes($quete) : [];
 
         return $groupe->personnages()
             ->wherePivot('actif', true)
             ->orderBy('groupe_personnages.ordre_initiative')
             ->with('faveurs')
             ->get()
-            ->map(function (Personnage $p) use ($etats, $captifsPortes, $bourseParHeros, $quete, $chargeEtat) {
+            ->map(function (Personnage $p) use ($etats, $captifsPortes, $bourseParHeros, $quete, $chargeEtat, $passeDouble, $passes) {
                 $etat = $etats->get($p->id);
                 $porte = $captifsPortes->get($p->id);
 
@@ -1652,7 +1661,9 @@ final class EtatGroupe
                     'bourse' => $bourseParHeros ? (int) $p->or : null,
                     // SORTI DU DONJON : le héros est dans le groupe mais plus dans la quête (il l'a quittée en personne).
                     // Publié pour que sa manette lui dise qu'il attend les autres, plutôt qu'un écran sans menu.
-                    'sorti' => $etat === null && $quete->participe((int) $p->id) && ! $p->estMort(),
+                    'sorti' => $etat === null && $quete->participe((int) $p->id) && ! $p->estMort() && ! in_array((int) $p->id, $passes, true),
+                    // QUÊTE DOUBLE (lot K5p) : il a emprunté le passage et attend les autres — clé d'une quête double seule.
+                    ...($passeDouble ? ['passe' => in_array((int) $p->id, $passes, true)] : []),
                     // Lot H1 (Heroic) : MORT pendant cette quête — hors du jeu, il reste au groupe jusqu'au hub.
                     'mort' => $p->estMort(),
                     // Lot H1 (Heroic) : à terre avec le jeton crâne — il mourra au début de son prochain tour.

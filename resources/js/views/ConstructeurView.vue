@@ -538,6 +538,37 @@ function basculerRecompense(avec) {
     quete.value.recompense = avec ? { or: 0, partage: (vocab.value.partages ?? ['groupe'])[0] } : null;
 }
 
+// ---------------------------------------------------------------- quête double (lot K5p, R10)
+// `quete.double` : la PREMIÈRE moitié dans l'ordre est la principale (`{quete, passage}`), la seconde `{quete}` — et sa fin,
+// sa sortie, sa récompense valent `null` (ce sont celles de la principale). Choisir l'autre moitié règle les DEUX quêtes :
+// un lien à sens unique serait refusé (`double_invalide`).
+const moitieDe = (q) => doc.value?.quetes.findIndex((x) => x.slug === q?.double?.quete) ?? -1;
+const estPrincipale = computed(() => !!quete.value?.double && moitieDe(quete.value) > queteIndex.value);
+function delierDouble(q) {
+    if (!q?.double) return;
+    const autre = doc.value.quetes[moitieDe(q)];
+    delete q.double;
+    if (autre?.double?.quete === q.slug) delete autre.double;
+}
+function changerDouble(slug) {
+    delierDouble(quete.value);
+    if (!slug) return;
+    const j = doc.value.quetes.findIndex((x) => x.slug === slug);
+    const autre = doc.value.quetes[j];
+    delierDouble(autre);
+    const [principale, seconde] = j > queteIndex.value ? [quete.value, autre] : [autre, quete.value];
+    principale.double = { quete: seconde.slug, passage: { x: 0, y: 0 } };
+    seconde.double = { quete: principale.slug };
+    seconde.fin = null;
+    seconde.sortie = null;
+    seconde.recompense = null;
+    delete seconde.suite;
+}
+function changerTypePassage(type) {
+    const p = quete.value.double.passage;
+    quete.value.double.passage = type === 'porte' ? { type, x: p.x, y: p.y, cote: 'n' } : { x: p.x, y: p.y };
+}
+
 // ---------------------------------------------------------------- suite (campagne ramifiée)
 // Lot K5i (C2) : `quete.suite` — embranchements lus À LA VICTOIRE, dans l'ordre : le premier dont le drapeau est posé (ou
 // qui n'en porte pas) décide ; sans embranchement retenu, la quête suivante dans l'ordre. Une entrée est `{quete: slug}`
@@ -879,6 +910,11 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <rect v-if="quete.sortie.type !== 'porte'" :x="quete.sortie.x * CASE + 3" :y="quete.sortie.y * CASE + 3" :width="2 * CASE - 6" :height="2 * CASE - 6" class="g-sortie" />
                                     <line v-else v-bind="ligneBord(quete.sortie.x, quete.sortie.y, quete.sortie.cote)" class="g-porte-sortie" />
                                 </template>
+                                <!-- Lot K5p : le passage de la principale vers l'autre moitié d'une quête double. -->
+                                <template v-if="quete.double?.passage">
+                                    <rect v-if="quete.double.passage.type !== 'porte'" :x="quete.double.passage.x * CASE + 3" :y="quete.double.passage.y * CASE + 3" :width="2 * CASE - 6" :height="2 * CASE - 6" class="g-passage" />
+                                    <line v-else v-bind="ligneBord(quete.double.passage.x, quete.double.passage.y, quete.double.passage.cote)" class="g-passage" />
+                                </template>
                                 <line
                                     v-for="(f, i) in (quete.fausses_sorties ?? [])"
                                     :key="`f${i}`"
@@ -1037,6 +1073,30 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 </div>
                             </details>
 
+                            <!-- Lot K5p : la quête double (The Frozen Horror q. 9-10) — deux cartes jouées l'une après l'autre. -->
+                            <div class="cst-ligne">
+                                <label>Quête double avec
+                                    <select :value="quete.double?.quete ?? ''" class="cst-input" @change="changerDouble($event.target.value)">
+                                        <option value="">— aucune —</option>
+                                        <option v-for="(q, k) in doc.quetes.filter((x, k) => k !== queteIndex)" :key="q.slug" :value="q.slug">{{ q.titre || q.slug }}</option>
+                                    </select>
+                                </label>
+                                <template v-if="estPrincipale">
+                                    <span class="cst-sous">Passage vers l'autre moitié :</span>
+                                    <select :value="quete.double.passage.type ?? 'escalier'" class="cst-input" @change="changerTypePassage($event.target.value)">
+                                        <option value="escalier">escalier (2×2)</option>
+                                        <option value="porte">porte</option>
+                                    </select>
+                                    <input v-model.number="quete.double.passage.x" type="number" class="cst-input cst-num" title="x" />
+                                    <input v-model.number="quete.double.passage.y" type="number" class="cst-input cst-num" title="y" />
+                                    <select v-if="quete.double.passage.type === 'porte'" v-model="quete.double.passage.cote" class="cst-input">
+                                        <option v-for="c in vocab.cotes" :key="c" :value="c">{{ c }}</option>
+                                    </select>
+                                    <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(quete.double.passage, 'le passage')"><MSym n="pin_drop" :size="16" /></button>
+                                </template>
+                                <span v-else-if="quete.double" class="cst-sous">Seconde moitié : on y arrive par son départ, qui est aussi le passage du retour ; sa fin, sa sortie et sa récompense sont celles de la principale.</span>
+                            </div>
+
                             <div class="cst-suite">
                                 <div class="cst-ligne">
                                     <span class="cst-lbl">Suite (campagne ramifiée)</span>
@@ -1052,6 +1112,8 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <button type="button" class="cst-icone" title="Retirer l'embranchement" @click="retirerEmbranchement(i)"><MSym n="close" :size="16" /></button>
                                 </div>
                             </div>
+                            <!-- Une seconde moitié de quête double n'a pas de fin à elle (`fin: null`) : c'est celle de la principale. -->
+                            <template v-if="quete.fin">
                             <div class="cst-ligne">
                                 <label>Fin
                                     <select :value="quete.fin?.type" class="cst-input" @change="changerTypeFin($event.target.value)">
@@ -1064,6 +1126,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <span v-else class="cst-sous">Cibles : {{ (quete.fin?.cibles ?? []).map((c) => quete.monstres[c] ? libelleMonstre(quete.monstres[c], c) : `monstre ${c} (absent)`).join(' ; ') || 'aucune — outil « Cible » sur un monstre' }}</span>
                             </div>
                             <label>Consigne dite aux joueurs <input v-model="quete.fin.libelle" class="cst-input" /></label>
+                            </template>
                             <!-- Lot K5k (R5) : la charge à porter — son porteur lance un dé de déplacement de moins. -->
                             <div class="cst-ligne">
                                 <label class="cst-case"><input type="checkbox" :checked="!!quete.charge" @change="basculerCharge($event.target.checked)" /> Charge à porter</label>
@@ -1234,6 +1297,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
 .cst-livrets summary { cursor: pointer; }
 .cst-bloc { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 .cst-icone.on { color: var(--torch); border-color: var(--torch); }
+.g-passage { fill: oklch(0.7 0.12 250 / 0.18); stroke: oklch(0.75 0.13 250); stroke-width: 3; stroke-dasharray: 5 3; }
 .g-terrain.cachee { opacity: .45; font-style: italic; }
 .cst-puces { display: flex; flex-wrap: wrap; gap: 4px; }
 .cst-puce { font: inherit; font-size: 12px; padding: 3px 8px; border-radius: 12px; border: var(--line); background: var(--stone-850); color: var(--ink-300); cursor: pointer; }

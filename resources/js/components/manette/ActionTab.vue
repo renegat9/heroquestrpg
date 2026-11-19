@@ -92,6 +92,8 @@ const ICONE_TYPE = {
     ramasser_depouille: 'backpack',
     // Lot K5k : prendre la charge à ramener.
     prendre_charge: 'inventory_2',
+    // Lot K5p : emprunter le passage vers l'autre moitié d'une quête double.
+    passer_double: 'stairs',
     retraite: 'directions_run',
     desamorcer: 'handyman',
     franchir: 'sprint',

@@ -744,6 +744,8 @@ final class ResolveurTour
                 'entree_donjon' => $this->resoudreEntreeDonjon($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // MODE HEROIC (lot H1b) : ramasser les affaires d'un mort, dans sa salle ou son couloir. Geste libre.
                 'ramasser_depouille' => $this->resoudreRamasserDepouille($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // QUÊTE DOUBLE (lot K5p) : emprunter le passage vers l'autre moitié — l'action, comme la sortie.
+                'passage_double' => $this->resoudrePassageDouble($groupe, $quete, $personnage, $etat, $acteur),
                 // MODE CLASSIQUE (lot K5k) : prendre la charge, sur sa case ou au contact. Geste libre.
                 'prendre_charge' => $this->resoudrePrendreCharge($groupe, $quete, $personnage, $etat, $acteur),
                 'retraite' => $this->resoudreRetraite($groupe, $option, $acteur),
@@ -16962,6 +16964,25 @@ final class ResolveurTour
                 $payload['quete'] = $this->terminerQuete($groupe, $quete);
             }
         }
+
+        return $payload;
+    }
+
+    /**
+     * QUÊTE DOUBLE (lot K5p) : le héros emprunte le passage — `Quete::peutPasser()` revalidé ici, comme au menu. Le dernier
+     * héros debout fait basculer la partie (`QueteDouble::basculer()`) : le résultat porte alors `quete`, et `resoudre()`
+     * rend la main sans finir le tour sur la moitié quittée.
+     */
+    private function resoudrePassageDouble(Groupe $groupe, Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat, array $acteur): array
+    {
+        if ($etat === null || ! $quete->peutPasser($etat)) {
+            throw ValidationException::withMessages(['option_id' => 'Il faut se tenir sur le passage pour l\'emprunter.']);
+        }
+        if ($etat->a_agi) {
+            throw ValidationException::withMessages(['option_id' => 'Tu as déjà agi ce tour.']);
+        }
+        $payload = app(\App\Partie\Classique\QueteDouble::class)->passer($groupe, $quete, $personnage, $etat);
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
     }

@@ -138,6 +138,12 @@ function casDeRefus(): array
 
             return classiqueRefus($doc);
         }],
+        'quête double dont l\'autre moitié n\'existe pas' => [ValidationCampagne::DOUBLE_INVALIDE, function (): array {
+            $doc = DocumentExemple::campagne();
+            $doc['quetes'][0]['double'] = ['quete' => 'nulle-part', 'passage' => ['x' => 7, 'y' => 4]];
+
+            return classiqueRefus($doc);
+        }],
         'fin qui attend un drapeau qu\'aucune note ne pose' => [ValidationCampagne::DRAPEAU_JAMAIS_POSE, function (): array {
             $doc = DocumentExemple::campagne();
             $doc['quetes'][0]['fin'] = ['type' => 'drapeau', 'drapeau' => 'relique', 'libelle' => 'Trouver la relique.'];

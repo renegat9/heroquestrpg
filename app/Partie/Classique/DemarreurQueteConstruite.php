@@ -23,6 +23,7 @@ use App\Partie\ResolveurTour;
 use App\Partie\Salles;
 use App\Partie\Sauvegarde;
 use App\Support\Journal;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -144,12 +145,44 @@ final class DemarreurQueteConstruite
             ]);
         }
 
+        return $this->fonder($groupe, $campagne->slug, $queteDoc, $rang, $produit, $heros, $participants, $dehors);
+    }
+
+    /**
+     * QUÊTE DOUBLE (lot K5p, R10 — *The Frozen Horror* q. 9-10) : ouvre la SECONDE moitié pour les héros qui viennent
+     * d'emprunter le passage. La même fondation que `demarrer()` — jamais une seconde copie —, sauf trois choses que le
+     * livret dit : « Mind and Body Points are not restored when the heroes cross » (ni Corps, ni Esprit, ni sorts), l'ordre
+     * du tour inchangé, et l'objectif, les participants et la récompense de la PRINCIPALE. Les deux lignes sont reliées
+     * (`double_id`). Appelée par `QueteDouble::basculer()` seulement.
+     *
+     * @param  Collection<int, Personnage>  $heros
+     */
+    public function ouvrirMoitie(Groupe $groupe, Quete $principale, array $queteDoc, int $rang, Collection $heros): Quete
+    {
+        $produit = $this->cartes->produire((array) $groupe->campagneConstruite->document, $queteDoc);
+        $dehors = $produit['acces']['entree']['type'] === ValidationCampagne::ACCES_PORTE;
+
+        return $this->fonder($groupe, (string) $groupe->campagneConstruite->slug, $queteDoc, $rang, $produit, $heros,
+            $principale->participants, $dehors, $principale);
+    }
+
+    /**
+     * La FONDATION d'une quête construite : la ligne, sa carte, ses monstres, l'état de chaque héros, puis le premier
+     * round, l'instantané, le texte d'ouverture et les menus. `$moitieDe` : la principale dont on ouvre la seconde moitié.
+     *
+     * @param  Collection<int, Personnage>  $heros
+     * @param  list<int>|null  $participants
+     */
+    private function fonder(Groupe $groupe, string $slugCampagne, array $queteDoc, int $rang, array $produit, Collection $heros,
+        ?array $participants, bool $dehors, ?Quete $moitieDe = null): Quete
+    {
+        $carte = $produit['carte'];
         $monstres = Monstre::whereIn('id', array_column($produit['monstres'], 'monstre_id'))->get()->keyBy('id');
         $cibles = array_map('intval', (array) data_get($queteDoc, 'fin.cibles', []));
 
         $paquet = $this->deck->pourQueteConstruite();
 
-        $quete = DB::transaction(function () use ($groupe, $heros, $queteDoc, $carte, $produit, $monstres, $cibles, $rang, $paquet, $dehors, $participants): Quete {
+        $quete = DB::transaction(function () use ($groupe, $heros, $queteDoc, $carte, $produit, $monstres, $cibles, $rang, $paquet, $dehors, $participants, $moitieDe): Quete {
             $quete = Quete::create([
                 'groupe_id' => $groupe->id,
                 'gabarit_id' => null,
@@ -169,7 +202,9 @@ final class DemarreurQueteConstruite
                 'notes_jouees' => [],
                 'coffres_ouverts' => [],
                 // La condition de fin de l'auteur : le type (lu par `Quete::objectif()`) et la consigne dite aux joueurs.
-                'objectif_construit' => [
+                // Quête double : la seconde moitié porte l'objectif de la principale (le bandeau le dit ; `objectifAccompli()`
+                // le lit sur la principale).
+                'objectif_construit' => $moitieDe !== null ? $moitieDe->objectif_construit : [
                     'type' => (string) data_get($queteDoc, 'fin.type'),
                     'libelle' => (string) data_get($queteDoc, 'fin.libelle'),
                     // Fin « drapeau » : le drapeau qu'une note doit poser (`Quete::OBJECTIF_DRAPEAU`).
@@ -179,7 +214,9 @@ final class DemarreurQueteConstruite
                 'acces' => $produit['acces'],
                 // Les héros engagés (lot S1) : `null` = tout le groupe ; une quête solo n'engage que son héros.
                 'participants' => $participants,
+                'double_id' => $moitieDe?->id,
             ]);
+            $moitieDe?->update(['double_id' => $quete->id]);
 
             Carte::create([
                 'quete_id' => $quete->id,
@@ -218,15 +255,19 @@ final class DemarreurQueteConstruite
             foreach ($heros->values() as $i => $personnage) {
                 /** @var Personnage $personnage */
                 // Une quête solo ne renumérote pas l'ordre du tour : le groupe le retrouve tel quel à la quête suivante.
-                if ($participants === null) {
-                    $groupe->personnages()->updateExistingPivot($personnage->id, ['ordre_initiative' => $i + 1]);
+                // Quête double : « Mind and Body Points are not restored when the heroes cross » — ni l'ordre du tour, ni
+                // les points, ni les sorts ne se remettent à neuf en passant d'une moitié à l'autre.
+                if ($moitieDe === null) {
+                    if ($participants === null) {
+                        $groupe->personnages()->updateExistingPivot($personnage->id, ['ordre_initiative' => $i + 1]);
+                    }
+                    $personnage->update([
+                        'pv_body' => $personnage->pv_body_max,
+                        'pv_mind' => $personnage->pv_mind_max,
+                    ]);
+                    $this->sorts->reinitialiserQuete($groupe, $personnage);
+                    $this->sorts->dissiperEffetsACompteur($personnage);
                 }
-                $personnage->update([
-                    'pv_body' => $personnage->pv_body_max,
-                    'pv_mind' => $personnage->pv_mind_max,
-                ]);
-                $this->sorts->reinitialiserQuete($groupe, $personnage);
-                $this->sorts->dissiperEffetsACompteur($personnage);
 
                 $quete->etatsPersonnages()->create([
                     'personnage_id' => $personnage->id,
@@ -254,7 +295,7 @@ final class DemarreurQueteConstruite
             'titre' => $quete->titre,
             'position_arc' => $rang,
             'type_jalon' => 'normale',
-            'campagne_construite' => $campagne->slug,
+            'campagne_construite' => $slugCampagne,
             'nb_monstres' => count($produit['monstres']),
         ]);
 

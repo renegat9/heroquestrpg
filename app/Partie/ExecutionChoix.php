@@ -140,7 +140,10 @@ final class ExecutionChoix
 
         // Texte de fin déjà narré par le résolveur (quête gagnée en détruisant
         // l'élément-objectif) : le redire ferait entendre deux fois la victoire.
-        $dejaNarre = ! empty($resultat['objectif_detruit']);
+        $dejaNarre = ! empty($resultat['objectif_detruit'])
+            // QUÊTE DOUBLE (lot K5p) : la bascule a lu le texte d'ouverture de l'autre moitié — une phrase de progression
+            // par-dessus le couvrirait.
+            || ! empty($resultat['quete']['narre']);
 
         if (! $instantane && ! $dejaNarre) {
             // Verrou B1 (délibéré, cf. CLAUDE.md) : le joueur suivant attend que

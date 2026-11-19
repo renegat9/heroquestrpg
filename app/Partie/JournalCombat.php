@@ -189,6 +189,8 @@ final class JournalCombat
         // MODE CLASSIQUE (lot K5k) : la charge prise, ou lâchée par un porteur à terre.
         'charge_prise' => true,
         'charge_lachee' => true,
+        // QUÊTE DOUBLE (lot K5p) : un héros emprunte le passage vers l'autre moitié.
+        'passage_double' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1282,6 +1284,14 @@ final class JournalCombat
             'charge_lachee' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' tombe et lâche '.($a['charge'] ?? 'la charge').' : elle reste sur sa case',
                 'ton' => 'subit',
+            ]],
+            // QUÊTE DOUBLE (lot K5p) : le héros quitte le plateau ; le dernier fait basculer la partie.
+            'passage_double' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' emprunte le passage vers '.($a['vers'] ?? 'l\'autre moitié de la quête')
+                    .((int) ($a['restants'] ?? 0) === 0
+                        ? ' — tout le groupe y est passé'
+                        : ' — il attend les autres ('.(int) $a['restants'].' encore dans cette partie du donjon)'),
+                'ton' => 'info',
             ]],
             // ÉQUIPEMENT CONFISQUÉ (lot K5j) : au départ, le héros laisse tout à la consigne.
             'confiscation' => [[

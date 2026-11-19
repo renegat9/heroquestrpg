@@ -39,21 +39,22 @@ hors dépôt, à côté de `~/heroquest-livrets`).
 
 Relevé sur les quatorze livrets de `~/heroquest-livrets` (base, onze
 extensions, First Light et son livret de quêtes). Une ligne = une famille,
-dite avec nos mots. « État » dit si un lecteur moteur existe.
+dite avec nos mots. « État » dit si un lecteur moteur existe (colonne remise à
+jour le 2026-11-18 d'après §9 bis ; le détail de chaque lot y reste).
 
 ### 2.1 Déclencheurs (« quand »)
 
 | # | Déclencheur | Présent dans | État |
 |---|---|---|---|
-| D1 | Première **fouille de trésor** d'une salle (ou d'un meuble précis) | tous | lecteur partiel (deck de fouille, coffres) — pas de contenu **imposé** par salle |
-| D2 | **Entrée** d'un héros dans une salle ou sur une case | tous | à faire |
-| D3 | **Ouverture** d'une porte désignée | base, Witch Lord, Kellar's | à faire (les dormants en sont un cas) |
-| D4 | **Mort** d'une figure nommée | tous | partiel (objectif « tuer le boss ») |
-| D5 | **Début du tour du MJ**, à chaque tour ou à partir d'un tour donné | Witch Lord, Kellar's, Morcar | à faire |
+| D1 | Première **fouille de trésor** d'une salle (ou d'un meuble précis) | tous | fait (K3 : note `fouille_tresor`, contenu imposé) |
+| D2 | **Entrée** d'un héros dans une salle ou sur une case | tous | fait (K3, `entree`) |
+| D3 | **Ouverture** d'une porte désignée | base, Witch Lord, Kellar's | fait (K3, `ouverture_porte`) |
+| D4 | **Mort** d'une figure nommée | tous | fait (K3, `mort`) |
+| D5 | **Début du tour du MJ**, à chaque tour ou à partir d'un tour donné | Witch Lord, Kellar's, Morcar | fait (K5a, `tour_du_mj`) |
 | D6 | **Dernier héros passé** un point (effondrement derrière le groupe) | base | fait (K5l) |
-| D7 | Fouille de **portes secrètes** ou de **pièges** à un endroit donné | base, Kellar's | à faire (résultat imposé : « rien », ou « un seul ») |
+| D7 | Fouille de **portes secrètes** ou de **pièges** à un endroit donné | base, Kellar's | fait (K5g, `fouille_zone` ; K5o, un piège à la fois) |
 | D8 | Héros qui **termine son déplacement** dans une zone | Kellar's, Frozen Horror | fait pour le terrain et la salle dangereuse |
-| D9 | Objet de quête **ramassé** ou **rapporté** | base, Kellar's, Witch Lord | à faire |
+| D9 | Objet de quête **ramassé** ou **rapporté** | base, Kellar's, Witch Lord | reporté, choix écrit (une note le couvre) — à revoir à la relecture des livrets |
 
 ### 2.2 Effets (« alors »)
 
@@ -61,29 +62,29 @@ dite avec nos mots. « État » dit si un lecteur moteur existe.
 |---|---|---|
 | E1 | **Lire un texte** à la table (note de salle, message d'ouverture, épilogue) | canal de narration existant ; texte à fournir par la quête |
 | E2 | **Donner** or, objet du catalogue, artefact, potion au fouilleur | lecteurs existants ; à déclencher sur ordre |
-| E3 | **Faire apparaître** des monstres (liste et cases fixes, ou « N par tour » tiré au dé) | invocation existante ; apparition scriptée à faire |
+| E3 | **Faire apparaître** des monstres (liste et cases fixes, ou « N par tour » tiré au dé) | fait (K3, `apparition` ; K5o, `nombre_d6`) |
 | E4 | **Réveiller** des figures inertes ; figure **invulnérable tant qu'elle n'a pas agi** | fait (dormants) |
 | E5 | **Révéler** ou **poser** un élément : porte secrète, tuile, meuble, passage | fait — porte secrète (K5b), tuile posée au premier pas (`cachee`, 2026-11-18) ; aucun meuble posé en cours de quête dans les livrets relus |
-| E6 | **Fermer** un chemin : bloc tombé, porte factice, porte que seul le MJ ouvre | partiel (chute de blocs ; fausse porte à faire) |
+| E6 | **Fermer** un chemin : bloc tombé, porte factice, porte que seul le MJ ouvre | fait (K5a, verrou `note` ; K5b, `bloc` ; fausses portes de sortie) |
 | E7 | **Dégâts** ou **jet** imposé (dé de combat à l'entrée, piège de coffre avec valeur fixée) | lecteurs existants (`MoteurDegats`, `MoteurPieges`) |
 | E8 | **Déplacer** un héros : téléportation, sortie tirée au dé (salle tournante), glissade | fait — `teleporter` (K5f), salle tournante par `destinations_d6` (K5o), portes 2d6 (K5n) |
 | E9 | **Remplacer** une figure par une autre (métamorphe, boss à formes) | fait |
-| E10 | **Marquer** un drapeau de quête, relu par un autre déclencheur ou par la condition de fin | à faire — c'est la pièce qui relie tout |
+| E10 | **Marquer** un drapeau de quête, relu par un autre déclencheur ou par la condition de fin | fait (K3, `drapeau` ; K5h, de campagne) |
 
 ### 2.3 Règles de quête (valables toute la quête)
 
 | # | Règle | Présent dans | État |
 |---|---|---|---|
 | R1 | **Monstre errant** désigné | tous | `MonstreErrant::deLaQuete()` — à alimenter par la quête |
-| R2 | **Départ** ailleurs qu'à l'escalier (salle désignée, porte d'entrée en bois) | base, extensions | à faire (l'escalier est supposé en salle 0) |
-| R3 | **Sortie** par un autre point que l'entrée (porte de sortie, escalier en colimaçon), héros retiré à l'arrivée | extensions | à faire (notre sortie = vote en salle de départ, décision du 2026-10-10 — voir Q4) |
-| R4 | **Équipement confisqué** jusqu'à un point de la carte ; sorts interdits d'ici là | base | à faire |
+| R2 | **Départ** ailleurs qu'à l'escalier (salle désignée, porte d'entrée en bois) | base, extensions | fait (portes d'entrée, entrée en couloir, hors plateau) |
+| R3 | **Sortie** par un autre point que l'entrée (porte de sortie, escalier en colimaçon), héros retiré à l'arrivée | extensions | fait (sortie en personne, porte de sortie, fausses sorties) |
+| R4 | **Équipement confisqué** jusqu'à un point de la carte ; sorts interdits d'ici là | base | fait (K5j) |
 | R5 | **Charge à porter** qui réduit le déplacement | base | `MoteurFardeau` existe — à brancher |
-| R6 | Zones **non fouillables**, pièges **introuvables** ou **non désarmables** | plusieurs | partiel (`MotsClesPiege`) |
-| R7 | **Quête solo** : un seul héros d'une classe donnée ; mercenaires interdits | Frozen Horror, Mage du Miroir | à faire (§6) |
-| R8 | **Marché fermé** ou service interdit avant la quête | Dread Moon, Frozen Horror | à faire (drapeau lu par le hub) |
-| R9 | **Monstre nommé** avec bloc de stats et sorts propres à la quête | tous | fait pour ceux du catalogue ; bloc **saisi par l'auteur** à faire |
-| R10 | **Quête double** : deux plateaux enchaînés sans retour au hub | Frozen Horror, Mage du Miroir | à faire |
+| R6 | Zones **non fouillables**, pièges **introuvables** ou **non désarmables** | plusieurs | fait (K5d, K5e) |
+| R7 | **Quête solo** : un seul héros d'une classe donnée ; mercenaires interdits | Frozen Horror, Mage du Miroir | fait (S1) |
+| R8 | **Marché fermé** ou service interdit avant la quête | Dread Moon, Frozen Horror | fait (K5c) |
+| R9 | **Monstre nommé** avec bloc de stats et sorts propres à la quête | tous | fait (K5m, profil d'auteur) |
+| R10 | **Quête double** : deux plateaux enchaînés sans retour au hub | Frozen Horror, Mage du Miroir | fait (K5p) — le miroir est une seule carte |
 | R11 | **Tuiles en surimpression** qui redessinent une zone du plateau | Witch Lord et suivantes | partiel (terrain, tuiles du vivier) |
 
 ### 2.4 Conditions de fin et récompenses
@@ -91,19 +92,19 @@ dite avec nos mots. « État » dit si un lecteur moteur existe.
 | # | Condition | État |
 |---|---|---|
 | F1 | Tuer une figure nommée | fait |
-| F2 | Trouver un objet, puis sortir | à faire |
-| F3 | Atteindre un point (s'évader) | à faire |
-| F4 | Ramener un captif ou une charge | captif fait ; charge à faire |
-| F5 | Récompense : or **à partager**, or **par héros**, objet ; versée à la sortie ou à la campagne | or de quête existant ; règles de partage à faire |
+| F2 | Trouver un objet, puis sortir | fait (fin `drapeau` posée par la note de l'objet, puis sortie en personne) |
+| F3 | Atteindre un point (s'évader) | fait (fin `sortir`) |
+| F4 | Ramener un captif ou une charge | fait (captif ; charge K5k) |
+| F5 | Récompense : or **à partager**, or **par héros**, objet ; versée à la sortie ou à la campagne | fait (`recompense`, partage groupe ou par héros) |
 | F6 | Échec : tous les héros tombés ; conséquence sur la suite | TPK existant |
 
 ### 2.5 Structure de campagne
 
 | # | Élément | Présent dans | État |
 |---|---|---|---|
-| C1 | Suite **linéaire** de quêtes, texte d'ouverture par quête | tous | à faire |
-| C2 | Campagne **ramifiée** (la quête suivante dépend d'un choix ou d'un résultat) | Delthrak | à faire (drapeaux E10 portés au niveau campagne) |
-| C3 | **Prérequis de héros** pour toute la campagne ou pour certaines quêtes | Frozen Horror, Mage du Miroir, Dread Moon, Telor, Spirit Queen | à faire (§6) |
+| C1 | Suite **linéaire** de quêtes, texte d'ouverture par quête | tous | fait (K4) |
+| C2 | Campagne **ramifiée** (la quête suivante dépend d'un choix ou d'un résultat) | Delthrak | fait (K5i) |
+| C3 | **Prérequis de héros** pour toute la campagne ou pour certaines quêtes | Frozen Horror, Mage du Miroir, Dread Moon, Telor, Spirit Queen | fait (`prerequis_heros`, `ChoixCampagne`) |
 | C4 | **État reporté** d'une quête à l'autre (objet de quête conservé, figure qui ne peut être blessée qu'avec l'objet de la quête suivante) | base, Witch Lord | drapeaux de campagne |
 | C5 | **Ressource de groupe** propre à une boîte (réputation, statut) | Dread Moon, Morcar | Gardien fait ; réputation à faire |
 
@@ -870,6 +871,28 @@ ni son format, il appelle ce que la route HTTP appelle.
   dangers, paires de terrain — `paire` publié par le catalogue), booléens et
   `destinations_d6` des notes ; vu à l'écran sur les campagnes saisies.
   Trois campagnes des livrets saisies en base (34 quêtes, 0 refus).
+- **Fait le 2026-11-18 — lot K5p : la quête double** (R10 ; René : « faire
+  les 2 au moment opportun »). Le livret tranche ce que la doc 18 supposait :
+  *The Heart of Ice* est SÉQUENTIELLE (« they cannot enter Quest 10 until all
+  the heroes have moved onto the stairway […] remove the Quest 9 setup »),
+  jamais deux cartes ouvertes à la fois ; *Silvermane's Lair* laisse les deux
+  moitiés sur des parties différentes du plateau — une seule carte, un
+  `teleporter` et une paire de trappes, rien de neuf. Format `double` :
+  `{quete, passage}` sur la principale, `{quete}` sur la seconde (fin, sortie,
+  récompense à `null`). `quetes.double_id` (migration `2026_11_18_120000`,
+  appliquée après sauvegarde relue). `App\Partie\Classique\QueteDouble` :
+  chaque héros emprunte le passage et quitte le plateau ; le dernier debout
+  fait basculer — seconde moitié créée par la même fondation qu'une quête
+  (`DemarreurQueteConstruite::fonder()`, découpée de `demarrer()`) sans
+  restaurer Corps, Esprit ni sorts ; reprise ensuite avec la seule salle du
+  passage découverte, couloirs oubliés, morts restés morts. La moitié quittée
+  reste `en_cours`, hors `quete_courante_id` (sa consigne n'est pas rendue) ;
+  la fin de l'une clôt l'autre (`Quete::booted()`). Objectif, drapeaux,
+  récompense et suite lus sur la principale ; l'ordre linéaire saute la
+  seconde, une `suite` ne peut pas la viser (`double_invalide`). Le texte
+  d'ouverture de la seconde moitié n'est plus couvert par la phrase de
+  progression. Constructeur : « Quête double avec », passage dessiné. Tests
+  `QueteDoubleTest` ; aller et retour joués sur le vrai stack et vus à l'écran.
 - **Fait le 2026-11-18 — E5, la tuile posée au premier pas.** Inventaire des
   livrets : « poser en cours de quête » = la glace glissante et la glissière
   (*The Frozen Horror* p. 3), l'escalier posé quand on regarde dans la salle

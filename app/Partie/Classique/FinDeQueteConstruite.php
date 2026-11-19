@@ -30,6 +30,10 @@ final class FinDeQueteConstruite
      */
     public function regler(Groupe $groupe, Quete $quete): array
     {
+        // QUÊTE DOUBLE (lot K5p) : gagnée depuis l'une ou l'autre moitié, c'est la PRINCIPALE qui dit la récompense, les
+        // participants et la suite.
+        $quete = $quete->principale();
+
         // Le document FIGÉ au départ de la quête (`quetes.document_construit`), jamais la campagne : l'auteur peut
         // l'avoir corrigée depuis, et la récompense promise à l'ouverture est celle qui se verse.
         $queteDoc = $quete->documentConstruit();
@@ -65,8 +69,14 @@ final class FinDeQueteConstruite
      */
     public function rangSuivant(Groupe $groupe, Quete $quete): int
     {
-        $parDefaut = (int) $quete->position_arc + 1;
+        $quete = $quete->principale();
         $quetes = array_values((array) ($groupe->campagneConstruite?->document['quetes'] ?? []));
+        // QUÊTE DOUBLE (lot K5p) : on n'entre dans une seconde moitié QUE par son passage — l'ordre linéaire la saute (une
+        // `suite` ne peut pas la viser : la validation le refuse).
+        $parDefaut = (int) $quete->position_arc + 1;
+        while (isset($quetes[$parDefaut - 1]) && self::estSecondeMoitie($quetes, $parDefaut - 1)) {
+            $parDefaut++;
+        }
 
         foreach ((array) ($quete->documentConstruit()['suite'] ?? []) as $branche) {
             $condition = $branche['si_drapeau'] ?? null;
@@ -86,6 +96,19 @@ final class FinDeQueteConstruite
         }
 
         return $parDefaut;
+    }
+
+    /** La quête de ce rang (index 0) est-elle la SECONDE moitié d'une quête double (son autre moitié la précède) ? */
+    private static function estSecondeMoitie(array $quetes, int $index): bool
+    {
+        $vise = data_get($quetes[$index], 'double.quete');
+        foreach ($quetes as $j => $autre) {
+            if ($j < $index && ($autre['slug'] ?? null) === $vise && data_get($autre, 'double.quete') === ($quetes[$index]['slug'] ?? null)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

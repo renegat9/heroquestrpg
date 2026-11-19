@@ -158,6 +158,8 @@ const jaiLeCrane = computed(() => monEntite.value?.crane === true);
 // SORTI DU DONJON (mode classique) : le héros affiché a quitté la quête en personne. Décision publiée par le serveur
 // (`entites[].sorti`) — la manette ne la déduit pas de l'absence de position.
 const suisSorti = computed(() => monEntite.value?.sorti === true);
+// QUÊTE DOUBLE (lot K5p) : passé dans l'autre moitié, il attend que tout le groupe le rejoigne (`entites[].passe`).
+const suisPasse = computed(() => monEntite.value?.passe === true);
 // SPECTATEUR (lot S1, quête solo) : mon héros n'est pas engagé dans cette quête — décision publiée (`entites[].spectateur`).
 // Ceux qui jouent : les héros publiés NON spectateurs, nommés tels quels.
 const suisSpectateur = computed(() => monEntite.value?.spectateur === true);
@@ -1788,6 +1790,13 @@ const navItems = computed(() => (scene.value === 'marche'
                             </p>
                         </div>
                         <!-- héros tombé : le moteur le saute, aucun menu n'est jouable -->
+                        <div v-else-if="tab === 'action' && suisPasse" style="text-align: center; padding: 30px 14px; color: var(--ink-500)">
+                            <MSym n="stairs" :size="34" />
+                            <p style="font-family: var(--font-narr); font-weight: 700; font-size: 16px; margin: 10px 0 4px">Passé de l'autre côté</p>
+                            <p style="font-family: var(--font-narr); font-style: italic; font-size: 14px; margin: 0">
+                                Tu as emprunté le passage — on ne continue que lorsque tout le groupe y est passé.
+                            </p>
+                        </div>
                         <div v-else-if="tab === 'action' && suisSorti" style="text-align: center; padding: 30px 14px; color: var(--ink-500)">
                             <MSym n="logout" :size="34" />
                             <p style="font-family: var(--font-narr); font-weight: 700; font-size: 16px; margin: 10px 0 4px">Hors du donjon</p>

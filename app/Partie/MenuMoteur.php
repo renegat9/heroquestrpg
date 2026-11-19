@@ -3488,6 +3488,17 @@ final class MenuMoteur
             ];
         }
 
+        // QUÊTE DOUBLE (lot K5p, *The Frozen Horror* q. 9-10) : emprunter le passage vers l'autre moitié — le héros quitte le
+        // plateau ; quand plus aucun héros debout n'y reste, la partie bascule. Même créneau que la sortie (l'action) :
+        // déjà agi, rien n'est offert. `Quete::peutPasser()`, que le résolveur revalide.
+        if (! $aJoue && $etat !== null && ! $etat->a_agi && $quete->peutPasser($etat)) {
+            $options[] = [
+                'id' => 'passer_double',
+                'libelle' => 'Emprunter le passage : '.$quete->titreDeLAutreMoitie(),
+                'type' => 'passage_double',
+            ];
+        }
+
         // LES AFFAIRES D'UN MORT (mode Heroic, lot H1b) : « can be picked up by any other hero in the room with you, no
         // action required » (livret de règles de First Light). Offertes au héros debout qui se tient dans la même salle
         // ou le même couloir (`ZoneFouille`) que la case du mort — la liste que `resoudreRamasserDepouille()` revalide.

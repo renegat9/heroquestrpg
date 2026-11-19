@@ -67,6 +67,8 @@ class Quete extends Model
         'charge',
         // Brouillard des couloirs d'une carte construite (2026-11-17) : cases « x,y » vues — `CouloirsVus` seule.
         'couloirs_vus',
+        // Quête double (lot K5p) : l'autre moitié — `QueteDouble` seule l'écrit.
+        'double_id',
     ];
 
     /**
@@ -79,6 +81,14 @@ class Quete extends Model
         static::updated(function (Quete $quete): void {
             if ($quete->wasChanged('etat') && $quete->etat !== 'en_cours' && ! empty($quete->consignes)) {
                 app(\App\Partie\Classique\Confiscation::class)->rendreTout($quete);
+            }
+            // QUÊTE DOUBLE (lot K5p) : gagnée, perdue ou abandonnée, l'une ne survit pas à l'autre — la moitié suspendue
+            // prend le même état (son propre crochet rend alors sa consigne). Le seul point de passage, comme ci-dessus.
+            if ($quete->wasChanged('etat') && $quete->etat !== 'en_cours' && $quete->double_id !== null) {
+                $jumelle = $quete->moitieJumelle();
+                if ($jumelle !== null && $jumelle->etat === 'en_cours') {
+                    $jumelle->update(['etat' => $quete->etat]);
+                }
             }
         });
     }
@@ -180,7 +190,78 @@ class Quete extends Model
     public function aDrapeau(string $nom): bool
     {
         return ! empty(((array) $this->drapeaux)[$nom])
+            // QUÊTE DOUBLE (lot K5p) : les deux moitiés sont UNE quête — un drapeau posé dans l'une se lit dans l'autre.
+            || ($this->double_id !== null && ! empty(((array) $this->moitieJumelle()?->drapeaux)[$nom]))
             || ! empty(((array) ($this->groupe?->drapeaux_campagne ?? []))[$nom]);
+    }
+
+    // ─── Quête double (lot K5p, R10 — *The Frozen Horror* q. 9-10) ────────────────────────────────────────────────
+
+    /** L'autre moitié de cette quête double, une fois créée ; `null` sinon. */
+    public function moitieJumelle(): ?self
+    {
+        return $this->double_id !== null ? self::find($this->double_id) : null;
+    }
+
+    /** Une SECONDE moitié : son document nomme son autre moitié sans passage — c'est par son départ qu'on revient. */
+    public function estSecondeMoitie(): bool
+    {
+        $double = data_get($this->documentConstruit(), 'double');
+
+        return is_array($double) && ! array_key_exists('passage', $double);
+    }
+
+    /** La moitié PRINCIPALE : celle qui porte la fin, la récompense et la suite (elle-même hors quête double). */
+    public function principale(): self
+    {
+        return $this->estSecondeMoitie() ? ($this->moitieJumelle() ?? $this) : $this;
+    }
+
+    /**
+     * Les cases du PASSAGE vers l'autre moitié — `[]` hors quête double. La principale a son passage (`acces.passage`) ;
+     * la seconde revient par son départ (`acces.entree`). Lu par le menu, le résolveur et la bascule.
+     *
+     * @return list<array{x: int, y: int}>
+     */
+    public function casesDuPassage(): array
+    {
+        if (! $this->estConstruite() || ! is_array(data_get($this->documentConstruit(), 'double'))) {
+            return [];
+        }
+        $acces = $this->estSecondeMoitie() ? data_get($this->acces, 'entree') : data_get($this->acces, 'passage');
+
+        return array_map(fn ($c): array => ['x' => (int) $c['x'], 'y' => (int) $c['y']], (array) data_get($acces, 'cases', []));
+    }
+
+    /**
+     * Ce héros peut-il emprunter le passage vers l'autre moitié MAINTENANT ? Debout, sur le plateau, sur une case du
+     * passage. LE prédicat du menu et du résolveur (lot K5p).
+     */
+    public function peutPasser(EtatPersonnageQuete $etat): bool
+    {
+        if ($etat->tombe || $etat->horsPlateau()) {
+            return false;
+        }
+        foreach ($this->casesDuPassage() as $case) {
+            if ($case['x'] === (int) $etat->position_x && $case['y'] === (int) $etat->position_y) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Le titre de l'autre moitié, dit aux joueurs : celui du document de la campagne. */
+    public function titreDeLAutreMoitie(): string
+    {
+        $slug = data_get($this->documentConstruit(), 'double.quete');
+        foreach ((array) ($this->groupe?->campagneConstruite?->document['quetes'] ?? []) as $doc) {
+            if (($doc['slug'] ?? null) === $slug) {
+                return (string) ($doc['titre'] ?? $slug);
+            }
+        }
+
+        return (string) $slug;
     }
 
     /**
@@ -290,6 +371,11 @@ class Quete extends Model
     public function sallesDecouvertes(): array
     {
         $vues = array_map('intval', (array) ($this->salles_decouvertes ?? []));
+        // QUÊTE DOUBLE REPRISE (lot K5p) : « set out only room A' until they explore other rooms » — la salle de départ
+        // n'est plus connue d'emblée, seulement ce que `salles_decouvertes` retient (`QueteDouble::reprendre()`).
+        if (! empty(data_get($this->drapeaux, '_reprise'))) {
+            return array_values(array_unique($vues));
+        }
 
         return array_values(array_unique($this->entreeEnCouloir() !== [] ? $vues : [0, ...$vues]));
     }
@@ -610,6 +696,12 @@ class Quete extends Model
      */
     public function objectifAccompli(): bool
     {
+        // QUÊTE DOUBLE (lot K5p) : la seconde moitié n'a pas de fin à elle — c'est l'objectif de la principale (ses cibles,
+        // posées sur SA carte, y restent mortes pendant qu'on joue l'autre moitié).
+        if ($this->estSecondeMoitie() && ($principale = $this->moitieJumelle()) !== null) {
+            return $principale->objectifAccompli();
+        }
+
         return match ((string) $this->objectif()) {
             // Le boss de la rencontre finale est tombé.
             'vaincre_sous_boss' => $this->bossAbattu('sous_boss'),
@@ -806,6 +898,11 @@ class Quete extends Model
      */
     public function sortieDuDonjon(): array
     {
+        // QUÊTE DOUBLE (lot K5p) : on ne quitte pas le donjon depuis la seconde moitié — son départ est le passage du retour.
+        if ($this->estSecondeMoitie()) {
+            return ['type' => 'escalier', 'cases' => []];
+        }
+
         $sortie = data_get($this->acces, 'sortie');
 
         if (is_array($sortie) && ! empty($sortie['cases'])) {
@@ -826,7 +923,9 @@ class Quete extends Model
      */
     public function sortieEnPersonne(): bool
     {
-        return (bool) $this->groupe?->estClassique() && $this->sortieDuDonjon()['cases'] !== [];
+        // La seconde moitié d'une quête double (lot K5p) se joue « en personne » sans case de sortie : ni sortie ni vote
+        // de sortie n'y sont offerts — on en repart par le passage.
+        return (bool) $this->groupe?->estClassique() && ($this->sortieDuDonjon()['cases'] !== [] || $this->estSecondeMoitie());
     }
 
     /**

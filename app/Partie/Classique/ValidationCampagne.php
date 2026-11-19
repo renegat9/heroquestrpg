@@ -65,6 +65,9 @@ final class ValidationCampagne
     public const SOLO_SANS_PREREQUIS = 'solo_sans_prerequis';
     // Lot K5a — un VERROU sur une porte secrète : on la trouve, puis elle s'ouvre ; elle n'a rien à verrouiller.
     public const VERROU_SUR_PORTE_SECRETE = 'verrou_sur_porte_secrete';
+    // Lot K5p (R10) — une QUÊTE DOUBLE mal liée : moitié absente, qui pointe ailleurs, la seconde avant la principale, ou
+    // une seconde moitié visée par une `suite` (on n'y entre que par le passage).
+    public const DOUBLE_INVALIDE = 'double_invalide';
 
     /** @var list<string> */
     public const CODES = [
@@ -77,7 +80,7 @@ final class ValidationCampagne
         self::DEPART_HORS_SALLE,
         self::PORTE_DANS_LA_ROCHE, self::MOBILIER_HORS_SALLE, self::CASE_PARTAGEE, self::CIBLE_INCONNUE,
         self::CIBLE_DE_NOTE_INVALIDE, self::DRAPEAU_JAMAIS_POSE, self::SOLO_SANS_PREREQUIS,
-        self::VERROU_SUR_PORTE_SECRETE,
+        self::VERROU_SUR_PORTE_SECRETE, self::DOUBLE_INVALIDE,
     ];
 
     /**
@@ -144,7 +147,7 @@ final class ValidationCampagne
         'ramener' => ['type', 'libelle'],
     ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'dangers'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'dangers', 'double'];
     /**
      * Les RÈGLES DE QUÊTE (`docs/plan-mode-classique.md` §2.3), valables toute la quête — seulement celles que le moteur
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
@@ -412,6 +415,18 @@ final class ValidationCampagne
             is_array($document['quetes'] ?? null) ? $document['quetes'] : [],
         )));
 
+        // Lot K5p : les SECONDES moitiés de quête double (leur autre moitié vient avant elles dans la liste).
+        $secondes = [];
+        $listeQuetes = is_array($document['quetes'] ?? null) ? array_values($document['quetes']) : [];
+        foreach ($listeQuetes as $j => $q) {
+            foreach ($listeQuetes as $k => $autre) {
+                if (is_array($q) && is_array($autre) && $k < $j && is_string($q['slug'] ?? null)
+                    && ($autre['slug'] ?? null) === data_get($q, 'double.quete') && data_get($autre, 'double.quete') === $q['slug']) {
+                    $secondes[$q['slug']] = true;
+                }
+            }
+        }
+
         foreach ($this->enListeDe($document, 'quetes', '') as $i => $valeur) {
             $chemin = "quetes.$i";
             $quete = $this->enObjet($valeur, $chemin);
@@ -445,6 +460,8 @@ final class ValidationCampagne
             $this->blocs($quete, $chemin);
             $this->depart($quete, $chemin);
             $this->sortie($quete, $chemin);
+            // Lot K5p (R10) : la quête double — `principale`, `seconde` ou `null`.
+            $moitie = $this->double($quete, $chemin, (int) $i, is_array($document['quetes'] ?? null) ? array_values($document['quetes']) : []);
             $this->faussesSorties($quete, $chemin);
             $this->poses($quete, $chemin, 'mobilier', 'mobilier', tourne: true);
             $this->poses($quete, $chemin, 'monstres', 'monstres');
@@ -456,6 +473,11 @@ final class ValidationCampagne
             // ou de campagne par une quête précédente (lot K5h).
             $this->campagneDeLaQuete = [];
             $drapeauxPoses = $this->notes($quete, $chemin) + $this->drapeauxDeCampagne;
+            // Les deux moitiés d'une quête double partagent leurs drapeaux (`Quete::aDrapeau()`) : ceux que l'autre moitié
+            // pose comptent ici aussi.
+            if ($moitie !== null) {
+                $drapeauxPoses += self::drapeauxDesNotes($this->moitieJumelle($quete, is_array($document['quetes'] ?? null) ? array_values($document['quetes']) : []));
+            }
             if (is_array($pacifies = data_get($quete, 'regles.monstres_pacifies_par_drapeau'))) {
                 foreach ($pacifies as $slugMonstre => $drapeauPacifie) {
                     if (is_string($drapeauPacifie) && $drapeauPacifie !== '' && ! isset($drapeauxPoses[$drapeauPacifie])) {
@@ -464,7 +486,10 @@ final class ValidationCampagne
                     }
                 }
             }
-            $this->fin($quete, $chemin, $drapeauxPoses);
+            // Une SECONDE moitié n'a pas de fin à elle (`fin: null`, vérifié par `double()`) : c'est celle de la principale.
+            if ($moitie !== 'seconde') {
+                $this->fin($quete, $chemin, $drapeauxPoses);
+            }
             // Lot K5k (R5) : la charge, `{nom, x, y}` sur une case où un objet peut être posé — comme une apparition.
             if (array_key_exists('charge', $quete) && ($charge = $this->enObjet($quete['charge'], "$chemin.charge")) !== null) {
                 $this->cles($charge, "$chemin.charge", ['nom', 'x', 'y']);
@@ -473,8 +498,104 @@ final class ValidationCampagne
             }
             // Lot K5i (C2) : les embranchements, après les notes (leurs drapeaux) et avec les slugs de TOUTE la campagne.
             $this->suite($quete, $chemin, $drapeauxPoses + $this->campagneDeLaQuete, $tousLesSlugs, is_string($quete['slug'] ?? null) ? $quete['slug'] : null);
+            // Lot K5p : une seconde moitié de quête double ne s'atteint que par le passage — jamais par une `suite`.
+            foreach ((array) ($quete['suite'] ?? []) as $k => $branche) {
+                if (is_array($branche) && is_string($branche['quete'] ?? null) && isset($secondes[$branche['quete']])) {
+                    $this->refuser("$chemin.suite.$k.quete", self::DOUBLE_INVALIDE,
+                        "« {$branche['quete']} » est la seconde moitié d'une quête double : on n'y entre que par son passage");
+                }
+            }
             $this->drapeauxDeCampagne += $this->campagneDeLaQuete;
         }
+    }
+
+    /**
+     * `double` (lot K5p, R10 — *The Frozen Horror* q. 9-10) : rend `principale`, `seconde` ou `null`. La PREMIÈRE moitié
+     * dans l'ordre est la principale : `{quete, passage}` ; la seconde : `{quete}`, et `fin`, `sortie`, `recompense` à
+     * `null` (ce sont ceux de la principale), ni `suite` ni `regles.solo`.
+     *
+     * @param  list<mixed>  $quetes
+     */
+    private function double(array $quete, string $chemin, int $index, array $quetes): ?string
+    {
+        if (! array_key_exists('double', $quete)) {
+            return null;
+        }
+        $ici = self::chemin($chemin, 'double');
+        $double = $this->enObjet($quete['double'], $ici);
+        if ($double === null) {
+            return null;
+        }
+        $vise = $double['quete'] ?? null;
+        $cible = null;
+        foreach ($quetes as $j => $autre) {
+            if (is_array($autre) && is_string($vise) && ($autre['slug'] ?? null) === $vise && $j !== $index) {
+                $cible = $j;
+            }
+        }
+        if ($cible === null) {
+            $this->cles($double, $ici, ['quete'], ['passage']);
+            $this->refuser("$ici.quete", self::DOUBLE_INVALIDE, 'la quête double doit nommer une AUTRE quête de la campagne');
+
+            return null;
+        }
+        if (data_get($quetes[$cible], 'double.quete') !== ($quete['slug'] ?? null)) {
+            $this->cles($double, $ici, ['quete'], ['passage']);
+            $this->refuser("$ici.quete", self::DOUBLE_INVALIDE, "« $vise » ne désigne pas cette quête comme son autre moitié");
+
+            return null;
+        }
+
+        if ($cible > $index) {
+            // PRINCIPALE : son passage vers la seconde moitié, au format d'une sortie.
+            $this->cles($double, $ici, ['quete', 'passage']);
+            if (array_key_exists('passage', $double)) {
+                $this->acces($double['passage'], "$ici.passage", 'le passage');
+            }
+
+            return 'principale';
+        }
+
+        // SECONDE : on y entre par son départ, qui est aussi le passage du retour.
+        $this->cles($double, $ici, ['quete']);
+        foreach (['fin', 'sortie', 'recompense'] as $cle) {
+            if (($quete[$cle] ?? null) !== null) {
+                $this->refuser(self::chemin($chemin, $cle), self::VALEUR_INVALIDE,
+                    "la seconde moitié d'une quête double n'a pas de « $cle » à elle : null, c'est celle de la principale");
+            }
+        }
+        if (array_key_exists('suite', $quete) || data_get($quete, 'regles.solo') !== null) {
+            $this->refuser($ici, self::DOUBLE_INVALIDE, 'la seconde moitié d\'une quête double n\'a ni suite ni règle solo : ce sont celles de la principale');
+        }
+
+        return 'seconde';
+    }
+
+    /** L'autre moitié d'une quête double, ou `[]`. @param  list<mixed>  $quetes */
+    private function moitieJumelle(array $quete, array $quetes): array
+    {
+        foreach ($quetes as $autre) {
+            if (is_array($autre) && ($autre['slug'] ?? null) === data_get($quete, 'double.quete')) {
+                return $autre;
+            }
+        }
+
+        return [];
+    }
+
+    /** Les drapeaux de quête que posent les notes d'une quête (sans les valider : `notes()` le fait chez elle). */
+    private static function drapeauxDesNotes(array $quete): array
+    {
+        $poses = [];
+        foreach ((array) ($quete['notes'] ?? []) as $note) {
+            foreach ((array) ($note['alors'] ?? []) as $effet) {
+                if (($effet['effet'] ?? null) === MotsClesQuete::DRAPEAU && is_string($effet['nom'] ?? null) && empty($effet['campagne'])) {
+                    $poses[$effet['nom']] = true;
+                }
+            }
+        }
+
+        return $poses;
     }
 
     /**

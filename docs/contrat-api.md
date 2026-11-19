@@ -6250,6 +6250,43 @@ qu'avec un héros désigné.
   cette quête » sur sa fiche. Un héros SORTI, lui, est un participant qui a quitté le donjon (`sorti: true`).
 - **Constructeur** : « Quête solo » dans la fiche de la quête, parmi les classes exigées par la campagne.
 
+### La quête double — `quete.double` (lot K5p, R10, 2026-11-18)
+
+Source : *The Frozen Horror*, q. 9-10 (*The Heart of Ice*) — « Quests 9 and 10 are actually one double-sized quest
+[…] Mind and Body Points are not restored when the heroes cross […] When a hero moves onto the stairway to enter
+Quest 10, remove that hero's figure […] they cannot enter Quest 10 until all the heroes have moved onto the stairway.
+Once all heroes have moved onto the stairway, remove the Quest 9 setup […] When the heroes return to Quest 9, set out
+only room A' until they explore other rooms. Monsters they killed previously do not reappear. » Le jeu est donc
+SÉQUENTIEL : jamais deux cartes ouvertes à la fois. (*The Mage of the Mirror* q. 9-10 laisse les deux moitiés posées
+sur des parties différentes du plateau : c'est UNE carte, un `teleporter` pour le miroir à sens unique et une paire de
+trappes pour le retour — rien de neuf.)
+
+**Format.** Deux entrées de `quetes`, la PREMIÈRE dans l'ordre est la principale :
+- principale : `double: {quete: <slug de la seconde>, passage: <accès escalier|porte, format de sortie>}` — le passage
+  vers la seconde moitié, en plus de son départ et de sa sortie ;
+- seconde : `double: {quete: <slug de la principale>}`. Son `depart` est à la fois l'arrivée et le passage du retour.
+  `fin`, `sortie` et `recompense` y valent `null` (la fin, la sortie et la récompense sont celles de la principale) ;
+  ni `suite` ni `regles.solo`.
+- Refus : `double_invalide` (moitié absente, qui pointe ailleurs, dans le mauvais ordre, ou une seconde moitié visée
+  par une `suite`) ; `cle_manquante` sur `double.passage` de la principale ; `valeur_invalide` sur une clé de la seconde
+  qui devrait valoir `null`.
+
+**En jeu.** Ordre linéaire et `suite` sautent la seconde moitié : on n'y entre que par le passage.
+- Option `passer_double` (« Emprunter le passage : <titre de l'autre moitié> ») : un héros debout, qui n'a pas agi, sur
+  une case du passage (`Quete::casesDuPassage()`). Le héros quitte le plateau (`resultat.type: passage_double`,
+  `restants`) ; il apparaît dans `entites[]` avec `passe: true` tant que les autres n'ont pas suivi.
+- Quand plus aucun héros debout ne reste sur le plateau, la partie BASCULE (`App\Partie\Classique\QueteDouble`) :
+  la moitié quittée reste `en_cours` mais n'est plus `quete_courante_id` (une moitié SUSPENDUE : son état ne change
+  pas, sa consigne n'est pas rendue) ; l'autre est créée au premier passage (monstres, notes, texte
+  d'ouverture) ou reprise ensuite — salles découvertes ramenées à celle de l'arrivée, couloirs vus vidés, monstres
+  vivants des autres salles recachés, monstres tués restés morts. Les héros passés y paraissent sur les cases du
+  passage, sans restauration de Corps ni d'Esprit, sorts et objets comme ils étaient. `quetes.double_id` relie les deux
+  moitiés. Le résultat du dernier passage porte `quete: {etat: "bascule", vers, quete_id, narre}` — `narre` : le texte
+  d'ouverture de la moitié créée vient d'être lu à la table (aucune phrase de progression ne le couvre).
+- L'objectif (`Quete::objectifAccompli()`), les drapeaux (`Quete::aDrapeau()`), la récompense et la suite sont lus sur
+  la PRINCIPALE ; la fin ou l'échec de l'une clôt l'autre. Rejouer une quête double perdue repart de la principale.
+- Mode classique seulement (une quête générée n'a pas de `double`).
+
 ### Ce qu'il fallait aux livrets — lots K5l à K5o (2026-11-18)
 
 Ajouts au format d'une quête construite, tous FACULTATIFS, nés de la saisie des trois campagnes des livrets (quêtes

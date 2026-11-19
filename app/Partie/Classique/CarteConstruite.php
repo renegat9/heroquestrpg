@@ -338,6 +338,10 @@ final class CarteConstruite
                     static fn (array $f): array => ['type' => $f['type'], 'cases' => $f['cases'], 'porte' => $f['porte'], 'revelee' => false],
                     $acces['fausses_sorties'],
                 ),
+                // QUÊTE DOUBLE (lot K5p) : le passage de la principale vers sa seconde moitié — clé absente sinon.
+                ...($acces['passage'] !== null
+                    ? ['passage' => ['type' => $acces['passage']['type'], 'cases' => $acces['passage']['cases'], 'porte' => $acces['passage']['porte']]]
+                    : []),
             ],
         ];
     }
@@ -491,6 +495,8 @@ final class CarteConstruite
                 static fn (array $porte): array => $un(['type' => ValidationCampagne::ACCES_PORTE] + $porte),
                 array_values((array) ($quete['fausses_sorties'] ?? [])),
             ),
+            // QUÊTE DOUBLE (lot K5p) : le passage de la PRINCIPALE vers l'autre moitié ; la seconde passe par son départ.
+            'passage' => is_array(data_get($quete, 'double.passage')) ? $un((array) $quete['double']['passage']) : null,
         ];
     }
 
