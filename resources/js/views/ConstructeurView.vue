@@ -11,6 +11,8 @@
 //    (outil choisi, sélection) vit à côté du document, jamais dedans.
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import MSym from '../components/ui/MSym.vue';
+import ProfilMonstre from '../components/constructeur/ProfilMonstre.vue';
+import TableDeCases from '../components/constructeur/TableDeCases.vue';
 import { useApi } from '../composables/useApi';
 
 const api = useApi();
@@ -477,6 +479,52 @@ function basculerSansFouille(id, coche) {
         if (!Object.keys(quete.value.regles).length) delete quete.value.regles;
     }
 }
+// Lots K5n/K5o : les autres `regles` des livrets — une clé n'existe que remplie ; `regles` disparaît quand il est vide.
+function poserRegle(cle, valeur) {
+    if (valeur === undefined) {
+        if (quete.value.regles) {
+            delete quete.value.regles[cle];
+            if (!Object.keys(quete.value.regles).length) delete quete.value.regles;
+        }
+    } else quete.value.regles = { ...(quete.value.regles ?? {}), [cle]: valeur };
+}
+// `primes_monstres {slug: or}` et `monstres_pacifies_par_drapeau {slug: drapeau}` : une table par monstre du catalogue.
+function ajouterAuMonstre(cle, slug, defaut) {
+    if (!slug) return;
+    poserRegle(cle, { ...(quete.value.regles?.[cle] ?? {}), [slug]: defaut });
+}
+function retirerDuMonstre(cle, slug) {
+    const table = { ...(quete.value.regles?.[cle] ?? {}) };
+    delete table[slug];
+    poserRegle(cle, Object.keys(table).length ? table : undefined);
+}
+// `quete.dangers` (K5o) : rocher roulant (un trajet de 2 cases au moins) ou brume de la mort, en couloir.
+function ajouterDanger(type) {
+    if (!Array.isArray(quete.value.dangers)) quete.value.dangers = [];
+    quete.value.dangers.push(type === 'rocher' ? { type, run: [{ x: 0, y: 0 }, { x: 1, y: 0 }] } : { type, x: 0, y: 0 });
+}
+function retirerDanger(i) {
+    quete.value.dangers.splice(i, 1);
+    if (!quete.value.dangers.length) delete quete.value.dangers;
+}
+// Profil d'auteur ouvert (R9) — un état d'écran, pas une donnée de la quête.
+const profilsOuverts = reactive(new Set());
+const basculerProfil = (cle) => (profilsOuverts.has(cle) ? profilsOuverts.delete(cle) : profilsOuverts.add(cle));
+const aUnProfil = (m) => ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite'].some((k) => k in m);
+// Le bloc des livrets s'ouvre de lui-même quand la quête en utilise déjà une clé.
+const aDesReglesDeLivret = computed(() => {
+    const q = quete.value;
+    if (!q) return false;
+    const r = q.regles ?? {};
+    return ['primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau'].some((k) => k in r)
+        || (q.dangers ?? []).length > 0 || (q.monstres ?? []).some(aUnProfil) || (q.terrain ?? []).some((t) => 'paire_id' in t);
+});
+// `paire_id` (K5o) : seulement sur un terrain qui téléporte vers sa jumelle — décidé par le catalogue (`paire`).
+const terrainsAPaire = computed(() => (quete.value?.terrain ?? []).map((t, i) => ({ t, i })).filter(({ t }) => couches.value.terrain?.find((c) => c.slug === t.slug)?.paire));
+function changerPaire(t, v) {
+    if (v.trim() === '') delete t.paire_id; else t.paire_id = v.trim();
+}
+
 // Lot K5j (R4) : `regles.confiscation` — tout est pris au départ, repris en fouillant la salle choisie ; « non » retire
 // la clé (jamais une clé vide).
 function changerConfiscation(salle) {
@@ -521,7 +569,25 @@ function changerSiDrapeauSuite(i, valeur) {
 // ---------------------------------------------------------------- notes « quand → alors »
 const declencheurs = computed(() => vocab.value.declencheurs_de_note ?? {});
 const effetsNote = computed(() => vocab.value.effets_de_note ?? {});
-const LIBELLES_PARAM = { texte: 'Texte lu', or: 'Or', body: 'Points de Corps', slug: 'Objet', quantite: 'Quantité', nom: 'Nom du drapeau', monstres: 'Monstres', porte: 'Porte' };
+const LIBELLES_PARAM = { texte: 'Texte lu', or: 'Or', body: 'Points de Corps', slug: 'Objet', quantite: 'Quantité', nom: 'Nom du drapeau', monstres: 'Monstres', porte: 'Porte',
+    sur_jet: 'Esquivé sous (1d6)', avec_casque: 'avec un Casque, sous' };
+// Lots K5n/K5o : les paramètres optionnels BOOLÉENS d'un effet — posés seulement quand ils valent true (`ValidationCampagne`
+// exige un booléen : un champ numérique les rendait refusés).
+const BOOLEENS_EFFET = {
+    toute_la_salle: 'tous les héros de sa salle',
+    nombre_d6: 'seuls les 1d6 premiers paraissent',
+    si_absent_du_groupe: 'seulement si personne ne l\'a déjà',
+};
+function basculerBooleen(objet, cle, avec) {
+    if (avec) objet[cle] = true; else delete objet[cle];
+}
+// Une table de cases indexée par un dé, créée PLEINE (le serveur exige chaque face) à partir d'une case d'origine.
+const FACES_D6 = ['1', '2', '3', '4', '5', '6'];
+const SOMMES_2D6 = ['2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+const tablePleine = (faces, x = 0, y = 0) => Object.fromEntries(faces.map((f) => [f, { x, y }]));
+function basculerDestinationsD6(effet, avec) {
+    if (avec) effet.destinations_d6 = tablePleine(FACES_D6, effet.x ?? 0, effet.y ?? 0); else delete effet.destinations_d6;
+}
 
 function notes() {
     if (!Array.isArray(quete.value.notes)) quete.value.notes = [];
@@ -877,6 +943,98 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     </select>
                                 </template>
                             </div>
+                            <!-- ============ Lots K5l à K5o : ce qu'il fallait aux livrets ============ -->
+                            <details class="cst-livrets" :open="aDesReglesDeLivret">
+                                <summary class="cst-lbl">Règles des livrets — monstres d'auteur, primes, téléportations, dangers</summary>
+
+                                <div v-if="quete.monstres.length" class="cst-bloc">
+                                    <span class="cst-sous">Monstres posés — profil d'auteur (R9) : sous-boss, boss ou créature nouvelle sur une base du catalogue.</span>
+                                    <div class="cst-puces">
+                                        <button
+                                            v-for="(m, i) in quete.monstres" :key="`pm${i}`" type="button" class="cst-puce"
+                                            :class="{ on: aUnProfil(m), ouvert: profilsOuverts.has(m) }" :title="libelleMonstre(m, i)"
+                                            @click="basculerProfil(m)"
+                                        >{{ i }} · {{ m.nom ?? nomDe('monstres', m.slug) }}</button>
+                                    </div>
+                                    <template v-for="(m, i) in quete.monstres" :key="`pf${i}`">
+                                        <div v-if="profilsOuverts.has(m)">
+                                            <span class="cst-lbl">{{ libelleMonstre(m, i) }}</span>
+                                            <ProfilMonstre :monstre="m" :objets="catalogues.objets" :pointer="pointer" :libelle="`monstre ${i}`" />
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <div class="cst-bloc">
+                                    <label class="cst-case"><input type="checkbox" :checked="quete.regles?.fouille_piege_un_par_un === true" @change="poserRegle('fouille_piege_un_par_un', $event.target.checked ? true : undefined)" /> Une fouille ne révèle qu'un piège à la fois</label>
+                                </div>
+
+                                <div class="cst-bloc">
+                                    <span class="cst-sous">Prime en or par monstre abattu (versée à qui l'abat, errants compris)</span>
+                                    <div v-for="(or, slug) in (quete.regles?.primes_monstres ?? {})" :key="`pr${slug}`" class="cst-ligne">
+                                        <span>{{ nomDe('monstres', slug) }}</span>
+                                        <input v-model.number="quete.regles.primes_monstres[slug]" type="number" min="1" class="cst-input cst-num" />
+                                        <button type="button" class="cst-icone" title="Retirer" @click="retirerDuMonstre('primes_monstres', slug)"><MSym n="close" :size="16" /></button>
+                                    </div>
+                                    <select class="cst-input" @change="ajouterAuMonstre('primes_monstres', $event.target.value, 10); $event.target.value = ''">
+                                        <option value="">+ prime pour…</option>
+                                        <option v-for="m in couches.monstres.filter((c) => !(c.slug in (quete.regles?.primes_monstres ?? {})))" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
+                                    </select>
+                                </div>
+
+                                <div class="cst-bloc">
+                                    <span class="cst-sous">Monstres pacifiés par un drapeau (ils ne bougent plus ni n'attaquent une fois le drapeau posé)</span>
+                                    <div v-for="(drapeau, slug) in (quete.regles?.monstres_pacifies_par_drapeau ?? {})" :key="`pa${slug}`" class="cst-ligne">
+                                        <span>{{ nomDe('monstres', slug) }}</span>
+                                        <label>drapeau <input v-model="quete.regles.monstres_pacifies_par_drapeau[slug]" class="cst-input" /></label>
+                                        <button type="button" class="cst-icone" title="Retirer" @click="retirerDuMonstre('monstres_pacifies_par_drapeau', slug)"><MSym n="close" :size="16" /></button>
+                                    </div>
+                                    <select class="cst-input" @change="ajouterAuMonstre('monstres_pacifies_par_drapeau', $event.target.value, ''); $event.target.value = ''">
+                                        <option value="">+ pacifier…</option>
+                                        <option v-for="m in couches.monstres.filter((c) => !(c.slug in (quete.regles?.monstres_pacifies_par_drapeau ?? {})))" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
+                                    </select>
+                                </div>
+
+                                <div class="cst-bloc">
+                                    <label class="cst-case"><input type="checkbox" :checked="!!quete.regles?.portes_teleportation" @change="poserRegle('portes_teleportation', $event.target.checked ? tablePleine(SOMMES_2D6) : undefined)" /> Portes à téléportation : franchir une porte téléporte sur la case tirée au 2d6</label>
+                                    <TableDeCases v-if="quete.regles?.portes_teleportation" :table="quete.regles.portes_teleportation" :faces="SOMMES_2D6" libelle="2d6 =" :pointer="pointer" />
+                                </div>
+
+                                <div class="cst-bloc">
+                                    <div class="cst-ligne">
+                                        <span class="cst-sous">Dangers (en couloir)</span>
+                                        <button type="button" class="cst-btn ghost" @click="ajouterDanger('rocher')"><MSym n="add" :size="14" /> rocher roulant</button>
+                                        <button type="button" class="cst-btn ghost" @click="ajouterDanger('brume')"><MSym n="add" :size="14" /> brume de la mort</button>
+                                    </div>
+                                    <div v-for="(d, i) in (quete.dangers ?? [])" :key="`dg${i}`" class="cst-ligne">
+                                        <template v-if="d.type === 'brume'">
+                                            <span>Brume de la mort</span>
+                                            <input v-model.number="d.x" type="number" class="cst-input cst-num" title="x" />
+                                            <input v-model.number="d.y" type="number" class="cst-input cst-num" title="y" />
+                                            <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(d, 'la brume de la mort')"><MSym n="pin_drop" :size="16" /></button>
+                                        </template>
+                                        <template v-else>
+                                            <span>Rocher roulant, trajet :</span>
+                                            <span v-for="(c, k) in d.run" :key="k" class="cst-ligne">
+                                                <input v-model.number="c.x" type="number" class="cst-input cst-num" title="x" />
+                                                <input v-model.number="c.y" type="number" class="cst-input cst-num" title="y" />
+                                                <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(c, `la case ${k + 1} du rocher`)"><MSym n="pin_drop" :size="16" /></button>
+                                                <button v-if="d.run.length > 2" type="button" class="cst-icone" title="Retirer la case" @click="d.run.splice(k, 1)"><MSym n="close" :size="14" /></button>
+                                            </span>
+                                            <button type="button" class="cst-btn ghost" @click="d.run.push({ ...d.run[d.run.length - 1] })"><MSym n="add" :size="14" /> case</button>
+                                        </template>
+                                        <button type="button" class="cst-icone" title="Retirer le danger" @click="retirerDanger(i)"><MSym n="delete" :size="16" /></button>
+                                    </div>
+                                </div>
+
+                                <div v-if="terrainsAPaire.length" class="cst-bloc">
+                                    <span class="cst-sous">Terrains jumelés — deux extrémités d'une même paire portent le même identifiant</span>
+                                    <div v-for="{ t, i } in terrainsAPaire" :key="`tp${i}`" class="cst-ligne">
+                                        <span>{{ nomDe('terrain', t.slug) }} ({{ t.x }}, {{ t.y }})</span>
+                                        <input :value="t.paire_id ?? ''" class="cst-input" placeholder="paire" @change="changerPaire(t, $event.target.value)" />
+                                    </div>
+                                </div>
+                            </details>
+
                             <div class="cst-suite">
                                 <div class="cst-ligne">
                                     <span class="cst-lbl">Suite (campagne ramifiée)</span>
@@ -985,7 +1143,9 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                                 <input v-model.number="a.x" type="number" class="cst-input cst-num" />
                                                 <input v-model.number="a.y" type="number" class="cst-input cst-num" />
                                                 <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(a, `l'apparition de la note ${note.repere}`)"><MSym n="pin_drop" :size="16" /></button>
+                                                <button type="button" class="cst-icone" :class="{ on: aUnProfil(a) }" title="Profil d'auteur (nom, stats, armes)" @click="basculerProfil(a)"><MSym n="tune" :size="16" /></button>
                                                 <button type="button" class="cst-icone" title="Retirer" @click="effet.monstres.splice(k, 1)"><MSym n="close" :size="16" /></button>
+                                                <ProfilMonstre v-if="profilsOuverts.has(a)" :monstre="a" :objets="catalogues.objets" :pointer="pointer" :libelle="`l'apparition de la note ${note.repere}`" />
                                             </div>
                                             <button type="button" class="cst-btn ghost" @click="effet.monstres.push({ slug: choix.monstre, x: 0, y: 0 })"><MSym n="add" :size="14" /> monstre</button>
                                         </div>
@@ -995,8 +1155,16 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         <label v-if="p === 'campagne'" class="cst-case">
                                             <input type="checkbox" :checked="effet.campagne === true" @change="$event.target.checked ? (effet.campagne = true) : delete effet.campagne" /> de campagne (reste d'une quête à l'autre)
                                         </label>
+                                        <label v-else-if="BOOLEENS_EFFET[p]" class="cst-case">
+                                            <input type="checkbox" :checked="effet[p] === true" @change="basculerBooleen(effet, p, $event.target.checked)" /> {{ BOOLEENS_EFFET[p] }}
+                                        </label>
+                                        <!-- Lot K5o : la case d'arrivée tirée au d6 (salle tournante, Nuage de la Terreur). -->
+                                        <div v-else-if="p === 'destinations_d6'" class="cst-apparitions">
+                                            <label class="cst-case"><input type="checkbox" :checked="!!effet.destinations_d6" @change="basculerDestinationsD6(effet, $event.target.checked)" /> case d'arrivée tirée au d6</label>
+                                            <TableDeCases v-if="effet.destinations_d6" :table="effet.destinations_d6" :faces="FACES_D6" libelle="d6 =" :pointer="pointer" />
+                                        </div>
                                         <label v-else>{{ LIBELLES_PARAM[p] ?? p }}
-                                            <input :value="effet[p] ?? ''" type="number" min="1" class="cst-input cst-num" @change="changerOptionnel(effet, p, $event.target.value)" />
+                                            <input :value="effet[p] ?? ''" type="number" min="1" :max="p === 'sur_jet' || p === 'avec_casque' ? 6 : undefined" class="cst-input cst-num" @change="changerOptionnel(effet, p, $event.target.value)" />
                                         </label>
                                     </template>
                                     <button type="button" class="cst-icone" title="Retirer l'effet" @click="note.alors.splice(j, 1)"><MSym n="close" :size="16" /></button>
@@ -1058,6 +1226,21 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
 .cst-large { flex: 1 1 260px; min-width: 200px; }
 .cst-lbl { font-size: 12px; font-weight: 700; color: var(--ink-300); text-transform: uppercase; letter-spacing: .06em; }
 .cst-case { flex-direction: row !important; align-items: center; }
+/* Les sous-éditeurs (lots K5l à K5o : `ProfilMonstre`, `TableDeCases`) reprennent les mêmes contrôles — le style
+   `scoped` de cette vue ne descend pas dans un composant enfant sans `:deep()`. */
+.cst-livrets { border: var(--line); border-radius: var(--r-md); padding: 8px 10px; }
+.cst-livrets summary { cursor: pointer; }
+.cst-bloc { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.cst-icone.on { color: var(--torch); border-color: var(--torch); }
+.cst-puces { display: flex; flex-wrap: wrap; gap: 4px; }
+.cst-puce { font: inherit; font-size: 12px; padding: 3px 8px; border-radius: 12px; border: var(--line); background: var(--stone-850); color: var(--ink-300); cursor: pointer; }
+.cst-puce.on { color: var(--torch); border-color: var(--torch); }
+.cst-puce.ouvert { background: var(--stone-700); color: var(--parch-100); }
+.cst-edition :deep(:is(.pm, .tdc) .cst-ligne) { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cst-edition :deep(:is(.pm, .tdc) label) { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-300); }
+.cst-edition :deep(:is(.pm, .tdc) .cst-input) { background: var(--stone-900); color: var(--parch-100); border: var(--line); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 13px; }
+.cst-edition :deep(:is(.pm, .tdc) .cst-num) { width: 64px; }
+.cst-edition :deep(:is(.pm, .tdc) .cst-icone) { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; border: var(--line); background: var(--stone-850); color: var(--ink-300); cursor: pointer; }
 .cst-puces { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .cst-puce { padding: 5px 10px; border-radius: 99px; border: var(--line); background: var(--stone-850); color: var(--ink-300); cursor: pointer; font: inherit; font-size: 12.5px; }
 .cst-puce.on { color: var(--stone-950); background: var(--gold); border-color: var(--gold); }

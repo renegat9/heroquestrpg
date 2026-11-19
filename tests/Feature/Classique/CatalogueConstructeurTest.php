@@ -94,6 +94,16 @@ it('palette() rend, par couche, un slug et un nom par ligne, triés par nom', fu
         ->and($noms)->toBe($attendus);
 });
 
+it('payload() publie `paire` sur chaque terrain : vrai pour ceux qui téléportent, et eux seuls (lot K5o)', function () {
+    $terrains = collect(app(CatalogueConstructeur::class)->payload()['couches']['terrain'])->keyBy('slug');
+    $teleportent = \App\Models\Terrain::all()->filter(fn ($t) => data_get($t->effet, 'teleportation') !== null)
+        ->map(fn ($t) => CatalogueConstructeur::slug((string) $t->nom))->sort()->values()->all();
+
+    expect($terrains->every(fn ($t) => is_bool($t['paire'])))->toBeTrue()
+        ->and($teleportent)->not->toBeEmpty()
+        ->and($terrains->filter(fn ($t) => $t['paire'])->keys()->sort()->values()->all())->toBe($teleportent);
+});
+
 it('payload() publie les couches posables, les classes et les vocabulaires lus dans ValidationCampagne', function () {
     $payload = app(CatalogueConstructeur::class)->payload();
 

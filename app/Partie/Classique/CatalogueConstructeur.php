@@ -119,6 +119,14 @@ final class CatalogueConstructeur
             $couches['mobilier'],
         );
 
+        // Lot K5o : un terrain qui TÉLÉPORTE vers sa jumelle (`effet.teleportation`) se pose avec un `paire_id` — l'écran
+        // ne propose ce champ que sur ceux-là, décidé ici plutôt que deviné d'après le nom.
+        $terrains = $this->index('terrain');
+        $couches['terrain'] = array_map(
+            fn (array $ligne): array => $ligne + ['paire' => data_get($terrains[$ligne['slug']]->effet, 'teleportation') !== null],
+            $couches['terrain'],
+        );
+
         return [
             'couches' => $couches,
             'classes' => $this->palette('classes'),

@@ -865,7 +865,10 @@ ni son format, il appelle ce que la route HTTP appelle.
   n'a pas de `pv_body` — sous SQLite la condition passait toujours (nom de
   colonne lu comme une chaîne), MariaDB aurait refusé la requête au deuxième
   pas de toute marche ; filtré sur `tombe` et la présence sur le plateau, test
-  du compagnon à terre. Reste : les éditeurs du constructeur pour ces clés.
+  du compagnon à terre. Éditeurs du constructeur faits le même jour : bloc
+  « Règles des livrets » (profils en pastilles, primes, pacifiés, portes 2d6,
+  dangers, paires de terrain — `paire` publié par le catalogue), booléens et
+  `destinations_d6` des notes ; vu à l'écran sur les campagnes saisies.
   Trois campagnes des livrets saisies en base (34 quêtes, 0 refus).
 - **Fait le 2026-11-17 — le brouillard des couloirs** (décision de René :
   « respecter le plateau »). `quetes.couloirs_vus` (migration

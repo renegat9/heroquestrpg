@@ -5885,13 +5885,14 @@ s'ouvre à la main, au contact. Le moteur ne retient pas quels couloirs ont ét�
 {
   couches: {
     mobilier: [{slug, nom, emprises: {0: [l, h], 90: [l, h], 180: [l, h], 270: [l, h]}}],   // emprise par rotation, décidée par le serveur
-    monstres: [{slug, nom}], pieges: [{slug, nom}], terrain: [{slug, nom}]
+    monstres: [{slug, nom}], pieges: [{slug, nom}],
+    terrain: [{slug, nom, paire}]   // `paire` : il téléporte vers sa jumelle (`effet.teleportation`) — se pose avec un `paire_id` (K5o)
   },                                // `monstres` sert aussi à monstre_errant
   classes: [{slug, nom}],           // prerequis_heros
   objets:  [{slug, nom}],           // ce qu'une note de quête peut donner (effet `objet`)
   vocabulaires: {
     rotations: [0, 90, 180, 270], cotes: ["n","e","s","o"], types_porte: ["normale","secrete"],
-    partages: ["groupe","par_heros"], types_fin: ["vaincre","drapeau","sortir"], types_acces: ["escalier","porte"],
+    partages: ["groupe","par_heros"], types_fin: ["vaincre","drapeau","sortir","ramener"], types_acces: ["escalier","porte"],
     declencheurs_de_note: { <déclencheur>: {cibles: [...], signale_par, libelle} },   // `MotsClesQuete::DECLENCHEURS`
     effets_de_note: { <effet>: {parametres: [...], optionnels: [...], lecteur, libelle} },   // `MotsClesQuete::EFFETS`
     formats_acceptes: [1]
@@ -6276,7 +6277,10 @@ citées en commentaire dans le code). Mode classique seulement : chaque lecteur 
   `objet` ; `quete.dangers` (`{type: "rocher", run: [{x, y}…]}` ≥ 2 cases, `{type: "brume", x, y}`, en couloir
   seulement), joués par `MoteurDanger` ; `paire_id` sur un terrain posé. Une fouille de salle où un piège a été
   désarmé ne réveille pas ses dormants ; les dormants `attaque_du_groupe` d'un couloir s'éveillent ensemble.
-- **Constructeur** : ces clés ne s'éditent pas encore à l'écran — elles passent par le JSON importé.
+- **Constructeur** (2026-11-18) : bloc « Règles des livrets » de la fiche de quête — profil d'auteur de chaque monstre
+  posé (et de chaque apparition d'une note), primes, pacifiés, portes à téléportation (table 2d6 créée pleine), fouille
+  de piège un par un, dangers, `paire_id` des seuls terrains où le catalogue publie `paire: true`. Paramètres
+  optionnels booléens d'un effet en cases à cocher, `destinations_d6` en table d6.
 
 ### Le brouillard des couloirs d'une carte construite (2026-11-17)
 
