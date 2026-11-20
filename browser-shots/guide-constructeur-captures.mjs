@@ -1,5 +1,6 @@
 // Les captures du GUIDE DU CONSTRUCTEUR (2026-11-20) — sur la campagne d'exemple `essai-guide`, inventée, chargée par
-// `campagne-essai.sh` puis retirée : aucune carte de livret officiel dans le dépôt. Rien n'est enregistré.
+// `campagne-essai.sh charger essai-guide.json` puis retirée : aucune quête de livret officiel dans le dépôt. Rien n'est
+// enregistré. Mode d'emploi complet : skill `outillage-dev-et-tests`, « Les captures du guide du constructeur ».
 // Sortie : public/images/guide-constructeur/*.webp (converties par Chromium : pas de cwebp sur l'hôte).
 import { chromium } from 'playwright';
 import { writeFileSync, mkdirSync } from 'node:fs';

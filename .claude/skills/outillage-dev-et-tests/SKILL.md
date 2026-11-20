@@ -118,6 +118,39 @@ docker run --rm --network host -v "$PWD:/work" -w /work \
   bash -c 'npm i playwright@1.48.0 --no-save --no-audit --no-fund --silent && node browser-shots/shots.mjs'
 ```
 
+### Les captures du guide du constructeur (`/constructeur/guide`)
+
+Les dix images de la page (`public/images/guide-constructeur/*.webp`, **versionnées**) se refont par
+`browser-shots/guide-constructeur-captures.mjs`, après tout changement visible de l'écran du constructeur. Trois temps :
+
+```bash
+# 1. charger la campagne d'EXEMPLE inventée (« La crypte oubliée », versionnée) — jamais une campagne de livret :
+#    les images entrent dans le dépôt, les quêtes des livrets officiels n'y entrent pas (le plateau, si : c'est le
+#    plan vierge de la boîte, déjà visible sur les captures).
+./browser-shots/campagne/campagne-essai.sh charger essai-guide.json
+# 2. capturer (‑u : sinon les webp appartiennent à root et la passe suivante ne peut plus les écraser)
+docker run --rm --network host -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/work" -w /work \
+  -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright -e PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+  mcr.microsoft.com/playwright:v1.48.0-jammy \
+  bash -c 'cd /tmp && npm i playwright@1.48.0 --no-save --no-audit --no-fund --silent \
+           && cp /work/browser-shots/guide-constructeur-captures.mjs /tmp/c.mjs && node /tmp/c.mjs'
+# 3. la retirer
+./browser-shots/campagne/campagne-essai.sh retirer essai-guide
+```
+
+- Le script ouvre « Exemple du guide », capture chaque zone et **n'enregistre rien**. Pour le refus, il pose un monstre
+  dans une salle fermée sur la page, sans enregistrer : la base n'est pas touchée.
+- **Pas de `cwebp` sur l'hôte** : le script convertit lui-même chaque PNG en webp dans Chromium (canvas,
+  qualité 0,86). Aucun PNG n'est écrit, donc `image-tools/webp.sh` n'a rien à faire ici.
+- Avec `-u`, `npm i` ne peut pas écrire dans `/work/node_modules` : on installe dans `/tmp` et on y copie le script.
+- ⚠ `boundingBox()` est relatif à la **fenêtre**, une capture `fullPage` à la **page** : le script ajoute
+  `window.scrollY`. Sans cela, une zone capturée après un défilement montre ce qui est au-dessus.
+- Si l'exemple doit changer (un nouvel outil à montrer), on modifie `browser-shots/campagne/essai-guide.json`, et
+  `campagne-essai.sh charger` le valide :
+  un document refusé ne se charge pas. Les légendes sont dans `GuideConstructeurView.vue` : relire celles des images
+  refaites. `browser-shots/guide-constructeur.mjs` vérifie ensuite la page (images chargées, pas de défilement
+  horizontal, en bureau et en téléphone).
+
 ⚠ **Pas de mode démo** : aucun repli de données factices dans la SPA. Toujours
 tester contre la vraie stack seedée — c'est exprès, pour que les bugs se voient.
 

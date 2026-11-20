@@ -1,0 +1,443 @@
+{
+ "format": 1,
+ "slug": "essai-guide",
+ "titre": "Exemple du guide",
+ "auteur": "Guide du constructeur",
+ "mention": "Campagne d'exemple, inventée pour les captures du guide.",
+ "prerequis_heros": [],
+ "plateau": {
+  "largeur": 26,
+  "hauteur": 19,
+  "salles": [
+   {
+    "id": "no-1",
+    "x": 1,
+    "y": 1,
+    "l": 4,
+    "h": 3
+   },
+   {
+    "id": "no-2",
+    "x": 5,
+    "y": 1,
+    "l": 4,
+    "h": 3
+   },
+   {
+    "id": "no-3",
+    "x": 9,
+    "y": 1,
+    "l": 3,
+    "h": 5
+   },
+   {
+    "id": "no-4",
+    "x": 1,
+    "y": 4,
+    "l": 4,
+    "h": 5
+   },
+   {
+    "id": "no-5",
+    "x": 5,
+    "y": 4,
+    "l": 4,
+    "h": 5
+   },
+   {
+    "id": "ne-1",
+    "x": 14,
+    "y": 1,
+    "l": 3,
+    "h": 5
+   },
+   {
+    "id": "ne-2",
+    "x": 17,
+    "y": 1,
+    "l": 4,
+    "h": 4
+   },
+   {
+    "id": "ne-3",
+    "x": 21,
+    "y": 1,
+    "l": 4,
+    "h": 4
+   },
+   {
+    "id": "ne-4",
+    "x": 17,
+    "y": 5,
+    "l": 4,
+    "h": 4
+   },
+   {
+    "id": "ne-5",
+    "x": 21,
+    "y": 5,
+    "l": 4,
+    "h": 4
+   },
+   {
+    "id": "centre",
+    "x": 10,
+    "y": 7,
+    "l": 6,
+    "h": 5
+   },
+   {
+    "id": "so-1",
+    "x": 1,
+    "y": 10,
+    "l": 4,
+    "h": 4
+   },
+   {
+    "id": "so-2",
+    "x": 5,
+    "y": 10,
+    "l": 2,
+    "h": 3
+   },
+   {
+    "id": "so-3",
+    "x": 7,
+    "y": 10,
+    "l": 2,
+    "h": 3
+   },
+   {
+    "id": "so-4",
+    "x": 1,
+    "y": 14,
+    "l": 4,
+    "h": 4
+   },
+   {
+    "id": "so-5",
+    "x": 5,
+    "y": 13,
+    "l": 4,
+    "h": 5
+   },
+   {
+    "id": "so-6",
+    "x": 9,
+    "y": 13,
+    "l": 3,
+    "h": 5
+   },
+   {
+    "id": "se-1",
+    "x": 17,
+    "y": 10,
+    "l": 4,
+    "h": 3,
+    "parties": [
+     {
+      "x": 18,
+      "y": 13,
+      "l": 3,
+      "h": 1
+     }
+    ]
+   },
+   {
+    "id": "se-2",
+    "x": 21,
+    "y": 10,
+    "l": 4,
+    "h": 4
+   },
+   {
+    "id": "se-3",
+    "x": 14,
+    "y": 13,
+    "l": 4,
+    "h": 5
+   },
+   {
+    "id": "se-4",
+    "x": 18,
+    "y": 14,
+    "l": 3,
+    "h": 4
+   },
+   {
+    "id": "se-5",
+    "x": 21,
+    "y": 14,
+    "l": 4,
+    "h": 4
+   }
+  ]
+ },
+ "quetes": [
+  {
+   "slug": "la-crypte-oubliee",
+   "titre": "Exemple — La crypte oubliée",
+   "ouverture": "« Un ermite a disparu sous la vieille chapelle. Descendez dans la crypte, trouvez-le, et ramenez-le vivant. »",
+   "monstre_errant": "gobelin",
+   "salles_ouvertes": [
+    "centre",
+    "so-1",
+    "so-2",
+    "so-3",
+    "so-5",
+    "so-6",
+    "ne-1",
+    "se-1"
+   ],
+   "portes": [
+    {
+     "x": 12,
+     "y": 11,
+     "cote": "s",
+     "type": "normale"
+    },
+    {
+     "x": 8,
+     "y": 11,
+     "cote": "e",
+     "type": "normale"
+    },
+    {
+     "x": 6,
+     "y": 11,
+     "cote": "e",
+     "type": "normale"
+    },
+    {
+     "x": 4,
+     "y": 11,
+     "cote": "e",
+     "type": "normale"
+    },
+    {
+     "x": 7,
+     "y": 12,
+     "cote": "s",
+     "type": "normale"
+    },
+    {
+     "x": 10,
+     "y": 13,
+     "cote": "n",
+     "type": "normale",
+     "verrou": {
+      "type": "pierre"
+     }
+    },
+    {
+     "x": 15,
+     "y": 9,
+     "cote": "e",
+     "type": "normale"
+    },
+    {
+     "x": 18,
+     "y": 10,
+     "cote": "n",
+     "type": "secrete"
+    },
+    {
+     "x": 15,
+     "y": 5,
+     "cote": "s",
+     "type": "normale"
+    }
+   ],
+   "blocs": [
+    {
+     "x": 9,
+     "y": 6
+    },
+    {
+     "x": 0,
+     "y": 12
+    }
+   ],
+   "mobilier": [
+    {
+     "slug": "coffre",
+     "x": 2,
+     "y": 11,
+     "rotation": 0
+    },
+    {
+     "slug": "cercueil",
+     "x": 5,
+     "y": 15,
+     "rotation": 0
+    },
+    {
+     "slug": "cercueil",
+     "x": 7,
+     "y": 15,
+     "rotation": 0
+    },
+    {
+     "slug": "chevalet-de-torture",
+     "x": 14,
+     "y": 3,
+     "rotation": 0
+    },
+    {
+     "slug": "table-du-sorcier",
+     "x": 18,
+     "y": 11,
+     "rotation": 0
+    }
+   ],
+   "monstres": [
+    {
+     "slug": "momie",
+     "x": 19,
+     "y": 10,
+     "nom": "Le Gardien de la crypte",
+     "pv_body": 4,
+     "vulnerable_uniquement_a": [
+      "boule-de-feu",
+      "trait-de-feu"
+     ]
+    },
+    {
+     "slug": "squelette",
+     "x": 5,
+     "y": 14,
+     "inactif": true
+    },
+    {
+     "slug": "squelette",
+     "x": 8,
+     "y": 14,
+     "inactif": true
+    },
+    {
+     "slug": "squelette",
+     "x": 6,
+     "y": 17,
+     "inactif": true
+    },
+    {
+     "slug": "gobelin",
+     "x": 7,
+     "y": 10
+    },
+    {
+     "slug": "gobelin",
+     "x": 8,
+     "y": 10
+    },
+    {
+     "slug": "orque",
+     "x": 10,
+     "y": 15
+    },
+    {
+     "slug": "orque",
+     "x": 15,
+     "y": 2
+    }
+   ],
+   "pieges": [
+    {
+     "slug": "piege-a-lances",
+     "x": 9,
+     "y": 9
+    }
+   ],
+   "terrain": [],
+   "depart": {
+    "x": 11,
+    "y": 8
+   },
+   "sortie": {
+    "type": "porte",
+    "x": 1,
+    "y": 12,
+    "cote": "o",
+    "verrou": {
+     "type": "note"
+    }
+   },
+   "recompense": {
+    "or": 120,
+    "partage": "groupe"
+   },
+   "captif": {
+    "mercenaire": "sir-ragnar-livret-de-base",
+    "x": 16,
+    "y": 1
+   },
+   "notes": [
+    {
+     "repere": "A",
+     "quand": {
+      "declencheur": "ouverture_porte",
+      "cible": {
+       "porte": 4
+      }
+     },
+     "alors": [
+      {
+       "effet": "eveiller",
+       "monstres": [
+        1,
+        2,
+        3
+       ]
+      },
+      {
+       "effet": "texte",
+       "texte": "Les couvercles des cercueils glissent : les morts se lèvent !"
+      }
+     ]
+    },
+    {
+     "repere": "B",
+     "quand": {
+      "declencheur": "mort",
+      "cible": {
+       "monstre": 0
+      }
+     },
+     "alors": [
+      {
+       "effet": "ouvrir_porte",
+       "porte": "sortie"
+      },
+      {
+       "effet": "texte",
+       "texte": "Le Gardien tombe en poussière. Au loin, une porte grince : la sortie est libre."
+      }
+     ]
+    },
+    {
+     "repere": "C",
+     "quand": {
+      "declencheur": "fouille_tresor",
+      "cible": {
+       "salle": "so-1"
+      }
+     },
+     "alors": [
+      {
+       "effet": "or",
+       "or": 50
+      },
+      {
+       "effet": "texte",
+       "texte": "Sous la poussière du coffre, 50 pièces d'or."
+      }
+     ]
+    }
+   ],
+   "fin": {
+    "type": "ramener",
+    "libelle": "Retrouver l'ermite et le ramener vivant par la porte de la crypte."
+   }
+  }
+ ]
+}
