@@ -880,6 +880,19 @@ ni son format, il appelle ce que la route HTTP appelle.
   quatre elfes ont les fiches des mercenaires de *Frozen Horror* (pas de
   doublon). Lecteur unique `Classique\Reputation`. Tests dans `NotesDeQueteTest` et
   `MercenairesCampagneTest`.
+- **Fait le 2026-11-20 — le constructeur vérifié, son guide** (René : « on a mis en place un MCP pour le constructeur de map,
+  peux-tu me dire si c'est fonctionnel ? […] Il faudrait faire un guide pour le constructeur de map sur la page d'accueil »)
+  - **Serveur MCP éprouvé sur la vraie stack** : `initialize`, `tools/list` (onze outils), `catalogues`, `campagnes`,
+    `campagne_lire`, `quete_lire`, `apercu`, `exporter`, `valider`, `campagne_ecrire` (sur une copie `essai-mcp`, retirée
+    ensuite) — sortie d'erreur vide. Toujours pas raccordé à Claude Code (aucune entrée `mcpServers`).
+  - **Trous comblés** : le catalogue publié (écran et MCP) n'avait ni les **sorts** (`vulnerable_uniquement_a`) ni les
+    **captifs** (`quete.captif`) — `catalogues.sorts`, `catalogues.captifs`. L'écran n'avait aucune commande pour
+    `inactif`, `captif`, le verrou de la porte de sortie ni `ouvrir_porte: "sortie"` ; et l'effet `eveiller` s'y affichait
+    avec l'éditeur d'apparitions (slug, x, y) alors qu'il porte des index de monstres posés — corrigé, avec le recalage des
+    index quand un monstre est retiré. L'écran gardait déjà ces clés intactes à l'enregistrement (document modifié en place).
+  - **Guide** : `/constructeur/guide` (`GuideConstructeurView`), lié depuis l'accueil et l'en-tête du constructeur — l'écran
+    pas à pas, les notes, les règles des livrets, le branchement du serveur MCP et ce que l'écran ne fait pas (parties d'une
+    salle en L, import, suppression). Page statique : elle ne publie aucune règle, la validation fait foi.
 - **Fait le 2026-11-20 — ce que la relecture des livrets demandait encore**
   (René : « les livrets sont maîtres en mode classique »). Le CERCUEIL
   (*Witch Lord* p. 4, « may be used as tombs ») : la fouille du tombeau, 2×1,

@@ -11,6 +11,7 @@ import GuideView from '../views/GuideView.vue';
 import SystemeView from '../views/SystemeView.vue';
 import AreneMonstresView from '../views/AreneMonstresView.vue';
 import ConstructeurView from '../views/ConstructeurView.vue';
+import GuideConstructeurView from '../views/GuideConstructeurView.vue';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -32,6 +33,8 @@ const router = createRouter({
 
         // ---- constructeur de campagnes du mode classique (public, comme /systeme — outil de bureau) ----
         { path: '/constructeur', name: 'constructeur', component: ConstructeurView },
+        // ---- son guide (public, statique — René 2026-11-20) ----
+        { path: '/constructeur/guide', name: 'guide-constructeur', component: GuideConstructeurView },
 
         // ---- écrans de jeu ----
         { path: '/table/:groupe', name: 'table', component: TableView, props: true },

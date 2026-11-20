@@ -5916,6 +5916,9 @@ s'ouvre à la main, au contact. Le moteur ne retient pas quels couloirs ont ét�
   },                                // `monstres` sert aussi à monstre_errant
   classes: [{slug, nom}],           // prerequis_heros
   objets:  [{slug, nom}],           // ce qu'une note de quête peut donner (effet `objet`)
+  sorts:   [{slug, nom}],           // 2026-11-20 : ce qu'un profil `vulnerable_uniquement_a` peut nommer à côté des armes
+  mercenaires: [{slug, nom}],       // lot K6 : les recrutables (`mercenaires.offerts`)
+  captifs: [{slug, nom}],           // 2026-11-20 : les captifs À ESCORTER (`captif`, mode figurine) — ce que `quete.captif.mercenaire` accepte
   vocabulaires: {
     rotations: [0, 90, 180, 270], cotes: ["n","e","s","o"], types_porte: ["normale","secrete"],
     partages: ["groupe","par_heros"], types_fin: ["vaincre","drapeau","sortir","ramener"], types_acces: ["escalier","porte"],

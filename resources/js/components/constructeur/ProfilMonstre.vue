@@ -8,6 +8,10 @@ import MSym from '../ui/MSym.vue';
 const props = defineProps({
     monstre: { type: Object, required: true },
     objets: { type: Array, required: true },
+    // 2026-11-20 : « blessé uniquement par » accepte aussi des SORTS (Seigneur Sorcier, q. 10) — `catalogues.sorts`.
+    sorts: { type: Array, default: () => [] },
+    // 2026-11-20 : un monstre POSÉ peut attendre inactif qu'une note l'éveille (la Légion oubliée) ; pas une apparition.
+    inactifPossible: { type: Boolean, default: false },
     pointer: { type: Function, required: true },
     libelle: { type: String, default: 'le monstre' },
 });
@@ -20,9 +24,13 @@ const STATS = [
     ['pv_mind', 'Esprit', 0],
 ];
 const LISTES = [
-    ['vulnerable_uniquement_a', 'Seules ces armes le blessent'],
-    ['invulnerable_casse_arme', 'Invulnérable — l\'arme qui frappe se brise, sauf'],
+    ['vulnerable_uniquement_a', 'Seuls ces armes ou ces sorts le blessent', true],
+    ['invulnerable_casse_arme', 'Invulnérable — l\'arme qui frappe se brise, sauf', false],
 ];
+const nomSource = (slug) => props.objets.find((o) => o.slug === slug)?.nom ?? props.sorts.find((o) => o.slug === slug)?.nom ?? slug;
+function basculerInactif(avec) {
+    if (avec) m.value.inactif = true; else delete m.value.inactif;
+}
 
 const m = computed(() => props.monstre);
 function changerNom(v) {
@@ -52,17 +60,25 @@ function basculerFuite(avec) {
                 <input :value="m[cle] ?? ''" type="number" :min="min" class="cst-input cst-num" placeholder="—" @change="changerStat(cle, $event.target.value)" />
             </label>
         </div>
-        <div v-for="[cle, lib] in LISTES" :key="cle" class="cst-ligne">
+        <div v-for="[cle, lib, avecSorts] in LISTES" :key="cle" class="cst-ligne">
             <label class="cst-case"><input type="checkbox" :checked="Array.isArray(m[cle])" @change="basculerListe(cle, $event.target.checked)" /> {{ lib }}</label>
             <template v-if="Array.isArray(m[cle])">
-                <span v-for="slug in m[cle]" :key="slug" class="pm-puce">{{ objets.find((o) => o.slug === slug)?.nom ?? slug }}
+                <span v-for="slug in m[cle]" :key="slug" class="pm-puce">{{ nomSource(slug) }}
                     <button type="button" class="cst-icone" title="Retirer" @click="basculerObjet(cle, slug, false)"><MSym n="close" :size="12" /></button>
                 </span>
                 <select class="cst-input" @change="basculerObjet(cle, $event.target.value, true); $event.target.value = ''">
-                    <option value="">+ arme…</option>
-                    <option v-for="o in objets.filter((o) => !m[cle].includes(o.slug))" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
+                    <option value="">{{ avecSorts ? '+ arme ou sort…' : '+ arme…' }}</option>
+                    <optgroup label="Armes et objets">
+                        <option v-for="o in objets.filter((o) => !m[cle].includes(o.slug))" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
+                    </optgroup>
+                    <optgroup v-if="avecSorts && sorts.length" label="Sorts">
+                        <option v-for="o in sorts.filter((o) => !m[cle].includes(o.slug))" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
+                    </optgroup>
                 </select>
             </template>
+        </div>
+        <div v-if="inactifPossible" class="cst-ligne">
+            <label class="cst-case"><input type="checkbox" :checked="m.inactif === true" @change="basculerInactif($event.target.checked)" /> Inactif — ne bouge pas, n'attaque pas, ne peut être blessé tant qu'une note « éveiller » ne l'a pas réveillé</label>
         </div>
         <div class="cst-ligne">
             <label class="cst-case"><input type="checkbox" :checked="!!m.fuite" @change="basculerFuite($event.target.checked)" /> Fuit vers un refuge</label>

@@ -125,6 +125,16 @@ onMounted(async () => {
                     <MSym n="arrow_forward" :size="18" />
                 </RouterLink>
 
+                <!-- son guide : l'écran pas à pas, et le serveur MCP pour une IA (René, 2026-11-20) -->
+                <RouterLink to="/constructeur/guide" class="acchoix-guide">
+                    <MSym n="help" fill :size="20" />
+                    <span class="acchoix-guide-txt">
+                        <b>Guide du constructeur</b>
+                        <em>L'écran pas à pas, les notes des livrets, et brancher une IA par le serveur MCP</em>
+                    </span>
+                    <MSym n="arrow_forward" :size="18" />
+                </RouterLink>
+
                 <!-- livret : asset généré, donc affiché seulement s'il est là -->
                 <a
                     v-if="livretDispo"

@@ -273,9 +273,11 @@ const OUTILS = [
 // Verrous de porte (lot K5a) : libellés des types que `vocab.verrous_de_porte` publie.
 const LIBELLES_VERROU = { note: "s'ouvre par une note", cle: 'à clé', pierre: 'de pierre', condition: 'à condition' };
 /** Le verrou choisi dans la barre d'outils. Rien du tout sans verrou : jamais de clé `verrou` vide. */
-function verrouChoisi() {
+function verrouChoisi(pourSortie = false) {
     const v = choix.verrouPorte;
-    if (choix.typePorte !== 'normale' || !v) return {};
+    // La porte de SORTIE prend les mêmes verrous qu'une porte barrée (2026-11-20, `Classique\VerrouDeSortie`) ; elle n'a
+    // pas de type « secrète ».
+    if ((!pourSortie && choix.typePorte !== 'normale') || !v) return {};
     if (v === 'cle') return { verrou: { type: 'cle', objet: choix.objetVerrou } };
     if (v === 'condition') return { verrou: { type: 'condition', condition: choix.conditionVerrou } };
     return { verrou: { type: v } };
@@ -310,6 +312,15 @@ function recaler(q, liste, i) {
         // en silence l'élément suivant, qui a pris son index.
         if (c[cle] === i) c[cle] = -1; else if (c[cle] > i) c[cle] -= 1;
     });
+    // L'effet `eveiller` (2026-11-20) désigne des monstres posés par leur index : même recalage, l'index retiré disparaît.
+    if (liste === 'monstres') {
+        (q.notes ?? []).forEach((note) => {
+            (note.alors ?? []).forEach((effet) => {
+                if (effet.effet !== 'eveiller' || !Array.isArray(effet.monstres)) return;
+                effet.monstres = effet.monstres.filter((k) => k !== i).map((k) => (k > i ? k - 1 : k));
+            });
+        });
+    }
     // Lot K5a : l'effet `ouvrir_porte` désigne une porte par son index, comme une cible : même recalage.
     if (liste === 'portes') {
         (q.notes ?? []).forEach((note) => {
@@ -414,7 +425,9 @@ function clicQuete(evt) {
         }
         case 'depart':
         case 'sortie': {
-            const acces = choix.acces === 'porte' ? { type: 'porte', ...bordDeSalle(q, x, y, cote) } : { x, y };
+            const acces = choix.acces === 'porte'
+                ? { type: 'porte', ...bordDeSalle(q, x, y, cote), ...(outil.value === 'sortie' ? verrouChoisi(true) : {}) }
+                : { x, y };
             q[outil.value] = acces;
             return;
         }
@@ -441,7 +454,7 @@ function changerTypeFin(type) {
         : type === 'sortir' || type === 'ramener' ? { type, libelle }
         : { type, cibles: [], libelle };
     // « ramener » (lot K5k) exige une charge : on en pose une à compléter, plutôt que de laisser un refus muet.
-    if (type === 'ramener' && !quete.value.charge) quete.value.charge = { nom: '', x: 0, y: 0 };
+    if (type === 'ramener' && !quete.value.charge && !quete.value.captif) quete.value.charge = { nom: '', x: 0, y: 0 };
 }
 const LIBELLES_FIN = {
     vaincre: 'vaincre des monstres désignés',
@@ -512,7 +525,7 @@ function retirerDanger(i) {
 // Profil d'auteur ouvert (R9) — un état d'écran, pas une donnée de la quête.
 const profilsOuverts = reactive(new Set());
 const basculerProfil = (cle) => (profilsOuverts.has(cle) ? profilsOuverts.delete(cle) : profilsOuverts.add(cle));
-const aUnProfil = (m) => ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite'].some((k) => k in m);
+const aUnProfil = (m) => ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif'].some((k) => k in m);
 // Le bloc des livrets s'ouvre de lui-même quand la quête en utilise déjà une clé.
 const aDesReglesDeLivret = computed(() => {
     const q = quete.value;
@@ -700,6 +713,16 @@ function effetParDefaut(nom) {
     }
     return effet;
 }
+function basculerEveil(effet, k, avec) {
+    const liste = effet.monstres.filter((i) => i !== k);
+    if (avec) liste.push(k);
+    effet.monstres = liste.sort((a, b) => a - b);
+}
+// 2026-11-20 : le captif à escorter (`quete.captif`, `Classique\Escorte`) — un captif du catalogue, sur sa case.
+function basculerCaptif(avec) {
+    if (avec) quete.value.captif = { mercenaire: catalogues.value?.captifs?.[0]?.slug ?? '', x: 0, y: 0 };
+    else delete quete.value.captif;
+}
 function changerEffet(note, j, nom) {
     note.alors.splice(j, 1, effetParDefaut(nom));
 }
@@ -725,6 +748,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
             <RouterLink to="/" class="cst-retour"><MSym n="arrow_back" :size="16" /> Accueil</RouterLink>
             <h1 class="cst-titre"><MSym n="architecture" fill :size="22" /> Constructeur de campagnes</h1>
             <span class="cst-sous">Mode classique — le serveur valide chaque modification ; rien n'est enregistré sans « Enregistrer ».</span>
+            <RouterLink to="/constructeur/guide" class="cst-retour"><MSym n="help" :size="16" /> Guide</RouterLink>
         </header>
 
         <p v-if="erreur" class="cst-erreur">{{ erreur }}</p>
@@ -940,6 +964,23 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 </select>
                                 <button v-if="outil === 'sortie'" type="button" class="cst-btn ghost" @click="quete.sortie = null">Sortie = entrée</button>
                             </template>
+                            <!-- 2026-11-20 : la porte de sortie prend les mêmes verrous que les portes barrées (Kellar q. 9 et 10). -->
+                            <template v-if="outil === 'sortie' && choix.acces === 'porte'">
+                                <select v-model="choix.verrouPorte" class="cst-input" title="Verrou de la porte de sortie">
+                                    <option value="">sortie sans verrou</option>
+                                    <option v-for="v in vocab.verrous_de_porte" :key="v" :value="v">{{ LIBELLES_VERROU[v] ?? v }}</option>
+                                </select>
+                                <select v-if="choix.verrouPorte === 'cle'" v-model="choix.objetVerrou" class="cst-input">
+                                    <option v-for="o in catalogues.objets" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
+                                </select>
+                                <select v-if="choix.verrouPorte === 'condition'" v-model="choix.conditionVerrou" class="cst-input">
+                                    <option v-for="c in vocab.conditions_de_porte" :key="c.nom" :value="c.nom">{{ c.libelle }}</option>
+                                </select>
+                            </template>
+                            <span v-if="outil === 'sortie' && quete.sortie?.verrou" class="cst-sous">
+                                Sortie actuelle : verrou {{ LIBELLES_VERROU[quete.sortie.verrou.type] ?? quete.sortie.verrou.type }}
+                                <button type="button" class="cst-btn ghost" @click="delete quete.sortie.verrou">Retirer le verrou</button>
+                            </span>
                         </div>
                         <p v-if="pointage" class="cst-message">Cliquer une case pour : {{ pointage.libelle }} <button type="button" class="cst-btn ghost" @click="pointage = null">Annuler</button></p>
 
@@ -1073,7 +1114,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <template v-for="(m, i) in quete.monstres" :key="`pf${i}`">
                                         <div v-if="profilsOuverts.has(m)">
                                             <span class="cst-lbl">{{ libelleMonstre(m, i) }}</span>
-                                            <ProfilMonstre :monstre="m" :objets="catalogues.objets" :pointer="pointer" :libelle="`monstre ${i}`" />
+                                            <ProfilMonstre :monstre="m" :objets="catalogues.objets" :sorts="catalogues.sorts ?? []" inactif-possible :pointer="pointer" :libelle="`monstre ${i}`" />
                                         </div>
                                     </template>
                                 </div>
@@ -1297,6 +1338,20 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(quete.charge, 'la charge')"><MSym n="pin_drop" :size="16" /></button>
                                 </template>
                             </div>
+                            <!-- 2026-11-20 : le captif à escorter (Sir Ragnar, livret de base q. 2) — libéré au contact, il suit
+                                 son libérateur ; la récompense n'est versée que s'il est ramené vivant à la sortie. -->
+                            <div class="cst-ligne">
+                                <label class="cst-case"><input type="checkbox" :checked="!!quete.captif" :disabled="!(catalogues.captifs ?? []).length" @change="basculerCaptif($event.target.checked)" /> Captif à escorter</label>
+                                <template v-if="quete.captif">
+                                    <select v-model="quete.captif.mercenaire" class="cst-input">
+                                        <option v-for="c in (catalogues.captifs ?? [])" :key="c.slug" :value="c.slug">{{ c.nom }}</option>
+                                    </select>
+                                    <input v-model.number="quete.captif.x" type="number" class="cst-input cst-num" title="x" />
+                                    <input v-model.number="quete.captif.y" type="number" class="cst-input cst-num" title="y" />
+                                    <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(quete.captif, 'le captif')"><MSym n="pin_drop" :size="16" /></button>
+                                    <span class="cst-sous">Ramené vivant sur la sortie avec le dernier héros : récompense versée ; sinon la quête est gagnée sans récompense.</span>
+                                </template>
+                            </div>
                         </div>
 
                         <!-- notes -->
@@ -1378,8 +1433,17 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         <template v-else-if="p === 'y'" />
                                         <select v-else-if="p === 'porte'" v-model.number="effet.porte" class="cst-input">
                                             <option v-for="(d, k) in quete.portes" :key="k" :value="k">{{ libellePorte(d, k) }}</option>
+                                            <option v-if="effet.effet === 'ouvrir_porte' && (quete.sortie?.verrou || effet.porte === 'sortie')" value="sortie">la porte de sortie (verrouillée)</option>
                                         </select>
                                         <label v-else-if="p === 'nom'">{{ LIBELLES_PARAM[p] }} <input v-model="effet.nom" class="cst-input" /></label>
+                                        <!-- 2026-11-20 : `eveiller` désigne des monstres POSÉS par leur index — ceux qui sont inactifs. -->
+                                        <div v-else-if="p === 'monstres' && effet.effet === 'eveiller'" class="cst-ligne">
+                                            <span class="cst-sous">Monstres à éveiller (les monstres posés « inactif ») :</span>
+                                            <label v-for="(m, k) in quete.monstres" v-show="m.inactif === true || effet.monstres.includes(k)" :key="`ev${k}`" class="cst-case">
+                                                <input type="checkbox" :checked="effet.monstres.includes(k)" @change="basculerEveil(effet, k, $event.target.checked)" /> {{ k }} · {{ m.nom ?? nomDe('monstres', m.slug) }}
+                                            </label>
+                                            <span v-if="!quete.monstres.some((m) => m.inactif === true)" class="cst-sous">aucun : cochez « Inactif » dans le profil d'un monstre posé (Règles des livrets).</span>
+                                        </div>
                                         <div v-else-if="p === 'monstres'" class="cst-apparitions">
                                             <div v-for="(a, k) in effet.monstres" :key="k" class="cst-ligne">
                                                 <select v-model="a.slug" class="cst-input">
@@ -1390,7 +1454,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                                 <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(a, `l'apparition de la note ${note.repere}`)"><MSym n="pin_drop" :size="16" /></button>
                                                 <button type="button" class="cst-icone" :class="{ on: aUnProfil(a) }" title="Profil d'auteur (nom, stats, armes)" @click="basculerProfil(a)"><MSym n="tune" :size="16" /></button>
                                                 <button type="button" class="cst-icone" title="Retirer" @click="effet.monstres.splice(k, 1)"><MSym n="close" :size="16" /></button>
-                                                <ProfilMonstre v-if="profilsOuverts.has(a)" :monstre="a" :objets="catalogues.objets" :pointer="pointer" :libelle="`l'apparition de la note ${note.repere}`" />
+                                                <ProfilMonstre v-if="profilsOuverts.has(a)" :monstre="a" :objets="catalogues.objets" :sorts="catalogues.sorts ?? []" :pointer="pointer" :libelle="`l'apparition de la note ${note.repere}`" />
                                             </div>
                                             <button type="button" class="cst-btn ghost" @click="effet.monstres.push({ slug: choix.monstre, x: 0, y: 0 })"><MSym n="add" :size="14" /> monstre</button>
                                         </div>

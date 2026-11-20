@@ -35,7 +35,7 @@ use Laravel\Mcp\Server\Tool;
     .'Rien ne joue, rien ne touche aux groupes, aux personnages ni aux joueurs. '
     .'Ordre conseillé : `catalogues`, puis `campagne_lire` ou `campagnes`, puis `campagne_ecrire` pour une campagne '
     .'entière ou `quete_ecrire` pour une seule quête, puis `valider` pour contrôler sans écrire. '
-    .'Tout slug de mobilier, de monstre, de piège, de terrain ou de classe vient de `catalogues` : un slug inventé est '
+    .'Tout slug de mobilier, de monstre, de piège, de terrain, de classe, d\'objet, de sort ou de captif vient de `catalogues` : un slug inventé est '
     .'refusé. `campagne_lire` ne donne pas le détail des quêtes ; `quete_lire` le donne, une quête à la fois. '
     .'Pour une modification ciblée d\'une quête, `quete_modifier` (opérations `ajouter`, `retirer`, `remplacer`) évite de '
     .'réécrire tout son document ; `apercu` rend la carte d\'une quête en texte, pour la relire après une écriture. '

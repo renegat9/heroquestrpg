@@ -1,0 +1,237 @@
+<script setup>
+// GUIDE DU CONSTRUCTEUR DE CAMPAGNES (René, 2026-11-20 : « il faudrait faire un guide pour le constructeur de map sur la
+// page d'accueil »). Page publique et STATIQUE : elle décrit l'écran `/constructeur` et le serveur MCP du constructeur.
+// Elle ne publie aucune règle : les listes de choix (verrous, effets de notes, catalogues) restent servies par
+// `GET /api/constructeur/catalogues`, et la validation du serveur fait foi — ce texte dit où cliquer, pas ce qui est permis.
+import MSym from '../components/ui/MSym.vue';
+
+const SOMMAIRE = [
+    ['principe', 'Le principe'],
+    ['campagne', '1. La campagne'],
+    ['plateau', '2. Le plateau'],
+    ['quetes', '3. Les quêtes'],
+    ['notes', '4. Les notes « quand → alors »'],
+    ['livrets', '5. Les règles des livrets'],
+    ['enregistrer', '6. Valider, enregistrer, jouer'],
+    ['mcp', '7. Le serveur MCP (une IA au clavier)'],
+    ['limites', 'Ce que l\'écran ne fait pas'],
+];
+
+const OUTILS = [
+    ['meeting_room', 'Ouvrir / fermer une salle', 'Une salle ouverte fait partie du donjon de cette quête ; une salle fermée est de la roche.'],
+    ['door_front', 'Porte', 'Cliquer le BORD d\'une case. Normale ou secrète ; une porte normale peut porter un verrou : note, clé, pierre ou condition (un jet de dés).'],
+    ['block', 'Bloc de couloir', 'Une case de couloir bouchée.'],
+    ['chair', 'Meuble', 'Choisir le meuble et sa rotation, cliquer sa case en haut à gauche. Un meuble se pose dans une salle ou, en entier, dans un couloir.'],
+    ['skull', 'Monstre', 'Une figure du bestiaire. Son numéro (0, 1, 2…) sert aux notes et à la fin de quête.'],
+    ['warning', 'Piège', 'Avec les options « introuvable » et « indésarmable ».'],
+    ['water', 'Terrain', 'Glace, gouffre, pont… « posée au premier pas » la cache jusqu\'à ce qu\'un héros y marche.'],
+    ['my_location', 'Cible de fin', 'Pour une fin « vaincre » : désigne les monstres à abattre.'],
+    ['login', 'Entrée', 'Un escalier 2×2 (case du coin haut-gauche) ou une porte (bord cliqué).'],
+    ['logout', 'Sortie', 'Pareil ; « Sortie = entrée » remet la sortie sur l\'escalier. Une porte de sortie peut être verrouillée comme une porte barrée.'],
+    ['block', 'Fausse porte de sortie', 'Une sortie dessinée qui ne mène nulle part.'],
+    ['ink_eraser', 'Effacer', 'Retire ce qui est sur la case cliquée (monstre, piège, terrain, bloc, meuble).'],
+];
+
+const OUTILS_MCP = [
+    ['catalogues', 'Les slugs posables (meubles, monstres, pièges, terrains), les classes, objets, sorts, mercenaires, captifs et tous les vocabulaires fermés.'],
+    ['campagnes', 'La liste des campagnes enregistrées.'],
+    ['campagne_lire', 'Le sommaire d\'une campagne (plateau, liste des quêtes).'],
+    ['quete_lire', 'Le document complet d\'UNE quête.'],
+    ['apercu', 'La carte d\'une quête rendue en texte, ses notes comprises — pour relire après une écriture.'],
+    ['valider', 'Contrôle un document de campagne SANS rien écrire.'],
+    ['campagne_ecrire', 'Écrit une campagne entière (crée, ou remplace celle du même slug).'],
+    ['quete_ecrire', 'Écrit une seule quête dans une campagne.'],
+    ['quete_modifier', 'Modifie une quête par opérations ciblées (ajouter, retirer, remplacer).'],
+    ['exporter', 'Le fichier de la campagne, avec son empreinte.'],
+    ['importer', 'Recharge un fichier exporté.'],
+];
+
+const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/vers/heroquestrpg/docker-compose.yml exec -T app php -d display_errors=stderr artisan mcp:start constructeur';
+</script>
+
+<template>
+    <div class="gc-screen tex-vignette">
+        <header class="gc-top">
+            <RouterLink to="/" class="gc-back"><MSym n="arrow_back" :size="16" /> Accueil</RouterLink>
+            <div class="gc-titrewrap">
+                <div class="gc-crest"><MSym n="architecture" fill /></div>
+                <div>
+                    <h1 class="gc-titre">Guide du constructeur</h1>
+                    <p class="gc-sub">Dessiner un plateau, poser des quêtes et leurs notes, et les jouer en mode classique — à l'écran ou par une IA.</p>
+                </div>
+            </div>
+            <RouterLink to="/constructeur" class="gc-ouvrir"><MSym n="open_in_new" :size="16" /> Ouvrir le constructeur</RouterLink>
+        </header>
+
+        <div class="gc-corps">
+            <nav class="gc-sommaire" aria-label="Sommaire">
+                <a v-for="[id, lib] in SOMMAIRE" :key="id" :href="`#${id}`">{{ lib }}</a>
+            </nav>
+
+            <main class="gc-texte">
+                <section id="principe">
+                    <h2>Le principe</h2>
+                    <p>Une <b>campagne construite</b>, c'est un plateau (les salles) et une suite de quêtes posées dessus. Le constructeur l'écrit ; le mode <b>classique</b> la joue, quête après quête, sans que l'IA n'invente la carte.</p>
+                    <ul>
+                        <li><b>Le serveur valide tout.</b> À chaque modification, l'écran envoie la campagne au serveur, qui renvoie la liste des refus (en haut à droite : « Valide » ou « N refus »). Chaque refus dit où est le problème.</li>
+                        <li><b>Rien n'est écrit sans « Enregistrer ».</b> On peut tout essayer ; recharger la page annule.</li>
+                        <li><b>Les campagnes enregistrées sont de vraies données.</b> Enregistrer une campagne sous un slug existant la remplace. Exportez avant une grosse modification.</li>
+                        <li>Un groupe déjà en quête garde la carte qu'il joue : une correction s'applique à sa quête suivante.</li>
+                    </ul>
+                </section>
+
+                <section id="campagne">
+                    <h2>1. La campagne</h2>
+                    <p>Dans la colonne de gauche : choisir une campagne, ou <b>Nouvelle campagne</b>. L'onglet <b>Campagne</b> porte :</p>
+                    <ul>
+                        <li><b>Titre</b>, <b>slug</b> (l'identifiant, en minuscules et tirets), <b>auteur</b> et <b>mention</b> (crédit, droits) ;</li>
+                        <li><b>Classes exigées</b> : les héros sans lesquels la campagne ne peut pas partir ;</li>
+                        <li><b>Mercenaires</b> : ceux qu'on peut recruter entre les quêtes, et leur régime.</li>
+                    </ul>
+                </section>
+
+                <section id="plateau">
+                    <h2>2. Le plateau</h2>
+                    <p>L'onglet <b>Plateau</b> fixe la grille (26 × 19 pour le plateau officiel) et ses salles. <b>Glisser</b> sur la grille trace une salle ; cliquer une salle la sélectionne ; la liste de droite règle son nom, sa position et sa taille. Tout ce qui n'est pas une salle est du couloir.</p>
+                    <p>Le plateau est commun à toutes les quêtes de la campagne : chaque quête choisit ensuite quelles salles sont <b>ouvertes</b>.</p>
+                    <p class="gc-attention"><MSym n="info" :size="16" /><span>Une salle en L (le « se-1 » du plateau officiel) a des <b>parties</b> : l'écran les dessine et les conserve, mais ne sait pas les tracer. Elles se saisissent dans le fichier de la campagne ou par le serveur MCP.</span></p>
+                </section>
+
+                <section id="quetes">
+                    <h2>3. Les quêtes</h2>
+                    <p>L'onglet <b>Quêtes</b> liste les quêtes dans l'ordre où elles se jouent (flèches pour réordonner, <b>+ Quête</b> pour en ajouter). Au-dessus de la carte, la barre d'outils : choisir un outil, puis cliquer la carte.</p>
+                    <table class="gc-table">
+                        <tbody>
+                            <tr v-for="[ic, nom, aide] in OUTILS" :key="nom">
+                                <td class="gc-ic"><MSym :n="ic" :size="18" /></td>
+                                <td><b>{{ nom }}</b></td>
+                                <td>{{ aide }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>Sous la carte, la fiche de la quête :</p>
+                    <ul>
+                        <li><b>Titre</b>, <b>slug</b> et <b>texte d'ouverture</b> (lu à la table au départ) ;</li>
+                        <li><b>Monstre errant</b>, <b>quête solo</b>, <b>marché fermé</b> avant la quête, <b>salles qui ne se fouillent pas</b>, <b>équipement confisqué</b> ;</li>
+                        <li><b>Récompense</b> : de l'or, partagé au groupe ou par héros ;</li>
+                        <li><b>Fin</b> : vaincre des monstres désignés, poser un drapeau (par une note), sortir du donjon, ou ramener une charge ou un captif — avec la <b>consigne</b> dite aux joueurs ;</li>
+                        <li><b>Charge à porter</b> : un objet encombrant, son porteur lance un dé de déplacement de moins ;</li>
+                        <li><b>Captif à escorter</b> : une figure qui attend dans sa cellule. Un héros au contact la libère et elle le suit ; ramenée vivante sur la sortie avec le dernier héros, la récompense est versée — sinon la quête est gagnée sans récompense ;</li>
+                        <li><b>Suite</b> (campagne ramifiée) : selon le drapeau posé, la quête suivante change ;</li>
+                        <li><b>Quête double</b> : deux moitiés reliées par un passage.</li>
+                    </ul>
+                </section>
+
+                <section id="notes">
+                    <h2>4. Les notes « quand → alors »</h2>
+                    <p>Les lettres des livrets (« A : quand un héros entre ici, lisez… ») deviennent des <b>notes</b>. Chaque note a un repère, un <b>déclencheur</b> (entrer dans une salle ou sur une case, fouiller le trésor, ouvrir une porte, abattre un monstre…) et une liste d'<b>effets</b> (lire un texte, donner de l'or ou un objet, faire apparaître des monstres, ouvrir une porte, éveiller des figures, téléporter, poser un drapeau…).</p>
+                    <ul>
+                        <li><b>si le drapeau / sauf si le drapeau</b> : la note ne joue que si un drapeau est (ou n'est pas) posé ;</li>
+                        <li><b>une seule fois</b> : décoché, la note rejoue à chaque déclenchement ;</li>
+                        <li>le bouton <MSym n="pin_drop" :size="14" /> à côté d'une case la fait choisir sur la carte.</li>
+                    </ul>
+                    <p>Une note qui vise la <b>porte de sortie verrouillée</b> (« la sortie s'ouvre quand la gargouille meurt ») choisit « la porte de sortie » dans l'effet <i>ouvrir une porte</i>. L'effet <i>éveiller</i> coche les monstres posés « inactif ».</p>
+                </section>
+
+                <section id="livrets">
+                    <h2>5. Les règles des livrets</h2>
+                    <p>Le bloc dépliable <b>Règles des livrets</b> rassemble ce que les livrets officiels demandent en plus :</p>
+                    <ul>
+                        <li><b>Profil d'auteur d'un monstre</b> (cliquer son numéro) : nom propre, caractéristiques, « seuls ces armes ou ces sorts le blessent », arme qui se brise, fuite vers un refuge, et <b>inactif</b> — la figure ne bouge pas, n'attaque pas et ne peut pas être blessée tant qu'une note ne l'a pas éveillée ;</li>
+                        <li><b>Salles spéciales</b>, <b>glyphes</b>, <b>obscurité magique</b>, <b>déguisement</b>, <b>ordre libre</b>, <b>dégâts en Esprit</b>, <b>primes</b> par monstre abattu, monstres <b>pacifiés</b> par un drapeau ;</li>
+                        <li><b>Portes à téléportation</b> : tenter d'ouvrir une porte téléporte le héros sur une case tirée aux dés ; la porte reste fermée ;</li>
+                        <li><b>Dangers</b> de couloir : rocher roulant, brume de la mort.</li>
+                    </ul>
+                </section>
+
+                <section id="enregistrer">
+                    <h2>6. Valider, enregistrer, jouer</h2>
+                    <ul>
+                        <li>L'état en haut à droite doit dire <b>Valide</b>. Sinon, la liste des refus nomme chaque problème et son emplacement.</li>
+                        <li><b>Enregistrer</b> écrit la campagne. <b>Exporter</b> télécharge son fichier (gardez-en une copie).</li>
+                        <li>Pour la jouer : page <b>Joueur</b>, ouvrir un groupe en mode <b>classique</b> et choisir la campagne. Seules les campagnes valides sont proposées, et les classes exigées doivent être présentes.</li>
+                    </ul>
+                </section>
+
+                <section id="mcp">
+                    <h2>7. Le serveur MCP (une IA au clavier)</h2>
+                    <p>Le constructeur a un second client : une IA (Claude Code, par exemple) peut lire et écrire les campagnes par le protocole <b>MCP</b>. Ses outils appellent la même validation et le même enregistrement que l'écran : l'IA ne peut rien écrire que l'écran refuserait.</p>
+                    <h3>Le brancher</h3>
+                    <p>Sur la machine qui fait tourner le jeu (la stack Docker démarrée), dans un terminal :</p>
+                    <pre class="gc-code">{{ COMMANDE_MCP }}</pre>
+                    <p>Remplacer <code>/chemin/vers/heroquestrpg</code> par le dossier du projet, puis relancer Claude Code. Le serveur passe par l'entrée et la sortie standard : ni port, ni réseau, ni mot de passe. L'option <code>display_errors=stderr</code> est nécessaire, sans elle un avertissement PHP casse le protocole.</p>
+                    <h3>Ses outils</h3>
+                    <table class="gc-table">
+                        <tbody>
+                            <tr v-for="[nom, aide] in OUTILS_MCP" :key="nom">
+                                <td><code>{{ nom }}</code></td>
+                                <td>{{ aide }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <h3>Bien s'en servir</h3>
+                    <ul>
+                        <li>Ordre conseillé : <code>catalogues</code> → <code>campagne_lire</code> → <code>quete_lire</code> → modifier → <code>valider</code> ou <code>apercu</code>.</li>
+                        <li>Tout slug vient de <code>catalogues</code> : un slug inventé est refusé.</li>
+                        <li>Un refus de validation est une réponse normale : chaque refus a un <code>chemin</code> à corriger.</li>
+                        <li>Il n'y a <b>pas d'outil de suppression</b>, mais <code>campagne_ecrire</code> remplace une campagne du même slug : demandez à l'IA d'<code>exporter</code> d'abord.</li>
+                        <li>Après une mise à jour du code du jeu, relancer la session MCP : elle garde l'ancien code tant qu'elle tourne.</li>
+                    </ul>
+                </section>
+
+                <section id="limites">
+                    <h2>Ce que l'écran ne fait pas</h2>
+                    <ul>
+                        <li>Tracer les <b>parties</b> d'une salle en L (fichier ou MCP).</li>
+                        <li><b>Importer</b> un fichier de campagne (outil <code>importer</code> du MCP).</li>
+                        <li>Supprimer une campagne.</li>
+                    </ul>
+                </section>
+            </main>
+        </div>
+    </div>
+</template>
+
+<style scoped>
+.gc-screen { min-height: 100vh; background: var(--stone-950); color: var(--ink-100); padding: 22px clamp(14px, 4vw, 40px) 60px; }
+.gc-top { max-width: 1100px; margin: 0 auto 22px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; }
+.gc-back { flex-basis: 100%; display: inline-flex; align-items: center; gap: 5px; color: var(--ink-400); text-decoration: none; font-size: 13px; font-weight: 700; padding: 6px 0; }
+.gc-back:hover { color: var(--torch); }
+.gc-titrewrap { display: flex; align-items: center; gap: 16px; margin-right: auto; }
+.gc-crest { width: 60px; height: 60px; border-radius: 16px; display: grid; place-items: center; flex: none;
+  background: linear-gradient(150deg, var(--ember), var(--ember-deep)); color: var(--parch-100); box-shadow: var(--sh-2); }
+.gc-crest .msym { font-size: 34px; }
+.gc-titre { font-family: var(--font-display); font-size: clamp(26px, 4vw, 38px); font-weight: 800; margin: 0; letter-spacing: 0.02em; color: var(--parch-100); }
+.gc-sub { font-family: var(--font-narr); font-style: italic; color: var(--ink-300); font-size: 15px; margin: 2px 0 0; }
+.gc-ouvrir { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--r-md); background: var(--torch);
+  color: var(--stone-950); font-weight: 800; font-size: 13px; text-decoration: none; }
+
+.gc-corps { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; align-items: start; }
+.gc-sommaire { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 2px; padding: 12px; border: var(--line); border-radius: var(--r-md); background: var(--stone-900); }
+.gc-sommaire a { color: var(--ink-300); text-decoration: none; font-size: 13px; padding: 5px 8px; border-radius: 6px; }
+.gc-sommaire a:hover { color: var(--parch-100); background: var(--stone-850); }
+
+.gc-texte { min-width: 0; line-height: 1.6; font-size: 15px; }
+.gc-texte section { padding-bottom: 18px; margin-bottom: 18px; border-bottom: var(--line); scroll-margin-top: 16px; }
+.gc-texte section:last-child { border-bottom: none; }
+.gc-texte h2 { font-family: var(--font-display); color: var(--parch-100); font-size: 22px; margin: 0 0 8px; letter-spacing: 0.02em; }
+.gc-texte h3 { color: var(--torch); font-size: 15px; margin: 16px 0 4px; }
+.gc-texte p { margin: 0 0 10px; color: var(--ink-200, #e7dcc6); }
+.gc-texte ul { margin: 0 0 10px; padding-left: 20px; color: var(--ink-200, #e7dcc6); }
+.gc-texte li { margin-bottom: 4px; }
+.gc-texte b { color: var(--parch-100); }
+.gc-texte code { font-size: 13px; padding: 1px 5px; border-radius: 4px; background: var(--stone-850); color: var(--parch-100); }
+.gc-code { white-space: pre-wrap; word-break: break-all; font-size: 13px; padding: 12px; border-radius: var(--r-md); background: var(--stone-900); border: var(--line); color: var(--parch-100); }
+.gc-attention { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--r-md); background: var(--stone-900); border-left: 3px solid var(--torch); }
+.gc-attention .msym { color: var(--torch); flex: none; margin-top: 3px; }
+
+.gc-table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 14px; }
+.gc-table td { padding: 7px 8px; border-bottom: var(--line); vertical-align: top; color: var(--ink-200, #e7dcc6); }
+.gc-table td:first-child { white-space: nowrap; }
+.gc-ic { width: 28px; color: var(--torch); }
+
+@media (max-width: 760px) {
+  .gc-corps { grid-template-columns: 1fr; gap: 16px; }
+  .gc-sommaire { position: static; }
+}
+</style>

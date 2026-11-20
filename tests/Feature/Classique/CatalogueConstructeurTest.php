@@ -135,3 +135,20 @@ it('lève une erreur nommée quand deux lignes d\'une même couche donnent le m�
     expect(fn () => app(CatalogueConstructeur::class)->index('pieges'))
         ->toThrow(LogicException::class, 'même slug « fosse-etroite »');
 });
+
+it('payload() publie les sorts et les captifs à escorter que la validation accepte (2026-11-20)', function () {
+    $this->seed([\Database\Seeders\MercenaireSeeder::class, \Database\Seeders\SortSeeder::class]);
+    $payload = app(CatalogueConstructeur::class)->payload();
+
+    expect($payload['sorts'])->not->toBeEmpty()
+        ->and(collect($payload['sorts'])->pluck('slug')->all())->toEqualCanonicalizing(array_keys(app(CatalogueConstructeur::class)->index('sorts')));
+    // Chaque captif publié est accepté en `quete.captif`, et aucun recrutable n'y figure.
+    $captifs = collect($payload['captifs'])->pluck('slug')->all();
+    expect($captifs)->toContain('sir-ragnar-livret-de-base')
+        ->and(array_intersect($captifs, collect($payload['mercenaires'])->pluck('slug')->all()))->toBe([]);
+    foreach (\App\Models\Mercenaire::all() as $m) {
+        $slug = CatalogueConstructeur::slug((string) $m->nom);
+        $publie = in_array($slug, $captifs, true);
+        expect($publie)->toBe((bool) $m->captif && $m->mode_captif === \App\Models\Mercenaire::MODE_CAPTIF_FIGURINE);
+    }
+});
