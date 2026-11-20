@@ -332,6 +332,8 @@ final class DemarreurQueteConstruite
 
         // LA CHARGE (lot K5k, `quete.charge`) : posée au sol à sa case, avant l'instantané de départ.
         app(Charge::class)->poser($quete->refresh());
+        // LE CAPTIF À ESCORTER (2026-11-20, `quete.captif`) : il attend à sa case qu'un héros le libère.
+        app(Escorte::class)->poser($quete->refresh());
 
         // ÉQUIPEMENT CONFISQUÉ (lot K5j, `regles.confiscation`) : chaque héros qui ENTRE laisse tout à la consigne, AVANT
         // le premier round et l'instantané de départ (une reprise retrouve les héros les mains vides, et la consigne).

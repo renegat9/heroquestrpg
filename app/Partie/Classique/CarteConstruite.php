@@ -233,7 +233,8 @@ final class CarteConstruite
             $y = (int) $meuble['y'];
             $mobilier[] = [
                 'mobilier_id' => (int) $type->id, 'x' => $x, 'y' => $y, 'l' => $l, 'h' => $h,
-                'salle' => $indexSalle[self::interieurEn($salles, $x, $y)],
+                // Un meuble de COULOIR (2026-11-20) n'a pas de salle : `null`, comme un mur magique posé en jeu.
+                'salle' => ($salleDuMeuble = self::interieurEn($salles, $x, $y)) === null ? null : $indexSalle[$salleDuMeuble],
             ];
             foreach (Grille::cellulesEmprise($x, $y, $l, $h) as $c) {
                 $occupees["{$c['x']},{$c['y']}"] = true;
@@ -342,7 +343,12 @@ final class CarteConstruite
                 // et par le démarrage (un monstre de la salle de départ est vu d'emblée).
                 'salle_depart' => $idDepart === null ? null : 0,
                 'entree' => ['type' => $acces['entree']['type'], 'cases' => $acces['entree']['cases'], 'porte' => $acces['entree']['porte']],
-                'sortie' => ['type' => $acces['sortie']['type'], 'cases' => $acces['sortie']['cases'], 'porte' => $acces['sortie']['porte']],
+                'sortie' => ['type' => $acces['sortie']['type'], 'cases' => $acces['sortie']['cases'], 'porte' => $acces['sortie']['porte'],
+                    // LE VERROU DE LA SORTIE (René, 2026-11-20) : la forme moteur des verrous de porte ; `deverrouillee` passe
+                    // à vrai quand une note l'ouvre ou qu'on force une porte de pierre (`Classique\VerrouDeSortie`).
+                    ...(is_array($quete['sortie']['verrou'] ?? null)
+                        ? ['verrou' => $this->verrouMoteur((array) $quete['sortie']['verrou'])['verrou'], 'deverrouillee' => false]
+                        : [])],
                 'fausses_sorties' => array_map(
                     static fn (array $f): array => ['type' => $f['type'], 'cases' => $f['cases'], 'porte' => $f['porte'], 'revelee' => false],
                     $acces['fausses_sorties'],

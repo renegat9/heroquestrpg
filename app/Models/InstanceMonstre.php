@@ -229,11 +229,19 @@ class InstanceMonstre extends Model
         foreach (['vulnerable_uniquement_a', 'invulnerable_casse_arme'] as $cleListe) {
             if (array_key_exists($cleListe, $pose) && is_array($pose[$cleListe])) {
                 $objets = $catalogue->index('objets');
+                // Un SORT aussi, pour `vulnerable_uniquement_a` (René, 2026-11-20) : la liste porte des NOMS, que
+                // `MoteurSorts::sortRefuseSur()` compare au nom du sort et `frapper()` au nom de l'arme.
+                $sorts = $cleListe === 'vulnerable_uniquement_a' ? $catalogue->index('sorts') : [];
                 $profil[$cleListe] = array_values(array_filter(array_map(
-                    static fn ($slug) => is_string($slug) && isset($objets[$slug]) ? (string) $objets[$slug]->nom : null,
+                    static fn ($slug) => ! is_string($slug) ? null
+                        : (isset($objets[$slug]) ? (string) $objets[$slug]->nom : (isset($sorts[$slug]) ? (string) $sorts[$slug]->nom : null)),
                     $pose[$cleListe],
                 )));
             }
+        }
+        // INACTIF jusqu'à l'effet de note `eveiller` (René, 2026-11-20) : lu par `MoteurDormants::declencheur()`.
+        if (($pose['inactif'] ?? false) === true) {
+            $profil['inactif'] = true;
         }
         if (isset($pose['fuite']) && is_array($pose['fuite']) && isset($pose['fuite']['x'], $pose['fuite']['y'])) {
             $profil['fuite'] = ['x' => (int) $pose['fuite']['x'], 'y' => (int) $pose['fuite']['y']];

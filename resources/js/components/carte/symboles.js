@@ -146,6 +146,8 @@ export const MOBILIER_ICONES = {
     // ouvert sur la table ; le chevalet, un corps étendu sur l'instrument de torture.
     'Table du sorcier': 'auto_stories',
     'Chevalet de torture': 'airline_seat_flat',
+    // Return of the Witch Lord (F4193 p. 4, 2026-11-20) : le cercueil, une tuile qui « sert de tombeau ».
+    'Cercueil': 'deceased',
 };
 export const MOBILIER_ICONE_DEFAUT = 'category';
 

@@ -54,7 +54,7 @@ final class MoteurMobilier
      *
      * @var list<string>
      */
-    public const RESERVES_AU_CLASSIQUE = ['Table du sorcier', 'Chevalet de torture'];
+    public const RESERVES_AU_CLASSIQUE = ['Table du sorcier', 'Chevalet de torture', 'Cercueil'];
 
     /**
      * ÉLÉMENT-OBJECTIF de la quête FINALE d'une boîte (René, 2026-10-09) :

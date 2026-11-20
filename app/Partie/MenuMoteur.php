@@ -2943,6 +2943,11 @@ final class MenuMoteur
             // Les portes de pierre entrent dans ce compte, avec la même garde que leur bloc plus
             // bas (`! $aAgi` et les dés de base) : UN calcul, lu des deux côtés.
             $closes = $this->portes->portesFermeesAdjacentes($quete->carte, $px, $py);
+            // PORTES À TÉLÉPORTATION (*Castle of Mystery*) : une seule par tour — passée, plus aucune porte n'est offerte
+            // (`Quete::porteTeleportationJouee()`, le prédicat que le résolveur relit).
+            if ($quete->portesTeleportent() && $etat !== null && $quete->porteTeleportationJouee($etat)) {
+                $closes = [];
+            }
             $pierres = (! $aAgi && (int) $personnage->des_attaque >= MoteurPortes::DES_MINIMUM_PORTE_PIERRE)
                 ? $this->portes->portesDePierreAdjacentes($quete->carte, $px, $py)
                 : [];
@@ -3478,12 +3483,19 @@ final class MenuMoteur
         // ⚠ Quitter le donjon prend l'ACTION (créneau par défaut de `sortie_en_personne` — le même que la fausse porte,
         // indiscernable) : déjà agi, l'option n'est pas offerte. Vu en partie d'agents le 2026-11-17 (lot X1) : offerte
         // après une fouille, puis refusée « Tu as déjà agi ce tour ».
-        if ($parEscalier && ! $aJoue && $etat !== null && ! $etat->a_agi && $quete->sortieOfferte($etat) !== null) {
-            $options[] = [
-                'id' => 'sortir_donjon',
-                'libelle' => 'Quitter le donjon par '.$quete->nomDeLaSortieSous($etat),
-                'type' => 'sortie_en_personne',
-            ];
+        if ($parEscalier && ! $aJoue && $etat !== null && ! $etat->a_agi && ($offerte = $quete->sortieOfferte($etat)) !== null) {
+            // LE VERROU DE LA SORTIE (René, 2026-11-20) : scellée ou sans la clé, rien n'est offert ; un jet à faire se dit
+            // dans le libellé. `Classique\VerrouDeSortie`, le prédicat que le résolveur relit. Une fausse porte n'a pas de verrou.
+            $verrous = app(\App\Partie\Classique\VerrouDeSortie::class);
+            $statutSortie = $offerte === 'vraie' ? $verrous->statut($quete, $personnage) : \App\Partie\Classique\VerrouDeSortie::LIBRE;
+            $jet = $offerte === 'vraie' ? $verrous->libelleDuJet($quete, $personnage) : null;
+            if (! in_array($statutSortie, [\App\Partie\Classique\VerrouDeSortie::SCELLEE, \App\Partie\Classique\VerrouDeSortie::SANS_CLE], true)) {
+                $options[] = [
+                    'id' => 'sortir_donjon',
+                    'libelle' => 'Quitter le donjon par '.$quete->nomDeLaSortieSous($etat).($jet !== null ? " ({$jet})" : ''),
+                    'type' => 'sortie_en_personne',
+                ];
+            }
         }
 
         // LES OFFRES (mode classique, lot K6) : les choix que les notes de l'auteur ont déclarés, payables par CE héros
@@ -3735,7 +3747,8 @@ final class MenuMoteur
                 }
             }
 
-            if (! $allie->a_agi && $cibles !== []) {
+            // Un allié sans dé d'attaque n'attaque pas (Sir Ragnar : « may not attack ») — le résolveur le refuse aussi.
+            if (! $allie->a_agi && $cibles !== [] && (int) $merc->attaque > 0) {
                 $options[] = [
                     'id' => 'attaquer_allie',
                     'libelle' => "Attaquer avec {$nom}",
@@ -3761,7 +3774,7 @@ final class MenuMoteur
                         'id' => 'se_deplacer_case_allie',
                         'libelle' => "Déplacer {$nom} sur la carte",
                         'type' => 'deplacement_case_allie',
-                        'parametres' => ['portee' => (int) $merc->deplacement, 'destinations' => $cases],
+                        'parametres' => ['portee' => $allie->vitesse(), 'destinations' => $cases],
                     ];
                 }
             }
@@ -3785,7 +3798,7 @@ final class MenuMoteur
                     // contact déjà prise par un héros : l'allié s'arrêtait court.
                     $e = $m->monstre->emprise();
                     $trajet = $this->approche->trajet(
-                        $grilleMvt, $ax, $ay, (int) $merc->deplacement,
+                        $grilleMvt, $ax, $ay, $allie->vitesse(),
                         (int) $m->position_x, (int) $m->position_y, $e['l'], $e['h'],
                     );
 

@@ -41,7 +41,17 @@ final class FinDeQueteConstruite
         $rangSuivant = $this->rangSuivant($groupe, $quete);
         $groupe->update(['rang_quete' => $rangSuivant]);
 
-        $parts = $this->parts($groupe, $queteDoc['recompense'] ?? null, $quete->participants());
+        // LE CAPTIF À ESCORTER (2026-11-20, livret de base q. 2 : « must be moved back to the stairs alive in order for the
+        // heroes to collect the reward ») : pas ramené, pas de récompense — et on le dit.
+        $captifPerdu = app(Escorte::class)->ramene($quete) === false;
+        $parts = $captifPerdu ? [] : $this->parts($groupe, $queteDoc['recompense'] ?? null, $quete->participants());
+        if ($captifPerdu && ($queteDoc['recompense'] ?? null) !== null) {
+            app(TamponAnnonces::class)->annoncer($groupe, [
+                'type' => 'recompense_perdue',
+                'quete_id' => $quete->id,
+                'raison' => 'captif',
+            ]);
+        }
         $bourses = app(Bourses::class);
 
         foreach ($parts as $part) {

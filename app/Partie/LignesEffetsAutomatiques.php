@@ -68,6 +68,8 @@ trait LignesEffetsAutomatiques
             // LA PLACE PUBLIQUE (mode classique, lot K6).
             'attaquee' => "{$monstre} sort de sa torpeur — on l'attaque",
             'vue_non_deguise' => "{$monstre} vous a repérés : un héros sans déguisement est en vue",
+            // FIGURE INACTIVE éveillée par une note (2026-11-20) : la Légion oubliée sort de sa glace.
+            'note' => "{$monstre} s'anime et marche sur vous",
             default => "{$monstre} s'éveille",
         };
 

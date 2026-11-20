@@ -39,6 +39,7 @@ return [
         // Alliés qui SONT une figure du bestiaire : leur texte la nomme.
         'Raptor apprivoisé' => 'monstres/raptor',    // Fangwarden Armlet : « call forth a Raptor » (reference/18) — le jeton du Raptor de Delthrak
         'Squelette Hearthkin' => 'monstres/skeleton', // Hearthkin Horn : « Each hero places a skeleton » (First Light, quêtes p. 6)
+        'Sir Ragnar (livret de base)' => 'monstres/dread-sorcerer', // « Use the plastic Dread sorcerer figure to represent Sir Ragnar » (F2847 p. 7, quête 2)
     ],
 
     'tuiles' => [

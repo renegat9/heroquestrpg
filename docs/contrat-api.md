@@ -5970,7 +5970,7 @@ Forme : `{chemin, code, message}`. Le **chemin** est pointé depuis la racine : 
 | `empreinte_invalide` | Un fichier importé porte une `empreinte` qui ne correspond pas à son document. |
 | `depart_hors_salle` | Lot K2 — le bloc 2×2 d'un escalier n'est pas entièrement dans l'intérieur d'une salle ouverte (couloir compris). Une porte d'accès, elle, peut être dans un couloir (`porte_sans_bord` si son côté donne sur du sol). |
 | `porte_dans_la_roche` | La case voisine sur laquelle donne une porte est de la roche : une salle fermée dans cette quête. |
-| `mobilier_hors_salle` | Lot K2 — l'emprise d'un meuble, rotation comprise, sort de l'intérieur de sa salle ouverte, ou le meuble est posé hors de toute salle. |
+| `mobilier_hors_salle` | Lot K2 — l'emprise d'un meuble, rotation comprise, sort de l'intérieur de sa salle ouverte ; ou, posé dans un couloir (2026-11-20), elle ne reste pas entière dans le couloir. |
 | `case_partagee` | Lot K2 — deux éléments sur une même case (couples listés dans « Géométrie »), ou deux portes sur un même bord de case. |
 | `cible_inconnue` | Une cible de `fin.cibles`, ou la `porte` / le `monstre` visé par une note, ne désigne rien de posé dans la quête. |
 | `cible_de_note_invalide` | Lot K3 — la `cible` d'une note n'a pas exactement une clé, ou pas une de celles que son déclencheur accepte. |
@@ -6017,6 +6017,48 @@ reste sur lui ; de même `POST /groupes/{id}/joueurs` ne verse rien au pot commu
 - **refus de départ** (422 de `POST /pret`) : groupe sans campagne ; campagne dont toutes les quêtes sont jouées ;
   **prérequis de héros** — une classe de `campagne.prerequis_heros` n'a aucun héros actif dans le groupe
   (« … exige un héros de classe : Barbare. »).
+
+### Ce que les livrets demandaient encore (René, 2026-11-20 — « les livrets sont maîtres en mode classique »)
+
+Relecture des trois campagnes construites contre leurs livrets. Mode classique seulement.
+
+- **Porte de sortie verrouillée** — `quete.sortie.verrou` (sur une sortie `type: "porte"` seulement ; un escalier :
+  `valeur_invalide`) : le vocabulaire des portes (`note`, `cle`, `pierre`, `condition`), figé au départ dans
+  `quetes.acces.sortie.verrou` + `deverrouillee` (état durable). Point de passage : `Classique\VerrouDeSortie`.
+  `note` : scellée, rien n'est offert ; l'effet de note `ouvrir_porte` accepte **`porte: "sortie"`** (refusé sur une
+  sortie sans verrou) et l'ouvre pour tous. `cle` : « Quitter le donjon » n'est offert qu'au porteur de l'objet.
+  `condition` : CHAQUE héros qui veut passer lance les dés (*Kellar's Keep* q. 9) — le libellé de l'option dit le jet
+  (« Quitter le donjon par la porte de sortie (2 dés rouges, total au plus égal à ton Esprit actuel (4)) ») ; réussi, ce
+  héros sort (`sortie_en_personne.jet`) ; raté, résultat `{type: "sortie_verrouillee", verrou, faces, total, valeur,
+  attribut, comparaison, reussi: false}` et son tour s'achève. `pierre` : deux crânes sur les dés d'attaque de base la
+  forcent pour tous ; raté, `sortie_verrouillee` (`cranes`), à retenter. `carte.acces[]` d'une sortie encore verrouillée :
+  `libelle` « Porte de sortie — verrouillée ».
+- **Meuble dans un couloir** — un meuble peut se poser hors de toute salle si TOUTE son emprise est du couloir, dans le
+  plateau (`mobilier_hors_salle` sinon) ; un bloc le refuse (`case_partagee`). Carte produite : `mobilier[].salle: null`.
+  Il se fouille au contact comme en salle ; il est visible quand sa case l'est.
+- **Figure inactive** — un monstre posé porte `inactif: true` (rien d'autre : `type_invalide`) : il ne bouge ni
+  n'attaque, et aucune attaque ne l'atteint (`MoteurDormants::estIntouchable()`), tant qu'une note ne l'a pas éveillé.
+  **Effet `eveiller` `{monstres: [index…]}`** : des monstres posés `inactif` (`valeur_invalide` sinon ; liste vide
+  refusée) ; annonce `monstre_s_eveille` (`cause: "note"`) ; ils jouent à la phase suivante du MJ. Lecteur
+  `NotesDeQuete::effetEveiller()` → `MoteurDormants::eveillerParNote()`.
+- **Le captif à escorter** — `quete.captif` `{mercenaire, x, y}` (facultatif) : un captif du catalogue des mercenaires
+  (`captif`, mode figurine — `valeur_invalide` sinon), sur une case où une figure peut paraître. Point de passage
+  `Classique\Escorte`. Au départ il attend à sa case (`groupe_mercenaires.etat: captif`, `quetes.captif_mercenaire_id`) ;
+  un héros au contact le libère (`liberer_captif`, le geste du mode RPG) et il devient SON allié, joué après lui. Fin
+  **`ramener`** : accepte une `charge` OU un `captif` (`cle_manquante` sans l'un ni l'autre). Avec un captif, la quête est
+  gagnée quand le dernier héros debout sort, ramené ou non ; on constate alors s'il se tient VIVANT sur une case de
+  sortie (drapeau réservé `_captif_ramene`), et la récompense (`recompense`) n'est versée que s'il l'est (livret de base
+  q. 2 : « must be moved back to the stairs alive in order for the heroes to collect the reward ») — sinon annonce
+  `{type: "recompense_perdue", raison: "captif"}`. Catalogue : **Sir Ragnar (livret de base)** (défense 2, Corps 2,
+  Esprit non trouvé → 0, attaque 0 : « may not attack »), réservé au classique (`Mercenaire::RESERVES_AU_CLASSIQUE` :
+  jamais tiré par une mission « secourir » du RPG).
+- **Un allié qui marche à un dé rouge** — capacité de mercenaire `deplacement_un_de_rouge` : sa vitesse est UN dé tiré une
+  fois par round, gardé en colonne (`groupe_mercenaires.deplacement_tire`, remis à `null` à l'ouverture du round) ;
+  `GroupeMercenaire::vitesse()`, lu par le menu (`parametres.portee`), les destinations, l'approche et le résolveur.
+  **Un allié sans dé d'attaque** (`attaque: 0`) n'a pas d'option `attaquer_allie`, et le résolveur refuse l'attaque.
+- **Trois meubles des livrets** au catalogue, réservés aux campagnes construites (`MoteurMobilier::RESERVES_AU_CLASSIQUE`) :
+  `table-du-sorcier` (3×2), `chevalet-de-torture` (3×2), `cercueil` (2×1, la fouille du tombeau — *Witch Lord* p. 4 :
+  « The four coffins may be used as tombs »).
 
 ### Notes de quête — `quete.notes` (lot K3, 2026-11-15)
 
@@ -6479,14 +6521,19 @@ citées en commentaire dans le code). Mode classique seulement : chaque lecteur 
   foulé la case et qu'aucun ne s'y tient plus — un `bloc` posé en effet tombe derrière le groupe sans écraser personne.
   Passages retenus dans `quetes.drapeaux._passages` (clé réservée ; un nom de drapeau d'auteur n'est jamais une liste).
 - **K5m, profil de monstre d'auteur** (R9) sur un monstre posé ou une `apparition` : `nom`, `deplacement`, `attaque`,
-  `defense`, `pv_body`, `pv_mind`, `vulnerable_uniquement_a` (slugs d'objets : seules ces armes le blessent),
+  `defense`, `pv_body`, `pv_mind`, `vulnerable_uniquement_a` (slugs d'objets OU de sorts — catalogue `sorts`, depuis
+  le 2026-11-20 : seules ces armes et ces sorts de dégâts le blessent ; un slug qui désigne les deux est refusé),
   `invulnerable_casse_arme` (invulnérable ; une arme qui le frappe se brise, sauf celles listées) et `fuite {x, y}` (son
   refuge quand il fuit). Les PV sont posés sur l'instance, le reste dans `habillage.nom` / `habillage.profil_quete`, lus
   par `InstanceMonstre::statDeBase()`, `deplacementEffectif()`, `immunitesSorts()`, `casseArmeExemptees()` et
   `MoteurDread::sortDreadFuite()`. Un monstre `deplacement: 0` et `attaque: 0` ne fait rien à son tour.
 - **K5n, `regles.primes_monstres` `{slug: or}`** : versée à l'abatteur par `Bourses::verser()`, errants compris ;
-  **`regles.portes_teleportation` `{"2".."12": {x, y}}`** : franchir une porte arrête la marche, 2d6 désignent la case
-  d'arrivée (1 point de Corps à la figure qui l'occupe), la salle d'arrivée se révèle ; **effet `degats`** : `sur_jet`
+  **`regles.portes_teleportation` `{"2".."12": {x, y}}`** : ESSAYER D'OUVRIR une porte (option `ouvrir_porte`) téléporte
+  le héros et la porte RESTE CLOSE (René, 2026-11-20) — résultat `{type: "porte_teleporte", porte, total, des, arrivee}` ;
+  2d6 désignent la case d'arrivée (1 point de Corps à la figure qui l'occupe), sa marche s'arrête, la salle d'arrivée se
+  révèle ; une seule porte par tour (`Quete::porteTeleportationJouee()`, le menu n'en offre plus). Une porte de cette
+  quête peut donner sur de la roche (pas de `porte_dans_la_roche`), comme au livret. Une porte qu'une note ouvre
+  téléporte aussi celui qui la franchit ; **effet `degats`** : `sur_jet`
   (1d6, sous le seuil le héros esquive) et `avec_casque` (seuil quand il porte un Casque).
 - **K5o** : `regles.fouille_piege_un_par_un` (une fouille ne révèle que le piège caché le plus proche, et rien tant
   qu'un piège déjà révélé de la zone reste armé) ; `regles.monstres_pacifies_par_drapeau {slug: drapeau}` (le drapeau

@@ -1248,6 +1248,8 @@ final class EtatGroupe
                     $role === 'fausse_sortie' => 'Fausse porte — elle ne s\'ouvre pas',
                     $role === 'passage' => 'Passage vers '.$quete->titreDeLAutreMoitie(),
                     $porte && $role === 'entree' => 'Porte d\'entrée',
+                    // LA SORTIE VERROUILLÉE (2026-11-20) : dite tant que le verrou tient (`Classique\VerrouDeSortie`).
+                    $porte && $role === 'sortie' && is_array($a['verrou'] ?? null) && empty($a['deverrouillee']) => 'Porte de sortie — verrouillée',
                     $porte && $role === 'sortie' => 'Porte de sortie',
                     $porte => 'Porte d\'entrée et de sortie',
                     default => 'Escalier de sortie',

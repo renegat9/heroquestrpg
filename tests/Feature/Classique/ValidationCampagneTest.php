@@ -358,14 +358,17 @@ it('n\'impose aucun partage refusé entre un piège ou un terrain et un meuble o
     expect(classiqueRefus($doc))->toBe([]);
 });
 
-it('un meuble posé hors de toute salle (dans un couloir) est refusé en mobilier_hors_salle', function () {
+// RÈGLE CHANGÉE le 2026-11-20 (René : « il faut pouvoir mettre des meubles dans les corridors ») : un meuble se pose dans
+// un couloir si toute son emprise y reste ; à cheval sur une salle, il est refusé (`LivretsConformesTest`).
+it('un meuble posé dans un couloir est valide ; à cheval sur une salle, refusé en mobilier_hors_salle', function () {
     $doc = DocumentExemple::campagne();
     $doc['quetes'][0]['mobilier'][] = ['slug' => 'coffre', 'x' => 12, 'y' => 9, 'rotation' => 0];
+    expect(classiqueRefus($doc))->toBe([]);
 
+    $doc['quetes'][0]['mobilier'][] = ['slug' => 'bibliotheque', 'x' => 4, 'y' => 7, 'rotation' => 90]; // y 7-9 : la crypte
     $refus = classiqueRefus($doc);
-
     expect(array_column($refus, 'code'))->toBe([ValidationCampagne::MOBILIER_HORS_SALLE])
-        ->and($refus[0]['chemin'])->toBe('quetes.0.mobilier.1');
+        ->and($refus[0]['chemin'])->toBe('quetes.0.mobilier.2');
 });
 
 it('une porte entre deux salles ouvertes qui partagent un mur est valide (l\'exemple en contient une)', function () {

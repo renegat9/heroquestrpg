@@ -397,7 +397,7 @@ final class DemarreurQuete
             // (`MenuMoteur` option `liberer_captif`,
             // `ResolveurTour::resoudreLibererCaptif()`).
             if (data_get($gabarit->structure, 'objectif') === 'secourir' && $fouille['salle_artefact'] !== null) {
-                $captifMercenaire = Mercenaire::where('captif', true)->inRandomOrder()->first();
+                $captifMercenaire = Mercenaire::where('captif', true)->whereNotIn('nom', Mercenaire::RESERVES_AU_CLASSIQUE)->inRandomOrder()->first();
                 $salle = (array) data_get($carte, "salles.{$fouille['salle_artefact']}");
                 $case = $captifMercenaire === null ? null : $this->caseLibreDansSalle($carte, $salle);
 
@@ -622,7 +622,7 @@ final class DemarreurQuete
         $secourirs = $candidats->filter(fn (GabaritQuete $g) => data_get($g->structure, 'objectif') === 'secourir');
         $autres = $candidats->filter(fn (GabaritQuete $g) => data_get($g->structure, 'objectif') !== 'secourir');
 
-        if ($secourirs->isNotEmpty() && Mercenaire::where('captif', true)->exists()
+        if ($secourirs->isNotEmpty() && Mercenaire::where('captif', true)->whereNotIn('nom', Mercenaire::RESERVES_AU_CLASSIQUE)->exists()
             && (crc32($groupe->identifiant) + $positionArc) % self::RATIO_SECOURIR === 0) {
             return $secourirs->first();
         }

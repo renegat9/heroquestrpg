@@ -14,7 +14,7 @@ use Database\Seeders\TerrainSeeder;
 use Tests\Feature\Classique\DocumentExemple;
 
 /*
- * LA TABLE DU SORCIER ET LE CHEVALET (René, 2026-11-19 : « ajoute les 2 meubles, les livrets sont maîtres en mode
+ * LE CERCUEIL (2026-11-20, *Witch Lord* p. 4 : « The four coffins may be used as tombs »), la TABLE DU SORCIER ET LE CHEVALET (René, 2026-11-19 : « ajoute les 2 meubles, les livrets sont maîtres en mode
  * classique »). Légende du livret de base (F2847 p. 33) ; emprise mesurée sur les cartes : 3×2, comme la Table. Réservés
  * aux campagnes construites : la génération du mode RPG ne les tire jamais.
  */
@@ -26,11 +26,21 @@ it('la liste des meubles réservés au classique et le catalogue se répondent, 
     $catalogue = Mobilier::whereIn('nom', MoteurMobilier::RESERVES_AU_CLASSIQUE)->get()->keyBy('nom');
 
     expect($catalogue->keys()->sort()->values()->all())->toBe(collect(MoteurMobilier::RESERVES_AU_CLASSIQUE)->sort()->values()->all());
-    foreach ($catalogue as $meuble) {
-        expect([(int) $meuble->largeur, (int) $meuble->hauteur])->toBe([3, 2])
-            ->and((bool) $meuble->fouillable)->toBeFalse()
+    $attendus = [
+        // 3×2 mesurée sur les cartes ; la fouille est celle de la SALLE.
+        'Table du sorcier' => [[3, 2], false],
+        'Chevalet de torture' => [[3, 2], false],
+        // « The four coffins may be used as tombs » (F4193 p. 4) : la fouille du tombeau, à l'emprise dessinée 2×1.
+        'Cercueil' => [[2, 1], true],
+    ];
+    expect(array_keys($attendus))->toEqualCanonicalizing(MoteurMobilier::RESERVES_AU_CLASSIQUE);
+    foreach ($attendus as $nom => [$emprise, $fouillable]) {
+        $meuble = $catalogue[$nom];
+        expect([(int) $meuble->largeur, (int) $meuble->hauteur])->toBe($emprise)
+            ->and((bool) $meuble->fouillable)->toBe($fouillable)
             ->and($meuble->boite)->toBeNull();
     }
+    expect(Mobilier::where('nom', 'Cercueil')->value('effet'))->toBe(Mobilier::where('nom', 'Tombeau')->value('effet'));
 });
 
 it('la génération du mode RPG ne les tire jamais (même liste, lue par AssembleurCarte)', function () {

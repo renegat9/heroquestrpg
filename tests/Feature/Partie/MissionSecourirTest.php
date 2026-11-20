@@ -381,11 +381,14 @@ it('mode_captif est déclaré pour chaque profil de captif, sans valeur décorat
 
     expect($profils->keys()->all())->toEqualCanonicalizing([
         'Gothar', 'Le Prospecteur', 'Princesse Millandriel', 'Sir Ragnar (Wizards of Morcar)',
+        // 2026-11-20 : le chevalier blessé du livret de base, mode classique seulement (`Mercenaire::RESERVES_AU_CLASSIQUE`).
+        'Sir Ragnar (livret de base)',
     ])
         ->and($profils['Gothar']->mode_captif)->toBe('figurine')
         ->and($profils['Le Prospecteur']->mode_captif)->toBe('escorte')
         ->and($profils['Princesse Millandriel']->mode_captif)->toBe('escorte')
-        ->and($profils['Sir Ragnar (Wizards of Morcar)']->mode_captif)->toBe('figurine');
+        ->and($profils['Sir Ragnar (Wizards of Morcar)']->mode_captif)->toBe('figurine')
+        ->and($profils['Sir Ragnar (livret de base)']->mode_captif)->toBe('figurine');
 
     foreach ($profils as $profil) {
         expect($profil->mode_captif)->toBeIn(['figurine', 'escorte']);

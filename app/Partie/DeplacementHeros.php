@@ -213,7 +213,7 @@ final class DeplacementHeros
     public function destinationsAllie(Quete $quete, GroupeMercenaire $allie): array
     {
         $origine = $this->origineAllie($allie);
-        $vitesse = (int) $allie->mercenaire?->deplacement;
+        $vitesse = $allie->vitesse();
 
         if ($origine === null || $vitesse < 1 || $quete->carte === null) {
             return [];
@@ -251,7 +251,7 @@ final class DeplacementHeros
     public function trajetAllie(Quete $quete, GroupeMercenaire $allie, int $x, int $y): array
     {
         $origine = $this->origineAllie($allie);
-        $vitesse = (int) $allie->mercenaire?->deplacement;
+        $vitesse = $allie->vitesse();
 
         if ($origine === null || $vitesse < 1 || $quete->carte === null) {
             return ['atteignable' => false, 'raison' => 'Cet allié n\'est pas sur la carte.', 'chemin' => [], 'cout' => 0];

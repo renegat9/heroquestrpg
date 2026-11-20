@@ -48,6 +48,13 @@ final class MoteurDormants
     /** Clé de la capacité paramétrée, lue ici — `MotsClesAdversaires::PASSIF_JUSQUA`. */
     public const CAPACITE = 'passif_jusqua';
 
+    /**
+     * Le déclencheur d'une figure posée `inactif` dans une quête construite (René, 2026-11-20) : seul l'effet de note
+     * `eveiller` la réveille ({@see eveillerParNote()}), et tant qu'elle dort, aucune arme ne l'atteint (la Légion oubliée,
+     * « encased in a magical ice that cannot be broken with any weapon », *Witch Lord* q. 7).
+     */
+    public const DECLENCHEUR_NOTE = 'note';
+
     /** Le déclencheur d'une figure à passif, ou `null` si elle n'en porte pas. */
     public function declencheur(InstanceMonstre $instance): ?string
     {
@@ -55,6 +62,10 @@ final class MoteurDormants
 
         if (is_array($passif) && is_string($passif['declencheur'] ?? null)) {
             return $passif['declencheur'];
+        }
+
+        if (data_get($instance->habillage, 'profil_quete.inactif') === true) {
+            return self::DECLENCHEUR_NOTE;
         }
 
         // LA PLACE PUBLIQUE (mode classique, lot K6 — *Dread Moon*) : une figure posée sur une place est inactive jusqu'à ce
@@ -74,6 +85,11 @@ final class MoteurDormants
     /** Un coup est-il sans effet sur cette figure, parce qu'elle n'a pas encore bougé ou attaqué ? */
     public function estIntouchable(InstanceMonstre $instance): bool
     {
+        // Inactive par l'auteur (`inactif`) : intouchable tant qu'elle dort — la glace magique qu'aucune arme ne brise.
+        if ($this->declencheur($instance) === self::DECLENCHEUR_NOTE) {
+            return $this->estDormant($instance);
+        }
+
         $passif = $instance->capaciteParametree(self::CAPACITE);
         $jusqua = is_array($passif) ? ($passif['intouchable_jusqua'] ?? null) : null;
 
@@ -216,6 +232,21 @@ final class MoteurDormants
         }
 
         return $this->eveiller($this->dormantsDeLaSalle($quete, $salle, 'fouille_de_la_salle'), 'fouille');
+    }
+
+    /**
+     * L'effet de note `eveiller` (René, 2026-11-20) : ces figures `inactif` encore endormies s'éveillent, et jouent à la
+     * phase suivante du MJ. Rend un fil par figure, à annoncer par l'appelant.
+     *
+     * @param  Collection<int, InstanceMonstre>  $figures
+     * @return list<array<string, mixed>>
+     */
+    public function eveillerParNote(Collection $figures): array
+    {
+        return $this->eveiller(
+            $figures->filter(fn (InstanceMonstre $m) => $this->declencheur($m) === self::DECLENCHEUR_NOTE && $this->estDormant($m))->values(),
+            'note',
+        );
     }
 
     /** Les dormants d'un déclencheur donné, dans la salle `$salle`, encore endormis. @return Collection<int, InstanceMonstre> */

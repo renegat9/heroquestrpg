@@ -35,6 +35,9 @@ final class CatalogueConstructeur
         'objets' => [Objet::class, 'nom'],
         // Les mercenaires qu'une campagne offre (lot K6, clé de campagne `mercenaires`) : `Classique\MercenairesCampagne`.
         'mercenaires' => [\App\Models\Mercenaire::class, 'nom'],
+        // Les sorts qui seuls blessent une figure (`vulnerable_uniquement_a`, René 2026-11-20 : « il faut pouvoir
+        // l'appliquer à des sorts aussi » — le Seigneur Sorcier, *Witch Lord* q. 10) : `InstanceMonstre::habillageDeQuete()`.
+        'sorts' => [\App\Models\Sort::class, 'nom'],
     ];
 
     /** Les couches qu'une quête pose sur la carte (`monstre_errant` lit `monstres`, `prerequis_heros` lit `classes`). */

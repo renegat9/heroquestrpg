@@ -56,6 +56,14 @@ class Mercenaire extends Model
 
     public const MODE_CAPTIF_ESCORTE = 'escorte';
 
+    /**
+     * CAPTIFS DU MODE CLASSIQUE SEULEMENT (René, 2026-11-20) : posés par une quête construite (`quete.captif`), jamais tirés
+     * par une mission « secourir » du mode RPG (`DemarreurQuete` les écarte) — la branche classique ne change rien au RPG.
+     *
+     * @var list<string>
+     */
+    public const RESERVES_AU_CLASSIQUE = ['Sir Ragnar (livret de base)'];
+
     protected function casts(): array
     {
         return [

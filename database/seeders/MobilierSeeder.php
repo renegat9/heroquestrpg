@@ -88,6 +88,21 @@ class MobilierSeeder extends Seeder
         // qui donnerait toujours quelque chose ferait de l'exploration une
         // récolte, et l'or cesserait d'être une ressource. Seule exception, par
         // construction : le Coffre (`un_seul_butin`), que son unique butin vide.
+        // La table du TOMBEAU, partagée avec le CERCUEIL (*Witch Lord* p. 4 : « The four coffins may be used as tombs »).
+        $fouilleTombeau = [
+            ['issue' => 'tresor', 'poids' => 3, 'or' => [15, 35]], // ÷2 le 2026-11-07 (était 30-70)
+            ['issue' => 'objet', 'poids' => 2, 'categories' => ['arme', 'armure']],
+            // Un tombeau se défend (décision de René, 2026-08-17) :
+            // l'aiguille dans la serrure du sarcophage.
+            ['issue' => 'piege', 'poids' => 2, 'piege' => 'Aiguille empoisonnée'],
+            // Le cercueil peut contenir une créature morte-vivante (*Return of the Witch Lord* p. 4-5 :
+            // « may contain an undead creature and/or a treasure. They may also have traps on them »).
+            // Poids 2, comme le piège : la tuile est un tombeau, et ce n'est pas le livret qui pèse.
+            // Les trois morts-vivants de base, à égalité (`MoteurMobilier::carteDepuisEntree()`).
+            ['issue' => 'monstre', 'poids' => 2, 'monstres' => ['Squelette', 'Zombie', 'Momie']],
+            ['issue' => 'rien', 'poids' => 4],
+        ];
+
         $mobiliers = [
             // Habillage de la fouille de SALLE (RB p. 14) : aucune note de quête
             // consultée n'accroche un trésor propre à une table — fouillable = false.
@@ -170,19 +185,16 @@ class MobilierSeeder extends Seeder
             // arme de sa main, souvent la poussière seule.
             // 3×2 COUCHÉ : décision de René (2026-10-16), comme dessiné (Q14, p. 31 imprimée).
             ['nom' => 'Tombeau', 'nom_anglais' => 'Tomb', 'largeur' => 3, 'hauteur' => 2, 'difficulte_destruction' => null, 'fouillable' => true, 'bloque_vue' => false,
-                'effet' => ['fouille' => [
-                    ['issue' => 'tresor', 'poids' => 3, 'or' => [15, 35]], // ÷2 le 2026-11-07 (était 30-70)
-                    ['issue' => 'objet', 'poids' => 2, 'categories' => ['arme', 'armure']],
-                    // Un tombeau se défend (décision de René, 2026-08-17) :
-                    // l'aiguille dans la serrure du sarcophage.
-                    ['issue' => 'piege', 'poids' => 2, 'piege' => 'Aiguille empoisonnée'],
-                    // Le cercueil peut contenir une créature morte-vivante (*Return of the Witch Lord* p. 4-5 :
-                    // « may contain an undead creature and/or a treasure. They may also have traps on them »).
-                    // Poids 2, comme le piège : la tuile est un tombeau, et ce n'est pas le livret qui pèse.
-                    // Les trois morts-vivants de base, à égalité (`MoteurMobilier::carteDepuisEntree()`).
-                    ['issue' => 'monstre', 'poids' => 2, 'monstres' => ['Squelette', 'Zombie', 'Momie']],
-                    ['issue' => 'rien', 'poids' => 4],
-                ]]],
+                'effet' => ['fouille' => $fouilleTombeau]],
+
+            // CERCUEIL (*Return of the Witch Lord*, F4193 p. 4 : « Coffins — The four coffins may be used as tombs. They may
+            // contain an undead creature and/or a treasure. They may also have traps on them. » ; la boîte en compte 4 tuiles).
+            // Une TUILE NEUVE, dessinée sur les cartes (q. 2 : 2×1 couché ; q. 3 : 1×2 debout) — René, 2026-11-20 : « ce sont
+            // des tombeaux à moins qu'ils aient ajouté de nouvelles icônes » ; ils en ont ajouté. Le tombeau en tout (sa table de
+            // fouille, ni destructible ni haut), à son emprise mesurée : 2×1. Mode classique seulement
+            // (`MoteurMobilier::RESERVES_AU_CLASSIQUE`) : la génération du RPG ne le tire pas.
+            ['nom' => 'Cercueil', 'nom_anglais' => 'Coffin', 'largeur' => 2, 'hauteur' => 1, 'difficulte_destruction' => null, 'fouillable' => true, 'bloque_vue' => false,
+                'effet' => ['fouille' => $fouilleTombeau]],
 
             // Une bibliothèque contient des ÉCRITS : c'est le meuble qui rend le plus
             // souvent des parchemins, ce qui en fait la pièce du lanceur de sorts. Avec

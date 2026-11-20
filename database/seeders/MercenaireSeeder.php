@@ -167,6 +167,21 @@ class MercenaireSeeder extends Seeder
                 'deplacement' => 7, 'attaque' => 3, 'defense' => 5, 'pv_body' => 6, 'pv_mind' => 2, 'prix' => 0,
                 'animal' => false, 'octroi_seul' => true, 'captif' => true, 'mode_captif' => 'figurine',
                 'description' => 'Le capitaine mercenaire retourné en allié — à libérer et ramener vivant à l\'escalier.'],
+
+            // ---- SIR RAGNAR (livret de base, F2847 p. 7, quête 2) — le chevalier BLESSÉ à ramener vivant, mode classique
+            // seulement (`Mercenaire::RESERVES_AU_CLASSIQUE`), René 2026-11-20 : « fait en sorte que ça fonctionne ».
+            // « Sir Ragnar should be moved by the hero who opened the door to his cell. That hero takes their regular turn
+            // first, then rolls 1 red die to move the wounded knight. […] Sir Ragnar may not attack but may roll 2 Defend
+            // dice. He has 2 Body Points left. » D'où : `deplacement_un_de_rouge` (`GroupeMercenaire::vitesse()`, la vitesse
+            // fixe vaut 0), attaque 0 (« may not attack » : le menu et le résolveur n'offrent rien), défense 2, Corps 2.
+            // ⚠ Esprit : NON TROUVÉ (le livret ne le donne pas) — 0, « sans Esprit », plutôt qu'une valeur inventée.
+            // Troisième « Sir Ragnar » du projet (le boss de *Dread Moon* est un MONSTRE, celui de *Morcar* un autre captif) :
+            // nom distinct.
+            ['nom' => 'Sir Ragnar (livret de base)', 'type' => 'captif_ragnar_livret',
+                'deplacement' => 0, 'attaque' => 0, 'defense' => 2, 'pv_body' => 2, 'pv_mind' => 0, 'prix' => 0,
+                'capacites' => [\App\Models\GroupeMercenaire::DEPLACEMENT_UN_DE_ROUGE],
+                'animal' => false, 'octroi_seul' => true, 'captif' => true, 'mode_captif' => 'figurine',
+                'description' => 'Le chevalier du roi, blessé, à libérer de sa cellule et à ramener vivant jusqu\'à l\'escalier.'],
         ];
 
         // Purge des trois inventés : `updateOrCreate` seul les laisserait en

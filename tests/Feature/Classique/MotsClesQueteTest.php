@@ -94,6 +94,8 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
     $doc = DocumentExemple::campagne();
     // Lot K6 : `debloquer_mercenaire` désigne un mercenaire que la campagne offre.
     $doc['mercenaires'] = ['regime' => 'debloques', 'offerts' => ['eclaireur']];
+    // 2026-11-20 : une figure `inactif`, que la note J éveille.
+    $doc['quetes'][0]['monstres'][] = ['slug' => 'gobelin', 'x' => 9, 'y' => 2, 'inactif' => true];
     $doc['quetes'][0]['notes'] = [
         ['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree']],
             'alors' => [['effet' => 'texte', 'texte' => 'Un texte.'], ['effet' => 'or', 'or' => 10], ['effet' => 'drapeau', 'nom' => 'vu']]],
@@ -105,6 +107,9 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
             'alors' => [['effet' => 'objet', 'slug' => 'dague', 'quantite' => 1]]],
         ['repere' => 'E', 'quand' => ['declencheur' => 'mort', 'cible' => ['monstre' => 0]],
             'alors' => [['effet' => 'objet', 'slug' => 'dague']]],
+        // 2026-11-20 : la figure posée `inactif` qu'une note éveille (la Légion oubliée).
+        ['repere' => 'J', 'quand' => ['declencheur' => 'ouverture_porte', 'cible' => ['porte' => 1]],
+            'alors' => [['effet' => 'eveiller', 'monstres' => [1]]]],
         ['repere' => 'G', 'quand' => ['declencheur' => 'fouille_zone', 'cible' => ['salle' => 'galerie']],
             'alors' => [['effet' => 'texte', 'texte' => 'Rien.']]],
         ['repere' => 'H', 'quand' => ['declencheur' => 'dernier_heros_passe', 'cible' => ['case' => ['x' => 7, 'y' => 3]]],

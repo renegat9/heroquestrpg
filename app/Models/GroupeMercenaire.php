@@ -60,7 +60,15 @@ class GroupeMercenaire extends Model
         'a_deplace',
         'a_agi',
         'a_joue',
+        // Le dé de déplacement de CE round, pour un allié qui en lance un (`vitesse()`) ; `null` = pas encore tiré.
+        'deplacement_tire',
     ];
+
+    /**
+     * La capacité d'un allié qui se déplace d'UN DÉ ROUGE au lieu d'une vitesse fixe (Sir Ragnar, livret de base q. 2 :
+     * « rolls 1 red die to move the wounded knight »). Lue ici seulement.
+     */
+    public const DEPLACEMENT_UN_DE_ROUGE = 'deplacement_un_de_rouge';
 
     protected function casts(): array
     {
@@ -86,5 +94,26 @@ class GroupeMercenaire extends Model
     public function recruteur(): BelongsTo
     {
         return $this->belongsTo(Personnage::class, 'recruteur_personnage_id');
+    }
+
+    /**
+     * LA VITESSE de l'allié ce round — le seul point de passage (menu, destinations, approche, résolveur) : sa vitesse fixe
+     * du catalogue, ou, s'il porte `deplacement_un_de_rouge`, UN dé rouge tiré une fois par round et gardé en colonne
+     * (`deplacement_tire`, remis à `null` à l'ouverture du round, `ResolveurTour::ouvrirNouveauTour()`).
+     */
+    public function vitesse(): int
+    {
+        $merc = $this->mercenaire;
+        if ($merc === null) {
+            return 0;
+        }
+        if (! in_array(self::DEPLACEMENT_UN_DE_ROUGE, (array) ($merc->capacites ?? []), true)) {
+            return (int) $merc->deplacement;
+        }
+        if ($this->deplacement_tire === null) {
+            $this->update(['deplacement_tire' => app(\App\Engine\Des\LanceurDes::class)->d6()]);
+        }
+
+        return (int) $this->deplacement_tire;
     }
 }

@@ -150,14 +150,14 @@ final class ValidationCampagne
         'ramener' => ['type', 'libelle'],
     ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'dangers', 'double', 'glyphes', 'salles_speciales'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'captif', 'dangers', 'double', 'glyphes', 'salles_speciales'];
     /**
      * Les RÈGLES DE QUÊTE (`docs/plan-mode-classique.md` §2.3), valables toute la quête — seulement celles que le moteur
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
     private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement'];
-    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite'];
+    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif'];
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
     private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
     private const CLES_QUAND = ['declencheur', 'cible'];
@@ -390,6 +390,9 @@ final class ValidationCampagne
 
         $this->salles($plateau);
     }
+
+    /** La quête en cours de validation a des portes à téléportation (`regles.portes_teleportation`) : lu par `porteSurUnBord()`. */
+    private bool $portesTeleportent = false;
 
     private function salles(array $plateau): void
     {
@@ -625,6 +628,18 @@ final class ValidationCampagne
                 $this->cles($charge, "$chemin.charge", ['nom', 'x', 'y']);
                 $this->texte($charge, 'nom', "$chemin.charge", nonVide: true, max: 40);
                 $this->caseDArrivee($charge, "$chemin.charge", 'la charge');
+            }
+            // LE CAPTIF À ESCORTER (René, 2026-11-20 — Sir Ragnar) : `{mercenaire, x, y}`, un captif du catalogue des mercenaires
+            // (mode figurine), sur une case où une figure peut paraître. `Classique\Escorte`.
+            if (array_key_exists('captif', $quete) && ($captif = $this->enObjet($quete['captif'], "$chemin.captif")) !== null) {
+                $this->cles($captif, "$chemin.captif", ['mercenaire', 'x', 'y']);
+                if ($this->slugCatalogue($captif, 'mercenaire', "$chemin.captif", 'mercenaires')) {
+                    $m = $this->catalogue->index('mercenaires')[(string) $captif['mercenaire']];
+                    if (! $m->captif || $m->mode_captif !== \App\Models\Mercenaire::MODE_CAPTIF_FIGURINE) {
+                        $this->refuser("$chemin.captif.mercenaire", self::VALEUR_INVALIDE, "« {$captif['mercenaire']} » n'est pas un captif à escorter du catalogue");
+                    }
+                }
+                $this->caseDArrivee($captif, "$chemin.captif", 'le captif');
             }
             // Lot K5i (C2) : les embranchements, après les notes (leurs drapeaux) et avec les slugs de TOUTE la campagne.
             $this->suite($quete, $chemin, $drapeauxPoses + $this->campagneDeLaQuete, $tousLesSlugs, is_string($quete['slug'] ?? null) ? $quete['slug'] : null);
@@ -1019,6 +1034,13 @@ final class ValidationCampagne
 
                 return $nom;
             case MotsClesQuete::OUVRIR_PORTE:
+                // `"sortie"` : la porte de sortie verrouillée (René, 2026-11-20) — seule une sortie qui porte un verrou.
+                if (($effet['porte'] ?? null) === 'sortie') {
+                    if (! is_array(data_get($quete, 'sortie.verrou'))) {
+                        $this->refuser("$position.porte", self::VALEUR_INVALIDE, 'la sortie de cette quête n\'a pas de verrou à ouvrir');
+                    }
+                    break;
+                }
                 $this->indexDe($quete, 'portes', $effet['porte'] ?? null, "$position.porte");
                 break;
             case MotsClesQuete::REVELER_PORTE:
@@ -1032,6 +1054,18 @@ final class ValidationCampagne
                 $case = $this->cellule($effet, $position);
                 if ($case !== null && $this->salleFermeeEn($case[0], $case[1])) {
                     $this->refuser($position, self::DANS_SALLE_FERMEE, "la case ({$case[0]}, {$case[1]}) est dans une salle fermée : c'est déjà de la roche");
+                }
+                break;
+            case MotsClesQuete::EVEILLER:
+                $liste = $this->enListe($effet['monstres'] ?? null, "$position.monstres");
+                foreach ((array) $liste as $j => $index) {
+                    $this->indexDe($quete, 'monstres', $index, "$position.monstres.$j");
+                    if (is_int($index) && is_array($quete['monstres'][$index] ?? null) && ($quete['monstres'][$index]['inactif'] ?? false) !== true) {
+                        $this->refuser("$position.monstres.$j", self::VALEUR_INVALIDE, "le monstre $index n'est pas posé `inactif` : il n'y a rien à éveiller");
+                    }
+                }
+                if ($liste === []) {
+                    $this->refuser("$position.monstres", self::VALEUR_INVALIDE, 'au moins un monstre à éveiller');
                 }
                 break;
             case MotsClesQuete::APPARITION:
@@ -1150,6 +1184,9 @@ final class ValidationCampagne
      */
     private function portes(array $quete, string $chemin): void
     {
+        // PORTES À TÉLÉPORTATION (*Castle of Mystery*, René 2026-11-20) : une porte ne s'y ouvre jamais — l'essayer téléporte —,
+        // elle peut donc donner sur de la roche, comme au livret.
+        $this->portesTeleportent = is_array(data_get($quete, 'regles.portes_teleportation'));
         foreach ($this->enListeDe($quete, 'portes', $chemin) as $i => $valeur) {
             $position = self::chemin($chemin, 'portes').".$i";
             $porte = $this->enObjet($valeur, $position);
@@ -1238,7 +1275,7 @@ final class ValidationCampagne
 
             return;
         }
-        if ($voisine !== null && !isset($this->ouvertes[$voisine])) {
+        if ($voisine !== null && !isset($this->ouvertes[$voisine]) && ! $this->portesTeleportent) {
             $this->refuser($position, self::PORTE_DANS_LA_ROCHE,
                 "le côté « $cote » donne sur de la roche : la salle « $voisine » est fermée dans cette quête");
 
@@ -1369,16 +1406,27 @@ final class ValidationCampagne
                 $ici = self::chemin($position, $cleListe);
                 $sources = $this->enListe($pose[$cleListe], $ici);
                 if ($sources !== null) {
+                    // `vulnerable_uniquement_a` : une arme OU un sort (René, 2026-11-20) ; `invulnerable_casse_arme` : des armes.
+                    $avecSorts = $cleListe === 'vulnerable_uniquement_a';
                     foreach ($sources as $i => $slug) {
                         $cheminSource = "$ici.$i";
                         if (! is_string($slug)) {
                             $this->refuser($cheminSource, self::TYPE_INVALIDE, 'un slug d\'objet est attendu');
-                        } elseif (! $this->catalogue->contient('objets', $slug)) {
-                            $this->refuser($cheminSource, self::CATALOGUE_INCONNU, "« $slug » n'existe pas dans le catalogue « objets »");
+                        } elseif ($avecSorts && $this->catalogue->contient('objets', $slug) && $this->catalogue->contient('sorts', $slug)) {
+                            $this->refuser($cheminSource, self::VALEUR_INVALIDE, "« $slug » désigne à la fois un objet et un sort");
+                        } elseif (! $this->catalogue->contient('objets', $slug) && ! ($avecSorts && $this->catalogue->contient('sorts', $slug))) {
+                            $this->refuser($cheminSource, self::CATALOGUE_INCONNU, $avecSorts
+                                ? "« $slug » n'existe ni dans le catalogue « objets » ni dans « sorts »"
+                                : "« $slug » n'existe pas dans le catalogue « objets »");
                         }
                     }
                 }
             }
+        }
+
+        // INACTIF (René, 2026-11-20) : ni ne bouge, ni n'attaque, ni ne peut être blessée, jusqu'à l'effet de note `eveiller`.
+        if (array_key_exists('inactif', $pose) && $pose['inactif'] !== true) {
+            $this->refuser(self::chemin($position, 'inactif'), self::TYPE_INVALIDE, 'true est attendu (absente, la figure est active)');
         }
 
         if (array_key_exists('fuite', $pose)) {
@@ -1404,8 +1452,21 @@ final class ValidationCampagne
 
         if ($this->ouvertesFiables) {
             $salleAncre = $this->salleEn($x, $y);
+            // UN MEUBLE DANS UN COULOIR (René, 2026-11-20 : « il faut pouvoir mettre des meubles dans les corridors » — le
+            // coffre du couloir sud, *Witch Lord* q. 2 ; le réduit secret, *Kellar's Keep* q. 4) : toute son emprise est
+            // alors du couloir, dans le plateau ; un bloc la refuse (`case_partagee`, plus bas).
             if ($salleAncre === null) {
-                $this->refuser($position, self::MOBILIER_HORS_SALLE, "$nom est posé hors de toute salle");
+                foreach ($cellules as $c) {
+                    $dedans = $this->dimensions === null || ($c['x'] >= 0 && $c['y'] >= 0
+                        && $c['x'] < $this->dimensions[0] && $c['y'] < $this->dimensions[1]);
+                    if (! $dedans || $this->salleEn($c['x'], $c['y']) !== null) {
+                        $this->refuser($position, self::MOBILIER_HORS_SALLE,
+                            "l'emprise de $nom ({$l}×{$h}, rotation $rotation), posée dans un couloir, doit y rester entière");
+
+                        return;
+                    }
+                }
+                $this->occuper(array_map(fn (array $c): array => [$c['x'], $c['y']], $cellules), 'meuble', $position, $nom);
 
                 return;
             }
@@ -1443,7 +1504,20 @@ final class ValidationCampagne
         if (!array_key_exists('sortie', $quete) || $quete['sortie'] === null) {
             return;
         }
-        $this->acces($quete['sortie'], self::chemin($chemin, 'sortie'), 'sortie');
+        $sortie = $quete['sortie'];
+        // LE VERROU DE LA SORTIE (René, 2026-11-20 : « des conditions pour la porte de sortie comme les portes barrées ») :
+        // le vocabulaire des portes (`verrou()`), sur une PORTE de sortie seulement — un escalier ne se ferme pas.
+        if (is_array($sortie) && array_key_exists('verrou', $sortie)) {
+            $ici = self::chemin($chemin, 'sortie').'.verrou';
+            if (($sortie['type'] ?? self::ACCES_ESCALIER) !== self::ACCES_PORTE) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'seule une porte de sortie se verrouille, pas un escalier');
+            } else {
+                // La forme d'une porte ordinaire, que `verrou()` sait lire (une sortie n'est jamais secrète).
+                $this->verrou(['verrou' => $sortie['verrou']], $ici);
+            }
+            unset($sortie['verrou']);
+        }
+        $this->acces($sortie, self::chemin($chemin, 'sortie'), 'sortie');
     }
 
     /**
@@ -1652,8 +1726,8 @@ final class ValidationCampagne
 
         // « ramener » (lot K5k) : la sortie comme « sortir », et une CHARGE à ramener.
         if ($type === 'ramener') {
-            if (!array_key_exists('charge', $quete)) {
-                $this->refuser(self::chemin($chemin, 'charge'), self::CLE_MANQUANTE, 'la fin « ramener » demande une charge à ramener (`charge`)');
+            if (!array_key_exists('charge', $quete) && !array_key_exists('captif', $quete)) {
+                $this->refuser(self::chemin($chemin, 'charge'), self::CLE_MANQUANTE, 'la fin « ramener » demande une charge (`charge`) ou un captif (`captif`) à ramener');
             }
 
             return;

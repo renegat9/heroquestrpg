@@ -880,6 +880,21 @@ ni son format, il appelle ce que la route HTTP appelle.
   quatre elfes ont les fiches des mercenaires de *Frozen Horror* (pas de
   doublon). Lecteur unique `Classique\Reputation`. Tests dans `NotesDeQueteTest` et
   `MercenairesCampagneTest`.
+- **Fait le 2026-11-20 — ce que la relecture des livrets demandait encore**
+  (René : « les livrets sont maîtres en mode classique »). Le CERCUEIL
+  (*Witch Lord* p. 4, « may be used as tombs ») : la fouille du tombeau, 2×1,
+  réservé au classique. La PORTE DE SORTIE VERROUILLÉE (`quete.sortie.verrou`,
+  le vocabulaire des portes ; `Classique\VerrouDeSortie`) : Kellar q. 9 (jet par
+  héros) et q. 10 (scellée jusqu'à la mort de la gargouille, `ouvrir_porte`
+  sur `"sortie"`). Le MEUBLE EN COULOIR. La FIGURE INACTIVE (`inactif`, effet
+  `eveiller`, le réveil des dormants) : la Légion oubliée. `vulnerable_uniquement_a`
+  accepte des SORTS (le Seigneur Sorcier q. 10). Les PORTES À TÉLÉPORTATION :
+  l'essayer téléporte, la porte reste close, une par tour (René). Le CAPTIF À
+  ESCORTER (`quete.captif`, `Classique\Escorte`) : Sir Ragnar, libéré au
+  contact, allié qui marche à un dé rouge (`deplacement_un_de_rouge`,
+  migration `2026_11_20_090000`, appliquée après sauvegarde relue) et
+  n'attaque pas ; la récompense seulement s'il est ramené vivant.
+  `LivretsConformesTest`.
 - **Fait le 2026-11-19 — la table du sorcier et le chevalet de torture** (René :
   « ajoute les 2 meubles, les livrets sont maîtres en mode classique »).
   Légende F2847 p. 33 ; emprise MESURÉE sur les cartes (3×2, comme la Table —

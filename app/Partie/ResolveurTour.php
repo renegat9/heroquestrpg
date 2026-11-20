@@ -9379,6 +9379,31 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Aucune porte fermée adjacente à cette position.']);
         }
 
+        // PORTES À TÉLÉPORTATION (*Castle of Mystery*, René 2026-11-20 : « on devrait téléporter quand on essaie d'ouvrir la
+        // porte, la porte reste fermée mais le joueur est téléporté à la place ») : la porte ne s'ouvre pas, 2d6 désignent
+        // la case d'arrivée. Une seule porte par tour (« Heroes may only pass through one door per turn! ») : le menu ne
+        // l'offre plus ensuite (`Quete::porteTeleportationJouee()`).
+        if ($quete->portesTeleportent()) {
+            if ($quete->porteTeleportationJouee($etat)) {
+                throw ValidationException::withMessages(['option_id' => 'Une seule porte par tour.']);
+            }
+            $saut = $this->teleporterParPorte($quete, $personnage, $etat);
+            $etat->refresh();
+            $etat->update(['capacites_tour' => [...(array) ($etat->capacites_tour ?? []), Quete::MARQUE_PORTE_TELEPORTATION]]);
+            $payload = [
+                'type' => 'porte_teleporte',
+                'option_id' => $option['id'],
+                'libelle' => $option['libelle'] ?? null,
+                'personnage_id' => $personnage->id,
+                'nom' => $personnage->nom,
+                'porte' => ['x' => (int) $cible['porte']['x'], 'y' => (int) $cible['porte']['y'], 'cote' => (string) ($cible['porte']['cote'] ?? 'e')],
+                ...($saut ?? ['total' => null, 'arrivee' => null]),
+            ];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
         // Porte simplement CLOSE (E2) : ouverture à la main, sans clé. Sinon
         // (verrouillée) il faut la clé du verrou.
         $aMain = $this->portes->ouvrableAMain($cible['porte']);
@@ -9413,6 +9438,40 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
+    }
+
+    /**
+     * PORTES À TÉLÉPORTATION `2d6` (mode classique, lot K5n, *Castle of Mystery* q. 10) — le saut, à son seul point de
+     * passage : 2d6 désignent la case d'arrivée (`regles.portes_teleportation`) ; la figure qui l'occupe perd 1 point de
+     * Corps ; le héros se pose là, ou sur la case libre la plus proche, sa marche s'arrête, et la salle d'arrivée se révèle.
+     * Rend `{total, des, arrivee}`, ou `null` si la table ne connaît pas ce total.
+     *
+     * @return array{total: int, des: list<int>, arrivee: array{x: int, y: int}}|null
+     */
+    private function teleporterParPorte(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): ?array
+    {
+        $tablePortes = (array) data_get($quete->documentConstruit(), 'regles.portes_teleportation', []);
+        $des = [$this->des->d6(), $this->des->d6()];
+        $total = array_sum($des);
+        $cible = $tablePortes[(string) $total] ?? null;
+        if (! is_array($cible) || ! isset($cible['x'], $cible['y'])) {
+            return null;
+        }
+        $tx = (int) $cible['x'];
+        $ty = (int) $cible['y'];
+        $monstreOcc = $quete->instancesMonstres()->where('etat', 'actif')->where('position_x', $tx)->where('position_y', $ty)->first();
+        if ($monstreOcc !== null) {
+            $this->degats->infligerAMonstre($monstreOcc, 1, MoteurDegats::SOURCE_PIEGE, [], $personnage);
+        }
+        $herosOcc = $quete->etatsPersonnages()->where('personnage_id', '!=', $personnage->id)->where('tombe', false)->where('position_x', $tx)->where('position_y', $ty)->first();
+        if ($herosOcc !== null && $herosOcc->personnage !== null) {
+            $this->degats->infligerAHeros($herosOcc->personnage, 1, MoteurDegats::SOURCE_PIEGE);
+        }
+        $place = CaseLibre::iciOuProche($this->grille($quete, exceptPersonnageId: (int) $personnage->id), $tx, $ty) ?? ['x' => $tx, 'y' => $ty];
+        $etat->update(['position_x' => $place['x'], 'position_y' => $place['y'], 'deplacement_restant' => 0]);
+        $this->revelerSalleEn($quete, $place['x'], $place['y'], $personnage);
+
+        return ['total' => $total, 'des' => $des, 'arrivee' => $place];
     }
 
     /**
@@ -12883,22 +12942,7 @@ final class ResolveurTour
                 // PORTES À TÉLÉPORTATION `2d6` (mode classique, lot K5n, *Castle of Mystery* q. 10) : franchir une porte
                 // interrompt la marche, lance 2d6 et téléporte sur la case correspondante (1 dégât de collision si occupée).
                 if ($bordsDePorte !== [] && isset($bordsDePorte[Grille::cleArete($precedente['x'], $precedente['y'], $case['x'], $case['y'])])) {
-                    $total = $this->des->d6() + $this->des->d6();
-                    $cible = $tablePortes[(string) $total] ?? null;
-                    if (is_array($cible) && isset($cible['x'], $cible['y'])) {
-                        $tx = (int) $cible['x'];
-                        $ty = (int) $cible['y'];
-                        $monstreOcc = $quete->instancesMonstres()->where('etat', 'actif')->where('position_x', $tx)->where('position_y', $ty)->first();
-                        if ($monstreOcc !== null) {
-                            $this->degats->infligerAMonstre($monstreOcc, 1, MoteurDegats::SOURCE_PIEGE, [], $personnage);
-                        }
-                        $herosOcc = $quete->etatsPersonnages()->where('personnage_id', '!=', $personnage->id)->where('tombe', false)->where('position_x', $tx)->where('position_y', $ty)->first();
-                        if ($herosOcc !== null && $herosOcc->personnage !== null) {
-                            $this->degats->infligerAHeros($herosOcc->personnage, 1, MoteurDegats::SOURCE_PIEGE);
-                        }
-                        $place = CaseLibre::iciOuProche($this->grille($quete, exceptPersonnageId: (int) $personnage->id), $tx, $ty) ?? ['x' => $tx, 'y' => $ty];
-                        $etat->update(['position_x' => $place['x'], 'position_y' => $place['y'], 'deplacement_restant' => 0]);
-                        $this->revelerSalleEn($quete, $place['x'], $place['y'], $personnage);
+                    if ($this->teleporterParPorte($quete, $personnage, $etat) !== null) {
                         break;
                     }
                 }
@@ -14189,7 +14233,8 @@ final class ResolveurTour
         GroupeMercenaire::where('groupe_id', $groupe->id)
             ->where('etat', 'actif')
             ->whereNotNull('position_x')
-            ->update(['a_joue' => false, 'a_deplace' => false, 'a_agi' => false]);
+            // `deplacement_tire` : le dé de l'allié qui en lance un se relance au round suivant (`GroupeMercenaire::vitesse()`).
+            ->update(['a_joue' => false, 'a_deplace' => false, 'a_agi' => false, 'deplacement_tire' => null]);
 
         // CAPTIFS PORTÉS (mode escorté, chantier « captifs-jetons »,
         // 2026-10-05) — REPRIS si leur porteur est tombé ce round, qu'il
@@ -17004,6 +17049,35 @@ final class ResolveurTour
             ]);
         }
 
+        // LE VERROU DE LA SORTIE (René, 2026-11-20) : `Classique\VerrouDeSortie`, le même prédicat que le menu.
+        $verrous = app(\App\Partie\Classique\VerrouDeSortie::class);
+        $statutSortie = $verrous->statut($quete, $personnage);
+        if (in_array($statutSortie, [\App\Partie\Classique\VerrouDeSortie::SCELLEE, \App\Partie\Classique\VerrouDeSortie::SANS_CLE], true)) {
+            throw ValidationException::withMessages(['option_id' => 'La porte de sortie est verrouillée.']);
+        }
+        $jetSortie = null;
+        if ($statutSortie !== \App\Partie\Classique\VerrouDeSortie::LIBRE) {
+            $jetSortie = $verrous->tenter($quete, $personnage, $this->des);
+            if (! $jetSortie['reussi']) {
+                // Condition ratée : son tour s'achève (« If the hero fails to open the gate, their turn ends »). Pierre : la
+                // porte tient, retentable plus tard — comme une porte de pierre.
+                if ($jetSortie['verrou'] === MoteurPortes::VERROU_CONDITION) {
+                    $this->finTourPorteForcee = true;
+                }
+                $payload = [
+                    'type' => 'sortie_verrouillee',
+                    'option_id' => $option['id'],
+                    'libelle' => $option['libelle'] ?? null,
+                    'personnage_id' => $personnage->id,
+                    'nom' => $personnage->nom,
+                    ...$jetSortie,
+                ];
+                Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+                return $payload;
+            }
+        }
+
         $par = $quete->sortieDuDonjon()['type'];
 
         // LA CHARGE (lot K5k) : son porteur l'emporte hors du donjon.
@@ -17022,6 +17096,8 @@ final class ResolveurTour
             'nom' => $personnage->nom,
             // `escalier` ou `porte` : par où il est sorti — l'annonce le dit.
             'par' => $par,
+            // Le jet qui lui a ouvert la porte de sortie verrouillée, s'il y en a eu un.
+            ...($jetSortie === null ? [] : ['jet' => $jetSortie]),
             'restants' => $restants,
             // Lu par `resoudre()` : le héros n'a plus de ligne d'état, rien ne doit plus y écrire.
             'sorti' => true,
@@ -17030,9 +17106,13 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         if ($restants === 0) {
+            // LE CAPTIF À ESCORTER (2026-11-20) : constaté maintenant — ramené vivant sur la sortie, ou non. La quête est gagnée
+            // dans les deux cas ; seule la récompense en dépend (`FinDeQueteConstruite`).
+            app(\App\Partie\Classique\Escorte::class)->constater($quete->refresh());
             // FIN « RAMENER » (lot K5k) : le dernier héros debout est sorti SANS la charge — la quête est perdue, le groupe
-            // la rejoue (décision écrite, `Charge`). Sinon, gagnée comme toute sortie.
-            if (data_get($quete->objectif_construit, 'type') === 'ramener' && ! $charge->ramenee($quete->refresh())) {
+            // la rejoue (décision écrite, `Charge`). Sinon, gagnée comme toute sortie. Une quête à CAPTIF n'a pas de charge.
+            if (data_get($quete->objectif_construit, 'type') === 'ramener' && is_array(data_get($quete->documentConstruit(), 'charge'))
+                && ! $charge->ramenee($quete->refresh())) {
                 $this->echouerQuete($groupe, $quete, 'charge_abandonnee');
                 $payload['quete'] = ['etat' => 'echouee', 'cause' => 'charge_abandonnee'];
             } else {
@@ -18030,6 +18110,10 @@ final class ResolveurTour
         if ($cible === null || $merc === null || $allie->position_x === null) {
             throw ValidationException::withMessages(['parametres.cible_id' => 'Cible illégale.']);
         }
+        // Un allié sans dé d'attaque n'attaque pas (Sir Ragnar, livret de base q. 2 : « may not attack ») — le menu ne l'offre pas.
+        if ((int) $merc->attaque < 1) {
+            throw ValidationException::withMessages(['option_id' => "{$nom} ne peut pas attaquer."]);
+        }
 
         $diagonales = in_array('attaque_diagonale', (array) ($merc->capacites ?? []), true);
         $grille = $this->grille($quete, exceptMercenaireId: $allie->id);
@@ -18083,7 +18167,7 @@ final class ResolveurTour
         $grille = $this->deplacement->grilleAllie($quete, $allie);
         $e = $cible->monstre->emprise();
         $trajet = app(ApprocheAllie::class)->trajet(
-            $grille, (int) $allie->position_x, (int) $allie->position_y, (int) $allie->mercenaire->deplacement,
+            $grille, (int) $allie->position_x, (int) $allie->position_y, $allie->vitesse(),
             (int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h'],
         );
 
@@ -18167,7 +18251,7 @@ final class ResolveurTour
      */
     public function apercuDeplacementAllie(Quete $quete, GroupeMercenaire $allie, int $x, int $y): array
     {
-        $vitesse = (int) ($allie->mercenaire?->deplacement ?? 0);
+        $vitesse = $allie->vitesse();
         $trajet = $allie->a_deplace
             ? ['atteignable' => false, 'raison' => 'Cet allié a déjà bougé ce tour.', 'chemin' => [], 'cout' => 0]
             : $this->deplacement->trajetAllie($quete, $allie, $x, $y);

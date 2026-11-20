@@ -129,6 +129,13 @@ final class MotsClesQuete
      */
     public const OUVRIR_PORTE = 'ouvrir_porte';
 
+    /**
+     * E4 — ÉVEILLER des figures posées `inactif` (René, 2026-11-20 : « ce n'est pas le même principe que la gargouille, mais
+     * avec l'ouverture d'une porte ? ») : la Légion oubliée, « encased in a magical ice that cannot be broken with any weapon »
+     * jusqu'à ce qu'on ouvre la porte B (*Witch Lord* q. 7). Le réveil est celui des dormants (`MoteurDormants`).
+     */
+    public const EVEILLER = 'eveiller';
+
     /** E6 — un bloc de pierre tombe sur une case LIBRE et la ferme pour la quête (lot K5b). */
     public const BLOC = 'bloc';
 
@@ -167,6 +174,7 @@ final class MotsClesQuete
         self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
         self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => ['campagne'], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],
         self::OUVRIR_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetOuvrirPorte', 'libelle' => 'ouvrir une porte'],
+        self::EVEILLER => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetEveiller', 'libelle' => 'éveiller des figures inactives'],
         self::BLOC => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetBloc', 'libelle' => 'faire tomber un bloc'],
         self::REVELER_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetRevelerPorte', 'libelle' => 'révéler une porte secrète'],
         self::TELEPORTER => ['parametres' => ['x', 'y'], 'optionnels' => ['destinations_d6'], 'lecteur' => 'effetTeleporter', 'libelle' => 'téléporter le héros'],
@@ -178,8 +186,8 @@ final class MotsClesQuete
 
     /**
      * Ce qui n'est PAS ici, et pourquoi (« retirer du contenu est un choix écrit ») :
-     * - le RÉVEIL de figures inertes (E4) : il existe, mais par la capacité `passif_jusqua` d'un monstre du catalogue
-     *   (`MoteurDormants`), pas par une note ;
+     * - le RÉVEIL de figures inertes (E4) : par la capacité `passif_jusqua` d'un monstre du catalogue (`MoteurDormants`), et
+     *   depuis le 2026-11-20 par une note (`eveiller`) pour une figure posée `inactif` ;
      * - D6, D8 (hors terrain), D9, la salle tournante d'E8 (sortie tirée au dé), E9 et le reste d'E5 (poser une tuile, un meuble) : seconde série (lot K5), une à la fois, chacune
      *   avec son lecteur. D5 et l'ouverture de porte d'E6 sont entrés au lot K5a ; le bloc qui tombe (E6) et la porte
      *   secrète révélée (E5) au lot K5b. La « porte factice » d'E6 n'a pas de mot à elle : c'est une porte au verrou

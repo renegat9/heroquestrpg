@@ -173,6 +173,12 @@ final class JournalCombat
         'recompense_quete' => true,
         // MODE CLASSIQUE : un héros quitte le donjon en personne, par l'escalier ou par la porte de sortie.
         'sortie_en_personne' => true,
+        // LA PORTE DE SORTIE VERROUILLÉE (2026-11-20) : le jet raté d'un héros qui voulait passer.
+        'sortie_verrouillee' => true,
+        // PORTE À TÉLÉPORTATION (*Castle of Mystery*, 2026-11-20) : essayer d'ouvrir la porte téléporte le héros.
+        'porte_teleporte' => true,
+        // LE CAPTIF À ESCORTER (2026-11-20) : pas ramené vivant, la récompense de la quête n'est pas versée.
+        'recompense_perdue' => true,
         // MODE CLASSIQUE : un héros a poussé une FAUSSE porte de sortie — elle ne s'ouvre pas, il reste dans le donjon.
         'fausse_sortie' => true,
         // MODE CLASSIQUE : un héros qui attendait hors du plateau franchit la porte d'entrée.
@@ -1362,6 +1368,23 @@ final class JournalCombat
             ]],
             'fausse_sortie' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' pousse la porte de sortie : c\'est une fausse porte, peinte sur le mur — elle ne s\'ouvre pas',
+                'ton' => 'echec',
+            ]],
+            'recompense_perdue' => [[
+                'texte' => 'Le captif n\'a pas été ramené vivant : la récompense promise n\'est pas versée',
+                'ton' => 'echec',
+            ]],
+            'porte_teleporte' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' saisit la poignée : la porte reste close, et un tourbillon l\'emporte'
+                    .(($a['arrivee'] ?? null) !== null ? ' ('.implode(' + ', (array) ($a['des'] ?? [])).' = '.(int) $a['total'].')' : ''),
+                'ton' => 'info',
+            ]],
+            'sortie_verrouillee' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).(($a['verrou'] ?? null) === 'pierre'
+                    ? ' cogne la porte de sortie : '.(int) ($a['cranes'] ?? 0).' crâne(s), elle tient bon'
+                    : ' tente de passer la porte de sortie : '.implode(' + ', (array) ($a['faces'] ?? [])).' = '.(int) ($a['total'] ?? 0)
+                        .', il fallait '.(($a['comparaison'] ?? null) === 'strict' ? 'moins de ' : 'au plus ').(int) ($a['valeur'] ?? 0)
+                        .' — la porte reste close, son tour s\'achève'),
                 'ton' => 'echec',
             ]],
             'sortie_en_personne' => [[

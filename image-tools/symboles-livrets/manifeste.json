@@ -156,6 +156,25 @@
     },
     {
       "type": "mobiliers",
+      "cle": "cercueil",
+      "nom_catalogue": "Cercueil",
+      "livret": "F4193_en-us_avalon-hill-heroquest-return-of-the-witch-lord-quest-pack-for-ages-14-and-up.pdf",
+      "page": 6,
+      "cadre": [
+        552.5,
+        98.5,
+        591.5,
+        117
+      ],
+      "rotation": 0,
+      "emprise": [
+        2,
+        1
+      ],
+      "source": "F4193 p. 11 (PDF 6), quête 2, cercueil de la salle E (2×1) — la légende de la boîte ne le dessine pas"
+    },
+    {
+      "type": "mobiliers",
       "cle": "bibliotheque",
       "nom_catalogue": "Bibliothèque",
       "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",

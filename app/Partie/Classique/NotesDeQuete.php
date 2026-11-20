@@ -330,6 +330,26 @@ final class NotesDeQuete
     }
 
     /** E3 — des monstres du catalogue apparaissent, révélés, sur les cases écrites (ou la plus proche si prise). */
+    /**
+     * E4 — les figures `inactif` désignées s'éveillent (René, 2026-11-20 ; *Witch Lord* q. 7, porte B : « the magical ice
+     * shatters and the Forgotten Legion moves to attack on Zargon's turn »). Le réveil des dormants
+     * (`MoteurDormants::eveillerParNote()`), annoncé au fil ; elles jouent à la phase suivante du MJ.
+     */
+    private function effetEveiller(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $poses = count((array) ($quete->documentConstruit()['monstres'] ?? []));
+        $instances = $quete->instancesMonstres()->orderBy('id')->limit($poses)->get()->values();
+        $figures = collect((array) ($effet['monstres'] ?? []))
+            ->map(fn ($i) => $instances->get((int) $i))
+            ->filter(fn ($m) => $m !== null && $m->etat === 'actif');
+        $fils = app(\App\Partie\MoteurDormants::class)->eveillerParNote($figures->values());
+        foreach ($fils as $fil) {
+            app(TamponAnnonces::class)->annoncer($quete->groupe, $fil, null);
+        }
+
+        return ['eveilles' => array_column($fils, 'monstre')];
+    }
+
     private function effetApparition(Quete $quete, array $effet, ?Personnage $heros): array
     {
         $catalogue = $this->catalogue->index('monstres');
@@ -473,6 +493,10 @@ final class NotesDeQuete
      */
     private function effetOuvrirPorte(Quete $quete, array $effet, ?Personnage $heros): array
     {
+        // LA PORTE DE SORTIE verrouillée (René, 2026-11-20) : `Classique\VerrouDeSortie`, son seul point de passage.
+        if (($effet['porte'] ?? null) === 'sortie') {
+            return ['porte' => 'sortie', 'ouverte' => app(VerrouDeSortie::class)->deverrouiller($quete)];
+        }
         $index = (int) ($effet['porte'] ?? -1);
 
         return ['porte' => $index, 'ouverte' => app(ResolveurTour::class)->ouvrirPorteParNote($quete, $index)];

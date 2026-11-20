@@ -921,6 +921,24 @@ class Quete extends Model
      * groupe. LE prédicat, lu par `MenuMoteur` (l'option), `ResolveurTour` (sa revalidation) et `EtatGroupe` (la
      * consigne) : un groupe classique, dans une quête qui a des cases de sortie.
      */
+    /** Marque, dans `capacites_tour`, d'une porte à téléportation déjà jouée ce tour (une seule par tour). */
+    public const MARQUE_PORTE_TELEPORTATION = 'porte_teleportation';
+
+    /**
+     * PORTES À TÉLÉPORTATION (*Castle of Mystery*, `regles.portes_teleportation`) : essayer d'ouvrir une porte téléporte le
+     * héros, la porte reste fermée (René, 2026-11-20). Menu et résolveur lisent ceci.
+     */
+    public function portesTeleportent(): bool
+    {
+        return $this->estConstruite() && is_array(data_get($this->documentConstruit(), 'regles.portes_teleportation'));
+    }
+
+    /** Ce héros a-t-il déjà franchi une porte à téléportation ce tour ? (« Heroes may only pass through one door per turn! ») */
+    public function porteTeleportationJouee(EtatPersonnageQuete $etat): bool
+    {
+        return in_array(self::MARQUE_PORTE_TELEPORTATION, (array) ($etat->capacites_tour ?? []), true);
+    }
+
     public function sortieEnPersonne(): bool
     {
         // La seconde moitié d'une quête double (lot K5p) se joue « en personne » sans case de sortie : ni sortie ni vote
