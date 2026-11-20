@@ -2932,7 +2932,9 @@ final class AssembleurCarte
 
         $catalogue = $disponible
             ->reject(fn (Mobilier $m) => in_array($m->nom, self::MOBILIER_POSE_EN_QUETE, true)
-                || in_array($m->nom, MoteurMobilier::ELEMENT_OBJECTIF_FINAL, true))
+                || in_array($m->nom, MoteurMobilier::ELEMENT_OBJECTIF_FINAL, true)
+                // Meubles des livrets réservés aux campagnes construites (mode classique) : jamais tirés ici.
+                || in_array($m->nom, MoteurMobilier::RESERVES_AU_CLASSIQUE, true))
             ->values();
 
         if ($catalogue->isEmpty() && $element === null && $rackCle === null) {

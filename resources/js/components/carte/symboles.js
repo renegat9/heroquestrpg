@@ -142,6 +142,10 @@ export const MOBILIER_ICONES = {
     // Jungles of Delthrak (F9907 p. 4-5, 2026-10-24) : la Statue, un pilier de pierre — elle bloque la vue et le passage
     // comme un pilier, et le livret la dessine comme une relique de pierre. Une seule case, aucune fouille.
     'Statue': 'account_balance',
+    // Légende du livret de base (F2847 p. 33), mode classique seulement (2026-11-19) : la table du sorcier, un grimoire
+    // ouvert sur la table ; le chevalet, un corps étendu sur l'instrument de torture.
+    'Table du sorcier': 'auto_stories',
+    'Chevalet de torture': 'airline_seat_flat',
 };
 export const MOBILIER_ICONE_DEFAUT = 'category';
 

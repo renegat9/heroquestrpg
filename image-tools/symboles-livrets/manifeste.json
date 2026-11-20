@@ -118,6 +118,44 @@
     },
     {
       "type": "mobiliers",
+      "cle": "table-du-sorcier",
+      "nom_catalogue": "Table du sorcier",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        613,
+        591,
+        665,
+        624
+      ],
+      "rotation": 0,
+      "emprise": [
+        3,
+        2
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Sorcerer's table » (3×2, mesurée sur les cartes, 2026-11-19)"
+    },
+    {
+      "type": "mobiliers",
+      "cle": "chevalet-de-torture",
+      "nom_catalogue": "Chevalet de torture",
+      "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",
+      "page": 17,
+      "cadre": [
+        613,
+        768,
+        668,
+        803
+      ],
+      "rotation": 0,
+      "emprise": [
+        3,
+        2
+      ],
+      "source": "F2847 p. 33 (PDF 17), « Rack » (3×2, mesurée sur les cartes, 2026-11-19)"
+    },
+    {
+      "type": "mobiliers",
       "cle": "bibliotheque",
       "nom_catalogue": "Bibliothèque",
       "livret": "F2847_en-us_avalon-hill-heroquest-game-system-fantasy-miniature-dungeon-crawler-tabletop-adventure-game-ages-14-and-up-2-5-players.pdf",

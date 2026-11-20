@@ -537,3 +537,11 @@ suivent la même logique d'emprise : leurs formes et leurs sources sont dans `Ap
 Les trois murs de sort (Pierre, Glace, Feu) se posent case par case en cours de partie : 1×1 par construction.
 Test : `MobilierTroisCasesTest` (les huit emprises, la migration aller-retour, et les invariants de placement étendus
 à `kellars_keep`, `spirit_queen` et `wizards_of_morcar`).
+
+**Mise à jour du 2026-11-19 — table du sorcier et chevalet de torture AU CATALOGUE (mode classique).** René : « ajoute les 2 meubles,
+les livrets sont maîtres en mode classique ». Emprise MESURÉE sur les cartes des livrets, et non plus décidée : **3×2**,
+comme la Table — table du sorcier en F2847 q. 1 (x 1-2, y 5-7), q. 8, F4543 q. 6 et 9, F4193 q. 2, 8 et 9 ; chevalet de torture (le
+« Rack » de la légende, que ce tableau appelait « portant ») en F2847 q. 1 (x 3-4, y 10-12), q. 2, 4, 5, 6, 11, F4543
+q. 1 et 6. La décision « 3 cases » du 2026-10-16 pour la table du sorcier est remplacée. Aucune fouille propre, aucune
+destruction, meubles bas : rien d'autre n'est sourcé. Réservés aux campagnes construites
+(`MoteurMobilier::RESERVES_AU_CLASSIQUE`) : la génération du mode RPG ne les tire pas.

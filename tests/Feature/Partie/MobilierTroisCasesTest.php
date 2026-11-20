@@ -163,8 +163,13 @@ it('porte la Cheminée au catalogue du JEU DE BASE : 1×3, dressée contre le mu
         ->and($cheminee->boite)->toBeNull('meuble du jeu de base (RB p. 4) : aucune boîte');
 });
 
-it('ne déclare AUCUNE table du sorcier ni portant : leur emprise n\'est pas une donnée qu\'on peut seeder', function () {
-    expect(Mobilier::whereIn('nom', ['Table du sorcier', 'Portant'])->count())->toBe(0);
+// DÉCISION REMPLACÉE le 2026-11-19 (René : « ajoute les 2 meubles, les livrets sont maîtres en mode classique ») : la
+// table du sorcier et le chevalet (« Rack ») entrent au catalogue, à l'emprise MESURÉE sur les cartes des livrets (3×2),
+// réservés au mode classique — `MeublesClassiquesTest`. Le « portant » n'était que l'ancien nom du chevalet.
+it('déclare la table du sorcier et le chevalet à l\'emprise mesurée sur les livrets (3×2), sans « Portant »', function () {
+    expect(tailleCatalogue('Table du sorcier'))->toBe([3, 2])
+        ->and(tailleCatalogue('Chevalet de torture'))->toBe([3, 2])
+        ->and(Mobilier::where('nom', 'Portant')->count())->toBe(0);
 });
 
 // =====================================================================

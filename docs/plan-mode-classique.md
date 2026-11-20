@@ -880,6 +880,29 @@ ni son format, il appelle ce que la route HTTP appelle.
   quatre elfes ont les fiches des mercenaires de *Frozen Horror* (pas de
   doublon). Lecteur unique `Classique\Reputation`. Tests dans `NotesDeQueteTest` et
   `MercenairesCampagneTest`.
+- **Fait le 2026-11-19 — la table du sorcier et le chevalet de torture** (René :
+  « ajoute les 2 meubles, les livrets sont maîtres en mode classique »).
+  Légende F2847 p. 33 ; emprise MESURÉE sur les cartes (3×2, comme la Table —
+  remplace la décision « 3 cases » du 2026-10-16). Rien d'autre de sourcé : ni
+  fouille propre, ni destruction, meubles bas. Réservés aux campagnes
+  construites (`MoteurMobilier::RESERVES_AU_CLASSIQUE`, lu par
+  `AssembleurCarte`) : le mode RPG ne les tire jamais. Illustrations, symboles
+  du livret (manifeste), icônes de carte. « Chevalet » renommé « Chevalet de
+  torture » (migration `2026_11_19_230000`, appliquée après sauvegarde relue) :
+  le nom seul faisait peindre un chevalet de peintre. `MeublesClassiquesTest`.
+- **Fait le 2026-11-19 — la salle en L du plateau officiel** (René : « respecte
+  le plan du board »). La relecture des trois campagnes contre leurs livrets a
+  montré que le plateau saisi différait du plateau officiel (plan vierge F2847
+  p. 33, confirmé sur des cartes des trois livrets) : no-1/no-2 font 3 lignes,
+  no-4/no-5 cinq (y 4-8), se-3 va de x 14 à 17, se-4 de 18 à 20, et se-1 est EN
+  L (x 17-20 sur y 10-12, plus x 18-20 sur y 13). Le format ne connaissait que
+  des rectangles : une salle porte désormais des `parties`, sans mur entre
+  elles, lues par `App\Partie\Salles` (`rectangles()`, `contientCase()`,
+  `cases()`) — fouille, brouillard, sorts de zone, pièges, dormants, menu,
+  validation, constructeur et table. Une carte générée n'a jamais de parties.
+  `SalleEnLTest`. Les deux meubles de la légende absents du catalogue (table du
+  sorcier, chevalet) ont été comparés aux 21 meubles existants : aucun ne les
+  représente.
 - **Fait le 2026-11-19 — retours du test de campagne à quatre héros**
   (deux quêtes, marché entre les deux). Décisions de René :
   1. « Respecter les règles de Delthrak selon le mode de jeu choisi » : après

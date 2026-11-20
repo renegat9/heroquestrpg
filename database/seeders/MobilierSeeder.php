@@ -15,9 +15,11 @@ use Illuminate\Database\Seeder;
  *     d'alchimiste. Cette décision REMPLACE le 1×3 de l'établi.
  * Les emprises d'origine (table 2×1, tombeau 1×2) ne sont plus au catalogue.
  *
- * La TABLE DU SORCIER et le PORTANT n'entrent pas au catalogue, même si René a
- * décidé 3 cases pour la table du sorcier : son drapeau de vue et sa table de
- * fouille ne sont sourcés nulle part — une ligne les inventerait.
+ * La TABLE DU SORCIER et le CHEVALET DE TORTURE (le « Rack » de la légende, distinct du
+ * « Weapons rack ») sont entrés au catalogue le 2026-11-19 (René : « les livrets
+ * sont maîtres en mode classique ») — pour les campagnes construites SEULEMENT
+ * (`MoteurMobilier::RESERVES_AU_CLASSIQUE`) : la génération du mode RPG ne les
+ * tire jamais. Voir leur ligne plus bas.
  *
  * `bloque_mouvement` = true partout (inchangé), et SOURCÉ depuis le
  * 2026-10-01 : Hasbro a confirmé officiellement que le mobilier est
@@ -92,6 +94,19 @@ class MobilierSeeder extends Seeder
             // 3×2 : décision de René (2026-10-16) — mesurée ≈ 2,5 × 1,5 sur un dessin à
             // l'échelle ≈ 0,9, soit ≈ 2,8 × 1,7 réelles. Remplace le 2×1 de la mesure d'origine.
             ['nom' => 'Table', 'nom_anglais' => 'Table', 'largeur' => 3, 'hauteur' => 2, 'difficulte_destruction' => 1, 'fouillable' => false, 'bloque_vue' => false],
+
+            // ===== Légende du livret de base (F2847 p. 33), mode classique seulement (René, 2026-11-19) =====
+            // TABLE DU SORCIER (« Sorcerer's table ») et CHEVALET DE TORTURE (« Rack », instrument de torture à rouleaux — le
+            // « Weapons rack » est le Râtelier d'armes). EMPRISE MESURÉE sur les cartes des livrets (2026-11-19) : 3×2,
+            // comme la Table — table du sorcier en F2847 q. 1 (x 1-2, y 5-7), F4543 q. 6 et 9, F4193 q. 2, 8 et 9 ;
+            // chevalet en F2847 q. 1 (x 3-4, y 10-12), q. 2, 4, 5, 6, 11 et F4543 q. 1, 6. Elle REMPLACE la décision
+            // « 3 cases » du 2026-10-16 pour la table du sorcier, prise sans mesure : les livrets sont maîtres.
+            // ⚠ Rien d'autre n'est sourcé : aucune fouille propre (la fouille est celle de la SALLE, comme la Table —
+            // `fouillable: false`), aucune destruction (`difficulte_destruction` null), meubles BAS (`bloque_vue: false`,
+            // la convention de hauteur de ce seeder : une table, un lit de torture). Réservés au classique :
+            // `MoteurMobilier::RESERVES_AU_CLASSIQUE`.
+            ['nom' => 'Table du sorcier', 'nom_anglais' => "Sorcerer's table", 'largeur' => 3, 'hauteur' => 2, 'fouillable' => false, 'bloque_vue' => false],
+            ['nom' => 'Chevalet de torture', 'nom_anglais' => 'Rack', 'largeur' => 3, 'hauteur' => 2, 'fouillable' => false, 'bloque_vue' => false],
 
             // ===== Spirit Queen's Torment (G0053 p. 13, quête 4, note B ; boîte `spirit_queen`, thème allumé le 2026-10-23) =====
             // « The Orc and Goblins have been brewing strange concoctions on this table; three potions can be found. » Le

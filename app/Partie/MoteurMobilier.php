@@ -47,6 +47,16 @@ final class MoteurMobilier
     public const MURS_MAGIQUES = ['Mur de Pierre', 'Mur de Glace', 'Mur de Feu'];
 
     /**
+     * MEUBLES DU MODE CLASSIQUE SEULEMENT (René, 2026-11-19 : « les livrets sont maîtres en mode classique ») — posés par
+     * les cartes construites des livrets, jamais tirés par la génération du mode RPG (`AssembleurCarte` lit cette liste
+     * pour les écarter, comme les murs magiques) : la branche classique ne change rien au RPG. Testée dans les deux sens
+     * (`MeublesClassiquesTest`) : chaque nom existe au catalogue.
+     *
+     * @var list<string>
+     */
+    public const RESERVES_AU_CLASSIQUE = ['Table du sorcier', 'Chevalet de torture'];
+
+    /**
      * ÉLÉMENT-OBJECTIF de la quête FINALE d'une boîte (René, 2026-10-09) :
      * `boîte du bestiaire => nom du meuble attaquable à détruire`. *Wizards of
      * Morcar* se gagne en détruisant le Haut Autel (G1504 p. 39, quête 10) ;
