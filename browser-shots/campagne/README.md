@@ -270,6 +270,7 @@ Un groupe classique joue une **campagne construite**. Le harnais en apporte une,
 
 ```bash
 ./campagne-essai.sh charger essai-classique.json          # valide puis enregistre
+# 4 héros, un compte chacun : HQ_HEROS="barbare:Albrecht nain:Brunehaut elfe:Cassandre magicien:Dagobert" devant preparer-classique.sh
 HQ_AU_HUB=1 ./preparer-classique.sh "Essai" essai-la-cave-aux-gobelins   # au hub ; sans HQ_AU_HUB, la quête part
 # … la partie …
 ./nettoyer.sh                                             # le groupe, ses héros, ses comptes

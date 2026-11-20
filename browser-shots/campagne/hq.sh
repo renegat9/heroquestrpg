@@ -85,7 +85,8 @@ case "${1:-}" in
   marche)  # POST ouvre la phase si elle ne l'est pas ; GET la relit ensuite.
            req POST "/groupes/$GROUPE/marche" >/dev/null 2>&1
            req GET "/groupes/$GROUPE/marche" ;;
-  panier)  req PUT "/groupes/$GROUPE/marche/panier" "{\"achats\":${2:-[]},\"ventes\":${3:-[]}}" ;;
+  # 3e argument facultatif (mode classique, lot K6) : les jetons de réputation vendus, [{"personnage_id":…,"nombre":1}].
+  panier)  req PUT "/groupes/$GROUPE/marche/panier" "{\"achats\":${2:-[]},\"ventes\":${3:-[]}${4:+,\"jetons\":$4}}" ;;
   confirmer) req POST "/groupes/$GROUPE/marche/confirmation" ;;
   equiper) req POST "/groupes/$GROUPE/equipement" \
              "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"inventaire_id\":$2${3:+,\"emplacement\":\"$3\"}}" ;;

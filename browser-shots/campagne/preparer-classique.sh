@@ -8,6 +8,7 @@
 #
 #   ./preparer-classique.sh "nom du groupe" <slug de la campagne construite>
 #   HQ_AU_HUB=1 ./preparer-classique.sh …    → reste au hub (personne n'est déclaré prêt)
+#   HQ_HEROS="barbare:Albrecht nain:Brunehaut elfe:Cassandre magicien:Dagobert" ./preparer-classique.sh …  → 4 héros
 #
 # Rend le code du groupe sur la sortie standard.
 set -eu
@@ -46,7 +47,8 @@ P() { curl -s -b "$D/jar-$1.txt" -c "$D/jar-$1.txt" -X "$2" "http://localhost/ap
         -H "X-XSRF-TOKEN: $(X "$1")" ${4:+-d "$4"}; }
 
 slot=0
-for spec in barbare:Albrecht nain:Brunehaut; do
+# HQ_HEROS (2026-11-19) : la liste « classe:Nom » des héros, un compte chacun — défaut : deux héros.
+for spec in ${HQ_HEROS:-barbare:Albrecht nain:Brunehaut}; do
   slot=$((slot+1)); CL="${spec%%:*}"; NH="${spec##*:}"
   rm -f "$D/jar-$slot.txt"
   curl -s -c "$D/jar-$slot.txt" http://localhost/ >/dev/null
@@ -65,7 +67,7 @@ CODE=$(echo "$R" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[
 echo "$CODE" > "$D/groupe.txt"
 echo "  groupe classique : $R" >&2
 
-P 2 POST "/groupes/$CODE/joueurs" "{\"personnage_id\":$(cat "$D/perso-2.txt")}" >/dev/null
+for s in $(seq 2 $slot); do P "$s" POST "/groupes/$CODE/joueurs" "{\"personnage_id\":$(cat "$D/perso-$s.txt")}" >/dev/null; done
 
 # Table + battement de cœur : sans lui (TTL 30 s), aucune quête ne démarre.
 rm -f "$D/jar-table.txt"; curl -s -c "$D/jar-table.txt" http://localhost/ >/dev/null
@@ -83,7 +85,7 @@ if [ "${HQ_AU_HUB:-0}" = "1" ]; then
   exit 0
 fi
 
-for s in 1 2; do
+for s in $(seq 1 $slot); do
   R=$(P "$s" POST "/groupes/$CODE/pret" "{\"personnage_id\":$(cat "$D/perso-$s.txt"),\"pret\":true}")
   echo "  prêt $s : $(echo "$R" | cut -c1-200)" >&2
 done

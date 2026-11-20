@@ -124,7 +124,9 @@ for e in ent:
 mon = [e for e in ent if e.get("type") == "monstre" and e.get("etat") == "actif"]
 for e in mon:
     d = abs(e["x"] - moi["x"]) + abs(e["y"] - moi["y"])
-    print(f"  MONSTRE {e['nom']} ({e['x']},{e['y']}) {e.get('pv_body')}pv — distance {d}")
+    # Écart en CASES, murs non comptés (2026-11-19 : un orque derrière un mur s'affichait « distance 1 » sans attaque
+    # offerte). Qui est attaquable, c'est le MENU qui le dit (`cibles`), jamais cet écart.
+    print(f"  MONSTRE {e['nom']} ({e['x']},{e['y']}) {e.get('pv_body')}pv — à {d} case(s), murs non comptés")
 if not mon:
     print("  (aucun monstre en vue)")
 
@@ -212,7 +214,9 @@ if fermees:
         id_ouverture = f"ouvrir_porte_{p['x']}_{p['y']}_{p.get('cote')}"
         if id_ouverture in ouvrables:
             contact = "  → À PORTÉE (ouvrir_porte au menu)"
-        elif d == 1:
+        # Une porte SUR UNE ARÊTE s'ouvre depuis l'une de SES cases (distance 0) ; une porte à embrasure, depuis une case
+        # voisine de l'embrasure (distance 1). À 1 case d'une porte sur arête, on n'est PAS au contact (2026-11-19).
+        elif d == (0 if p.get("arete") else 1):
             contact = "  → au contact, mais AUCUNE ouverture au menu (pierre, levier ou clé absente)"
         else:
             contact = ""
