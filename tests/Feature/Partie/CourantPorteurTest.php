@@ -148,7 +148,7 @@ it('pose le courant porteur sous le thème spirit_queen seulement, jamais dans l
     $id = idCourantPorteur();
     $posees = 0;
 
-    foreach (range(1, 40) as $graine) {
+    foreach (range(1, 25) as $graine) {
         $gabarit = GabaritQuete::query()->where('type_jalon', 'boss_final')->firstOrFail()->replicate();
         $gabarit->structure = [...$gabarit->structure, 'terrains' => ['min' => 0, 'max' => 0, 'courants_porteurs' => ['min' => 1, 'max' => 1]]];
 

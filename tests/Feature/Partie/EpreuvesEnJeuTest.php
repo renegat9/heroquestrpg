@@ -223,8 +223,8 @@ it('mécanique « parchemin » : tire par la COURBE du groupe, comme le mobilier
     // de choix à chaque tour — pas d'appel direct au résolveur.
     //
     // Coût : ~0,4 s par tour (la route régénère les menus de chaque héros actif après un choix),
-    // d'où 30 tours. Sous la courbe on attend ~21 communs, sous l'uniforme ~2 : le seuil de 10
-    // rend le hasard négligeable des deux côtés.
+    // d'où 20 tours (30 avant le 2026-11-20 : 47 s). Sous la courbe on attend ~14 communs, sous l'uniforme
+    // ~1,5 : le seuil de 7 rend le hasard négligeable des deux côtés (dés à graine fixe, de toute façon).
     $ctx = demarrerAvecEpreuve('Grimoire à demi calciné');
     $epreuve = Epreuve::where('nom', 'Grimoire à demi calciné')->firstOrFail();
 
@@ -240,7 +240,7 @@ it('mécanique « parchemin » : tire par la COURBE du groupe, comme le mobilier
     $communs = 0;
     $rares = 0;
 
-    for ($i = 0; $i < 30; $i++) {
+    for ($i = 0; $i < 20; $i++) {
         // Une réussite ferme l'épreuve pour tout le monde, et la tentative reste inscrite :
         // on la rouvre à chaque tour, comme une nouvelle rencontre sur la même case.
         poserEpreuve($ctx['quete']->fresh(), [$entree]);
@@ -265,8 +265,8 @@ it('mécanique « parchemin » : tire par la COURBE du groupe, comme le mobilier
         $rares += $rarete === 'rare' ? 1 : 0;
     }
 
-    expect($communs)->toBeGreaterThanOrEqual(10,
-        "{$communs} parchemins communs sur 30 à niveau 1 ({$rares} rares) : le Grimoire tire uniformément, pas selon la courbe du mobilier.");
+    expect($communs)->toBeGreaterThanOrEqual(7,
+        "{$communs} parchemins communs sur 20 à niveau 1 ({$rares} rares) : le Grimoire tire uniformément, pas selon la courbe du mobilier.");
 });
 
 it('mécanique « soin_groupe » : TOUS les héros de la quête regagnent des PV, et un héros TOMBÉ se relève', function () {

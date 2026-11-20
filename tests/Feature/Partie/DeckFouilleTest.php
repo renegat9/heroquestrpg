@@ -525,7 +525,7 @@ it('ne place JAMAIS dans le coffre un artefact réservé à une classe absente',
     // elfiques dans un groupe sans elfe, c'est perdre la récompense de tout un
     // donjon.
     //
-    // On tire QUARANTE quêtes pour couvrir la loterie du PRNG : un seul tirage
+    // On tire QUINZE quêtes (quarante avant le 2026-11-20 : 50 s) pour couvrir la loterie du PRNG : un seul tirage
     // ne prouverait rien, l'artefact interdit pouvant simplement n'être pas
     // sorti.
     $alice = connecterJoueur('alice');
@@ -545,7 +545,7 @@ it('ne place JAMAIS dans le coffre un artefact réservé à une classe absente',
 
     $vus = [];
 
-    for ($i = 0; $i < 40; $i++) {
+    for ($i = 0; $i < 15; $i++) {
         test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
         $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
 

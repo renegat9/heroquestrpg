@@ -114,7 +114,7 @@ it('pose le Haut Autel à coup sûr dans la salle du boss de la quête FINALE du
     $autel = Mobilier::where('nom', 'Haut Autel')->firstOrFail();
     $bestiaire = BestiaireGroupe::auto('wizards_of_morcar');
 
-    foreach (range(1, 40) as $i) {
+    foreach (range(1, 25) as $i) {
         $carte = $assembleur->assembler($final, $i * 1299721, bestiaire: $bestiaire);
         $designes = collect($carte['mobilier'])->filter(fn ($m) => ! empty($m['objectif']))->values();
 

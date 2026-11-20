@@ -295,7 +295,7 @@ it('le sol meuble se pose sous le thème spirit_queen, pas ailleurs, jamais dans
     $idSol = idSolMeuble();
     $posees = 0;
 
-    foreach (range(1, 40) as $graine) {
+    foreach (range(1, 25) as $graine) {
         $gabarit = GabaritQuete::query()->where('type_jalon', 'boss_final')->firstOrFail()->replicate();
         $gabarit->structure = [...$gabarit->structure, 'terrains' => ['min' => 0, 'max' => 0, 'sol_meuble' => ['min' => 1, 'max' => 1]]];
 

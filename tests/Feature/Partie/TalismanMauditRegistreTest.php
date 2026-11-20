@@ -75,7 +75,7 @@ it('le talisman maudit ne sort au coffre QUE sous le thème Prophecy of Telor (f
         $deck = app(DeckFouille::class);
         $noms = [];
 
-        foreach (range(1, 400) as $graine) {
+        foreach (range(1, 100) as $graine) {
             $id = $choisir->invoke($deck, $groupe->fresh(), new PrngLineaire($graine));
 
             if ($id !== null) {

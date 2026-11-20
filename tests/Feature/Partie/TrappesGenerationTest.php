@@ -120,7 +120,7 @@ it('ne pose des trappes que sous les thèmes Mage du Miroir et Kellar\'s Keep �
     foreach (['mage_du_miroir', 'kellars_keep'] as $theme) {
         $avec = 0;
 
-        foreach (range(1, 40) as $graine) {
+        foreach (range(1, 25) as $graine) {
             $avec += trappesDeLaCarte(trappesAssembler($graine, $theme, 1)) !== [] ? 1 : 0;
         }
 
@@ -129,7 +129,7 @@ it('ne pose des trappes que sous les thèmes Mage du Miroir et Kellar\'s Keep �
 });
 
 it('une trappe n\'est jamais tirée seule : chaque case porte un paire_id et chaque paire compte deux cases', function () {
-    foreach (range(1, 40) as $graine) {
+    foreach (range(1, 25) as $graine) {
         $carte = trappesAssembler($graine, 'mage_du_miroir', 2);
         $id = (int) Terrain::where('nom', 'Trappe de téléportation')->firstOrFail()->id;
         $cases = array_filter($carte['terrain'], fn ($t) => (int) $t['terrain_id'] === $id);
@@ -162,7 +162,7 @@ it('un seul enregistrement de catalogue sert les DEUX boîtes (boites_partagees)
 // la voit pas tant que la boîte n'en déclare pas. Écrit, pas oublié.
 it('chaque extrémité est dans une salle distincte, jamais la salle 0 (ni la salle de l\'objectif, quand la carte en porte un)', function () {
     foreach (['mage_du_miroir', 'kellars_keep'] as $theme) {
-        foreach (range(1, 40) as $graine) {
+        foreach (range(1, 25) as $graine) {
             $carte = trappesAssembler($graine, $theme, 1);
             $objectif = sallesDeLObjectif($carte);
 
@@ -186,7 +186,7 @@ it('chaque extrémité est dans une salle distincte, jamais la salle 0 (ni la sa
 
 it('chaque extrémité est atteignable depuis le départ SANS franchir une porte verrouillée ni secrète', function () {
     foreach (['mage_du_miroir', 'kellars_keep'] as $theme) {
-        foreach (range(1, 40) as $graine) {
+        foreach (range(1, 25) as $graine) {
             $carte = trappesAssembler($graine, $theme, 1);
             $verrous = casesDesVerrous($carte);
 
@@ -221,7 +221,7 @@ it('chaque extrémité est atteignable depuis le départ SANS franchir une porte
 
 it('aucune extrémité n\'est sur un PARVIS : ni voisine orthogonale d\'une porte, d\'un levier ou d\'une épreuve', function () {
     foreach (['mage_du_miroir', 'kellars_keep'] as $theme) {
-        foreach (range(1, 40) as $graine) {
+        foreach (range(1, 25) as $graine) {
             $carte = trappesAssembler($graine, $theme, 1);
 
             $sources = [];

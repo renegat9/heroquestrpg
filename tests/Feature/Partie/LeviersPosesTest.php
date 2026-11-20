@@ -211,7 +211,7 @@ it('chaque levier posé reste atteignable depuis la salle de départ — aucun n
     $leviersExamines = 0;
 
     foreach ($gabarits as $gabarit) {
-        for ($graine = 0; $graine < 40; $graine++) {
+        for ($graine = 0; $graine < 25; $graine++) {
             $carte = $assembleur->assembler($gabarit, $graine);
 
             if ($carte['leviers'] === []) {

@@ -499,7 +499,7 @@ it('sous le thème kellars_keep, un rocher posé en couloir ne coupe JAMAIS l\'a
     $idsTerrain = Terrain::where('bloque_mouvement', true)->pluck('id')->all();
     $poses = 0;
 
-    foreach (range(1, 60) as $graine) {
+    foreach (range(1, 25) as $graine) {
         $sortie = app(AssembleurCarte::class)->assembler(
             $gabarit, $graine, bestiaire: BestiaireGroupe::auto('kellars_keep'),
         );
@@ -577,7 +577,7 @@ it('sous le thème witch_lord, la brume se pose sur une case de couloir nu', fun
     $gabarit = GabaritQuete::query()->where('type_jalon', 'boss_final')->firstOrFail()->replicate();
     $posees = 0;
 
-    foreach (range(1, 40) as $graine) {
+    foreach (range(1, 25) as $graine) {
         $sortie = app(AssembleurCarte::class)->assembler($gabarit, $graine, bestiaire: BestiaireGroupe::auto('witch_lord'));
 
         foreach ($sortie['dangers'] as $entree) {

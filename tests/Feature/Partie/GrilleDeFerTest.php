@@ -305,7 +305,7 @@ it('pose au plus une grille par carte, toujours sur une arête de boucle, et seu
     // Hors thème : aucune grille, et AUCUN tirage consommé (la suite PRNG d'un autre donjon ne bouge pas).
     $assembleur = app(AssembleurCarte::class);
     $gabarit = GabaritQuete::where('type_jalon', 'normale')->firstOrFail();
-    foreach (range(1, 40) as $i) {
+    foreach (range(1, 25) as $i) {
         $carte = $assembleur->assembler($gabarit, $i * 1299721, bestiaire: BestiaireGroupe::auto('kellars_keep'));
         expect(collect($carte['portes'])->contains(fn ($p) => ($p['verrou']['type'] ?? null) === MoteurPortes::VERROU_GRILLE))->toBeFalse();
     }

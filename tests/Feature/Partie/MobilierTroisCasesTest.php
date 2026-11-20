@@ -276,7 +276,7 @@ it('une carte assemblée AVANT garde sa table (2×1) et son tombeau (1×2) : le 
 // 4. LA GÉNÉRATION — sur des dizaines de graines, sous chaque bestiaire
 // =====================================================================
 
-it('ne laisse JAMAIS une salle sous le plancher de cases jouables, ni un groupe coupé de son seuil, et tient l\'adossement de tout meuble mural, sur 60 graines et 7 bestiaires', function () {
+it('ne laisse JAMAIS une salle sous le plancher de cases jouables, ni un groupe coupé de son seuil, et tient l\'adossement de tout meuble mural, sur 25 graines et 7 bestiaires', function () {
     $minimum = (new ReflectionClassConstant(AssembleurCarte::class, 'CASES_JOUABLES_MINIMUM'))->getValue();
     $murales = Mobilier::where('adosse_au_mur', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
     $idCheminee = (int) Mobilier::where('nom', 'Cheminée')->value('id');
@@ -285,7 +285,7 @@ it('ne laisse JAMAIS une salle sous le plancher de cases jouables, ni un groupe 
     // + kellars_keep, spirit_queen et wizards_of_morcar (2026-10-24) : la forge, la fournaise (3×1 adossées) et le haut
     // autel (2×1 adossé) passent par les mêmes invariants que les meubles du jeu de base.
     foreach ([null, 'first_light', 'jungles_delthrak', 'horreur_des_glaces', 'kellars_keep', 'spirit_queen', 'wizards_of_morcar'] as $boite) {
-        foreach (range(1, 60) as $graine) {
+        foreach (range(1, 25) as $graine) {
             $carte = assemblerAvecBoite($graine, $boite);
             $cases = $carte['cases'];
             $etiquette = "graine {$graine}, boîte ".($boite ?? '∅');

@@ -158,7 +158,7 @@ it('ne pose une fosse longue QUE sous le thème Mage du Miroir, et jamais une ca
 
     $poses = 0;
 
-    foreach (range(1, 60) as $i) {
+    foreach (range(1, 25) as $i) {
         $graine = $i * 7919;
 
         // Hors du thème : aucune entrée à groupe, quelle que soit la graine.

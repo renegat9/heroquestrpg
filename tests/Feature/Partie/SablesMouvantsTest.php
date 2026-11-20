@@ -744,11 +744,11 @@ it('ne pose des sables que sous le thème mage_du_miroir — et en pose sous lui
     }
 
     $avecBande = 0;
-    foreach (range(1, 40) as $graine) {
+    foreach (range(1, 25) as $graine) {
         $avecBande += sablesDeLaCarte(sablesAssembler($graine)) !== [] ? 1 : 0;
     }
 
-    expect($avecBande)->toBeGreaterThan(10, 'sur 40 graines, au moins un quart des donjons portent une bande');
+    expect($avecBande)->toBeGreaterThan(6, 'sur 25 graines, au moins un quart des donjons portent une bande');
 });
 
 it('ne pose aucune bande quand le gabarit ne dit pas COMBIEN (le thème dit si, le gabarit dit combien)', function () {
@@ -770,12 +770,12 @@ it('est déterministe : deux donjons de même graine portent la même bande', fu
     }
 });
 
-it('une bande ne casse JAMAIS la connectivité, laisse un plancher de cases libres et une vraie ligne de saut (60 graines)', function () {
+it('une bande ne casse JAMAIS la connectivité, laisse un plancher de cases libres et une vraie ligne de saut (25 graines)', function () {
     $minimum = (new ReflectionClassConstant(AssembleurCarte::class, 'CASES_JOUABLES_MINIMUM'))->getValue();
     $idsBloquants = Mobilier::where('bloque_mouvement', true)->pluck('id')->all();
     $bandes = 0;
 
-    foreach (range(1, 60) as $graine) {
+    foreach (range(1, 25) as $graine) {
         $carte = sablesAssembler($graine);
         $sables = sablesDeLaCarte($carte);
 

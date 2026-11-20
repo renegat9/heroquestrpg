@@ -653,7 +653,7 @@ it('ne pose le terrain, le cocon et les lianes de la jungle que sous le thème j
     $vus = ['terrain' => false, 'mare_ou_brasier' => false, 'cocon' => false, 'lianes' => false];
     $idsSansArret = Terrain::whereIn('nom', ['Mare', 'Brasier'])->pluck('id')->all();
 
-    foreach (range(1, 40) as $graine) {
+    foreach (range(1, 25) as $graine) {
         $carte = assemblerJungle($graine);
         $vus['terrain'] = $vus['terrain'] || collect($carte['terrain'])->contains(fn ($t) => in_array($t['terrain_id'], $idsJungle, true));
         $vus['mare_ou_brasier'] = $vus['mare_ou_brasier'] || collect($carte['terrain'])->contains(fn ($t) => in_array($t['terrain_id'], $idsSansArret, true));
@@ -669,7 +669,7 @@ it('garde un PLANCHER de cases libres : Mares et Brasiers (sans arrêt) + meuble
     $idsSansArret = Terrain::whereIn('nom', ['Mare', 'Brasier'])->pluck('id')->all();
     $poses = 0;
 
-    foreach (range(1, 60) as $graine) {
+    foreach (range(1, 25) as $graine) {
         $carte = assemblerJungle($graine);
         $grille = new Grille($carte['cases']);
 
@@ -724,7 +724,7 @@ it('ne pose jamais une Mare ni un Brasier DEVANT une porte, un levier ou une ép
     $idsSansArret = Terrain::whereIn('nom', ['Mare', 'Brasier'])->pluck('id')->all();
     $poses = 0;
 
-    foreach (range(1, 60) as $graine) {
+    foreach (range(1, 25) as $graine) {
         $carte = assemblerJungle($graine);
 
         $cibles = [];

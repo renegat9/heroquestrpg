@@ -29,6 +29,14 @@
         <!-- Fournisseur LLM forcé pour des tests déterministes (les skills
              fakent Anthropic) : indépendant du LLM_PROVIDER du .env de dev. -->
         <env name="LLM_PROVIDER" value="anthropic"/>
+        <!-- AUCUNE CLÉ D'API EN TEST (2026-11-20). Les tests lisent le .env du dépôt : sans ces lignes, ils
+             recevaient les VRAIES clés, et chaque quête démarrée sans `Http::fake()` appelait Anthropic,
+             Gemini et Voyage — ~18 requêtes et ~20 s par démarrage, facturées. `force` : ces valeurs
+             priment sur l'environnement. Un test du chemin IA pose sa clé par config() et fake ses réponses ;
+             toute requête non fakée échoue (`Http::preventStrayRequests()`, tests/TestCase.php). -->
+        <env name="ANTHROPIC_API_KEY" value="" force="true"/>
+        <env name="GEMINI_API_KEY" value="" force="true"/>
+        <env name="VOYAGE_API_KEY" value="" force="true"/>
         <!-- Journal de test : les WARNING attendus des replis LLM (sans clé API) partaient
              dans storage/logs/laravel.log, le journal que lit la production. `null` est lu
              comme la valeur PHP null par env() ; LogManager retombe alors sur le canal
