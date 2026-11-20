@@ -179,6 +179,7 @@ LLM tasks (SqueletteCampagne, RecitsQuete, HabillageMonstres).
 | `medias-images-et-sons` | generating or fixing illustrations, barks, narrator voice, ambiance |
 | `outillage-dev-et-tests` | running the stack, Pest, browser screenshots, purging a test session |
 | `campagne-agents` | playing a real campaign with agents over the real routes, as a test method |
+| `constructeur-de-campagnes` | the classic-mode campaign builder: its screen, MCP server, document format and validation; adding a booklet rule end to end (validation → engine → catalogue → screen → MCP → guide); entering or proofreading a booklet campaign — built campaigns are **production** too |
 
 ## Commands
 
