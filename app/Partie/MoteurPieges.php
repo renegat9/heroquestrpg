@@ -1971,8 +1971,7 @@ final class MoteurPieges
             $x = (int) $entree['x'];
             $y = (int) $entree['y'];
 
-            if ($x < (int) $salle['x'] || $x >= (int) $salle['x'] + (int) $salle['largeur']
-                || $y < (int) $salle['y'] || $y >= (int) $salle['y'] + (int) $salle['hauteur']) {
+            if (! Salles::contientCase($salle, $x, $y)) {
                 continue;
             }
 

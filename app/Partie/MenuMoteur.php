@@ -819,14 +819,8 @@ final class MenuMoteur
         $salle = null;
         $index = null;
 
-        foreach ($salles as $i => $s) {
-            if ((int) $etat->position_x >= (int) $s['x'] && (int) $etat->position_x < (int) $s['x'] + (int) $s['largeur']
-                && (int) $etat->position_y >= (int) $s['y'] && (int) $etat->position_y < (int) $s['y'] + (int) $s['hauteur']) {
-                $salle = $s;
-                $index = (int) $i;
-                break;
-            }
-        }
+        $index = Salles::indexDe($salles, (int) $etat->position_x, (int) $etat->position_y);
+        $salle = $index === null ? null : $salles[$index];
 
         if ($salle === null) {
             return false; // couloir : pas de fouille de trésor
@@ -851,10 +845,10 @@ final class MenuMoteur
         $occupee = $quete->instancesMonstres()
             ->where('etat', 'actif')
             ->where('revele', true)
-            ->whereBetween('position_x', [(int) $salle['x'], (int) $salle['x'] + (int) $salle['largeur'] - 1])
-            ->whereBetween('position_y', [(int) $salle['y'], (int) $salle['y'] + (int) $salle['hauteur'] - 1])
             ->with('monstre')
             ->get()
+            // La salle EN L d'un plateau construit (`Salles::contientCase()`) : jamais son seul rectangle principal.
+            ->filter(fn (InstanceMonstre $m) => $m->position_x !== null && Salles::contientCase($salle, (int) $m->position_x, (int) $m->position_y))
             ->reject(fn (InstanceMonstre $m) => app(MoteurDormants::class)->estDormant($m))
             ->isNotEmpty();
 

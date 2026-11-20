@@ -2298,15 +2298,9 @@ final class SceneDeTable
             return [];
         }
 
-        $x0 = (int) ($s['x'] ?? 0);
-        $y0 = (int) ($s['y'] ?? 0);
-        $x1 = $x0 + (int) ($s['largeur'] ?? 0) - 1;
-        $y1 = $y0 + (int) ($s['hauteur'] ?? 0) - 1;
-
         $entrees = collect((array) data_get($quete->carte?->grille, 'mobiliers', []))
-            ->filter(fn ($m) => is_array($m)
-                && (int) ($m['x'] ?? -1) >= $x0 && (int) ($m['x'] ?? -1) <= $x1
-                && (int) ($m['y'] ?? -1) >= $y0 && (int) ($m['y'] ?? -1) <= $y1);
+            ->filter(fn ($m) => is_array($m) && isset($m['x'], $m['y'])
+                && Salles::contientCase($s, (int) $m['x'], (int) $m['y']));
 
         $types = Mobilier::query()
             ->whereIn('id', $entrees->pluck('mobilier_id')->filter()->unique())

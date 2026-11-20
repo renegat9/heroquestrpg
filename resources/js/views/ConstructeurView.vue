@@ -139,7 +139,9 @@ function basculerClasse(slug) {
 const L = computed(() => Math.max(1, Number(doc.value?.plateau?.largeur) || 1));
 const H = computed(() => Math.max(1, Number(doc.value?.plateau?.hauteur) || 1));
 const salles = computed(() => doc.value?.plateau?.salles ?? []);
-const salleEn = (x, y) => salles.value.find((s) => x >= s.x && x < s.x + s.l && y >= s.y && y < s.y + s.h) ?? null;
+// `parties` : les rectangles de plus d'une salle en L (plateau officiel, René 2026-11-19) — dessinés, jamais tracés ici.
+const rectsDe = (s) => [s, ...(s.parties ?? [])];
+const salleEn = (x, y) => salles.value.find((s) => rectsDe(s).some((r) => x >= r.x && x < r.x + r.l && y >= r.y && y < r.y + r.h)) ?? null;
 const DECALAGES = { n: [0, -1], e: [1, 0], s: [0, 1], o: [-1, 0] };
 const OPPOSE = { n: 's', s: 'n', e: 'o', o: 'e' };
 
@@ -827,7 +829,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                             >
                                 <rect :width="L * CASE" :height="H * CASE" class="g-couloir" />
                                 <template v-for="s in salles" :key="s.id">
-                                    <rect :x="s.x * CASE" :y="s.y * CASE" :width="s.l * CASE" :height="s.h * CASE" class="g-salle" :class="{ sel: sallesSel === s }" />
+                                    <rect v-for="(r, ri) in rectsDe(s)" :key="ri" :x="r.x * CASE" :y="r.y * CASE" :width="r.l * CASE" :height="r.h * CASE" class="g-salle" :class="{ sel: sallesSel === s }" />
                                     <text :x="s.x * CASE + 4" :y="s.y * CASE + 13" class="g-id">{{ s.id }}</text>
                                 </template>
                                 <rect v-if="trace.actif" :x="rectTrace.x * CASE" :y="rectTrace.y * CASE" :width="rectTrace.l * CASE" :height="rectTrace.h * CASE" class="g-trace" />
@@ -849,6 +851,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                             <label>y <input v-model.number="s.y" type="number" class="cst-input cst-num" /></label>
                             <label>l <input v-model.number="s.l" type="number" class="cst-input cst-num" /></label>
                             <label>h <input v-model.number="s.h" type="number" class="cst-input cst-num" /></label>
+                            <span v-if="(s.parties ?? []).length" class="cst-aide" :title="JSON.stringify(s.parties)">+ {{ s.parties.length }} partie(s)</span>
                             <button type="button" class="cst-icone" title="Retirer la salle" @click.stop="retirerSalle(s)"><MSym n="delete" :size="16" /></button>
                         </div>
                         <ul v-if="refusHorsQuetes.length" class="cst-refus">
@@ -945,7 +948,8 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <rect :width="L * CASE" :height="H * CASE" class="g-couloir" />
                                 <template v-for="s in salles" :key="s.id">
                                     <rect
-                                        :x="s.x * CASE" :y="s.y * CASE" :width="s.l * CASE" :height="s.h * CASE"
+                                        v-for="(r, ri) in rectsDe(s)" :key="ri"
+                                        :x="r.x * CASE" :y="r.y * CASE" :width="r.l * CASE" :height="r.h * CASE"
                                         :class="quete.salles_ouvertes.includes(s.id) ? 'g-salle' : 'g-roche'"
                                     />
                                     <text :x="s.x * CASE + 4" :y="s.y * CASE + 13" class="g-id">{{ s.id }}</text>

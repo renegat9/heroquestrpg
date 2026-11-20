@@ -207,8 +207,7 @@ final class MoteurDormants
             if (is_array($desc)) {
                 $desarmeDansSalle = collect((array) ($quete->carte->grille['pieges'] ?? []))->contains(
                     static fn (array $p): bool => ($p['etat'] ?? null) === MoteurPieges::ETAT_DESARME
-                        && (int) $p['x'] >= (int) $desc['x'] && (int) $p['x'] < (int) $desc['x'] + (int) $desc['largeur']
-                        && (int) $p['y'] >= (int) $desc['y'] && (int) $p['y'] < (int) $desc['y'] + (int) $desc['hauteur']
+                        && Salles::contientCase($desc, (int) $p['x'], (int) $p['y'])
                 );
                 if ($desarmeDansSalle) {
                     return [];

@@ -5803,7 +5803,7 @@ campagne {
   prerequis_heros: ["…"],          // slugs de classes_heros (nom de la classe) ; liste, peut être vide
   plateau: {
     largeur: n, hauteur: n,        // entiers ≥ 1
-    salles: [{ id, x, y, l, h }]   // rectangles ; id = [A-Za-z0-9_-]+, unique ; x, y ≥ 0 ; l, h ≥ 1
+    salles: [{ id, x, y, l, h, parties? }]   // rectangles ; id = [A-Za-z0-9_-]+, unique ; x, y ≥ 0 ; l, h ≥ 1
   },                               // tout le reste du plateau est COULOIR
   quetes: [ quete… ]               // dans l'ordre de jeu ; peut être vide (brouillon)
 }
@@ -5824,6 +5824,14 @@ quete {
 }
 ```
 
+- **`parties`** (facultative, René 2026-11-19 : « respecte le plan du board ») : les rectangles DE PLUS d'une salle qui
+  n'est pas un rectangle — le plateau officiel en a une, en L au sud-est (x 17-20 sur y 10-12, plus x 18-20 sur y 13 :
+  `{id: "se-1", x: 17, y: 10, l: 4, h: 3, parties: [{x: 18, y: 13, l: 3, h: 1}]}`). Chaque partie `{x, y, l, h}` est
+  dans le plateau, ne chevauche ni sa salle ni une autre salle (`salles_se_chevauchent`) et touche par un bord la salle
+  ou une partie déjà admise (`partie_detachee` sinon). Entre deux rectangles d'une même salle, aucun mur ; la salle
+  s'ouvre, se fouille et se découvre d'un bloc. Carte produite : `salles[i].parties` `[{x, y, largeur, hauteur}]`
+  (absente d'une salle rectangulaire, et de toute carte générée), lue par `App\Partie\Salles` — `rectangles()`,
+  `contientCase()`, `cases()`, le seul test « case dans une salle ». `GET /etat` la publie dans `carte.salles[]`.
 - **`notes`** (facultative, lot K3) : voir « Notes de quête » plus bas.
 - **Clés réservées à un lot ultérieur** : il n'y en a plus. `regles` est entrée au lot S1, `suite` au lot K5i ; le
   code `cle_pas_encore_prise`, qui n'avait plus rien à refuser, est RETIRÉ (2026-11-16, choix écrit : un code de refus

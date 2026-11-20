@@ -50,7 +50,9 @@ final class ZoneFouille
             $s = $salles[$index];
 
             return new self(
-                ['x' => (int) $s['x'], 'y' => (int) $s['y'], 'largeur' => (int) $s['largeur'], 'hauteur' => (int) $s['hauteur']],
+                // `parties` : la salle EN L d'un plateau construit (`Salles::rectangles()`), absente d'une carte générée.
+                ['x' => (int) $s['x'], 'y' => (int) $s['y'], 'largeur' => (int) $s['largeur'], 'hauteur' => (int) $s['hauteur'],
+                    'parties' => (array) ($s['parties'] ?? [])],
                 [],
             );
         }
@@ -104,8 +106,7 @@ final class ZoneFouille
     public function contient(int $x, int $y): bool
     {
         if ($this->salle !== null) {
-            return $x >= $this->salle['x'] && $x < $this->salle['x'] + $this->salle['largeur']
-                && $y >= $this->salle['y'] && $y < $this->salle['y'] + $this->salle['hauteur'];
+            return Salles::contientCase($this->salle, $x, $y);
         }
 
         return isset($this->couloir["{$x},{$y}"]);

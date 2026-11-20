@@ -7,6 +7,7 @@ namespace App\Partie\Classique;
 use App\Engine\MotsClesQuete;
 use App\Partie\MoteurPortes;
 use App\Partie\Grille;
+use App\Partie\Salles;
 
 /**
  * Validation d'un document de campagne construite (MODE CLASSIQUE, lot K1 — `docs/plan-mode-classique.md` §3,
@@ -35,6 +36,8 @@ final class ValidationCampagne
     public const SALLE_HORS_PLATEAU = 'salle_hors_plateau';
     public const SALLE_ID_EN_DOUBLE = 'salle_id_en_double';
     public const SALLES_SE_CHEVAUCHENT = 'salles_se_chevauchent';
+    /** Une partie de salle (salle en L) qui ne touche pas le reste de sa salle. */
+    public const PARTIE_DETACHEE = 'partie_detachee';
     public const SALLE_INCONNUE = 'salle_inconnue';
     public const CATALOGUE_INCONNU = 'catalogue_inconnu';
     public const CLASSE_INCONNUE = 'classe_inconnue';
@@ -400,7 +403,9 @@ final class ValidationCampagne
             if ($salle === null) {
                 continue;
             }
-            $this->cles($salle, $chemin, self::CLES_SALLE);
+            // `parties` (René, 2026-11-19 : « respecte le plan du board ») : les rectangles de plus d'une salle qui n'en est
+            // pas un — la salle EN L du plateau officiel. Facultative.
+            $this->cles($salle, $chemin, self::CLES_SALLE, ['parties']);
 
             $id = $this->identifiant($salle, 'id', $chemin);
             $x = $this->entier($salle, 'x', $chemin);
@@ -424,18 +429,92 @@ final class ValidationCampagne
                 $this->refuser($chemin, self::SALLE_HORS_PLATEAU, "la salle « $id » sort du plateau");
             }
 
+            $parties = $this->partiesDeSalle($salle, $chemin, $id, ['x' => $x, 'y' => $y, 'l' => $l, 'h' => $h]);
+            $nouvelle = ['id' => $id, 'x' => $x, 'y' => $y, 'l' => $l, 'h' => $h, 'i' => (int) $i, 'parties' => $parties];
+
             foreach ($rectangles as $autre) {
-                if ($x < $autre['x'] + $autre['l'] && $autre['x'] < $x + $l
-                    && $y < $autre['y'] + $autre['h'] && $autre['y'] < $y + $h) {
-                    $this->refuser($chemin, self::SALLES_SE_CHEVAUCHENT,
-                        "la salle « $id » chevauche la salle « {$autre['id']} »");
+                foreach (Salles::rectangles($nouvelle) as $a) {
+                    foreach (Salles::rectangles($autre) as $b) {
+                        if ($this->interieursSeChevauchent($a, $b)) {
+                            $this->refuser($chemin, self::SALLES_SE_CHEVAUCHENT,
+                                "la salle « $id » chevauche la salle « {$autre['id']} »");
+
+                            continue 3;
+                        }
+                    }
                 }
             }
 
-            $rectangles[] = ['id' => $id, 'x' => $x, 'y' => $y, 'l' => $l, 'h' => $h, 'i' => (int) $i];
+            $rectangles[] = $nouvelle;
         }
 
         $this->salles = $rectangles;
+    }
+
+    /**
+     * Les `parties` d'une salle : des rectangles `{x, y, l, h}` dans le plateau, qui ne chevauchent ni la salle ni une
+     * autre de ses parties, et dont chacune TOUCHE (par un bord commun) le rectangle principal ou une partie déjà admise.
+     *
+     * @param  array<string, mixed>  $salle
+     * @param  array{x: int, y: int, l: int, h: int}  $principal
+     * @return list<array{x: int, y: int, l: int, h: int}>
+     */
+    private function partiesDeSalle(array $salle, string $chemin, string $id, array $principal): array
+    {
+        if (! array_key_exists('parties', $salle)) {
+            return [];
+        }
+
+        $admises = [];
+        foreach ($this->enListeDe($salle, 'parties', $chemin) as $j => $valeur) {
+            $ici = "$chemin.parties.$j";
+            $partie = $this->enObjet($valeur, $ici);
+            if ($partie === null) {
+                continue;
+            }
+            $this->cles($partie, $ici, ['x', 'y', 'l', 'h']);
+            $x = $this->entier($partie, 'x', $ici);
+            $y = $this->entier($partie, 'y', $ici);
+            $l = $this->entier($partie, 'l', $ici, min: 1);
+            $h = $this->entier($partie, 'h', $ici, min: 1);
+            if ($x === null || $y === null || $l === null || $h === null) {
+                continue;
+            }
+            $r = ['x' => $x, 'y' => $y, 'l' => $l, 'h' => $h];
+
+            if ($x < 0 || $y < 0 || ($this->dimensions !== null
+                && ($x + $l > $this->dimensions[0] || $y + $h > $this->dimensions[1]))) {
+                $this->refuser($ici, self::SALLE_HORS_PLATEAU, "une partie de la salle « $id » sort du plateau");
+
+                continue;
+            }
+
+            $deja = [$principal, ...$admises];
+            if (collect($deja)->contains(fn (array $autre) => $this->interieursSeChevauchent($r, $autre))) {
+                $this->refuser($ici, self::SALLES_SE_CHEVAUCHENT, "une partie de la salle « $id » chevauche la salle elle-même");
+
+                continue;
+            }
+            if (! collect($deja)->contains(fn (array $autre) => self::seTouchent($r, $autre))) {
+                $this->refuser($ici, self::PARTIE_DETACHEE, "une partie de la salle « $id » ne touche pas le reste de la salle");
+
+                continue;
+            }
+
+            $admises[] = $r;
+        }
+
+        return $admises;
+    }
+
+    /** Deux rectangles disjoints partagent-ils un bord (au moins une case de long) ? */
+    private static function seTouchent(array $a, array $b): bool
+    {
+        $chevaucheX = $a['x'] < $b['x'] + $b['l'] && $b['x'] < $a['x'] + $a['l'];
+        $chevaucheY = $a['y'] < $b['y'] + $b['h'] && $b['y'] < $a['y'] + $a['h'];
+
+        return ($chevaucheX && ($a['y'] + $a['h'] === $b['y'] || $b['y'] + $b['h'] === $a['y']))
+            || ($chevaucheY && ($a['x'] + $a['l'] === $b['x'] || $b['x'] + $b['l'] === $a['x']));
     }
 
     /** @param  array{x: int, y: int, l: int, h: int}  $a  @param  array{x: int, y: int, l: int, h: int}  $b */
@@ -613,7 +692,8 @@ final class ValidationCampagne
             }
             // Une salle du plateau qu'elle touche est absente de la quête : elle ne peut pas être ouverte.
             foreach ($plateau as $dessous) {
-                if ($this->interieursSeChevauchent($rect, $dessous) && in_array($dessous['id'], (array) ($quete['salles_ouvertes'] ?? []), true)) {
+                $recouvre = collect(Salles::rectangles($dessous))->contains(fn (array $r) => $this->interieursSeChevauchent($rect, $r));
+                if ($recouvre && in_array($dessous['id'], (array) ($quete['salles_ouvertes'] ?? []), true)) {
                     $this->refuser($ici, self::SALLES_SE_CHEVAUCHENT,
                         "la salle spéciale « $id » recouvre « {$dessous['id']} », qui ne peut donc pas être ouverte dans cette quête");
                 }
@@ -1891,8 +1971,7 @@ final class ValidationCampagne
                 $salle = collect($this->salles)->firstWhere('id', $glyphe['salle']);
                 $avecCheminee = $salle !== null && collect((array) ($quete['mobilier'] ?? []))->contains(fn ($m) => is_array($m)
                     && ($m['slug'] ?? null) === 'cheminee'
-                    && (int) ($m['x'] ?? -1) >= $salle['x'] && (int) $m['x'] < $salle['x'] + $salle['l']
-                    && (int) ($m['y'] ?? -1) >= $salle['y'] && (int) $m['y'] < $salle['y'] + $salle['h']);
+                    && isset($m['x'], $m['y']) && Salles::contientCase($salle, (int) $m['x'], (int) $m['y']));
                 if (! $avecCheminee) {
                     $this->refuser("$ici.detruit_par", self::VALEUR_INVALIDE, 'aucune Cheminée n\'est posée dans la salle de ce glyphe');
                 }
@@ -2151,7 +2230,7 @@ final class ValidationCampagne
     private function salleEn(int $x, int $y): ?string
     {
         foreach ($this->salles as $salle) {
-            if ($x >= $salle['x'] && $x < $salle['x'] + $salle['l'] && $y >= $salle['y'] && $y < $salle['y'] + $salle['h']) {
+            if (Salles::contientCase($salle, $x, $y)) {
                 return $salle['id'];
             }
         }

@@ -1431,16 +1431,8 @@ final class MoteurDread
             return [];
         }
 
-        $salle = $salles[$index];
-        $cases = [];
-
-        for ($y = (int) $salle['y']; $y < (int) $salle['y'] + (int) $salle['hauteur']; $y++) {
-            for ($x = (int) $salle['x']; $x < (int) $salle['x'] + (int) $salle['largeur']; $x++) {
-                $cases[] = ['x' => $x, 'y' => $y];
-            }
-        }
-
-        return $cases;
+        // Toutes ses cases, la partie en L d'une salle de plateau construit comprise (`Salles::cases()`).
+        return Salles::cases($salles[$index]);
     }
 
     /**

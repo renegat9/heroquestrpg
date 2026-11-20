@@ -10,6 +10,7 @@ use App\Partie\Grille;
 use App\Partie\MoteurDanger;
 use App\Partie\MoteurPieges;
 use App\Partie\MoteurPortes;
+use App\Partie\Salles;
 use InvalidArgumentException;
 
 /**
@@ -171,23 +172,22 @@ final class CarteConstruite
         $murs = [];
         $vus = [];
         foreach ($ordre as $salle) {
-            for ($y = $salle['y']; $y < $salle['y'] + $salle['h']; $y++) {
-                for ($x = $salle['x']; $x < $salle['x'] + $salle['l']; $x++) {
-                    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
-                        [$nx, $ny] = [$x + $dx, $y + $dy];
-                        if (self::interieurEn($salles, $nx, $ny) === $salle['id'] || ! $estSol($nx, $ny)) {
-                            continue;
-                        }
-                        $cle = Grille::cleArete($x, $y, $nx, $ny);
-                        if (isset($vus[$cle]) || isset($bordsDePorte[$cle])) {
-                            continue;
-                        }
-                        $vus[$cle] = true;
-                        // La forme des portes : l'arête EST ou SUD de la case la plus à gauche / la plus haute.
-                        $murs[] = $dx !== 0
-                            ? ['x' => min($x, $nx), 'y' => $y, 'cote' => 'e']
-                            : ['x' => $x, 'y' => min($y, $ny), 'cote' => 's'];
+            // Toutes ses cases, sa partie en L comprise : entre deux rectangles d'une même salle, aucun mur.
+            foreach (Salles::cases($salle) as ['x' => $x, 'y' => $y]) {
+                foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                    [$nx, $ny] = [$x + $dx, $y + $dy];
+                    if (self::interieurEn($salles, $nx, $ny) === $salle['id'] || ! $estSol($nx, $ny)) {
+                        continue;
                     }
+                    $cle = Grille::cleArete($x, $y, $nx, $ny);
+                    if (isset($vus[$cle]) || isset($bordsDePorte[$cle])) {
+                        continue;
+                    }
+                    $vus[$cle] = true;
+                    // La forme des portes : l'arête EST ou SUD de la case la plus à gauche / la plus haute.
+                    $murs[] = $dx !== 0
+                        ? ['x' => min($x, $nx), 'y' => $y, 'cote' => 'e']
+                        : ['x' => $x, 'y' => min($y, $ny), 'cote' => 's'];
                 }
             }
         }
@@ -205,6 +205,11 @@ final class CarteConstruite
                 'id' => $salle['id'],
                 'x' => $x, 'y' => $y, 'largeur' => $w, 'hauteur' => $h, 'theme' => self::THEME_SALLE,
                 'mediane_x' => $x + intdiv($w, 2), 'mediane_y' => $y + intdiv($h, 2),
+                // La salle EN L du plateau officiel (René, 2026-11-19) : ses rectangles de plus, lus par `Salles`.
+                ...(empty($salle['parties']) ? [] : ['parties' => array_map(
+                    static fn (array $r): array => ['x' => (int) $r['x'], 'y' => (int) $r['y'], 'largeur' => (int) $r['l'], 'hauteur' => (int) $r['h']],
+                    array_values((array) $salle['parties']),
+                )]),
             ];
         }
 
@@ -677,7 +682,8 @@ final class CarteConstruite
     private static function interieurEn(array $salles, int $x, int $y): ?string
     {
         foreach ($salles as $salle) {
-            if ($x >= $salle['x'] && $x < $salle['x'] + $salle['l'] && $y >= $salle['y'] && $y < $salle['y'] + $salle['h']) {
+            // `parties` : la salle EN L du plateau officiel (`Salles::rectangles()`).
+            if (Salles::contientCase($salle, $x, $y)) {
                 return (string) $salle['id'];
             }
         }

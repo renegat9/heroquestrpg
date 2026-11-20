@@ -67,7 +67,9 @@ const actif = computed(() => herosCourant.value
     ?? (props.entites ?? []).find((e) => e.type === 'heros' && e.id === dernier.value)
     ?? null);
 
-const dans = (s, x, y) => x >= s.x && x < s.x + s.largeur && y >= s.y && y < s.y + s.hauteur;
+// Une salle de plateau construit peut avoir des `parties` (la salle EN L du plateau officiel, publiée par le serveur).
+const dansRect = (r, x, y) => x >= r.x && x < r.x + r.largeur && y >= r.y && y < r.y + r.hauteur;
+const dans = (s, x, y) => dansRect(s, x, y) || (s.parties ?? []).some((r) => dansRect(r, x, y));
 
 /** Rectangle de la salle du héros actif — `null` s'il est en couloir. */
 const salle = computed(() => {

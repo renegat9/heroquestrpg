@@ -2149,8 +2149,14 @@ final class MoteurSorts
 
         // Le coin haut-gauche parcourt les coins dont le carré TOUCHE la salle, à une case près : un carré qui en déborde
         // est refusé par `zoneLegale()` — la seule règle de tenue dans la salle, jamais la forme de cette boucle.
-        for ($y = (int) $salle['y'] - 1; $y <= (int) $salle['y'] + (int) $salle['hauteur'] - 1; $y++) {
-            for ($x = (int) $salle['x'] - 1; $x <= (int) $salle['x'] + (int) $salle['largeur'] - 1; $x++) {
+        // Le cadre de TOUS ses rectangles : la partie en L d'une salle de plateau construit (`Salles::rectangles()`).
+        $rects = Salles::rectangles($salle);
+        $xMin = min(array_column($rects, 'x'));
+        $yMin = min(array_column($rects, 'y'));
+        $xMax = max(array_map(fn (array $r) => $r['x'] + $r['l'] - 1, $rects));
+        $yMax = max(array_map(fn (array $r) => $r['y'] + $r['h'] - 1, $rects));
+        for ($y = $yMin - 1; $y <= $yMax; $y++) {
+            for ($x = $xMin - 1; $x <= $xMax; $x++) {
                 $cases = ZonesDeSort::carre($x, $y);
 
                 if (! $this->zoneLegale($quete, $sort, $lanceur, $etat, $cases, $grille)) {

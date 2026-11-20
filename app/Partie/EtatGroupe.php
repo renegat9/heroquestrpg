@@ -573,6 +573,8 @@ final class EtatGroupe
                     'index' => (int) $i,
                     'x' => (int) $s['x'], 'y' => (int) $s['y'],
                     'largeur' => (int) $s['largeur'], 'hauteur' => (int) $s['hauteur'],
+                    // La salle EN L d'un plateau construit (René, 2026-11-19) : ses rectangles de plus. Absente sinon.
+                    ...(empty($s['parties']) ? [] : ['parties' => array_values((array) $s['parties'])]),
                 ])
                 ->values()
                 ->all(),
@@ -748,15 +750,13 @@ final class EtatGroupe
             if ($s === null) {
                 continue;
             }
-            for ($y = (int) $s['y']; $y < $s['y'] + $s['hauteur']; $y++) {
-                for ($x = (int) $s['x']; $x < $s['x'] + $s['largeur']; $x++) {
-                    if (($cases[$y][$x] ?? 'm') === 'm') {
-                        continue; // mur intérieur : traité via le bord des cases visibles
-                    }
-                    if (! isset($visible["{$x},{$y}"])) {
-                        $visible["{$x},{$y}"] = true;
-                        $file[] = [$x, $y];
-                    }
+            foreach (Salles::cases($s) as ['x' => $x, 'y' => $y]) {
+                if (($cases[$y][$x] ?? 'm') === 'm') {
+                    continue; // mur intérieur : traité via le bord des cases visibles
+                }
+                if (! isset($visible["{$x},{$y}"])) {
+                    $visible["{$x},{$y}"] = true;
+                    $file[] = [$x, $y];
                 }
             }
         }

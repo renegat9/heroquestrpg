@@ -31,13 +31,69 @@ final class Salles
     public static function indexDe(array $salles, int $x, int $y): ?int
     {
         foreach ($salles as $i => $salle) {
-            if ($x >= (int) $salle['x'] && $x < (int) $salle['x'] + (int) $salle['largeur']
-                && $y >= (int) $salle['y'] && $y < (int) $salle['y'] + (int) $salle['hauteur']) {
+            if (self::contientCase($salle, $x, $y)) {
                 return (int) $i;
             }
         }
 
         return null;
+    }
+
+    /**
+     * LES RECTANGLES D'UNE SALLE — le sien, puis ses `parties` (René, 2026-11-19 : « respecte le plan du board »). Le
+     * plateau officiel a une salle EN L (au sud-est : x 17-20 sur y 10-12, et x 18-20 sur y 13) ; une salle d'un plateau
+     * construit peut donc porter des rectangles de plus. Accepte les deux formes : le moteur (`largeur`/`hauteur`) et le
+     * document du constructeur (`l`/`h`). Une carte générée n'a jamais de `parties` : un seul rectangle, comme avant.
+     *
+     * @param  array<string, mixed>  $salle
+     * @return list<array{x: int, y: int, l: int, h: int}>
+     */
+    public static function rectangles(array $salle): array
+    {
+        $rectangle = static fn (array $r): array => [
+            'x' => (int) $r['x'], 'y' => (int) $r['y'],
+            'l' => (int) ($r['largeur'] ?? $r['l'] ?? 0), 'h' => (int) ($r['hauteur'] ?? $r['h'] ?? 0),
+        ];
+
+        return [$rectangle($salle), ...array_map($rectangle, array_values((array) ($salle['parties'] ?? [])))];
+    }
+
+    /**
+     * La case (x, y) est-elle dans CETTE salle (un de ses rectangles) ? Le seul test « case dans une salle » : tout
+     * lecteur qui parcourait `x + largeur` à la main passe par ici, sans quoi la partie en L d'une salle serait un
+     * couloir pour lui.
+     *
+     * @param  array<string, mixed>  $salle
+     */
+    public static function contientCase(array $salle, int $x, int $y): bool
+    {
+        foreach (self::rectangles($salle) as $r) {
+            if ($x >= $r['x'] && $x < $r['x'] + $r['l'] && $y >= $r['y'] && $y < $r['y'] + $r['h']) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Toutes les cases d'une salle, rectangle principal d'abord, ligne par ligne.
+     *
+     * @param  array<string, mixed>  $salle
+     * @return list<array{x: int, y: int}>
+     */
+    public static function cases(array $salle): array
+    {
+        $cases = [];
+        foreach (self::rectangles($salle) as $r) {
+            for ($y = $r['y']; $y < $r['y'] + $r['h']; $y++) {
+                for ($x = $r['x']; $x < $r['x'] + $r['l']; $x++) {
+                    $cases[] = ['x' => $x, 'y' => $y];
+                }
+            }
+        }
+
+        return $cases;
     }
 
     /**
