@@ -46,6 +46,9 @@ const OUTILS_MCP = [
     ['importer', 'Recharge un fichier exporté.'],
 ];
 
+// Les captures (`browser-shots/guide-constructeur-captures.mjs`), faites sur une campagne d'exemple inventée.
+const IMG = (nom) => `/images/guide-constructeur/${nom}.webp`;
+
 const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/vers/heroquestrpg/docker-compose.yml exec -T app php -d display_errors=stderr artisan mcp:start constructeur';
 </script>
 
@@ -88,18 +91,30 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                         <li><b>Classes exigées</b> : les héros sans lesquels la campagne ne peut pas partir ;</li>
                         <li><b>Mercenaires</b> : ceux qu'on peut recruter entre les quêtes, et leur régime.</li>
                     </ul>
+                    <figure class="gc-fig">
+                        <a :href="IMG('campagne')" target="_blank" rel="noopener"><img :src="IMG('campagne')" alt="L'onglet Campagne : la liste à gauche, l'état de validation et « Enregistrer » en haut à droite." loading="lazy" /></a>
+                        <figcaption>L'onglet Campagne : la liste à gauche, l'état de validation et « Enregistrer » en haut à droite.</figcaption>
+                    </figure>
                 </section>
 
                 <section id="plateau">
                     <h2>2. Le plateau</h2>
                     <p>L'onglet <b>Plateau</b> fixe la grille (26 × 19 pour le plateau officiel) et ses salles. <b>Glisser</b> sur la grille trace une salle ; cliquer une salle la sélectionne ; la liste de droite règle son nom, sa position et sa taille. Tout ce qui n'est pas une salle est du couloir.</p>
                     <p>Le plateau est commun à toutes les quêtes de la campagne : chaque quête choisit ensuite quelles salles sont <b>ouvertes</b>.</p>
+                    <figure class="gc-fig">
+                        <a :href="IMG('plateau')" target="_blank" rel="noopener"><img :src="IMG('plateau')" alt="L'onglet Plateau : les 22 salles du plateau officiel, et leurs coordonnées à droite." loading="lazy" /></a>
+                        <figcaption>L'onglet Plateau : les 22 salles du plateau officiel, et leurs coordonnées à droite.</figcaption>
+                    </figure>
                     <p class="gc-attention"><MSym n="info" :size="16" /><span>Une salle en L (le « se-1 » du plateau officiel) a des <b>parties</b> : l'écran les dessine et les conserve, mais ne sait pas les tracer. Elles se saisissent dans le fichier de la campagne ou par le serveur MCP.</span></p>
                 </section>
 
                 <section id="quetes">
                     <h2>3. Les quêtes</h2>
                     <p>L'onglet <b>Quêtes</b> liste les quêtes dans l'ordre où elles se jouent (flèches pour réordonner, <b>+ Quête</b> pour en ajouter). Au-dessus de la carte, la barre d'outils : choisir un outil, puis cliquer la carte.</p>
+                    <figure class="gc-fig">
+                        <a :href="IMG('quete-carte')" target="_blank" rel="noopener"><img :src="IMG('quete-carte')" alt="Une quête : la liste des quêtes, la barre d'outils et la carte (salles ouvertes en gris, portes en jaune, escalier d'entrée en vert, monstres en rouge, meubles en brun)." loading="lazy" /></a>
+                        <figcaption>Une quête : la liste des quêtes, la barre d'outils et la carte (salles ouvertes en gris, portes en jaune, escalier d'entrée en vert, monstres en rouge, meubles en brun).</figcaption>
+                    </figure>
                     <table class="gc-table">
                         <tbody>
                             <tr v-for="[ic, nom, aide] in OUTILS" :key="nom">
@@ -109,6 +124,10 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                             </tr>
                         </tbody>
                     </table>
+                    <figure class="gc-fig">
+                        <a :href="IMG('outil-sortie')" target="_blank" rel="noopener"><img :src="IMG('outil-sortie')" alt="L'outil Sortie, en mode porte : la porte de sortie peut recevoir un verrou, comme une porte barrée." loading="lazy" /></a>
+                        <figcaption>L'outil Sortie, en mode porte : la porte de sortie peut recevoir un verrou, comme une porte barrée.</figcaption>
+                    </figure>
                     <p>Sous la carte, la fiche de la quête :</p>
                     <ul>
                         <li><b>Titre</b>, <b>slug</b> et <b>texte d'ouverture</b> (lu à la table au départ) ;</li>
@@ -120,6 +139,14 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                         <li><b>Suite</b> (campagne ramifiée) : selon le drapeau posé, la quête suivante change ;</li>
                         <li><b>Quête double</b> : deux moitiés reliées par un passage.</li>
                     </ul>
+                    <figure class="gc-fig">
+                        <a :href="IMG('fiche-quete')" target="_blank" rel="noopener"><img :src="IMG('fiche-quete')" alt="Le haut de la fiche : titre, texte d'ouverture, monstre errant, salles qui ne se fouillent pas, récompense." loading="lazy" /></a>
+                        <figcaption>Le haut de la fiche : titre, texte d'ouverture, monstre errant, salles qui ne se fouillent pas, récompense.</figcaption>
+                    </figure>
+                    <figure class="gc-fig">
+                        <a :href="IMG('fin-captif')" target="_blank" rel="noopener"><img :src="IMG('fin-captif')" alt="La fin de la quête : ici, ramener un captif — Sir Ragnar, posé dans sa cellule." loading="lazy" /></a>
+                        <figcaption>La fin de la quête : ici, ramener un captif — Sir Ragnar, posé dans sa cellule.</figcaption>
+                    </figure>
                 </section>
 
                 <section id="notes">
@@ -131,6 +158,10 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                         <li>le bouton <MSym n="pin_drop" :size="14" /> à côté d'une case la fait choisir sur la carte.</li>
                     </ul>
                     <p>Une note qui vise la <b>porte de sortie verrouillée</b> (« la sortie s'ouvre quand la gargouille meurt ») choisit « la porte de sortie » dans l'effet <i>ouvrir une porte</i>. L'effet <i>éveiller</i> coche les monstres posés « inactif ».</p>
+                    <figure class="gc-fig">
+                        <a :href="IMG('notes')" target="_blank" rel="noopener"><img :src="IMG('notes')" alt="Trois notes : A éveille les squelettes à l'ouverture d'une porte, B ouvre la sortie verrouillée à la mort du Gardien, C donne de l'or à la fouille du coffre." loading="lazy" /></a>
+                        <figcaption>Trois notes : A éveille les squelettes à l'ouverture d'une porte, B ouvre la sortie verrouillée à la mort du Gardien, C donne de l'or à la fouille du coffre.</figcaption>
+                    </figure>
                 </section>
 
                 <section id="livrets">
@@ -142,6 +173,10 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                         <li><b>Portes à téléportation</b> : tenter d'ouvrir une porte téléporte le héros sur une case tirée aux dés ; la porte reste fermée ;</li>
                         <li><b>Dangers</b> de couloir : rocher roulant, brume de la mort.</li>
                     </ul>
+                    <figure class="gc-fig">
+                        <a :href="IMG('regles-livrets')" target="_blank" rel="noopener"><img :src="IMG('regles-livrets')" alt="Les règles des livrets : le Gardien, que seuls Boule de Feu et Trait de Feu blessent, et un squelette inactif." loading="lazy" /></a>
+                        <figcaption>Les règles des livrets : le Gardien, que seuls Boule de Feu et Trait de Feu blessent, et un squelette inactif.</figcaption>
+                    </figure>
                 </section>
 
                 <section id="enregistrer">
@@ -151,6 +186,14 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                         <li><b>Enregistrer</b> écrit la campagne. <b>Exporter</b> télécharge son fichier (gardez-en une copie).</li>
                         <li>Pour la jouer : page <b>Joueur</b>, ouvrir un groupe en mode <b>classique</b> et choisir la campagne. Seules les campagnes valides sont proposées, et les classes exigées doivent être présentes.</li>
                     </ul>
+                    <figure class="gc-fig">
+                        <a :href="IMG('etat-refus')" target="_blank" rel="noopener"><img :src="IMG('etat-refus')" alt="Un monstre posé dans une salle fermée : l'état passe à « 1 refus »…" loading="lazy" /></a>
+                        <figcaption>Un monstre posé dans une salle fermée : l'état passe à « 1 refus »…</figcaption>
+                    </figure>
+                    <figure class="gc-fig">
+                        <a :href="IMG('refus')" target="_blank" rel="noopener"><img :src="IMG('refus')" alt="… et sous la carte, le refus dit lequel (monstres.8) et pourquoi." loading="lazy" /></a>
+                        <figcaption>… et sous la carte, le refus dit lequel (monstres.8) et pourquoi.</figcaption>
+                    </figure>
                 </section>
 
                 <section id="mcp">
@@ -225,6 +268,10 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
 .gc-attention { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--r-md); background: var(--stone-900); border-left: 3px solid var(--torch); }
 .gc-attention .msym { color: var(--torch); flex: none; margin-top: 3px; }
 
+.gc-fig { margin: 8px 0 16px; }
+.gc-fig a { display: block; }
+.gc-fig img { display: block; max-width: 100%; height: auto; border-radius: var(--r-md); border: var(--line); background: var(--stone-900); }
+.gc-fig figcaption { margin-top: 6px; font-size: 13px; font-style: italic; color: var(--ink-400); }
 .gc-table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 14px; }
 .gc-table td { padding: 7px 8px; border-bottom: var(--line); vertical-align: top; color: var(--ink-200, #e7dcc6); }
 .gc-table td:first-child { white-space: nowrap; }

@@ -460,7 +460,7 @@ const LIBELLES_FIN = {
     vaincre: 'vaincre des monstres désignés',
     drapeau: 'un drapeau posé par une note',
     sortir: 'trouver la sortie et quitter le donjon',
-    ramener: 'ramener une charge hors du donjon',
+    ramener: 'ramener une charge ou un captif hors du donjon',
 };
 // Lot K5k (R5) : `quete.charge` — l'objet encombrant à porter ; la clé disparaît quand on la retire.
 function basculerCharge(avec) {
@@ -1323,7 +1323,8 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 </label>
                                 <label v-if="quete.fin?.type === 'drapeau'">Drapeau <input v-model="quete.fin.drapeau" class="cst-input" /></label>
                                 <span v-else-if="quete.fin?.type === 'sortir'" class="cst-sous">La sortie de la quête est ouverte dès le départ ; la quête est gagnée quand le dernier héros debout l'a franchie.</span>
-                                <span v-else-if="quete.fin?.type === 'ramener'" class="cst-sous">La sortie est ouverte dès le départ ; la quête est gagnée si la charge est sortie avec le dernier héros debout, perdue sinon.</span>
+                                <span v-else-if="quete.fin?.type === 'ramener' && quete.charge" class="cst-sous">La sortie est ouverte dès le départ ; la quête est gagnée si la charge est sortie avec le dernier héros debout, perdue sinon.</span>
+                                <span v-else-if="quete.fin?.type === 'ramener'" class="cst-sous">La quête est gagnée quand le dernier héros debout est sorti ; la récompense n'est versée que si le captif est ramené vivant sur la sortie.</span>
                                 <span v-else class="cst-sous">Cibles : {{ (quete.fin?.cibles ?? []).map((c) => quete.monstres[c] ? libelleMonstre(quete.monstres[c], c) : `monstre ${c} (absent)`).join(' ; ') || 'aucune — outil « Cible » sur un monstre' }}</span>
                             </div>
                             <label>Consigne dite aux joueurs <input v-model="quete.fin.libelle" class="cst-input" /></label>
