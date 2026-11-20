@@ -74,7 +74,7 @@ it('un jeton vendu paie 250 po d\'achats avant la bourse ; le reste est perdu ; 
         'achats' => [['objet_id' => $objetId, 'quantite' => 1]], 'ventes' => [],
         'jetons' => [['personnage_id' => $albrecht->id, 'nombre' => 1]],
     ])->assertOk()->json();
-    expect($etat['bourses'][0])->toMatchArray(['projete' => 100, 'jetons' => 1, 'or_perdu' => 250 - $prix]);
+    expect($etat['bourses'][0])->toMatchArray(['projete' => 100, 'jetons' => 1, 'or_perdu' => 250 - $prix, 'disponible' => 100 + 250 - $prix]);
 
     $this->postJson("/api/groupes/{$code}/marche/confirmation")->assertOk();
     $this->actingAs($bob, 'joueur');
@@ -155,6 +155,12 @@ it('marché fermé : avec un jeton, la phase s\'ouvre RESTREINTE — ni vente, n
     $ligne = Inventaire::create(['personnage_id' => $albrecht->id, 'objet_id' => Objet::where('nom', 'Épée courte')->firstOrFail()->id, 'emplacement' => 'sac', 'quantite' => 1]);
     $this->putJson("/api/groupes/{$code}/marche/panier", ['achats' => [], 'ventes' => [['inventaire_id' => $ligne->id]]])
         ->assertStatus(422)->assertJsonValidationErrors('ventes');
+
+    // Ce qu'Albrecht peut encore dépenser, publié : le seul crédit du jeton, jamais ses 1000 po (René, 2026-11-19).
+    $bourse = collect($this->putJson("/api/groupes/{$code}/marche/panier", [
+        'achats' => [], 'ventes' => [], 'jetons' => [['personnage_id' => $albrecht->id]],
+    ])->assertOk()->json('bourses'))->firstWhere('personnage_id', $albrecht->id);
+    expect($bourse['disponible'])->toBe(250);
 
     // Au-delà du jeton, même avec 1000 po en bourse : refusé.
     $this->putJson("/api/groupes/{$code}/marche/panier", [

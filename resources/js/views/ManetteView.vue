@@ -138,6 +138,15 @@ onUnmounted(() => clearTimeout(moiTimer));
    affiche une attente sobre. ---- */
 const queteEchouee = computed(() => (store.state.etat?.quete?.etat ?? '') === 'echouee');
 
+/* ---- APRÈS UNE MORT (René, 2026-11-19) : mon héros est mort dans ce groupe et l'a quitté (au hub, ou à la fin d'une
+   quête perdue), et je n'y ai plus de héros vivant. Le serveur refuse alors la lecture (403) : la manette le dit et
+   renvoie au roster, où le code du groupe attend le nouveau héros. `mort_dans` est publié par /moi. ---- */
+const mortIci = computed(() => {
+    const roster = store.state.personnages ?? [];
+    if (roster.some((p) => !p.mort && p.groupe?.identifiant === props.groupe)) return null;
+    return roster.find((p) => p.mort && p.mort_dans?.identifiant === props.groupe && p.groupe?.identifiant !== props.groupe) ?? null;
+});
+
 /* ---- condition de contrôle (Dread, doc 09 §4) : si mon héros est endormi
    (il saute son tour) ou commandé (le moteur le joue), la manette retire le
    menu et affiche un état sobre — le tour se résout sans moi. ---- */
@@ -1550,6 +1559,9 @@ const marcheLive = computed(() => {
             : (m.total_projete ?? m.or_courant ?? 0) + avance(null),
         // Un des héros de ce joueur finirait à découvert : son nom (le serveur refuserait la confirmation).
         decouvert: aDecouvert?.nom ?? null,
+        // Ce que le héros affiché peut encore dépenser (classique, `bourses[].disponible`, décidé par le serveur), moins
+        // l'avance du panier local pas encore envoyé ; `null` au pot commun.
+        disponible: bourses ? (mienne ? (mienne.disponible ?? mienne.projete) + avance(heroId) : 0) : null,
         // LA VENTE D'UN JETON (classique, lot K6) : publié par le serveur, `null` hors classique. `jetonsHeros` est la
         // saisie locale du héros affiché ; `orPerdu` et `restreint` sont des décisions du serveur.
         reputation: m.reputation ?? null,
@@ -1672,7 +1684,15 @@ const navItems = computed(() => (scene.value === 'marche'
             <div class="phone">
                 <div class="screen tex-vignette" style="position: relative">
                     <!-- connexion / erreur de chargement initial -->
-                    <div v-if="chargement || erreurChargement" class="chargement-overlay">
+                    <div v-if="!chargement && mortIci" class="chargement-overlay" role="status">
+                        <MSym n="skull" fill :size="30" />
+                        <p><b>{{ mortIci.nom }} est mort.</b></p>
+                        <p>Le groupe « {{ mortIci.mort_dans.nom }} » continue sans lui. Crée un nouveau héros, puis rejoins le groupe avec le code <code>{{ mortIci.mort_dans.identifiant }}</code>.</p>
+                        <button class="btn torch" @click="router.push({ name: 'joueur' })">
+                            <MSym n="person_add" /> Créer un nouveau héros
+                        </button>
+                    </div>
+                    <div v-else-if="chargement || erreurChargement" class="chargement-overlay">
                         <template v-if="chargement">
                             <MSym n="hourglass_top" :size="30" />
                             <p>Connexion…</p>

@@ -135,6 +135,10 @@ class EtatPersonnageQuete extends Model
         static::saving(function (self $etat): void {
             if ($etat->isDirty('tombe') && ! $etat->tombe) {
                 $etat->crane = false;
+
+                if ($etat->exists && (bool) $etat->getOriginal('tombe')) {
+                    $etat->reprendreSaCase();
+                }
             }
         });
 
@@ -234,5 +238,40 @@ class EtatPersonnageQuete extends Model
     public function quete(): BelongsTo
     {
         return $this->belongsTo(Quete::class, 'quete_id');
+    }
+
+    /**
+     * MODE CLASSIQUE (René, 2026-11-19 — F9907 p. 8) : « Replace the equipment tile with the hero miniature; if they
+     * cannot occupy the square they were incapacitated on, place them as close as possible to that square. » Un héros
+     * à terre ne bloque pas sa case (`FabriqueGrille::pour()`) : une figure a pu s'y poser. Il se relève alors sur la
+     * case libre la plus proche (`CaseLibre::proche()`, jamais derrière un mur). Observé sur la COLONNE, comme le
+     * crâne : un héros se relève par trop de chemins pour câbler chacun. Hors classique : inchangé.
+     */
+    private function reprendreSaCase(): void
+    {
+        if ($this->position_x === null || $this->position_y === null) {
+            return;
+        }
+
+        $quete = $this->quete;
+
+        if ($quete === null || $quete->carte === null || ! ($quete->groupe?->estClassique() ?? false)) {
+            return;
+        }
+
+        $grille = \App\Partie\FabriqueGrille::pour($quete, exceptPersonnageId: (int) $this->personnage_id);
+        $x = (int) $this->position_x;
+        $y = (int) $this->position_y;
+
+        if (! $grille->estOccupeeParFigure($x, $y)) {
+            return;
+        }
+
+        $place = \App\Partie\CaseLibre::proche($grille, $x, $y);
+
+        if ($place !== null) {
+            $this->position_x = $place['x'];
+            $this->position_y = $place['y'];
+        }
     }
 }

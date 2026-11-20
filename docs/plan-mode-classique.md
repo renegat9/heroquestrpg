@@ -880,6 +880,25 @@ ni son format, il appelle ce que la route HTTP appelle.
   quatre elfes ont les fiches des mercenaires de *Frozen Horror* (pas de
   doublon). Lecteur unique `Classique\Reputation`. Tests dans `NotesDeQueteTest` et
   `MercenairesCampagneTest`.
+- **Fait le 2026-11-19 — retours du test de campagne à quatre héros**
+  (deux quêtes, marché entre les deux). Décisions de René :
+  1. « Respecter les règles de Delthrak selon le mode de jeu choisi » : après
+     un TPK (ou la mort de tous), le groupe garde son rang et rejoue la quête
+     (G0978 « Unfinished Quests ») ; chaque joueur crée un héros neuf (« play
+     them as a new character in the next quest »). Publié : `/moi`
+     `mort_dans`, motif de départ « Tous les héros sont morts… code… sera
+     rejouée » ; la manette remplace le 403 par « X est mort » et le retour au
+     roster, où le code pré-remplit « Rejoindre ».
+  2. « Si le héros est mort, la figurine est enlevée » : déjà le cas ; un héros
+     à terre est une tuile d'équipement (ne bloque pas) et, relevé, prend la
+     case libre la plus proche si une figure occupe la sienne (F9907 p. 8,
+     observé sur la colonne `tombe`, `EtatPersonnageQuete::reprendreSaCase()`).
+  3. La porte de la quête 1 du livret qui ouvre sur l'établi : probable erreur
+     de saisie — à vérifier pendant la relecture des cartes contre les livrets.
+  4. Une potion qui ne réparerait rien n'est ni offerte ni bue
+     (`MoteurPotions::sansEffet()`, menu et résolveur) ; le « + » d'un article
+     plus cher que `bourses[].disponible` est gris.
+  Classique seulement. `ApresLaMortTest`, `VenteJetonReputationTest`.
 - **Fait le 2026-11-19 — lot K6 : la vente d'un jeton de réputation**
   (*Dread Moon* p. 5 : 250 po « must immediately be used », l'excédent
   perdu, « even if a hero cannot visit shops »). DANS le panier, pas à part :

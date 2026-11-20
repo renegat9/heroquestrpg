@@ -203,12 +203,22 @@ class AuthController extends Controller
             ->keyBy('groupe_actif_id');
         $forge = app(Forge::class);
 
+        // APRÈS UNE MORT (René, 2026-11-19 — « You may rename your hero and play them as a new character in the next
+        // quest ») : le groupe où chaque héros mort est tombé — sa dernière ligne de pivot —, pour que le roster propose
+        // de le rejoindre avec un nouveau héros. Une requête pour tout le roster ; seuls les morts (mode classique) y sont.
+        $mortsDans = \Illuminate\Support\Facades\DB::table('groupe_personnages')
+            ->join('groupes', 'groupes.id', '=', 'groupe_personnages.groupe_id')
+            ->whereIn('groupe_personnages.personnage_id', $personnages->filter(fn ($p) => $p->estMort())->pluck('id'))
+            ->orderBy('groupe_personnages.id')
+            ->get(['groupe_personnages.personnage_id', 'groupes.identifiant', 'groupes.nom'])
+            ->keyBy('personnage_id');
+
         $profil = [
             'id' => $joueur->id,
             'pseudo' => $joueur->pseudo,
             'identifiant' => $joueur->identifiant,
             'personnages' => $personnages
-                ->map(function ($p) use ($personnages, $idsDejaEnQuete, $idsAvecHistorique, $groupesAvecForgeronDuJoueur, $forgeronParGroupe, $forge) {
+                ->map(function ($p) use ($personnages, $idsDejaEnQuete, $idsAvecHistorique, $groupesAvecForgeronDuJoueur, $forgeronParGroupe, $forge, $mortsDans) {
                     // Un héros MORT (lot H1, Heroic) n'est jamais disponible : la mort est définitive.
                     $disponible = $p->groupe_actif_id === null && ! $p->estMort();
                     // Les deux préalables de `ForgeController::appliquer()` avant
@@ -569,6 +579,12 @@ class AuthController extends Controller
                         // catalogue) ; `null` pour un héros de campagne, qui n'en a pas.
                         'arene' => $p->estHerosArene() && ! $p->estDoublure() ? app(\App\Partie\Arene\PalmaresArene::class)->statistiques($p) : null,
                     ];
+
+                    // Le groupe où il est mort (contrat « Après la mort de héros ») : la clé n'existe que sur un mort.
+                    if ($p->estMort()) {
+                        $ligne = $mortsDans->get($p->id);
+                        $data['mort_dans'] = $ligne === null ? null : ['identifiant' => $ligne->identifiant, 'nom' => $ligne->nom];
+                    }
 
                     // Personnage engagé : expose le groupe avec narrateur_actif (contrat).
                     if (! $disponible && $p->groupeActif !== null) {

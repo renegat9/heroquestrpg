@@ -1083,7 +1083,9 @@ les deux sens par `BoursesPointDePassageTest`. En campagne, rien ne change.
   (`groupes.jetons_reputation`, annonce `reputation`, `raison: "marche"`) qu'à l'application atomique des paniers.
   Publié, déjà décidé : **`EtatMarche.reputation`** `{jetons, valeur: 250, restreint}` (classique seulement) et, dans
   chaque `bourses[]`, **`jetons`** (vendus pour lui) et **`or_perdu`** (le crédit qui ne servira pas) ; `projete`
-  tient compte du crédit.
+  tient compte du crédit. **`disponible`** (René, 2026-11-19) = `projete + or_perdu` : ce que le héros peut encore
+  dépenser dans ce panier (marché restreint : `or_perdu` seul, la bourse ne paie pas). La manette grise le « + » d'un article plus cher que `disponible` (moins l'avance du
+  panier local pas encore envoyé).
   - **Marché fermé** (`regles.marche_ferme`) : si le groupe a au moins un jeton, la phase s'ouvre quand même,
     **restreinte** (`reputation.restreint: true`) : aucune vente, et seuls les achats couverts par un jeton
     (`achats du héros ≤ 250 × nombre`) — 422 sinon. Au hub, `groupe.marche_ouvert` vaut alors `true` et
@@ -6253,6 +6255,30 @@ Plan classique Q2 et Q7. Sources : *Jungles of Delthrak* (F9907 p. 8-9) ; livret
   immediately heal themselves by casting an available healing spell, regardless of whether they had previously used an
   action ») : déjà tenu par la réaction « Rester debout » (`soin_urgence`), qui offre les sorts de soin disponibles
   quelle que soit l'action du tour.
+- **Le héros relevé reprend sa case, ou la plus proche** (René, 2026-11-19 — F9907 p. 8 : « Replace the equipment
+  tile with the hero miniature; if they cannot occupy the square they were incapacitated on, place them as close as
+  possible to that square »). Un héros à terre ne bloque pas sa case (c'est une tuile d'équipement) ; un mort est
+  retiré du plateau. Quand il se relève (potion, sort, relèvement Story, quel que soit le chemin) et qu'une figure
+  occupe sa case, il est posé sur la case libre la plus proche (`CaseLibre::proche()`, jamais derrière un mur).
+  Classique seulement.
+- **Après la mort de héros, et après un TPK** (René, 2026-11-19 : « respecter les règles de Delthrak selon le mode
+  choisi » — F9907 p. 9 renvoie au livret de règles : « You may rename your hero and play them as a new character in
+  the next quest », et une quête perdue se rejoue, G0978 « Unfinished Quests ») : le groupe n'est jamais dissous et
+  garde son rang, la quête perdue se rejoue. Publié, déjà décidé :
+  - `/moi` : un héros mort porte **`mort_dans`** `{identifiant, nom}` — le groupe où il est mort (`null` s'il n'en a
+    pas). Le roster le montre et propose de rejoindre ce groupe avec un nouveau héros. La clé n'existe que sur un héros
+    mort.
+  - La manette d'un joueur qui n'a plus de héros dans le groupe (tous ses héros y sont morts) remplace l'erreur 403 par
+    « {nom} est mort », le code du groupe et le retour au roster.
+  - Au hub, un groupe classique sans héros actif vivant : `depart_possible: false`, `depart_motif` « Tous les héros
+    sont morts : chaque joueur crée un nouveau héros et rejoint le groupe avec le code {identifiant}. La quête « … »
+    sera rejouée. »
+- **Une potion qui ne ferait rien n'est pas offerte** (René, 2026-11-19). En classique, une potion dont l'effet ne
+  fait que réparer (soin de Body ou de Mind, retrait d'une condition, rendu d'un poison, sorts rendus, jauges de
+  départ) n'apparaît dans `utiliser_objet`, ni pour soi ni pour un voisin (`cibles`), que si l'un de ces effets agirait
+  sur le buveur : Body ou Mind sous le maximum, condition portée, sort épuisé. Une potion qui a un autre effet (un
+  bonus, un tirage…) reste offerte. Le résolveur refuse la même chose (422 « « Potion de sang de serpent » ne ferait
+  rien à Brunehaut. »). Un seul prédicat : `MoteurPotions::sansEffet()`. Groupes non classiques : inchangé.
 
 ### Quête solo et spectateurs (lot S1, 2026-11-16)
 

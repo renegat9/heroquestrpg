@@ -181,8 +181,15 @@ const codeRejoindre = ref({});    // { [perso.id]: code }
 const rejoindreEnCours = ref({}); // { [perso.id]: bool }
 const erreurRejoindre = ref({}); // { [perso.id]: string }
 
+// APRÈS UNE MORT (René, 2026-11-19) : le groupe où un de mes héros est mort (`mort_dans`, publié par /moi) et où je
+// n'ai plus de héros. Son code pré-remplit « Rejoindre » : le nouveau héros reprend la place du mort.
+const groupeDuMort = computed(() => {
+    const engages = new Set(personnages.value.map((p) => p.groupe?.identifiant).filter(Boolean));
+    return personnages.value.map((p) => p.mort_dans).find((g) => g && !engages.has(g.identifiant)) ?? null;
+});
+
 function codeDePerso(id) {
-    return codeRejoindre.value[id] ?? '';
+    return codeRejoindre.value[id] ?? (groupeDuMort.value?.identifiant ?? '').toUpperCase();
 }
 function setCode(id, val) {
     codeRejoindre.value = { ...codeRejoindre.value, [id]: val.toUpperCase() };
@@ -618,6 +625,22 @@ function libelleClasse(classe) {
                             >
                                 <code>{{ statutPersonnage(perso).identifiant }}</code>
                                 <MSym :n="codeCopie === statutPersonnage(perso).identifiant ? 'check' : 'content_copy'" :size="13" />
+                            </button>
+                        </div>
+
+                        <!-- héros MORT (René, 2026-11-19) : le groupe continue, on y revient avec un nouveau héros. -->
+                        <div v-if="statutPersonnage(perso).mort && perso.mort_dans" class="pcard-code">
+                            <span class="pcard-code-lbl">
+                                Mort dans « {{ perso.mort_dans.nom }} ». Crée un nouveau héros, puis rejoins le groupe avec ce code.
+                            </span>
+                            <button
+                                class="pcard-code-val"
+                                type="button"
+                                :title="codeCopie === perso.mort_dans.identifiant ? 'Copié !' : 'Copier le code'"
+                                @click="copierCode(perso.mort_dans.identifiant)"
+                            >
+                                <code>{{ perso.mort_dans.identifiant }}</code>
+                                <MSym :n="codeCopie === perso.mort_dans.identifiant ? 'check' : 'content_copy'" :size="13" />
                             </button>
                         </div>
 

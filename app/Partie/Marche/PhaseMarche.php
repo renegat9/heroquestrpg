@@ -954,7 +954,7 @@ final class PhaseMarche
             'or_courant' => $or,
             // MODE CLASSIQUE : la bourse de chaque héros et ce qu'il en restera, DÉJÀ décidés — `null` au pot commun.
             // L'écran lit ce `null` pour dire « or commun » ; il ne re-dérive ni le mode ni le net d'un héros.
-            'bourses' => $this->boursesProjetees($groupe, $phase['paniers']),
+            'bourses' => $this->boursesProjetees($groupe, $phase['paniers'], ! empty($phase['restreint'])),
             // Classique seulement : les jetons du groupe, la valeur d'un jeton, et si la phase est restreinte au jeton.
             ...($groupe->estClassique() ? ['reputation' => [
                 'jetons' => (int) Groupe::whereKey($groupe->id)->value('jetons_reputation'),
@@ -1098,7 +1098,7 @@ final class PhaseMarche
      * @param  array<int|string, array<string, mixed>>  $paniers
      * @return list<array{personnage_id: int, nom: string, or: int, projete: int}>|null
      */
-    private function boursesProjetees(Groupe $groupe, array $paniers): ?array
+    private function boursesProjetees(Groupe $groupe, array $paniers, bool $restreint = false): ?array
     {
         $bourses = $this->bourses->publiees($groupe);
 
@@ -1111,12 +1111,20 @@ final class PhaseMarche
         $achats = $this->achatsParHeros($paniers);
 
         return array_map(
-            fn (array $b) => $b + [
-                'projete' => $b['or'] + ($nets[$b['personnage_id']] ?? 0),
+            function (array $b) use ($nets, $jetons, $achats, $restreint) {
+                $projete = $b['or'] + ($nets[$b['personnage_id']] ?? 0);
                 // La vente d'un jeton (lot K6) : combien pour lui, et le crédit qui ne servira pas — déjà décidés.
-                'jetons' => $jetons[$b['personnage_id']] ?? 0,
-                'or_perdu' => max(0, ($jetons[$b['personnage_id']] ?? 0) * self::VALEUR_JETON_REPUTATION - ($achats[$b['personnage_id']] ?? 0)),
-            ],
+                $orPerdu = max(0, ($jetons[$b['personnage_id']] ?? 0) * self::VALEUR_JETON_REPUTATION - ($achats[$b['personnage_id']] ?? 0));
+
+                return $b + [
+                    'projete' => $projete,
+                    'jetons' => $jetons[$b['personnage_id']] ?? 0,
+                    'or_perdu' => $orPerdu,
+                    // Ce qu'il peut encore dépenser dans ce panier (René, 2026-11-19) : la manette grise ce qui coûte plus.
+                    // Marché restreint : seul le crédit d'un jeton paie, jamais la bourse.
+                    'disponible' => $restreint ? $orPerdu : $projete + $orPerdu,
+                ];
+            },
             $bourses,
         );
     }

@@ -105,6 +105,14 @@ class MoteurPotions
 
         $effet = (array) $objet->effet;
 
+        // MODE CLASSIQUE (René, 2026-11-19) : une potion qui ne réparerait rien n'est pas bue. Le menu ne l'offre pas
+        // (même prédicat, `sansEffet()`).
+        if ($this->sansEffet($buveur, $effet)) {
+            throw ValidationException::withMessages([
+                'inventaire_id' => "« {$objet->nom} » ne ferait rien à {$buveur->nom}.",
+            ]);
+        }
+
         // POTION DE FORTUNE (`MotsClesEquipement::TIRAGE_DE_COMBAT`, Spirit Queen's Torment, G0053 p. 13) : la face d'un dé
         // de combat choisit l'effet AVANT toute garde qui lit l'effet (refus avant attaque, une par tour…). Une face « crâne »
         // donne les effets d'une Potion de bataille : son buff se pose sous SON nom, pas sous celui de la fiole.
@@ -579,6 +587,73 @@ class MoteurPotions
     private static function cleParQuete(\App\Models\Objet $objet): string
     {
         return 'potion:'.$objet->nom;
+    }
+
+    /**
+     * Les clés d'effet qui ne font QUE réparer — rendre des PV, lever une condition, rendre un poison, des sorts, les
+     * jauges de départ. Une potion faite seulement de celles-là (et de clés neutres) ne fait rien à un buveur qui
+     * n'a rien à réparer ({@see sansEffet()}).
+     */
+    private const CLES_DE_REPARATION = [
+        'soin_pv_body', 'soin_pv_body_de', 'soin_pv_mind', 'restaure_jauges_depart',
+        'retire_condition', 'soin_source', 'restaure_sorts',
+    ];
+
+    /** Clés qui ne disent pas ce que fait la potion, seulement qui la boit ou où on la trouve. */
+    private const CLES_NEUTRES = ['cible', 'hors_marche'];
+
+    /**
+     * MODE CLASSIQUE (René, 2026-11-19 : « ne pas permettre de prendre une potion de soin, d'anti-venin ou tout autre
+     * effet positif si celui-ci ne fera pas effet ») — cette potion serait-elle bue EN VAIN par ce buveur ? Vrai
+     * seulement si tout son effet est de la réparation ({@see CLES_DE_REPARATION}) et qu'aucune ne trouverait quoi
+     * réparer. Une potion qui porte un autre effet (bonus, tirage, transmutation…) n'est jamais « sans effet ».
+     *
+     * LE prédicat : le menu (`MenuMoteur`, pour soi et pour chaque voisin de `cibles`) et `boire()` le lisent tous
+     * deux. Hors classique : toujours faux, rien ne change.
+     *
+     * @param  array<string, mixed>  $effet
+     */
+    public function sansEffet(Personnage $buveur, array $effet): bool
+    {
+        if (! ($buveur->groupeActif?->estClassique() ?? false)) {
+            return false;
+        }
+
+        $cles = array_values(array_diff(array_keys($effet), self::CLES_NEUTRES));
+
+        if ($cles === [] || array_diff($cles, self::CLES_DE_REPARATION) !== []) {
+            return false;
+        }
+
+        $bodyBlesse = (int) $buveur->pv_body < (int) $buveur->pv_body_max;
+        $mindBlesse = (int) $buveur->pv_mind < (int) $buveur->pv_mind_max;
+
+        foreach ($cles as $cle) {
+            $agit = match ($cle) {
+                'soin_pv_body', 'soin_pv_body_de' => $bodyBlesse,
+                'soin_pv_mind' => $mindBlesse,
+                'restaure_jauges_depart' => $bodyBlesse || $mindBlesse,
+                'retire_condition' => $buveur->conditions()->where('nom', (string) $effet['retire_condition'])->exists(),
+                'soin_source' => $bodyBlesse && $this->perdusParSource($buveur, (string) $effet['soin_source']) > 0,
+                'restaure_sorts' => \Illuminate\Support\Facades\DB::table('personnage_sorts')
+                    ->where('personnage_id', $buveur->id)->where('disponible', false)->exists(),
+            };
+
+            if ($agit) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** Les PV qu'une source (le poison) a pris à ce héros pendant la quête courante — ce que `soin_source` rendrait. */
+    private function perdusParSource(Personnage $personnage, string $source): int
+    {
+        $etat = $personnage->groupeActif?->queteCourante?->etatsPersonnages()
+            ->where('personnage_id', $personnage->id)->first();
+
+        return (int) (((array) ($etat?->degats_subis ?? []))[$source] ?? 0);
     }
 
     /**

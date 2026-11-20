@@ -19,7 +19,8 @@ const props = defineProps({
      *   confirme, confirmes, membres, totalAchats, totalVentes,
      *   totalProjete, erreur,
      *   bourseDe (nom du héros en mode classique, null au pot commun),
-     *   decouvert (nom d'un de mes héros à découvert, ou null) }
+     *   decouvert (nom d'un de mes héros à découvert, ou null),
+     *   disponible (ce que le héros affiché peut encore dépenser — classique ; null au pot commun) }
      */
     live: { type: Object, default: null },
 });
@@ -38,6 +39,12 @@ const profilLabel = computed(() => {
 
 function quantiteDe(objetId) {
     return props.live?.achats?.find((a) => a.objet_id === objetId)?.quantite ?? 0;
+}
+
+/* Classique : un article plus cher que ce que la bourse du héros peut encore payer (`live.disponible`, publié par le
+   serveur) a son « + » gris (René, 2026-11-19). `null` au pot commun : rien n'est grisé. */
+function tropCher(it) {
+    return props.live?.disponible != null && it.price > props.live.disponible;
 }
 
 function estEnVente(inventaireId) {
@@ -112,7 +119,7 @@ function nonMaitrise(it) {
                 <button
                     class="btn btn-sm qty-pas"
                     :class="quantiteDe(it.id) > 0 ? 'btn-torch' : 'btn-ghost'"
-                    :disabled="it.stock !== null && quantiteDe(it.id) >= it.stock"
+                    :disabled="(it.stock !== null && quantiteDe(it.id) >= it.stock) || tropCher(it)"
                     @click="emit('qty', it.id, 1)"
                 >
                     <MSym n="add" :size="16" />

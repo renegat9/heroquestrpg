@@ -474,8 +474,11 @@ final class MenuMoteur
         // Potion de rage guerrière réservée au Barbare (`/moi` la badge déjà
         // ainsi), il ne peut simplement pas la boire lui-même, ni la faire
         // boire à un voisin qui ne l'est pas davantage.
+        // MODE CLASSIQUE (René, 2026-11-19) : une potion qui ne réparerait rien chez CE destinataire ne lui est pas
+        // tendue — `MoteurPotions::sansEffet()`, le prédicat que `boire()` relit (toujours faux hors classique).
         $accessible = fn (?Personnage $candidat): bool => $candidat !== null
-            && ($objet === null || $this->equipement->estAccessible($candidat, $objet));
+            && ($objet === null || ($this->equipement->estAccessible($candidat, $objet)
+                && ! app(MoteurPotions::class)->sansEffet($candidat, (array) $objet->effet)));
 
         // `heros_adjacent` — le porteur OU un héros ORTHOGONALEMENT adjacent
         // (`Grille::sontAdjacentes()`, `$diagonales` par défaut à `false` —
@@ -714,6 +717,7 @@ final class MenuMoteur
                 // bouton qui répondrait toujours non.
                 $offrable = $ciblePotion === MotsClesSort::CIBLE_SOI
                     ? $equipement->estAccessible($personnage, $objet)
+                        && ! app(MoteurPotions::class)->sansEffet($personnage, (array) $objet->effet)
                     : $ciblesPotion !== [];
 
                 // Potion à clause d'usage (Elder Wisdom : une par héros et par

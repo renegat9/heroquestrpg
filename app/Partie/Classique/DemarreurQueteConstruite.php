@@ -72,6 +72,20 @@ final class DemarreurQueteConstruite
             return 'Toutes les quêtes de « '.$campagne->titre.' » ont été jouées : choisissez une autre campagne.';
         }
 
+        // APRÈS UN TPK, ou la mort de tous les héros (René, 2026-11-19 — F9907 p. 9 renvoie au livret de règles : « You
+        // may rename your hero and play them as a new character in the next quest ») : le groupe garde son rang et la
+        // quête perdue se rejoue ; il lui faut d'abord des héros vivants. Le motif dit comment revenir.
+        if (! $groupe->personnages()->wherePivot('actif', true)->whereNull('personnages.mort_le')->exists()) {
+            $quete = (array) (((array) ($campagne->document['quetes'] ?? []))[(int) $groupe->rang_quete - 1] ?? []);
+            $titre = (string) ($quete['titre'] ?? '');
+
+            $morts = $groupe->personnages()->whereNotNull('personnages.mort_le')->exists();
+
+            return ($morts ? 'Tous les héros sont morts : chaque joueur crée un nouveau héros' : 'Le groupe n\'a plus de héros : chaque joueur choisit un héros')
+                .' et rejoint le groupe avec le code '.$groupe->identifiant.'.'
+                .($morts && $titre !== '' ? ' La quête « '.$titre.' » sera rejouée.' : '');
+        }
+
         // PRÉREQUIS DE HÉROS (`campagne.prerequis_heros`) : chaque classe exigée doit avoir un héros ACTIF dans le
         // groupe. Lu au DÉPART, quand le groupe est composé — pas à sa création, où il n'a que son fondateur. La règle
         // est celle du choix de campagne (`ChoixCampagne`, qui grise la même campagne au hub).
