@@ -186,6 +186,9 @@ final class JournalCombat
         'repartir_planque' => true,
         // Lot E2 : un héros déguisé au contact d'une figure endormie l'élimine sans bruit (F6646 q. 2 B, C).
         'retrait_au_contact' => true,
+        // Lot E2 : les portes d'un livret (F6646 q. 3, q. 8 F).
+        'porte_frappee' => true,
+        'assaut_porte' => true,
         // MODE CLASSIQUE : un héros a poussé une FAUSSE porte de sortie — elle ne s'ouvre pas, il reste dans le donjon.
         'fausse_sortie' => true,
         // MODE CLASSIQUE : un héros qui attendait hors du plateau franchit la porte d'entrée.
@@ -1382,6 +1385,19 @@ final class JournalCombat
             'fausse_sortie' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' pousse la porte de sortie : c\'est une fausse porte, peinte sur le mur — elle ne s\'ouvre pas',
                 'ton' => 'echec',
+            ]],
+            'porte_frappee' => [[
+                'texte' => ! empty($a['bonne'])
+                    ? ($a['nom'] ?? $acteurNom).' frappe à la bonne porte : elle s\'ouvre'
+                    : ($a['nom'] ?? $acteurNom).' frappe à la porte — '.(! empty($a['reussi']) ? 'on lui répond' : 'personne ne répond')
+                        .' ('.(int) ($a['succes'] ?? 0).'/'.(int) ($a['seuil'] ?? 3).' indices)',
+                'ton' => ! empty($a['bonne']) || ! empty($a['reussi']) ? 'succes' : 'info',
+            ]],
+            'assaut_porte' => [[
+                'texte' => ($a['monstre'] ?? 'Un monstre').' frappe la porte'.(! empty($a['brisee'])
+                    ? ' : elle vole en éclats'
+                    : ' : '.(int) ($a['degats'] ?? 0).' dégât(s), '.(int) ($a['pv_restants'] ?? 0).'/'.(int) ($a['pv_max'] ?? 0).' PV'),
+                'ton' => ! empty($a['brisee']) ? 'chute' : 'subit',
             ]],
             'retrait_au_contact' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' frappe vite et sans bruit : '.($a['figure'] ?? 'la figure').' disparaît',

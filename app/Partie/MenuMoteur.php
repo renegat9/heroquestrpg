@@ -2984,6 +2984,18 @@ final class MenuMoteur
             if ($quete->portesTeleportent() && $etat !== null && $quete->porteTeleportationJouee($etat)) {
                 $closes = [];
             }
+            // PORTE QU'ON FRAPPE (mode classique, lot E2, F6646 q. 3) : « the door is locked, and they instead knock on it (no
+            // action required) » — geste libre, offert sur chaque porte à frapper au contact (liste relue par le résolveur).
+            foreach ($this->portes->portesAFrapperAdjacentes($quete->carte, $px, $py) as $aFrapper) {
+                $p = $aFrapper['porte'];
+                $cote = (string) ($p['cote'] ?? 'e');
+                $options[] = [
+                    'id' => "frapper_porte_{$p['x']}_{$p['y']}_{$cote}",
+                    'libelle' => 'Frapper à la porte'.$this->suffixeDirectionPorte($quete, $p, $px, $py, true),
+                    'type' => 'frapper_porte',
+                    'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
+                ];
+            }
             $pierres = (! $aAgi && (int) $personnage->des_attaque >= MoteurPortes::DES_MINIMUM_PORTE_PIERRE)
                 ? $this->portes->portesDePierreAdjacentes($quete->carte, $px, $py)
                 : [];

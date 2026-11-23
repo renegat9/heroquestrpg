@@ -309,6 +309,8 @@ function fixturesDesTypesAnnonces(): array
         'recompense_perdue' => ['quete_id' => 1, 'raison' => 'captif'],
         'crevasse' => ['nom' => 'Albrecht', 'faces' => ['bouclier_noir', 'bouclier_blanc'], 'issue' => 'ramene'],
         'retrait_au_contact' => ['nom' => 'Albrecht', 'figure' => 'Guerrier elfe'],
+        'porte_frappee' => ['nom' => 'Albrecht', 'bonne' => false, 'face' => 'crane', 'reussi' => true, 'succes' => 1, 'seuil' => 3],
+        'assaut_porte' => ['monstre' => 'Orque', 'faces_attaque' => ['crane'], 'faces_defense' => ['bouclier_blanc'], 'degats' => 1, 'pv_restants' => 1, 'pv_max' => 2, 'brisee' => false],
         'soin_planque' => ['personnage' => ['id' => 1, 'nom' => 'Albrecht'], 'jet' => 4, 'a_repartir' => true],
         'repartir_planque' => ['personnage' => ['id' => 1, 'nom' => 'Albrecht'], 'jet' => 4, 'corps' => 3, 'esprit' => 1],
         'fausse_sortie' => ['personnage_id' => 1, 'nom' => 'Grom', 'porte' => ['x' => 10, 'y' => 2, 'cote' => 'e']],

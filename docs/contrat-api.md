@@ -6158,6 +6158,20 @@ Mode classique seulement ; une règle par livret, sourcée.
   soit, et une fois éveillée ne cible jamais un héros déguisé) et `retire_au_contact_deguise` (« Remove an inactive
   [figure] from the map if a disguised hero is ever adjacent to them (no action required) » : endormie, elle est retirée
   dès qu'un héros déguisé marche à son contact ; annonce `retrait_au_contact {nom, figure}`).
+- **Les portes de *Rise of the Dread Moon*** — `Classique\PortesSpeciales`, sur une porte normale sans verrou ni
+  `ouverte` :
+  - `portes[].frapper: true` (q. 3 : « the door is locked, and they instead knock on it (no action required)… one combat
+    die. Each skull rolled counts as a success… the door is removed from the board ») : verrouillée, elle n'offre que
+    `frapper_porte_{x}_{y}_{cote}` (type `frapper_porte`, geste libre). Un dé de combat, crâne = un succès, puis la
+    porte est murée. Au seuil (`regles.portes_a_frapper.succes`, 3 par défaut), ou quand il ne reste qu'elle, c'est la
+    bonne : elle s'ouvre et pose `regles.portes_a_frapper.drapeau` (la fin de l'auteur). Résultat
+    `porte_frappee {nom, bonne, face?, reussi?, succes, seuil}` ; l'état publie `portes[].a_frapper: true`.
+  - `portes[].assiegee: {pv, defense, drapeau?}` (q. 8 F : « Monsters are trying to break through this door… 2 Body
+    Points and rolls 3 Defend dice ») : au tour du MJ, un monstre éveillé posté sur une case de la porte, qu'aucun héros
+    ne touche, la frappe au lieu de jouer — ses crânes contre les boucliers noirs de la porte. À 0, elle s'ouvre
+    (`brisee`) et pose `drapeau`. Action `assaut_porte {monstre, faces_attaque, faces_defense, degats, pv_restants,
+    pv_max, brisee}` ; l'état publie `portes[].assiegee: {pv, pv_max}`. La récompense « avant qu'ils ne la brisent »
+    est une note de l'auteur (`sauf_si_drapeau`).
 - **Planque** — `regles.planque: id de salle` (*Rise of the Dread Moon* p. 7, « Hideouts ») : `Classique\Planque`.
   - UNE fouille du trésor par quête, tous héros confondus (menu et résolveur : `fouilleFermee()`) ;
   - une carte de monstre errant ou de danger tirée là ne joue pas et retourne sous le paquet : issue de fouille

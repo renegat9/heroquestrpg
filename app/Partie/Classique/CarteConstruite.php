@@ -169,6 +169,19 @@ final class CarteConstruite
             if (is_array($porte['verrou'] ?? null)) {
                 $entree = [...$entree, ...$this->verrouMoteur((array) $porte['verrou'])];
             }
+            // PORTES D'UN LIVRET (lot E2, *Rise of the Dread Moon*) — `Classique\PortesSpeciales` :
+            // - qu'on FRAPPE (q. 3) : verrouillée (« tell the hero that the door is locked »), elle n'offre que le geste de frapper ;
+            // - ASSIÉGÉE (q. 8 F) : close, avec ses points de vie, que les monstres postés à son contact frappent.
+            if (($porte['frapper'] ?? false) === true) {
+                $entree = [...$entree, 'etat' => MoteurPortes::ETAT_VERROUILLEE, 'verrou' => ['type' => MoteurPortes::VERROU_NOTE], 'frapper' => true];
+            }
+            if (is_array($porte['assiegee'] ?? null)) {
+                $entree['assiegee'] = array_filter([
+                    'pv' => (int) $porte['assiegee']['pv'], 'defense' => (int) $porte['assiegee']['defense'],
+                    'drapeau' => $porte['assiegee']['drapeau'] ?? null,
+                ], fn ($v) => $v !== null);
+                $entree['pv_assiegee'] = (int) $porte['assiegee']['pv'];
+            }
             // Comme dans l'assembleur : la porte porte le numéro de SA jonction ; aucune boucle n'est déclarée ici.
             $entree['jonction'] = count($aretes) - 1;
             $entree['boucle'] = false;

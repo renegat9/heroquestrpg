@@ -19,7 +19,7 @@ const SOMMAIRE = [
 
 const OUTILS = [
     ['meeting_room', 'Ouvrir / fermer une salle', 'Une salle ouverte fait partie du donjon de cette quête ; une salle fermée est de la roche.'],
-    ['door_front', 'Porte', 'Cliquer le BORD d\'une case. Normale ou secrète ; une porte normale peut porter un verrou (note, clé, pierre, condition) ou être ouverte au départ, une secrète être déjà découverte — ou cachée : seule une note la révèle, jamais la fouille.'],
+    ['door_front', 'Porte', 'Cliquer le BORD d\'une case. Normale ou secrète ; une porte normale peut porter un verrou (note, clé, pierre, condition) ou être ouverte au départ, une secrète être déjà découverte — ou cachée : seule une note la révèle, jamais la fouille. Une porte ordinaire peut aussi être une porte où l\'on frappe (un dé, trois succès, puis la bonne porte s\'ouvre et pose un drapeau) ou une porte assiégée (ses PV et sa défense ; les monstres à son contact la frappent).'],
     ['block', 'Bloc de couloir', 'Une case de couloir bouchée.'],
     ['chair', 'Meuble', 'Choisir le meuble et sa rotation, cliquer sa case en haut à gauche. Un meuble se pose dans une salle ou, en entier, dans un couloir.'],
     ['skull', 'Monstre', 'Une figure du bestiaire. Son numéro (0, 1, 2…) sert aux notes et à la fin de quête.'],

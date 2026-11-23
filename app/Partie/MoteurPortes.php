@@ -279,6 +279,17 @@ final class MoteurPortes
     }
 
     /**
+     * Les portes qu'on FRAPPE (mode classique, lot E2 — `Classique\PortesSpeciales`) au contact de (x, y), encore à frapper.
+     * Lu par le menu ET par le résolveur.
+     *
+     * @return list<array{index: int, porte: array<string, mixed>}>
+     */
+    public function portesAFrapperAdjacentes(Carte $carte, int $x, int $y): array
+    {
+        return $this->portesAdjacentes($carte, $x, $y, fn (array $porte) => \App\Partie\Classique\PortesSpeciales::aFrapper($porte));
+    }
+
+    /**
      * LE scan unique des portes adjacentes à une case : seul le FILTRE change d'une
      * liste à l'autre. Deux boucles copiées auraient fini par diverger.
      *

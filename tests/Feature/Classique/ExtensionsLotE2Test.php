@@ -452,3 +452,52 @@ it('potion de vitesse elfique : 12 cases sans dé et deux attaques par tour, jus
     app(\App\Partie\MoteurDegats::class)->infligerAHeros($partie['heros']->fresh(), 1, \App\Partie\MoteurDegats::SOURCE_PIEGE, []);
     expect($sorts->valeurBuff($partie['heros']->fresh(), 'deplacement_fixe'))->toBe(0);
 });
+
+it('porte qu\'on frappe : un crâne est un succès et la porte est murée ; au seuil, la bonne porte s\'ouvre et pose le drapeau', function () {
+    $campagne = campagneE2(['regles' => ['portes_a_frapper' => ['succes' => 1, 'drapeau' => 'bonne_porte']], 'portes' => [
+        ['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale'],
+        ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale', 'frapper' => true],
+        ['x' => 5, 'y' => 2, 'cote' => 'n', 'type' => 'normale', 'frapper' => true],
+        ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'normale', 'frapper' => true]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['portes' => [['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'secrete', 'frapper' => true]]])))->toContain(ValidationCampagne::VALEUR_INVALIDE);
+    $partie = partieE2($this, $campagne);
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 20, 1)));
+    $frapper = function (int $x) use ($partie) {
+        $partie['quete']->etatsPersonnages()->update(['position_x' => $x, 'position_y' => 2]);
+        \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+        $ids = collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id');
+        // Une porte du nord se range sur l'arête de la case du dessus (`CarteConstruite::porteMoteur()`) : (x, 1, s).
+        expect($ids)->toContain("frapper_porte_{$x}_1_s")->and($ids->filter(fn ($id) => str_starts_with($id, 'ouvrir_porte_'))->all())->toBe([]);
+
+        return $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => "frapper_porte_{$x}_1_s"])->assertAccepted()->json('resultat');
+    };
+    $porte = fn (int $x) => collect($partie['quete']->fresh()->carte->grille['portes'])->first(fn ($p) => (int) $p['x'] === $x && (int) $p['y'] === 1);
+
+    expect($frapper(3))->toMatchArray(['type' => 'porte_frappee', 'bonne' => false, 'reussi' => true, 'succes' => 1])
+        ->and($porte(3)['muree'])->toBeTrue();
+    expect($frapper(5))->toMatchArray(['bonne' => true])
+        ->and($porte(5)['etat'])->toBe(\App\Partie\MoteurPortes::ETAT_OUVERTE)
+        ->and($partie['quete']->fresh()->aDrapeau('bonne_porte'))->toBeTrue();
+});
+
+it('porte assiégée : le monstre posté à son contact la frappe au lieu de jouer ; brisée, elle s\'ouvre et pose le drapeau', function () {
+    $campagne = campagneE2(['monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 5]], 'portes' => [
+        ['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale'], ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale'],
+        ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'normale', 'assiegee' => ['pv' => 2, 'defense' => 3, 'drapeau' => 'porte_brisee']]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 2, 'position_y' => 2]);
+    $partie['quete']->instancesMonstres()->update(['revele' => true]);
+    // Crânes à l'attaque, boucliers blancs à la défense de la porte : tout passe.
+    app()->instance(LanceurDes::class, new LanceurDeterministe([1, 1, 1, 4, 4, 4, ...array_fill(0, 30, 4)]));
+
+    $phase = new ReflectionMethod(ResolveurTour::class, 'phaseMonstres');
+    $actions = (array) ($phase->invoke(app(ResolveurTour::class), $partie['groupe'], $partie['quete']->fresh())['actions'] ?? []);
+
+    $assaut = collect($actions)->firstWhere('type', 'assaut_porte');
+    $porte = collect($partie['quete']->fresh()->carte->grille['portes'])->first(fn ($p) => (int) $p['x'] === 9);
+    expect($assaut)->toMatchArray(['brisee' => true, 'pv_restants' => 0])
+        ->and($porte['etat'])->toBe(\App\Partie\MoteurPortes::ETAT_OUVERTE)
+        ->and($partie['quete']->fresh()->aDrapeau('porte_brisee'))->toBeTrue();
+});

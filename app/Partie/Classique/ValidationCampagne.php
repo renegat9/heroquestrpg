@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -171,7 +171,7 @@ final class ValidationCampagne
     private const LONGUEUR_REPERE = 40;
     private const LONGUEUR_DRAPEAU = 40;
     private const CLES_PORTE = ['x', 'y', 'cote', 'type'];
-    private const CLES_PORTE_OPTIONNELLES = ['verrou', 'ouverte', 'revelee', 'cachee'];
+    private const CLES_PORTE_OPTIONNELLES = ['verrou', 'ouverte', 'revelee', 'cachee', 'frapper', 'assiegee'];
     private const CLES_CASE = ['x', 'y'];
     private const CLES_MOBILIER = ['slug', 'x', 'y', 'rotation'];
     private const CLES_POSE = ['slug', 'x', 'y'];
@@ -1367,6 +1367,33 @@ final class ValidationCampagne
                     $this->refuser("$position.ouverte", self::VALEUR_INVALIDE, 'une porte ouverte au départ ne porte pas de verrou');
                 }
             }
+            // PORTES D'UN LIVRET (lot E2, F6646 q. 3 et q. 8 F) : sur une porte normale, sans verrou ni autre état de départ.
+            foreach (['frapper', 'assiegee'] as $cleSpeciale) {
+                if (! array_key_exists($cleSpeciale, $porte)) {
+                    continue;
+                }
+                if (($porte['type'] ?? null) !== 'normale' || array_key_exists('verrou', $porte) || array_key_exists('ouverte', $porte)) {
+                    $this->refuser("$position.$cleSpeciale", self::VALEUR_INVALIDE, 'seule une porte normale, sans verrou et close au départ, peut porter cette règle');
+                }
+            }
+            if (array_key_exists('frapper', $porte) && $porte['frapper'] !== true) {
+                $this->refuser("$position.frapper", self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+            }
+            if (array_key_exists('frapper', $porte) && array_key_exists('assiegee', $porte)) {
+                $this->refuser("$position.assiegee", self::VALEUR_INVALIDE, 'une porte qu\'on frappe n\'est pas assiégée');
+            }
+            if (array_key_exists('assiegee', $porte)) {
+                $ici = "$position.assiegee";
+                $siege = $this->enObjet($porte['assiegee'], $ici);
+                if ($siege !== null) {
+                    $this->cles($siege, $ici, ['pv', 'defense'], ['drapeau']);
+                    $this->entier($siege, 'pv', "$ici.pv", min: 1);
+                    $this->entier($siege, 'defense', "$ici.defense", min: 0);
+                    if (array_key_exists('drapeau', $siege) && (! is_string($siege['drapeau']) || $siege['drapeau'] === '')) {
+                        $this->refuser("$ici.drapeau", self::TYPE_INVALIDE, 'un nom de drapeau est attendu');
+                    }
+                }
+            }
             $cellule = $this->cellule($porte, $position);
             if ($cellule !== null && $cote !== null) {
                 $this->porteSurUnBord($cellule, $cote, $position);
@@ -2066,6 +2093,18 @@ final class ValidationCampagne
         }
         // Lot E2 : les richesses elfiques (F7539 p. 5) — l'or de la première fouille d'une salle à coffre que rien ne nomme.
         $this->entier($regles, 'richesses_des_coffres', self::chemin($position, 'richesses_des_coffres'), min: 1);
+        // Lot E2 : les portes qu'on frappe (F6646 q. 3) — le seuil de succès et le drapeau posé à la bonne porte.
+        if (array_key_exists('portes_a_frapper', $regles)) {
+            $ici = self::chemin($position, 'portes_a_frapper');
+            $frappe = $this->enObjet($regles['portes_a_frapper'], $ici);
+            if ($frappe !== null) {
+                $this->cles($frappe, $ici, [], ['succes', 'drapeau']);
+                $this->entier($frappe, 'succes', "$ici.succes", min: 1);
+                if (array_key_exists('drapeau', $frappe) && (! is_string($frappe['drapeau']) || $frappe['drapeau'] === '')) {
+                    $this->refuser("$ici.drapeau", self::TYPE_INVALIDE, 'un nom de drapeau est attendu');
+                }
+            }
+        }
         // Lot E2 : la planque (F6646 p. 7) — une salle ouverte de la quête.
         if (array_key_exists('planque', $regles) && (! is_string($regles['planque'])
             || ($this->ouvertesFiables && ! isset($this->ouvertes[$regles['planque']])))) {

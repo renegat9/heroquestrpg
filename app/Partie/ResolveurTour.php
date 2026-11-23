@@ -740,6 +740,8 @@ final class ResolveurTour
                 // PLANQUE (mode classique, lot E2, F6646 p. 7) : le dé rouge, puis sa répartition. `Classique\Planque`.
                 'soin_planque' => $this->resoudreSoinPlanque($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'repartir_planque' => $this->resoudreRepartirPlanque($groupe, $quete, $personnage, $option, $parametres, $acteur),
+                // PORTE QU'ON FRAPPE (mode classique, lot E2, F6646 q. 3) : `Classique\PortesSpeciales::frapper()`.
+                'frapper_porte' => $this->resoudreFrapperPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $etat, $option, $acteur),
                 // SORTIE CASE PAR CASE (mode classique) : le héros quitte le donjon, par l'escalier ou la porte de sortie.
                 'sortie_en_personne' => $this->resoudreSortieEnPersonne($groupe, $quete, $personnage, $etat, $option, $acteur),
@@ -11926,6 +11928,22 @@ final class ResolveurTour
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
+    /** PORTE QU'ON FRAPPE (lot E2) : la porte visée doit être dans la liste que le menu a offerte. */
+    private function resoudreFrapperPorte(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $vise = (array) ($option['parametres']['porte'] ?? []);
+        $porte = collect($this->portes->portesAFrapperAdjacentes($quete->carte, (int) $etat->position_x, (int) $etat->position_y))
+            ->first(fn (array $c) => (int) $c['porte']['x'] === (int) ($vise['x'] ?? -1) && (int) $c['porte']['y'] === (int) ($vise['y'] ?? -1)
+                && (string) ($c['porte']['cote'] ?? 'e') === (string) ($vise['cote'] ?? ''));
+        if ($porte === null) {
+            throw ValidationException::withMessages(['option_id' => 'Aucune porte à frapper à ta portée.']);
+        }
+        $payload = ['option_id' => $option['id'], ...app(\App\Partie\Classique\PortesSpeciales::class)->frapper($groupe, $quete, $personnage, (int) $porte['index'])];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
     /** PLANQUE (mode classique, lot E2) : l'action de soin — le dé rouge (`Classique\Planque::lancer()`). */
     private function resoudreSoinPlanque(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
@@ -15051,8 +15069,16 @@ final class ResolveurTour
 
         $xAvant = $instance->position_x;
         $yAvant = $instance->position_y;
-        $action = $this->jouerMonstreEveille($groupe, $quete, $instance, $cibles, $nomMonstre, $acteur);
-        $action = $this->gestesPassifs($groupe, $quete, $instance, $cibles, $action, $acteur, $nomMonstre, $xAvant, $yAvant);
+        // PORTE ASSIÉGÉE (mode classique, lot E2, F6646 q. 8 F) : posté à son contact, sans héros à portée, il la frappe.
+        $assaut = $this->dormants->estDormant($instance) ? null
+            : app(\App\Partie\Classique\PortesSpeciales::class)->assaut($groupe, $quete, $instance, $cibles);
+        if ($assaut !== null) {
+            Journal::ajouter($groupe, 'action', $assaut, $acteur);
+            $action = $assaut;
+        } else {
+            $action = $this->jouerMonstreEveille($groupe, $quete, $instance, $cibles, $nomMonstre, $acteur);
+            $action = $this->gestesPassifs($groupe, $quete, $instance, $cibles, $action, $acteur, $nomMonstre, $xAvant, $yAvant);
+        }
 
         // ⚠ Le réveil était JOURNALISÉ MAIS JAMAIS RETOURNÉ : le dormeur rouvrait les
         // yeux, jouait son tour, et le fil ne disait que le tour. Le réveil précède
@@ -16835,6 +16861,8 @@ final class ResolveurTour
             'offre' => 'interaction',
             // La répartition du dé de la planque appartient à l'action qui l'a lancé (lot E2).
             'repartir_planque' => 'interaction',
+            // « they instead knock on it (no action required) » (F6646 q. 3).
+            'frapper_porte' => 'interaction',
             // TROPHÉES D'ARÈNE (lot T4) : « no action required » pour ramasser, et l'usage n'en demande pas davantage —
             // boire la potion d'une tuile ou défausser une tuile pour l'élan ne coûte aucun créneau.
             'trophee_potion', 'trophee_elan' => 'interaction',

@@ -244,7 +244,7 @@ function retirerQuete(i) {
 
 // ---------------------------------------------------------------- quêtes : outils de la carte
 const outil = ref('salle');
-const choix = reactive({ porteOuverte: false, porteRevelee: false, porteCachee: false, terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, piegeGouffre: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
+const choix = reactive({ porteOuverte: false, porteRevelee: false, porteCachee: false, porteSpeciale: '', siegePv: 2, siegeDefense: 3, siegeDrapeau: '', terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, piegeGouffre: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
 watch(catalogues, (c) => {
     if (!c) return;
     choix.mobilier ||= c.couches.mobilier?.[0]?.slug ?? '';
@@ -285,6 +285,11 @@ function verrouChoisi(pourSortie = false) {
 
 /** Lot E1 : l'état de départ de la porte posée — ouverte (normale, sans verrou), ou déjà découverte (secrète). */
 function etatDeDepartPorte() {
+    // Lot E2 (Rise of the Dread Moon) : la porte qu'on frappe (q. 3), la porte assiégée (q. 8 F) — normale, sans verrou, close.
+    if (choix.typePorte === 'normale' && !choix.verrouPorte && choix.porteSpeciale === 'frapper') return { frapper: true };
+    if (choix.typePorte === 'normale' && !choix.verrouPorte && choix.porteSpeciale === 'assiegee') {
+        return { assiegee: { pv: Math.max(1, Number(choix.siegePv) || 1), defense: Math.max(0, Number(choix.siegeDefense) || 0), ...(choix.siegeDrapeau ? { drapeau: choix.siegeDrapeau } : {}) } };
+    }
     if (choix.typePorte === 'normale' && !choix.verrouPorte && choix.porteOuverte) return { ouverte: true };
     if (choix.typePorte === 'secrete' && choix.porteRevelee) return { revelee: true };
     // Lot E2 : une porte que seule une note révèle (`reveler_porte`), jamais la fouille (F5815 q. 5 C).
@@ -1034,7 +1039,18 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <option v-for="t in vocab.types_porte" :key="t" :value="t">{{ t === 'secrete' ? 'secrète' : t }}</option>
                             </select>
                             <!-- Lot E1 : l'état de départ de la porte. -->
-                            <label v-if="outil === 'porte' && choix.typePorte === 'normale' && !choix.verrouPorte" class="cst-case"><input v-model="choix.porteOuverte" type="checkbox" /> ouverte au départ</label>
+                            <label v-if="outil === 'porte' && choix.typePorte === 'normale' && !choix.verrouPorte && !choix.porteSpeciale" class="cst-case"><input v-model="choix.porteOuverte" type="checkbox" /> ouverte au départ</label>
+                            <!-- Lot E2 (Rise of the Dread Moon) : une porte de livret, à sa règle. -->
+                            <select v-if="outil === 'porte' && choix.typePorte === 'normale' && !choix.verrouPorte && !choix.porteOuverte" v-model="choix.porteSpeciale" class="cst-input" title="Une porte à règle de livret">
+                                <option value="">porte ordinaire</option>
+                                <option value="frapper">on y frappe (Dread Moon q. 3)</option>
+                                <option value="assiegee">assiégée par les monstres (Dread Moon q. 8)</option>
+                            </select>
+                            <template v-if="outil === 'porte' && choix.porteSpeciale === 'assiegee' && choix.typePorte === 'normale' && !choix.verrouPorte">
+                                <label class="cst-case">PV <input v-model.number="choix.siegePv" type="number" min="1" class="cst-input cst-num" /></label>
+                                <label class="cst-case">défense <input v-model.number="choix.siegeDefense" type="number" min="0" class="cst-input cst-num" /></label>
+                                <input v-model="choix.siegeDrapeau" class="cst-input" placeholder="drapeau si elle cède" />
+                            </template>
                             <label v-if="outil === 'porte' && choix.typePorte === 'secrete'" class="cst-case"><input v-model="choix.porteRevelee" type="checkbox" /> déjà découverte</label>
                             <label v-if="outil === 'porte' && choix.typePorte === 'secrete' && !choix.porteRevelee" class="cst-case" title="Seule une note la révèle (« révéler la porte ») : la fouille ne la trouve jamais."><input v-model="choix.porteCachee" type="checkbox" /> cachée (révélée par une note)</label>
                             <template v-if="outil === 'porte' && choix.typePorte === 'normale'">
@@ -1217,6 +1233,15 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <label class="cst-case" title="La première fouille du trésor d'une salle à coffre qu'aucune note ne nomme rapporte cet or (The Mage of the Mirror : 200).">
                                     Or d'un coffre sans note :
                                     <input type="number" min="1" class="cst-input cst-num" :value="quete.regles?.richesses_des_coffres ?? ''" @change="changerRegleEntier('richesses_des_coffres', $event.target.value)" />
+                                </label>
+                                <!-- Lot E2 : les portes qu'on frappe (Rise of the Dread Moon q. 3) — le seuil et le drapeau de la bonne porte. -->
+                                <label v-if="(quete.portes ?? []).some((p) => p.frapper)" class="cst-case" title="Le nombre de succès avant la bonne porte (3 dans le livret), et le drapeau posé quand elle s'ouvre.">
+                                    Portes à frapper — succès :
+                                    <input type="number" min="1" class="cst-input cst-num" :value="quete.regles?.portes_a_frapper?.succes ?? ''" placeholder="3"
+                                        @change="poserRegle('portes_a_frapper', { ...(quete.regles?.portes_a_frapper ?? {}), succes: Number($event.target.value) || undefined })" />
+                                    drapeau :
+                                    <input class="cst-input" :value="quete.regles?.portes_a_frapper?.drapeau ?? ''"
+                                        @change="poserRegle('portes_a_frapper', { ...(quete.regles?.portes_a_frapper ?? {}), drapeau: $event.target.value || undefined })" />
                                 </label>
                                 <!-- Lot E2 : la planque (Rise of the Dread Moon p. 7). -->
                                 <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Une fouille du trésor par quête, cartes de monstre errant et de danger sans effet, et un soin d'un dé rouge par héros.">

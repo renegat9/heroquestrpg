@@ -60,6 +60,8 @@ const ICONE_TYPE = {
     // PLANQUE (Rise of the Dread Moon p. 7, lot E2) : le dé rouge du soin, puis sa répartition entre Corps et Esprit.
     soin_planque: 'healing',
     repartir_planque: 'balance',
+    // PORTE QU'ON FRAPPE (Rise of the Dread Moon q. 3, lot E2) : on toque, on n'ouvre pas.
+    frapper_porte: 'front_hand',
     jet: 'casino',
     attaque: 'swords',
     // ARÈNE, combattant seul : la manœuvre de base frappe à 2 dés.

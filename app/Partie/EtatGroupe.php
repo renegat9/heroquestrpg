@@ -916,6 +916,15 @@ final class EtatGroupe
                 // ici, lue par `SymboleCarte` (`tourne`), jamais recalculée côté client. Toujours présente.
                 $porte['symbole_rotation'] = MoteurPortes::rotationSymbole($p);
 
+                // PORTES D'UN LIVRET (mode classique, lot E2) : la porte assiégée publie ses points de vie, la porte qu'on
+                // frappe le dit — clés présentes seulement sur ces portes-là.
+                if (is_array($p['assiegee'] ?? null)) {
+                    $porte['assiegee'] = ['pv' => (int) ($p['pv_assiegee'] ?? $p['assiegee']['pv']), 'pv_max' => (int) $p['assiegee']['pv']];
+                }
+                if (\App\Partie\Classique\PortesSpeciales::aFrapper($p)) {
+                    $porte['a_frapper'] = true;
+                }
+
                 return $porte;
             })
             ->values()
