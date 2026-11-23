@@ -179,6 +179,8 @@ final class JournalCombat
         'porte_teleporte' => true,
         // LE CAPTIF À ESCORTER (2026-11-20) : pas ramené vivant, la récompense de la quête n'est pas versée.
         'recompense_perdue' => true,
+        // Lot E2 : le rebord de crevasse (F5815 q. 4 E).
+        'crevasse' => true,
         // MODE CLASSIQUE : un héros a poussé une FAUSSE porte de sortie — elle ne s'ouvre pas, il reste dans le donjon.
         'fausse_sortie' => true,
         // MODE CLASSIQUE : un héros qui attendait hors du plateau franchit la porte d'entrée.
@@ -1375,6 +1377,15 @@ final class JournalCombat
             'fausse_sortie' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' pousse la porte de sortie : c\'est une fausse porte, peinte sur le mur — elle ne s\'ouvre pas',
                 'ton' => 'echec',
+            ]],
+            'crevasse' => [[
+                'texte' => match ($a['issue'] ?? 'sauf') {
+                    'perdu' => ($a['nom'] ?? $acteurNom).' glisse dans la crevasse… et disparaît à jamais',
+                    'au_bord' => ($a['nom'] ?? $acteurNom).' glisse dans la crevasse et s\'effondre au bord, à terre',
+                    'ramene' => ($a['nom'] ?? $acteurNom).' glisse sur le rebord (−1 PV) et se rattrape : retour à l\'entrée, tour terminé',
+                    default => ($a['nom'] ?? $acteurNom).' garde l\'équilibre sur le rebord de la crevasse',
+                },
+                'ton' => in_array($a['issue'] ?? 'sauf', ['perdu', 'au_bord'], true) ? 'chute' : (($a['issue'] ?? 'sauf') === 'ramene' ? 'degats' : 'info'),
             ]],
             'recompense_perdue' => [[
                 'texte' => ($a['raison'] ?? 'captif') === 'condition'

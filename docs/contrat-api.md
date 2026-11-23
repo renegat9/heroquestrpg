@@ -6135,6 +6135,11 @@ Mode classique seulement ; une règle par livret, sourcée.
   découverte (elle se révèle), et le tour s'arrête.
 - **Glissière** — `terrain[].sortie: {x, y}` sur une tuile à sens unique (`couches.terrain[].glissiere`) : « whisked
   away… to the last square of the slide » ; le dé (bouclier blanc = 1 PV) et la fin du tour restent ceux de la tuile.
+- **Rebord de crevasse** — `regles.crevasse: [id de salle]` (q. 4 E, 6 G, 8 F) : à la PREMIÈRE case de la salle, et au
+  DÉBUT de chaque tour d'un héros qui s'y trouve (crochet du menu, une fois par tour), un dé : bouclier noir = 1 PV puis
+  un second dé — bouclier noir = « never to be seen again » (mort définitive, affaires perdues ; en mode Story : à terre
+  au bord, décision écrite), sinon retour à la case d'entrée et fin du tour. Annonce `crevasse {nom, faces, issue:
+  sauf|ramene|perdu|au_bord}`. `Classique\Crevasse`.
 - **Reddition** — profil d'auteur `se_rend: {objet?}` (q. 1 B, l'Arbalétrier) : attaquée AU CONTACT, la figure se rend
   sans être blessée, quitte le plateau (comme `retirer`) et laisse l'objet à l'attaquant. Résultat :
   `reddition_auteur: {nom, objet}` ; fil « se rend et s'enfuit, laissant l'arbalète à Albrecht ».

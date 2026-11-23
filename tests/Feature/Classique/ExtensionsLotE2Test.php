@@ -149,3 +149,51 @@ it('tunnel de glace : vers une salle encore cachée, qui se révèle', function 
     expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([9, 4])
         ->and($partie['quete']->fresh()->sallesDecouvertes())->toContain($galerie);
 });
+
+function crevasseE2(object $test): array
+{
+    $campagne = campagneE2(['regles' => ['crevasse' => ['galerie']], 'portes' => [
+        ['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale', 'ouverte' => true],
+        ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale'], ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'secrete']]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($test, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 5, 'position_y' => 3]);
+
+    return $partie;
+}
+
+it('rebord de crevasse, à la première case : sauf, ramené, ou perdu à jamais', function (array $des, string $issue, ?array $case, int $pv, string $mode) {
+    $partie = crevasseE2($this);
+    $partie['groupe']->update(['mode_mort' => $mode]);
+    app()->instance(LanceurDes::class, new LanceurDeterministe([...$des, ...array_fill(0, 30, 1)]));
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'se_deplacer', 'parametres' => ['x' => 8, 'y' => 3]])->assertAccepted();
+
+    $annonce = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()->first(fn ($e) => ($e->payload['type'] ?? null) === 'crevasse');
+    $etat = $partie['quete']->etatsPersonnages()->first();
+    expect($annonce->payload['issue'])->toBe($issue)
+        ->and($etat === null ? null : [(int) $etat->position_x, (int) $etat->position_y])->toBe($case)
+        ->and((int) $partie['heros']->fresh()->pv_body)->toBe($pv);
+})->with([
+    // Le déplacement est déjà tiré au départ de la quête : ces dés sont ceux de la crevasse.
+    'sauf (crâne)' => [[1], 'sauf', [8, 3], 30, 'standard'],
+    'ramené (noir puis blanc)' => [[6, 4], 'ramene', [6, 3], 29, 'standard'],
+    'perdu (noir puis noir)' => [[6, 6], 'perdu', null, 0, 'standard'],
+    // Seul en jeu, le héros à terre fait perdre la quête : son état de quête disparaît avec elle.
+    'Story : au bord, à terre' => [[6, 6], 'au_bord', null, 29, 'story'],
+]);
+
+it('rebord de crevasse : au début de son tour dans la salle, le héros roule d\'abord — une fois', function () {
+    $partie = crevasseE2($this);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+    app()->instance(LanceurDes::class, new LanceurDeterministe([6, 4, ...array_fill(0, 30, 1)]));
+    $crevasse = app(\App\Partie\Classique\Crevasse::class);
+    $etat = $partie['quete']->etatsPersonnages()->first();
+
+    $premier = $crevasse->debutDeTour($partie['groupe'], $partie['quete']->fresh(), $partie['heros'], $etat);
+    $second = $crevasse->debutDeTour($partie['groupe'], $partie['quete']->fresh(), $partie['heros'], $etat->fresh());
+
+    expect($premier['issue'])->toBe('ramene')->and($second)->toBeNull()
+        ->and((int) $partie['heros']->fresh()->pv_body)->toBe(29);
+});

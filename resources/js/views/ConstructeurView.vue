@@ -1195,6 +1195,11 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <label v-for="id in quete.salles_ouvertes" :key="`bv${id}`" class="cst-case">
                                     <input type="checkbox" :checked="(quete.regles?.brouillard_vivant ?? []).includes(id)" @change="basculerListeRegle('brouillard_vivant', id, $event.target.checked)" /> {{ id }}
                                 </label>
+                                <!-- Lot E2 : les salles à rebord de crevasse (F5815 q. 4, 6, 8). -->
+                                <span v-if="quete.salles_ouvertes.length" class="cst-lbl">Rebord de crevasse :</span>
+                                <label v-for="id in quete.salles_ouvertes" :key="`cv${id}`" class="cst-case">
+                                    <input type="checkbox" :checked="(quete.regles?.crevasse ?? []).includes(id)" @change="basculerListeRegle('crevasse', id, $event.target.checked)" /> {{ id }}
+                                </label>
                                 <!-- Lot E1 : la quête enchaîne sans remettre le Corps ni l'Esprit à neuf. -->
                                 <label class="cst-case">
                                     <input type="checkbox" :checked="quete.regles?.sans_restauration === true" @change="changerRegleBool('sans_restauration', $event.target.checked)" /> Sans restauration (Corps et Esprit gardés)

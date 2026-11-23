@@ -123,10 +123,11 @@ final class MortHeroic
      *
      * @return array<string, mixed>
      */
-    public function mourir(Groupe $groupe, Quete $quete, EtatPersonnageQuete $etat): array
+    public function mourir(Groupe $groupe, Quete $quete, EtatPersonnageQuete $etat, bool $affairesPerdues = false): array
     {
         $heros = $etat->personnage;
-        $affaires = $this->laisserLesAffaires($quete, $etat);
+        // `$affairesPerdues` (lot E2) : tombé dans une crevasse, « never to be seen again » — ses affaires avec lui.
+        $affaires = $affairesPerdues ? 'perdues' : $this->laisserLesAffaires($quete, $etat);
         $heros?->update(['mort_le' => now()]);
         $etat->delete();
 

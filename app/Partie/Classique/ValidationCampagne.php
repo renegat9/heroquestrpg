@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -2037,11 +2037,14 @@ final class ValidationCampagne
             $this->refuser(self::chemin($position, 'deguisement'), self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
         }
         // Lot K6 (*Jungles of Delthrak*, « Order of Play ») : `ordre_libre` — présent seulement quand il vaut true.
-        // Lot E2 : les salles de brouillard vivant (*The Frozen Horror* q. 7, 9) — des salles ouvertes de la quête.
-        if (array_key_exists('brouillard_vivant', $regles)) {
-            foreach ((array) $this->enListe($regles['brouillard_vivant'], self::chemin($position, 'brouillard_vivant')) as $k => $id) {
+        // Lot E2 : les salles de brouillard vivant (F5815 q. 7, 9) et à crevasse (q. 4, 6, 8) — des salles ouvertes de la quête.
+        foreach (['brouillard_vivant', 'crevasse'] as $cleSalles) {
+            if (! array_key_exists($cleSalles, $regles)) {
+                continue;
+            }
+            foreach ((array) $this->enListe($regles[$cleSalles], self::chemin($position, $cleSalles)) as $k => $id) {
                 if (! is_string($id) || ($this->ouvertesFiables && ! isset($this->ouvertes[$id]))) {
-                    $this->refuser(self::chemin($position, 'brouillard_vivant').".$k", self::SALLE_INCONNUE, 'une salle ouverte de la quête est attendue');
+                    $this->refuser(self::chemin($position, $cleSalles).".$k", self::SALLE_INCONNUE, 'une salle ouverte de la quête est attendue');
                 }
             }
         }

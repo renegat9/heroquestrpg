@@ -1631,7 +1631,11 @@ final class MenuMoteur
                 // FARDEAU DU PORTEUR (Talisman du Savoir maudit, 2026-10-29) : même crochet, même garde. Le jet peut faire
                 // tomber le porteur : l'état est relu AVANT que le menu ne le lise.
                 app(MoteurFardeau::class)->debutDeTour($groupe, $quete, $personnage, $etat);
-                $etat->refresh();
+                // REBORD DE CREVASSE (mode classique, lot E2) : « at the beginning of any turn in which a hero is in this
+                // room, they must first roll » — même crochet, même garde ; il peut ramener, faire tomber ou perdre le héros.
+                app(\App\Partie\Classique\Crevasse::class)->debutDeTour($groupe, $quete, $personnage, $etat);
+                $etat = $etat->exists ? $etat->fresh() : null;
+                $etat?->refresh();
             }
         }
 
