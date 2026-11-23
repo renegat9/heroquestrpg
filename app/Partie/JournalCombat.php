@@ -181,6 +181,9 @@ final class JournalCombat
         'recompense_perdue' => true,
         // Lot E2 : le rebord de crevasse (F5815 q. 4 E).
         'crevasse' => true,
+        // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
+        'soin_planque' => true,
+        'repartir_planque' => true,
         // MODE CLASSIQUE : un héros a poussé une FAUSSE porte de sortie — elle ne s'ouvre pas, il reste dans le donjon.
         'fausse_sortie' => true,
         // MODE CLASSIQUE : un héros qui attendait hors du plateau franchit la porte d'entrée.
@@ -1377,6 +1380,16 @@ final class JournalCombat
             'fausse_sortie' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' pousse la porte de sortie : c\'est une fausse porte, peinte sur le mur — elle ne s\'ouvre pas',
                 'ton' => 'echec',
+            ]],
+            'soin_planque' => [[
+                'texte' => ($a['personnage']['nom'] ?? $acteurNom).' panse ses plaies à la planque : '.(int) ($a['jet'] ?? 0).' au dé rouge'
+                    .(! empty($a['a_repartir']) ? ', à répartir entre le Corps et l\'Esprit'
+                        : ' — +'.(int) ($a['corps'] ?? 0).' Corps, +'.(int) ($a['esprit'] ?? 0).' Esprit'),
+                'ton' => 'succes',
+            ]],
+            'repartir_planque' => [[
+                'texte' => ($a['personnage']['nom'] ?? $acteurNom).' répartit son soin : +'.(int) ($a['corps'] ?? 0).' Corps, +'.(int) ($a['esprit'] ?? 0).' Esprit',
+                'ton' => 'succes',
             ]],
             'crevasse' => [[
                 'texte' => match ($a['issue'] ?? 'sauf') {
@@ -3481,6 +3494,11 @@ final class JournalCombat
             // NOTE DE QUÊTE (mode classique) : la salle a répondu par une note de l'auteur, que `NotesDeQuete` a déjà
             // annoncée effet par effet (`note_de_quete`). Rien à redire ici — surtout pas « fouille en vain ».
             'note' => [],
+            // PLANQUE (lot E2, F6646 p. 7) : la carte de monstre errant ou de danger ne joue pas, et retourne sous le paquet.
+            'planque' => [[
+                'texte' => 'La planque est sûre : la carte '.(($a['carte_ignoree'] ?? '') === 'errant' ? 'de monstre errant' : 'de danger').' ne joue pas, et retourne sous le paquet',
+                'ton' => 'info',
+            ]],
             // RICHESSES ELFIQUES (lot E2, F7539 p. 5) : la salle à coffre que le livret ne nomme pas paie sa première fouille.
             'richesses' => [[
                 'texte' => "{$acteurNom} trouve ".(int) ($a['or'] ?? 0)." pièces d'or dans le coffre",

@@ -6152,6 +6152,16 @@ Mode classique seulement ; une règle par livret, sourcée.
   first time that room is searched for treasure award that Hero 200 gold coins ») : la PREMIÈRE fouille du trésor d'une
   salle où l'auteur a posé un Coffre, et qu'aucune note `fouille_tresor` ne nomme, verse N pièces à la bourse du
   fouilleur, à la place de la carte. Résultat de fouille `issue: richesses, or: N`. `Classique\RichessesElfiques`.
+- **Planque** — `regles.planque: id de salle` (*Rise of the Dread Moon* p. 7, « Hideouts ») : `Classique\Planque`.
+  - UNE fouille du trésor par quête, tous héros confondus (menu et résolveur : `fouilleFermee()`) ;
+  - une carte de monstre errant ou de danger tirée là ne joue pas et retourne sous le paquet : issue de fouille
+    `planque {carte_ignoree: errant|piege}` ;
+  - l'option `soin_planque` (action, une fois par quête et par héros, dans la planque, un point perdu) lance un dé
+    rouge : résultat `soin_planque {jet, corps?, esprit?, a_repartir?}`. Une seule répartition possible se joue
+    aussitôt ; sinon le menu publie `repartir_planque_{corps}` (type `repartir_planque`, geste libre,
+    `parametres: {corps, esprit}`) — la liste de `Planque::repartitions()` (aucune ne rend moins qu'une autre sur les
+    deux jauges), revalidée à la résolution. Le jet attend en base (`quetes.drapeaux._planque`).
+  - « Safe from threats » n'ajoute rien d'autre (décision écrite).
 - **Monstres renforcés** — `regles.bonus_attaque_monstres: N` (*Rise of the Dread Moon* q. 7, 9, 10 : « Dread Moon
   empowerment—monsters in this quest roll one additional Attack die ») : un effet global de quête de faction `*`
   (`EffetsGlobauxQuete::TOUS`), établi au départ, annoncé et publié comme celui d'une créature (`effets_globaux`,

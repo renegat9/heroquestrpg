@@ -1218,6 +1218,14 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     Or d'un coffre sans note :
                                     <input type="number" min="1" class="cst-input cst-num" :value="quete.regles?.richesses_des_coffres ?? ''" @change="changerRegleEntier('richesses_des_coffres', $event.target.value)" />
                                 </label>
+                                <!-- Lot E2 : la planque (Rise of the Dread Moon p. 7). -->
+                                <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Une fouille du trésor par quête, cartes de monstre errant et de danger sans effet, et un soin d'un dé rouge par héros.">
+                                    Planque :
+                                    <select :value="quete.regles?.planque ?? ''" class="cst-input" @change="poserRegle('planque', $event.target.value || undefined)">
+                                        <option value="">aucune</option>
+                                        <option v-for="id in quete.salles_ouvertes" :key="`pl${id}`" :value="id">{{ id }}</option>
+                                    </select>
+                                </label>
                                 <!-- Lot E2 : « monsters in this quest roll one additional Attack die » (Rise of the Dread Moon). -->
                                 <label class="cst-case" title="Tous les monstres de la quête lancent ce nombre de dés d'attaque de plus, au contact et à distance (Rise of the Dread Moon : 1).">
                                     Dés d'attaque en plus (tous les monstres) :

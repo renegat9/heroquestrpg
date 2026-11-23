@@ -358,3 +358,44 @@ it('monstres renforcés : tous lancent un dé d\'attaque de plus, au contact et 
         ->and($archer->attaqueDistanceEffective())->toBe((int) $archer->monstre->attaque_distance + 1)
         ->and(collect(\App\Partie\EffetsGlobauxQuete::publier($partie['quete']->fresh()))->pluck('source')->all())->toContain('regle_de_quete');
 });
+
+it('planque : une fouille par quête, la carte de monstre errant n\'y joue pas', function () {
+    $campagne = campagneE2(['regles' => ['planque' => 'galerie']]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['planque' => 'nulle-part']])))->toBe([ValidationCampagne::SALLE_INCONNUE]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+    $quete = $partie['quete']->fresh();
+    $quete->update(['deck_fouille' => [['issue' => 'errant'], ...(array) $quete->deck_fouille]]);
+
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    $resultat = $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'fouiller_tresor'])->assertAccepted()->json('resultat');
+
+    expect($resultat['issue'])->toBe('planque')
+        ->and($partie['quete']->instancesMonstres()->count())->toBe(0)
+        ->and(app(\App\Partie\Classique\Planque::class)->fouilleFermee($partie['quete']->fresh(), (int) $resultat['salle']))->toBeTrue();
+});
+
+it('planque : le dé rouge du soin, puis la répartition choisie parmi celles que le menu publie', function () {
+    $partie = partieE2($this, campagneE2(['regles' => ['planque' => 'galerie']]));
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+    $partie['heros']->update(['pv_body' => 25, 'pv_mind' => 0]);
+    app()->instance(LanceurDes::class, new LanceurDeterministe([4, ...array_fill(0, 20, 1)]));
+    $menu = function () use ($partie) {
+        \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+
+        return collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id');
+    };
+
+    expect($menu())->toContain('soin_planque');
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'soin_planque'])->assertAccepted()->assertJsonPath('resultat.a_repartir', true);
+    // 4 au dé, 5 Corps et 2 Esprit perdus : 4/0, 3/1, 2/2.
+    expect($menu()->filter(fn ($id) => str_starts_with($id, 'repartir_planque_'))->values()->all())
+        ->toBe(['repartir_planque_4', 'repartir_planque_3', 'repartir_planque_2'])
+        ->and($menu())->not->toContain('soin_planque');
+
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'repartir_planque_3'])->assertAccepted();
+    expect([(int) $partie['heros']->fresh()->pv_body, (int) $partie['heros']->fresh()->pv_mind])->toBe([28, 1])
+        ->and($menu()->filter(fn ($id) => str_contains($id, 'planque'))->all())->toBe([]);
+});

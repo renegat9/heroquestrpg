@@ -57,6 +57,9 @@ const ICONE_TYPE = {
     // Cheminée (First Light, Healing Hearth) : le soin au foyer REMPLACE la fouille
     // de la salle — l'âtre, pas le feu de `degat_differe` (un dégât).
     soin_cheminee: 'fireplace',
+    // PLANQUE (Rise of the Dread Moon p. 7, lot E2) : le dé rouge du soin, puis sa répartition entre Corps et Esprit.
+    soin_planque: 'healing',
+    repartir_planque: 'balance',
     jet: 'casino',
     attaque: 'swords',
     // ARÈNE, combattant seul : la manœuvre de base frappe à 2 dés.

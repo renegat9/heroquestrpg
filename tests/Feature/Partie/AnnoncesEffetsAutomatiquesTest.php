@@ -308,6 +308,8 @@ function fixturesDesTypesAnnonces(): array
         'porte_teleporte' => ['personnage_id' => 1, 'nom' => 'Grom', 'total' => 7, 'des' => [3, 4], 'arrivee' => ['x' => 3, 'y' => 2]],
         'recompense_perdue' => ['quete_id' => 1, 'raison' => 'captif'],
         'crevasse' => ['nom' => 'Albrecht', 'faces' => ['bouclier_noir', 'bouclier_blanc'], 'issue' => 'ramene'],
+        'soin_planque' => ['personnage' => ['id' => 1, 'nom' => 'Albrecht'], 'jet' => 4, 'a_repartir' => true],
+        'repartir_planque' => ['personnage' => ['id' => 1, 'nom' => 'Albrecht'], 'jet' => 4, 'corps' => 3, 'esprit' => 1],
         'fausse_sortie' => ['personnage_id' => 1, 'nom' => 'Grom', 'porte' => ['x' => 10, 'y' => 2, 'cote' => 'e']],
         // MODE CLASSIQUE : un héros hors plateau entre par la porte d'entrée (`ResolveurTour::resoudreEntreeDonjon()`).
         'entree_donjon' => ['personnage_id' => 1, 'nom' => 'Grom', 'case' => ['x' => 19, 'y' => 7], 'deplacement_restant' => 5],

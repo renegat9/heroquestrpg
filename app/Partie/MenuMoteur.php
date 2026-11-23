@@ -831,6 +831,11 @@ final class MenuMoteur
             return false;
         }
 
+        // PLANQUE (mode classique, lot E2) : « may be searched for treasure once per quest » — tous héros confondus.
+        if (app(\App\Partie\Classique\Planque::class)->fouilleFermee($quete, (int) $index)) {
+            return false;
+        }
+
         // Comme au plateau : CHAQUE héros fouille une fois par salle, et tire
         // sa propre carte. La fouille était close pour tout le groupe dès le
         // premier — les autres n'avaient jamais leur chance.
@@ -3058,6 +3063,20 @@ final class MenuMoteur
             }
         }
 
+        // PLANQUE (mode classique, lot E2, F6646 p. 7) : le dé rouge du soin attend sa répartition — « the hero decides the
+        // distribution between the two pools ». Geste libre (la répartition fait partie de l'action déjà prise) ; la liste
+        // est celle de `Planque::repartitions()`, que le résolveur revalide.
+        if ($etat !== null && ($jetPlanque = app(\App\Partie\Classique\Planque::class)->jetEnAttente($quete, $personnage)) !== null) {
+            foreach (app(\App\Partie\Classique\Planque::class)->repartitions($personnage, $jetPlanque) as $r) {
+                $options[] = [
+                    'id' => "repartir_planque_{$r['corps']}",
+                    'libelle' => "Planque ({$jetPlanque} au dé) : {$r['corps']} au Corps, {$r['esprit']} à l'Esprit",
+                    'type' => 'repartir_planque',
+                    'parametres' => ['corps' => $r['corps'], 'esprit' => $r['esprit']],
+                ];
+            }
+        }
+
         // LIBÉRER UN CAPTIF (mission « secourir », 2026-10-04, chantier 3b) : un héros
         // au contact d'un captif NON ENCORE libéré peut le libérer — il devient un allié
         // contrôlé par CE héros pour le reste de la quête (chantier 3a,
@@ -3097,6 +3116,15 @@ final class MenuMoteur
         // 2026-08-24), destruction de mobilier, poussée, épreuves — et reste
         // donc bien derrière `! $aAgi`.
         if (! $aAgi && $etat !== null) {
+            // PLANQUE (lot E2) : « As an action once per quest while in the hideout, each hero may roll one red die ».
+            if (! $actionInterdite && app(\App\Partie\Classique\Planque::class)->soinDisponible($quete, $personnage, $etat)) {
+                $options[] = [
+                    'id' => 'soin_planque',
+                    'libelle' => 'Se soigner à la planque — un dé rouge, à répartir entre le Corps et l\'Esprit',
+                    'type' => 'soin_planque',
+                ];
+            }
+
             if ($etat->position_x !== null && $quete->carte !== null) {
                 $px = (int) $etat->position_x;
                 $py = (int) $etat->position_y;

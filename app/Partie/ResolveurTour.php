@@ -737,6 +737,9 @@ final class ResolveurTour
                 // CHEMINÉE (First Light, FL-Q p. 7) : la même fouille, un autre gain —
                 // 1 PV de Body, sans carte. Lecture unique : `MoteurCheminee`.
                 'soin_cheminee' => $this->resoudreSoinCheminee($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // PLANQUE (mode classique, lot E2, F6646 p. 7) : le dé rouge, puis sa répartition. `Classique\Planque`.
+                'soin_planque' => $this->resoudreSoinPlanque($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'repartir_planque' => $this->resoudreRepartirPlanque($groupe, $quete, $personnage, $option, $parametres, $acteur),
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $etat, $option, $acteur),
                 // SORTIE CASE PAR CASE (mode classique) : le héros quitte le donjon, par l'escalier ou la porte de sortie.
                 'sortie_en_personne' => $this->resoudreSortieEnPersonne($groupe, $quete, $personnage, $etat, $option, $acteur),
@@ -11652,6 +11655,11 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Cette salle ne se fouille pas.']);
         }
 
+        // PLANQUE (mode classique, lot E2) : une fouille du trésor par quête, tous héros confondus — comme au menu.
+        if (app(\App\Partie\Classique\Planque::class)->fouilleFermee($quete, (int) $salle)) {
+            throw ValidationException::withMessages(['option_id' => 'La planque a déjà été fouillée cette quête.']);
+        }
+
         // Une seule fouille de trésor par salle (anti-farm) : on marque la
         // salle EN BASE (§2.16 — comme l'exploration, c'est de l'état durable).
         if ($quete->aFouille($salle, (int) $personnage->id)) {
@@ -11762,7 +11770,11 @@ final class ResolveurTour
                 $entete['carte_ecartee'] = $ecartee;
             }
 
-            $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
+            // PLANQUE (mode classique, lot E2) : « Any Wandering Monster or Hazard cards drawn when searching the hideout do
+            // not take effect and are immediately returned to the bottom of the deck. »
+            $payload = app(\App\Partie\Classique\Planque::class)->carteSansEffet($quete, (int) $salle, $carte)
+                ? $entete + ['issue' => 'planque', 'carte_ignoree' => (string) $carte['issue']]
+                : $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
         }
 
         if ($armoire) {
@@ -11914,6 +11926,51 @@ final class ResolveurTour
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
+    /** PLANQUE (mode classique, lot E2) : l'action de soin — le dé rouge (`Classique\Planque::lancer()`). */
+    private function resoudreSoinPlanque(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $planque = app(\App\Partie\Classique\Planque::class);
+        if (! $planque->soinDisponible($quete, $personnage, $etat)) {
+            throw ValidationException::withMessages(['option_id' => 'Le soin de la planque n\'est pas disponible : une fois par quête, dans la planque, avec un point perdu.']);
+        }
+        $jet = $planque->lancer($quete, $personnage);
+        $personnage->refresh();
+        $payload = [
+            'type' => 'soin_planque',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+            'jet' => $jet['jet'],
+            ...($jet['applique'] !== null ? ['corps' => $jet['applique']['corps'], 'esprit' => $jet['applique']['esprit']] : ['a_repartir' => true]),
+            'pv_body_apres' => (int) $personnage->pv_body,
+            'pv_mind_apres' => (int) $personnage->pv_mind,
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** PLANQUE (lot E2) : la répartition choisie, revalidée contre la liste publiée (`Planque::repartitions()`). */
+    private function resoudreRepartirPlanque(Groupe $groupe, Quete $quete, Personnage $personnage, array $option, array $parametres, array $acteur): array
+    {
+        $choix = app(\App\Partie\Classique\Planque::class)->repartir($quete, $personnage, (int) ($parametres['corps'] ?? $option['parametres']['corps'] ?? -1));
+        if ($choix === null) {
+            throw ValidationException::withMessages(['option_id' => 'Cette répartition n\'est pas possible.']);
+        }
+        $personnage->refresh();
+        $payload = [
+            'type' => 'repartir_planque',
+            'option_id' => $option['id'],
+            'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+            'jet' => $choix['jet'], 'corps' => $choix['corps'], 'esprit' => $choix['esprit'],
+            'pv_body_apres' => (int) $personnage->pv_body,
+            'pv_mind_apres' => (int) $personnage->pv_mind,
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
     private function resoudreSoinCheminee(
         Groupe $groupe,
         Quete $quete,
@@ -16768,6 +16825,8 @@ final class ResolveurTour
             'retirer_deguisement' => 'interaction',
             // OFFRES (lot K6) : accepter ne coûte que ce que l'offre dit.
             'offre' => 'interaction',
+            // La répartition du dé de la planque appartient à l'action qui l'a lancé (lot E2).
+            'repartir_planque' => 'interaction',
             // TROPHÉES D'ARÈNE (lot T4) : « no action required » pour ramasser, et l'usage n'en demande pas davantage —
             // boire la potion d'une tuile ou défausser une tuile pour l'élan ne coûte aucun créneau.
             'trophee_potion', 'trophee_elan' => 'interaction',
