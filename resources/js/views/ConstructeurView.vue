@@ -652,7 +652,7 @@ function changerSiDrapeauSuite(i, valeur) {
 // ---------------------------------------------------------------- notes « quand → alors »
 const declencheurs = computed(() => vocab.value.declencheurs_de_note ?? {});
 const effetsNote = computed(() => vocab.value.effets_de_note ?? {});
-const LIBELLES_PARAM = { texte: 'Texte lu', or: 'Or', body: 'Points de Corps', slug: 'Objet', quantite: 'Quantité', nom: 'Nom du drapeau', monstres: 'Monstres', porte: 'Porte',
+const LIBELLES_PARAM = { texte: 'Texte lu', or: 'Or', body: 'Points de Corps', slug: 'Objet', quantite: 'Quantité', parmi: 'Parmi', issues: 'Issues', nom: 'Nom du drapeau', monstres: 'Monstres', porte: 'Porte',
     sur_jet: 'Esquivé sous (1d6)', avec_casque: 'avec un Casque, sous' };
 // Lots K5n/K5o : les paramètres optionnels BOOLÉENS d'un effet — posés seulement quand ils valent true (`ValidationCampagne`
 // exige un booléen : un champ numérique les rendait refusés).
@@ -734,7 +734,10 @@ function effetParDefaut(nom) {
     const effet = { effet: nom };
     for (const p of effetsNote.value[nom]?.parametres ?? []) {
         effet[p] = { texte: '', or: 10, body: 1, slug: nom === 'debloquer_mercenaire' ? (doc.value.mercenaires?.offerts?.[0] ?? '') : (catalogues.value?.objets?.[0]?.slug ?? ''),
-            nom: 'drapeau', monstres: [], porte: 0, x: 0, y: 0, jetons: 1, libelle: '', alors: [{ effet: 'texte', texte: '' }] }[p] ?? '';
+            nom: 'drapeau', monstres: [], porte: 0, x: 0, y: 0, jetons: 1, libelle: '', alors: [{ effet: 'texte', texte: '' }],
+            // Lot E1 : le jet à deux issues, l'objet tiré parmi deux.
+            issues: [{ de: 1, a: 3, alors: [{ effet: 'texte', texte: '' }] }, { de: 4, a: 6, alors: [{ effet: 'texte', texte: '' }] }],
+            parmi: (catalogues.value?.objets ?? []).slice(0, 2).map((o) => o.slug) }[p] ?? '';
     }
     return effet;
 }
@@ -762,6 +765,10 @@ function changerEffet(note, j, nom) {
     note.alors.splice(j, 1, effetParDefaut(nom));
 }
 // Lot K6 : l'offre — ses effets en JSON (refusé s'il ne se lit pas), son coût (une clé vide disparaît).
+// Lot E1 : des effets imbriqués en JSON (issue d'un jet, « sinon ») — refusé s'il ne se lit pas, validé par le serveur.
+function changerJsonEffets(objet, cle, texte) {
+    try { objet[cle] = JSON.parse(texte); } catch { erreur.value = 'Les effets ne sont pas du JSON lisible.'; }
+}
 function changerAlorsOffre(effet, texte) {
     try { effet.alors = JSON.parse(texte); } catch { erreur.value = 'Les effets de l\'offre ne sont pas du JSON lisible.'; }
 }
@@ -1478,6 +1485,28 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <template v-for="p in (effetsNote[effet.effet]?.parametres ?? [])" :key="p">
                                         <textarea v-if="p === 'texte'" v-model="effet.texte" rows="2" class="cst-input cst-large" :placeholder="LIBELLES_PARAM[p]" />
                                         <label v-else-if="p === 'or' || p === 'body'">{{ LIBELLES_PARAM[p] }} <input v-model.number="effet[p]" type="number" min="1" class="cst-input cst-num" /></label>
+                                        <!-- Lot E1 : le jet — une ligne par issue (plage du total, effets en JSON validé par le serveur, comme l'offre). -->
+                                        <div v-else-if="p === 'issues'" class="cst-apparitions">
+                                            <div v-for="(issue, k) in effet.issues" :key="`is${k}`" class="cst-ligne">
+                                                <label>de <input v-model.number="issue.de" type="number" min="1" :max="6 * (effet.des ?? 1)" class="cst-input cst-num" /></label>
+                                                <label>à <input v-model.number="issue.a" type="number" min="1" :max="6 * (effet.des ?? 1)" class="cst-input cst-num" /></label>
+                                                <label class="cst-large">alors (JSON)
+                                                    <textarea :value="JSON.stringify(issue.alors, null, 1)" rows="2" class="cst-input cst-large" @change="changerJsonEffets(issue, 'alors', $event.target.value)" />
+                                                </label>
+                                                <button type="button" class="cst-icone" title="Retirer l'issue" @click="effet.issues.splice(k, 1)"><MSym n="close" :size="16" /></button>
+                                            </div>
+                                            <button type="button" class="cst-btn ghost" @click="effet.issues.push({ de: 1, a: 1, alors: [{ effet: 'texte', texte: '' }] })"><MSym n="add" :size="14" /> issue</button>
+                                        </div>
+                                        <!-- Lot E1 : l'objet tiré au hasard — la liste parmi laquelle tirer. -->
+                                        <div v-else-if="p === 'parmi'" class="cst-ligne">
+                                            <span v-for="sl in effet.parmi" :key="sl" class="pm-puce">{{ nomDe('objets', sl) }}
+                                                <button type="button" class="cst-icone" title="Retirer" @click="effet.parmi = effet.parmi.filter((x) => x !== sl)"><MSym n="close" :size="12" /></button>
+                                            </span>
+                                            <select class="cst-input" @change="$event.target.value && !effet.parmi.includes($event.target.value) && effet.parmi.push($event.target.value); $event.target.value = ''">
+                                                <option value="">+ objet…</option>
+                                                <option v-for="o in catalogues.objets" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
+                                            </select>
+                                        </div>
                                         <!-- Lot K6 : débloquer un mercenaire — parmi ceux que la CAMPAGNE offre. -->
                                         <select v-else-if="p === 'slug' && effet.effet === 'debloquer_mercenaire'" v-model="effet.slug" class="cst-input">
                                             <option v-for="sl in (doc.mercenaires?.offerts ?? [])" :key="sl" :value="sl">{{ (catalogues.mercenaires ?? []).find((m) => m.slug === sl)?.nom ?? sl }}</option>
@@ -1532,6 +1561,17 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             <label>coût : po <input :value="effet.cout?.or ?? ''" type="number" min="0" class="cst-input cst-num" @change="changerCoutOffre(effet, 'or', $event.target.value)" /></label>
                                             <label>jetons <input :value="effet.cout?.reputation ?? ''" type="number" min="0" class="cst-input cst-num" @change="changerCoutOffre(effet, 'reputation', $event.target.value)" /></label>
                                         </template>
+                                        <!-- Lot E1 : un ou deux dés rouges pour le jet. -->
+                                        <select v-else-if="p === 'des'" :value="effet.des ?? 1" class="cst-input" title="Dés rouges"
+                                            @change="Number($event.target.value) > 1 ? (effet.des = 2) : delete effet.des">
+                                            <option :value="1">un dé rouge</option>
+                                            <option :value="2">deux dés rouges</option>
+                                        </select>
+                                        <!-- Lot E1 : ce qui se joue à la place quand le groupe a déjà l'objet. -->
+                                        <label v-else-if="p === 'sinon'" class="cst-large">sinon, si le groupe l'a déjà (JSON)
+                                            <textarea :value="effet.sinon ? JSON.stringify(effet.sinon, null, 1) : ''" rows="2" class="cst-input cst-large" placeholder='[{"effet": "or", "or": 500}]'
+                                                @change="$event.target.value.trim() ? changerJsonEffets(effet, 'sinon', $event.target.value) : delete effet.sinon" />
+                                        </label>
                                         <!-- Lot E1 : « divided among all surviving heroes » — l'or d'une note partagé, ou autant à chacun. -->
                                         <select v-else-if="p === 'partage'" :value="effet.partage ?? ''" class="cst-input" title="À qui va l'or"
                                             @change="$event.target.value ? (effet.partage = $event.target.value) : delete effet.partage">
