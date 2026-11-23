@@ -43,13 +43,16 @@ final class FinDeQueteConstruite
 
         // LE CAPTIF À ESCORTER (2026-11-20, livret de base q. 2 : « must be moved back to the stairs alive in order for the
         // heroes to collect the reward ») : pas ramené, pas de récompense — et on le dit.
-        $captifPerdu = app(Escorte::class)->ramene($quete) === false;
+        $sansCaptif = app(Escorte::class)->ramene($quete) === false;
+        // RÉCOMPENSE CONDITIONNELLE (lot E1) : « 300 gold coins if Udren is alive » — versée si le drapeau est posé.
+        $sansCondition = is_string(data_get($queteDoc, 'recompense.si_drapeau')) && ! $quete->aDrapeau((string) data_get($queteDoc, 'recompense.si_drapeau'));
+        $captifPerdu = $sansCaptif || $sansCondition;
         $parts = $captifPerdu ? [] : $this->parts($groupe, $queteDoc['recompense'] ?? null, $quete->participants());
         if ($captifPerdu && ($queteDoc['recompense'] ?? null) !== null) {
             app(TamponAnnonces::class)->annoncer($groupe, [
                 'type' => 'recompense_perdue',
                 'quete_id' => $quete->id,
-                'raison' => 'captif',
+                'raison' => $sansCaptif ? 'captif' : 'condition',
             ]);
         }
         // Lot E1 : le captif repart avec la quête, sauf s'il persiste (`Escorte::congedierEnFinDeQuete()`).
@@ -60,18 +63,38 @@ final class FinDeQueteConstruite
             $bourses->verser($groupe, $part['or'], Personnage::find($part['personnage_id']));
         }
 
+        // DES OBJETS EN RÉCOMPENSE (lot E1) : « the Elf receives an elven chain mail » (F7539 q. 1), « each hero receives a
+        // Ring of Fortitude » (G0052) — au premier héros dans l'ordre du tour, ou à chacun (`chacun`). Même condition que l'or.
+        $objetsRemis = [];
+        if (! $captifPerdu) {
+            $herosDeLaQuete = $groupe->personnages()->wherePivot('actif', true)->whereNull('personnages.mort_le')
+                ->when($quete->participants() !== null, fn ($q) => $q->whereIn('personnages.id', $quete->participants()))
+                ->orderBy('groupe_personnages.ordre_initiative')->get();
+            foreach ((array) data_get($queteDoc, 'recompense.objets', []) as $ligne) {
+                $objet = app(CatalogueConstructeur::class)->index('objets')[(string) ($ligne['slug'] ?? '')] ?? null;
+                if ($objet === null) {
+                    continue;
+                }
+                foreach (($ligne['chacun'] ?? false) === true ? $herosDeLaQuete : $herosDeLaQuete->take(1) as $h) {
+                    \App\Partie\RangementObjet::ranger($objet, (int) $h->id, 1);
+                    $objetsRemis[] = ['personnage_id' => (int) $h->id, 'nom' => (string) $h->nom, 'objet' => (string) $objet->nom];
+                }
+            }
+        }
+
         // LA RÉPUTATION (lot K6, *Dread Moon* : « one reputation token at the end of each quest ») : `recompense.reputation`.
         $jetons = (int) data_get($queteDoc, 'recompense.reputation', 0);
         if ($jetons > 0) {
             app(Reputation::class)->ajuster($groupe, $jetons, 'fin_de_quete');
         }
 
-        if ($parts !== []) {
+        if ($parts !== [] || $objetsRemis !== []) {
             app(TamponAnnonces::class)->annoncer($groupe, [
                 'type' => 'recompense_quete',
                 'quete_id' => $quete->id,
                 'parts' => $parts,
                 'total' => array_sum(array_column($parts, 'or')),
+                ...($objetsRemis !== [] ? ['objets' => $objetsRemis] : []),
             ]);
         }
 

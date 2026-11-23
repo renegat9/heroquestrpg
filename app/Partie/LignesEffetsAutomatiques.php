@@ -840,10 +840,15 @@ trait LignesEffetsAutomatiques
             ->map(fn (array $p) => ($p['nom'] ?? 'Un héros').' +'.(int) ($p['or'] ?? 0))
             ->implode(', ');
 
-        return [[
-            'texte' => 'Récompense de la quête : '.(int) ($a['total'] ?? 0).' pièces d\'or ('.$parts.')',
-            'ton' => 'succes',
-        ]];
+        $lignes = (int) ($a['total'] ?? 0) > 0
+            ? [['texte' => 'Récompense de la quête : '.(int) ($a['total'] ?? 0).' pièces d\'or ('.$parts.')', 'ton' => 'succes']]
+            : [];
+        // Lot E1 : les objets remis en récompense, un par ligne.
+        foreach ((array) ($a['objets'] ?? []) as $o) {
+            $lignes[] = ['texte' => 'Récompense de la quête : '.($o['nom'] ?? 'un héros').' reçoit '.($o['objet'] ?? 'un objet'), 'ton' => 'succes'];
+        }
+
+        return $lignes;
     }
 
     /**

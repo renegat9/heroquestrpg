@@ -561,3 +561,25 @@ it('la campagne ajoute au paquet les cartes sourcées des boîtes qu\'elle nomme
     'le paquet du plateau' => [[], 24, []],
     'Morcar et Delthrak' => [['wizards_of_morcar', 'jungles_delthrak'], 24 + 8 + 2, ['magical_trap', 'emerald_heart_of_delthrak']],
 ]);
+
+// ---------------------------------------------------------------- 13. la récompense en objets, conditionnelle
+
+it('valide les objets et la condition de la récompense', function () {
+    $recompense = fn (array $r) => campagneE1(['recompense' => ['or' => 10, 'partage' => 'groupe'] + $r]);
+    expect(codesE1($recompense(['objets' => [['slug' => 'dague', 'chacun' => true]], 'si_drapeau' => 'udren-vivante'])))->toBe([])
+        ->and(codesE1($recompense(['objets' => [['slug' => 'rien']]])))->toBe([ValidationCampagne::CATALOGUE_INCONNU]);
+});
+
+it('la récompense remet ses objets, et attend son drapeau', function (bool $drapeau, int $or, int $dagues) {
+    ['quete' => $quete, 'groupe' => $groupe, 'heros' => $heros] = partieE1($this, campagneE1([
+        'recompense' => ['or' => 300, 'partage' => 'groupe', 'objets' => [['slug' => 'dague', 'chacun' => true]], 'si_drapeau' => 'udren-vivante'],
+    ]));
+    if ($drapeau) {
+        $quete->poserDrapeau('udren-vivante');
+    }
+
+    app(\App\Partie\Classique\FinDeQueteConstruite::class)->regler($groupe->fresh(), $quete->fresh());
+
+    $daguesAuSac = (int) $heros->inventaire()->where('objet_id', \App\Models\Objet::where('nom', 'Dague')->value('id'))->sum('quantite');
+    expect((int) $heros->fresh()->or)->toBe($or)->and($daguesAuSac)->toBe($dagues);
+})->with(['condition remplie' => [true, 300, 1], 'condition manquée' => [false, 0, 0]]);

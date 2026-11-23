@@ -6106,6 +6106,11 @@ dans le mode classique »). Ce lot porte ce qui sert à trois livrets ou plus. M
   rejoignent le paquet de chaque quête (« Shuffle the treasure cards into the deck », F9907 p. 4 ; Morcar, doc 18 §8),
   celles que le mode RPG ajoute déjà sous le thème. Frozen Horror (6 cartes) et Mage du Miroir (4) : textes absents de
   leurs livrets, non portées.
+- **Récompense en objets, et conditionnelle** — `recompense.objets: [{slug, chacun?}]` (« the Elf receives an elven chain
+  mail », F7539 q. 1 ; « each hero receives a Ring of Fortitude », G0052) : au premier héros de la quête dans l'ordre
+  du tour, ou à chacun ; `recompense.si_drapeau` (« 300 gold coins if Udren is alive ») : or et objets versés
+  seulement si le drapeau est posé (sinon `recompense_perdue`). L'annonce `recompense_quete` porte `objets:
+  [{personnage_id, nom, objet}]`.
 - **Sorts de Dread et capacités dans le profil d'auteur** (monstre posé, `apparition`, errant) :
   - `sorts_dread: [slug]` — catalogue `sorts_dread` (publié par `GET /constructeur/catalogues`) : REMPLACE le
     répertoire de la fiche (« Vilor knows the following Dread spells », F5815 p. 12). Chaque sort une fois par quête

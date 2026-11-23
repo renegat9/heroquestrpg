@@ -1377,7 +1377,9 @@ final class JournalCombat
                 'ton' => 'echec',
             ]],
             'recompense_perdue' => [[
-                'texte' => 'Le captif n\'a pas été ramené vivant : la récompense promise n\'est pas versée',
+                'texte' => ($a['raison'] ?? 'captif') === 'condition'
+                    ? 'La condition de la récompense n\'est pas remplie : elle n\'est pas versée'
+                    : 'Le captif n\'a pas été ramené vivant : la récompense promise n\'est pas versée',
                 'ton' => 'echec',
             ]],
             'porte_teleporte' => [[

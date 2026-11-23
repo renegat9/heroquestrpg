@@ -1201,6 +1201,18 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <select v-model="quete.recompense.partage" class="cst-input">
                                         <option v-for="p in vocab.partages" :key="p" :value="p">{{ p === 'par_heros' ? 'par héros' : 'à partager' }}</option>
                                     </select>
+                                    <!-- Lot E1 : des objets en récompense, et une récompense conditionnelle. -->
+                                    <span v-for="(o, k) in (quete.recompense.objets ?? [])" :key="`ro${k}`" class="pm-puce">{{ nomDe('objets', o.slug) }}{{ o.chacun ? ' (à chacun)' : '' }}
+                                        <button type="button" class="cst-icone" title="Retirer" @click="quete.recompense.objets.splice(k, 1); if (!quete.recompense.objets.length) delete quete.recompense.objets"><MSym n="close" :size="12" /></button>
+                                    </span>
+                                    <select class="cst-input" title="Objet en récompense" @change="$event.target.value && (quete.recompense.objets ??= []).push({ slug: $event.target.value }); $event.target.value = ''">
+                                        <option value="">+ objet…</option>
+                                        <option v-for="o in catalogues.objets" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
+                                    </select>
+                                    <label v-if="(quete.recompense.objets ?? []).length" class="cst-case"><input type="checkbox" :checked="quete.recompense.objets.every((o) => o.chacun)"
+                                        @change="quete.recompense.objets.forEach((o) => ($event.target.checked ? (o.chacun = true) : delete o.chacun))" /> objets à chacun</label>
+                                    <label>si le drapeau <input :value="quete.recompense.si_drapeau ?? ''" class="cst-input" placeholder="(toujours)"
+                                        @change="$event.target.value.trim() ? (quete.recompense.si_drapeau = $event.target.value.trim()) : delete quete.recompense.si_drapeau" /></label>
                                 </template>
                             </div>
                             <!-- ============ Lots K5l à K5o : ce qu'il fallait aux livrets ============ -->

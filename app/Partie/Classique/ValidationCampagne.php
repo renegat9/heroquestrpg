@@ -180,7 +180,7 @@ final class ValidationCampagne
     private const CLES_TERRAIN_OPTIONNELLES = ['paire_id', 'cachee'];
     private const CLES_RECOMPENSE = ['or', 'partage'];
     /** Lot K6 (*Dread Moon*) : `recompense.reputation` — des jetons de réputation pour le groupe. */
-    private const CLES_RECOMPENSE_OPTIONNELLES = ['reputation'];
+    private const CLES_RECOMPENSE_OPTIONNELLES = ['reputation', 'objets', 'si_drapeau'];
     /** Les mercenaires que la campagne offre (`mercenaires.offerts`) — lus par l'effet `debloquer_mercenaire`. @var list<string> */
     private array $mercenairesOfferts = [];
     /** Les drapeaux posés par les effets d'une OFFRE (imbriqués) — versés aux drapeaux posés de la quête. @var array<string, true> */
@@ -2208,6 +2208,24 @@ final class ValidationCampagne
         $this->entier($recompense, 'or', $position, min: 0);
         $this->entier($recompense, 'reputation', $position, min: 1);
         $this->dans($recompense, 'partage', $position, self::PARTAGES);
+        // Lot E1 : des OBJETS en récompense (`[{slug, chacun?}]`), et une récompense CONDITIONNELLE (`si_drapeau`).
+        if (array_key_exists('objets', $recompense)) {
+            foreach ($this->enListeDe($recompense, 'objets', $position) as $k => $valeur) {
+                $ici = self::chemin($position, 'objets').".$k";
+                $objet = $this->enObjet($valeur, $ici);
+                if ($objet === null) {
+                    continue;
+                }
+                $this->cles($objet, $ici, ['slug'], ['chacun']);
+                $this->slugCatalogue($objet, 'slug', $ici, 'objets');
+                if (array_key_exists('chacun', $objet) && $objet['chacun'] !== true) {
+                    $this->refuser("$ici.chacun", self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+                }
+            }
+        }
+        if (array_key_exists('si_drapeau', $recompense)) {
+            $this->nomDeDrapeau($recompense, 'si_drapeau', $position);
+        }
     }
 
     /**
