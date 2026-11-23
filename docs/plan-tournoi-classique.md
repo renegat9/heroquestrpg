@@ -55,3 +55,11 @@ sont des monstres au profil d'auteur (Gruzbella et ses phases existent déjà au
   don't replenish between waves. »
 - **TC5** — le trésor du tournoi : un coffre fouillé au contact tire la table 2d6 (p. 14) dans une quête-tournoi.
 - **TC6** — écran du constructeur, guide, MCP relu, contrat, campagne d'essai `essai-*` jouée.
+
+## 5. État au 2026-11-23
+
+TC1 à TC6 livrés (`Classique\TournoiClassique`, `quete.tournoi`, tests `ExtensionsLotE2Test` « tournoi »). Ce qui reste :
+une campagne d'essai `essai-*` jouée par agents (méthode `campagne-agents`) ; Doralf (q. 2) se pose comme un monstre au
+profil d'auteur, Gruzbella (q. 3) est au bestiaire avec ses trois phases et ses capacités. Décisions écrites : les
+affaires d'un héros tombé restent dans son sac (le livret les pose sur sa case, ramassables) ; la hache de bataille en os
+du trésor reste au héros (pas de doublure en campagne).

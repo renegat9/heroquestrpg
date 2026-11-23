@@ -6179,6 +6179,16 @@ Mode classique seulement ; une règle par livret, sourcée.
   que son sac range, `vendre_etal_{inventaire_id}` par ligne revendable (mêmes refus et même prix de revente qu'au hub),
   et `fermer_etal`. Gestes libres ; pas de stock en quête ; chaque héros achète pour lui, de sa bourse. Résultats
   annoncés `acheter_etal {personnage, nom, prix}` et `vendre_etal {…}` ; `ouvrir_etal` / `fermer_etal` sont muets.
+- **Le tournoi de World's End** — `quete.tournoi` (*Against the Ogre Horde* q. 1-3, `docs/plan-tournoi-classique.md`) :
+  `{camp_heros: [{x, y}], camp_defender: [{x, y}], trophees?: [{x, y}], vagues?: [[{slug, …profil}]]}`. La quête se joue
+  avec les règles de combat de l'arène (`Groupe::estEnTournoi()`) : les héros partent de leur tuile, le Defender (les
+  `monstres`, dévoilés d'emblée) ouvre le combat, puis les activations alternent ; tuiles trophées face cachée sur les
+  cases de l'auteur (`quetes.trophees_arene`, publiées comme à l'arène) ; combattant seul ; un héros tombé est HORS JEU
+  jusqu'à la fin de la quête et n'est jamais tué (aucun mode de mort ne joue : « out of play until the end of the
+  quest », p. 12) ni relevé. Un coffre (le meuble « Coffre ») se fouille en diagonale aussi et tire la table 2d6 du
+  tournoi (`tresor_tournoi`). Le Defender éteint : la vague suivante entre sur la tuile du Defender (annonce
+  `vague_tournoi {numero, monstres}`, rang durable `quetes.drapeaux._vague_tournoi`) ; sans vague, la quête est gagnée
+  (`tournoi_gagne`, `terminerQuete()`), sans sortie à chercher. Tous les héros à terre : la quête est perdue et se rejoue.
 - **Les salles qui se lèvent** — `regles.activation_salles: true` (*Against the Ogre Horde* q. 10 : « Zargon may
   activate all the monsters in one or two rooms… one red die. On a roll result of 1-5, one room… 6, two rooms… the door
   is opened. Any monsters in the activated room may move on that turn » ; « If a wandering monster card is drawn, Zargon

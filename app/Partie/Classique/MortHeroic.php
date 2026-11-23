@@ -46,7 +46,8 @@ final class MortHeroic
      */
     public function cranes(Groupe $groupe, Quete $quete): array
     {
-        if (! $groupe->estHeroic()) {
+        // TOURNOI (lot TC3, F9528 p. 12) : « the hero is out of play until the end of the quest » — jamais tué.
+        if (! $groupe->estHeroic() || $quete->estTournoi()) {
             return [];
         }
 
@@ -85,7 +86,9 @@ final class MortHeroic
     {
         // Heroic, et STORY aussi (René, 2026-11-19 — F9907 p. 9 : « If all heroes are incapacitated, then they've
         // died ») : tous à terre, ils meurent. (En Standard, ils sont déjà morts un à un.)
-        if (! $groupe->estClassique()) {
+        // TOURNOI (lot TC3) : un Challenger défait a perdu le combat, pas la vie — le tournoi se rejoue (« If a tournament
+        // turns into a disaster, Zargon may modify it before replaying », p. 13).
+        if (! $groupe->estClassique() || $quete->estTournoi()) {
             return [];
         }
 
@@ -103,7 +106,7 @@ final class MortHeroic
      */
     public function mortsStandard(Groupe $groupe, Quete $quete): array
     {
-        if (! $groupe->estStandard() || $quete->etat !== 'en_cours') {
+        if (! $groupe->estStandard() || $quete->etat !== 'en_cours' || $quete->estTournoi()) {
             return [];
         }
 

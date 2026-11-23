@@ -192,6 +192,8 @@ final class JournalCombat
         'objet_jete' => true,
         // Lot E2 : les salles qui se lèvent au tour du MJ (F9528 q. 10).
         'salles_activees' => true,
+        // Lot TC4 : la vague suivante du tournoi (F9528 q. 1).
+        'vague_tournoi' => true,
         // Lot E2 : le marché souterrain en pleine quête (F6646 p. 2).
         'acheter_etal' => true,
         'vendre_etal' => true,
@@ -1402,6 +1404,10 @@ final class JournalCombat
             'vendre_etal' => [[
                 'texte' => ($a['personnage']['nom'] ?? $acteurNom).' vend '.($a['nom'] ?? 'un objet').' au marché souterrain (+'.(int) ($a['prix'] ?? 0).' po)',
                 'ton' => 'tresor',
+            ]],
+            'vague_tournoi' => [[
+                'texte' => 'Vague '.(int) ($a['numero'] ?? 2).' : '.implode(', ', (array) ($a['monstres'] ?? [])).' entrent dans l\'arène',
+                'ton' => 'subit',
             ]],
             'salles_activees' => [[
                 'texte' => 'Zargon lance le dé ('.(int) ($a['de'] ?? 0).') : '.(($a['salles'] ?? []) === []

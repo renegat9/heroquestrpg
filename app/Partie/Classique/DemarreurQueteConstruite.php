@@ -152,7 +152,8 @@ final class DemarreurQueteConstruite
         }
         // HORS PLATEAU (René, 2026-11-16 — *Kellar's Keep* : « the heroes line up outside the door ») : par une porte
         // d'entrée, les héros attendent DEHORS et entrent un à un ; aucune case de départ n'est à compter.
-        $dehors = $produit['acces']['entree']['type'] === ValidationCampagne::ACCES_PORTE;
+        // TOURNOI (lot TC2) : les héros sont sur leur tuile de départ, jamais dehors devant une porte.
+        $dehors = $produit['acces']['entree']['type'] === ValidationCampagne::ACCES_PORTE && ! is_array($queteDoc['tournoi'] ?? null);
         if (! $dehors && $heros->count() > count($carte['spawn_heros'])) {
             throw ValidationException::withMessages([
                 'groupe' => 'Le départ de cette quête n\'a que '.count($carte['spawn_heros']).' cases libres pour '.$heros->count().' héros.',
@@ -174,7 +175,7 @@ final class DemarreurQueteConstruite
     public function ouvrirMoitie(Groupe $groupe, Quete $principale, array $queteDoc, int $rang, Collection $heros): Quete
     {
         $produit = $this->cartes->produire((array) $groupe->campagneConstruite->document, $queteDoc);
-        $dehors = $produit['acces']['entree']['type'] === ValidationCampagne::ACCES_PORTE;
+        $dehors = $produit['acces']['entree']['type'] === ValidationCampagne::ACCES_PORTE && ! is_array($queteDoc['tournoi'] ?? null);
 
         return $this->fonder($groupe, (string) $groupe->campagneConstruite->slug, $queteDoc, $rang, $produit, $heros,
             $principale->participants, $dehors, $principale);
@@ -267,8 +268,10 @@ final class DemarreurQueteConstruite
                     'elite' => false,
                     // Dormant tant que sa salle n'est pas découverte ; un monstre de la salle de départ est vu d'emblée
                     // (aucun quand on entre par une porte de couloir : il n'y a pas de salle de départ).
-                    'revele' => $produit['acces']['salle_depart'] !== null
-                        && Salles::indexDe($carte['salles'], (int) $pose['x'], (int) $pose['y']) === $produit['acces']['salle_depart'],
+                    // TOURNOI (lot TC2) : le Defender se dévoile au début du combat (« hidden behind the Zargon screen until
+                    // the battle begins », p. 12) — toutes ses figures sont vues d'emblée.
+                    'revele' => is_array($queteDoc['tournoi'] ?? null) || ($produit['acces']['salle_depart'] !== null
+                        && Salles::indexDe($carte['salles'], (int) $pose['x'], (int) $pose['y']) === $produit['acces']['salle_depart']),
                     // L'ordre de `produit['monstres']` est celui de `quete.monstres` : `fin.cibles` y lit ses index.
                     'objectif' => in_array($i, $cibles, true),
                     'habillage' => InstanceMonstre::habillageDeQuete($docMonstre, $this->catalogue),
@@ -355,7 +358,14 @@ final class DemarreurQueteConstruite
             }
         }
 
-        app(ResolveurTour::class)->ouvrirPremierRound($groupe, $quete);
+        // TOURNOI (lot TC2, F9528 p. 14) : les tuiles trophées, face cachée, sur les cases de l'auteur — la réserve de chaque
+        // camp vide. Le même lot que l'arène (`TropheesArene::poser()`).
+        if ($quete->refresh()->estTournoi()) {
+            app(\App\Partie\Arene\TropheesArene::class)->poser($quete, (array) data_get($queteDoc, 'tournoi.trophees', []));
+        }
+
+        // Le premier round : dans un tournoi, le Defender ouvre (`ResolveurTour::ouvrirPremierRound()`, `estEnTournoi()`).
+        app(ResolveurTour::class)->ouvrirPremierRound($groupe->refresh(), $quete);
 
         if ($quete->refresh()->etat === 'en_cours') {
             $this->sauvegarde->snapshotter($groupe->refresh(), Sauvegarde::ETIQUETTE_DEBUT_QUETE);

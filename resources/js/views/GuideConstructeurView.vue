@@ -148,7 +148,8 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                         <li><b>Or d'un coffre sans note</b> (The Mage of the Mirror : 200) : la première fouille du trésor d'une salle à coffre qu'aucune note ne nomme rapporte cet or, à la place de la carte ;</li>
                         <li><b>Rebord de crevasse</b> (The Frozen Horror) : un dé à la première case de la salle et au début de chaque tour qu'on y passe — deux boucliers noirs, et le héros est perdu à jamais ;</li>
                         <li><b>Suite</b> (campagne ramifiée) : selon le drapeau posé, la quête suivante change ;</li>
-                        <li><b>Quête double</b> : deux moitiés reliées par un passage.</li>
+                        <li><b>Quête double</b> : deux moitiés reliées par un passage ;</li>
+                        <li><b>Tournoi de World's End</b> (Against the Ogre Horde, quêtes 1 à 3) : la tuile des héros, celle du Defender (les monstres posés, qui jouent d'abord), les tuiles trophées et les vagues suivantes — les activations alternent, un héros tombé est hors jeu jusqu'à la fin de la quête (jamais tué), un coffre tire la table 2d6 du tournoi, et le Defender vaincu fait gagner la quête.</li>
                     </ul>
                     <figure class="gc-fig">
                         <a :href="IMG('fiche-quete')" target="_blank" rel="noopener"><img :src="IMG('fiche-quete')" alt="Le haut de la fiche : titre, texte d'ouverture, monstre errant, salles qui ne se fouillent pas, récompense." loading="lazy" /></a>

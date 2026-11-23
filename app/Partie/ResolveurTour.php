@@ -13423,6 +13423,24 @@ final class ResolveurTour
      */
     private function donjonNettoye(array $resultat, Quete $quete): array
     {
+        // TOURNOI DU MODE CLASSIQUE (lots TC3-TC4) : le Defender éteint, la vague suivante entre (« continue the battle
+        // round with the new combatants ») ; sans vague, le tournoi est gagné — la quête se termine, sans sortie à chercher.
+        $groupeTournoi = $quete->groupe;
+        if ($groupeTournoi !== null && $groupeTournoi->estClassique() && $quete->estTournoi() && $quete->fresh()?->etat === 'en_cours') {
+            $vague = app(\App\Partie\Classique\TournoiClassique::class)->vagueSuivante($groupeTournoi, $quete);
+            if ($vague !== null) {
+                $resultat['vague_tournoi'] = $vague;
+
+                return $resultat;
+            }
+            $resultat['donjon_nettoye'] = true;
+            $this->verifierFinDuCombat($quete);
+            $resultat['tournoi_gagne'] = true;
+            $resultat['quete'] = $this->terminerQuete($groupeTournoi, $quete);
+
+            return $resultat;
+        }
+
         $resultat['donjon_nettoye'] = true;
         $this->verifierFinDuCombat($quete);
 
@@ -13594,7 +13612,7 @@ final class ResolveurTour
 
         if ($this->personneNePeutJouer($groupe, $quete)) {
             $phase = $this->rejouerPhaseMonstres($groupe, $quete, $ouvertures, 0);
-        } elseif ($groupe->estArene()) {
+        } elseif ($groupe->estEnTournoi()) {
             $phase = $this->phaseMonstres($groupe, $quete, 0, 1);
             $phase['actions'] = [...$ouvertures, ...$phase['actions']];
         } else {

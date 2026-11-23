@@ -283,6 +283,16 @@ function verrouChoisi(pourSortie = false) {
     return { verrou: { type: v } };
 }
 
+/** Lot TC : la quête-tournoi (Against the Ogre Horde q. 1-3) — ses cases, sans case vide gardée. */
+const CASES_DU_TOURNOI = [['camp_heros', 'Tuile des héros'], ['camp_defender', 'Tuile du Defender'], ['trophees', 'Tuiles trophées']];
+function basculerTournoi(avec) {
+    if (avec) quete.value.tournoi = { camp_heros: [{ x: 0, y: 0 }], camp_defender: [{ x: 0, y: 0 }] };
+    else delete quete.value.tournoi;
+}
+function retirerCaseTournoi(cle, k) {
+    quete.value.tournoi[cle].splice(k, 1);
+    if (cle === 'trophees' && !quete.value.tournoi.trophees.length) delete quete.value.tournoi.trophees;
+}
 /** Lot E2 : la zone d'une lame balançoire — la forme publiée (`zone_lames`, décalages verticaux), couchée au besoin. */
 function zoneDeLame(slug, x, y) {
     const forme = (catalogues.value?.pieges ?? []).find((p) => p.slug === slug)?.zone_lames;
@@ -1625,6 +1635,39 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <label class="cst-case"><input type="checkbox" :checked="c.toute_la_salle === true" @change="$event.target.checked ? (c.toute_la_salle = true) : delete c.toute_la_salle" /> toute la salle</label>
                                 <button type="button" class="cst-icone" title="Retirer" @click="retirerCoffrePiege(k)"><MSym n="close" :size="16" /></button>
                             </div>
+                            <!-- Lot TC (Against the Ogre Horde q. 1-3) : la quête-tournoi de World's End. -->
+                            <div class="cst-ligne">
+                                <label class="cst-case" title="Les règles du tournoi : tuiles de départ, le Defender joue d'abord, activations alternées, trophées, mort hors jeu, coffres à 2d6, vagues.">
+                                    <input type="checkbox" :checked="!!quete.tournoi" @change="basculerTournoi($event.target.checked)" /> Tournoi de World's End
+                                </label>
+                            </div>
+                            <template v-if="quete.tournoi">
+                                <div v-for="[cle, libelle] in CASES_DU_TOURNOI" :key="cle" class="cst-ligne">
+                                    <span class="cst-lbl">{{ libelle }} :</span>
+                                    <span v-for="(c, k) in (quete.tournoi[cle] ?? [])" :key="`${cle}${k}`" class="cst-ligne">
+                                        <input v-model.number="c.x" type="number" class="cst-input cst-num" />
+                                        <input v-model.number="c.y" type="number" class="cst-input cst-num" />
+                                        <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(c, libelle)"><MSym n="pin_drop" :size="16" /></button>
+                                        <button type="button" class="cst-icone" title="Retirer la case" @click="retirerCaseTournoi(cle, k)"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter une case" @click="(quete.tournoi[cle] ??= []).push({ x: 0, y: 0 })"><MSym n="add" :size="16" /></button>
+                                </div>
+                                <div class="cst-ligne">
+                                    <span class="cst-lbl" title="La première vague est celle des monstres posés ; les suivantes entrent sur la tuile du Defender.">Vagues suivantes :</span>
+                                    <button type="button" class="cst-btn ghost" @click="(quete.tournoi.vagues ??= []).push([{ slug: catalogues.monstres?.[0]?.slug ?? '' }])"><MSym n="add" :size="14" /> vague</button>
+                                </div>
+                                <div v-for="(vague, v) in (quete.tournoi.vagues ?? [])" :key="`vg${v}`" class="cst-ligne">
+                                    <span class="cst-sous">Vague {{ v + 2 }} :</span>
+                                    <span v-for="(fig, f) in vague" :key="`vf${v}-${f}`" class="cst-ligne">
+                                        <select v-model="fig.slug" class="cst-input">
+                                            <option v-for="m in (catalogues.monstres ?? [])" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
+                                        </select>
+                                        <input :value="fig.nom ?? ''" class="cst-input" placeholder="nom propre" @change="$event.target.value ? (fig.nom = $event.target.value) : delete fig.nom" />
+                                        <button type="button" class="cst-icone" title="Retirer la figure" @click="vague.splice(f, 1); vague.length || quete.tournoi.vagues.splice(v, 1); quete.tournoi.vagues.length || delete quete.tournoi.vagues"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter une figure" @click="vague.push({ slug: catalogues.monstres?.[0]?.slug ?? '' })"><MSym n="add" :size="16" /></button>
+                                </div>
+                            </template>
                         </div>
 
                         <!-- notes -->

@@ -150,7 +150,7 @@ final class ValidationCampagne
         'ramener' => ['type', 'libelle'],
     ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'captif', 'dangers', 'double', 'glyphes', 'salles_speciales', 'coffres_pieges'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'captif', 'dangers', 'double', 'glyphes', 'salles_speciales', 'coffres_pieges', 'tournoi'];
     /** Lot E1 (2026-11-22) : le coffre piégé de l'auteur, `Classique\CoffresPieges`. */
     private const CLES_COFFRE_PIEGE_OPTIONNELLES = ['piege', 'degats', 'toute_la_salle'];
     /**
@@ -630,6 +630,7 @@ final class ValidationCampagne
             $this->dangers($quete, $chemin);
             $this->glyphes($quete, $chemin);
             $this->coffresPieges($quete, $chemin);
+            $this->tournoi($quete, $chemin);
             $this->recompense($quete, $chemin);
             // Les notes AVANT la fin : une fin « drapeau » n'est gagnable que si une note pose ce drapeau — de cette quête,
             // ou de campagne par une quête précédente (lot K5h).
@@ -2385,6 +2386,61 @@ final class ValidationCampagne
         }
         if (array_key_exists('si_drapeau', $recompense)) {
             $this->nomDeDrapeau($recompense, 'si_drapeau', $position);
+        }
+    }
+
+    /**
+     * `quete.tournoi` (facultative, lot TC2 — *Against the Ogre Horde* q. 1-3, `docs/plan-tournoi-classique.md`) :
+     * `{camp_heros: [{x, y}], camp_defender: [{x, y}], trophees?: [{x, y}], vagues?: …}`. Les deux tuiles de départ ont au
+     * moins une case ; les trophées au plus une case par tuile du lot (`TropheesArene::LOT`).
+     */
+    private function tournoi(array $quete, string $chemin): void
+    {
+        if (! array_key_exists('tournoi', $quete)) {
+            return;
+        }
+        $ici = self::chemin($chemin, 'tournoi');
+        $tournoi = $this->enObjet($quete['tournoi'], $ici);
+        if ($tournoi === null) {
+            return;
+        }
+        $this->cles($tournoi, $ici, ['camp_heros', 'camp_defender'], ['trophees', 'vagues']);
+        foreach (['camp_heros', 'camp_defender', 'trophees'] as $cle) {
+            if (! array_key_exists($cle, $tournoi)) {
+                continue;
+            }
+            $liste = $this->enListe($tournoi[$cle], "$ici.$cle");
+            foreach ((array) $liste as $k => $c) {
+                if (($case = $this->enObjet($c, "$ici.$cle.$k")) !== null) {
+                    $this->cles($case, "$ici.$cle.$k", self::CLES_CASE);
+                    $this->cellule($case, "$ici.$cle.$k");
+                }
+            }
+            if ($liste === [] && $cle !== 'trophees') {
+                $this->refuser("$ici.$cle", self::VALEUR_INVALIDE, 'au moins une case');
+            }
+            if ($cle === 'trophees' && count((array) $liste) > count(\App\Partie\Arene\TropheesArene::LOT)) {
+                $this->refuser("$ici.$cle", self::VALEUR_INVALIDE, 'au plus '.count(\App\Partie\Arene\TropheesArene::LOT).' tuiles trophées');
+            }
+        }
+        // Les VAGUES suivantes (lot TC4, F9528 q. 1) : une liste de vagues, chacune une liste de figures — un slug et le
+        // profil d'auteur d'un monstre posé, sans case (elles entrent sur la tuile du Defender).
+        if (array_key_exists('vagues', $tournoi)) {
+            foreach ((array) $this->enListe($tournoi['vagues'], "$ici.vagues") as $v => $vague) {
+                $figures = $this->enListe($vague, "$ici.vagues.$v");
+                if ($figures === []) {
+                    $this->refuser("$ici.vagues.$v", self::VALEUR_INVALIDE, 'une vague a au moins une figure');
+                }
+                foreach ((array) $figures as $f => $figure) {
+                    $pos = "$ici.vagues.$v.$f";
+                    if (($fig = $this->enObjet($figure, $pos)) === null) {
+                        continue;
+                    }
+                    $this->cles($fig, $pos, ['slug'], array_values(array_diff(self::CLES_MONSTRE_OPTIONNELLES, ['inactif', 'fuite'])));
+                    $this->slugCatalogue($fig, 'slug', $pos, 'monstres');
+                    $this->profilDeMonstre($fig, $pos);
+                }
+            }
         }
     }
 

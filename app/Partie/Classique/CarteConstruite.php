@@ -262,6 +262,9 @@ final class CarteConstruite
                 'mobilier_id' => (int) $type->id, 'x' => $x, 'y' => $y, 'l' => $l, 'h' => $h,
                 // Un meuble de COULOIR (2026-11-20) n'a pas de salle : `null`, comme un mur magique posé en jeu.
                 'salle' => ($salleDuMeuble = self::interieurEn($salles, $x, $y)) === null ? null : $indexSalle[$salleDuMeuble],
+                // TOURNOI (lot TC5, F9528 p. 13) : un coffre se fouille « adjacent or diagonal » et tire la table 2d6 du
+                // tournoi (`ResolveurTour::tresorDuTournoi()`), comme ceux du hall de l'arène.
+                ...(is_array($quete['tournoi'] ?? null) && $type->nom === 'Coffre' ? ['diagonale' => true, 'tresor_tournoi' => true] : []),
             ];
             foreach (Grille::cellulesEmprise($x, $y, $l, $h) as $c) {
                 $occupees["{$c['x']},{$c['y']}"] = true;
@@ -365,9 +368,16 @@ final class CarteConstruite
                 'terrain' => $terrain,
                 'dangers' => $dangers,
                 'escalier' => $escalier,
-                'spawn_heros' => $idDepart === null
-                    ? self::spawnsCouloir($ancre, $cases, $salles, $occupees)
-                    : self::spawnsHeros($salleDepart, $ancre, $occupees),
+                // TOURNOI (lot TC2, F9528 p. 12) : « Each team is placed on its own starting tile » — les héros partent de la
+                // tuile du Challenger, jamais de l'escalier.
+                'spawn_heros' => is_array($quete['tournoi'] ?? null)
+                    ? array_values(array_map(fn ($c) => ['x' => (int) $c['x'], 'y' => (int) $c['y']], (array) $quete['tournoi']['camp_heros']))
+                    : ($idDepart === null
+                        ? self::spawnsCouloir($ancre, $cases, $salles, $occupees)
+                        : self::spawnsHeros($salleDepart, $ancre, $occupees)),
+                // La tuile du Defender (lot TC4 : les vagues y entrent), lue en jeu sur la carte.
+                ...(is_array($quete['tournoi'] ?? null) ? ['tournoi' => ['camp_defender' => array_values(array_map(
+                    fn ($c) => ['x' => (int) $c['x'], 'y' => (int) $c['y']], (array) $quete['tournoi']['camp_defender']))]] : []),
                 'spawn_monstres' => [],
                 'spawn_figures_fixes' => [],
             ],

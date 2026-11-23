@@ -634,3 +634,91 @@ it('salles qui se lèvent : au tour du MJ, un dé rouge et la salle cachée la p
         ->and($orque->fresh()->revele)->toBeTrue()
         ->and(collect($partie['quete']->fresh()->carte->grille['portes'])->first(fn ($p) => (int) $p['x'] === 6)['etat'])->toBe(\App\Partie\MoteurPortes::ETAT_OUVERTE);
 });
+
+// ---------------------------------------------------------------- Le tournoi de World's End (lots TC)
+
+function tournoiE2(array $tournoi = [], array $quete = []): array
+{
+    return campagneE2(array_replace([
+        'monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 3]],
+        'fin' => ['type' => 'vaincre', 'cibles' => [0], 'libelle' => 'Vaincre le Defender.'],
+        'portes' => [['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale', 'ouverte' => true],
+            ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale'], ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'secrete']],
+        'tournoi' => array_replace([
+            'camp_heros' => [['x' => 3, 'y' => 3], ['x' => 3, 'y' => 4]],
+            'camp_defender' => [['x' => 9, 'y' => 3], ['x' => 9, 'y' => 4]],
+            'trophees' => [['x' => 5, 'y' => 3]],
+        ], $tournoi),
+    ], $quete));
+}
+
+it('tournoi (TC2) : les héros partent de leur tuile, le Defender est dévoilé et joue d\'abord, les trophées sont posés', function () {
+    expect(codesE2(tournoiE2()))->toBe([])
+        ->and(codesE2(tournoiE2(['camp_heros' => []])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $partie = partieE2($this, tournoiE2());
+
+    $quete = $partie['quete']->fresh();
+    $etat = $quete->etatsPersonnages()->first();
+    expect($quete->estTournoi())->toBeTrue()
+        ->and($partie['groupe']->fresh()->estEnTournoi())->toBeTrue()
+        ->and([(int) $etat->position_x, (int) $etat->position_y])->toBe([3, 3])
+        ->and($quete->instancesMonstres()->first()->revele)->toBeTrue()
+        ->and(count($quete->trophees_arene['cases'] ?? []))->toBe(1)
+        // Le Defender a ouvert : sa figure porte son jeton d'activation.
+        ->and((bool) $quete->instancesMonstres()->first()->active_ce_round)->toBeTrue();
+});
+
+it('tournoi (TC3-TC4) : la vague suivante entre sur la tuile du Defender ; la dernière tombée, le tournoi est gagné', function () {
+    $campagne = tournoiE2(['vagues' => [[['slug' => 'gobelin'], ['slug' => 'gobelin', 'nom' => 'Rat de Skutter']]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(tournoiE2(['vagues' => [[]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $degats = app(\App\Partie\MoteurDegats::class);
+    $tuer = function () use ($partie, $degats) {
+        foreach ($partie['quete']->instancesMonstres()->where('etat', 'actif')->get() as $m) {
+            $degats->infligerAMonstre($m, 99, \App\Partie\MoteurDegats::SOURCE_PIEGE);
+        }
+        $nettoye = new ReflectionMethod(ResolveurTour::class, 'donjonNettoye');
+
+        return $nettoye->invoke(app(ResolveurTour::class), [], $partie['quete']->fresh());
+    };
+
+    $apres1 = $tuer();
+    expect($apres1['vague_tournoi']['monstres'])->toBe(['Gobelin', 'Rat de Skutter'])
+        ->and($partie['quete']->instancesMonstres()->where('etat', 'actif')->pluck('position_x')->all())->toBe([9, 9]);
+
+    $apres2 = $tuer();
+    expect($apres2['tournoi_gagne'] ?? false)->toBeTrue()
+        ->and($partie['quete']->fresh()->etat)->toBe('terminee');
+});
+
+it('tournoi (TC3) : un héros tombé est hors jeu, jamais tué, quel que soit le mode de mort ; on ne le relève pas', function () {
+    $partie = partieE2($this, tournoiE2());
+    $partie['groupe']->update(['mode_mort' => 'standard']);
+    $partie['quete']->etatsPersonnages()->update(['tombe' => true]);
+    $partie['heros']->update(['pv_body' => 0]);
+
+    expect(app(\App\Partie\Classique\MortHeroic::class)->mortsStandard($partie['groupe']->fresh(), $partie['quete']->fresh()))->toBe([])
+        ->and(app(\App\Partie\Classique\MortHeroic::class)->tousMorts($partie['groupe']->fresh(), $partie['quete']->fresh()))->toBe([])
+        ->and($partie['heros']->fresh()->mort_le)->toBeNull();
+});
+
+it('tournoi (TC5) : le coffre se fouille en diagonale et tire la table 2d6 du tournoi', function () {
+    $partie = partieE2($this, tournoiE2([], ['mobilier' => [['slug' => 'coffre', 'x' => 5, 'y' => 4, 'rotation' => 0]]]));
+    $coffre = collect($partie['quete']->fresh()->carte->grille['mobilier'])->first(fn ($m) => (int) $m['x'] === 5);
+    expect($coffre['tresor_tournoi'] ?? false)->toBeTrue()->and($coffre['diagonale'] ?? false)->toBeTrue();
+});
+
+it('tournoi : par les routes, le héros a la main après l\'ouverture du Defender, et le combat se joue en activations', function () {
+    $partie = partieE2($this, tournoiE2([], ['monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 3], ['slug' => 'gobelin', 'x' => 9, 'y' => 4]],
+        'fin' => ['type' => 'vaincre', 'cibles' => [0, 1], 'libelle' => 'Vaincre le Defender.']]));
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $ids = collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id');
+    expect($ids)->toContain('attendre');
+
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'attendre'])->assertAccepted();
+    // Seul héros : son activation finie, le Defender enchaîne ses figures, le round se referme et se rouvre — une figure
+    // pour ouvrir le nouveau round (comme à l'arène, `ActivationAlterneeTest`), et le héros a de nouveau la main.
+    expect($partie['quete']->instancesMonstres()->where('active_ce_round', true)->count())->toBe(1)
+        ->and((bool) $partie['quete']->etatsPersonnages()->first()->a_joue)->toBeFalse();
+});

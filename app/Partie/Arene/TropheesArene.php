@@ -95,15 +95,28 @@ final class TropheesArene
 
     public function __construct(private readonly HallArene $hall) {}
 
-    /** Pose le lot, mélangé, face cachée sur les cases du plan. */
-    public function poser(Quete $quete): void
+    /**
+     * Pose le lot, mélangé, face cachée sur les cases du plan — celles du hall, ou celles de l'AUTEUR d'un tournoi du mode
+     * classique (`quete.tournoi.trophees`, lot TC2 ; au plus une case par tuile du lot, la validation le tient).
+     *
+     * @param  list<array{x: int, y: int}>|null  $casesAuteur
+     */
+    public function poser(Quete $quete, ?array $casesAuteur = null): void
     {
         $lot = app(Randomizer::class)->shuffleArray(self::LOT);
         $cases = [];
 
-        foreach (self::CASES as $i => [$c, $r]) {
-            [$x, $y] = $this->hall->caseDeLaSalle($c, $r);
-            $cases[] = ['x' => $x, 'y' => $y, 'tuile' => $lot[$i]];
+        if ($casesAuteur !== null) {
+            foreach (array_values($casesAuteur) as $i => $c) {
+                if (isset($lot[$i])) {
+                    $cases[] = ['x' => (int) $c['x'], 'y' => (int) $c['y'], 'tuile' => $lot[$i]];
+                }
+            }
+        } else {
+            foreach (self::CASES as $i => [$c, $r]) {
+                [$x, $y] = $this->hall->caseDeLaSalle($c, $r);
+                $cases[] = ['x' => $x, 'y' => $y, 'tuile' => $lot[$i]];
+            }
         }
 
         $quete->update(['trophees_arene' => [
