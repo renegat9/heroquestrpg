@@ -19,7 +19,7 @@ const SOMMAIRE = [
 
 const OUTILS = [
     ['meeting_room', 'Ouvrir / fermer une salle', 'Une salle ouverte fait partie du donjon de cette quête ; une salle fermée est de la roche.'],
-    ['door_front', 'Porte', 'Cliquer le BORD d\'une case. Normale ou secrète ; une porte normale peut porter un verrou : note, clé, pierre ou condition (un jet de dés).'],
+    ['door_front', 'Porte', 'Cliquer le BORD d\'une case. Normale ou secrète ; une porte normale peut porter un verrou (note, clé, pierre, condition) ou être ouverte au départ, une secrète être déjà découverte.'],
     ['block', 'Bloc de couloir', 'Une case de couloir bouchée.'],
     ['chair', 'Meuble', 'Choisir le meuble et sa rotation, cliquer sa case en haut à gauche. Un meuble se pose dans une salle ou, en entier, dans un couloir.'],
     ['skull', 'Monstre', 'Une figure du bestiaire. Son numéro (0, 1, 2…) sert aux notes et à la fin de quête.'],
@@ -27,7 +27,7 @@ const OUTILS = [
     ['water', 'Terrain', 'Glace, gouffre, pont… « posée au premier pas » la cache jusqu\'à ce qu\'un héros y marche.'],
     ['my_location', 'Cible de fin', 'Pour une fin « vaincre » : désigne les monstres à abattre.'],
     ['login', 'Entrée', 'Un escalier 2×2 (case du coin haut-gauche) ou une porte (bord cliqué).'],
-    ['logout', 'Sortie', 'Pareil ; « Sortie = entrée » remet la sortie sur l\'escalier. Une porte de sortie peut être verrouillée comme une porte barrée.'],
+    ['logout', 'Sortie', 'Pareil ; « Sortie = entrée » remet la sortie sur l\'escalier. Une porte de sortie peut être verrouillée comme une porte barrée, et toute sortie rester cachée jusqu\'à un drapeau.'],
     ['block', 'Fausse porte de sortie', 'Une sortie dessinée qui ne mène nulle part.'],
     ['ink_eraser', 'Effacer', 'Retire ce qui est sur la case cliquée (monstre, piège, terrain, bloc, meuble).'],
 ];
@@ -90,6 +90,7 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                         <li><b>Titre</b>, <b>slug</b> (l'identifiant, en minuscules et tirets), <b>auteur</b> et <b>mention</b> (crédit, droits) ;</li>
                         <li><b>Classes exigées</b> : les héros sans lesquels la campagne ne peut pas partir ;</li>
                         <li><b>Mercenaires</b> : ceux qu'on peut recruter entre les quêtes, et leur régime.</li>
+                        <li><b>Cartes de trésor ajoutées au paquet</b> : celles de Jungles of Delthrak et de Wizards of Morcar ;</li>
                     </ul>
                     <figure class="gc-fig">
                         <a :href="IMG('campagne')" target="_blank" rel="noopener"><img :src="IMG('campagne')" alt="L'onglet Campagne : la liste à gauche, l'état de validation et « Enregistrer » en haut à droite." loading="lazy" /></a>
@@ -132,11 +133,12 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                     <ul>
                         <li><b>Titre</b>, <b>slug</b> et <b>texte d'ouverture</b> (lu à la table au départ) ;</li>
                         <li><b>Monstre errant</b> (avec son nombre de figures — « 2 Squelettes » — et un profil d'auteur par le bouton <MSym n="tune" :size="14" />), <b>quête solo</b>, <b>marché fermé</b> avant la quête, <b>salles qui ne se fouillent pas</b>, <b>équipement confisqué</b> ;</li>
-                        <li><b>Récompense</b> : de l'or, partagé au groupe ou par héros ;</li>
+                        <li><b>Récompense</b> : de l'or, partagé au groupe ou par héros, des objets (au premier héros ou à chacun), et au besoin une condition (« si le drapeau ») ;</li>
                         <li><b>Fin</b> : vaincre des monstres désignés, poser un drapeau (par une note), sortir du donjon, ou ramener une charge ou un captif — avec la <b>consigne</b> dite aux joueurs ;</li>
                         <li><b>Coffres piégés</b> : un par salle — la fouille des pièges le trouve, le Nain (ou une trousse à outils) le désamorce ; fouiller le trésor avant le déclenche (dégâts du piège ou dégâts fixes, au fouilleur ou à toute la salle) ;</li>
                         <li><b>Charge à porter</b> : un objet encombrant, son porteur lance un dé de déplacement de moins ;</li>
-                        <li><b>Captif à escorter</b> : une figure qui attend dans sa cellule. Un héros au contact la libère et elle le suit ; ramenée vivante sur la sortie avec le dernier héros, la récompense est versée — sinon la quête est gagnée sans récompense ;</li>
+                        <li><b>Captif à escorter</b> (sa mort peut faire perdre la quête ; il peut rester allié pour la suite ; une note peut le libérer) : une figure qui attend dans sa cellule. Un héros au contact la libère et elle le suit ; ramenée vivante sur la sortie avec le dernier héros, la récompense est versée — sinon la quête est gagnée sans récompense ;</li>
+                        <li><b>Sans restauration</b> : la quête enchaîne sans remettre le Corps ni l'Esprit à neuf ;</li>
                         <li><b>Suite</b> (campagne ramifiée) : selon le drapeau posé, la quête suivante change ;</li>
                         <li><b>Quête double</b> : deux moitiés reliées par un passage.</li>
                     </ul>
