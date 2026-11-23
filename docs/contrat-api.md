@@ -6179,7 +6179,15 @@ Mode classique seulement ; une règle par livret, sourcée.
   que son sac range, `vendre_etal_{inventaire_id}` par ligne revendable (mêmes refus et même prix de revente qu'au hub),
   et `fermer_etal`. Gestes libres ; pas de stock en quête ; chaque héros achète pour lui, de sa bourse. Résultats
   annoncés `acheter_etal {personnage, nom, prix}` et `vendre_etal {…}` ; `ouvrir_etal` / `fermer_etal` sont muets.
-- **L'abîme et la Fosse de l'Effroi** (*Against the Ogre Horde* q. 8) — terrain « Abîme sans fond » (catalogue, réservé
+- **Les salles qui se lèvent** — `regles.activation_salles: true` (*Against the Ogre Horde* q. 10 : « Zargon may
+  activate all the monsters in one or two rooms… one red die. On a roll result of 1-5, one room… 6, two rooms… the door
+  is opened. Any monsters in the activated room may move on that turn » ; « If a wandering monster card is drawn, Zargon
+  may activate one room »). `Classique\ActivationSalles` : au début de chaque tour du MJ, le dé puis la ou les salles
+  encore cachées qui abritent des monstres, les plus proches d'un héros debout (le livret laisse Zargon choisir :
+  décision écrite) ; la salle se découvre, ses portes closes s'ouvrent, ses monstres jouent ce tour. Annonce
+  `salles_activees {de, salles: [{monstres}]}`. La carte de monstre errant lève UNE salle au lieu de son surgissement
+  (`salles_activees` sur le résultat de fouille).
+ (*Against the Ogre Horde* q. 8) — terrain « Abîme sans fond » (catalogue, réservé
   au classique : `MoteurTerrain::RESERVES_AU_CLASSIQUE`), qui bloque la marche : personne n'y entre de lui-même et le
   moteur ne pousse aucune figure sur une case qui bloque, donc « immediately plunges to their death » n'a rien à résoudre
   (décision écrite) ; le pont, ce sont les cases laissées sans abîme. `regles.receptacle_objets: [{x, y}]` : les cases où

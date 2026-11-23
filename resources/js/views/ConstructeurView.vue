@@ -1289,6 +1289,10 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     Dés d'attaque en plus (tous les monstres) :
                                     <input type="number" min="1" class="cst-input cst-num" :value="quete.regles?.bonus_attaque_monstres ?? ''" @change="changerRegleEntier('bonus_attaque_monstres', $event.target.value)" />
                                 </label>
+                                <!-- Lot E2 : Zargon réveille une ou deux salles à chaque tour (Against the Ogre Horde q. 10). -->
+                                <label class="cst-case" title="À chaque tour du MJ, un dé rouge : 1-5 une salle, 6 deux salles se lèvent (la plus proche des héros), porte ouverte ; une carte de monstre errant en lève une.">
+                                    <input type="checkbox" :checked="quete.regles?.activation_salles === true" @change="changerRegleBool('activation_salles', $event.target.checked)" /> Salles qui se lèvent au tour du MJ
+                                </label>
                                 <!-- Lot E1 : la quête enchaîne sans remettre le Corps ni l'Esprit à neuf. -->
                                 <label class="cst-case">
                                     <input type="checkbox" :checked="quete.regles?.sans_restauration === true" @change="changerRegleBool('sans_restauration', $event.target.checked)" /> Sans restauration (Corps et Esprit gardés)

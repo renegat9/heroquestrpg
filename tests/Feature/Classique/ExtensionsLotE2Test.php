@@ -618,3 +618,19 @@ it('la Fosse de l\'Effroi : l\'anneau jeté depuis le bord joue la note ; l\'ab�
     $vivier = \App\Models\Terrain::query()->get()->filter(fn ($t) => in_array($t->nom, \App\Partie\MoteurTerrain::RESERVES_AU_CLASSIQUE, true));
     expect($vivier->pluck('nom')->all())->toBe(['Abîme sans fond']);
 });
+
+it('salles qui se lèvent : au tour du MJ, un dé rouge et la salle cachée la plus proche se découvre, porte ouverte', function () {
+    $campagne = campagneE2(['regles' => ['activation_salles' => true], 'monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 4]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3]);
+    $orque = $partie['quete']->instancesMonstres()->firstOrFail();
+    $orque->update(['revele' => false]);
+    app()->instance(LanceurDes::class, new LanceurDeterministe([3, ...array_fill(0, 40, 4)]));
+
+    $payload = app(\App\Partie\Classique\ActivationSalles::class)->auTourDuMJ($partie['groupe'], $partie['quete']->fresh());
+
+    expect($payload['de'])->toBe(3)->and($payload['salles'])->toHaveCount(1)
+        ->and($orque->fresh()->revele)->toBeTrue()
+        ->and(collect($partie['quete']->fresh()->carte->grille['portes'])->first(fn ($p) => (int) $p['x'] === 6)['etat'])->toBe(\App\Partie\MoteurPortes::ETAT_OUVERTE);
+});

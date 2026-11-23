@@ -12517,6 +12517,9 @@ final class ResolveurTour
                     'y' => (int) $cree->position_y,
                 ];
             }
+        } elseif ($issue === 'errant' && \App\Partie\Classique\ActivationSalles::actif($quete)) {
+            // ACTIVATION DES SALLES (lot E2, F9528 q. 10) : « If a wandering monster card is drawn, Zargon may activate one room. »
+            $payload['salles_activees'] = app(\App\Partie\Classique\ActivationSalles::class)->activer($quete, 1);
         } elseif ($issue === 'errant') {
             // Le surgissement — un seul endroit, partagé avec le piège à monstre errant (lot E2) : `surgissementErrant()`.
             $payload = [...$payload, ...$this->surgissementErrant($groupe, $quete, $personnage, $etat)];
@@ -14041,6 +14044,9 @@ final class ResolveurTour
             if ($quete->estConstruite()) {
                 $quete->increment('tours_mj');
                 app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::TOUR_DU_MJ, ['tour' => (int) $quete->tours_mj]);
+
+                // ACTIVATION DES SALLES (lot E2, F9528 q. 10) : un dé rouge, une ou deux salles se lèvent et jouent ce tour.
+                app(\App\Partie\Classique\ActivationSalles::class)->auTourDuMJ($groupe, $quete->fresh());
 
                 // Lot E2 (F9528 q. 6 B) : chaque héros debout, sur le plateau, au moment où le MJ prend la main.
                 foreach ($quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get() as $present) {

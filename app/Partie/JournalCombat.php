@@ -190,6 +190,8 @@ final class JournalCombat
         'porte_frappee' => true,
         // Lot E2 : l'Anneau de Festral jeté dans la Fosse (F9528 q. 8).
         'objet_jete' => true,
+        // Lot E2 : les salles qui se lèvent au tour du MJ (F9528 q. 10).
+        'salles_activees' => true,
         // Lot E2 : le marché souterrain en pleine quête (F6646 p. 2).
         'acheter_etal' => true,
         'vendre_etal' => true,
@@ -1400,6 +1402,12 @@ final class JournalCombat
             'vendre_etal' => [[
                 'texte' => ($a['personnage']['nom'] ?? $acteurNom).' vend '.($a['nom'] ?? 'un objet').' au marché souterrain (+'.(int) ($a['prix'] ?? 0).' po)',
                 'ton' => 'tresor',
+            ]],
+            'salles_activees' => [[
+                'texte' => 'Zargon lance le dé ('.(int) ($a['de'] ?? 0).') : '.(($a['salles'] ?? []) === []
+                    ? 'aucune salle ne reste à réveiller'
+                    : implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) $a['salles']))),
+                'ton' => ($a['salles'] ?? []) === [] ? 'info' : 'subit',
             ]],
             'objet_jete' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' jette '.($a['objet'] ?? 'l\'objet').' dans la fosse',
@@ -3512,10 +3520,15 @@ final class JournalCombat
             // sur qui il tombe (verdict Jungle 2026-10-10 §1).
             // PLUSIEURS figures (mode classique, lot E1 : « 2 Skeletons ») : nommées toutes, dans l'ordre de leur pose.
             'errant' => [[
-                'texte' => count((array) ($a['monstres'] ?? [])) > 1
+                // ACTIVATION DES SALLES (lot E2, F9528 q. 10) : la carte lève une salle au lieu d'un surgissement.
+                'texte' => array_key_exists('salles_activees', $a)
+                    ? "{$acteurNom} tire un monstre errant : ".(($a['salles_activees'] ?? []) === []
+                        ? 'aucune salle ne reste à réveiller'
+                        : implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) $a['salles_activees'])))
+                    : (count((array) ($a['monstres'] ?? [])) > 1
                     ? self::figuresGroupees(array_map(fn ($m) => (string) ($m['nom'] ?? 'un monstre'), (array) $a['monstres']))
                         ." surgissent du coffre que fouille {$acteurNom} !"
-                    : ($a['monstre']['nom'] ?? 'Un monstre')." surgit du coffre que fouille {$acteurNom} !",
+                    : ($a['monstre']['nom'] ?? 'Un monstre')." surgit du coffre que fouille {$acteurNom} !"),
                 'ton' => 'subit',
             ]],
             // CERCUEIL du Tombeau (`ResolveurTour::spawnDuTombeau()`) : le même payload que l'errant, nommé pour ce
