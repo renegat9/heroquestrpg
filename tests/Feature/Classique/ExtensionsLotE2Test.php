@@ -308,6 +308,8 @@ it('porte cachée : la fouille ne la trouve jamais, seule la note la révèle ; 
 
     \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
     $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    // Le jet de Mind de la fouille réussit (crânes) : le témoin trouve donc sa porte à coup sûr.
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 60, 1)));
     $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'fouiller'])->assertAccepted();
     // Le témoin (sans `cachee`) : la même fouille trouve la même porte.
     expect($porte()['etat'])->toBe($cachee ? \App\Partie\MoteurPortes::ETAT_SECRETE : \App\Partie\MoteurPortes::ETAT_FERMEE);
