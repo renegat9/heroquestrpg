@@ -975,6 +975,18 @@
       "source": "G1798 p. 4-5 (PDF 3), « Acid Pool Traps » (tuile)"
     },
     {
+      "type": "pieges",
+      "cle": "stalactite",
+      "nom_catalogue": "Stalactite",
+      "absent": "sans tuile (F5815 p. 6 : « The Wandering Monster trap, the Stalactite trap, and the Swinging Axe trap do not have tiles ») : symbole des cartes de quête non extrait, l'icône le remplace"
+    },
+    {
+      "type": "pieges",
+      "cle": "hache-balanciere",
+      "nom_catalogue": "Hache balancière",
+      "absent": "sans tuile (F5815 p. 6 : « The Wandering Monster trap, the Stalactite trap, and the Swinging Axe trap do not have tiles ») : symbole des cartes de quête non extrait, l'icône le remplace"
+    },
+    {
       "type": "portes",
       "cle": "fermee",
       "nom_catalogue": "fermee",

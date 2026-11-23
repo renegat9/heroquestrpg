@@ -343,6 +343,19 @@ class PiegeSeeder extends Seeder
                     'saut_long' => ['face' => 'bouclier_noir'],
                     'dans_la_fosse' => ['sortie_sur' => [5, 6], 'malus_des_combat' => 1],
                 ]],
+            // THE FROZEN HORROR (F5815 p. 6, « Traps in This Quest Pack » — sans tuile), mode CLASSIQUE seul
+            // (`MoteurPieges::RESERVES_AU_CLASSIQUE`) : le donjon généré du mode RPG ne les tire jamais.
+            // « Unless searched for and disarmed, the stalactite falls upon the first hero to move onto the trap square,
+            // causing 1 Body Point of damage. Monsters do not spring Stalactite traps. »
+            ['nom' => 'Stalactite', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'unique',
+                'boite' => 'horreur_des_glaces',
+                'effet' => ['degats_pv_body' => 1]],
+            // « The hero then rolls 2 combat dice and loses 1 Body Point for each skull rolled. The hero does not get to
+            // roll defend dice. A Swinging Axe trap can be searched for and disarmed. Until it is disarmed, a Swinging Axe
+            // trap affects every hero who steps onto the square. »
+            ['nom' => 'Hache balancière', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'persistant',
+                'boite' => 'horreur_des_glaces',
+                'effet' => ['des_combat' => 2, 'reste_arme' => true]],
         ];
 
         foreach ($pieges as $piege) {

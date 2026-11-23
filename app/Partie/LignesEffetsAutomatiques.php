@@ -898,6 +898,12 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => 'Une porte se ferme et disparaît dans le mur !', 'ton' => 'subit'];
                     }
                     break;
+                case 'errants':
+                    $noms = (array) ($effet['monstres'] ?? []);
+                    $lignes[] = $noms !== []
+                        ? ['texte' => implode(', ', $noms).(count($noms) > 1 ? ' surgissent' : ' surgit').' de nulle part !', 'ton' => 'subit']
+                        : ['texte' => 'Rien ne surgit : aucun monstre errant ne rôde', 'ton' => 'info'];
+                    break;
                 case 'arreter':
                     $lignes[] = ['texte' => "{$heros} s'arrête net", 'ton' => 'subit'];
                     break;

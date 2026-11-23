@@ -246,3 +246,50 @@ it('voler : de l\'or de la bourse, ou un objet du sac — jamais ce qu\'il porte
     expect($partie['heros']->inventaire()->where('objet_id', $dague->id)->where('emplacement', 'sac')->exists())->toBeFalse()
         ->and($partie['heros']->inventaire()->where('emplacement', '!=', 'sac')->count())->toBe($avant);
 });
+
+it('piège à monstre errant : arrêté sur la case, les errants de la quête surgissent autour de lui et frappent', function () {
+    $campagne = campagneE2([
+        'monstre_errant' => ['slug' => 'squelette', 'nombre' => 2],
+        'notes' => [['repere' => 'W', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 4, 'y' => 3]]],
+            'alors' => [['effet' => 'arreter'], ['effet' => 'errants']]]],
+    ]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 2, 'position_y' => 3]);
+
+    deplacerE2($this, $partie, 6, 3)->assertAccepted();
+
+    $etat = $partie['quete']->etatsPersonnages()->first();
+    $errants = $partie['quete']->instancesMonstres()->get();
+    $note = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()
+        ->first(fn ($e) => ($e->payload['type'] ?? null) === 'note_de_quete');
+    $frappes = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()
+        ->filter(fn ($e) => ($e->payload['type'] ?? null) === 'attaque_monstre');
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([4, 3])
+        ->and($errants)->toHaveCount(2)
+        ->and(collect($note->payload['effets'])->firstWhere('effet', 'errants')['monstres'])->toHaveCount(2)
+        ->and($frappes->count())->toBeGreaterThanOrEqual(1)
+        ->and($etat->a_joue)->toBeFalse();
+});
+
+it('hache balancière : 2 dés sans défense, et elle reste armée jusqu\'au désamorçage ; jamais dans un donjon généré', function () {
+    $this->seed(\Database\Seeders\PiegeSeeder::class);
+    $campagne = campagneE2(['pieges' => [['slug' => 'hache-balanciere', 'x' => 3, 'y' => 3]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 2, 'position_y' => 3]);
+    // Deux crânes pour la hache (`deplacerE2()` ne roulerait que des boucliers noirs).
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 40, 1)));
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'se_deplacer', 'parametres' => ['x' => 3, 'y' => 3]])->assertAccepted();
+
+    $entree = collect($partie['quete']->fresh()->carte->grille['pieges'])->firstWhere('x', 3);
+    expect((int) $partie['heros']->fresh()->pv_body)->toBe(28)
+        ->and($entree['etat'])->toBe(\App\Partie\MoteurPieges::ETAT_DETECTE);
+
+    // Le donjon généré du mode RPG ne la tire jamais, ni la stalactite.
+    $vivier = (new ReflectionMethod(\App\Partie\AssembleurCarte::class, 'piegesDeSol'))
+        ->invoke(app(\App\Partie\AssembleurCarte::class), \App\Partie\BestiaireGroupe::manuel(['horreur_des_glaces']));
+    expect($vivier->pluck('nom')->intersect(\App\Partie\MoteurPieges::RESERVES_AU_CLASSIQUE)->all())->toBe([]);
+});

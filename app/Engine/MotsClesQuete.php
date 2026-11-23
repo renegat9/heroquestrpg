@@ -263,6 +263,12 @@ final class MotsClesQuete
      */
     public const VOLER = 'voler';
 
+    /**
+     * Lot E2 — les MONSTRES ERRANTS de la quête surgissent autour du héros qui déclenche et frappent aussitôt (le piège à
+     * monstre errant, F5815 p. 6) : le même surgissement que la carte de fouille, `ResolveurTour::surgissementErrant()`.
+     */
+    public const ERRANTS = 'errants';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET];
 
@@ -286,6 +292,7 @@ final class MotsClesQuete
         self::RETIRER_BLOC => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetRetirerBloc', 'libelle' => 'retirer un bloc'],
         self::LIBERER_CAPTIF => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetLibererCaptif', 'libelle' => 'libérer le captif de la quête'],
         self::ARRETER => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetArreter', 'libelle' => 'arrêter le héros sur cette case'],
+        self::ERRANTS => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetErrants', 'libelle' => 'faire surgir les monstres errants de la quête autour du héros'],
         self::VOLER => ['parametres' => [], 'optionnels' => ['or'], 'lecteur' => 'effetVoler', 'libelle' => 'voler le héros (de l\'or, ou un objet de son sac)'],
         self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
         self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],

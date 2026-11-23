@@ -87,6 +87,12 @@ final class MoteurPieges
     public const ETAT_FOSSE_OUVERTE = 'fosse_ouverte';
 
     /**
+     * Les pièges des livrets que SEUL le mode classique pose (une campagne construite les nomme) : le donjon généré du
+     * mode RPG ne les tire jamais (`AssembleurCarte::piegesDeSol()`) — rien du classique ne touche le RPG ni l'arène.
+     */
+    public const RESERVES_AU_CLASSIQUE = ['Stalactite', 'Hache balancière'];
+
+    /**
      * MARE D'ACIDE déclenchée (*Acid Pool Trap*, The Crypt of Perpetual Darkness, G1798 p. 5) : « The acid
      * remains on the ground and affects any hero who moves onto it. » Persistante, armée, connue, sautable,
      * jamais désarmable — comme une fosse ouverte, mais ce n'est PAS un trou : son libellé et sa légende ne
@@ -629,9 +635,13 @@ final class MoteurPieges
         $retenu = $nomRetient !== '' && $touches > 0
             && $this->appliquerConditionSiApplicable($personnage, $nomRetient, 'piege:'.($piege?->nom ?? 'lianes')) !== null;
 
+        // HACHE BALANCIÈRE (`effet.reste_arme`, F5815 p. 6) : chaque héros qui y entre la subit, jusqu'au désamorçage.
+        $resteArme = (bool) data_get($piege?->effet, 'reste_arme', false);
+
         $nouvelEtat = match (true) {
             $blocPermanent => self::ETAT_BLOC,
             $retenu => self::ETAT_RETIENT,
+            $resteArme => self::ETAT_DETECTE,
             $esquiveSurBouclier => self::ETAT_DETECTE,
             $mare => self::ETAT_MARE,
             $persistant => self::ETAT_FOSSE_OUVERTE,

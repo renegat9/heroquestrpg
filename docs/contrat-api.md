@@ -6147,6 +6147,16 @@ Mode classique seulement ; une règle par livret, sourcée.
   F5815 p. 5) et `voler {or?}` (de l'or de la bourse du héros qui déclenche, au plus ce qu'il a ; sinon un objet de son
   SAC tiré au hasard — « it cannot be the armor or shield a hero is using, nor the weapon they are wielding », le
   Gremlin de glace, q. 4 B). Le Gremlin qui « disparaît » : `retirer`.
+- **Stalactite, Hache balancière** — deux pièges du catalogue (F5815 p. 6, sans tuile), réservés au classique
+  (`MoteurPieges::RESERVES_AU_CLASSIQUE` : jamais tirés par le donjon généré). La Stalactite : 1 PV au premier héros,
+  usage unique. La Hache : 2 dés de combat sans défense, 1 PV par crâne ; `effet.reste_arme` la laisse armée et visible
+  (`detecte`) après chaque déclenchement, jusqu'au désamorçage.
+- **Monstres errants** — effet de note `errants` : les errants de la quête (`quete.errant`) surgissent autour du héros
+  qui déclenche et frappent aussitôt, par le même surgissement que la carte de fouille
+  (`ResolveurTour::surgissementErrant()`) ; chaque frappe s'annonce `attaque_monstre`, le tour du héros continue. Le
+  **piège à monstre errant** (F5815 p. 6 : « the hero must stop… The monsters immediately attack… not detected when a
+  hero searches for traps », une seule fois, jamais par un monstre) s'écrit donc en note : `entree` sur la case →
+  `arreter` + `errants`.
 - **Reddition** — profil d'auteur `se_rend: {objet?}` (q. 1 B, l'Arbalétrier) : attaquée AU CONTACT, la figure se rend
   sans être blessée, quitte le plateau (comme `retirer`) et laisse l'objet à l'attaquant. Résultat :
   `reddition_auteur: {nom, objet}` ; fil « se rend et s'enfuit, laissant l'arbalète à Albrecht ».

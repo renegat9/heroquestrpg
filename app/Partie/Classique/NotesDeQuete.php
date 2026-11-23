@@ -478,6 +478,30 @@ final class NotesDeQuete
         return ['vole' => $nom, 'victime' => $heros->nom];
     }
 
+    /**
+     * Lot E2 — les errants de la quête surgissent autour du héros et frappent (`ResolveurTour::surgissementErrant()`, le
+     * point de passage de la carte de fouille). Chaque frappe s'annonce comme l'attaque de monstre qu'elle est ; le tour
+     * du héros continue (« if the hero has not already taken an action that turn, they may do so after they defend »).
+     */
+    private function effetErrants(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $etat = $heros === null ? null : $quete->etatsPersonnages()->where('personnage_id', $heros->id)->first();
+        if ($etat === null || $etat->position_x === null) {
+            return ['monstres' => []];
+        }
+        $fragment = app(\App\Partie\ResolveurTour::class)->surgissementErrant($quete->groupe, $quete, $heros, $etat);
+        $noms = isset($fragment['monstres']) ? array_column($fragment['monstres'], 'nom')
+            : (isset($fragment['monstre']) ? [$fragment['monstre']['nom']] : []);
+        foreach ([$fragment['frappe_errant'] ?? null, ...(array) ($fragment['frappes_errants'] ?? [])] as $frappe) {
+            if (is_array($frappe)) {
+                app(TamponAnnonces::class)->annoncer($quete->groupe, $frappe,
+                    ['type' => 'monstre', 'id' => $frappe['instance_id'] ?? null, 'nom' => (string) ($frappe['monstre'] ?? 'Le monstre errant')]);
+            }
+        }
+
+        return ['monstres' => $noms, ...(! empty($fragment['errant_indisponible']) ? ['indisponible' => true] : [])];
+    }
+
     /** Lot E1 — le captif de la quête est libéré, allié du héros qui déclenche (`Escorte::liberer()`). */
     private function effetLibererCaptif(Quete $quete, array $effet, ?Personnage $heros): array
     {

@@ -2092,6 +2092,8 @@ final class AssembleurCarte
             ->get()
             ->reject(fn (Piege $p) => data_get($p->effet, 'declencheur') === 'ouverture_tresor')
             ->reject(fn (Piege $p) => data_get($p->effet, 'zone_lames') !== null)
+            // Les pièges de livret du mode CLASSIQUE (lot E2) : jamais dans un donjon généré.
+            ->reject(fn (Piege $p) => in_array($p->nom, MoteurPieges::RESERVES_AU_CLASSIQUE, true))
             // FOSSE LONGUE (The Mage of the Mirror p. 6, lot G, 2026-10-29) : DEUX cases liées par `groupe_id`, posées par
             // `placerFosseLongue()` et par elle seule. Dans ce vivier, elle tomberait en UNE case sans son lien de groupe, sans
             // le saut par le bout : une fosse de deux cases ne se tire jamais case par case.

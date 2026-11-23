@@ -75,6 +75,8 @@ const EFFETS_BOOL = {
     ouvre_porte: 'Ou : ouvre une porte à distance',
     franchit_mur: 'Franchit les murs',
     bloc_permanent: 'La case devient un bloc de pierre permanent (bloque le passage et la vue)',
+    // Hache balancière (F5815 p. 6, lot E2) : elle frappe chaque héros qui entre, jusqu'à ce qu'on la désamorce.
+    reste_arme: 'Reste armé après chaque déclenchement, jusqu\'au désamorçage',
     franchissable: 'Franchissable',
     // Pont de Glace (lot 4, 2026-11-13) : un parchemin peut couvrir ce piège de sol, qui ne se déclenche plus sous la glace.
     pontable: 'Peut être couvert par un Pont de Glace',

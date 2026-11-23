@@ -50,6 +50,10 @@ export const PIEGE_ICONES = {
     // visuellement proche suffit, identique aurait confondu les deux sur une
     // carte qui mêlerait les deux thèmes.
     'Fosse des ténèbres': 'nightlight',
+    // The Frozen Horror (F5815 p. 6, lot E2, 2026-11-23), mode classique seul : la pointe de glace qui tombe du plafond
+    // (`severe_cold`), et la hache qui sort d'une alcôve (`carpenter`), distincte de la lame de la Lame balançoire.
+    'Stalactite': 'severe_cold',
+    'Hache balancière': 'carpenter',
     // Wizards of Morcar (pièges magiques, 2026-10-06, lot B) — trois pièges
     // qui ne peuvent pas être découverts par la fouille ni trouvés au hasard
     // (`detectable: false`), posés par la génération de donjon elle-même

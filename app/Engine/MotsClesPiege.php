@@ -49,6 +49,12 @@ final class MotsClesPiege
             'lecteur' => 'App\Partie\MoteurPieges::declencher() + App\Partie\MoteurPieges::declencherEphemere()',
             'libelle' => 'lance N dés de combat sans défense ; un crâne = 1 PV de Body',
         ],
+        // HACHE BALANCIÈRE (F5815 p. 6, lot E2) : « Until it is disarmed, a Swinging Axe trap affects every hero who steps
+        // onto the square » — déclenchée, elle reste armée et connue (`ETAT_DETECTE`), ni trou ni dépensée.
+        'reste_arme' => [
+            'lecteur' => 'App\Partie\MoteurPieges::declencher()',
+            'libelle' => 'reste armé et visible après chaque déclenchement, jusqu\'au désamorçage (la Hache balancière)',
+        ],
         'bloc_permanent' => [
             'lecteur' => 'App\Partie\MoteurPieges::declencher()',
             'libelle' => 'devient un bloc permanent (Chute de blocs)',

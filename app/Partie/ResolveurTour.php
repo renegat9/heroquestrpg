@@ -12184,6 +12184,91 @@ final class ResolveurTour
     }
 
     /**
+     * LE SURGISSEMENT DES MONSTRES ERRANTS de la quête autour de ce héros — un seul endroit, pour la carte « monstre
+     * errant » de la fouille ET le piège à monstre errant (lot E2, F5815 p. 6 : « The monster or monsters listed as
+     * Wandering Monsters for that quest appear on any square or squares adjacent to the hero or as close as possible. The
+     * monsters immediately attack »). Rend le fragment de résultat : `monstre`, `monstres?`, `frappe_errant?`,
+     * `frappes_errants?`, `defi_en_attente?` — ou `issue: rien` et `errant_indisponible` quand rien ne sort.
+     *
+     * @return array<string, mixed>
+     */
+    public function surgissementErrant(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): array
+    {
+        $payload = [];
+        $sortis = $this->spawnErrant($quete, $etat);
+        $errant = $sortis[0] ?? null;
+
+        if ($errant === null) {
+            // Budget errant épuisé / bestiaire indisponible : rien ne sort.
+            $payload['issue'] = 'rien';
+            $payload['errant_indisponible'] = true;
+        } else {
+            // PLUSIEURS figures (mode classique, lot E1) : toutes publiées ; la première reste `monstre`.
+            if (count($sortis) > 1) {
+                $payload['monstres'] = array_map(fn (InstanceMonstre $m) => [
+                    'instance_id' => $m->id,
+                    'nom' => $m->nomAffiche(),
+                    'x' => (int) $m->position_x,
+                    'y' => (int) $m->position_y,
+                ], $sortis);
+            }
+            $payload['monstre'] = [
+                'instance_id' => $errant->id,
+                'nom' => $errant->nomAffiche(),
+                'x' => (int) $errant->position_x,
+                'y' => (int) $errant->position_y,
+            ];
+
+            // La carte 2024 (*Wandering Monster*) : « The monster immediately
+            // attacks. » Due au fouilleur seulement si la bête est au contact de
+            // lui — les huit voisines comptent (adjacent OU diagonal).
+            $auContact = $this->heroAuContact($errant, (int) $etat->position_x, (int) $etat->position_y, true);
+
+            // DÉFI DU CHEVALIER : « when a Wandering Monster is revealed in
+            // the SAME ROOM as you ». On propose au Chevalier de détourner
+            // la bête sur lui — le seul déclencheur de réaction qui ne soit
+            // pas un coup encaissé.
+            $defi = $this->reactions->proposerDefi(
+                $errant, $personnage, $this->herosDeLaSalle($quete, $etat, $personnage),
+                frappeDuSurgissement: $auContact,
+            );
+
+            if ($defi) {
+                // Un défi attend sa réponse, et la frappe du surgissement attend avec
+                // lui : la donner maintenant doublerait un coup que le Chevalier peut
+                // encore détourner. Elle part à la réponse (`MoteurReactions`), et la
+                // bête ne joue pas au tour des monstres d'ici là (`phaseMonstres()`).
+                if ($auContact) {
+                    $payload['defi_en_attente'] = true;
+                }
+            } else {
+                $frappe = $this->frappeDuSurgissement($groupe, $errant, $etat);
+
+                if ($frappe !== null) {
+                    $payload['frappe_errant'] = $frappe;
+                }
+            }
+
+            // Les SUIVANTES (lot E1) : chacune frappe aussitôt si elle touche le fouilleur (même règle des huit
+            // voisines) ; posées plus loin, elles joueront au tour des monstres. Le défi du Chevalier ne vise que
+            // la première.
+            $frappes = [];
+            foreach (array_slice($sortis, 1) as $suivante) {
+                // Contact et héros debout : décidés par `frappeDuSurgissement()`, sur l'état relu après le coup précédent.
+                $frappe = $this->frappeDuSurgissement($groupe, $suivante, $etat->refresh());
+                if ($frappe !== null) {
+                    $frappes[] = $frappe;
+                }
+            }
+            if ($frappes !== []) {
+                $payload['frappes_errants'] = $frappes;
+            }
+        }
+
+        return $payload;
+    }
+
+    /**
      * *Treasure Horde* (Spells of Detection, 2026-10-06) : « draw 3 treasure
      * cards. You may shuffle any of the drawn cards back into the treasure
      * deck and keep the rest. »
@@ -12307,75 +12392,8 @@ final class ResolveurTour
                 ];
             }
         } elseif ($issue === 'errant') {
-            $sortis = $this->spawnErrant($quete, $etat);
-            $errant = $sortis[0] ?? null;
-
-            if ($errant === null) {
-                // Budget errant épuisé / bestiaire indisponible : rien ne sort.
-                $payload['issue'] = 'rien';
-                $payload['errant_indisponible'] = true;
-            } else {
-                // PLUSIEURS figures (mode classique, lot E1) : toutes publiées ; la première reste `monstre`.
-                if (count($sortis) > 1) {
-                    $payload['monstres'] = array_map(fn (InstanceMonstre $m) => [
-                        'instance_id' => $m->id,
-                        'nom' => $m->nomAffiche(),
-                        'x' => (int) $m->position_x,
-                        'y' => (int) $m->position_y,
-                    ], $sortis);
-                }
-                $payload['monstre'] = [
-                    'instance_id' => $errant->id,
-                    'nom' => $errant->nomAffiche(),
-                    'x' => (int) $errant->position_x,
-                    'y' => (int) $errant->position_y,
-                ];
-
-                // La carte 2024 (*Wandering Monster*) : « The monster immediately
-                // attacks. » Due au fouilleur seulement si la bête est au contact de
-                // lui — les huit voisines comptent (adjacent OU diagonal).
-                $auContact = $this->heroAuContact($errant, (int) $etat->position_x, (int) $etat->position_y, true);
-
-                // DÉFI DU CHEVALIER : « when a Wandering Monster is revealed in
-                // the SAME ROOM as you ». On propose au Chevalier de détourner
-                // la bête sur lui — le seul déclencheur de réaction qui ne soit
-                // pas un coup encaissé.
-                $defi = $this->reactions->proposerDefi(
-                    $errant, $personnage, $this->herosDeLaSalle($quete, $etat, $personnage),
-                    frappeDuSurgissement: $auContact,
-                );
-
-                if ($defi) {
-                    // Un défi attend sa réponse, et la frappe du surgissement attend avec
-                    // lui : la donner maintenant doublerait un coup que le Chevalier peut
-                    // encore détourner. Elle part à la réponse (`MoteurReactions`), et la
-                    // bête ne joue pas au tour des monstres d'ici là (`phaseMonstres()`).
-                    if ($auContact) {
-                        $payload['defi_en_attente'] = true;
-                    }
-                } else {
-                    $frappe = $this->frappeDuSurgissement($groupe, $errant, $etat);
-
-                    if ($frappe !== null) {
-                        $payload['frappe_errant'] = $frappe;
-                    }
-                }
-
-                // Les SUIVANTES (lot E1) : chacune frappe aussitôt si elle touche le fouilleur (même règle des huit
-                // voisines) ; posées plus loin, elles joueront au tour des monstres. Le défi du Chevalier ne vise que
-                // la première.
-                $frappes = [];
-                foreach (array_slice($sortis, 1) as $suivante) {
-                    // Contact et héros debout : décidés par `frappeDuSurgissement()`, sur l'état relu après le coup précédent.
-                    $frappe = $this->frappeDuSurgissement($groupe, $suivante, $etat->refresh());
-                    if ($frappe !== null) {
-                        $frappes[] = $frappe;
-                    }
-                }
-                if ($frappes !== []) {
-                    $payload['frappes_errants'] = $frappes;
-                }
-            }
+            // Le surgissement — un seul endroit, partagé avec le piège à monstre errant (lot E2) : `surgissementErrant()`.
+            $payload = [...$payload, ...$this->surgissementErrant($groupe, $quete, $personnage, $etat)];
         } elseif ($issue === 'piege' && isset($carte['variante'])) {
             // CARTE « HAZARD! » du deck (variante `fleches` / `trou`) : 1 PV, le
             // tour s'arrête, ni jet ni poison — ce que dit la carte, et rien de

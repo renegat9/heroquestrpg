@@ -775,6 +775,8 @@ it('le tirage des pièges de sol est un registre testé dans les deux sens', fun
         ->reject(fn (Piege $p) => data_get($p->effet, 'saut_long') !== null)
         ->reject(fn (Piege $p) => (bool) data_get($p->effet, 'teleportation', false))
         ->reject(fn (Piege $p) => in_array(data_get($p->effet, 'declencheur'), ['hurricane', 'fireburst_differe'], true))
+        // Stalactite et Hache balancière (F5815, lot E2, 2026-11-23) : réservées au mode classique, jamais tirées.
+        ->reject(fn (Piege $p) => in_array($p->nom, \App\Partie\MoteurPieges::RESERVES_AU_CLASSIQUE, true))
         ->pluck('nom')
         ->sort()
         ->values()

@@ -861,7 +861,12 @@ Entrance**.
   Trap** : trois pièges sans tuile physique, gérés uniquement par le texte
   de quête. *Coût :* négligeable, ce sont des variantes de pièges déjà
   supportés (dégâts fixes ou aléatoires, un seul avec embuscade de
-  monstres attachée).
+  monstres attachée). ✅ Portés en mode classique le 2026-11-23 (lot E2) :
+  Stalactite et Hache balancière au catalogue `pieges` (réservés au classique,
+  `MoteurPieges::RESERVES_AU_CLASSIQUE`), le piège à monstre errant en note
+  (`entree` → `arreter` + `errants`). Brouillard vivant (`regles.brouillard_vivant`),
+  rebord de crevasse (`regles.crevasse`), gouffre sans fond (`pieges[].gouffre`),
+  glissière et tunnels de glace aussi.
 - **Salle de brouillard vivant (Living Fog Room)** : chaque attaque
   commence par un jet de 1 dé de combat — bouclier blanc seulement révèle
   un vrai monstre, sinon l'attaque est gaspillée sur un leurre. *Coût :*
