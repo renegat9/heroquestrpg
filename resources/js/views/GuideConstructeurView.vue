@@ -140,6 +140,7 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                         <li><b>Captif à escorter</b> (sa mort peut faire perdre la quête ; il peut rester allié pour la suite ; une note peut le libérer) : une figure qui attend dans sa cellule. Un héros au contact la libère et elle le suit ; ramenée vivante sur la sortie avec le dernier héros, la récompense est versée — sinon la quête est gagnée sans récompense ;</li>
                         <li><b>Sans restauration</b> : la quête enchaîne sans remettre le Corps ni l'Esprit à neuf ;</li>
                         <li><b>Brouillard vivant</b> (The Frozen Horror) : dans ces salles, chaque attaque d'un héros commence par un dé — seul le bouclier blanc frappe le vrai monstre ;</li>
+                        <li><b>Or d'un coffre sans note</b> (The Mage of the Mirror : 200) : la première fouille du trésor d'une salle à coffre qu'aucune note ne nomme rapporte cet or, à la place de la carte ;</li>
                         <li><b>Rebord de crevasse</b> (The Frozen Horror) : un dé à la première case de la salle et au début de chaque tour qu'on y passe — deux boucliers noirs, et le héros est perdu à jamais ;</li>
                         <li><b>Suite</b> (campagne ramifiée) : selon le drapeau posé, la quête suivante change ;</li>
                         <li><b>Quête double</b> : deux moitiés reliées par un passage.</li>

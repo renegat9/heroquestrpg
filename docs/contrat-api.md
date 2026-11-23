@@ -6147,6 +6147,11 @@ Mode classique seulement ; une règle par livret, sourcée.
   F5815 p. 5) et `voler {or?}` (de l'or de la bourse du héros qui déclenche, au plus ce qu'il a ; sinon un objet de son
   SAC tiré au hasard — « it cannot be the armor or shield a hero is using, nor the weapon they are wielding », le
   Gremlin de glace, q. 4 B). Le Gremlin qui « disparaît » : `retirer`.
+- **Richesses elfiques** — `regles.richesses_des_coffres: N` (*The Mage of the Mirror* p. 5, règle 5 : « If a quest in
+  this book does not specifically call out a reward (or lack thereof) for a room containing a treasure chest then the
+  first time that room is searched for treasure award that Hero 200 gold coins ») : la PREMIÈRE fouille du trésor d'une
+  salle où l'auteur a posé un Coffre, et qu'aucune note `fouille_tresor` ne nomme, verse N pièces à la bourse du
+  fouilleur, à la place de la carte. Résultat de fouille `issue: richesses, or: N`. `Classique\RichessesElfiques`.
 - **Porte cachée** — `portes[].cachee: true` sur une porte secrète (F5815 q. 5 C : « This door does not appear until the
   doors marked "B" have disappeared… even if the heroes walk right past it ») : ni la fouille des portes secrètes, ni
   une potion, ni la clairvoyance ne la trouvent ; seul l'effet `reveler_porte` d'une note la révèle. Incompatible avec

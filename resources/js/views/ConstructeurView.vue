@@ -807,6 +807,13 @@ function basculerListeRegle(cle, id, avec) {
     if (liste.length) q.regles[cle] = liste; else delete q.regles[cle];
     if (!Object.keys(q.regles).length) delete q.regles;
 }
+function changerRegleEntier(cle, valeur) {
+    const q = quete.value;
+    q.regles ??= {};
+    const n = parseInt(valeur, 10);
+    if (n > 0) q.regles[cle] = n; else delete q.regles[cle];
+    if (!Object.keys(q.regles).length) delete q.regles;
+}
 function changerRegleBool(cle, avec) {
     const q = quete.value;
     q.regles ??= {};
@@ -1205,6 +1212,11 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <span v-if="quete.salles_ouvertes.length" class="cst-lbl">Rebord de crevasse :</span>
                                 <label v-for="id in quete.salles_ouvertes" :key="`cv${id}`" class="cst-case">
                                     <input type="checkbox" :checked="(quete.regles?.crevasse ?? []).includes(id)" @change="basculerListeRegle('crevasse', id, $event.target.checked)" /> {{ id }}
+                                </label>
+                                <!-- Lot E2 : les richesses elfiques (F7539 p. 5) — vide retire la clé. -->
+                                <label class="cst-case" title="La première fouille du trésor d'une salle à coffre qu'aucune note ne nomme rapporte cet or (The Mage of the Mirror : 200).">
+                                    Or d'un coffre sans note :
+                                    <input type="number" min="1" class="cst-input cst-num" :value="quete.regles?.richesses_des_coffres ?? ''" @change="changerRegleEntier('richesses_des_coffres', $event.target.value)" />
                                 </label>
                                 <!-- Lot E1 : la quête enchaîne sans remettre le Corps ni l'Esprit à neuf. -->
                                 <label class="cst-case">

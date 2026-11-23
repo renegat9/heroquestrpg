@@ -3481,6 +3481,11 @@ final class JournalCombat
             // NOTE DE QUÊTE (mode classique) : la salle a répondu par une note de l'auteur, que `NotesDeQuete` a déjà
             // annoncée effet par effet (`note_de_quete`). Rien à redire ici — surtout pas « fouille en vain ».
             'note' => [],
+            // RICHESSES ELFIQUES (lot E2, F7539 p. 5) : la salle à coffre que le livret ne nomme pas paie sa première fouille.
+            'richesses' => [[
+                'texte' => "{$acteurNom} trouve ".(int) ($a['or'] ?? 0)." pièces d'or dans le coffre",
+                'ton' => 'tresor',
+            ]],
             // ÉQUIPEMENT CONFISQUÉ (lot K5j) : le fouilleur reprend SES affaires à la consigne.
             'consigne' => [[
                 'texte' => "{$acteurNom} reprend ses affaires confisquées : "

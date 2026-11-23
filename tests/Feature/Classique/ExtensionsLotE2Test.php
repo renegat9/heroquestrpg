@@ -317,3 +317,29 @@ it('porte cachée : la fouille ne la trouve jamais, seule la note la révèle ; 
         expect($porte()['etat'])->toBe(\App\Partie\MoteurPortes::ETAT_FERMEE)->and($porte()['revele'])->toBeTrue();
     }
 })->with(['cachée' => [true], 'témoin : secrète ordinaire' => [false]]);
+
+// ---------------------------------------------------------------- The Mage of the Mirror
+
+it('richesses elfiques : la première fouille d\'une salle à coffre sans note paie l\'or, une fois ; la note l\'emporte', function (bool $note, ?int $or) {
+    $campagne = campagneE2([
+        'regles' => ['richesses_des_coffres' => 200],
+        'mobilier' => [['slug' => 'coffre', 'x' => 10, 'y' => 2, 'rotation' => 0]],
+        'notes' => $note ? [['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']],
+            'alors' => [['effet' => 'texte', 'texte' => 'Le coffre est vide.']]]] : [],
+    ]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['richesses_des_coffres' => 0]])))->not->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    $resultat = $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'fouiller_tresor'])->assertAccepted()->json('resultat');
+
+    expect($resultat['issue'])->toBe($note ? 'note' : 'richesses')
+        ->and((int) $partie['heros']->fresh()->or)->toBe($or ?? 0);
+    if (! $note) {
+        // Pas deux fois : la salle a déjà été fouillée.
+        expect(app(\App\Partie\Classique\RichessesElfiques::class)->montant($partie['quete']->fresh(), (int) $resultat['salle'], false))->toBeNull();
+    }
+})->with(['sans note : 200 po' => [false, 200], 'la note nomme la salle : rien' => [true, null]]);

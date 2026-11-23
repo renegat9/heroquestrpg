@@ -11732,6 +11732,11 @@ final class ResolveurTour
         } elseif (app(NotesDeQuete::class)->attend($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote, $personnage)) {
             $notes = app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote, $personnage);
             $payload = $entete + ['issue' => 'note', 'notes' => array_column($notes, 'repere')];
+        } elseif (($richesses = app(\App\Partie\Classique\RichessesElfiques::class)->montant($quete, (int) $salle, $premierDeLaSalle)) !== null) {
+            // RICHESSES ELFIQUES (mode classique, lot E2 — F7539 p. 5) : la salle à coffre que le livret ne nomme pas paie
+            // sa première fouille, à la place de la carte.
+            app(Bourses::class)->verser($groupe, $richesses, $personnage);
+            $payload = $entete + ['issue' => 'richesses', 'or' => $richesses];
         } elseif ($coffre) {
             $quete->marquerCoffreOuvert($salle);
             $carte = $this->deck->carteCoffre($quete, $salle);
