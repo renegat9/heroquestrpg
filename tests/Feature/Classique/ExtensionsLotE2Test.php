@@ -501,3 +501,40 @@ it('porte assiégée : le monstre posté à son contact la frappe au lieu de jou
         ->and($porte['etat'])->toBe(\App\Partie\MoteurPortes::ETAT_OUVERTE)
         ->and($partie['quete']->fresh()->aDrapeau('porte_brisee'))->toBeTrue();
 });
+
+it('marché souterrain : dans la salle, l\'étal s\'ouvre, on y achète et on y vend pour soi, sans action', function () {
+    $this->seed(\Database\Seeders\ObjetSeeder::class);
+    $campagne = campagneE2(['regles' => ['marche_en_quete' => 'galerie']]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $partie['heros']->update(['or' => 100]);
+    $menu = function () use ($partie) {
+        \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+
+        return collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id');
+    };
+    $choisir = fn (string $id) => $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => $id])->assertAccepted()->json('resultat');
+
+    // Hors de la salle : rien.
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3]);
+    expect($menu())->not->toContain('ouvrir_etal');
+
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+    expect($menu())->toContain('ouvrir_etal');
+    $choisir('ouvrir_etal');
+    $dague = \App\Models\Objet::where('nom', 'Dague')->firstOrFail();
+    $ids = $menu();
+    // L'étal ne propose que ce que la bourse paie (100 po).
+    $prixDague = (int) collect(app(\App\Partie\Marche\PhaseMarche::class)->etal($partie['groupe']))->firstWhere('objet_id', $dague->id)['prix'];
+    expect($ids)->toContain("acheter_etal_{$dague->id}")->and($ids)->toContain('fermer_etal')
+        ->and($ids->filter(fn ($id) => str_starts_with($id, 'acheter_etal_'))->count())->toBeGreaterThan(0);
+
+    expect($choisir("acheter_etal_{$dague->id}"))->toMatchArray(['nom' => 'Dague', 'prix' => $prixDague])
+        ->and((int) $partie['heros']->fresh()->or)->toBe(100 - $prixDague);
+
+    $ligne = $partie['heros']->inventaire()->where('objet_id', $dague->id)->firstOrFail();
+    expect($menu())->toContain("vendre_etal_{$ligne->id}");
+    $choisir("vendre_etal_{$ligne->id}");
+    expect((int) $partie['heros']->fresh()->or)->toBe(100 - $prixDague + intdiv($prixDague, 2))
+        ->and($partie['quete']->etatsPersonnages()->first()->a_agi)->toBeFalse();
+});

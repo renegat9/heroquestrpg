@@ -742,6 +742,8 @@ final class ResolveurTour
                 'repartir_planque' => $this->resoudreRepartirPlanque($groupe, $quete, $personnage, $option, $parametres, $acteur),
                 // PORTE QU'ON FRAPPE (mode classique, lot E2, F6646 q. 3) : `Classique\PortesSpeciales::frapper()`.
                 'frapper_porte' => $this->resoudreFrapperPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // MARCHÉ SOUTERRAIN EN QUÊTE (mode classique, lot E2, F6646 p. 2) : `Classique\MarcheSouterrain`.
+                'ouvrir_etal', 'fermer_etal', 'acheter_etal', 'vendre_etal' => $this->resoudreEtal($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $etat, $option, $acteur),
                 // SORTIE CASE PAR CASE (mode classique) : le héros quitte le donjon, par l'escalier ou la porte de sortie.
                 'sortie_en_personne' => $this->resoudreSortieEnPersonne($groupe, $quete, $personnage, $etat, $option, $acteur),
@@ -11928,6 +11930,35 @@ final class ResolveurTour
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
+    /** MARCHÉ SOUTERRAIN (lot E2) : ouvrir, refermer, acheter, vendre — chaque geste revalidé contre les listes du menu. */
+    private function resoudreEtal(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $souterrain = app(\App\Partie\Classique\MarcheSouterrain::class);
+        if (! $souterrain->present($quete, $etat)) {
+            throw ValidationException::withMessages(['option_id' => 'Le marché souterrain n\'est pas ici.']);
+        }
+        $type = (string) $option['type'];
+        if (in_array($type, ['acheter_etal', 'vendre_etal'], true) && ! $souterrain->ouvert($etat)) {
+            throw ValidationException::withMessages(['option_id' => 'L\'étal n\'est pas ouvert.']);
+        }
+        $payload = ['option_id' => $option['id'], 'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom]];
+        if ($type === 'ouvrir_etal' || $type === 'fermer_etal') {
+            $payload = $souterrain->basculer($etat, $type === 'ouvrir_etal') + $payload;
+        } else {
+            $fait = $type === 'acheter_etal'
+                ? $souterrain->acheter($groupe, $personnage, (int) ($option['parametres']['objet_id'] ?? 0))
+                : $souterrain->vendre($groupe, $personnage, (int) ($option['parametres']['inventaire_id'] ?? 0));
+            if ($fait === null) {
+                throw ValidationException::withMessages(['option_id' => $type === 'acheter_etal'
+                    ? 'Cet achat n\'est pas possible (bourse ou sac).' : 'Cet objet ne se vend pas ici.']);
+            }
+            $payload = $fait + $payload;
+        }
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
     /** PORTE QU'ON FRAPPE (lot E2) : la porte visée doit être dans la liste que le menu a offerte. */
     private function resoudreFrapperPorte(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
@@ -16863,6 +16894,8 @@ final class ResolveurTour
             'repartir_planque' => 'interaction',
             // « they instead knock on it (no action required) » (F6646 q. 3).
             'frapper_porte' => 'interaction',
+            // « immediate access to the Underground Market » (F6646 q. 2 G) : acheter et vendre en quête sont des gestes libres.
+            'ouvrir_etal', 'fermer_etal', 'acheter_etal', 'vendre_etal' => 'interaction',
             // TROPHÉES D'ARÈNE (lot T4) : « no action required » pour ramasser, et l'usage n'en demande pas davantage —
             // boire la potion d'une tuile ou défausser une tuile pour l'élan ne coûte aucun créneau.
             'trophee_potion', 'trophee_elan' => 'interaction',

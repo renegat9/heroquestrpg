@@ -3094,6 +3094,26 @@ final class MenuMoteur
             }
         }
 
+        // MARCHÉ SOUTERRAIN EN QUÊTE (mode classique, lot E2, F6646 p. 2, q. 2 G) : dans la salle de Zerese, chaque héros
+        // achète et vend pour lui, gestes libres. Étal fermé : une option pour l'ouvrir ; ouvert : un achat par article
+        // payable et rangeable, une vente par ligne revendable, et de quoi le refermer — listes relues par le résolveur.
+        $souterrain = app(\App\Partie\Classique\MarcheSouterrain::class);
+        if (! $aJoue && $souterrain->present($quete, $etat)) {
+            if (! $souterrain->ouvert($etat)) {
+                $options[] = ['id' => 'ouvrir_etal', 'libelle' => 'Marché souterrain — voir l\'étal', 'type' => 'ouvrir_etal'];
+            } else {
+                foreach ($souterrain->achats($groupe, $personnage) as $a) {
+                    $options[] = ['id' => "acheter_etal_{$a['objet_id']}", 'libelle' => "Acheter : {$a['nom']} — {$a['prix']} po",
+                        'type' => 'acheter_etal', 'parametres' => ['objet_id' => $a['objet_id'], 'prix' => $a['prix']]];
+                }
+                foreach ($souterrain->ventes($groupe, $personnage) as $v) {
+                    $options[] = ['id' => "vendre_etal_{$v['inventaire_id']}", 'libelle' => "Vendre : {$v['nom']} — {$v['prix']} po",
+                        'type' => 'vendre_etal', 'parametres' => ['inventaire_id' => $v['inventaire_id'], 'prix' => $v['prix']]];
+                }
+                $options[] = ['id' => 'fermer_etal', 'libelle' => 'Quitter l\'étal', 'type' => 'fermer_etal'];
+            }
+        }
+
         // LIBÉRER UN CAPTIF (mission « secourir », 2026-10-04, chantier 3b) : un héros
         // au contact d'un captif NON ENCORE libéré peut le libérer — il devient un allié
         // contrôlé par CE héros pour le reste de la quête (chantier 3a,

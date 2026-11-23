@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -2105,10 +2105,12 @@ final class ValidationCampagne
                 }
             }
         }
-        // Lot E2 : la planque (F6646 p. 7) — une salle ouverte de la quête.
-        if (array_key_exists('planque', $regles) && (! is_string($regles['planque'])
-            || ($this->ouvertesFiables && ! isset($this->ouvertes[$regles['planque']])))) {
-            $this->refuser(self::chemin($position, 'planque'), self::SALLE_INCONNUE, 'une salle ouverte de la quête est attendue');
+        // Lot E2 : la planque (F6646 p. 7) et le marché souterrain en quête (F6646 p. 2, q. 2 G) — une salle ouverte.
+        foreach (['planque', 'marche_en_quete'] as $cleSalle) {
+            if (array_key_exists($cleSalle, $regles) && (! is_string($regles[$cleSalle])
+                || ($this->ouvertesFiables && ! isset($this->ouvertes[$regles[$cleSalle]])))) {
+                $this->refuser(self::chemin($position, $cleSalle), self::SALLE_INCONNUE, 'une salle ouverte de la quête est attendue');
+            }
         }
         // Lot E2 : « monsters in this quest roll one additional Attack die » (F6646 q. 7, 9, 10).
         $this->entier($regles, 'bonus_attaque_monstres', self::chemin($position, 'bonus_attaque_monstres'), min: 1);

@@ -188,6 +188,11 @@ final class JournalCombat
         'retrait_au_contact' => true,
         // Lot E2 : les portes d'un livret (F6646 q. 3, q. 8 F).
         'porte_frappee' => true,
+        // Lot E2 : le marché souterrain en pleine quête (F6646 p. 2).
+        'acheter_etal' => true,
+        'vendre_etal' => true,
+        'ouvrir_etal' => 'Ouvrir l\'étal ne change rien au plateau : le menu du héros liste aussitôt ce qu\'il peut acheter et vendre.',
+        'fermer_etal' => 'Refermer l\'étal ne change rien au plateau : le menu du héros reprend ses options.',
         'assaut_porte' => true,
         // MODE CLASSIQUE : un héros a poussé une FAUSSE porte de sortie — elle ne s'ouvre pas, il reste dans le donjon.
         'fausse_sortie' => true,
@@ -1385,6 +1390,14 @@ final class JournalCombat
             'fausse_sortie' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' pousse la porte de sortie : c\'est une fausse porte, peinte sur le mur — elle ne s\'ouvre pas',
                 'ton' => 'echec',
+            ]],
+            'acheter_etal' => [[
+                'texte' => ($a['personnage']['nom'] ?? $acteurNom).' achète '.($a['nom'] ?? 'un objet').' au marché souterrain ('.(int) ($a['prix'] ?? 0).' po)',
+                'ton' => 'tresor',
+            ]],
+            'vendre_etal' => [[
+                'texte' => ($a['personnage']['nom'] ?? $acteurNom).' vend '.($a['nom'] ?? 'un objet').' au marché souterrain (+'.(int) ($a['prix'] ?? 0).' po)',
+                'ton' => 'tresor',
             ]],
             'porte_frappee' => [[
                 'texte' => ! empty($a['bonne'])

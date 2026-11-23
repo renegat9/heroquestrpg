@@ -6172,6 +6172,13 @@ Mode classique seulement ; une règle par livret, sourcée.
     (`brisee`) et pose `drapeau`. Action `assaut_porte {monstre, faces_attaque, faces_defense, degats, pv_restants,
     pv_max, brisee}` ; l'état publie `portes[].assiegee: {pv, pv_max}`. La récompense « avant qu'ils ne la brisent »
     est une note de l'auteur (`sauf_si_drapeau`).
+- **Marché souterrain en quête** — `regles.marche_en_quete: id de salle` (*Rise of the Dread Moon* p. 2, q. 2 G :
+  « Zerese, has set up shop here, allowing the heroes immediate access to the Underground Market ») :
+  `Classique\MarcheSouterrain`. Dans la salle, le menu offre `ouvrir_etal` ; étal ouvert (marqueur du tour), une option
+  `acheter_etal_{objet_id}` par article de l'étal du hub (`PhaseMarche::etal()`, même prix) que la bourse du héros paie et
+  que son sac range, `vendre_etal_{inventaire_id}` par ligne revendable (mêmes refus et même prix de revente qu'au hub),
+  et `fermer_etal`. Gestes libres ; pas de stock en quête ; chaque héros achète pour lui, de sa bourse. Résultats
+  annoncés `acheter_etal {personnage, nom, prix}` et `vendre_etal {…}` ; `ouvrir_etal` / `fermer_etal` sont muets.
 - **Planque** — `regles.planque: id de salle` (*Rise of the Dread Moon* p. 7, « Hideouts ») : `Classique\Planque`.
   - UNE fouille du trésor par quête, tous héros confondus (menu et résolveur : `fouilleFermee()`) ;
   - une carte de monstre errant ou de danger tirée là ne joue pas et retourne sous le paquet : issue de fouille

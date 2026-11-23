@@ -1243,6 +1243,14 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <input class="cst-input" :value="quete.regles?.portes_a_frapper?.drapeau ?? ''"
                                         @change="poserRegle('portes_a_frapper', { ...(quete.regles?.portes_a_frapper ?? {}), drapeau: $event.target.value || undefined })" />
                                 </label>
+                                <!-- Lot E2 : le marché souterrain ouvert en pleine quête (Rise of the Dread Moon p. 2, q. 2 G). -->
+                                <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Dans cette salle, chaque héros achète et vend pour lui, au prix de l'étal, sans action.">
+                                    Marché en quête :
+                                    <select :value="quete.regles?.marche_en_quete ?? ''" class="cst-input" @change="poserRegle('marche_en_quete', $event.target.value || undefined)">
+                                        <option value="">aucun</option>
+                                        <option v-for="id in quete.salles_ouvertes" :key="`mq${id}`" :value="id">{{ id }}</option>
+                                    </select>
+                                </label>
                                 <!-- Lot E2 : la planque (Rise of the Dread Moon p. 7). -->
                                 <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Une fouille du trésor par quête, cartes de monstre errant et de danger sans effet, et un soin d'un dé rouge par héros.">
                                     Planque :

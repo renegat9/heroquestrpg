@@ -177,6 +177,45 @@ final class PhaseMarche
         $profil = ProfilMarche::UNIQUE;
         $config = ProfilMarche::PROFILS[$profil];
 
+        // L'ÉTAL : un seul calcul, `etal()` — lu aussi par le marché souterrain ouvert en quête (mode classique, lot E2).
+        $inventaire = $this->etal($groupe, $config);
+
+        $paniers = [];
+        foreach ($this->membres($groupe) as $joueur) {
+            $paniers[(string) $joueur->id] = $this->panierVide($joueur);
+        }
+
+        $phase = [
+            'profil' => $profil,
+            'multiplicateur' => $config['multiplicateur'],
+            'inventaire' => $inventaire,
+            'paniers' => $paniers,
+            // Classique, marché fermé, mais un jeton à échanger : seuls les achats couverts par un jeton.
+            ...($acces['restreint'] ? ['restreint' => true] : []),
+        ];
+
+        Cache::put(self::cle($groupe->id), $phase, now()->addMinutes(self::TTL_MINUTES));
+
+        Journal::ajouter($groupe, 'systeme', ['action' => 'marche_ouvert', 'profil' => $profil]);
+
+        $etat = $this->payload($groupe, $phase);
+        broadcast(new MarcheOuvert($groupe, $etat));
+
+        return $etat;
+    }
+
+    /**
+     * L'ÉTAL du marchand : ce que le groupe peut acheter, au prix du marchand unique (maîtrises du groupe, meilleure remise,
+     * hors marché écartés). LE point de passage de l'inventaire — la phase du hub ({@see ouvrir()}) et le marché souterrain
+     * ouvert en pleine quête (`Classique\MarcheSouterrain`, *Rise of the Dread Moon* p. 2) le lisent tous deux.
+     *
+     * @param  array<string, mixed>|null  $config  le profil (le marchand unique par défaut)
+     * @return list<array<string, mixed>>
+     */
+    public function etal(Groupe $groupe, ?array $config = null): array
+    {
+        $config ??= ProfilMarche::PROFILS[ProfilMarche::UNIQUE];
+
         // MAÎTRISES DU GROUPE : l'étal ne présente pas ce que PERSONNE du
         // groupe ne pourra jamais utiliser (décision de René, 2026-08-17, étendue
         // au marché le 2026-08-18 — même règle que le butin de mobilier).
@@ -251,28 +290,7 @@ final class PhaseMarche
             ->values()
             ->all();
 
-        $paniers = [];
-        foreach ($this->membres($groupe) as $joueur) {
-            $paniers[(string) $joueur->id] = $this->panierVide($joueur);
-        }
-
-        $phase = [
-            'profil' => $profil,
-            'multiplicateur' => $config['multiplicateur'],
-            'inventaire' => $inventaire,
-            'paniers' => $paniers,
-            // Classique, marché fermé, mais un jeton à échanger : seuls les achats couverts par un jeton.
-            ...($acces['restreint'] ? ['restreint' => true] : []),
-        ];
-
-        Cache::put(self::cle($groupe->id), $phase, now()->addMinutes(self::TTL_MINUTES));
-
-        Journal::ajouter($groupe, 'systeme', ['action' => 'marche_ouvert', 'profil' => $profil]);
-
-        $etat = $this->payload($groupe, $phase);
-        broadcast(new MarcheOuvert($groupe, $etat));
-
-        return $etat;
+        return $inventaire;
     }
 
     /**
