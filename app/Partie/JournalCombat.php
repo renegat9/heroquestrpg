@@ -656,6 +656,12 @@ final class JournalCombat
         if (is_array($a['frappe_errant'] ?? null)) {
             $liste[] = $a['frappe_errant'];
         }
+        // Les figures SUIVANTES d'un errant multiple (lot E1), chacune au contact du fouilleur.
+        foreach ((array) ($a['frappes_errants'] ?? []) as $frappe) {
+            if (is_array($frappe)) {
+                $liste[] = $frappe;
+            }
+        }
 
         if (($a['type'] ?? null) === 'actions_composites') {
             foreach ((array) ($a['actions'] ?? []) as $sous) {
@@ -1572,6 +1578,22 @@ final class JournalCombat
         $dernier = array_pop($noms);
 
         return $noms === [] ? $dernier : implode(', ', $noms).' et '.$dernier;
+    }
+
+    /**
+     * Des figures nommées, les identiques regroupées (« Squelette ×2 et Gobelin ») — l'errant multiple (lot E1).
+     *
+     * @param  list<string>  $noms
+     */
+    private static function figuresGroupees(array $noms): string
+    {
+        $parts = [];
+        foreach (array_count_values($noms) as $nom => $n) {
+            $parts[] = $n > 1 ? "{$nom} ×{$n}" : (string) $nom;
+        }
+        $dernier = array_pop($parts);
+
+        return $parts === [] ? (string) $dernier : implode(', ', $parts).' et '.$dernier;
     }
 
     /**
@@ -3403,8 +3425,12 @@ final class JournalCombat
             ]],
             // Le FOUILLEUR est nommé : sans lui, « Gobelin surgit du coffre ! » ne dit pas
             // sur qui il tombe (verdict Jungle 2026-10-10 §1).
+            // PLUSIEURS figures (mode classique, lot E1 : « 2 Skeletons ») : nommées toutes, dans l'ordre de leur pose.
             'errant' => [[
-                'texte' => ($a['monstre']['nom'] ?? 'Un monstre')." surgit du coffre que fouille {$acteurNom} !",
+                'texte' => count((array) ($a['monstres'] ?? [])) > 1
+                    ? self::figuresGroupees(array_map(fn ($m) => (string) ($m['nom'] ?? 'un monstre'), (array) $a['monstres']))
+                        ." surgissent du coffre que fouille {$acteurNom} !"
+                    : ($a['monstre']['nom'] ?? 'Un monstre')." surgit du coffre que fouille {$acteurNom} !",
                 'ton' => 'subit',
             ]],
             // CERCUEIL du Tombeau (`ResolveurTour::spawnDuTombeau()`) : le même payload que l'errant, nommé pour ce

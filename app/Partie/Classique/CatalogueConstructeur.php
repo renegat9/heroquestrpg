@@ -38,6 +38,9 @@ final class CatalogueConstructeur
         // Les sorts qui seuls blessent une figure (`vulnerable_uniquement_a`, René 2026-11-20 : « il faut pouvoir
         // l'appliquer à des sorts aussi » — le Seigneur Sorcier, *Witch Lord* q. 10) : `InstanceMonstre::habillageDeQuete()`.
         'sorts' => [\App\Models\Sort::class, 'nom'],
+        // Les sorts de DREAD qu'un profil d'auteur donne à une figure (`sorts_dread`, lot E1, 2026-11-22 : « Vilor knows
+        // the following Dread spells ») : `MoteurDread::repertoireDe()`.
+        'sorts_dread' => [\App\Models\SortDread::class, 'nom'],
     ];
 
     /** Les couches qu'une quête pose sur la carte (`monstre_errant` lit `monstres`, `prerequis_heros` lit `classes`). */
@@ -145,6 +148,7 @@ final class CatalogueConstructeur
             // 2026-11-20 : ce que les clés ajoutées pour les livrets désignent — sans ces listes, l'écran et une IA
             // branchée sur le serveur MCP ne pouvaient pas trouver le slug que la validation attend.
             'sorts' => $this->palette('sorts'),
+            'sorts_dread' => $this->palette('sorts_dread'),
             'captifs' => array_values(array_filter($this->palette('mercenaires'), function (array $ligne): bool {
                 $m = $this->index('mercenaires')[$ligne['slug']];
 
@@ -166,6 +170,8 @@ final class CatalogueConstructeur
                 'conditions_de_porte' => collect(\App\Partie\MoteurPortes::CONDITIONS)
                     ->map(fn (array $c, string $nom) => ['nom' => $nom, 'libelle' => $c['libelle']])->values()->all(),
                 'formats_acceptes' => ValidationCampagne::FORMATS_ACCEPTES,
+                // Lot E1 : les capacités qu'un profil d'auteur peut donner (`InstanceMonstre::CAPACITES_DE_PROFIL`).
+                'capacites_de_profil' => array_keys(\App\Models\InstanceMonstre::CAPACITES_DE_PROFIL),
             ],
         ];
     }

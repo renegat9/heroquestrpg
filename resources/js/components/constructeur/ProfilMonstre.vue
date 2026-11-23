@@ -12,6 +12,12 @@ const props = defineProps({
     sorts: { type: Array, default: () => [] },
     // 2026-11-20 : un monstre POSÉ peut attendre inactif qu'une note l'éveille (la Légion oubliée) ; pas une apparition.
     inactifPossible: { type: Boolean, default: false },
+    // Lot E1 (2026-11-22) : les sorts de Dread de l'auteur (`catalogues.sorts_dread`) et ses capacités, liste fermée
+    // publiée par le serveur (`vocabulaires.capacites_de_profil`).
+    sortsDread: { type: Array, default: () => [] },
+    capacites: { type: Array, default: () => [] },
+    // Le monstre errant surgit : il n'a pas de refuge.
+    sansFuite: { type: Boolean, default: false },
     pointer: { type: Function, required: true },
     libelle: { type: String, default: 'le monstre' },
 });
@@ -28,6 +34,27 @@ const LISTES = [
     ['invulnerable_casse_arme', 'Invulnérable — l\'arme qui frappe se brise, sauf', false],
 ];
 const nomSource = (slug) => props.objets.find((o) => o.slug === slug)?.nom ?? props.sorts.find((o) => o.slug === slug)?.nom ?? slug;
+const LIBELLES_CAPACITE = {
+    attaque_diagonale: 'frappe en diagonale',
+    deux_sorts_par_tour: 'deux sorts par tour',
+    deux_sorts_premier_tour: 'deux sorts au premier tour',
+};
+const nomSortDread = (slug) => props.sortsDread.find((o) => o.slug === slug)?.nom ?? slug;
+function ajouterSortDread(slug) {
+    if (!slug) return;
+    const liste = m.value.sorts_dread ?? [];
+    if (!liste.includes(slug)) liste.push(slug);
+    m.value.sorts_dread = liste;
+}
+function retirerSortDread(slug) {
+    const liste = (m.value.sorts_dread ?? []).filter((s) => s !== slug);
+    if (liste.length) m.value.sorts_dread = liste; else delete m.value.sorts_dread;
+}
+function basculerCapacite(nom, avec) {
+    const liste = (m.value.capacites ?? []).filter((c) => c !== nom);
+    if (avec) liste.push(nom);
+    if (liste.length) m.value.capacites = liste; else delete m.value.capacites;
+}
 function basculerInactif(avec) {
     if (avec) m.value.inactif = true; else delete m.value.inactif;
 }
@@ -77,10 +104,26 @@ function basculerFuite(avec) {
                 </select>
             </template>
         </div>
+        <div v-if="sortsDread.length" class="cst-ligne">
+            <span class="cst-sous">Sorts de Dread :</span>
+            <span v-for="slug in (m.sorts_dread ?? [])" :key="slug" class="pm-puce">{{ nomSortDread(slug) }}
+                <button type="button" class="cst-icone" title="Retirer" @click="retirerSortDread(slug)"><MSym n="close" :size="12" /></button>
+            </span>
+            <select class="cst-input" @change="ajouterSortDread($event.target.value); $event.target.value = ''">
+                <option value="">+ sort de Dread…</option>
+                <option v-for="o in sortsDread.filter((o) => !(m.sorts_dread ?? []).includes(o.slug))" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
+            </select>
+            <span v-if="(m.sorts_dread ?? []).length" class="cst-sous">remplacent ceux de la fiche ; chacun une fois par quête</span>
+        </div>
+        <div v-if="capacites.length" class="cst-ligne">
+            <label v-for="nom in capacites" :key="nom" class="cst-case">
+                <input type="checkbox" :checked="(m.capacites ?? []).includes(nom)" @change="basculerCapacite(nom, $event.target.checked)" /> {{ LIBELLES_CAPACITE[nom] ?? nom }}
+            </label>
+        </div>
         <div v-if="inactifPossible" class="cst-ligne">
             <label class="cst-case"><input type="checkbox" :checked="m.inactif === true" @change="basculerInactif($event.target.checked)" /> Inactif — ne bouge pas, n'attaque pas, ne peut être blessé tant qu'une note « éveiller » ne l'a pas réveillé</label>
         </div>
-        <div class="cst-ligne">
+        <div v-if="!sansFuite" class="cst-ligne">
             <label class="cst-case"><input type="checkbox" :checked="!!m.fuite" @change="basculerFuite($event.target.checked)" /> Fuit vers un refuge</label>
             <template v-if="m.fuite">
                 <input v-model.number="m.fuite.x" type="number" class="cst-input cst-num" title="x" />

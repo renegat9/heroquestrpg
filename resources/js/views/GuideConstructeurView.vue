@@ -131,7 +131,7 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                     <p>Sous la carte, la fiche de la quête :</p>
                     <ul>
                         <li><b>Titre</b>, <b>slug</b> et <b>texte d'ouverture</b> (lu à la table au départ) ;</li>
-                        <li><b>Monstre errant</b>, <b>quête solo</b>, <b>marché fermé</b> avant la quête, <b>salles qui ne se fouillent pas</b>, <b>équipement confisqué</b> ;</li>
+                        <li><b>Monstre errant</b> (avec son nombre de figures — « 2 Squelettes » — et un profil d'auteur par le bouton <MSym n="tune" :size="14" />), <b>quête solo</b>, <b>marché fermé</b> avant la quête, <b>salles qui ne se fouillent pas</b>, <b>équipement confisqué</b> ;</li>
                         <li><b>Récompense</b> : de l'or, partagé au groupe ou par héros ;</li>
                         <li><b>Fin</b> : vaincre des monstres désignés, poser un drapeau (par une note), sortir du donjon, ou ramener une charge ou un captif — avec la <b>consigne</b> dite aux joueurs ;</li>
                         <li><b>Charge à porter</b> : un objet encombrant, son porteur lance un dé de déplacement de moins ;</li>
@@ -168,7 +168,7 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                     <h2>5. Les règles des livrets</h2>
                     <p>Le bloc dépliable <b>Règles des livrets</b> rassemble ce que les livrets officiels demandent en plus :</p>
                     <ul>
-                        <li><b>Profil d'auteur d'un monstre</b> (cliquer son numéro) : nom propre, caractéristiques, « seuls ces armes ou ces sorts le blessent », arme qui se brise, fuite vers un refuge, et <b>inactif</b> — la figure ne bouge pas, n'attaque pas et ne peut pas être blessée tant qu'une note ne l'a pas éveillée ;</li>
+                        <li><b>Profil d'auteur d'un monstre</b> (cliquer son numéro) : nom propre, caractéristiques, « seuls ces armes ou ces sorts le blessent », arme qui se brise, fuite vers un refuge, <b>sorts de Dread</b> (ils remplacent ceux de la fiche, chacun une fois par quête), <b>capacités</b> (frappe en diagonale, deux sorts par tour ou au premier tour) et <b>inactif</b> — la figure ne bouge pas, n'attaque pas et ne peut pas être blessée tant qu'une note ne l'a pas éveillée ;</li>
                         <li><b>Salles spéciales</b>, <b>glyphes</b>, <b>obscurité magique</b>, <b>déguisement</b>, <b>ordre libre</b>, <b>dégâts en Esprit</b>, <b>primes</b> par monstre abattu, monstres <b>pacifiés</b> par un drapeau ;</li>
                         <li><b>Portes à téléportation</b> : tenter d'ouvrir une porte téléporte le héros sur une case tirée aux dés ; la porte reste fermée ;</li>
                         <li><b>Dangers</b> de couloir : rocher roulant, brume de la mort.</li>

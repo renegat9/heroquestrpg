@@ -229,7 +229,8 @@ it('démarre une vraie quête en manuel : monstres filtrés, monstre errant filt
     $methode = new ReflectionMethod(App\Partie\ResolveurTour::class, 'spawnErrant');
     $methode->setAccessible(true);
     $etat = $quete->etatsPersonnages()->first();
-    $errant = $methode->invoke(app(App\Partie\ResolveurTour::class), $quete, $etat);
+    // `spawnErrant()` rend la LISTE des figures sorties (lot E1 du mode classique) : une seule en quête générée.
+    $errant = $methode->invoke(app(App\Partie\ResolveurTour::class), $quete, $etat)[0] ?? null;
     if ($errant !== null) {
         expect(in_array($errant->monstre->boite, $autorisees, true))->toBeTrue();
     }

@@ -157,7 +157,11 @@ final class ValidationCampagne
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
     private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement'];
-    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif'];
+    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites'];
+    /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
+    private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
+    /** « Wandering Monster in this Quest: 4 Goblins » (F9528 q. 4) : le plus grand nombre lu dans les livrets, avec de la marge. */
+    public const NOMBRE_ERRANTS_MAX = 6;
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
     private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
     private const CLES_QUAND = ['declencheur', 'cible'];
@@ -571,7 +575,20 @@ final class ValidationCampagne
 
             $this->texte($quete, 'titre', $chemin, nonVide: true, max: self::LONGUEUR_TITRE);
             $this->texte($quete, 'ouverture', $chemin);
-            $this->slugCatalogue($quete, 'monstre_errant', $chemin, 'monstres', nullable: true);
+            // MONSTRE ERRANT (lot E1) : un slug, ou `{slug, nombre?, …profil}` — « 2 Skeletons » (F5815 p. 8).
+            if (is_array($quete['monstre_errant'] ?? null)) {
+                $ici = self::chemin($chemin, 'monstre_errant');
+                $errant = $quete['monstre_errant'];
+                $this->cles($errant, $ici, ['slug'], self::CLES_ERRANT_OPTIONNELLES);
+                $this->slugCatalogue($errant, 'slug', $ici, 'monstres');
+                $nombre = $this->entier($errant, 'nombre', $ici, min: 1);
+                if ($nombre !== null && $nombre > self::NOMBRE_ERRANTS_MAX) {
+                    $this->refuser(self::chemin($ici, 'nombre'), self::VALEUR_INVALIDE, 'au plus '.self::NOMBRE_ERRANTS_MAX.' figures');
+                }
+                $this->profilDeMonstre($errant, $ici);
+            } else {
+                $this->slugCatalogue($quete, 'monstre_errant', $chemin, 'monstres', nullable: true);
+            }
 
             // Ordre FIXE : un élément ne partage une case qu'avec ce qui a été posé avant lui (`occuper()`). Les blocs
             // d'abord, puis l'escalier de départ, puis le reste : chaque refus de partage porte sur le dernier venu.
@@ -1420,6 +1437,32 @@ final class ValidationCampagne
                                 : "« $slug » n'existe pas dans le catalogue « objets »");
                         }
                     }
+                }
+            }
+        }
+
+        // SORTS DE DREAD de l'auteur (lot E1) : des slugs du catalogue `sorts_dread`, sans doublon.
+        if (array_key_exists('sorts_dread', $pose)) {
+            $ici = self::chemin($position, 'sorts_dread');
+            $sorts = $this->enListe($pose['sorts_dread'], $ici);
+            foreach ((array) $sorts as $i => $slug) {
+                if (! is_string($slug)) {
+                    $this->refuser("$ici.$i", self::TYPE_INVALIDE, 'un slug de sort de Dread est attendu');
+                } elseif (! $this->catalogue->contient('sorts_dread', $slug)) {
+                    $this->refuser("$ici.$i", self::CATALOGUE_INCONNU, "« $slug » n'existe pas dans le catalogue « sorts_dread »");
+                }
+            }
+            if (is_array($sorts) && count($sorts) !== count(array_unique(array_filter($sorts, 'is_string')))) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'un même sort est nommé deux fois');
+            }
+        }
+        // CAPACITÉS de l'auteur (lot E1) : la liste fermée `InstanceMonstre::CAPACITES_DE_PROFIL`.
+        if (array_key_exists('capacites', $pose)) {
+            $ici = self::chemin($position, 'capacites');
+            foreach ((array) $this->enListe($pose['capacites'], $ici) as $i => $nom) {
+                if (! is_string($nom) || ! isset(\App\Models\InstanceMonstre::CAPACITES_DE_PROFIL[$nom])) {
+                    $this->refuser("$ici.$i", self::VALEUR_INVALIDE, 'capacité inconnue — permises : '
+                        .implode(', ', array_keys(\App\Models\InstanceMonstre::CAPACITES_DE_PROFIL)));
                 }
             }
         }

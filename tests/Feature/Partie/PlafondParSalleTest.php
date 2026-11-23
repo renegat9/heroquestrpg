@@ -194,7 +194,10 @@ it('en jeu : la carte « monstre errant » fait surgir l\'errant de la quête', 
     $quete->update(['position_arc' => 5]);
 
     $methode = new ReflectionMethod(ResolveurTour::class, 'spawnErrant');
-    $errant = $methode->invoke(app(ResolveurTour::class), $quete->fresh(), $quete->etatsPersonnages()->first());
+    // `spawnErrant()` rend la LISTE des figures sorties (lot E1 du mode classique) : une seule en quête générée.
+    $sortis = $methode->invoke(app(ResolveurTour::class), $quete->fresh(), $quete->etatsPersonnages()->first());
+    expect($sortis)->toHaveCount(1);
+    $errant = $sortis[0];
 
     expect($errant)->not->toBeNull()
         ->and($errant->monstre->nom_base)->toBe('Guerrier du Chaos')

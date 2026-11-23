@@ -239,6 +239,14 @@ final class SceneDeTable
                 $scenes[] = $scene;
             }
         }
+        // Les figures SUIVANTES d'un errant multiple (lot E1) : une scène par frappe.
+        foreach ((array) ($a['frappes_errants'] ?? []) as $frappe) {
+            if (is_array($frappe)) {
+                foreach ($this->depuisAction($frappe, $acteur) as $scene) {
+                    $scenes[] = $scene;
+                }
+            }
+        }
 
         // DREAD SKULL : une figure PARAÎT à la vue d'un héros, et son tir (`action`) est une scène
         // à part — même appel récursif que `carte_armoire` juste au-dessus. Sans cette boucle la

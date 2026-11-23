@@ -5811,7 +5811,7 @@ quete {
   slug: "…",                       // [a-z0-9-]+, 100 caractères au plus ; unique entre les quêtes de la campagne
   titre: "…",                      // texte non vide, 200 caractères au plus
   ouverture: "…",                  // texte lu à la table (peut être vide)
-  monstre_errant: "…" | null,      // slug de monstre (catalogue `monstres`) — nullable
+  monstre_errant: "…" | {slug, nombre?, …profil} | null,   // slug (catalogue `monstres`), ou plusieurs figures à profil (lot E1)
   salles_ouvertes: [id…],          // ids de salles du plateau ; les autres salles sont FERMÉES (pleines)
   portes:   [{ x, y, cote: n|e|s|o, type: normale|secrete, verrou? }],   // verrou : lot K5a, voir « Portes verrouillées »
   blocs:    [{ x, y }],            // cases de COULOIR condamnées
@@ -5919,12 +5919,14 @@ s'ouvre à la main, au contact. Le moteur ne retient pas quels couloirs ont ét�
   sorts:   [{slug, nom}],           // 2026-11-20 : ce qu'un profil `vulnerable_uniquement_a` peut nommer à côté des armes
   mercenaires: [{slug, nom}],       // lot K6 : les recrutables (`mercenaires.offerts`)
   captifs: [{slug, nom}],           // 2026-11-20 : les captifs À ESCORTER (`captif`, mode figurine) — ce que `quete.captif.mercenaire` accepte
+  sorts_dread: [{slug, nom}],       // lot E1 : les sorts de Dread qu'un profil d'auteur peut donner (`sorts_dread`)
   vocabulaires: {
     rotations: [0, 90, 180, 270], cotes: ["n","e","s","o"], types_porte: ["normale","secrete"],
     partages: ["groupe","par_heros"], types_fin: ["vaincre","drapeau","sortir","ramener"], types_acces: ["escalier","porte"],
     declencheurs_de_note: { <déclencheur>: {cibles: [...], signale_par, libelle} },   // `MotsClesQuete::DECLENCHEURS`
     effets_de_note: { <effet>: {parametres: [...], optionnels: [...], lecteur, libelle} },   // `MotsClesQuete::EFFETS`
-    formats_acceptes: [1]
+    formats_acceptes: [1],
+    capacites_de_profil: ["attaque_diagonale", "deux_sorts_par_tour", "deux_sorts_premier_tour"]   // lot E1
   }
 }
 ```
@@ -6020,6 +6022,30 @@ reste sur lui ; de même `POST /groupes/{id}/joueurs` ne verse rien au pot commu
 - **refus de départ** (422 de `POST /pret`) : groupe sans campagne ; campagne dont toutes les quêtes sont jouées ;
   **prérequis de héros** — une classe de `campagne.prerequis_heros` n'a aucun héros actif dans le groupe
   (« … exige un héros de classe : Barbare. »).
+
+### Les extensions et First Light — lot E1 (2026-11-22)
+
+Relecture des dix derniers livrets (René : « finaliser l'ajout des règles spécifiques aux extensions et à First Light
+dans le mode classique »). Ce lot porte ce qui sert à trois livrets ou plus. Mode classique seulement.
+
+- **Monstre errant en plusieurs figures, à profil d'auteur** — `quete.monstre_errant` accepte, en plus d'un slug,
+  `{slug, nombre?, nom?, deplacement?, attaque?, defense?, pv_body?, pv_mind?, vulnerable_uniquement_a?,
+  invulnerable_casse_arme?, sorts_dread?, capacites?}` (« Wandering Monster in this Quest: 2 Skeletons », F5815 p. 8 ;
+  « Arcane Mummy », F9907 p. 15). `nombre` : 1 à 6 (défaut 1). Point de passage : `MonstreErrant::poseDeLaQuete()`.
+  La carte « monstre errant » pose la première figure au contact (les huit voisines) et les suivantes « as close as
+  possible » (F5815 p. 5, `caseLibreProche()`) ; CHACUNE frappe aussitôt si elle touche le fouilleur. Résultat de la
+  fouille : `monstre` (la première, comme avant), `monstres: [{instance_id, nom, x, y}]` (toutes, seulement si
+  `nombre` > 1), `frappe_errant` (la première) et `frappes_errants: [attaque_monstre…]` (les suivantes au contact).
+  Le défi du Chevalier ne vise que la première. Fil : « 2 Squelettes surgissent du coffre que fouille Albrecht ! ».
+- **Sorts de Dread et capacités dans le profil d'auteur** (monstre posé, `apparition`, errant) :
+  - `sorts_dread: [slug]` — catalogue `sorts_dread` (publié par `GET /constructeur/catalogues`) : REMPLACE le
+    répertoire de la fiche (« Vilor knows the following Dread spells », F5815 p. 12). Chaque sort une fois par quête
+    (règle générale), le palier ne filtre rien (comme un sorcier nommé), le budget est le nombre de sorts. Lu par
+    `MoteurDread::repertoireDe()` et `reinitialiserUsagesInstance()`.
+  - `capacites: [nom]` — liste FERMÉE `InstanceMonstre::CAPACITES_DE_PROFIL` : `attaque_diagonale` (« can attack
+    diagonally », F9528 q. 4 ; les grands monstres, F5815 p. 6), `deux_sorts_par_tour` (« may cast two spells in a
+    single turn »), `deux_sorts_premier_tour` (« on their first turn, they may cast both », G0053 q. 3 et 12). Ajoutées
+    à celles de la fiche par `InstanceMonstre::aCapacite()` / `capaciteParametree()`.
 
 ### Ce que les livrets demandaient encore (René, 2026-11-20 — « les livrets sont maîtres en mode classique »)
 

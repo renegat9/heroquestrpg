@@ -7,6 +7,7 @@ namespace App\Partie;
 use App\Models\Monstre;
 use App\Models\Quete;
 use App\Partie\Classique\CatalogueConstructeur;
+use App\Partie\Classique\ValidationCampagne;
 
 /**
  * LE monstre errant d'une quête — point de passage unique (René, 2026-11-08 : « ajuste aussi les monstres errants
@@ -39,13 +40,39 @@ use App\Partie\Classique\CatalogueConstructeur;
  */
 final class MonstreErrant
 {
+    /**
+     * CE QUE LA CARTE « MONSTRE ERRANT » FAIT SORTIR : la fiche, le NOMBRE de figures et la POSE d'auteur (profil R9 :
+     * nom, stats, sorts, capacités — lue par `InstanceMonstre::habillageDeQuete()`). Mode classique, lot E1
+     * (2026-11-22) : « Wandering Monster in this Quest: 2 Skeletons » (F5815 p. 8). Une quête générée sort UNE figure,
+     * sans profil. `null` : rien ne sort.
+     *
+     * @return array{monstre: Monstre, nombre: int, pose: array<string, mixed>}|null
+     */
+    public function poseDeLaQuete(Quete $quete): ?array
+    {
+        $pose = [];
+        if ($quete->estConstruite()) {
+            $doc = $quete->documentConstruit()['monstre_errant'] ?? null;
+            $pose = is_array($doc) ? $doc : [];
+        }
+        $monstre = $this->deLaQuete($quete);
+
+        return $monstre === null ? null : [
+            'monstre' => $monstre,
+            'nombre' => max(1, min(ValidationCampagne::NOMBRE_ERRANTS_MAX, (int) ($pose['nombre'] ?? 1))),
+            'pose' => $pose,
+        ];
+    }
+
     public function deLaQuete(Quete $quete): ?Monstre
     {
         // QUÊTE CONSTRUITE (mode classique) : le monstre errant est celui que l'AUTEUR désigne — « the wandering
         // monster (listed in the quest notes) », dit la carte. Rien n'est choisi à sa place : une quête qui n'en
-        // désigne aucun n'en a pas, et sa carte « monstre errant » ne fait rien sortir.
+        // désigne aucun n'en a pas, et sa carte « monstre errant » ne fait rien sortir. Un slug, ou un objet
+        // `{slug, nombre, …profil}` (lot E1).
         if ($quete->estConstruite()) {
-            $slug = $quete->documentConstruit()['monstre_errant'] ?? null;
+            $doc = $quete->documentConstruit()['monstre_errant'] ?? null;
+            $slug = is_array($doc) ? ($doc['slug'] ?? null) : $doc;
 
             return $slug === null ? null : (app(CatalogueConstructeur::class)->index('monstres')[(string) $slug] ?? null);
         }

@@ -124,6 +124,7 @@ it('payload() publie les couches posables, les classes et les vocabulaires lus d
             'verrous_de_porte' => ValidationCampagne::VERROUS_DE_PORTE,
             'conditions_de_porte' => collect(\App\Partie\MoteurPortes::CONDITIONS)->map(fn (array $c, string $nom) => ['nom' => $nom, 'libelle' => $c['libelle']])->values()->all(),
             'formats_acceptes' => ValidationCampagne::FORMATS_ACCEPTES,
+            'capacites_de_profil' => array_keys(\App\Models\InstanceMonstre::CAPACITES_DE_PROFIL),
         ]);
 });
 

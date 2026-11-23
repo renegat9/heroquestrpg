@@ -12167,13 +12167,23 @@ final class ResolveurTour
                 ];
             }
         } elseif ($issue === 'errant') {
-            $errant = $this->spawnErrant($quete, $etat);
+            $sortis = $this->spawnErrant($quete, $etat);
+            $errant = $sortis[0] ?? null;
 
             if ($errant === null) {
                 // Budget errant épuisé / bestiaire indisponible : rien ne sort.
                 $payload['issue'] = 'rien';
                 $payload['errant_indisponible'] = true;
             } else {
+                // PLUSIEURS figures (mode classique, lot E1) : toutes publiées ; la première reste `monstre`.
+                if (count($sortis) > 1) {
+                    $payload['monstres'] = array_map(fn (InstanceMonstre $m) => [
+                        'instance_id' => $m->id,
+                        'nom' => $m->nomAffiche(),
+                        'x' => (int) $m->position_x,
+                        'y' => (int) $m->position_y,
+                    ], $sortis);
+                }
                 $payload['monstre'] = [
                     'instance_id' => $errant->id,
                     'nom' => $errant->nomAffiche(),
@@ -12209,6 +12219,21 @@ final class ResolveurTour
                     if ($frappe !== null) {
                         $payload['frappe_errant'] = $frappe;
                     }
+                }
+
+                // Les SUIVANTES (lot E1) : chacune frappe aussitôt si elle touche le fouilleur (même règle des huit
+                // voisines) ; posées plus loin, elles joueront au tour des monstres. Le défi du Chevalier ne vise que
+                // la première.
+                $frappes = [];
+                foreach (array_slice($sortis, 1) as $suivante) {
+                    // Contact et héros debout : décidés par `frappeDuSurgissement()`, sur l'état relu après le coup précédent.
+                    $frappe = $this->frappeDuSurgissement($groupe, $suivante, $etat->refresh());
+                    if ($frappe !== null) {
+                        $frappes[] = $frappe;
+                    }
+                }
+                if ($frappes !== []) {
+                    $payload['frappes_errants'] = $frappes;
                 }
             }
         } elseif ($issue === 'piege' && isset($carte['variante'])) {
@@ -12848,7 +12873,11 @@ final class ResolveurTour
      * SANS PLAFOND : sa carte revient sous le paquet comme les autres, elle doit
      * donc mordre à chaque fois. QUEL monstre : `MonstreErrant::deLaQuete()`.
      */
-    private function spawnErrant(Quete $quete, EtatPersonnageQuete $etat): ?InstanceMonstre
+    /**
+     * @return list<InstanceMonstre> la première au contact, les suivantes « as close as possible » (lot E1) ; vide :
+     *                               rien ne sort
+     */
+    private function spawnErrant(Quete $quete, EtatPersonnageQuete $etat): array
     {
         // AUCUN plafond (décision de René) : la carte « monstre errant » repart
         // sous le paquet comme les autres, donc elle revient — et elle doit
@@ -12859,28 +12888,55 @@ final class ResolveurTour
         // de la quête » du plateau —, de plus en plus fort au fil de l'arc
         // (René, 2026-11-08) : `MonstreErrant::deLaQuete()`, qui ne prend que
         // dans le bestiaire AUTORISÉ.
-        $monstre = app(MonstreErrant::class)->deLaQuete($quete);
+        //
+        // Mode classique (lot E1) : l'auteur peut en écrire PLUSIEURS, et leur donner un profil (« 2 Skeletons »,
+        // l'« Arcane Mummy » et ses sorts) — `MonstreErrant::poseDeLaQuete()`. Une quête générée en sort une, nue.
+        $errant = app(MonstreErrant::class)->poseDeLaQuete($quete);
 
-        if ($monstre === null) {
-            return null;
+        if ($errant === null) {
+            return [];
         }
 
-        $place = $this->caseLibreProche($quete, (int) $etat->position_x, (int) $etat->position_y);
+        $monstre = $errant['monstre'];
+        $pose = $errant['pose'];
+        $habillage = $quete->estConstruite()
+            ? InstanceMonstre::habillageDeQuete($pose, app(\App\Partie\Classique\CatalogueConstructeur::class))
+            : null;
+        $pvBody = isset($pose['pv_body']) ? (int) $pose['pv_body'] : (int) $monstre->pv_body;
+        $pvMind = isset($pose['pv_mind']) ? (int) $pose['pv_mind'] : (int) $monstre->pv_mind;
 
-        if ($place === null) {
-            return null;
+        $sorties = [];
+        for ($n = 0; $n < $errant['nombre']; $n++) {
+            // Chaque pose voit les précédentes : `caseLibreProche()` lit les figures déjà en place.
+            $place = $this->caseLibreProche($quete, (int) $etat->position_x, (int) $etat->position_y);
+
+            if ($place === null) {
+                break;
+            }
+
+            $instance = $quete->instancesMonstres()->create([
+                'monstre_id' => $monstre->id,
+                'pv_body' => $pvBody,
+                'pv_mind' => $pvMind,
+                'position_x' => $place['x'],
+                'position_y' => $place['y'],
+                'etat' => 'actif',
+                'elite' => false,
+                'revele' => true, // errant : surgit et attaque
+                // Le PV max et le profil ne s'écrivent qu'en mode classique : un errant généré reste ce qu'il était.
+                ...($quete->estConstruite() ? ['pv_body_max' => $pvBody, 'habillage' => $habillage] : []),
+            ]);
+
+            // Ses sorts (profil d'auteur ou fiche) armés comme ceux d'une figure posée au départ — mode classique
+            // seulement : un errant généré garde le comportement d'avant.
+            if ($quete->estConstruite()) {
+                $this->dread->reinitialiserUsagesInstance($instance->setRelation('monstre', $monstre), $quete);
+            }
+
+            $sorties[] = $instance->refresh();
         }
 
-        return $quete->instancesMonstres()->create([
-            'monstre_id' => $monstre->id,
-            'pv_body' => $monstre->pv_body,
-            'pv_mind' => $monstre->pv_mind,
-            'position_x' => $place['x'],
-            'position_y' => $place['y'],
-            'etat' => 'actif',
-            'elite' => false,
-            'revele' => true, // errant : surgit et attaque
-        ]);
+        return $sorties;
     }
 
     /**

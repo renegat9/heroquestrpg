@@ -587,8 +587,13 @@ final class CarteConstruite
         foreach ($quete['terrain'] as $tuile) {
             $lignes[] = "  ~ {$tuile['slug']} : case ({$tuile['x']}, {$tuile['y']})";
         }
-        if (($quete['monstre_errant'] ?? null) !== null) {
-            $lignes[] = "  monstre errant (hors carte) : {$quete['monstre_errant']}";
+        // Un slug, ou `{slug, nombre, …profil}` (lot E1) : « 2 × squelette (profil d'auteur) ».
+        $errant = $quete['monstre_errant'] ?? null;
+        if (is_array($errant)) {
+            $profil = array_diff(array_keys($errant), ['slug', 'nombre']) !== [] ? ' (profil d\'auteur)' : '';
+            $lignes[] = '  monstre errant (hors carte) : '.(int) ($errant['nombre'] ?? 1).' × '.($errant['slug'] ?? '?').$profil;
+        } elseif ($errant !== null) {
+            $lignes[] = "  monstre errant (hors carte) : {$errant}";
         }
 
         // NOTES (lot K3) : hors carte elles aussi, mais c'est ce que l'auteur veut relire — quand, sur quoi, et quoi.

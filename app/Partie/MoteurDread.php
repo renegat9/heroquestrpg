@@ -266,6 +266,20 @@ final class MoteurDread
         // et la règle « chaque sort une seule fois » vaut pour toutes les figures
         // (`sortsLancables()`) : ce qui est propre au sorcier nommé, c'est le
         // palier levé et le compte écrit.
+        // PROFIL D'AUTEUR (lot E1) : un usage par sort écrit, chaque sort une fois (`sortsLancables()`).
+        $deLAuteur = self::sortsDeLAuteur($instance);
+        if ($deLAuteur !== null) {
+            $instance->update([
+                'usages_dread' => count($deLAuteur),
+                'sorts_dread_lances' => [],
+                'invocation_dread_utilisee' => false,
+                'fuite_dread_utilisee' => false,
+                'capacites_reactives_utilisees' => [],
+            ]);
+
+            return;
+        }
+
         if ($this->aCapacite($instance, 'sorts_uniques')) {
             $instance->update([
                 'usages_dread' => $this->budgetSortsUniques($instance),
@@ -1914,7 +1928,8 @@ final class MoteurDread
         // ⚠ `repertoire_complet` (Kessandria, Skulmar : répertoire donné entier par le livret) lève le palier ; la
         // règle « un sort par quête » vaut pour lui comme pour toute figure (`sortsLancables()`) — voir
         // `MotsClesAdversaires::REPERTOIRE_COMPLET`.
-        if ($this->aCapacite($instance, 'sorts_uniques') || $this->aCapacite($instance, 'repertoire_complet')) {
+        if ($this->aCapacite($instance, 'sorts_uniques') || $this->aCapacite($instance, 'repertoire_complet')
+            || self::sortsDeLAuteur($instance) !== null) {
             $rangLanceur = max(self::RANG_PALIER);
         }
 
@@ -1944,10 +1959,31 @@ final class MoteurDread
      */
     public function repertoireDe(InstanceMonstre $instance): array
     {
+        // PROFIL D'AUTEUR (mode classique, lot E1) : « Vilor knows the following Dread spells » (F5815 p. 12) — la liste
+        // de l'auteur REMPLACE le répertoire de la fiche.
+        $deLAuteur = self::sortsDeLAuteur($instance);
+        if ($deLAuteur !== null) {
+            return $deLAuteur;
+        }
+
         return array_values(array_unique([
             ...$this->repertoireSorts($instance->ligneDeReference()),
             ...$this->repertoireSorts($instance->monstre),
         ]));
+    }
+
+    /**
+     * Les sorts de Dread que le PROFIL D'AUTEUR donne à la figure (`habillage.profil_quete.sorts_dread`, des noms), ou
+     * `null` sans profil. Le budget est leur nombre et le palier ne les filtre pas : un sort écrit par le livret pour
+     * CETTE figure se lance, comme ceux d'un sorcier nommé.
+     *
+     * @return ?list<string>
+     */
+    public static function sortsDeLAuteur(InstanceMonstre $instance): ?array
+    {
+        $sorts = data_get($instance->habillage, 'profil_quete.sorts_dread');
+
+        return is_array($sorts) ? array_values(array_unique(array_map('strval', $sorts))) : null;
     }
 
     /**

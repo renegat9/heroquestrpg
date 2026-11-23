@@ -107,6 +107,20 @@ class InstanceMonstre extends Model
     /** Bonus fixe d'un monstre élite (3.6) : +1 attaque / +1 défense / +1 PV Body. */
     public const BONUS_ELITE = 1;
 
+    /**
+     * LES CAPACITÉS qu'un PROFIL D'AUTEUR peut donner à une figure (mode classique, lot E1, 2026-11-22) — liste
+     * FERMÉE, chaque nom traduit vers la capacité de bestiaire que le moteur lit déjà par {@see aCapacite()} :
+     *  - `attaque_diagonale` : « can attack diagonally » (F9528 q. 4 ; les grands monstres, F5815 p. 6) ;
+     *  - `deux_sorts_par_tour` : `double_sort` nue (« may cast two spells in a single turn ») ;
+     *  - `deux_sorts_premier_tour` : `double_sort {premier_tour}` (« on their first turn, they may cast both », G0053).
+     * Lue par la validation (`ValidationCampagne`) et publiée au constructeur : une seule liste.
+     */
+    public const CAPACITES_DE_PROFIL = [
+        'attaque_diagonale' => ['attaque_diagonale', true],
+        'deux_sorts_par_tour' => ['double_sort', true],
+        'deux_sorts_premier_tour' => ['double_sort', ['premier_tour' => true]],
+    ];
+
     /** Dés d'attaque effectifs (bloc de stats + bonus élite éventuel). */
     public function attaqueEffective(): int
     {
@@ -238,6 +252,19 @@ class InstanceMonstre extends Model
                     $pose[$cleListe],
                 )));
             }
+        }
+        // SORTS DE DREAD de l'auteur (lot E1) : des NOMS, qui remplacent le répertoire de la fiche (`MoteurDread::repertoireDe()`).
+        if (array_key_exists('sorts_dread', $pose) && is_array($pose['sorts_dread'])) {
+            $sortsDread = $catalogue->index('sorts_dread');
+            $profil['sorts_dread'] = array_values(array_filter(array_map(
+                static fn ($slug) => is_string($slug) && isset($sortsDread[$slug]) ? (string) $sortsDread[$slug]->nom : null,
+                $pose['sorts_dread'],
+            )));
+        }
+        // CAPACITÉS de l'auteur (lot E1), liste fermée `CAPACITES_DE_PROFIL` : lues par `aCapacite()`.
+        if (array_key_exists('capacites', $pose) && is_array($pose['capacites'])) {
+            $profil['capacites'] = array_values(array_filter($pose['capacites'],
+                static fn ($nom) => is_string($nom) && isset(self::CAPACITES_DE_PROFIL[$nom])));
         }
         // INACTIF jusqu'à l'effet de note `eveiller` (René, 2026-11-20) : lu par `MoteurDormants::declencheur()`.
         if (($pose['inactif'] ?? false) === true) {
@@ -461,7 +488,27 @@ class InstanceMonstre extends Model
     {
         $capacites = (array) ($this->monstre->capacites ?? []);
 
-        return in_array($capacite, $capacites, true) || array_key_exists($capacite, $capacites);
+        return in_array($capacite, $capacites, true) || array_key_exists($capacite, $capacites)
+            || array_key_exists($capacite, $this->capacitesDeProfil());
+    }
+
+    /**
+     * Les capacités que le PROFIL D'AUTEUR ajoute (`habillage.profil_quete.capacites`, lot E1), traduites en
+     * capacités de bestiaire : `[nom_moteur => paramètre]`. Vide hors mode classique.
+     *
+     * @return array<string, mixed>
+     */
+    public function capacitesDeProfil(): array
+    {
+        $ajoutees = [];
+        foreach ((array) data_get($this->habillage, 'profil_quete.capacites', []) as $nom) {
+            if (is_string($nom) && isset(self::CAPACITES_DE_PROFIL[$nom])) {
+                [$moteur, $parametre] = self::CAPACITES_DE_PROFIL[$nom];
+                $ajoutees[$moteur] = $parametre;
+            }
+        }
+
+        return $ajoutees;
     }
 
     /**
@@ -473,7 +520,7 @@ class InstanceMonstre extends Model
     {
         $capacites = (array) ($this->monstre->capacites ?? []);
 
-        return $capacites[$capacite] ?? null;
+        return $capacites[$capacite] ?? $this->capacitesDeProfil()[$capacite] ?? null;
     }
 
     /**
