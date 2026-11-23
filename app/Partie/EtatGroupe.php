@@ -1226,6 +1226,10 @@ final class EtatGroupe
         $publies = [];
 
         foreach ($roles as [$role, $a]) {
+            // LA SORTIE CACHÉE (lot E1) : rien n'est publié tant que son drapeau n'est pas posé.
+            if ($role === 'sortie' && $quete->sortieCachee()) {
+                continue;
+            }
             $porte = ($a['type'] ?? null) === 'porte';
             // L'escalier d'ENTRÉE est déjà dessiné par `carte.escalier`.
             if (! $porte && $role !== 'sortie' && $role !== 'passage') {

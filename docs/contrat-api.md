@@ -6085,6 +6085,11 @@ dans le mode classique »). Ce lot porte ce qui sert à trois livrets ou plus. M
 - **« S'il porte »** — `quand.si_porte: slug d'objet` : la note ne joue que si le héros qui déclenche a cet objet (sac
   ou main) — « the hero carrying the Moon Charm » (F6646), la Fiole de cristal (G0052). Lu par
   `NotesDeQuete::conditionRemplie()`, comme les drapeaux et le déguisement.
+- **État de départ** — `portes[].ouverte: true` (une porte normale, sans verrou, ouverte d'emblée : « the highlighted
+  doors are open », F9907 q. 3 ; la salle derrière se révèle quand un héros VOIT une case de l'autre côté,
+  `CouloirsVus`), `portes[].revelee: true` (une porte secrète déjà découverte, FL q. 9), et
+  `sortie.cachee_jusqua: "drapeau"` (« This exit door only appears once… », G0053 q. 10-13 : tant que le drapeau
+  n'est pas posé, `Quete::sortieCachee()` — ni case de sortie, ni option, ni repère publié).
 - **Sorts de Dread et capacités dans le profil d'auteur** (monstre posé, `apparition`, errant) :
   - `sorts_dread: [slug]` — catalogue `sorts_dread` (publié par `GET /constructeur/catalogues`) : REMPLACE le
     répertoire de la fiche (« Vilor knows the following Dread spells », F5815 p. 12). Chaque sort une fois par quête

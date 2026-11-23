@@ -150,6 +150,16 @@ final class CarteConstruite
             if ($secrete) {
                 $entree['revele'] = false;
             }
+            // ÉTAT DE DÉPART (lot E1) : ouverte d'emblée — la salle derrière se révèle à la VUE (`CouloirsVus`) ; porte
+            // secrète déjà découverte — close, connue de tous.
+            if (($porte['ouverte'] ?? false) === true && ! $secrete) {
+                $entree['etat'] = MoteurPortes::ETAT_OUVERTE;
+                $entree['ouverte_au_depart'] = true;
+            }
+            if (($porte['revelee'] ?? false) === true && $secrete) {
+                $entree['etat'] = MoteurPortes::ETAT_FERMEE;
+                $entree['revele'] = true;
+            }
             // VERROU (lot K5a) : la forme que `MoteurPortes` lit déjà sur une carte générée. Une porte `note` ou `cle` est
             // VERROUILLÉE (cadenas) ; la pierre et la condition restent des portes CLOSES qu'un jet ouvre.
             if (is_array($porte['verrou'] ?? null)) {
@@ -348,7 +358,9 @@ final class CarteConstruite
                     // à vrai quand une note l'ouvre ou qu'on force une porte de pierre (`Classique\VerrouDeSortie`).
                     ...(is_array($quete['sortie']['verrou'] ?? null)
                         ? ['verrou' => $this->verrouMoteur((array) $quete['sortie']['verrou'])['verrou'], 'deverrouillee' => false]
-                        : [])],
+                        : []),
+                    // LA SORTIE CACHÉE (lot E1) : absente tant que ce drapeau n'est pas posé (`Quete::sortieCachee()`).
+                    ...(is_string($quete['sortie']['cachee_jusqua'] ?? null) ? ['cachee_jusqua' => $quete['sortie']['cachee_jusqua']] : [])],
                 'fausses_sorties' => array_map(
                     static fn (array $f): array => ['type' => $f['type'], 'cases' => $f['cases'], 'porte' => $f['porte'], 'revelee' => false],
                     $acces['fausses_sorties'],

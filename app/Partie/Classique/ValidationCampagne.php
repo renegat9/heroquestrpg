@@ -171,7 +171,7 @@ final class ValidationCampagne
     private const LONGUEUR_REPERE = 40;
     private const LONGUEUR_DRAPEAU = 40;
     private const CLES_PORTE = ['x', 'y', 'cote', 'type'];
-    private const CLES_PORTE_OPTIONNELLES = ['verrou'];
+    private const CLES_PORTE_OPTIONNELLES = ['verrou', 'ouverte', 'revelee'];
     private const CLES_CASE = ['x', 'y'];
     private const CLES_MOBILIER = ['slug', 'x', 'y', 'rotation'];
     private const CLES_POSE = ['slug', 'x', 'y'];
@@ -1325,6 +1325,21 @@ final class ValidationCampagne
             if (array_key_exists('verrou', $porte)) {
                 $this->verrou($porte, "$position.verrou");
             }
+            // ÉTAT DE DÉPART (lot E1) : `ouverte` (« the highlighted doors are open », F9907 q. 3 ; F6646 ; FL) — une porte
+            // normale sans verrou ; `revelee` (« the secret doors are already discovered », FL q. 9) — une porte secrète.
+            foreach (['ouverte' => 'normale', 'revelee' => 'secrete'] as $cle => $typeAttendu) {
+                if (! array_key_exists($cle, $porte)) {
+                    continue;
+                }
+                if ($porte[$cle] !== true) {
+                    $this->refuser("$position.$cle", self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+                } elseif (($porte['type'] ?? null) !== $typeAttendu) {
+                    $this->refuser("$position.$cle", self::VALEUR_INVALIDE, $cle === 'ouverte'
+                        ? 'seule une porte normale peut être ouverte au départ' : 'seule une porte secrète peut être déjà découverte');
+                } elseif ($cle === 'ouverte' && array_key_exists('verrou', $porte)) {
+                    $this->refuser("$position.ouverte", self::VALEUR_INVALIDE, 'une porte ouverte au départ ne porte pas de verrou');
+                }
+            }
             $cellule = $this->cellule($porte, $position);
             if ($cellule !== null && $cote !== null) {
                 $this->porteSurUnBord($cellule, $cote, $position);
@@ -1667,6 +1682,12 @@ final class ValidationCampagne
                 $this->verrou(['verrou' => $sortie['verrou']], $ici);
             }
             unset($sortie['verrou']);
+        }
+        // SORTIE CACHÉE (lot E1) : « This exit door only appears once a hero has found the Elixir of Life » (G0053 q. 10-13) —
+        // le nom du drapeau qui la fait paraître (posé par une note).
+        if (is_array($sortie) && array_key_exists('cachee_jusqua', $sortie)) {
+            $this->nomDeDrapeau($sortie, 'cachee_jusqua', self::chemin($chemin, 'sortie'));
+            unset($sortie['cachee_jusqua']);
         }
         $this->acces($sortie, self::chemin($chemin, 'sortie'), 'sortie');
     }

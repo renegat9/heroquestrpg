@@ -439,3 +439,43 @@ it('`si_porte` : la note ne joue que pour le héros qui porte l\'objet', functio
     expect($notes->signaler($quete, \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 1], $heros))->toHaveCount(1)
         ->and((int) $heros->fresh()->or)->toBe(7);
 });
+
+// ---------------------------------------------------------------- 9. l'état de départ
+
+it('valide l\'état de départ des portes et la sortie cachée ; refuse les combinaisons impossibles', function () {
+    $porte = fn (array $p) => campagneE1(['portes' => [['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale'] + $p,
+        ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale'], ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'secrete', 'revelee' => true]]]);
+
+    expect(codesE1($porte(['ouverte' => true])))->toBe([])
+        ->and(codesE1($porte(['ouverte' => true, 'verrou' => ['type' => 'note']])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE1($porte(['revelee' => true])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE1($porte(['ouverte' => false])))->toBe([ValidationCampagne::TYPE_INVALIDE]);
+});
+
+it('une porte ouverte au départ : la salle derrière se révèle quand un héros la VOIT', function () {
+    $campagne = campagneE1(['portes' => [['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale', 'ouverte' => true],
+        ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale'], ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'secrete', 'revelee' => true]]]);
+    ['quete' => $quete] = partieE1($this, $campagne);
+
+    $portes = $quete->carte->grille['portes'];
+    expect($portes[0]['etat'])->toBe(\App\Partie\MoteurPortes::ETAT_OUVERTE)
+        ->and($portes[2]['etat'])->toBe(\App\Partie\MoteurPortes::ETAT_FERMEE)
+        ->and($portes[2]['revele'])->toBeTrue();
+
+    // Le héros se tient face à la porte : la galerie (salle 1) entre dans sa vue.
+    $quete->etatsPersonnages()->update(['position_x' => 5, 'position_y' => 3]);
+    app(\App\Partie\Classique\CouloirsVus::class)->mettreAJour($quete->fresh());
+    expect($quete->fresh()->sallesDecouvertes())->toContain(1);
+});
+
+it('une sortie cachée n\'existe pas tant que son drapeau n\'est pas posé', function () {
+    $campagne = campagneE1(['sortie' => ['type' => 'porte', 'x' => 19, 'y' => 7, 'cote' => 'e', 'cachee_jusqua' => 'elixir']]);
+    expect(codesE1($campagne))->toBe([]);
+    ['quete' => $quete] = partieE1($this, $campagne);
+
+    expect($quete->sortieCachee())->toBeTrue()
+        ->and($quete->sortieDuDonjon()['cases'])->toBe([]);
+    $quete->poserDrapeau('elixir');
+    expect($quete->fresh()->sortieCachee())->toBeFalse()
+        ->and($quete->fresh()->sortieDuDonjon()['cases'])->not->toBe([]);
+});

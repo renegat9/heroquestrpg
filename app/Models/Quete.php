@@ -916,8 +916,24 @@ class Quete extends Model
      *
      * @return array{type: string, cases: list<array{x: int, y: int}>}
      */
+    /**
+     * LA SORTIE CACHÉE (mode classique, lot E1 — « This exit door only appears once a hero has found the Elixir of Life »,
+     * G0053 q. 10-13) : tant que son drapeau n'est pas posé, la sortie n'existe pas — ni case de sortie
+     * ({@see sortieDuDonjon()}, donc ni option « Quitter le donjon » ni fin `sortir`), ni repère publié (`EtatGroupe`).
+     */
+    public function sortieCachee(): bool
+    {
+        $drapeau = data_get($this->acces, 'sortie.cachee_jusqua');
+
+        return is_string($drapeau) && ! $this->aDrapeau($drapeau);
+    }
+
     public function sortieDuDonjon(): array
     {
+        if ($this->sortieCachee()) {
+            return ['type' => (string) data_get($this->acces, 'sortie.type', 'porte'), 'cases' => []];
+        }
+
         // QUÊTE DOUBLE (lot K5p) : on ne quitte pas le donjon depuis la seconde moitié — son départ est le passage du retour.
         if ($this->estSecondeMoitie()) {
             return ['type' => 'escalier', 'cases' => []];

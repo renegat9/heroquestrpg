@@ -64,5 +64,40 @@ final class CouloirsVus
         if (count($vus) !== $avant || $quete->couloirs_vus === null) {
             $quete->update(['couloirs_vus' => array_keys($vus)]);
         }
+
+        $this->revelerDerriereLesPortesOuvertes($quete, $heros);
+    }
+
+    /**
+     * PORTE OUVERTE AU DÉPART (lot E1) : « the monsters activate when the highlighted door enters a hero's line of sight »
+     * (F9907 q. 3). Personne ne l'ouvre, donc rien ne révèle sa salle à l'ouverture : elle se révèle quand un héros VOIT une
+     * case de l'autre côté de la porte — par `ResolveurTour::revelerSalleEn()`, comme une ouverture.
+     *
+     * @param  \Illuminate\Support\Collection<int, \App\Models\EtatPersonnageQuete>  $heros
+     */
+    private function revelerDerriereLesPortesOuvertes(Quete $quete, $heros): void
+    {
+        $grilleCarte = (array) $quete->carte->grille;
+        $salles = (array) ($grilleCarte['salles'] ?? []);
+        $portes = array_filter((array) ($grilleCarte['portes'] ?? []), fn ($p) => ! empty($p['ouverte_au_depart']));
+        if ($portes === [] || $heros->isEmpty()) {
+            return;
+        }
+        $grille = null;
+        foreach ($portes as $porte) {
+            foreach ([['x' => (int) $porte['x'], 'y' => (int) $porte['y']], CarteConstruite::caseDehors($porte)] as $c) {
+                $salle = Salles::indexDe($salles, $c['x'], $c['y']);
+                if ($salle === null || in_array($salle, $quete->fresh()->sallesDecouvertes(), true)) {
+                    continue;
+                }
+                $grille ??= FabriqueGrille::pour($quete);
+                foreach ($heros as $h) {
+                    if ($grille->ligneDeVue((int) $h->position_x, (int) $h->position_y, $c['x'], $c['y'])) {
+                        app(\App\Partie\ResolveurTour::class)->revelerSalleEn($quete->fresh(), $c['x'], $c['y']);
+                        break;
+                    }
+                }
+            }
+        }
     }
 }

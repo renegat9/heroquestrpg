@@ -244,7 +244,7 @@ function retirerQuete(i) {
 
 // ---------------------------------------------------------------- quêtes : outils de la carte
 const outil = ref('salle');
-const choix = reactive({ terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
+const choix = reactive({ porteOuverte: false, porteRevelee: false, terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
 watch(catalogues, (c) => {
     if (!c) return;
     choix.mobilier ||= c.couches.mobilier?.[0]?.slug ?? '';
@@ -283,6 +283,12 @@ function verrouChoisi(pourSortie = false) {
     return { verrou: { type: v } };
 }
 
+/** Lot E1 : l'état de départ de la porte posée — ouverte (normale, sans verrou), ou déjà découverte (secrète). */
+function etatDeDepartPorte() {
+    if (choix.typePorte === 'normale' && !choix.verrouPorte && choix.porteOuverte) return { ouverte: true };
+    if (choix.typePorte === 'secrete' && choix.porteRevelee) return { revelee: true };
+    return {};
+}
 /** Une porte posée sur le bord du COULOIR se ramène au bord de la salle ouverte d'en face (la même arête). */
 function bordDeSalle(q, x, y, cote) {
     const ouverte = (s) => s && q.salles_ouvertes.includes(s.id);
@@ -379,7 +385,7 @@ function clicQuete(evt) {
                 q.portes.splice(i, 1);
                 recaler(q, 'portes', i);
             } else {
-                q.portes.push({ ...b, type: choix.typePorte, ...verrouChoisi() });
+                q.portes.push({ ...b, type: choix.typePorte, ...verrouChoisi(), ...etatDeDepartPorte() });
             }
             return;
         }
@@ -981,6 +987,9 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                             <select v-if="outil === 'porte'" v-model="choix.typePorte" class="cst-input">
                                 <option v-for="t in vocab.types_porte" :key="t" :value="t">{{ t === 'secrete' ? 'secrète' : t }}</option>
                             </select>
+                            <!-- Lot E1 : l'état de départ de la porte. -->
+                            <label v-if="outil === 'porte' && choix.typePorte === 'normale' && !choix.verrouPorte" class="cst-case"><input v-model="choix.porteOuverte" type="checkbox" /> ouverte au départ</label>
+                            <label v-if="outil === 'porte' && choix.typePorte === 'secrete'" class="cst-case"><input v-model="choix.porteRevelee" type="checkbox" /> déjà découverte</label>
                             <template v-if="outil === 'porte' && choix.typePorte === 'normale'">
                                 <select v-model="choix.verrouPorte" class="cst-input" title="Verrou de la porte">
                                     <option value="">sans verrou</option>
@@ -1035,6 +1044,11 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <option v-for="c in vocab.conditions_de_porte" :key="c.nom" :value="c.nom">{{ c.libelle }}</option>
                                 </select>
                             </template>
+                            <!-- Lot E1 : la sortie qui n'apparaît qu'une fois un drapeau posé. -->
+                            <label v-if="outil === 'sortie' && quete.sortie">cachée jusqu'au drapeau
+                                <input :value="quete.sortie.cachee_jusqua ?? ''" class="cst-input" placeholder="(visible)"
+                                    @change="$event.target.value.trim() ? (quete.sortie.cachee_jusqua = $event.target.value.trim()) : delete quete.sortie.cachee_jusqua" />
+                            </label>
                             <span v-if="outil === 'sortie' && quete.sortie?.verrou" class="cst-sous">
                                 Sortie actuelle : verrou {{ LIBELLES_VERROU[quete.sortie.verrou.type] ?? quete.sortie.verrou.type }}
                                 <button type="button" class="cst-btn ghost" @click="delete quete.sortie.verrou">Retirer le verrou</button>
