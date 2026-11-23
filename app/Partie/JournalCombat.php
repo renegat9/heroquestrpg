@@ -2018,6 +2018,17 @@ final class JournalCombat
             // injouable. Clé présente seulement quand il a joué.
             .(! empty($a['obscurite']) ? ' — dans l\'obscurité magique (−'.(int) $a['obscurite'].' dés)' : '');
 
+        // REDDITION (lot E2) : la figure se rend au contact et s'enfuit — l'attaque n'a rien blessé.
+        if (is_array($a['reddition_auteur'] ?? null)) {
+            $r = $a['reddition_auteur'];
+
+            return [['texte' => ($r['nom'] ?? $cible).' se rend et s\'enfuit'.(! empty($r['objet']) ? ", laissant {$r['objet']} à {$attaquant}" : ''), 'ton' => 'succes']];
+        }
+        // BROUILLARD VIVANT (lot E2) : l'attaque a frappé un leurre de brume.
+        if (! empty($a['brouillard']['leurre'])) {
+            return [['texte' => "{$attaquant} frappe une illusion de brume : le coup se perd dans le brouillard", 'ton' => 'echec']];
+        }
+
         // Un TIR se dit, quel que soit l'archer : héros (arc, arbalète, arme jetée), allié,
         // mercenaire. Le serveur publie `portee`, le même champ que celui de l'attaque d'un
         // monstre — UN seul prédicat (`estUnTir()`), pas une seconde lecture de la clé.

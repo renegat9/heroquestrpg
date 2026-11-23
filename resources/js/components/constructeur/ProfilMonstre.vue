@@ -120,6 +120,14 @@ function basculerFuite(avec) {
                 <input type="checkbox" :checked="(m.capacites ?? []).includes(nom)" @change="basculerCapacite(nom, $event.target.checked)" /> {{ LIBELLES_CAPACITE[nom] ?? nom }}
             </label>
         </div>
+        <!-- Lot E2 : attaquée au contact, la figure se rend, s'enfuit et laisse un objet (l'Arbalétrier, F5815 q. 1). -->
+        <div v-if="!sansFuite" class="cst-ligne">
+            <label class="cst-case"><input type="checkbox" :checked="!!m.se_rend" @change="$event.target.checked ? (m.se_rend = {}) : delete m.se_rend" /> Se rend quand on l'attaque au contact, et s'enfuit</label>
+            <select v-if="m.se_rend" :value="m.se_rend.objet ?? ''" class="cst-input" @change="$event.target.value ? (m.se_rend.objet = $event.target.value) : delete m.se_rend.objet">
+                <option value="">sans rien laisser</option>
+                <option v-for="o in objets" :key="o.slug" :value="o.slug">laisse : {{ o.nom }}</option>
+            </select>
+        </div>
         <div v-if="inactifPossible" class="cst-ligne">
             <label class="cst-case"><input type="checkbox" :checked="m.inactif === true" @change="basculerInactif($event.target.checked)" /> Inactif — ne bouge pas, n'attaque pas, ne peut être blessé tant qu'une note « éveiller » ne l'a pas réveillé</label>
         </div>

@@ -266,6 +266,10 @@ class InstanceMonstre extends Model
             $profil['capacites'] = array_values(array_filter($pose['capacites'],
                 static fn ($nom) => is_string($nom) && isset(self::CAPACITES_DE_PROFIL[$nom])));
         }
+        // REDDITION (lot E2) : `se_rend {objet?}` — lue par `ResolveurTour::frapper()`.
+        if (isset($pose['se_rend']) && is_array($pose['se_rend'])) {
+            $profil['se_rend'] = array_filter(['objet' => is_string($pose['se_rend']['objet'] ?? null) ? $pose['se_rend']['objet'] : null]);
+        }
         // INACTIF jusqu'à l'effet de note `eveiller` (René, 2026-11-20) : lu par `MoteurDormants::declencheur()`.
         if (($pose['inactif'] ?? false) === true) {
             $profil['inactif'] = true;

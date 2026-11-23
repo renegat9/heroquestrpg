@@ -543,7 +543,7 @@ function retirerDanger(i) {
 // Profil d'auteur ouvert (R9) — un état d'écran, pas une donnée de la quête.
 const profilsOuverts = reactive(new Set());
 const basculerProfil = (cle) => (profilsOuverts.has(cle) ? profilsOuverts.delete(cle) : profilsOuverts.add(cle));
-const aUnProfil = (m) => ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites'].some((k) => k in m);
+const aUnProfil = (m) => ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'].some((k) => k in m);
 // MONSTRE ERRANT (lot E1) : un slug, ou `{slug, nombre, …profil}` dès qu'il y a plus d'une figure ou un profil.
 const NOMBRE_ERRANTS_MAX = 6; // ValidationCampagne::NOMBRE_ERRANTS_MAX — la validation tranche
 const slugErrant = (q) => (q.monstre_errant !== null && typeof q.monstre_errant === 'object' ? q.monstre_errant.slug : q.monstre_errant);
@@ -789,6 +789,15 @@ function changerEffet(note, j, nom) {
 // Lot K6 : l'offre — ses effets en JSON (refusé s'il ne se lit pas), son coût (une clé vide disparaît).
 // Lot E1 : des effets imbriqués en JSON (issue d'un jet, « sinon ») — refusé s'il ne se lit pas, validé par le serveur.
 // Lot E1 : une règle de quête booléenne (`regles.<cle>: true`) — la clé disparaît quand elle est fausse, `regles` aussi.
+// Lot E2 : une règle de quête qui est une LISTE d'ids (`regles.<cle>: [id]`) — vide, la clé disparaît.
+function basculerListeRegle(cle, id, avec) {
+    const q = quete.value;
+    q.regles ??= {};
+    const liste = (q.regles[cle] ?? []).filter((x) => x !== id);
+    if (avec) liste.push(id);
+    if (liste.length) q.regles[cle] = liste; else delete q.regles[cle];
+    if (!Object.keys(q.regles).length) delete q.regles;
+}
 function changerRegleBool(cle, avec) {
     const q = quete.value;
     q.regles ??= {};
@@ -1175,6 +1184,11 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 </label>
                                 <label class="cst-case">
                                     <input type="checkbox" :checked="quete.regles?.marche_ferme === true" @change="changerMarcheFerme($event.target.checked)" /> Marché fermé avant la quête
+                                </label>
+                                <!-- Lot E2 : les salles de brouillard vivant (F5815 q. 7, 9). -->
+                                <span v-if="quete.salles_ouvertes.length" class="cst-lbl">Brouillard vivant :</span>
+                                <label v-for="id in quete.salles_ouvertes" :key="`bv${id}`" class="cst-case">
+                                    <input type="checkbox" :checked="(quete.regles?.brouillard_vivant ?? []).includes(id)" @change="basculerListeRegle('brouillard_vivant', id, $event.target.checked)" /> {{ id }}
                                 </label>
                                 <!-- Lot E1 : la quête enchaîne sans remettre le Corps ni l'Esprit à neuf. -->
                                 <label class="cst-case">

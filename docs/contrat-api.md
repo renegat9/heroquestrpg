@@ -6121,6 +6121,19 @@ dans le mode classique »). Ce lot porte ce qui sert à trois livrets ou plus. M
     single turn »), `deux_sorts_premier_tour` (« on their first turn, they may cast both », G0053 q. 3 et 12). Ajoutées
     à celles de la fiche par `InstanceMonstre::aCapacite()` / `capaciteParametree()`.
 
+### Les règles d'une seule boîte — lot E2 (2026-11-23)
+
+Mode classique seulement ; une règle par livret, sourcée.
+
+**The Frozen Horror (F5815)**
+- **Brouillard vivant** — `regles.brouillard_vivant: [id de salle]` (q. 7 D, q. 9 B) : avant toute frappe d'un héros sur
+  un monstre de ces salles, un dé de combat ; seul le bouclier blanc touche le vrai monstre, sinon l'attaque se perd
+  (zéro dé). Résultat d'attaque : `brouillard: {face, leurre}` ; fil « frappe une illusion de brume ».
+  `Classique\BrouillardVivant`, lu par `ResolveurTour::frapper()`.
+- **Reddition** — profil d'auteur `se_rend: {objet?}` (q. 1 B, l'Arbalétrier) : attaquée AU CONTACT, la figure se rend
+  sans être blessée, quitte le plateau (comme `retirer`) et laisse l'objet à l'attaquant. Résultat :
+  `reddition_auteur: {nom, objet}` ; fil « se rend et s'enfuit, laissant l'arbalète à Albrecht ».
+
 ### Ce que les livrets demandaient encore (René, 2026-11-20 — « les livrets sont maîtres en mode classique »)
 
 Relecture des trois campagnes construites contre leurs livrets. Mode classique seulement.

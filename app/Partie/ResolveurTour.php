@@ -2362,6 +2362,34 @@ final class ResolveurTour
             $meta['obscurite'] = $malusObscurite;
         }
 
+        // BROUILLARD VIVANT (mode classique, lot E2 — *The Frozen Horror* q. 7 D) : un dé d'abord ; seul le bouclier blanc
+        // voit le vrai monstre, sinon l'attaque frappe un leurre et se perd (zéro dé). `Classique\BrouillardVivant`.
+        $brouillard = app(\App\Partie\Classique\BrouillardVivant::class)->detourne($quete, $instance);
+        if ($brouillard !== null) {
+            $meta['brouillard'] = $brouillard;
+            if ($brouillard['leurre']) {
+                $desAttaqueEffectifs = 0;
+            }
+        }
+
+        // REDDITION (mode classique, lot E2 — *The Frozen Horror* q. 1 B : « If the Barbarian moves next to the
+        // Crossbowman and attacks, the Crossbowman surrenders immediately, offering their crossbow in exchange for their
+        // life. The Crossbowman then runs away. ») : profil d'auteur `se_rend {objet?}`, au CONTACT seulement. L'attaque ne
+        // blesse pas ; la figure quitte le plateau (comme l'effet `retirer`) et laisse son objet à l'attaquant.
+        $seRend = data_get($instance->habillage, 'profil_quete.se_rend');
+        if (is_array($seRend) && ! $tirADistance && ! $lancer && $instance->etat === 'actif') {
+            $desAttaqueEffectifs = 0;
+            $laisse = null;
+            $objet = app(\App\Partie\Classique\CatalogueConstructeur::class)->index('objets')[(string) ($seRend['objet'] ?? '')] ?? null;
+            if ($objet !== null) {
+                RangementObjet::ranger($objet, (int) $personnage->id, 1);
+                $laisse = $objet->nom;
+            }
+            $meta['reddition_auteur'] = ['nom' => $instance->nomAffiche(), 'objet' => $laisse];
+            $instance->update(['etat' => 'vaincu', 'position_x' => null, 'position_y' => null,
+                'habillage' => [...(array) $instance->habillage, 'retire' => true]]);
+        }
+
         // ⚠ Le plafond s'applique EN DERNIER, sur le total. Un malus s'ajoutait
         // à la somme et pouvait être compensé par un bonus ; un plafond, non —
         // c'est toute la différence entre « −1 dé » et « au plus 1 dé », et
