@@ -6179,6 +6179,19 @@ Mode classique seulement ; une règle par livret, sourcée.
   que son sac range, `vendre_etal_{inventaire_id}` par ligne revendable (mêmes refus et même prix de revente qu'au hub),
   et `fermer_etal`. Gestes libres ; pas de stock en quête ; chaque héros achète pour lui, de sa bourse. Résultats
   annoncés `acheter_etal {personnage, nom, prix}` et `vendre_etal {…}` ; `ouvrir_etal` / `fermer_etal` sont muets.
+- **La lame balançoire d'un livret** (*Against the Ogre Horde* p. 4, q. 4 B, q. 7 A) — `pieges[].zone: [{x, y}]` sur un
+  piège à zone (`effet.zone_lames`, exigée pour lui, refusée ailleurs) : les cases qu'elle balaie, celles de la carte de
+  quête (`MoteurPieges::declencherZone()`). `pieges[].par_note: true` : aucune case foulée ne déclenche le piège
+  (« It cannot be activated in any other way »). Effet de note `declencher_piege {x, y}` : le piège de la case se
+  déclenche (`MoteurPieges::declencherParNote()`), annoncé comme tout déclenchement — la porte qui active la lame
+  (`ouverture_porte` → `declencher_piege`), le coffre qui la déclenche (`fouille_tresor` → `declencher_piege`). La palette
+  publie `pieges[].zone_lames` (la forme verticale de la fiche) : l'écran pose la zone par défaut, debout ou couchée.
+- **Le tour du MJ dans les couloirs, la salle tenue** (*Against the Ogre Horde* q. 6 B, q. 5 C) — déclencheur
+  `heros_au_tour_du_mj` (cible `salle` ou `cases: [{x, y}]`) : au début du tour du MJ, signalé pour CHAQUE héros debout
+  sur le plateau, qui en est « celui qui déclenche » (« If a hero is in any of these corridors during Zargon's turn,
+  they must roll one red die » : `heros_au_tour_du_mj` → `jet`). Condition de note `quand.si_sans_monstre: id de salle` :
+  aucune figure active dans cette salle (« be the sole occupants of the room for one hero's full turn » :
+  `fin_de_tour` dans la salle + `si_sans_monstre` → `ouvrir_porte: sortie`, la sortie verrouillée `note`).
 - **Planque** — `regles.planque: id de salle` (*Rise of the Dread Moon* p. 7, « Hideouts ») : `Classique\Planque`.
   - UNE fouille du trésor par quête, tous héros confondus (menu et résolveur : `fouilleFermee()`) ;
   - une carte de monstre errant ou de danger tirée là ne joue pas et retourne sous le paquet : issue de fouille

@@ -56,6 +56,13 @@ final class MotsClesQuete
 
     // ─── Lot E1 (2026-11-22) : ce que les dix derniers livrets demandent ─────────────────────────────────────────────
 
+    /**
+     * Lot E2 — au début du tour du MJ, un héros debout se tient dans la salle ou sur l'une des cases (« If a hero is in any
+     * of these corridors during Zargon's turn, they must roll one red die », *Against the Ogre Horde* q. 6 B). Signalé une
+     * fois par héros ; ce héros est « celui qui déclenche ».
+     */
+    public const HEROS_AU_TOUR_DU_MJ = 'heros_au_tour_du_mj';
+
     /** La DERNIÈRE figure d'une salle tombe (« when the room has been cleared of monsters », F9528 q. 5 ; F6646 q. 8-9). */
     public const SALLE_VIDEE = 'salle_videe';
 
@@ -165,6 +172,11 @@ final class MotsClesQuete
             'signale_par' => 'MoteurMobilier::detruire() / infligerDegats()',
             'libelle' => 'le meuble est détruit',
         ],
+        self::HEROS_AU_TOUR_DU_MJ => [
+            'cibles' => ['salle', 'cases'],
+            'signale_par' => 'ResolveurTour::phaseMonstres()',
+            'libelle' => 'au tour du maître du jeu, un héros se tient dans la salle ou sur l\'une des cases',
+        ],
         self::CAPTIF_LIBERE => [
             'cibles' => ['captif'],
             'signale_par' => 'ResolveurTour::resoudreLibererCaptif()',
@@ -269,6 +281,12 @@ final class MotsClesQuete
      */
     public const ERRANTS = 'errants';
 
+    /**
+     * Lot E2 — le piège posé sur la case se déclenche (« If a hero opens the door on the right, the swinging blade trap
+     * activates », F9528 q. 7 A ; « The treasure chest is rigged to trigger a swinging blade trap », q. 4 B).
+     */
+    public const DECLENCHER_PIEGE = 'declencher_piege';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET];
 
@@ -292,6 +310,7 @@ final class MotsClesQuete
         self::RETIRER_BLOC => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetRetirerBloc', 'libelle' => 'retirer un bloc'],
         self::LIBERER_CAPTIF => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetLibererCaptif', 'libelle' => 'libérer le captif de la quête'],
         self::ARRETER => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetArreter', 'libelle' => 'arrêter le héros sur cette case'],
+        self::DECLENCHER_PIEGE => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetDeclencherPiege', 'libelle' => 'déclencher le piège de la case'],
         self::ERRANTS => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetErrants', 'libelle' => 'faire surgir les monstres errants de la quête autour du héros'],
         self::VOLER => ['parametres' => [], 'optionnels' => ['or'], 'lecteur' => 'effetVoler', 'libelle' => 'voler le héros (de l\'or, ou un objet de son sac)'],
         self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],

@@ -23,7 +23,7 @@ const OUTILS = [
     ['block', 'Bloc de couloir', 'Une case de couloir bouchée.'],
     ['chair', 'Meuble', 'Choisir le meuble et sa rotation, cliquer sa case en haut à gauche. Un meuble se pose dans une salle ou, en entier, dans un couloir.'],
     ['skull', 'Monstre', 'Une figure du bestiaire. Son numéro (0, 1, 2…) sert aux notes et à la fin de quête.'],
-    ['warning', 'Piège', 'Avec les options « introuvable », « indésarmable » et, pour une fosse, « gouffre sans fond » (qui y tombe est perdu à jamais).'],
+    ['warning', 'Piège', 'Avec les options « introuvable », « indésarmable » et, pour une fosse, « gouffre sans fond » (qui y tombe est perdu à jamais). « Déclenché par une note » : aucune case foulée ne le fait partir, seule une note. Une lame balançoire reçoit sa zone (trois cases, debout ou couchée).'],
     ['water', 'Terrain', 'Glace, gouffre, pont… « posée au premier pas » la cache jusqu\'à ce qu\'un héros y marche. Une glissière de glace reçoit sa case d\'arrivée.'],
     ['my_location', 'Cible de fin', 'Pour une fin « vaincre » : désigne les monstres à abattre.'],
     ['login', 'Entrée', 'Un escalier 2×2 (case du coin haut-gauche) ou une porte (bord cliqué).'],

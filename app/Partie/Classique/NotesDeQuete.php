@@ -7,6 +7,7 @@ namespace App\Partie\Classique;
 use App\Engine\MotsClesQuete;
 use App\Events\NarrationDiffusee;
 use App\Models\InstanceMonstre;
+use App\Partie\Salles;
 use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Quete;
@@ -150,9 +151,26 @@ final class NotesDeQuete
             }
         }
 
+        // SALLE SANS MONSTRE (lot E2, *Against the Ogre Horde* q. 5 C : « be the sole occupants of the room for one hero's
+        // full turn ») : `si_sans_monstre: id de salle` — aucune figure active n'y est.
+        $sansMonstre = data_get($note, 'quand.si_sans_monstre');
+        if (is_string($sansMonstre) && ! $this->salleSansMonstre($quete, $sansMonstre)) {
+            return false;
+        }
+
         return ($si === null || $quete->aDrapeau((string) $si))
             && ($sauf === null || ! $quete->aDrapeau((string) $sauf))
             && ($deguise === null || ($heros !== null && $estDeguise === (bool) $deguise));
+    }
+
+    /** Aucune figure active (révélée ou non) ne se tient dans la salle d'id `$id`. */
+    private function salleSansMonstre(Quete $quete, string $id): bool
+    {
+        $salles = (array) ($quete->carte?->grille['salles'] ?? []);
+
+        return ! $quete->instancesMonstres()->where('etat', 'actif')->whereNotNull('position_x')->get()
+            ->contains(fn (InstanceMonstre $m) => ($i = Salles::indexDe($salles, (int) $m->position_x, (int) $m->position_y)) !== null
+                && ($salles[$i]['id'] ?? null) === $id);
     }
 
     /** Le rang d'une figure parmi les monstres POSÉS par l'auteur (`quete.monstres`), ou `null` si elle n'en est pas. */
@@ -191,6 +209,12 @@ final class NotesDeQuete
             return isset($contexte['case'])
                 && (int) data_get($cible, 'case.x') === (int) $contexte['case']['x']
                 && (int) data_get($cible, 'case.y') === (int) $contexte['case']['y'];
+        }
+
+        // Lot E2 : l'une des cases de la liste (« any of these corridors », F9528 q. 6 B).
+        if (array_key_exists('cases', $cible)) {
+            return isset($contexte['case']) && collect((array) $cible['cases'])->contains(
+                fn ($c) => (int) data_get($c, 'x') === (int) $contexte['case']['x'] && (int) data_get($c, 'y') === (int) $contexte['case']['y']);
         }
 
         // D5 (lot K5a) : le N-ième tour du MJ, ou n'importe lequel après lui — `une_fois` dit s'il tire une fois ou à chaque.
@@ -500,6 +524,30 @@ final class NotesDeQuete
         }
 
         return ['monstres' => $noms, ...(! empty($fragment['errant_indisponible']) ? ['indisponible' => true] : [])];
+    }
+
+    /**
+     * Lot E2 — le piège de la case se déclenche (`MoteurPieges::declencherParNote()`) : une lame frappe toute sa zone. Le
+     * héros qui déclenche en est « l'acteur » ; sans lui (le tour du MJ), le premier héros sur le plateau.
+     */
+    private function effetDeclencherPiege(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $carte = $quete->carte;
+        $x = (int) ($effet['x'] ?? -1);
+        $y = (int) ($effet['y'] ?? -1);
+        $index = collect((array) ($carte?->grille['pieges'] ?? []))->search(fn ($p) => (int) $p['x'] === $x && (int) $p['y'] === $y);
+        $etat = $heros === null
+            ? $quete->etatsPersonnages()->whereNotNull('position_x')->with('personnage')->first()
+            : $quete->etatsPersonnages()->where('personnage_id', $heros->id)->first();
+        if ($index === false || $etat === null || $etat->personnage === null) {
+            return ['declenche' => false];
+        }
+        $resultat = app(MoteurPieges::class)->declencherParNote($quete->groupe, $carte, (int) $index, $etat->personnage, $etat);
+        if ($resultat !== null) {
+            app(TamponAnnonces::class)->annoncer($quete->groupe, $resultat, ['type' => 'personnage', 'id' => $etat->personnage->id, 'nom' => $etat->personnage->nom]);
+        }
+
+        return ['declenche' => $resultat !== null];
     }
 
     /** Lot E1 — le captif de la quête est libéré, allié du héros qui déclenche (`Escorte::liberer()`). */

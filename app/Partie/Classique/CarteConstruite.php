@@ -282,6 +282,12 @@ final class CarteConstruite
                 ...(($piege['indesarmable'] ?? false) === true ? ['indesarmable' => true] : []),
                 // Lot E2 : un GOUFFRE sans fond (F5815 p. 4) — qui y tombe est perdu (`MoteurPieges::declencher()`).
                 ...(($piege['gouffre'] ?? false) === true ? ['gouffre' => true] : []),
+                // Lot E2 (F9528 p. 4) : la ZONE de l'auteur d'une lame balançoire (`MoteurPieges::declencherZone()`), et
+                // `par_note` — aucune case foulée ne la déclenche, seule une note (`declencher_piege`) : « It cannot be
+                // activated in any other way » (q. 7 A).
+                ...(is_array($piege['zone'] ?? null) ? ['zone' => array_values(array_map(
+                    fn ($c) => ['x' => (int) $c['x'], 'y' => (int) $c['y']], $piege['zone']))] : []),
+                ...(($piege['par_note'] ?? false) === true ? ['par_note' => true] : []),
             ];
             $occupees["$x,$y"] = true;
         }

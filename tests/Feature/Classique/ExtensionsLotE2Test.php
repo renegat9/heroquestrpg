@@ -538,3 +538,54 @@ it('marché souterrain : dans la salle, l\'étal s\'ouvre, on y achète et on y 
     expect((int) $partie['heros']->fresh()->or)->toBe(100 - $prixDague + intdiv($prixDague, 2))
         ->and($partie['quete']->etatsPersonnages()->first()->a_agi)->toBeFalse();
 });
+
+// ---------------------------------------------------------------- Against the Ogre Horde
+
+it('au tour du MJ, le héros dans les couloirs désignés déclenche la note ; salle sans monstre en condition', function () {
+    $campagne = campagneE2(['monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 3]], 'notes' => [
+        ['repere' => 'B', 'quand' => ['declencheur' => 'heros_au_tour_du_mj', 'cible' => ['cases' => [['x' => 3, 'y' => 3], ['x' => 4, 'y' => 3]]]],
+            'alors' => [['effet' => 'drapeau', 'nom' => 'vu_au_couloir']]],
+        ['repere' => 'C', 'quand' => ['declencheur' => 'fin_de_tour', 'cible' => ['salle' => 'galerie'], 'si_sans_monstre' => 'galerie'],
+            'alors' => [['effet' => 'drapeau', 'nom' => 'salle_tenue']], 'une_fois' => false],
+    ]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['notes' => [['repere' => 'X', 'quand' => ['declencheur' => 'fin_de_tour', 'cible' => ['salle' => 'galerie'], 'si_sans_monstre' => 'nulle-part'],
+            'alors' => [['effet' => 'texte', 'texte' => '…']]]]])))->toBe([ValidationCampagne::SALLE_INCONNUE]);
+    $partie = partieE2($this, $campagne);
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 4, 'position_y' => 3]);
+
+    $phase = new ReflectionMethod(ResolveurTour::class, 'phaseMonstres');
+    $phase->invoke(app(ResolveurTour::class), $partie['groupe'], $partie['quete']->fresh());
+    expect($partie['quete']->fresh()->aDrapeau('vu_au_couloir'))->toBeTrue();
+
+    // La salle n'est « tenue » que sans monstre.
+    $notes->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::FIN_DE_TOUR, ['salle' => 1], $partie['heros']);
+    expect($partie['quete']->fresh()->aDrapeau('salle_tenue'))->toBeFalse();
+    $partie['quete']->instancesMonstres()->update(['etat' => 'vaincu']);
+    $notes->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::FIN_DE_TOUR, ['salle' => 1], $partie['heros']);
+    expect($partie['quete']->fresh()->aDrapeau('salle_tenue'))->toBeTrue();
+});
+
+it('lame balançoire de livret : sa zone de l\'auteur, jamais déclenchée par une case, seulement par la note de la porte', function () {
+    $this->seed(\Database\Seeders\PiegeSeeder::class);
+    $lame = ['slug' => 'lame-balancoire', 'x' => 9, 'y' => 3, 'par_note' => true, 'zone' => [['x' => 9, 'y' => 2], ['x' => 9, 'y' => 3], ['x' => 9, 'y' => 4]]];
+    $campagne = campagneE2(['pieges' => [$lame], 'notes' => [['repere' => 'A', 'quand' => ['declencheur' => 'ouverture_porte', 'cible' => ['porte' => 0]],
+        'alors' => [['effet' => 'declencher_piege', 'x' => 9, 'y' => 3]]]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['pieges' => [['slug' => 'lame-balancoire', 'x' => 9, 'y' => 3]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE2(campagneE2(['pieges' => [['slug' => 'fosse', 'x' => 9, 'y' => 3, 'zone' => [['x' => 9, 'y' => 3]]]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $heros = fn () => $partie['heros']->fresh();
+
+    // Foulée : rien (« It cannot be activated in any other way »).
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 9, 'position_y' => 4]);
+    $resultat = app(\App\Partie\MoteurPieges::class)->controlerChemin($partie['groupe'], $partie['quete']->fresh()->carte, $heros(),
+        $partie['quete']->etatsPersonnages()->first(), [['x' => 9, 'y' => 3]], ['x' => 9, 'y' => 4]);
+    expect($resultat['declenchements'])->toBe([]);
+
+    // La note de la porte : la zone est balayée, le héros qui s'y tient défend.
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 30, 1)));
+    app(\App\Partie\Classique\NotesDeQuete::class)->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::OUVERTURE_PORTE, ['porte' => 0], $heros());
+    expect((int) $heros()->pv_body)->toBeLessThan(30);
+});

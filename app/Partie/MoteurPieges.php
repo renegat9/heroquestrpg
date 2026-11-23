@@ -357,6 +357,26 @@ final class MoteurPieges
      *
      * @return array<string, mixed>
      */
+    /**
+     * Une NOTE de quête déclenche le piège de cette entrée (mode classique, lot E2 — F9528 q. 7 A : la porte qui active la
+     * lame ; q. 4 B : le coffre qui la déclenche) : la même résolution qu'une case foulée, sans arrêter de marche. `null`
+     * si l'entrée n'est plus armée.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function declencherParNote(Groupe $groupe, Carte $carte, int $index, Personnage $personnage, EtatPersonnageQuete $etat): ?array
+    {
+        $entree = $carte->grille['pieges'][$index] ?? null;
+        if ($entree === null || ! in_array($entree['etat'] ?? null, self::ETATS_ARMES, true)) {
+            return null;
+        }
+
+        // Une lame frappe les héros de sa zone là où ils SONT : aucune position forcée.
+        return isset($entree['zone'])
+            ? $this->declencherZone($groupe, $carte, $index, $personnage, $etat, 'note')
+            : $this->declencherSurCase($groupe, $carte, $index, $personnage, $etat, 'note', (int) $entree['x'], (int) $entree['y']);
+    }
+
     private function declencherSurCase(
         Groupe $groupe,
         Carte $carte,
@@ -2226,7 +2246,9 @@ final class MoteurPieges
     private function indexPiegeArme(Carte $carte, int $x, int $y): ?int
     {
         foreach ($carte->grille['pieges'] ?? [] as $index => $entree) {
-            if (in_array($entree['etat'] ?? null, self::ETATS_ARMES, true)
+            // `par_note` (mode classique, lot E2 — F9528 q. 7 A, « It cannot be activated in any other way ») : la case
+            // foulée ne déclenche rien, seule une note le fait (`NotesDeQuete::effetDeclencherPiege()`).
+            if (in_array($entree['etat'] ?? null, self::ETATS_ARMES, true) && empty($entree['par_note'])
                 && (int) $entree['x'] === $x && (int) $entree['y'] === $y) {
                 return $index;
             }

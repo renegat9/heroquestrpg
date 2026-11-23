@@ -14026,6 +14026,16 @@ final class ResolveurTour
             if ($quete->estConstruite()) {
                 $quete->increment('tours_mj');
                 app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::TOUR_DU_MJ, ['tour' => (int) $quete->tours_mj]);
+
+                // Lot E2 (F9528 q. 6 B) : chaque héros debout, sur le plateau, au moment où le MJ prend la main.
+                foreach ($quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get() as $present) {
+                    if ($present->personnage === null) {
+                        continue;
+                    }
+                    $caseHeros = ['x' => (int) $present->position_x, 'y' => (int) $present->position_y];
+                    app(NotesDeQuete::class)->signaler($quete->fresh(), MotsClesQuete::HEROS_AU_TOUR_DU_MJ,
+                        ['case' => $caseHeros, 'salle' => $this->salleA($quete, $caseHeros['x'], $caseHeros['y'])], $present->personnage);
+                }
             }
 
             // GRÉSIL AVEUGLANT (*Blinding Sleet*, Storm Master) : « until the start

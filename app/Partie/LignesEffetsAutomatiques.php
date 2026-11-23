@@ -898,6 +898,9 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => 'Une porte se ferme et disparaît dans le mur !', 'ton' => 'subit'];
                     }
                     break;
+                case 'declencher_piege':
+                    // Le déclenchement s'annonce lui-même (le fil du piège) : rien à redire ici.
+                    break;
                 case 'errants':
                     $noms = (array) ($effet['monstres'] ?? []);
                     $lignes[] = $noms !== []

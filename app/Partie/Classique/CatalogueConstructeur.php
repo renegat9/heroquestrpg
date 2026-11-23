@@ -141,7 +141,9 @@ final class CatalogueConstructeur
         // le lit ici, il ne le devine pas.
         $pieges = $this->index('pieges');
         $couches['pieges'] = array_map(
-            fn (array $ligne): array => $ligne + ['coffre' => data_get($pieges[$ligne['slug']]->effet, 'declencheur') === 'ouverture_tresor'],
+            fn (array $ligne): array => $ligne + ['coffre' => data_get($pieges[$ligne['slug']]->effet, 'declencheur') === 'ouverture_tresor']
+                // Lot E2 : la forme RELATIVE d'une lame balançoire (verticale, en décalages) — l'écran en déduit la zone par défaut.
+                + (data_get($pieges[$ligne['slug']]->effet, 'zone_lames') !== null ? ['zone_lames' => array_values((array) $pieges[$ligne['slug']]->effet['zone_lames'])] : []),
             $couches['pieges'],
         );
 

@@ -167,7 +167,7 @@ final class ValidationCampagne
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
     private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
     private const CLES_QUAND = ['declencheur', 'cible'];
-    private const CLES_QUAND_OPTIONNELLES = ['si_drapeau', 'sauf_drapeau', 'si_deguise', 'si_porte'];
+    private const CLES_QUAND_OPTIONNELLES = ['si_drapeau', 'sauf_drapeau', 'si_deguise', 'si_porte', 'si_sans_monstre'];
     private const LONGUEUR_REPERE = 40;
     private const LONGUEUR_DRAPEAU = 40;
     private const CLES_PORTE = ['x', 'y', 'cote', 'type'];
@@ -176,7 +176,7 @@ final class ValidationCampagne
     private const CLES_MOBILIER = ['slug', 'x', 'y', 'rotation'];
     private const CLES_POSE = ['slug', 'x', 'y'];
     // Lot K5d (R6) : les drapeaux d'un piège de quête, lus par `MoteurPieges::trouvable()` / `desarmable()`.
-    private const CLES_PIEGE_OPTIONNELLES = ['introuvable', 'indesarmable', 'gouffre'];
+    private const CLES_PIEGE_OPTIONNELLES = ['introuvable', 'indesarmable', 'gouffre', 'par_note'];
     private const CLES_TERRAIN_OPTIONNELLES = ['paire_id', 'cachee', 'sortie'];
     private const CLES_RECOMPENSE = ['or', 'partage'];
     /** Lot K6 (*Dread Moon*) : `recompense.reputation` — des jetons de réputation pour le groupe. */
@@ -876,6 +876,11 @@ final class ValidationCampagne
                 if (array_key_exists('si_deguise', $quand) && !is_bool($quand['si_deguise'])) {
                     $this->refuser("$position.quand.si_deguise", self::TYPE_INVALIDE, 'true ou false est attendu');
                 }
+                // Lot E2 : aucune figure active dans cette salle (F9528 q. 5 C) — une salle ouverte de la quête.
+                if (array_key_exists('si_sans_monstre', $quand) && (! is_string($quand['si_sans_monstre'])
+                    || ($this->ouvertesFiables && ! isset($this->ouvertes[$quand['si_sans_monstre']])))) {
+                    $this->refuser("$position.quand.si_sans_monstre", self::SALLE_INCONNUE, 'une salle ouverte de la quête est attendue');
+                }
                 // Lot E1 : le héros qui déclenche PORTE cet objet (« the hero carrying the Moon Charm », F6646 ; G0052).
                 if (array_key_exists('si_porte', $quand)) {
                     $this->slugCatalogue($quand, 'si_porte', "$position.quand", 'objets');
@@ -950,6 +955,19 @@ final class ValidationCampagne
                 if (($case = $this->enObjet($cible['case'], "$position.case")) !== null) {
                     $this->cles($case, "$position.case", self::CLES_CASE);
                     $this->cellule($case, "$position.case");
+                }
+                break;
+            // Lot E2 : une liste de cases (« any of these corridors », F9528 q. 6 B).
+            case 'cases':
+                $liste = $this->enListe($cible['cases'], "$position.cases");
+                foreach ((array) $liste as $k => $c) {
+                    if (($case = $this->enObjet($c, "$position.cases.$k")) !== null) {
+                        $this->cles($case, "$position.cases.$k", self::CLES_CASE);
+                        $this->cellule($case, "$position.cases.$k");
+                    }
+                }
+                if ($liste === []) {
+                    $this->refuser("$position.cases", self::VALEUR_INVALIDE, 'au moins une case');
                 }
                 break;
             case 'porte':
@@ -1101,6 +1119,9 @@ final class ValidationCampagne
             case MotsClesQuete::RETIRER_BLOC:
                 $this->entier($effet, 'x', $position, min: 0);
                 $this->entier($effet, 'y', $position, min: 0);
+                break;
+            case MotsClesQuete::DECLENCHER_PIEGE:
+                $this->cellule($effet, $position);
                 break;
             case MotsClesQuete::VOLER:
                 $this->entier($effet, 'or', $position, min: 1);
@@ -1535,7 +1556,7 @@ final class ValidationCampagne
                 continue;
             }
             $this->cles($pose, $position, $tourne ? self::CLES_MOBILIER : self::CLES_POSE,
-                $couche === 'pieges' ? self::CLES_PIEGE_OPTIONNELLES : ($couche === 'monstres' ? self::CLES_MONSTRE_OPTIONNELLES : ($couche === 'terrain' ? self::CLES_TERRAIN_OPTIONNELLES : [])));
+                $couche === 'pieges' ? [...self::CLES_PIEGE_OPTIONNELLES, 'zone'] : ($couche === 'monstres' ? self::CLES_MONSTRE_OPTIONNELLES : ($couche === 'terrain' ? self::CLES_TERRAIN_OPTIONNELLES : [])));
             if ($couche === 'monstres') {
                 $this->profilDeMonstre($pose, $position);
             }
@@ -1566,6 +1587,27 @@ final class ValidationCampagne
             $slug = $this->slugCatalogue($pose, 'slug', $position, $couche);
             if ($slug === null) {
                 continue; // refusé en le nommant : un slug inconnu n'occupe rien, donc aucun refus en cascade
+            }
+            // Lot E2 : la ZONE d'une lame balançoire (F9528 p. 4 : « slicing any heroes on one of the squares marked with a white
+            // or red blade symbol ») — exigée pour un piège à zone (`effet.zone_lames`), refusée pour les autres.
+            if ($couche === 'pieges') {
+                $aZone = data_get($this->catalogue->index('pieges')[$slug]->effet, 'zone_lames') !== null;
+                if ($aZone && ! array_key_exists('zone', $pose)) {
+                    $this->refuser(self::chemin($position, 'zone'), self::VALEUR_INVALIDE, 'une lame balançoire a sa zone : les cases qu\'elle balaie');
+                } elseif (! $aZone && array_key_exists('zone', $pose)) {
+                    $this->refuser(self::chemin($position, 'zone'), self::VALEUR_INVALIDE, 'seule une lame balançoire a une zone');
+                } elseif ($aZone) {
+                    $liste = $this->enListe($pose['zone'], self::chemin($position, 'zone'));
+                    foreach ((array) $liste as $k => $c) {
+                        if (($case = $this->enObjet($c, self::chemin($position, "zone.$k"))) !== null) {
+                            $this->cles($case, self::chemin($position, "zone.$k"), self::CLES_CASE);
+                            $this->cellule($case, self::chemin($position, "zone.$k"));
+                        }
+                    }
+                    if ($liste === []) {
+                        $this->refuser(self::chemin($position, 'zone'), self::VALEUR_INVALIDE, 'au moins une case');
+                    }
+                }
             }
             // Lot E2 : `gouffre` — seulement sur une fosse qu'on saute (`effet.franchissable`), « jumped over as a pit ».
             if ($couche === 'pieges' && ($pose['gouffre'] ?? false) === true

@@ -244,7 +244,7 @@ function retirerQuete(i) {
 
 // ---------------------------------------------------------------- quêtes : outils de la carte
 const outil = ref('salle');
-const choix = reactive({ porteOuverte: false, porteRevelee: false, porteCachee: false, porteSpeciale: '', siegePv: 2, siegeDefense: 3, siegeDrapeau: '', terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, piegeGouffre: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
+const choix = reactive({ porteOuverte: false, porteRevelee: false, porteCachee: false, porteSpeciale: '', siegePv: 2, siegeDefense: 3, siegeDrapeau: '', terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, piegeGouffre: false, piegeParNote: false, lameHorizontale: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
 watch(catalogues, (c) => {
     if (!c) return;
     choix.mobilier ||= c.couches.mobilier?.[0]?.slug ?? '';
@@ -283,6 +283,12 @@ function verrouChoisi(pourSortie = false) {
     return { verrou: { type: v } };
 }
 
+/** Lot E2 : la zone d'une lame balançoire — la forme publiée (`zone_lames`, décalages verticaux), couchée au besoin. */
+function zoneDeLame(slug, x, y) {
+    const forme = (catalogues.value?.pieges ?? []).find((p) => p.slug === slug)?.zone_lames;
+    if (!forme) return {};
+    return { zone: forme.map(([dx, dy]) => (choix.lameHorizontale ? { x: x + dy, y: y + dx } : { x: x + dx, y: y + dy })) };
+}
 /** Lot E1 : l'état de départ de la porte posée — ouverte (normale, sans verrou), ou déjà découverte (secrète). */
 function etatDeDepartPorte() {
     // Lot E2 (Rise of the Dread Moon) : la porte qu'on frappe (q. 3), la porte assiégée (q. 8 F) — normale, sans verrou, close.
@@ -429,6 +435,10 @@ function clicQuete(evt) {
                     ...(choix.piegeIndesarmable ? { indesarmable: true } : {}),
                     // Lot E2 : une fosse qu'on saute, mais où l'on se perd à jamais (F5815 p. 4) — la validation tranche.
                     ...(choix.piegeGouffre ? { gouffre: true } : {}),
+                    // Lot E2 (Against the Ogre Horde p. 4) : seule une note la déclenche (`declencher_piege`).
+                    ...(choix.piegeParNote ? { par_note: true } : {}),
+                    // La zone d'une lame balançoire : la forme de la fiche, verticale ou couchée, autour de la case cliquée.
+                    ...(zoneDeLame(choix.piege, x, y)),
                 });
             } else liste.push({ slug: choix.terrain, x, y, ...(choix.terrainCache ? { cachee: true } : {}) });
             return;
@@ -719,6 +729,8 @@ function cibleParDefaut(genre) {
     return {
         salle: { salle: quete.value.salles_ouvertes[0] ?? '' },
         case: { case: { x: 0, y: 0 } },
+        // Lot E2 : une liste de cases (les couloirs de la note B, Against the Ogre Horde q. 6).
+        cases: { cases: [{ x: 0, y: 0 }] },
         porte: { porte: 0 },
         monstre: { monstre: 0 },
         tour: { tour: 1 },
@@ -1083,6 +1095,8 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <label class="cst-case"><input v-model="choix.piegeIntrouvable" type="checkbox" /> introuvable</label>
                                 <label class="cst-case"><input v-model="choix.piegeIndesarmable" type="checkbox" /> indésarmable</label>
                                 <label class="cst-case"><input v-model="choix.piegeGouffre" type="checkbox" /> gouffre sans fond</label>
+                                <label class="cst-case" title="Aucune case foulée ne le déclenche : seule une note « déclencher le piège de la case »."><input v-model="choix.piegeParNote" type="checkbox" /> déclenché par une note</label>
+                                <label v-if="(catalogues.pieges ?? []).find((p) => p.slug === choix.piege)?.zone_lames" class="cst-case"><input v-model="choix.lameHorizontale" type="checkbox" /> lame couchée (horizontale)</label>
                             </template>
                             <select v-if="outil === 'terrain'" v-model="choix.terrain" class="cst-input">
                                 <option v-for="m in couches.terrain" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
@@ -1625,6 +1639,15 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         <input v-model.number="note.quand.cible.case.y" type="number" class="cst-input cst-num" />
                                         <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(note.quand.cible.case, `la case de la note ${note.repere}`)"><MSym n="pin_drop" :size="16" /></button>
                                     </template>
+                                    <span v-else-if="genreDeCible(note) === 'cases'" class="cst-ligne">
+                                        <span v-for="(c, k) in note.quand.cible.cases" :key="`cs${k}`" class="cst-ligne">
+                                            <input v-model.number="c.x" type="number" class="cst-input cst-num" />
+                                            <input v-model.number="c.y" type="number" class="cst-input cst-num" />
+                                            <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(c, `une case de la note ${note.repere}`)"><MSym n="pin_drop" :size="16" /></button>
+                                            <button v-if="note.quand.cible.cases.length > 1" type="button" class="cst-icone" title="Retirer la case" @click="note.quand.cible.cases.splice(k, 1)"><MSym n="close" :size="16" /></button>
+                                        </span>
+                                        <button type="button" class="cst-icone" title="Ajouter une case" @click="note.quand.cible.cases.push({ x: 0, y: 0 })"><MSym n="add" :size="16" /></button>
+                                    </span>
                                     <select v-else-if="genreDeCible(note) === 'porte'" v-model.number="note.quand.cible.porte" class="cst-input">
                                         <option v-for="(p, k) in quete.portes" :key="k" :value="k">{{ libellePorte(p, k) }}</option>
                                     </select>
@@ -1664,6 +1687,14 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             @change="$event.target.value ? (note.quand.si_porte = $event.target.value) : delete note.quand.si_porte">
                                             <option value="">(peu importe)</option>
                                             <option v-for="o in catalogues.objets" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
+                                        </select>
+                                    </label>
+                                    <!-- Lot E2 : aucune figure active dans cette salle (Against the Ogre Horde q. 5 C). -->
+                                    <label>si aucun monstre en
+                                        <select :value="note.quand.si_sans_monstre ?? ''" class="cst-input"
+                                            @change="$event.target.value ? (note.quand.si_sans_monstre = $event.target.value) : delete note.quand.si_sans_monstre">
+                                            <option value="">(peu importe)</option>
+                                            <option v-for="id in quete.salles_ouvertes" :key="`ssm${id}`" :value="id">{{ id }}</option>
                                         </select>
                                     </label>
                                     <label class="cst-case"><input type="checkbox" :checked="note.une_fois !== false" @change="changerUneFois(note, $event.target.checked)" /> une seule fois</label>

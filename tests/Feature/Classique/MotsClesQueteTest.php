@@ -130,7 +130,7 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
                 ['effet' => 'objet', 'slug' => 'dague', 'sinon' => [['effet' => 'or', 'or' => 20]]],
                 ['effet' => 'retirer', 'monstres' => [0]], ['effet' => 'retirer_meuble', 'mobilier' => 0],
                 ['effet' => 'murer_porte', 'porte' => 0], ['effet' => 'retirer_bloc', 'x' => 11, 'y' => 7], ['effet' => 'liberer_captif'],
-                ['effet' => 'arreter'], ['effet' => 'voler', 'or' => 25], ['effet' => 'errants']]],
+                ['effet' => 'arreter'], ['effet' => 'voler', 'or' => 25], ['effet' => 'errants'], ['effet' => 'declencher_piege', 'x' => 2, 'y' => 2]]],
         // Lot E1 : les huit déclencheurs des extensions.
         ['repere' => 'L1', 'quand' => ['declencheur' => 'salle_videe', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'texte', 'texte' => 'Vide.']]],
         ['repere' => 'L2', 'quand' => ['declencheur' => 'morts', 'cible' => ['monstres' => [0, 1]]], 'alors' => [['effet' => 'texte', 'texte' => 'Tous tombés.']]],
@@ -140,6 +140,8 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
         ['repere' => 'L6', 'quand' => ['declencheur' => 'piege_declenche', 'cible' => ['salle' => 'entree']], 'alors' => [['effet' => 'texte', 'texte' => 'Clic.']]],
         ['repere' => 'L7', 'quand' => ['declencheur' => 'meuble_detruit', 'cible' => ['mobilier' => 0]], 'alors' => [['effet' => 'texte', 'texte' => 'Brisé.']]],
         ['repere' => 'L8', 'quand' => ['declencheur' => 'captif_libere', 'cible' => ['captif' => 'sir-ragnar-livret-de-base']], 'alors' => [['effet' => 'texte', 'texte' => 'Libre.']]],
+        ['repere' => 'Z', 'quand' => ['declencheur' => 'heros_au_tour_du_mj', 'cible' => ['cases' => [['x' => 7, 'y' => 7], ['x' => 8, 'y' => 7]]],
+            'si_sans_monstre' => 'entree'], 'alors' => [['effet' => 'texte', 'texte' => 'Un bruit de pas.']]],
     ];
 
     expect(app(ValidationCampagne::class)->valider($doc))->toBe([]);
