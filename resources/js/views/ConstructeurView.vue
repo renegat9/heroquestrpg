@@ -788,6 +788,13 @@ function changerEffet(note, j, nom) {
 }
 // Lot K6 : l'offre — ses effets en JSON (refusé s'il ne se lit pas), son coût (une clé vide disparaît).
 // Lot E1 : des effets imbriqués en JSON (issue d'un jet, « sinon ») — refusé s'il ne se lit pas, validé par le serveur.
+// Lot E1 : une règle de quête booléenne (`regles.<cle>: true`) — la clé disparaît quand elle est fausse, `regles` aussi.
+function changerRegleBool(cle, avec) {
+    const q = quete.value;
+    q.regles ??= {};
+    if (avec) q.regles[cle] = true; else delete q.regles[cle];
+    if (!Object.keys(q.regles).length) delete q.regles;
+}
 function changerJsonEffets(objet, cle, texte) {
     try { objet[cle] = JSON.parse(texte); } catch { erreur.value = 'Les effets ne sont pas du JSON lisible.'; }
 }
@@ -1154,6 +1161,10 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 </label>
                                 <label class="cst-case">
                                     <input type="checkbox" :checked="quete.regles?.marche_ferme === true" @change="changerMarcheFerme($event.target.checked)" /> Marché fermé avant la quête
+                                </label>
+                                <!-- Lot E1 : la quête enchaîne sans remettre le Corps ni l'Esprit à neuf. -->
+                                <label class="cst-case">
+                                    <input type="checkbox" :checked="quete.regles?.sans_restauration === true" @change="changerRegleBool('sans_restauration', $event.target.checked)" /> Sans restauration (Corps et Esprit gardés)
                                 </label>
                                 <span v-if="quete.salles_ouvertes.length" class="cst-lbl">Ne se fouille pas :</span>
                                 <label v-for="s in quete.salles_ouvertes" :key="`sf-${s}`" class="cst-case">

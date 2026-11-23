@@ -479,3 +479,19 @@ it('une sortie cachée n\'existe pas tant que son drapeau n\'est pas posé', fun
     expect($quete->fresh()->sortieCachee())->toBeFalse()
         ->and($quete->fresh()->sortieDuDonjon()['cases'])->not->toBe([]);
 });
+
+// ---------------------------------------------------------------- 10. sans restauration
+
+it('« sans restauration » : le héros entre dans la quête avec le Corps et l\'Esprit qu\'il avait', function (bool $sans, int $attendu) {
+    $campagne = campagneE1($sans ? ['regles' => ['sans_restauration' => true]] : []);
+    expect(codesE1($campagne))->toBe([]);
+    $campagne['prerequis_heros'] = [];
+    app(CampagnesConstruites::class)->enregistrer($campagne);
+    $heros = herosE1('alice', 'Albrecht');
+    $heros->update(['pv_body' => 12]);
+    $code = $this->postJson('/api/classique', ['nom' => 'Les Essayeurs', 'campagne' => 'campagne-d-essai', 'personnage_id' => $heros->id])
+        ->assertCreated()->json('groupe.identifiant');
+    $this->postJson("/api/groupes/{$code}/quetes")->assertCreated();
+
+    expect((int) $heros->fresh()->pv_body)->toBe($attendu);
+})->with(['restauré' => [false, 30], 'gardé' => [true, 12]]);

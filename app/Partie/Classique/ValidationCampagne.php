@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -1994,6 +1994,10 @@ final class ValidationCampagne
             $this->refuser(self::chemin($position, 'deguisement'), self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
         }
         // Lot K6 (*Jungles of Delthrak*, « Order of Play ») : `ordre_libre` — présent seulement quand il vaut true.
+        // Lot E1 : la quête ne remet pas le Corps ni l'Esprit à neuf (F9907 q. 11-12, 13-14, 15-16 ; F6646 ; G0052).
+        if (array_key_exists('sans_restauration', $regles) && $regles['sans_restauration'] !== true) {
+            $this->refuser(self::chemin($position, 'sans_restauration'), self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+        }
         if (array_key_exists('ordre_libre', $regles) && $regles['ordre_libre'] !== true) {
             $this->refuser(self::chemin($position, 'ordre_libre'), self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
         }

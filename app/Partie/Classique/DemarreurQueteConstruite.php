@@ -280,10 +280,15 @@ final class DemarreurQueteConstruite
                     if ($participants === null) {
                         $groupe->personnages()->updateExistingPivot($personnage->id, ['ordre_initiative' => $i + 1]);
                     }
-                    $personnage->update([
-                        'pv_body' => $personnage->pv_body_max,
-                        'pv_mind' => $personnage->pv_mind_max,
-                    ]);
+                    // PAS DE RESTAURATION (lot E1, `regles.sans_restauration`) : « Body and Mind Points are not restored when
+                    // the heroes cross between Quests 11 and 12 » (F9907 p. 17). Seuls le Corps et l'Esprit restent ce qu'ils
+                    // étaient ; les sorts reviennent comme au début de toute quête (choix écrit : le livret ne nomme qu'eux).
+                    if ((data_get($queteDoc, 'regles.sans_restauration') ?? false) !== true) {
+                        $personnage->update([
+                            'pv_body' => $personnage->pv_body_max,
+                            'pv_mind' => $personnage->pv_mind_max,
+                        ]);
+                    }
                     $this->sorts->reinitialiserQuete($groupe, $personnage);
                     $this->sorts->dissiperEffetsACompteur($personnage);
                 }

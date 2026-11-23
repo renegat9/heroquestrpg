@@ -6090,6 +6090,9 @@ dans le mode classique »). Ce lot porte ce qui sert à trois livrets ou plus. M
   `CouloirsVus`), `portes[].revelee: true` (une porte secrète déjà découverte, FL q. 9), et
   `sortie.cachee_jusqua: "drapeau"` (« This exit door only appears once… », G0053 q. 10-13 : tant que le drapeau
   n'est pas posé, `Quete::sortieCachee()` — ni case de sortie, ni option, ni repère publié).
+- **Sans restauration** — `regles.sans_restauration: true` : au départ de CETTE quête, le Corps et l'Esprit des héros
+  restent ce qu'ils étaient (« not restored when the heroes cross between Quests 11 and 12 », F9907 p. 17) ; les sorts
+  reviennent comme au début de toute quête (choix écrit).
 - **Sorts de Dread et capacités dans le profil d'auteur** (monstre posé, `apparition`, errant) :
   - `sorts_dread: [slug]` — catalogue `sorts_dread` (publié par `GET /constructeur/catalogues`) : REMPLACE le
     répertoire de la fiche (« Vilor knows the following Dread spells », F5815 p. 12). Chaque sort une fois par quête
