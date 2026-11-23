@@ -5912,7 +5912,7 @@ s'ouvre à la main, au contact. Le moteur ne retient pas quels couloirs ont ét�
   couches: {
     mobilier: [{slug, nom, emprises: {0: [l, h], 90: [l, h], 180: [l, h], 270: [l, h]}}],   // emprise par rotation, décidée par le serveur
     monstres: [{slug, nom}], pieges: [{slug, nom, coffre}],   // `coffre` (lot E1) : un piège de coffre, posé dans `coffres_pieges`
-    terrain: [{slug, nom, paire}]   // `paire` : il téléporte vers sa jumelle (`effet.teleportation`) — se pose avec un `paire_id` (K5o)
+    terrain: [{slug, nom, paire, glissiere}]   // `paire` : il téléporte vers sa jumelle (K5o) ; `glissiere` (lot E2) : se pose avec une `sortie {x, y}`
   },                                // `monstres` sert aussi à monstre_errant
   classes: [{slug, nom}],           // prerequis_heros
   objets:  [{slug, nom}],           // ce qu'une note de quête peut donner (effet `objet`)
@@ -6130,6 +6130,11 @@ Mode classique seulement ; une règle par livret, sourcée.
   un monstre de ces salles, un dé de combat ; seul le bouclier blanc touche le vrai monstre, sinon l'attaque se perd
   (zéro dé). Résultat d'attaque : `brouillard: {face, leurre}` ; fil « frappe une illusion de brume ».
   `Classique\BrouillardVivant`, lu par `ResolveurTour::frapper()`.
+- **Tunnels de glace** (p. 3 : « Any hero or monster landing on one of these entrances immediately moves to the other
+  entrance. After moving…, the turn is over ») : en classique, le passage ne demande plus que la salle d'arrivée soit
+  découverte (elle se révèle), et le tour s'arrête.
+- **Glissière** — `terrain[].sortie: {x, y}` sur une tuile à sens unique (`couches.terrain[].glissiere`) : « whisked
+  away… to the last square of the slide » ; le dé (bouclier blanc = 1 PV) et la fin du tour restent ceux de la tuile.
 - **Reddition** — profil d'auteur `se_rend: {objet?}` (q. 1 B, l'Arbalétrier) : attaquée AU CONTACT, la figure se rend
   sans être blessée, quitte le plateau (comme `retirer`) et laisse l'objet à l'attaquant. Résultat :
   `reddition_auteur: {nom, objet}` ; fil « se rend et s'enfuit, laissant l'arbalète à Albrecht ».

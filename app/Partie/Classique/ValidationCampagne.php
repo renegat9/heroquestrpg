@@ -177,7 +177,7 @@ final class ValidationCampagne
     private const CLES_POSE = ['slug', 'x', 'y'];
     // Lot K5d (R6) : les drapeaux d'un piège de quête, lus par `MoteurPieges::trouvable()` / `desarmable()`.
     private const CLES_PIEGE_OPTIONNELLES = ['introuvable', 'indesarmable'];
-    private const CLES_TERRAIN_OPTIONNELLES = ['paire_id', 'cachee'];
+    private const CLES_TERRAIN_OPTIONNELLES = ['paire_id', 'cachee', 'sortie'];
     private const CLES_RECOMPENSE = ['or', 'partage'];
     /** Lot K6 (*Dread Moon*) : `recompense.reputation` — des jetons de réputation pour le groupe. */
     private const CLES_RECOMPENSE_OPTIONNELLES = ['reputation', 'objets', 'si_drapeau'];
@@ -1511,6 +1511,17 @@ final class ValidationCampagne
             }
             if ($couche === 'terrain' && array_key_exists('paire_id', $pose)) {
                 $this->identifiant($pose, 'paire_id', $position);
+            }
+            // Lot E2 : la case d'arrivée d'une GLISSIÈRE (une tuile `sens_unique`), « the last square of the slide ».
+            if ($couche === 'terrain' && array_key_exists('sortie', $pose)) {
+                $ici = self::chemin($position, 'sortie');
+                $tuile = is_string($pose['slug'] ?? null) ? ($this->catalogue->index('terrain')[$pose['slug']] ?? null) : null;
+                if ($tuile !== null && data_get($tuile->effet, 'sens_unique') !== true) {
+                    $this->refuser($ici, self::VALEUR_INVALIDE, 'seule une glissière (tuile à sens unique) a une case d\'arrivée');
+                } elseif (($sortie = $this->enObjet($pose['sortie'], $ici)) !== null) {
+                    $this->cles($sortie, $ici, self::CLES_CASE);
+                    $this->cellule($sortie, $ici);
+                }
             }
             foreach ($couche === 'pieges' ? self::CLES_PIEGE_OPTIONNELLES : [] as $drapeau) {
                 if (array_key_exists($drapeau, $pose) && !is_bool($pose[$drapeau])) {

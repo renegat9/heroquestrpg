@@ -1434,6 +1434,27 @@ final class ResolveurTour
             $arrivee = $teleportation;
         }
 
+        // TUNNEL DE GLACE, MODE CLASSIQUE (lot E2 — F5815 p. 3 : « After moving from one tunnel entrance to the other, the
+        // hero's or monster's turn is over ») : le tour s'arrête ; la salle d'arrivée se révèle (le tunnel ne demande pas
+        // qu'elle soit découverte : `teleporterSiTunnel()`).
+        if ($teleportation !== null && $quete->estConstruite()
+            && ($this->terrainSur($quete, (int) $entreeTunnel['x'], (int) $entreeTunnel['y'])['effet']['teleportation'] ?? null) === true) {
+            $this->finTourPiegeSol = true;
+            $this->revelerSalleEn($quete, (int) $arrivee['x'], (int) $arrivee['y'], $personnage);
+        }
+
+        // GLISSIÈRE DE GLACE, MODE CLASSIQUE (lot E2 — F5815 p. 3 : « Any hero who does step onto this slippery chute of ice is
+        // whisked away in the direction indicated by the arrow. The hero immediately moves to the last square of the slide.
+        // (More than one hero may occupy the exit square.) ») : la case de sortie est celle de l'auteur (`terrain[].sortie`) ;
+        // le dé et la fin du tour restent ceux de la tuile (`tronquerSurGlace()`).
+        $glissiere = $teleportation === null && $quete->estConstruite()
+            ? ($this->terrainSur($quete, (int) $arrivee['x'], (int) $arrivee['y'])['sortie'] ?? null) : null;
+        if ($glissiere !== null) {
+            $arrivee = $glissiere;
+            $this->finTourPiegeSol = true;
+            $this->revelerSalleEn($quete, (int) $arrivee['x'], (int) $arrivee['y'], $personnage);
+        }
+
         // TRAPPE DE TÉLÉPORTATION : le passage jette son dé (`passageDeTrappe()`, null pour un
         // tunnel de glace), et la marche s'achève là — « the hero's turn is over » (F7539 p. 15).
         $passage = $teleportation !== null ? $this->passageDeTrappe($quete, $entreeTunnel) : null;
@@ -4206,6 +4227,8 @@ final class ResolveurTour
                 'nom' => (string) $type->nom,
                 'effet' => (array) $type->effet,
                 'paire_id' => $entree['paire_id'] ?? null,
+                // GLISSIÈRE (mode classique, lot E2) : la case d'arrivée écrite par l'auteur, ou `null`.
+                'sortie' => is_array($entree['sortie'] ?? null) ? ['x' => (int) $entree['sortie']['x'], 'y' => (int) $entree['sortie']['y']] : null,
                 // Plaque (bloc ou motif, 2026-10-24) : le groupe commun aux cases d'une même pose — un Brasier ne se paie
                 // qu'UNE fois par déplacement (`saignerSurRiviere()`). `null` pour une case isolée.
                 'groupe_id' => isset($entree['groupe_id']) ? (string) $entree['groupe_id'] : null,
@@ -4726,7 +4749,9 @@ final class ResolveurTour
             return null; // paire incomplète : ne devrait pas arriver, prudence
         }
 
-        if (! $this->salleDecouverte($quete, $quete->sallesDecouvertes(), $autre['x'], $autre['y'])) {
+        // MODE CLASSIQUE (lot E2) : « Any hero or monster landing on one of these entrances immediately moves to the other
+        // entrance » — sans condition de salle découverte ; la salle d'arrivée se révèle au passage (`resoudreDeplacement()`).
+        if (! $quete->estConstruite() && ! $this->salleDecouverte($quete, $quete->sallesDecouvertes(), $autre['x'], $autre['y'])) {
             return null;
         }
 

@@ -575,9 +575,14 @@ const aDesReglesDeLivret = computed(() => {
     const r = q.regles ?? {};
     return ['primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement'].some((k) => k in r)
         || profilErrantOuvert.value || (q.monstre_errant !== null && typeof q.monstre_errant === 'object' && aUnProfil(q.monstre_errant))
-        || (q.dangers ?? []).length > 0 || (q.glyphes ?? []).length > 0 || (q.salles_speciales ?? []).length > 0 || (q.monstres ?? []).some(aUnProfil) || (q.terrain ?? []).some((t) => 'paire_id' in t);
+        || (q.dangers ?? []).length > 0 || (q.glyphes ?? []).length > 0 || (q.salles_speciales ?? []).length > 0 || (q.monstres ?? []).some(aUnProfil) || (q.terrain ?? []).some((t) => 'paire_id' in t || 'sortie' in t);
 });
 // `paire_id` (K5o) : seulement sur un terrain qui téléporte vers sa jumelle — décidé par le catalogue (`paire`).
+// Lot E2 : les glissières posées — leur case d'arrivée (`sortie`), décidée par le catalogue (`glissiere`).
+const glissieres = computed(() => (quete.value?.terrain ?? []).map((t, i) => ({ t, i })).filter(({ t }) => couches.value.terrain?.find((c) => c.slug === t.slug)?.glissiere));
+function basculerSortieGlissiere(t, avec) {
+    if (avec) t.sortie = { x: t.x, y: t.y }; else delete t.sortie;
+}
 const terrainsAPaire = computed(() => (quete.value?.terrain ?? []).map((t, i) => ({ t, i })).filter(({ t }) => couches.value.terrain?.find((c) => c.slug === t.slug)?.paire));
 function changerPaire(t, v) {
     if (v.trim() === '') delete t.paire_id; else t.paire_id = v.trim();
@@ -1407,6 +1412,19 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <div v-for="{ t, i } in terrainsAPaire" :key="`tp${i}`" class="cst-ligne">
                                         <span>{{ nomDe('terrain', t.slug) }} ({{ t.x }}, {{ t.y }})</span>
                                         <input :value="t.paire_id ?? ''" class="cst-input" placeholder="paire" @change="changerPaire(t, $event.target.value)" />
+                                    </div>
+                                </div>
+                                <!-- Lot E2 : la glissière emporte le héros jusqu'à « the last square of the slide » (F5815 p. 3). -->
+                                <div v-if="glissieres.length" class="cst-bloc">
+                                    <span class="cst-sous">Glissières — la case où elles déposent le héros</span>
+                                    <div v-for="{ t, i } in glissieres" :key="`gl${i}`" class="cst-ligne">
+                                        <span>{{ nomDe('terrain', t.slug) }} ({{ t.x }}, {{ t.y }})</span>
+                                        <label class="cst-case"><input type="checkbox" :checked="!!t.sortie" @change="basculerSortieGlissiere(t, $event.target.checked)" /> arrivée</label>
+                                        <template v-if="t.sortie">
+                                            <input v-model.number="t.sortie.x" type="number" class="cst-input cst-num" title="x" />
+                                            <input v-model.number="t.sortie.y" type="number" class="cst-input cst-num" title="y" />
+                                            <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(t.sortie, 'l\'arrivée de la glissière')"><MSym n="pin_drop" :size="16" /></button>
+                                        </template>
                                     </div>
                                 </div>
                             </details>

@@ -107,3 +107,45 @@ it('reddition : attaquée au contact, la figure se rend, s\'enfuit et laisse son
     $fil = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'))->pluck('texte')->implode(' | ');
     expect($fil)->toContain('Arbalétrier se rend et s\'enfuit, laissant Arbalète à Albrecht');
 });
+
+/** Le héros se déplace par la vraie route jusqu'à (x, y), dés de déplacement imposés (6). */
+function deplacerE2(object $test, array $partie, int $x, int $y): \Illuminate\Testing\TestResponse
+{
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 40, 6)));
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $test->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+
+    return $test->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'se_deplacer', 'parametres' => ['x' => $x, 'y' => $y]]);
+}
+
+it('glissière : le héros est emporté jusqu\'à la case d\'arrivée de l\'auteur', function () {
+    $campagne = campagneE2(['terrain' => [['slug' => 'glissiere-de-glace', 'x' => 3, 'y' => 3, 'sortie' => ['x' => 5, 'y' => 5]]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['terrain' => [['slug' => 'glace-glissante', 'x' => 3, 'y' => 3, 'sortie' => ['x' => 5, 'y' => 5]]]])))
+        ->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 2, 'position_y' => 3]);
+
+    deplacerE2($this, $partie, 3, 3)->assertAccepted();
+
+    $etat = $partie['quete']->etatsPersonnages()->first();
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([5, 5]);
+});
+
+it('tunnel de glace : vers une salle encore cachée, qui se révèle', function () {
+    $campagne = campagneE2(['terrain' => [
+        ['slug' => 'tunnel-de-glace', 'x' => 3, 'y' => 3, 'paire_id' => 'a'],
+        ['slug' => 'tunnel-de-glace', 'x' => 9, 'y' => 4, 'paire_id' => 'a'],
+    ]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 2, 'position_y' => 3]);
+    $galerie = collect($partie['quete']->carte->grille['salles'])->search(fn (array $s) => $s['id'] === 'galerie');
+    expect($partie['quete']->sallesDecouvertes())->not->toContain($galerie);
+
+    deplacerE2($this, $partie, 3, 3)->assertAccepted();
+
+    $etat = $partie['quete']->etatsPersonnages()->first();
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([9, 4])
+        ->and($partie['quete']->fresh()->sallesDecouvertes())->toContain($galerie);
+});

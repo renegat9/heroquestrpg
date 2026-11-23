@@ -131,7 +131,9 @@ final class CatalogueConstructeur
         // ne propose ce champ que sur ceux-là, décidé ici plutôt que deviné d'après le nom.
         $terrains = $this->index('terrain');
         $couches['terrain'] = array_map(
-            fn (array $ligne): array => $ligne + ['paire' => data_get($terrains[$ligne['slug']]->effet, 'teleportation') !== null],
+            fn (array $ligne): array => $ligne + ['paire' => data_get($terrains[$ligne['slug']]->effet, 'teleportation') !== null,
+                // Lot E2 : une GLISSIÈRE (tuile à sens unique) a une case d'arrivée (`terrain[].sortie`).
+                'glissiere' => data_get($terrains[$ligne['slug']]->effet, 'sens_unique') === true],
             $couches['terrain'],
         );
 

@@ -277,6 +277,8 @@ final class CarteConstruite
                 ...(isset($tuile['paire_id']) ? ['paire_id' => (string) $tuile['paire_id']] : []),
                 // E5 : posée au premier pas d'un héros — lue par `EtatGroupe::terrain()` contre les cases foulées.
                 ...(($tuile['cachee'] ?? false) === true ? ['cachee' => true] : []),
+                // Lot E2 : la case d'arrivée d'une glissière (`ResolveurTour::resoudreDeplacement()`).
+                ...(is_array($tuile['sortie'] ?? null) ? ['sortie' => ['x' => (int) $tuile['sortie']['x'], 'y' => (int) $tuile['sortie']['y']]] : []),
             ];
             $occupees["$x,$y"] = true;
         }
