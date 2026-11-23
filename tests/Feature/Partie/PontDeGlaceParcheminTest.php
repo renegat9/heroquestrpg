@@ -246,6 +246,8 @@ it('déclare le juge dans les DEUX SENS : les pièges et plaques pontables semé
 
     expect($terrains)->toBe(collect([
         'Glace glissante', 'Glissière de glace', 'Rivière gelée', 'Sables mouvants', 'Sol meuble', 'Mare', 'Trappe de téléportation',
+        // L'Abîme sans fond (F9528 q. 8 C, mode classique, 2026-11-23) : Ice Bridge « cross over any pit, trap, chasm ».
+        'Abîme sans fond',
     ])->sort()->values()->all());
 
     expect(MotsClesTerrain::connue('pontable'))->toBeTrue()

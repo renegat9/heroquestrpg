@@ -6179,7 +6179,16 @@ Mode classique seulement ; une règle par livret, sourcée.
   que son sac range, `vendre_etal_{inventaire_id}` par ligne revendable (mêmes refus et même prix de revente qu'au hub),
   et `fermer_etal`. Gestes libres ; pas de stock en quête ; chaque héros achète pour lui, de sa bourse. Résultats
   annoncés `acheter_etal {personnage, nom, prix}` et `vendre_etal {…}` ; `ouvrir_etal` / `fermer_etal` sont muets.
-- **La lame balançoire d'un livret** (*Against the Ogre Horde* p. 4, q. 4 B, q. 7 A) — `pieges[].zone: [{x, y}]` sur un
+- **L'abîme et la Fosse de l'Effroi** (*Against the Ogre Horde* q. 8) — terrain « Abîme sans fond » (catalogue, réservé
+  au classique : `MoteurTerrain::RESERVES_AU_CLASSIQUE`), qui bloque la marche : personne n'y entre de lui-même et le
+  moteur ne pousse aucune figure sur une case qui bloque, donc « immediately plunges to their death » n'a rien à résoudre
+  (décision écrite) ; le pont, ce sont les cases laissées sans abîme. `regles.receptacle_objets: [{x, y}]` : les cases où
+  l'on JETTE un objet. Un héros sur l'une d'elles ou à son contact, qui porte un objet qu'une note attend (déclencheur
+  `objet_jete`, cible `objet: slug`), reçoit l'option `jeter_objet_quete_{inventaire_id}` (action) : l'objet quitte son
+  sac, la note joue. Résultat `objet_jete {nom, objet}`. L'« Anneau de Puissance de Festral » est un objet de quête du
+  catalogue (comme la clé de laiton). Le héros « consumed by Dread » de la Fosse (sous *Dominate*) n'est pas porté : la
+  Fosse est faite d'abîme, on n'y entre pas (décision écrite).
+ (*Against the Ogre Horde* p. 4, q. 4 B, q. 7 A) — `pieges[].zone: [{x, y}]` sur un
   piège à zone (`effet.zone_lames`, exigée pour lui, refusée ailleurs) : les cases qu'elle balaie, celles de la carte de
   quête (`MoteurPieges::declencherZone()`). `pieges[].par_note: true` : aucune case foulée ne déclenche le piège
   (« It cannot be activated in any other way »). Effet de note `declencher_piege {x, y}` : le piège de la case se

@@ -311,6 +311,7 @@ function fixturesDesTypesAnnonces(): array
         'retrait_au_contact' => ['nom' => 'Albrecht', 'figure' => 'Guerrier elfe'],
         'acheter_etal' => ['personnage' => ['id' => 1, 'nom' => 'Albrecht'], 'nom' => 'Dague', 'prix' => 25],
         'vendre_etal' => ['personnage' => ['id' => 1, 'nom' => 'Albrecht'], 'nom' => 'Dague', 'prix' => 12],
+        'objet_jete' => ['nom' => 'Albrecht', 'objet' => 'Anneau de Puissance de Festral'],
         'porte_frappee' => ['nom' => 'Albrecht', 'bonne' => false, 'face' => 'crane', 'reussi' => true, 'succes' => 1, 'seuil' => 3],
         'assaut_porte' => ['monstre' => 'Orque', 'faces_attaque' => ['crane'], 'faces_defense' => ['bouclier_blanc'], 'degats' => 1, 'pv_restants' => 1, 'pv_max' => 2, 'brisee' => false],
         'soin_planque' => ['personnage' => ['id' => 1, 'nom' => 'Albrecht'], 'jet' => 4, 'a_repartir' => true],

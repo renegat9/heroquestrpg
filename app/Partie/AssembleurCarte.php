@@ -3491,6 +3491,8 @@ final class AssembleurCarte
         // poserait des ponts sur des cartes où personne n'en a lu.
         $catalogue = Terrain::query()->orderBy('id')->get()
             ->filter(fn (Terrain $t) => empty(data_get($t->effet, 'pont'))
+                // Lot E2 : un terrain de livret du mode classique (l'Abîme sans fond) n'entre jamais dans un donjon généré.
+                && ! in_array($t->nom, MoteurTerrain::RESERVES_AU_CLASSIQUE, true)
                 && ($t->boites() === []
                     || collect($t->boites())->contains(fn (string $boite) => $bestiaire?->contient($boite) ?? false)))
             ->values();

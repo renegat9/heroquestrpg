@@ -188,6 +188,8 @@ final class JournalCombat
         'retrait_au_contact' => true,
         // Lot E2 : les portes d'un livret (F6646 q. 3, q. 8 F).
         'porte_frappee' => true,
+        // Lot E2 : l'Anneau de Festral jeté dans la Fosse (F9528 q. 8).
+        'objet_jete' => true,
         // Lot E2 : le marché souterrain en pleine quête (F6646 p. 2).
         'acheter_etal' => true,
         'vendre_etal' => true,
@@ -1398,6 +1400,10 @@ final class JournalCombat
             'vendre_etal' => [[
                 'texte' => ($a['personnage']['nom'] ?? $acteurNom).' vend '.($a['nom'] ?? 'un objet').' au marché souterrain (+'.(int) ($a['prix'] ?? 0).' po)',
                 'ton' => 'tresor',
+            ]],
+            'objet_jete' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' jette '.($a['objet'] ?? 'l\'objet').' dans la fosse',
+                'ton' => 'succes',
             ]],
             'porte_frappee' => [[
                 'texte' => ! empty($a['bonne'])

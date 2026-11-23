@@ -63,6 +63,12 @@ final class MotsClesQuete
      */
     public const HEROS_AU_TOUR_DU_MJ = 'heros_au_tour_du_mj';
 
+    /**
+     * Lot E2 — un héros JETTE cet objet dans un réceptacle de la quête (`regles.receptacle_objets`) : « They do so by throwing
+     * Festral's Ring of Power into the Pit » (*Against the Ogre Horde* q. 8). L'objet quitte son sac.
+     */
+    public const OBJET_JETE = 'objet_jete';
+
     /** La DERNIÈRE figure d'une salle tombe (« when the room has been cleared of monsters », F9528 q. 5 ; F6646 q. 8-9). */
     public const SALLE_VIDEE = 'salle_videe';
 
@@ -176,6 +182,11 @@ final class MotsClesQuete
             'cibles' => ['salle', 'cases'],
             'signale_par' => 'ResolveurTour::phaseMonstres()',
             'libelle' => 'au tour du maître du jeu, un héros se tient dans la salle ou sur l\'une des cases',
+        ],
+        self::OBJET_JETE => [
+            'cibles' => ['objet'],
+            'signale_par' => 'ResolveurTour::resoudreJeterObjetQuete()',
+            'libelle' => 'un héros jette l\'objet dans le réceptacle de la quête',
         ],
         self::CAPTIF_LIBERE => [
             'cibles' => ['captif'],

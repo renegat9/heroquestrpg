@@ -23,6 +23,12 @@ use RuntimeException;
  */
 final class MoteurTerrain
 {
+    /**
+     * Les terrains des livrets que SEUL le mode classique pose (une campagne construite les nomme) : le donjon généré du
+     * mode RPG ne les tire jamais (`AssembleurCarte::placerTerrains()`).
+     */
+    public const RESERVES_AU_CLASSIQUE = ['Abîme sans fond'];
+
     /** PV de Body qu'une Mare rend à la fouille (`soin_a_la_fouille`), 0 si le terrain n'en porte pas. */
     public static function soinALaFouille(?array $effet): int
     {

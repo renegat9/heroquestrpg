@@ -62,6 +62,8 @@ const ICONE_TYPE = {
     repartir_planque: 'balance',
     // PORTE QU'ON FRAPPE (Rise of the Dread Moon q. 3, lot E2) : on toque, on n'ouvre pas.
     frapper_porte: 'front_hand',
+    // RÉCEPTACLE (Against the Ogre Horde q. 8, lot E2) : jeter l'anneau dans la Fosse.
+    jeter_objet_quete: 'move_down',
     // MARCHÉ SOUTERRAIN EN QUÊTE (Rise of the Dread Moon p. 2, lot E2) : l'étal, l'achat, la vente, la sortie.
     ouvrir_etal: 'storefront',
     acheter_etal: 'shopping_cart',

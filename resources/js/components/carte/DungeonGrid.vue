@@ -810,6 +810,10 @@ const jetonsPlaces = computed(() => {
     linear-gradient(150deg, oklch(0.34 0.08 215), oklch(0.25 0.06 220));
   box-shadow: inset 0 0 0 1px oklch(0.80 0.10 205 / 0.6);
 }
+.dg-cell.terrain-abime {
+  background: radial-gradient(circle at 50% 50%, oklch(0.06 0 0) 35%, oklch(0.16 0.01 260) 75%, oklch(0.24 0.01 260));
+  box-shadow: inset 0 0 6px 2px oklch(0 0 0 / 0.85);
+}
 .dg-cell.terrain-vent {
   background:
     repeating-linear-gradient(60deg, oklch(0.84 0.03 240 / 0.34) 0 2px, transparent 2px 8px),

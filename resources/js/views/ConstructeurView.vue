@@ -738,6 +738,8 @@ function cibleParDefaut(genre) {
         monstres: { monstres: quete.value.monstres.length ? [0] : [] },
         mobilier: { mobilier: 0 },
         captif: { captif: catalogues.value?.captifs?.[0]?.slug ?? '' },
+        // Lot E2 : l'objet jeté dans le réceptacle (l'Anneau de Festral, Against the Ogre Horde q. 8).
+        objet: { objet: catalogues.value?.objets?.[0]?.slug ?? '' },
     }[genre];
 }
 const genreDeCible = (note) => Object.keys(note.quand?.cible ?? {})[0] ?? '';
@@ -1257,6 +1259,15 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <input class="cst-input" :value="quete.regles?.portes_a_frapper?.drapeau ?? ''"
                                         @change="poserRegle('portes_a_frapper', { ...(quete.regles?.portes_a_frapper ?? {}), drapeau: $event.target.value || undefined })" />
                                 </label>
+                                <!-- Lot E2 : les cases où l'on jette un objet (la Fosse de l'Effroi, Against the Ogre Horde q. 8). -->
+                                <span class="cst-lbl" title="Un héros sur l'une de ces cases ou à son contact peut y jeter l'objet qu'une note « objet jeté » attend.">Réceptacle (on y jette un objet) :</span>
+                                <span v-for="(c, k) in (quete.regles?.receptacle_objets ?? [])" :key="`rc${k}`" class="cst-ligne">
+                                    <input v-model.number="c.x" type="number" class="cst-input cst-num" />
+                                    <input v-model.number="c.y" type="number" class="cst-input cst-num" />
+                                    <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(c, 'une case du réceptacle')"><MSym n="pin_drop" :size="16" /></button>
+                                    <button type="button" class="cst-icone" title="Retirer la case" @click="quete.regles.receptacle_objets.splice(k, 1); quete.regles.receptacle_objets.length || poserRegle('receptacle_objets', undefined)"><MSym n="close" :size="16" /></button>
+                                </span>
+                                <button type="button" class="cst-icone" title="Ajouter une case au réceptacle" @click="poserRegle('receptacle_objets', [...(quete.regles?.receptacle_objets ?? []), { x: 0, y: 0 }])"><MSym n="add" :size="16" /></button>
                                 <!-- Lot E2 : le marché souterrain ouvert en pleine quête (Rise of the Dread Moon p. 2, q. 2 G). -->
                                 <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Dans cette salle, chaque héros achète et vend pour lui, au prix de l'étal, sans action.">
                                     Marché en quête :
@@ -1665,6 +1676,9 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     </select>
                                     <select v-else-if="genreDeCible(note) === 'captif'" v-model="note.quand.cible.captif" class="cst-input">
                                         <option v-for="c in (catalogues.captifs ?? [])" :key="c.slug" :value="c.slug">{{ c.nom }}</option>
+                                    </select>
+                                    <select v-else-if="genreDeCible(note) === 'objet'" v-model="note.quand.cible.objet" class="cst-input">
+                                        <option v-for="o in (catalogues.objets ?? [])" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
                                     </select>
                                     <label v-else-if="genreDeCible(note) === 'tour'">à partir du tour <input v-model.number="note.quand.cible.tour" type="number" min="1" class="cst-input cst-num" /></label>
                                     <button type="button" class="cst-icone" title="Retirer la note" @click="quete.notes.splice(i, 1)"><MSym n="delete" :size="16" /></button>

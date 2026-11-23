@@ -234,6 +234,11 @@ final class NotesDeQuete
             return collect($liste)->every(fn (int $i) => ($poses[$i] ?? null)?->etat !== 'actif');
         }
 
+        // Lot E2 : l'objet jeté dans le réceptacle, nommé par son slug du catalogue.
+        if (array_key_exists('objet', $cible)) {
+            return isset($contexte['objet']) && (string) $cible['objet'] === (string) $contexte['objet'];
+        }
+
         // Lot E1 : le captif libéré, nommé par le slug de sa fiche de mercenaire.
         if (array_key_exists('captif', $cible)) {
             return isset($contexte['captif']) && (string) $cible['captif'] === (string) $contexte['captif'];

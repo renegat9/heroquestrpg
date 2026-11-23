@@ -160,8 +160,8 @@ it('a un catalogue cohérent : cout_deplacement >= 1, effet non vide (vocabulair
     // 7 de The Frozen Horror + 5 de Jungles of Delthrak (2026-10-09) + les Sables mouvants de
     // The Mage of the Mirror (2026-10-15) + la Trappe de téléportation, The Mage of the Mirror
     // ET Kellar's Keep (EXT-CARTE2, 2026-10-23) + le Courant contraire, le Sol meuble, le Courant porteur et le Vent de couloir de
-    // Spirit Queen (lot H, 2026-10-29).
-    expect($terrains)->toHaveCount(18);
+    // Spirit Queen (lot H, 2026-10-29) + l'Abîme sans fond d'Against the Ogre Horde (mode classique, lot E2, 2026-11-23).
+    expect($terrains)->toHaveCount(19);
 
     foreach ($terrains as $t) {
         expect($t->cout_deplacement)->toBeGreaterThanOrEqual(1, "cout_deplacement de {$t->nom}")
@@ -179,11 +179,13 @@ it('donne à la Rivière gelée un coût de déplacement de 2, et 1 à tous les 
     }
 });
 
-it('ne bloque le mouvement ni la vue pour aucun terrain — SAUF les Sables mouvants, qui ferment la marche (jamais la vue)', function () {
+it('ne bloque le mouvement ni la vue pour aucun terrain — SAUF les Sables mouvants et l\'Abîme sans fond, qui ferment la marche (jamais la vue)', function () {
     foreach (Terrain::query()->get() as $t) { // les 5 de la jungle non plus : ils ralentissent ou se traversent
         // Les Sables mouvants (The Mage of the Mirror p. 29) sont le seul terrain qui BLOQUE le
         // mouvement : on le franchit d'un saut, on ne le traverse pas. La vue, jamais.
-        expect($t->bloque_mouvement)->toBe($t->nom === 'Sables mouvants', "bloque_mouvement de {$t->nom}")
+        // L'Abîme sans fond (F9528 q. 8 C, mode classique) : « Any hero or monster that moves onto an abyss square
+        // immediately plunges to their death » — il ferme la marche, comme les sables.
+        expect($t->bloque_mouvement)->toBe(in_array($t->nom, ['Sables mouvants', 'Abîme sans fond'], true), "bloque_mouvement de {$t->nom}")
             ->and($t->bloque_vue)->toBeFalse("bloque_vue de {$t->nom}");
     }
 });
@@ -201,7 +203,7 @@ it('reste seedé SANS purge (clé sur nom) : re-semer garde les mêmes identifia
 
     $idApres = Terrain::where('nom', 'Glace glissante')->value('id');
     expect($idApres)->toBe($idAvant)
-        ->and(Terrain::query()->count())->toBe(18);
+        ->and(Terrain::query()->count())->toBe(19);
 });
 
 // ---------------------------------------------------------------------

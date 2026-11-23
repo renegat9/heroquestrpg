@@ -1069,6 +1069,11 @@ class ObjetSeeder extends Seeder
                 'effet' => ['hors_marche' => true, 'objet_de_quete' => true, 'detruit_glyphe' => true]],
             ['nom' => 'Clé de laiton', 'categorie' => 'tresor', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'sac',
                 'boite' => 'mage_du_miroir', 'effet' => ['hors_marche' => true, 'objet_de_quete' => true]],
+            // ANNEAU DE PUISSANCE DE FESTRAL (*Against the Ogre Horde* p. 35, q. 8 B : « finds Festral's Ring of Power hidden in a
+            // hollowed-out book » ; q. 8 : « They do so by throwing Festral's Ring of Power into the Pit »). Objet de quête,
+            // comme la clé de laiton : aucun effet sur le héros, il se JETTE dans la Fosse (`regles.receptacle_objets`, lot E2).
+            ['nom' => 'Anneau de Puissance de Festral', 'categorie' => 'tresor', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'sac',
+                'boite' => 'horde_ogre', 'effet' => ['hors_marche' => true, 'objet_de_quete' => true]],
             ['nom' => 'Potion de soin mineur', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body' => 2, 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de vitesse', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',

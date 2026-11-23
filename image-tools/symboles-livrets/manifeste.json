@@ -1975,6 +1975,12 @@
       "absent": "G0053 (Spirit Queen's Torment) : le terrain est décrit par le TEXTE d'une note de carte, sans pictogramme imprimé à ce jour. q. 12, p. 15 : « Strong air currents move through the hallways » — la case de couloir n'a pas de pictogramme imprimé. Un pictogramme n'a donc rien à extraire ; s'il en paraît un, l'extraire comme les autres (orchestrateur)."
     },
     {
+      "type": "terrains",
+      "cle": "abime-sans-fond",
+      "nom_catalogue": "Abîme sans fond",
+      "absent": "F9528 p. 35, q. 8 C : l'abîme n'a pas de tuile, la carte de quête le peint ; la teinte `abime` le dit"
+    },
+    {
       "type": "allies",
       "cle": "crossbowman",
       "nom_catalogue": "Crossbowman",

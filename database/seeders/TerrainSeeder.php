@@ -382,6 +382,19 @@ class TerrainSeeder extends Seeder
                     'crane' => ['pousse_zargon' => 2],
                 ]],
             ],
+
+            // ABÎME SANS FOND (*Against the Ogre Horde* p. 35, q. 8 C : « The center of this room is a bottomless abyss over
+            // which a small bridge stretches. Any hero or monster that moves onto an abyss square immediately plunges to
+            // their death »). Mode CLASSIQUE seul (`MoteurTerrain::RESERVES_AU_CLASSIQUE`, lot E2, 2026-11-23) : il bloque
+            // la marche — personne n'y entre de lui-même, et le moteur ne pousse aucune figure sur une case qui bloque, d'où
+            // aucune chute à résoudre (décision écrite). Le pont : les cases que l'auteur laisse sans abîme. La Fosse de
+            // l'Effroi (q. 8 A), où l'on jette l'Anneau de Festral, se pose avec lui (`regles.receptacle_objets`).
+            [
+                'nom' => 'Abîme sans fond', 'nom_anglais' => 'Bottomless abyss',
+                'cout_deplacement' => 1, 'bloque_mouvement' => true, 'bloque_vue' => false, 'boite' => 'horde_ogre',
+                // Le parchemin Ice Bridge « enables heroes to cross over any pit, trap, CHASM » (`reference/18`) : un pont.
+                'effet' => ['pontable' => true],
+            ],
         ];
 
         foreach ($terrains as $terrain) {

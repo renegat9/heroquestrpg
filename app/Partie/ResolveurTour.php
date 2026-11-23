@@ -742,6 +742,8 @@ final class ResolveurTour
                 'repartir_planque' => $this->resoudreRepartirPlanque($groupe, $quete, $personnage, $option, $parametres, $acteur),
                 // PORTE QU'ON FRAPPE (mode classique, lot E2, F6646 q. 3) : `Classique\PortesSpeciales::frapper()`.
                 'frapper_porte' => $this->resoudreFrapperPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // RÉCEPTACLE (mode classique, lot E2, F9528 q. 8) : `Classique\ReceptacleObjets::jeter()`.
+                'jeter_objet_quete' => $this->resoudreJeterObjetQuete($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // MARCHÉ SOUTERRAIN EN QUÊTE (mode classique, lot E2, F6646 p. 2) : `Classique\MarcheSouterrain`.
                 'ouvrir_etal', 'fermer_etal', 'acheter_etal', 'vendre_etal' => $this->resoudreEtal($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $etat, $option, $acteur),
@@ -11959,7 +11961,20 @@ final class ResolveurTour
         return $payload;
     }
 
-    /** PORTE QU'ON FRAPPE (lot E2) : la porte visée doit être dans la liste que le menu a offerte. */
+    /** RÉCEPTACLE (lot E2) : l'objet jeté doit être dans la liste que le menu a offerte (`ReceptacleObjets::jetables()`). */
+    private function resoudreJeterObjetQuete(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $fait = app(\App\Partie\Classique\ReceptacleObjets::class)->jeter($quete, $personnage, $etat, (int) ($option['parametres']['inventaire_id'] ?? 0));
+        if ($fait === null) {
+            throw ValidationException::withMessages(['option_id' => 'Cet objet ne se jette pas ici.']);
+        }
+        $payload = $fait + ['option_id' => $option['id']];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+
     private function resoudreFrapperPorte(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
         $vise = (array) ($option['parametres']['porte'] ?? []);

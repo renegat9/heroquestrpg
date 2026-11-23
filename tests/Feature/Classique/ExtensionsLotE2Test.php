@@ -589,3 +589,32 @@ it('lame balançoire de livret : sa zone de l\'auteur, jamais déclenchée par u
     app(\App\Partie\Classique\NotesDeQuete::class)->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::OUVERTURE_PORTE, ['porte' => 0], $heros());
     expect((int) $heros()->pv_body)->toBeLessThan(30);
 });
+
+it('la Fosse de l\'Effroi : l\'anneau jeté depuis le bord joue la note ; l\'abîme bloque la marche et reste hors du donjon généré', function () {
+    $this->seed([\Database\Seeders\ObjetSeeder::class, \Database\Seeders\TerrainSeeder::class]);
+    $campagne = campagneE2([
+        'terrain' => [['slug' => 'abime-sans-fond', 'x' => 9, 'y' => 3]],
+        'regles' => ['receptacle_objets' => [['x' => 9, 'y' => 3]]],
+        'notes' => [['repere' => 'F', 'quand' => ['declencheur' => 'objet_jete', 'cible' => ['objet' => 'anneau-de-puissance-de-festral']],
+            'alors' => [['effet' => 'drapeau', 'nom' => 'fosse_detruite']]]],
+    ]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $anneau = \App\Models\Objet::where('nom', 'Anneau de Puissance de Festral')->firstOrFail();
+    \App\Partie\RangementObjet::ranger($anneau, (int) $partie['heros']->id, 1);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+
+    expect(\App\Partie\FabriqueGrille::pour($partie['quete']->fresh())->estTraversable(9, 3))->toBeFalse();
+
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $ligne = $partie['heros']->inventaire()->where('objet_id', $anneau->id)->firstOrFail();
+    $ids = collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id');
+    expect($ids)->toContain("jeter_objet_quete_{$ligne->id}");
+
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => "jeter_objet_quete_{$ligne->id}"])->assertAccepted();
+    expect($partie['quete']->fresh()->aDrapeau('fosse_detruite'))->toBeTrue()
+        ->and($partie['heros']->inventaire()->where('objet_id', $anneau->id)->exists())->toBeFalse();
+
+    $vivier = \App\Models\Terrain::query()->get()->filter(fn ($t) => in_array($t->nom, \App\Partie\MoteurTerrain::RESERVES_AU_CLASSIQUE, true));
+    expect($vivier->pluck('nom')->all())->toBe(['Abîme sans fond']);
+});

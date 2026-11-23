@@ -3153,6 +3153,17 @@ final class MenuMoteur
         // 2026-08-24), destruction de mobilier, poussée, épreuves — et reste
         // donc bien derrière `! $aAgi`.
         if (! $aAgi && $etat !== null) {
+            // RÉCEPTACLE (lot E2, F9528 q. 8) : jeter l'objet qu'une note attend dans la Fosse — une action.
+            if (! $actionInterdite) {
+                foreach (app(\App\Partie\Classique\ReceptacleObjets::class)->jetables($quete, $personnage, $etat) as $jet) {
+                    $options[] = [
+                        'id' => "jeter_objet_quete_{$jet['ligne']->id}",
+                        'libelle' => "Jeter {$jet['ligne']->objet->nom} dans la fosse",
+                        'type' => 'jeter_objet_quete',
+                        'parametres' => ['inventaire_id' => (int) $jet['ligne']->id],
+                    ];
+                }
+            }
             // PLANQUE (lot E2) : « As an action once per quest while in the hideout, each hero may roll one red die ».
             if (! $actionInterdite && app(\App\Partie\Classique\Planque::class)->soinDisponible($quete, $personnage, $etat)) {
                 $options[] = [

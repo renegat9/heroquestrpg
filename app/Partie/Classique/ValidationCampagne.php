@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -992,6 +992,10 @@ final class ValidationCampagne
                 break;
             case 'captif':
                 $this->slugCatalogue($cible, 'captif', $position, 'mercenaires');
+                break;
+            // Lot E2 : l'objet jeté dans le réceptacle (F9528 q. 8).
+            case 'objet':
+                $this->slugCatalogue($cible, 'objet', $position, 'objets');
                 break;
         }
     }
@@ -2135,6 +2139,20 @@ final class ValidationCampagne
         }
         // Lot E2 : les richesses elfiques (F7539 p. 5) — l'or de la première fouille d'une salle à coffre que rien ne nomme.
         $this->entier($regles, 'richesses_des_coffres', self::chemin($position, 'richesses_des_coffres'), min: 1);
+        // Lot E2 : les cases où l'on JETTE un objet (la Fosse de l'Effroi, F9528 q. 8) — des cases du plateau.
+        if (array_key_exists('receptacle_objets', $regles)) {
+            $ici = self::chemin($position, 'receptacle_objets');
+            $liste = $this->enListe($regles['receptacle_objets'], $ici);
+            foreach ((array) $liste as $k => $c) {
+                if (($case = $this->enObjet($c, "$ici.$k")) !== null) {
+                    $this->cles($case, "$ici.$k", self::CLES_CASE);
+                    $this->cellule($case, "$ici.$k");
+                }
+            }
+            if ($liste === []) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'au moins une case');
+            }
+        }
         // Lot E2 : les portes qu'on frappe (F6646 q. 3) — le seuil de succès et le drapeau posé à la bonne porte.
         if (array_key_exists('portes_a_frapper', $regles)) {
             $ici = self::chemin($position, 'portes_a_frapper');

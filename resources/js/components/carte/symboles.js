@@ -260,6 +260,9 @@ export const TERRAIN_TEINTES = {
     // gris-bleu, le sens du souffle — distinct de la rayure du courant contraire et du pointillé du courant porteur. Une case
     // isolée (pose couloirs, sans groupe) : pas d'icône de plaque.
     'Vent de couloir': 'vent',
+    // Against the Ogre Horde (q. 8 C, lot E2, 2026-11-23) : l'ABÎME SANS FOND, qui bloque la marche — `abime`, un noir
+    // creusé au centre, distinct de la croix des sables (on ne le franchit pas, même d'un saut).
+    'Abîme sans fond': 'abime',
 };
 export const TERRAIN_TEINTE_DEFAUT = 'decor';
 

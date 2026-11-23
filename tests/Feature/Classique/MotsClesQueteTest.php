@@ -140,6 +140,7 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
         ['repere' => 'L6', 'quand' => ['declencheur' => 'piege_declenche', 'cible' => ['salle' => 'entree']], 'alors' => [['effet' => 'texte', 'texte' => 'Clic.']]],
         ['repere' => 'L7', 'quand' => ['declencheur' => 'meuble_detruit', 'cible' => ['mobilier' => 0]], 'alors' => [['effet' => 'texte', 'texte' => 'Brisé.']]],
         ['repere' => 'L8', 'quand' => ['declencheur' => 'captif_libere', 'cible' => ['captif' => 'sir-ragnar-livret-de-base']], 'alors' => [['effet' => 'texte', 'texte' => 'Libre.']]],
+        ['repere' => 'Y', 'quand' => ['declencheur' => 'objet_jete', 'cible' => ['objet' => 'dague']], 'alors' => [['effet' => 'texte', 'texte' => 'Englouti.']]],
         ['repere' => 'Z', 'quand' => ['declencheur' => 'heros_au_tour_du_mj', 'cible' => ['cases' => [['x' => 7, 'y' => 7], ['x' => 8, 'y' => 7]]],
             'si_sans_monstre' => 'entree'], 'alors' => [['effet' => 'texte', 'texte' => 'Un bruit de pas.']]],
     ];
