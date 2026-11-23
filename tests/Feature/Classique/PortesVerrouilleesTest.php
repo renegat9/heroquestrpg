@@ -265,6 +265,9 @@ it('valide la case d\'arrivée d\'une téléportation comme celle d\'une apparit
 });
 
 it('EN JEU : la case piégée téléporte le héros dans la galerie, révélée ; la suite du trajet ne déclenche rien', function () {
+    // Les deux dés rouges du déplacement classique, imposés : un double 1 ne laisse pas atteindre la case visée
+    // (test instable jusqu'au 2026-11-23).
+    app()->instance(\App\Engine\Des\LanceurDes::class, new \App\Engine\Des\LanceurDeterministe(array_fill(0, 40, 6)));
     $campagne = DocumentExemple::campagne();
     $campagne['quetes'][0]['notes'] = [
         ['repere' => 'A', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 4, 'y' => 3]]], 'alors' => [['effet' => MotsClesQuete::TELEPORTER, 'x' => 9, 'y' => 4]]],

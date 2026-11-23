@@ -495,3 +495,52 @@ it('« sans restauration » : le héros entre dans la quête avec le Corps et l\
 
     expect((int) $heros->fresh()->pv_body)->toBe($attendu);
 })->with(['restauré' => [false, 30], 'gardé' => [true, 12]]);
+
+// ---------------------------------------------------------------- 11. les captifs
+
+function captifE1(object $test, array $captif = [], array $quete = []): array
+{
+    $test->seed([\Database\Seeders\MercenaireSeeder::class]);
+
+    return partieE1($test, campagneE1(['captif' => ['mercenaire' => 'sir-ragnar-livret-de-base', 'x' => 8, 'y' => 4] + $captif,
+        'fin' => ['type' => 'ramener', 'libelle' => 'Ramener le captif.']] + $quete));
+}
+
+it('une note LIBÈRE le captif, allié du héros qui déclenche', function () {
+    ['quete' => $quete, 'heros' => $heros] = captifE1($this, [], ['notes' => [['repere' => 'G', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]],
+        'alors' => [['effet' => 'liberer_captif']]]]]);
+
+    $resultat = app(\App\Partie\Classique\NotesDeQuete::class)->signaler($quete, \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 1], $heros)[0];
+
+    $captif = $quete->fresh()->captif;
+    expect($captif->etat)->toBe('actif')
+        ->and((int) $captif->recruteur_personnage_id)->toBe((int) $heros->id)
+        ->and($resultat['effets'][0]['captif'])->toBe('Sir Ragnar (livret de base)');
+});
+
+it('la mort du captif ne fait perdre la quête QUE si l\'auteur l\'écrit', function (array $captif, string $etat) {
+    ['quete' => $quete, 'groupe' => $groupe] = captifE1($this, $captif);
+    $allie = $quete->fresh()->captif;
+    $methode = new ReflectionMethod(\App\Partie\ResolveurTour::class, 'echouerSiCaptifPerdu');
+    $methode->invoke(app(\App\Partie\ResolveurTour::class), $groupe, $quete->fresh(), $allie);
+
+    expect($quete->fresh()->etat)->toBe($etat);
+})->with([
+    'Sir Ragnar : la récompense seulement' => [[], 'en_cours'],
+    'Udren : la quête est perdue' => [['echec_si_mort' => true], 'echouee'],
+]);
+
+it('en fin de quête, le captif repart — sauf s\'il persiste, allié offert', function (bool $persiste) {
+    ['quete' => $quete, 'heros' => $heros] = captifE1($this, $persiste ? ['persiste' => true] : []);
+    $escorte = app(\App\Partie\Classique\Escorte::class);
+    $escorte->liberer($quete, $heros);
+    $id = $quete->fresh()->captif_mercenaire_id;
+
+    $escorte->congedierEnFinDeQuete($quete->fresh());
+
+    $reste = \App\Models\GroupeMercenaire::find($id);
+    expect($reste !== null)->toBe($persiste);
+    if ($persiste) {
+        expect($reste->offert)->toBeTrue()->and($reste->etat)->toBe('actif');
+    }
+})->with(['repart' => [false], 'persiste' => [true]]);

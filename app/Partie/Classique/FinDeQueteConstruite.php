@@ -52,6 +52,8 @@ final class FinDeQueteConstruite
                 'raison' => 'captif',
             ]);
         }
+        // Lot E1 : le captif repart avec la quête, sauf s'il persiste (`Escorte::congedierEnFinDeQuete()`).
+        app(Escorte::class)->congedierEnFinDeQuete($quete);
         $bourses = app(Bourses::class);
 
         foreach ($parts as $part) {

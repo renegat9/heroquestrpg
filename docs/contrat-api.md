@@ -6093,6 +6093,13 @@ dans le mode classique »). Ce lot porte ce qui sert à trois livrets ou plus. M
 - **Sans restauration** — `regles.sans_restauration: true` : au départ de CETTE quête, le Corps et l'Esprit des héros
   restent ce qu'ils étaient (« not restored when the heroes cross between Quests 11 and 12 », F9907 p. 17) ; les sorts
   reviennent comme au début de toute quête (choix écrit).
+- **Captifs** — `captif.echec_si_mort: true` (« If Udren dies…, the heroes fail the quest! », G0053 q. 5) : sa mort fait
+  perdre la quête ; SANS lui, un captif mort retire seulement la récompense (Sir Ragnar — corrige l'échec que
+  `echouerSiCaptifPerdu()` imposait aussi au classique). `captif.persiste: true` (Sigill, Udren) : vivant en fin de
+  quête, il reste allié du groupe, `offert` (aucun entretien ne le congédie) ; SANS lui, il repart avec la quête
+  (corrige un Sir Ragnar qui suivait le groupe dans les quêtes suivantes). Effet de note `liberer_captif` (« If the
+  Barbarian kills the Dread Warriors, Gothar is freed », F5815 q. 3). Plusieurs captifs dans une même quête : non porté
+  (le seul cas, les deux servantes de F7539 q. 2, n'a pas de fiche — « non trouvé »). `Classique\Escorte`.
 - **Sorts de Dread et capacités dans le profil d'auteur** (monstre posé, `apparition`, errant) :
   - `sorts_dread: [slug]` — catalogue `sorts_dread` (publié par `GET /constructeur/catalogues`) : REMPLACE le
     répertoire de la fiche (« Vilor knows the following Dread spells », F5815 p. 12). Chaque sort une fois par quête

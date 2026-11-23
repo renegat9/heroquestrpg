@@ -82,6 +82,68 @@ final class Escorte
         $quete->update(['drapeaux' => $drapeaux]);
     }
 
+    /**
+     * Lot E1 — UNE NOTE le libère (« If the Barbarian kills the Dread Warriors, Gothar is freed », F5815 q. 3) : il
+     * devient l'allié du héros qui déclenche (ou du premier de l'ordre du tour), comme libéré au contact. Rend son nom,
+     * ou `null` s'il n'attend plus.
+     */
+    public function liberer(Quete $quete, ?\App\Models\Personnage $heros): ?string
+    {
+        $captif = $quete->captif()->with('mercenaire')->first();
+        $liberateur = $heros ?? $quete->groupe->personnages()->wherePivot('actif', true)->orderBy('groupe_personnages.ordre_initiative')->first();
+        if ($captif === null || $captif->etat !== 'captif' || $liberateur === null) {
+            return null;
+        }
+        $escorte = $captif->mercenaire?->estCaptifEscorte() ?? false;
+        $captif->update(['etat' => $escorte ? 'porte' : 'actif', 'recruteur_personnage_id' => $liberateur->id]);
+        if ($captif->mercenaire !== null) {
+            app(NotesDeQuete::class)->signaler($quete, \App\Engine\MotsClesQuete::CAPTIF_LIBERE,
+                ['captif' => CatalogueConstructeur::slug((string) $captif->mercenaire->nom)], $liberateur);
+        }
+
+        return $captif->mercenaire?->nom;
+    }
+
+    /**
+     * Lot E1 — sa MORT fait-elle échouer la quête ? Seulement si l'auteur l'écrit (`captif.echec_si_mort` : « If Udren dies
+     * before the heroes identify her, the heroes fail the quest! », G0053 q. 5). Sans cela, un captif mort retire la
+     * récompense (Sir Ragnar), il ne fait pas perdre la quête.
+     */
+    public function echoueSiMort(Quete $quete): bool
+    {
+        return data_get($quete->documentConstruit(), 'captif.echec_si_mort') === true;
+    }
+
+    /**
+     * Lot E1 — la quête se termine : le captif repart avec elle, sauf s'il PERSISTE (`captif.persiste` : Sigill, Udren —
+     * « the heroes should control Udren, if she is alive », G0053 q. 6). Persistant et vivant, il reste un allié du groupe,
+     * marqué `offert` (aucun entretien de mercenaire ne le congédie : `MercenairesCampagne::auDepart()`).
+     */
+    public function congedierEnFinDeQuete(Quete $quete): void
+    {
+        $captif = $quete->captif;
+        if ($captif === null) {
+            return;
+        }
+        if (data_get($quete->documentConstruit(), 'captif.persiste') === true && in_array($captif->etat, ['actif', 'porte'], true)) {
+            $captif->update(['etat' => 'actif', 'offert' => true, 'position_x' => null, 'position_y' => null]);
+
+            return;
+        }
+        $captif->delete();
+    }
+
+    /**
+     * Lot E1 — au DÉPART d'une quête : un captif d'une quête précédente qui ne persiste pas (quête perdue, rejouée) n'a
+     * rien à faire dans celle-ci. Un persistant est `offert` : il reste.
+     */
+    public function retirerLesRestes(\App\Models\Groupe $groupe): void
+    {
+        GroupeMercenaire::where('groupe_id', $groupe->id)->where('offert', false)
+            ->whereHas('mercenaire', fn ($q) => $q->where('captif', true))
+            ->delete();
+    }
+
     /** `null` sans captif ; sinon, a-t-il été ramené (constaté à la sortie du dernier héros) ? */
     public function ramene(Quete $quete): ?bool
     {

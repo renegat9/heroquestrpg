@@ -652,7 +652,13 @@ final class ValidationCampagne
             // LE CAPTIF À ESCORTER (René, 2026-11-20 — Sir Ragnar) : `{mercenaire, x, y}`, un captif du catalogue des mercenaires
             // (mode figurine), sur une case où une figure peut paraître. `Classique\Escorte`.
             if (array_key_exists('captif', $quete) && ($captif = $this->enObjet($quete['captif'], "$chemin.captif")) !== null) {
-                $this->cles($captif, "$chemin.captif", ['mercenaire', 'x', 'y']);
+                // Lot E1 : `echec_si_mort` (sa mort fait perdre la quête), `persiste` (il reste allié pour la campagne).
+                $this->cles($captif, "$chemin.captif", ['mercenaire', 'x', 'y'], ['echec_si_mort', 'persiste']);
+                foreach (['echec_si_mort', 'persiste'] as $drapeauCaptif) {
+                    if (array_key_exists($drapeauCaptif, $captif) && $captif[$drapeauCaptif] !== true) {
+                        $this->refuser("$chemin.captif.$drapeauCaptif", self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+                    }
+                }
                 if ($this->slugCatalogue($captif, 'mercenaire', "$chemin.captif", 'mercenaires')) {
                     $m = $this->catalogue->index('mercenaires')[(string) $captif['mercenaire']];
                     if (! $m->captif || $m->mode_captif !== \App\Models\Mercenaire::MODE_CAPTIF_FIGURINE) {
@@ -1086,6 +1092,11 @@ final class ValidationCampagne
             case MotsClesQuete::RETIRER_BLOC:
                 $this->entier($effet, 'x', $position, min: 0);
                 $this->entier($effet, 'y', $position, min: 0);
+                break;
+            case MotsClesQuete::LIBERER_CAPTIF:
+                if (! is_array($quete['captif'] ?? null)) {
+                    $this->refuser($position, self::VALEUR_INVALIDE, 'cette quête n\'a pas de captif à libérer (`captif`)');
+                }
                 break;
             case MotsClesQuete::OBJET_AU_HASARD:
                 $parmi = $this->enListeDe($effet, 'parmi', $position);

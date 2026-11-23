@@ -251,6 +251,9 @@ final class MotsClesQuete
     /** Lot E1 — un bloc est retiré (« remove the blocked square », G0052 q. 12) : la case redevient du couloir. */
     public const RETIRER_BLOC = 'retirer_bloc';
 
+    /** Lot E1 — le captif de la quête est LIBÉRÉ par une note (« If the Barbarian kills the Dread Warriors, Gothar is freed »). */
+    public const LIBERER_CAPTIF = 'liberer_captif';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET];
 
@@ -272,6 +275,7 @@ final class MotsClesQuete
         self::RETIRER_MEUBLE => ['parametres' => ['mobilier'], 'optionnels' => [], 'lecteur' => 'effetRetirerMeuble', 'libelle' => 'retirer un meuble'],
         self::MURER_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetMurerPorte', 'libelle' => 'murer une porte (elle se ferme et disparaît)'],
         self::RETIRER_BLOC => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetRetirerBloc', 'libelle' => 'retirer un bloc'],
+        self::LIBERER_CAPTIF => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetLibererCaptif', 'libelle' => 'libérer le captif de la quête'],
         self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
         self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
         self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => ['campagne'], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],

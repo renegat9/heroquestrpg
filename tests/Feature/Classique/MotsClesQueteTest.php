@@ -96,6 +96,8 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
     $doc['mercenaires'] = ['regime' => 'debloques', 'offerts' => ['eclaireur']];
     // 2026-11-20 : une figure `inactif`, que la note J éveille.
     $doc['quetes'][0]['monstres'][] = ['slug' => 'gobelin', 'x' => 9, 'y' => 2, 'inactif' => true];
+    // Lot E1 : un captif, que la note K libère.
+    $doc['quetes'][0]['captif'] = ['mercenaire' => 'sir-ragnar-livret-de-base', 'x' => 8, 'y' => 4];
     $doc['quetes'][0]['notes'] = [
         ['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree']],
             'alors' => [['effet' => 'texte', 'texte' => 'Un texte.'], ['effet' => 'or', 'or' => 10], ['effet' => 'drapeau', 'nom' => 'vu']]],
@@ -127,7 +129,7 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
                 ['effet' => 'objet_au_hasard', 'parmi' => ['dague', 'bouclier']],
                 ['effet' => 'objet', 'slug' => 'dague', 'sinon' => [['effet' => 'or', 'or' => 20]]],
                 ['effet' => 'retirer', 'monstres' => [0]], ['effet' => 'retirer_meuble', 'mobilier' => 0],
-                ['effet' => 'murer_porte', 'porte' => 0], ['effet' => 'retirer_bloc', 'x' => 11, 'y' => 7]]],
+                ['effet' => 'murer_porte', 'porte' => 0], ['effet' => 'retirer_bloc', 'x' => 11, 'y' => 7], ['effet' => 'liberer_captif']]],
         // Lot E1 : les huit déclencheurs des extensions.
         ['repere' => 'L1', 'quand' => ['declencheur' => 'salle_videe', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'texte', 'texte' => 'Vide.']]],
         ['repere' => 'L2', 'quand' => ['declencheur' => 'morts', 'cible' => ['monstres' => [0, 1]]], 'alors' => [['effet' => 'texte', 'texte' => 'Tous tombés.']]],

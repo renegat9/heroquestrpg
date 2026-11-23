@@ -893,6 +893,11 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => 'Une porte se ferme et disparaît dans le mur !', 'ton' => 'subit'];
                     }
                     break;
+                case 'liberer_captif':
+                    if (! empty($effet['captif'])) {
+                        $lignes[] = ['texte' => "{$effet['captif']} est libéré — il suit {$heros}", 'ton' => 'succes'];
+                    }
+                    break;
                 case 'retirer_bloc':
                     if (! empty($effet['retire'])) {
                         $lignes[] = ['texte' => 'Le passage bloqué se libère', 'ton' => 'info'];

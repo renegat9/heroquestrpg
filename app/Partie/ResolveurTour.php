@@ -16561,6 +16561,11 @@ final class ResolveurTour
             || (int) ($quete->captif_mercenaire_id ?? 0) !== (int) $allie->id) {
             return;
         }
+        // MODE CLASSIQUE (lot E1) : l'auteur décide (`captif.echec_si_mort`) — Sir Ragnar mort retire la récompense, Udren
+        // morte fait perdre la quête. `Classique\Escorte::echoueSiMort()`.
+        if ($quete->estConstruite() && ! app(\App\Partie\Classique\Escorte::class)->echoueSiMort($quete)) {
+            return;
+        }
 
         $this->echouerQuete($groupe, $quete, 'captif_perdu');
     }

@@ -237,6 +237,9 @@ it('ENTRÉE dans une salle → apparition et dégâts : en entrant, pas en s\'y 
 });
 
 it('PASSAGE sur une case, note répétée : elle tire à chaque passage, même sans s\'y arrêter', function () {
+    // Les deux dés rouges du déplacement classique, imposés : un double 1 ne laisse pas atteindre la case visée
+    // (test instable jusqu'au 2026-11-23).
+    app()->instance(\App\Engine\Des\LanceurDes::class, new \App\Engine\Des\LanceurDeterministe(array_fill(0, 40, 6)));
     queteAvecNotes($this, [[
         'repere' => 'C',
         'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 4, 'y' => 3]]],

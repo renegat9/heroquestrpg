@@ -195,6 +195,8 @@ final class DemarreurQueteConstruite
         // elle part, ou se renouvelle à moitié prix, selon la règle de la campagne.
         if ($moitieDe === null) {
             app(MercenairesCampagne::class)->auDepart($groupe, $rang);
+            // Lot E1 : un captif d'une quête précédente qui ne persiste pas (quête perdue, rejouée) n'a rien à faire ici.
+            app(Escorte::class)->retirerLesRestes($groupe);
         }
         $monstres = Monstre::whereIn('id', array_column($produit['monstres'], 'monstre_id'))->get()->keyBy('id');
         $cibles = array_map('intval', (array) data_get($queteDoc, 'fin.cibles', []));

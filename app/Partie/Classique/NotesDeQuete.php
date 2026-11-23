@@ -424,6 +424,12 @@ final class NotesDeQuete
         return ['x' => $x, 'y' => $y, 'retire' => $retire];
     }
 
+    /** Lot E1 — le captif de la quête est libéré, allié du héros qui déclenche (`Escorte::liberer()`). */
+    private function effetLibererCaptif(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        return ['captif' => app(Escorte::class)->liberer($quete, $heros)];
+    }
+
     /** C5 (lot K6) — des jetons de réputation pour le groupe (ou en moins, jamais sous zéro). */
     private function effetReputation(Quete $quete, array $effet, ?Personnage $heros): array
     {

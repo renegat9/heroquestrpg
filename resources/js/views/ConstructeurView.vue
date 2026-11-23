@@ -1447,6 +1447,8 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <input v-model.number="quete.captif.x" type="number" class="cst-input cst-num" title="x" />
                                     <input v-model.number="quete.captif.y" type="number" class="cst-input cst-num" title="y" />
                                     <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(quete.captif, 'le captif')"><MSym n="pin_drop" :size="16" /></button>
+                                    <label class="cst-case"><input type="checkbox" :checked="quete.captif.echec_si_mort === true" @change="$event.target.checked ? (quete.captif.echec_si_mort = true) : delete quete.captif.echec_si_mort" /> sa mort fait perdre la quête</label>
+                                    <label class="cst-case"><input type="checkbox" :checked="quete.captif.persiste === true" @change="$event.target.checked ? (quete.captif.persiste = true) : delete quete.captif.persiste" /> reste allié pour la suite</label>
                                     <span class="cst-sous">Ramené vivant sur la sortie avec le dernier héros : récompense versée ; sinon la quête est gagnée sans récompense.</span>
                                 </template>
                             </div>
