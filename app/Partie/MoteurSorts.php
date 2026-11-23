@@ -2583,7 +2583,10 @@ final class MoteurSorts
         foreach ($this->buffsSorts($personnage) as $condition) {
             $effet = $this->effetSortSource((string) $condition->pivot->source);
 
-            if (DureeEffet::correspond($effet['duree'] ?? null, DureeEffet::PLUS_DE_MONSTRE_EN_VUE)
+            // Réarmée à chaque tour : la rage (« as long as there are monsters in sight ») et la Potion de vitesse elfique
+            // (« two attacks per turn » jusqu'au premier dégât, F7539 p. 2) — la durée dit seule quand le buff tombe.
+            if ((DureeEffet::correspond($effet['duree'] ?? null, DureeEffet::PLUS_DE_MONSTRE_EN_VUE)
+                    || DureeEffet::correspond($effet['duree'] ?? null, DureeEffet::PREMIER_DEGAT_SUBI))
                 && ! empty($effet['attaque_supplementaire'])
                 && ! $etat->attaque_supplementaire) {
                 $etat->update(['attaque_supplementaire' => true]);

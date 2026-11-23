@@ -114,6 +114,11 @@ return [
             // Mage of the Mirror (F7539 p. 14) : le remède de la malédiction du loup-garou, trouvé et non acheté.
             // Carte transcrite dans `reference/18` (§Mage of the Mirror) — aucun prix imprimé sur la carte.
             ['carte' => 'Wolfsbane Potion', 'paquet' => 'Mage of the Mirror', 'objet' => "Potion d'aconit"],
+            // Mage of the Mirror (F7539 p. 2, « Alchemist's Shop », 500 po, Elfe seul) : la SECONDE « Potion of Speed », qui
+            // n'est pas la carte 2021 ci-dessus (« 12 squares per turn instead of rolling the red dice… two attacks per
+            // turn… end as soon as the Elf suffers at least 1 Body Point of damage »). Les notes des quêtes 9 et 10 la
+            // nomment « elven potion of speed » : d'où son nom au catalogue. Achetable : partagée avec le mode RPG (René, 2026-11-23).
+            ['carte' => 'Potion of Speed (Mage of the Mirror)', 'paquet' => 'Mage of the Mirror', 'objet' => 'Potion de vitesse elfique'],
 
             // ===== Wizards of Morcar (« Boutique de l'Alchimiste », doc 18
             // §3, lot F, 2026-10-06) : TROIS cartes vendues en boutique dans

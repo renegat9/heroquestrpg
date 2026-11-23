@@ -1109,6 +1109,12 @@ class ObjetSeeder extends Seeder
             // sens » donnée à un voisin — Elfe seulement, comme Rappel.
             ['nom' => 'Potion de vision', 'categorie' => 'consommable', 'prix_base' => 500, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_elfe',
                 'effet' => ['revele_pieges_et_portes_en_vue' => true, 'duree' => 'premier_degat_subi', 'condition_appliquee' => 'Clairvoyance', 'cible' => 'heros_adjacent']],
+            // POTION DE VITESSE ELFIQUE (F7539 p. 2 ; q. 9 C, q. 10 I) : « move up to 12 squares per turn instead of rolling
+            // the red dice. The Elf also gets two attacks per turn. These effects end as soon as the Elf suffers at least 1 Body
+            // Point of damage. » Le déplacement fixe d'un BUFF (`MenuMoteur`, `MoteurSorts::valeurBuff()`), la seconde attaque
+            // réarmée à chaque tour (`MoteurSorts::rythmerBuffsDeVue()`), la fin au premier dégât (`premier_degat_subi`).
+            ['nom' => 'Potion de vitesse elfique', 'categorie' => 'consommable', 'prix_base' => 500, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_elfe',
+                'effet' => ['deplacement_fixe' => 12, 'attaque_supplementaire' => true, 'duree' => 'premier_degat_subi', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de restauration supérieure', 'categorie' => 'consommable', 'prix_base' => 800, 'emplacement' => 'consommable',
                 // « restores any hero's Body and Mind Points to the level they
                 // were at when the hero started the Quest » = au MAXIMUM chez

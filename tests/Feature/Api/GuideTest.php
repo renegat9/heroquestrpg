@@ -183,7 +183,8 @@ it('expose la provenance des cartes, portées et non portées', function () {
     // +4 le 2026-10-23 (The Crypt of Perpetual Darkness, livret G1798, chantier EXT-CRYPTE) : Lance du Dragon,
     // Couronne des Ténèbres, Souris familière (artefacts) et Breathe Acid (sort de Dread) = 184.
     // +1 le 2026-10-29 (Prophecy of Telor, Talisman du Savoir maudit — la même carte, source livret) = 185.
-    expect($cartes)->toHaveCount(185);
+    // +1 le 2026-11-23 (The Mage of the Mirror p. 2, Potion de vitesse elfique, achetable à l'alchimiste) = 186.
+    expect($cartes)->toHaveCount(186);
 
     // Chaque carte dit si elle est portée, et celles qui ne le sont pas
     // annoncent leur texte de plateau ET la mécanique qui leur manque.

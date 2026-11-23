@@ -431,3 +431,24 @@ it('déguisés : la figure endormie est retirée au contact d\'un déguisé ; é
     $actions = (array) ($phase->invoke(app(ResolveurTour::class), $partie['groupe'], $partie['quete']->fresh())['actions'] ?? []);
     expect(collect($actions)->where('type', 'attaque_monstre')->count())->toBe(1);
 });
+
+it('potion de vitesse elfique : 12 cases sans dé et deux attaques par tour, jusqu\'au premier point de Corps perdu', function () {
+    $this->seed([\Database\Seeders\ObjetSeeder::class, \Database\Seeders\ConditionSeeder::class]);
+    $partie = partieE2($this, campagneE2());
+    $potion = \App\Models\Objet::where('nom', 'Potion de vitesse elfique')->firstOrFail();
+    expect($potion->prix_base)->toBe(500)->and($potion->tag_equipement)->toBe('potion_elfe');
+    $sorts = app(\App\Partie\MoteurSorts::class);
+
+    $sorts->appliquerBuffPotion($partie['heros'], $potion);
+    expect($sorts->valeurBuff($partie['heros']->fresh(), 'deplacement_fixe'))->toBe(12);
+
+    // Un nouveau tour : le déplacement du menu vaut 12, sans dé.
+    $partie['quete']->etatsPersonnages()->update(['deplacement_tour' => null, 'deplacement_restant' => null]);
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    expect((int) $partie['quete']->etatsPersonnages()->first()->deplacement_tour)->toBe(12);
+
+    // Le premier point de Corps perdu : l'effet tombe.
+    app(\App\Partie\MoteurDegats::class)->infligerAHeros($partie['heros']->fresh(), 1, \App\Partie\MoteurDegats::SOURCE_PIEGE, []);
+    expect($sorts->valeurBuff($partie['heros']->fresh(), 'deplacement_fixe'))->toBe(0);
+});

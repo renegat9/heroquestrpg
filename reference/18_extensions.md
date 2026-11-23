@@ -1001,7 +1001,10 @@ Mirror, p. 2) :
 - *Potion of Vision* (500 po) — voit toutes les portes secrètes et pièges
   normaux en ligne de vue jusqu'au premier point de dégât subi.
 - *Potion of Speed* (500 po) — 12 cases de déplacement et 2 attaques par
-  tour jusqu'au premier point de dégât subi.
+  tour jusqu'au premier point de dégât subi. ✅ Portée le 2026-11-23 sous le nom
+  « Potion de vitesse elfique » (les notes des q. 9 et 10 disent « elven potion
+  of speed »), distincte de la carte 2021 « Potion de vitesse » ; achetable,
+  donc au marché commun (décision de René).
 - *Potion of Superior Restoration* (800 po, tout héros) — restaure Body et
   Mind Points au niveau du début de quête ; guérit aussi la malédiction de
   loup-garou.

@@ -973,7 +973,12 @@ final class MenuMoteur
             // tout le calcul qui précède (base, Raquettes, Bottes, menace),
             // la carte ne compose avec aucune d'elles. Vérifié EN PREMIER :
             // c'est le seul endroit qui calcule ET persiste le jet du tour.
-            $deplacementFixe = $this->equipement->deplacementFixe($personnage);
+            // POTION DE VITESSE ELFIQUE (F7539 p. 2) : « move up to 12 squares per turn instead of rolling the red dice » —
+            // le même remplacement, tiré d'un BUFF tant qu'il tient ; le plus grand l'emporte.
+            $deplacementFixe = max(
+                $this->equipement->deplacementFixe($personnage),
+                $this->sorts->valeurBuff($personnage, MotsClesEquipement::DEPLACEMENT_FIXE),
+            );
 
             $jet = $deplacementFixe > 0
                 ? new ResultatDeplacement(base: $deplacementFixe, de: null, total: $deplacementFixe)
