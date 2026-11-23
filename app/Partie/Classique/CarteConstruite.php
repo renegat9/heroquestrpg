@@ -156,6 +156,10 @@ final class CarteConstruite
                 $entree['etat'] = MoteurPortes::ETAT_OUVERTE;
                 $entree['ouverte_au_depart'] = true;
             }
+            // CACHÉE (lot E2) : une porte secrète que seule une note révèle (`reveler_porte`) — jamais la fouille.
+            if (($porte['cachee'] ?? false) === true && $secrete) {
+                $entree['cachee'] = true;
+            }
             if (($porte['revelee'] ?? false) === true && $secrete) {
                 $entree['etat'] = MoteurPortes::ETAT_FERMEE;
                 $entree['revele'] = true;

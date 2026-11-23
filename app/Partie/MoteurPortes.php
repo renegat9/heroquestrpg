@@ -562,6 +562,12 @@ final class MoteurPortes
             if (($porte['etat'] ?? null) !== self::ETAT_SECRETE || ($porte['revele'] ?? false) || ! $filtre($porte)) {
                 continue;
             }
+            // CACHÉE (mode classique, lot E2 — F5815 q. 5 C : « This door does not appear until the doors marked "B" have
+            // disappeared. Leave it off the gameboard until then, even if the heroes walk right past it ») : ni fouille, ni
+            // potion, ni clairvoyance ne la trouvent — seule une note la révèle (`revelerParNote()`).
+            if (($porte['cachee'] ?? false) === true) {
+                continue;
+            }
 
             // ⚠ FERMÉE, pas ouverte (arbitrage de René, 2026-09-11 : « un passage
             // secret trouvé devrait l'afficher comme une porte fermée, on peut

@@ -19,12 +19,12 @@ const SOMMAIRE = [
 
 const OUTILS = [
     ['meeting_room', 'Ouvrir / fermer une salle', 'Une salle ouverte fait partie du donjon de cette quête ; une salle fermée est de la roche.'],
-    ['door_front', 'Porte', 'Cliquer le BORD d\'une case. Normale ou secrète ; une porte normale peut porter un verrou (note, clé, pierre, condition) ou être ouverte au départ, une secrète être déjà découverte.'],
+    ['door_front', 'Porte', 'Cliquer le BORD d\'une case. Normale ou secrète ; une porte normale peut porter un verrou (note, clé, pierre, condition) ou être ouverte au départ, une secrète être déjà découverte — ou cachée : seule une note la révèle, jamais la fouille.'],
     ['block', 'Bloc de couloir', 'Une case de couloir bouchée.'],
     ['chair', 'Meuble', 'Choisir le meuble et sa rotation, cliquer sa case en haut à gauche. Un meuble se pose dans une salle ou, en entier, dans un couloir.'],
     ['skull', 'Monstre', 'Une figure du bestiaire. Son numéro (0, 1, 2…) sert aux notes et à la fin de quête.'],
-    ['warning', 'Piège', 'Avec les options « introuvable » et « indésarmable ».'],
-    ['water', 'Terrain', 'Glace, gouffre, pont… « posée au premier pas » la cache jusqu\'à ce qu\'un héros y marche.'],
+    ['warning', 'Piège', 'Avec les options « introuvable », « indésarmable » et, pour une fosse, « gouffre sans fond » (qui y tombe est perdu à jamais).'],
+    ['water', 'Terrain', 'Glace, gouffre, pont… « posée au premier pas » la cache jusqu\'à ce qu\'un héros y marche. Une glissière de glace reçoit sa case d\'arrivée.'],
     ['my_location', 'Cible de fin', 'Pour une fin « vaincre » : désigne les monstres à abattre.'],
     ['login', 'Entrée', 'Un escalier 2×2 (case du coin haut-gauche) ou une porte (bord cliqué).'],
     ['logout', 'Sortie', 'Pareil ; « Sortie = entrée » remet la sortie sur l\'escalier. Une porte de sortie peut être verrouillée comme une porte barrée, et toute sortie rester cachée jusqu\'à un drapeau.'],
@@ -139,6 +139,8 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
                         <li><b>Charge à porter</b> : un objet encombrant, son porteur lance un dé de déplacement de moins ;</li>
                         <li><b>Captif à escorter</b> (sa mort peut faire perdre la quête ; il peut rester allié pour la suite ; une note peut le libérer) : une figure qui attend dans sa cellule. Un héros au contact la libère et elle le suit ; ramenée vivante sur la sortie avec le dernier héros, la récompense est versée — sinon la quête est gagnée sans récompense ;</li>
                         <li><b>Sans restauration</b> : la quête enchaîne sans remettre le Corps ni l'Esprit à neuf ;</li>
+                        <li><b>Brouillard vivant</b> (The Frozen Horror) : dans ces salles, chaque attaque d'un héros commence par un dé — seul le bouclier blanc frappe le vrai monstre ;</li>
+                        <li><b>Rebord de crevasse</b> (The Frozen Horror) : un dé à la première case de la salle et au début de chaque tour qu'on y passe — deux boucliers noirs, et le héros est perdu à jamais ;</li>
                         <li><b>Suite</b> (campagne ramifiée) : selon le drapeau posé, la quête suivante change ;</li>
                         <li><b>Quête double</b> : deux moitiés reliées par un passage.</li>
                     </ul>
@@ -154,7 +156,7 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
 
                 <section id="notes">
                     <h2>4. Les notes « quand → alors »</h2>
-                    <p>Les lettres des livrets (« A : quand un héros entre ici, lisez… ») deviennent des <b>notes</b>. Chaque note a un repère, un <b>déclencheur</b> (entrer dans une salle ou sur une case, fouiller le trésor, ouvrir une porte, abattre un monstre ou toutes les figures désignées, vider une salle, y entrer tous, la quitter, y finir son tour, déclencher un piège, détruire un meuble, libérer un captif…) et une liste d'<b>effets</b> (lire un texte, donner de l'or ou un objet — ou un objet tiré au hasard —, lancer des dés dont l'issue choisit la suite, faire apparaître des monstres, donner de l'or (au héros qui déclenche, partagé entre les héros vivants, ou autant à chacun), ouvrir une porte, éveiller des figures, téléporter, poser un drapeau…).</p>
+                    <p>Les lettres des livrets (« A : quand un héros entre ici, lisez… ») deviennent des <b>notes</b>. Chaque note a un repère, un <b>déclencheur</b> (entrer dans une salle ou sur une case, fouiller le trésor, ouvrir une porte, abattre un monstre ou toutes les figures désignées, vider une salle, y entrer tous, la quitter, y finir son tour, déclencher un piège, détruire un meuble, libérer un captif…) et une liste d'<b>effets</b> (lire un texte, donner de l'or ou un objet — ou un objet tiré au hasard —, lancer des dés dont l'issue choisit la suite, faire apparaître des monstres, donner de l'or (au héros qui déclenche, partagé entre les héros vivants, ou autant à chacun), ouvrir une porte, éveiller des figures, téléporter, poser un drapeau, arrêter la marche du héros, le voler, faire surgir les monstres errants de la quête…). Le piège à monstre errant d'un livret s'écrit ainsi : entrer sur la case → arrêter + monstres errants.</p>
                     <ul>
                         <li><b>si le drapeau / sauf si le drapeau</b> : la note ne joue que si un drapeau est (ou n'est pas) posé ;</li>
                         <li><b>une seule fois</b> : décoché, la note rejoue à chaque déclenchement ;</li>

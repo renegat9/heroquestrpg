@@ -6147,6 +6147,10 @@ Mode classique seulement ; une règle par livret, sourcée.
   F5815 p. 5) et `voler {or?}` (de l'or de la bourse du héros qui déclenche, au plus ce qu'il a ; sinon un objet de son
   SAC tiré au hasard — « it cannot be the armor or shield a hero is using, nor the weapon they are wielding », le
   Gremlin de glace, q. 4 B). Le Gremlin qui « disparaît » : `retirer`.
+- **Porte cachée** — `portes[].cachee: true` sur une porte secrète (F5815 q. 5 C : « This door does not appear until the
+  doors marked "B" have disappeared… even if the heroes walk right past it ») : ni la fouille des portes secrètes, ni
+  une potion, ni la clairvoyance ne la trouvent ; seul l'effet `reveler_porte` d'une note la révèle. Incompatible avec
+  `revelee`. La salle qui se scelle (q. 5 B) s'écrit `tous_entres` → `murer_porte` (portes B) + `reveler_porte` (C).
 - **Stalactite, Hache balancière** — deux pièges du catalogue (F5815 p. 6, sans tuile), réservés au classique
   (`MoteurPieges::RESERVES_AU_CLASSIQUE` : jamais tirés par le donjon généré). La Stalactite : 1 PV au premier héros,
   usage unique. La Hache : 2 dés de combat sans défense, 1 PV par crâne ; `effet.reste_arme` la laisse armée et visible

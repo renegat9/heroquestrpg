@@ -171,7 +171,7 @@ final class ValidationCampagne
     private const LONGUEUR_REPERE = 40;
     private const LONGUEUR_DRAPEAU = 40;
     private const CLES_PORTE = ['x', 'y', 'cote', 'type'];
-    private const CLES_PORTE_OPTIONNELLES = ['verrou', 'ouverte', 'revelee'];
+    private const CLES_PORTE_OPTIONNELLES = ['verrou', 'ouverte', 'revelee', 'cachee'];
     private const CLES_CASE = ['x', 'y'];
     private const CLES_MOBILIER = ['slug', 'x', 'y', 'rotation'];
     private const CLES_POSE = ['slug', 'x', 'y'];
@@ -1350,7 +1350,11 @@ final class ValidationCampagne
             }
             // ÉTAT DE DÉPART (lot E1) : `ouverte` (« the highlighted doors are open », F9907 q. 3 ; F6646 ; FL) — une porte
             // normale sans verrou ; `revelee` (« the secret doors are already discovered », FL q. 9) — une porte secrète.
-            foreach (['ouverte' => 'normale', 'revelee' => 'secrete'] as $cle => $typeAttendu) {
+            // `cachee` (lot E2, F5815 q. 5 C) : une porte secrète que seule une note révèle — jamais déjà découverte.
+            if (($porte['cachee'] ?? false) === true && ($porte['revelee'] ?? false) === true) {
+                $this->refuser("$position.cachee", self::VALEUR_INVALIDE, 'une porte cachée ne peut pas être déjà découverte');
+            }
+            foreach (['ouverte' => 'normale', 'revelee' => 'secrete', 'cachee' => 'secrete'] as $cle => $typeAttendu) {
                 if (! array_key_exists($cle, $porte)) {
                     continue;
                 }
@@ -1358,7 +1362,7 @@ final class ValidationCampagne
                     $this->refuser("$position.$cle", self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
                 } elseif (($porte['type'] ?? null) !== $typeAttendu) {
                     $this->refuser("$position.$cle", self::VALEUR_INVALIDE, $cle === 'ouverte'
-                        ? 'seule une porte normale peut être ouverte au départ' : 'seule une porte secrète peut être déjà découverte');
+                        ? 'seule une porte normale peut être ouverte au départ' : 'seule une porte secrète peut être '.($cle === 'cachee' ? 'cachée' : 'déjà découverte'));
                 } elseif ($cle === 'ouverte' && array_key_exists('verrou', $porte)) {
                     $this->refuser("$position.ouverte", self::VALEUR_INVALIDE, 'une porte ouverte au départ ne porte pas de verrou');
                 }

@@ -293,3 +293,27 @@ it('hache balancière : 2 dés sans défense, et elle reste armée jusqu\'au dé
         ->invoke(app(\App\Partie\AssembleurCarte::class), \App\Partie\BestiaireGroupe::manuel(['horreur_des_glaces']));
     expect($vivier->pluck('nom')->intersect(\App\Partie\MoteurPieges::RESERVES_AU_CLASSIQUE)->all())->toBe([]);
 });
+
+it('porte cachée : la fouille ne la trouve jamais, seule la note la révèle ; refusée déjà découverte', function (bool $cachee) {
+    $portes = fn (array $secrete) => [
+        ['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale'], ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale'],
+        ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'secrete', ...$secrete]];
+    expect(codesE2(campagneE2(['portes' => $portes(['cachee' => true, 'revelee' => true])])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $campagne = campagneE2(['portes' => $portes($cachee ? ['cachee' => true] : []), 'notes' => [
+        ['repere' => 'C', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]], 'alors' => [['effet' => 'reveler_porte', 'porte' => 2]]]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 9, 'position_y' => 4]);
+    $porte = fn () => collect($partie['quete']->fresh()->carte->grille['portes'])->first(fn ($p) => (int) $p['x'] === 9 && (int) $p['y'] === 5);
+
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'fouiller'])->assertAccepted();
+    // Le témoin (sans `cachee`) : la même fouille trouve la même porte.
+    expect($porte()['etat'])->toBe($cachee ? \App\Partie\MoteurPortes::ETAT_SECRETE : \App\Partie\MoteurPortes::ETAT_FERMEE);
+
+    if ($cachee) {
+        app(\App\Partie\Classique\NotesDeQuete::class)->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 1], $partie['heros']);
+        expect($porte()['etat'])->toBe(\App\Partie\MoteurPortes::ETAT_FERMEE)->and($porte()['revele'])->toBeTrue();
+    }
+})->with(['cachée' => [true], 'témoin : secrète ordinaire' => [false]]);

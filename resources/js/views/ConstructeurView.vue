@@ -244,7 +244,7 @@ function retirerQuete(i) {
 
 // ---------------------------------------------------------------- quêtes : outils de la carte
 const outil = ref('salle');
-const choix = reactive({ porteOuverte: false, porteRevelee: false, terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, piegeGouffre: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
+const choix = reactive({ porteOuverte: false, porteRevelee: false, porteCachee: false, terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, piegeGouffre: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
 watch(catalogues, (c) => {
     if (!c) return;
     choix.mobilier ||= c.couches.mobilier?.[0]?.slug ?? '';
@@ -287,6 +287,8 @@ function verrouChoisi(pourSortie = false) {
 function etatDeDepartPorte() {
     if (choix.typePorte === 'normale' && !choix.verrouPorte && choix.porteOuverte) return { ouverte: true };
     if (choix.typePorte === 'secrete' && choix.porteRevelee) return { revelee: true };
+    // Lot E2 : une porte que seule une note révèle (`reveler_porte`), jamais la fouille (F5815 q. 5 C).
+    if (choix.typePorte === 'secrete' && choix.porteCachee) return { cachee: true };
     return {};
 }
 /** Une porte posée sur le bord du COULOIR se ramène au bord de la salle ouverte d'en face (la même arête). */
@@ -1027,6 +1029,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                             <!-- Lot E1 : l'état de départ de la porte. -->
                             <label v-if="outil === 'porte' && choix.typePorte === 'normale' && !choix.verrouPorte" class="cst-case"><input v-model="choix.porteOuverte" type="checkbox" /> ouverte au départ</label>
                             <label v-if="outil === 'porte' && choix.typePorte === 'secrete'" class="cst-case"><input v-model="choix.porteRevelee" type="checkbox" /> déjà découverte</label>
+                            <label v-if="outil === 'porte' && choix.typePorte === 'secrete' && !choix.porteRevelee" class="cst-case" title="Seule une note la révèle (« révéler la porte ») : la fouille ne la trouve jamais."><input v-model="choix.porteCachee" type="checkbox" /> cachée (révélée par une note)</label>
                             <template v-if="outil === 'porte' && choix.typePorte === 'normale'">
                                 <select v-model="choix.verrouPorte" class="cst-input" title="Verrou de la porte">
                                     <option value="">sans verrou</option>
