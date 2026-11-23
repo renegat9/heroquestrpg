@@ -6037,6 +6037,12 @@ dans le mode classique »). Ce lot porte ce qui sert à trois livrets ou plus. M
   fouille : `monstre` (la première, comme avant), `monstres: [{instance_id, nom, x, y}]` (toutes, seulement si
   `nombre` > 1), `frappe_errant` (la première) et `frappes_errants: [attaque_monstre…]` (les suivantes au contact).
   Le défi du Chevalier ne vise que la première. Fil : « 2 Squelettes surgissent du coffre que fouille Albrecht ! ».
+- **Or d'une note partagé** — effet `or`, paramètre facultatif `partage` (vocabulaire des récompenses) : `groupe` le
+  partage entre les héros vivants de la quête (« Large amounts of gold should be divided among all surviving heroes »,
+  F5815 p. 6 ; même règle dans quatre autres livrets ; le reste de la division aux premiers dans l'ordre du tour,
+  `Bourses::partager()`), `par_heros` en donne autant à chacun ; absent, il va au héros qui déclenche (comme avant). Le
+  résultat de l'effet porte `partage` et `parts` ; le fil dit « Le groupe trouve 600 pièces d'or (Albrecht +300,
+  Brunhild +300) » ou « Chaque héros reçoit… ».
 - **Sorts de Dread et capacités dans le profil d'auteur** (monstre posé, `apparition`, errant) :
   - `sorts_dread: [slug]` — catalogue `sorts_dread` (publié par `GET /constructeur/catalogues`) : REMPLACE le
     répertoire de la fiche (« Vilor knows the following Dread spells », F5815 p. 12). Chaque sort une fois par quête

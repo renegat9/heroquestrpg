@@ -1505,6 +1505,13 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             <label>coût : po <input :value="effet.cout?.or ?? ''" type="number" min="0" class="cst-input cst-num" @change="changerCoutOffre(effet, 'or', $event.target.value)" /></label>
                                             <label>jetons <input :value="effet.cout?.reputation ?? ''" type="number" min="0" class="cst-input cst-num" @change="changerCoutOffre(effet, 'reputation', $event.target.value)" /></label>
                                         </template>
+                                        <!-- Lot E1 : « divided among all surviving heroes » — l'or d'une note partagé, ou autant à chacun. -->
+                                        <select v-else-if="p === 'partage'" :value="effet.partage ?? ''" class="cst-input" title="À qui va l'or"
+                                            @change="$event.target.value ? (effet.partage = $event.target.value) : delete effet.partage">
+                                            <option value="">au héros qui déclenche</option>
+                                            <option value="groupe">partagé entre les héros vivants</option>
+                                            <option value="par_heros">autant à chaque héros</option>
+                                        </select>
                                         <label v-else-if="p === 'groupe'">exclusive avec le groupe <input :value="effet.groupe ?? ''" class="cst-input" placeholder="(seule)" @change="$event.target.value.trim() ? (effet.groupe = $event.target.value.trim()) : delete effet.groupe" /></label>
                                         <!-- Lot K5h : `campagne` est un booléen — posé seulement quand il vaut true. -->
                                         <label v-else-if="p === 'campagne'" class="cst-case">

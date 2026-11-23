@@ -290,8 +290,18 @@ final class NotesDeQuete
     private function effetOr(Quete $quete, array $effet, ?Personnage $heros): array
     {
         $or = max(0, (int) ($effet['or'] ?? 0));
+        $bourses = app(Bourses::class);
 
-        return ['or' => $or, 'parts' => app(Bourses::class)->verser($quete->groupe, $or, $heros)];
+        // PARTAGE (lot E1) : « divided among all surviving heroes » — les héros de la quête, vivants (`Bourses::partager()`,
+        // la règle de la récompense de fin : le reste aux premiers dans l'ordre du tour). `par_heros` : autant à chacun.
+        return match ($effet['partage'] ?? null) {
+            'groupe' => ['or' => $or, 'partage' => 'groupe', 'parts' => $bourses->verser($quete->groupe, $or)],
+            'par_heros' => ['or' => $or, 'partage' => 'par_heros', 'parts' => array_merge([], ...array_map(
+                fn (array $part) => $bourses->verser($quete->groupe, $part['or'], Personnage::find($part['personnage_id'])),
+                $bourses->partager($quete->groupe, $or, chacun: true, parmi: $quete->participants()),
+            ))],
+            default => ['or' => $or, 'parts' => $bourses->verser($quete->groupe, $or, $heros)],
+        };
     }
 
     /** E2 — l'objet du catalogue entre dans le sac du héros qui déclenche, même plein : c'est un butin de quête. */

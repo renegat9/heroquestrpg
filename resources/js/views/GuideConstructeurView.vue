@@ -151,7 +151,7 @@ const COMMANDE_MCP = 'claude mcp add constructeur -- docker compose -f /chemin/v
 
                 <section id="notes">
                     <h2>4. Les notes « quand → alors »</h2>
-                    <p>Les lettres des livrets (« A : quand un héros entre ici, lisez… ») deviennent des <b>notes</b>. Chaque note a un repère, un <b>déclencheur</b> (entrer dans une salle ou sur une case, fouiller le trésor, ouvrir une porte, abattre un monstre…) et une liste d'<b>effets</b> (lire un texte, donner de l'or ou un objet, faire apparaître des monstres, ouvrir une porte, éveiller des figures, téléporter, poser un drapeau…).</p>
+                    <p>Les lettres des livrets (« A : quand un héros entre ici, lisez… ») deviennent des <b>notes</b>. Chaque note a un repère, un <b>déclencheur</b> (entrer dans une salle ou sur une case, fouiller le trésor, ouvrir une porte, abattre un monstre…) et une liste d'<b>effets</b> (lire un texte, donner de l'or ou un objet, faire apparaître des monstres, donner de l'or (au héros qui déclenche, partagé entre les héros vivants, ou autant à chacun), ouvrir une porte, éveiller des figures, téléporter, poser un drapeau…).</p>
                     <ul>
                         <li><b>si le drapeau / sauf si le drapeau</b> : la note ne joue que si un drapeau est (ou n'est pas) posé ;</li>
                         <li><b>une seule fois</b> : décoché, la note rejoue à chaque déclenchement ;</li>

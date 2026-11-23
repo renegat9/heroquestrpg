@@ -168,7 +168,9 @@ final class MotsClesQuete
      */
     public const EFFETS = [
         self::TEXTE => ['parametres' => ['texte'], 'optionnels' => [], 'lecteur' => 'effetTexte', 'libelle' => 'lire un texte à la table'],
-        self::OR => ['parametres' => ['or'], 'optionnels' => [], 'lecteur' => 'effetOr', 'libelle' => 'donner de l\'or au héros'],
+        // `partage` (lot E1, 2026-11-22) : « Large amounts of gold should be divided among all surviving heroes » (F5815
+        // p. 6, et la règle de plusieurs livrets) — `groupe` le partage, `par_heros` en donne autant à chacun.
+        self::OR => ['parametres' => ['or'], 'optionnels' => ['partage'], 'lecteur' => 'effetOr', 'libelle' => 'donner de l\'or au héros'],
         self::OBJET => ['parametres' => ['slug'], 'optionnels' => ['quantite', 'si_absent_du_groupe'], 'lecteur' => 'effetObjet', 'libelle' => 'donner un objet au héros'],
         self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
         self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],

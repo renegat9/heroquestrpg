@@ -49,6 +49,34 @@ function codesE1(array $campagne): array
     return array_column(app(ValidationCampagne::class)->valider($campagne), 'code');
 }
 
+function herosE1(string $joueur, string $nom): Personnage
+{
+    $compte = connecterJoueur($joueur);
+
+    return Personnage::create([
+        'joueur_id' => $compte->id, 'nom' => $nom, 'classe' => $nom === 'Albrecht' ? 'barbare' : 'nain', 'niveau' => 1,
+        'attribut_body' => 4, 'attribut_mind' => 2, 'pv_body_max' => 30, 'pv_body' => 30, 'pv_mind_max' => 2, 'pv_mind' => 2,
+        'des_attaque' => 3, 'des_defense' => 2, 'deplacement_base' => 4,
+    ]);
+}
+
+/** Albrecht et Brunhild, chacun avec sa bourse ; Albrecht a la main. */
+function partieE1ADeux(object $test, array $campagne): array
+{
+    app(CampagnesConstruites::class)->enregistrer($campagne);
+    $albrecht = herosE1('alice', 'Albrecht');
+    $code = $test->postJson('/api/classique', ['nom' => 'Les Essayeurs', 'campagne' => 'campagne-d-essai', 'personnage_id' => $albrecht->id])
+        ->assertCreated()->json('groupe.identifiant');
+    $brunhild = herosE1('bob', 'Brunhild');
+    $test->postJson("/api/groupes/{$code}/joueurs", ['personnage_id' => $brunhild->id])->assertSuccessful();
+    $test->actingAs(\App\Auth\JoueurAuthentifiable::find($albrecht->joueur_id), 'joueur');
+    $groupe = Groupe::where('identifiant', $code)->firstOrFail();
+    $test->postJson("/api/groupes/{$code}/quetes")->assertCreated();
+
+    return ['code' => $code, 'groupe' => $groupe, 'quete' => Quete::findOrFail($groupe->refresh()->quete_courante_id),
+        'albrecht' => $albrecht, 'brunhild' => $brunhild];
+}
+
 /** @return array{code: string, groupe: Groupe, quete: Quete, heros: Personnage} */
 function partieE1(object $test, array $campagne): array
 {
@@ -164,3 +192,36 @@ it('« deux sorts au premier tour » est la forme paramétrée du double sort', 
         ->and(app(MoteurDread::class)->doubleSortDisponible($instance, true))->toBeTrue()
         ->and(app(MoteurDread::class)->doubleSortDisponible($instance, false))->toBeFalse();
 });
+
+// ---------------------------------------------------------------- 2. l'or d'une note partagé
+
+it('valide `partage` sur l\'effet `or` (vocabulaire des récompenses), refuse le reste', function () {
+    $note = fn (array $or) => campagneE1(['notes' => [['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree']],
+        'alors' => [['effet' => 'or', 'or' => 600] + $or]]]]);
+
+    expect(codesE1($note([])))->toBe([])
+        ->and(codesE1($note(['partage' => 'groupe'])))->toBe([])
+        ->and(codesE1($note(['partage' => 'par_heros'])))->toBe([])
+        ->and(codesE1($note(['partage' => 'tous'])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+});
+
+it('l\'or d\'un coffre « divided among all surviving heroes » va aux bourses des héros de la quête', function (?string $partage, array $attendu, string $phrase) {
+    $campagne = campagneE1(['notes' => [['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree']],
+        'alors' => [['effet' => 'or', 'or' => 601] + ($partage === null ? [] : ['partage' => $partage])]]]]);
+    ['code' => $code, 'groupe' => $groupe, 'albrecht' => $albrecht, 'brunhild' => $brunhild] = partieE1ADeux($this, $campagne);
+    Cache::forget(GenererMenu::cleDuHeros($groupe, $albrecht));
+    $this->getJson("/api/groupes/{$code}/menu")->assertOk();
+
+    $this->postJson("/api/groupes/{$code}/choix", ['option_id' => 'fouiller_tresor'])->assertStatus(202)->assertJsonPath('resultat.issue', 'note');
+
+    expect([(int) $albrecht->fresh()->or, (int) $brunhild->fresh()->or])->toBe($attendu)
+        ->and((int) $groupe->fresh()->or)->toBe(0);
+    $note = \App\Models\Evenement::where('groupe_id', $groupe->id)->get()->first(fn ($e) => ($e->payload['type'] ?? null) === 'note_de_quete');
+    $fil = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($note->payload, 'Albrecht'))->pluck('texte')->implode(' | ');
+    expect($fil)->toContain($phrase);
+})->with([
+    'au fouilleur' => [null, [601, 0], 'Albrecht trouve 601 pièces d\'or'],
+    // Le reste de la division (1 pièce) va au premier dans l'ordre du tour.
+    'partagé' => ['groupe', [301, 300], 'Le groupe trouve 601 pièces d\'or (Albrecht +301, Brunhild +300)'],
+    'à chacun' => ['par_heros', [601, 601], 'Chaque héros reçoit 601 pièces d\'or'],
+]);

@@ -1014,6 +1014,8 @@ final class ValidationCampagne
                 break;
             case MotsClesQuete::OR:
                 $this->entier($effet, 'or', $position, min: 1);
+                // Lot E1 : partagé entre les héros vivants de la quête (`groupe`), ou autant à chacun (`par_heros`).
+                $this->dans($effet, 'partage', $position, self::PARTAGES);
                 break;
             case MotsClesQuete::OBJET:
                 $this->slugCatalogue($effet, 'slug', $position, 'objets');

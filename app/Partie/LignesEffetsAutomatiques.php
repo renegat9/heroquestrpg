@@ -868,9 +868,11 @@ trait LignesEffetsAutomatiques
                     if ((int) ($effet['or'] ?? 0) > 0) {
                         $parts = (array) ($effet['parts'] ?? []);
                         $lignes[] = [
-                            'texte' => count($parts) > 1
+                            'texte' => count($parts) > 1 && ($effet['partage'] ?? null) === 'par_heros'
+                                ? 'Chaque héros reçoit '.(int) $effet['or'].' pièces d\'or ('.collect($parts)->map(fn (array $p) => ($p['nom'] ?? 'Un héros').' +'.(int) ($p['or'] ?? 0))->implode(', ').')'
+                                : (count($parts) > 1
                                 ? 'Le groupe trouve '.(int) $effet['or'].' pièces d\'or ('.collect($parts)->map(fn (array $p) => ($p['nom'] ?? 'Un héros').' +'.(int) ($p['or'] ?? 0))->implode(', ').')'
-                                : "{$heros} trouve ".(int) $effet['or'].' pièces d\'or',
+                                : "{$heros} trouve ".(int) $effet['or'].' pièces d\'or'),
                             'ton' => 'tresor',
                         ];
                     }
