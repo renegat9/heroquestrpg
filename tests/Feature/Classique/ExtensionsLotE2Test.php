@@ -343,3 +343,18 @@ it('richesses elfiques : la première fouille d\'une salle à coffre sans note p
         expect(app(\App\Partie\Classique\RichessesElfiques::class)->montant($partie['quete']->fresh(), (int) $resultat['salle'], false))->toBeNull();
     }
 })->with(['sans note : 200 po' => [false, 200], 'la note nomme la salle : rien' => [true, null]]);
+
+// ---------------------------------------------------------------- Rise of the Dread Moon
+
+it('monstres renforcés : tous lancent un dé d\'attaque de plus, au contact et à distance ; annoncé au départ', function () {
+    $campagne = campagneE2(['regles' => ['bonus_attaque_monstres' => 1], 'monstres' => [
+        ['slug' => 'orque', 'x' => 9, 'y' => 3], ['slug' => 'archer-elfe', 'x' => 10, 'y' => 4]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['bonus_attaque_monstres' => 0]])))->not->toBe([]);
+    $partie = partieE2($this, $campagne);
+
+    [$orque, $archer] = $partie['quete']->instancesMonstres()->with('monstre')->orderBy('id')->get()->all();
+    expect($orque->attaqueEffective())->toBe((int) $orque->monstre->attaque + 1)
+        ->and($archer->attaqueDistanceEffective())->toBe((int) $archer->monstre->attaque_distance + 1)
+        ->and(collect(\App\Partie\EffetsGlobauxQuete::publier($partie['quete']->fresh()))->pluck('source')->all())->toContain('regle_de_quete');
+});

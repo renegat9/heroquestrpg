@@ -6152,6 +6152,19 @@ Mode classique seulement ; une règle par livret, sourcée.
   first time that room is searched for treasure award that Hero 200 gold coins ») : la PREMIÈRE fouille du trésor d'une
   salle où l'auteur a posé un Coffre, et qu'aucune note `fouille_tresor` ne nomme, verse N pièces à la bourse du
   fouilleur, à la place de la carte. Résultat de fouille `issue: richesses, or: N`. `Classique\RichessesElfiques`.
+- **Monstres renforcés** — `regles.bonus_attaque_monstres: N` (*Rise of the Dread Moon* q. 7, 9, 10 : « Dread Moon
+  empowerment—monsters in this quest roll one additional Attack die ») : un effet global de quête de faction `*`
+  (`EffetsGlobauxQuete::TOUS`), établi au départ, annoncé et publié comme celui d'une créature (`effets_globaux`,
+  source `regle_de_quete`) ; lu au contact (`attaqueEffective()`) ET à distance (`attaqueDistanceEffective()`), avant le
+  plafond de l'état de choc.
+- **Le miroir à sens unique** (*The Mage of the Mirror* q. 9-10, « Silvermane's Lair ») — **pas de réglage neuf**, une
+  décision écrite : le livret dit « the two quests use different parts of the gameboard, leave the Quest 9 rooms set
+  up » et « the heroes move back and forth between these two quests ». Les deux moitiés sont SIMULTANÉES, là où
+  `quete.double` (*The Frozen Horror*) est séquentiel (tous les héros passent, puis bascule). Elles s'écrivent donc en
+  UNE quête : les salles des deux cartes ouvertes ; le miroir noirci par une note (`entree` près du miroir, `si_drapeau`
+  du lunarium → `drapeau`), la traversée par une note `entree` sur la case du miroir (`si_drapeau` → `teleporter` vers
+  G, `une_fois: false`) ; les trappes E-K par la « Trappe de téléportation » du catalogue (une paire) ; la fin combinée
+  (Sinestra vaincue ET Millandriel trouvée) par deux drapeaux croisés vers un drapeau de fin.
 - **Porte cachée** — `portes[].cachee: true` sur une porte secrète (F5815 q. 5 C : « This door does not appear until the
   doors marked "B" have disappeared… even if the heroes walk right past it ») : ni la fouille des portes secrètes, ni
   une potion, ni la clairvoyance ne la trouvent ; seul l'effet `reveler_porte` d'une note la révèle. Incompatible avec

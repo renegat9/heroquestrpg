@@ -1218,6 +1218,11 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     Or d'un coffre sans note :
                                     <input type="number" min="1" class="cst-input cst-num" :value="quete.regles?.richesses_des_coffres ?? ''" @change="changerRegleEntier('richesses_des_coffres', $event.target.value)" />
                                 </label>
+                                <!-- Lot E2 : « monsters in this quest roll one additional Attack die » (Rise of the Dread Moon). -->
+                                <label class="cst-case" title="Tous les monstres de la quête lancent ce nombre de dés d'attaque de plus, au contact et à distance (Rise of the Dread Moon : 1).">
+                                    Dés d'attaque en plus (tous les monstres) :
+                                    <input type="number" min="1" class="cst-input cst-num" :value="quete.regles?.bonus_attaque_monstres ?? ''" @change="changerRegleEntier('bonus_attaque_monstres', $event.target.value)" />
+                                </label>
                                 <!-- Lot E1 : la quête enchaîne sans remettre le Corps ni l'Esprit à neuf. -->
                                 <label class="cst-case">
                                     <input type="checkbox" :checked="quete.regles?.sans_restauration === true" @change="changerRegleBool('sans_restauration', $event.target.checked)" /> Sans restauration (Corps et Esprit gardés)

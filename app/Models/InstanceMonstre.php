@@ -424,7 +424,7 @@ class InstanceMonstre extends Model
      * effet de cette quête qui vise la faction de la créature, pour la volée demandée. Lu au
      * même endroit que les buffs de faction (`attaqueEffective()`).
      */
-    public function bonusEffetGlobalQuete(string $volee): int
+    public function bonusEffetGlobalQuete(string $volee, bool $seulementTous = false): int
     {
         $quete = $this->quete;
 
@@ -435,7 +435,12 @@ class InstanceMonstre extends Model
         $bonus = 0;
 
         foreach (EffetsGlobauxQuete::de($quete) as $effet) {
-            if (($effet['volee'] ?? null) === $volee && $this->estDeFaction((string) ($effet['faction'] ?? ''))) {
+            if (($effet['volee'] ?? null) !== $volee) {
+                continue;
+            }
+            // `TOUS` (une règle de quête construite) vise chaque monstre ; une faction, seulement les siens.
+            $tous = ($effet['faction'] ?? null) === EffetsGlobauxQuete::TOUS;
+            if ($tous || (! $seulementTous && $this->estDeFaction((string) ($effet['faction'] ?? '')))) {
                 $bonus += (int) ($effet['des'] ?? 0);
             }
         }
@@ -453,6 +458,10 @@ class InstanceMonstre extends Model
         }
 
         $des = (int) $base + ($this->elite ? self::BONUS_ELITE : 0);
+
+        // LA RÈGLE « TOUS LES MONSTRES » d'une quête construite (lot E2, `EffetsGlobauxQuete::TOUS`) vaut aussi à distance ;
+        // l'effet d'une faction (Gruulob) reste lu au contact seul, comme avant.
+        $des += $this->bonusEffetGlobalQuete('attaque', seulementTous: true);
 
         // Même plafond de choc que `attaqueEffective()` : « 1 Attack die ».
         return $this->estEnChoc() ? min($des, 1 + $this->bonusDesDread('attaque')) : $des;

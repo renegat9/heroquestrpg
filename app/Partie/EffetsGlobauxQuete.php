@@ -45,6 +45,13 @@ final class EffetsGlobauxQuete
     public const VOLEES = ['attaque'];
 
     /**
+     * La FACTION « toutes » : une règle de quête construite qui vaut pour chaque monstre (mode classique, lot E2 — *Rise
+     * of the Dread Moon* q. 7, 9, 10 : « Dread Moon empowerment—monsters in this quest roll one additional Attack die »).
+     * Aucune fiche de monstre ne la déclare : seul `regles.bonus_attaque_monstres` la pose.
+     */
+    public const TOUS = '*';
+
+    /**
      * Ce que la roster de la quête porte, décidé à partir de ses monstres — un effet
      * par SOURCE, même présente en plusieurs exemplaires : l'effet est celui de la
      * quête, pas de chaque figurine.
@@ -74,6 +81,17 @@ final class EffetsGlobauxQuete
             $effets['regle_degats_en_mind'] = [
                 'source' => 'regle_de_quete', 'titre' => 'Esprits', 'faction' => '', 'volee' => 'aucune', 'des' => 0,
                 'texte' => \App\Partie\Classique\DegatsEnMind::texte($enMind, fn (string $s) => (string) ($catalogue[$s]->nom ?? $s)),
+            ];
+        }
+
+        // RÈGLE DE QUÊTE CONSTRUITE (lot E2, F6646 q. 7, 9, 10) : tous les monstres lancent N dés d'attaque de plus — au
+        // contact ET à distance (`InstanceMonstre::attaqueEffective()` et `attaqueDistanceEffective()`).
+        $bonusTous = $quete->estConstruite() ? (int) data_get($quete->documentConstruit(), 'regles.bonus_attaque_monstres', 0) : 0;
+        if ($bonusTous > 0) {
+            $des = $bonusTous === 1 ? '1 dé' : $bonusTous.' dés';
+            $effets['regle_bonus_attaque'] = [
+                'source' => 'regle_de_quete', 'titre' => 'Monstres renforcés', 'faction' => self::TOUS, 'volee' => 'attaque', 'des' => $bonusTous,
+                'texte' => "Effet en jeu — Monstres renforcés : tous les monstres de cette quête lancent {$des} d'attaque de plus.",
             ];
         }
 
