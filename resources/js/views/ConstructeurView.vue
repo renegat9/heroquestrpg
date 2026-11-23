@@ -795,6 +795,13 @@ function changerRegleBool(cle, avec) {
     if (avec) q.regles[cle] = true; else delete q.regles[cle];
     if (!Object.keys(q.regles).length) delete q.regles;
 }
+// Lot E1 : les cartes de trésor des boîtes (`campagne.cartes_tresor`), la clé disparaît vide.
+const LIBELLES_BOITES_CARTES = { jungles_delthrak: 'Jungles of Delthrak', wizards_of_morcar: 'Wizards of Morcar' };
+function basculerCartesTresor(boite, avec) {
+    const liste = (doc.value.cartes_tresor ?? []).filter((b) => b !== boite);
+    if (avec) liste.push(boite);
+    if (liste.length) doc.value.cartes_tresor = liste; else delete doc.value.cartes_tresor;
+}
 function changerJsonEffets(objet, cle, texte) {
     try { objet[cle] = JSON.parse(texte); } catch { erreur.value = 'Les effets ne sont pas du JSON lisible.'; }
 }
@@ -886,6 +893,13 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                     </div>
                     <!-- Lot K6 : les mercenaires de la campagne — sa règle d'embauche et ceux qu'elle offre. -->
                     <div>
+                        <!-- Lot E1 : les cartes de trésor des boîtes qui rejoignent le paquet de chaque quête. -->
+                        <span class="cst-lbl">Cartes de trésor ajoutées au paquet</span>
+                        <div class="cst-ligne">
+                            <label v-for="b in (vocab.boites_de_cartes ?? [])" :key="b" class="cst-case">
+                                <input type="checkbox" :checked="(doc.cartes_tresor ?? []).includes(b)" @change="basculerCartesTresor(b, $event.target.checked)" /> {{ LIBELLES_BOITES_CARTES[b] ?? b }}
+                            </label>
+                        </div>
                         <span class="cst-lbl">Mercenaires</span>
                         <div class="cst-ligne">
                             <select :value="doc.mercenaires?.regime ?? ''" class="cst-input" @change="changerRegimeMercenaires($event.target.value)">

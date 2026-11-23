@@ -544,3 +544,20 @@ it('en fin de quête, le captif repart — sauf s\'il persiste, allié offert', 
         expect($reste->offert)->toBeTrue()->and($reste->etat)->toBe('actif');
     }
 })->with(['repart' => [false], 'persiste' => [true]]);
+
+// ---------------------------------------------------------------- 12. les cartes de trésor des extensions
+
+it('valide `cartes_tresor` : seulement les boîtes aux cartes sourcées', function () {
+    expect(codesE1(['cartes_tresor' => ['wizards_of_morcar']] + campagneE1()))->toBe([])
+        ->and(codesE1(['cartes_tresor' => ['the_frozen_horror']] + campagneE1()))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+});
+
+it('la campagne ajoute au paquet les cartes sourcées des boîtes qu\'elle nomme', function (array $boites, int $taille, array $cartes) {
+    ['quete' => $quete] = partieE1($this, ($boites === [] ? [] : ['cartes_tresor' => $boites]) + campagneE1());
+
+    expect(count($quete->deckFouille()))->toBe($taille)
+        ->and(collect($quete->deckFouille())->pluck('carte')->filter()->unique()->values()->intersect($cartes)->values()->all())->toEqualCanonicalizing($cartes);
+})->with([
+    'le paquet du plateau' => [[], 24, []],
+    'Morcar et Delthrak' => [['wizards_of_morcar', 'jungles_delthrak'], 24 + 8 + 2, ['magical_trap', 'emerald_heart_of_delthrak']],
+]);

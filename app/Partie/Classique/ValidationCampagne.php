@@ -291,7 +291,16 @@ final class ValidationCampagne
             return $this->refus;
         }
 
-        $this->cles($document, '', self::CLES_CAMPAGNE, ['mercenaires']);
+        $this->cles($document, '', self::CLES_CAMPAGNE, ['mercenaires', 'cartes_tresor']);
+        // Lot E1 : les boîtes dont les cartes de trésor rejoignent le paquet (`DeckFouille::BOITES_DE_CARTES`).
+        if (array_key_exists('cartes_tresor', $document)) {
+            foreach ((array) $this->enListe($document['cartes_tresor'], 'cartes_tresor') as $k => $boite) {
+                if (! in_array($boite, \App\Partie\Fouille\DeckFouille::BOITES_DE_CARTES, true)) {
+                    $this->refuser("cartes_tresor.$k", self::VALEUR_INVALIDE,
+                        'boîte sans cartes de trésor sourcées — permises : '.implode(', ', \App\Partie\Fouille\DeckFouille::BOITES_DE_CARTES));
+                }
+            }
+        }
         $this->format($document);
 
         $slug = $this->slug($document, 'slug', '');

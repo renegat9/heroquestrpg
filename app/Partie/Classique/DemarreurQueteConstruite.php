@@ -201,7 +201,9 @@ final class DemarreurQueteConstruite
         $monstres = Monstre::whereIn('id', array_column($produit['monstres'], 'monstre_id'))->get()->keyBy('id');
         $cibles = array_map('intval', (array) data_get($queteDoc, 'fin.cibles', []));
 
-        $paquet = $this->deck->pourQueteConstruite();
+        // Lot E1 : les cartes de trésor des boîtes que la CAMPAGNE nomme (`cartes_tresor`).
+        $paquet = $this->deck->pourQueteConstruite((array) (data_get(
+            \App\Models\CampagneConstruite::where('slug', $slugCampagne)->value('document'), 'cartes_tresor') ?? []));
 
         $quete = DB::transaction(function () use ($groupe, $heros, $queteDoc, $carte, $produit, $monstres, $cibles, $rang, $paquet, $dehors, $participants, $moitieDe): Quete {
             $quete = Quete::create([

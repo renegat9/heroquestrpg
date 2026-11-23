@@ -178,6 +178,8 @@ final class CatalogueConstructeur
                 'conditions_de_porte' => collect(\App\Partie\MoteurPortes::CONDITIONS)
                     ->map(fn (array $c, string $nom) => ['nom' => $nom, 'libelle' => $c['libelle']])->values()->all(),
                 'formats_acceptes' => ValidationCampagne::FORMATS_ACCEPTES,
+                // Lot E1 : les boîtes dont les cartes de trésor peuvent rejoindre le paquet (`campagne.cartes_tresor`).
+                'boites_de_cartes' => \App\Partie\Fouille\DeckFouille::BOITES_DE_CARTES,
                 // Lot E1 : les capacités qu'un profil d'auteur peut donner (`InstanceMonstre::CAPACITES_DE_PROFIL`).
                 'capacites_de_profil' => array_keys(\App\Models\InstanceMonstre::CAPACITES_DE_PROFIL),
             ],

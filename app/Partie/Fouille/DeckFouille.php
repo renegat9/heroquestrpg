@@ -261,17 +261,34 @@ final class DeckFouille
      * « Sans trésor spécial prévu par le livret de quêtes, on tire une carte du paquet Trésor, mélangé avant chaque
      * quête » (LR p. 14). Le trésor spécial, lui, est une NOTE de la quête (`NotesDeQuete`), pas une carte.
      *
-     * Ni coffre à artefact ni salle à coffre : ce sont des inventions du générateur. Ni cartes d'extension : un groupe
-     * classique n'a pas de bestiaire de boîte.
+     * Ni coffre à artefact ni salle à coffre : ce sont des inventions du générateur. Les cartes d'extension n'y entrent
+     * que si la CAMPAGNE les nomme (`cartes_tresor`, lot E1) : un groupe classique n'a pas de bestiaire de boîte.
      *
      * @return array{deck: list<array<string, mixed>>, salle_artefact: null, artefact_objet_id: null, salles_coffre: list<int>}
      */
-    public function pourQueteConstruite(): array
+    /**
+     * Les boîtes dont les cartes de trésor SOURCÉES peuvent rejoindre le paquet d'une campagne construite (lot E1,
+     * `campagne.cartes_tresor`) : « Shuffle the treasure cards into the deck » (F9907 p. 4 ; G1504 doc 18 §8). Les six
+     * cartes de *The Frozen Horror* et les quatre de *The Mage of the Mirror* n'ont pas de texte dans leur livret
+     * (« non trouvé ») : elles n'y sont pas.
+     */
+    public const BOITES_DE_CARTES = ['jungles_delthrak', 'wizards_of_morcar'];
+
+    /** @param  list<string>  $boites  `campagne.cartes_tresor` */
+    public function pourQueteConstruite(array $boites = []): array
     {
         $prng = new PrngLineaire(random_int(0, 0x7FFFFFFF));
+        $deck = $this->cartes(['cartes' => self::PAQUET_DE_TRESOR], 0);
+        // Lot E1 : les cartes de la boîte, ajoutées comme le thème les ajoute au mode RPG.
+        if (in_array('wizards_of_morcar', $boites, true)) {
+            $deck = [...$deck, ...$this->cartesMorcar()];
+        }
+        if (in_array('jungles_delthrak', $boites, true)) {
+            $deck = [...$deck, ...$this->cartesDelthrak()];
+        }
 
         return [
-            'deck' => $prng->melanger($this->cartes(['cartes' => self::PAQUET_DE_TRESOR], 0)),
+            'deck' => $prng->melanger($deck),
             'salle_artefact' => null,
             'artefact_objet_id' => null,
             'salles_coffre' => [],

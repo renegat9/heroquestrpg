@@ -5926,6 +5926,7 @@ s'ouvre à la main, au contact. Le moteur ne retient pas quels couloirs ont ét�
     declencheurs_de_note: { <déclencheur>: {cibles: [...], signale_par, libelle} },   // `MotsClesQuete::DECLENCHEURS`
     effets_de_note: { <effet>: {parametres: [...], optionnels: [...], lecteur, libelle} },   // `MotsClesQuete::EFFETS`
     formats_acceptes: [1],
+    boites_de_cartes: ["jungles_delthrak", "wizards_of_morcar"],   // lot E1 : `campagne.cartes_tresor`
     capacites_de_profil: ["attaque_diagonale", "deux_sorts_par_tour", "deux_sorts_premier_tour"]   // lot E1
   }
 }
@@ -6100,6 +6101,11 @@ dans le mode classique »). Ce lot porte ce qui sert à trois livrets ou plus. M
   (corrige un Sir Ragnar qui suivait le groupe dans les quêtes suivantes). Effet de note `liberer_captif` (« If the
   Barbarian kills the Dread Warriors, Gothar is freed », F5815 q. 3). Plusieurs captifs dans une même quête : non porté
   (le seul cas, les deux servantes de F7539 q. 2, n'a pas de fiche — « non trouvé »). `Classique\Escorte`.
+- **Cartes de trésor d'une extension** — clé de CAMPAGNE `cartes_tresor: [boite]` (vocabulaire
+  `DeckFouille::BOITES_DE_CARTES`, publié en `vocabulaires.boites_de_cartes`) : les cartes sourcées de la boîte
+  rejoignent le paquet de chaque quête (« Shuffle the treasure cards into the deck », F9907 p. 4 ; Morcar, doc 18 §8),
+  celles que le mode RPG ajoute déjà sous le thème. Frozen Horror (6 cartes) et Mage du Miroir (4) : textes absents de
+  leurs livrets, non portées.
 - **Sorts de Dread et capacités dans le profil d'auteur** (monstre posé, `apparition`, errant) :
   - `sorts_dread: [slug]` — catalogue `sorts_dread` (publié par `GET /constructeur/catalogues`) : REMPLACE le
     répertoire de la fiche (« Vilor knows the following Dread spells », F5815 p. 12). Chaque sort une fois par quête
