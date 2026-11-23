@@ -162,6 +162,18 @@ final class MotsClesQuete
     public const DEBLOQUER_MERCENAIRE = 'debloquer_mercenaire';
 
     /**
+     * Lot E1 (2026-11-22) — on LANCE des dés rouges, et l'issue choisit les effets (« roll one red die: 1-3 … 4-6 … »,
+     * F9528 q. 6, G0052, F9907). `{des?: 1|2, issues: [{de, a, alors: [effets]}]}`, les plages couvrant le total.
+     */
+    public const JET = 'jet';
+
+    /** Lot E1 — un objet TIRÉ AU HASARD dans une liste (« draws a spell scroll card at random », F5815 ; potions, artefacts). */
+    public const OBJET_AU_HASARD = 'objet_au_hasard';
+
+    /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
+    public const EFFETS_COMPOSES = [self::OFFRE, self::JET];
+
+    /**
      * Effet → ses paramètres (obligatoires, puis optionnels), et la méthode de `NotesDeQuete` qui le joue.
      *
      * @var array<string, array{parametres: list<string>, optionnels: list<string>, lecteur: string, libelle: string}>
@@ -171,7 +183,10 @@ final class MotsClesQuete
         // `partage` (lot E1, 2026-11-22) : « Large amounts of gold should be divided among all surviving heroes » (F5815
         // p. 6, et la règle de plusieurs livrets) — `groupe` le partage, `par_heros` en donne autant à chacun.
         self::OR => ['parametres' => ['or'], 'optionnels' => ['partage'], 'lecteur' => 'effetOr', 'libelle' => 'donner de l\'or au héros'],
-        self::OBJET => ['parametres' => ['slug'], 'optionnels' => ['quantite', 'si_absent_du_groupe'], 'lecteur' => 'effetObjet', 'libelle' => 'donner un objet au héros'],
+        // `sinon` (lot E1) : ce qui se joue à la place quand le groupe a déjà l'objet (« instead finds 500 gold coins », F9907).
+        self::OBJET => ['parametres' => ['slug'], 'optionnels' => ['quantite', 'si_absent_du_groupe', 'sinon'], 'lecteur' => 'effetObjet', 'libelle' => 'donner un objet au héros'],
+        self::OBJET_AU_HASARD => ['parametres' => ['parmi'], 'optionnels' => ['quantite'], 'lecteur' => 'effetObjetAuHasard', 'libelle' => 'donner un objet tiré au hasard dans une liste'],
+        self::JET => ['parametres' => ['issues'], 'optionnels' => ['des'], 'lecteur' => 'effetJet', 'libelle' => 'lancer des dés : l\'issue choisit les effets'],
         self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
         self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
         self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => ['campagne'], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],

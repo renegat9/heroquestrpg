@@ -877,7 +877,19 @@ trait LignesEffetsAutomatiques
                         ];
                     }
                     break;
+                // Lot E1 : le jet de dés (puis les effets de son issue), l'objet tiré au hasard, le « sinon » d'un objet déjà possédé.
+                case 'jet':
+                    $lignes[] = ['texte' => "{$heros} lance ".(count((array) ($effet['faces'] ?? [])) > 1 ? 'deux dés' : 'un dé').' : '.(int) ($effet['total'] ?? 0)
+                        .(($effet['issue'] ?? null) === null ? ' — rien ne se passe' : ''), 'ton' => 'info'];
+                    $lignes = [...$lignes, ...$this->noteDeQuete(['personnage' => $heros, 'effets' => (array) ($effet['effets'] ?? [])])];
+                    break;
+                case 'objet_au_hasard':
+                    $lignes = [...$lignes, ...$this->noteDeQuete(['personnage' => $heros, 'effets' => array_map(fn ($t) => ['effet' => 'objet', ...(array) $t], (array) ($effet['tirages'] ?? []))])];
+                    break;
                 case 'objet':
+                    if (! empty($effet['effets'])) {
+                        $lignes = [...$lignes, ...$this->noteDeQuete(['personnage' => $heros, 'effets' => (array) $effet['effets']])];
+                    }
                     if (isset($effet['objet']['nom'])) {
                         $quantite = (int) ($effet['quantite'] ?? 1);
                         $lignes[] = [

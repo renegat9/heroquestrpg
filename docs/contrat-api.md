@@ -6055,6 +6055,15 @@ dans le mode classique »). Ce lot porte ce qui sert à trois livrets ou plus. M
   la fouille (forme `zone` + `cibles` pour toute la salle), le tour du fouilleur s'arrête, puis la fouille rend ce que
   la salle contient. État : `quetes.drapeaux._coffres_pieges` (clé réservée). Point de passage :
   `Classique\CoffresPieges`.
+- **Hasard dans une note, et « sinon »** — trois ajouts au vocabulaire fermé (`MotsClesQuete`) :
+  - `jet {des?: 1|2, issues: [{de, a, alors: [effets]}]}` : des dés rouges, l'issue dont la plage contient le total joue
+    ses effets (plages sans chevauchement, au plus 6 × dés) ; résultat `{faces, total, issue, plage?, effets}` ;
+  - `objet_au_hasard {parmi: [slug…] (≥ 2), quantite?}` : tirages SANS remise (« draws a spell scroll card at random ») ;
+    résultat `{tirages: [résultat d'objet…]}` ;
+  - `objet.sinon: [effets]` : joués à la place quand le groupe a déjà l'objet (« instead finds 550 gold coins ») ;
+    résultat `{deja_possede: true, effets}`.
+  Un effet composé (`offre`, `jet`) ne s'imbrique jamais dans un autre. ⚠ Pas encore d'éditeur à l'écran pour `jet` et
+  `objet_au_hasard` (saisie par le fichier ou le serveur MCP).
 - **Sorts de Dread et capacités dans le profil d'auteur** (monstre posé, `apparition`, errant) :
   - `sorts_dread: [slug]` — catalogue `sorts_dread` (publié par `GET /constructeur/catalogues`) : REMPLACE le
     répertoire de la fiche (« Vilor knows the following Dread spells », F5815 p. 12). Chaque sort une fois par quête

@@ -121,6 +121,11 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
             'alors' => [['effet' => 'reputation', 'jetons' => 1],
                 ['effet' => 'offre', 'libelle' => 'Payer le passeur', 'cout' => ['or' => 200], 'alors' => [['effet' => 'reputation', 'jetons' => 1]]],
                 ['effet' => 'debloquer_mercenaire', 'slug' => 'eclaireur']]],
+        // Lot E1 : le jet à issues, l'objet tiré au hasard, le « sinon ».
+        ['repere' => 'K', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 5]],
+            'alors' => [['effet' => 'jet', 'issues' => [['de' => 1, 'a' => 3, 'alors' => [['effet' => 'degats', 'body' => 1]]], ['de' => 4, 'a' => 6, 'alors' => [['effet' => 'or', 'or' => 5]]]]],
+                ['effet' => 'objet_au_hasard', 'parmi' => ['dague', 'bouclier']],
+                ['effet' => 'objet', 'slug' => 'dague', 'sinon' => [['effet' => 'or', 'or' => 20]]]]],
     ];
 
     expect(app(ValidationCampagne::class)->valider($doc))->toBe([]);

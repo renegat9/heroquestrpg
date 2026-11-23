@@ -955,6 +955,22 @@ final class ValidationCampagne
     }
 
     /** Un effet de note. Rend le nom du drapeau qu'il pose, ou `null`. */
+    /** Les effets imbriqués d'un effet composé (lot E1) : validés comme ceux d'une note, jamais un autre effet composé. */
+    private function sousEffets(array $effet, string $cle, string $position, array $quete): void
+    {
+        foreach ($this->enListeDe($effet, $cle, $position) as $k => $sousEffet) {
+            if (is_array($sousEffet) && in_array($sousEffet['effet'] ?? null, MotsClesQuete::EFFETS_COMPOSES, true)) {
+                $this->refuser("$position.$cle.$k", self::VALEUR_INVALIDE, 'un effet composé (offre, jet) ne s\'imbrique pas');
+
+                continue;
+            }
+            $drapeau = $this->effetDeNote($sousEffet, "$position.$cle.$k", $quete);
+            if ($drapeau !== null) {
+                $this->posesDOffres[$drapeau] = true;
+            }
+        }
+    }
+
     private function effetDeNote(mixed $valeur, string $position, array $quete): ?string
     {
         $effet = $this->enObjet($valeur, $position);
@@ -1025,6 +1041,53 @@ final class ValidationCampagne
                 $this->entier($effet, 'quantite', $position, min: 1);
                 if (array_key_exists('si_absent_du_groupe', $effet) && ! is_bool($effet['si_absent_du_groupe'])) {
                     $this->refuser("$position.si_absent_du_groupe", self::TYPE_INVALIDE, 'true ou false est attendu');
+                }
+                // SINON (lot E1) : les effets joués quand le groupe a déjà l'objet.
+                if (array_key_exists('sinon', $effet)) {
+                    $this->sousEffets($effet, 'sinon', $position, $quete);
+                }
+                break;
+            case MotsClesQuete::OBJET_AU_HASARD:
+                $parmi = $this->enListeDe($effet, 'parmi', $position);
+                foreach ($parmi as $k => $slug) {
+                    if (! is_string($slug) || ! $this->catalogue->contient('objets', $slug)) {
+                        $this->refuser("$position.parmi.$k", self::CATALOGUE_INCONNU, "un slug du catalogue « objets » est attendu");
+                    }
+                }
+                if (array_key_exists('parmi', $effet) && count($parmi) < 2) {
+                    $this->refuser("$position.parmi", self::VALEUR_INVALIDE, 'au moins deux objets parmi lesquels tirer');
+                }
+                $this->entier($effet, 'quantite', $position, min: 1);
+                break;
+            case MotsClesQuete::JET:
+                $des = $this->entier($effet, 'des', $position, min: 1);
+                if ($des !== null && $des > 2) {
+                    $this->refuser("$position.des", self::VALEUR_INVALIDE, 'un ou deux dés rouges');
+                }
+                $max = 6 * ($des ?? 1);
+                $couvertes = [];
+                foreach ($this->enListeDe($effet, 'issues', $position) as $k => $valeurIssue) {
+                    $ici = "$position.issues.$k";
+                    $issue = $this->enObjet($valeurIssue, $ici);
+                    if ($issue === null) {
+                        continue;
+                    }
+                    $this->cles($issue, $ici, ['de', 'a', 'alors']);
+                    $de = $this->entier($issue, 'de', $ici, min: 1);
+                    $a = $this->entier($issue, 'a', $ici, min: 1);
+                    if ($de !== null && $a !== null) {
+                        if ($a < $de || $a > $max) {
+                            $this->refuser("$ici.a", self::VALEUR_INVALIDE, "la plage doit aller de « de » à au plus $max");
+                        }
+                        for ($v = $de; $v <= min($a, $max); $v++) {
+                            if (isset($couvertes[$v])) {
+                                $this->refuser($ici, self::VALEUR_INVALIDE, "le total $v est déjà couvert par une autre issue");
+                                break;
+                            }
+                            $couvertes[$v] = true;
+                        }
+                    }
+                    $this->sousEffets($issue, 'alors', $ici, $quete);
                 }
                 break;
             case MotsClesQuete::DEGATS:

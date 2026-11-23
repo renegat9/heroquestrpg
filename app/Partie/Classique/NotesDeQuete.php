@@ -207,16 +207,8 @@ final class NotesDeQuete
 
     private function jouer(Quete $quete, array $note, string $declencheur, ?Personnage $heros): array
     {
-        $effets = [];
         $this->repereEnCours = (string) ($note['repere'] ?? '');
-
-        foreach ((array) ($note['alors'] ?? []) as $effet) {
-            $nom = (string) ($effet['effet'] ?? '');
-            $lecteur = MotsClesQuete::EFFETS[$nom]['lecteur']
-                ?? throw new LogicException("Effet de note inconnu : « {$nom} » (voir MotsClesQuete::EFFETS).");
-
-            $effets[] = ['effet' => $nom, ...$this->{$lecteur}($quete, (array) $effet, $heros)];
-        }
+        $effets = $this->jouerSousEffets($quete, (array) ($note['alors'] ?? []), $heros);
 
         $payload = [
             'type' => 'note_de_quete',
@@ -261,6 +253,65 @@ final class NotesDeQuete
     public function jouerEffets(Quete $quete, array $effets, string $repere, ?Personnage $heros): array
     {
         return $this->jouer($quete, ['repere' => $repere, 'alors' => $effets], 'offre', $heros);
+    }
+
+    /**
+     * Joue une liste d'effets — ceux d'une note, et les effets IMBRIQUÉS d'un effet composé (`jet`, `sinon`), rendus dans
+     * le résultat de leur parent : le fil les dit sous lui (`LignesEffetsAutomatiques::noteDeQuete()`). Un seul endroit
+     * lit `MotsClesQuete::EFFETS[…]['lecteur']`.
+     *
+     * @param  list<array<string, mixed>>  $effets
+     * @return list<array<string, mixed>>
+     */
+    private function jouerSousEffets(Quete $quete, array $effets, ?Personnage $heros): array
+    {
+        $resultats = [];
+        foreach ($effets as $effet) {
+            $nom = (string) ($effet['effet'] ?? '');
+            $lecteur = MotsClesQuete::EFFETS[$nom]['lecteur']
+                ?? throw new LogicException("Effet de note inconnu : « {$nom} » (voir MotsClesQuete::EFFETS).");
+            $resultats[] = ['effet' => $nom, ...$this->{$lecteur}($quete, (array) $effet, $heros)];
+        }
+
+        return $resultats;
+    }
+
+    /**
+     * Lot E1 — UN JET DE DÉS ROUGES, dont l'issue choisit les effets (« roll one red die: on 1-2 … on 3-6 … »). Les dés
+     * viennent du lanceur injectable (`LanceurDes`) ; une issue non couverte ne joue rien, et le fil le dit.
+     */
+    private function effetJet(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $des = app(\App\Engine\Des\LanceurDes::class);
+        $faces = [];
+        for ($i = 0; $i < max(1, min(2, (int) ($effet['des'] ?? 1))); $i++) {
+            $faces[] = $des->d6();
+        }
+        $total = array_sum($faces);
+        foreach ((array) ($effet['issues'] ?? []) as $k => $issue) {
+            if ($total >= (int) ($issue['de'] ?? 0) && $total <= (int) ($issue['a'] ?? 0)) {
+                return ['faces' => $faces, 'total' => $total, 'issue' => $k,
+                    'plage' => [(int) $issue['de'], (int) $issue['a']],
+                    'effets' => $this->jouerSousEffets($quete, (array) ($issue['alors'] ?? []), $heros)];
+            }
+        }
+
+        return ['faces' => $faces, 'total' => $total, 'issue' => null, 'effets' => []];
+    }
+
+    /**
+     * Lot E1 — un objet TIRÉ AU HASARD dans la liste de l'auteur (« draws a spell scroll card at random », F5815 p. 6) ;
+     * `quantite` tirages SANS remise (deux parchemins ne sont pas le même). Le hasard est celui du conteneur
+     * (`Randomizer`, à graine fixe en test) ; chaque tirage est remis par `effetObjet()`, comme un objet nommé.
+     */
+    private function effetObjetAuHasard(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $parmi = array_values(array_unique(array_filter((array) ($effet['parmi'] ?? []), 'is_string')));
+        $n = min(count($parmi), max(1, (int) ($effet['quantite'] ?? 1)));
+        $tires = $n === 0 ? [] : (array) app(\Random\Randomizer::class)->pickArrayKeys($parmi, $n);
+        $tires = app(\Random\Randomizer::class)->shuffleArray($tires);
+
+        return ['tirages' => array_map(fn (int $k) => $this->effetObjet($quete, ['slug' => $parmi[$k]], $heros), $tires)];
     }
 
     /** C5 (lot K6) — des jetons de réputation pour le groupe (ou en moins, jamais sous zéro). */
@@ -317,13 +368,15 @@ final class NotesDeQuete
             return ['objet' => null];
         }
 
-        if (! empty($effet['si_absent_du_groupe'])) {
+        if (! empty($effet['si_absent_du_groupe']) || isset($effet['sinon'])) {
             $dejaPossede = $quete->groupe->personnages()
                 ->wherePivot('actif', true)
                 ->whereHas('inventaire', fn ($q) => $q->where('objet_id', $objet->id))
                 ->exists();
             if ($dejaPossede) {
-                return ['objet' => null, 'deja_possede' => true];
+                // SINON (lot E1) : « Borin's Armor, unless the heroes already have it — instead finds 550 gold coins ».
+                return ['objet' => null, 'deja_possede' => true,
+                    ...(isset($effet['sinon']) ? ['effets' => $this->jouerSousEffets($quete, (array) $effet['sinon'], $heros)] : [])];
             }
         }
 
