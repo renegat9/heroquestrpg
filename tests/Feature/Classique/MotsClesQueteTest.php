@@ -125,7 +125,9 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
         ['repere' => 'K', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 5]],
             'alors' => [['effet' => 'jet', 'issues' => [['de' => 1, 'a' => 3, 'alors' => [['effet' => 'degats', 'body' => 1]]], ['de' => 4, 'a' => 6, 'alors' => [['effet' => 'or', 'or' => 5]]]]],
                 ['effet' => 'objet_au_hasard', 'parmi' => ['dague', 'bouclier']],
-                ['effet' => 'objet', 'slug' => 'dague', 'sinon' => [['effet' => 'or', 'or' => 20]]]]],
+                ['effet' => 'objet', 'slug' => 'dague', 'sinon' => [['effet' => 'or', 'or' => 20]]],
+                ['effet' => 'retirer', 'monstres' => [0]], ['effet' => 'retirer_meuble', 'mobilier' => 0],
+                ['effet' => 'murer_porte', 'porte' => 0], ['effet' => 'retirer_bloc', 'x' => 11, 'y' => 7]]],
         // Lot E1 : les huit déclencheurs des extensions.
         ['repere' => 'L1', 'quand' => ['declencheur' => 'salle_videe', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'texte', 'texte' => 'Vide.']]],
         ['repere' => 'L2', 'quand' => ['declencheur' => 'morts', 'cible' => ['monstres' => [0, 1]]], 'alors' => [['effet' => 'texte', 'texte' => 'Tous tombés.']]],

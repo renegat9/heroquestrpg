@@ -331,6 +331,90 @@ final class NotesDeQuete
         return ['tirages' => array_map(fn (int $k) => $this->effetObjet($quete, ['slug' => $parmi[$k]], $heros), $tires)];
     }
 
+    /**
+     * Lot E1 — des figures POSÉES quittent le plateau sans tomber. La colonne `etat` n'a que `actif` et `vaincu` (énumération
+     * en base, jamais élargie sans migration) : la figure passe `vaincu`, SANS case, marquée `habillage.retire` — elle ne
+     * passe pas par `MoteurDegats`, donc ni note `mort` / `morts` ni « salle vidée » ; une fin `vaincre` la compte en
+     * revanche comme hors de combat (choix écrit). Déjà tombée ou partie : rien.
+     */
+    private function effetRetirer(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $poses = $quete->instancesMonstres()->orderBy('id')
+            ->limit(count((array) ($quete->documentConstruit()['monstres'] ?? [])))->get()->values();
+        $retires = [];
+        foreach (array_map('intval', (array) ($effet['monstres'] ?? [])) as $i) {
+            $figure = $poses[$i] ?? null;
+            if ($figure !== null && $figure->etat === 'actif') {
+                $figure->update(['etat' => 'vaincu', 'position_x' => null, 'position_y' => null,
+                    'habillage' => [...(array) $figure->habillage, 'retire' => true]]);
+                $retires[] = $figure->nomAffiche();
+            }
+        }
+
+        return ['retires' => $retires];
+    }
+
+    /** Lot E1 — le meuble posé disparaît : il cesse de bloquer (le drapeau `detruit` de la grille), SANS compter pour « détruit ». */
+    private function effetRetirerMeuble(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $index = (int) ($effet['mobilier'] ?? -1);
+        $carte = $quete->carte;
+        $grille = (array) ($carte?->grille ?? []);
+        if (! isset($grille['mobilier'][$index]) || ! empty($grille['mobilier'][$index]['detruit'])) {
+            return ['mobilier' => $index, 'retire' => false];
+        }
+        $grille['mobilier'][$index]['detruit'] = true;
+        $grille['mobilier'][$index]['retire'] = true;
+        $carte->update(['grille' => $grille]);
+        $nom = \App\Models\Mobilier::find((int) ($grille['mobilier'][$index]['mobilier_id'] ?? 0))?->nom;
+
+        return ['mobilier' => $index, 'retire' => true, 'nom' => $nom];
+    }
+
+    /**
+     * Lot E1 — la porte se ferme et disparaît : close, au verrou `note` qu'aucune note n'ouvre plus (la porte que seule une
+     * note ouvre, `MoteurPortes::VERROU_NOTE`), jamais une ouverture à main nue. Un héros dans son embrasure n'est pas écrasé :
+     * la porte, posée sur une arête, n'occupe pas sa case.
+     */
+    private function effetMurerPorte(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $index = (int) ($effet['porte'] ?? -1);
+        $carte = $quete->carte;
+        $grille = (array) ($carte?->grille ?? []);
+        if (! isset($grille['portes'][$index])) {
+            return ['porte' => $index, 'muree' => false];
+        }
+        $grille['portes'][$index]['etat'] = MoteurPortes::ETAT_VERROUILLEE;
+        $grille['portes'][$index]['verrou'] = ['type' => MoteurPortes::VERROU_NOTE];
+        $grille['portes'][$index]['muree'] = true;
+        $carte->update(['grille' => $grille]);
+
+        return ['porte' => $index, 'muree' => true];
+    }
+
+    /** Lot E1 — le bloc de la case disparaît : celui qu'une note a fait tomber, ou celui de l'auteur (la case redevient du couloir). */
+    private function effetRetirerBloc(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $x = (int) ($effet['x'] ?? -1);
+        $y = (int) ($effet['y'] ?? -1);
+        $carte = $quete->carte;
+        $grille = (array) ($carte?->grille ?? []);
+        $avant = count((array) ($grille['pieges'] ?? []));
+        $grille['pieges'] = array_values(array_filter((array) ($grille['pieges'] ?? []),
+            fn ($p) => ! ((int) ($p['x'] ?? -1) === $x && (int) ($p['y'] ?? -1) === $y && ($p['etat'] ?? null) === MoteurPieges::ETAT_BLOC)));
+        $retire = count($grille['pieges']) < $avant;
+        $deLAuteur = collect((array) ($quete->documentConstruit()['blocs'] ?? []))->contains(fn ($b) => (int) ($b['x'] ?? -1) === $x && (int) ($b['y'] ?? -1) === $y);
+        if (! $retire && $deLAuteur && ($grille['cases'][$y][$x] ?? null) === 'm') {
+            $grille['cases'][$y][$x] = 's';
+            $retire = true;
+        }
+        if ($retire) {
+            $carte->update(['grille' => $grille]);
+        }
+
+        return ['x' => $x, 'y' => $y, 'retire' => $retire];
+    }
+
     /** C5 (lot K6) — des jetons de réputation pour le groupe (ou en moins, jamais sous zéro). */
     private function effetReputation(Quete $quete, array $effet, ?Personnage $heros): array
     {

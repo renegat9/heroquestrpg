@@ -392,3 +392,32 @@ it('valide les nouvelles cibles : figures, meuble, captif ; refuse un index ou u
         ->and(codesE1($note('captif_libere', ['captif' => 'personne'])))->toBe([ValidationCampagne::CATALOGUE_INCONNU])
         ->and(codesE1($note('fin_de_tour', ['monstres' => [0]])))->toBe([ValidationCampagne::CIBLE_DE_NOTE_INVALIDE]);
 });
+
+// ---------------------------------------------------------------- 7. retirer, remplacer
+
+it('retirer une figure, un meuble ; murer une porte ; retirer un bloc', function () {
+    $campagne = campagneE1([
+        'monstres' => [['slug' => 'gobelin', 'x' => 8, 'y' => 3]],
+        'notes' => [['repere' => 'R', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]], 'alors' => [
+            ['effet' => 'retirer', 'monstres' => [0]],
+            ['effet' => 'retirer_meuble', 'mobilier' => 0],
+            ['effet' => 'murer_porte', 'porte' => 0],
+            ['effet' => 'retirer_bloc', 'x' => 11, 'y' => 7],
+        ]]],
+    ]);
+    ['quete' => $quete, 'heros' => $heros] = partieE1($this, $campagne);
+    $resultat = app(\App\Partie\Classique\NotesDeQuete::class)->signaler($quete, \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 1], $heros)[0];
+
+    $gobelin = $quete->instancesMonstres()->first();
+    $grille = $quete->carte->fresh()->grille;
+    expect($gobelin->etat)->toBe('vaincu')
+        ->and($gobelin->position_x)->toBeNull()
+        ->and($gobelin->habillage['retire'])->toBeTrue()
+        ->and($grille['mobilier'][0]['detruit'])->toBeTrue()
+        ->and($grille['portes'][0]['etat'])->toBe(\App\Partie\MoteurPortes::ETAT_VERROUILLEE)
+        ->and($grille['portes'][0]['verrou']['type'])->toBe(\App\Partie\MoteurPortes::VERROU_NOTE)
+        ->and($grille['cases'][7][11])->toBe('s');
+
+    $fil = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'))->pluck('texte')->implode(' | ');
+    expect($fil)->toContain('Gobelin quitte le plateau')->toContain('Table disparaît')->toContain('Une porte se ferme et disparaît');
+});

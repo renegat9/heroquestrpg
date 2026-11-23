@@ -877,6 +877,27 @@ trait LignesEffetsAutomatiques
                         ];
                     }
                     break;
+                // Lot E1 : retirer une figure, un meuble, un bloc ; murer une porte.
+                case 'retirer':
+                    foreach ((array) ($effet['retires'] ?? []) as $nom) {
+                        $lignes[] = ['texte' => "{$nom} quitte le plateau", 'ton' => 'info'];
+                    }
+                    break;
+                case 'retirer_meuble':
+                    if (! empty($effet['retire'])) {
+                        $lignes[] = ['texte' => ($effet['nom'] ?? 'Le meuble').' disparaît', 'ton' => 'info'];
+                    }
+                    break;
+                case 'murer_porte':
+                    if (! empty($effet['muree'])) {
+                        $lignes[] = ['texte' => 'Une porte se ferme et disparaît dans le mur !', 'ton' => 'subit'];
+                    }
+                    break;
+                case 'retirer_bloc':
+                    if (! empty($effet['retire'])) {
+                        $lignes[] = ['texte' => 'Le passage bloqué se libère', 'ton' => 'info'];
+                    }
+                    break;
                 // Lot E1 : le jet de dés (puis les effets de son issue), l'objet tiré au hasard, le « sinon » d'un objet déjà possédé.
                 case 'jet':
                     $lignes[] = ['texte' => "{$heros} lance ".(count((array) ($effet['faces'] ?? [])) > 1 ? 'deux dés' : 'un dé').' : '.(int) ($effet['total'] ?? 0)

@@ -312,6 +312,13 @@ function recaler(q, liste, i) {
         // en silence l'élément suivant, qui a pris son index.
         if (c[cle] === i) c[cle] = -1; else if (c[cle] > i) c[cle] -= 1;
     });
+    // Lot E1 : l'effet `retirer_meuble` désigne un meuble par son index — même recalage qu'une porte.
+    if (liste === 'mobilier') {
+        (q.notes ?? []).forEach((note) => (note.alors ?? []).forEach((effet) => {
+            if (effet.effet !== 'retirer_meuble' || typeof effet.mobilier !== 'number') return;
+            if (effet.mobilier === i) effet.mobilier = -1; else if (effet.mobilier > i) effet.mobilier -= 1;
+        }));
+    }
     // Lot E1 : une cible `monstres` (toutes tombées) perd l'index retiré (`mobilier` se recale ci-dessus, comme une porte).
     (q.notes ?? []).forEach((note) => {
         const c = note.quand?.cible;
@@ -321,7 +328,7 @@ function recaler(q, liste, i) {
     if (liste === 'monstres') {
         (q.notes ?? []).forEach((note) => {
             (note.alors ?? []).forEach((effet) => {
-                if (effet.effet !== 'eveiller' || !Array.isArray(effet.monstres)) return;
+                if (!['eveiller', 'retirer'].includes(effet.effet) || !Array.isArray(effet.monstres)) return;
                 effet.monstres = effet.monstres.filter((k) => k !== i).map((k) => (k > i ? k - 1 : k));
             });
         });
@@ -330,7 +337,7 @@ function recaler(q, liste, i) {
     if (liste === 'portes') {
         (q.notes ?? []).forEach((note) => {
             (note.alors ?? []).forEach((effet) => {
-                if (effet.effet !== 'ouvrir_porte' || typeof effet.porte !== 'number') return;
+                if (!['ouvrir_porte', 'reveler_porte', 'murer_porte'].includes(effet.effet) || typeof effet.porte !== 'number') return;
                 if (effet.porte === i) effet.porte = -1; else if (effet.porte > i) effet.porte -= 1;
             });
         });
@@ -746,7 +753,7 @@ function effetParDefaut(nom) {
             nom: 'drapeau', monstres: [], porte: 0, x: 0, y: 0, jetons: 1, libelle: '', alors: [{ effet: 'texte', texte: '' }],
             // Lot E1 : le jet à deux issues, l'objet tiré parmi deux.
             issues: [{ de: 1, a: 3, alors: [{ effet: 'texte', texte: '' }] }, { de: 4, a: 6, alors: [{ effet: 'texte', texte: '' }] }],
-            parmi: (catalogues.value?.objets ?? []).slice(0, 2).map((o) => o.slug) }[p] ?? '';
+            parmi: (catalogues.value?.objets ?? []).slice(0, 2).map((o) => o.slug), mobilier: 0 }[p] ?? '';
     }
     return effet;
 }
@@ -1553,13 +1560,17 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             <option v-if="effet.effet === 'ouvrir_porte' && (quete.sortie?.verrou || effet.porte === 'sortie')" value="sortie">la porte de sortie (verrouillée)</option>
                                         </select>
                                         <label v-else-if="p === 'nom'">{{ LIBELLES_PARAM[p] }} <input v-model="effet.nom" class="cst-input" /></label>
+                                        <!-- Lot E1 : le meuble retiré (index de `quete.mobilier`). -->
+                                        <select v-else-if="p === 'mobilier'" v-model.number="effet.mobilier" class="cst-input">
+                                            <option v-for="(m, k) in quete.mobilier" :key="k" :value="k">meuble {{ k }} — {{ nomDe('mobilier', m.slug) }} ({{ m.x }}, {{ m.y }})</option>
+                                        </select>
                                         <!-- 2026-11-20 : `eveiller` désigne des monstres POSÉS par leur index — ceux qui sont inactifs. -->
-                                        <div v-else-if="p === 'monstres' && effet.effet === 'eveiller'" class="cst-ligne">
-                                            <span class="cst-sous">Monstres à éveiller (les monstres posés « inactif ») :</span>
-                                            <label v-for="(m, k) in quete.monstres" v-show="m.inactif === true || effet.monstres.includes(k)" :key="`ev${k}`" class="cst-case">
+                                        <div v-else-if="p === 'monstres' && (effet.effet === 'eveiller' || effet.effet === 'retirer')" class="cst-ligne">
+                                            <span class="cst-sous">{{ effet.effet === 'retirer' ? 'Figures qui quittent le plateau :' : 'Monstres à éveiller (les monstres posés « inactif ») :' }}</span>
+                                            <label v-for="(m, k) in quete.monstres" v-show="effet.effet === 'retirer' || m.inactif === true || effet.monstres.includes(k)" :key="`ev${k}`" class="cst-case">
                                                 <input type="checkbox" :checked="effet.monstres.includes(k)" @change="basculerEveil(effet, k, $event.target.checked)" /> {{ k }} · {{ m.nom ?? nomDe('monstres', m.slug) }}
                                             </label>
-                                            <span v-if="!quete.monstres.some((m) => m.inactif === true)" class="cst-sous">aucun : cochez « Inactif » dans le profil d'un monstre posé (Règles des livrets).</span>
+                                            <span v-if="effet.effet === 'eveiller' && !quete.monstres.some((m) => m.inactif === true)" class="cst-sous">aucun : cochez « Inactif » dans le profil d'un monstre posé (Règles des livrets).</span>
                                         </div>
                                         <div v-else-if="p === 'monstres'" class="cst-apparitions">
                                             <div v-for="(a, k) in effet.monstres" :key="k" class="cst-ligne">

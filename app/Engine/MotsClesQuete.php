@@ -239,6 +239,18 @@ final class MotsClesQuete
     /** Lot E1 — un objet TIRÉ AU HASARD dans une liste (« draws a spell scroll card at random », F5815 ; potions, artefacts). */
     public const OBJET_AU_HASARD = 'objet_au_hasard';
 
+    /** Lot E1 — des figures posées QUITTENT le plateau sans tomber (fuite, disparition) : jamais « vaincues ». */
+    public const RETIRER = 'retirer';
+
+    /** Lot E1 — un meuble posé disparaît (« the bookcase crumbles to dust », la statue qui s'anime : avec une `apparition`). */
+    public const RETIRER_MEUBLE = 'retirer_meuble';
+
+    /** Lot E1 — une porte se ferme et disparaît (« the two doors close and disappear », F5815 q. 5) : murée pour la quête. */
+    public const MURER_PORTE = 'murer_porte';
+
+    /** Lot E1 — un bloc est retiré (« remove the blocked square », G0052 q. 12) : la case redevient du couloir. */
+    public const RETIRER_BLOC = 'retirer_bloc';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET];
 
@@ -256,6 +268,10 @@ final class MotsClesQuete
         self::OBJET => ['parametres' => ['slug'], 'optionnels' => ['quantite', 'si_absent_du_groupe', 'sinon'], 'lecteur' => 'effetObjet', 'libelle' => 'donner un objet au héros'],
         self::OBJET_AU_HASARD => ['parametres' => ['parmi'], 'optionnels' => ['quantite'], 'lecteur' => 'effetObjetAuHasard', 'libelle' => 'donner un objet tiré au hasard dans une liste'],
         self::JET => ['parametres' => ['issues'], 'optionnels' => ['des'], 'lecteur' => 'effetJet', 'libelle' => 'lancer des dés : l\'issue choisit les effets'],
+        self::RETIRER => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetRetirer', 'libelle' => 'retirer des figures du plateau (fuite, disparition)'],
+        self::RETIRER_MEUBLE => ['parametres' => ['mobilier'], 'optionnels' => [], 'lecteur' => 'effetRetirerMeuble', 'libelle' => 'retirer un meuble'],
+        self::MURER_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetMurerPorte', 'libelle' => 'murer une porte (elle se ferme et disparaît)'],
+        self::RETIRER_BLOC => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetRetirerBloc', 'libelle' => 'retirer un bloc'],
         self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
         self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
         self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => ['campagne'], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],

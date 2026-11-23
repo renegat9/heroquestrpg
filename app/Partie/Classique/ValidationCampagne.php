@@ -1063,6 +1063,26 @@ final class ValidationCampagne
                     $this->sousEffets($effet, 'sinon', $position, $quete);
                 }
                 break;
+            // Lot E1 : retirer des figures posées, un meuble posé, murer une porte, retirer un bloc.
+            case MotsClesQuete::RETIRER:
+                $liste = $this->enListe($effet['monstres'] ?? null, "$position.monstres");
+                foreach ((array) $liste as $k => $index) {
+                    $this->indexDe($quete, 'monstres', $index, "$position.monstres.$k");
+                }
+                if ($liste === []) {
+                    $this->refuser("$position.monstres", self::VALEUR_INVALIDE, 'au moins une figure à retirer');
+                }
+                break;
+            case MotsClesQuete::RETIRER_MEUBLE:
+                $this->indexDe($quete, 'mobilier', $effet['mobilier'] ?? null, "$position.mobilier");
+                break;
+            case MotsClesQuete::MURER_PORTE:
+                $this->indexDe($quete, 'portes', $effet['porte'] ?? null, "$position.porte");
+                break;
+            case MotsClesQuete::RETIRER_BLOC:
+                $this->entier($effet, 'x', $position, min: 0);
+                $this->entier($effet, 'y', $position, min: 0);
+                break;
             case MotsClesQuete::OBJET_AU_HASARD:
                 $parmi = $this->enListeDe($effet, 'parmi', $position);
                 foreach ($parmi as $k => $slug) {
