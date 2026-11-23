@@ -129,7 +129,8 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
                 ['effet' => 'objet_au_hasard', 'parmi' => ['dague', 'bouclier']],
                 ['effet' => 'objet', 'slug' => 'dague', 'sinon' => [['effet' => 'or', 'or' => 20]]],
                 ['effet' => 'retirer', 'monstres' => [0]], ['effet' => 'retirer_meuble', 'mobilier' => 0],
-                ['effet' => 'murer_porte', 'porte' => 0], ['effet' => 'retirer_bloc', 'x' => 11, 'y' => 7], ['effet' => 'liberer_captif']]],
+                ['effet' => 'murer_porte', 'porte' => 0], ['effet' => 'retirer_bloc', 'x' => 11, 'y' => 7], ['effet' => 'liberer_captif'],
+                ['effet' => 'arreter'], ['effet' => 'voler', 'or' => 25]]],
         // Lot E1 : les huit déclencheurs des extensions.
         ['repere' => 'L1', 'quand' => ['declencheur' => 'salle_videe', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'texte', 'texte' => 'Vide.']]],
         ['repere' => 'L2', 'quand' => ['declencheur' => 'morts', 'cible' => ['monstres' => [0, 1]]], 'alors' => [['effet' => 'texte', 'texte' => 'Tous tombés.']]],

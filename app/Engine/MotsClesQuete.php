@@ -254,6 +254,15 @@ final class MotsClesQuete
     /** Lot E1 — le captif de la quête est LIBÉRÉ par une note (« If the Barbarian kills the Dread Warriors, Gothar is freed »). */
     public const LIBERER_CAPTIF = 'liberer_captif';
 
+    /** Lot E2 — la marche du héros S'ARRÊTE sur la case de la note (« the hero stops on that square », piège à errant, F5815). */
+    public const ARRETER = 'arreter';
+
+    /**
+     * Lot E2 — on VOLE le héros qui déclenche : de l'or (`or`), sinon un objet de son SAC — « it cannot be the armor or shield
+     * a hero is using, nor the weapon they are wielding » (le Gremlin de glace, F5815 q. 4 B ; le Voleur, F6646).
+     */
+    public const VOLER = 'voler';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET];
 
@@ -276,6 +285,8 @@ final class MotsClesQuete
         self::MURER_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetMurerPorte', 'libelle' => 'murer une porte (elle se ferme et disparaît)'],
         self::RETIRER_BLOC => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetRetirerBloc', 'libelle' => 'retirer un bloc'],
         self::LIBERER_CAPTIF => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetLibererCaptif', 'libelle' => 'libérer le captif de la quête'],
+        self::ARRETER => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetArreter', 'libelle' => 'arrêter le héros sur cette case'],
+        self::VOLER => ['parametres' => [], 'optionnels' => ['or'], 'lecteur' => 'effetVoler', 'libelle' => 'voler le héros (de l\'or, ou un objet de son sac)'],
         self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
         self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
         self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => ['campagne'], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],

@@ -709,6 +709,20 @@ final class MoteurPieges
 
         $this->signalerDeclenchement($etat->quete, (int) $entree['x'], (int) $entree['y'], $personnage);
 
+        // GOUFFRE SANS FOND (mode classique, lot E2 — F5815 p. 4 : « can be jumped over as a pit, but any hero who falls
+        // into it is lost for eternity ») : la mort définitive, affaires comprises ; en mode Story, à terre (décision écrite,
+        // comme la crevasse). Après l'annonce de la chute.
+        if (($entree['gouffre'] ?? false) === true && $etat->quete?->estConstruite() && $etat->fresh() !== null) {
+            if ($groupe->mode_mort === Groupe::MORT_STORY) {
+                $etat->update(['tombe' => true]);
+                $payload['gouffre'] = 'au_bord';
+            } else {
+                $personnage->update(['pv_body' => 0]);
+                app(\App\Partie\Classique\MortHeroic::class)->mourir($groupe, $etat->quete, $etat->fresh(), affairesPerdues: true);
+                $payload['gouffre'] = 'perdu';
+            }
+        }
+
         return $payload;
     }
 

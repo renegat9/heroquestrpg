@@ -176,7 +176,7 @@ final class ValidationCampagne
     private const CLES_MOBILIER = ['slug', 'x', 'y', 'rotation'];
     private const CLES_POSE = ['slug', 'x', 'y'];
     // Lot K5d (R6) : les drapeaux d'un piège de quête, lus par `MoteurPieges::trouvable()` / `desarmable()`.
-    private const CLES_PIEGE_OPTIONNELLES = ['introuvable', 'indesarmable'];
+    private const CLES_PIEGE_OPTIONNELLES = ['introuvable', 'indesarmable', 'gouffre'];
     private const CLES_TERRAIN_OPTIONNELLES = ['paire_id', 'cachee', 'sortie'];
     private const CLES_RECOMPENSE = ['or', 'partage'];
     /** Lot K6 (*Dread Moon*) : `recompense.reputation` — des jetons de réputation pour le groupe. */
@@ -1102,6 +1102,9 @@ final class ValidationCampagne
                 $this->entier($effet, 'x', $position, min: 0);
                 $this->entier($effet, 'y', $position, min: 0);
                 break;
+            case MotsClesQuete::VOLER:
+                $this->entier($effet, 'or', $position, min: 1);
+                break;
             case MotsClesQuete::LIBERER_CAPTIF:
                 if (! is_array($quete['captif'] ?? null)) {
                     $this->refuser($position, self::VALEUR_INVALIDE, 'cette quête n\'a pas de captif à libérer (`captif`)');
@@ -1532,6 +1535,11 @@ final class ValidationCampagne
             $slug = $this->slugCatalogue($pose, 'slug', $position, $couche);
             if ($slug === null) {
                 continue; // refusé en le nommant : un slug inconnu n'occupe rien, donc aucun refus en cascade
+            }
+            // Lot E2 : `gouffre` — seulement sur une fosse qu'on saute (`effet.franchissable`), « jumped over as a pit ».
+            if ($couche === 'pieges' && ($pose['gouffre'] ?? false) === true
+                && data_get($this->catalogue->index('pieges')[$slug]->effet, 'franchissable') === null) {
+                $this->refuser(self::chemin($position, 'gouffre'), self::VALEUR_INVALIDE, 'seule une fosse qu\'on saute peut être un gouffre sans fond');
             }
             $rotation = $tourne ? $this->dans($pose, 'rotation', $position, self::ROTATIONS) : null;
 

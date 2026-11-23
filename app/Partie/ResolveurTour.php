@@ -13166,6 +13166,12 @@ final class ResolveurTour
 
                 $notes->signaler($quete, MotsClesQuete::ENTREE, ['case' => $case, 'salle' => $entre ? $salle : null], $personnage);
 
+                // ARRÊT (lot E2) : une note de cette case a arrêté la marche (piège à errant) — le héros reste ici.
+                if ($notes->consommerArret()) {
+                    $etat->update(['position_x' => (int) $case['x'], 'position_y' => (int) $case['y']]);
+                    break;
+                }
+
                 // REBORD DE CREVASSE (lot E2 — F5815 q. 4 E) : la première case de la salle, un dé ; glissé, la marche s'arrête.
                 if ($entre && ($crevasse = app(\App\Partie\Classique\Crevasse::class)->entrer($quete->groupe, $quete, $personnage, $etat, $case, $precedente)) !== null
                     && $crevasse['arret']) {

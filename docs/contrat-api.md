@@ -6140,6 +6140,13 @@ Mode classique seulement ; une règle par livret, sourcée.
   un second dé — bouclier noir = « never to be seen again » (mort définitive, affaires perdues ; en mode Story : à terre
   au bord, décision écrite), sinon retour à la case d'entrée et fin du tour. Annonce `crevasse {nom, faces, issue:
   sauf|ramene|perdu|au_bord}`. `Classique\Crevasse`.
+- **Gouffre sans fond** — `pieges[].gouffre: true` sur une fosse qu'on saute (p. 4 : « can be jumped over as a pit, but
+  any hero who falls into it is lost for eternity ») : qui y tombe meurt pour de bon, affaires comprises (à terre en
+  mode Story). Le déclenchement porte `gouffre: perdu|au_bord`.
+- **Arrêter, voler** — effets de note `arreter` (la marche s'arrête sur la case de la note : le piège à monstre errant,
+  F5815 p. 5) et `voler {or?}` (de l'or de la bourse du héros qui déclenche, au plus ce qu'il a ; sinon un objet de son
+  SAC tiré au hasard — « it cannot be the armor or shield a hero is using, nor the weapon they are wielding », le
+  Gremlin de glace, q. 4 B). Le Gremlin qui « disparaît » : `retirer`.
 - **Reddition** — profil d'auteur `se_rend: {objet?}` (q. 1 B, l'Arbalétrier) : attaquée AU CONTACT, la figure se rend
   sans être blessée, quitte le plateau (comme `retirer`) et laisse l'objet à l'attaquant. Résultat :
   `reddition_auteur: {nom, objet}` ; fil « se rend et s'enfuit, laissant l'arbalète à Albrecht ».

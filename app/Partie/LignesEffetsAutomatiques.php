@@ -898,6 +898,14 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => 'Une porte se ferme et disparaît dans le mur !', 'ton' => 'subit'];
                     }
                     break;
+                case 'arreter':
+                    $lignes[] = ['texte' => "{$heros} s'arrête net", 'ton' => 'subit'];
+                    break;
+                case 'voler':
+                    $lignes[] = ! empty($effet['vole'])
+                        ? ['texte' => ($effet['victime'] ?? $heros)." se fait voler : {$effet['vole']}", 'ton' => 'degats']
+                        : ['texte' => 'Une main furtive ne trouve rien à prendre', 'ton' => 'info'];
+                    break;
                 case 'liberer_captif':
                     if (! empty($effet['captif'])) {
                         $lignes[] = ['texte' => "{$effet['captif']} est libéré — il suit {$heros}", 'ton' => 'succes'];

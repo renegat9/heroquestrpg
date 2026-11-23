@@ -244,7 +244,7 @@ function retirerQuete(i) {
 
 // ---------------------------------------------------------------- quêtes : outils de la carte
 const outil = ref('salle');
-const choix = reactive({ porteOuverte: false, porteRevelee: false, terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
+const choix = reactive({ porteOuverte: false, porteRevelee: false, terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, piegeGouffre: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
 watch(catalogues, (c) => {
     if (!c) return;
     choix.mobilier ||= c.couches.mobilier?.[0]?.slug ?? '';
@@ -420,6 +420,8 @@ function clicQuete(evt) {
                     slug: choix.piege, x, y,
                     ...(choix.piegeIntrouvable ? { introuvable: true } : {}),
                     ...(choix.piegeIndesarmable ? { indesarmable: true } : {}),
+                    // Lot E2 : une fosse qu'on saute, mais où l'on se perd à jamais (F5815 p. 4) — la validation tranche.
+                    ...(choix.piegeGouffre ? { gouffre: true } : {}),
                 });
             } else liste.push({ slug: choix.terrain, x, y, ...(choix.terrainCache ? { cachee: true } : {}) });
             return;
@@ -1054,6 +1056,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                             <template v-if="outil === 'piege'">
                                 <label class="cst-case"><input v-model="choix.piegeIntrouvable" type="checkbox" /> introuvable</label>
                                 <label class="cst-case"><input v-model="choix.piegeIndesarmable" type="checkbox" /> indésarmable</label>
+                                <label class="cst-case"><input v-model="choix.piegeGouffre" type="checkbox" /> gouffre sans fond</label>
                             </template>
                             <select v-if="outil === 'terrain'" v-model="choix.terrain" class="cst-input">
                                 <option v-for="m in couches.terrain" :key="m.slug" :value="m.slug">{{ m.nom }}</option>

@@ -263,6 +263,8 @@ final class CarteConstruite
                 // seulement quand ils valent true — jamais une clé `false` décorative.
                 ...(($piege['introuvable'] ?? false) === true ? ['introuvable' => true] : []),
                 ...(($piege['indesarmable'] ?? false) === true ? ['indesarmable' => true] : []),
+                // Lot E2 : un GOUFFRE sans fond (F5815 p. 4) — qui y tombe est perdu (`MoteurPieges::declencher()`).
+                ...(($piege['gouffre'] ?? false) === true ? ['gouffre' => true] : []),
             ];
             $occupees["$x,$y"] = true;
         }

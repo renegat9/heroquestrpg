@@ -197,3 +197,52 @@ it('rebord de crevasse : au début de son tour dans la salle, le héros roule d\
     expect($premier['issue'])->toBe('ramene')->and($second)->toBeNull()
         ->and((int) $partie['heros']->fresh()->pv_body)->toBe(29);
 });
+
+it('gouffre sans fond : qui y tombe est perdu à jamais ; seule une fosse peut l\'être', function () {
+    expect(codesE2(campagneE2(['pieges' => [['slug' => 'piege-a-lances', 'x' => 3, 'y' => 3, 'gouffre' => true]]])))
+        ->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $campagne = campagneE2(['pieges' => [['slug' => 'fosse', 'x' => 3, 'y' => 3, 'gouffre' => true]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $partie['groupe']->update(['mode_mort' => 'standard']);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 2, 'position_y' => 3]);
+
+    deplacerE2($this, $partie, 3, 3)->assertAccepted();
+
+    expect($partie['heros']->fresh()->mort_le)->not->toBeNull()
+        ->and($partie['quete']->etatsPersonnages()->count())->toBe(0);
+});
+
+it('arrêter : une note de la case arrête la marche du héros (piège à monstre errant)', function () {
+    $campagne = campagneE2(['notes' => [['repere' => 'W', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 4, 'y' => 3]]],
+        'alors' => [['effet' => 'arreter'], ['effet' => 'apparition', 'monstres' => [['slug' => 'squelette', 'x' => 4, 'y' => 2]]]]]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 2, 'position_y' => 3]);
+
+    deplacerE2($this, $partie, 6, 3)->assertAccepted();
+
+    $etat = $partie['quete']->etatsPersonnages()->first();
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([4, 3]);
+});
+
+it('voler : de l\'or de la bourse, ou un objet du sac — jamais ce qu\'il porte', function () {
+    $campagne = campagneE2(['notes' => [
+        ['repere' => 'O', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]], 'alors' => [['effet' => 'voler', 'or' => 25]]],
+        ['repere' => 'S', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 2]], 'alors' => [['effet' => 'voler']]],
+    ]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $partie['heros']->update(['or' => 10]);
+    $dague = \App\Models\Objet::where('nom', 'Dague')->firstOrFail();
+    \App\Partie\RangementObjet::ranger($dague, (int) $partie['heros']->id, 1);
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class);
+
+    $notes->signaler($partie['quete'], \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 1], $partie['heros']);
+    expect((int) $partie['heros']->fresh()->or)->toBe(0);
+
+    $avant = $partie['heros']->inventaire()->where('emplacement', '!=', 'sac')->count();
+    $notes->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 2], $partie['heros']->fresh());
+    expect($partie['heros']->inventaire()->where('objet_id', $dague->id)->where('emplacement', 'sac')->exists())->toBeFalse()
+        ->and($partie['heros']->inventaire()->where('emplacement', '!=', 'sac')->count())->toBe($avant);
+});

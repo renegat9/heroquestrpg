@@ -3786,6 +3786,14 @@ final class JournalCombat
             $lignes[] = $this->info("{$nom} s'en tire sans une égratignure");
         }
 
+        // GOUFFRE SANS FOND (lot E2) : la chute ne s'arrête pas au fond.
+        if (($a['gouffre'] ?? null) !== null) {
+            $nomG = $a['personnage']['nom'] ?? $acteurNom;
+            $lignes[] = $a['gouffre'] === 'perdu'
+                ? ['texte' => "{$nomG} tombe dans le gouffre sans fond… perdu à jamais", 'ton' => 'chute']
+                : ['texte' => "{$nomG} se rattrape au bord du gouffre, à terre", 'ton' => 'chute'];
+        }
+
         return $lignes;
     }
 

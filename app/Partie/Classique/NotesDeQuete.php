@@ -424,6 +424,60 @@ final class NotesDeQuete
         return ['x' => $x, 'y' => $y, 'retire' => $retire];
     }
 
+    /** Lot E2 — la marche s'arrête ici : drapeau lu (et remis à faux) par `ResolveurTour::signalerEntrees()`. */
+    private bool $arretDemande = false;
+
+    private function effetArreter(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $this->arretDemande = true;
+
+        return ['arret' => true];
+    }
+
+    /** Une note vient-elle d'arrêter la marche ? Lu une fois : la réponse remet la demande à zéro. */
+    public function consommerArret(): bool
+    {
+        $arret = $this->arretDemande;
+        $this->arretDemande = false;
+
+        return $arret;
+    }
+
+    /**
+     * Lot E2 — on vole le héros qui déclenche : `or` pièces (au plus ce qu'il a, de sa bourse), sinon un objet de son SAC
+     * tiré au hasard (jamais ce qu'il porte ou tient). Un sac vide : rien.
+     */
+    private function effetVoler(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        if ($heros === null) {
+            return ['vole' => null];
+        }
+        if (isset($effet['or'])) {
+            $bourses = app(Bourses::class);
+            $pris = min(max(0, (int) $effet['or']), $bourses->solde($quete->groupe, $heros));
+            if ($pris > 0) {
+                $bourses->payer($quete->groupe, $pris, $heros);
+            }
+
+            return ['vole' => $pris > 0 ? "{$pris} pièces d'or" : null, 'victime' => $heros->nom];
+        }
+        $equipement = app(\App\Partie\Equipement::class);
+        $lignes = $heros->inventaire()->with('objet')->where('emplacement', 'sac')->get()
+            ->filter(fn ($l) => $l->objet !== null && $equipement->retirable($l))->values();
+        if ($lignes->isEmpty()) {
+            return ['vole' => null, 'victime' => $heros->nom];
+        }
+        $ligne = $lignes[app(\Random\Randomizer::class)->getInt(0, $lignes->count() - 1)];
+        $nom = $ligne->objet->nom;
+        if ((int) $ligne->quantite > 1) {
+            $ligne->decrement('quantite');
+        } else {
+            $ligne->delete();
+        }
+
+        return ['vole' => $nom, 'victime' => $heros->nom];
+    }
+
     /** Lot E1 — le captif de la quête est libéré, allié du héros qui déclenche (`Escorte::liberer()`). */
     private function effetLibererCaptif(Quete $quete, array $effet, ?Personnage $heros): array
     {
