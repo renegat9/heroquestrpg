@@ -135,6 +135,14 @@ final class CatalogueConstructeur
             $couches['terrain'],
         );
 
+        // Lot E1 : un piège de COFFRE (`declencheur: ouverture_tresor`) se pose dans `coffres_pieges`, jamais au sol — l'écran
+        // le lit ici, il ne le devine pas.
+        $pieges = $this->index('pieges');
+        $couches['pieges'] = array_map(
+            fn (array $ligne): array => $ligne + ['coffre' => data_get($pieges[$ligne['slug']]->effet, 'declencheur') === 'ouverture_tresor'],
+            $couches['pieges'],
+        );
+
         return [
             'couches' => $couches,
             'classes' => $this->palette('classes'),

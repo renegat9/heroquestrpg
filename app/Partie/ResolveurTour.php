@@ -5093,6 +5093,12 @@ final class ResolveurTour
                 $payload['portes_revelees'] = $this->portes->revelerSecretesAutour($groupe, $quete->carte, $personnage, $zone);
             }
 
+            // COFFRE PIÉGÉ de l'auteur (mode classique, lot E1) : la fouille des pièges de sa salle le trouve, note ou non —
+            // il se désamorce ensuite (`Classique\CoffresPieges`).
+            if ($salleIci !== null && ($coffre = app(\App\Partie\Classique\CoffresPieges::class)->decouvrir($quete->fresh(), $salleIci)) !== null) {
+                $payload['coffre_piege_trouve'] = $coffre;
+            }
+
             // GLYPHES (mode classique, lot K6) : « The first player to search for traps discovers the arcane glyphs » —
             // la même fouille, note ou non. Annoncés au fil.
             if ($salleIci !== null) {
@@ -5146,7 +5152,8 @@ final class ResolveurTour
         // « rien de suspect ». On distingue explicitement les deux.
         if (in_array($option['id'], self::OPTIONS_FOUILLE_ZONE, true)) {
             $payload['a_trouve'] = ($payload['pieges_reveles'] ?? []) !== []
-                || ($payload['portes_revelees'] ?? []) !== [];
+                || ($payload['portes_revelees'] ?? []) !== []
+                || isset($payload['coffre_piege_trouve']);
 
             // ISSUE sans ambiguïté (Morcar, 2026-10-09) : un jet RÉUSSI qui ne trouve
             // rien ne doit pas porter `issue: reussite`, que l'on lit comme une
@@ -5188,6 +5195,11 @@ final class ResolveurTour
         // cible qui est un MEUBLE — l'option le dit (`parametres.mobilier`), jamais un piège à cette case.
         if (isset($option['parametres']['mobilier'])) {
             return $this->resoudreDesamorcageSalle($groupe, $quete, $personnage, $etat, $option, $acteur);
+        }
+
+        // COFFRE PIÉGÉ de l'auteur (mode classique, lot E1) : `parametres.coffre`, l'index de sa salle.
+        if (isset($option['parametres']['coffre'])) {
+            return $this->resoudreDesamorcageCoffre($groupe, $quete, $personnage, $etat, $option, $acteur);
         }
 
         $cible = $this->piegeCible($quete, $etat, $option);
@@ -5331,6 +5343,62 @@ final class ResolveurTour
                 ...($body['modificateurs'] !== [] ? ['modificateurs' => $body['modificateurs']] : []),
             ],
         ];
+    }
+
+    /**
+     * DÉSAMORCER UN COFFRE PIÉGÉ de l'auteur (mode classique, lot E1 — `Classique\CoffresPieges`). Le jet est celui de
+     * tout piège (`jetDesamorcage()`) ; RÉUSSI, le coffre ne se déclenchera plus ; RATÉ, il se déclenche sur le désamorceur
+     * (« crâne = déclenché », LR p. 19), sauf le nœud nain Désamorçage, comme un piège de sol. Le résolveur revalide sur
+     * l'état vivant : le héros est dans la salle du coffre, le coffre est trouvé et encore armé, le héros sait désamorcer.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreDesamorcageCoffre(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $salle = (int) $option['parametres']['coffre'];
+        $coffres = app(\App\Partie\Classique\CoffresPieges::class);
+        $coffre = $coffres->aDesamorcer($quete, $salle);
+
+        if ($coffre === null || ! $this->pieges->peutDesamorcer($personnage) || $etat->position_x === null
+            || $this->salleA($quete, (int) $etat->position_x, (int) $etat->position_y) !== $salle) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Aucun coffre piégé à désamorcer d\'ici, ou vous n\'en êtes pas capable.',
+            ]);
+        }
+
+        ['reussi' => $reussi, 'detail' => $detailJet] = $this->jetDesamorcage($personnage, $quete);
+
+        if ($reussi) {
+            $coffres->desamorcer($quete, $coffre['salle']);
+        }
+
+        $payload = [
+            'type' => 'desamorcage',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'piege' => ['nom' => $coffres->nom($coffre)],
+            'coffre' => true,
+            'succes' => $reussi,
+            'desarme' => $reussi,
+            ...$detailJet,
+        ];
+
+        if (! $reussi && ! $this->talents->a($personnage, 'desamorcer_piege')) {
+            $payload['declenchement'] = $coffres->declencher($groupe, $quete, $personnage, $etat, $salle);
+            $this->finTourPiegeSol = true;
+        }
+
+        Journal::ajouter($groupe, 'jet', $payload, $acteur);
+
+        return $payload;
     }
 
     /**
@@ -11592,6 +11660,10 @@ final class ResolveurTour
         $confiscation = app(\App\Partie\Classique\Confiscation::class);
         $salleConsigne = $confiscation->salle($quete);
 
+        // COFFRE PIÉGÉ de l'auteur (mode classique, lot E1) : fouiller le trésor avant de l'avoir désamorcé le déclenche —
+        // le fouilleur (ou toute la salle) le subit et son tour s'arrête ; la fouille rend ensuite ce que la salle contient.
+        $coffrePiege = app(\App\Partie\Classique\CoffresPieges::class)->declencher($groupe, $quete, $personnage, $etat, (int) $salle);
+
         if ($salleConsigne !== null && $confiscation->enAttente($quete, (int) $personnage->id)
             && data_get($quete->carte?->grille, "salles.{$salle}.id") === $salleConsigne) {
             $payload = $entete + ['issue' => 'consigne', 'consigne' => $confiscation->rendre($quete, $personnage)];
@@ -11674,6 +11746,12 @@ final class ResolveurTour
             $payload['carte_armoire'] = $this->appliquerButin(
                 $carteArmoire, $enteteArmoire, $groupe, $quete, $personnage, $etat,
             );
+        }
+
+        // Le coffre piégé déclenché (lot E1) : publié comme un piège croisé (`JournalCombat::CLES_PIEGE`, liste), lu par le
+        // fil et par la table au même point de passage (`piegesCroises()`).
+        if ($coffrePiege !== null) {
+            $payload['pieges_declenches'] = [...(array) ($payload['pieges_declenches'] ?? []), $coffrePiege];
         }
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);

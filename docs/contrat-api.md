@@ -5911,7 +5911,7 @@ s'ouvre à la main, au contact. Le moteur ne retient pas quels couloirs ont ét�
 {
   couches: {
     mobilier: [{slug, nom, emprises: {0: [l, h], 90: [l, h], 180: [l, h], 270: [l, h]}}],   // emprise par rotation, décidée par le serveur
-    monstres: [{slug, nom}], pieges: [{slug, nom}],
+    monstres: [{slug, nom}], pieges: [{slug, nom, coffre}],   // `coffre` (lot E1) : un piège de coffre, posé dans `coffres_pieges`
     terrain: [{slug, nom, paire}]   // `paire` : il téléporte vers sa jumelle (`effet.teleportation`) — se pose avec un `paire_id` (K5o)
   },                                // `monstres` sert aussi à monstre_errant
   classes: [{slug, nom}],           // prerequis_heros
@@ -6043,6 +6043,18 @@ dans le mode classique »). Ce lot porte ce qui sert à trois livrets ou plus. M
   `Bourses::partager()`), `par_heros` en donne autant à chacun ; absent, il va au héros qui déclenche (comme avant). Le
   résultat de l'effet porte `partage` et `parts` ; le fil dit « Le groupe trouve 600 pièces d'or (Albrecht +300,
   Brunhild +300) » ou « Chaque héros reçoit… ».
+- **Coffre piégé de l'auteur** — `quete.coffres_pieges: [{salle, piege?, degats?, toute_la_salle?}]` (« If a hero
+  searches for treasure before the trap is disarmed, they lose 2 Body Points », F2847 q. 5, et les dix livrets). Un
+  coffre par salle ouverte. `piege` : un piège de coffre du catalogue (`pieges[].coffre`, défaut `piege-de-coffre`) ;
+  `degats` : 1 à 10 PV fixes à la place des siens (refusé pour un piège qui lance un sort) ; `toute_la_salle` : chaque
+  héros de la salle les subit (`degats` obligatoire). Règle du plateau (`reference/16` §7.3) : la FOUILLE DES PIÈGES de
+  la salle le trouve (`coffre_piege_trouve: {nom, salle}` sur le résultat du jet ; « découvre un piège sur le
+  coffre ») ; trouvé, il se DÉSAMORCE comme un piège — option `desamorcer_coffre` (`type: desamorcage`,
+  `parametres.coffre`, jet partagé `jetDesamorcage()`) ; raté, il se déclenche sur le désamorceur (sauf le nœud
+  Désamorçage). FOUILLER LE TRÉSOR avant de l'avoir désamorcé le déclenche : `pieges_declenches: [piege_declenche]` sur
+  la fouille (forme `zone` + `cibles` pour toute la salle), le tour du fouilleur s'arrête, puis la fouille rend ce que
+  la salle contient. État : `quetes.drapeaux._coffres_pieges` (clé réservée). Point de passage :
+  `Classique\CoffresPieges`.
 - **Sorts de Dread et capacités dans le profil d'auteur** (monstre posé, `apparition`, errant) :
   - `sorts_dread: [slug]` — catalogue `sorts_dread` (publié par `GET /constructeur/catalogues`) : REMPLACE le
     répertoire de la fiche (« Vilor knows the following Dread spells », F5815 p. 12). Chaque sort une fois par quête

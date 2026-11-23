@@ -150,7 +150,9 @@ final class ValidationCampagne
         'ramener' => ['type', 'libelle'],
     ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'captif', 'dangers', 'double', 'glyphes', 'salles_speciales'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'captif', 'dangers', 'double', 'glyphes', 'salles_speciales', 'coffres_pieges'];
+    /** Lot E1 (2026-11-22) : le coffre piégé de l'auteur, `Classique\CoffresPieges`. */
+    private const CLES_COFFRE_PIEGE_OPTIONNELLES = ['piege', 'degats', 'toute_la_salle'];
     /**
      * Les RÈGLES DE QUÊTE (`docs/plan-mode-classique.md` §2.3), valables toute la quête — seulement celles que le moteur
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
@@ -618,6 +620,7 @@ final class ValidationCampagne
             $this->poses($quete, $chemin, 'terrain', 'terrain');
             $this->dangers($quete, $chemin);
             $this->glyphes($quete, $chemin);
+            $this->coffresPieges($quete, $chemin);
             $this->recompense($quete, $chemin);
             // Les notes AVANT la fin : une fin « drapeau » n'est gagnable que si une note pose ce drapeau — de cette quête,
             // ou de campagne par une quête précédente (lot K5h).
@@ -2057,6 +2060,55 @@ final class ValidationCampagne
         $this->entier($recompense, 'or', $position, min: 0);
         $this->entier($recompense, 'reputation', $position, min: 1);
         $this->dans($recompense, 'partage', $position, self::PARTAGES);
+    }
+
+    /**
+     * `quete.coffres_pieges` (facultative, lot E1 — tous les livrets) : `[{salle, piege?, degats?, toute_la_salle?}]`, un
+     * coffre piégé par salle ouverte. `piege` : un piège de coffre du catalogue (`declencheur: ouverture_tresor`) ;
+     * `degats` : 1 à 10 PV fixes, à la place de ceux du piège (pas pour un piège qui lance un sort) ; `toute_la_salle` :
+     * chaque héros de la salle les subit — il faut alors écrire `degats`.
+     */
+    private function coffresPieges(array $quete, string $chemin): void
+    {
+        if (! array_key_exists('coffres_pieges', $quete)) {
+            return;
+        }
+        $salles = [];
+        foreach ($this->enListeDe($quete, 'coffres_pieges', $chemin) as $i => $valeur) {
+            $ici = self::chemin($chemin, 'coffres_pieges').".$i";
+            $coffre = $this->enObjet($valeur, $ici);
+            if ($coffre === null) {
+                continue;
+            }
+            $this->cles($coffre, $ici, ['salle'], self::CLES_COFFRE_PIEGE_OPTIONNELLES);
+            $salle = $coffre['salle'] ?? null;
+            if (! is_string($salle) || ! in_array($salle, (array) ($quete['salles_ouvertes'] ?? []), true)) {
+                $this->refuser("$ici.salle", self::SALLE_INCONNUE, 'le coffre piégé doit être dans une salle ouverte de la quête');
+            } elseif (isset($salles[$salle])) {
+                $this->refuser("$ici.salle", self::VALEUR_INVALIDE, "la salle « $salle » a déjà son coffre piégé");
+            }
+            $salles[(string) $salle] = true;
+            $avecSort = false;
+            if (array_key_exists('piege', $coffre) && $this->slugCatalogue($coffre, 'piege', $ici, 'pieges') !== null) {
+                $piege = $this->catalogue->index('pieges')[(string) $coffre['piege']];
+                if (data_get($piege->effet, 'declencheur') !== 'ouverture_tresor') {
+                    $this->refuser("$ici.piege", self::VALEUR_INVALIDE, "« {$coffre['piege']} » n'est pas un piège de coffre (il se pose au sol)");
+                }
+                $avecSort = data_get($piege->effet, 'sort_dread') !== null;
+            }
+            $degats = $this->entier($coffre, 'degats', $ici, min: 1);
+            if ($degats !== null && $degats > 10) {
+                $this->refuser("$ici.degats", self::VALEUR_INVALIDE, 'au plus 10 PV');
+            }
+            if ($degats !== null && $avecSort) {
+                $this->refuser("$ici.degats", self::VALEUR_INVALIDE, 'un piège qui lance un sort fait les dégâts du sort');
+            }
+            if (array_key_exists('toute_la_salle', $coffre) && $coffre['toute_la_salle'] !== true) {
+                $this->refuser("$ici.toute_la_salle", self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+            } elseif (($coffre['toute_la_salle'] ?? false) === true && $degats === null) {
+                $this->refuser("$ici.degats", self::VALEUR_INVALIDE, 'pour toute la salle, écrire les dégâts');
+            }
+        }
     }
 
     /**

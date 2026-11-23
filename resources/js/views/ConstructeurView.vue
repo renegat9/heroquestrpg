@@ -748,6 +748,16 @@ function basculerCaptif(avec) {
     if (avec) quete.value.captif = { mercenaire: catalogues.value?.captifs?.[0]?.slug ?? '', x: 0, y: 0 };
     else delete quete.value.captif;
 }
+// Lot E1 : les coffres piégés — la liste des pièges de coffre vient du serveur (`couches.pieges[].coffre`).
+const piegesDeCoffre = computed(() => (couches.value.pieges ?? []).filter((p) => p.coffre));
+function ajouterCoffrePiege() {
+    const q = quete.value;
+    (q.coffres_pieges ??= []).push({ salle: q.salles_ouvertes[0] });
+}
+function retirerCoffrePiege(k) {
+    quete.value.coffres_pieges.splice(k, 1);
+    if (!quete.value.coffres_pieges.length) delete quete.value.coffres_pieges;
+}
 function changerEffet(note, j, nom) {
     note.alors.splice(j, 1, effetParDefaut(nom));
 }
@@ -972,7 +982,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <option v-for="m in couches.monstres" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
                             </select>
                             <select v-if="outil === 'piege'" v-model="choix.piege" class="cst-input">
-                                <option v-for="m in couches.pieges" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
+                                <option v-for="m in (couches.pieges ?? []).filter((p) => !p.coffre)" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
                             </select>
                             <template v-if="outil === 'piege'">
                                 <label class="cst-case"><input v-model="choix.piegeIntrouvable" type="checkbox" /> introuvable</label>
@@ -1391,6 +1401,23 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(quete.captif, 'le captif')"><MSym n="pin_drop" :size="16" /></button>
                                     <span class="cst-sous">Ramené vivant sur la sortie avec le dernier héros : récompense versée ; sinon la quête est gagnée sans récompense.</span>
                                 </template>
+                            </div>
+                            <!-- Lot E1 : les coffres piégés (« if a hero searches for treasure before the trap is disarmed… »). -->
+                            <div class="cst-ligne">
+                                <span class="cst-lbl">Coffres piégés</span>
+                                <button type="button" class="cst-btn ghost" :disabled="!quete.salles_ouvertes.length" @click="ajouterCoffrePiege"><MSym n="add" :size="14" /> coffre piégé</button>
+                            </div>
+                            <div v-for="(c, k) in (quete.coffres_pieges ?? [])" :key="`cp${k}`" class="cst-ligne">
+                                <select v-model="c.salle" class="cst-input" title="Salle du coffre">
+                                    <option v-for="id in quete.salles_ouvertes" :key="id" :value="id">{{ id }}</option>
+                                </select>
+                                <select :value="c.piege ?? ''" class="cst-input" title="Piège" @change="$event.target.value ? (c.piege = $event.target.value) : delete c.piege">
+                                    <option value="">Piège de coffre (1 PV ou poison)</option>
+                                    <option v-for="p in piegesDeCoffre.filter((p) => p.slug !== 'piege-de-coffre')" :key="p.slug" :value="p.slug">{{ p.nom }}</option>
+                                </select>
+                                <label>dégâts fixes <input :value="c.degats ?? ''" type="number" min="1" max="10" class="cst-input cst-num" placeholder="—" @change="changerOptionnel(c, 'degats', $event.target.value)" /></label>
+                                <label class="cst-case"><input type="checkbox" :checked="c.toute_la_salle === true" @change="$event.target.checked ? (c.toute_la_salle = true) : delete c.toute_la_salle" /> toute la salle</label>
+                                <button type="button" class="cst-icone" title="Retirer" @click="retirerCoffrePiege(k)"><MSym n="close" :size="16" /></button>
                             </div>
                         </div>
 

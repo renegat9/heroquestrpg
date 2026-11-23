@@ -3156,8 +3156,12 @@ final class JournalCombat
             // se lisaient pareil alors que leur sens est opposé).
             // NOTE DE QUÊTE (lot K5g) : la salle a répondu par une note, annoncée effet par effet (`note_de_quete`) —
             // surtout pas « aucun piège ni passage » : c'est la note qui dit ce qu'on trouve.
+            // COFFRE PIÉGÉ de l'auteur trouvé (mode classique, lot E1) : il se désamorce ensuite, le dire.
+            $coffre = is_array($a['coffre_piege_trouve'] ?? null)
+                ? [['texte' => "{$acteurNom} découvre un piège sur le coffre : ".($a['coffre_piege_trouve']['nom'] ?? 'piège de coffre').' — à désamorcer avant de fouiller le trésor', 'ton' => 'succes']]
+                : [];
             if (($a['issue'] ?? null) === 'note') {
-                return [['texte' => "{$acteurNom} fouille la zone…", 'ton' => 'info']];
+                return [['texte' => "{$acteurNom} fouille la zone…", 'ton' => 'info'], ...$coffre];
             }
             if (! self::jetReussi($a)) {
                 return [['texte' => "{$acteurNom} fouille la zone : jet raté — rien n'est révélé (la zone peut encore cacher des pièges ou des passages)", 'ton' => 'echec']];
@@ -3168,8 +3172,11 @@ final class JournalCombat
                 $pieges > 0 ? "{$pieges} piège".($pieges > 1 ? 's' : '') : null,
                 $portes > 0 ? "{$portes} passage".($portes > 1 ? 's' : '') : null,
             ]);
+            if ($coffre !== [] && $trouve === []) {
+                return $coffre;
+            }
 
-            return [[
+            return [...$coffre, [
                 'texte' => $trouve === []
                     ? "{$acteurNom} fouille la zone : bien cherché — aucun piège ni passage secret ici"
                     : "{$acteurNom} fouille : ".implode(' et ', $trouve).' !',

@@ -2669,6 +2669,28 @@ final class MenuMoteur
                 }
             }
 
+            // COFFRE PIÉGÉ de l'auteur (mode classique, lot E1) : trouvé par la fouille des pièges de la salle, il se
+            // désamorce comme un piège — même verbe, même jet (`ResolveurTour::jetDesamorcage()`), depuis la salle du coffre.
+            // Le résolveur revalide tout (`Classique\CoffresPieges::aDesamorcer()`).
+            if ($etat !== null && $etat->position_x !== null && $quete->carte !== null && $quete->estConstruite()
+                && $this->pieges->peutDesamorcer($personnage)) {
+                $salleIci = \App\Partie\Salles::indexDe((array) ($quete->carte->grille['salles'] ?? []), (int) $etat->position_x, (int) $etat->position_y);
+                $coffres = app(\App\Partie\Classique\CoffresPieges::class);
+                $coffre = $salleIci === null ? null : $coffres->aDesamorcer($quete, $salleIci);
+
+                if ($coffre !== null) {
+                    $sansOutils = in_array($personnage->classe, MoteurPieges::SANS_OUTILS, true);
+                    $options[] = [
+                        'id' => 'desamorcer_coffre',
+                        'libelle' => 'Désamorcer le coffre ('.$coffres->nom($coffre).')'
+                            .($sansOutils ? ' — 1 dé de combat (seul le bouclier noir rate)' : ' — jet de Body'),
+                        'type' => 'desamorcage',
+                        ...($sansOutils ? [] : ['jet' => ['attribut' => 'body', 'difficulte' => ResolveurTour::DIFFICULTE_DESAMORCAGE]]),
+                        'parametres' => ['coffre' => $salleIci],
+                    ];
+                }
+            }
+
             // Équiper / ranger une pièce en pleine quête (doc 01 §149) = action
             // du tour. Depuis 2026-09-18 (René, doc contrat-api « Équiper,
             // ranger et attaquer passent au sous-choix ») CHAQUE geste est

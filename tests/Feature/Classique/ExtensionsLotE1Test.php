@@ -78,12 +78,13 @@ function partieE1ADeux(object $test, array $campagne): array
 }
 
 /** @return array{code: string, groupe: Groupe, quete: Quete, heros: Personnage} */
-function partieE1(object $test, array $campagne): array
+function partieE1(object $test, array $campagne, string $classe = 'barbare'): array
 {
+    $campagne['prerequis_heros'] = [];
     app(CampagnesConstruites::class)->enregistrer($campagne);
     $alice = connecterJoueur('alice');
     $heros = Personnage::create([
-        'joueur_id' => $alice->id, 'nom' => 'Albrecht', 'classe' => 'barbare', 'niveau' => 1,
+        'joueur_id' => $alice->id, 'nom' => 'Albrecht', 'classe' => $classe, 'niveau' => 1,
         'attribut_body' => 4, 'attribut_mind' => 2, 'pv_body_max' => 30, 'pv_body' => 30, 'pv_mind_max' => 2, 'pv_mind' => 2,
         'des_attaque' => 3, 'des_defense' => 2, 'deplacement_base' => 4,
     ]);
@@ -225,3 +226,91 @@ it('l\'or d\'un coffre « divided among all surviving heroes » va aux bourses d
     'partagé' => ['groupe', [301, 300], 'Le groupe trouve 601 pièces d\'or (Albrecht +301, Brunhild +300)'],
     'à chacun' => ['par_heros', [601, 601], 'Chaque héros reçoit 601 pièces d\'or'],
 ]);
+
+// ---------------------------------------------------------------- 4. le coffre piégé de l'auteur
+
+function coffreE1(array $coffre, array $alors = [['effet' => 'or', 'or' => 50]]): array
+{
+    return campagneE1([
+        'coffres_pieges' => [$coffre],
+        'notes' => [['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'entree']], 'alors' => $alors]],
+    ]);
+}
+
+function choixE1(object $test, array $partie, string $option): \Illuminate\Testing\TestResponse
+{
+    Cache::forget(GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $test->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+
+    return $test->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => $option]);
+}
+
+function optionsE1(object $test, array $partie): array
+{
+    Cache::forget(GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+
+    return collect($test->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id')->all();
+}
+
+it('valide un coffre piégé : salle ouverte, piège de coffre, dégâts, toute la salle ; refuse le reste', function () {
+    expect(codesE1(coffreE1(['salle' => 'entree'])))->toBe([])
+        ->and(codesE1(coffreE1(['salle' => 'entree', 'piege' => 'fiole-de-poison', 'degats' => 2, 'toute_la_salle' => true])))->toBe([])
+        ->and(codesE1(coffreE1(['salle' => 'crypte'])))->toBe([ValidationCampagne::SALLE_INCONNUE])
+        ->and(codesE1(coffreE1(['salle' => 'entree', 'piege' => 'fosse'])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE1(coffreE1(['salle' => 'entree', 'piege' => 'piege-de-boule-de-flammes', 'degats' => 2])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE1(coffreE1(['salle' => 'entree', 'toute_la_salle' => true])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE1(coffreE1(['salle' => 'entree', 'degats' => 11])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+});
+
+it('fouiller le trésor AVANT de désamorcer déclenche le coffre : dégâts fixes, fin du tour, puis la note', function () {
+    $partie = partieE1($this, coffreE1(['salle' => 'entree', 'degats' => 2]));
+
+    $resultat = choixE1($this, $partie, 'fouiller_tresor')->assertStatus(202)->assertJsonPath('resultat.issue', 'note')->json('resultat');
+
+    expect((int) $partie['heros']->fresh()->pv_body)->toBe(28)
+        ->and((int) $partie['heros']->fresh()->or)->toBe(50)
+        ->and($resultat['pieges_declenches'][0]['degats'])->toBe(2)
+        // Le tour s'arrête (seul en jeu, le round suivant s'ouvre aussitôt : on lit la décision publiée).
+        ->and($resultat['pieges_declenches'][0]['fin_de_tour'])->toBeTrue();
+
+    // Une seule fois : il est déclenché.
+    expect(app(\App\Partie\Classique\CoffresPieges::class)->actif($partie['quete']->fresh(), 0))->toBeNull();
+});
+
+it('la fouille des pièges le TROUVE, le Nain le DÉSAMORCE, et la fouille du trésor ne blesse plus personne', function () {
+    app()->instance(\App\Engine\Des\LanceurDes::class, new \App\Engine\Des\LanceurDeterministe(array_fill(0, 60, 1)));
+    $partie = partieE1($this, coffreE1(['salle' => 'entree', 'degats' => 3]), 'nain');
+
+    expect(optionsE1($this, $partie))->not->toContain('desamorcer_coffre');
+    $jet = choixE1($this, $partie, 'fouiller')->assertStatus(202)->json('resultat');
+    expect($jet['coffre_piege_trouve']['nom'])->toBe('Piège de coffre')
+        ->and($jet['a_trouve'])->toBeTrue();
+    $fil = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($jet, 'Albrecht'))->pluck('texte')->implode(' | ');
+    expect($fil)->toContain('découvre un piège sur le coffre');
+
+    // Le tour suivant : le menu propose de le désamorcer (un dé, seul le bouclier noir rate).
+    \App\Models\EtatPersonnageQuete::query()->whereKey($partie['quete']->etatsPersonnages()->first()->id)
+        ->update(['a_joue' => false, 'a_agi' => false, 'a_deplace' => false]);
+    expect(optionsE1($this, $partie))->toContain('desamorcer_coffre');
+    choixE1($this, $partie, 'desamorcer_coffre')->assertStatus(202)->assertJsonPath('resultat.desarme', true);
+
+    \App\Models\EtatPersonnageQuete::query()->whereKey($partie['quete']->etatsPersonnages()->first()->id)
+        ->update(['a_joue' => false, 'a_agi' => false, 'a_deplace' => false]);
+    $fouille = choixE1($this, $partie, 'fouiller_tresor')->assertStatus(202)->json('resultat');
+    expect((int) $partie['heros']->fresh()->pv_body)->toBe(30)
+        ->and($fouille)->not->toHaveKey('pieges_declenches');
+});
+
+it('« toute la salle » : chaque héros de la salle subit les dégâts, une ligne chacun', function () {
+    $campagne = coffreE1(['salle' => 'entree', 'degats' => 2, 'toute_la_salle' => true]);
+    ['code' => $code, 'groupe' => $groupe, 'albrecht' => $albrecht, 'brunhild' => $brunhild] = partieE1ADeux($this, $campagne);
+    Cache::forget(GenererMenu::cleDuHeros($groupe, $albrecht));
+    $this->getJson("/api/groupes/{$code}/menu")->assertOk();
+
+    $resultat = $this->postJson("/api/groupes/{$code}/choix", ['option_id' => 'fouiller_tresor'])->assertStatus(202)->json('resultat');
+
+    expect([(int) $albrecht->fresh()->pv_body, (int) $brunhild->fresh()->pv_body])->toBe([28, 28])
+        ->and($resultat['pieges_declenches'][0]['zone'])->toBeTrue();
+    $fil = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'))->pluck('texte')->implode(' | ');
+    expect($fil)->toContain('Brunhild encaisse −2 PV')->toContain('Albrecht encaisse −2 PV');
+});
