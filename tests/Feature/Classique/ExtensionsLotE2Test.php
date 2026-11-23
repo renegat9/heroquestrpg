@@ -399,3 +399,33 @@ it('planque : le dé rouge du soin, puis la répartition choisie parmi celles qu
     expect([(int) $partie['heros']->fresh()->pv_body, (int) $partie['heros']->fresh()->pv_mind])->toBe([28, 1])
         ->and($menu()->filter(fn ($id) => str_contains($id, 'planque'))->all())->toBe([]);
 });
+
+it('déguisés : la figure endormie est retirée au contact d\'un déguisé ; éveillée, elle ignore le déguisé', function () {
+    $campagne = campagneE2(['regles' => ['deguisement' => true], 'portes' => [
+        ['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale', 'ouverte' => true],
+        ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale'], ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'secrete']], 'monstres' => [
+        ['slug' => 'gobelin', 'x' => 9, 'y' => 3, 'capacites' => ['ignore_deguises', 'retire_au_contact_deguise']],
+        ['slug' => 'orque', 'x' => 9, 'y' => 5, 'capacites' => ['ignore_deguises']]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 6, 'position_y' => 3, 'deguise' => true]);
+    [$gobelin, $orque] = $partie['quete']->instancesMonstres()->orderBy('id')->get()->all();
+    expect(app(\App\Partie\MoteurDormants::class)->estDormant($gobelin))->toBeTrue();
+
+    deplacerE2($this, $partie, 8, 3)->assertAccepted();
+    expect($gobelin->fresh()->etat)->toBe('vaincu')->and($gobelin->fresh()->position_x)->toBeNull();
+
+    // L'orque, éveillé, au contact du déguisé : il ne le frappe pas.
+    $orque->update(['passif_etat' => ['eveille' => true, 'agi' => false, 'attaque' => false], 'position_x' => 8, 'position_y' => 4]);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+    $pv = (int) $partie['heros']->fresh()->pv_body;
+    $phase = new ReflectionMethod(ResolveurTour::class, 'phaseMonstres');
+    $actions = (array) ($phase->invoke(app(ResolveurTour::class), $partie['groupe'], $partie['quete']->fresh())['actions'] ?? []);
+    expect(collect($actions)->where('type', 'attaque_monstre')->all())->toBe([])
+        ->and((int) $partie['heros']->fresh()->pv_body)->toBe($pv);
+
+    // Le témoin : sans déguisement, la même figure frappe.
+    $partie['quete']->etatsPersonnages()->update(['deguise' => false, 'a_joue' => false]);
+    $actions = (array) ($phase->invoke(app(ResolveurTour::class), $partie['groupe'], $partie['quete']->fresh())['actions'] ?? []);
+    expect(collect($actions)->where('type', 'attaque_monstre')->count())->toBe(1);
+});

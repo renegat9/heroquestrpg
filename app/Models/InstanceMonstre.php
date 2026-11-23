@@ -119,6 +119,12 @@ class InstanceMonstre extends Model
         'attaque_diagonale' => ['attaque_diagonale', true],
         'deux_sorts_par_tour' => ['double_sort', true],
         'deux_sorts_premier_tour' => ['double_sort', ['premier_tour' => true]],
+        // Lot E2 (*Rise of the Dread Moon* q. 2 B, C) : « ignores disguised heroes and remains inactive unless an undisguised
+        // hero enters their line of sight or they are attacked » — `Classique\Deguisement`, et le ciblage des monstres.
+        'ignore_deguises' => ['ignore_deguises', true],
+        // « Remove an inactive Elven Warrior from the map if a disguised hero is ever adjacent to them (no action
+        // required) » (q. 2 B, C ; q. 3 D, la place) — `Classique\Deguisement::retirerAuContact()`.
+        'retire_au_contact_deguise' => ['retire_au_contact_deguise', true],
     ];
 
     /** Dés d'attaque effectifs (bloc de stats + bonus élite éventuel). */

@@ -184,6 +184,8 @@ final class JournalCombat
         // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
         'soin_planque' => true,
         'repartir_planque' => true,
+        // Lot E2 : un héros déguisé au contact d'une figure endormie l'élimine sans bruit (F6646 q. 2 B, C).
+        'retrait_au_contact' => true,
         // MODE CLASSIQUE : un héros a poussé une FAUSSE porte de sortie — elle ne s'ouvre pas, il reste dans le donjon.
         'fausse_sortie' => true,
         // MODE CLASSIQUE : un héros qui attendait hors du plateau franchit la porte d'entrée.
@@ -1380,6 +1382,10 @@ final class JournalCombat
             'fausse_sortie' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' pousse la porte de sortie : c\'est une fausse porte, peinte sur le mur — elle ne s\'ouvre pas',
                 'ton' => 'echec',
+            ]],
+            'retrait_au_contact' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' frappe vite et sans bruit : '.($a['figure'] ?? 'la figure').' disparaît',
+                'ton' => 'succes',
             ]],
             'soin_planque' => [[
                 'texte' => ($a['personnage']['nom'] ?? $acteurNom).' panse ses plaies à la planque : '.(int) ($a['jet'] ?? 0).' au dé rouge'

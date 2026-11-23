@@ -125,6 +125,10 @@ final class Deguisement
         if ($quete === null || ! $quete->estConstruite() || $instance->position_x === null) {
             return null;
         }
+        // Lot E2 (F6646 q. 2 B, C) : une figure qui « ignores disguised heroes » dort comme sur une place, où qu'elle soit.
+        if ($instance->aCapacite('ignore_deguises')) {
+            return self::DECLENCHEUR_PLACE;
+        }
         $places = collect((array) ($quete->documentConstruit()['salles_speciales'] ?? []))->filter(fn ($s) => ($s['place'] ?? false) === true);
         if ($places->isEmpty()) {
             return null;
@@ -136,6 +140,35 @@ final class Deguisement
     }
 
     /** Au tour du MJ : un héros debout, sur le plateau, NON déguisé, a-t-il cette figure en ligne de vue ? */
+    /**
+     * Lot E2 (F6646 q. 2 B, C ; q. 3 D) : « Remove an inactive [figure] from the map if a disguised hero is ever adjacent to
+     * them (no action required) as that hero delivers a swift and silent strike. » Lu à chaque case de la marche d'un héros
+     * déguisé (`ResolveurTour::signalerEntrees()`) ; seules les figures ENCORE ENDORMIES qui portent la capacité de profil
+     * `retire_au_contact_deguise` partent. Chaque retrait s'annonce (`retrait_au_contact`).
+     *
+     * @return list<string> les noms retirés
+     */
+    public function retirerAuContact(Quete $quete, EtatPersonnageQuete $etat, Personnage $heros, int $x, int $y): array
+    {
+        if (! $quete->estConstruite() || ! $etat->deguise) {
+            return [];
+        }
+        $dormants = app(\App\Partie\MoteurDormants::class);
+        $retires = [];
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->whereNotNull('position_x')->with('monstre')->get() as $figure) {
+            if (! $figure->aCapacite('retire_au_contact_deguise') || ! $dormants->estDormant($figure) || ! $figure->touche($x, $y)) {
+                continue;
+            }
+            $figure->update(['etat' => 'vaincu', 'position_x' => null, 'position_y' => null,
+                'habillage' => [...(array) $figure->habillage, 'retire' => true]]);
+            $retires[] = $figure->nomAffiche();
+            app(TamponAnnonces::class)->annoncer($quete->groupe, ['type' => 'retrait_au_contact', 'nom' => $heros->nom, 'figure' => $figure->nomAffiche()],
+                ['type' => 'personnage', 'id' => $heros->id, 'nom' => $heros->nom]);
+        }
+
+        return $retires;
+    }
+
     public function vueParUnNonDeguise(Quete $quete, InstanceMonstre $instance): bool
     {
         $grille = FabriqueGrille::pour($quete);

@@ -38,6 +38,9 @@ const LIBELLES_CAPACITE = {
     attaque_diagonale: 'frappe en diagonale',
     deux_sorts_par_tour: 'deux sorts par tour',
     deux_sorts_premier_tour: 'deux sorts au premier tour',
+    // Lot E2 (Rise of the Dread Moon q. 2) : la figure qui laisse passer les déguisés.
+    ignore_deguises: 'ignore les héros déguisés (dort tant qu\'un non-déguisé ne la voit pas)',
+    retire_au_contact_deguise: 'endormie, retirée au contact d\'un héros déguisé',
 };
 const nomSortDread = (slug) => props.sortsDread.find((o) => o.slug === slug)?.nom ?? slug;
 function ajouterSortDread(slug) {

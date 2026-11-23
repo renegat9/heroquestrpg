@@ -13246,6 +13246,9 @@ final class ResolveurTour
 
                 $notes->signaler($quete, MotsClesQuete::ENTREE, ['case' => $case, 'salle' => $entre ? $salle : null], $personnage);
 
+                // DÉGUISÉ AU CONTACT (lot E2, F6646 q. 2 B, C) : la figure endormie qui le permet est retirée, sans action.
+                app(\App\Partie\Classique\Deguisement::class)->retirerAuContact($quete, $etat, $personnage, (int) $case['x'], (int) $case['y']);
+
                 // ARRÊT (lot E2) : une note de cette case a arrêté la marche (piège à errant) — le héros reste ici.
                 if ($notes->consommerArret()) {
                     $etat->update(['position_x' => (int) $case['x'], 'position_y' => (int) $case['y']]);
@@ -15008,6 +15011,11 @@ final class ResolveurTour
 
     private function jouerMonstre(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Collection $cibles): array
     {
+        // « IGNORES DISGUISED HEROES » (mode classique, lot E2 — F6646 q. 2 B, C) : un héros déguisé n'est pas une cible
+        // pour cette figure (capacité de profil `ignore_deguises`).
+        if ($instance->aCapacite('ignore_deguises')) {
+            $cibles = $cibles->reject(fn (EtatPersonnageQuete $c) => (bool) $c->deguise)->values();
+        }
         $nomMonstre = $instance->nomAffiche();
         $acteur = ['type' => 'monstre', 'id' => $instance->id, 'nom' => $nomMonstre];
 

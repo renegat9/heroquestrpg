@@ -6152,6 +6152,12 @@ Mode classique seulement ; une règle par livret, sourcée.
   first time that room is searched for treasure award that Hero 200 gold coins ») : la PREMIÈRE fouille du trésor d'une
   salle où l'auteur a posé un Coffre, et qu'aucune note `fouille_tresor` ne nomme, verse N pièces à la bourse du
   fouilleur, à la place de la carte. Résultat de fouille `issue: richesses, or: N`. `Classique\RichessesElfiques`.
+- **Les figures qui laissent passer les déguisés** — deux capacités de profil d'auteur (`capacites`, *Rise of the Dread
+  Moon* q. 2 B, C ; q. 3 D) : `ignore_deguises` (« ignores disguised heroes and remains inactive unless an undisguised
+  hero enters their line of sight or they are attacked » : la figure dort comme sur une place publique, où qu'elle
+  soit, et une fois éveillée ne cible jamais un héros déguisé) et `retire_au_contact_deguise` (« Remove an inactive
+  [figure] from the map if a disguised hero is ever adjacent to them (no action required) » : endormie, elle est retirée
+  dès qu'un héros déguisé marche à son contact ; annonce `retrait_au_contact {nom, figure}`).
 - **Planque** — `regles.planque: id de salle` (*Rise of the Dread Moon* p. 7, « Hideouts ») : `Classique\Planque`.
   - UNE fouille du trésor par quête, tous héros confondus (menu et résolveur : `fouilleFermee()`) ;
   - une carte de monstre errant ou de danger tirée là ne joue pas et retourne sous le paquet : issue de fouille
