@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Engine\MotsClesMobilier;
+use App\Engine\MotsClesQuete;
 use App\Models\Carte;
 use App\Models\Mobilier;
 use App\Models\Objet;
@@ -623,6 +624,21 @@ final class MoteurMobilier
         $grille['mobilier'][$index]['detruit'] = true;
 
         $carte->update(['grille' => $grille]);
+        $this->signalerDestruction($carte, $index);
+    }
+
+    /**
+     * NOTE DE QUÊTE (mode classique, lot E1) : un meuble vient d'être détruit — « the Dread chests », « destroy the High
+     * Altar » (G1504 q. 8, 10). Les meubles d'une quête construite sont posés dans l'ordre du document
+     * (`CarteConstruite::produire()`) : l'index de la grille EST l'index de `quete.mobilier`. Les deux voies de
+     * destruction (`detruire()`, `infligerDegats()`) passent par ici, et elles seules.
+     */
+    private function signalerDestruction(Carte $carte, int $index): void
+    {
+        $quete = $carte->quete;
+        if ($quete !== null && $quete->estConstruite()) {
+            app(\App\Partie\Classique\NotesDeQuete::class)->signaler($quete, MotsClesQuete::MEUBLE_DETRUIT, ['mobilier' => $index]);
+        }
     }
 
     /**
@@ -954,6 +970,10 @@ final class MoteurMobilier
         }
 
         $carte->update(['grille' => $grille]);
+
+        if ($apres <= 0) {
+            $this->signalerDestruction($carte, $index);
+        }
 
         return ['pv_restants' => $apres, 'detruit' => $apres <= 0];
     }

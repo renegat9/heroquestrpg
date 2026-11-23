@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\MotsClesQuete;
 use App\Engine\Combat;
 use App\Engine\Des\FaceDeCombat;
 use App\Engine\Des\LanceurDes;
@@ -565,6 +566,8 @@ final class MoteurPieges
                 'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
             ]);
 
+            $this->signalerDeclenchement($etat->quete, (int) $entree['x'], (int) $entree['y'], $personnage);
+
             return $payload;
         }
 
@@ -704,6 +707,8 @@ final class MoteurPieges
 
         $this->narrerPiegeDeclenche($groupe, $etat->quete, $personnage);
 
+        $this->signalerDeclenchement($etat->quete, (int) $entree['x'], (int) $entree['y'], $personnage);
+
         return $payload;
     }
 
@@ -808,6 +813,20 @@ final class MoteurPieges
      *         compté à tort comme une cible.
      * @return array<string, mixed> payload journalisé
      */
+    /**
+     * NOTE DE QUÊTE (mode classique, lot E1) : un piège vient de se déclencher sur cette case — « or whenever a trap is
+     * triggered » (G0053 q. 6). Signalé par chaque résolveur de déclenchement (sol, zone, coffre), jamais ailleurs.
+     */
+    public function signalerDeclenchement(?\App\Models\Quete $quete, int $x, int $y, ?Personnage $personnage): void
+    {
+        if ($quete === null || ! $quete->estConstruite()) {
+            return;
+        }
+        $salle = \App\Partie\Salles::indexDe((array) ($quete->carte?->grille['salles'] ?? []), $x, $y);
+        app(\App\Partie\Classique\NotesDeQuete::class)->signaler($quete, MotsClesQuete::PIEGE_DECLENCHE,
+            ['case' => ['x' => $x, 'y' => $y], 'salle' => $salle], $personnage);
+    }
+
     public function declencherZone(
         Groupe $groupe,
         Carte $carte,
@@ -898,6 +917,8 @@ final class MoteurPieges
         ]);
 
         $this->narrerPiegeDeclenche($groupe, $quete, $personnage);
+
+        $this->signalerDeclenchement($quete, (int) $entree['x'], (int) $entree['y'], $personnage);
 
         return $payload;
     }
@@ -1005,6 +1026,8 @@ final class MoteurPieges
         if ($narrer) {
             $this->narrerPiegeDeclenche($groupe, $etat->quete, $personnage);
         }
+
+        $this->signalerDeclenchement($etat->quete, (int) $etat->position_x, (int) $etat->position_y, $personnage);
 
         return $payload;
     }

@@ -890,6 +890,15 @@ final class ResolveurTour
                 // seul : le tour du héros vient de se fermer ici. Annoncé par le tampon générique (`annonces_automatiques`).
                 $this->salleDangereuseFrappe($groupe, $quete, $personnage, $etat->fresh(), MotsClesMobilier::MOMENT_FIN_TOUR);
 
+                // NOTE DE QUÊTE (lot E1) : « if a hero ends their turn in this room » — le même instant, et nul autre.
+                $finDeTour = $etat->fresh();
+                if ($quete->estConstruite() && $finDeTour !== null && ! $finDeTour->tombe && $finDeTour->position_x !== null) {
+                    app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::FIN_DE_TOUR, [
+                        'case' => ['x' => (int) $finDeTour->position_x, 'y' => (int) $finDeTour->position_y],
+                        'salle' => $this->salleA($quete, (int) $finDeTour->position_x, (int) $finDeTour->position_y),
+                    ], $personnage);
+                }
+
                 // SILENCING SNARE (Deathspinner, F9907 p. 17) : « may cast Channel Dread at will on
                 // any hero that ENDS THEIR TURN within her line of sight (no action required) » —
                 // le même instant que le coup de corne, et nul autre : le tour du héros vient de
@@ -13044,6 +13053,24 @@ final class ResolveurTour
      * @param  array{x: int, y: int}|null  $avant  la case du héros AVANT l'action
      * @param  array<string, mixed>  $resultat
      */
+    /**
+     * Lot E1 : tous les héros DEBOUT et sur le plateau sont-ils dans cette salle ? Celui qui vient d'y entrer y est (sa case
+     * d'arrivée, déjà écrite) ; un héros encore dehors, devant la porte d'entrée, ne l'est pas.
+     */
+    private function tousLesHerosDansLaSalle(Quete $quete, int $salle, int $entrantId): bool
+    {
+        foreach ($quete->etatsPersonnages()->get() as $e) {
+            if ($e->tombe || $e->personnage_id === $entrantId) {
+                continue;
+            }
+            if ($e->position_x === null || $this->salleA($quete, (int) $e->position_x, (int) $e->position_y) !== $salle) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private function signalerEntrees(Quete $quete, Personnage $personnage, ?array $avant, ?EtatPersonnageQuete $etat, array $resultat): void
     {
         if (! $quete->estConstruite() || $avant === null || $etat === null || $etat->position_x === null) {
@@ -13085,6 +13112,15 @@ final class ResolveurTour
                 $entre = $salle !== null && $salle !== $this->salleA($quete, $precedente['x'], $precedente['y']);
 
                 $notes->signaler($quete, MotsClesQuete::ENTREE, ['case' => $case, 'salle' => $entre ? $salle : null], $personnage);
+
+                // Lot E1 : la salle QUITTÉE (« each time a room is exited »), et TOUS les héros debout entrés.
+                $salleQuittee = $this->salleA($quete, $precedente['x'], $precedente['y']);
+                if ($salleQuittee !== null && $salleQuittee !== $salle) {
+                    $notes->signaler($quete, MotsClesQuete::SALLE_QUITTEE, ['salle' => $salleQuittee], $personnage);
+                }
+                if ($entre && $this->tousLesHerosDansLaSalle($quete, $salle, (int) $personnage->id)) {
+                    $notes->signaler($quete, MotsClesQuete::TOUS_ENTRES, ['salle' => $salle], $personnage);
+                }
                 $quete->noterPassageSurCase($case['x'], $case['y'], (int) $personnage->id);
 
                 if ($case !== $arrivee && $quete->tousLesHerosOntFranchi($case['x'], $case['y'])) {
@@ -18067,6 +18103,12 @@ final class ResolveurTour
             // de produire — la DÉCISION est publiée ici, comme partout.
             'mode' => $escorte ? 'escorte' : 'figurine',
         ];
+
+        // NOTE DE QUÊTE (lot E1) : « if Revelroot was freed » — le captif nommé par le slug de sa fiche.
+        if ($quete->estConstruite() && $captif->mercenaire !== null) {
+            app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::CAPTIF_LIBERE,
+                ['captif' => \App\Partie\Classique\CatalogueConstructeur::slug((string) $captif->mercenaire->nom)], $personnage);
+        }
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 

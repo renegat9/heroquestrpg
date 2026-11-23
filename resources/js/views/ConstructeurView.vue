@@ -301,7 +301,7 @@ const couvre = (m, x, y) => {
 
 /** Retire l'élément d'index `i` d'une liste désignée par des notes ou la fin, et recale ces désignations. */
 function recaler(q, liste, i) {
-    const cle = liste === 'monstres' ? 'monstre' : 'porte';
+    const cle = { monstres: 'monstre', portes: 'porte', mobilier: 'mobilier' }[liste];
     if (liste === 'monstres' && Array.isArray(q.fin?.cibles)) {
         q.fin.cibles = q.fin.cibles.filter((c) => c !== i).map((c) => (c > i ? c - 1 : c));
     }
@@ -311,6 +311,11 @@ function recaler(q, liste, i) {
         // La note visait l'élément retiré : elle ne désigne plus rien, et la validation le dira — plutôt que de viser
         // en silence l'élément suivant, qui a pris son index.
         if (c[cle] === i) c[cle] = -1; else if (c[cle] > i) c[cle] -= 1;
+    });
+    // Lot E1 : une cible `monstres` (toutes tombées) perd l'index retiré (`mobilier` se recale ci-dessus, comme une porte).
+    (q.notes ?? []).forEach((note) => {
+        const c = note.quand?.cible;
+        if (liste === 'monstres' && Array.isArray(c?.monstres)) c.monstres = c.monstres.filter((k) => k !== i).map((k) => (k > i ? k - 1 : k));
     });
     // L'effet `eveiller` (2026-11-20) désigne des monstres posés par leur index : même recalage, l'index retiré disparaît.
     if (liste === 'monstres') {
@@ -436,7 +441,7 @@ function clicQuete(evt) {
                 const i = q[liste].findIndex(test);
                 if (i >= 0) {
                     q[liste].splice(i, 1);
-                    if (liste === 'monstres') recaler(q, 'monstres', i);
+                    if (liste === 'monstres' || liste === 'mobilier') recaler(q, liste, i);
                     return;
                 }
             }
@@ -690,6 +695,10 @@ function cibleParDefaut(genre) {
         porte: { porte: 0 },
         monstre: { monstre: 0 },
         tour: { tour: 1 },
+        // Lot E1 : des figures (toutes tombées), un meuble, un captif.
+        monstres: { monstres: quete.value.monstres.length ? [0] : [] },
+        mobilier: { mobilier: 0 },
+        captif: { captif: catalogues.value?.captifs?.[0]?.slug ?? '' },
     }[genre];
 }
 const genreDeCible = (note) => Object.keys(note.quand?.cible ?? {})[0] ?? '';
@@ -1460,6 +1469,18 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     </select>
                                     <select v-else-if="genreDeCible(note) === 'monstre'" v-model.number="note.quand.cible.monstre" class="cst-input">
                                         <option v-for="(m, k) in quete.monstres" :key="k" :value="k">{{ libelleMonstre(m, k) }}</option>
+                                    </select>
+                                    <!-- Lot E1 : les figures désignées (toutes tombées), le meuble détruit, le captif libéré. -->
+                                    <span v-else-if="genreDeCible(note) === 'monstres'" class="cst-ligne">
+                                        <label v-for="(m, k) in quete.monstres" :key="`nm${k}`" class="cst-case">
+                                            <input type="checkbox" :checked="note.quand.cible.monstres.includes(k)" @change="note.quand.cible.monstres = $event.target.checked ? [...new Set([...note.quand.cible.monstres, k])].sort((a, b) => a - b) : note.quand.cible.monstres.filter((x) => x !== k)" /> {{ k }} · {{ m.nom ?? nomDe('monstres', m.slug) }}
+                                        </label>
+                                    </span>
+                                    <select v-else-if="genreDeCible(note) === 'mobilier'" v-model.number="note.quand.cible.mobilier" class="cst-input">
+                                        <option v-for="(m, k) in quete.mobilier" :key="k" :value="k">meuble {{ k }} — {{ nomDe('mobilier', m.slug) }} ({{ m.x }}, {{ m.y }})</option>
+                                    </select>
+                                    <select v-else-if="genreDeCible(note) === 'captif'" v-model="note.quand.cible.captif" class="cst-input">
+                                        <option v-for="c in (catalogues.captifs ?? [])" :key="c.slug" :value="c.slug">{{ c.nom }}</option>
                                     </select>
                                     <label v-else-if="genreDeCible(note) === 'tour'">à partir du tour <input v-model.number="note.quand.cible.tour" type="number" min="1" class="cst-input cst-num" /></label>
                                     <button type="button" class="cst-icone" title="Retirer la note" @click="quete.notes.splice(i, 1)"><MSym n="delete" :size="16" /></button>

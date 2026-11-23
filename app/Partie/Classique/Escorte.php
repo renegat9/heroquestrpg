@@ -77,7 +77,7 @@ final class Escorte
         if (! $this->aUnCaptif($quete)) {
             return;
         }
-        $drapeaux = (array) ($quete->drapeaux ?? []);
+        $drapeaux = (array) ($quete->relire('drapeaux')->drapeaux ?? []);
         $drapeaux[self::DRAPEAU] = $this->surLaSortie($quete);
         $quete->update(['drapeaux' => $drapeaux]);
     }

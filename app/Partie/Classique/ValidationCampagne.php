@@ -940,6 +940,22 @@ final class ValidationCampagne
             case 'tour':
                 $this->entier($cible, 'tour', $position, min: 1);
                 break;
+            // Lot E1 : des figures posées (toutes tombées), un meuble posé, un captif du catalogue.
+            case 'monstres':
+                $liste = $this->enListe($cible['monstres'], "$position.monstres");
+                foreach ((array) $liste as $k => $index) {
+                    $this->indexDe($quete, 'monstres', $index, "$position.monstres.$k");
+                }
+                if ($liste === []) {
+                    $this->refuser("$position.monstres", self::VALEUR_INVALIDE, 'au moins une figure');
+                }
+                break;
+            case 'mobilier':
+                $this->indexDe($quete, 'mobilier', $cible['mobilier'], "$position.mobilier");
+                break;
+            case 'captif':
+                $this->slugCatalogue($cible, 'captif', $position, 'mercenaires');
+                break;
         }
     }
 

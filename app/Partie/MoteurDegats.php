@@ -871,6 +871,18 @@ final class MoteurDegats
 
             if ($rang !== null) {
                 $notes->signaler($instance->quete, MotsClesQuete::MORT, ['monstre' => $rang], $auteurHeros);
+                // Lot E1 : toutes les figures désignées tombées — la note décide si les autres le sont aussi.
+                $notes->signaler($instance->quete, MotsClesQuete::MORTS, ['monstre' => $rang], $auteurHeros);
+            }
+
+            // Lot E1 : la DERNIÈRE figure de sa salle vient de tomber (posée ou non) — « the room has been cleared ».
+            $grilleSalles = (array) ($instance->quete->carte?->grille['salles'] ?? []);
+            $salleDuMort = $instance->position_x === null ? null
+                : Salles::indexDe($grilleSalles, (int) $instance->position_x, (int) $instance->position_y);
+            if ($salleDuMort !== null && $instance->quete->estConstruite()
+                && ! $instance->quete->instancesMonstres()->where('etat', 'actif')->whereNotNull('position_x')->get()
+                    ->contains(fn (InstanceMonstre $m) => Salles::indexDe($grilleSalles, (int) $m->position_x, (int) $m->position_y) === $salleDuMort)) {
+                $notes->signaler($instance->quete, MotsClesQuete::SALLE_VIDEE, ['salle' => $salleDuMort], $auteurHeros);
             }
 
             // PRIMES PAR MONSTRE ABATTU (mode classique, lot K5n, *Bastion of Dread* q. 11) : `regles.primes_monstres`

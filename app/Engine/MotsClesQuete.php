@@ -54,6 +54,32 @@ final class MotsClesQuete
      */
     public const FOUILLE_ZONE = 'fouille_zone';
 
+    // ─── Lot E1 (2026-11-22) : ce que les dix derniers livrets demandent ─────────────────────────────────────────────
+
+    /** La DERNIÈRE figure d'une salle tombe (« when the room has been cleared of monsters », F9528 q. 5 ; F6646 q. 8-9). */
+    public const SALLE_VIDEE = 'salle_videe';
+
+    /** TOUTES les figures désignées sont tombées (« After the heroes have defeated the Skullblights », F9907 q. 1 ; FL, G0052). */
+    public const MORTS = 'morts';
+
+    /** TOUS les héros debout sont dans la salle (« As soon as all the heroes enter this room », F5815 q. 5 ; F6646). */
+    public const TOUS_ENTRES = 'tous_entres';
+
+    /** Un héros QUITTE la salle (« Each time a room is exited for the first time », G0053 q. 6 ; F9528 q. 10). */
+    public const SALLE_QUITTEE = 'salle_quittee';
+
+    /** Un héros TERMINE SON TOUR dans la salle ou sur la case (« If a hero ends their turn in this room », F9907 q. 4, 7). */
+    public const FIN_DE_TOUR = 'fin_de_tour';
+
+    /** Un PIÈGE se déclenche dans la salle ou sur la case (« or whenever a trap is triggered », G0053 q. 1, 6 ; F7539). */
+    public const PIEGE_DECLENCHE = 'piege_declenche';
+
+    /** Un MEUBLE posé par l'auteur est détruit (« the Dread chests », « destroy the High Altar », G1504 q. 8, 10). */
+    public const MEUBLE_DETRUIT = 'meuble_detruit';
+
+    /** Un CAPTIF est libéré (« if Revelroot was freed », F9907 q. 5). */
+    public const CAPTIF_LIBERE = 'captif_libere';
+
     /**
      * Déclencheur → les formes de `quand.cible` qu'il accepte, et qui le signale.
      *
@@ -62,6 +88,9 @@ final class MotsClesQuete
      * - `porte` : l'index d'une porte dans `quete.portes` ;
      * - `monstre` : l'index d'un monstre dans `quete.monstres` ;
      * - `tour` : un rang de tour du MJ (≥ 1) — atteint à partir de ce tour-là (`quetes.tours_mj`).
+     * - `monstres` : une liste d'index de `quete.monstres` (lot E1) — toutes tombées ;
+     * - `mobilier` : l'index d'un meuble dans `quete.mobilier` (lot E1) ;
+     * - `captif` : le slug d'un mercenaire captif du catalogue (lot E1).
      *
      * @var array<string, array{cibles: list<string>, signale_par: string, libelle: string}>
      */
@@ -100,6 +129,46 @@ final class MotsClesQuete
             'cibles' => ['case'],
             'signale_par' => 'ResolveurTour::signalerEntrees()',
             'libelle' => 'le dernier héros en vie franchit la case',
+        ],
+        self::SALLE_VIDEE => [
+            'cibles' => ['salle'],
+            'signale_par' => 'MoteurDegats::infligerAMonstreBrut()',
+            'libelle' => 'la dernière figure de la salle tombe',
+        ],
+        self::MORTS => [
+            'cibles' => ['monstres'],
+            'signale_par' => 'MoteurDegats::infligerAMonstreBrut()',
+            'libelle' => 'toutes les figures désignées sont tombées',
+        ],
+        self::TOUS_ENTRES => [
+            'cibles' => ['salle'],
+            'signale_par' => 'ResolveurTour::signalerEntrees()',
+            'libelle' => 'tous les héros debout sont entrés dans la salle',
+        ],
+        self::SALLE_QUITTEE => [
+            'cibles' => ['salle'],
+            'signale_par' => 'ResolveurTour::signalerEntrees()',
+            'libelle' => 'un héros quitte la salle',
+        ],
+        self::FIN_DE_TOUR => [
+            'cibles' => ['salle', 'case'],
+            'signale_par' => 'ResolveurTour::resoudre()',
+            'libelle' => 'un héros termine son tour dans la salle, ou sur la case',
+        ],
+        self::PIEGE_DECLENCHE => [
+            'cibles' => ['salle', 'case'],
+            'signale_par' => 'MoteurPieges::declencher() / declencherEphemere()',
+            'libelle' => 'un piège se déclenche dans la salle, ou sur la case',
+        ],
+        self::MEUBLE_DETRUIT => [
+            'cibles' => ['mobilier'],
+            'signale_par' => 'MoteurMobilier::detruire() / infligerDegats()',
+            'libelle' => 'le meuble est détruit',
+        ],
+        self::CAPTIF_LIBERE => [
+            'cibles' => ['captif'],
+            'signale_par' => 'ResolveurTour::resoudreLibererCaptif()',
+            'libelle' => 'le captif est libéré',
         ],
     ];
 

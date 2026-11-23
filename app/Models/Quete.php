@@ -275,9 +275,29 @@ class Quete extends Model
         }
     }
 
+    /**
+     * Relit en base des colonnes JSON durables AVANT de les étendre (2026-11-23). Deux modèles de la même quête vivent
+     * souvent dans une même action (celui du résolveur, celui d'un état de héros `$etat->quete`) : celui qui écrit en
+     * dernier sur sa copie périmée effaçait ce que l'autre venait d'ajouter (une note jouée, un drapeau). Chaque ajout à
+     * `drapeaux` ou `notes_jouees` relit d'abord la colonne.
+     */
+    public function relire(string ...$colonnes): static
+    {
+        $frais = static::query()->whereKey($this->getKey())->first($colonnes);
+        if ($frais !== null) {
+            foreach ($colonnes as $colonne) {
+                $this->setAttribute($colonne, $frais->getAttribute($colonne));
+                $this->syncOriginalAttribute($colonne);
+            }
+        }
+
+        return $this;
+    }
+
     /** Pose un drapeau de quête — état durable, en colonne. Lu par une autre note, ou par la condition de fin. */
     public function poserDrapeau(string $nom): void
     {
+        $this->relire('drapeaux');
         if ($nom !== '' && ! $this->aDrapeau($nom)) {
             $this->update(['drapeaux' => [...(array) $this->drapeaux, $nom => true]]);
         }
@@ -289,7 +309,7 @@ class Quete extends Model
      */
     public function noterPassageSurCase(int $x, int $y, int $personnageId): void
     {
-        $drapeaux = (array) $this->drapeaux;
+        $drapeaux = (array) $this->relire('drapeaux')->drapeaux;
         $cle = "{$x},{$y}";
         $passages = (array) ($drapeaux['_passages'][$cle] ?? []);
         if (! in_array($personnageId, $passages, true)) {

@@ -314,3 +314,81 @@ it('« toute la salle » : chaque héros de la salle subit les dégâts, une lig
     $fil = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'))->pluck('texte')->implode(' | ');
     expect($fil)->toContain('Brunhild encaisse −2 PV')->toContain('Albrecht encaisse −2 PV');
 });
+
+// ---------------------------------------------------------------- 6. les déclencheurs des extensions
+
+function noteJoueeE1(Quete $quete, string $repere): bool
+{
+    $notes = (array) ($quete->documentConstruit()['notes'] ?? []);
+    $index = collect($notes)->search(fn ($n) => ($n['repere'] ?? null) === $repere);
+
+    return $index !== false && in_array($index, (array) $quete->fresh()->notes_jouees, true);
+}
+
+it('« salle vidée » et « toutes tombées » : la note attend la DERNIÈRE figure', function () {
+    $campagne = campagneE1([
+        'monstres' => [['slug' => 'gobelin', 'x' => 8, 'y' => 3], ['slug' => 'gobelin', 'x' => 9, 'y' => 4]],
+        'notes' => [
+            ['repere' => 'V', 'quand' => ['declencheur' => 'salle_videe', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'texte', 'texte' => 'La galerie est vide.']]],
+            ['repere' => 'T', 'quand' => ['declencheur' => 'morts', 'cible' => ['monstres' => [0, 1]]], 'alors' => [['effet' => 'or', 'or' => 40]]],
+        ],
+    ]);
+    ['quete' => $quete, 'heros' => $heros] = partieE1($this, $campagne);
+    [$premier, $second] = $quete->instancesMonstres()->orderBy('id')->get()->all();
+    $degats = app(\App\Partie\MoteurDegats::class);
+
+    $degats->infligerAMonstre($premier, 99, \App\Partie\MoteurDegats::SOURCE_ATTAQUE_HEROS, [], $heros);
+    expect(noteJoueeE1($quete, 'V'))->toBeFalse()->and(noteJoueeE1($quete, 'T'))->toBeFalse();
+
+    $degats->infligerAMonstre($second, 99, \App\Partie\MoteurDegats::SOURCE_ATTAQUE_HEROS, [], $heros);
+    expect(noteJoueeE1($quete, 'V'))->toBeTrue()->and(noteJoueeE1($quete, 'T'))->toBeTrue()
+        ->and((int) $heros->fresh()->or)->toBe(40);
+});
+
+it('« fin de tour » joue quand le héros termine son tour dans la salle', function () {
+    $partie = partieE1($this, campagneE1(['notes' => [
+        ['repere' => 'F', 'quand' => ['declencheur' => 'fin_de_tour', 'cible' => ['salle' => 'entree']], 'alors' => [['effet' => 'degats', 'body' => 1]]],
+    ]]));
+
+    choixE1($this, $partie, 'attendre')->assertStatus(202);
+
+    expect(noteJoueeE1($partie['quete'], 'F'))->toBeTrue()
+        ->and((int) $partie['heros']->fresh()->pv_body)->toBe(29);
+});
+
+it('« piège déclenché » joue quand le coffre piégé de la salle se déclenche', function () {
+    $campagne = coffreE1(['salle' => 'entree', 'degats' => 1]);
+    $campagne['quetes'][0]['notes'][] = ['repere' => 'P', 'quand' => ['declencheur' => 'piege_declenche', 'cible' => ['salle' => 'entree']],
+        'alors' => [['effet' => 'drapeau', 'nom' => 'alarme']]];
+    $partie = partieE1($this, $campagne);
+
+    choixE1($this, $partie, 'fouiller_tresor')->assertStatus(202);
+
+    expect(noteJoueeE1($partie['quete'], 'P'))->toBeTrue()
+        ->and($partie['quete']->fresh()->aDrapeau('alarme'))->toBeTrue();
+});
+
+it('« meuble détruit » joue quand le meuble posé par l\'auteur est détruit', function () {
+    $partie = partieE1($this, campagneE1(['notes' => [
+        ['repere' => 'M', 'quand' => ['declencheur' => 'meuble_detruit', 'cible' => ['mobilier' => 0]], 'alors' => [['effet' => 'drapeau', 'nom' => 'table-brisee']]],
+    ]]));
+
+    app(\App\Partie\MoteurMobilier::class)->detruire($partie['quete']->carte, 0);
+
+    expect($partie['quete']->fresh()->aDrapeau('table-brisee'))->toBeTrue();
+});
+
+it('valide les nouvelles cibles : figures, meuble, captif ; refuse un index ou un slug inconnus', function () {
+    $note = fn (string $d, array $cible) => campagneE1(['monstres' => [['slug' => 'gobelin', 'x' => 8, 'y' => 3]],
+        'notes' => [['repere' => 'X', 'quand' => ['declencheur' => $d, 'cible' => $cible], 'alors' => [['effet' => 'texte', 'texte' => 'x']]]]]);
+    $this->seed([\Database\Seeders\MercenaireSeeder::class]);
+
+    expect(codesE1($note('morts', ['monstres' => [0]])))->toBe([])
+        ->and(codesE1($note('meuble_detruit', ['mobilier' => 0])))->toBe([])
+        ->and(codesE1($note('captif_libere', ['captif' => 'sir-ragnar-livret-de-base'])))->toBe([])
+        ->and(codesE1($note('morts', ['monstres' => [3]])))->toBe([ValidationCampagne::CIBLE_INCONNUE])
+        ->and(codesE1($note('morts', ['monstres' => []])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE1($note('meuble_detruit', ['mobilier' => 5])))->toBe([ValidationCampagne::CIBLE_INCONNUE])
+        ->and(codesE1($note('captif_libere', ['captif' => 'personne'])))->toBe([ValidationCampagne::CATALOGUE_INCONNU])
+        ->and(codesE1($note('fin_de_tour', ['monstres' => [0]])))->toBe([ValidationCampagne::CIBLE_DE_NOTE_INVALIDE]);
+});

@@ -141,6 +141,7 @@ final class CoffresPieges
                 $cibles[] = ['personnage' => ['id' => $e->personnage->id, 'nom' => $e->personnage->nom], 'degats' => $subis, 'tombe' => $tombe];
             }
             $etat->refresh()->update(['a_joue' => true]);
+            $this->pieges->signalerDeclenchement($quete, (int) $etat->position_x, (int) $etat->position_y, $personnage);
 
             return ['type' => 'piege_declenche', 'contexte' => 'fouille_tresor', 'ephemere' => true, 'zone' => true,
                 'piege' => ['nom' => $this->nom($coffre)], 'cibles' => $cibles, 'fin_de_tour' => true];
@@ -165,13 +166,14 @@ final class CoffresPieges
     /** @return array<string, string> */
     private function etats(Quete $quete): array
     {
-        return (array) (((array) ($quete->drapeaux ?? []))[self::DRAPEAU] ?? []);
+        return (array) (((array) ($quete->relire('drapeaux')->drapeaux ?? []))[self::DRAPEAU] ?? []);
     }
 
     private function marquer(Quete $quete, string $salle, string $etat): void
     {
+        $etats = $this->etats($quete); // relit `drapeaux` en base
         $drapeaux = (array) ($quete->drapeaux ?? []);
-        $drapeaux[self::DRAPEAU] = [...$this->etats($quete), $salle => $etat];
+        $drapeaux[self::DRAPEAU] = [...$etats, $salle => $etat];
         $quete->update(['drapeaux' => $drapeaux]);
     }
 }

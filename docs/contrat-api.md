@@ -6064,6 +6064,18 @@ dans le mode classique »). Ce lot porte ce qui sert à trois livrets ou plus. M
     résultat `{deja_possede: true, effets}`.
   Un effet composé (`offre`, `jet`) ne s'imbrique jamais dans un autre. À l'écran, les effets imbriqués se saisissent
   en JSON (comme ceux d'une offre), validés par le serveur.
+- **Huit déclencheurs de notes** (`MotsClesQuete::DECLENCHEURS`, publiés tels quels) :
+  | Déclencheur | Cible | Signalé par |
+  |---|---|---|
+  | `salle_videe` — la dernière figure de la salle tombe (posée ou non) | `salle` | `MoteurDegats::infligerAMonstreBrut()` |
+  | `morts` — toutes les figures désignées sont tombées | `monstres: [index…]` | idem |
+  | `tous_entres` — tous les héros debout sont dans la salle | `salle` | `ResolveurTour::signalerEntrees()` |
+  | `salle_quittee` — un héros quitte la salle | `salle` | idem |
+  | `fin_de_tour` — un héros termine son tour là | `salle` ou `case` | `ResolveurTour::resoudre()` (fermeture du tour) |
+  | `piege_declenche` — un piège s'y déclenche (sol, zone, coffre) | `salle` ou `case` | `MoteurPieges::signalerDeclenchement()` |
+  | `meuble_detruit` — le meuble posé est détruit | `mobilier: index` | `MoteurMobilier::detruire()` / `infligerDegats()` |
+  | `captif_libere` — le captif est libéré | `captif: slug` | `ResolveurTour::resoudreLibererCaptif()` |
+  « Une porte vue » n'est pas encore là (il dépend du brouillard des couloirs : seconde passe).
 - **Sorts de Dread et capacités dans le profil d'auteur** (monstre posé, `apparition`, errant) :
   - `sorts_dread: [slug]` — catalogue `sorts_dread` (publié par `GET /constructeur/catalogues`) : REMPLACE le
     répertoire de la fiche (« Vilor knows the following Dread spells », F5815 p. 12). Chaque sort une fois par quête

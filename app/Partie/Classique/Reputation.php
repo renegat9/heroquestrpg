@@ -54,7 +54,7 @@ final class Reputation
     /** Une note déclare une offre : elle devient disponible (une seule fois par note). */
     public function declarer(Quete $quete, array $offre, string $repere): void
     {
-        $drapeaux = (array) $quete->drapeaux;
+        $drapeaux = (array) $quete->relire('drapeaux')->drapeaux;
         $drapeaux[self::OFFRES][] = [
             'repere' => $repere,
             'libelle' => (string) ($offre['libelle'] ?? 'Une offre'),

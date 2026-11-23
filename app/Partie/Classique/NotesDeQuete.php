@@ -79,7 +79,7 @@ final class NotesDeQuete
 
             $uneFois = (bool) ($note['une_fois'] ?? true);
 
-            if ($uneFois && in_array($index, (array) $quete->notes_jouees, true)) {
+            if ($uneFois && in_array($index, (array) $quete->relire('notes_jouees')->notes_jouees, true)) {
                 continue;
             }
 
@@ -88,7 +88,7 @@ final class NotesDeQuete
             }
 
             if ($uneFois) {
-                $quete->update(['notes_jouees' => [...(array) $quete->notes_jouees, $index]]);
+                $quete->update(['notes_jouees' => [...(array) $quete->relire('notes_jouees')->notes_jouees, $index]]);
             }
 
             $jouees[] = $this->jouer($quete, (array) $note, $declencheur, $heros);
@@ -189,7 +189,24 @@ final class NotesDeQuete
             return isset($contexte['tour']) && (int) $contexte['tour'] >= (int) $cible['tour'];
         }
 
-        foreach (['porte', 'monstre'] as $cle) {
+        // Lot E1 : TOUTES les figures désignées sont tombées — celle qui vient de tomber en est, et les autres aussi.
+        if (array_key_exists('monstres', $cible)) {
+            $liste = array_map('intval', (array) $cible['monstres']);
+            if (! isset($contexte['monstre']) || ! in_array((int) $contexte['monstre'], $liste, true)) {
+                return false;
+            }
+            $poses = $quete->instancesMonstres()->orderBy('id')
+                ->limit(count((array) ($quete->documentConstruit()['monstres'] ?? [])))->get()->values();
+
+            return collect($liste)->every(fn (int $i) => ($poses[$i] ?? null)?->etat !== 'actif');
+        }
+
+        // Lot E1 : le captif libéré, nommé par le slug de sa fiche de mercenaire.
+        if (array_key_exists('captif', $cible)) {
+            return isset($contexte['captif']) && (string) $cible['captif'] === (string) $contexte['captif'];
+        }
+
+        foreach (['porte', 'monstre', 'mobilier'] as $cle) {
             if (array_key_exists($cle, $cible)) {
                 return isset($contexte[$cle]) && (int) $cible[$cle] === (int) $contexte[$cle];
             }

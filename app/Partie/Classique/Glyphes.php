@@ -151,7 +151,7 @@ final class Glyphes
 
     private function poser(Quete $quete, string $id, string $etat): void
     {
-        $drapeaux = (array) $quete->drapeaux;
+        $drapeaux = (array) $quete->relire('drapeaux')->drapeaux;
         $drapeaux[self::ETATS][$id] = $etat;
         $quete->update(['drapeaux' => $drapeaux]);
     }

@@ -46,7 +46,7 @@ final class QueteDouble
      */
     public function passer(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): array
     {
-        $drapeaux = (array) $quete->drapeaux;
+        $drapeaux = (array) $quete->relire('drapeaux')->drapeaux;
         $drapeaux[self::PASSES] = array_values(array_unique([...$this->passes($quete), (int) $personnage->id]));
         $quete->update(['drapeaux' => $drapeaux]);
         $etat->delete();
@@ -87,7 +87,7 @@ final class QueteDouble
             ->filter(fn (Personnage $p) => in_array((int) $p->id, $this->passes($depuis), true))
             ->values();
 
-        $drapeaux = (array) $depuis->drapeaux;
+        $drapeaux = (array) $depuis->relire('drapeaux')->drapeaux;
         unset($drapeaux[self::PASSES]);
         $depuis->update(['drapeaux' => $drapeaux]);
 
