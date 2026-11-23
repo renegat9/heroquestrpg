@@ -617,7 +617,7 @@ final class MoteurReactions
         // MODE ARÈNE (lot T4) : la potion d'une tuile trophée — « If a combatant's Body Points are reduced to 0, they may
         // discard a healing potion tile before they die to immediately restore Body Points » (F9528 p. 14).
         $queteArene = $etat?->quete;
-        if ($queteArene !== null && $queteArene->groupe?->estArene()
+        if ($queteArene !== null && $queteArene->groupe?->estEnTournoi()
             && in_array(\App\Partie\Arene\TropheesArene::POTION, app(\App\Partie\Arene\TropheesArene::class)->reserve($queteArene, \App\Partie\Arene\TropheesArene::CHALLENGER), true)) {
             $soins[] = [
                 'cle' => 'trophee:potion',
@@ -2014,7 +2014,7 @@ final class MoteurReactions
     {
         $quete = $etat->quete;
 
-        if ($quete === null || ! $quete->groupe?->estArene()) {
+        if ($quete === null || ! $quete->groupe?->estEnTournoi()) {
             return false;
         }
 

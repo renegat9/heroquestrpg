@@ -970,7 +970,7 @@ final class ResolveurTour
             // dont l'allié n'a pas encore joué compte encore comme « en
             // attente », sans quoi la phase des monstres s'ouvrirait avant que
             // ce second menu n'ait jamais été proposé.
-            if ($groupe->estArene()) {
+            if ($groupe->estEnTournoi()) {
                 $fini = $etat->fresh();
 
                 // L'ACTIVATION vient-elle de finir DANS ce geste ? Une manœuvre jouée après une activation déjà jouée (lettre
@@ -2630,7 +2630,7 @@ final class ResolveurTour
         // TROPHÉES D'ARÈNE (lot T4, F9528 p. 14) — les tuiles de COMBAT, « after rolling combat dice ». Le héros voit son
         // jet et décide (offre suspendue, comme la Vision du futur) ; Zargon, lui, ajoute un bouclier noir dès que le coup
         // blesse sa figure (décision de René, 2026-11-09). Le jet RETENU est ensuite recompté avec ces faces en plus.
-        if ($degatsFixes === 0 && $groupe->estArene()) {
+        if ($degatsFixes === 0 && $groupe->estEnTournoi()) {
             $trophees = app(\App\Partie\Arene\TropheesArene::class);
             $pvCible = (int) $instance->pv_body;
             $touchesBonus = (int) ($imposee['touches_bonus'] ?? 0);
@@ -2940,7 +2940,7 @@ final class ResolveurTour
         // TROPHÉES D'ARÈNE (lot T4) — la RIPOSTE du Defender (décision de René, 2026-11-09 : il riposte dès qu'il le
         // peut) : la figure blessée par un héros au contact ou en diagonale rend le coup aussitôt, « even if the
         // defending combatant is defeated » (F9528 p. 14).
-        if ($resultat->degats > 0 && $groupe->estArene() && ! $tirADistance && ! $lancer) {
+        if ($resultat->degats > 0 && $groupe->estEnTournoi() && ! $tirADistance && ! $lancer) {
             $riposte = $this->riposteDuDefender($groupe, $quete, $instance->fresh()?->load('monstre') ?? $instance, $etat);
 
             if ($riposte !== null) {
@@ -9338,7 +9338,8 @@ final class ResolveurTour
         array $acteur,
     ): array {
         // ARÈNE (René, 2026-11-10) : un mort est hors jeu (F9528 p. 12) — on ne relève pas, seuls les soins préviennent.
-        if ($groupe->estArene()) {
+        // Un tournoi du mode classique aussi (`Groupe::estEnTournoi()`, lot TC1).
+        if ($groupe->estEnTournoi()) {
             throw ValidationException::withMessages(['option_id' => 'Dans l\'arène, un combattant tombé est hors jeu : on ne le relève pas.']);
         }
 
@@ -13478,7 +13479,7 @@ final class ResolveurTour
         //
         // ⚠ Même garde ALLIÉE que dans `resoudre()` (chantier 3a) :
         // `acteurActif()`, pas seulement les héros.
-        if ($groupe->estArene()) {
+        if ($groupe->estEnTournoi()) {
             // ARÈNE (lot T2) : ces chemins ont tous clos l'activation du héros (endormi, commandé) — le Defender répond.
             $resultat = $this->relaisArene($resultat, $groupe, $quete);
         } elseif (app(OrdreDuTour::class)->acteurActif($groupe) === null) {
@@ -14031,7 +14032,7 @@ final class ResolveurTour
         // MODE ARÈNE (lot T2) : la phase de Zargon est découpée en activations. Les effets « au début du tour de
         // Zargon » se jouent une fois par round, à sa PREMIÈRE activation ; `$limite` borne le nombre de figures
         // activées tant que le Challenger a encore quelqu'un à activer.
-        $arene = $groupe->estArene();
+        $arene = $groupe->estEnTournoi();
         $debutDeRound = ! $arene || ! $quete->instancesMonstres()->where('active_ce_round', true)->exists();
         $activees = 0;
 
@@ -14718,7 +14719,7 @@ final class ResolveurTour
         }
 
         // ARÈNE (lot T2) : les jetons d'activation du Defender tombent avec le round.
-        if ($groupe->estArene()) {
+        if ($groupe->estEnTournoi()) {
             $quete->instancesMonstres()->update(['active_ce_round' => false]);
         }
 
@@ -16162,7 +16163,7 @@ final class ResolveurTour
 
         // TROPHÉES D'ARÈNE (lot T4) : Zargon ajoute un crâne « quand le jet n'est pas déjà gagné » (René, 2026-11-09) —
         // le héros ne tombe pas déjà, et la tuile ajoute des dégâts. Le jet retenu est recompté, faces inchangées.
-        if ($groupe->estArene() && $instance->quete !== null) {
+        if ($groupe->estEnTournoi() && $instance->quete !== null) {
             $touchesBonus = app(\App\Partie\Arene\TropheesArene::class)->cranesDuDefender(
                 $groupe, $instance->quete, $nomMonstre,
                 $resultat->touches, $resultat->boucliers, $resultat->degats, (int) $personnage->pv_body,
@@ -18489,7 +18490,7 @@ final class ResolveurTour
                 // après le héros qui le contrôle, avant le suivant ».
                 $enAttente = app(OrdreDuTour::class)->acteurActif($groupe) !== null;
 
-                if ($groupe->estArene()) {
+                if ($groupe->estEnTournoi()) {
                     // ARÈNE (lot A4) : l'allié est une figure du Challenger — son activation finie, le Defender répond.
                     if ((bool) $allie->fresh()?->a_joue) {
                         // TROPHÉE (décision de René, 2026-11-12) : un allié ramasse en FINISSANT son activation sur la case,

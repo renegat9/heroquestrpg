@@ -182,6 +182,12 @@ class Quete extends Model
         return $this->document_construit !== null;
     }
 
+    /** Une quête-TOURNOI du mode classique (`quete.tournoi`, *Against the Ogre Horde* q. 1-3) : voir `Groupe::estEnTournoi()`. */
+    public function estTournoi(): bool
+    {
+        return $this->estConstruite() && is_array(data_get($this->documentConstruit(), 'tournoi'));
+    }
+
     /** Ce drapeau de quête a-t-il été posé (effet `drapeau` d'une note) ? */
     /**
      * Le drapeau est-il posé ? LECTEUR UNIQUE (lot K5h) : ceux de la quête, PUIS ceux de la campagne

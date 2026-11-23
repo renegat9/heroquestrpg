@@ -129,7 +129,7 @@ final class MenuCourant
      */
     public function nomDeLActeurEntame(Groupe $groupe, int $joueurId): ?string
     {
-        if (! $groupe->estArene() || GenererMenu::sansQuete($groupe)) {
+        if (! $groupe->estEnTournoi() || GenererMenu::sansQuete($groupe)) {
             return null;
         }
 

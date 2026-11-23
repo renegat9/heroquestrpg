@@ -208,7 +208,7 @@ final class OrdreDuTour
      */
     private function mainPartagee(Groupe $groupe): bool
     {
-        if ($groupe->estArene()) {
+        if ($groupe->estEnTournoi()) {
             return true;
         }
         $quete = $groupe->queteCourante;

@@ -155,6 +155,17 @@ class Groupe extends Model
         return $this->mode === self::MODE_ARENE;
     }
 
+    /**
+     * Les RÈGLES DE COMBAT du tournoi de World's End s'appliquent-elles (activation alternée, trophées, mort « hors jeu »,
+     * combattant seul) ? Un groupe d'arène, ou un groupe classique dont la quête courante est un tournoi
+     * (`Quete::estTournoi()`, *Against the Ogre Horde* q. 1-3, `docs/plan-tournoi-classique.md`). Distinct de
+     * `estArene()`, qui dit le CYCLE DE VIE du groupe d'arène (doublures, palmarès, hall) et rien d'autre.
+     */
+    public function estEnTournoi(): bool
+    {
+        return $this->estArene() || ($this->estClassique() && (bool) $this->queteCourante?->estTournoi());
+    }
+
     public function estClassique(): bool
     {
         return $this->mode === self::MODE_CLASSIQUE;

@@ -668,7 +668,7 @@ final class MoteurDegats
         // boit une potion de la réserve du Defender et se relève à +2 (décision de René, 2026-11-09 : Zargon boit dès
         // qu'une figure est blessée — à 0 PV aussi). Annoncée par `TropheesArene`.
         $groupeArene = $instance->quete?->groupe;
-        if ($groupeArene !== null && $groupeArene->estArene() && $instance->quete !== null
+        if ($groupeArene !== null && $groupeArene->estEnTournoi() && $instance->quete !== null
             && app(\App\Partie\Arene\TropheesArene::class)->defausser($instance->quete, \App\Partie\Arene\TropheesArene::DEFENDER, \App\Partie\Arene\TropheesArene::POTION)) {
             $releve = min($instance->pvBodyMax(), \App\Partie\Arene\TropheesArene::SOIN_POTION);
             $instance->update(['pv_body' => $releve, 'etat' => 'actif']);

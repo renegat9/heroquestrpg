@@ -166,7 +166,7 @@ final class ManoeuvreSolo
      */
     public function ouvrirPourChallenger(Groupe $groupe, Quete $quete): bool
     {
-        if (! $groupe->estArene() || $quete->fresh()?->etat !== 'en_cours'
+        if (! $groupe->estEnTournoi() || $quete->fresh()?->etat !== 'en_cours'
             || ! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
             return false;
         }

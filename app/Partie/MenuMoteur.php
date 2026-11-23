@@ -2542,7 +2542,7 @@ final class MenuMoteur
             // que l'action lui confisque s'il a entamé son mouvement.
             // ARÈNE (René, 2026-11-10) : « Relever » n'existe pas — un mort est hors jeu jusqu'à la fin du combat
             // (F9528 p. 12). Seuls les soins le préviennent. Même prédicat que `ResolveurTour::resoudreRelever()`.
-            $allies = self::enArene($quete) ? collect() : $quete->etatsPersonnages()
+            $allies = (bool) $quete->groupe?->estEnTournoi() ? collect() : $quete->etatsPersonnages()
                 ->where('tombe', true)
                 ->where('personnage_id', '!=', $personnage->id)
                 ->with('personnage')
