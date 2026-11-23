@@ -6082,6 +6082,9 @@ dans le mode classique »). Ce lot porte ce qui sert à trois livrets ou plus. M
   `detruit` + `retire`, sans déclencher `meuble_detruit` ; la statue qui s'anime = `retirer_meuble` + `apparition`),
   `murer_porte {porte}` (« the doors close and disappear » : close, verrou `note`, `muree`), `retirer_bloc {x, y}`
   (le bloc tombé par une note, ou celui de l'auteur, redevient du couloir).
+- **« S'il porte »** — `quand.si_porte: slug d'objet` : la note ne joue que si le héros qui déclenche a cet objet (sac
+  ou main) — « the hero carrying the Moon Charm » (F6646), la Fiole de cristal (G0052). Lu par
+  `NotesDeQuete::conditionRemplie()`, comme les drapeaux et le déguisement.
 - **Sorts de Dread et capacités dans le profil d'auteur** (monstre posé, `apparition`, errant) :
   - `sorts_dread: [slug]` — catalogue `sorts_dread` (publié par `GET /constructeur/catalogues`) : REMPLACE le
     répertoire de la fiche (« Vilor knows the following Dread spells », F5815 p. 12). Chaque sort une fois par quête

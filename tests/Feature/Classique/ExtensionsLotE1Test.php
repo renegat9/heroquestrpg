@@ -421,3 +421,21 @@ it('retirer une figure, un meuble ; murer une porte ; retirer un bloc', function
     $fil = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'))->pluck('texte')->implode(' | ');
     expect($fil)->toContain('Gobelin quitte le plateau')->toContain('Table disparaît')->toContain('Une porte se ferme et disparaît');
 });
+
+// ---------------------------------------------------------------- 8. « s'il porte »
+
+it('`si_porte` : la note ne joue que pour le héros qui porte l\'objet', function () {
+    $campagne = campagneE1(['notes' => [['repere' => 'C', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1], 'si_porte' => 'dague'],
+        'alors' => [['effet' => 'or', 'or' => 7]], 'une_fois' => false]]]);
+    expect(codesE1($campagne))->toBe([])
+        ->and(codesE1(campagneE1(['notes' => [['repere' => 'C', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1], 'si_porte' => 'rien'],
+            'alors' => [['effet' => 'or', 'or' => 7]]]]])))->toBe([ValidationCampagne::CATALOGUE_INCONNU]);
+
+    ['quete' => $quete, 'heros' => $heros] = partieE1($this, $campagne);
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class);
+
+    expect($notes->signaler($quete, \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 1], $heros))->toBe([]);
+    \App\Partie\RangementObjet::ranger(\App\Models\Objet::where('nom', 'Dague')->firstOrFail(), (int) $heros->id, 1);
+    expect($notes->signaler($quete, \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 1], $heros))->toHaveCount(1)
+        ->and((int) $heros->fresh()->or)->toBe(7);
+});

@@ -167,7 +167,7 @@ final class ValidationCampagne
     private const CLES_NOTE = ['repere', 'quand', 'alors'];
     private const CLES_NOTE_OPTIONNELLES = ['une_fois'];
     private const CLES_QUAND = ['declencheur', 'cible'];
-    private const CLES_QUAND_OPTIONNELLES = ['si_drapeau', 'sauf_drapeau', 'si_deguise'];
+    private const CLES_QUAND_OPTIONNELLES = ['si_drapeau', 'sauf_drapeau', 'si_deguise', 'si_porte'];
     private const LONGUEUR_REPERE = 40;
     private const LONGUEUR_DRAPEAU = 40;
     private const CLES_PORTE = ['x', 'y', 'cote', 'type'];
@@ -860,6 +860,10 @@ final class ValidationCampagne
                 }
                 if (array_key_exists('si_deguise', $quand) && !is_bool($quand['si_deguise'])) {
                     $this->refuser("$position.quand.si_deguise", self::TYPE_INVALIDE, 'true ou false est attendu');
+                }
+                // Lot E1 : le héros qui déclenche PORTE cet objet (« the hero carrying the Moon Charm », F6646 ; G0052).
+                if (array_key_exists('si_porte', $quand)) {
+                    $this->slugCatalogue($quand, 'si_porte', "$position.quand", 'objets');
                 }
                 foreach (['si_drapeau', 'sauf_drapeau'] as $cleCondition) {
                     $drapeau = $this->nomDeDrapeau($quand, $cleCondition, "$position.quand");

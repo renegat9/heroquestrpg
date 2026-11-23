@@ -141,6 +141,15 @@ final class NotesDeQuete
         $deguise = data_get($note, 'quand.si_deguise');
         $estDeguise = $heros !== null && (bool) ($quete->etatsPersonnages()->where('personnage_id', $heros->id)->value('deguise') ?? false);
 
+        // PORTEUR (lot E1) : `si_porte` — le héros qui déclenche a cet objet dans son sac ou en main.
+        $porte = data_get($note, 'quand.si_porte');
+        if ($porte !== null) {
+            $objet = $this->catalogue->index('objets')[(string) $porte] ?? null;
+            if ($heros === null || $objet === null || ! $heros->inventaire()->where('objet_id', $objet->id)->exists()) {
+                return false;
+            }
+        }
+
         return ($si === null || $quete->aDrapeau((string) $si))
             && ($sauf === null || ! $quete->aDrapeau((string) $sauf))
             && ($deguise === null || ($heros !== null && $estDeguise === (bool) $deguise));

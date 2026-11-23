@@ -1504,6 +1504,14 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             <option value="non">à découvert seulement</option>
                                         </select>
                                     </label>
+                                    <!-- Lot E1 : le héros qui déclenche porte cet objet (le Charme lunaire, la Fiole de cristal). -->
+                                    <label>s'il porte
+                                        <select :value="note.quand.si_porte ?? ''" class="cst-input"
+                                            @change="$event.target.value ? (note.quand.si_porte = $event.target.value) : delete note.quand.si_porte">
+                                            <option value="">(peu importe)</option>
+                                            <option v-for="o in catalogues.objets" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
+                                        </select>
+                                    </label>
                                     <label class="cst-case"><input type="checkbox" :checked="note.une_fois !== false" @change="changerUneFois(note, $event.target.checked)" /> une seule fois</label>
                                 </div>
                                 <div v-for="(effet, j) in note.alors" :key="j" class="cst-effet">
