@@ -734,3 +734,34 @@ it('salles qui se lèvent : la proximité se lit au CHEMIN, portes closes compt�
         // (6, 2) → (7, 2) est un mur : on passe par la porte puis on remonte, cinq pas.
         ->and($distances['7,2'])->toBe(5);
 });
+
+it('salles qui se lèvent : trois, deux ou une candidate — un dé tant qu\'il reste un choix, jamais deux fois la même salle', function (array $pool, int $nombre, array $des, array $attendu) {
+    // Un 2 de remplissage, qu'aucun cas ne lance : il prouve que le tirage a lu ses dés, et pas un de plus.
+    $lanceur = new LanceurDeterministe([...$des, ...array_fill(0, 5, 2)]);
+    $tirer = new ReflectionMethod(\App\Partie\Classique\ActivationSalles::class, 'tirer');
+
+    expect($tirer->invoke(new \App\Partie\Classique\ActivationSalles($lanceur), $pool, $nombre))->toBe($attendu)
+        ->and($lanceur->d6())->toBe(2);
+})->with([
+    'trois, un 5 : la deuxième' => [[10, 11, 12], 1, [5], [11]],
+    'trois sur un 6, puis un 6 : la troisième, puis la deuxième des deux restantes' => [[10, 11, 12], 2, [6, 6], [12, 11]],
+    'deux, un 4 : la deuxième' => [[10, 11], 1, [4], [11]],
+    'deux sur un 6 : les deux' => [[10, 11], 2, [1], [10, 11]],
+    'une seule : elle se lève sans dé' => [[10], 1, [], [10]],
+    'une seule sur un 6 : une seule se lève' => [[10], 2, [], [10]],
+    'aucune' => [[], 2, [], []],
+]);
+
+it('salles qui se lèvent : une seule salle cachée sur un 6 n\'en lève qu\'une ; plus aucune, le tour du MJ ne lance rien', function () {
+    $partie = partieE2($this, campagneE2(['regles' => ['activation_salles' => true], 'monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 4]]]));
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3]);
+    $partie['quete']->instancesMonstres()->update(['revele' => false]);
+    app()->instance(LanceurDes::class, new LanceurDeterministe([6, ...array_fill(0, 40, 4)]));
+    $activation = app(\App\Partie\Classique\ActivationSalles::class);
+
+    $payload = $activation->auTourDuMJ($partie['groupe'], $partie['quete']->fresh());
+    expect($payload['de'])->toBe(6)->and($payload['salles'])->toHaveCount(1);
+
+    // La galerie découverte, plus aucune salle ne cache de monstre : ni dé, ni annonce.
+    expect($activation->auTourDuMJ($partie['groupe'], $partie['quete']->fresh()))->toBeNull();
+});

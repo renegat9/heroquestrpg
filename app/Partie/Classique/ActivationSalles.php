@@ -47,6 +47,10 @@ final class ActivationSalles
         if (! self::actif($quete)) {
             return null;
         }
+        // Plus aucune salle cachée ne garde de monstre : Zargon n'a plus rien à lever, ni dé ni annonce à chaque tour.
+        if ($this->sallesCachees($quete)->isEmpty()) {
+            return null;
+        }
         $de = $this->des->d6();
         $payload = ['type' => 'salles_activees', 'de' => $de, 'salles' => $this->activer($quete, $de === 6 ? 2 : 1)];
         app(TamponAnnonces::class)->annoncer($groupe, $payload);
@@ -85,6 +89,41 @@ final class ActivationSalles
     }
 
     /**
+     * Les monstres actifs encore cachés, groupés par l'index de leur salle non découverte.
+     *
+     * @return \Illuminate\Support\Collection<int|string, \Illuminate\Support\Collection<int, InstanceMonstre>>
+     */
+    private function sallesCachees(Quete $quete): \Illuminate\Support\Collection
+    {
+        $salles = (array) ($quete->carte?->grille['salles'] ?? []);
+        $decouvertes = $quete->sallesDecouvertes();
+
+        return $quete->instancesMonstres()->where('etat', 'actif')->where('revele', false)->whereNotNull('position_x')->get()
+            ->groupBy(fn (InstanceMonstre $m) => Salles::indexDe($salles, (int) $m->position_x, (int) $m->position_y))
+            ->filter(fn ($groupe, $index) => $index !== '' && ! in_array((int) $index, $decouvertes, true));
+    }
+
+    /**
+     * Jusqu'à `$nombre` salles DISTINCTES parmi `$pool`, un dé par salle tant qu'il reste le choix : trois candidates, deux
+     * faces chacune ; deux, trois faces chacune ; une seule, elle se lève sans dé. Moins de candidates que de salles
+     * demandées (un 6 avec une seule salle restante) : toutes se lèvent, et rien de plus.
+     *
+     * @param  list<int>  $pool
+     * @return list<int>
+     */
+    private function tirer(array $pool, int $nombre): array
+    {
+        $choisies = [];
+        while (count($choisies) < $nombre && $pool !== []) {
+            $tire = count($pool) === 1 ? 0 : ($this->des->d6() - 1) % count($pool);
+            $choisies[] = $pool[$tire];
+            array_splice($pool, $tire, 1);
+        }
+
+        return $choisies;
+    }
+
+    /**
      * Active jusqu'à `$nombre` salles. Rend, pour chacune, les noms des figures qui s'y lèvent.
      *
      * @return list<array{monstres: list<string>}>
@@ -92,10 +131,7 @@ final class ActivationSalles
     public function activer(Quete $quete, int $nombre): array
     {
         $salles = (array) ($quete->carte?->grille['salles'] ?? []);
-        $decouvertes = $quete->sallesDecouvertes();
-        $cachees = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', false)->whereNotNull('position_x')->get()
-            ->groupBy(fn (InstanceMonstre $m) => Salles::indexDe($salles, (int) $m->position_x, (int) $m->position_y))
-            ->filter(fn ($groupe, $index) => $index !== '' && ! in_array((int) $index, $decouvertes, true));
+        $cachees = $this->sallesCachees($quete);
         $heros = $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->get();
 
         // Les plus proches par le CHEMIN d'abord, puis un dé par salle à lever parmi les PROCHES restantes.
@@ -104,12 +140,7 @@ final class ActivationSalles
             ->sortBy(fn (int $i) => collect(Salles::cases($salles[$i]))
                 ->map(fn ($c) => $distances["{$c['x']},{$c['y']}"] ?? PHP_INT_MAX)->min() ?? PHP_INT_MAX)
             ->take(self::PROCHES)->values()->all();
-        $choisies = [];
-        for ($k = 0; $k < $nombre && $pool !== []; $k++) {
-            $tire = ($this->des->d6() - 1) % count($pool);
-            $choisies[] = $pool[$tire];
-            array_splice($pool, $tire, 1);
-        }
+        $choisies = $this->tirer($pool, $nombre);
 
         $resolveur = app(ResolveurTour::class);
         $activees = [];

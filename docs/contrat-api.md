@@ -6195,7 +6195,9 @@ Mode classique seulement ; une règle par livret, sourcée.
   may activate one room »). `Classique\ActivationSalles` : au début de chaque tour du MJ, le dé puis la ou les salles
   encore cachées qui abritent des monstres, tirées au dé parmi les trois dont le CHEMIN depuis un héros debout est le plus
   court (portes comptées ouvertes, murs et passages secrets introuvés barrant ; le livret laisse Zargon choisir — René,
-  2026-11-24 : « un hasard… les 3 salles dont le chemin est plus proche ») ; la salle se découvre, ses portes closes s'ouvrent, ses monstres jouent ce tour. Annonce
+  2026-11-24 : « un hasard… les 3 salles dont le chemin est plus proche ») ; la salle se découvre, ses portes closes s'ouvrent, ses monstres jouent ce tour. Moins de
+  trois candidates : le dé tire parmi celles qui restent ; une seule, elle se lève sans dé ; un 6 avec une seule salle
+  restante n'en lève qu'une. Plus aucune salle cachée habitée : ni dé ni annonce au tour du MJ. Annonce
   `salles_activees {de, salles: [{monstres}]}`. La carte de monstre errant lève UNE salle au lieu de son surgissement
   (`salles_activees` sur le résultat de fouille).
  (*Against the Ogre Horde* q. 8) — terrain « Abîme sans fond » (catalogue, réservé
