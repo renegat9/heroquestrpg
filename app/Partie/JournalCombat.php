@@ -1410,10 +1410,10 @@ final class JournalCombat
                 'ton' => 'subit',
             ]],
             'salles_activees' => [[
-                'texte' => 'Zargon lance le dé ('.(int) ($a['de'] ?? 0).') : '.(($a['salles'] ?? []) === []
-                    ? 'aucune salle ne reste à réveiller'
-                    : implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) $a['salles']))),
-                'ton' => ($a['salles'] ?? []) === [] ? 'info' : 'subit',
+                // Jamais vide : sans salle cachée habitée, `ActivationSalles::auTourDuMJ()` ne lance ni n'annonce rien.
+                'texte' => 'Zargon lance le dé ('.(int) ($a['de'] ?? 0).') : '
+                    .implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) ($a['salles'] ?? []))),
+                'ton' => 'subit',
             ]],
             'objet_jete' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' jette '.($a['objet'] ?? 'l\'objet').' dans la fosse',
@@ -3528,9 +3528,9 @@ final class JournalCombat
             'errant' => [[
                 // ACTIVATION DES SALLES (lot E2, F9528 q. 10) : la carte lève une salle au lieu d'un surgissement.
                 'texte' => array_key_exists('salles_activees', $a)
-                    ? "{$acteurNom} tire un monstre errant : ".(($a['salles_activees'] ?? []) === []
-                        ? 'aucune salle ne reste à réveiller'
-                        : implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) $a['salles_activees'])))
+                    // Jamais vide : sans salle cachée habitée, la carte reste un monstre errant (`appliquerButin()`).
+                    ? "{$acteurNom} tire un monstre errant : "
+                        .implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) $a['salles_activees']))
                     : (count((array) ($a['monstres'] ?? [])) > 1
                     ? self::figuresGroupees(array_map(fn ($m) => (string) ($m['nom'] ?? 'un monstre'), (array) $a['monstres']))
                         ." surgissent du coffre que fouille {$acteurNom} !"

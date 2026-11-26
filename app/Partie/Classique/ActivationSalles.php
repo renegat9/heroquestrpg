@@ -48,7 +48,7 @@ final class ActivationSalles
             return null;
         }
         // Plus aucune salle cachée ne garde de monstre : Zargon n'a plus rien à lever, ni dé ni annonce à chaque tour.
-        if ($this->sallesCachees($quete)->isEmpty()) {
+        if (! $this->resteUneSalle($quete)) {
             return null;
         }
         $de = $this->des->d6();
@@ -86,6 +86,15 @@ final class ActivationSalles
         }
 
         return $distances;
+    }
+
+    /**
+     * Reste-t-il une salle cachée qui garde des monstres ? Sinon, le tour du MJ ne lance rien et la carte de monstre
+     * errant redevient un monstre errant (« Zargon MAY activate one room », René, 2026-11-26) : `ResolveurTour::appliquerButin()`.
+     */
+    public function resteUneSalle(Quete $quete): bool
+    {
+        return $this->sallesCachees($quete)->isNotEmpty();
     }
 
     /**

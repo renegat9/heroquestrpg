@@ -6199,7 +6199,8 @@ Mode classique seulement ; une règle par livret, sourcée.
   trois candidates : le dé tire parmi celles qui restent ; une seule, elle se lève sans dé ; un 6 avec une seule salle
   restante n'en lève qu'une. Plus aucune salle cachée habitée : ni dé ni annonce au tour du MJ. Annonce
   `salles_activees {de, salles: [{monstres}]}`. La carte de monstre errant lève UNE salle au lieu de son surgissement
-  (`salles_activees` sur le résultat de fouille).
+  (`salles_activees` sur le résultat de fouille) ; plus aucune salle cachée habitée, elle redevient un monstre errant
+  ordinaire (« Zargon **may** activate one room » — René, 2026-11-26).
  (*Against the Ogre Horde* q. 8) — terrain « Abîme sans fond » (catalogue, réservé
   au classique : `MoteurTerrain::RESERVES_AU_CLASSIQUE`), qui bloque la marche : personne n'y entre de lui-même et le
   moteur ne pousse aucune figure sur une case qui bloque, donc « immediately plunges to their death » n'a rien à résoudre

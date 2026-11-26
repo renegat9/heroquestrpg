@@ -12518,8 +12518,10 @@ final class ResolveurTour
                     'y' => (int) $cree->position_y,
                 ];
             }
-        } elseif ($issue === 'errant' && \App\Partie\Classique\ActivationSalles::actif($quete)) {
+        } elseif ($issue === 'errant' && \App\Partie\Classique\ActivationSalles::actif($quete)
+            && app(\App\Partie\Classique\ActivationSalles::class)->resteUneSalle($quete)) {
             // ACTIVATION DES SALLES (lot E2, F9528 q. 10) : « If a wandering monster card is drawn, Zargon may activate one room. »
+            // « May » : plus aucune salle cachée habitée, la carte reste un monstre errant (branche suivante, René, 2026-11-26).
             $payload['salles_activees'] = app(\App\Partie\Classique\ActivationSalles::class)->activer($quete, 1);
         } elseif ($issue === 'errant') {
             // Le surgissement — un seul endroit, partagé avec le piège à monstre errant (lot E2) : `surgissementErrant()`.

@@ -765,3 +765,27 @@ it('salles qui se lèvent : une seule salle cachée sur un 6 n\'en lève qu\'une
     // La galerie découverte, plus aucune salle ne cache de monstre : ni dé, ni annonce.
     expect($activation->auTourDuMJ($partie['groupe'], $partie['quete']->fresh()))->toBeNull();
 });
+
+it('salles qui se lèvent : la carte de monstre errant lève une salle ; plus aucune, elle redevient un monstre errant (« may »)', function () {
+    $partie = partieE2($this, campagneE2(['regles' => ['activation_salles' => true], 'monstre_errant' => 'gobelin',
+        'monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 4]]]));
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3]);
+    $orque = $partie['quete']->instancesMonstres()->firstOrFail();
+    $orque->update(['revele' => false]);
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 40, 4)));
+    $butin = function () use ($partie) {
+        $methode = new ReflectionMethod(ResolveurTour::class, 'appliquerButin');
+        $etat = $partie['quete']->etatsPersonnages()->firstOrFail();
+
+        return $methode->invoke(app(ResolveurTour::class), ['issue' => 'errant'], ['type' => 'fouille_tresor'],
+            $partie['groupe'], $partie['quete']->fresh(), $partie['heros'], $etat, false);
+    };
+
+    $leve = $butin();
+    expect($leve['salles_activees'] ?? null)->toHaveCount(1)->and($orque->fresh()->revele)->toBeTrue();
+
+    $avant = $partie['quete']->instancesMonstres()->count();
+    $errant = $butin();
+    expect($errant)->not->toHaveKey('salles_activees')
+        ->and($partie['quete']->instancesMonstres()->count())->toBe($avant + 1);
+});
