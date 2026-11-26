@@ -6193,8 +6193,9 @@ Mode classique seulement ; une règle par livret, sourcée.
   activate all the monsters in one or two rooms… one red die. On a roll result of 1-5, one room… 6, two rooms… the door
   is opened. Any monsters in the activated room may move on that turn » ; « If a wandering monster card is drawn, Zargon
   may activate one room »). `Classique\ActivationSalles` : au début de chaque tour du MJ, le dé puis la ou les salles
-  encore cachées qui abritent des monstres, les plus proches d'un héros debout (le livret laisse Zargon choisir :
-  décision écrite) ; la salle se découvre, ses portes closes s'ouvrent, ses monstres jouent ce tour. Annonce
+  encore cachées qui abritent des monstres, tirées au dé parmi les trois dont le CHEMIN depuis un héros debout est le plus
+  court (portes comptées ouvertes, murs et passages secrets introuvés barrant ; le livret laisse Zargon choisir — René,
+  2026-11-24 : « un hasard… les 3 salles dont le chemin est plus proche ») ; la salle se découvre, ses portes closes s'ouvrent, ses monstres jouent ce tour. Annonce
   `salles_activees {de, salles: [{monstres}]}`. La carte de monstre errant lève UNE salle au lieu de son surgissement
   (`salles_activees` sur le résultat de fouille).
  (*Against the Ogre Horde* q. 8) — terrain « Abîme sans fond » (catalogue, réservé

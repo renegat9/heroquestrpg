@@ -22,13 +22,18 @@ use App\Partie\TamponAnnonces;
  * activated room may move on that turn. » Et : « If a wandering monster card is drawn, Zargon may activate one room. »
  *
  * `regles.activation_salles: true`. Au début de chaque tour du MJ ({@see auTourDuMJ()}) et à la place de la carte de
- * monstre errant ({@see activer()}, `ResolveurTour::appliquerButin()`). Le livret laisse Zargon choisir (« may ») ;
- * décision écrite : le moteur active la salle encore cachée qui abrite des monstres et se trouve la plus PROCHE d'un
- * héros debout — le MJ presse les héros qui fuient. Sa salle se découvre (`ResolveurTour::revelerSalleEn()`), ses portes
- * closes s'ouvrent (`ouvrirPorteParNote()`), ses monstres jouent dès ce tour.
+ * monstre errant ({@see activer()}, `ResolveurTour::appliquerButin()`). Le livret laisse Zargon choisir (« may ») ; le
+ * moteur joue Zargon (René, 2026-11-24 : « j'irais avec un hasard… les 3 salles dont le CHEMIN est plus proche des
+ * joueurs ») — il tire au dé parmi les {@see PROCHES} salles encore cachées qui abritent des monstres et dont le chemin
+ * depuis un héros debout est le plus court ({@see distances()}) : le MJ presse les héros qui fuient, sans qu'on puisse
+ * prévoir laquelle. Sa salle se découvre (`ResolveurTour::revelerSalleEn()`), ses portes closes
+ * s'ouvrent (`ouvrirPorteParNote()`), ses monstres jouent dès ce tour.
  */
 final class ActivationSalles
 {
+    /** Le nombre de salles, les plus proches des héros, parmi lesquelles le dé choisit. */
+    public const PROCHES = 3;
+
     public function __construct(private readonly LanceurDes $des) {}
 
     public static function actif(Quete $quete): bool
@@ -50,6 +55,36 @@ final class ActivationSalles
     }
 
     /**
+     * Le plus court CHEMIN (en pas) d'un héros debout jusqu'à chaque case du plateau. Les murs et la roche barrent ; les
+     * portes, non — « regardless of whether the door to that room has been opened » —, sauf un passage secret encore
+     * introuvé ; ni figure ni meuble n'entre dans le calcul (`Grille::depuisCarte()` ne les pose pas). Une case qu'aucun
+     * chemin n'atteint n'a pas de distance.
+     *
+     * @param  iterable<\App\Models\EtatPersonnageQuete>  $heros
+     * @return array<string, int> "x,y" → pas
+     */
+    private function distances(Quete $quete, iterable $heros): array
+    {
+        $grille = (array) $quete->carte->grille;
+        foreach ((array) ($grille['portes'] ?? []) as $i => $porte) {
+            if (($porte['etat'] ?? null) !== MoteurPortes::ETAT_SECRETE || ($porte['revele'] ?? false)) {
+                $grille['portes'][$i]['etat'] = MoteurPortes::ETAT_OUVERTE;
+            }
+        }
+        $plan = Grille::depuisCarte(new \App\Models\Carte(['grille' => $grille]));
+
+        $distances = [];
+        foreach ($heros as $h) {
+            $distances["{$h->position_x},{$h->position_y}"] = 0;
+            foreach ($plan->casesAtteignables((int) $h->position_x, (int) $h->position_y, 999) as $cle => $chemin) {
+                $distances[$cle] = min($distances[$cle] ?? PHP_INT_MAX, count($chemin));
+            }
+        }
+
+        return $distances;
+    }
+
+    /**
      * Active jusqu'à `$nombre` salles. Rend, pour chacune, les noms des figures qui s'y lèvent.
      *
      * @return list<array{monstres: list<string>}>
@@ -63,10 +98,18 @@ final class ActivationSalles
             ->filter(fn ($groupe, $index) => $index !== '' && ! in_array((int) $index, $decouvertes, true));
         $heros = $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->get();
 
-        $choisies = $cachees->keys()->map(fn ($i) => (int) $i)
-            ->sortBy(fn (int $i) => $heros->map(fn ($h) => collect(Salles::cases($salles[$i]))
-                ->map(fn ($c) => abs($c['x'] - (int) $h->position_x) + abs($c['y'] - (int) $h->position_y))->min())->min() ?? PHP_INT_MAX)
-            ->take($nombre)->values();
+        // Les plus proches par le CHEMIN d'abord, puis un dé par salle à lever parmi les PROCHES restantes.
+        $distances = $this->distances($quete, $heros);
+        $pool = $cachees->keys()->map(fn ($i) => (int) $i)
+            ->sortBy(fn (int $i) => collect(Salles::cases($salles[$i]))
+                ->map(fn ($c) => $distances["{$c['x']},{$c['y']}"] ?? PHP_INT_MAX)->min() ?? PHP_INT_MAX)
+            ->take(self::PROCHES)->values()->all();
+        $choisies = [];
+        for ($k = 0; $k < $nombre && $pool !== []; $k++) {
+            $tire = ($this->des->d6() - 1) % count($pool);
+            $choisies[] = $pool[$tire];
+            array_splice($pool, $tire, 1);
+        }
 
         $resolveur = app(ResolveurTour::class);
         $activees = [];

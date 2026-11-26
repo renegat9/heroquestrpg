@@ -722,3 +722,15 @@ it('tournoi : par les routes, le héros a la main après l\'ouverture du Defende
     expect($partie['quete']->instancesMonstres()->where('active_ce_round', true)->count())->toBe(1)
         ->and((bool) $partie['quete']->etatsPersonnages()->first()->a_joue)->toBeFalse();
 });
+
+it('salles qui se lèvent : la proximité se lit au CHEMIN, portes closes comptées ouvertes, murs barrant', function () {
+    $partie = partieE2($this, campagneE2(['regles' => ['activation_salles' => true], 'monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 4]]]));
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3]);
+    $distances = (new ReflectionMethod(\App\Partie\Classique\ActivationSalles::class, 'distances'))
+        ->invoke(app(\App\Partie\Classique\ActivationSalles::class), $partie['quete']->fresh(), $partie['quete']->etatsPersonnages()->get());
+
+    // Par la porte (6, 3) close : 3 → 7 en quatre pas ; par la porte nord close (bord haut de (3, 2)) : le couloir en deux.
+    expect($distances['7,3'])->toBe(4)->and($distances['3,1'])->toBe(2)
+        // (6, 2) → (7, 2) est un mur : on passe par la porte puis on remonte, cinq pas.
+        ->and($distances['7,2'])->toBe(5);
+});
