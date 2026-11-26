@@ -6195,12 +6195,17 @@ Mode classique seulement ; une règle par livret, sourcée.
   may activate one room »). `Classique\ActivationSalles` : au début de chaque tour du MJ, le dé puis la ou les salles
   encore cachées qui abritent des monstres, tirées au dé parmi les trois dont le CHEMIN depuis un héros debout est le plus
   court (portes comptées ouvertes, murs et passages secrets introuvés barrant ; le livret laisse Zargon choisir — René,
-  2026-11-24 : « un hasard… les 3 salles dont le chemin est plus proche ») ; la salle se découvre, ses portes closes s'ouvrent, ses monstres jouent ce tour. Moins de
+  2026-11-24 : « un hasard… les 3 salles dont le chemin est plus proche ») ; la salle se découvre, ses portes closes s'ouvrent, ses monstres jouent ce tour. Une salle
+  ne se lève qu'à 12 pas de chemin au plus d'un héros debout (`ActivationSalles::PORTEE`, René, 2026-11-26 : « une
+  limite… si les salles sont vraiment loin »). Moins de
   trois candidates : le dé tire parmi celles qui restent ; une seule, elle se lève sans dé ; un 6 avec une seule salle
-  restante n'en lève qu'une. Plus aucune salle cachée habitée : ni dé ni annonce au tour du MJ. Annonce
-  `salles_activees {de, salles: [{monstres}]}`. La carte de monstre errant lève UNE salle au lieu de son surgissement
-  (`salles_activees` sur le résultat de fouille) ; plus aucune salle cachée habitée, elle redevient un monstre errant
-  ordinaire (« Zargon **may** activate one room » — René, 2026-11-26).
+  restante n'en lève qu'une. Annonce `salles_activees {de, salles: [{monstres}]}`. AUCUNE salle à portée (toutes trop
+  loin, ou toutes levées) : au tour du MJ, les monstres errants de la quête surgissent près d'un héros debout (tiré au
+  dé s'ils sont plusieurs) et jouent ce tour avec les autres figures, sans frappe immédiate ni défi du Chevalier
+  (`ResolveurTour::poserErrants()`), annonce `errant_au_tour_du_mj {heros, monstres: [noms]}` ; quête sans errant :
+  rien. La carte de monstre errant lève UNE salle au lieu de son surgissement (`salles_activees` sur le résultat de
+  fouille) ; sans salle à portée, elle redevient un monstre errant ordinaire (« Zargon **may** activate one room » —
+  René, 2026-11-26).
  (*Against the Ogre Horde* q. 8) — terrain « Abîme sans fond » (catalogue, réservé
   au classique : `MoteurTerrain::RESERVES_AU_CLASSIQUE`), qui bloque la marche : personne n'y entre de lui-même et le
   moteur ne pousse aucune figure sur une case qui bloque, donc « immediately plunges to their death » n'a rien à résoudre

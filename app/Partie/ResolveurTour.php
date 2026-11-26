@@ -12519,9 +12519,10 @@ final class ResolveurTour
                 ];
             }
         } elseif ($issue === 'errant' && \App\Partie\Classique\ActivationSalles::actif($quete)
-            && app(\App\Partie\Classique\ActivationSalles::class)->resteUneSalle($quete)) {
+            && app(\App\Partie\Classique\ActivationSalles::class)->aUneSalleAPortee($quete)) {
             // ACTIVATION DES SALLES (lot E2, F9528 q. 10) : « If a wandering monster card is drawn, Zargon may activate one room. »
-            // « May » : plus aucune salle cachée habitée, la carte reste un monstre errant (branche suivante, René, 2026-11-26).
+            // « May » : aucune salle cachée habitée à portée (`ActivationSalles::PORTEE`), la carte reste un monstre errant
+            // (branche suivante, René, 2026-11-26).
             $payload['salles_activees'] = app(\App\Partie\Classique\ActivationSalles::class)->activer($quete, 1);
         } elseif ($issue === 'errant') {
             // Le surgissement — un seul endroit, partagé avec le piège à monstre errant (lot E2) : `surgissementErrant()`.
@@ -13167,6 +13168,18 @@ final class ResolveurTour
      * @return list<InstanceMonstre> la première au contact, les suivantes « as close as possible » (lot E1) ; vide :
      *                               rien ne sort
      */
+    /**
+     * Les monstres errants de la quête posés au plus près de ce héros, SANS le surgissement de la fouille (ni frappe
+     * immédiate, ni défi du Chevalier) : au tour du MJ, ils jouent avec les autres figures (salles qui se lèvent,
+     * `Classique\ActivationSalles::auTourDuMJ()`). La pose reste `spawnErrant()`.
+     *
+     * @return list<InstanceMonstre>
+     */
+    public function poserErrants(Quete $quete, EtatPersonnageQuete $etat): array
+    {
+        return $this->spawnErrant($quete, $etat);
+    }
+
     private function spawnErrant(Quete $quete, EtatPersonnageQuete $etat): array
     {
         // AUCUN plafond (décision de René) : la carte « monstre errant » repart

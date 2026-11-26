@@ -762,8 +762,39 @@ it('salles qui se lèvent : une seule salle cachée sur un 6 n\'en lève qu\'une
     $payload = $activation->auTourDuMJ($partie['groupe'], $partie['quete']->fresh());
     expect($payload['de'])->toBe(6)->and($payload['salles'])->toHaveCount(1);
 
-    // La galerie découverte, plus aucune salle ne cache de monstre : ni dé, ni annonce.
+    // La galerie découverte, plus aucune salle ne cache de monstre, et la quête n'a pas d'errant : ni dé, ni annonce.
     expect($activation->auTourDuMJ($partie['groupe'], $partie['quete']->fresh()))->toBeNull();
+});
+
+it('salles qui se lèvent : au-delà de la portée, la salle dort ; sans salle à portée, l\'errant surgit au tour du MJ et joue', function () {
+    $partie = partieE2($this, campagneE2(['regles' => ['activation_salles' => true], 'monstre_errant' => 'gobelin',
+        'monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 4]]]));
+    $partie['quete']->instancesMonstres()->update(['revele' => false]);
+    $activation = app(\App\Partie\Classique\ActivationSalles::class);
+    $portee = \App\Partie\Classique\ActivationSalles::PORTEE;
+
+    // (3, 3) : la galerie est à 4 pas, à portée. Le héros posé loin dans le couloir du nord, hors de portée.
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3]);
+    expect($activation->aUneSalleAPortee($partie['quete']->fresh()))->toBeTrue();
+    $distances = (new ReflectionMethod($activation, 'distances'))->invoke($activation, $partie['quete']->fresh(), $partie['quete']->etatsPersonnages()->get());
+    $loin = collect($distances)->filter(fn (int $pas, string $cle) => $pas > $portee + 4
+        && \App\Partie\FabriqueGrille::pour($partie['quete']->fresh())->estTraversable(...array_map('intval', explode(',', $cle))))->keys()->first();
+    expect($loin)->not->toBeNull();
+    [$lx, $ly] = array_map('intval', explode(',', $loin));
+    $partie['quete']->etatsPersonnages()->update(['position_x' => $lx, 'position_y' => $ly]);
+    expect($activation->aUneSalleAPortee($partie['quete']->fresh()))->toBeFalse();
+
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 40, 4)));
+    $avant = $partie['quete']->instancesMonstres()->count();
+    $payload = app(\App\Partie\Classique\ActivationSalles::class)->auTourDuMJ($partie['groupe'], $partie['quete']->fresh());
+
+    expect($payload['type'])->toBe('errant_au_tour_du_mj')->and($payload['heros'])->toBe('Albrecht')
+        ->and($payload['monstres'])->toBe(['Gobelin'])
+        ->and($partie['quete']->instancesMonstres()->count())->toBe($avant + 1)
+        // L'orque lointain dort toujours ; le gobelin est posé, visible, au contact du héros.
+        ->and($partie['quete']->instancesMonstres()->where('revele', false)->count())->toBe(1);
+    $gobelin = $partie['quete']->instancesMonstres()->latest('id')->firstOrFail();
+    expect(abs((int) $gobelin->position_x - $lx) + abs((int) $gobelin->position_y - $ly))->toBeLessThanOrEqual(2);
 });
 
 it('salles qui se lèvent : la carte de monstre errant lève une salle ; plus aucune, elle redevient un monstre errant (« may »)', function () {

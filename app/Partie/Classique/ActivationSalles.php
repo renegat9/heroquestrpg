@@ -26,13 +26,22 @@ use App\Partie\TamponAnnonces;
  * moteur joue Zargon (René, 2026-11-24 : « j'irais avec un hasard… les 3 salles dont le CHEMIN est plus proche des
  * joueurs ») — il tire au dé parmi les {@see PROCHES} salles encore cachées qui abritent des monstres et dont le chemin
  * depuis un héros debout est le plus court ({@see distances()}) : le MJ presse les héros qui fuient, sans qu'on puisse
- * prévoir laquelle. Sa salle se découvre (`ResolveurTour::revelerSalleEn()`), ses portes closes
+ * prévoir laquelle. Au-delà de {@see PORTEE} pas, une salle ne se lève pas ; sans salle à portée, le monstre errant de la
+ * quête surgit à la place (René, 2026-11-26). Sa salle se découvre (`ResolveurTour::revelerSalleEn()`), ses portes closes
  * s'ouvrent (`ouvrirPorteParNote()`), ses monstres jouent dès ce tour.
  */
 final class ActivationSalles
 {
     /** Le nombre de salles, les plus proches des héros, parmi lesquelles le dé choisit. */
     public const PROCHES = 3;
+
+    /**
+     * La PORTÉE, en pas de chemin depuis un héros debout jusqu'à la case la plus proche de la salle : au-delà, la salle
+     * ne se lève pas (René, 2026-11-26 : « une limite… si les salles sont vraiment loin »). Douze pas : un peu plus
+     * qu'un tour de marche d'un orque (8) ou d'un gobelin (10), assez pour que les figures levées pèsent sur la fuite.
+     * Aucune salle à portée : un monstre errant à la place, au tour du MJ comme sur la carte de fouille.
+     */
+    public const PORTEE = 12;
 
     public function __construct(private readonly LanceurDes $des) {}
 
@@ -41,21 +50,58 @@ final class ActivationSalles
         return $quete->estConstruite() && data_get($quete->documentConstruit(), 'regles.activation_salles') === true;
     }
 
-    /** Le dé rouge du tour du MJ, puis une ou deux salles. Rend l'annonce, ou `null` hors de cette règle. */
+    /**
+     * Le début du tour du MJ. Une salle à portée : le dé rouge, puis une ou deux salles (`salles_activees`). Aucune
+     * (toutes trop loin, ou toutes levées) : les monstres errants de la quête près d'un héros debout tiré au dé, qui
+     * jouent ce tour avec les autres (`errant_au_tour_du_mj`). Rend l'annonce, ou `null` (règle absente, aucun errant).
+     */
     public function auTourDuMJ(Groupe $groupe, Quete $quete): ?array
     {
         if (! self::actif($quete)) {
             return null;
         }
-        // Plus aucune salle cachée ne garde de monstre : Zargon n'a plus rien à lever, ni dé ni annonce à chaque tour.
-        if (! $this->resteUneSalle($quete)) {
-            return null;
+        if (! $this->aUneSalleAPortee($quete)) {
+            $payload = $this->errantAuTourDuMJ($quete);
+        } else {
+            $de = $this->des->d6();
+            $payload = ['type' => 'salles_activees', 'de' => $de, 'salles' => $this->activer($quete, $de === 6 ? 2 : 1)];
         }
-        $de = $this->des->d6();
-        $payload = ['type' => 'salles_activees', 'de' => $de, 'salles' => $this->activer($quete, $de === 6 ? 2 : 1)];
-        app(TamponAnnonces::class)->annoncer($groupe, $payload);
+        if ($payload !== null) {
+            app(TamponAnnonces::class)->annoncer($groupe, $payload);
+        }
 
         return $payload;
+    }
+
+    /** Reste-t-il une salle cachée habitée à {@see PORTEE} d'un héros debout ? Sinon, un monstre errant à sa place. */
+    public function aUneSalleAPortee(Quete $quete): bool
+    {
+        return $this->candidates($quete)[1] !== [];
+    }
+
+    /**
+     * Au tour du MJ, sans salle à portée : les errants de la quête, posés près d'un héros debout (un dé s'ils sont
+     * plusieurs), par `ResolveurTour::poserErrants()`.
+     *
+     * @return array{type: string, heros: string, monstres: list<string>}|null
+     */
+    private function errantAuTourDuMJ(Quete $quete): ?array
+    {
+        $heros = $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get()->values();
+        if ($heros->isEmpty()) {
+            return null;
+        }
+        $vise = $heros[$heros->count() === 1 ? 0 : ($this->des->d6() - 1) % $heros->count()];
+        $poses = app(ResolveurTour::class)->poserErrants($quete->fresh(), $vise);
+        if ($poses === []) {
+            return null;
+        }
+
+        return [
+            'type' => 'errant_au_tour_du_mj',
+            'heros' => (string) ($vise->personnage?->nom ?? 'un héros'),
+            'monstres' => array_map(fn (InstanceMonstre $m) => $m->nomAffiche(), $poses),
+        ];
     }
 
     /**
@@ -89,15 +135,6 @@ final class ActivationSalles
     }
 
     /**
-     * Reste-t-il une salle cachée qui garde des monstres ? Sinon, le tour du MJ ne lance rien et la carte de monstre
-     * errant redevient un monstre errant (« Zargon MAY activate one room », René, 2026-11-26) : `ResolveurTour::appliquerButin()`.
-     */
-    public function resteUneSalle(Quete $quete): bool
-    {
-        return $this->sallesCachees($quete)->isNotEmpty();
-    }
-
-    /**
      * Les monstres actifs encore cachés, groupés par l'index de leur salle non découverte.
      *
      * @return \Illuminate\Support\Collection<int|string, \Illuminate\Support\Collection<int, InstanceMonstre>>
@@ -110,6 +147,29 @@ final class ActivationSalles
         return $quete->instancesMonstres()->where('etat', 'actif')->where('revele', false)->whereNotNull('position_x')->get()
             ->groupBy(fn (InstanceMonstre $m) => Salles::indexDe($salles, (int) $m->position_x, (int) $m->position_y))
             ->filter(fn ($groupe, $index) => $index !== '' && ! in_array((int) $index, $decouvertes, true));
+    }
+
+    /**
+     * Les salles qui peuvent se lever : cachées, habitées, à {@see PORTEE} pas d'un héros debout au plus ; les
+     * {@see PROCHES} plus proches par le CHEMIN ({@see distances()}).
+     *
+     * @return array{0: \Illuminate\Support\Collection<int|string, \Illuminate\Support\Collection<int, InstanceMonstre>>, 1: list<int>}
+     */
+    private function candidates(Quete $quete): array
+    {
+        $salles = (array) ($quete->carte?->grille['salles'] ?? []);
+        $cachees = $this->sallesCachees($quete);
+        if ($cachees->isEmpty()) {
+            return [$cachees, []];
+        }
+        $distances = $this->distances($quete, $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->get());
+        $pool = $cachees->keys()->map(fn ($i) => (int) $i)
+            ->mapWithKeys(fn (int $i) => [$i => collect(Salles::cases($salles[$i]))
+                ->map(fn ($c) => $distances["{$c['x']},{$c['y']}"] ?? PHP_INT_MAX)->min() ?? PHP_INT_MAX])
+            ->filter(fn (int $pas) => $pas <= self::PORTEE)
+            ->sort()->keys()->take(self::PROCHES)->values()->all();
+
+        return [$cachees, $pool];
     }
 
     /**
@@ -140,15 +200,7 @@ final class ActivationSalles
     public function activer(Quete $quete, int $nombre): array
     {
         $salles = (array) ($quete->carte?->grille['salles'] ?? []);
-        $cachees = $this->sallesCachees($quete);
-        $heros = $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->get();
-
-        // Les plus proches par le CHEMIN d'abord, puis un dé par salle à lever parmi les PROCHES restantes.
-        $distances = $this->distances($quete, $heros);
-        $pool = $cachees->keys()->map(fn ($i) => (int) $i)
-            ->sortBy(fn (int $i) => collect(Salles::cases($salles[$i]))
-                ->map(fn ($c) => $distances["{$c['x']},{$c['y']}"] ?? PHP_INT_MAX)->min() ?? PHP_INT_MAX)
-            ->take(self::PROCHES)->values()->all();
+        [$cachees, $pool] = $this->candidates($quete);
         $choisies = $this->tirer($pool, $nombre);
 
         $resolveur = app(ResolveurTour::class);
