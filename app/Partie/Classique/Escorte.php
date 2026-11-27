@@ -27,11 +27,12 @@ final class Escorte
     /** Drapeau RÉSERVÉ de la quête : le captif a-t-il été ramené ? (posé à la sortie du dernier héros) */
     public const DRAPEAU = '_captif_ramene';
 
-    /** Au départ : le captif de l'auteur attend à sa case, à libérer. */
+    /** Au départ : le captif de l'auteur attend à sa case, à libérer — ou, CACHÉ (`cache`), sans case : il se bat parmi les monstres. */
     public function poser(Quete $quete): void
     {
         $doc = data_get($quete->documentConstruit(), 'captif');
-        if (! is_array($doc) || ! isset($doc['mercenaire'], $doc['x'], $doc['y'])) {
+        $cache = is_array($doc) && isset($doc['cache']);
+        if (! is_array($doc) || ! isset($doc['mercenaire']) || (! $cache && ! isset($doc['x'], $doc['y']))) {
             return;
         }
         $mercenaire = app(CatalogueConstructeur::class)->index('mercenaires')[(string) $doc['mercenaire']] ?? null;
@@ -42,8 +43,8 @@ final class Escorte
             'groupe_id' => $quete->groupe_id,
             'mercenaire_id' => $mercenaire->id,
             'pv_body' => (int) $mercenaire->pv_body,
-            'position_x' => (int) $doc['x'],
-            'position_y' => (int) $doc['y'],
+            'position_x' => $cache ? null : (int) $doc['x'],
+            'position_y' => $cache ? null : (int) $doc['y'],
             'etat' => 'captif',
         ]);
         $quete->update(['captif_mercenaire_id' => $captif->id]);
@@ -102,6 +103,85 @@ final class Escorte
         }
 
         return $captif->mercenaire?->nom;
+    }
+
+    /**
+     * LE CAPTIF CACHÉ (lot E2, *Spirit Queen's Torment* q. 5 : « Udren is forced to fight the heroes with the Goblins since she
+     * is their prisoner ») : `captif.cache` désigne le monstre posé qui le figure. Rend cette figure tant que le captif n'est
+     * pas identifié (il attend sans case, état `captif`), sinon `null`.
+     */
+    public function figureCachee(Quete $quete): ?\App\Models\InstanceMonstre
+    {
+        $index = data_get($quete->documentConstruit(), 'captif.cache');
+        $captif = $quete->captif;
+        if (! is_int($index) || $captif === null || $captif->etat !== 'captif') {
+            return null;
+        }
+
+        return NotesDeQuete::figuresPosees($quete)[$index] ?? null;
+    }
+
+    /**
+     * « Zargon, tell the heroes that during this quest they may use an action to search for Udren in any room where an Orc is
+     * present. This action is similar to searching for secret doors but may be done during combat and will identify Udren if
+     * she is present. » La recherche est offerte au héros debout dans une salle où se tient une figure active et vue de la
+     * même espèce que la figure cachée (`nom_base`) ; le menu et le résolveur lisent ceci.
+     */
+    public function rechercheOfferte(Quete $quete, \App\Models\EtatPersonnageQuete $etat): bool
+    {
+        $cachee = $this->figureCachee($quete);
+        if ($cachee === null || $etat->tombe || $etat->position_x === null) {
+            return false;
+        }
+        $salles = (array) ($quete->carte?->grille['salles'] ?? []);
+        $ici = \App\Partie\Salles::indexDe($salles, (int) $etat->position_x, (int) $etat->position_y);
+        if ($ici === null) {
+            return false;
+        }
+        $espece = $cachee->monstre?->nom_base;
+
+        return $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->whereNotNull('position_x')->with('monstre')->get()
+            ->contains(fn (\App\Models\InstanceMonstre $i) => $i->monstre?->nom_base === $espece
+                && \App\Partie\Salles::indexDe($salles, (int) $i->position_x, (int) $i->position_y) === $ici);
+    }
+
+    /**
+     * Le héros cherche le captif dans sa salle. Présent (sa figure active dans la salle) : il s'identifie — sa figure quitte
+     * le plateau sans compter pour tombée, le captif prend sa case et devient l'allié de ce héros (`captif_libere` joue).
+     * Sinon, rien. Rend le résultat moteur `recherche_captif`.
+     *
+     * @return array<string, mixed>
+     */
+    public function chercher(Quete $quete, \App\Models\Personnage $heros, \App\Models\EtatPersonnageQuete $etat): array
+    {
+        if (! $this->rechercheOfferte($quete, $etat)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['option_id' => 'Rien à chercher ici.']);
+        }
+        $cachee = $this->figureCachee($quete);
+        $captif = $quete->captif()->with('mercenaire')->first();
+        $salles = (array) ($quete->carte?->grille['salles'] ?? []);
+        $ici = \App\Partie\Salles::indexDe($salles, (int) $etat->position_x, (int) $etat->position_y);
+        $trouve = $cachee->etat === 'actif' && $cachee->position_x !== null
+            && \App\Partie\Salles::indexDe($salles, (int) $cachee->position_x, (int) $cachee->position_y) === $ici;
+
+        if ($trouve) {
+            $case = ['x' => (int) $cachee->position_x, 'y' => (int) $cachee->position_y];
+            $cachee->update(['etat' => 'vaincu', 'position_x' => null, 'position_y' => null,
+                'habillage' => [...(array) $cachee->habillage, 'retire' => true]]);
+            $captif->update(['position_x' => $case['x'], 'position_y' => $case['y']]);
+            $this->liberer($quete, $heros);
+        }
+
+        return ['type' => 'recherche_captif', 'personnage_id' => (int) $heros->id, 'nom' => (string) $heros->nom,
+            'captif' => (string) $captif?->mercenaire?->nom, 'trouve' => $trouve];
+    }
+
+    /** La figure cachée est-elle TOMBÉE avant d'être identifiée (« If Udren is killed before the special action […] ») ? */
+    public function cacheeTombee(Quete $quete): bool
+    {
+        $cachee = $this->figureCachee($quete);
+
+        return $cachee !== null && $cachee->etat !== 'actif' && empty(((array) $cachee->habillage)['retire'] ?? null);
     }
 
     /**

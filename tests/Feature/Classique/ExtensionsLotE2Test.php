@@ -1466,3 +1466,65 @@ it('dés de déplacement en plus : le classique lance 2 + N dés rouges dans la 
     $partie = partieE2($this, campagneE2(['regles' => ['des_deplacement_bonus' => 1]]));
     expect($partie['groupe']->fresh()->socleDeDeplacement($partie['heros']))->toBe(['base' => 0, 'des' => 3]);
 });
+
+// ---------------------------------------------------------------- Spirit Queen's Torment : le captif caché (q. 5)
+
+function cacheE2(): array
+{
+    return campagneE2([
+        'monstres' => [['slug' => 'orque', 'x' => 5, 'y' => 3], ['slug' => 'orque', 'x' => 9, 'y' => 3]],
+        'captif' => ['mercenaire' => 'sir-ragnar-livret-de-base', 'cache' => 0, 'echec_si_mort' => true],
+    ]);
+}
+
+it('captif caché : la validation veut un index de monstre et pas de case', function () {
+    $this->seed(\Database\Seeders\MercenaireSeeder::class);
+    expect(codesE2(cacheE2()))->toBe([]);
+    $avecCase = cacheE2();
+    $avecCase['quetes'][0]['captif'] += ['x' => 3, 'y' => 3];
+    $horsListe = cacheE2();
+    $horsListe['quetes'][0]['captif']['cache'] = 5;
+    expect(codesE2($avecCase))->toBe([ValidationCampagne::CLE_INCONNUE, ValidationCampagne::CLE_INCONNUE])
+        ->and(codesE2($horsListe))->not->toBe([]);
+});
+
+it('captif caché : chercher dans une salle avec un orque ; absent, rien ; présent, il prend la case de sa figure et rejoint le héros', function () {
+    $this->seed(\Database\Seeders\MercenaireSeeder::class);
+    $partie = partieE2($this, cacheE2());
+    $quete = $partie['quete']->fresh();
+    expect($quete->captif->etat)->toBe('captif')->and($quete->captif->position_x)->toBeNull();
+    $quete->instancesMonstres()->update(['revele' => true]); // les deux salles sont ouvertes et vues
+    $etat = $quete->etatsPersonnages()->firstOrFail();
+    $chercher = function (int $x, int $y) use ($partie, $etat) {
+        $etat->refresh()->update(['position_x' => $x, 'position_y' => $y, 'a_agi' => false, 'a_joue' => false]);
+        \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+        expect(collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id'))->toContain('chercher_captif');
+        $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'chercher_captif'])->assertAccepted();
+
+        return \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()->pluck('payload')
+            ->last(fn ($p) => ($p['type'] ?? null) === 'recherche_captif' && isset($p['trouve']));
+    };
+
+    $rate = $chercher(8, 3); // la galerie, avec l'autre orque
+    expect($rate['trouve'])->toBeFalse()->and($quete->captif->fresh()->etat)->toBe('captif');
+    $trouve = $chercher(3, 3); // l'entrée, avec la figure cachée
+    $captif = $quete->captif->fresh();
+    expect($trouve['trouve'])->toBeTrue()
+        ->and($captif->etat)->toBe('actif')->and([$captif->position_x, $captif->position_y])->toBe([5, 3])
+        ->and((int) $captif->recruteur_personnage_id)->toBe((int) $partie['heros']->id)
+        ->and(\App\Partie\Classique\NotesDeQuete::figuresPosees($quete->fresh())[0]->etat)->toBe('vaincu')
+        ->and(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($trouve, 'Albrecht'))->pluck('texte')->first())
+            ->toBe('Albrecht trouve Sir Ragnar (livret de base) parmi les monstres : il se fait connaître et rejoint les héros');
+    // Identifiée, la quête ne la perd plus (sa figure retirée n'est pas « tombée »).
+    expect(app(\App\Partie\Classique\Escorte::class)->cacheeTombee($quete->fresh()))->toBeFalse();
+});
+
+it('captif caché : sa figure tuée avant l\'identification fait perdre la quête', function () {
+    $this->seed(\Database\Seeders\MercenaireSeeder::class);
+    $partie = partieE2($this, cacheE2());
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3]);
+    \App\Partie\Classique\NotesDeQuete::figuresPosees($partie['quete']->fresh())[0]->update(['etat' => 'vaincu']);
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'attendre'])->assertAccepted();
+    expect($partie['quete']->fresh()->etat)->toBe('echouee');
+});

@@ -3195,6 +3195,15 @@ final class MenuMoteur
                     ];
                 }
             }
+            // LE CAPTIF CACHÉ (lot E2, Spirit Queen q. 5) : « use an action to search for Udren in any room where an Orc is
+            // present […] may be done during combat » (`Classique\Escorte::rechercheOfferte()`, que le résolveur relit).
+            if (! $actionInterdite && app(\App\Partie\Classique\Escorte::class)->rechercheOfferte($quete, $etat)) {
+                $options[] = [
+                    'id' => 'chercher_captif',
+                    'libelle' => 'Chercher '.($quete->captif?->mercenaire?->nom ?? 'le captif').' dans cette salle',
+                    'type' => 'recherche_captif',
+                ];
+            }
             // LE RAPPEL DE LA REINE (lot E2, Spirit Queen q. 14 C) : une action, contre une figure `rappelable` en vue.
             if (! $actionInterdite) {
                 foreach (app(\App\Partie\Classique\RappelDeLaReine::class)->cibles($quete, $etat) as $figure) {

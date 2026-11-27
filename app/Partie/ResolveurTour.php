@@ -758,6 +758,7 @@ final class ResolveurTour
                 'offre' => $this->resoudreOffre($groupe, $quete, $personnage, $option, $acteur),
                 'geste_de_quete' => $this->resoudreGesteDeQuete($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'rappel_figure' => $this->resoudreRappelFigure($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'recherche_captif' => $this->resoudreRechercheCaptif($groupe, $quete, $personnage, $etat, $acteur),
                 // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, de soi-même. Geste libre.
                 'retirer_deguisement' => $this->resoudreRetirerDeguisement($groupe, $personnage, $etat, $acteur),
                 // GLYPHES (mode classique, lot K6) : détruire un glyphe découvert — parchemin ou cheminée. Geste libre.
@@ -960,6 +961,9 @@ final class ResolveurTour
             // Fin du COMBAT (plus aucun monstre engagé) — distincte de la fin de
             // quête : il peut rester des dormants derrière des portes closes.
             $this->verifierFinDuCombat($quete);
+
+            // LE CAPTIF CACHÉ (lot E2, Spirit Queen q. 5) : tombé avant d'être identifié, la quête est perdue si l'auteur l'écrit.
+            $this->echouerSiCaptifCacheTombe($groupe, $quete);
 
             // ⚠ Le donjon nettoyé ne court-circuite PLUS la fin de round : le
             // round se boucle d'abord, le drapeau se pose ensuite. Voir
@@ -13621,6 +13625,7 @@ final class ResolveurTour
         // Fin du COMBAT (plus aucun monstre engagé), avant la fin de QUÊTE :
         // les dormants derrière les portes closes ne prolongent pas un combat.
         $this->verifierFinDuCombat($quete);
+        $this->echouerSiCaptifCacheTombe($groupe, $quete);
 
         // ⚠ Le donjon nettoyé ne court-circuite PLUS la fin de round.
         //
@@ -17006,6 +17011,19 @@ final class ResolveurTour
     }
 
     /**
+     * LE CAPTIF CACHÉ (lot E2, *Spirit Queen's Torment* q. 5 : « If Udren is killed before the special action to search for the
+     * Orc ally is taken, the heroes fail the quest! ») : sa figure est tombée avant qu'on l'identifie — même verdict que le
+     * captif allié qui tombe, sous la même condition de l'auteur (`captif.echec_si_mort`).
+     */
+    private function echouerSiCaptifCacheTombe(Groupe $groupe, Quete $quete): void
+    {
+        $escorte = app(\App\Partie\Classique\Escorte::class);
+        if ($quete->estConstruite() && $quete->fresh()?->etat === 'en_cours' && $escorte->echoueSiMort($quete) && $escorte->cacheeTombee($quete)) {
+            $this->echouerQuete($groupe, $quete, 'captif_perdu');
+        }
+    }
+
+    /**
      * L'allié qui vient de tomber est-il LE captif de cette quête (mission
      * « secourir ») ? Alors la quête échoue immédiatement — même verdict
      * qu'un TPK, même point de passage (`Quete::objectifAccompli()` ne
@@ -17775,6 +17793,15 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Tu as déjà agi ce tour.']);
         }
         $payload = app(\App\Partie\Classique\QueteDouble::class)->passer($groupe, $quete, $personnage, $etat);
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** LE CAPTIF CACHÉ (lot E2, Spirit Queen q. 5) : `Escorte::rechercheOfferte()` revalidé ici. */
+    private function resoudreRechercheCaptif(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $acteur): array
+    {
+        $payload = app(\App\Partie\Classique\Escorte::class)->chercher($quete, $personnage, $etat);
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;

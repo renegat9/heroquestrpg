@@ -7115,6 +7115,25 @@ dangereuse dépense d'abord une charge d'une pièce protectrice (`MoteurCharges`
 touche le Corps. L'annonce `salle_dangereuse` porte `absorbes` (absent à 0) : « … : rien, le dé montre un crâne ; l'onguent
 absorbe 1 point(s) ». La note B la donne (`objet {slug: fiole-donguent, quantite: 4}`), l'échange ordinaire la partage.
 
+### Le captif caché — `captif.cache`, option `recherche_captif` (lot E2, 2026-11-27)
+
+*Spirit Queen's Torment* q. 5 : « they may use an action to search for Udren in any room where an Orc is present. This action
+is similar to searching for secret doors but may be done during combat and will identify Udren if she is present. » ; note D :
+« Udren is forced to fight the heroes with the Goblins […] If Udren is killed before the special action to search for the
+Orc ally is taken, the heroes fail the quest! If a hero takes that special action, however, Udren identifies herself […]
+Udren joins the heroes as an ally, controlled by the hero who identified her. » `Classique\Escorte` :
+- `captif {mercenaire, cache, echec_si_mort?, persiste?}` : `cache` est l'index du monstre posé qui le figure (un orque, sans
+  `nom` pour garder le secret) ; ni `x` ni `y` alors. Le captif attend sans case (état `captif`).
+- Option **`recherche_captif`** (créneau `action`), `id: chercher_captif`, libellé « Chercher Udren dans cette salle » : un
+  héros debout dans une salle où se tient une figure active et vue de la MÊME espèce que la figure cachée (`nom_base`) — en
+  plein combat aussi. Le résolveur relit la même règle (422 sinon).
+- Présente dans la salle : sa figure quitte le plateau sans compter pour tombée (`habillage.retire`), le captif prend sa case et
+  devient l'allié de ce héros (`captif_libere` joue). Sinon, rien. Annonce `recherche_captif {nom, captif, trouve}` :
+  « Albrecht trouve Udren parmi les monstres : il se fait connaître et rejoint les héros » / « … : il n'est pas dans cette
+  salle ».
+- Sa figure TOMBÉE avant l'identification fait échouer la quête (`captif_perdu`) quand `echec_si_mort` est posé
+  (`ResolveurTour::echouerSiCaptifCacheTombe()`, après chaque action d'un héros).
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

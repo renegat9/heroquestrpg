@@ -664,7 +664,12 @@ final class ValidationCampagne
             // (mode figurine), sur une case où une figure peut paraître. `Classique\Escorte`.
             if (array_key_exists('captif', $quete) && ($captif = $this->enObjet($quete['captif'], "$chemin.captif")) !== null) {
                 // Lot E1 : `echec_si_mort` (sa mort fait perdre la quête), `persiste` (il reste allié pour la campagne).
-                $this->cles($captif, "$chemin.captif", ['mercenaire', 'x', 'y'], ['echec_si_mort', 'persiste']);
+                // Lot E2 (*Spirit Queen's Torment* q. 5) : `cache` — l'index du monstre posé qui le figure ; il n'a alors pas de case.
+                $cache = array_key_exists('cache', $captif);
+                $this->cles($captif, "$chemin.captif", $cache ? ['mercenaire', 'cache'] : ['mercenaire', 'x', 'y'], ['echec_si_mort', 'persiste']);
+                if ($cache) {
+                    $this->indexDe($quete, 'monstres', $captif['cache'], "$chemin.captif.cache");
+                }
                 foreach (['echec_si_mort', 'persiste'] as $drapeauCaptif) {
                     if (array_key_exists($drapeauCaptif, $captif) && $captif[$drapeauCaptif] !== true) {
                         $this->refuser("$chemin.captif.$drapeauCaptif", self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
@@ -676,7 +681,9 @@ final class ValidationCampagne
                         $this->refuser("$chemin.captif.mercenaire", self::VALEUR_INVALIDE, "« {$captif['mercenaire']} » n'est pas un captif à escorter du catalogue");
                     }
                 }
-                $this->caseDArrivee($captif, "$chemin.captif", 'le captif');
+                if (! $cache) {
+                    $this->caseDArrivee($captif, "$chemin.captif", 'le captif');
+                }
             }
             // Lot K5i (C2) : les embranchements, après les notes (leurs drapeaux) et avec les slugs de TOUTE la campagne.
             $this->suite($quete, $chemin, $drapeauxPoses + $this->campagneDeLaQuete, $tousLesSlugs, is_string($quete['slug'] ?? null) ? $quete['slug'] : null);

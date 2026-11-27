@@ -331,6 +331,10 @@ const couvre = (m, x, y) => {
 /** Retire l'élément d'index `i` d'une liste désignée par des notes ou la fin, et recale ces désignations. */
 function recaler(q, liste, i) {
     const cle = { monstres: 'monstre', portes: 'porte', mobilier: 'mobilier' }[liste];
+    // Lot E2 (Spirit Queen q. 5) : le captif caché parmi les monstres — sa figure retirée, il reprend une case.
+    if (liste === 'monstres' && Number.isInteger(q.captif?.cache)) {
+        if (q.captif.cache === i) { delete q.captif.cache; Object.assign(q.captif, { x: 0, y: 0 }); } else if (q.captif.cache > i) q.captif.cache -= 1;
+    }
     if (liste === 'monstres' && Array.isArray(q.fin?.cibles)) {
         q.fin.cibles = q.fin.cibles.filter((c) => c !== i).map((c) => (c > i ? c - 1 : c));
     }
@@ -1740,9 +1744,17 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <select v-model="quete.captif.mercenaire" class="cst-input">
                                         <option v-for="c in (catalogues.captifs ?? [])" :key="c.slug" :value="c.slug">{{ c.nom }}</option>
                                     </select>
-                                    <input v-model.number="quete.captif.x" type="number" class="cst-input cst-num" title="x" />
-                                    <input v-model.number="quete.captif.y" type="number" class="cst-input cst-num" title="y" />
-                                    <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(quete.captif, 'le captif')"><MSym n="pin_drop" :size="16" /></button>
+                                    <!-- Lot E2 (Spirit Queen q. 5) : caché parmi les monstres — un monstre posé le figure ; les héros le cherchent. -->
+                                    <select :value="Number.isInteger(quete.captif.cache) ? quete.captif.cache : ''" class="cst-input" title="Caché parmi les monstres ?"
+                                        @change="$event.target.value === '' ? (delete quete.captif.cache, Object.assign(quete.captif, { x: 0, y: 0 })) : (quete.captif.cache = Number($event.target.value), delete quete.captif.x, delete quete.captif.y)">
+                                        <option value="">sur sa case, à libérer</option>
+                                        <option v-for="(m, k) in quete.monstres" :key="`cc${k}`" :value="k">caché : {{ libelleMonstre(m, k) }}</option>
+                                    </select>
+                                    <template v-if="!Number.isInteger(quete.captif.cache)">
+                                        <input v-model.number="quete.captif.x" type="number" class="cst-input cst-num" title="x" />
+                                        <input v-model.number="quete.captif.y" type="number" class="cst-input cst-num" title="y" />
+                                        <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(quete.captif, 'le captif')"><MSym n="pin_drop" :size="16" /></button>
+                                    </template>
                                     <label class="cst-case"><input type="checkbox" :checked="quete.captif.echec_si_mort === true" @change="$event.target.checked ? (quete.captif.echec_si_mort = true) : delete quete.captif.echec_si_mort" /> sa mort fait perdre la quête</label>
                                     <label class="cst-case"><input type="checkbox" :checked="quete.captif.persiste === true" @change="$event.target.checked ? (quete.captif.persiste = true) : delete quete.captif.persiste" /> reste allié pour la suite</label>
                                     <span class="cst-sous">Ramené vivant sur la sortie avec le dernier héros : récompense versée ; sinon la quête est gagnée sans récompense.</span>

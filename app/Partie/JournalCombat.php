@@ -247,6 +247,8 @@ final class JournalCombat
         'rappel_figure' => true,
         // L'APNÉE (lot E2, G0053 q. 11) : un tour de plus sans respirer, ou la noyade.
         'apnee' => true,
+        // LE CAPTIF CACHÉ (lot E2, G0053 q. 5) : la recherche dans une salle — trouvé (il devient allié) ou non.
+        'recherche_captif' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1351,6 +1353,12 @@ final class JournalCombat
                 'texte' => ((int) ($a['variation'] ?? 0) > 0 ? 'Le groupe gagne ' : 'Le groupe dépense ').abs((int) ($a['variation'] ?? 0))
                     .' jeton(s) de réputation (total : '.(int) ($a['total'] ?? 0).')',
                 'ton' => (int) ($a['variation'] ?? 0) > 0 ? 'succes' : 'info',
+            ]],
+            'recherche_captif' => [[
+                'texte' => ! empty($a['trouve'])
+                    ? ($a['nom'] ?? $acteurNom).' trouve '.($a['captif'] ?? 'le captif').' parmi les monstres : il se fait connaître et rejoint les héros'
+                    : ($a['nom'] ?? $acteurNom).' cherche '.($a['captif'] ?? 'le captif').' : il n\'est pas dans cette salle',
+                'ton' => ! empty($a['trouve']) ? 'succes' : 'info',
             ]],
             'apnee' => [[
                 'texte' => ! empty($a['noye'])
