@@ -1572,3 +1572,45 @@ it('insubstantialité : deux usages de son tour (murs, deux dés), la réaction 
     app(\App\Partie\MoteurDegats::class)->infligerAHeros($heros->fresh(), 1, \App\Partie\MoteurDegats::SOURCE_PIEGE);
     expect($etat->fresh()->reaction_en_attente['insubstantiel'] ?? null)->toBeNull();
 });
+
+// ---------------------------------------------------------------- Spirit Queen's Torment : le barde de remplacement (p. 4)
+
+it('barde de remplacement : à la mort d\'un héros (après le drapeau), un barde neuf paraît, au même joueur, ramasse ses affaires — une seule fois', function () {
+    $campagne = campagneE2(['notes' => [['repere' => 'S', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]],
+        'alors' => [['effet' => 'drapeau', 'nom' => 'sigill_trouve', 'campagne' => true]]]]]);
+    $campagne['barde_de_remplacement'] = ['si_drapeau' => 'sigill_trouve'];
+    expect(codesE2($campagne))->toBe([]);
+
+    app(CampagnesConstruites::class)->enregistrer($campagne);
+    $alice = connecterJoueur('alice');
+    $heros = app(\App\Partie\CreationHeros::class)->creer($alice->id, 'Albrecht', 'barbare');
+    $code = $this->postJson('/api/classique', ['nom' => 'Les Essayeurs', 'campagne' => 'campagne-d-essai', 'personnage_id' => $heros->id, 'mode_mort' => 'heroic'])
+        ->assertCreated()->json('groupe.identifiant');
+    $groupe = Groupe::where('identifiant', $code)->firstOrFail();
+    $this->postJson("/api/groupes/{$code}/quetes")->assertCreated();
+    $quete = Quete::findOrFail($groupe->refresh()->quete_courante_id);
+    $etat = $quete->etatsPersonnages()->firstOrFail();
+    $etat->update(['position_x' => 3, 'position_y' => 3]);
+    $objets = $heros->inventaire()->count();
+    $mort = app(\App\Partie\Classique\MortHeroic::class);
+
+    // Avant le drapeau : la mort est une mort.
+    expect(app(\App\Partie\Classique\BardeDeRemplacement::class)->aRemplacer($groupe, $quete, $etat))->toBeFalse();
+    app(\App\Partie\Classique\NotesDeQuete::class)->signaler($quete, \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 1]);
+
+    $annonce = $mort->mourir($groupe->fresh(), $quete->fresh(), $etat->fresh());
+    $barde = Personnage::where('joueur_id', $alice->id)->where('classe', 'barde')->firstOrFail();
+    $etatBarde = $quete->etatsPersonnages()->where('personnage_id', $barde->id)->firstOrFail();
+    expect($annonce['affaires'])->toBe('au_barde')
+        ->and((int) $barde->niveau)->toBe(1)->and((int) $barde->groupe_actif_id)->toBe((int) $groupe->id)
+        ->and([$etatBarde->position_x, $etatBarde->position_y])->toBe([3, 3])->and((bool) $etatBarde->a_joue)->toBeTrue()
+        ->and($heros->inventaire()->count())->toBe(0)
+        ->and($barde->inventaire()->count())->toBeGreaterThanOrEqual($objets)
+        ->and($groupe->fresh()->drapeaux_campagne['_barde_remplacant'] ?? null)->toBeTrue();
+    $ligne = \App\Models\Evenement::where('groupe_id', $groupe->id)->get()->pluck('payload')->firstWhere('type', 'barde_remplacant');
+    expect(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($ligne, ''))->pluck('texte')->first())
+        ->toBe('Un barde paraît auprès de Albrecht : le joueur le prend en main et ramasse ses affaires — il agira au prochain tour');
+
+    // Une seule fois — et un barde est désormais joué.
+    expect(app(\App\Partie\Classique\BardeDeRemplacement::class)->aRemplacer($groupe->fresh(), $quete->fresh(), $etatBarde->fresh()))->toBeFalse();
+});

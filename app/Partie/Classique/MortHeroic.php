@@ -129,10 +129,18 @@ final class MortHeroic
     public function mourir(Groupe $groupe, Quete $quete, EtatPersonnageQuete $etat, bool $affairesPerdues = false): array
     {
         $heros = $etat->personnage;
+        // LE BARDE DE REMPLACEMENT (lot E2, *Spirit Queen's Torment* p. 4) : décidé AVANT la mort — il ramasse les affaires
+        // du mort, qui ne restent donc ni au sol ni aux mains d'un voleur.
+        $barde = app(BardeDeRemplacement::class);
+        $remplace = $heros !== null && $barde->aRemplacer($groupe, $quete, $etat);
+        $case = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
         // `$affairesPerdues` (lot E2) : tombé dans une crevasse, « never to be seen again » — ses affaires avec lui.
-        $affaires = $affairesPerdues ? 'perdues' : $this->laisserLesAffaires($quete, $etat);
+        $affaires = $affairesPerdues ? 'perdues' : ($remplace ? 'au_barde' : $this->laisserLesAffaires($quete, $etat));
         $heros?->update(['mort_le' => now()]);
         $etat->delete();
+        if ($remplace) {
+            $barde->faireParaitre($groupe, $quete, $heros, $case, $affairesPerdues);
+        }
 
         $payload = [
             'type' => 'heros_mort',

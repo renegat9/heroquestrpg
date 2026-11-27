@@ -994,6 +994,17 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <input type="checkbox" :checked="(doc.cartes_tresor ?? []).includes(b)" @change="basculerCartesTresor(b, $event.target.checked)" /> {{ LIBELLES_BOITES_CARTES[b] ?? b }}
                             </label>
                         </div>
+                        <!-- Lot E2 (Spirit Queen p. 4) : le barde qui remplace un héros mort, une fois par campagne. -->
+                        <span class="cst-lbl">Barde de remplacement</span>
+                        <div class="cst-ligne">
+                            <label class="cst-case" title="Si personne ne joue de barde et qu'un héros meurt, un barde neuf paraît dans sa salle, au joueur du mort, et ramasse ses affaires — une fois par campagne.">
+                                <input type="checkbox" :checked="!!doc.barde_de_remplacement" @change="$event.target.checked ? (doc.barde_de_remplacement = {}) : delete doc.barde_de_remplacement" /> un héros mort est remplacé par un barde
+                            </label>
+                            <label v-if="doc.barde_de_remplacement">après le drapeau
+                                <input :value="doc.barde_de_remplacement.si_drapeau ?? ''" class="cst-input" placeholder="(dès le début)"
+                                    @change="$event.target.value.trim() ? (doc.barde_de_remplacement.si_drapeau = $event.target.value.trim()) : delete doc.barde_de_remplacement.si_drapeau" />
+                            </label>
+                        </div>
                         <span class="cst-lbl">Mercenaires</span>
                         <div class="cst-ligne">
                             <select :value="doc.mercenaires?.regime ?? ''" class="cst-input" @change="changerRegimeMercenaires($event.target.value)">

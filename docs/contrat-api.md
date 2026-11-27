@@ -7153,6 +7153,22 @@ to roll 2 additional movement dice. » `Classique\Insubstantialite` :
   restant(s) ».
 - Écart écrit : « they die if they end in a solid square » ne se joue pas — les destinations publiées n'offrent jamais la roche.
 
+### Le barde de remplacement — `campagne.barde_de_remplacement` (lot E2, 2026-11-27)
+
+*Spirit Queen's Torment* p. 4 : « If no one is playing the bard hero and a hero dies, place the bard hero in the room with the
+dead hero. The player of the dead hero now controls the bard hero and can immediately pick up any items held by the fallen
+hero. The bard hero may not take actions on the turn they appear. The appearance of the bard hero in this way may only
+happen once during this quest series. » ; q. 3 : « Once Sigill has been found ». `Classique\BardeDeRemplacement` :
+- `campagne.barde_de_remplacement {si_drapeau?}` (clé de la CAMPAGNE).
+- À la mort d'un héros (`MortHeroic::mourir()` : modes heroic et standard), si la règle est posée, le drapeau atteint, le
+  remplacement jamais fait (`groupes.drapeaux_campagne._barde_remplacant`) et qu'aucun héros du groupe n'est barde (le mort
+  compris) : un barde NEUF naît au joueur du mort (`CreationHeros`, niveau 1, carte et équipement de départ — René,
+  2026-11-27), entre au groupe et à la quête (`participants`), paraît à la case du mort (ou la plus proche, libre), a déjà joué
+  ce tour, et ramasse AU SAC tout ce que portait le mort (l'annonce `heros_mort` porte alors `affaires: "au_barde"`).
+- Annonce `barde_remplacant {mort, personnage_id, nom, x, y, objets}` : « Un barde paraît auprès de Grom : le joueur le prend
+  en main et ramasse ses affaires — il agira au prochain tour ».
+- `CreationHeros::creer()` est désormais le seul endroit qui fait naître un héros (roster et barde).
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

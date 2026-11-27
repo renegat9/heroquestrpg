@@ -8,10 +8,8 @@ use App\Events\PretsMaj;
 use App\Http\Controllers\Api\Concerns\AutoriseLectureGroupe;
 use App\Http\Controllers\Controller;
 use App\Jobs\GenererSqueletteCampagne;
-use App\Models\ClasseHeros;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
-use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\PersonnageHistorique;
 use App\Models\Competence;
@@ -19,13 +17,11 @@ use App\Partie\Marche\PhaseMarche;
 use App\Partie\BestiaireGroupe;
 use App\Partie\CompagnonOffert;
 use App\Partie\DemarreurQuete;
-use App\Partie\Equipement;
 use App\Partie\EquipementDepart;
 use App\Partie\EtatGroupe;
 use App\Partie\FaveursHopekins;
 use App\Partie\MoteurReactions;
 use App\Partie\MoteurSorts;
-use App\Partie\CapacitesInnees;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -452,30 +448,6 @@ class GroupeController extends Controller
      * Donne et porte l'équipement de départ de la classe — la table vit dans
      * `EquipementDepart`, qui sert aussi au guide et au livret.
      */
-    private function equiperDepart(Personnage $personnage, string $classe): void
-    {
-        $equipement = app(Equipement::class);
-
-        foreach (EquipementDepart::PAR_CLASSE[$classe] ?? [] as $nomObjet) {
-            $objet = Objet::where('nom', $nomObjet)->first();
-
-            if ($objet === null) {
-                continue; // catalogue incomplet (tests ciblés) : on n'échoue pas la création
-            }
-
-            $ligne = $personnage->inventaire()->create([
-                'objet_id' => $objet->id,
-                'emplacement' => 'sac',
-            ]);
-
-            // Les pièces d'équipement sont PORTÉES d'emblée ; le reste (trousse)
-            // reste au sac, comme n'importe quel objet utilitaire.
-            if (in_array($objet->emplacement, Equipement::SLOTS, true)) {
-                $equipement->equiper($personnage->refresh(), $ligne);
-            }
-        }
-    }
-
     /**
      * Crée un héros du roster aux valeurs de départ du catalogue (doc 01).
      * Parité HeroQuest de base (doc 02 §2) : le MAGICIEN reçoit les 9 sorts de
@@ -525,49 +497,9 @@ class GroupeController extends Controller
         ?array $sortsElfiques = null,
         string $mode = Personnage::MODE_CAMPAGNE,
     ): Personnage {
-        $base = ClasseHeros::where('nom', $classe)->firstOrFail();
-
-        // TRANSACTION : un héros naît en plusieurs gestes — la fiche, les sorts,
-        // les capacités innées, l'équipement de départ. Qu'un seul échoue et la
-        // ligne `personnages` restait, orpheline et injouable (attrapé par le
-        // test « exige exactement TROIS sorts » : le 422 partait bien, mais
-        // « Tricheur » existait déjà en base).
-        return DB::transaction(function () use ($base, $joueurId, $nom, $classe, $elements, $sortsElfiques, $sorts, $mode) {
-            $personnage = Personnage::create([
-                'joueur_id' => $joueurId,
-                'mode' => $mode,
-                'nom' => $nom,
-                'classe' => $classe,
-                'niveau' => 1,
-                'attribut_body' => $base->attr_body,
-                'attribut_mind' => $base->attr_mind,
-                'pv_body_max' => $base->pv_body,
-                'pv_body' => $base->pv_body,
-                'pv_mind_max' => $base->pv_mind,
-                'pv_mind' => $base->pv_mind,
-                'des_attaque' => $base->des_attaque,
-                'des_defense' => $base->des_defense,
-                'deplacement_base' => $base->deplacement_base,
-                'or' => 0,
-            ]);
-
-            // Voie elfique : les 3 sorts choisis REMPLACENT l'école de départ.
-            if ($sortsElfiques !== null) {
-                $sorts->fixerSortsElfiques($personnage, $sortsElfiques);
-            } else {
-                foreach (MoteurSorts::elementsDepart($classe, $elements) as $element) {
-                    $sorts->attacherElement($personnage, $element);
-                }
-            }
-
-            // Barde, Druide, Warlock : leurs 3 sorts sont FIXES, pas choisis.
-            $sorts->attacherRepertoireClasse($personnage, $classe);
-
-            app(CapacitesInnees::class)->attacherA($personnage);
-            $this->equiperDepart($personnage, $classe);
-
-            return $personnage;
-        });
+        // Un seul endroit fait naître un héros (`CreationHeros`, 2026-11-27) : le barde de remplacement du mode classique
+        // naît par le même chemin.
+        return app(\App\Partie\CreationHeros::class)->creer($joueurId, $nom, $classe, $elements, $sortsElfiques, $mode);
     }
 
     /**

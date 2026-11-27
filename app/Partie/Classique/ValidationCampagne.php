@@ -291,7 +291,12 @@ final class ValidationCampagne
             return $this->refus;
         }
 
-        $this->cles($document, '', self::CLES_CAMPAGNE, ['mercenaires', 'cartes_tresor']);
+        $this->cles($document, '', self::CLES_CAMPAGNE, ['mercenaires', 'cartes_tresor', 'barde_de_remplacement']);
+        // Lot E2 (*Spirit Queen's Torment* p. 4) : le barde qui remplace un héros mort, une fois — après un drapeau, si l'auteur veut.
+        if (array_key_exists('barde_de_remplacement', $document) && ($barde = $this->enObjet($document['barde_de_remplacement'], 'barde_de_remplacement')) !== null) {
+            $this->cles($barde, 'barde_de_remplacement', [], ['si_drapeau']);
+            $this->nomDeDrapeau($barde, 'si_drapeau', 'barde_de_remplacement');
+        }
         // Lot E1 : les boîtes dont les cartes de trésor rejoignent le paquet (`DeckFouille::BOITES_DE_CARTES`).
         if (array_key_exists('cartes_tresor', $document)) {
             foreach ((array) $this->enListe($document['cartes_tresor'], 'cartes_tresor') as $k => $boite) {

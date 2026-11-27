@@ -251,6 +251,8 @@ final class JournalCombat
         'recherche_captif' => true,
         // L'INSUBSTANTIALITÉ (lot E2, G0053 q. 14) : un usage pris à son tour (la réaction s'annonce comme toute réaction).
         'insubstantiel' => true,
+        // LE BARDE DE REMPLACEMENT (lot E2, G0053 p. 4) : il paraît dans la salle du héros mort.
+        'barde_remplacant' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1355,6 +1357,11 @@ final class JournalCombat
                 'texte' => ((int) ($a['variation'] ?? 0) > 0 ? 'Le groupe gagne ' : 'Le groupe dépense ').abs((int) ($a['variation'] ?? 0))
                     .' jeton(s) de réputation (total : '.(int) ($a['total'] ?? 0).')',
                 'ton' => (int) ($a['variation'] ?? 0) > 0 ? 'succes' : 'info',
+            ]],
+            'barde_remplacant' => [[
+                'texte' => 'Un barde paraît auprès de '.($a['mort'] ?? 'du héros tombé').' : le joueur le prend en main'
+                    .((int) ($a['objets'] ?? 0) > 0 ? ' et ramasse ses affaires' : '').' — il agira au prochain tour',
+                'ton' => 'succes',
             ]],
             'insubstantiel' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' devient insubstantiel : '.(($a['usage'] ?? null) === 'murs'
