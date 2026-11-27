@@ -13398,6 +13398,10 @@ final class ResolveurTour
             $precedente = $case;
         }
 
+        // Lot E2 (G0052 q. 3) : la QUÊTE À ÉTAGES — le héros remonté sur l'escalier, l'étage vidé, tous là : l'étage suivant.
+        if ($trajet !== []) {
+            app(\App\Partie\Classique\Etages::class)->apresMarche($quete->groupe, $quete->fresh(), $avant, $arrivee);
+        }
         // Lot E2 (G0052 q. 10 G) : « When every hero stands at a different doorway » — après chaque pas, la porte de chaque héros.
         if ($trajet !== []) {
             $notes->signaler($quete, MotsClesQuete::TOUS_AUX_PORTES, ['portes' => $this->portesDesHeros($quete)], $personnage);

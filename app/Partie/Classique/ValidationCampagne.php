@@ -150,7 +150,7 @@ final class ValidationCampagne
         'ramener' => ['type', 'libelle'],
     ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'captif', 'dangers', 'double', 'glyphes', 'salles_speciales', 'coffres_pieges', 'tournoi'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'captif', 'dangers', 'double', 'glyphes', 'salles_speciales', 'coffres_pieges', 'tournoi', 'etages'];
     /** Lot E1 (2026-11-22) : le coffre piégé de l'auteur, `Classique\CoffresPieges`. */
     private const CLES_COFFRE_PIEGE_OPTIONNELLES = ['piege', 'degats', 'toute_la_salle'];
     /**
@@ -631,6 +631,7 @@ final class ValidationCampagne
             $this->glyphes($quete, $chemin);
             $this->coffresPieges($quete, $chemin);
             $this->tournoi($quete, $chemin);
+            $this->etages($quete, $chemin, $document, (int) $i);
             $this->recompense($quete, $chemin);
             // Les notes AVANT la fin : une fin « drapeau » n'est gagnable que si une note pose ce drapeau — de cette quête,
             // ou de campagne par une quête précédente (lot K5h).
@@ -2493,6 +2494,81 @@ final class ValidationCampagne
      * `{camp_heros: [{x, y}], camp_defender: [{x, y}], trophees?: [{x, y}], vagues?: …}`. Les deux tuiles de départ ont au
      * moins une case ; les trophées au plus une case par tuile du lot (`TropheesArene::LOT`).
      */
+    /** Les clés qu'un ÉTAGE remplace dans la quête (lot E2, G0052 q. 3) — le reste (plateau, accès, règles) est commun. */
+    public const CLES_ETAGE = ['monstres', 'mobilier', 'pieges', 'notes'];
+
+    /**
+     * LA QUÊTE À ÉTAGES (lot E2, G0052 q. 3, « The Great Stairwell ») : `quete.etages {escalier: [{x, y}…], niveaux: [{titre,
+     * monstres?, mobilier?, pieges?, notes?}…]}` — les niveaux SUIVANTS (le premier est la quête elle-même). Chaque niveau est
+     * validé comme la quête dont il remplace ces couches ({@see etageEnQuete()}) : ses refus portent son propre chemin. La fin
+     * ne peut pas viser une figure posée (elles changent d'un étage à l'autre).
+     */
+    private function etages(array $quete, string $chemin, array $document, int $i): void
+    {
+        if (! array_key_exists('etages', $quete)) {
+            return;
+        }
+        $ici = self::chemin($chemin, 'etages');
+        $etages = $this->enObjet($quete['etages'], $ici);
+        if ($etages === null) {
+            return;
+        }
+        $this->cles($etages, $ici, ['escalier', 'niveaux']);
+        $escalier = $this->enListeDe($etages, 'escalier', $ici);
+        foreach ($escalier as $k => $c) {
+            if (($case = $this->enObjet($c, "$ici.escalier.$k")) !== null) {
+                $this->cles($case, "$ici.escalier.$k", self::CLES_CASE);
+                $this->cellule($case, "$ici.escalier.$k");
+            }
+        }
+        if ($escalier === []) {
+            $this->refuser("$ici.escalier", self::VALEUR_INVALIDE, 'au moins une case d\'escalier (où les héros remontent)');
+        }
+        if (($quete['fin']['type'] ?? null) === 'vaincre') {
+            $this->refuser("$chemin.fin.type", self::VALEUR_INVALIDE, 'une quête à étages ne peut pas finir sur des figures posées : elles changent à chaque étage');
+        }
+        $niveaux = $this->enListeDe($etages, 'niveaux', $ici);
+        if ($niveaux === []) {
+            $this->refuser("$ici.niveaux", self::VALEUR_INVALIDE, 'au moins un étage après le premier');
+        }
+        foreach ($niveaux as $k => $niveau) {
+            $position = "$ici.niveaux.$k";
+            if (($niveau = $this->enObjet($niveau, $position)) === null) {
+                continue;
+            }
+            $this->cles($niveau, $position, ['titre'], self::CLES_ETAGE);
+            $this->texte($niveau, 'titre', $position, nonVide: true, max: self::LONGUEUR_TITRE);
+            // Le niveau, validé comme une quête : une campagne où cette quête porte ses couches, refus ramenés à son chemin.
+            $faux = $document;
+            $faux['quetes'][$i] = self::etageEnQuete($quete, $niveau);
+            foreach ((new self($this->catalogue))->valider($faux) as $r) {
+                foreach (self::CLES_ETAGE as $cle) {
+                    if (str_starts_with($r['chemin'], "$chemin.$cle")) {
+                        $this->refuser($position.substr($r['chemin'], strlen($chemin)), $r['code'], $r['message']);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * La quête telle qu'elle se joue à cet étage : ses couches remplacées par celles du niveau (absentes : vides), sans `etages`.
+     * Point de passage unique — la validation et le moteur (`Classique\Etages`) la lisent.
+     *
+     * @param  array<string, mixed>  $quete
+     * @param  array<string, mixed>  $niveau
+     * @return array<string, mixed>
+     */
+    public static function etageEnQuete(array $quete, array $niveau): array
+    {
+        unset($quete['etages']);
+        foreach (self::CLES_ETAGE as $cle) {
+            $quete[$cle] = $niveau[$cle] ?? [];
+        }
+
+        return $quete;
+    }
+
     private function tournoi(array $quete, string $chemin): void
     {
         if (! array_key_exists('tournoi', $quete)) {

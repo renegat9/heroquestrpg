@@ -198,6 +198,8 @@ final class JournalCombat
         'magie_dissipee' => true,
         // Lot E2 (G0052 q. 13) : la Flamme de Zargon — le dé qui épargne ou consume la figure touchée.
         'flamme_de_zargon' => true,
+        // Lot E2 (G0052 q. 3) : la quête à étages — l'étage suivant se pose.
+        'etage' => true,
         // Lot TC4 : la vague suivante du tournoi (F9528 q. 1).
         'vague_tournoi' => true,
         // Lot E2 : le marché souterrain en pleine quête (F6646 p. 2).
@@ -1419,6 +1421,11 @@ final class JournalCombat
                 // Jamais vide : sans salle cachée habitée, `ActivationSalles::auTourDuMJ()` ne lance ni n'annonce rien.
                 'texte' => 'Zargon lance le dé ('.(int) ($a['de'] ?? 0).') : '
                     .implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) ($a['salles'] ?? []))),
+                'ton' => 'subit',
+            ]],
+            'etage' => [[
+                'texte' => 'Étage '.(int) ($a['numero'] ?? 2).' sur '.(int) ($a['total'] ?? 2).(($a['titre'] ?? '') !== '' ? ' : '.$a['titre'] : '')
+                    .' — la salle se transforme, de nouveaux adversaires se dressent',
                 'ton' => 'subit',
             ]],
             'flamme_de_zargon' => [[

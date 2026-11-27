@@ -251,48 +251,20 @@ final class CarteConstruite
             $occupees["{$c['x']},{$c['y']}"] = true;
         }
 
-        $catalogueMobilier = $this->catalogue->index('mobilier');
         $mobilier = [];
         foreach ($quete['mobilier'] as $meuble) {
-            $type = $catalogueMobilier[$meuble['slug']];
-            [$l, $h] = ValidationCampagne::empriseMeuble((int) $type->largeur, (int) $type->hauteur, (int) $meuble['rotation']);
-            $x = (int) $meuble['x'];
-            $y = (int) $meuble['y'];
-            $mobilier[] = [
-                'mobilier_id' => (int) $type->id, 'x' => $x, 'y' => $y, 'l' => $l, 'h' => $h,
-                // Un meuble de COULOIR (2026-11-20) n'a pas de salle : `null`, comme un mur magique posé en jeu.
-                'salle' => ($salleDuMeuble = self::interieurEn($salles, $x, $y)) === null ? null : $indexSalle[$salleDuMeuble],
-                // TOURNOI (lot TC5, F9528 p. 13) : un coffre se fouille « adjacent or diagonal » et tire la table 2d6 du
-                // tournoi (`ResolveurTour::tresorDuTournoi()`), comme ceux du hall de l'arène.
-                ...(is_array($quete['tournoi'] ?? null) && $type->nom === 'Coffre' ? ['diagonale' => true, 'tresor_tournoi' => true] : []),
-            ];
-            foreach (Grille::cellulesEmprise($x, $y, $l, $h) as $c) {
+            $entree = $this->meubleMoteur($meuble, ($salleDuMeuble = self::interieurEn($salles, (int) $meuble['x'], (int) $meuble['y'])) === null
+                ? null : $indexSalle[$salleDuMeuble], is_array($quete['tournoi'] ?? null));
+            $mobilier[] = $entree;
+            foreach (Grille::cellulesEmprise($entree['x'], $entree['y'], $entree['l'], $entree['h']) as $c) {
                 $occupees["{$c['x']},{$c['y']}"] = true;
             }
         }
 
-        $cataloguePieges = $this->catalogue->index('pieges');
         $pieges = [];
         foreach ($quete['pieges'] as $piege) {
-            $x = (int) $piege['x'];
-            $y = (int) $piege['y'];
-            $pieges[] = [
-                'x' => $x, 'y' => $y, 'piege_id' => (int) $cataloguePieges[$piege['slug']]->id,
-                'etat' => MoteurPieges::ETAT_CACHE,
-                // Lot K5d : les drapeaux de l'auteur, lus par `MoteurPieges::trouvable()` / `desarmable()`. Posés
-                // seulement quand ils valent true — jamais une clé `false` décorative.
-                ...(($piege['introuvable'] ?? false) === true ? ['introuvable' => true] : []),
-                ...(($piege['indesarmable'] ?? false) === true ? ['indesarmable' => true] : []),
-                // Lot E2 : un GOUFFRE sans fond (F5815 p. 4) — qui y tombe est perdu (`MoteurPieges::declencher()`).
-                ...(($piege['gouffre'] ?? false) === true ? ['gouffre' => true] : []),
-                // Lot E2 (F9528 p. 4) : la ZONE de l'auteur d'une lame balançoire (`MoteurPieges::declencherZone()`), et
-                // `par_note` — aucune case foulée ne la déclenche, seule une note (`declencher_piege`) : « It cannot be
-                // activated in any other way » (q. 7 A).
-                ...(is_array($piege['zone'] ?? null) ? ['zone' => array_values(array_map(
-                    fn ($c) => ['x' => (int) $c['x'], 'y' => (int) $c['y']], $piege['zone']))] : []),
-                ...(($piege['par_note'] ?? false) === true ? ['par_note' => true] : []),
-            ];
-            $occupees["$x,$y"] = true;
+            $pieges[] = $this->piegeMoteur($piege);
+            $occupees["{$piege['x']},{$piege['y']}"] = true;
         }
 
         $catalogueTerrain = $this->catalogue->index('terrain');
@@ -407,6 +379,57 @@ final class CarteConstruite
                     ? ['passage' => ['type' => $acces['passage']['type'], 'cases' => $acces['passage']['cases'], 'porte' => $acces['passage']['porte']]]
                     : []),
             ],
+        ];
+    }
+
+    /**
+     * Un meuble de l'auteur, dans la forme de la grille du moteur — point de passage unique : l'assemblage de la carte et
+     * l'étage suivant d'une quête à étages (`Classique\Etages`).
+     *
+     * @param  array<string, mixed>  $meuble  `{slug, x, y, rotation}` (validé)
+     * @return array<string, mixed>
+     */
+    public function meubleMoteur(array $meuble, ?int $salle, bool $tournoi = false): array
+    {
+        $type = $this->catalogue->index('mobilier')[$meuble['slug']];
+        [$l, $h] = ValidationCampagne::empriseMeuble((int) $type->largeur, (int) $type->hauteur, (int) $meuble['rotation']);
+
+        return [
+            'mobilier_id' => (int) $type->id, 'x' => (int) $meuble['x'], 'y' => (int) $meuble['y'], 'l' => $l, 'h' => $h,
+            // Un meuble de COULOIR (2026-11-20) n'a pas de salle : `null`, comme un mur magique posé en jeu.
+            'salle' => $salle,
+            // TOURNOI (lot TC5, F9528 p. 13) : un coffre se fouille « adjacent or diagonal » et tire la table 2d6 du
+            // tournoi (`ResolveurTour::tresorDuTournoi()`), comme ceux du hall de l'arène.
+            ...($tournoi && $type->nom === 'Coffre' ? ['diagonale' => true, 'tresor_tournoi' => true] : []),
+        ];
+    }
+
+    /**
+     * Un piège de l'auteur, dans la forme de la grille du moteur — point de passage unique (assemblage, étage suivant).
+     *
+     * @param  array<string, mixed>  $piege  (validé)
+     * @return array<string, mixed>
+     */
+    public function piegeMoteur(array $piege): array
+    {
+        $x = (int) $piege['x'];
+        $y = (int) $piege['y'];
+
+        return [
+            'x' => $x, 'y' => $y, 'piege_id' => (int) $this->catalogue->index('pieges')[$piege['slug']]->id,
+            'etat' => MoteurPieges::ETAT_CACHE,
+            // Lot K5d : les drapeaux de l'auteur, lus par `MoteurPieges::trouvable()` / `desarmable()`. Posés
+            // seulement quand ils valent true — jamais une clé `false` décorative.
+            ...(($piege['introuvable'] ?? false) === true ? ['introuvable' => true] : []),
+            ...(($piege['indesarmable'] ?? false) === true ? ['indesarmable' => true] : []),
+            // Lot E2 : un GOUFFRE sans fond (F5815 p. 4) — qui y tombe est perdu (`MoteurPieges::declencher()`).
+            ...(($piege['gouffre'] ?? false) === true ? ['gouffre' => true] : []),
+            // Lot E2 (F9528 p. 4) : la ZONE de l'auteur d'une lame balançoire (`MoteurPieges::declencherZone()`), et
+            // `par_note` — aucune case foulée ne la déclenche, seule une note (`declencher_piege`) : « It cannot be
+            // activated in any other way » (q. 7 A).
+            ...(is_array($piege['zone'] ?? null) ? ['zone' => array_values(array_map(
+                fn ($c) => ['x' => (int) $c['x'], 'y' => (int) $c['y']], $piege['zone']))] : []),
+            ...(($piege['par_note'] ?? false) === true ? ['par_note' => true] : []),
         ];
     }
 

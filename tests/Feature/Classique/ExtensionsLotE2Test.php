@@ -1080,3 +1080,61 @@ it('Flamme de Zargon : le coup qui porte se joue au dé contre deux chiffres ; l
     $derniere = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()->last(fn ($e) => ($e->payload['type'] ?? null) === 'flamme_de_zargon');
     expect($derniere->payload['nombres'])->toBe([4])->and($derniere->payload['eau'])->toBeTrue();
 });
+
+// ---------------------------------------------------------------- Prophecy of Telor : la quête à étages (q. 3)
+
+function etagesE2(array $niveaux = []): array
+{
+    return campagneE2([
+        'monstres' => [['slug' => 'orque', 'x' => 5, 'y' => 2]],
+        'mobilier' => [['slug' => 'table', 'x' => 4, 'y' => 4, 'rotation' => 0]],
+        'etages' => ['escalier' => [['x' => 2, 'y' => 4]], 'niveaux' => $niveaux ?: [[
+            'titre' => 'La réserve',
+            'monstres' => [['slug' => 'gobelin', 'x' => 5, 'y' => 3]],
+            'mobilier' => [['slug' => 'coffre', 'x' => 6, 'y' => 2, 'rotation' => 0]],
+            'notes' => [['repere' => 'B', 'quand' => ['declencheur' => 'mort', 'cible' => ['monstre' => 0]], 'alors' => [['effet' => 'drapeau', 'nom' => 'gobelin-tombe']]]],
+        ]]],
+    ]);
+}
+
+it('étages : chaque niveau se valide comme la quête, refus à son propre chemin ; pas de fin sur des figures', function () {
+    expect(codesE2(etagesE2()))->toBe([]);
+    $faux = app(ValidationCampagne::class)->valider(etagesE2([['titre' => 'X', 'monstres' => [['slug' => 'licorne', 'x' => 5, 'y' => 3]]]]));
+    expect(collect($faux)->pluck('chemin')->all())->toBe(['quetes.0.etages.niveaux.0.monstres.0.slug']);
+    $vaincre = etagesE2();
+    $vaincre['quetes'][0]['fin'] = ['type' => 'vaincre', 'cibles' => [0], 'libelle' => 'Vaincre.'];
+    expect(codesE2($vaincre))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+});
+
+it('étages : l\'étage vidé, tous remontés sur l\'escalier, le niveau suivant se pose — meubles, monstres, notes, annonce', function () {
+    $partie = partieE2($this, etagesE2());
+    $quete = $partie['quete']->fresh();
+    $etages = app(\App\Partie\Classique\Etages::class);
+    $orque = $quete->instancesMonstres()->firstOrFail();
+
+    // L'orque debout : rien ne se pose.
+    $quete->etatsPersonnages()->update(['position_x' => 2, 'position_y' => 4]);
+    expect($etages->apresMarche($partie['groupe'], $quete->fresh(), ['x' => 3, 'y' => 4], ['x' => 2, 'y' => 4]))->toBeNull();
+
+    $orque->update(['etat' => 'vaincu', 'pv_body' => 0]);
+    $quete->update(['tresors_fouilles' => ['0:'.$partie['heros']->id]]);
+    $annonce = $etages->apresMarche($partie['groupe'], $quete->fresh(), ['x' => 3, 'y' => 4], ['x' => 2, 'y' => 4]);
+    expect($annonce)->toMatchArray(['type' => 'etage', 'numero' => 2, 'total' => 2, 'titre' => 'La réserve'])
+        ->and(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($annonce, 'Zargon'))->pluck('texte')->first())->toStartWith('Étage 2 sur 2 : La réserve');
+
+    $quete = $quete->fresh();
+    $grille = $quete->carte->grille;
+    $nomsMeubles = collect($grille['mobilier'])->map(fn ($m) => \App\Models\Mobilier::find($m['mobilier_id'])->nom)->all();
+    expect($nomsMeubles)->toBe(['Coffre'])
+        ->and($quete->tresors_fouilles)->toBe([])
+        ->and(collect($quete->documentConstruit()['notes'])->pluck('repere')->all())->toBe(['B']);
+    $gobelin = \App\Partie\Classique\NotesDeQuete::figuresPosees($quete)->first();
+    expect($gobelin->monstre->nom_base)->toBe('Gobelin')->and((bool) $gobelin->revele)->toBeTrue();
+
+    // La note de l'étage vise SON monstre 0 : le gobelin.
+    app(\App\Partie\MoteurDegats::class)->infligerAMonstre($gobelin, 9, \App\Partie\MoteurDegats::SOURCE_PIEGE);
+    expect($quete->fresh()->aDrapeau('gobelin-tombe'))->toBeTrue();
+
+    // Plus d'étage : remonter ne pose plus rien.
+    expect($etages->apresMarche($partie['groupe'], $quete->fresh(), ['x' => 3, 'y' => 4], ['x' => 2, 'y' => 4]))->toBeNull();
+});

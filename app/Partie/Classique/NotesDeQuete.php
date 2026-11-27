@@ -179,14 +179,26 @@ final class NotesDeQuete
         if (! $quete->estConstruite()) {
             return null;
         }
-
-        // Les figures de l'auteur sont créées les premières, dans l'ordre du document, en une transaction
-        // (`DemarreurQueteConstruite`) : les N plus petits identifiants de la quête. Un errant, une apparition, une
-        // invocation naissent après.
-        $poses = count((array) ($quete->documentConstruit()['monstres'] ?? []));
-        $rang = $quete->instancesMonstres()->orderBy('id')->limit($poses)->pluck('id')->search($instance->id);
+        $rang = self::figuresPosees($quete)->pluck('id')->search($instance->id);
 
         return $rang === false ? null : (int) $rang;
+    }
+
+    /**
+     * Les figures POSÉES PAR L'AUTEUR, dans l'ordre de `quete.monstres` — point de passage unique de « l'index d'un monstre
+     * posé » (notes `mort` / `morts`, `retirer`, `eveiller`). Elles sont créées les premières, dans l'ordre du document, en
+     * une transaction (`DemarreurQueteConstruite`) : les N plus petits identifiants de la quête ; un errant, une apparition,
+     * une invocation naissent après. QUÊTE À ÉTAGES (lot E2) : à partir du premier identifiant de l'étage courant
+     * (`Classique\Etages`), dont les monstres ont remplacé ceux de la quête dans son document.
+     *
+     * @return \Illuminate\Support\Collection<int, InstanceMonstre>
+     */
+    public static function figuresPosees(Quete $quete): \Illuminate\Support\Collection
+    {
+        $poses = count((array) ($quete->documentConstruit()['monstres'] ?? []));
+
+        return $quete->instancesMonstres()->where('id', '>=', Etages::premierIdentifiant($quete))
+            ->orderBy('id')->limit($poses)->get()->values();
     }
 
     /**
@@ -228,8 +240,7 @@ final class NotesDeQuete
             if (! isset($contexte['monstre']) || ! in_array((int) $contexte['monstre'], $liste, true)) {
                 return false;
             }
-            $poses = $quete->instancesMonstres()->orderBy('id')
-                ->limit(count((array) ($quete->documentConstruit()['monstres'] ?? [])))->get()->values();
+            $poses = self::figuresPosees($quete);
 
             return collect($liste)->every(fn (int $i) => ($poses[$i] ?? null)?->etat !== 'actif');
         }
@@ -387,8 +398,7 @@ final class NotesDeQuete
      */
     private function effetRetirer(Quete $quete, array $effet, ?Personnage $heros): array
     {
-        $poses = $quete->instancesMonstres()->orderBy('id')
-            ->limit(count((array) ($quete->documentConstruit()['monstres'] ?? [])))->get()->values();
+        $poses = self::figuresPosees($quete);
         $retires = [];
         foreach (array_map('intval', (array) ($effet['monstres'] ?? [])) as $i) {
             $figure = $poses[$i] ?? null;
@@ -657,8 +667,7 @@ final class NotesDeQuete
      */
     private function effetEveiller(Quete $quete, array $effet, ?Personnage $heros): array
     {
-        $poses = count((array) ($quete->documentConstruit()['monstres'] ?? []));
-        $instances = $quete->instancesMonstres()->orderBy('id')->limit($poses)->get()->values();
+        $instances = self::figuresPosees($quete);
         $figures = collect((array) ($effet['monstres'] ?? []))
             ->map(fn ($i) => $instances->get((int) $i))
             ->filter(fn ($m) => $m !== null && $m->etat === 'actif');

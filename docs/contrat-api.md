@@ -6970,6 +6970,28 @@ Defend dice. Zargon may only call out one die number to stop that monster from b
   chiffre annoncé. Fil du sort : « X lance Eau de Guérison sur Y : la flamme vacille », puis l'annonce de la flamme.
 - Les PV du profil n'ont plus d'effet sur l'issue (« no Body Points ») ; `pv_body` reste ≥ 1 à la validation.
 
+### La quête à étages — `quete.etages` (lot E2, 2026-11-27)
+
+*Prophecy of Telor* q. 3 : « There are twelve levels. In this quest, only use the center room. The heroes begin each level
+on the stairway tile. […] They must clear the level of all monsters before they can move back onto the stairwell and up to
+the next level. Once all heroes are back on the stairwell, reset the room for the next level. » `Classique\Etages` :
+- `quete.etages {escalier: [{x, y}…], niveaux: [{titre, monstres?, mobilier?, pieges?, notes?}…]}` — les niveaux SUIVANTS (le
+  premier est la quête elle-même). Chaque niveau est validé comme la quête dont il remplace ces quatre couches
+  (`ValidationCampagne::etageEnQuete()`, point de passage unique, validation et moteur) : ses refus portent son chemin
+  (`quetes.N.etages.niveaux.K.monstres.0.slug`…). `escalier` : au moins une case ; `niveaux` : au moins un. Une quête à
+  étages ne finit pas sur `vaincre` (les figures changent d'un étage à l'autre) — `valeur_invalide` sur `fin.type`.
+- En jeu : quand un héros REMONTE sur une case de l'escalier (il n'y était pas), que plus aucune figure active ne se tient
+  sur le plateau et que tous les héros debout sont sur l'escalier, l'étage suivant se pose : les meubles et pièges de
+  l'étage d'avant quittent la grille, ceux du niveau arrivent ; ses monstres sont posés, vus d'emblée ; le document de la
+  quête prend ses couches (ses notes remplacent les précédentes et rejouent à neuf) ; les fouilles de trésor de la salle de
+  l'escalier s'effacent. L'index d'un monstre posé se compte dès le premier de l'étage (`NotesDeQuete::figuresPosees()`).
+  État durable : `quetes.drapeaux._etage {numero, premier_id}`.
+- Annonce `etage {numero, total, titre}` : « Étage 4 sur 12 : The Storeroom — la salle se transforme, de nouveaux
+  adversaires se dressent ».
+- Écart écrit : « Heroes must move off the stairway tile before they can perform any actions » n'est pas joué.
+- Écran : « Quête à étages » (bloc des livrets) — l'escalier, puis un titre par étage et ses quatre couches en JSON, de la
+  même forme que celles de la quête.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

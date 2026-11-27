@@ -814,7 +814,7 @@ function effetParDefaut(nom) {
             // Lot E2 (Prophecy of Telor) : le sort de Dread appris, l'Esprit, l'objet de remplacement.
             sort: (catalogues.value?.sorts_dread ?? []).find((sd) => sd.slug === 'eclair-de-chaos')?.slug ?? catalogues.value?.sorts_dread?.[0]?.slug ?? '',
             points: 1, par: catalogues.value?.objets?.[1]?.slug ?? '', des: 2, portes: [],
-            en: (catalogues.value?.monstres ?? []).find((m) => m.slug === 'orque')?.slug ?? catalogues.value?.monstres?.[0]?.slug ?? '', pv_body: 2 }[p] ?? '';
+            en: (couches.value.monstres ?? []).find((m) => m.slug === 'orque')?.slug ?? couches.value.monstres?.[0]?.slug ?? '', pv_body: 2 }[p] ?? '';
     }
     return effet;
 }
@@ -1699,19 +1699,52 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 </div>
                                 <div class="cst-ligne">
                                     <span class="cst-lbl" title="La première vague est celle des monstres posés ; les suivantes entrent sur la tuile du Defender.">Vagues suivantes :</span>
-                                    <button type="button" class="cst-btn ghost" @click="(quete.tournoi.vagues ??= []).push([{ slug: catalogues.monstres?.[0]?.slug ?? '' }])"><MSym n="add" :size="14" /> vague</button>
+                                    <button type="button" class="cst-btn ghost" @click="(quete.tournoi.vagues ??= []).push([{ slug: couches.monstres?.[0]?.slug ?? '' }])"><MSym n="add" :size="14" /> vague</button>
                                 </div>
                                 <div v-for="(vague, v) in (quete.tournoi.vagues ?? [])" :key="`vg${v}`" class="cst-ligne">
                                     <span class="cst-sous">Vague {{ v + 2 }} :</span>
                                     <span v-for="(fig, f) in vague" :key="`vf${v}-${f}`" class="cst-ligne">
                                         <select v-model="fig.slug" class="cst-input">
-                                            <option v-for="m in (catalogues.monstres ?? [])" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
+                                            <option v-for="m in (couches.monstres ?? [])" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
                                         </select>
                                         <input :value="fig.nom ?? ''" class="cst-input" placeholder="nom propre" @change="$event.target.value ? (fig.nom = $event.target.value) : delete fig.nom" />
                                         <button type="button" class="cst-icone" title="Retirer la figure" @click="vague.splice(f, 1); vague.length || quete.tournoi.vagues.splice(v, 1); quete.tournoi.vagues.length || delete quete.tournoi.vagues"><MSym n="close" :size="16" /></button>
                                     </span>
-                                    <button type="button" class="cst-icone" title="Ajouter une figure" @click="vague.push({ slug: catalogues.monstres?.[0]?.slug ?? '' })"><MSym n="add" :size="16" /></button>
+                                    <button type="button" class="cst-icone" title="Ajouter une figure" @click="vague.push({ slug: couches.monstres?.[0]?.slug ?? '' })"><MSym n="add" :size="16" /></button>
                                 </div>
+                            </template>
+                            <!-- Lot E2 (Prophecy of Telor q. 3) : la quête à étages — le premier étage est la quête elle-même. -->
+                            <div class="cst-ligne">
+                                <label class="cst-case" title="Une salle remontée étage après étage : l'étage vidé, tous les héros remontés sur l'escalier, le niveau suivant remplace les monstres, les meubles, les pièges et les notes de la quête.">
+                                    <input type="checkbox" :checked="!!quete.etages"
+                                        @change="$event.target.checked ? (quete.etages = { escalier: [{ ...quete.depart }], niveaux: [{ titre: 'Étage 2', monstres: [], mobilier: [], pieges: [], notes: [] }] }) : delete quete.etages" />
+                                    Quête à étages
+                                </label>
+                            </div>
+                            <template v-if="quete.etages">
+                                <div class="cst-ligne">
+                                    <span class="cst-lbl" title="Les cases où les héros remontent pour passer à l'étage suivant.">Escalier :</span>
+                                    <span v-for="(c, k) in quete.etages.escalier" :key="`es${k}`" class="cst-ligne">
+                                        <input v-model.number="c.x" type="number" class="cst-input cst-num" />
+                                        <input v-model.number="c.y" type="number" class="cst-input cst-num" />
+                                        <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(c, 'une case de l\'escalier')"><MSym n="pin_drop" :size="16" /></button>
+                                        <button v-if="quete.etages.escalier.length > 1" type="button" class="cst-icone" title="Retirer la case" @click="quete.etages.escalier.splice(k, 1)"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter une case" @click="quete.etages.escalier.push({ x: 0, y: 0 })"><MSym n="add" :size="16" /></button>
+                                </div>
+                                <div v-for="(niv, n) in quete.etages.niveaux" :key="`niv${n}`" class="cst-note">
+                                    <div class="cst-ligne">
+                                        <span class="cst-sous">Étage {{ n + 2 }} :</span>
+                                        <input v-model="niv.titre" class="cst-input" placeholder="titre de l'étage" />
+                                        <button type="button" class="cst-icone" title="Retirer l'étage" @click="quete.etages.niveaux.splice(n, 1)"><MSym n="close" :size="16" /></button>
+                                    </div>
+                                    <!-- Les couches de l'étage, même forme que celles de la quête (monstres, mobilier, pieges, notes), validées par le serveur. -->
+                                    <label v-for="cle in ['monstres', 'mobilier', 'pieges', 'notes']" :key="`nc${n}${cle}`" class="cst-large">{{ cle }} (JSON, même forme que la quête)
+                                        <textarea :value="JSON.stringify(niv[cle] ?? [], null, 1)" rows="2" class="cst-input cst-large"
+                                            @change="changerJsonEffets(niv, cle, $event.target.value)" />
+                                    </label>
+                                </div>
+                                <button type="button" class="cst-btn ghost" @click="quete.etages.niveaux.push({ titre: `Étage ${quete.etages.niveaux.length + 2}`, monstres: [], mobilier: [], pieges: [], notes: [] })"><MSym n="add" :size="14" /> étage</button>
                             </template>
                         </div>
 
@@ -1853,7 +1886,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         <label v-else-if="p === 'des' && effet.effet === 'avancer_sur_chemin'">Dés (le héros avance du total sur le chemin imposé) <input v-model.number="effet.des" type="number" min="1" max="4" class="cst-input cst-num" /></label>
                                         <label v-else-if="p === 'en'">changés en
                                             <select v-model="effet.en" class="cst-input">
-                                                <option v-for="m in (catalogues.monstres ?? [])" :key="`mt${m.slug}`" :value="m.slug">{{ m.nom }}</option>
+                                                <option v-for="m in (couches.monstres ?? [])" :key="`mt${m.slug}`" :value="m.slug">{{ m.nom }}</option>
                                             </select>
                                         </label>
                                         <span v-else-if="p === 'portes'" class="cst-ligne">
