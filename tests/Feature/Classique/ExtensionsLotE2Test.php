@@ -1138,3 +1138,56 @@ it('étages : l\'étage vidé, tous remontés sur l\'escalier, le niveau suivant
     // Plus d'étage : remonter ne pose plus rien.
     expect($etages->apresMarche($partie['groupe'], $quete->fresh(), ['x' => 3, 'y' => 4], ['x' => 2, 'y' => 4]))->toBeNull();
 });
+
+// ---------------------------------------------------------------- Prophecy of Telor : l'invocation de Melar (q. 7 à 11)
+
+it('invocation de Melar : le porteur rate son fardeau, Invocation d\'orques autour de lui, une fois par quête', function () {
+    $note = ['repere' => 'M', 'quand' => ['declencheur' => 'fardeau_rate', 'cible' => ['objet' => 'talisman-du-savoir-maudit']],
+        'alors' => [['effet' => 'invoquer', 'sort' => 'invocation-dorques']]];
+    $campagne = campagneE2(['notes' => [$note]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['notes' => [['repere' => 'X', 'quand' => $note['quand'],
+            'alors' => [['effet' => 'invoquer', 'sort' => 'boule-de-flammes'], ['effet' => 'invoquer', 'sort' => 'invocation-dorques', 'x' => 3]]]]])))
+        ->toBe([ValidationCampagne::VALEUR_INVALIDE, ValidationCampagne::VALEUR_INVALIDE]);
+
+    $partie = partieE2($this, $campagne);
+    $heros = $partie['heros'];
+    $heros->update(['pv_mind' => 12, 'pv_mind_max' => 12]); // deux dés sous 12 : le jet est raté
+    $maudit = \App\Models\Objet::where('nom', 'Talisman du Savoir maudit')->firstOrFail();
+    $heros->inventaire()->create(['objet_id' => $maudit->id, 'emplacement' => 'talisman', 'quantite' => 1]);
+    $quete = $partie['quete']->fresh();
+    $quete->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3]);
+
+    // Fardeau 1 + 1, puis le dé de l'invocation : 4 → cinq orques.
+    app()->instance(LanceurDes::class, new LanceurDeterministe([1, 1, 4, ...array_fill(0, 30, 1)]));
+    $fardeau = app(\App\Partie\MoteurFardeau::class)->debutDeTour($partie['groupe'], $quete, $heros->fresh(), $quete->etatsPersonnages()->firstOrFail());
+    expect($fardeau['perd_pv_body'])->toBeTrue();
+    $orques = $quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get();
+    expect($orques)->toHaveCount(5)
+        ->and($orques->pluck('monstre.nom_base')->unique()->all())->toBe(['Orque'])
+        ->and($orques->every(fn ($o) => abs($o->position_x - 3) + abs($o->position_y - 3) <= 3))->toBeTrue();
+
+    // Le fil de la note le dit.
+    $evenement = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()
+        ->first(fn ($e) => ($e->payload['type'] ?? null) === 'note_de_quete' && ($e->payload['repere'] ?? null) === 'M');
+    $lignes = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($evenement->payload, 'Albrecht'))->pluck('texte')->implode(' | ');
+    expect($lignes)->toContain("Sort de Dread : Invocation d'orques (dé : 4)")->toContain('5 Orque');
+
+    // Manche suivante, nouveau jet raté : Melar ne lance plus (« only once per quest »).
+    $quete->etatsPersonnages()->update(['capacites_tour' => null]);
+    app()->instance(LanceurDes::class, new LanceurDeterministe([1, 1, 6, ...array_fill(0, 30, 1)]));
+    app(\App\Partie\MoteurFardeau::class)->debutDeTour($partie['groupe'], $quete->fresh(), $heros->fresh(), $quete->etatsPersonnages()->firstOrFail());
+    expect($quete->instancesMonstres()->where('etat', 'actif')->count())->toBe(5);
+});
+
+it('invocation de Melar : près d\'une case donnée, les orques surgissent autour d\'elle, sans héros', function () {
+    $campagne = campagneE2(['notes' => [['repere' => 'E', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]],
+        'alors' => [['effet' => 'invoquer', 'sort' => 'invocation-dorques', 'x' => 8, 'y' => 3]]]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    app()->instance(LanceurDes::class, new LanceurDeterministe([2, ...array_fill(0, 30, 1)]));
+    app(\App\Partie\Classique\NotesDeQuete::class)->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 1]);
+    $orques = $partie['quete']->instancesMonstres()->where('etat', 'actif')->get();
+    expect($orques)->toHaveCount(4)
+        ->and($orques->every(fn ($o) => abs($o->position_x - 8) + abs($o->position_y - 3) <= 3))->toBeTrue();
+});

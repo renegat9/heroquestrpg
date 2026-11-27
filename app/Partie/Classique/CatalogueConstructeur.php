@@ -186,6 +186,9 @@ final class CatalogueConstructeur
                 'boites_de_cartes' => \App\Partie\Fouille\DeckFouille::BOITES_DE_CARTES,
                 // Lot E1 : les capacités qu'un profil d'auteur peut donner (`InstanceMonstre::CAPACITES_DE_PROFIL`).
                 'capacites_de_profil' => array_keys(\App\Models\InstanceMonstre::CAPACITES_DE_PROFIL),
+                // Lot E2 (*Prophecy of Telor*) : les sorts de Dread que l'effet de note `invoquer` accepte (`MoteurDread::invocationPure()`).
+                'sorts_d_invocation' => array_values(array_keys(array_filter($this->index('sorts_dread'),
+                    fn (Model $sort) => \App\Partie\MoteurDread::invocationPure($sort)))),
             ],
         ];
     }

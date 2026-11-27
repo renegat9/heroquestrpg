@@ -141,6 +141,8 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
                 ['effet' => 'metamorphoser', 'en' => 'orque', 'pv_body' => 2, 'sauf_declencheur' => true], ['effet' => 'rendre_forme']]],
         ['repere' => 'U', 'quand' => ['declencheur' => 'tous_aux_portes', 'cible' => ['portes' => [0, 1]]],
             'alors' => [['effet' => 'franchir_portes', 'portes' => [0, 1]]]],
+        ['repere' => 'V', 'quand' => ['declencheur' => 'fardeau_rate', 'cible' => ['objet' => 'talisman-du-savoir-maudit']],
+            'alors' => [['effet' => 'invoquer', 'sort' => 'invocation-dorques'], ['effet' => 'invoquer', 'sort' => 'invocation-dorques', 'x' => 8, 'y' => 3]]],
         // Lot E1 : les huit déclencheurs des extensions.
         ['repere' => 'L1', 'quand' => ['declencheur' => 'salle_videe', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'texte', 'texte' => 'Vide.']]],
         ['repere' => 'L2', 'quand' => ['declencheur' => 'morts', 'cible' => ['monstres' => [0, 1]]], 'alors' => [['effet' => 'texte', 'texte' => 'Tous tombés.']]],

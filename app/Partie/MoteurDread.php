@@ -5524,23 +5524,77 @@ final class MoteurDread
             }
 
             for ($n = 0; $n < (int) $nombre && isset($casesLibres[$i]); $n++, $i++) {
-                $case = $casesLibres[$i];
-                $sbire = InstanceMonstre::create([
-                    'quete_id' => $quete->id,
-                    'monstre_id' => $catalogue->id,
-                    'pv_body' => $catalogue->pv_body,
-                    'pv_mind' => $catalogue->pv_mind,
-                    'position_x' => $case['x'],
-                    'position_y' => $case['y'],
-                    'etat' => 'actif',
-                ]);
-                $this->reinitialiserUsagesInstance($sbire->setRelation('monstre', $catalogue), $quete);
-
-                $invoques[] = ['monstre' => $sbire->nomAffiche(), 'x' => $case['x'], 'y' => $case['y'], 'instance_id' => (int) $sbire->id];
+                $invoques[] = $this->poserSbire($quete, $catalogue, $casesLibres[$i]);
             }
         }
 
         return $invoques;
+    }
+
+    /**
+     * Le sort tire-t-il des figures NEUVES (une table ou un renfort fixe) ? Une réanimation relève des morts : ce n'en est pas
+     * une. Lu par la validation de l'effet de note `invoquer` et par la liste que l'écran du constructeur propose.
+     */
+    public static function invocationPure(SortDread $sort): bool
+    {
+        return $sort->type === Mot::TYPE_INVOCATION && data_get($sort->effet, 'reanime') === null;
+    }
+
+    /**
+     * Un sort d'INVOCATION lancé sans figure sur le plateau (lot E2, *Prophecy of Telor* q. 7 à 11 : Melar, l'esprit du
+     * talisman, « may immediately cast Summon Orcs ») : la MÊME table (`compositionInvoquee()`) et la même pose
+     * (`poserSbire()`) que le sort d'une figure, mais au plus près de la case (x, y) — `CaseLibre::proche()`, relu à
+     * chaque figure : celle qui vient de naître occupe sa case. Une figure sans place ne paraît pas.
+     *
+     * @return array{de: int|null, invoques: list<array{monstre: string, x: int, y: int, instance_id: int}>}
+     */
+    public function invoquerPres(Quete $quete, SortDread $sort, int $x, int $y): array
+    {
+        $fixe = (array) data_get($sort->effet, 'invoque', []);
+        $de = $fixe === [] ? $this->des->d6() : null;
+        $invoques = [];
+
+        foreach ($this->compositionInvoquee($sort, $de ?? 0) as $nom => $nombre) {
+            $catalogue = Monstre::query()->where('nom_base', $nom)->orderBy('id')->first();
+
+            if ($catalogue === null) {
+                continue;
+            }
+
+            for ($n = 0; $n < (int) $nombre; $n++) {
+                $case = CaseLibre::proche(FabriqueGrille::pour($quete->fresh()), $x, $y);
+
+                if ($case === null) {
+                    break 2; // plus aucune place alentour : le reste du renfort ne paraît pas
+                }
+
+                $invoques[] = $this->poserSbire($quete, $catalogue, $case);
+            }
+        }
+
+        return ['de' => $de, 'invoques' => $invoques];
+    }
+
+    /**
+     * Une créature invoquée, posée et réarmée — le seul endroit qui crée un sbire de sort d'invocation.
+     *
+     * @param  array{x: int, y: int}  $case
+     * @return array{monstre: string, x: int, y: int, instance_id: int}
+     */
+    private function poserSbire(Quete $quete, Monstre $catalogue, array $case): array
+    {
+        $sbire = InstanceMonstre::create([
+            'quete_id' => $quete->id,
+            'monstre_id' => $catalogue->id,
+            'pv_body' => $catalogue->pv_body,
+            'pv_mind' => $catalogue->pv_mind,
+            'position_x' => $case['x'],
+            'position_y' => $case['y'],
+            'etat' => 'actif',
+        ]);
+        $this->reinitialiserUsagesInstance($sbire->setRelation('monstre', $catalogue), $quete);
+
+        return ['monstre' => $sbire->nomAffiche(), 'x' => $case['x'], 'y' => $case['y'], 'instance_id' => (int) $sbire->id];
     }
 
     // ------------------------------------------------------------------

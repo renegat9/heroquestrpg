@@ -6,6 +6,7 @@ namespace App\Partie;
 
 use App\Engine\Des\LanceurDes;
 use App\Engine\MotsClesEquipement;
+use App\Engine\MotsClesQuete;
 use App\Events\SceneTable;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Evenement;
@@ -13,6 +14,8 @@ use App\Models\Groupe;
 use App\Models\Inventaire;
 use App\Models\Personnage;
 use App\Models\Quete;
+use App\Partie\Classique\CatalogueConstructeur;
+use App\Partie\Classique\NotesDeQuete;
 
 /**
  * LE FARDEAU DU PORTEUR — le jet automatique du début du tour d'un porteur d'objet maudit (Talisman du Savoir maudit,
@@ -124,6 +127,14 @@ final class MoteurFardeau
 
         $sequence = (int) Evenement::query()->where('groupe_id', $groupe->id)->max('sequence');
         broadcast(new SceneTable($groupe, $this->scenes->fardeau($payload, $porteur), $sequence));
+
+        // Lot E2 (*Prophecy of Telor*, q. 7 à 10) : « If the bearer of the talisman fails this dice roll, Melar may immediately
+        // cast Summon Orcs. » Le jet raté se SIGNALE, après son annonce ; la note de l'auteur dit ce qui suit (et `une_fois`
+        // tient le « only once per quest »). Hors d'une quête construite, `signaler()` ne joue rien.
+        if ($perd) {
+            app(NotesDeQuete::class)->signaler($quete->fresh(), MotsClesQuete::FARDEAU_RATE,
+                ['objet' => CatalogueConstructeur::slug((string) $ligne->objet->nom)], $porteur);
+        }
 
         return $payload;
     }

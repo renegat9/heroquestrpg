@@ -1039,6 +1039,13 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => "{$nom} : {$effet['objet']} devient {$effet['par']}", 'ton' => 'subit'];
                     }
                     break;
+                // Lot E2 (*Prophecy of Telor*, q. 7 à 11) : Melar lance un sort d'invocation.
+                case 'invoquer':
+                    $noms = collect((array) ($effet['invoques'] ?? []))->pluck('monstre');
+                    $lignes[] = ['texte' => 'Sort de Dread : '.($effet['sort'] ?? 'une invocation').(isset($effet['de']) ? ' (dé : '.(int) $effet['de'].')' : '').' — '
+                        .($noms->isEmpty() ? 'aucune place pour les figures, rien ne paraît' : 'surgissent : '.$noms->countBy()->map(fn (int $n, string $nom) => "{$n} {$nom}")->implode(', ')),
+                        'ton' => $noms->isEmpty() ? 'info' : 'subit'];
+                    break;
                 case 'ouvrir_porte':
                     // Lot K5a : une porte déjà ouverte ne se raconte pas.
                     if (! empty($effet['ouverte'])) {

@@ -937,6 +937,27 @@ final class NotesDeQuete
         return ['nom' => $heros->nom, 'sort' => (string) $sort->nom, 'appris' => app(TalismanDeTelor::class)->apprendre($heros, (string) $sort->nom)];
     }
 
+    /**
+     * Lot E2 (*Prophecy of Telor*, q. 7 à 11) — Melar lance un sort d'invocation : la table du sort, la pose au plus près de
+     * la case `{x, y}`, sinon du héros qui déclenche (le porteur du talisman). Ni case ni héros sur le plateau : rien ne paraît.
+     */
+    private function effetInvoquer(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $sort = $this->catalogue->index('sorts_dread')[(string) ($effet['sort'] ?? '')] ?? null;
+        $case = isset($effet['x'], $effet['y']) ? ['x' => (int) $effet['x'], 'y' => (int) $effet['y']] : null;
+
+        if ($case === null && $heros !== null) {
+            $etat = $quete->etatsPersonnages()->where('personnage_id', $heros->id)->whereNotNull('position_x')->first();
+            $case = $etat === null ? null : ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+        }
+
+        if ($sort === null || $case === null) {
+            return ['sort' => $sort?->nom, 'invoques' => []];
+        }
+
+        return ['sort' => (string) $sort->nom, ...app(\App\Partie\MoteurDread::class)->invoquerPres($quete, $sort, $case['x'], $case['y'])];
+    }
+
     /** Lot E2 (*Prophecy of Telor*, q. 10 G) — chaque héros de la quête oublie les sorts de Dread qu'une note lui a appris. */
     private function effetOublierSortsDread(Quete $quete, array $effet, ?Personnage $heros): array
     {

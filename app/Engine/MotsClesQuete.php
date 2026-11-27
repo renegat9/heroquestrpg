@@ -100,6 +100,12 @@ final class MotsClesQuete
     public const CAPTIF_LIBERE = 'captif_libere';
 
     /**
+     * Lot E2 (*Prophecy of Telor*, q. 7 à 10) — « If the bearer of the talisman fails this dice roll, Melar may immediately
+     * cast Summon Orcs » : le porteur de l'objet désigné vient de rater son jet de fardeau (`MoteurFardeau`).
+     */
+    public const FARDEAU_RATE = 'fardeau_rate';
+
+    /**
      * Déclencheur → les formes de `quand.cible` qu'il accepte, et qui le signale.
      *
      * - `salle` : l'`id` d'une salle du plateau ;
@@ -203,6 +209,11 @@ final class MotsClesQuete
             'cibles' => ['captif'],
             'signale_par' => 'ResolveurTour::resoudreLibererCaptif()',
             'libelle' => 'le captif est libéré',
+        ],
+        self::FARDEAU_RATE => [
+            'cibles' => ['objet'],
+            'signale_par' => 'MoteurFardeau::debutDeTour()',
+            'libelle' => 'le porteur de l\'objet rate son jet de fardeau',
         ],
     ];
 
@@ -342,6 +353,14 @@ final class MotsClesQuete
      */
     public const DECLENCHER_PIEGE = 'declencher_piege';
 
+    /**
+     * Lot E2 (*Prophecy of Telor*, q. 7 à 11) — Melar lance un sort d'INVOCATION de Dread (« Melar may immediately cast Summon
+     * Orcs ») : la table du sort tire les figures, posées au plus près du héros qui déclenche, ou de la case `{x, y}` (« The
+     * summoned Orcs may be placed in any vacant square in the room », q. 11 E). Le tirage et la pose sont ceux du sort
+     * lancé par une figure (`MoteurDread::invoquerPres()`).
+     */
+    public const INVOQUER = 'invoquer';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET];
 
@@ -389,6 +408,7 @@ final class MotsClesQuete
         self::REPUTATION => ['parametres' => ['jetons'], 'optionnels' => [], 'lecteur' => 'effetReputation', 'libelle' => 'gagner ou perdre des jetons de réputation'],
         self::OFFRE => ['parametres' => ['libelle', 'alors'], 'optionnels' => ['cout', 'groupe'], 'lecteur' => 'effetOffre', 'libelle' => 'proposer un choix (coût, effets)'],
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],
+        self::INVOQUER => ['parametres' => ['sort'], 'optionnels' => ['x', 'y'], 'lecteur' => 'effetInvoquer', 'libelle' => 'lancer un sort d\'invocation de Dread (les figures surgissent près du héros, ou de la case)'],
     ];
 
     /**

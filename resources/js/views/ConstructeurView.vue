@@ -812,7 +812,9 @@ function effetParDefaut(nom) {
             issues: [{ de: 1, a: 3, alors: [{ effet: 'texte', texte: '' }] }, { de: 4, a: 6, alors: [{ effet: 'texte', texte: '' }] }],
             parmi: (catalogues.value?.objets ?? []).slice(0, 2).map((o) => o.slug), mobilier: 0,
             // Lot E2 (Prophecy of Telor) : le sort de Dread appris, l'Esprit, l'objet de remplacement.
-            sort: (catalogues.value?.sorts_dread ?? []).find((sd) => sd.slug === 'eclair-de-chaos')?.slug ?? catalogues.value?.sorts_dread?.[0]?.slug ?? '',
+            sort: nom === 'invoquer'
+                ? ((vocab.value.sorts_d_invocation ?? []).includes('invocation-dorques') ? 'invocation-dorques' : (vocab.value.sorts_d_invocation ?? [])[0] ?? '')
+                : (catalogues.value?.sorts_dread ?? []).find((sd) => sd.slug === 'eclair-de-chaos')?.slug ?? catalogues.value?.sorts_dread?.[0]?.slug ?? '',
             points: 1, par: catalogues.value?.objets?.[1]?.slug ?? '', des: 2, portes: [],
             en: (couches.value.monstres ?? []).find((m) => m.slug === 'orque')?.slug ?? couches.value.monstres?.[0]?.slug ?? '', pv_body: 2 }[p] ?? '';
     }
@@ -1881,7 +1883,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         </select>
                                         <!-- Lot E2 (Prophecy of Telor) : le sort de Dread appris, l'Esprit du livret, l'objet de remplacement. -->
                                         <select v-else-if="p === 'sort'" v-model="effet.sort" class="cst-input">
-                                            <option v-for="sd in (catalogues.sorts_dread ?? [])" :key="sd.slug" :value="sd.slug">{{ sd.nom }}</option>
+                                            <option v-for="sd in (catalogues.sorts_dread ?? []).filter((x) => effet.effet !== 'invoquer' || (vocab.sorts_d_invocation ?? []).includes(x.slug))" :key="sd.slug" :value="sd.slug">{{ sd.nom }}</option>
                                         </select>
                                         <label v-else-if="p === 'des' && effet.effet === 'avancer_sur_chemin'">Dés (le héros avance du total sur le chemin imposé) <input v-model.number="effet.des" type="number" min="1" max="4" class="cst-input cst-num" /></label>
                                         <label v-else-if="p === 'en'">changés en
@@ -1971,6 +1973,17 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             <option value="groupe">partagé entre les héros vivants</option>
                                             <option value="par_heros">autant à chaque héros</option>
                                         </select>
+                                        <!-- Lot E2 (Prophecy of Telor) : l'invocation surgit près d'une case (« in the room », q. 11 E), sinon près du héros. -->
+                                        <template v-else-if="p === 'x' && effet.effet === 'invoquer'">
+                                            <label class="cst-case"><input type="checkbox" :checked="effet.x !== undefined"
+                                                @change="$event.target.checked ? Object.assign(effet, { x: 0, y: 0 }) : (delete effet.x, delete effet.y)" /> près d'une case (sinon, près du héros qui déclenche)</label>
+                                            <template v-if="effet.x !== undefined">
+                                                <input v-model.number="effet.x" type="number" min="0" class="cst-input cst-num" title="x" />
+                                                <input v-model.number="effet.y" type="number" min="0" class="cst-input cst-num" title="y" />
+                                                <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(effet, `l'invocation de la note ${note.repere}`)"><MSym n="pin_drop" :size="16" /></button>
+                                            </template>
+                                        </template>
+                                        <template v-else-if="p === 'y' && effet.effet === 'invoquer'" />
                                         <label v-else-if="p === 'groupe'">exclusive avec le groupe <input :value="effet.groupe ?? ''" class="cst-input" placeholder="(seule)" @change="$event.target.value.trim() ? (effet.groupe = $event.target.value.trim()) : delete effet.groupe" /></label>
                                         <!-- Lot K5h : `campagne` est un booléen — posé seulement quand il vaut true. -->
                                         <label v-else-if="p === 'campagne'" class="cst-case">

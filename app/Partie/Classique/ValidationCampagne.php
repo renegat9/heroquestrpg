@@ -1215,6 +1215,19 @@ final class ValidationCampagne
                         "« {$sort->nom} » ne se lance pas par un héros : seuls un rayon à dégâts fixes ou un sort de salle le peuvent");
                 }
                 break;
+            // Lot E2 (*Prophecy of Telor*, q. 7 à 11) : Melar lance un sort d'invocation — une table d'invocation, pas une réanimation.
+            case MotsClesQuete::INVOQUER:
+                $slug = $this->slugCatalogue($effet, 'sort', $position, 'sorts_dread');
+                $sort = $slug === null ? null : ($this->catalogue->index('sorts_dread')[$slug] ?? null);
+                if ($sort !== null && ! \App\Partie\MoteurDread::invocationPure($sort)) {
+                    $this->refuser("$position.sort", self::VALEUR_INVALIDE, "« {$sort->nom} » n'est pas un sort d'invocation (Invocation d'orques, de morts-vivants…)");
+                }
+                if (array_key_exists('x', $effet) !== array_key_exists('y', $effet)) {
+                    $this->refuser($position, self::VALEUR_INVALIDE, 'la case se donne entière (x et y), ou pas du tout : les figures surgissent alors près du héros');
+                } elseif (array_key_exists('x', $effet)) {
+                    $this->caseDArrivee($effet, $position, 'une figure invoquée');
+                }
+                break;
             case MotsClesQuete::AVANCER_SUR_CHEMIN:
                 $this->entier($effet, 'des', $position, min: 1);
                 if (is_int($effet['des'] ?? null) && $effet['des'] > 4) {

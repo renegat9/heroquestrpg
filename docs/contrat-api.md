@@ -6992,6 +6992,23 @@ the next level. Once all heroes are back on the stairwell, reset the room for th
 - Écran : « Quête à étages » (bloc des livrets) — l'escalier, puis un titre par étage et ses quatre couches en JSON, de la
   même forme que celles de la quête.
 
+### L'invocation de Melar — déclencheur `fardeau_rate`, effet `invoquer` (lot E2, 2026-11-27)
+
+*Prophecy of Telor* q. 7 à 10 : « The Talisman Bearer's Burden remains active during this quest. If the bearer of the
+talisman fails this dice roll, Melar may immediately cast Summon Orcs. The summoned monsters are controlled by Zargon as
+usual. Melar may only cast this spell once per quest. » ; q. 11 E : « The summoned Orcs may be placed in any vacant square
+in the room. »
+- Déclencheur **`fardeau_rate`**, cible `{objet: slug}` : le porteur de cet objet vient de rater son jet de fardeau
+  (`MoteurFardeau::debutDeTour()`, après l'annonce du jet). Le héros qui déclenche est le porteur. `une_fois` (par défaut)
+  tient le « once per quest » ; le « may » est tranché : Zargon lance toujours.
+- Effet **`invoquer {sort, x?, y?}`** : un sort de Dread d'invocation (`MoteurDread::invocationPure()` : une table ou un
+  renfort fixe, jamais une réanimation — `valeur_invalide` sinon), lancé sans figure. La table du sort tire les figures
+  (`MoteurDread::invoquerPres()`, mêmes tirage et pose que le sort d'une figure) ; elles surgissent au plus près de la case
+  `{x, y}` si elle est donnée (x et y ensemble, `valeur_invalide` sinon), sinon du héros qui déclenche (`CaseLibre::proche()`,
+  jamais derrière un mur, rayon 3 au plus : une figure sans place ne paraît pas). Elles jouent au tour de Zargon.
+- Annonce, dans la note : « Sort de Dread : Invocation d'orques (dé : 4) — surgissent : 4 Orque ».
+- Catalogue publié : `vocabulaires.sorts_d_invocation` (slugs) — l'écran ne propose que ceux-là pour `invoquer`.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le
