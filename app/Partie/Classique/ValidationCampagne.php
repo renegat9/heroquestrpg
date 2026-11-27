@@ -150,7 +150,7 @@ final class ValidationCampagne
         'ramener' => ['type', 'libelle'],
     ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'captif', 'dangers', 'double', 'glyphes', 'salles_speciales', 'coffres_pieges', 'tournoi', 'etages'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'captif', 'dangers', 'double', 'glyphes', 'salles_speciales', 'coffres_pieges', 'tournoi', 'etages', 'gestes'];
     /** Lot E1 (2026-11-22) : le coffre piégé de l'auteur, `Classique\CoffresPieges`. */
     private const CLES_COFFRE_PIEGE_OPTIONNELLES = ['piege', 'degats', 'toute_la_salle'];
     /**
@@ -911,6 +911,9 @@ final class ValidationCampagne
             }
         }
 
+        // GESTES DE QUÊTE (lot E2) : leurs conditions se lisent comme celles d'une note, leurs effets posent des drapeaux.
+        $lus += $this->gestes($quete, $chemin);
+
         // OFFRES (lot K6) : les drapeaux que posent les effets d'une offre acceptée comptent aussi.
         $poses += $this->posesDOffres;
         $this->posesDOffres = [];
@@ -930,6 +933,78 @@ final class ValidationCampagne
         }
 
         return $poses;
+    }
+
+    /**
+     * `quete.gestes[]` (lot E2, *Spirit Queen's Torment* q. 7 D, 8 B — `Classique\GestesDeQuete`) : `{libelle, salle,
+     * par_heros?, si_drapeau?, sauf_drapeau?, alors | choix: [{libelle, alors}]}`. Une salle ouverte ; `alors` OU `choix`
+     * (au moins deux), jamais les deux. Les drapeaux posés par leurs effets rejoignent ceux des offres. Rend les drapeaux
+     * lus (nom → chemin), vérifiés avec ceux des notes.
+     *
+     * @return array<string, string>
+     */
+    private function gestes(array $quete, string $chemin): array
+    {
+        $lus = [];
+        foreach ($this->enListeDe($quete, 'gestes', $chemin) as $i => $valeur) {
+            $ici = self::chemin($chemin, 'gestes').".$i";
+            if (($geste = $this->enObjet($valeur, $ici)) === null) {
+                continue;
+            }
+            $this->cles($geste, $ici, ['libelle', 'salle'], ['par_heros', 'si_drapeau', 'sauf_drapeau', 'alors', 'choix']);
+            $this->texte($geste, 'libelle', $ici, nonVide: true, max: 120);
+            if (! is_string($geste['salle'] ?? null) || ($this->ouvertesFiables && ! isset($this->ouvertes[$geste['salle']]))) {
+                $this->refuser("$ici.salle", self::SALLE_INCONNUE, 'une salle ouverte de la quête est attendue');
+            }
+            if (array_key_exists('par_heros', $geste) && ! is_bool($geste['par_heros'])) {
+                $this->refuser("$ici.par_heros", self::TYPE_INVALIDE, 'true ou false est attendu');
+            }
+            foreach (['si_drapeau', 'sauf_drapeau'] as $cleCondition) {
+                if (($drapeau = $this->nomDeDrapeau($geste, $cleCondition, $ici)) !== null) {
+                    $lus[$drapeau] ??= "$ici.$cleCondition";
+                }
+            }
+            if (array_key_exists('alors', $geste) === array_key_exists('choix', $geste)) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'un geste a ses effets (`alors`) OU ses choix (`choix`), l\'un des deux');
+
+                continue;
+            }
+            $listes = [];
+            if (array_key_exists('alors', $geste)) {
+                $listes["$ici.alors"] = $geste['alors'];
+            } else {
+                $choix = $this->enListeDe($geste, 'choix', $ici);
+                if (count($choix) < 2) {
+                    $this->refuser("$ici.choix", self::VALEUR_INVALIDE, 'au moins deux choix : un seul, c\'est `alors`');
+                }
+                foreach ($choix as $k => $unChoix) {
+                    if (($c = $this->enObjet($unChoix, "$ici.choix.$k")) === null) {
+                        continue;
+                    }
+                    $this->cles($c, "$ici.choix.$k", ['libelle', 'alors']);
+                    $this->texte($c, 'libelle', "$ici.choix.$k", nonVide: true, max: 120);
+                    $listes["$ici.choix.$k.alors"] = $c['alors'] ?? null;
+                }
+            }
+            foreach ($listes as $ou => $effets) {
+                $effets = $this->enListe($effets, $ou);
+                if ($effets === []) {
+                    $this->refuser($ou, self::VALEUR_INVALIDE, 'au moins un effet');
+                }
+                foreach ((array) $effets as $k => $effet) {
+                    if (is_array($effet) && ($effet['effet'] ?? null) === MotsClesQuete::OFFRE) {
+                        $this->refuser("$ou.$k", self::VALEUR_INVALIDE, 'un geste ne déclare pas d\'offre : ses choix en tiennent lieu');
+
+                        continue;
+                    }
+                    if (($drapeau = $this->effetDeNote($effet, "$ou.$k", $quete)) !== null) {
+                        $this->posesDOffres[$drapeau] = true;
+                    }
+                }
+            }
+        }
+
+        return $lus;
     }
 
     /** La cible d'une note : UNE clé, parmi celles que son déclencheur accepte, et qui désigne quelque chose de posé. */
@@ -1202,8 +1277,10 @@ final class ValidationCampagne
                         $this->refuser("$position.$cleJet", self::VALEUR_INVALIDE, 'doit être entre 1 et 6');
                     }
                 }
-                if (array_key_exists('toute_la_salle', $effet) && ! is_bool($effet['toute_la_salle'])) {
-                    $this->refuser("$position.toute_la_salle", self::TYPE_INVALIDE, 'true ou false est attendu');
+                foreach (['toute_la_salle', 'tous_les_heros'] as $cleCibles) {
+                    if (array_key_exists($cleCibles, $effet) && ! is_bool($effet[$cleCibles])) {
+                        $this->refuser("$position.$cleCibles", self::TYPE_INVALIDE, 'true ou false est attendu');
+                    }
                 }
                 break;
             // Lot E2 (*Prophecy of Telor*) : le talisman — sort appris, Esprit du livret, objet changé en un autre.
@@ -1213,6 +1290,17 @@ final class ValidationCampagne
                 if ($sort !== null && ! \App\Partie\SortsDreadPorteur::jouable($sort)) {
                     $this->refuser("$position.sort", self::VALEUR_INVALIDE,
                         "« {$sort->nom} » ne se lance pas par un héros : seuls un rayon à dégâts fixes ou un sort de salle le peuvent");
+                }
+                break;
+            // Lot E2 (*Spirit Queen's Torment*, q. 8 B) : un nombre de points, ou « tout » ; au moins l'un des deux.
+            case MotsClesQuete::SOIGNER:
+                foreach (['body', 'mind'] as $jauge) {
+                    if (array_key_exists($jauge, $effet) && $effet[$jauge] !== 'tout' && (! is_int($effet[$jauge]) || $effet[$jauge] < 1)) {
+                        $this->refuser("$position.$jauge", self::VALEUR_INVALIDE, 'un nombre de points (au moins 1), ou « tout »');
+                    }
+                }
+                if (! array_key_exists('body', $effet) && ! array_key_exists('mind', $effet)) {
+                    $this->refuser($position, self::VALEUR_INVALIDE, 'le Corps, l\'Esprit, ou les deux : un soin sans jauge ne fait rien');
                 }
                 break;
             // Lot E2 (*Prophecy of Telor*, q. 7 à 11) : Melar lance un sort d'invocation — une table d'invocation, pas une réanimation.

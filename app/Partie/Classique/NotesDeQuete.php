@@ -754,8 +754,12 @@ final class NotesDeQuete
 
         // Lot K5o (*Belorn's Mine*, q. 8 note A ; *Grin's Crag*, q. 10 note A) : `toute_la_salle: true` blesse tous les
         // héros debout présents dans la même salle que le héros qui déclenche.
-        if (! empty($effet['toute_la_salle'])) {
-            $cibles = $this->herosDansMemeSalle($quete, $heros);
+        // Lot E2 (*Spirit Queen's Torment*, q. 7 D : « bolts of lightning strike each hero ») : `tous_les_heros` — chaque héros
+        // debout de la quête, où qu'il soit.
+        if (! empty($effet['toute_la_salle']) || ! empty($effet['tous_les_heros'])) {
+            $cibles = ! empty($effet['tous_les_heros'])
+                ? $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get()->pluck('personnage')->filter()->values()->all()
+                : $this->herosDansMemeSalle($quete, $heros);
             $total = 0;
             $touches = [];
             foreach ($cibles as $cible) {
@@ -935,6 +939,21 @@ final class NotesDeQuete
         }
 
         return ['nom' => $heros->nom, 'sort' => (string) $sort->nom, 'appris' => app(TalismanDeTelor::class)->apprendre($heros, (string) $sort->nom)];
+    }
+
+    /** Lot E2 (*Spirit Queen's Torment*, q. 8 B) — le héros récupère du Corps et/ou de l'Esprit, jusqu'au maximum. */
+    private function effetSoigner(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        if ($heros === null) {
+            return ['body' => 0, 'mind' => 0];
+        }
+        $heros->refresh();
+        $gain = static fn (mixed $voulu, int $actuel, int $max): int => max(0, min($max - $actuel, $voulu === 'tout' ? $max : (int) $voulu));
+        $body = $gain($effet['body'] ?? 0, (int) $heros->pv_body, (int) $heros->pv_body_max);
+        $mind = $gain($effet['mind'] ?? 0, (int) $heros->pv_mind, (int) $heros->pv_mind_max);
+        $heros->update(['pv_body' => (int) $heros->pv_body + $body, 'pv_mind' => (int) $heros->pv_mind + $mind]);
+
+        return ['nom' => $heros->nom, 'body' => $body, 'mind' => $mind];
     }
 
     /** Lot E2 (*Prophecy of Telor*, q. 2 A) — des figures rejoignent la zone hors du plateau (`ReserveHorsPlateau`). */

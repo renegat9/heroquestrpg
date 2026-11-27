@@ -1317,3 +1317,71 @@ it('salle en contrebas : la galerie voit la salle par-dessus le mur ; le héros 
     $etat->update(['position_x' => 12, 'position_y' => 1, 'a_deplace' => false]);
     expect(app(\App\Partie\Classique\SalleEnContrebas::class)->sauts($quete->fresh(), $etat->fresh()))->toBe([]);
 });
+
+// ---------------------------------------------------------------- Spirit Queen's Torment : les gestes de quête (q. 7 D, 8 B)
+
+function gestesE2(array $gestes, array $notes = []): array
+{
+    return campagneE2(['gestes' => $gestes, 'notes' => $notes]);
+}
+
+it('gestes : alors OU choix, une salle ouverte, des effets ; le soin veut une jauge', function () {
+    $feu = ['libelle' => 'Se réchauffer au feu spectral', 'salle' => 'entree', 'par_heros' => true, 'alors' => [['effet' => 'soigner', 'mind' => 'tout']]];
+    expect(codesE2(gestesE2([$feu])))->toBe([])
+        ->and(codesE2(gestesE2([[...$feu, 'choix' => [['libelle' => 'a', 'alors' => [['effet' => 'texte', 'texte' => 'a']]]]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE2(gestesE2([['libelle' => 'x', 'salle' => 'entree', 'choix' => [['libelle' => 'a', 'alors' => [['effet' => 'texte', 'texte' => 'a']]]]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE2(gestesE2([[...$feu, 'salle' => 'crypte']])))->toBe([ValidationCampagne::SALLE_INCONNUE])
+        ->and(codesE2(gestesE2([[...$feu, 'alors' => [['effet' => 'soigner']]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE2(gestesE2([[...$feu, 'sauf_drapeau' => 'jamais']])))->toBe([ValidationCampagne::DRAPEAU_JAMAIS_POSE]);
+});
+
+it('gestes : la cheminée rend tout l\'Esprit, une fois par héros, pour une action', function () {
+    $partie = partieE2($this, gestesE2([['libelle' => 'Se réchauffer au feu spectral', 'salle' => 'entree', 'par_heros' => true,
+        'alors' => [['effet' => 'soigner', 'mind' => 'tout']]]]));
+    $partie['heros']->update(['pv_mind_max' => 4, 'pv_mind' => 1]);
+    $etat = $partie['quete']->etatsPersonnages()->firstOrFail();
+    $etat->update(['position_x' => 3, 'position_y' => 3]);
+    $menu = function () use ($partie) {
+        \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+
+        return collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'));
+    };
+
+    expect($menu()->firstWhere('id', 'geste_0')['libelle'] ?? null)->toBe('Se réchauffer au feu spectral');
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'geste_0'])->assertAccepted();
+    expect((int) $partie['heros']->fresh()->pv_mind)->toBe(4)->and((bool) $etat->fresh()->a_agi)->toBeTrue();
+    $lignes = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()->pluck('payload')
+        ->filter(fn ($p) => in_array($p['type'] ?? null, ['geste_de_quete', 'note_de_quete'], true) && isset($p['nom']) || ($p['repere'] ?? null) === 'geste')
+        ->flatMap(fn ($p) => app(\App\Partie\JournalCombat::class)->depuisResultat($p, 'Albrecht'))->pluck('texte')->implode(' | ');
+    expect($lignes)->toContain('Albrecht — Se réchauffer au feu spectral')->toContain('Albrecht récupère 3 point(s) d\'Esprit');
+
+    // Une fois par héros : plus offert, même au tour suivant.
+    $etat->update(['a_agi' => false, 'a_joue' => false]);
+    expect($menu()->firstWhere('id', 'geste_0'))->toBeNull();
+});
+
+it('gestes : l\'énigme des coffres — un mauvais ordre frappe tous les héros et laisse réessayer, le bon la ferme', function () {
+    $partie = partieE2($this, gestesE2([['libelle' => 'Poser les gemmes', 'salle' => 'entree', 'sauf_drapeau' => 'enigme_resolue', 'choix' => [
+        ['libelle' => 'rubis, améthyste, émeraude', 'alors' => [['effet' => 'degats', 'body' => 2, 'tous_les_heros' => true]]],
+        ['libelle' => 'rubis, émeraude, améthyste', 'alors' => [['effet' => 'drapeau', 'nom' => 'enigme_resolue'], ['effet' => 'texte', 'texte' => 'Un esprit orque se lève.']]],
+    ]]]));
+    $etat = $partie['quete']->etatsPersonnages()->firstOrFail();
+    $etat->update(['position_x' => 3, 'position_y' => 3]);
+    $pv = (int) $partie['heros']->fresh()->pv_body;
+    $choisir = function (string $id) use ($partie, $etat) {
+        $etat->refresh()->update(['a_agi' => false, 'a_joue' => false]);
+        \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+        $ids = collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id');
+        if ($ids->contains($id)) {
+            $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => $id])->assertAccepted();
+        }
+
+        return $ids;
+    };
+
+    expect($choisir('geste_0_0'))->toContain('geste_0_1');
+    expect((int) $partie['heros']->fresh()->pv_body)->toBe($pv - 2);
+    expect($choisir('geste_0_1'))->toContain('geste_0_0'); // l'énigme est restée ouverte après l'erreur
+    expect($partie['quete']->fresh()->aDrapeau('enigme_resolue'))->toBeTrue()
+        ->and($choisir('rien'))->not->toContain('geste_0_0');
+});

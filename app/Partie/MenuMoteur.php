@@ -3192,6 +3192,18 @@ final class MenuMoteur
                     ];
                 }
             }
+            // GESTES DE QUÊTE (lot E2, Spirit Queen q. 7 D, 8 B) : l'action que l'auteur offre dans la salle — un par choix
+            // (`Classique\GestesDeQuete::disponibles()`, que le résolveur relit).
+            if (! $actionInterdite) {
+                foreach (app(\App\Partie\Classique\GestesDeQuete::class)->disponibles($quete, $personnage, $etat) as $geste) {
+                    $options[] = [
+                        'id' => 'geste_'.$geste['geste'].($geste['choix'] === null ? '' : '_'.$geste['choix']),
+                        'libelle' => $geste['libelle'],
+                        'type' => 'geste_de_quete',
+                        'parametres' => ['geste' => $geste['geste'], 'choix' => $geste['choix']],
+                    ];
+                }
+            }
             // PLANQUE (lot E2) : « As an action once per quest while in the hideout, each hero may roll one red die ».
             if (! $actionInterdite && app(\App\Partie\Classique\Planque::class)->soinDisponible($quete, $personnage, $etat)) {
                 $options[] = [

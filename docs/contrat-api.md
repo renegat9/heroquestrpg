@@ -7051,6 +7051,28 @@ can see any miniature in the altar room and vice versa. A hero may jump into the
   pv_body_perdus, tombe}` : « Albrecht saute dans la salle en contrebas et perd 1 point(s) de Corps ».
 - Écart écrit : le saut prend tout le déplacement du tour, comme la descente dans une fosse. Les monstres ne sautent pas.
 
+### Les gestes de quête — `quete.gestes`, option `geste_de_quete`, effet `soigner` (lot E2, 2026-11-27)
+
+*Spirit Queen's Torment* q. 8 B : « The fireplace glows with spectral blue flames. Any hero can spend an action here to
+restore all of their lost Mind Points. Each hero can benefit from this effect only once. » ; q. 7 D : trois gemmes dans
+l'ordre de l'arc-en-ciel, « If done incorrectly, bolts of lightning strike each hero, inflicting 2 Body Points of damage. »
+`Classique\GestesDeQuete` :
+- `quete.gestes[]` : `{libelle, salle, par_heros?, si_drapeau?, sauf_drapeau?, alors | choix: [{libelle, alors}…]}` — une salle
+  ouverte (`salle_inconnue`) ; `alors` OU `choix` (au moins deux), jamais les deux ni aucun (`valeur_invalide`) ; pas d'`offre`
+  dedans. Les drapeaux qu'ils posent valent pour les notes ; leurs `si_drapeau`/`sauf_drapeau` doivent être posés quelque part
+  (`drapeau_jamais_pose`).
+- Menu : une option par geste (ou par choix), `id: geste_{i}` / `geste_{i}_{k}`, `type: geste_de_quete`, `parametres {geste,
+  choix}`, libellé « {libelle} » ou « {libelle} : {libelle du choix} ». Offerte à un héros debout DANS la salle, qui n'a pas agi
+  (créneau `action`) ; `par_heros` : une fois par héros ; `si_drapeau` / `sauf_drapeau` : la disponibilité. Le résolveur
+  relit la liste (422 sinon). État : `quetes.drapeaux._gestes {index: [personnage_id…]}`.
+- Les effets se jouent comme ceux d'une note (`NotesDeQuete::jouerEffets()`, repère « geste »). Annonce `geste_de_quete {nom,
+  libelle, note}` : « Albrecht — Se réchauffer au feu spectral », puis les lignes de la note.
+- L'énigme : un `choix` par ordre ; le bon pose un drapeau, que le geste lit en `sauf_drapeau` ; les mauvais frappent
+  (`degats {body: 2, tous_les_heros: true}`). Réessai permis (René, 2026-11-27) : chaque essai est une action.
+- Effet **`soigner {body?, mind?}`** : un nombre (≥ 1) ou `tout`, au moins l'un des deux ; jamais au-delà du maximum.
+  Ligne : « Albrecht récupère 3 point(s) d'Esprit ».
+- `degats.tous_les_heros: true` : chaque héros debout de la quête, où qu'il soit.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

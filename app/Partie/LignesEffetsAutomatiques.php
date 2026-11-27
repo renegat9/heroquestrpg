@@ -1039,6 +1039,14 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => "{$nom} : {$effet['objet']} devient {$effet['par']}", 'ton' => 'subit'];
                     }
                     break;
+                // Lot E2 (*Spirit Queen's Torment*, q. 8 B) : le soin d'une note.
+                case 'soigner':
+                    $parts = array_filter([(int) ($effet['body'] ?? 0) > 0 ? (int) $effet['body'].' point(s) de Corps' : null,
+                        (int) ($effet['mind'] ?? 0) > 0 ? (int) $effet['mind'].' point(s) d\'Esprit' : null]);
+                    $lignes[] = $parts !== []
+                        ? ['texte' => ($effet['nom'] ?? $heros).' récupère '.implode(' et ', $parts), 'ton' => 'succes']
+                        : ['texte' => ($effet['nom'] ?? $heros).' n\'a rien à récupérer', 'ton' => 'info'];
+                    break;
                 // Lot E2 (*Prophecy of Telor*, q. 2 A) : des figures gagnent la zone hors du plateau.
                 case 'en_reserve':
                     if ((array) ($effet['monstres'] ?? []) !== []) {

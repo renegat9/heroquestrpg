@@ -241,6 +241,8 @@ final class JournalCombat
         // RÉPUTATION (lot K6) : gagnée en fin de quête, dépensée (offre, embauche) ; une offre acceptée.
         'reputation' => true,
         'offre_prise' => true,
+        // GESTES DE QUÊTE (lot E2, G0053 q. 7 D, 8 B) : l'action de l'auteur ; ses effets s'annoncent comme une note.
+        'geste_de_quete' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1345,6 +1347,10 @@ final class JournalCombat
                 'texte' => ((int) ($a['variation'] ?? 0) > 0 ? 'Le groupe gagne ' : 'Le groupe dépense ').abs((int) ($a['variation'] ?? 0))
                     .' jeton(s) de réputation (total : '.(int) ($a['total'] ?? 0).')',
                 'ton' => (int) ($a['variation'] ?? 0) > 0 ? 'succes' : 'info',
+            ]],
+            'geste_de_quete' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' — '.($a['libelle'] ?? 'un geste'),
+                'ton' => 'info',
             ]],
             'offre_prise' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' accepte : '.($a['libelle'] ?? 'l\'offre'),

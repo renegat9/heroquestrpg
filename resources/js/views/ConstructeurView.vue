@@ -720,6 +720,7 @@ const LIBELLES_PARAM = { texte: 'Texte lu', or: 'Or', body: 'Points de Corps', s
 // exige un booléen : un champ numérique les rendait refusés).
 const BOOLEENS_EFFET = {
     toute_la_salle: 'tous les héros de sa salle',
+    tous_les_heros: 'tous les héros de la quête',
     nombre_d6: 'seuls les 1d6 premiers paraissent',
     si_absent_du_groupe: 'seulement si personne ne l\'a déjà',
     sauf_declencheur: 'sauf le héros qui déclenche',
@@ -874,6 +875,22 @@ function basculerCartesTresor(boite, avec) {
     const liste = (doc.value.cartes_tresor ?? []).filter((b) => b !== boite);
     if (avec) liste.push(boite);
     if (liste.length) doc.value.cartes_tresor = liste; else delete doc.value.cartes_tresor;
+}
+// Lot E2 (Spirit Queen) : les gestes de quête — la clé disparaît quand la liste est vide ; `alors` OU `choix`, décidé par le JSON.
+function ajouterGeste() {
+    if (!Array.isArray(quete.value.gestes)) quete.value.gestes = [];
+    quete.value.gestes.push({ libelle: '', salle: quete.value.salles_ouvertes[0] ?? '', alors: [{ effet: 'texte', texte: '' }] });
+}
+function retirerGeste(i) {
+    quete.value.gestes.splice(i, 1);
+    if (!quete.value.gestes.length) delete quete.value.gestes;
+}
+function changerEffetsGeste(geste, texte) {
+    try {
+        const liste = JSON.parse(texte);
+        delete geste.alors; delete geste.choix;
+        if (Array.isArray(liste) && liste.length && liste[0] && 'libelle' in liste[0]) geste.choix = liste; else geste.alors = liste;
+    } catch { erreur.value = 'Les effets du geste ne sont pas du JSON lisible.'; }
 }
 function changerJsonEffets(objet, cle, texte) {
     try { objet[cle] = JSON.parse(texte); } catch { erreur.value = 'Les effets ne sont pas du JSON lisible.'; }
@@ -1468,6 +1485,29 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     </div>
                                 </div>
 
+                                <!-- Lot E2 (Spirit Queen q. 7 D, 8 B) : les gestes de quête — l'action que l'auteur offre dans une salle. -->
+                                <div class="cst-bloc">
+                                    <div class="cst-ligne">
+                                        <span class="cst-sous">Gestes de quête (une action offerte dans une salle)</span>
+                                        <button type="button" class="cst-btn ghost" @click="ajouterGeste"><MSym n="add" :size="14" /> geste</button>
+                                    </div>
+                                    <div v-for="(g, i) in (quete.gestes ?? [])" :key="`ge${i}`" class="cst-apparitions">
+                                        <span class="cst-ligne">
+                                            <input v-model="g.libelle" class="cst-input" placeholder="Se réchauffer au feu spectral" title="libellé du menu" />
+                                            <select v-model="g.salle" class="cst-input">
+                                                <option v-for="s in quete.salles_ouvertes" :key="`ges-${s}`" :value="s">{{ s }}</option>
+                                            </select>
+                                            <label class="cst-case"><input type="checkbox" :checked="g.par_heros === true" @change="$event.target.checked ? (g.par_heros = true) : delete g.par_heros" /> une fois par héros</label>
+                                            <label>si le drapeau <input :value="g.si_drapeau ?? ''" class="cst-input" placeholder="(toujours)" @change="$event.target.value.trim() ? (g.si_drapeau = $event.target.value.trim()) : delete g.si_drapeau" /></label>
+                                            <label>sauf si <input :value="g.sauf_drapeau ?? ''" class="cst-input" placeholder="(aucun)" @change="$event.target.value.trim() ? (g.sauf_drapeau = $event.target.value.trim()) : delete g.sauf_drapeau" /></label>
+                                            <button type="button" class="cst-icone" title="Retirer" @click="retirerGeste(i)"><MSym n="close" :size="16" /></button>
+                                        </span>
+                                        <label class="cst-large">{{ g.choix ? 'Choix [{libelle, alors}] (JSON)' : 'Effets (JSON)' }} — commencer par « [{"libelle" » pour des choix
+                                            <textarea :value="JSON.stringify(g.choix ?? g.alors ?? [], null, 1)" rows="3" class="cst-input cst-large" @change="changerEffetsGeste(g, $event.target.value)" />
+                                        </label>
+                                    </div>
+                                </div>
+
                                 <!-- Lot K6 (First Light) : les glyphes magiques — découverts par une fouille de la zone, détruits par le
                                      parchemin-clé ou au feu de la cheminée de leur salle ; détruire pose le drapeau que les notes lisent. -->
                                 <div class="cst-bloc">
@@ -2028,6 +2068,11 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             </template>
                                         </template>
                                         <template v-else-if="p === 'y' && effet.effet === 'invoquer'" />
+                                        <!-- Lot E2 (Spirit Queen q. 8 B) : le soin — un nombre de points, ou « tout » ; vide = la jauge n'est pas soignée. -->
+                                        <label v-else-if="(p === 'body' || p === 'mind') && effet.effet === 'soigner'">{{ p === 'body' ? 'Corps' : 'Esprit' }}
+                                            <input :value="effet[p] ?? ''" class="cst-input cst-num" placeholder="tout / 2"
+                                                @change="$event.target.value.trim() === '' ? delete effet[p] : (effet[p] = $event.target.value.trim() === 'tout' ? 'tout' : Number($event.target.value))" />
+                                        </label>
                                         <label v-else-if="p === 'groupe'">exclusive avec le groupe <input :value="effet.groupe ?? ''" class="cst-input" placeholder="(seule)" @change="$event.target.value.trim() ? (effet.groupe = $event.target.value.trim()) : delete effet.groupe" /></label>
                                         <!-- Lot K5h : `campagne` est un booléen — posé seulement quand il vaut true. -->
                                         <label v-else-if="p === 'campagne'" class="cst-case">

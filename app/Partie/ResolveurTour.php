@@ -756,6 +756,7 @@ final class ResolveurTour
                 'ramasser_depouille' => $this->resoudreRamasserDepouille($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // LES OFFRES (mode classique, lot K6) : accepter le choix qu'une note a déclaré. Geste libre.
                 'offre' => $this->resoudreOffre($groupe, $quete, $personnage, $option, $acteur),
+                'geste_de_quete' => $this->resoudreGesteDeQuete($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, de soi-même. Geste libre.
                 'retirer_deguisement' => $this->resoudreRetirerDeguisement($groupe, $personnage, $etat, $acteur),
                 // GLYPHES (mode classique, lot K6) : détruire un glyphe découvert — parchemin ou cheminée. Geste libre.
@@ -17761,6 +17762,17 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Tu as déjà agi ce tour.']);
         }
         $payload = app(\App\Partie\Classique\QueteDouble::class)->passer($groupe, $quete, $personnage, $etat);
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** GESTES DE QUÊTE (lot E2, Spirit Queen q. 7 D, 8 B) : l'action de l'auteur — `GestesDeQuete::disponibles()` revalidé ici. */
+    private function resoudreGesteDeQuete(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $choix = $option['parametres']['choix'] ?? null;
+        $payload = app(\App\Partie\Classique\GestesDeQuete::class)->faire($quete, $personnage, $etat,
+            (int) ($option['parametres']['geste'] ?? -1), $choix === null ? null : (int) $choix);
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
