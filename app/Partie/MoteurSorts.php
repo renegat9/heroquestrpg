@@ -1826,6 +1826,15 @@ final class MoteurSorts
             };
         } else {
             $cibles = $heros;   // bénéfique : les héros, LANCEUR COMPRIS
+            // FLAMME DE ZARGON (mode classique, lot E2 — G0052 q. 13) : « If a hero casts Water of Healing on any monster
+            // affected by Zargon's Flame, that monster is hit » — la figure flambante rejoint la liste de ce seul sort.
+            if ($sort->nom === \App\Partie\Classique\FlammeDeZargon::SORT) {
+                $cibles = [...$cibles, ...array_values(array_filter($monstres, function (array $m) {
+                    $instance = ($m['type'] ?? null) === 'monstre' ? \App\Models\InstanceMonstre::find($m['id'] ?? 0) : null;
+
+                    return $instance !== null && \App\Partie\Classique\FlammeDeZargon::flambe($instance);
+                }))];
+            }
         }
 
         // DANGER MOBILE qu'un sort DÉTRUIT (2026-10-23 — la Tempête détruit la brume de la mort, `cible: monstre` au catalogue) :

@@ -1038,3 +1038,45 @@ it('arène : chacun à sa porte, ils sont poussés dedans ; à mains nues, sans 
     app(\App\Partie\Classique\SalleSansMagie::class)->actualiser($quete->fresh(), $heros);
     expect((int) $heros->fresh()->des_attaque)->toBe($armee);
 });
+
+// ---------------------------------------------------------------- Prophecy of Telor : la Flamme de Zargon (q. 13)
+
+it('Flamme de Zargon : le coup qui porte se joue au dé contre deux chiffres ; l\'Eau de Guérison la frappe, un seul chiffre', function () {
+    $this->seed(\Database\Seeders\SortSeeder::class);
+    $campagne = campagneE2(['monstres' => [['slug' => 'orque', 'x' => 4, 'y' => 3, 'nom' => 'Chevalier mort-vivant', 'pv_body' => 5, 'capacites' => ['flamme_de_zargon']]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $flambant = $partie['quete']->instancesMonstres()->firstOrFail();
+    $flambant->update(['revele' => true]);
+    $degats = app(\App\Partie\MoteurDegats::class);
+
+    // Zargon annonce 2 et 5 ; le dé donne 5 : épargné, malgré 3 PV de dégâts.
+    app()->instance(LanceurDes::class, new LanceurDeterministe([2, 5, 5]));
+    expect($degats->infligerAMonstre($flambant->fresh(), 3, \App\Partie\MoteurDegats::SOURCE_PIEGE)['degats'])->toBe(0)
+        ->and((int) $flambant->fresh()->pv_body)->toBe(5);
+
+    // Le dé donne 3 : consumé, alors qu'un seul PV de dégâts ne l'aurait pas abattu.
+    app()->instance(LanceurDes::class, new LanceurDeterministe([2, 5, 3]));
+    expect($degats->infligerAMonstre($flambant->fresh(), 1, \App\Partie\MoteurDegats::SOURCE_PIEGE)['vaincu'])->toBeTrue();
+    $annonce = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()->last(fn ($e) => ($e->payload['type'] ?? null) === 'flamme_de_zargon');
+    expect(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($annonce->payload, 'Zargon'))->pluck('texte')->first())
+        ->toBe('Flamme de Zargon : Zargon annonce 2 ou 5, le dé donne 3 — Chevalier mort-vivant est consumée par les flammes');
+
+    // L'Eau de Guérison : la figure flambante est une cible du sort (et seulement elle) ; touchée, un seul chiffre.
+    $flambant->refresh()->update(['etat' => 'actif', 'revele' => true, 'pv_body' => 5, 'position_x' => 4, 'position_y' => 3]);
+    $eau = \App\Models\Sort::where('nom', 'Eau de Guérison')->firstOrFail();
+    $candidat = ['type' => 'monstre', 'id' => (int) $flambant->id, 'nom' => 'Chevalier mort-vivant', 'x' => 4, 'y' => 3];
+    $cibles = app(\App\Partie\MoteurSorts::class)->ciblesLegales($eau, [$candidat], []);
+    expect(collect($cibles)->pluck('id')->all())->toBe([(int) $flambant->id])
+        ->and(app(\App\Partie\MoteurSorts::class)->ciblesLegales(\App\Models\Sort::where('nom', 'Soin du Corps')->firstOrFail(), [$candidat], []))->toBe([]);
+
+    $sortUtilitaire = new ReflectionMethod(ResolveurTour::class, 'sortUtilitaire');
+    $etat = $partie['quete']->etatsPersonnages()->firstOrFail();
+    app()->instance(LanceurDes::class, new LanceurDeterministe([4, 4]));
+    $issue = $sortUtilitaire->invoke(app(ResolveurTour::class), $partie['quete']->fresh(), $partie['heros'], $etat, $eau,
+        ['parametres' => ['cibles' => [['type' => 'monstre', 'id' => (int) $flambant->id, 'nom' => 'Chevalier mort-vivant']]]],
+        ['cible_id' => (int) $flambant->id, 'cible_type' => 'monstre']);
+    expect($issue['flamme'])->toBeTrue()->and($issue['vaincu'])->toBeFalse();
+    $derniere = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()->last(fn ($e) => ($e->payload['type'] ?? null) === 'flamme_de_zargon');
+    expect($derniere->payload['nombres'])->toBe([4])->and($derniere->payload['eau'])->toBeTrue();
+});

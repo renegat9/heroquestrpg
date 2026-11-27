@@ -590,6 +590,13 @@ final class MoteurDegats
     ): array {
         $degats = max(0, $degats);
         $avant = (int) $instance->pv_body;
+
+        // FLAMME DE ZARGON (mode classique, lot E2 — G0052 q. 13) : « regardless of how many Body Points of damage are dealt »,
+        // le coup qui porte se joue au dé — épargnée, elle n'encaisse rien ; sinon, consumée, quels que soient ses PV.
+        if ($degats > 0 && $instance->etat === 'actif' && \App\Partie\Classique\FlammeDeZargon::flambe($instance)) {
+            $flamme = app(\App\Partie\Classique\FlammeDeZargon::class)->touche($instance, ! empty($contexte['eau_de_guerison']));
+            $degats = $flamme['epargne'] ? 0 : max($degats, $avant);
+        }
         $apres = max(0, $avant - $degats);
 
         $neutre = fn (int $degatsRetenus): array => [

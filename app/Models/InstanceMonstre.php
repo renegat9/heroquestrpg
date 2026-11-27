@@ -125,6 +125,9 @@ class InstanceMonstre extends Model
         // « Remove an inactive Elven Warrior from the map if a disguised hero is ever adjacent to them (no action
         // required) » (q. 2 B, C ; q. 3 D, la place) — `Classique\Deguisement::retirerAuContact()`.
         'retire_au_contact_deguise' => ['retire_au_contact_deguise', true],
+        // Lot E2 (*Prophecy of Telor* q. 13) : « summoned with Zargon's Flame » — tout coup qui porte se joue au dé, quels que
+        // soient les PV ; l'Eau de Guérison la frappe (`Classique\FlammeDeZargon`).
+        'flamme_de_zargon' => ['flamme_de_zargon', true],
     ];
 
     /** Dés d'attaque effectifs (bloc de stats + bonus élite éventuel). */

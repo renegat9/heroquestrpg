@@ -8615,6 +8615,20 @@ final class ResolveurTour
         // Soin du Corps / Eau de Guérison : +4 PV Body, PLAFONNÉ au maximum.
         if (isset($effet['soin_pv_body'])) {
             $cible = $this->cibleSort($quete, $option, $parametres);
+
+            // FLAMME DE ZARGON (mode classique, lot E2 — G0052 q. 13) : l'Eau de Guérison sur une figure flambante la TOUCHE,
+            // sans dés de défense, un seul chiffre pour la sauver (`Classique\FlammeDeZargon`, par le point de passage des
+            // dégâts). La cible n'est offerte qu'à ce sort, contre une telle figure (`MoteurSorts::ciblesLegales()`).
+            if ($cible['type'] === 'monstre') {
+                $frappe = $this->degats->infligerAMonstre($cible['monstre'], 1, MoteurDegats::SOURCE_SORT_HEROS,
+                    ['sort' => $sort->nom, 'eau_de_guerison' => true], $lanceur);
+
+                return [
+                    'cible' => ['type' => 'monstre', 'instance_id' => $cible['monstre']->id, 'nom' => $cible['monstre']->nomAffiche()],
+                    'flamme' => true,
+                    'vaincu' => $frappe['vaincu'],
+                ];
+            }
             /** @var Personnage $heros */
             $heros = $cible['personnage'];
 

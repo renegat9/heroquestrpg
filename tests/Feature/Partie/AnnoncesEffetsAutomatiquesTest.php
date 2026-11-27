@@ -315,6 +315,7 @@ function fixturesDesTypesAnnonces(): array
         'salles_activees' => ['de' => 6, 'salles' => [['monstres' => ['Orque', 'Orque']], ['monstres' => ['Ogre']]]],
         'chemin_impose' => ['nom' => 'Albrecht', 'tour' => 1, 'cases' => 9, 'x' => 4, 'y' => 3],
         'magie_dissipee' => ['nom' => 'Albrecht', 'sorts' => ['Peau de Pierre']],
+        'flamme_de_zargon' => ['nom' => 'Guerrier du Chaos', 'nombres' => [2, 5], 'de' => 3, 'epargne' => false, 'eau' => false],
         'objet_jete' => ['nom' => 'Albrecht', 'objet' => 'Anneau de Puissance de Festral'],
         'porte_frappee' => ['nom' => 'Albrecht', 'bonne' => false, 'face' => 'crane', 'reussi' => true, 'succes' => 1, 'seuil' => 3],
         'assaut_porte' => ['monstre' => 'Orque', 'faces_attaque' => ['crane'], 'faces_defense' => ['bouclier_blanc'], 'degats' => 1, 'pv_restants' => 1, 'pv_max' => 2, 'brisee' => false],

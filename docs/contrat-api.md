@@ -6952,6 +6952,24 @@ before entering the arena are lost. Potions and elixirs can be used. »
   si elle est libre ; la salle se découvre ; ce pas ne relance pas de notes (comme `teleporter`). Fil : « A, B : poussé(s)
   d'un pas, à travers la porte ». Les portes s'ouvrent par `ouvrir_porte` (verrou `note`), écrit avant dans la même note.
 
+### La Flamme de Zargon — capacité de profil `flamme_de_zargon` (lot E2, 2026-11-27)
+
+*Prophecy of Telor* q. 13 : « They attack and defend as normal, but have no Body Points. When a monster summoned by Zargon's
+Flame is hit, regardless of how many Body Points of damage are dealt, Zargon calls out any two numbers 1-6 and rolls 1 red
+die. If the roll result matches one of the numbers called, the monster is unharmed. If not, it is consumed by flame and
+defeated. If a hero casts Water of Healing on any monster affected by Zargon's Flame, that monster is hit and cannot roll
+Defend dice. Zargon may only call out one die number to stop that monster from being consumed by flame. »
+- `monstres[].capacites: ["flamme_de_zargon"]` (et l'errant, une apparition) — `InstanceMonstre::CAPACITES_DE_PROFIL`,
+  `Classique\FlammeDeZargon`. Au point de passage des dégâts d'un monstre (`MoteurDegats::infligerAMonstre()`), tout coup
+  qui PORTE (dégâts > 0, défense déjà jouée) : Zargon — le moteur — annonce deux chiffres distincts tirés au dé, puis lance un
+  dé rouge ; un chiffre annoncé : épargnée, 0 dégât ; sinon consumée (dégâts portés à ses PV : la mort suit son chemin
+  ordinaire). Annonce `flamme_de_zargon {nom, nombres, de, epargne, eau}` : « Flamme de Zargon : Zargon annonce 2 ou 5, le
+  dé donne 3 — X est consumée par les flammes ».
+- L'Eau de Guérison (`FlammeDeZargon::SORT`) : une figure flambante, en vue, rejoint SES cibles (`MoteurSorts::ciblesLegales()`,
+  liste blanche relue par le résolveur) ; lancée sur elle, elle la touche sans dés de défense (`eau_de_guerison`), UN seul
+  chiffre annoncé. Fil du sort : « X lance Eau de Guérison sur Y : la flamme vacille », puis l'annonce de la flamme.
+- Les PV du profil n'ont plus d'effet sur l'issue (« no Body Points ») ; `pv_body` reste ≥ 1 à la validation.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

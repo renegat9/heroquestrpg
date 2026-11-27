@@ -196,6 +196,8 @@ final class JournalCombat
         'chemin_impose' => true,
         // Lot E2 (G0052 q. 10 G) : les sorts qui affectaient un héros se dissipent en entrant dans la salle sans magie.
         'magie_dissipee' => true,
+        // Lot E2 (G0052 q. 13) : la Flamme de Zargon — le dé qui épargne ou consume la figure touchée.
+        'flamme_de_zargon' => true,
         // Lot TC4 : la vague suivante du tournoi (F9528 q. 1).
         'vague_tournoi' => true,
         // Lot E2 : le marché souterrain en pleine quête (F6646 p. 2).
@@ -1418,6 +1420,12 @@ final class JournalCombat
                 'texte' => 'Zargon lance le dé ('.(int) ($a['de'] ?? 0).') : '
                     .implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) ($a['salles'] ?? []))),
                 'ton' => 'subit',
+            ]],
+            'flamme_de_zargon' => [[
+                'texte' => 'Flamme de Zargon : Zargon annonce '.implode(' ou ', array_map('intval', (array) ($a['nombres'] ?? [])))
+                    .(! empty($a['eau']) ? ' (Eau de Guérison : un seul chiffre)' : '').', le dé donne '.(int) ($a['de'] ?? 0).' — '
+                    .($a['nom'] ?? 'la figure').(! empty($a['epargne']) ? ' est épargnée' : ' est consumée par les flammes'),
+                'ton' => ! empty($a['epargne']) ? 'info' : 'succes',
             ]],
             'magie_dissipee' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' entre dans une salle sans magie : '.implode(', ', (array) ($a['sorts'] ?? [])).' se dissipe(nt)',
@@ -3089,6 +3097,12 @@ final class JournalCombat
             }
 
             return $lignes;
+        }
+
+        // FLAMME DE ZARGON (lot E2, G0052 q. 13) : l'Eau de Guérison jetée sur une figure flambante — le dé se dit à part
+        // (`flamme_de_zargon`).
+        if (! empty($a['flamme']) && $cible !== null) {
+            return [['texte' => "{$acteurNom} lance {$nom} sur {$cible} : la flamme vacille", 'ton' => 'info']];
         }
 
         // Soin du Corps (Eau de Guérison…).
