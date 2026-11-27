@@ -6200,10 +6200,8 @@ Mode classique seulement ; une règle par livret, sourcée.
   limite… si les salles sont vraiment loin »). Moins de
   trois candidates : le dé tire parmi celles qui restent ; une seule, elle se lève sans dé ; un 6 avec une seule salle
   restante n'en lève qu'une. Annonce `salles_activees {de, salles: [{monstres}]}`. AUCUNE salle à portée (toutes trop
-  loin, ou toutes levées) : au tour du MJ, les monstres errants de la quête surgissent près d'un héros debout (tiré au
-  dé s'ils sont plusieurs) et jouent ce tour avec les autres figures, sans frappe immédiate ni défi du Chevalier
-  (`ResolveurTour::poserErrants()`), annonce `errant_au_tour_du_mj {heros, monstres: [noms]}` ; quête sans errant :
-  rien. La carte de monstre errant lève UNE salle au lieu de son surgissement (`salles_activees` sur le résultat de
+  loin, ou toutes levées) : ni dé ni annonce, rien ne se lève ce tour — « Zargon **may** activate », et le livret ne
+  pose aucun errant au tour du MJ (René, 2026-11-26 ; la note A pose déjà ses orques à chaque tour). La carte de monstre errant lève UNE salle au lieu de son surgissement (`salles_activees` sur le résultat de
   fouille) ; sans salle à portée, elle redevient un monstre errant ordinaire (« Zargon **may** activate one room » —
   René, 2026-11-26).
  (*Against the Ogre Horde* q. 8) — terrain « Abîme sans fond » (catalogue, réservé

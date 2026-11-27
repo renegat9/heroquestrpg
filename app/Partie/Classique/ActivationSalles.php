@@ -26,8 +26,8 @@ use App\Partie\TamponAnnonces;
  * moteur joue Zargon (René, 2026-11-24 : « j'irais avec un hasard… les 3 salles dont le CHEMIN est plus proche des
  * joueurs ») — il tire au dé parmi les {@see PROCHES} salles encore cachées qui abritent des monstres et dont le chemin
  * depuis un héros debout est le plus court ({@see distances()}) : le MJ presse les héros qui fuient, sans qu'on puisse
- * prévoir laquelle. Au-delà de {@see PORTEE} pas, une salle ne se lève pas ; sans salle à portée, le monstre errant de la
- * quête surgit à la place (René, 2026-11-26). Sa salle se découvre (`ResolveurTour::revelerSalleEn()`), ses portes closes
+ * prévoir laquelle. Au-delà de {@see PORTEE} pas, une salle ne se lève pas ; sans salle à portée, rien ne se lève ce tour
+ * (René, 2026-11-26). Sa salle se découvre (`ResolveurTour::revelerSalleEn()`), ses portes closes
  * s'ouvrent (`ouvrirPorteParNote()`), ses monstres jouent dès ce tour.
  */
 final class ActivationSalles
@@ -39,7 +39,8 @@ final class ActivationSalles
      * La PORTÉE, en pas de chemin depuis un héros debout jusqu'à la case la plus proche de la salle : au-delà, la salle
      * ne se lève pas (René, 2026-11-26 : « une limite… si les salles sont vraiment loin »). Douze pas : un peu plus
      * qu'un tour de marche d'un orque (8) ou d'un gobelin (10), assez pour que les figures levées pèsent sur la fuite.
-     * Aucune salle à portée : un monstre errant à la place, au tour du MJ comme sur la carte de fouille.
+     * « Zargon MAY activate » : sans salle à portée, il n'en lève aucune — et rien d'autre ne surgit au tour du MJ, le
+     * livret n'y pose aucun errant (René, 2026-11-26 ; la note A de la quête pose déjà ses orques à chaque tour).
      */
     public const PORTEE = 12;
 
@@ -51,57 +52,25 @@ final class ActivationSalles
     }
 
     /**
-     * Le début du tour du MJ. Une salle à portée : le dé rouge, puis une ou deux salles (`salles_activees`). Aucune
-     * (toutes trop loin, ou toutes levées) : les monstres errants de la quête près d'un héros debout tiré au dé, qui
-     * jouent ce tour avec les autres (`errant_au_tour_du_mj`). Rend l'annonce, ou `null` (règle absente, aucun errant).
+     * Le début du tour du MJ : le dé rouge, puis une ou deux salles à portée (`salles_activees`). Aucune salle à portée
+     * (toutes trop loin, ou toutes levées) : ni dé ni annonce. Rend l'annonce, ou `null`.
      */
     public function auTourDuMJ(Groupe $groupe, Quete $quete): ?array
     {
-        if (! self::actif($quete)) {
+        if (! self::actif($quete) || ! $this->aUneSalleAPortee($quete)) {
             return null;
         }
-        if (! $this->aUneSalleAPortee($quete)) {
-            $payload = $this->errantAuTourDuMJ($quete);
-        } else {
-            $de = $this->des->d6();
-            $payload = ['type' => 'salles_activees', 'de' => $de, 'salles' => $this->activer($quete, $de === 6 ? 2 : 1)];
-        }
-        if ($payload !== null) {
-            app(TamponAnnonces::class)->annoncer($groupe, $payload);
-        }
+        $de = $this->des->d6();
+        $payload = ['type' => 'salles_activees', 'de' => $de, 'salles' => $this->activer($quete, $de === 6 ? 2 : 1)];
+        app(TamponAnnonces::class)->annoncer($groupe, $payload);
 
         return $payload;
     }
 
-    /** Reste-t-il une salle cachée habitée à {@see PORTEE} d'un héros debout ? Sinon, un monstre errant à sa place. */
+    /** Reste-t-il une salle cachée habitée à {@see PORTEE} d'un héros debout ? Sinon, la carte de fouille reste un errant. */
     public function aUneSalleAPortee(Quete $quete): bool
     {
         return $this->candidates($quete)[1] !== [];
-    }
-
-    /**
-     * Au tour du MJ, sans salle à portée : les errants de la quête, posés près d'un héros debout (un dé s'ils sont
-     * plusieurs), par `ResolveurTour::poserErrants()`.
-     *
-     * @return array{type: string, heros: string, monstres: list<string>}|null
-     */
-    private function errantAuTourDuMJ(Quete $quete): ?array
-    {
-        $heros = $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get()->values();
-        if ($heros->isEmpty()) {
-            return null;
-        }
-        $vise = $heros[$heros->count() === 1 ? 0 : ($this->des->d6() - 1) % $heros->count()];
-        $poses = app(ResolveurTour::class)->poserErrants($quete->fresh(), $vise);
-        if ($poses === []) {
-            return null;
-        }
-
-        return [
-            'type' => 'errant_au_tour_du_mj',
-            'heros' => (string) ($vise->personnage?->nom ?? 'un héros'),
-            'monstres' => array_map(fn (InstanceMonstre $m) => $m->nomAffiche(), $poses),
-        ];
     }
 
     /**

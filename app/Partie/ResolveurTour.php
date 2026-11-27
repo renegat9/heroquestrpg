@@ -13168,18 +13168,6 @@ final class ResolveurTour
      * @return list<InstanceMonstre> la première au contact, les suivantes « as close as possible » (lot E1) ; vide :
      *                               rien ne sort
      */
-    /**
-     * Les monstres errants de la quête posés au plus près de ce héros, SANS le surgissement de la fouille (ni frappe
-     * immédiate, ni défi du Chevalier) : au tour du MJ, ils jouent avec les autres figures (salles qui se lèvent,
-     * `Classique\ActivationSalles::auTourDuMJ()`). La pose reste `spawnErrant()`.
-     *
-     * @return list<InstanceMonstre>
-     */
-    public function poserErrants(Quete $quete, EtatPersonnageQuete $etat): array
-    {
-        return $this->spawnErrant($quete, $etat);
-    }
-
     private function spawnErrant(Quete $quete, EtatPersonnageQuete $etat): array
     {
         // AUCUN plafond (décision de René) : la carte « monstre errant » repart
