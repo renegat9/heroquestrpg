@@ -1191,3 +1191,78 @@ it('invocation de Melar : près d\'une case donnée, les orques surgissent autou
     expect($orques)->toHaveCount(4)
         ->and($orques->every(fn ($o) => abs($o->position_x - 8) + abs($o->position_y - 3) <= 3))->toBeTrue();
 });
+
+// ---------------------------------------------------------------- Prophecy of Telor : la zone hors du plateau (q. 2)
+
+it('zone hors du plateau : case au bord, figures placées par la note ; la validation refuse le reste', function () {
+    $note = ['repere' => 'B', 'une_fois' => false, 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]],
+        'alors' => [['effet' => 'en_reserve', 'monstres' => [['slug' => 'gobelin', 'nombre' => 2], ['slug' => 'orque']]]]];
+    expect(codesE2(campagneE2(['regles' => ['reserve_hors_plateau' => ['x' => 8, 'y' => 13]], 'notes' => [$note]])))->toBe([])
+        // Au milieu du plateau, pas au bord ; et l'effet sans zone.
+        ->and(codesE2(campagneE2(['regles' => ['reserve_hors_plateau' => ['x' => 8, 'y' => 7]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE2(campagneE2(['notes' => [$note]])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+});
+
+it('zone hors du plateau : placées au tour de Zargon, les figures entrent par la case et jouent ; un héros sur la case est frappé, rien n\'entre', function () {
+    $campagne = campagneE2(['regles' => ['reserve_hors_plateau' => ['x' => 12, 'y' => 13]], 'notes' => [
+        ['repere' => 'B', 'une_fois' => false, 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]],
+            'alors' => [['effet' => 'en_reserve', 'monstres' => [['slug' => 'gobelin', 'nombre' => 2], ['slug' => 'orque']]]]],
+    ]]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete']->fresh();
+    $etat = $quete->etatsPersonnages()->firstOrFail();
+    $etat->update(['position_x' => 12, 'position_y' => 9]); // dans le couloir : le chemin depuis la case est libre
+    $reserve = app(\App\Partie\Classique\ReserveHorsPlateau::class);
+
+    // Le héros attend : au tour de Zargon, la note place trois figures dans la zone, puis chacune entre par la case et
+    // s'en écarte vers le héros.
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 300, 6)));
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'attendre'])->assertAccepted();
+    $evenements = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->orderBy('sequence')->get()->pluck('payload');
+    $entrees = $evenements->where('type', 'reserve_entree')->values();
+    expect($entrees)->toHaveCount(3)
+        ->and($entrees[0]['monstre'])->toBe('Gobelin')->and($entrees[0]['restants'])->toBe(2)
+        ->and($reserve->figures($quete)->count())->toBe(0)
+        ->and($quete->instancesMonstres()->where('etat', 'actif')->whereNotNull('position_x')->count())->toBe(3);
+    expect(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($entrees[0], ''))->pluck('texte')->first())
+        ->toBe('Gobelin surgit de la zone hors du plateau (2 attendent encore)');
+    $note = $evenements->first(fn ($p) => ($p['type'] ?? null) === 'note_de_quete' && ($p['repere'] ?? null) === 'B');
+    expect(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($note, ''))->pluck('texte')->implode(' | '))
+        ->toContain('2 Gobelin, 1 Orque arrivent dans la zone hors du plateau (3 y attendent)');
+
+    // Les figures de la zone n'ont pas de case : la table les montre en pastille sur la case d'entrée.
+    $reserve->ajouter($quete->fresh(), [['slug' => 'orque', 'nombre' => 2]]);
+    expect(app(\App\Partie\EtatGroupe::class)->payload($partie['groupe']->fresh())['carte']['reserve'] ?? null)
+        ->toBe(['x' => 12, 'y' => 13, 'noms' => ['Orque', 'Orque']]);
+
+    // Un héros posté sur la case : au tour suivant, UNE figure de la zone le frappe, et rien n'entre.
+    $quete->instancesMonstres()->where('etat', 'actif')->update(['etat' => 'vaincu']);
+    $etat->refresh()->update(['position_x' => 12, 'position_y' => 13]);
+    $avant = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->max('sequence');
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'attendre'])->assertAccepted();
+    $nouveaux = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->where('sequence', '>', $avant)->get()->pluck('payload');
+    expect($nouveaux->where('type', 'attaque_monstre')->count())->toBe(1)
+        ->and($nouveaux->where('type', 'reserve_entree')->count())->toBe(0)
+        ->and($reserve->figures($quete)->count())->toBe(5); // deux restées, trois nouvelles de la note
+});
+
+it('donjon vidé : une note qui attend le prochain tour du MJ le fait jouer quand même ; sans elle, pas de phase', function () {
+    $partie = partieE2($this, campagneE2(['notes' => [
+        ['repere' => 'N', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]], 'alors' => [['effet' => 'texte', 'texte' => 'Des pas au loin.']]],
+    ]]));
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3]);
+    $finir = function () use ($partie) {
+        \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+        $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'attendre'])->assertAccepted();
+    };
+
+    $finir();
+    expect($partie['quete']->fresh()->tours_mj)->toBe(1)
+        ->and($partie['quete']->fresh()->notes_jouees)->toBe([0]);
+
+    // La note jouée, plus rien n'attend Zargon dans ce donjon vide : son tour ne se joue plus.
+    $finir();
+    expect($partie['quete']->fresh()->tours_mj)->toBe(1);
+});

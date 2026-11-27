@@ -14364,6 +14364,14 @@ final class ResolveurTour
             }
         }
 
+        // LA ZONE HORS DU PLATEAU (lot E2, G0052 q. 2 B) : après les figures du plateau, celles de la zone frappent le héros
+        // posté sur sa case, ou entrent par elle et jouent. Quête construite seulement ; jamais en arène.
+        if (! $arene && \App\Partie\Classique\ReserveHorsPlateau::regle($quete) !== null) {
+            foreach ($this->jouerLaReserve($groupe, $quete, $dejaJoues) as $action) {
+                $actions[] = $action;
+            }
+        }
+
         // ARÈNE : tant qu'un héros a encore la main, l'activation alternée continue — la main revient au Challenger.
         // Sinon le Defender vient de jouer tout ce qu'il pouvait (sans limite, `relaisArene()`) : le round se referme,
         // et c'est `ouvrirNouveauTour()` qui constate une éventuelle défaite (tous les héros à terre).
@@ -14692,6 +14700,53 @@ final class ResolveurTour
         }
 
         return $payloads;
+    }
+
+    /**
+     * LA ZONE HORS DU PLATEAU au tour de Zargon (lot E2, *Prophecy of Telor* q. 2 — `Classique\ReserveHorsPlateau`) :
+     * « If a hero stands on the square marked C, you may attack them » — UNE figure de la zone frappe le héros debout sur la
+     * case (la frappe ordinaire d'un monstre, `resoudreAttaqueMonstre()`) ; sinon, tant que la case est libre, la première
+     * figure de la zone y entre (annoncé) puis joue son tour comme toute figure. Elle s'arrête quand la zone est vide, que la
+     * case reste prise, ou que plus personne n'est debout.
+     *
+     * @param  list<int>  $dejaJoues
+     * @return list<array<string, mixed>>
+     */
+    private function jouerLaReserve(Groupe $groupe, Quete $quete, array &$dejaJoues): array
+    {
+        $reserve = app(\App\Partie\Classique\ReserveHorsPlateau::class);
+        $actions = [];
+
+        if (($heros = $reserve->herosSurLaCase($quete)) !== null) {
+            $figure = $reserve->figures($quete)->first();
+            if ($figure !== null && $heros->personnage !== null) {
+                $nom = $figure->nomAffiche();
+                $acteur = ['type' => 'monstre', 'id' => $figure->id, 'nom' => $nom];
+                $actions[] = ['depuis_reserve' => true, ...$this->resoudreAttaqueMonstre($groupe, $figure, $heros, $figure->attaqueEffective(), $acteur, $nom)];
+            }
+
+            return $actions;
+        }
+
+        while (($figure = $reserve->entrer($quete)) !== null) {
+            $entree = ['type' => 'reserve_entree', 'monstre' => $figure->nomAffiche(), 'instance_id' => (int) $figure->id,
+                'x' => (int) $figure->position_x, 'y' => (int) $figure->position_y, 'restants' => $reserve->figures($quete)->count()];
+            Journal::ajouter($groupe, 'action', $entree, ['type' => 'monstre', 'id' => $figure->id, 'nom' => $figure->nomAffiche()]);
+            $actions[] = $entree;
+
+            $cibles = $this->ciblesDesMonstres($quete);
+            if ($cibles->isEmpty()) {
+                break;
+            }
+            $this->dread->definirMonstresDejaJoues($dejaJoues);
+            $resultat = $this->jouerMonstre($groupe, $quete, $figure, $cibles);
+            $dejaJoues[] = (int) $figure->id;
+            foreach (($resultat['type'] ?? null) === 'actions_composites' ? $resultat['actions'] : [$resultat] as $action) {
+                $actions[] = $action;
+            }
+        }
+
+        return $actions;
     }
 
     private function ouvrirNouveauTour(Groupe $groupe, Quete $quete, array &$actions = []): string
@@ -18284,7 +18339,14 @@ final class ResolveurTour
         // UN LOUP-GAROU joue son tour de Zargon même dans un donjon vidé (F7539 p. 10 : « Zargon controls them as a
         // monster for one turn »), et c'est la phase des monstres qui le ramène à sa forme humaine. Sans elle, le
         // héros resterait loup à jamais, inerte. Le donjon n'est donc clos qu'APRÈS son tour.
-        if ($sansMonstre && ! app(MaledictionLoupGarou::class)->enFormeDans($quete)) {
+        // MODE CLASSIQUE (lot E2, 2026-11-27) : Zargon a encore à faire dans un donjon vidé quand une figure attend dans la
+        // zone hors du plateau (G0052 q. 2 : « for the remainder of the quest, at the start of each of your turns ») ou
+        // qu'une note attend son prochain tour : sa phase se joue, sans quoi la zone et la note se tairaient pour toujours.
+        $zargonAJouer = $sansMonstre && $quete->estConstruite()
+            && (\App\Partie\Classique\ReserveHorsPlateau::regle($quete) !== null
+                || app(NotesDeQuete::class)->attend($quete, MotsClesQuete::TOUR_DU_MJ, ['tour' => (int) $quete->tours_mj + 1]));
+
+        if ($sansMonstre && ! $zargonAJouer && ! app(MaledictionLoupGarou::class)->enFormeDans($quete)) {
             // DANGERS MOBILES AUTONOMES (2026-10-23) : Zargon joue son tour même dans un donjon NETTOYÉ — « donjon nettoyé »
             // ouvre la sortie, il ne ferme pas la quête. Sans cet appel, le rocher et la brume se figeraient au dernier monstre
             // tué. Appelé ICI seulement (la branche qui saute `phaseMonstres()`) : jamais deux fois dans un même round.
@@ -18317,7 +18379,8 @@ final class ResolveurTour
 
         $resultat['tour_monstres'] = $this->phaseMonstres($groupe, $quete);
 
-        return $sansMonstre ? $this->donjonNettoye($resultat, $quete) : $resultat;
+        // Relu APRÈS la phase : une note ou la zone hors du plateau ont pu poser des figures dans un donjon vidé.
+        return ! $quete->instancesMonstres()->where('etat', 'actif')->exists() ? $this->donjonNettoye($resultat, $quete) : $resultat;
     }
 
     /**

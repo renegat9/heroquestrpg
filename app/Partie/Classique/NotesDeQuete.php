@@ -937,6 +937,15 @@ final class NotesDeQuete
         return ['nom' => $heros->nom, 'sort' => (string) $sort->nom, 'appris' => app(TalismanDeTelor::class)->apprendre($heros, (string) $sort->nom)];
     }
 
+    /** Lot E2 (*Prophecy of Telor*, q. 2 A) — des figures rejoignent la zone hors du plateau (`ReserveHorsPlateau`). */
+    private function effetEnReserve(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $reserve = app(ReserveHorsPlateau::class);
+        $noms = $reserve->ajouter($quete, (array) ($effet['monstres'] ?? []));
+
+        return ['monstres' => $noms, 'en_attente' => $reserve->figures($quete)->count()];
+    }
+
     /**
      * Lot E2 (*Prophecy of Telor*, q. 7 à 11) — Melar lance un sort d'invocation : la table du sort, la pose au plus près de
      * la case `{x, y}`, sinon du héros qui déclenche (le porteur du talisman). Ni case ni héros sur le plateau : rien ne paraît.

@@ -7009,6 +7009,28 @@ in the room. »
 - Annonce, dans la note : « Sort de Dread : Invocation d'orques (dé : 4) — surgissent : 4 Orque ».
 - Catalogue publié : `vocabulaires.sorts_d_invocation` (slugs) — l'écran ne propose que ceux-là pour `invoquer`.
 
+### La zone hors du plateau — `regles.reserve_hors_plateau`, effet `en_reserve` (lot E2, 2026-11-27)
+
+*Prophecy of Telor* q. 2 : « Zargon, for the remainder of the quest, at the start of each of your turns, place 2 Goblins and
+1 Orc to the side of the board in the area marked B. Treat area B as a normal room. Heroes cannot enter into it or attack
+monsters in area B. If a hero stands on the square marked C, you may attack them. » `Classique\ReserveHorsPlateau` :
+- `regles.reserve_hors_plateau {x, y}` : la case C, AU BORD du plateau (`valeur_invalide` sinon), jouable (ni salle fermée,
+  ni meuble, ni bloc).
+- Effet **`en_reserve {monstres: [{slug, nombre?, …profil}]}`** (la forme de l'errant ; au moins une figure ;
+  `valeur_invalide` si la quête n'a pas de zone) : les figures rejoignent la zone. Ce sont des instances sans case, à l'état
+  `reserve` : aucune lecture des figures actives ne les voit — ni cible, ni contact, ni salle vidée, ni fin sur `vaincre`.
+  Le livret : une note `tour_du_mj {tour: 1}`, `une_fois: false`, `si_drapeau` posé par la note A.
+- Au tour de Zargon, APRÈS les figures du plateau (`ResolveurTour::jouerLaReserve()`, jamais en arène) : un héros debout sur
+  la case C est frappé par UNE figure de la zone (la frappe ordinaire, `attaque_monstre`) ; sinon, tant que la case est
+  libre, la première figure de la zone y entre (annonce `reserve_entree {monstre, instance_id, x, y, restants}` : « Gobelin
+  surgit de la zone hors du plateau (2 attendent encore) ») puis joue son tour.
+- Écart écrit : la figure qui entre ne dépense pas le pas qui la sépare de la zone.
+- Donjon vidé (plus aucune figure active) : le tour de Zargon se joue quand même dans une quête à zone, et dans toute quête
+  construite dont une note attend le prochain tour du MJ (`NotesDeQuete::attend()`) — avant ce lot, ni la zone ni la note
+  `tour_du_mj` ne jouaient une fois le plateau vidé (`ResolveurTour::jouerFinDeRound()`).
+- Note : « 2 Gobelin, 1 Orque arrivent dans la zone hors du plateau (6 y attendent) ».
+- Payload : `carte.reserve {x, y, noms}` (quête à zone seulement) ; la table pose une pastille « +N » sur la case C.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

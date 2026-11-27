@@ -200,6 +200,8 @@ final class JournalCombat
         'flamme_de_zargon' => true,
         // Lot E2 (G0052 q. 3) : la quête à étages — l'étage suivant se pose.
         'etage' => true,
+        // Lot E2 (G0052 q. 2 B) : une figure de la zone hors du plateau entre par sa case.
+        'reserve_entree' => true,
         // Lot TC4 : la vague suivante du tournoi (F9528 q. 1).
         'vague_tournoi' => true,
         // Lot E2 : le marché souterrain en pleine quête (F6646 p. 2).
@@ -1421,6 +1423,11 @@ final class JournalCombat
                 // Jamais vide : sans salle cachée habitée, `ActivationSalles::auTourDuMJ()` ne lance ni n'annonce rien.
                 'texte' => 'Zargon lance le dé ('.(int) ($a['de'] ?? 0).') : '
                     .implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) ($a['salles'] ?? []))),
+                'ton' => 'subit',
+            ]],
+            'reserve_entree' => [[
+                'texte' => ($a['monstre'] ?? 'Une figure').' surgit de la zone hors du plateau'
+                    .((int) ($a['restants'] ?? 0) > 0 ? ' ('.(int) $a['restants'].' attendent encore)' : ''),
                 'ton' => 'subit',
             ]],
             'etage' => [[

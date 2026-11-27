@@ -628,6 +628,8 @@ final class EtatGroupe
             ...(($charge = app(\App\Partie\Classique\Charge::class)->etat($quete)) !== null
                 ? ['charge' => $charge['porteur_id'] === null && ! $charge['sortie'] ? ['nom' => $charge['nom'], 'x' => $charge['x'], 'y' => $charge['y']] : null]
                 : []),
+            // LA ZONE HORS DU PLATEAU (lot E2, G0052 q. 2 B) : sa case d'entrée et les figures qui y attendent. Quête à réserve seulement.
+            ...(($reserve = app(\App\Partie\Classique\ReserveHorsPlateau::class)->etat($quete)) !== null ? ['reserve' => $reserve] : []),
             'portes' => $portes,
             // MURS EN ARÊTES : les murs que l'écran dessine en traits, sous le brouillard. Voir `murs()`.
             'murs' => $this->murs($carte, $cases),

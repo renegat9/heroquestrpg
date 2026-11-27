@@ -97,7 +97,7 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
     // 2026-11-20 : une figure `inactif`, que la note J éveille.
     $doc['quetes'][0]['monstres'][] = ['slug' => 'gobelin', 'x' => 9, 'y' => 2, 'inactif' => true];
     // Lot E2 : un chemin imposé, que la note T fait suivre aux dés.
-    $doc['quetes'][0]['regles'] = ['chemin_impose' => ['porteur' => 'talisman-du-savoir', 'cases' => [['x' => 3, 'y' => 3], ['x' => 4, 'y' => 3]], 'arrets' => [1]]];
+    $doc['quetes'][0]['regles'] = ['chemin_impose' => ['porteur' => 'talisman-du-savoir', 'cases' => [['x' => 3, 'y' => 3], ['x' => 4, 'y' => 3]], 'arrets' => [1]], 'reserve_hors_plateau' => ['x' => 8, 'y' => 13]];
     // Lot E1 : un captif, que la note K libère.
     $doc['quetes'][0]['captif'] = ['mercenaire' => 'sir-ragnar-livret-de-base', 'x' => 8, 'y' => 4];
     $doc['quetes'][0]['notes'] = [
@@ -143,6 +143,8 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
             'alors' => [['effet' => 'franchir_portes', 'portes' => [0, 1]]]],
         ['repere' => 'V', 'quand' => ['declencheur' => 'fardeau_rate', 'cible' => ['objet' => 'talisman-du-savoir-maudit']],
             'alors' => [['effet' => 'invoquer', 'sort' => 'invocation-dorques'], ['effet' => 'invoquer', 'sort' => 'invocation-dorques', 'x' => 8, 'y' => 3]]],
+        ['repere' => 'W', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 7]],
+            'alors' => [['effet' => 'en_reserve', 'monstres' => [['slug' => 'gobelin', 'nombre' => 2], ['slug' => 'orque']]]]],
         // Lot E1 : les huit déclencheurs des extensions.
         ['repere' => 'L1', 'quand' => ['declencheur' => 'salle_videe', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'texte', 'texte' => 'Vide.']]],
         ['repere' => 'L2', 'quand' => ['declencheur' => 'morts', 'cible' => ['monstres' => [0, 1]]], 'alors' => [['effet' => 'texte', 'texte' => 'Tous tombés.']]],

@@ -317,6 +317,7 @@ function fixturesDesTypesAnnonces(): array
         'magie_dissipee' => ['nom' => 'Albrecht', 'sorts' => ['Peau de Pierre']],
         'flamme_de_zargon' => ['nom' => 'Guerrier du Chaos', 'nombres' => [2, 5], 'de' => 3, 'epargne' => false, 'eau' => false],
         'etage' => ['numero' => 4, 'total' => 12, 'titre' => 'La réserve'],
+        'reserve_entree' => ['monstre' => 'Gobelin', 'instance_id' => 1, 'x' => 4, 'y' => 18, 'restants' => 2],
         'objet_jete' => ['nom' => 'Albrecht', 'objet' => 'Anneau de Puissance de Festral'],
         'porte_frappee' => ['nom' => 'Albrecht', 'bonne' => false, 'face' => 'crane', 'reussi' => true, 'succes' => 1, 'seuil' => 3],
         'assaut_porte' => ['monstre' => 'Orque', 'faces_attaque' => ['crane'], 'faces_defense' => ['bouclier_blanc'], 'degats' => 1, 'pv_restants' => 1, 'pv_max' => 2, 'brisee' => false],

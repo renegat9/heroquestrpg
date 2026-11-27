@@ -1039,6 +1039,13 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => "{$nom} : {$effet['objet']} devient {$effet['par']}", 'ton' => 'subit'];
                     }
                     break;
+                // Lot E2 (*Prophecy of Telor*, q. 2 A) : des figures gagnent la zone hors du plateau.
+                case 'en_reserve':
+                    if ((array) ($effet['monstres'] ?? []) !== []) {
+                        $lignes[] = ['texte' => collect((array) $effet['monstres'])->countBy()->map(fn (int $n, string $nom) => "{$n} {$nom}")->implode(', ')
+                            .' arrivent dans la zone hors du plateau ('.(int) ($effet['en_attente'] ?? 0).' y attendent)', 'ton' => 'subit'];
+                    }
+                    break;
                 // Lot E2 (*Prophecy of Telor*, q. 7 à 11) : Melar lance un sort d'invocation.
                 case 'invoquer':
                     $noms = collect((array) ($effet['invoques'] ?? []))->pluck('monstre');

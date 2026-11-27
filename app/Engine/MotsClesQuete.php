@@ -361,6 +361,13 @@ final class MotsClesQuete
      */
     public const INVOQUER = 'invoquer';
 
+    /**
+     * Lot E2 (*Prophecy of Telor*, q. 2 A) — « at the start of each of your turns, place 2 Goblins and 1 Orc to the side of the
+     * board in the area marked B » : des figures rejoignent la zone hors du plateau (`regles.reserve_hors_plateau`), d'où
+     * elles entrent par sa case (`Classique\ReserveHorsPlateau`).
+     */
+    public const EN_RESERVE = 'en_reserve';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET];
 
@@ -408,6 +415,7 @@ final class MotsClesQuete
         self::REPUTATION => ['parametres' => ['jetons'], 'optionnels' => [], 'lecteur' => 'effetReputation', 'libelle' => 'gagner ou perdre des jetons de réputation'],
         self::OFFRE => ['parametres' => ['libelle', 'alors'], 'optionnels' => ['cout', 'groupe'], 'lecteur' => 'effetOffre', 'libelle' => 'proposer un choix (coût, effets)'],
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],
+        self::EN_RESERVE => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetEnReserve', 'libelle' => 'placer des figures dans la zone hors du plateau'],
         self::INVOQUER => ['parametres' => ['sort'], 'optionnels' => ['x', 'y'], 'lecteur' => 'effetInvoquer', 'libelle' => 'lancer un sort d\'invocation de Dread (les figures surgissent près du héros, ou de la case)'],
     ];
 

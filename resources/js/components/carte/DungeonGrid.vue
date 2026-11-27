@@ -160,6 +160,8 @@ const titreTerrain = (x, y) => {
 // pièges distincts.
 // LA CHARGE (mode classique, lot K5k) : au sol, à sa case — publiée par le serveur (`carte.charge`), absente sinon.
 const chargeAuSol = computed(() => props.carte?.charge ?? null);
+// LA ZONE HORS DU PLATEAU (mode classique, lot E2, G0052 q. 2 B) : sa case d'entrée et les figures qui y attendent (`carte.reserve`).
+const reserve = computed(() => props.carte?.reserve ?? null);
 const zoneCells = computed(() => props.traps.flatMap((t) => (t.zone ?? [])
     .filter((z) => z.x !== t.x || z.y !== t.y)
     .map((z) => ({ ...z, etat: t.etat, titre: t.titre ?? t.nom }))));
@@ -426,6 +428,15 @@ const jetonsPlaces = computed(() => {
             <div class="dg-trap dg-charge" :title="chargeAuSol.nom">
                 <MSym n="inventory_2" fill />
             </div>
+        </div>
+
+        <!-- LA ZONE HORS DU PLATEAU (lot E2) : sur sa case d'entrée, le nombre de figures qui attendent de l'autre côté. -->
+        <div
+            v-if="reserve && reserve.noms.length"
+            class="dg-trap-holder"
+            :style="{ gridColumn: reserve.x + 1, gridRow: reserve.y + 1, zIndex: 6 }"
+        >
+            <div class="dg-reserve" :title="`Hors du plateau : ${reserve.noms.join(', ')}`">+{{ reserve.noms.length }}</div>
         </div>
 
         <!-- Lame balançoire : le reste de sa zone, en surlignage léger — pas un
@@ -866,6 +877,9 @@ const jetonsPlaces = computed(() => {
 .dg-trap-holder { position: relative; pointer-events: none; z-index: 2; }
 /* LA CHARGE (lot K5k) : l'objet à ramener, couleur de l'or — à ne pas confondre avec un piège. */
 .dg-trap.dg-charge { color: var(--gold, #c9a24a); background: oklch(0.78 0.12 85 / 0.16); box-shadow: inset 0 0 0 1.5px oklch(0.78 0.12 85 / 0.6); }
+/* Zone hors du plateau (lot E2) : une pastille rouge dans le coin de la case d'entrée — un nombre, pas une figure. */
+.dg-reserve { position: absolute; right: 2%; bottom: 2%; min-width: 46%; padding: 0 3px; border-radius: 4px; font-size: 0.62em; font-weight: 700;
+    line-height: 1.5; text-align: center; color: #fff; background: oklch(0.5 0.17 25 / 0.92); box-shadow: 0 0 0 1px oklch(0.3 0.1 25); pointer-events: auto; }
 /* Épreuves : un LOSANGE doré, et surtout PAS un disque.
    ⚠ Au premier jet c'était un disque plein de 72 %, exactement la silhouette
    d'un jeton de figurine : sur la table, un disque doré entre deux héros se

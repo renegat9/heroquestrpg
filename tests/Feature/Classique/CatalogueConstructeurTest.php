@@ -126,6 +126,10 @@ it('payload() publie les couches posables, les classes et les vocabulaires lus d
             'formats_acceptes' => ValidationCampagne::FORMATS_ACCEPTES,
             'boites_de_cartes' => \App\Partie\Fouille\DeckFouille::BOITES_DE_CARTES,
             'capacites_de_profil' => array_keys(\App\Models\InstanceMonstre::CAPACITES_DE_PROFIL),
+            // Lot E2 : les sorts que l'effet de note `invoquer` accepte — le prédicat même de la validation.
+            'sorts_d_invocation' => \App\Models\SortDread::query()->orderBy('nom')->get()
+                ->filter(fn ($sort) => \App\Partie\MoteurDread::invocationPure($sort))
+                ->map(fn ($sort) => \App\Partie\Classique\CatalogueConstructeur::slug($sort->nom))->values()->all(),
         ]);
 });
 

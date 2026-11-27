@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -1335,6 +1335,29 @@ final class ValidationCampagne
                     $this->profilDeMonstre($pose, $ici);
                 }
                 break;
+            // Lot E2 (G0052 q. 2 A) : des figures rejoignent la zone hors du plateau — `{slug, nombre?, …profil}`, comme l'errant.
+            case MotsClesQuete::EN_RESERVE:
+                $monstres = $this->enListeDe($effet, 'monstres', $position);
+                if (array_key_exists('monstres', $effet) && is_array($effet['monstres']) && $monstres === []) {
+                    $this->refuser("$position.monstres", self::VALEUR_INVALIDE, 'au moins une figure');
+                }
+                foreach ($monstres as $k => $pose) {
+                    $ici = "$position.monstres.$k";
+                    if (($pose = $this->enObjet($pose, $ici)) === null) {
+                        continue;
+                    }
+                    $this->cles($pose, $ici, ['slug'], self::CLES_ERRANT_OPTIONNELLES);
+                    $this->slugCatalogue($pose, 'slug', $ici, 'monstres');
+                    $nombre = $this->entier($pose, 'nombre', $ici, min: 1);
+                    if ($nombre !== null && $nombre > self::NOMBRE_ERRANTS_MAX) {
+                        $this->refuser(self::chemin($ici, 'nombre'), self::VALEUR_INVALIDE, 'au plus '.self::NOMBRE_ERRANTS_MAX.' figures');
+                    }
+                    $this->profilDeMonstre($pose, $ici);
+                }
+                if (! is_array(data_get($quete, 'regles.reserve_hors_plateau'))) {
+                    $this->refuser("$position.effet", self::VALEUR_INVALIDE, 'la quête n\'a pas de zone hors du plateau (règle « réserve hors du plateau »)');
+                }
+                break;
             case MotsClesQuete::TELEPORTER:
                 $this->caseDArrivee($effet, $position, 'le héros');
                 if (array_key_exists('destinations_d6', $effet)) {
@@ -2285,6 +2308,18 @@ final class ValidationCampagne
                 }
                 if ($arrets === []) {
                     $this->refuser("$ici.arrets", self::VALEUR_INVALIDE, 'au moins un arrêt (le premier tour)');
+                }
+            }
+        }
+        // Lot E2 : la zone hors du plateau (G0052 q. 2 B) — la case du bord par où ses figures entrent, et où elles frappent.
+        if (array_key_exists('reserve_hors_plateau', $regles)) {
+            $ici = self::chemin($position, 'reserve_hors_plateau');
+            if (($case = $this->enObjet($regles['reserve_hors_plateau'], $ici)) !== null) {
+                $this->cles($case, $ici, self::CLES_CASE);
+                $this->caseDArrivee($case, $ici, 'une figure de la réserve');
+                if (is_int($case['x'] ?? null) && is_int($case['y'] ?? null) && $this->dimensions !== null
+                    && ! in_array($case['x'], [0, $this->dimensions[0] - 1], true) && ! in_array($case['y'], [0, $this->dimensions[1] - 1], true)) {
+                    $this->refuser($ici, self::VALEUR_INVALIDE, 'la zone est « to the side of the board » : sa case d\'entrée est au bord du plateau');
                 }
             }
         }

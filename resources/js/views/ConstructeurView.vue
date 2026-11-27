@@ -1324,6 +1324,18 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             @change="quete.regles.chemin_impose.arrets = $event.target.value.split(',').map((t) => parseInt(t, 10) - 1).filter((n) => n >= 0)" />
                                     </label>
                                 </template>
+                                <!-- Lot E2 : la zone hors du plateau (Prophecy of Telor q. 2 B) — la case du bord par où ses figures entrent. -->
+                                <label class="cst-case" title="Une zone à côté du plateau : les héros n'y entrent pas et n'y frappent pas. L'effet de note « placer des figures dans la zone » la remplit ; au tour de Zargon, ses figures entrent par cette case, ou frappent le héros qui s'y tient.">
+                                    <input type="checkbox" :checked="!!quete.regles?.reserve_hors_plateau"
+                                        @change="poserRegle('reserve_hors_plateau', $event.target.checked ? { x: 0, y: 0 } : undefined)" />
+                                    Zone hors du plateau
+                                </label>
+                                <template v-if="quete.regles?.reserve_hors_plateau">
+                                    <span class="cst-sous">case d'entrée (au bord) :</span>
+                                    <input v-model.number="quete.regles.reserve_hors_plateau.x" type="number" min="0" class="cst-input cst-num" />
+                                    <input v-model.number="quete.regles.reserve_hors_plateau.y" type="number" min="0" class="cst-input cst-num" />
+                                    <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(quete.regles.reserve_hors_plateau, 'la case d\'entrée de la zone hors du plateau')"><MSym n="pin_drop" :size="16" /></button>
+                                </template>
                                 <!-- Lot E2 : le marché souterrain ouvert en pleine quête (Rise of the Dread Moon p. 2, q. 2 G). -->
                                 <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Dans cette salle, chaque héros achète et vend pour lui, au prix de l'étal, sans action.">
                                     Marché en quête :
@@ -1863,6 +1875,17 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                                 <button type="button" class="cst-icone" title="Retirer l'issue" @click="effet.issues.splice(k, 1)"><MSym n="close" :size="16" /></button>
                                             </div>
                                             <button type="button" class="cst-btn ghost" @click="effet.issues.push({ de: 1, a: 1, alors: [{ effet: 'texte', texte: '' }] })"><MSym n="add" :size="14" /> issue</button>
+                                        </div>
+                                        <!-- Lot E2 (Prophecy of Telor q. 2 A) : les figures qui gagnent la zone hors du plateau — figure et nombre. -->
+                                        <div v-else-if="p === 'monstres' && effet.effet === 'en_reserve'" class="cst-apparitions">
+                                            <span v-for="(m, k) in effet.monstres" :key="`er${k}`" class="cst-ligne">
+                                                <select v-model="m.slug" class="cst-input">
+                                                    <option v-for="c in (couches.monstres ?? [])" :key="`erm${c.slug}`" :value="c.slug">{{ c.nom }}</option>
+                                                </select>
+                                                <label>× <input :value="m.nombre ?? 1" type="number" min="1" class="cst-input cst-num" @change="Number($event.target.value) > 1 ? (m.nombre = Number($event.target.value)) : delete m.nombre" /></label>
+                                                <button type="button" class="cst-icone" title="Retirer" @click="effet.monstres.splice(k, 1)"><MSym n="close" :size="14" /></button>
+                                            </span>
+                                            <button type="button" class="cst-btn ghost" @click="effet.monstres.push({ slug: couches.monstres?.[0]?.slug ?? '' })"><MSym n="add" :size="14" /> figure</button>
                                         </div>
                                         <!-- Lot E1 : l'objet tiré au hasard — la liste parmi laquelle tirer. -->
                                         <div v-else-if="p === 'parmi'" class="cst-ligne">
