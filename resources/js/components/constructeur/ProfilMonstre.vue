@@ -41,6 +41,7 @@ const LIBELLES_CAPACITE = {
     // Lot E2 (Rise of the Dread Moon q. 2) : la figure qui laisse passer les déguisés.
     ignore_deguises: 'ignore les héros déguisés (dort tant qu\'un non-déguisé ne la voit pas)',
     retire_au_contact_deguise: 'endormie, retirée au contact d\'un héros déguisé',
+    rappelable: 'rappelable : un héros qui la voit lui rappelle son passé (une action, un dé ; un bouclier = 1 point d\'Esprit ; à 0, elle s\'efface apaisée)',
     flamme_de_zargon: 'Flamme de Zargon : touchée, un dé contre deux chiffres (épargnée ou consumée, quels que soient ses PV) ; l\'Eau de Guérison la frappe',
 };
 const nomSortDread = (slug) => props.sortsDread.find((o) => o.slug === slug)?.nom ?? slug;

@@ -1385,3 +1385,43 @@ it('gestes : l\'énigme des coffres — un mauvais ordre frappe tous les héros 
     expect($partie['quete']->fresh()->aDrapeau('enigme_resolue'))->toBeTrue()
         ->and($choisir('rien'))->not->toContain('geste_0_0');
 });
+
+// ---------------------------------------------------------------- Spirit Queen's Torment : le rappel de la Reine (q. 14 C)
+
+it('rappel de la Reine : en vue, un dé ; un bouclier ôte 1 Esprit, un crâne rien ; à 0 elle s\'efface apaisée, vaincue, la note joue', function () {
+    $campagne = campagneE2([
+        'monstres' => [['slug' => 'orque', 'x' => 5, 'y' => 3, 'nom' => 'La Reine des Esprits', 'pv_mind' => 2, 'capacites' => ['rappelable']]],
+        'fin' => ['type' => 'vaincre', 'cibles' => [0], 'libelle' => 'Affronter la Reine.'],
+        'notes' => [['repere' => 'C', 'quand' => ['declencheur' => 'figure_apaisee', 'cible' => ['monstre' => 0]],
+            'alors' => [['effet' => 'drapeau', 'nom' => 'nelath_sauvee', 'campagne' => true]]]],
+    ]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $etat = $partie['quete']->etatsPersonnages()->firstOrFail();
+    $etat->update(['position_x' => 3, 'position_y' => 3]);
+    $reine = $partie['quete']->instancesMonstres()->firstOrFail();
+    $rappeler = function (int $de) use ($partie, $etat, $reine) {
+        $etat->refresh()->update(['a_agi' => false, 'a_joue' => false]);
+        app()->instance(LanceurDes::class, new LanceurDeterministe([$de, ...array_fill(0, 30, 1)]));
+        \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+        expect(collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id'))->toContain("rappeler_{$reine->id}");
+        $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => "rappeler_{$reine->id}"])->assertAccepted();
+    };
+
+    $rappeler(1); // crâne
+    expect((int) $reine->fresh()->pv_mind)->toBe(2);
+    $rappeler(6); // bouclier noir
+    expect((int) $reine->fresh()->pv_mind)->toBe(1);
+    $rappeler(4); // bouclier blanc : 0, elle s'efface
+    $reine->refresh();
+    expect($reine->etat)->toBe('vaincu')->and($reine->position_x)->toBeNull()->and($reine->habillage['apaisee'] ?? null)->toBeTrue()
+        ->and($partie['quete']->fresh()->aDrapeau('nelath_sauvee'))->toBeTrue()
+        ->and($partie['quete']->fresh()->objectifAccompli())->toBeTrue();
+    $ligne = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()->pluck('payload')
+        ->last(fn ($p) => ($p['type'] ?? null) === 'rappel_figure' && isset($p['apaisee']));
+    expect(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($ligne, 'Albrecht'))->pluck('texte')->first())
+        ->toBe('Albrecht rappelle à La Reine des Esprits son passé (bouclier blanc) : elle brise l\'enchantement de Zargon, remercie les héros et s\'efface, apaisée');
+
+    // Apaisée, elle n'est plus à rappeler.
+    expect(app(\App\Partie\Classique\RappelDeLaReine::class)->cibles($partie['quete']->fresh(), $etat->fresh()))->toHaveCount(0);
+});

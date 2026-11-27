@@ -106,6 +106,12 @@ final class MotsClesQuete
     public const FARDEAU_RATE = 'fardeau_rate';
 
     /**
+     * Lot E2 (*Spirit Queen's Torment*, q. 14 C) — « she breaks the enchantment placed upon her by Zargon and thanks the heroes
+     * for saving her before fading » : la figure rappelée à 0 point d'Esprit s'efface, apaisée (`Classique\RappelDeLaReine`).
+     */
+    public const FIGURE_APAISEE = 'figure_apaisee';
+
+    /**
      * Déclencheur → les formes de `quand.cible` qu'il accepte, et qui le signale.
      *
      * - `salle` : l'`id` d'une salle du plateau ;
@@ -209,6 +215,11 @@ final class MotsClesQuete
             'cibles' => ['captif'],
             'signale_par' => 'ResolveurTour::resoudreLibererCaptif()',
             'libelle' => 'le captif est libéré',
+        ],
+        self::FIGURE_APAISEE => [
+            'cibles' => ['monstre'],
+            'signale_par' => 'Classique\\RappelDeLaReine::rappeler()',
+            'libelle' => 'la figure, rappelée à son passé, s\'efface apaisée',
         ],
         self::FARDEAU_RATE => [
             'cibles' => ['objet'],

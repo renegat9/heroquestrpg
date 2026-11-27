@@ -129,6 +129,10 @@ const ICONE_TYPE = {
     descente_fosse: 'vertical_align_bottom',
     // Sauter de la galerie dans la salle en contrebas (Prophecy of Telor q. 9) : une flèche qui plonge.
     saut_contrebas: 'move_down',
+    // Rappeler à la Reine des Esprits son passé (Spirit Queen q. 14) : une voix qui porte.
+    rappel_figure: 'record_voice_over',
+    // Un geste de quête (Spirit Queen q. 7, 8) : la main qui fait.
+    geste_de_quete: 'back_hand',
     sort: 'auto_awesome',
     // Sort de Dread du porteur (Talisman du Savoir maudit, 2026-10-29) : un sort du maître du donjon, lancé par le héros.
     // Une baguette qui ouvre une sorcellerie — distincte du sort de héros (`auto_awesome`) et de l'éclair de la rune.

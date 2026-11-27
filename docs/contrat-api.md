@@ -7073,6 +7073,22 @@ l'ordre de l'arc-en-ciel, « If done incorrectly, bolts of lightning strike each
   Ligne : « Albrecht récupère 3 point(s) d'Esprit ».
 - `degats.tous_les_heros: true` : chaque héros debout de la quête, où qu'il soit.
 
+### Le rappel de la Reine — capacité de profil `rappelable`, option `rappel_figure`, déclencheur `figure_apaisee` (lot E2, 2026-11-27)
+
+*Spirit Queen's Torment* q. 14 C : « if a hero wants to remind her of her past as Nelath or shake her from her servitude to
+Zargon they may use their action to do so. That hero rolls 1 combat die. On a shield, the Spirit Queen is affected by the
+message and takes 1 Mind Point of damage. If the queen is reduced to 0 Mind Points in this manner, she breaks the
+enchantment […] and thanks the heroes for saving her before fading into glimmering light. » `Classique\RappelDeLaReine` :
+- `monstres[].capacites: ["rappelable"]` (et l'apparition) — `InstanceMonstre::CAPACITES_DE_PROFIL`.
+- Option **`rappel_figure`** (créneau `action`), `id: rappeler_{instance}`, `parametres.cible_id` : une par figure rappelable,
+  active, que le héros VOIT (`ligneDeVue`, le livret ne donne pas de portée). Le résolveur relit la liste (422 sinon).
+- Un dé de combat : tout BOUCLIER, blanc ou noir (René, 2026-11-27), ôte 1 point d'Esprit ; un crâne, rien. À 0, la figure
+  quitte le plateau à l'état `vaincu` (elle compte pour une fin `vaincre`), `habillage.apaisee: true`, et le déclencheur
+  **`figure_apaisee`** (cible `{monstre: index}`) joue la note de l'auteur.
+- Annonce `rappel_figure {nom, figure, instance_id, face, touche, mind_restant, apaisee}` : « Albrecht rappelle à La Reine
+  des Esprits son passé (bouclier noir) : elle perd 1 point d'Esprit (2 restant(s)) » ; à 0 : « … elle brise l'enchantement
+  de Zargon, remercie les héros et s'efface, apaisée ».
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

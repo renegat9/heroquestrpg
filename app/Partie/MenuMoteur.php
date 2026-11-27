@@ -3192,6 +3192,17 @@ final class MenuMoteur
                     ];
                 }
             }
+            // LE RAPPEL DE LA REINE (lot E2, Spirit Queen q. 14 C) : une action, contre une figure `rappelable` en vue.
+            if (! $actionInterdite) {
+                foreach (app(\App\Partie\Classique\RappelDeLaReine::class)->cibles($quete, $etat) as $figure) {
+                    $options[] = [
+                        'id' => 'rappeler_'.$figure->id,
+                        'libelle' => 'Rappeler à '.$figure->nomAffiche().' son passé — un dé de combat, un bouclier la touche',
+                        'type' => 'rappel_figure',
+                        'parametres' => ['cible_id' => (int) $figure->id],
+                    ];
+                }
+            }
             // GESTES DE QUÊTE (lot E2, Spirit Queen q. 7 D, 8 B) : l'action que l'auteur offre dans la salle — un par choix
             // (`Classique\GestesDeQuete::disponibles()`, que le résolveur relit).
             if (! $actionInterdite) {

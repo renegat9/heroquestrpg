@@ -145,6 +145,7 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
             'alors' => [['effet' => 'invoquer', 'sort' => 'invocation-dorques'], ['effet' => 'invoquer', 'sort' => 'invocation-dorques', 'x' => 8, 'y' => 3]]],
         ['repere' => 'W', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 7]],
             'alors' => [['effet' => 'en_reserve', 'monstres' => [['slug' => 'gobelin', 'nombre' => 2], ['slug' => 'orque']]]]],
+        ['repere' => 'R', 'quand' => ['declencheur' => 'figure_apaisee', 'cible' => ['monstre' => 0]], 'alors' => [['effet' => 'texte', 'texte' => 'Elle remercie les héros.']]],
         ['repere' => 'S', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 8]],
             'alors' => [['effet' => 'soigner', 'mind' => 'tout', 'body' => 2], ['effet' => 'degats', 'body' => 2, 'tous_les_heros' => true]]],
         // Lot E1 : les huit déclencheurs des extensions.

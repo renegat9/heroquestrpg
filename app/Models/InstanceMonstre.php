@@ -128,6 +128,9 @@ class InstanceMonstre extends Model
         // Lot E2 (*Prophecy of Telor* q. 13) : « summoned with Zargon's Flame » — tout coup qui porte se joue au dé, quels que
         // soient les PV ; l'Eau de Guérison la frappe (`Classique\FlammeDeZargon`).
         'flamme_de_zargon' => ['flamme_de_zargon', true],
+        // Lot E2 (*Spirit Queen's Torment* q. 14 C) : « if a hero wants to remind her of her past as Nelath […] they may use
+        // their action to do so » — un dé, un bouclier ôte 1 point d'Esprit ; à 0, elle s'efface apaisée (`Classique\RappelDeLaReine`).
+        'rappelable' => ['rappelable', true],
     ];
 
     /** Dés d'attaque effectifs (bloc de stats + bonus élite éventuel). */
