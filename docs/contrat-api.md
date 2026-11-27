@@ -7031,6 +7031,26 @@ monsters in area B. If a hero stands on the square marked C, you may attack them
 - Note : « 2 Gobelin, 1 Orque arrivent dans la zone hors du plateau (6 y attendent) ».
 - Payload : `carte.reserve {x, y, noms}` (quête à zone seulement) ; la table pose une pastille « +N » sur la case C.
 
+### La salle en contrebas — `regles.salle_en_contrebas`, option `saut_contrebas` (lot E2, 2026-11-27)
+
+*Prophecy of Telor* q. 9 C : « This room is sunken down and can only be accessed by a hero or monster moving on the stairs.
+Treat the stairs as a single square on which only one miniature may be placed at a time. Any miniature on a gallery square
+can see any miniature in the altar room and vice versa. A hero may jump into the room below but loses 1 Body Point. »
+`Classique\SalleEnContrebas` :
+- `regles.salle_en_contrebas {salle, galerie: [{x, y, l, h}…]}` : une salle ouverte de la quête (`salle_inconnue` sinon) ;
+  au moins un rectangle de galerie, dans le plateau (`hors_plateau`), hors de la salle (`valeur_invalide`).
+- L'escalier n'a pas de clé : c'est une porte OUVERTE que l'auteur pose entre la case de l'escalier et la galerie — le seul
+  passage ; une case ne porte qu'une figure.
+- La vue : la carte de la quête porte `grille.vues_croisees: [[cases de la galerie], [cases de la salle]]`
+  (`CarteConstruite`), lue par `Grille::depuisCarte()` → `voirEntre()` : toute case de l'une voit toute case de l'autre,
+  murs et figures compris (l'ombre garde le dessus). Le contact, lui, reste coupé par le mur : on ne frappe pas d'en haut.
+- Option de menu **`saut_contrebas`** (créneau `mouvement`), `id: sauter_contrebas_{x}_{y}`, `parametres.case {x, y}` : un héros
+  debout sur la galerie, mouvement du tour libre, une case LIBRE de la salle qui touche la sienne par un côté
+  (`SalleEnContrebas::sauts()`, relu par le résolveur — 422 sinon). Il s'y pose, son mouvement du tour est pris, il perd 1 PV
+  de Corps (`MoteurDegats::SOURCE_SAUT_CONTREBAS`) ; à 0, il tombe. L'action reste. Annonce `saut_contrebas {nom, x, y,
+  pv_body_perdus, tombe}` : « Albrecht saute dans la salle en contrebas et perd 1 point(s) de Corps ».
+- Écart écrit : le saut prend tout le déplacement du tour, comme la descente dans une fosse. Les monstres ne sautent pas.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

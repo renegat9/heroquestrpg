@@ -1957,6 +1957,21 @@ final class MenuMoteur
             }
         }
 
+        // SAUTER DANS LA SALLE EN CONTREBAS (lot E2, G0052 q. 9 C : « A hero may jump into the room below but loses 1 Body
+        // Point ») : depuis la galerie, sur une case libre de la salle qui la touche. Le MOUVEMENT du tour, comme la descente
+        // dans une fosse ; la liste vient de `SalleEnContrebas::sauts()`, que le résolveur relit.
+        if (! $aDeplace && ! $enFosse && $etat !== null && $this->pointsRestants($personnage, $etat) >= 1
+            && ! $this->sorts->deplacementInterdit($personnage)) {
+            foreach (app(\App\Partie\Classique\SalleEnContrebas::class)->sauts($quete, $etat) as $case) {
+                $options[] = [
+                    'id' => "sauter_contrebas_{$case['x']}_{$case['y']}",
+                    'libelle' => 'Sauter dans la salle en contrebas — '.\App\Partie\Classique\SalleEnContrebas::DEGATS.' PV de Corps perdu',
+                    'type' => 'saut_contrebas',
+                    'parametres' => ['case' => $case],
+                ];
+            }
+        }
+
         // SAUTER PAR LE BOUT D'UNE FOSSE LONGUE (F7539 p. 6) : même créneau que le saut ordinaire (MOUVEMENT), à trois
         // cases de déplacement au moins. La liste vient de `MoteurFosseLongue::sautsLongs()`, relue par le résolveur.
         if (! $aDeplace && ! $enFosse && $etat !== null) {

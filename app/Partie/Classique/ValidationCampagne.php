@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -2320,6 +2320,46 @@ final class ValidationCampagne
                 if (is_int($case['x'] ?? null) && is_int($case['y'] ?? null) && $this->dimensions !== null
                     && ! in_array($case['x'], [0, $this->dimensions[0] - 1], true) && ! in_array($case['y'], [0, $this->dimensions[1] - 1], true)) {
                     $this->refuser($ici, self::VALEUR_INVALIDE, 'la zone est « to the side of the board » : sa case d\'entrée est au bord du plateau');
+                }
+            }
+        }
+        // Lot E2 : la salle en contrebas (G0052 q. 9 C) — une salle ouverte, et la galerie qui la surplombe, hors d'elle.
+        if (array_key_exists('salle_en_contrebas', $regles)) {
+            $ici = self::chemin($position, 'salle_en_contrebas');
+            if (($contrebas = $this->enObjet($regles['salle_en_contrebas'], $ici)) !== null) {
+                $this->cles($contrebas, $ici, ['salle', 'galerie']);
+                $salle = $contrebas['salle'] ?? null;
+                if (! is_string($salle) || ($this->ouvertesFiables && ! isset($this->ouvertes[$salle]))) {
+                    $this->refuser("$ici.salle", self::SALLE_INCONNUE, 'une salle ouverte de la quête est attendue');
+                    $salle = null;
+                }
+                $galerie = array_key_exists('galerie', $contrebas) ? $this->enListe($contrebas['galerie'], "$ici.galerie") : null;
+                foreach ((array) $galerie as $k => $r) {
+                    if (($rect = $this->enObjet($r, "$ici.galerie.$k")) === null) {
+                        continue;
+                    }
+                    $this->cles($rect, "$ici.galerie.$k", ['x', 'y', 'l', 'h']);
+                    $x = $this->entier($rect, 'x', "$ici.galerie.$k", min: 0);
+                    $y = $this->entier($rect, 'y', "$ici.galerie.$k", min: 0);
+                    $l = $this->entier($rect, 'l', "$ici.galerie.$k", min: 1);
+                    $h = $this->entier($rect, 'h', "$ici.galerie.$k", min: 1);
+                    if ($x === null || $y === null || $l === null || $h === null) {
+                        continue;
+                    }
+                    if (! $this->dansPlateau($x, $y) || ! $this->dansPlateau($x + $l - 1, $y + $h - 1)) {
+                        $this->refuser("$ici.galerie.$k", self::HORS_PLATEAU, 'la galerie sort du plateau');
+
+                        continue;
+                    }
+                    foreach (\App\Partie\Salles::cases(['x' => $x, 'y' => $y, 'l' => $l, 'h' => $h]) as $c) {
+                        if ($salle !== null && $this->salleEn($c['x'], $c['y']) === $salle) {
+                            $this->refuser("$ici.galerie.$k", self::VALEUR_INVALIDE, "la galerie surplombe la salle « $salle » : elle n'y entre pas (case ({$c['x']}, {$c['y']}))");
+                            break;
+                        }
+                    }
+                }
+                if ($galerie === []) {
+                    $this->refuser("$ici.galerie", self::VALEUR_INVALIDE, 'au moins un rectangle de galerie');
                 }
             }
         }

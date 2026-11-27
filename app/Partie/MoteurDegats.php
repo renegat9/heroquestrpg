@@ -184,6 +184,13 @@ final class MoteurDegats
     public const SOURCE_SALLE_DANGEREUSE = 'salle_dangereuse';
 
     /**
+     * LE SAUT DANS LA SALLE EN CONTREBAS (lot E2, *Prophecy of Telor* q. 9 C : « A hero may jump into the room below but
+     * loses 1 Body Point ») : un dégât que le héros choisit. Ni un coup ni un piège : hors de `ReactionEffet::SOURCES_REACTIVES`.
+     * Seul producteur : `ResolveurTour::resoudreSautContrebas()`.
+     */
+    public const SOURCE_SAUT_CONTREBAS = 'saut_contrebas';
+
+    /**
      * Applique `$degats` au héros et rend ce qui a RÉELLEMENT été retiré.
      *
      * Le retour n'est pas décoratif : un écouteur peut avoir réduit le coup, et

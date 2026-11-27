@@ -696,6 +696,7 @@ final class ResolveurTour
                 'franchissement' => $this->resoudreFranchissement($groupe, $quete, $personnage, $etat, $option, $acteur, $parametres),
                 // DESCENDRE DANS UNE FOSSE (René, 2026-11-07 ; First Light p. 9) — voir `resoudreDescenteFosse()`.
                 'descente_fosse' => $this->resoudreDescenteFosse($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'saut_contrebas' => $this->resoudreSautContrebas($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sort' => $this->resoudreSort($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 // SORT DE DREAD DU PORTEUR (Talisman du Savoir maudit, 2026-10-29) : le héros lance un sort du MJ. Action.
                 'lancer_sort_dread' => $this->resoudreSortDreadPorteur($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
@@ -5886,6 +5887,53 @@ final class ResolveurTour
             'libelle' => $option['libelle'] ?? null,
             'piege' => ['nom' => Piege::find($entree['piege_id'])?->nom ?? 'Fosse', 'x' => $x, 'y' => $y],
             'declenchement' => $chute,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * SAUTER DANS LA SALLE EN CONTREBAS (lot E2, *Prophecy of Telor* q. 9 C : « A hero may jump into the room below but loses
+     * 1 Body Point ») — `Classique\SalleEnContrebas`. Revalide la case contre la liste LIVE (`sauts()`), pose le héros, prend
+     * le mouvement du tour, puis le point de Corps (`MoteurDegats`, réductions comprises) ; à 0, il tombe. L'action reste.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreSautContrebas(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $case = ['x' => (int) data_get($option, 'parametres.case.x', -1), 'y' => (int) data_get($option, 'parametres.case.y', -1)];
+
+        if ($etat->a_deplace || ! in_array($case, app(\App\Partie\Classique\SalleEnContrebas::class)->sauts($quete, $etat), true)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Impossible de sauter là : il faut se tenir sur la galerie, au-dessus d\'une case libre de la salle.',
+            ]);
+        }
+
+        $etat->update(['position_x' => $case['x'], 'position_y' => $case['y'], 'a_deplace' => true, 'deplacement_restant' => 0]);
+        $perdus = $this->degats->infligerAHeros($personnage, \App\Partie\Classique\SalleEnContrebas::DEGATS, MoteurDegats::SOURCE_SAUT_CONTREBAS);
+        if ((int) $personnage->fresh()->pv_body === 0) {
+            $etat->update(['tombe' => true]);
+        }
+
+        $payload = [
+            'type' => 'saut_contrebas',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'nom' => (string) $personnage->nom,
+            'x' => $case['x'],
+            'y' => $case['y'],
+            'pv_body_perdus' => $perdus,
+            'tombe' => (bool) $etat->fresh()->tombe,
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
@@ -17011,7 +17059,8 @@ final class ResolveurTour
             // `saut_sables` : franchir les sables mouvants fait partie du MOUVEMENT, comme sauter une fosse.
             // `sortie_fosse` : se hisser hors du trou EST le déplacement du tour (Fosse longue, p. 6).
             // `entree_donjon` : le héros hors plateau franchit la porte d'entrée — un pas de son déplacement (mode classique).
-            'deplacement', 'franchissement', 'saut_sables', 'sortie_fosse', 'descente_fosse', 'entree_donjon' => 'mouvement',
+            // `saut_contrebas` : sauter de la galerie dans la salle en contrebas (G0052 q. 9 C) — le mouvement du tour.
+            'deplacement', 'franchissement', 'saut_sables', 'sortie_fosse', 'descente_fosse', 'entree_donjon', 'saut_contrebas' => 'mouvement',
             // Ouvrir une porte / actionner un levier = interaction LIBRE (E2) :
             // ne consomme ni le déplacement ni l'action — on s'arrête devant la
             // porte, on l'ouvre, puis on continue son mouvement s'il reste des points.

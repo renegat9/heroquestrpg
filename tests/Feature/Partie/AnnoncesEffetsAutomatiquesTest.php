@@ -318,6 +318,7 @@ function fixturesDesTypesAnnonces(): array
         'flamme_de_zargon' => ['nom' => 'Guerrier du Chaos', 'nombres' => [2, 5], 'de' => 3, 'epargne' => false, 'eau' => false],
         'etage' => ['numero' => 4, 'total' => 12, 'titre' => 'La réserve'],
         'reserve_entree' => ['monstre' => 'Gobelin', 'instance_id' => 1, 'x' => 4, 'y' => 18, 'restants' => 2],
+        'saut_contrebas' => ['option_id' => 'sauter_contrebas_8_4', 'nom' => 'Albrecht', 'x' => 8, 'y' => 4, 'pv_body_perdus' => 1, 'tombe' => false],
         'objet_jete' => ['nom' => 'Albrecht', 'objet' => 'Anneau de Puissance de Festral'],
         'porte_frappee' => ['nom' => 'Albrecht', 'bonne' => false, 'face' => 'crane', 'reussi' => true, 'succes' => 1, 'seuil' => 3],
         'assaut_porte' => ['monstre' => 'Orque', 'faces_attaque' => ['crane'], 'faces_defense' => ['bouclier_blanc'], 'degats' => 1, 'pv_restants' => 1, 'pv_max' => 2, 'brisee' => false],

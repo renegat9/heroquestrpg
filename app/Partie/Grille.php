@@ -118,6 +118,9 @@ final class Grille
      */
     private array $ombre = [];
 
+    /** @var list<array{0: array<string, true>, 1: array<string, true>}> les paires d'ensembles de cases qui se voient — `voirEntre()` */
+    private array $vuesCroisees = [];
+
     /**
      * État des portes (chantier portes, doc 14 §3.1/3.3), indexé par ARÊTE
      * entre deux cases voisines (une porte ne prend PAS de case : elle vit sur
@@ -379,7 +382,27 @@ final class Grille
         $grille->definirMurs($carte->grille['murs'] ?? []);
         $grille->definirPortes($carte->grille['portes'] ?? [], $carte->grille['salles'] ?? []);
 
+        // VUES CROISÉES (lot E2, *Prophecy of Telor* q. 9 C) : la galerie et la salle en contrebas se voient par-dessus le mur.
+        foreach ((array) ($carte->grille['vues_croisees'] ?? []) as $paire) {
+            $grille->voirEntre((array) ($paire[0] ?? []), (array) ($paire[1] ?? []));
+        }
+
         return $grille;
+    }
+
+    /**
+     * VUES CROISÉES (lot E2, *Prophecy of Telor* q. 9 C : « Any miniature on a gallery square can see any miniature in the
+     * altar room and vice versa ») : toute case de `$a` voit toute case de `$b`, et réciproquement, quels que soient les murs
+     * et les figures entre elles. Posé par `depuisCarte()` depuis la couche `carte.grille.vues_croisees` d'une quête construite
+     * (`CarteConstruite`) : le ciblage, les sorts et les figures lisent tous `ligneDeVue()`. L'ombre garde le dessus.
+     *
+     * @param  list<array{x: int, y: int}>  $a
+     * @param  list<array{x: int, y: int}>  $b
+     */
+    public function voirEntre(array $a, array $b): void
+    {
+        $cles = static fn (array $cases): array => array_fill_keys(array_map(static fn ($c) => ((int) $c['x']).','.((int) $c['y']), $cases), true);
+        $this->vuesCroisees[] = [$cles($a), $cles($b)];
     }
 
     /**
@@ -1150,6 +1173,13 @@ final class Grille
         if ($this->ombre !== []
             && (isset($this->ombre["{$x1},{$y1}"]) || isset($this->ombre["{$x2},{$y2}"]))) {
             return false;
+        }
+
+        // VUES CROISÉES (`voirEntre()`) : la galerie voit la salle en contrebas, par-dessus le mur — symétrique.
+        foreach ($this->vuesCroisees as [$a, $b]) {
+            if ((isset($a["{$x1},{$y1}"]) && isset($b["{$x2},{$y2}"])) || (isset($b["{$x1},{$y1}"]) && isset($a["{$x2},{$y2}"]))) {
+                return true;
+            }
         }
 
         // Ordre canonique des extrémités → tracé identique dans les deux sens.

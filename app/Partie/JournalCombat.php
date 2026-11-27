@@ -202,6 +202,8 @@ final class JournalCombat
         'etage' => true,
         // Lot E2 (G0052 q. 2 B) : une figure de la zone hors du plateau entre par sa case.
         'reserve_entree' => true,
+        // Lot E2 (G0052 q. 9 C) : un héros saute de la galerie dans la salle en contrebas, et perd 1 point de Corps.
+        'saut_contrebas' => true,
         // Lot TC4 : la vague suivante du tournoi (F9528 q. 1).
         'vague_tournoi' => true,
         // Lot E2 : le marché souterrain en pleine quête (F6646 p. 2).
@@ -1424,6 +1426,11 @@ final class JournalCombat
                 'texte' => 'Zargon lance le dé ('.(int) ($a['de'] ?? 0).') : '
                     .implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) ($a['salles'] ?? []))),
                 'ton' => 'subit',
+            ]],
+            'saut_contrebas' => [[
+                'texte' => ($a['nom'] ?? 'Le héros').' saute dans la salle en contrebas et perd '.(int) ($a['pv_body_perdus'] ?? 0).' point(s) de Corps'
+                    .(! empty($a['tombe']) ? ' — il tombe' : ''),
+                'ton' => 'degats',
             ]],
             'reserve_entree' => [[
                 'texte' => ($a['monstre'] ?? 'Une figure').' surgit de la zone hors du plateau'

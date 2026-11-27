@@ -1266,3 +1266,54 @@ it('donjon vidé : une note qui attend le prochain tour du MJ le fait jouer quan
     $finir();
     expect($partie['quete']->fresh()->tours_mj)->toBe(1);
 });
+
+// ---------------------------------------------------------------- Prophecy of Telor : la salle en contrebas (q. 9 C)
+
+function contrebasE2(array $regle = []): array
+{
+    return campagneE2(['regles' => ['salle_en_contrebas' => array_replace(['salle' => 'galerie', 'galerie' => [['x' => 7, 'y' => 1, 'l' => 4, 'h' => 1]]], $regle)]]);
+}
+
+it('salle en contrebas : une salle ouverte, une galerie hors d\'elle et dans le plateau', function () {
+    expect(codesE2(contrebasE2()))->toBe([])
+        ->and(codesE2(contrebasE2(['salle' => 'crypte'])))->toBe([ValidationCampagne::SALLE_INCONNUE])
+        ->and(codesE2(contrebasE2(['galerie' => [['x' => 7, 'y' => 1, 'l' => 4, 'h' => 2]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE2(contrebasE2(['galerie' => [['x' => 18, 'y' => 1, 'l' => 4, 'h' => 1]]])))->toBe([ValidationCampagne::HORS_PLATEAU])
+        ->and(codesE2(contrebasE2(['galerie' => []])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+});
+
+it('salle en contrebas : la galerie voit la salle par-dessus le mur ; le héros saute, perd 1 PV, garde son action', function () {
+    $partie = partieE2($this, contrebasE2());
+    $quete = $partie['quete']->fresh();
+    $etat = $quete->etatsPersonnages()->firstOrFail();
+    $etat->update(['position_x' => 8, 'position_y' => 1]);
+
+    // La vue : de la galerie au fond de la salle, à travers le mur ; sans la couche, le mur la coupe.
+    expect(\App\Partie\FabriqueGrille::pour($quete)->ligneDeVue(8, 1, 9, 4))->toBeTrue()
+        ->and(\App\Partie\FabriqueGrille::pour($quete)->ligneDeVue(9, 4, 8, 1))->toBeTrue();
+    $sansVue = $quete->carte->grille;
+    unset($sansVue['vues_croisees']);
+    expect(\App\Partie\Grille::depuisCarte(new \App\Models\Carte(['grille' => $sansVue]))->ligneDeVue(8, 1, 9, 4))->toBeFalse()
+        // Le contact, lui, reste coupé : on ne frappe pas d'en haut.
+        ->and(\App\Partie\Grille::sontAdjacentes(8, 1, 8, 2, carte: $quete->carte))->toBeFalse();
+
+    // Le menu offre le saut sur la case d'en dessous ; le résolveur l'accepte.
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $options = collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'));
+    $saut = $options->firstWhere('id', 'sauter_contrebas_8_2');
+    expect($saut)->not->toBeNull()->and($saut['type'])->toBe('saut_contrebas')->and($saut['creneau'] ?? 'mouvement')->toBe('mouvement');
+    $pv = (int) $partie['heros']->fresh()->pv_body;
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'sauter_contrebas_8_2'])->assertAccepted();
+    $etat->refresh();
+    expect([$etat->position_x, $etat->position_y])->toBe([8, 2])
+        ->and((bool) $etat->a_deplace)->toBeTrue()->and((bool) $etat->a_agi)->toBeFalse()
+        ->and((int) $partie['heros']->fresh()->pv_body)->toBe($pv - 1);
+    $payload = \App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()->pluck('payload')
+        ->first(fn ($p) => ($p['type'] ?? null) === 'saut_contrebas' && isset($p['pv_body_perdus'])); // pas le choix lui-même
+    expect(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($payload, 'Albrecht'))->pluck('texte')->first())
+        ->toBe('Albrecht saute dans la salle en contrebas et perd 1 point(s) de Corps');
+
+    // Hors de la galerie, aucun saut.
+    $etat->update(['position_x' => 12, 'position_y' => 1, 'a_deplace' => false]);
+    expect(app(\App\Partie\Classique\SalleEnContrebas::class)->sauts($quete->fresh(), $etat->fresh()))->toBe([]);
+});

@@ -1336,6 +1336,27 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <input v-model.number="quete.regles.reserve_hors_plateau.y" type="number" min="0" class="cst-input cst-num" />
                                     <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(quete.regles.reserve_hors_plateau, 'la case d\'entrée de la zone hors du plateau')"><MSym n="pin_drop" :size="16" /></button>
                                 </template>
+                                <!-- Lot E2 : la salle en contrebas (Prophecy of Telor q. 9 C) — la salle, et la galerie qui la surplombe. -->
+                                <label v-if="quete.salles_ouvertes.length" class="cst-case" title="La galerie et la salle se voient par-dessus le mur ; un héros de la galerie peut sauter dans la salle (1 PV de Corps). L'escalier est une porte ouverte que vous posez entre sa case et la galerie.">
+                                    <input type="checkbox" :checked="!!quete.regles?.salle_en_contrebas"
+                                        @change="poserRegle('salle_en_contrebas', $event.target.checked ? { salle: quete.salles_ouvertes[0], galerie: [{ x: 0, y: 0, l: 1, h: 1 }] } : undefined)" />
+                                    Salle en contrebas
+                                </label>
+                                <template v-if="quete.regles?.salle_en_contrebas">
+                                    <select v-model="quete.regles.salle_en_contrebas.salle" class="cst-input" title="La salle en contrebas">
+                                        <option v-for="id in quete.salles_ouvertes" :key="`sc${id}`" :value="id">{{ id }}</option>
+                                    </select>
+                                    <span class="cst-sous">galerie (rectangles x, y, largeur, hauteur) :</span>
+                                    <span v-for="(r, k) in quete.regles.salle_en_contrebas.galerie" :key="`gal${k}`" class="cst-ligne">
+                                        <input v-model.number="r.x" type="number" min="0" class="cst-input cst-num" title="x" />
+                                        <input v-model.number="r.y" type="number" min="0" class="cst-input cst-num" title="y" />
+                                        <input v-model.number="r.l" type="number" min="1" class="cst-input cst-num" title="largeur" />
+                                        <input v-model.number="r.h" type="number" min="1" class="cst-input cst-num" title="hauteur" />
+                                        <button type="button" class="cst-icone" title="Choisir le coin sur la carte" @click="pointer(r, `le coin du rectangle de galerie n° ${k + 1}`)"><MSym n="pin_drop" :size="16" /></button>
+                                        <button type="button" class="cst-icone" title="Retirer le rectangle" @click="quete.regles.salle_en_contrebas.galerie.splice(k, 1)"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter un rectangle de galerie" @click="quete.regles.salle_en_contrebas.galerie.push({ x: 0, y: 0, l: 1, h: 1 })"><MSym n="add" :size="16" /></button>
+                                </template>
                                 <!-- Lot E2 : le marché souterrain ouvert en pleine quête (Rise of the Dread Moon p. 2, q. 2 G). -->
                                 <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Dans cette salle, chaque héros achète et vend pour lui, au prix de l'étal, sans action.">
                                     Marché en quête :

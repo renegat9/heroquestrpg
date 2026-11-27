@@ -322,6 +322,14 @@ final class CarteConstruite
 
         $salleDepart = $sallesMoteur === [] ? null : $ordre[0];
 
+        // LA SALLE EN CONTREBAS (lot E2, G0052 q. 9 C) : la galerie et la salle se voient par-dessus le mur — une couche de la
+        // carte, lue par `Grille::depuisCarte()`.
+        $vuesCroisees = [];
+        if (is_array($contrebas = data_get($quete, 'regles.salle_en_contrebas'))
+            && ($enBas = collect($ordre)->firstWhere('id', $contrebas['salle'] ?? null)) !== null) {
+            $vuesCroisees[] = [SalleEnContrebas::galerie($contrebas), Salles::cases($enBas)];
+        }
+
         return [
             'carte' => [
                 'largeur' => $largeur,
@@ -340,6 +348,7 @@ final class CarteConstruite
                 'terrain' => $terrain,
                 'dangers' => $dangers,
                 'escalier' => $escalier,
+                ...($vuesCroisees !== [] ? ['vues_croisees' => $vuesCroisees] : []),
                 // TOURNOI (lot TC2, F9528 p. 12) : « Each team is placed on its own starting tile » — les héros partent de la
                 // tuile du Challenger, jamais de l'escalier.
                 'spawn_heros' => is_array($quete['tournoi'] ?? null)

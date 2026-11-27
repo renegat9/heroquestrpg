@@ -127,6 +127,8 @@ const ICONE_TYPE = {
     sortie_fosse: 'vertical_align_top',
     // Descendre dans une fosse ouverte (2026-11-07) : une flèche vers le bas, l'inverse de la sortie.
     descente_fosse: 'vertical_align_bottom',
+    // Sauter de la galerie dans la salle en contrebas (Prophecy of Telor q. 9) : une flèche qui plonge.
+    saut_contrebas: 'move_down',
     sort: 'auto_awesome',
     // Sort de Dread du porteur (Talisman du Savoir maudit, 2026-10-29) : un sort du maître du donjon, lancé par le héros.
     // Une baguette qui ouvre une sorcellerie — distincte du sort de héros (`auto_awesome`) et de l'éclair de la rune.
@@ -314,6 +316,7 @@ function creneauConsomme(option) {
         case 'saut_sables':
         case 'sortie_fosse':
         case 'descente_fosse':
+        case 'saut_contrebas':
             return !!moi.a_deplace;
         case 'ouvrir_porte':
         case 'lacher_souris':
