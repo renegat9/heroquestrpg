@@ -1528,3 +1528,47 @@ it('captif caché : sa figure tuée avant l\'identification fait perdre la quêt
     $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'attendre'])->assertAccepted();
     expect($partie['quete']->fresh()->etat)->toBe('echouee');
 });
+
+// ---------------------------------------------------------------- Spirit Queen's Torment : l'insubstantialité (q. 14)
+
+it('insubstantialité : deux usages de son tour (murs, deux dés), la réaction qui ignore un coup, trois usages en tout', function () {
+    expect(codesE2(campagneE2(['regles' => ['insubstantialite' => ['usages' => 3]]])))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['insubstantialite' => ['usages' => 0]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+
+    $partie = partieE2($this, campagneE2(['regles' => ['insubstantialite' => ['usages' => 3]]]));
+    $heros = $partie['heros'];
+    $etat = $partie['quete']->etatsPersonnages()->firstOrFail();
+    $etat->update(['position_x' => 3, 'position_y' => 3]);
+    $menu = function () use ($partie) {
+        \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+
+        return collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id');
+    };
+
+    expect($menu())->toContain('insubstantiel_murs')->toContain('insubstantiel_des');
+    $avant = (int) $etat->fresh()->deplacement_tour;
+    app()->instance(LanceurDes::class, new LanceurDeterministe([3, 5, ...array_fill(0, 30, 1)]));
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'insubstantiel_des'])->assertAccepted();
+    expect((int) $etat->fresh()->deplacement_tour)->toBe($avant + 8)
+        ->and(\App\Partie\Classique\Insubstantialite::restants($partie['quete']->fresh(), $heros))->toBe(2)
+        ->and($menu())->not->toContain('insubstantiel_des')->toContain('insubstantiel_murs');
+
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'insubstantiel_murs'])->assertAccepted();
+    expect(app(\App\Partie\MoteurSorts::class)->traverseRoche($heros->fresh()))->toBeTrue()
+        ->and(\App\Partie\Classique\Insubstantialite::restants($partie['quete']->fresh(), $heros))->toBe(1);
+
+    // La réaction : un piège le frappe ; il accepte, le coup est défait, le dernier usage part.
+    $pv = (int) $heros->fresh()->pv_body;
+    app(\App\Partie\MoteurDegats::class)->infligerAHeros($heros->fresh(), 2, \App\Partie\MoteurDegats::SOURCE_PIEGE);
+    $attente = $etat->fresh()->reaction_en_attente;
+    expect($attente['insubstantiel'] ?? null)->toBeTrue()->and($attente['description'])->toContain('1 usage(s) restant(s)');
+    app(\App\Partie\MoteurReactions::class)->resoudre($partie['groupe']->fresh(), $heros->fresh(), true);
+    expect((int) $heros->fresh()->pv_body)->toBe($pv)
+        ->and(\App\Partie\Classique\Insubstantialite::restants($partie['quete']->fresh(), $heros))->toBe(0);
+
+    // Plus d'usage : ni option, ni réaction.
+    $etat->update(['capacites_tour' => null, 'reaction_en_attente' => null]);
+    expect($menu())->not->toContain('insubstantiel_murs');
+    app(\App\Partie\MoteurDegats::class)->infligerAHeros($heros->fresh(), 1, \App\Partie\MoteurDegats::SOURCE_PIEGE);
+    expect($etat->fresh()->reaction_en_attente['insubstantiel'] ?? null)->toBeNull();
+});

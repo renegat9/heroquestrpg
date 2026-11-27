@@ -7134,6 +7134,25 @@ Udren joins the heroes as an ally, controlled by the hero who identified her. »
 - Sa figure TOMBÉE avant l'identification fait échouer la quête (`captif_perdu`) quand `echec_si_mort` est posé
   (`ResolveurTour::echouerSiCaptifCacheTombe()`, après chaque action d'un héros).
 
+### L'insubstantialité — `regles.insubstantialite`, option `insubstantiel`, réaction (lot E2, 2026-11-27)
+
+*Spirit Queen's Torment* q. 14 : « Each hero may become insubstantial three times. Each use can be used to ignore any one
+source of damage, to pass through walls or solid objects on a hero's next move (they die if they end in a solid square), or
+to roll 2 additional movement dice. » `Classique\Insubstantialite` :
+- `regles.insubstantialite {usages}` (≥ 1) : un compteur par héros pour la quête (`quetes.drapeaux._insubstantiel`).
+- IGNORER UN DÉGÂT — une RÉACTION (René, 2026-11-27) : `MoteurReactions::proposer()` dépose, pour tout coup quelle qu'en soit
+  la source et avant les autres réactions, `{action: annule_degats, insubstantiel: true, nom: "Insubstantialité",
+  description: "Devenir insubstantiel et ignorer ces dégâts (N usage(s) restant(s))."}` (`reaction_proposee` sur le canal du
+  pilote). Acceptée : le coup est défait (annonce `reaction` ordinaire) et un usage part.
+- Option **`insubstantiel`** (créneau `interaction`), `id: insubstantiel_murs` / `insubstantiel_des`, `parametres.usage` :
+  offerte avant le premier pas du tour (`deplacement_restant` nul, pas `a_deplace`), une fois chacune par tour, tant qu'il reste
+  des usages ; `des` seulement une fois le jet du tour fait. `murs` : le héros traverse la roche à CE déplacement
+  (`MoteurSorts::traverseRoche()`, comme le sort) ; `des` : deux dés rouges ajoutés au jet du tour (`deplacement_tour`,
+  `detail_deplacement_tour.des`). Le résolveur relit `usagesDuTour()` (422 sinon). Annonce `insubstantiel {nom, usage, des?,
+  deplacement?, restants}` : « Albrecht devient insubstantiel : deux dés de plus (3 + 5), 15 cases ce tour — 2 usage(s)
+  restant(s) ».
+- Écart écrit : « they die if they end in a solid square » ne se joue pas — les destinations publiées n'offrent jamais la roche.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

@@ -249,6 +249,8 @@ final class JournalCombat
         'apnee' => true,
         // LE CAPTIF CACHÉ (lot E2, G0053 q. 5) : la recherche dans une salle — trouvé (il devient allié) ou non.
         'recherche_captif' => true,
+        // L'INSUBSTANTIALITÉ (lot E2, G0053 q. 14) : un usage pris à son tour (la réaction s'annonce comme toute réaction).
+        'insubstantiel' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1353,6 +1355,13 @@ final class JournalCombat
                 'texte' => ((int) ($a['variation'] ?? 0) > 0 ? 'Le groupe gagne ' : 'Le groupe dépense ').abs((int) ($a['variation'] ?? 0))
                     .' jeton(s) de réputation (total : '.(int) ($a['total'] ?? 0).')',
                 'ton' => (int) ($a['variation'] ?? 0) > 0 ? 'succes' : 'info',
+            ]],
+            'insubstantiel' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' devient insubstantiel : '.(($a['usage'] ?? null) === 'murs'
+                    ? 'il traversera les murs à ce déplacement'
+                    : 'deux dés de plus ('.implode(' + ', array_map('intval', (array) ($a['des'] ?? []))).'), '.(int) ($a['deplacement'] ?? 0).' cases ce tour')
+                    .' — '.(int) ($a['restants'] ?? 0).' usage(s) restant(s)',
+                'ton' => 'info',
             ]],
             'recherche_captif' => [[
                 'texte' => ! empty($a['trouve'])

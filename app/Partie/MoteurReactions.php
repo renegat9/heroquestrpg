@@ -80,6 +80,20 @@ final class MoteurReactions
             return; // hors quête, ou une proposition attend déjà : pas d'empilement
         }
 
+        // L'INSUBSTANTIALITÉ (mode classique, lot E2 — G0053 q. 14) : « to ignore any one source of damage » — toute source,
+        // d'où sa place AVANT le filtre des coups. Une ressource de la victime, proposée à elle (René, 2026-11-27).
+        $quete = $etat->quete;
+        if ($quete !== null && ($restants = \App\Partie\Classique\Insubstantialite::restants($quete, $heros)) > 0) {
+            $this->deposer($etat, $heros, $heros, [
+                'action' => ReactionEffet::ANNULE_DEGATS,
+                'insubstantiel' => true,
+                'nom' => 'Insubstantialité',
+                'description' => "Devenir insubstantiel et ignorer ces dégâts ({$restants} usage(s) restant(s)).",
+            ], $degats, $source, $contexte);
+
+            return;
+        }
+
         // Les réactions qui DÉFONT le coup sont réservées aux COUPS : c'est le
         // sens de `SOURCES_REACTIVES`. Le soin d'urgence, lui, ne défait rien —
         // il se paie — et vaut donc quelle que soit la cause de la chute (plus
@@ -1122,6 +1136,11 @@ final class MoteurReactions
             if ($source !== null) {
                 $this->styles->depenser($heros, $etat, $source, horsTour: true);
             }
+        }
+
+        // …et l'insubstantialité dépense un de ses usages (lot E2, G0053 q. 14).
+        if (isset($attente['insubstantiel']) && $etat->quete !== null) {
+            \App\Partie\Classique\Insubstantialite::depenser($etat->quete, $heros);
         }
 
         // …et une capacité se marque comme dépensée DANS SA FENÊTRE (quête ou tour, selon sa cadence).

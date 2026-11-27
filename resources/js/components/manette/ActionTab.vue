@@ -133,6 +133,8 @@ const ICONE_TYPE = {
     rappel_figure: 'record_voice_over',
     // Chercher le captif caché parmi les monstres (Spirit Queen q. 5) : une loupe sur une personne.
     recherche_captif: 'person_search',
+    // Devenir insubstantiel (Spirit Queen q. 14) : un fantôme.
+    insubstantiel: 'blur_on',
     // Un geste de quête (Spirit Queen q. 7, 8) : la main qui fait.
     geste_de_quete: 'back_hand',
     sort: 'auto_awesome',

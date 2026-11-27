@@ -3663,6 +3663,22 @@ final class MenuMoteur
             }
         }
 
+        // L'INSUBSTANTIALITÉ (mode classique, lot E2 — G0053 q. 14) : deux usages de son tour, gratuits, avant le premier pas
+        // (`Classique\Insubstantialite::usagesDuTour()`, que le résolveur relit). Le troisième est une réaction.
+        if (! $aJoue && $etat !== null && $quete->estConstruite()) {
+            $insub = app(\App\Partie\Classique\Insubstantialite::class);
+            foreach ($insub->usagesDuTour($quete, $personnage, $etat) as $usage) {
+                $restants = \App\Partie\Classique\Insubstantialite::restants($quete, $personnage);
+                $options[] = [
+                    'id' => 'insubstantiel_'.$usage,
+                    'libelle' => ($usage === 'murs' ? 'Devenir insubstantiel : traverser les murs à ce déplacement'
+                        : 'Devenir insubstantiel : '.\App\Partie\Classique\Insubstantialite::DES.' dés de déplacement de plus')." ({$restants} usage(s))",
+                    'type' => 'insubstantiel',
+                    'parametres' => ['usage' => $usage],
+                ];
+            }
+        }
+
         // LES OFFRES (mode classique, lot K6) : les choix que les notes de l'auteur ont déclarés, payables par CE héros
         // (`Reputation::payables()`, que le résolveur revalide). Geste libre.
         if (! $aJoue && $etat !== null && ! $etat->tombe && $quete->estConstruite()) {

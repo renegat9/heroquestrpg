@@ -1363,6 +1363,11 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     Apnée
                                 </label>
                                 <label v-if="quete.regles?.apnee">tours sans air <input v-model.number="quete.regles.apnee.tours" type="number" min="1" class="cst-input cst-num" /></label>
+                                <label class="cst-case" title="Chaque héros devient insubstantiel ce nombre de fois : ignorer un dégât (réaction au téléphone), traverser les murs à ce déplacement, ou deux dés de déplacement de plus.">
+                                    <input type="checkbox" :checked="!!quete.regles?.insubstantialite" @change="poserRegle('insubstantialite', $event.target.checked ? { usages: 3 } : undefined)" />
+                                    Insubstantialité
+                                </label>
+                                <label v-if="quete.regles?.insubstantialite">usages par héros <input v-model.number="quete.regles.insubstantialite.usages" type="number" min="1" class="cst-input cst-num" /></label>
                                 <label title="« each roll 1 additional movement die »">Dés de déplacement en plus
                                     <input :value="quete.regles?.des_deplacement_bonus ?? ''" type="number" min="1" max="2" class="cst-input cst-num"
                                         @change="poserRegle('des_deplacement_bonus', $event.target.value === '' ? undefined : Number($event.target.value))" />

@@ -759,6 +759,7 @@ final class ResolveurTour
                 'geste_de_quete' => $this->resoudreGesteDeQuete($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'rappel_figure' => $this->resoudreRappelFigure($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'recherche_captif' => $this->resoudreRechercheCaptif($groupe, $quete, $personnage, $etat, $acteur),
+                'insubstantiel' => $this->resoudreInsubstantiel($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, de soi-même. Geste libre.
                 'retirer_deguisement' => $this->resoudreRetirerDeguisement($groupe, $personnage, $etat, $acteur),
                 // GLYPHES (mode classique, lot K6) : détruire un glyphe découvert — parchemin ou cheminée. Geste libre.
@@ -17155,6 +17156,8 @@ final class ResolveurTour
             'retirer_deguisement' => 'interaction',
             // OFFRES (lot K6) : accepter ne coûte que ce que l'offre dit.
             'offre' => 'interaction',
+            // L'INSUBSTANTIALITÉ (lot E2) : un usage pris à son tour ne coûte ni le déplacement ni l'action.
+            'insubstantiel' => 'interaction',
             // La répartition du dé de la planque appartient à l'action qui l'a lancé (lot E2).
             'repartir_planque' => 'interaction',
             // « they instead knock on it (no action required) » (F6646 q. 3).
@@ -17793,6 +17796,15 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Tu as déjà agi ce tour.']);
         }
         $payload = app(\App\Partie\Classique\QueteDouble::class)->passer($groupe, $quete, $personnage, $etat);
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** L'INSUBSTANTIALITÉ (lot E2, Spirit Queen q. 14) : un usage de son tour — `Insubstantialite::usagesDuTour()` revalidé ici. */
+    private function resoudreInsubstantiel(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $payload = app(\App\Partie\Classique\Insubstantialite::class)->prendre($quete, $personnage, $etat, (string) ($option['parametres']['usage'] ?? ''));
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;

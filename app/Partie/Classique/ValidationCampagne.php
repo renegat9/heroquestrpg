@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -2422,6 +2422,11 @@ final class ValidationCampagne
         if (array_key_exists('apnee', $regles) && ($apnee = $this->enObjet($regles['apnee'], self::chemin($position, 'apnee'))) !== null) {
             $this->cles($apnee, self::chemin($position, 'apnee'), ['tours']);
             $this->entier($apnee, 'tours', self::chemin($position, 'apnee'), min: 1);
+        }
+        // Lot E2 : l'insubstantialité (G0053 q. 14) — le nombre d'usages par héros.
+        if (array_key_exists('insubstantialite', $regles) && ($insub = $this->enObjet($regles['insubstantialite'], self::chemin($position, 'insubstantialite'))) !== null) {
+            $this->cles($insub, self::chemin($position, 'insubstantialite'), ['usages']);
+            $this->entier($insub, 'usages', self::chemin($position, 'insubstantialite'), min: 1);
         }
         // Lot E2 : « each roll 1 additional movement die » (G0053 q. 8) — 1 à 2 dés de plus.
         $bonusDes = $this->entier($regles, 'des_deplacement_bonus', self::chemin($position, 'des_deplacement_bonus'), min: 1);

@@ -340,6 +340,7 @@ function fixturesDesTypesAnnonces(): array
         'mercenaire_congedie' => ['mercenaire' => 'Éclaireur', 'nom' => 'Albrecht'],
         'reputation' => ['variation' => 1, 'total' => 2, 'raison' => 'fin_de_quete'],
         'offre_prise' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'libelle' => 'Payer le passeur', 'cout' => ['or' => 200]],
+        'insubstantiel' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'usage' => 'des', 'des' => [3, 5], 'deplacement' => 15, 'restants' => 2],
         'recherche_captif' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'captif' => 'Udren', 'trouve' => true],
         'apnee' => ['nom' => 'Albrecht', 'personnage_id' => 2, 'tour' => 3, 'max' => 7, 'noye' => false],
         'rappel_figure' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'figure' => 'La Reine des Esprits', 'instance_id' => 3, 'face' => 'bouclier_noir', 'touche' => true, 'mind_restant' => 2, 'apaisee' => false],

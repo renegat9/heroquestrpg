@@ -2959,6 +2959,12 @@ final class MoteurSorts
      */
     public function traverseRoche(Personnage $personnage): bool
     {
+        // L'INSUBSTANTIALITÉ (mode classique, lot E2 — G0053 q. 14) : « to pass through walls or solid objects on a hero's next
+        // move » — un usage pris à son tour, lu ici comme le sort.
+        if (\App\Partie\Classique\Insubstantialite::murs($personnage)) {
+            return true;
+        }
+
         foreach ($this->buffsSorts($personnage) as $condition) {
             if (! empty($this->effetSortSource((string) $condition->pivot->source)['franchit_mur'])) {
                 return true;
