@@ -40,6 +40,8 @@ return [
         'Raptor apprivoisé' => 'monstres/raptor',    // Fangwarden Armlet : « call forth a Raptor » (reference/18) — le jeton du Raptor de Delthrak
         'Squelette Hearthkin' => 'monstres/skeleton', // Hearthkin Horn : « Each hero places a skeleton » (First Light, quêtes p. 6)
         'Sir Ragnar (livret de base)' => 'monstres/dread-sorcerer', // « Use the plastic Dread sorcerer figure to represent Sir Ragnar » (F2847 p. 7, quête 2)
+        'Sigill' => 'monstres/orc',                 // « the Orc, who is the scout Sigill » (Spirit Queen's Torment, G0053 p. 11, quête 3)
+        'Udren' => 'monstres/orc',                  // « the Orc ally Udren is here » (Spirit Queen's Torment, G0053 p. 15, quête 5)
     ],
 
     'tuiles' => [

@@ -383,16 +383,32 @@ it('mode_captif est déclaré pour chaque profil de captif, sans valeur décorat
         'Gothar', 'Le Prospecteur', 'Princesse Millandriel', 'Sir Ragnar (Wizards of Morcar)',
         // 2026-11-20 : le chevalier blessé du livret de base, mode classique seulement (`Mercenaire::RESERVES_AU_CLASSIQUE`).
         'Sir Ragnar (livret de base)',
+        // 2026-11-27 : les orques alliés de Spirit Queen's Torment, mode classique seulement eux aussi.
+        'Sigill', 'Udren',
     ])
         ->and($profils['Gothar']->mode_captif)->toBe('figurine')
         ->and($profils['Le Prospecteur']->mode_captif)->toBe('escorte')
         ->and($profils['Princesse Millandriel']->mode_captif)->toBe('escorte')
         ->and($profils['Sir Ragnar (Wizards of Morcar)']->mode_captif)->toBe('figurine')
-        ->and($profils['Sir Ragnar (livret de base)']->mode_captif)->toBe('figurine');
+        ->and($profils['Sir Ragnar (livret de base)']->mode_captif)->toBe('figurine')
+        ->and($profils['Sigill']->mode_captif)->toBe('figurine')
+        ->and($profils['Udren']->mode_captif)->toBe('figurine');
 
     foreach ($profils as $profil) {
         expect($profil->mode_captif)->toBeIn(['figurine', 'escorte']);
     }
+});
+
+/*
+ * Les captifs du classique (`Mercenaire::RESERVES_AU_CLASSIQUE`) sont écartés de la mission « secourir » par leur NOM : un nom
+ * mal écrit dans la liste ne réserverait rien, et le RPG tirerait Sigill ou Udren. Chaque nom réservé existe donc au catalogue,
+ * comme captif.
+ */
+it('chaque captif réservé au classique existe au catalogue, comme captif', function () {
+    $reserves = Mercenaire::whereIn('nom', Mercenaire::RESERVES_AU_CLASSIQUE)->get();
+
+    expect($reserves->pluck('nom')->all())->toEqualCanonicalizing(Mercenaire::RESERVES_AU_CLASSIQUE)
+        ->and($reserves->every(fn (Mercenaire $m) => $m->captif && $m->octroi_seul))->toBeTrue();
 });
 
 it('Le Prospecteur et la Princesse Millandriel ne sont jamais recrutables au hub', function () {

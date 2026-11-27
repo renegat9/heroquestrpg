@@ -1372,8 +1372,8 @@ final class JournalCombat
             ]],
             'recherche_captif' => [[
                 'texte' => ! empty($a['trouve'])
-                    ? ($a['nom'] ?? $acteurNom).' trouve '.($a['captif'] ?? 'le captif').' parmi les monstres : il se fait connaître et rejoint les héros'
-                    : ($a['nom'] ?? $acteurNom).' cherche '.($a['captif'] ?? 'le captif').' : il n\'est pas dans cette salle',
+                    ? ($a['nom'] ?? $acteurNom).' trouve '.($a['captif'] ?? 'le captif').' parmi les monstres ; l\'allié se fait connaître et rejoint les héros'
+                    : ($a['nom'] ?? $acteurNom).' cherche '.($a['captif'] ?? 'le captif').' : personne de ce nom dans cette salle',
                 'ton' => ! empty($a['trouve']) ? 'succes' : 'info',
             ]],
             'apnee' => [[

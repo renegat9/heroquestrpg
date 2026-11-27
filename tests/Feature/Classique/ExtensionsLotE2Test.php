@@ -1473,7 +1473,7 @@ function cacheE2(): array
 {
     return campagneE2([
         'monstres' => [['slug' => 'orque', 'x' => 5, 'y' => 3], ['slug' => 'orque', 'x' => 9, 'y' => 3]],
-        'captif' => ['mercenaire' => 'sir-ragnar-livret-de-base', 'cache' => 0, 'echec_si_mort' => true],
+        'captif' => ['mercenaire' => 'udren', 'cache' => 0, 'echec_si_mort' => true],
     ]);
 }
 
@@ -1514,7 +1514,7 @@ it('captif caché : chercher dans une salle avec un orque ; absent, rien ; prés
         ->and((int) $captif->recruteur_personnage_id)->toBe((int) $partie['heros']->id)
         ->and(\App\Partie\Classique\NotesDeQuete::figuresPosees($quete->fresh())[0]->etat)->toBe('vaincu')
         ->and(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($trouve, 'Albrecht'))->pluck('texte')->first())
-            ->toBe('Albrecht trouve Sir Ragnar (livret de base) parmi les monstres : il se fait connaître et rejoint les héros');
+            ->toBe('Albrecht trouve Udren parmi les monstres ; l\'allié se fait connaître et rejoint les héros');
     // Identifiée, la quête ne la perd plus (sa figure retirée n'est pas « tombée »).
     expect(app(\App\Partie\Classique\Escorte::class)->cacheeTombee($quete->fresh()))->toBeFalse();
 });

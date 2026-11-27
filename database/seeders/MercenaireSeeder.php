@@ -182,6 +182,25 @@ class MercenaireSeeder extends Seeder
                 'capacites' => [\App\Models\GroupeMercenaire::DEPLACEMENT_UN_DE_ROUGE],
                 'animal' => false, 'octroi_seul' => true, 'captif' => true, 'mode_captif' => 'figurine',
                 'description' => 'Le chevalier du roi, blessé, à libérer de sa cellule et à ramener vivant jusqu\'à l\'escalier.'],
+
+            // ---- SIGILL et UDREN (Spirit Queen's Torment, G0053, lot E2, 2026-11-27) — les deux orques alliés, mode classique
+            // seulement (`Mercenaire::RESERVES_AU_CLASSIQUE`). q. 3 C (p. 11) : « The Goblins in this room have imprisoned the
+            // Orc, who is the scout Sigill. The first hero to enter this room controls Sigill. » ; q. 5 D (p. 15) : « the Orc
+            // ally Udren is here […] Udren is forced to fight the heroes with the Goblins » ; p. 4 « Controlling Allies » :
+            // « The ally is treated as a hero by all monsters and traps ».
+            // ⚠ Le livret ne leur donne AUCUN bloc de stats : il les fait jouer par la figurine de l'Orque, et quand il veut
+            // d'autres valeurs pour une figurine, il les écrit (Kavra, même quête : « Use the Gargoyle figure […] Her stats are
+            // those of a Dread Warrior, with 1 additional Defend die »). Décision écrite : les stats de l'Orque du jeu de base
+            // (`MonstreSeeder`, M8 A3 D2 B1 Mi2), sourcées, pas inventées. Udren se bat d'abord parmi les monstres (captif
+            // CACHÉ, `Escorte::poser()`), puis devient alliée ; Sigill est libéré par une note (« entrer dans la salle C »).
+            ['nom' => 'Sigill', 'type' => 'captif_sigill',
+                'deplacement' => 8, 'attaque' => 3, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2, 'prix' => 0,
+                'animal' => false, 'octroi_seul' => true, 'captif' => true, 'mode_captif' => 'figurine',
+                'description' => 'Un orque éclaireur au service de Silvana, prisonnier des gobelins : l\'allié du héros qui le trouve.'],
+            ['nom' => 'Udren', 'type' => 'captif_udren',
+                'deplacement' => 8, 'attaque' => 3, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2, 'prix' => 0,
+                'animal' => false, 'octroi_seul' => true, 'captif' => true, 'mode_captif' => 'figurine',
+                'description' => 'Une orque, garde devenue cuisinière forcée des gobelins et cachée parmi eux : à reconnaître avant qu\'elle ne tombe.'],
         ];
 
         // Purge des trois inventés : `updateOrCreate` seul les laisserait en

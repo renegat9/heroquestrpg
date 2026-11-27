@@ -6300,7 +6300,10 @@ Relecture des trois campagnes construites contre leurs livrets. Mode classique s
   q. 2 : « must be moved back to the stairs alive in order for the heroes to collect the reward ») — sinon annonce
   `{type: "recompense_perdue", raison: "captif"}`. Catalogue : **Sir Ragnar (livret de base)** (défense 2, Corps 2,
   Esprit non trouvé → 0, attaque 0 : « may not attack »), réservé au classique (`Mercenaire::RESERVES_AU_CLASSIQUE` :
-  jamais tiré par une mission « secourir » du RPG).
+  jamais tiré par une mission « secourir » du RPG). Depuis le 2026-11-27, **Sigill** (`sigill`) et **Udren** (`udren`),
+  les orques alliés de *Spirit Queen's Torment* (q. 3 et 5), réservés au classique eux aussi : le livret les fait jouer
+  par la figurine de l'Orque sans leur donner d'autres valeurs, d'où les stats de l'Orque du jeu de base (déplacement 8,
+  attaque 3, défense 2, Corps 1, Esprit 2).
 - **Un allié qui marche à un dé rouge** — capacité de mercenaire `deplacement_un_de_rouge` : sa vitesse est UN dé tiré une
   fois par round, gardé en colonne (`groupe_mercenaires.deplacement_tire`, remis à `null` à l'ouverture du round) ;
   `GroupeMercenaire::vitesse()`, lu par le menu (`parametres.portee`), les destinations, l'approche et le résolveur.
@@ -7129,8 +7132,8 @@ Udren joins the heroes as an ally, controlled by the hero who identified her. »
   plein combat aussi. Le résolveur relit la même règle (422 sinon).
 - Présente dans la salle : sa figure quitte le plateau sans compter pour tombée (`habillage.retire`), le captif prend sa case et
   devient l'allié de ce héros (`captif_libere` joue). Sinon, rien. Annonce `recherche_captif {nom, captif, trouve}` :
-  « Albrecht trouve Udren parmi les monstres : il se fait connaître et rejoint les héros » / « … : il n'est pas dans cette
-  salle ».
+  « Albrecht trouve Udren parmi les monstres ; l'allié se fait connaître et rejoint les héros » / « … : personne de ce nom
+  dans cette salle ».
 - Sa figure TOMBÉE avant l'identification fait échouer la quête (`captif_perdu`) quand `echec_si_mort` est posé
   (`ResolveurTour::echouerSiCaptifCacheTombe()`, après chaque action d'un héros).
 

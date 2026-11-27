@@ -62,7 +62,7 @@ class Mercenaire extends Model
      *
      * @var list<string>
      */
-    public const RESERVES_AU_CLASSIQUE = ['Sir Ragnar (livret de base)'];
+    public const RESERVES_AU_CLASSIQUE = ['Sir Ragnar (livret de base)', 'Sigill', 'Udren'];
 
     protected function casts(): array
     {

@@ -549,8 +549,8 @@ it('donne aux alliés officiels leur Mind et leurs capacités de carte', functio
     // « secourir », chantier 3b 2026-10-04, « captifs-jetons » 2026-10-05,
     // Wizards of Morcar 2026-10-06) : même catalogue, aucun des cinq jamais
     // recrutable au hub.
-    // + Sir Ragnar du livret de base (2026-11-20), captif du mode classique seulement.
-    expect($allies)->toHaveCount(14, 'les 5 mercenaires humains, les 3 compagnons animaux, le Squelette Hearthkin et les cinq captifs');
+    // + Sir Ragnar du livret de base (2026-11-20), Sigill et Udren (Spirit Queen, 2026-11-27) : captifs du classique seulement.
+    expect($allies)->toHaveCount(16, 'les 5 mercenaires humains, les 3 compagnons animaux, le Squelette Hearthkin et les sept captifs');
     expect((bool) $allies['Gothar']->captif)->toBeTrue()
         ->and((bool) $allies['Gothar']->octroi_seul)->toBeTrue();
 
