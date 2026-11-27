@@ -984,6 +984,14 @@ final class NotesDeQuete
         return ['objet' => $de->nom, 'par' => $par->nom, 'remplaces' => $remplaces];
     }
 
+    /** Lot E2 (*Prophecy of Telor*, q. 6 C) — le héros qui déclenche avance sur le chemin imposé du total des dés. */
+    private function effetAvancerSurChemin(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $marche = $heros === null ? null : app(CheminImpose::class)->avancer($quete, $heros, (int) ($effet['des'] ?? 1));
+
+        return $marche === null ? ['avance' => false] : ['avance' => isset($marche['cases']), 'nom' => $heros->nom, ...$marche];
+    }
+
     /**
      * Les héros de la quête (lot E2) : ceux qui ont un état de quête, debout ou à terre.
      *

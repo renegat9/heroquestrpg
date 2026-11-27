@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -1200,6 +1200,15 @@ final class ValidationCampagne
                         "« {$sort->nom} » ne se lance pas par un héros : seuls un rayon à dégâts fixes ou un sort de salle le peuvent");
                 }
                 break;
+            case MotsClesQuete::AVANCER_SUR_CHEMIN:
+                $this->entier($effet, 'des', $position, min: 1);
+                if (is_int($effet['des'] ?? null) && $effet['des'] > 4) {
+                    $this->refuser("$position.des", self::VALEUR_INVALIDE, 'au plus 4 dés');
+                }
+                if (! is_array(data_get($quete, 'regles.chemin_impose'))) {
+                    $this->refuser("$position.effet", self::VALEUR_INVALIDE, 'la quête n\'a pas de chemin imposé (règle « chemin imposé »)');
+                }
+                break;
             case MotsClesQuete::ESPRIT:
                 if ($this->entier($effet, 'points', $position) === 0) {
                     $this->refuser("$position.points", self::VALEUR_INVALIDE, 'un nombre de points non nul est attendu (négatif : en moins)');
@@ -2196,6 +2205,45 @@ final class ValidationCampagne
         }
         // Lot E2 : « monsters in this quest roll one additional Attack die » (F6646 q. 7, 9, 10).
         $this->entier($regles, 'bonus_attaque_monstres', self::chemin($position, 'bonus_attaque_monstres'), min: 1);
+        // Lot E2 : le chemin imposé au porteur (G0052 q. 6) — un objet porté, des cases qui se suivent, des arrêts croissants.
+        if (array_key_exists('chemin_impose', $regles)) {
+            $ici = self::chemin($position, 'chemin_impose');
+            $chemin = $this->enObjet($regles['chemin_impose'], $ici);
+            if ($chemin !== null) {
+                $this->cles($chemin, $ici, ['porteur', 'cases', 'arrets']);
+                $this->slugCatalogue($chemin, 'porteur', $ici, 'objets');
+                $cases = array_key_exists('cases', $chemin) ? $this->enListe($chemin['cases'], "$ici.cases") : null;
+                $precedente = null;
+                foreach ((array) $cases as $k => $c) {
+                    if (($case = $this->enObjet($c, "$ici.cases.$k")) === null) {
+                        continue;
+                    }
+                    $this->cles($case, "$ici.cases.$k", self::CLES_CASE);
+                    $this->cellule($case, "$ici.cases.$k");
+                    if ($precedente !== null && is_int($case['x'] ?? null) && is_int($case['y'] ?? null)
+                        // Géométrique, sans carte : le chemin du livret franchit des portes (elles s'ouvrent à son passage).
+                        && ! \App\Partie\Grille::sontAdjacentes($case['x'], $case['y'], (int) $precedente['x'], (int) $precedente['y'])) {
+                        $this->refuser("$ici.cases.$k", self::VALEUR_INVALIDE, 'chaque case du chemin touche la précédente par un côté');
+                    }
+                    $precedente = $case;
+                }
+                if (is_array($cases) && count($cases) < 2) {
+                    $this->refuser("$ici.cases", self::VALEUR_INVALIDE, 'au moins deux cases');
+                }
+                $arrets = array_key_exists('arrets', $chemin) ? $this->enListe($chemin['arrets'], "$ici.arrets") : null;
+                $avant = -1;
+                foreach ((array) $arrets as $k => $a) {
+                    if (! is_int($a) || $a <= $avant || (is_array($cases) && $a >= count($cases))) {
+                        $this->refuser("$ici.arrets.$k", self::VALEUR_INVALIDE, 'un rang de case du chemin, plus loin que l\'arrêt précédent');
+                        break;
+                    }
+                    $avant = $a;
+                }
+                if ($arrets === []) {
+                    $this->refuser("$ici.arrets", self::VALEUR_INVALIDE, 'au moins un arrêt (le premier tour)');
+                }
+            }
+        }
         // Lot E2 : les salles que Zargon réveille à chaque tour (F9528 q. 10).
         if (array_key_exists('activation_salles', $regles) && $regles['activation_salles'] !== true) {
             $this->refuser(self::chemin($position, 'activation_salles'), self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');

@@ -105,6 +105,13 @@ final class OrdreDuTour
      */
     private function acteursALaMainEnArene(Groupe $groupe, Collection $etats): array
     {
+        // CHEMIN IMPOSÉ (lot E2, G0052 q. 6) avec l'ordre libre : « the bearer must go first » — tant qu'il n'a pas joué, lui seul.
+        $porteur = \App\Partie\Classique\CheminImpose::porteurId($groupe, $groupe->queteCourante);
+        $etatPorteur = $porteur === null ? null : $etats->firstWhere('personnage_id', $porteur);
+        if ($etatPorteur !== null && ! $etatPorteur->tombe && ! $etatPorteur->a_joue) {
+            return [['type' => 'heros', 'personnage_id' => $porteur]];
+        }
+
         $acteurs = [];
         $debout = [];
 
@@ -265,10 +272,17 @@ final class OrdreDuTour
             return $this->acteursALaMainEnArene($groupe, $etats)[0] ?? null;
         }
 
+
         $ordre = $groupe->personnages()
             ->wherePivot('actif', true)
             ->orderBy('groupe_personnages.ordre_initiative')
             ->pluck('personnages.id');
+
+        // CHEMIN IMPOSÉ (mode classique, lot E2 — G0052 q. 6) : « the bearer must go first each turn ».
+        $porteur = \App\Partie\Classique\CheminImpose::porteurId($groupe, $groupe->queteCourante);
+        if ($porteur !== null && $ordre->contains($porteur)) {
+            $ordre = $ordre->reject(fn ($id) => (int) $id === $porteur)->prepend($porteur)->values();
+        }
 
         foreach ($ordre as $id) {
             $etat = $etats->firstWhere('personnage_id', $id);

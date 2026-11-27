@@ -192,6 +192,8 @@ final class JournalCombat
         'objet_jete' => true,
         // Lot E2 : les salles qui se lèvent au tour du MJ (F9528 q. 10).
         'salles_activees' => true,
+        // Lot E2 (G0052 q. 6) : le porteur mené le long du chemin imposé, au début de son tour.
+        'chemin_impose' => true,
         // Lot TC4 : la vague suivante du tournoi (F9528 q. 1).
         'vague_tournoi' => true,
         // Lot E2 : le marché souterrain en pleine quête (F6646 p. 2).
@@ -1413,6 +1415,11 @@ final class JournalCombat
                 // Jamais vide : sans salle cachée habitée, `ActivationSalles::auTourDuMJ()` ne lance ni n'annonce rien.
                 'texte' => 'Zargon lance le dé ('.(int) ($a['de'] ?? 0).') : '
                     .implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) ($a['salles'] ?? []))),
+                'ton' => 'subit',
+            ]],
+            'chemin_impose' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' est entraîné le long du chemin : '.(int) ($a['cases'] ?? 0).' cases (tour '
+                    .(int) ($a['tour'] ?? 1).') — son déplacement est pris, il peut encore agir',
                 'ton' => 'subit',
             ]],
             'objet_jete' => [[

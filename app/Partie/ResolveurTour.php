@@ -13281,6 +13281,26 @@ final class ResolveurTour
         return true;
     }
 
+    /**
+     * Une marche que le héros ne choisit pas (chemin imposé, lot E2 — `Classique\CheminImpose`) : la salle découverte, les
+     * notes des cases foulées (si `$notes`), le brouillard des couloirs — les mêmes crochets qu'une marche choisie.
+     * `$avant` à `null` : le héros attendait hors du plateau.
+     *
+     * @param  list<array{x: int, y: int}>  $chemin
+     */
+    public function apresMarcheImposee(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, ?array $avant, array $chemin, bool $notes = true): void
+    {
+        $this->decouvrirSalle($groupe, $quete, $etat, $personnage);
+        $arrivee = end($chemin);
+        if ($arrivee !== false) {
+            $this->revelerSalleEn($quete, (int) $arrivee['x'], (int) $arrivee['y'], $personnage);
+        }
+        if ($notes) {
+            $this->signalerEntrees($quete, $personnage, $avant ?? ['x' => -1, 'y' => -1], $etat->fresh(), ['type' => 'deplacement', 'chemin' => $chemin]);
+        }
+        app(\App\Partie\Classique\CouloirsVus::class)->mettreAJour($quete->fresh());
+    }
+
     private function signalerEntrees(Quete $quete, Personnage $personnage, ?array $avant, ?EtatPersonnageQuete $etat, array $resultat): void
     {
         if (! $quete->estConstruite() || $avant === null || $etat === null || $etat->position_x === null) {

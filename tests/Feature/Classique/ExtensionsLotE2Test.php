@@ -877,3 +877,76 @@ it('talisman de Telor : sort appris et +1 Esprit au-delà du maximum, durables ;
         ->and($heros->pv_mind_max)->toBe($mindMax)->and($heros->pv_mind)->toBe($mindMax)
         ->and($heros->esprit_de_livret)->toBe(0);
 });
+
+// ---------------------------------------------------------------- Prophecy of Telor : le chemin imposé (q. 6)
+
+function cheminE2(array $notes = []): array
+{
+    return campagneE2(['regles' => ['chemin_impose' => [
+        'porteur' => 'talisman-du-savoir',
+        'cases' => [['x' => 3, 'y' => 3], ['x' => 4, 'y' => 3], ['x' => 5, 'y' => 3], ['x' => 6, 'y' => 3], ['x' => 7, 'y' => 3], ['x' => 8, 'y' => 3], ['x' => 9, 'y' => 3]],
+        'arrets' => [2, 5],
+    ]], 'notes' => $notes]);
+}
+
+it('chemin imposé : la validation veut des cases qui se suivent et des arrêts croissants', function () {
+    expect(codesE2(cheminE2()))->toBe([]);
+    $trou = cheminE2();
+    $trou['quetes'][0]['regles']['chemin_impose']['cases'][3] = ['x' => 6, 'y' => 5];
+    $arrets = cheminE2();
+    $arrets['quetes'][0]['regles']['chemin_impose']['arrets'] = [3, 2];
+    $sansChemin = campagneE2(['notes' => [['repere' => 'C', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]],
+        'alors' => [['effet' => 'avancer_sur_chemin', 'des' => 2]]]]]);
+    expect(codesE2($trou))->toContain(ValidationCampagne::VALEUR_INVALIDE)
+        ->and(codesE2($arrets))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE2($sansChemin))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+});
+
+it('chemin imposé : le porteur joue d\'abord, il est mené jusqu\'à l\'arrêt du tour (porte franchie ouverte), et la note C le fait avancer aux dés', function () {
+    $partie = partieE2($this, cheminE2([
+        ['repere' => 'B', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 5, 'y' => 3]], 'si_porte' => 'talisman-du-savoir'],
+            'alors' => [['effet' => 'texte', 'texte' => 'Vous entendez la voix.']]],
+        ['repere' => 'C', 'quand' => ['declencheur' => 'entree', 'cible' => ['case' => ['x' => 8, 'y' => 3]], 'si_porte' => 'talisman-du-savoir'],
+            'alors' => [['effet' => 'avancer_sur_chemin', 'des' => 2]]],
+    ]));
+    $quete = $partie['quete']->fresh();
+    $heros = $partie['heros'];
+    $heros->inventaire()->create(['objet_id' => \App\Models\Objet::where('nom', 'Talisman du Savoir')->value('id'), 'emplacement' => 'talisman', 'quantite' => 1]);
+
+    // Un second héros, PREMIER dans l'ordre d'initiative : le porteur passe devant lui.
+    $b = Personnage::create(['joueur_id' => $heros->joueur_id, 'nom' => 'Brunehaut', 'classe' => 'barbare', 'niveau' => 1,
+        'attribut_body' => 4, 'attribut_mind' => 2, 'pv_body_max' => 8, 'pv_body' => 8, 'pv_mind_max' => 2, 'pv_mind' => 2,
+        'des_attaque' => 3, 'des_defense' => 2, 'deplacement_base' => 4]);
+    $partie['groupe']->personnages()->syncWithoutDetaching([$b->id => ['actif' => true, 'ordre_initiative' => 0]]);
+    $etatB = $quete->etatsPersonnages()->firstOrFail()->replicate();
+    $etatB->fill(['personnage_id' => $b->id, 'position_x' => 2, 'position_y' => 2])->save();
+    $quete->etatsPersonnages()->where('personnage_id', $heros->id)->update(['position_x' => 3, 'position_y' => 3]);
+    expect(app(\App\Partie\OrdreDuTour::class)->herosActifId($partie['groupe']->fresh()))->toBe((int) $heros->id);
+
+    // Tour 1 : le menu du porteur ouvre son tour — mené de (3, 3) à l'arrêt n° 3, (5, 3) ; la note B y joue.
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 40, 3)));
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $heros));
+    $ids = collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id');
+    $etat = $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail();
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([5, 3])
+        ->and((bool) $etat->a_deplace)->toBeTrue()
+        ->and($ids)->not->toContain('se_deplacer')
+        ->and(\App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()
+            ->contains(fn ($e) => ($e->payload['type'] ?? null) === 'note_de_quete' && ($e->payload['repere'] ?? null) === 'B'))->toBeTrue();
+
+    // Tour 2 : jusqu'à l'arrêt n° 6, (8, 3), à travers la porte close (6, 3) qui s'ouvre ; la note C : 2 dés (3 + 3), il
+    // avancerait de 6 — le chemin s'arrête à (9, 3).
+    $quete->update(['tours_mj' => 1]);
+    $etat->update(['capacites_tour' => [], 'a_deplace' => false, 'a_joue' => false]);
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $heros));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    $etat->refresh();
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([9, 3])
+        ->and(collect($quete->carte->fresh()->grille['portes'])->first(fn ($p) => (int) $p['x'] === 6 && (int) $p['y'] === 3)['etat'])
+        ->toBe(\App\Partie\MoteurPortes::ETAT_OUVERTE);
+
+    // Tour 3 : plus d'arrêt, il marche à sa guise.
+    $quete->update(['tours_mj' => 2]);
+    $etat->update(['capacites_tour' => [], 'a_deplace' => false, 'a_joue' => false]);
+    expect(app(\App\Partie\Classique\CheminImpose::class)->debutDeTour($partie['groupe'], $quete->fresh(), $heros, $etat->fresh()))->toBeNull();
+});

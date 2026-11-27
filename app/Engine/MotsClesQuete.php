@@ -258,6 +258,9 @@ final class MotsClesQuete
      */
     public const REMPLACER_OBJET = 'remplacer_objet';
 
+    /** Lot E2 (*Prophecy of Telor*, q. 6 C) — « roll 2 red dice. Move the hero that number of squares along the path » (`Classique\CheminImpose`). */
+    public const AVANCER_SUR_CHEMIN = 'avancer_sur_chemin';
+
     /** C5 (lot K6, *Dread Moon*) — le groupe gagne (ou perd) des jetons de réputation. */
     public const REPUTATION = 'reputation';
 
@@ -356,6 +359,7 @@ final class MotsClesQuete
         self::ESPRIT => ['parametres' => ['points'], 'optionnels' => [], 'lecteur' => 'effetEsprit', 'libelle' => 'gagner ou perdre des points d\'Esprit (total du héros)'],
         self::ESPRIT_D_ORIGINE => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetEspritDOrigine', 'libelle' => 'ramener l\'Esprit des héros au total d\'avant la campagne'],
         self::REMPLACER_OBJET => ['parametres' => ['slug', 'par'], 'optionnels' => [], 'lecteur' => 'effetRemplacerObjet', 'libelle' => 'changer un objet en un autre chez qui le possède'],
+        self::AVANCER_SUR_CHEMIN => ['parametres' => ['des'], 'optionnels' => [], 'lecteur' => 'effetAvancerSurChemin', 'libelle' => 'faire avancer le héros sur le chemin imposé (dés)'],
         self::REPUTATION => ['parametres' => ['jetons'], 'optionnels' => [], 'lecteur' => 'effetReputation', 'libelle' => 'gagner ou perdre des jetons de réputation'],
         self::OFFRE => ['parametres' => ['libelle', 'alors'], 'optionnels' => ['cout', 'groupe'], 'lecteur' => 'effetOffre', 'libelle' => 'proposer un choix (coût, effets)'],
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],

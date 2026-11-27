@@ -1012,6 +1012,12 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => ($retabli['nom'] ?? 'Un héros').' retrouve son Esprit d\'avant ('.(int) ($retabli['pv_mind'] ?? 0).')', 'ton' => 'succes'];
                     }
                     break;
+                case 'avancer_sur_chemin':
+                    if (isset($effet['total'])) {
+                        $lignes[] = ['texte' => ($effet['nom'] ?? $heros).' lance '.count((array) ($effet['faces'] ?? [])).' dé(s) : '.(int) $effet['total']
+                            .(! empty($effet['avance']) ? ' — il avance de '.(int) ($effet['cases'] ?? 0).' cases sur le chemin' : ' — le chemin est barré, il reste là'), 'ton' => 'subit'];
+                    }
+                    break;
                 case 'remplacer_objet':
                     foreach ((array) ($effet['remplaces'] ?? []) as $nom) {
                         $lignes[] = ['texte' => "{$nom} : {$effet['objet']} devient {$effet['par']}", 'ton' => 'subit'];

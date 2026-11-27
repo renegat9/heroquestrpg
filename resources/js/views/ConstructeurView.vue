@@ -800,7 +800,7 @@ function effetParDefaut(nom) {
             parmi: (catalogues.value?.objets ?? []).slice(0, 2).map((o) => o.slug), mobilier: 0,
             // Lot E2 (Prophecy of Telor) : le sort de Dread appris, l'Esprit, l'objet de remplacement.
             sort: (catalogues.value?.sorts_dread ?? []).find((sd) => sd.slug === 'eclair-de-chaos')?.slug ?? catalogues.value?.sorts_dread?.[0]?.slug ?? '',
-            points: 1, par: catalogues.value?.objets?.[1]?.slug ?? '' }[p] ?? '';
+            points: 1, par: catalogues.value?.objets?.[1]?.slug ?? '', des: 2 }[p] ?? '';
     }
     return effet;
 }
@@ -1281,6 +1281,33 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <button type="button" class="cst-icone" title="Retirer la case" @click="quete.regles.receptacle_objets.splice(k, 1); quete.regles.receptacle_objets.length || poserRegle('receptacle_objets', undefined)"><MSym n="close" :size="16" /></button>
                                 </span>
                                 <button type="button" class="cst-icone" title="Ajouter une case au réceptacle" @click="poserRegle('receptacle_objets', [...(quete.regles?.receptacle_objets ?? []), { x: 0, y: 0 }])"><MSym n="add" :size="16" /></button>
+                                <!-- Lot E2 : le chemin imposé au porteur (Prophecy of Telor q. 6). -->
+                                <label class="cst-case" title="Le héros qui porte l'objet joue en premier ; au début de ses premiers tours, il est mené le long du chemin jusqu'à l'arrêt du tour (son déplacement est pris, il garde son action).">
+                                    <input type="checkbox" :checked="!!quete.regles?.chemin_impose"
+                                        @change="poserRegle('chemin_impose', $event.target.checked ? { porteur: (catalogues.objets.find((o) => o.slug === 'talisman-du-savoir') ?? catalogues.objets[0])?.slug ?? '', cases: [{ x: 0, y: 0 }, { x: 1, y: 0 }], arrets: [1] } : undefined)" />
+                                    Chemin imposé au porteur
+                                </label>
+                                <template v-if="quete.regles?.chemin_impose">
+                                    <label>porteur de
+                                        <select v-model="quete.regles.chemin_impose.porteur" class="cst-input">
+                                            <option v-for="o in catalogues.objets" :key="`ci${o.slug}`" :value="o.slug">{{ o.nom }}</option>
+                                        </select>
+                                    </label>
+                                    <span class="cst-sous">Les cases du chemin, dans l'ordre (chacune touche la précédente) :</span>
+                                    <span v-for="(c, k) in quete.regles.chemin_impose.cases" :key="`cc${k}`" class="cst-ligne">
+                                        <span class="cst-sous">n° {{ k + 1 }}</span>
+                                        <input v-model.number="c.x" type="number" class="cst-input cst-num" />
+                                        <input v-model.number="c.y" type="number" class="cst-input cst-num" />
+                                        <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(c, `la case n° ${k + 1} du chemin`)"><MSym n="pin_drop" :size="16" /></button>
+                                        <button type="button" class="cst-icone" title="Retirer la case" @click="quete.regles.chemin_impose.cases.splice(k, 1)"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter une case au bout du chemin"
+                                        @click="quete.regles.chemin_impose.cases.push({ ...(quete.regles.chemin_impose.cases.at(-1) ?? { x: 0, y: 0 }) })"><MSym n="add" :size="16" /></button>
+                                    <label title="Le numéro de la case où le porteur s'arrête à chacun de ses premiers tours (tour 1, tour 2…).">arrêts (n° de case, par tour)
+                                        <input class="cst-input" :value="quete.regles.chemin_impose.arrets.map((a) => a + 1).join(', ')"
+                                            @change="quete.regles.chemin_impose.arrets = $event.target.value.split(',').map((t) => parseInt(t, 10) - 1).filter((n) => n >= 0)" />
+                                    </label>
+                                </template>
                                 <!-- Lot E2 : le marché souterrain ouvert en pleine quête (Rise of the Dread Moon p. 2, q. 2 G). -->
                                 <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Dans cette salle, chaque héros achète et vend pour lui, au prix de l'étal, sans action.">
                                     Marché en quête :
@@ -1803,6 +1830,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         <select v-else-if="p === 'sort'" v-model="effet.sort" class="cst-input">
                                             <option v-for="sd in (catalogues.sorts_dread ?? [])" :key="sd.slug" :value="sd.slug">{{ sd.nom }}</option>
                                         </select>
+                                        <label v-else-if="p === 'des' && effet.effet === 'avancer_sur_chemin'">Dés (le héros avance du total sur le chemin imposé) <input v-model.number="effet.des" type="number" min="1" max="4" class="cst-input cst-num" /></label>
                                         <label v-else-if="p === 'points'">Points d'Esprit (négatif : en moins ; le total du héros bouge) <input v-model.number="effet.points" type="number" class="cst-input cst-num" /></label>
                                         <label v-else-if="p === 'par'">devient
                                             <select v-model="effet.par" class="cst-input">

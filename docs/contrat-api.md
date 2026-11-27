@@ -6892,6 +6892,28 @@ deux colonnes DURABLES du héros (`personnages.sorts_dread_appris`, `personnages
 - Le talisman ordinaire s'enlève en q. 1 à 6 (René, 2026-11-26 : aucune question sur le sujet en ligne, aucune réponse
   officielle) ; le maudit ne s'enlève pas (`inamovible`, déjà au catalogue).
 
+### Le chemin imposé — `regles.chemin_impose`, effet `avancer_sur_chemin` (lot E2, 2026-11-27)
+
+*Prophecy of Telor* q. 6 : « Tell the players that the bearer must go first each turn. […] You move the bearer's miniature
+9 squares for the first four turns. Count them out exactly along the path indicated to land on the square matching the
+turn number. This uses the bearer's movement, but they may still perform actions. » ; note C : « roll 2 red dice. Move the
+hero that number of squares along the path shown ». `Classique\CheminImpose` :
+- `regles.chemin_impose {porteur, cases, arrets}` — `porteur` : slug d'objet (le Talisman du Savoir) ; `cases` : le chemin
+  dans l'ordre, au moins deux cases du plateau, chacune touchant la précédente par un côté ; `arrets` : des rangs de
+  `cases` (à partir de 0 ; l'écran les montre à partir de 1), strictement croissants — l'arrêt du tour 1, du tour 2…
+  Refus `valeur_invalide` nommant la case ou l'arrêt fautif.
+- Le héros actif qui possède l'objet `porteur` joue EN PREMIER à chaque round (`OrdreDuTour`, ordre fixe ; avec
+  `ordre_libre`, lui seul a la main tant qu'il n'a pas joué).
+- Au début de son tour N (N = `quetes.tours_mj` + 1), tant que `arrets[N-1]` existe : mené le long du chemin depuis sa case
+  (ou depuis la porte d'entrée s'il attend hors du plateau) jusqu'à `cases[arrets[N-1]]` — la dernière case libre avant si
+  elle est prise ; une porte close franchie s'ouvre ; la salle d'arrivée se découvre ; les cases foulées signalent leurs
+  notes (`entree`) comme une marche. `a_deplace` est posé (le menu n'offre plus « se déplacer »), l'action reste. Une
+  fois par tour (`capacites_tour` : `chemin_impose`). Annonce `chemin_impose {nom, tour, cases, x, y}` : « X est entraîné
+  le long du chemin : N cases (tour T) — son déplacement est pris, il peut encore agir ».
+- Effet de note `avancer_sur_chemin {des}` (1 à 4 ; refusé si la quête n'a pas de chemin) : le héros qui déclenche, s'il
+  est sur le chemin, lance les dés et avance du total, borné au bout du chemin ; ses cases ne relancent pas de notes
+  (comme `teleporter`). Fil : « X lance 2 dé(s) : 7 — il avance de 6 cases sur le chemin ».
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

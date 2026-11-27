@@ -96,6 +96,8 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
     $doc['mercenaires'] = ['regime' => 'debloques', 'offerts' => ['eclaireur']];
     // 2026-11-20 : une figure `inactif`, que la note J éveille.
     $doc['quetes'][0]['monstres'][] = ['slug' => 'gobelin', 'x' => 9, 'y' => 2, 'inactif' => true];
+    // Lot E2 : un chemin imposé, que la note T fait suivre aux dés.
+    $doc['quetes'][0]['regles'] = ['chemin_impose' => ['porteur' => 'talisman-du-savoir', 'cases' => [['x' => 3, 'y' => 3], ['x' => 4, 'y' => 3]], 'arrets' => [1]]];
     // Lot E1 : un captif, que la note K libère.
     $doc['quetes'][0]['captif'] = ['mercenaire' => 'sir-ragnar-livret-de-base', 'x' => 8, 'y' => 4];
     $doc['quetes'][0]['notes'] = [
@@ -135,7 +137,7 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
         ['repere' => 'T', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 6]],
             'alors' => [['effet' => 'esprit', 'points' => 1], ['effet' => 'apprendre_sort_dread', 'sort' => 'eclair-de-chaos'],
                 ['effet' => 'remplacer_objet', 'slug' => 'talisman-du-savoir', 'par' => 'talisman-du-savoir-maudit'],
-                ['effet' => 'oublier_sorts_dread'], ['effet' => 'esprit_d_origine']]],
+                ['effet' => 'oublier_sorts_dread'], ['effet' => 'esprit_d_origine'], ['effet' => 'avancer_sur_chemin', 'des' => 2]]],
         // Lot E1 : les huit déclencheurs des extensions.
         ['repere' => 'L1', 'quand' => ['declencheur' => 'salle_videe', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'texte', 'texte' => 'Vide.']]],
         ['repere' => 'L2', 'quand' => ['declencheur' => 'morts', 'cible' => ['monstres' => [0, 1]]], 'alors' => [['effet' => 'texte', 'texte' => 'Tous tombés.']]],
