@@ -121,8 +121,10 @@ class Groupe extends Model
      */
     public function socleDeDeplacement(Personnage $personnage): array
     {
+        // Lot E2 (*Spirit Queen's Torment* q. 8 : « heroes can breathe water and each roll 1 additional movement die ») : les dés
+        // en plus d'une quête construite (`regles.des_deplacement_bonus`).
         return $this->estClassique()
-            ? ['base' => 0, 'des' => 2]
+            ? ['base' => 0, 'des' => 2 + (int) data_get($this->queteCourante?->documentConstruit(), 'regles.des_deplacement_bonus', 0)]
             : ['base' => (int) $personnage->deplacement_base, 'des' => 1];
     }
 

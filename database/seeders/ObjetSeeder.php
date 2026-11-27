@@ -1072,6 +1072,12 @@ class ObjetSeeder extends Seeder
             // ANNEAU DE PUISSANCE DE FESTRAL (*Against the Ogre Horde* p. 35, q. 8 B : « finds Festral's Ring of Power hidden in a
             // hollowed-out book » ; q. 8 : « They do so by throwing Festral's Ring of Power into the Pit »). Objet de quête,
             // comme la clé de laiton : aucun effet sur le héros, il se JETTE dans la Fosse (`regles.receptacle_objets`, lot E2).
+            // ORBE BLEUE (*Spirit Queen's Torment* p. 27, q. 11 A : « The first hero to search for treasure finds four blue glowing orbs
+            // in the chest. An orb allows the hero to breathe underwater. […] The orbs lose their enchantment once this quest is
+            // complete. ») Objet de quête, comme la clé de laiton : aucun prix (⚠ non trouvé), hors marché, retiré du sac en fin de
+            // quête ; son seul lecteur est l'apnée d'une quête construite (`Classique\Apnee`).
+            ['nom' => 'Orbe bleue', 'categorie' => 'tresor', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'sac',
+                'boite' => 'spirit_queen', 'effet' => ['hors_marche' => true, 'objet_de_quete' => true, 'respire_sous_l_eau' => true]],
             ['nom' => 'Anneau de Puissance de Festral', 'categorie' => 'tresor', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'sac',
                 'boite' => 'horde_ogre', 'effet' => ['hors_marche' => true, 'objet_de_quete' => true]],
             ['nom' => 'Potion de soin mineur', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',

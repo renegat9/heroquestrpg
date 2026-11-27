@@ -1425,3 +1425,44 @@ it('rappel de la Reine : en vue, un dé ; un bouclier ôte 1 Esprit, un crâne r
     // Apaisée, elle n'est plus à rappeler.
     expect(app(\App\Partie\Classique\RappelDeLaReine::class)->cibles($partie['quete']->fresh(), $etat->fresh()))->toHaveCount(0);
 });
+
+// ---------------------------------------------------------------- Spirit Queen's Torment : l'apnée (q. 11) et les dés en plus (q. 8)
+
+it('apnée : la validation ; sans orbe le compteur avance à chaque tour, passé le maximum il se noie ; l\'orbe fait respirer', function () {
+    expect(codesE2(campagneE2(['regles' => ['apnee' => ['tours' => 7], 'des_deplacement_bonus' => 1]])))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['apnee' => ['tours' => 0]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE2(campagneE2(['regles' => ['des_deplacement_bonus' => 3]])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+
+    $partie = partieE2($this, campagneE2(['regles' => ['apnee' => ['tours' => 2]]]));
+    $etat = $partie['quete']->etatsPersonnages()->firstOrFail();
+    $etat->update(['position_x' => 3, 'position_y' => 3]);
+    // Le premier menu, au départ de la quête, a déjà compté le premier tour (le vrai crochet) : on repart de zéro.
+    expect(data_get($partie['quete']->fresh()->drapeaux, '_apnee.'.$partie['heros']->id))->toBe(1);
+    $partie['quete']->update(['drapeaux' => []]);
+    $apnee = app(\App\Partie\Classique\Apnee::class);
+    $tour = function () use ($apnee, $partie, $etat) {
+        $etat->refresh()->update(['capacites_tour' => null]);
+
+        return $apnee->debutDeTour($partie['groupe']->fresh(), $partie['quete']->fresh(), $partie['heros']->fresh(), $etat->fresh());
+    };
+
+    expect($tour()['tour'])->toBe(1);
+    // Une seule fois par tour : le menu régénéré ne recompte pas.
+    expect($apnee->debutDeTour($partie['groupe'], $partie['quete']->fresh(), $partie['heros']->fresh(), $etat->fresh()))->toBeNull();
+    $deuxieme = $tour();
+    expect($deuxieme['tour'])->toBe(2)->and($deuxieme['noye'])->toBeFalse()
+        ->and(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($deuxieme, ''))->pluck('texte')->first())->toBe('Albrecht retient son souffle — tour 2 sur 2');
+    $troisieme = $tour();
+    expect($troisieme['noye'])->toBeTrue()->and((bool) $etat->fresh()->tombe)->toBeTrue();
+
+    // Avec une orbe, rien ne compte.
+    $etat->update(['tombe' => false]);
+    $partie['heros']->update(['pv_body' => 10]);
+    $partie['heros']->inventaire()->create(['objet_id' => \App\Models\Objet::where('nom', 'Orbe bleue')->value('id'), 'emplacement' => 'sac', 'quantite' => 4]);
+    expect($tour())->toBeNull();
+});
+
+it('dés de déplacement en plus : le classique lance 2 + N dés rouges dans la quête qui le dit', function () {
+    $partie = partieE2($this, campagneE2(['regles' => ['des_deplacement_bonus' => 1]]));
+    expect($partie['groupe']->fresh()->socleDeDeplacement($partie['heros']))->toBe(['base' => 0, 'des' => 3]);
+});

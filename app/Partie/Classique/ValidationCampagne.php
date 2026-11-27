@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -2410,6 +2410,16 @@ final class ValidationCampagne
                     $this->refuser($ici, self::VALEUR_INVALIDE, 'la zone est « to the side of the board » : sa case d\'entrée est au bord du plateau');
                 }
             }
+        }
+        // Lot E2 : l'apnée (G0053 q. 11) — le nombre de tours qu'un héros sans orbe retient son souffle.
+        if (array_key_exists('apnee', $regles) && ($apnee = $this->enObjet($regles['apnee'], self::chemin($position, 'apnee'))) !== null) {
+            $this->cles($apnee, self::chemin($position, 'apnee'), ['tours']);
+            $this->entier($apnee, 'tours', self::chemin($position, 'apnee'), min: 1);
+        }
+        // Lot E2 : « each roll 1 additional movement die » (G0053 q. 8) — 1 à 2 dés de plus.
+        $bonusDes = $this->entier($regles, 'des_deplacement_bonus', self::chemin($position, 'des_deplacement_bonus'), min: 1);
+        if ($bonusDes !== null && $bonusDes > 2) {
+            $this->refuser(self::chemin($position, 'des_deplacement_bonus'), self::VALEUR_INVALIDE, 'au plus 2 dés de plus');
         }
         // Lot E2 : la salle en contrebas (G0052 q. 9 C) — une salle ouverte, et la galerie qui la surplombe, hors d'elle.
         if (array_key_exists('salle_en_contrebas', $regles)) {

@@ -1353,6 +1353,16 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <input v-model.number="quete.regles.reserve_hors_plateau.y" type="number" min="0" class="cst-input cst-num" />
                                     <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(quete.regles.reserve_hors_plateau, 'la case d\'entrée de la zone hors du plateau')"><MSym n="pin_drop" :size="16" /></button>
                                 </template>
+                                <!-- Lot E2 : l'apnée (Spirit Queen q. 11) et les dés de déplacement en plus (q. 8). -->
+                                <label class="cst-case" title="Chaque tour d'un héros sans objet qui fait respirer (l'Orbe bleue) compte ; passé ce nombre de tours, il se noie.">
+                                    <input type="checkbox" :checked="!!quete.regles?.apnee" @change="poserRegle('apnee', $event.target.checked ? { tours: 7 } : undefined)" />
+                                    Apnée
+                                </label>
+                                <label v-if="quete.regles?.apnee">tours sans air <input v-model.number="quete.regles.apnee.tours" type="number" min="1" class="cst-input cst-num" /></label>
+                                <label title="« each roll 1 additional movement die »">Dés de déplacement en plus
+                                    <input :value="quete.regles?.des_deplacement_bonus ?? ''" type="number" min="1" max="2" class="cst-input cst-num"
+                                        @change="poserRegle('des_deplacement_bonus', $event.target.value === '' ? undefined : Number($event.target.value))" />
+                                </label>
                                 <!-- Lot E2 : la salle en contrebas (Prophecy of Telor q. 9 C) — la salle, et la galerie qui la surplombe. -->
                                 <label v-if="quete.salles_ouvertes.length" class="cst-case" title="La galerie et la salle se voient par-dessus le mur ; un héros de la galerie peut sauter dans la salle (1 PV de Corps). L'escalier est une porte ouverte que vous posez entre sa case et la galerie.">
                                     <input type="checkbox" :checked="!!quete.regles?.salle_en_contrebas"

@@ -245,6 +245,8 @@ final class JournalCombat
         'geste_de_quete' => true,
         // LE RAPPEL DE LA REINE (lot E2, G0053 q. 14 C) : un dé de combat, un bouclier ôte 1 point d'Esprit ; à 0, elle s'efface.
         'rappel_figure' => true,
+        // L'APNÉE (lot E2, G0053 q. 11) : un tour de plus sans respirer, ou la noyade.
+        'apnee' => true,
         // ---- MUETS PAR CHOIX ÉCRIT — la raison est la valeur
         'attente' => 'Terminer le tour ne change rien sur le plateau : la manette rend déjà le tour suivant.',
         'action' => 'Option narrative (« continuer prudemment ») : aucun résultat mécanique à dire.',
@@ -1349,6 +1351,12 @@ final class JournalCombat
                 'texte' => ((int) ($a['variation'] ?? 0) > 0 ? 'Le groupe gagne ' : 'Le groupe dépense ').abs((int) ($a['variation'] ?? 0))
                     .' jeton(s) de réputation (total : '.(int) ($a['total'] ?? 0).')',
                 'ton' => (int) ($a['variation'] ?? 0) > 0 ? 'succes' : 'info',
+            ]],
+            'apnee' => [[
+                'texte' => ! empty($a['noye'])
+                    ? ($a['nom'] ?? $acteurNom).' n\'a plus d\'air : il se noie'
+                    : ($a['nom'] ?? $acteurNom).' retient son souffle — tour '.(int) ($a['tour'] ?? 1).' sur '.(int) ($a['max'] ?? 7),
+                'ton' => ! empty($a['noye']) ? 'degats' : 'subit',
             ]],
             'rappel_figure' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' rappelle à '.($a['figure'] ?? 'la figure').' son passé ('.str_replace('_', ' ', (string) ($a['face'] ?? 'crane')).') : '

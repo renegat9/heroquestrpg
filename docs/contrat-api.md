@@ -7089,6 +7089,23 @@ enchantment […] and thanks the heroes for saving her before fading into glimme
   des Esprits son passé (bouclier noir) : elle perd 1 point d'Esprit (2 restant(s)) » ; à 0 : « … elle brise l'enchantement
   de Zargon, remercie les héros et s'efface, apaisée ».
 
+### L'apnée — `regles.apnee`, `regles.des_deplacement_bonus`, l'Orbe bleue (lot E2, 2026-11-27)
+
+*Spirit Queen's Torment* q. 11 : « Inform the heroes they are holding their breath. They should mark each turn that passes on
+their sheet, and if seven turns pass without finding a source of air, they die! » ; note A : « An orb allows the hero to
+breathe underwater. […] The orbs lose their enchantment once this quest is complete. » ; q. 8 : « heroes can breathe water
+and each roll 1 additional movement die ». `Classique\Apnee` :
+- `regles.apnee {tours}` (≥ 1). Au début du tour d'un héros debout sur le plateau (crochet du fardeau, `MenuMoteur`) : s'il
+  porte un objet `respire_sous_l_eau` (sac compris), rien ; sinon son compteur avance (`quetes.drapeaux._apnee`) et la table
+  l'annonce (`apnee {nom, personnage_id, tour, max, noye}` : « Albrecht retient son souffle — tour 3 sur 7 »). Au tour qui
+  dépasse `tours`, il se noie (« … n'a plus d'air : il se noie ») : il meurt (`MortHeroic::mourir()`), en mode Story il
+  tombe. Seuls les tours sans orbe comptent, cumulés ; hors plateau, rien ne compte.
+- Objet **Orbe bleue** (`ObjetSeeder`, boîte `spirit_queen`) : `respire_sous_l_eau`, `objet_de_quete` (retirée du sac en fin de
+  quête), `hors_marche`, aucun prix (⚠ non trouvé). La note A la donne (`objet {slug: orbe-bleue, quantite: 4}`) ; un héros en
+  donne une à un compagnon par l'échange ordinaire.
+- `regles.des_deplacement_bonus` (1 ou 2) : des dés rouges de plus au jet de déplacement du mode classique
+  (`Groupe::socleDeDeplacement()`, le point de passage du jet).
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

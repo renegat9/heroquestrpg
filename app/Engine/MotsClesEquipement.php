@@ -1155,6 +1155,13 @@ final class MotsClesEquipement
     public const OBJET_DE_QUETE = 'objet_de_quete';
 
     /**
+     * RESPIRER SOUS L'EAU (lot E2, *Spirit Queen's Torment* q. 11 A : « An orb allows the hero to breathe underwater ») : le
+     * héros qui porte l'objet (au sac compris) ne retient pas son souffle. Seul lecteur : `Classique\Apnee::respire()`, au
+     * début du tour d'une quête construite à `regles.apnee`.
+     */
+    public const RESPIRE_SOUS_L_EAU = 'respire_sous_l_eau';
+
+    /**
      * Récupère UN sort de héros ou UNE compétence déjà utilisés —
      * *Potion of Elder Wisdom* : « recover any 1 hero spell or skill you have
      * used ». Le buveur reçoit d'abord le premier sort épuisé, à défaut la
@@ -1333,6 +1340,8 @@ final class MotsClesEquipement
         self::VALEUR_MARCHANDE,
         self::HORS_MARCHE,
         self::OBJET_DE_QUETE,
+        // Lot E2 (*Spirit Queen's Torment* q. 11) : l'Orbe bleue — `Classique\Apnee::respire()`.
+        self::RESPIRE_SOUS_L_EAU,
         self::RECUPERE_SORT_OU_COMPETENCE,
         self::UNE_PAR_QUETE,
         // Malédiction du Talisman du Savoir maudit (Prophecy of Telor, 2026-10-29).
@@ -1556,6 +1565,7 @@ final class MotsClesEquipement
         self::VALEUR_MARCHANDE => 'Se revend %s pièces d\'or (valeur entière)',
         self::HORS_MARCHE => 'Carte de trésor sans prix : ni à l\'étal, ni revendable',
         self::OBJET_DE_QUETE => 'Objet de quête : retiré du sac à la fin de la quête',
+        self::RESPIRE_SOUS_L_EAU => 'Permet de respirer sous l\'eau',
         // ⚠ « S'active à volonté » précédait « Cadence : une fois par quête » sur
         // la même ligne. La clé dit seulement que l'objet se DÉCLENCHE.
         'activable' => 'Pouvoir à déclencher',

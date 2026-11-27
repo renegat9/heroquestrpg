@@ -1654,6 +1654,9 @@ final class MenuMoteur
                 // REBORD DE CREVASSE (mode classique, lot E2) : « at the beginning of any turn in which a hero is in this
                 // room, they must first roll » — même crochet, même garde ; il peut ramener, faire tomber ou perdre le héros.
                 app(\App\Partie\Classique\Crevasse::class)->debutDeTour($groupe, $quete, $personnage, $etat);
+                // L'APNÉE (mode classique, lot E2 — G0053 q. 11) : « if seven turns pass without finding a source of air, they
+                // die! » — même crochet, même garde ; il peut noyer le héros.
+                app(\App\Partie\Classique\Apnee::class)->debutDeTour($groupe, $quete, $personnage, $etat->fresh());
                 // CHEMIN IMPOSÉ (mode classique, lot E2 — G0052 q. 6) : « You move the bearer's miniature 9 squares for the first
                 // four turns » — même crochet, même garde ; le déplacement est pris, l'action reste.
                 app(\App\Partie\Classique\CheminImpose::class)->debutDeTour($groupe, $quete, $personnage, $etat->fresh());
