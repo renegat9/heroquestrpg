@@ -1078,6 +1078,12 @@ class ObjetSeeder extends Seeder
             // quête ; son seul lecteur est l'apnée d'une quête construite (`Classique\Apnee`).
             ['nom' => 'Orbe bleue', 'categorie' => 'tresor', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'sac',
                 'boite' => 'spirit_queen', 'effet' => ['hors_marche' => true, 'objet_de_quete' => true, 'respire_sous_l_eau' => true]],
+            // FIOLE D'ONGUENT (*Spirit Queen's Torment* p. 31, q. 13 B : « they find four vials of protective unguent in the chest.
+            // Each hero may take a vial by moving adjacent to the chest. A vial protects a hero from the next 2 Body Points of
+            // damage they would take from a furnace. ») Deux charges par fiole, une par point absorbé (`MoteurCharges` : la pile
+            // passe à la fiole suivante) ; aucun prix (⚠ non trouvé), hors marché.
+            ['nom' => 'Fiole d\'onguent', 'categorie' => 'tresor', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'sac',
+                'boite' => 'spirit_queen', 'effet' => ['hors_marche' => true, 'protection_salle_dangereuse' => true, 'charges' => 2]],
             ['nom' => 'Anneau de Puissance de Festral', 'categorie' => 'tresor', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'sac',
                 'boite' => 'horde_ogre', 'effet' => ['hors_marche' => true, 'objet_de_quete' => true]],
             ['nom' => 'Potion de soin mineur', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',

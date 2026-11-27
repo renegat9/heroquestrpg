@@ -1162,6 +1162,13 @@ final class MotsClesEquipement
     public const RESPIRE_SOUS_L_EAU = 'respire_sous_l_eau';
 
     /**
+     * PROTECTION CONTRE LA FOURNAISE (lot E2, *Spirit Queen's Torment* q. 13 B : « A vial protects a hero from the next 2 Body
+     * Points of damage they would take from a furnace ») : chaque point de dégâts d'une salle dangereuse dépense une CHARGE
+     * de la pièce (`effet.charges`, `MoteurCharges`) au lieu du Corps. Seul lecteur : `ResolveurTour::salleDangereuseFrappe()`.
+     */
+    public const PROTECTION_SALLE_DANGEREUSE = 'protection_salle_dangereuse';
+
+    /**
      * Récupère UN sort de héros ou UNE compétence déjà utilisés —
      * *Potion of Elder Wisdom* : « recover any 1 hero spell or skill you have
      * used ». Le buveur reçoit d'abord le premier sort épuisé, à défaut la
@@ -1342,6 +1349,8 @@ final class MotsClesEquipement
         self::OBJET_DE_QUETE,
         // Lot E2 (*Spirit Queen's Torment* q. 11) : l'Orbe bleue — `Classique\Apnee::respire()`.
         self::RESPIRE_SOUS_L_EAU,
+        // Lot E2 (*Spirit Queen's Torment* q. 13) : la Fiole d'onguent — `ResolveurTour::salleDangereuseFrappe()`.
+        self::PROTECTION_SALLE_DANGEREUSE,
         self::RECUPERE_SORT_OU_COMPETENCE,
         self::UNE_PAR_QUETE,
         // Malédiction du Talisman du Savoir maudit (Prophecy of Telor, 2026-10-29).
@@ -1566,6 +1575,7 @@ final class MotsClesEquipement
         self::HORS_MARCHE => 'Carte de trésor sans prix : ni à l\'étal, ni revendable',
         self::OBJET_DE_QUETE => 'Objet de quête : retiré du sac à la fin de la quête',
         self::RESPIRE_SOUS_L_EAU => 'Permet de respirer sous l\'eau',
+        self::PROTECTION_SALLE_DANGEREUSE => 'Absorbe les dégâts d\'une fournaise (une charge par point)',
         // ⚠ « S'active à volonté » précédait « Cadence : une fois par quête » sur
         // la même ligne. La clé dit seulement que l'objet se DÉCLENCHE.
         'activable' => 'Pouvoir à déclencher',

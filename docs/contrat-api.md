@@ -7106,6 +7106,15 @@ and each roll 1 additional movement die ». `Classique\Apnee` :
 - `regles.des_deplacement_bonus` (1 ou 2) : des dés rouges de plus au jet de déplacement du mode classique
   (`Groupe::socleDeDeplacement()`, le point de passage du jet).
 
+### La Fiole d'onguent — `protection_salle_dangereuse` (lot E2, 2026-11-27)
+
+*Spirit Queen's Torment* q. 13 B : « A vial protects a hero from the next 2 Body Points of damage they would take from a
+furnace. » Objet **Fiole d'onguent** (`ObjetSeeder`, boîte `spirit_queen`, hors marché, aucun prix — ⚠ non trouvé) :
+`protection_salle_dangereuse`, `charges: 2`. Dans `ResolveurTour::salleDangereuseFrappe()`, chaque point de dégâts d'une salle
+dangereuse dépense d'abord une charge d'une pièce protectrice (`MoteurCharges` : la pile passe à la fiole suivante) ; le reste
+touche le Corps. L'annonce `salle_dangereuse` porte `absorbes` (absent à 0) : « … : rien, le dé montre un crâne ; l'onguent
+absorbe 1 point(s) ». La note B la donne (`objet {slug: fiole-donguent, quantite: 4}`), l'échange ordinaire la partage.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

@@ -5577,8 +5577,19 @@ final class ResolveurTour
 
         $meuble = $frappants[0];
         $jet = $this->pieges->resoudreDesCombat(1);
-        $subis = $jet['degats'] > 0
-            ? $this->degats->infligerAHeros($personnage, $jet['degats'], MoteurDegats::SOURCE_SALLE_DANGEREUSE, ['mobilier' => $meuble['nom']])
+        // FIOLE D'ONGUENT (lot E2, Spirit Queen q. 13 B) : chaque point dépense d'abord une charge d'une pièce protectrice.
+        $absorbes = 0;
+        $charges = app(MoteurCharges::class);
+        while ($absorbes < $jet['degats']) {
+            $fiole = $personnage->inventaire()->with('objet')->get()->first(fn (Inventaire $l) => ! empty(((array) $l->objet?->effet)[MotsClesEquipement::PROTECTION_SALLE_DANGEREUSE] ?? null)
+                && $charges->disponible($l));
+            if ($fiole === null || ! $charges->consommer($fiole)) {
+                break;
+            }
+            $absorbes++;
+        }
+        $subis = $jet['degats'] - $absorbes > 0
+            ? $this->degats->infligerAHeros($personnage, $jet['degats'] - $absorbes, MoteurDegats::SOURCE_SALLE_DANGEREUSE, ['mobilier' => $meuble['nom']])
             : 0;
         $pvApres = (int) $personnage->fresh()->pv_body;
         $tombe = $pvApres === 0 && $subis > 0;
@@ -5595,6 +5606,7 @@ final class ResolveurTour
             'faces' => $jet['faces'],
             'touches' => $jet['touches'],
             'degats' => $subis,
+            ...($absorbes > 0 ? ['absorbes' => $absorbes] : []),
             'pv_body_apres' => $pvApres,
             'tombe' => $tombe,
         ], ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom]);

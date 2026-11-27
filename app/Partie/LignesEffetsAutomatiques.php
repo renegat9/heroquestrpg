@@ -1122,11 +1122,14 @@ trait LignesEffetsAutomatiques
             ? "{$cible} termine son déplacement dans une salle chauffée"
             : "{$cible} termine son tour dans une salle chauffée";
 
+        // FIOLE D'ONGUENT (lot E2) : les points absorbés se disent.
+        $onguent = (int) ($a['absorbes'] ?? 0) > 0 ? ' ; l\'onguent absorbe '.(int) $a['absorbes'].' point(s)' : '';
+
         if ($degats <= 0) {
-            return [['texte' => "{$geste} — {$meuble} : rien, {$de}", 'ton' => 'pare']];
+            return [['texte' => "{$geste} — {$meuble} : rien, {$de}{$onguent}", 'ton' => 'pare']];
         }
 
-        $lignes = [['texte' => "{$geste} — {$meuble} : −{$degats} PV de Body ({$de})", 'ton' => 'subit']];
+        $lignes = [['texte' => "{$geste} — {$meuble} : −{$degats} PV de Body ({$de}){$onguent}", 'ton' => 'subit']];
 
         if (! empty($a['tombe'])) {
             $lignes[] = ['texte' => "{$cible} s'effondre !", 'ton' => 'chute'];

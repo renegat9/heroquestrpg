@@ -305,6 +305,27 @@ it('la fournaise : un héros qui TERMINE son tour dans la salle roule un dé —
         ->and(collect(salEvenements($ctx))->pluck('payload.type')->all())->toContain('salle_dangereuse');
 });
 
+it('la Fiole d\'onguent (Spirit Queen q. 13 B) : chaque point de la fournaise dépense une charge, deux par fiole, puis la pile passe à la suivante', function () {
+    $ctx = salScene([salMeuble('Fournaise', 7, 3)]);
+    $fiole = \App\Models\Objet::where('nom', 'Fiole d\'onguent')->firstOrFail();
+    $ligne = $ctx['heros']->inventaire()->create(['objet_id' => $fiole->id, 'emplacement' => 'sac', 'quantite' => 2]);
+    desFiges(array_fill(0, 200, 1));
+
+    salDeplacer($ctx, 7, 4);
+    salTerminerTour($ctx);
+
+    // Le crâne est absorbé : aucun PV perdu, une charge dépensée, et le fil le dit.
+    expect($ctx['heros']->fresh()->pv_body)->toBe(8)->and((int) $ligne->fresh()->charges)->toBe(1);
+    $annonce = collect(salEvenements($ctx))->pluck('payload')->firstWhere('type', 'salle_dangereuse');
+    expect($annonce['absorbes'])->toBe(1)
+        ->and(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($annonce, 'Albrecht'))->pluck('texte')->first())->toContain('l\'onguent absorbe 1 point(s)');
+
+    // La seconde charge vide la première fiole : la pile en garde une, neuve.
+    $ctx['quete']->etatsPersonnages()->update(['a_joue' => false, 'a_deplace' => false, 'a_agi' => false]);
+    salTerminerTour($ctx);
+    expect($ctx['heros']->fresh()->pv_body)->toBe(8)->and((int) $ligne->fresh()->quantite)->toBe(1)->and($ligne->fresh()->charges)->toBeNull();
+});
+
 it('la fournaise : un héros qui termine son tour HORS de la salle n\'est pas frappé', function () {
     $ctx = salScene([salMeuble('Fournaise', 7, 3)]);
     desFiges(array_fill(0, 200, 1));
