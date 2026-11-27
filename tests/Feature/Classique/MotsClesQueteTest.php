@@ -90,7 +90,7 @@ it('la validation accepte exactement ce vocabulaire : un mot inconnu est refusé
 });
 
 it('une note complète, de chaque déclencheur et de chaque effet, passe la validation', function () {
-    $this->seed([ClasseHerosSeeder::class, ObjetSeeder::class, MobilierSeeder::class, MonstreSeeder::class, PiegeSeeder::class, TerrainSeeder::class, \Database\Seeders\MercenaireSeeder::class]);
+    $this->seed([ClasseHerosSeeder::class, ObjetSeeder::class, MobilierSeeder::class, MonstreSeeder::class, PiegeSeeder::class, TerrainSeeder::class, \Database\Seeders\MercenaireSeeder::class, \Database\Seeders\SortDreadSeeder::class]);
     $doc = DocumentExemple::campagne();
     // Lot K6 : `debloquer_mercenaire` désigne un mercenaire que la campagne offre.
     $doc['mercenaires'] = ['regime' => 'debloques', 'offerts' => ['eclaireur']];
@@ -131,6 +131,11 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
                 ['effet' => 'retirer', 'monstres' => [0]], ['effet' => 'retirer_meuble', 'mobilier' => 0],
                 ['effet' => 'murer_porte', 'porte' => 0], ['effet' => 'retirer_bloc', 'x' => 11, 'y' => 7], ['effet' => 'liberer_captif'],
                 ['effet' => 'arreter'], ['effet' => 'voler', 'or' => 25], ['effet' => 'errants'], ['effet' => 'declencher_piege', 'x' => 2, 'y' => 2]]],
+        // Lot E2 (*Prophecy of Telor*) : le talisman.
+        ['repere' => 'T', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 6]],
+            'alors' => [['effet' => 'esprit', 'points' => 1], ['effet' => 'apprendre_sort_dread', 'sort' => 'eclair-de-chaos'],
+                ['effet' => 'remplacer_objet', 'slug' => 'talisman-du-savoir', 'par' => 'talisman-du-savoir-maudit'],
+                ['effet' => 'oublier_sorts_dread'], ['effet' => 'esprit_d_origine']]],
         // Lot E1 : les huit déclencheurs des extensions.
         ['repere' => 'L1', 'quand' => ['declencheur' => 'salle_videe', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'texte', 'texte' => 'Vide.']]],
         ['repere' => 'L2', 'quand' => ['declencheur' => 'morts', 'cible' => ['monstres' => [0, 1]]], 'alors' => [['effet' => 'texte', 'texte' => 'Tous tombés.']]],

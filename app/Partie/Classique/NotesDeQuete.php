@@ -906,4 +906,91 @@ final class NotesDeQuete
 
         return ['objet' => $objet->nom, 'detruits' => $detruits];
     }
+
+    /** Lot E2 (*Prophecy of Telor*, q. 4 D, q. 6 C) — le héros qui déclenche apprend ce sort de Dread, pour la campagne. */
+    private function effetApprendreSortDread(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $sort = $this->catalogue->index('sorts_dread')[(string) ($effet['sort'] ?? '')] ?? null;
+        if ($sort === null || $heros === null) {
+            return ['sort' => null];
+        }
+
+        return ['nom' => $heros->nom, 'sort' => (string) $sort->nom, 'appris' => app(TalismanDeTelor::class)->apprendre($heros, (string) $sort->nom)];
+    }
+
+    /** Lot E2 (*Prophecy of Telor*, q. 10 G) — chaque héros de la quête oublie les sorts de Dread qu'une note lui a appris. */
+    private function effetOublierSortsDread(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $oublis = [];
+        foreach ($this->herosDeLaQuete($quete) as $participant) {
+            if (($sorts = app(TalismanDeTelor::class)->oublier($participant)) !== []) {
+                $oublis[] = ['nom' => $participant->nom, 'sorts' => $sorts];
+            }
+        }
+
+        return ['oublis' => $oublis];
+    }
+
+    /** Lot E2 (*Prophecy of Telor*, « Gain 1 Mind Point ») — le total d'Esprit du héros qui déclenche bouge. */
+    private function effetEsprit(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $points = (int) ($effet['points'] ?? 0);
+        if ($heros === null || $points === 0) {
+            return ['points' => 0];
+        }
+        $ecart = app(TalismanDeTelor::class)->esprit($heros, $points);
+
+        return ['nom' => $heros->nom, 'points' => $ecart, 'pv_mind' => (int) $heros->pv_mind, 'pv_mind_max' => (int) $heros->pv_mind_max];
+    }
+
+    /** Lot E2 (*Prophecy of Telor*, q. 10 G) — chaque héros revient au total d'Esprit d'avant la campagne. */
+    private function effetEspritDOrigine(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $retablis = [];
+        foreach ($this->herosDeLaQuete($quete) as $participant) {
+            if (app(TalismanDeTelor::class)->retablir($participant)) {
+                $retablis[] = ['nom' => $participant->nom, 'pv_mind' => (int) $participant->pv_mind];
+            }
+        }
+
+        return ['retablis' => $retablis];
+    }
+
+    /**
+     * Lot E2 (*Prophecy of Telor*, p. 10) — l'objet `slug` devient l'objet `par` chez chaque héros de la quête qui le possède,
+     * à la même place (porté, il reste porté) ; les plafonds et les dés de combat suivent (`Equipement`). Une note joue
+     * l'histoire : elle n'interroge pas `Equipement::retirable()`, comme `detruire_objet`.
+     */
+    private function effetRemplacerObjet(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $objets = $this->catalogue->index('objets');
+        $de = $objets[(string) ($effet['slug'] ?? '')] ?? null;
+        $par = $objets[(string) ($effet['par'] ?? '')] ?? null;
+        if (! $de instanceof Objet || ! $par instanceof Objet) {
+            return ['remplaces' => []];
+        }
+
+        $equipement = app(\App\Partie\Equipement::class);
+        $remplaces = [];
+        foreach ($this->herosDeLaQuete($quete) as $participant) {
+            if (! $participant->inventaire()->where('objet_id', $de->id)->exists()) {
+                continue;
+            }
+            $equipement->apresChangementDeJauges($participant, fn () => $participant->inventaire()->where('objet_id', $de->id)->update(['objet_id' => $par->id]));
+            $equipement->recalculerCombat($participant->fresh());
+            $remplaces[] = $participant->nom;
+        }
+
+        return ['objet' => $de->nom, 'par' => $par->nom, 'remplaces' => $remplaces];
+    }
+
+    /**
+     * Les héros de la quête (lot E2) : ceux qui ont un état de quête, debout ou à terre.
+     *
+     * @return list<Personnage>
+     */
+    private function herosDeLaQuete(Quete $quete): array
+    {
+        return $quete->etatsPersonnages()->with('personnage')->get()->pluck('personnage')->filter()->values()->all();
+    }
 }

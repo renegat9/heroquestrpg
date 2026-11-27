@@ -6637,10 +6637,16 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Zone de ce sort non prise en charge.']);
         }
 
-        // +1 PV de Mind à chaque lancer, plafonné au maximum du porteur.
+        // +1 PV de Mind à chaque lancer (« Each time the hero casts one of these spells, they gain 1 Mind Point »). Mode RPG :
+        // plafonné au maximum du porteur. Mode CLASSIQUE (lot E2, René, 2026-11-26 : « dépasse le maximum ») : le TOTAL
+        // monte, d'une quête à l'autre, jusqu'à l'arène de la q. 10 (`Classique\TalismanDeTelor::esprit()`).
         $mindAvant = (int) $personnage->pv_mind;
-        $personnage->pv_mind = min((int) $personnage->pv_mind_max, $mindAvant + 1);
-        $personnage->save();
+        if ($quete->estConstruite()) {
+            app(\App\Partie\Classique\TalismanDeTelor::class)->esprit($personnage, 1);
+        } else {
+            $personnage->pv_mind = min((int) $personnage->pv_mind_max, $mindAvant + 1);
+            $personnage->save();
+        }
 
         // Une fois par quête et par sort : le compteur vit dans l'état de quête (durable), il meurt avec la quête.
         app(Talents::class)->marquerUtilisee($etat, SortsDreadPorteur::COMPTEUR.$nom);

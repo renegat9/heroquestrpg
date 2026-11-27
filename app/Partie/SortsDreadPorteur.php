@@ -37,6 +37,18 @@ final class SortsDreadPorteur
     public const COMPTEUR = 'sort_dread_porteur:';
 
     /**
+     * Ce sort peut-il être lancé par un porteur ? Le résolveur ne joue que le RAYON à dégâts fixes et la SALLE (jet de dégâts
+     * du MJ) : un autre sort, appris par note (lot E2), serait une promesse que rien ne tient — la validation le refuse.
+     */
+    public static function jouable(SortDread $sort): bool
+    {
+        $zone = (string) data_get($sort->effet, 'zone');
+
+        return ($zone === MotsClesSortDread::ZONE_RAYON && (int) data_get($sort->effet, 'degats_fixes', 0) > 0)
+            || $zone === MotsClesSortDread::ZONE_SALLE;
+    }
+
+    /**
      * Les entrées jouables pour ce porteur, dans l'ordre où son objet les déclare.
      *
      * @return list<array{cle: string, nom: string, zone: string, cibles: list<array{instance_id: int, nom: string}>}>
@@ -48,6 +60,14 @@ final class SortsDreadPorteur
         foreach ($porteur->inventaire()->with('objet')->whereIn('emplacement', Equipement::SLOTS)->get() as $ligne) {
             foreach ((array) ($ligne->objet?->effet[MotsClesEquipement::SORTS_DREAD_PORTEUR] ?? []) as $nom) {
                 $noms[(string) $nom] = true;
+            }
+        }
+
+        // Mode classique (lot E2, *Prophecy of Telor* q. 4 D, q. 6 C) : les sorts qu'une note a APPRIS au héros, à côté de ceux
+        // d'un objet porté — une fois par quête chacun, comme eux (`Classique\TalismanDeTelor`).
+        if ($quete->estConstruite()) {
+            foreach (app(\App\Partie\Classique\TalismanDeTelor::class)->sortsAppris($porteur) as $nom) {
+                $noms[$nom] = true;
             }
         }
 

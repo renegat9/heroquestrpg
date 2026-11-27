@@ -240,6 +240,24 @@ final class MotsClesQuete
     /** E9 — détruire un objet précis (artefact, arme, armure) dans l'inventaire des héros présents dans la salle (*The Cold Halls*, q. 2 note D). */
     public const DETRUIRE_OBJET = 'detruire_objet';
 
+    /** Lot E2 (*Prophecy of Telor*, q. 4 D, q. 6 C) — le héros apprend un sort de Dread, pour la campagne (`Classique\TalismanDeTelor`). */
+    public const APPRENDRE_SORT_DREAD = 'apprendre_sort_dread';
+
+    /** Lot E2 (*Prophecy of Telor*, q. 10 G) — « can no longer cast Dread spells » : chaque héros oublie les sorts appris. */
+    public const OUBLIER_SORTS_DREAD = 'oublier_sorts_dread';
+
+    /** Lot E2 (*Prophecy of Telor*, « Gain 1 Mind Point ») — le total d'Esprit du héros bouge, au-delà du maximum de départ. */
+    public const ESPRIT = 'esprit';
+
+    /** Lot E2 (*Prophecy of Telor*, q. 10 G) — « Mind Points revert to their total before starting this quest pack ». */
+    public const ESPRIT_D_ORIGINE = 'esprit_d_origine';
+
+    /**
+     * Lot E2 (*Prophecy of Telor*, « The Remaining Quests », p. 10) — l'objet `slug` devient l'objet `par` chez tout héros
+     * qui le possède, à la même place : le talisman ordinaire devient le talisman maudit (q. 7), puis l'inverse (q. 10 G).
+     */
+    public const REMPLACER_OBJET = 'remplacer_objet';
+
     /** C5 (lot K6, *Dread Moon*) — le groupe gagne (ou perd) des jetons de réputation. */
     public const REPUTATION = 'reputation';
 
@@ -333,6 +351,11 @@ final class MotsClesQuete
         self::REVELER_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetRevelerPorte', 'libelle' => 'révéler une porte secrète'],
         self::TELEPORTER => ['parametres' => ['x', 'y'], 'optionnels' => ['destinations_d6'], 'lecteur' => 'effetTeleporter', 'libelle' => 'téléporter le héros'],
         self::DETRUIRE_OBJET => ['parametres' => ['slug'], 'optionnels' => ['toute_la_salle'], 'lecteur' => 'effetDetruireObjet', 'libelle' => 'détruire un objet du héros'],
+        self::APPRENDRE_SORT_DREAD => ['parametres' => ['sort'], 'optionnels' => [], 'lecteur' => 'effetApprendreSortDread', 'libelle' => 'apprendre un sort de Dread au héros'],
+        self::OUBLIER_SORTS_DREAD => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetOublierSortsDread', 'libelle' => 'faire oublier aux héros les sorts de Dread appris'],
+        self::ESPRIT => ['parametres' => ['points'], 'optionnels' => [], 'lecteur' => 'effetEsprit', 'libelle' => 'gagner ou perdre des points d\'Esprit (total du héros)'],
+        self::ESPRIT_D_ORIGINE => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetEspritDOrigine', 'libelle' => 'ramener l\'Esprit des héros au total d\'avant la campagne'],
+        self::REMPLACER_OBJET => ['parametres' => ['slug', 'par'], 'optionnels' => [], 'lecteur' => 'effetRemplacerObjet', 'libelle' => 'changer un objet en un autre chez qui le possède'],
         self::REPUTATION => ['parametres' => ['jetons'], 'optionnels' => [], 'lecteur' => 'effetReputation', 'libelle' => 'gagner ou perdre des jetons de réputation'],
         self::OFFRE => ['parametres' => ['libelle', 'alors'], 'optionnels' => ['cout', 'groupe'], 'lecteur' => 'effetOffre', 'libelle' => 'proposer un choix (coût, effets)'],
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],

@@ -6868,6 +6868,30 @@ groupe (`rang_quete`), le marché du hub ne s'ouvre pas. La quête jouée, la r�
   (`Groupe::etapeOuverte(EtapesCampagne::CLOTURE)`) ? `false` pour un groupe classique : la table ne montre plus
   « Clôturer » (vu à l'écran le 2026-11-16 : le bouton était offert, la route le refusait).
 
+### Le talisman de Telor — `apprendre_sort_dread`, `esprit`, `remplacer_objet`, `oublier_sorts_dread`, `esprit_d_origine` (lot E2, 2026-11-26)
+
+*Prophecy of Telor* (G0052) : le porteur du Talisman du Savoir apprend Éclair de Chaos (q. 4 D) et Tempête de feu (q. 6 C),
+gagne des points d'Esprit (« Gain 1 Mind Point »), porte la malédiction des q. 7 à 10 (« The Remaining Quests », p. 10),
+puis l'arène de la q. 10 défait tout (« The bearer is no longer affected by Melar, can no longer cast Dread spells, and
+their Mind Points revert to their total before starting this quest pack »). Cinq effets de note, `Classique\TalismanDeTelor`,
+deux colonnes DURABLES du héros (`personnages.sorts_dread_appris`, `personnages.esprit_de_livret`) :
+- `apprendre_sort_dread {sort}` — slug du catalogue `sorts_dread`, jouable par un héros (`SortsDreadPorteur::jouable()` :
+  rayon à dégâts fixes ou sort de salle, sinon `valeur_invalide`). Le héros qui déclenche le garde pour la campagne ;
+  `SortsDreadPorteur::entrees()` l'offre (option `lancer_sort_dread`) à côté des sorts d'un objet porté, une fois par quête.
+- `esprit {points}` — entier non nul. Le TOTAL d'Esprit du héros qui déclenche bouge (maximum et valeur courante), au-delà
+  du maximum de départ (René, 2026-11-26 : « dépasse le maximum ») ; l'écart s'accumule dans `esprit_de_livret`. En mode
+  classique, le +1 PM de chaque sort de Dread lancé par un porteur passe par la même règle (mode RPG : plafonné, inchangé).
+- `remplacer_objet {slug, par}` — deux objets distincts du catalogue : chez chaque héros de la quête qui possède `slug`, la
+  ligne devient `par`, à la même place ; plafonds et dés suivent (`Equipement::apresChangementDeJauges()`). Une note joue
+  l'histoire : `Equipement::retirable()` n'est pas interrogé (comme `detruire_objet`).
+- `oublier_sorts_dread {}`, `esprit_d_origine {}` — chaque héros de la quête oublie ses sorts appris / revient au total
+  d'Esprit d'avant le livret (maximum − écart, valeur courante = ce total, écart remis à 0).
+- Fil (`note_de_quete`) : « X apprend le sort de Dread … (une fois par quête) », « X gagne 1 point(s) d'Esprit (total : N) »,
+  « X : Talisman du Savoir devient Talisman du Savoir maudit », « X ne peut plus lancer … », « X retrouve son Esprit
+  d'avant (N) ».
+- Le talisman ordinaire s'enlève en q. 1 à 6 (René, 2026-11-26 : aucune question sur le sujet en ligne, aucune réponse
+  officielle) ; le maudit ne s'enlève pas (`inamovible`, déjà au catalogue).
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

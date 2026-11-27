@@ -121,6 +121,9 @@ class Personnage extends Model
             'entraine_body' => 'boolean',
             'entraine_mind' => 'boolean',
             'mort_le' => 'datetime',
+            // TALISMAN DE TELOR (lot E2, mode classique) : les sorts de Dread appris par note, durables.
+            'sorts_dread_appris' => 'array',
+            'esprit_de_livret' => 'integer',
         ];
     }
 

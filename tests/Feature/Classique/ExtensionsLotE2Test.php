@@ -813,3 +813,67 @@ it('salles qui se lèvent : la carte de monstre errant lève une salle ; plus au
     expect($errant)->not->toHaveKey('salles_activees')
         ->and($partie['quete']->instancesMonstres()->count())->toBe($avant + 1);
 });
+
+// ---------------------------------------------------------------- Prophecy of Telor : le talisman
+
+it('talisman de Telor : sort appris et +1 Esprit au-delà du maximum, durables ; le talisman devient maudit puis l\'arène défait tout', function () {
+    $campagne = campagneE2(['notes' => [
+        ['repere' => 'D', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1], 'si_porte' => 'talisman-du-savoir'],
+            'alors' => [['effet' => 'esprit', 'points' => 1], ['effet' => 'apprendre_sort_dread', 'sort' => 'eclair-de-chaos']]],
+        ['repere' => 'M', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 2]],
+            'alors' => [['effet' => 'remplacer_objet', 'slug' => 'talisman-du-savoir', 'par' => 'talisman-du-savoir-maudit']]],
+        ['repere' => 'G', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 3]],
+            'alors' => [['effet' => 'remplacer_objet', 'slug' => 'talisman-du-savoir-maudit', 'par' => 'talisman-du-savoir'],
+                ['effet' => 'oublier_sorts_dread'], ['effet' => 'esprit_d_origine']]],
+    ]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['notes' => [['repere' => 'X', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]],
+            'alors' => [['effet' => 'esprit', 'points' => 0], ['effet' => 'remplacer_objet', 'slug' => 'dague', 'par' => 'dague']]]]])))
+        ->toBe([ValidationCampagne::VALEUR_INVALIDE, ValidationCampagne::VALEUR_INVALIDE]);
+
+    $partie = partieE2($this, $campagne);
+    $heros = $partie['heros'];
+    $talisman = \App\Models\Objet::where('nom', 'Talisman du Savoir')->firstOrFail();
+    $heros->inventaire()->create(['objet_id' => $talisman->id, 'emplacement' => 'talisman', 'quantite' => 1]);
+    $mindMax = (int) $heros->fresh()->pv_mind_max;
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class);
+    $quete = $partie['quete']->fresh();
+    $quete->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3]);
+
+    $jouees = $notes->signaler($quete, \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 1], $heros->fresh());
+    $heros->refresh();
+    expect($heros->pv_mind_max)->toBe($mindMax + 1)->and($heros->pv_mind)->toBe($mindMax + 1)
+        ->and($heros->esprit_de_livret)->toBe(1)
+        ->and($heros->sorts_dread_appris)->toBe(['Éclair de Chaos']);
+    $lignes = collect(app(\App\Partie\JournalCombat::class)->depuisResultat(['type' => 'note_de_quete', ...$jouees[0]], 'Albrecht'))->pluck('texte')->implode(' | ');
+    expect($lignes)->toContain('gagne 1 point(s) d\'Esprit')->toContain('apprend le sort de Dread Éclair de Chaos');
+
+    // Le sort appris s'offre au menu du porteur, contre un monstre dans sa ligne ; lancé, il relève encore le total.
+    $quete->instancesMonstres()->create(['monstre_id' => \App\Models\Monstre::where('nom_base', 'Orque')->value('id'),
+        'pv_body' => 1, 'pv_mind' => 2, 'position_x' => 5, 'position_y' => 3, 'etat' => 'actif', 'elite' => false, 'revele' => true]);
+    $etat = $quete->etatsPersonnages()->firstOrFail();
+    $entrees = app(\App\Partie\SortsDreadPorteur::class)->entrees($quete->fresh(), $etat, $heros);
+    expect(collect($entrees)->pluck('nom')->all())->toBe(['Éclair de Chaos']);
+    $orque = $quete->instancesMonstres()->latest('id')->firstOrFail();
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $heros));
+    expect(collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id'))->toContain('lancer_sort_dread');
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'lancer_sort_dread',
+        'parametres' => ['cle' => 'sort_dread:Éclair de Chaos', 'cible_id' => $orque->id]])->assertAccepted();
+    // Mode classique : le lancer relève le TOTAL, au-delà du maximum de départ (mode RPG : plafonné, `SortDreadPorteurTest`).
+    expect($heros->fresh()->pv_mind_max)->toBe($mindMax + 2)->and($heros->fresh()->esprit_de_livret)->toBe(2)
+        ->and($orque->fresh()->etat)->not->toBe('actif');
+
+    // q. 7 : le talisman devient maudit, à la même place ; le plafond ne bouge pas (même carte, même +1).
+    $notes->signaler($quete->fresh(), \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 2], $heros->fresh());
+    $ligne = $heros->inventaire()->with('objet')->firstOrFail();
+    expect($ligne->objet->nom)->toBe('Talisman du Savoir maudit')->and($ligne->emplacement)->toBe('talisman')
+        ->and($heros->fresh()->pv_mind_max)->toBe($mindMax + 2);
+
+    // q. 10 G : talisman ordinaire, sorts oubliés, Esprit d'origine.
+    $notes->signaler($quete->fresh(), \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 3], $heros->fresh());
+    $heros->refresh();
+    expect($heros->inventaire()->with('objet')->firstOrFail()->objet->nom)->toBe('Talisman du Savoir')
+        ->and($heros->sorts_dread_appris)->toBeNull()
+        ->and($heros->pv_mind_max)->toBe($mindMax)->and($heros->pv_mind)->toBe($mindMax)
+        ->and($heros->esprit_de_livret)->toBe(0);
+});

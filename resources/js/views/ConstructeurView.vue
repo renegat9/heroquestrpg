@@ -797,7 +797,10 @@ function effetParDefaut(nom) {
             nom: 'drapeau', monstres: [], porte: 0, x: 0, y: 0, jetons: 1, libelle: '', alors: [{ effet: 'texte', texte: '' }],
             // Lot E1 : le jet à deux issues, l'objet tiré parmi deux.
             issues: [{ de: 1, a: 3, alors: [{ effet: 'texte', texte: '' }] }, { de: 4, a: 6, alors: [{ effet: 'texte', texte: '' }] }],
-            parmi: (catalogues.value?.objets ?? []).slice(0, 2).map((o) => o.slug), mobilier: 0 }[p] ?? '';
+            parmi: (catalogues.value?.objets ?? []).slice(0, 2).map((o) => o.slug), mobilier: 0,
+            // Lot E2 (Prophecy of Telor) : le sort de Dread appris, l'Esprit, l'objet de remplacement.
+            sort: (catalogues.value?.sorts_dread ?? []).find((sd) => sd.slug === 'eclair-de-chaos')?.slug ?? catalogues.value?.sorts_dread?.[0]?.slug ?? '',
+            points: 1, par: catalogues.value?.objets?.[1]?.slug ?? '' }[p] ?? '';
     }
     return effet;
 }
@@ -1796,6 +1799,16 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         <select v-else-if="p === 'slug'" v-model="effet.slug" class="cst-input">
                                             <option v-for="o in catalogues.objets" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
                                         </select>
+                                        <!-- Lot E2 (Prophecy of Telor) : le sort de Dread appris, l'Esprit du livret, l'objet de remplacement. -->
+                                        <select v-else-if="p === 'sort'" v-model="effet.sort" class="cst-input">
+                                            <option v-for="sd in (catalogues.sorts_dread ?? [])" :key="sd.slug" :value="sd.slug">{{ sd.nom }}</option>
+                                        </select>
+                                        <label v-else-if="p === 'points'">Points d'Esprit (négatif : en moins ; le total du héros bouge) <input v-model.number="effet.points" type="number" class="cst-input cst-num" /></label>
+                                        <label v-else-if="p === 'par'">devient
+                                            <select v-model="effet.par" class="cst-input">
+                                                <option v-for="o in catalogues.objets" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
+                                            </select>
+                                        </label>
                                         <!-- Lot K6 (Dread Moon) : la réputation et l'offre. -->
                                         <label v-else-if="p === 'jetons'">Jetons (négatif : en moins) <input v-model.number="effet.jetons" type="number" class="cst-input cst-num" /></label>
                                         <label v-else-if="p === 'libelle'">Libellé de l'offre <input v-model="effet.libelle" class="cst-input" maxlength="120" /></label>

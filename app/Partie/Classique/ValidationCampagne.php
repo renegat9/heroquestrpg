@@ -1191,6 +1191,27 @@ final class ValidationCampagne
                     $this->refuser("$position.toute_la_salle", self::TYPE_INVALIDE, 'true ou false est attendu');
                 }
                 break;
+            // Lot E2 (*Prophecy of Telor*) : le talisman — sort appris, Esprit du livret, objet changé en un autre.
+            case MotsClesQuete::APPRENDRE_SORT_DREAD:
+                $slug = $this->slugCatalogue($effet, 'sort', $position, 'sorts_dread');
+                $sort = $slug === null ? null : ($this->catalogue->index('sorts_dread')[$slug] ?? null);
+                if ($sort !== null && ! \App\Partie\SortsDreadPorteur::jouable($sort)) {
+                    $this->refuser("$position.sort", self::VALEUR_INVALIDE,
+                        "« {$sort->nom} » ne se lance pas par un héros : seuls un rayon à dégâts fixes ou un sort de salle le peuvent");
+                }
+                break;
+            case MotsClesQuete::ESPRIT:
+                if ($this->entier($effet, 'points', $position) === 0) {
+                    $this->refuser("$position.points", self::VALEUR_INVALIDE, 'un nombre de points non nul est attendu (négatif : en moins)');
+                }
+                break;
+            case MotsClesQuete::REMPLACER_OBJET:
+                $de = $this->slugCatalogue($effet, 'slug', $position, 'objets');
+                $par = $this->slugCatalogue($effet, 'par', $position, 'objets');
+                if ($de !== null && $de === $par) {
+                    $this->refuser("$position.par", self::VALEUR_INVALIDE, 'l\'objet de remplacement doit être un autre objet');
+                }
+                break;
             case MotsClesQuete::DETRUIRE_OBJET:
                 $this->slugCatalogue($effet, 'slug', $position, 'objets');
                 if (array_key_exists('toute_la_salle', $effet) && ! is_bool($effet['toute_la_salle'])) {

@@ -989,6 +989,34 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => $effet['mercenaire'].' accepte de servir le groupe : on pourra l\'engager', 'ton' => 'succes'];
                     }
                     break;
+                // Lot E2 (*Prophecy of Telor*) : le talisman — sort appris ou oublié, Esprit du livret, objet changé.
+                case 'apprendre_sort_dread':
+                    if (! empty($effet['appris'])) {
+                        $lignes[] = ['texte' => ($effet['nom'] ?? $heros)." apprend le sort de Dread {$effet['sort']} (une fois par quête)", 'ton' => 'subit'];
+                    }
+                    break;
+                case 'oublier_sorts_dread':
+                    foreach ((array) ($effet['oublis'] ?? []) as $oubli) {
+                        $lignes[] = ['texte' => ($oubli['nom'] ?? 'Un héros').' ne peut plus lancer '.implode(' ni ', (array) ($oubli['sorts'] ?? [])), 'ton' => 'info'];
+                    }
+                    break;
+                case 'esprit':
+                    if ((int) ($effet['points'] ?? 0) !== 0) {
+                        $n = (int) $effet['points'];
+                        $lignes[] = ['texte' => ($effet['nom'] ?? $heros).($n > 0 ? ' gagne ' : ' perd ').abs($n).' point(s) d\'Esprit (total : '
+                            .(int) ($effet['pv_mind_max'] ?? 0).')', 'ton' => $n > 0 ? 'subit' : 'degats'];
+                    }
+                    break;
+                case 'esprit_d_origine':
+                    foreach ((array) ($effet['retablis'] ?? []) as $retabli) {
+                        $lignes[] = ['texte' => ($retabli['nom'] ?? 'Un héros').' retrouve son Esprit d\'avant ('.(int) ($retabli['pv_mind'] ?? 0).')', 'ton' => 'succes'];
+                    }
+                    break;
+                case 'remplacer_objet':
+                    foreach ((array) ($effet['remplaces'] ?? []) as $nom) {
+                        $lignes[] = ['texte' => "{$nom} : {$effet['objet']} devient {$effet['par']}", 'ton' => 'subit'];
+                    }
+                    break;
                 case 'ouvrir_porte':
                     // Lot K5a : une porte déjà ouverte ne se raconte pas.
                     if (! empty($effet['ouverte'])) {

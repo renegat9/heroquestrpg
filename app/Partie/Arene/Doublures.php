@@ -66,6 +66,8 @@ final class Doublures
         'recrutements_a_rabais' => 'état de campagne : le recrutement de mercenaires au hub',
         'rabais_recrutement_po' => 'état de campagne : le recrutement de mercenaires au hub',
         'mort_le' => 'état de campagne : la mort en mode Heroic (lot H1) ; une doublure n\'en hérite pas',
+        'sorts_dread_appris' => 'état de campagne classique : les sorts de Dread appris par note (Prophecy of Telor, lot E2)',
+        'esprit_de_livret' => 'état de campagne classique : l\'écart d\'Esprit du livret, que seule la campagne défait (lot E2)',
     ];
 
     /**
