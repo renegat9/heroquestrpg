@@ -261,6 +261,15 @@ final class MotsClesQuete
     /** Lot E2 (*Prophecy of Telor*, q. 6 C) — « roll 2 red dice. Move the hero that number of squares along the path » (`Classique\CheminImpose`). */
     public const AVANCER_SUR_CHEMIN = 'avancer_sur_chemin';
 
+    /**
+     * Lot E2 (*Prophecy of Telor*, q. 5 B) — les héros (sauf celui qui déclenche, avec `sauf_declencheur`) deviennent la figure
+     * `en` : ses dés, `pv_body` points de Corps au plus, aucun sort (`Classique\Metamorphose`).
+     */
+    public const METAMORPHOSER = 'metamorphoser';
+
+    /** Lot E2 (*Prophecy of Telor*, q. 5 D) — « all heroes are returned to their former selves and restored to their full Body Points ». */
+    public const RENDRE_FORME = 'rendre_forme';
+
     /** C5 (lot K6, *Dread Moon*) — le groupe gagne (ou perd) des jetons de réputation. */
     public const REPUTATION = 'reputation';
 
@@ -360,6 +369,8 @@ final class MotsClesQuete
         self::ESPRIT_D_ORIGINE => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetEspritDOrigine', 'libelle' => 'ramener l\'Esprit des héros au total d\'avant la campagne'],
         self::REMPLACER_OBJET => ['parametres' => ['slug', 'par'], 'optionnels' => [], 'lecteur' => 'effetRemplacerObjet', 'libelle' => 'changer un objet en un autre chez qui le possède'],
         self::AVANCER_SUR_CHEMIN => ['parametres' => ['des'], 'optionnels' => [], 'lecteur' => 'effetAvancerSurChemin', 'libelle' => 'faire avancer le héros sur le chemin imposé (dés)'],
+        self::METAMORPHOSER => ['parametres' => ['en', 'pv_body'], 'optionnels' => ['sauf_declencheur'], 'lecteur' => 'effetMetamorphoser', 'libelle' => 'changer les héros en monstres (dés, Corps plafonné, sans sorts)'],
+        self::RENDRE_FORME => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetRendreForme', 'libelle' => 'rendre aux héros leur forme et tout leur Corps'],
         self::REPUTATION => ['parametres' => ['jetons'], 'optionnels' => [], 'lecteur' => 'effetReputation', 'libelle' => 'gagner ou perdre des jetons de réputation'],
         self::OFFRE => ['parametres' => ['libelle', 'alors'], 'optionnels' => ['cout', 'groupe'], 'lecteur' => 'effetOffre', 'libelle' => 'proposer un choix (coût, effets)'],
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],

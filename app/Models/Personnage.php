@@ -50,6 +50,8 @@ class Personnage extends Model
         'doublure_de',
         // MODE ARÈNE (lot A6b, 2026-11-09) : `campagne` ou `arene` — vocabulaire fermé `self::MODES`.
         'mode',
+        // MÉTAMORPHOSE (lot E2, mode classique) : `Classique\Metamorphose`, seul à l'écrire.
+        'metamorphose',
     ];
 
     /**
@@ -124,6 +126,8 @@ class Personnage extends Model
             // TALISMAN DE TELOR (lot E2, mode classique) : les sorts de Dread appris par note, durables.
             'sorts_dread_appris' => 'array',
             'esprit_de_livret' => 'integer',
+            // MÉTAMORPHOSE (lot E2, mode classique) : `{en, pv_body_max, plafond}` tant que le héros est changé.
+            'metamorphose' => 'array',
         ];
     }
 

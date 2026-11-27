@@ -6914,6 +6914,24 @@ hero that number of squares along the path shown ». `Classique\CheminImpose` :
   est sur le chemin, lance les dés et avance du total, borné au bout du chemin ; ses cases ne relancent pas de notes
   (comme `teleporter`). Fil : « X lance 2 dé(s) : 7 — il avance de 6 cases sur le chemin ».
 
+### La métamorphose — effets `metamorphoser`, `rendre_forme` (lot E2, 2026-11-27)
+
+*Prophecy of Telor* q. 5 B : « all other heroes, regardless of where they are, have been turned into Orcs! The bearer is
+unaffected. […] They now roll Attack and Defend dice as Orcs. They may still use any armor, weapons, or equipment […] Each
+affected hero has 2 Body Points, and may not use any potions, magic, or other items to raise their Body Points above 2.
+They may not cast spells. » ; note D : « all heroes are returned to their former selves and restored to their full Body
+Points ». `Classique\Metamorphose`, colonne durable `personnages.metamorphose {en, pv_body_max, plafond}` :
+- `metamorphoser {en, pv_body, sauf_declencheur?}` — `en` : slug du catalogue `monstres` ; `pv_body` ≥ 1 ;
+  `sauf_declencheur: true` épargne le héros qui déclenche (le porteur). Chaque autre héros de la quête : maximum ET
+  valeur de Corps à `pv_body` (aucun soin ne le dépasse), dés de BASE du monstre (`Equipement::desDeBase()` — arme et
+  armure s'y appliquent comme à la classe), aucun sort (`MoteurSorts::sortsInterdits()`, menu et résolution).
+- `rendre_forme {}` — chaque héros changé reprend sa forme : maximum d'avant (plus ce que l'équipement a changé entre-temps),
+  Corps plein, dés de sa classe. Le départ de la quête suivante fait de même (décision écrite : le livret rend la forme
+  « permanent unless you can find the blue tome », et la sortie de la q. 5 passe par la salle du tome).
+- La fiche (`entites[]` de type `heros`, `conditions`) publie en tête une entrée `{nom: "Changé en Orque", duree: 0, description, source:
+  "note:metamorphose", effet_source}`. Fil (`note_de_quete`) : « A, B : changé(s) en Orque — ses dés, 2 point(s) de Corps
+  au plus, aucun sort » ; « A, B : forme retrouvée, Corps au complet ».
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

@@ -284,6 +284,9 @@ final class DemarreurQueteConstruite
                 // Quête double : « Mind and Body Points are not restored when the heroes cross » — ni l'ordre du tour, ni
                 // les points, ni les sorts ne se remettent à neuf en passant d'une moitié à l'autre.
                 if ($moitieDe === null) {
+                    // MÉTAMORPHOSE (lot E2, G0052 q. 5) : une forme de monstre ne survit pas à sa quête (décision écrite).
+                    app(Metamorphose::class)->rendre($personnage);
+                    $personnage->refresh();
                     if ($participants === null) {
                         $groupe->personnages()->updateExistingPivot($personnage->id, ['ordre_initiative' => $i + 1]);
                     }

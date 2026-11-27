@@ -1209,6 +1209,13 @@ final class ValidationCampagne
                     $this->refuser("$position.effet", self::VALEUR_INVALIDE, 'la quête n\'a pas de chemin imposé (règle « chemin imposé »)');
                 }
                 break;
+            case MotsClesQuete::METAMORPHOSER:
+                $this->slugCatalogue($effet, 'en', $position, 'monstres');
+                $this->entier($effet, 'pv_body', $position, min: 1);
+                if (array_key_exists('sauf_declencheur', $effet) && ! is_bool($effet['sauf_declencheur'])) {
+                    $this->refuser("$position.sauf_declencheur", self::TYPE_INVALIDE, 'true ou false est attendu');
+                }
+                break;
             case MotsClesQuete::ESPRIT:
                 if ($this->entier($effet, 'points', $position) === 0) {
                     $this->refuser("$position.points", self::VALEUR_INVALIDE, 'un nombre de points non nul est attendu (négatif : en moins)');

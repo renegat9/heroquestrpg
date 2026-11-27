@@ -672,6 +672,11 @@ final class MoteurSorts
      */
     public function sortsInterdits(Personnage $personnage): bool
     {
+        // MÉTAMORPHOSE (mode classique, lot E2 — G0052 q. 5) : « They may not cast spells. »
+        if (\App\Partie\Classique\Metamorphose::de($personnage) !== null) {
+            return true;
+        }
+
         return $personnage->conditions()->get()
             ->contains(fn (Condition $c) => (bool) data_get($c->effet, 'sorts_interdits', false));
     }

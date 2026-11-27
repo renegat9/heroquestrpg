@@ -950,3 +950,39 @@ it('chemin imposé : le porteur joue d\'abord, il est mené jusqu\'à l\'arrêt 
     $etat->update(['capacites_tour' => [], 'a_deplace' => false, 'a_joue' => false]);
     expect(app(\App\Partie\Classique\CheminImpose::class)->debutDeTour($partie['groupe'], $quete->fresh(), $heros, $etat->fresh()))->toBeNull();
 });
+
+// ---------------------------------------------------------------- Prophecy of Telor : les héros changés en orques (q. 5)
+
+it('métamorphose : changé en orque — dés d\'orque, 2 PV au plus, sans sorts, montré sur la fiche ; la note D rend la forme et tout le Corps', function () {
+    $campagne = campagneE2(['notes' => [
+        ['repere' => 'B', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]],
+            'alors' => [['effet' => 'metamorphoser', 'en' => 'orque', 'pv_body' => 2]]],
+        ['repere' => 'D', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 2]], 'alors' => [['effet' => 'rendre_forme']]],
+    ]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $heros = $partie['heros'];
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class);
+    $classe = app(\App\Partie\Equipement::class)->desDeBase($heros->fresh());
+
+    $jouees = $notes->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 1], $heros->fresh());
+    $heros->refresh();
+    expect($heros->pv_body_max)->toBe(2)->and($heros->pv_body)->toBe(2)
+        ->and([(int) $heros->des_attaque, (int) $heros->des_defense])->toBe([3, 2])
+        ->and(app(\App\Partie\MoteurSorts::class)->sortsInterdits($heros))->toBeTrue()
+        ->and(collect(app(\App\Partie\JournalCombat::class)->depuisResultat(['type' => 'note_de_quete', ...$jouees[0]], 'Albrecht'))->pluck('texte')->implode(' '))
+        ->toContain('changé(s) en Orque');
+
+    // Aucun soin ne passe le plafond : le maximum EST le plafond.
+    $heros->update(['pv_body' => min((int) $heros->pv_body_max, 99)]);
+    expect($heros->fresh()->pv_body)->toBe(2);
+    $fiche = collect($this->getJson("/api/groupes/{$partie['code']}/etat")->assertOk()->json('entites'))
+        ->first(fn ($e) => ($e['type'] ?? null) === 'heros' && (int) $e['id'] === (int) $heros->id);
+    expect($fiche['conditions'][0]['nom'] ?? null)->toBe('Changé en Orque');
+
+    $notes->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 2], $heros->fresh());
+    $heros->refresh();
+    expect($heros->metamorphose)->toBeNull()->and($heros->pv_body_max)->toBe(30)->and($heros->pv_body)->toBe(30)
+        ->and([(int) $heros->des_attaque, (int) $heros->des_defense])->toBe([$classe['attaque'], $classe['defense']])
+        ->and(app(\App\Partie\MoteurSorts::class)->sortsInterdits($heros))->toBeFalse();
+});

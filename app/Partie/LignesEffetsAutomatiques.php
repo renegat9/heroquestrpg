@@ -1018,6 +1018,17 @@ trait LignesEffetsAutomatiques
                             .(! empty($effet['avance']) ? ' — il avance de '.(int) ($effet['cases'] ?? 0).' cases sur le chemin' : ' — le chemin est barré, il reste là'), 'ton' => 'subit'];
                     }
                     break;
+                case 'metamorphoser':
+                    if ((array) ($effet['changes'] ?? []) !== []) {
+                        $lignes[] = ['texte' => implode(', ', (array) $effet['changes']).' : changé(s) en '.($effet['en'] ?? 'monstre')
+                            .' — ses dés, '.(int) ($effet['pv_body'] ?? 1).' point(s) de Corps au plus, aucun sort', 'ton' => 'subit'];
+                    }
+                    break;
+                case 'rendre_forme':
+                    if ((array) ($effet['rendus'] ?? []) !== []) {
+                        $lignes[] = ['texte' => implode(', ', (array) $effet['rendus']).' : forme retrouvée, Corps au complet', 'ton' => 'succes'];
+                    }
+                    break;
                 case 'remplacer_objet':
                     foreach ((array) ($effet['remplaces'] ?? []) as $nom) {
                         $lignes[] = ['texte' => "{$nom} : {$effet['objet']} devient {$effet['par']}", 'ton' => 'subit'];

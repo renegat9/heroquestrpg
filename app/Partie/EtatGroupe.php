@@ -1926,6 +1926,23 @@ final class EtatGroupe
      */
     private function conditionsHeros(Personnage $personnage, ?EtatPersonnageQuete $etat = null): array
     {
+        // MÉTAMORPHOSE (mode classique, lot E2 — G0052 q. 5) : un état de note, pas une condition du catalogue — publiée
+        // dans la même liste pour que la fiche la montre, avec ce qu'elle fait en clair.
+        $forme = \App\Partie\Classique\Metamorphose::de($personnage);
+        $metamorphose = $forme === null ? [] : [[
+            'nom' => 'Changé en '.$forme['en'],
+            'duree' => 0,
+            'description' => 'Une note de quête l\'a changé : il se bat avec les dés de la figure, ne peut pas dépasser '
+                .(int) $forme['plafond'].' point(s) de Corps et ne lance aucun sort, jusqu\'à ce qu\'une note lui rende sa forme.',
+            'source' => 'note:metamorphose',
+            'effet_source' => 'dés de '.$forme['en'].', Corps '.(int) $forme['plafond'].' au plus, aucun sort',
+        ]];
+
+        return [...$metamorphose, ...$this->conditionsDuCatalogue($personnage, $etat)];
+    }
+
+    private function conditionsDuCatalogue(Personnage $personnage, ?EtatPersonnageQuete $etat): array
+    {
         return $personnage->conditions()
             ->get()
             ->map(fn (Condition $c) => [

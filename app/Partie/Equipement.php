@@ -1230,10 +1230,27 @@ final class Equipement
      * Un passif CONDITIONNEL n'y entre jamais : Frénésie et Garde tenace sont
      * lues en situation par `ResolveurTour`, les compter ici les doublerait.
      */
+    /**
+     * Les dés de BASE du héros, avant arme et armure : ceux de sa classe — ou, changé en monstre (mode classique, lot E2 —
+     * G0052 q. 5 : « They now roll Attack and Defend dice as Orcs »), ceux du monstre (`Classique\Metamorphose`).
+     *
+     * @return array{attaque: int, defense: int}
+     */
+    public function desDeBase(Personnage $personnage): array
+    {
+        $forme = \App\Partie\Classique\Metamorphose::de($personnage);
+        $monstre = $forme === null ? null : \App\Models\Monstre::where('nom_base', $forme['en'])->first();
+        if ($monstre !== null) {
+            return ['attaque' => (int) $monstre->attaque, 'defense' => (int) $monstre->defense];
+        }
+        $base = ClasseHeros::where('nom', $personnage->classe)->first();
+
+        return ['attaque' => (int) ($base?->des_attaque ?? 1), 'defense' => (int) ($base?->des_defense ?? 2)];
+    }
+
     public function recalculerCombat(Personnage $personnage): void
     {
-        $base = ClasseHeros::where('nom', $personnage->classe)->first();
-        $defense = (int) ($base?->des_defense ?? 2) + $this->bonusPermanent($personnage, 'bonus_des_defense');
+        $defense = $this->desDeBase($personnage)['defense'] + $this->bonusPermanent($personnage, 'bonus_des_defense');
 
         $portes = $personnage->inventaire()
             ->whereIn('emplacement', self::SLOTS)
@@ -1269,8 +1286,7 @@ final class Equipement
      */
     public function desAttaqueAvec(Personnage $personnage, ?Inventaire $arme): int
     {
-        $base = ClasseHeros::where('nom', $personnage->classe)->first();
-        $attaque = (int) ($base?->des_attaque ?? 1);
+        $attaque = $this->desDeBase($personnage)['attaque'];
 
         $effet = (array) ($arme?->objet?->effet ?? []);
 

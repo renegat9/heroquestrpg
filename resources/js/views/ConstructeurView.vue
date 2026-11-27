@@ -712,6 +712,7 @@ const BOOLEENS_EFFET = {
     toute_la_salle: 'tous les héros de sa salle',
     nombre_d6: 'seuls les 1d6 premiers paraissent',
     si_absent_du_groupe: 'seulement si personne ne l\'a déjà',
+    sauf_declencheur: 'sauf le héros qui déclenche',
 };
 function basculerBooleen(objet, cle, avec) {
     if (avec) objet[cle] = true; else delete objet[cle];
@@ -800,7 +801,8 @@ function effetParDefaut(nom) {
             parmi: (catalogues.value?.objets ?? []).slice(0, 2).map((o) => o.slug), mobilier: 0,
             // Lot E2 (Prophecy of Telor) : le sort de Dread appris, l'Esprit, l'objet de remplacement.
             sort: (catalogues.value?.sorts_dread ?? []).find((sd) => sd.slug === 'eclair-de-chaos')?.slug ?? catalogues.value?.sorts_dread?.[0]?.slug ?? '',
-            points: 1, par: catalogues.value?.objets?.[1]?.slug ?? '', des: 2 }[p] ?? '';
+            points: 1, par: catalogues.value?.objets?.[1]?.slug ?? '', des: 2,
+            en: (catalogues.value?.monstres ?? []).find((m) => m.slug === 'orque')?.slug ?? catalogues.value?.monstres?.[0]?.slug ?? '', pv_body: 2 }[p] ?? '';
     }
     return effet;
 }
@@ -1831,6 +1833,12 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             <option v-for="sd in (catalogues.sorts_dread ?? [])" :key="sd.slug" :value="sd.slug">{{ sd.nom }}</option>
                                         </select>
                                         <label v-else-if="p === 'des' && effet.effet === 'avancer_sur_chemin'">Dés (le héros avance du total sur le chemin imposé) <input v-model.number="effet.des" type="number" min="1" max="4" class="cst-input cst-num" /></label>
+                                        <label v-else-if="p === 'en'">changés en
+                                            <select v-model="effet.en" class="cst-input">
+                                                <option v-for="m in (catalogues.monstres ?? [])" :key="`mt${m.slug}`" :value="m.slug">{{ m.nom }}</option>
+                                            </select>
+                                        </label>
+                                        <label v-else-if="p === 'pv_body'">Corps au plus <input v-model.number="effet.pv_body" type="number" min="1" class="cst-input cst-num" /></label>
                                         <label v-else-if="p === 'points'">Points d'Esprit (négatif : en moins ; le total du héros bouge) <input v-model.number="effet.points" type="number" class="cst-input cst-num" /></label>
                                         <label v-else-if="p === 'par'">devient
                                             <select v-model="effet.par" class="cst-input">

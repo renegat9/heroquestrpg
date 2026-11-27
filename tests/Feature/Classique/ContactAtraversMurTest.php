@@ -90,6 +90,9 @@ it('EN JEU : de part et d\'autre du mur, ni le héros ni le gobelin ne s\'attaqu
 const CONTACT_SANS_CARTE = [
     // Géométrie d'un coup DÉJÀ porté : venait-il d'une case diagonale ? Ce n'est pas un test de contact.
     'ResolveurTour.php::enDiagonale' => 2,
+    // Validation du chemin imposé (lot E2, G0052 q. 6) : deux cases du chemin se suivent par un côté ; le chemin du livret
+    // franchit des portes (elles s'ouvrent à son passage) et la validation n'a pas de carte. Ce n'est pas un test de contact.
+    'ValidationCampagne.php::regles' => 1,
 ];
 
 it('chaque contact dans app/ passe la carte, sauf les exceptions nommées', function () {

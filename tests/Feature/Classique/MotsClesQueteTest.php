@@ -137,7 +137,8 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
         ['repere' => 'T', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 6]],
             'alors' => [['effet' => 'esprit', 'points' => 1], ['effet' => 'apprendre_sort_dread', 'sort' => 'eclair-de-chaos'],
                 ['effet' => 'remplacer_objet', 'slug' => 'talisman-du-savoir', 'par' => 'talisman-du-savoir-maudit'],
-                ['effet' => 'oublier_sorts_dread'], ['effet' => 'esprit_d_origine'], ['effet' => 'avancer_sur_chemin', 'des' => 2]]],
+                ['effet' => 'oublier_sorts_dread'], ['effet' => 'esprit_d_origine'], ['effet' => 'avancer_sur_chemin', 'des' => 2],
+                ['effet' => 'metamorphoser', 'en' => 'orque', 'pv_body' => 2, 'sauf_declencheur' => true], ['effet' => 'rendre_forme']]],
         // Lot E1 : les huit déclencheurs des extensions.
         ['repere' => 'L1', 'quand' => ['declencheur' => 'salle_videe', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'texte', 'texte' => 'Vide.']]],
         ['repere' => 'L2', 'quand' => ['declencheur' => 'morts', 'cible' => ['monstres' => [0, 1]]], 'alors' => [['effet' => 'texte', 'texte' => 'Tous tombés.']]],

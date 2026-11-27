@@ -992,6 +992,39 @@ final class NotesDeQuete
         return $marche === null ? ['avance' => false] : ['avance' => isset($marche['cases']), 'nom' => $heros->nom, ...$marche];
     }
 
+    /** Lot E2 (*Prophecy of Telor*, q. 5 B) — « all other heroes, regardless of where they are, have been turned into Orcs! » */
+    private function effetMetamorphoser(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $monstre = $this->catalogue->index('monstres')[(string) ($effet['en'] ?? '')] ?? null;
+        if (! $monstre instanceof \App\Models\Monstre) {
+            return ['changes' => []];
+        }
+        $changes = [];
+        foreach ($this->herosDeLaQuete($quete) as $participant) {
+            if (! empty($effet['sauf_declencheur']) && $heros !== null && (int) $participant->id === (int) $heros->id) {
+                continue;
+            }
+            if (app(Metamorphose::class)->metamorphoser($participant, $monstre, (int) ($effet['pv_body'] ?? 1))) {
+                $changes[] = $participant->nom;
+            }
+        }
+
+        return ['en' => (string) $monstre->nom_base, 'pv_body' => (int) ($effet['pv_body'] ?? 1), 'changes' => $changes];
+    }
+
+    /** Lot E2 (*Prophecy of Telor*, q. 5 D) — chaque héros changé reprend sa forme, à tout son Corps. */
+    private function effetRendreForme(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $rendus = [];
+        foreach ($this->herosDeLaQuete($quete) as $participant) {
+            if (app(Metamorphose::class)->rendre($participant)) {
+                $rendus[] = $participant->nom;
+            }
+        }
+
+        return ['rendus' => $rendus];
+    }
+
     /**
      * Les héros de la quête (lot E2) : ceux qui ont un état de quête, debout ou à terre.
      *
