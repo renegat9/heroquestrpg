@@ -556,10 +556,7 @@ final class MoteurSorts
             ->where('personnage_id', $personnage->id)
             ->update(['disponible' => true]);
 
-        DB::table('personnage_conditions')
-            ->where('personnage_id', $personnage->id)
-            ->where('source', 'like', self::PREFIXE_SOURCE.'%')
-            ->delete();
+        $this->purgerBuffsDeSorts($personnage);
 
         // Un gel de *Mind Lock* (source `sort_dread:`, que la purge ci-dessus ne connaît pas) ne passe
         // pas d'une quête à l'autre : la colonne qui le compte (`etat_personnage_quete.verrou_mental`)
@@ -570,6 +567,18 @@ final class MoteurSorts
         // la transporter dans la suivante, où elle rendrait le héros inattaquable et sans action. La MALÉDICTION,
         // elle, reste : elle ne tombe qu'à un remède (F7539 p. 10).
         app(MaledictionLoupGarou::class)->purger($personnage);
+    }
+
+    /**
+     * Les buffs de SORTS encore portés par ce héros tombent (source `sort:`) : au départ d'une quête, et en entrant dans une
+     * salle sans magie (lot E2, `Classique\SalleSansMagie`). Rend le nombre de lignes levées.
+     */
+    public function purgerBuffsDeSorts(Personnage $personnage): int
+    {
+        return DB::table('personnage_conditions')
+            ->where('personnage_id', $personnage->id)
+            ->where('source', 'like', self::PREFIXE_SOURCE.'%')
+            ->delete();
     }
 
     /**
@@ -672,8 +681,9 @@ final class MoteurSorts
      */
     public function sortsInterdits(Personnage $personnage): bool
     {
-        // MÉTAMORPHOSE (mode classique, lot E2 — G0052 q. 5) : « They may not cast spells. »
-        if (\App\Partie\Classique\Metamorphose::de($personnage) !== null) {
+        // MÉTAMORPHOSE (mode classique, lot E2 — G0052 q. 5) : « They may not cast spells. » SALLE SANS MAGIE (q. 10 G) :
+        // « No spells … may be used in the arena ».
+        if (\App\Partie\Classique\Metamorphose::de($personnage) !== null || \App\Partie\Classique\SalleSansMagie::pourHeros($personnage)) {
             return true;
         }
 

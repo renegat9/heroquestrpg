@@ -715,7 +715,11 @@ final class ValidationCampagne
                 continue;
             }
             // `place` (lot K6, *Dread Moon*) : une place publique — ses monstres restent inactifs (`Classique\Deguisement`).
-            $this->cles($salle, $ici, self::CLES_SALLE, ['place']);
+            $this->cles($salle, $ici, self::CLES_SALLE, ['place', 'sans_magie']);
+            // Lot E2 (G0052 q. 10 G) : l'arène de pierre de Kertz, où ni sort, ni artefact, ni équipement ne servent.
+            if (array_key_exists('sans_magie', $salle) && $salle['sans_magie'] !== true) {
+                $this->refuser("$ici.sans_magie", self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+            }
             if (array_key_exists('place', $salle) && $salle['place'] !== true) {
                 $this->refuser("$ici.place", self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
             }
@@ -994,6 +998,16 @@ final class ValidationCampagne
             case 'captif':
                 $this->slugCatalogue($cible, 'captif', $position, 'mercenaires');
                 break;
+            // Lot E2 : les portes où chaque héros se tient (G0052 q. 10 G).
+            case 'portes':
+                $liste = $this->enListe($cible['portes'], "$position.portes");
+                foreach ((array) $liste as $k => $index) {
+                    $this->indexDe($quete, 'portes', $index, "$position.portes.$k");
+                }
+                if ($liste === []) {
+                    $this->refuser("$position.portes", self::VALEUR_INVALIDE, 'au moins une porte');
+                }
+                break;
             // Lot E2 : l'objet jeté dans le réceptacle (F9528 q. 8).
             case 'objet':
                 $this->slugCatalogue($cible, 'objet', $position, 'objets');
@@ -1214,6 +1228,15 @@ final class ValidationCampagne
                 $this->entier($effet, 'pv_body', $position, min: 1);
                 if (array_key_exists('sauf_declencheur', $effet) && ! is_bool($effet['sauf_declencheur'])) {
                     $this->refuser("$position.sauf_declencheur", self::TYPE_INVALIDE, 'true ou false est attendu');
+                }
+                break;
+            case MotsClesQuete::FRANCHIR_PORTES:
+                $liste = $this->enListe($effet['portes'] ?? null, "$position.portes");
+                foreach ((array) $liste as $k => $index) {
+                    $this->indexDe($quete, 'portes', $index, "$position.portes.$k");
+                }
+                if ($liste === []) {
+                    $this->refuser("$position.portes", self::VALEUR_INVALIDE, 'au moins une porte');
                 }
                 break;
             case MotsClesQuete::ESPRIT:

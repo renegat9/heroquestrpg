@@ -744,6 +744,16 @@ final class MenuMoteur
             }
         }
 
+        // SALLE SANS MAGIE (mode classique, lot E2 — G0052 q. 10 G) : « No spells, artifacts, or equipment may be used in the
+        // arena. […] Potions and elixirs can be used. » — la liste blanche ne garde que ce qui se BOIT (consommable non activable).
+        if (\App\Partie\Classique\SalleSansMagie::pourHeros($personnage)) {
+            $entrees = array_values(array_filter($entrees, function (array $entree) use ($personnage) {
+                $objet = isset($entree['inventaire_id']) ? $personnage->inventaire()->with('objet')->find($entree['inventaire_id'])?->objet : null;
+
+                return $objet !== null && $objet->categorie === 'consommable' && empty($objet->effet['activable']);
+            }));
+        }
+
         // Une fois l'action jouée (`$aAgi`, seconde frappe comprise), la liste ne garde que le GRATUIT :
         // une entrée au coût `action` (eau bénite, cor, artefact activable à 'action') ne se joue plus.
         // Ce filtre est la liste que l'option porte, donc aussi la liste blanche que `entreeChoisie()`

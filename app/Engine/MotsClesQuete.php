@@ -90,6 +90,12 @@ final class MotsClesQuete
     /** Un MEUBLE posé par l'auteur est détruit (« the Dread chests », « destroy the High Altar », G1504 q. 8, 10). */
     public const MEUBLE_DETRUIT = 'meuble_detruit';
 
+    /**
+     * Lot E2 (*Prophecy of Telor*, q. 10 G) — « When every hero stands at a different doorway » : chaque héros debout se tient
+     * sur une case de l'une des portes désignées, chacun à une porte différente.
+     */
+    public const TOUS_AUX_PORTES = 'tous_aux_portes';
+
     /** Un CAPTIF est libéré (« if Revelroot was freed », F9907 q. 5). */
     public const CAPTIF_LIBERE = 'captif_libere';
 
@@ -188,6 +194,11 @@ final class MotsClesQuete
             'signale_par' => 'ResolveurTour::resoudreJeterObjetQuete()',
             'libelle' => 'un héros jette l\'objet dans le réceptacle de la quête',
         ],
+        self::TOUS_AUX_PORTES => [
+            'cibles' => ['portes'],
+            'signale_par' => 'ResolveurTour::signalerEntrees()',
+            'libelle' => 'chaque héros se tient à une porte différente parmi celles désignées',
+        ],
         self::CAPTIF_LIBERE => [
             'cibles' => ['captif'],
             'signale_par' => 'ResolveurTour::resoudreLibererCaptif()',
@@ -269,6 +280,9 @@ final class MotsClesQuete
 
     /** Lot E2 (*Prophecy of Telor*, q. 5 D) — « all heroes are returned to their former selves and restored to their full Body Points ». */
     public const RENDRE_FORME = 'rendre_forme';
+
+    /** Lot E2 (*Prophecy of Telor*, q. 10 G) — « Move each hero one space forward » : chaque héros à l'une de ces portes la franchit. */
+    public const FRANCHIR_PORTES = 'franchir_portes';
 
     /** C5 (lot K6, *Dread Moon*) — le groupe gagne (ou perd) des jetons de réputation. */
     public const REPUTATION = 'reputation';
@@ -371,6 +385,7 @@ final class MotsClesQuete
         self::AVANCER_SUR_CHEMIN => ['parametres' => ['des'], 'optionnels' => [], 'lecteur' => 'effetAvancerSurChemin', 'libelle' => 'faire avancer le héros sur le chemin imposé (dés)'],
         self::METAMORPHOSER => ['parametres' => ['en', 'pv_body'], 'optionnels' => ['sauf_declencheur'], 'lecteur' => 'effetMetamorphoser', 'libelle' => 'changer les héros en monstres (dés, Corps plafonné, sans sorts)'],
         self::RENDRE_FORME => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetRendreForme', 'libelle' => 'rendre aux héros leur forme et tout leur Corps'],
+        self::FRANCHIR_PORTES => ['parametres' => ['portes'], 'optionnels' => [], 'lecteur' => 'effetFranchirPortes', 'libelle' => 'faire franchir aux héros les portes où ils se tiennent'],
         self::REPUTATION => ['parametres' => ['jetons'], 'optionnels' => [], 'lecteur' => 'effetReputation', 'libelle' => 'gagner ou perdre des jetons de réputation'],
         self::OFFRE => ['parametres' => ['libelle', 'alors'], 'optionnels' => ['cout', 'groupe'], 'lecteur' => 'effetOffre', 'libelle' => 'proposer un choix (coût, effets)'],
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],

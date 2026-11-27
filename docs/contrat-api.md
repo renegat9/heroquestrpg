@@ -6932,6 +6932,26 @@ Points ». `Classique\Metamorphose`, colonne durable `personnages.metamorphose {
   "note:metamorphose", effet_source}`. Fil (`note_de_quete`) : « A, B : changé(s) en Orque — ses dés, 2 point(s) de Corps
   au plus, aucun sort » ; « A, B : forme retrouvée, Corps au complet ».
 
+### L'arène sans magie — `salles_speciales[].sans_magie`, déclencheur `tous_aux_portes`, effet `franchir_portes` (lot E2, 2026-11-27)
+
+*Prophecy of Telor* q. 10 G : « This is the arena. It is one big room. Ignore the walls marked. The doors are magically
+closed and cannot be opened. When every hero stands at a different doorway […] The doors before you open, and you are forced
+forward. […] Move each hero one space forward. […] No spells, artifacts, or equipment may be used in the arena. Spells cast
+before entering the arena are lost. Potions and elixirs can be used. »
+- `quete.salles_speciales[].sans_magie: true` (`Classique\SalleSansMagie`). Un héros DANS cette salle : aucun sort
+  (`MoteurSorts::sortsInterdits()` — sorts de Dread du porteur compris), à mains nues (`Equipement::armesEnMain()` vide,
+  `des_attaque`/`des_defense` de sa classe sans aucune pièce portée — recalculés à chaque pas, et au départ de la quête
+  suivante), « Utiliser un objet » réduit aux consommables non activables (potions, élixirs). En y entrant, les buffs de
+  SORTS qu'il porte tombent (`MoteurSorts::purgerBuffsDeSorts()`), annonce `magie_dissipee {nom, sorts}` : « X entre dans
+  une salle sans magie : Peau de Pierre se dissipe(nt) ». Les plafonds de Corps et d'Esprit des pièces portées ne bougent
+  pas (décision écrite).
+- Déclencheur `tous_aux_portes`, cible `{portes: [index]}` (au moins une, des portes de la quête) : après chaque pas d'un
+  héros, chaque héros debout sur le plateau se tient sur une case de l'une des portes désignées (`Grille::casesPorte()`),
+  chacun à une porte différente (`ResolveurTour::portesDesHeros()`).
+- Effet `franchir_portes {portes: [index]}` : chaque héros debout sur une case de l'une de ces portes passe sur l'autre case,
+  si elle est libre ; la salle se découvre ; ce pas ne relance pas de notes (comme `teleporter`). Fil : « A, B : poussé(s)
+  d'un pas, à travers la porte ». Les portes s'ouvrent par `ouvrir_porte` (verrou `note`), écrit avant dans la même note.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

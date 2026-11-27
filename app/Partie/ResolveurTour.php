@@ -13297,6 +13297,8 @@ final class ResolveurTour
         }
         if ($notes) {
             $this->signalerEntrees($quete, $personnage, $avant ?? ['x' => -1, 'y' => -1], $etat->fresh(), ['type' => 'deplacement', 'chemin' => $chemin]);
+        } else {
+            app(\App\Partie\Classique\SalleSansMagie::class)->actualiser($quete->fresh(), $personnage);
         }
         app(\App\Partie\Classique\CouloirsVus::class)->mettreAJour($quete->fresh());
     }
@@ -13381,6 +13383,36 @@ final class ResolveurTour
 
             $precedente = $case;
         }
+
+        // Lot E2 (G0052 q. 10 G) : « When every hero stands at a different doorway » — après chaque pas, la porte de chaque héros.
+        if ($trajet !== []) {
+            $notes->signaler($quete, MotsClesQuete::TOUS_AUX_PORTES, ['portes' => $this->portesDesHeros($quete)], $personnage);
+        }
+        // SALLE SANS MAGIE (lot E2, G0052 q. 10 G) : les dés suivent la salle, la magie se dissipe en y entrant.
+        app(\App\Partie\Classique\SalleSansMagie::class)->actualiser($quete->fresh(), $personnage);
+    }
+
+    /**
+     * La porte où se tient chaque héros debout sur le plateau (index dans `carte.portes`), ou `null` pour un héros qui ne se
+     * tient à aucune — sur l'une des deux cases que la porte sépare (`Grille::casesPorte()`).
+     *
+     * @return list<int|null>
+     */
+    public function portesDesHeros(Quete $quete): array
+    {
+        $portes = (array) ($quete->carte?->grille['portes'] ?? []);
+
+        return $quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->get()
+            ->map(function (EtatPersonnageQuete $e) use ($portes) {
+                $ici = ['x' => (int) $e->position_x, 'y' => (int) $e->position_y];
+                foreach ($portes as $i => $porte) {
+                    if (in_array($ici, Grille::casesPorte($porte), true)) {
+                        return (int) $i;
+                    }
+                }
+
+                return null;
+            })->values()->all();
     }
 
     private function caseLibreProche(Quete $quete, int $x, int $y, bool $orthogonal = false): ?array

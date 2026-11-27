@@ -1029,6 +1029,11 @@ trait LignesEffetsAutomatiques
                         $lignes[] = ['texte' => implode(', ', (array) $effet['rendus']).' : forme retrouvée, Corps au complet', 'ton' => 'succes'];
                     }
                     break;
+                case 'franchir_portes':
+                    if ((array) ($effet['passes'] ?? []) !== []) {
+                        $lignes[] = ['texte' => implode(', ', (array) $effet['passes']).' : poussé(s) d\'un pas, à travers la porte', 'ton' => 'subit'];
+                    }
+                    break;
                 case 'remplacer_objet':
                     foreach ((array) ($effet['remplaces'] ?? []) as $nom) {
                         $lignes[] = ['texte' => "{$nom} : {$effet['objet']} devient {$effet['par']}", 'ton' => 'subit'];

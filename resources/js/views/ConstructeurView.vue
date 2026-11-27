@@ -362,6 +362,16 @@ function recaler(q, liste, i) {
             });
         });
     }
+    // Lot E2 : une cible `portes` (chacun à une porte) et l'effet `franchir_portes` perdent l'index retiré.
+    if (liste === 'portes') {
+        (q.notes ?? []).forEach((note) => {
+            const c = note.quand?.cible;
+            if (Array.isArray(c?.portes)) c.portes = c.portes.filter((k) => k !== i).map((k) => (k > i ? k - 1 : k));
+            (note.alors ?? []).forEach((effet) => {
+                if (effet.effet === 'franchir_portes' && Array.isArray(effet.portes)) effet.portes = effet.portes.filter((k) => k !== i).map((k) => (k > i ? k - 1 : k));
+            });
+        });
+    }
     // Lot K5a : l'effet `ouvrir_porte` désigne une porte par son index, comme une cible : même recalage.
     if (liste === 'portes') {
         (q.notes ?? []).forEach((note) => {
@@ -751,6 +761,8 @@ function cibleParDefaut(genre) {
         captif: { captif: catalogues.value?.captifs?.[0]?.slug ?? '' },
         // Lot E2 : l'objet jeté dans le réceptacle (l'Anneau de Festral, Against the Ogre Horde q. 8).
         objet: { objet: catalogues.value?.objets?.[0]?.slug ?? '' },
+        // Lot E2 : les portes où chaque héros se tient (l'arène de Prophecy of Telor q. 10).
+        portes: { portes: quete.value.portes.length ? [0] : [] },
     }[genre];
 }
 const genreDeCible = (note) => Object.keys(note.quand?.cible ?? {})[0] ?? '';
@@ -801,7 +813,7 @@ function effetParDefaut(nom) {
             parmi: (catalogues.value?.objets ?? []).slice(0, 2).map((o) => o.slug), mobilier: 0,
             // Lot E2 (Prophecy of Telor) : le sort de Dread appris, l'Esprit, l'objet de remplacement.
             sort: (catalogues.value?.sorts_dread ?? []).find((sd) => sd.slug === 'eclair-de-chaos')?.slug ?? catalogues.value?.sorts_dread?.[0]?.slug ?? '',
-            points: 1, par: catalogues.value?.objets?.[1]?.slug ?? '', des: 2,
+            points: 1, par: catalogues.value?.objets?.[1]?.slug ?? '', des: 2, portes: [],
             en: (catalogues.value?.monstres ?? []).find((m) => m.slug === 'orque')?.slug ?? catalogues.value?.monstres?.[0]?.slug ?? '', pv_body: 2 }[p] ?? '';
     }
     return effet;
@@ -1415,6 +1427,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         <label>largeur <input v-model.number="sp.l" type="number" min="1" class="cst-input cst-num" /></label>
                                         <label>hauteur <input v-model.number="sp.h" type="number" min="1" class="cst-input cst-num" /></label>
                                         <label class="cst-case"><input type="checkbox" :checked="sp.place === true" @change="$event.target.checked ? (sp.place = true) : delete sp.place" /> place publique</label>
+                                        <label class="cst-case" title="L'arène de Prophecy of Telor : ni sort, ni artefact, ni équipement (à mains nues) ; potions et élixirs permis ; les sorts qui affectaient un héros se dissipent en entrant."><input type="checkbox" :checked="sp.sans_magie === true" @change="$event.target.checked ? (sp.sans_magie = true) : delete sp.sans_magie" /> sans magie</label>
                                         <button type="button" class="cst-icone" title="Coin haut-gauche sur la carte" @click="pointer(sp, `le coin de ${sp.id}`)"><MSym n="pin_drop" :size="16" /></button>
                                         <button type="button" class="cst-icone" title="Retirer" @click="retirerSalleSpeciale(i)"><MSym n="close" :size="16" /></button>
                                     </div>
@@ -1750,6 +1763,11 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             <input type="checkbox" :checked="note.quand.cible.monstres.includes(k)" @change="note.quand.cible.monstres = $event.target.checked ? [...new Set([...note.quand.cible.monstres, k])].sort((a, b) => a - b) : note.quand.cible.monstres.filter((x) => x !== k)" /> {{ k }} · {{ m.nom ?? nomDe('monstres', m.slug) }}
                                         </label>
                                     </span>
+                                    <span v-else-if="genreDeCible(note) === 'portes'" class="cst-ligne">
+                                        <label v-for="(p, k) in quete.portes" :key="`np${k}`" class="cst-case">
+                                            <input type="checkbox" :checked="note.quand.cible.portes.includes(k)" @change="note.quand.cible.portes = $event.target.checked ? [...new Set([...note.quand.cible.portes, k])].sort((a, b) => a - b) : note.quand.cible.portes.filter((x) => x !== k)" /> {{ libellePorte(p, k) }}
+                                        </label>
+                                    </span>
                                     <select v-else-if="genreDeCible(note) === 'mobilier'" v-model.number="note.quand.cible.mobilier" class="cst-input">
                                         <option v-for="(m, k) in quete.mobilier" :key="k" :value="k">meuble {{ k }} — {{ nomDe('mobilier', m.slug) }} ({{ m.x }}, {{ m.y }})</option>
                                     </select>
@@ -1838,6 +1856,12 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                                 <option v-for="m in (catalogues.monstres ?? [])" :key="`mt${m.slug}`" :value="m.slug">{{ m.nom }}</option>
                                             </select>
                                         </label>
+                                        <span v-else-if="p === 'portes'" class="cst-ligne">
+                                            <span class="cst-sous">Portes à franchir :</span>
+                                            <label v-for="(pt, k) in quete.portes" :key="`fp${k}`" class="cst-case">
+                                                <input type="checkbox" :checked="effet.portes.includes(k)" @change="effet.portes = $event.target.checked ? [...new Set([...effet.portes, k])].sort((a, b) => a - b) : effet.portes.filter((x) => x !== k)" /> {{ libellePorte(pt, k) }}
+                                            </label>
+                                        </span>
                                         <label v-else-if="p === 'pv_body'">Corps au plus <input v-model.number="effet.pv_body" type="number" min="1" class="cst-input cst-num" /></label>
                                         <label v-else-if="p === 'points'">Points d'Esprit (négatif : en moins ; le total du héros bouge) <input v-model.number="effet.points" type="number" class="cst-input cst-num" /></label>
                                         <label v-else-if="p === 'par'">devient

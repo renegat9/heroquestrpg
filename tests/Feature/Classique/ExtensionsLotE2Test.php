@@ -986,3 +986,55 @@ it('métamorphose : changé en orque — dés d\'orque, 2 PV au plus, sans sorts
         ->and([(int) $heros->des_attaque, (int) $heros->des_defense])->toBe([$classe['attaque'], $classe['defense']])
         ->and(app(\App\Partie\MoteurSorts::class)->sortsInterdits($heros))->toBeFalse();
 });
+
+// ---------------------------------------------------------------- Prophecy of Telor : l'arène sans magie (q. 10 G)
+
+it('arène : chacun à sa porte, ils sont poussés dedans ; à mains nues, sans sort ni artefact, la magie se dissipe ; potions permises', function () {
+    $this->seed(\Database\Seeders\ConditionSeeder::class);
+    $campagne = campagneE2([
+        'salles_speciales' => [['id' => 'arene', 'x' => 14, 'y' => 2, 'l' => 3, 'h' => 3, 'sans_magie' => true]],
+        'portes' => [['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale'], ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale'],
+            ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'secrete'], ['x' => 14, 'y' => 3, 'cote' => 'o', 'type' => 'normale', 'verrou' => ['type' => 'note']]],
+        'notes' => [['repere' => 'G', 'quand' => ['declencheur' => 'tous_aux_portes', 'cible' => ['portes' => [3]]],
+            'alors' => [['effet' => 'ouvrir_porte', 'porte' => 3], ['effet' => 'franchir_portes', 'portes' => [3]]]]],
+    ]);
+    expect(app(ValidationCampagne::class)->valider($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $heros = $partie['heros'];
+    $epee = \App\Models\Objet::where('nom', 'Épée longue')->firstOrFail();
+    $heros->inventaire()->create(['objet_id' => $epee->id, 'emplacement' => 'arme_principale', 'quantite' => 1]);
+    $potion = \App\Models\Objet::where('nom', 'Potion de soin mineur')->firstOrFail();
+    $heros->inventaire()->create(['objet_id' => $potion->id, 'emplacement' => 'sac', 'quantite' => 1]);
+    $equipement = app(\App\Partie\Equipement::class);
+    $equipement->recalculerCombat($heros->fresh());
+    $armee = (int) $heros->fresh()->des_attaque;
+    $heros->update(['pv_body' => 20]);
+    // Après la mise à jour du Corps (elle relit les buffs adossés aux PV) : un buff de sort, qui doit tomber dans l'arène.
+    $heros->conditions()->attach(\App\Models\Condition::where('nom', 'Renforcé')->value('id'), ['duree' => 0, 'source' => 'sort:Peau de Pierre']);
+
+    // Devant la porte de l'arène (13, 3) : la note G joue — la porte s'ouvre, le héros est poussé en (14, 3).
+    $quete = $partie['quete']->fresh();
+    $quete->etatsPersonnages()->update(['position_x' => 13, 'position_y' => 3]);
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class);
+    $jouees = $notes->signaler($quete, \App\Engine\MotsClesQuete::TOUS_AUX_PORTES, ['portes' => app(ResolveurTour::class)->portesDesHeros($quete)], $heros);
+    $etat = $quete->etatsPersonnages()->firstOrFail();
+    expect($jouees)->toHaveCount(1)->and([(int) $etat->position_x, (int) $etat->position_y])->toBe([14, 3]);
+
+    $heros->refresh();
+    expect(\App\Partie\Classique\SalleSansMagie::pourHeros($heros))->toBeTrue()
+        ->and(app(\App\Partie\MoteurSorts::class)->sortsInterdits($heros))->toBeTrue()
+        ->and($equipement->armesEnMain($heros))->toBe([])
+        ->and((int) $heros->des_attaque)->toBeLessThan($armee)
+        ->and($heros->conditions()->count())->toBe(0)
+        ->and(\App\Models\Evenement::where('groupe_id', $partie['groupe']->id)->get()->contains(fn ($e) => ($e->payload['type'] ?? null) === 'magie_dissipee'))->toBeTrue();
+
+    // « Potions and elixirs can be used » : la potion reste dans « Utiliser un objet ».
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $heros));
+    $options = collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'));
+    expect(collect($options->firstWhere('id', 'utiliser_objet')['parametres']['objets'] ?? [])->pluck('nom')->all())->toBe(['Potion de soin mineur']);
+
+    // Hors de l'arène (quête suivante, ou sortie), l'épée reprend ses dés.
+    $etat->update(['position_x' => 8, 'position_y' => 3]);
+    app(\App\Partie\Classique\SalleSansMagie::class)->actualiser($quete->fresh(), $heros);
+    expect((int) $heros->fresh()->des_attaque)->toBe($armee);
+});

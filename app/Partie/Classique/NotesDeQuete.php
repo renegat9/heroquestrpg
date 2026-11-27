@@ -239,6 +239,16 @@ final class NotesDeQuete
             return isset($contexte['objet']) && (string) $cible['objet'] === (string) $contexte['objet'];
         }
 
+        // Lot E2 (G0052 q. 10 G) : chaque héros debout à une porte, toutes différentes, toutes parmi celles désignées.
+        if (array_key_exists('portes', $cible)) {
+            $occupees = (array) ($contexte['portes'] ?? []);
+            $designees = array_map('intval', (array) $cible['portes']);
+
+            return $occupees !== [] && ! in_array(null, $occupees, true)
+                && count(array_unique($occupees)) === count($occupees)
+                && array_diff($occupees, $designees) === [];
+        }
+
         // Lot E1 : le captif libéré, nommé par le slug de sa fiche de mercenaire.
         if (array_key_exists('captif', $cible)) {
             return isset($contexte['captif']) && (string) $cible['captif'] === (string) $contexte['captif'];
@@ -1023,6 +1033,38 @@ final class NotesDeQuete
         }
 
         return ['rendus' => $rendus];
+    }
+
+    /**
+     * Lot E2 (*Prophecy of Telor*, q. 10 G) — « Move each hero one space forward » : chaque héros debout qui se tient sur une
+     * case de l'une de ces portes passe sur l'autre case de la porte, si elle est libre ; la salle se découvre, les dés et la
+     * magie suivent (salle sans magie). Comme `teleporter`, ce pas ne relance pas les notes.
+     */
+    private function effetFranchirPortes(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $portes = (array) ($quete->carte?->grille['portes'] ?? []);
+        $designees = array_map('intval', (array) ($effet['portes'] ?? []));
+        $passes = [];
+        foreach ($quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get() as $etat) {
+            $ici = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+            foreach ($designees as $i) {
+                $cases = isset($portes[$i]) ? \App\Partie\Grille::casesPorte($portes[$i]) : [];
+                if (! in_array($ici, $cases, true)) {
+                    continue;
+                }
+                $la = $cases[0] === $ici ? $cases[1] : $cases[0];
+                if (! FabriqueGrille::pour($quete->fresh())->estTraversable($la['x'], $la['y'])) {
+                    break;
+                }
+                $etat->update(['position_x' => $la['x'], 'position_y' => $la['y']]);
+                app(ResolveurTour::class)->revelerSalleEn($quete->fresh(), $la['x'], $la['y'], $etat->personnage);
+                app(SalleSansMagie::class)->actualiser($quete->fresh(), $etat->personnage);
+                $passes[] = (string) $etat->personnage?->nom;
+                break;
+            }
+        }
+
+        return ['passes' => $passes];
     }
 
     /**

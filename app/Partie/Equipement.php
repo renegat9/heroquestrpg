@@ -1252,7 +1252,10 @@ final class Equipement
     {
         $defense = $this->desDeBase($personnage)['defense'] + $this->bonusPermanent($personnage, 'bonus_des_defense');
 
-        $portes = $personnage->inventaire()
+        // SALLE SANS MAGIE (mode classique, lot E2 — G0052 q. 10 G) : « No spells, artifacts, or equipment may be used in
+        // the arena » — les dés de la classe, sans aucune pièce portée.
+        $sansEquipement = \App\Partie\Classique\SalleSansMagie::pourHeros($personnage);
+        $portes = $sansEquipement ? collect() : $personnage->inventaire()
             ->whereIn('emplacement', self::SLOTS)
             ->with('objet')
             ->get();
@@ -1270,7 +1273,7 @@ final class Equipement
             // la fiche, le score de puissance et le budget de rencontre. La main
             // gauche ne s'y ajoute pas — elle ne donne aucun dé, elle offre un
             // second choix d'arme au moment d'attaquer (décision de René).
-            'des_attaque' => $this->desAttaqueAvec($personnage, $portes->firstWhere('emplacement', 'arme_principale')),
+            'des_attaque' => $this->desAttaqueAvec($personnage, $sansEquipement ? null : $portes->firstWhere('emplacement', 'arme_principale')),
             'des_defense' => max(0, $defense),
         ]);
     }
@@ -1286,6 +1289,8 @@ final class Equipement
      */
     public function desAttaqueAvec(Personnage $personnage, ?Inventaire $arme): int
     {
+        $sansEquipement = \App\Partie\Classique\SalleSansMagie::pourHeros($personnage);
+        $arme = $sansEquipement ? null : $arme;
         $attaque = $this->desDeBase($personnage)['attaque'];
 
         $effet = (array) ($arme?->objet?->effet ?? []);
@@ -1296,6 +1301,10 @@ final class Equipement
         $attaque = self::attaqueDeLArme($attaque, $effet);
 
         $attaque += $this->bonusPermanent($personnage, 'bonus_des_attaque');
+        // SALLE SANS MAGIE (lot E2, G0052 q. 10 G) : aucune pièce portée ne compte — ni ses dés, ni ses améliorations.
+        if ($sansEquipement) {
+            return max(0, $attaque);
+        }
         $attaque += $this->bonusAuContact($personnage, $arme);
 
         $portes = $personnage->inventaire()
@@ -1393,6 +1402,11 @@ final class Equipement
      */
     public function armesEnMain(Personnage $personnage): array
     {
+        // SALLE SANS MAGIE (mode classique, lot E2 — G0052 q. 10 G) : « No … equipment may be used in the arena » — à mains nues.
+        if (\App\Partie\Classique\SalleSansMagie::pourHeros($personnage)) {
+            return [];
+        }
+
         return $personnage->inventaire()
             ->whereIn('emplacement', ['arme_principale', 'arme_secondaire'])
             ->with('objet')

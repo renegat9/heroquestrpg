@@ -286,6 +286,12 @@ final class DemarreurQueteConstruite
                 if ($moitieDe === null) {
                     // MÉTAMORPHOSE (lot E2, G0052 q. 5) : une forme de monstre ne survit pas à sa quête (décision écrite).
                     app(Metamorphose::class)->rendre($personnage);
+                    // SALLE SANS MAGIE (lot E2, G0052 q. 10 G) : des dés pris à mains nues dans l'arène ne passent pas à la suite —
+                    // seulement dans une campagne qui a une telle salle (ailleurs, les dés n'ont pas bougé).
+                    if (collect((array) ($groupe->campagneConstruite?->document['quetes'] ?? []))
+                        ->contains(fn ($q) => collect((array) ($q['salles_speciales'] ?? []))->contains(fn ($s) => ($s['sans_magie'] ?? false) === true))) {
+                        app(\App\Partie\Equipement::class)->recalculerCombat($personnage->fresh());
+                    }
                     $personnage->refresh();
                     if ($participants === null) {
                         $groupe->personnages()->updateExistingPivot($personnage->id, ['ordre_initiative' => $i + 1]);
