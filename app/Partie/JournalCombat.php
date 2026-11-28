@@ -1249,9 +1249,16 @@ final class JournalCombat
             'sort_dread' => $this->sortDread($a, $acteurNom),
             // EMBUSCADE (Dreadshifter) : le coffre se révèle. Un effet
             // automatique que rien n'annonce est injouable.
+            // Mode classique (lot E2, Morcar p. 4) : la fausse porte, et les quatre déclencheurs (`cause`).
             'embuscade' => [[
-                'texte' => ($a['monstre'] ?? 'Une créature').' jaillit du coffre — c\'était une embuscade'
-                    .(isset($a['declencheur']['nom']) ? ' ('.$a['declencheur']['nom'].' s\'est approché·e)' : ''),
+                'texte' => ($a['monstre'] ?? 'Une créature').' jaillit '.(($a['etait'] ?? 'coffre') === 'porte' ? 'de la porte' : 'du coffre')
+                    .' — c\'était une embuscade'
+                    .match ($a['cause'] ?? 'approche') {
+                        'fouille' => isset($a['declencheur']['nom']) ? ' ('.$a['declencheur']['nom'].' fouillait les lieux)' : '',
+                        'tresor' => isset($a['declencheur']['nom']) ? ' et attaque '.$a['declencheur']['nom'].', qui cherchait le trésor' : '',
+                        'tour_du_mj' => ' (au tour de Zargon)',
+                        default => isset($a['declencheur']['nom']) ? ' ('.$a['declencheur']['nom'].' s\'est approché·e)' : '',
+                    },
                 'ton' => 'degats',
             ]],
             // EFFETS AUTOMATIQUES DES SORCIERS DE MORCAR (jeton d'ombre absorbé,

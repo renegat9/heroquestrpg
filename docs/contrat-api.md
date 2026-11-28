@@ -7333,6 +7333,15 @@ comme le livret — avant chaque quête, un animal gratuit par héros, pour cett
   tunnel ne porte ce numéro ; la salle se révèle. Annonces `labyrinthe_jet {nom, depuis, des}` et `labyrinthe_sortie {nom, de,
   vers, x, y}`. `carte.tunnels: [{numero, x, y}]` (hors du brouillard) : la table dessine le numéro. Écart écrit : les
   monstres n'empruntent pas le labyrinthe.
+- p. 4, *Ambush* : « Dreadshifters in this expansion pack appear to be either a chest or a door. » **`monstres[].deguise:
+  "coffre" | {porte: n|s|e|o}`** — un monstre posé qui a `embuscade` (`valeur_invalide` sinon, et sur une apparition). Le
+  coffre : un faux meuble sur sa case (`MoteurEmbuscade::deguiser()`) ; la porte : une porte FERMÉE publiée sur ce bord de sa
+  case dans `carte.portes`, exactement comme une vraie (`EmbuscadesClassiques::faussesPortes()`), hors de la grille des
+  portes. Les quatre déclencheurs du livret (`Classique\EmbuscadesClassiques`) : un héros dans les 8 cases autour (la marche,
+  comme au RPG) ; une fouille (pièges et portes) dans sa salle ou son couloir ; une fouille du trésor de sa salle — le meuble
+  disparaît, la figure paraît au contact du fouilleur et frappe aussitôt ; le tour du MJ — toute embuscade sur le plateau
+  (salle découverte, case de couloir vue). Annonce `embuscade {monstre, instance_id, declencheur, etait: coffre|porte, cause?:
+  fouille|tresor|tour_du_mj, position}`.
 
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 

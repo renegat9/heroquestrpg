@@ -44,6 +44,9 @@ final class MoteurEmbuscade
 {
     public const DEGUISEMENT_COFFRE = 'coffre';
 
+    /** Mode classique (lot E2, Morcar p. 4) : le Dreadshifter déguisé en PORTE, dessinée sur un bord de sa case. */
+    public const DEGUISEMENT_PORTE = 'porte';
+
     /** Nom du meuble que le monstre imite (catalogue `mobiliers`). */
     public const MEUBLE_COFFRE = 'Coffre';
 
@@ -97,6 +100,24 @@ final class MoteurEmbuscade
 
         $instance->update(['revele' => false]);
         $instance->poserEtatDread('deguise', self::DEGUISEMENT_COFFRE);
+
+        return true;
+    }
+
+    /**
+     * MODE CLASSIQUE (lot E2, *Wizards of Morcar* p. 4 : « appear to be either a chest or a door ») : le déguisement en PORTE.
+     * Aucune porte n'entre dans la grille (le moteur des portes ne la verrait pas) : l'instance reste cachée sur sa case, et
+     * `EtatGroupe` publie une porte fermée sur le bord `$cote` de cette case, comme une vraie — rien ne la trahit. Les mêmes
+     * déclencheurs la révèlent que le faux coffre.
+     */
+    public function deguiserEnPorte(InstanceMonstre $instance, string $cote): bool
+    {
+        if ($instance->position_x === null || ! $instance->aCapacite('embuscade')) {
+            return false;
+        }
+        $instance->update(['revele' => false]);
+        $instance->poserEtatDread('deguise', self::DEGUISEMENT_PORTE);
+        $instance->poserEtatDread('porte_cote', $cote);
 
         return true;
     }
@@ -158,7 +179,9 @@ final class MoteurEmbuscade
             $carte->update(['grille' => $grille]);
         }
 
+        $etait = (string) ($instance->etatDread('deguise') ?? self::DEGUISEMENT_COFFRE);
         $instance->poserEtatDread('deguise', null);
+        $instance->poserEtatDread('porte_cote', null);
         $instance->update(['revele' => true]);
 
         $payload = [
@@ -166,7 +189,7 @@ final class MoteurEmbuscade
             'monstre' => $instance->nomAffiche(),
             'instance_id' => (int) $instance->id,
             'declencheur' => ['personnage_id' => $declencheur->id, 'nom' => $declencheur->nom],
-            'etait' => self::DEGUISEMENT_COFFRE,
+            'etait' => $etait,
             'position' => ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y],
         ];
 

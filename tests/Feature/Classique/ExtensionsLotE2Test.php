@@ -2071,3 +2071,44 @@ it('labyrinthe : le trajet s\'arrête au tunnel, deux dés, un menu forcé ; le 
     $sortie = $labyrinthe->sortir($partie['groupe'], $quete->fresh(), $partie['heros'], $etat->fresh(), 2);
     expect([$sortie['x'], $sortie['y']])->toBe([3, 4]);
 });
+
+it('embuscade en coffre : déguisé au départ ; la fouille du trésor de sa salle le révèle au contact du fouilleur, qui est frappé', function () {
+    $campagne = campagneE2(['monstres' => [['slug' => 'dreadshifter', 'x' => 10, 'y' => 2, 'deguise' => 'coffre']]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['monstres' => [['slug' => 'orque', 'x' => 10, 'y' => 2, 'deguise' => 'coffre']]])))->toBe([ValidationCampagne::VALEUR_INVALIDE])
+        ->and(codesE2(campagneE2(['monstres' => [['slug' => 'dreadshifter', 'x' => 10, 'y' => 2, 'deguise' => ['porte' => 'x']]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $instance = $quete->instancesMonstres()->firstOrFail();
+    expect(\App\Partie\MoteurEmbuscade::estDeguise($instance))->toBeTrue()
+        ->and(collect($quete->fresh()->carte->grille['mobilier'])->contains(fn ($m) => (int) ($m['embuscade_instance_id'] ?? 0) === (int) $instance->id))->toBeTrue();
+
+    $resultat = fouillerE2($this, $partie); // en (8, 3), dans la salle
+    $instance->refresh();
+    $annonces = collect($resultat['annonces_automatiques'] ?? []);
+    expect($instance->revele)->toBeTrue()->and(\App\Partie\MoteurEmbuscade::estDeguise($instance))->toBeFalse()
+        ->and(max(abs((int) $instance->position_x - 8), abs((int) $instance->position_y - 3)))->toBe(1)
+        ->and($annonces->firstWhere('type', 'embuscade')['cause'] ?? null)->toBe('tresor')
+        ->and($annonces->pluck('type'))->toContain('attaque_monstre');
+});
+
+it('embuscade en porte : une porte fermée publiée comme une vraie ; la fouille ou le tour du MJ la révèle', function (string $declencheur) {
+    $campagne = campagneE2(['monstres' => [['slug' => 'dreadshifter', 'x' => 9, 'y' => 5, 'deguise' => ['porte' => 's']]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $instance = $quete->instancesMonstres()->firstOrFail();
+    expect(\App\Partie\Classique\EmbuscadesClassiques::faussesPortes($quete->fresh()))->toBe([['x' => 9, 'y' => 5, 'cote' => 's']]);
+
+    $embuscades = app(\App\Partie\Classique\EmbuscadesClassiques::class);
+    if ($declencheur === 'fouille') {
+        $quete->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+        $embuscades->parFouille($partie['groupe'], $quete->fresh(), $partie['heros'], \App\Partie\ZoneFouille::de($quete->fresh()->carte->grille, 8, 3));
+    } else {
+        $quete->marquerSalleDecouverte(1);
+        $embuscades->auTourDuMJ($partie['groupe'], $quete->fresh());
+    }
+
+    expect($instance->fresh()->revele)->toBeTrue()
+        ->and(\App\Partie\Classique\EmbuscadesClassiques::faussesPortes($quete->fresh()))->toBe([]);
+})->with(['fouille' => ['fouille'], 'tour du MJ' => ['tour_du_mj']]);

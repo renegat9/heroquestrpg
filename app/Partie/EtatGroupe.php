@@ -532,6 +532,14 @@ final class EtatGroupe
         // 12 à 16 cases inatteignables devenaient visibles — le couloir d'en
         // face, et la salle au bout.
         $portes = $this->portes($carte);
+        // L'EMBUSCADE EN PORTE (mode classique, lot E2 — Morcar p. 4) : publiée comme une porte fermée ordinaire, rien ne la
+        // trahit (`Classique\EmbuscadesClassiques::faussesPortes()`). Même filtre de brouillard que les vraies.
+        foreach (\App\Partie\Classique\EmbuscadesClassiques::faussesPortes($quete) as $fausse) {
+            $portes[] = [...$fausse, 'etat' => MoteurPortes::ETAT_FERMEE, 'embrasure' => null, 'arete' => true,
+                'image_url' => app(BibliothequeImages::class)->urlPorte(MoteurPortes::ETAT_FERMEE), 'habillage' => null,
+                'symbole_url' => app(BibliothequeImages::class)->urlSymbolePorte(MoteurPortes::ETAT_FERMEE, null, null),
+                'symbole_rotation' => MoteurPortes::rotationSymbole($fausse)];
+        }
         // Les cases CONNUES du groupe (brouillard + passage secret peint en roche) :
         // `casesConnues()`, point de passage unique — le déplacement du héros
         // la relit pour ne rien publier qui dépasse ce que cette carte montre.

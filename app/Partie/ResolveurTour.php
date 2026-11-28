@@ -5232,6 +5232,10 @@ final class ResolveurTour
                 $payload['portes_revelees'] = $this->portes->revelerSecretesAutour($groupe, $quete->carte, $personnage, $zone);
             }
 
+            // EMBUSCADES (mode classique, lot E2 — G1504 p. 4) : « uncovered when a hero searches for traps in the room or
+            // corridor where they are located ». Annoncées au fil (`EmbuscadesClassiques`).
+            app(\App\Partie\Classique\EmbuscadesClassiques::class)->parFouille($groupe, $quete, $personnage, $zone);
+
             // COFFRE PIÉGÉ de l'auteur (mode classique, lot E1) : la fouille des pièges de sa salle le trouve, note ou non —
             // il se désamorce ensuite (`Classique\CoffresPieges`).
             if ($salleIci !== null && ($coffre = app(\App\Partie\Classique\CoffresPieges::class)->decouvrir($quete->fresh(), $salleIci)) !== null) {
@@ -11851,6 +11855,11 @@ final class ResolveurTour
             && ($carteQuete === null || ! $this->mobilier->salleContientType($carteQuete, $salle, 'Coffre'));
         $quete->marquerTresorFouille($salle, (int) $personnage->id);
 
+        // EMBUSCADES (mode classique, lot E2 — G1504 p. 4) : « If a hero searches for treasure in a room with a hidden Ambush
+        // monster, remove the furniture, then place the corresponding monster next to the treasure-searcher and immediately roll
+        // Attack dice. The hero may then continue with their turn. » La fouille se poursuit ensuite.
+        app(\App\Partie\Classique\EmbuscadesClassiques::class)->parTresor($groupe, $quete, $personnage, $etat, (int) $salle);
+
         // ÉVEIL PAR FOUILLE (Kellar's Keep q. 1 n.C : « If a hero searches for treasure […] the gargoyle springs to life »).
         // Annoncé au fil ; la figure joue au tour suivant du MJ (écart de calendrier écrit dans `MoteurDormants`).
         foreach ($this->dormants->fouilleDeSalle($quete, $salle) as $fil) {
@@ -14283,6 +14292,9 @@ final class ResolveurTour
 
                 // ACTIVATION DES SALLES (lot E2, F9528 q. 10) : un dé rouge, une ou deux salles se lèvent et jouent ce tour.
                 app(\App\Partie\Classique\ActivationSalles::class)->auTourDuMJ($groupe, $quete->fresh());
+
+                // EMBUSCADES (lot E2, G1504 p. 4) : « On Zargon's turn, they replace all hidden Ambush monsters with their model ».
+                app(\App\Partie\Classique\EmbuscadesClassiques::class)->auTourDuMJ($groupe, $quete->fresh());
 
                 // Lot E2 (F9528 q. 6 B) : chaque héros debout, sur le plateau, au moment où le MJ prend la main.
                 foreach ($quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get() as $present) {

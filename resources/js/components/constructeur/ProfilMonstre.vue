@@ -139,6 +139,21 @@ function basculerFuite(avec) {
             <input v-if="m.increvable !== undefined" :value="m.increvable?.sauf_drapeau ?? ''" class="cst-input" placeholder="jusqu'au drapeau… (toujours)"
                 @change="$event.target.value.trim() ? (m.increvable = { sauf_drapeau: $event.target.value.trim() }) : (m.increvable = true)" />
         </div>
+        <!-- Lot E2 (Wizards of Morcar p. 4) : un monstre à embuscade (le Dreadshifter) posé déguisé en coffre, ou en porte sur un bord. -->
+        <div v-if="inactifPossible" class="cst-ligne">
+            <label>Déguisé en
+                <select :value="m.deguise === 'coffre' ? 'coffre' : (m.deguise?.porte ? `porte-${m.deguise.porte}` : '')" class="cst-input"
+                    title="Seul un monstre à embuscade (le Dreadshifter) se déguise ; il se révèle quand un héros approche, fouille, cherche le trésor de sa salle, ou au tour de Zargon."
+                    @change="(v => v === '' ? delete m.deguise : (m.deguise = v === 'coffre' ? 'coffre' : { porte: v.slice(6) }))($event.target.value)">
+                    <option value="">rien (visible)</option>
+                    <option value="coffre">coffre</option>
+                    <option value="porte-n">porte, bord nord</option>
+                    <option value="porte-s">porte, bord sud</option>
+                    <option value="porte-e">porte, bord est</option>
+                    <option value="porte-o">porte, bord ouest</option>
+                </select>
+            </label>
+        </div>
         <div v-if="inactifPossible" class="cst-ligne">
             <label class="cst-case"><input type="checkbox" :checked="m.inactif === true" @change="basculerInactif($event.target.checked)" /> Inactif — ne bouge pas, n'attaque pas, ne peut être blessé tant qu'une note « éveiller » ne l'a pas réveillé</label>
         </div>

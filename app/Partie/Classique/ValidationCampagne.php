@@ -159,7 +159,7 @@ final class ValidationCampagne
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
     private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe'];
-    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable'];
+    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable', 'deguise'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
     /** « Wandering Monster in this Quest: 4 Goblins » (F9528 q. 4) : le plus grand nombre lu dans les livrets, avec de la marge. */
@@ -1473,6 +1473,9 @@ final class ValidationCampagne
                         continue;
                     }
                     $this->cles($pose, $ici, self::CLES_POSE, self::CLES_MONSTRE_OPTIONNELLES);
+                    if (array_key_exists('deguise', $pose)) {
+                        $this->refuser("$ici.deguise", self::VALEUR_INVALIDE, 'une figure qui apparaît ne se déguise pas : seule une figure posée au départ');
+                    }
                     $this->slugCatalogue($pose, 'slug', $ici, 'monstres');
                     $this->caseDArrivee($pose, $ici, 'la figure');
                     $this->profilDeMonstre($pose, $ici);
@@ -1808,6 +1811,18 @@ final class ValidationCampagne
                 $couche === 'pieges' ? [...self::CLES_PIEGE_OPTIONNELLES, 'zone'] : ($couche === 'monstres' ? self::CLES_MONSTRE_OPTIONNELLES : ($couche === 'terrain' ? self::CLES_TERRAIN_OPTIONNELLES : [])));
             if ($couche === 'monstres') {
                 $this->profilDeMonstre($pose, $position);
+                // L'EMBUSCADE (lot E2, *Wizards of Morcar* p. 4) : « appear to be either a chest or a door » — un monstre qui
+                // a la capacité `embuscade` (le Dreadshifter), déguisé en coffre sur sa case, ou en porte sur un bord.
+                if (array_key_exists('deguise', $pose)) {
+                    $ici = self::chemin($position, 'deguise');
+                    $deguise = $pose['deguise'];
+                    $monstreDeguise = is_string($pose['slug'] ?? null) ? ($this->catalogue->index('monstres')[$pose['slug']] ?? null) : null;
+                    if ($deguise !== 'coffre' && ! (is_array($deguise) && in_array($deguise['porte'] ?? null, ['n', 's', 'e', 'o'], true) && count($deguise) === 1)) {
+                        $this->refuser($ici, self::VALEUR_INVALIDE, '« coffre », ou {porte: n|s|e|o} (le bord de sa case où la porte est dessinée)');
+                    } elseif ($monstreDeguise !== null && ! (new \App\Models\InstanceMonstre)->setRelation('monstre', $monstreDeguise)->aCapacite('embuscade')) {
+                        $this->refuser($ici, self::VALEUR_INVALIDE, "« {$monstreDeguise->nom_base} » ne se déguise pas : seul un monstre à embuscade (le Dreadshifter)");
+                    }
+                }
             }
             // E5 (2026-11-18) : `cachee: true` — la tuile n'est posée qu'au premier pas d'un héros (*Slippery Ice*, *Ice Slide*).
             if ($couche === 'terrain' && array_key_exists('cachee', $pose) && $pose['cachee'] !== true) {

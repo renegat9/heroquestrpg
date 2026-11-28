@@ -255,7 +255,7 @@ final class DemarreurQueteConstruite
                 $pvBody = isset($docMonstre['pv_body']) ? (int) $docMonstre['pv_body'] : (int) $monstre->pv_body;
                 $pvMind = isset($docMonstre['pv_mind']) ? (int) $docMonstre['pv_mind'] : (int) $monstre->pv_mind;
 
-                InstanceMonstre::create([
+                $instance = InstanceMonstre::create([
                     'quete_id' => $quete->id,
                     'monstre_id' => $monstre->id,
                     // Valeurs du catalogue, ou surcharges R9 de l'auteur : ni adaptation à la taille du groupe, ni élite tirée.
@@ -276,6 +276,15 @@ final class DemarreurQueteConstruite
                     'objectif' => in_array($i, $cibles, true),
                     'habillage' => InstanceMonstre::habillageDeQuete($docMonstre, $this->catalogue),
                 ]);
+
+                // L'EMBUSCADE (lot E2, *Wizards of Morcar* p. 4) : « Zargon places it onto the board as the object it appears to
+                // be » — un coffre sur sa case, ou une porte sur un bord de sa case (`Classique\EmbuscadesClassiques`).
+                $deguise = $docMonstre['deguise'] ?? null;
+                if ($deguise === 'coffre') {
+                    app(\App\Partie\MoteurEmbuscade::class)->deguiser($quete, $instance->load('monstre'));
+                } elseif (is_array($deguise) && is_string($deguise['porte'] ?? null)) {
+                    app(\App\Partie\MoteurEmbuscade::class)->deguiserEnPorte($instance->load('monstre'), $deguise['porte']);
+                }
             }
 
             foreach ($heros->values() as $i => $personnage) {
