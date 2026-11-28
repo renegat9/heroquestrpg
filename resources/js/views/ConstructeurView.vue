@@ -1574,6 +1574,47 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             @click="(() => { const l = quete.regles.salle_tenebreuse.epargnes ??= []; const i = l.indexOf(c.slug); if (i >= 0) l.splice(i, 1); else l.push(c.slug); if (!l.length) delete quete.regles.salle_tenebreuse.epargnes; })()">{{ c.nom }}</button>
                                     </span>
                                 </template>
+                                <!-- Lot E2 (First Light q. 9) : l'entrée par une porte secrète, un dé d'attaque de plus ce tour-là. -->
+                                <label class="cst-case" title="La première fois qu'un héros entre dans une salle par une porte secrète, il lance un dé d'attaque de plus ce tour-là.">
+                                    <input type="checkbox" :checked="quete.regles?.bonus_porte_secrete === true" @change="poserRegle('bonus_porte_secrete', $event.target.checked ? true : undefined)" />
+                                    Entrée par une porte secrète : +1 dé d'attaque
+                                </label>
+                                <!-- Lot E2 (First Light q. 10) : la relance d'un jet d'Esprit, une fois par héros. -->
+                                <label class="cst-case" title="Chaque héros relance une fois dans la quête un jet d'Esprit raté (automatique, au premier échec).">
+                                    <input type="checkbox" :checked="quete.regles?.relance_esprit === true" @change="poserRegle('relance_esprit', $event.target.checked ? true : undefined)" />
+                                    Relance d'un jet d'Esprit
+                                </label>
+                                <!-- Lot E2 (First Light q. 10 A) : la salle des morts. -->
+                                <label class="cst-case" title="Un mort-vivant qui tomberait dans cette salle lance un dé rouge, +1 par autre mort-vivant de la salle : à 6 ou plus, il est épargné.">
+                                    <input type="checkbox" :checked="!!quete.regles?.salle_des_morts"
+                                        @change="poserRegle('salle_des_morts', $event.target.checked ? { salle: quete.salles_ouvertes[0] ?? '', morts_vivants: ['squelette'] } : undefined)" />
+                                    Salle des morts
+                                </label>
+                                <template v-if="quete.regles?.salle_des_morts">
+                                    <span class="cst-ligne">
+                                        <select v-model="quete.regles.salle_des_morts.salle" class="cst-input">
+                                            <option v-for="sa in quete.salles_ouvertes" :key="`sdm${sa}`" :value="sa">{{ sa }}</option>
+                                        </select>
+                                        morts-vivants :
+                                        <label v-for="mo in (couches.monstres ?? [])" :key="`sdmm${mo.slug}`" class="cst-case">
+                                            <input type="checkbox" :checked="quete.regles.salle_des_morts.morts_vivants.includes(mo.slug)"
+                                                @change="quete.regles.salle_des_morts.morts_vivants = $event.target.checked ? [...quete.regles.salle_des_morts.morts_vivants, mo.slug] : quete.regles.salle_des_morts.morts_vivants.filter((x) => x !== mo.slug)" /> {{ mo.nom }}
+                                        </label>
+                                    </span>
+                                </template>
+                                <!-- Lot E2 (First Light q. 9 C) : les squelettes du Cor renforcés dans une salle. -->
+                                <label class="cst-case" title="Les Squelettes Hearthkin du Cor lancent ces dés en plus en attaque et en défense dans cette salle.">
+                                    <input type="checkbox" :checked="!!quete.regles?.cor_renforce"
+                                        @change="poserRegle('cor_renforce', $event.target.checked ? { salle: quete.salles_ouvertes[0] ?? '', attaque: 2, defense: 2 } : undefined)" />
+                                    Squelettes du Cor renforcés
+                                </label>
+                                <span v-if="quete.regles?.cor_renforce" class="cst-ligne">
+                                    <select v-model="quete.regles.cor_renforce.salle" class="cst-input">
+                                        <option v-for="sa in quete.salles_ouvertes" :key="`cr${sa}`" :value="sa">{{ sa }}</option>
+                                    </select>
+                                    attaque + <input v-model.number="quete.regles.cor_renforce.attaque" type="number" min="0" max="6" class="cst-input cst-num" />
+                                    défense + <input v-model.number="quete.regles.cor_renforce.defense" type="number" min="0" max="6" class="cst-input cst-num" />
+                                </span>
                                 <!-- Lot E2 : les objets dont la mécanique est interdite toute la quête (First Light q. 7, l'Anneau du Retour). -->
                                 <label class="cst-case" title="Ces objets ne s'activent pas pendant cette quête (« The Ring of Return's listed mechanic may not be used »).">
                                     <input type="checkbox" :checked="!!quete.regles?.objets_inertes"

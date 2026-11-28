@@ -668,6 +668,18 @@ final class MoteurDegats
             return array_merge($neutre($avant - 1), ['pv_body' => 1, 'etat' => 'actif', 'vaincu' => false, 'survie_increvable' => true]);
         }
 
+        // LA SALLE DES MORTS (mode classique, lot E2 — First Light q. 10 A) : un mort-vivant qui tomberait lance un dé rouge, +1 par
+        // autre mort-vivant de la salle ; à 6 ou plus, il est épargné (« unharmed » : le coup ne lui ôte rien).
+        if (($salleDesMorts = app(\App\Partie\Classique\SalleDesMorts::class)->jet($instance)) !== null) {
+            $groupe = $instance->quete?->groupe;
+            if ($groupe !== null) {
+                app(TamponAnnonces::class)->annoncer($groupe, ['type' => 'salle_des_morts', 'monstre' => $instance->nomAffiche(), ...$salleDesMorts], null);
+            }
+            if ($salleDesMorts['epargne']) {
+                return array_merge($neutre(0), ['reaction' => 'salle_des_morts']);
+            }
+        }
+
         if ($instance->reactionDisponible('increvable_une_fois')) {
             $instance->consommerReaction('increvable_une_fois');
             $instance->update(['pv_body' => 1, 'etat' => 'actif']);

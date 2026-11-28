@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe', 'portails', 'cases_sans_arret', 'objets_inertes', 'passages'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe', 'portails', 'cases_sans_arret', 'objets_inertes', 'passages', 'salle_des_morts', 'relance_esprit', 'bonus_porte_secrete', 'cor_renforce'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable', 'deguise', 'neutre', 'sorts_actifs', 'sort_dread_parmi'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -2728,6 +2728,46 @@ final class ValidationCampagne
                 $this->slugCatalogue($releve, 'en', "$ici.$k", 'monstres');
                 if (array_key_exists('sauf_drapeau', $releve)) {
                     $this->nomDeDrapeau($releve, 'sauf_drapeau', "$ici.$k");
+                }
+            }
+        }
+        // Lot E2 (First Light q. 9, 10) : deux règles booléennes — l'entrée par une porte secrète, la relance de l'Esprit.
+        foreach (['bonus_porte_secrete', 'relance_esprit'] as $cleBool) {
+            if (array_key_exists($cleBool, $regles) && $regles[$cleBool] !== true) {
+                $this->refuser(self::chemin($position, $cleBool), self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+            }
+        }
+        // Lot E2 (First Light q. 10 A) : la salle des morts — une salle ouverte, et les morts-vivants nommés (slugs de monstres).
+        if (array_key_exists('salle_des_morts', $regles)) {
+            $ici = self::chemin($position, 'salle_des_morts');
+            if (($regle = $this->enObjet($regles['salle_des_morts'], $ici)) !== null) {
+                $this->cles($regle, $ici, ['salle', 'morts_vivants']);
+                if (! is_string($regle['salle'] ?? null) || ($this->ouvertesFiables && ! isset($this->ouvertes[$regle['salle']]))) {
+                    $this->refuser("$ici.salle", self::SALLE_INCONNUE, 'une salle ouverte de la quête est attendue');
+                }
+                $morts = $this->enListe($regle['morts_vivants'] ?? null, "$ici.morts_vivants");
+                if ($morts === []) {
+                    $this->refuser("$ici.morts_vivants", self::VALEUR_INVALIDE, 'au moins un monstre mort-vivant');
+                }
+                foreach ((array) $morts as $k => $slug) {
+                    if (! is_string($slug) || ! $this->catalogue->contient('monstres', $slug)) {
+                        $this->refuser("$ici.morts_vivants.$k", self::CATALOGUE_INCONNU, 'un slug du catalogue « monstres » est attendu');
+                    }
+                }
+            }
+        }
+        // Lot E2 (First Light q. 9 C) : le Cor renforcé — une salle ouverte, des dés d'attaque et de défense en plus (0 à 6).
+        if (array_key_exists('cor_renforce', $regles)) {
+            $ici = self::chemin($position, 'cor_renforce');
+            if (($regle = $this->enObjet($regles['cor_renforce'], $ici)) !== null) {
+                $this->cles($regle, $ici, ['salle', 'attaque', 'defense']);
+                if (! is_string($regle['salle'] ?? null) || ($this->ouvertesFiables && ! isset($this->ouvertes[$regle['salle']]))) {
+                    $this->refuser("$ici.salle", self::SALLE_INCONNUE, 'une salle ouverte de la quête est attendue');
+                }
+                foreach (['attaque', 'defense'] as $stat) {
+                    if (($n = $this->entier($regle, $stat, $ici, min: 0)) !== null && $n > 6) {
+                        $this->refuser("$ici.$stat", self::VALEUR_INVALIDE, 'au plus 6 dés');
+                    }
                 }
             }
         }

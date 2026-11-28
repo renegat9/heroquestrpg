@@ -7460,6 +7460,31 @@ ces objets ne s'activent pas de toute la quête (`MoteurCharges::utilisable()`, 
   `passage_{k}` (type `passage_d_un_pas`, créneau mouvement) : il paraît sur l'autre bout s'il est libre, un pas compté, la
   salle d'arrivée révélée ; le mur reste un mur. Annonce `passage_d_un_pas {nom, de, vers, deplacement_restant}`.
 
+*First Light* q. 9 (FL-Q p. 29) :
+- « The first time a hero enters a room via a secret door, they roll one additional Attack die that turn » :
+  **`regles.bonus_porte_secrete: true`** (`Classique\EntreeParPorteSecrete`) — franchir l'arête d'une porte secrète vers une
+  salle, la première fois de la quête pour ce héros, pose `porte_secrete` dans `capacites_tour` : +1 dé d'attaque dans
+  `ResolveurTour::frapper()` jusqu'à la fin du tour. Suivi `quetes.drapeaux._porte_secrete`. Annonce `bonus_porte_secrete {nom}`.
+- C : « Hearthkin Horn – Skeletons summoned by the horn roll 2 additional Attack and Defend dice in this room » :
+  **`regles.cor_renforce: {salle, attaque, defense}`** (`Classique\CorRenforce`) — un Squelette Hearthkin dans la salle ajoute
+  ces dés à son attaque et à sa défense.
+- Abraxus (« can attack diagonally ») et la Main de la Sorcière (« may cast two spells on her turn ») : profils existants
+  (`attaque_diagonale`, `deux_sorts_par_tour`).
+
+*First Light* q. 10 (FL-Q p. 31) :
+- « Each hero may reroll all dice in a roll involving Mind Points once during this quest » : **`regles.relance_esprit: true`**
+  (`Classique\RelanceEsprit`). Décision écrite : la relance part d'elle-même au PREMIER jet d'Esprit raté du héros dans la
+  quête (un héros relance toujours un échec, et ces jets tombent hors de son tour — même politique « à la première occasion »
+  que la malédiction de l'Oracle) ; le second résultat est gardé. Les jets : ceux où le héros résiste avec son Esprit
+  (`MoteurDread` : contre-sort, `jet_mind`, oppositions d'Esprit nette, à seuil, et dégâts d'Esprit). Suivi
+  `quetes.drapeaux._relance_esprit`. Annonce `relance_esprit {nom}`.
+- A : « When an undead monster would be defeated, roll one movement die. Add 1 to the roll result for every other undead monster
+  in the room. On a roll result of 6 or more, the defeated monster is unharmed » : **`regles.salle_des_morts: {salle,
+  morts_vivants: [slug]}`** (`Classique\SalleDesMorts`, lu par `MoteurDegats` après l'increvable) — l'auteur nomme les
+  morts-vivants (« any undead creature (skeleton, zombie, or mummy) », livret de base). Annonce `salle_des_morts {monstre, de,
+  bonus, epargne}`.
+- Qwindrak (formes tirées au paquet, météore, Dragon et sa flamme) : la fiche du catalogue `Qwindrak the Warlock`, telle quelle.
+
 *First Light* q. 3 (FL-Q p. 15) :
 - « Heroes may not end their movement on the eye tile » : **`regles.cases_sans_arret: [{x, y}]`** — jointes, dans
   `FabriqueGrille::pour()`, au jeu des cases interdites à l'arrêt (mare, brasier) : on les traverse, on ne s'y arrête pas.

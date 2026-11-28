@@ -2425,6 +2425,8 @@ final class ResolveurTour
         // avec le type d'arme choisi par le héros — même famille que les
         // tags de maîtrise (`$desArme`/Forge), donc écarté EN CHOC comme eux.
         $bonusArmeExperte = $this->faveurs->bonusArmeExperte($personnage, $armePrincipale);
+        // Mode classique (lot E2, *First Light* q. 9) : entré dans une salle par une porte secrète ce tour-ci, un dé de plus.
+        $desBonus += \App\Partie\Classique\EntreeParPorteSecrete::bonus($etat);
 
         $desAttaqueEffectifs = $personnage->estEnChoc()
             ? max(0, 1 + $bonusAttaque)
@@ -13534,6 +13536,10 @@ final class ResolveurTour
                     break;
                 }
 
+                // ENTRÉE PAR UNE PORTE SECRÈTE (mode classique, lot E2 — *First Light* q. 9 : « The first time a hero enters a room
+                // via a secret door, they roll one additional Attack die that turn ») : `Classique\EntreeParPorteSecrete`.
+                app(\App\Partie\Classique\EntreeParPorteSecrete::class)->franchir($quete, $personnage, $etat, $precedente, $case);
+
                 // PORTES À TÉLÉPORTATION `2d6` (mode classique, lot K5n, *Castle of Mystery* q. 10) : franchir une porte
                 // interrompt la marche, lance 2d6 et téléporte sur la case correspondante (1 dégât de collision si occupée).
                 if ($bordsDePorte !== [] && isset($bordsDePorte[Grille::cleArete($precedente['x'], $precedente['y'], $case['x'], $case['y'])])) {
@@ -17126,7 +17132,7 @@ final class ResolveurTour
 
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: max(0, $desAttaque),
-            desDefense: (int) ($stats?->defense ?? 0),
+            desDefense: (int) ($stats?->defense ?? 0) + \App\Partie\Classique\CorRenforce::bonus($quete, $allie, 'defense'),
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $allie->pv_body,
         );
@@ -19139,6 +19145,8 @@ final class ResolveurTour
         }
 
         $des = $adjacent ? (int) $merc->attaque : (int) ($merc->attaque_distance ?? $merc->attaque);
+        // Mode classique (lot E2, *First Light* q. 9 C) : le Squelette du Cor dans la salle renforcée.
+        $des += \App\Partie\Classique\CorRenforce::bonus($quete, $allie, 'attaque');
         $resultat = $this->resoudreAttaqueAllie($groupe, $allie, $cible, $des, $adjacent ? 'corps_a_corps' : 'distance', $acteur, $nom);
 
         $allie->update(['a_agi' => true]);

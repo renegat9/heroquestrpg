@@ -1688,7 +1688,8 @@ final class MoteurDread
         }
 
         $mindHeros = $this->sorts->desResistanceMentale($personnage);
-        $jetContresort = (new SortMental($this->des))->resoudre($mindHeros);
+        // Mode classique (lot E2, *First Light* q. 10) : la relance de l'Esprit, une fois par quête, sur un échec.
+        $jetContresort = app(\App\Partie\Classique\RelanceEsprit::class)->lancer($personnage, fn () => (new SortMental($this->des))->resoudre($mindHeros), fn ($j) => $j->effetApplique());
         $contresort = [
             'reussi' => ! $jetContresort->effetApplique(),
             'faces' => array_map(fn ($f) => $f->value, $jetContresort->faces),
@@ -2567,7 +2568,8 @@ final class MoteurDread
             $nets = 0;
 
             if ($resistance === Mot::RESISTANCE_OPPOSITION_NETTE) {
-                $jet = (new OppositionMind($this->des))->lancer((int) $instance->pv_mind, (int) $personnage->pv_mind, TypeFigurine::Heros);
+                $jet = app(\App\Partie\Classique\RelanceEsprit::class)->lancer($personnage, fn () => (new OppositionMind($this->des))->lancer((int) $instance->pv_mind, (int) $personnage->pv_mind, TypeFigurine::Heros),
+                    fn ($j) => $j->cranesNets() > 0);
                 $nets = $jet->cranesNets();
                 $ligne += [
                     'pv_mind_lanceur' => (int) $instance->pv_mind,
@@ -2602,7 +2604,7 @@ final class MoteurDread
             // ruptures, elles, laissent passer le sort.
             if ($resistance === MotsClesSort::RESISTANCE_JET_MIND) {
                 $mindHeros = $this->sorts->desResistanceMentale($personnage);
-                $jet = (new SortMental($this->des))->resoudre($mindHeros);
+                $jet = app(\App\Partie\Classique\RelanceEsprit::class)->lancer($personnage, fn () => (new SortMental($this->des))->resoudre($mindHeros), fn ($j) => $j->effetApplique());
 
                 $ligne += [
                     'mind_cible' => $mindHeros,
@@ -3200,7 +3202,8 @@ final class MoteurDread
         $mindLanceurAvant = (int) $instance->pv_mind;
         $mindCibleAvant = (int) $personnage->pv_mind;
 
-        $jet = (new OppositionMind($this->des))->lancer($mindLanceurAvant, $mindCibleAvant, TypeFigurine::Heros);
+        $jet = app(\App\Partie\Classique\RelanceEsprit::class)->lancer($personnage, fn () => (new OppositionMind($this->des))->lancer($mindLanceurAvant, $mindCibleAvant, TypeFigurine::Heros),
+            fn ($j) => $j->ecart() > 0);
         $ecart = $jet->ecart();
 
         $perteHeros = 0;
@@ -3323,7 +3326,8 @@ final class MoteurDread
         $personnage = $victime->personnage;
         $requis = max(1, (int) data_get($sort->effet, 'cranes_requis', 2));
 
-        $jet = (new OppositionMind($this->des))->lancer((int) $instance->pv_mind, (int) $personnage->pv_mind, TypeFigurine::Heros);
+        $jet = app(\App\Partie\Classique\RelanceEsprit::class)->lancer($personnage, fn () => (new OppositionMind($this->des))->lancer((int) $instance->pv_mind, (int) $personnage->pv_mind, TypeFigurine::Heros),
+            fn ($j) => $j->cranesNets() >= $requis);
         $nets = $jet->cranesNets();
 
         $ligne = [

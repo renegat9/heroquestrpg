@@ -2591,3 +2591,71 @@ it('q. 8 D : le passage d\'un pas — offert une fois le drapeau posé, un pas c
     expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([7, 5])
         ->and((int) $etat->deplacement_restant)->toBe(4);
 });
+
+// ---------------------------------------------------------------- First Light : le Cor (q. 9), la puissance du Synchroforme (q. 10)
+
+it('q. 10 A : la salle des morts — un squelette qui tomberait lance un dé +1 par autre mort-vivant de la salle ; 6 ou plus, épargné', function () {
+    $campagne = campagneE2([
+        'monstres' => [['slug' => 'squelette', 'x' => 9, 'y' => 3], ['slug' => 'squelette', 'x' => 9, 'y' => 4], ['slug' => 'orque', 'x' => 10, 'y' => 5]],
+        'regles' => ['salle_des_morts' => ['salle' => 'galerie', 'morts_vivants' => ['squelette']]],
+    ]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['salle_des_morts' => ['salle' => 'galerie', 'morts_vivants' => ['fantome-inconnu']]]])))->toContain('catalogue_inconnu');
+    $partie = partieE2($this, $campagne);
+    [$s1, $s2, $orque] = $partie['quete']->instancesMonstres()->orderBy('id')->get()->all();
+    $degats = app(\App\Partie\MoteurDegats::class);
+
+    // 5 + 1 (l'autre squelette) = 6 : épargné, intact.
+    app()->instance(LanceurDes::class, new LanceurDeterministe([5]));
+    $r = $degats->infligerAMonstre($s1->fresh(), 5, \App\Partie\MoteurDegats::SOURCE_PIEGE);
+    expect($r['vaincu'])->toBeFalse()->and($s1->fresh()->etat)->toBe('actif')->and((int) $s1->fresh()->pv_body)->toBe((int) $s1->pv_body);
+
+    // 4 + 1 = 5 : il tombe.
+    app()->instance(LanceurDes::class, new LanceurDeterministe([4]));
+    expect($degats->infligerAMonstre($s1->fresh(), 5, \App\Partie\MoteurDegats::SOURCE_PIEGE)['vaincu'])->toBeTrue();
+
+    // L'orque n'est pas un mort-vivant : aucun dé, il tombe.
+    expect($degats->infligerAMonstre($orque->fresh(), 5, \App\Partie\MoteurDegats::SOURCE_PIEGE)['vaincu'])->toBeTrue();
+});
+
+it('q. 10 : la relance de l\'Esprit — un jet raté se relance une fois dans la quête, le second gardé', function () {
+    $campagne = campagneE2(['regles' => ['relance_esprit' => true]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $relance = app(\App\Partie\Classique\RelanceEsprit::class);
+    $jets = [1, 6, 1, 1];
+    $lancer = function () use (&$jets) { return array_shift($jets); };
+    $rate = fn (int $j) => $j < 6;
+
+    expect($relance->lancer($partie['heros'], $lancer, $rate))->toBe(6)   // 1 raté → relancé : 6
+        ->and($relance->lancer($partie['heros'], $lancer, $rate))->toBe(1); // déjà dépensée : 1 gardé
+    expect(data_get($partie['quete']->fresh()->drapeaux, '_relance_esprit'))->toBe([(int) $partie['heros']->id]);
+});
+
+it('q. 9 : l\'entrée par une porte secrète donne un dé d\'attaque ce tour-là, une fois ; le Cor renforcé dans sa salle', function () {
+    $campagne = campagneE2(['regles' => ['bonus_porte_secrete' => true, 'cor_renforce' => ['salle' => 'galerie', 'attaque' => 2, 'defense' => 2]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $etat = $quete->etatsPersonnages()->first();
+    $entree = app(\App\Partie\Classique\EntreeParPorteSecrete::class);
+
+    // La porte secrète (9, 5, s) : du couloir (9, 6) vers la galerie (9, 5).
+    $entree->franchir($quete->fresh(), $partie['heros'], $etat, ['x' => 9, 'y' => 6], ['x' => 9, 'y' => 5]);
+    expect(\App\Partie\Classique\EntreeParPorteSecrete::bonus($etat))->toBe(1);
+    // Une porte ordinaire (6, 3, e) ne donne rien ; et une seconde porte secrète non plus (une fois par héros).
+    $etat->update(['capacites_tour' => []]);
+    $entree->franchir($quete->fresh(), $partie['heros'], $etat, ['x' => 9, 'y' => 6], ['x' => 9, 'y' => 5]);
+    $entree->franchir($quete->fresh(), $partie['heros'], $etat, ['x' => 7, 'y' => 3], ['x' => 6, 'y' => 3]);
+    expect(\App\Partie\Classique\EntreeParPorteSecrete::bonus($etat))->toBe(0);
+
+    // Le Cor : un Squelette Hearthkin dans la galerie, puis dans l'entrée.
+    $this->seed(\Database\Seeders\MercenaireSeeder::class);
+    $squelette = \App\Models\GroupeMercenaire::create(['groupe_id' => $partie['groupe']->id,
+        'mercenaire_id' => \App\Models\Mercenaire::where('nom', 'Squelette Hearthkin')->value('id'),
+        'recruteur_personnage_id' => $partie['heros']->id, 'pv_body' => 1, 'etat' => 'actif', 'position_x' => 8, 'position_y' => 4]);
+    expect(\App\Partie\Classique\CorRenforce::bonus($quete->fresh(), $squelette->fresh(), 'attaque'))->toBe(2)
+        ->and(\App\Partie\Classique\CorRenforce::bonus($quete->fresh(), $squelette->fresh(), 'defense'))->toBe(2);
+    $squelette->update(['position_x' => 3, 'position_y' => 3]);
+    expect(\App\Partie\Classique\CorRenforce::bonus($quete->fresh(), $squelette->fresh(), 'attaque'))->toBe(0);
+});

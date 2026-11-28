@@ -204,6 +204,11 @@ final class JournalCombat
         'bataille_finie' => true,
         // Lot E2 : le passage secret d'un pas (First Light q. 8 D).
         'passage_d_un_pas' => true,
+        // Lot E2 : la salle des morts et la relance de l'Esprit (First Light q. 10).
+        'salle_des_morts' => true,
+        'relance_esprit' => true,
+        // Lot E2 : l'entrée par une porte secrète (First Light q. 9).
+        'bonus_porte_secrete' => true,
         // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
         'soin_planque' => true,
         'repartir_planque' => true,
@@ -1571,6 +1576,11 @@ final class JournalCombat
                     .implode(' et ', array_map('intval', (array) ($a['des'] ?? []))).' — à lui de choisir',
                 'ton' => 'info',
             ]],
+            'salle_des_morts' => [['texte' => ($a['monstre'] ?? 'Le mort-vivant').' — la salle des morts : '.(int) ($a['de'] ?? 0)
+                .((int) ($a['bonus'] ?? 0) > 0 ? ' + '.(int) $a['bonus'] : '').(! empty($a['epargne']) ? ', il se relève indemne' : ', il tombe'),
+                'ton' => ! empty($a['epargne']) ? 'subit' : 'succes']],
+            'bonus_porte_secrete' => [['texte' => ($a['nom'] ?? $acteurNom).' surgit par la porte secrète : un dé d\'attaque de plus ce tour-ci', 'ton' => 'succes']],
+            'relance_esprit' => [$this->info(($a['nom'] ?? $acteurNom).' relance son jet d\'Esprit (une fois dans la quête)')],
             'passage_d_un_pas' => [$this->info(($a['nom'] ?? $acteurNom).' se glisse par le passage secret')],
             'bataille_diriger' => [$this->info(($a['nom'] ?? $acteurNom).' prend la tête de '.($a['monstre'] ?? 'un guerrier'))],
             'bataille_coup' => $this->ligneBataille($a),
