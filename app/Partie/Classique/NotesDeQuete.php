@@ -791,10 +791,31 @@ final class NotesDeQuete
             ? $quete->etatsPersonnages()->where('personnage_id', $heros->id)->whereNotNull('position_x')->where('tombe', false)->first()
             : null;
 
+        $salles = (array) ($quete->carte?->grille['salles'] ?? []);
+        $suivies = (array) data_get($quete->relire('drapeaux')->drapeaux, '_apparitions', []);
+
         foreach ($poses as $pose) {
             $monstre = $catalogue[(string) ($pose['slug'] ?? '')] ?? null;
 
             if ($monstre === null) {
+                continue;
+            }
+
+            // Lot E2 (*First Light* q. 8 : « Place one Dread Warrior on the stairway (if revealed) unless one is already placed ») :
+            // `si_decouverte` — la case de pose doit être en zone découverte (salle découverte, case de couloir vue) ;
+            // `une_a_la_fois` — rien ne paraît tant que la figure née de cette pose est encore debout.
+            $clePose = $this->repereEnCours.':'.($pose['slug'] ?? '').'@'.(int) ($pose['x'] ?? 0).','.(int) ($pose['y'] ?? 0);
+            if (! empty($effet['si_decouverte'])) {
+                $px = (int) ($pose['x'] ?? 0);
+                $py = (int) ($pose['y'] ?? 0);
+                $salle = \App\Partie\Salles::indexDe($salles, $px, $py);
+                $vue = $salle !== null ? in_array($salle, $quete->sallesDecouvertes(), true) : isset((app(CouloirsVus::class)->vus($quete) ?? [])["{$px},{$py}"]);
+                if (! $vue) {
+                    continue;
+                }
+            }
+            if (! empty($effet['une_a_la_fois']) && isset($suivies[$clePose])
+                && $quete->instancesMonstres()->whereKey((int) $suivies[$clePose])->where('etat', 'actif')->exists()) {
                 continue;
             }
 
@@ -829,6 +850,11 @@ final class NotesDeQuete
 
             // Le nom AFFICHÉ de la figure (`InstanceMonstre::nomAffiche()`), jamais le nom de catalogue.
             $apparus[] = ['nom' => $instance->nomAffiche(), 'instance_id' => $instance->id, 'x' => $place['x'], 'y' => $place['y']];
+            if (! empty($effet['une_a_la_fois'])) {
+                $drapeaux = (array) $quete->relire('drapeaux')->drapeaux;
+                $drapeaux['_apparitions'][$clePose] = (int) $instance->id;
+                $quete->update(['drapeaux' => $drapeaux]);
+            }
 
             // « It immediately attacks » : la frappe du surgissement de l'errant (au contact, huit voisines), annoncée comme
             // l'attaque de monstre qu'elle est.

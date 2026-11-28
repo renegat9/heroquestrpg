@@ -768,6 +768,9 @@ const LIBELLES_PARAM = { texte: 'Texte lu', or: 'Or', body: 'Points de Corps', s
 const BOOLEENS_EFFET = {
     // Lot E2 (First Light q. 6 D) : l'objet donné ne s'utilise pas avant la fin de la quête.
     inerte_en_quete: 'inutilisable jusqu\'à la fin de la quête',
+    // Lot E2 (First Light q. 8) : « on the stairway (if revealed) unless one is already placed ».
+    si_decouverte: 'seulement si sa case est découverte',
+    une_a_la_fois: 'pas tant que la précédente est debout',
     toute_la_salle: 'tous les héros de sa salle',
     tous_les_heros: 'tous les héros de la quête',
     nombre_d6: 'seuls les 1d6 premiers paraissent',
@@ -1570,6 +1573,38 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             :class="{ on: (quete.regles.salle_tenebreuse.epargnes ?? []).includes(c.slug) }"
                                             @click="(() => { const l = quete.regles.salle_tenebreuse.epargnes ??= []; const i = l.indexOf(c.slug); if (i >= 0) l.splice(i, 1); else l.push(c.slug); if (!l.length) delete quete.regles.salle_tenebreuse.epargnes; })()">{{ c.nom }}</button>
                                     </span>
+                                </template>
+                                <!-- Lot E2 : les objets dont la mécanique est interdite toute la quête (First Light q. 7, l'Anneau du Retour). -->
+                                <label class="cst-case" title="Ces objets ne s'activent pas pendant cette quête (« The Ring of Return's listed mechanic may not be used »).">
+                                    <input type="checkbox" :checked="!!quete.regles?.objets_inertes"
+                                        @change="poserRegle('objets_inertes', $event.target.checked ? [catalogues?.objets?.[0]?.slug ?? ''] : undefined)" />
+                                    Objets inutilisables dans cette quête
+                                </label>
+                                <template v-if="quete.regles?.objets_inertes">
+                                    <span v-for="(o, k) in quete.regles.objets_inertes" :key="`oi${k}`" class="cst-ligne">
+                                        <select v-model="quete.regles.objets_inertes[k]" class="cst-input">
+                                            <option v-for="ob in (catalogues?.objets ?? [])" :key="`oio${ob.slug}`" :value="ob.slug">{{ ob.nom }}</option>
+                                        </select>
+                                        <button type="button" class="cst-icone" title="Retirer" @click="quete.regles.objets_inertes.splice(k, 1); if (!quete.regles.objets_inertes.length) poserRegle('objets_inertes', undefined)"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter un objet" @click="quete.regles.objets_inertes.push(catalogues?.objets?.[0]?.slug ?? '')"><MSym n="add" :size="16" /></button>
+                                </template>
+                                <!-- Lot E2 : les passages d'un pas (First Light q. 8 D, la bibliothèque) — deux cases, un drapeau facultatif. -->
+                                <label class="cst-case" title="Le héros debout sur un bout paraît sur l'autre pour un pas de déplacement ; le mur entre les deux reste un mur (pas de vue).">
+                                    <input type="checkbox" :checked="!!quete.regles?.passages"
+                                        @change="poserRegle('passages', $event.target.checked ? [{ a: { x: 0, y: 0 }, b: { x: 1, y: 0 } }] : undefined)" />
+                                    Passages d'un pas
+                                </label>
+                                <template v-if="quete.regles?.passages">
+                                    <span v-for="(pa, k) in quete.regles.passages" :key="`pa${k}`" class="cst-ligne">
+                                        de <input v-model.number="pa.a.x" type="number" min="0" class="cst-input cst-num" title="x" /><input v-model.number="pa.a.y" type="number" min="0" class="cst-input cst-num" title="y" />
+                                        <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(pa.a, `le passage n° ${k + 1}, premier bout`)"><MSym n="pin_drop" :size="16" /></button>
+                                        à <input v-model.number="pa.b.x" type="number" min="0" class="cst-input cst-num" title="x" /><input v-model.number="pa.b.y" type="number" min="0" class="cst-input cst-num" title="y" />
+                                        <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(pa.b, `le passage n° ${k + 1}, second bout`)"><MSym n="pin_drop" :size="16" /></button>
+                                        <label>si le drapeau <input :value="pa.si_drapeau ?? ''" class="cst-input" placeholder="(toujours)" @change="$event.target.value.trim() ? (pa.si_drapeau = $event.target.value.trim()) : delete pa.si_drapeau" /></label>
+                                        <button type="button" class="cst-icone" title="Retirer" @click="quete.regles.passages.splice(k, 1); if (!quete.regles.passages.length) poserRegle('passages', undefined)"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter un passage" @click="quete.regles.passages.push({ a: { x: 0, y: 0 }, b: { x: 1, y: 0 } })"><MSym n="add" :size="16" /></button>
                                 </template>
                                 <!-- Lot E2 : les cases où l'on ne s'arrête pas (First Light q. 3 A, l'Œil de Mentor). -->
                                 <label class="cst-case" title="Aucun héros ne peut finir son déplacement sur ces cases (on les traverse).">

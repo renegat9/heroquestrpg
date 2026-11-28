@@ -202,9 +202,20 @@ final class MoteurCharges
         if ($ligne === null || $etat === null || $etat->quete_id === null) {
             return false;
         }
-        $inertes = (array) data_get(\App\Models\Quete::query()->whereKey($etat->quete_id)->value('drapeaux'), self::OBJETS_INERTES, []);
+        $quete = \App\Models\Quete::query()->find($etat->quete_id);
+        if ($quete === null) {
+            return false;
+        }
+        if (in_array((int) $ligne->id, array_map('intval', (array) data_get($quete->drapeaux, self::OBJETS_INERTES, [])), true)) {
+            return true;
+        }
+        // *First Light* q. 7 : « The Ring of Return's listed mechanic may not be used » — `regles.objets_inertes: [slug]`, toute la quête.
+        if (! $quete->estConstruite()) {
+            return false;
+        }
+        $slugs = (array) data_get($quete->documentConstruit(), 'regles.objets_inertes', []);
 
-        return in_array((int) $ligne->id, array_map('intval', $inertes), true);
+        return $slugs !== [] && $ligne->objet !== null && in_array(\App\Partie\Classique\CatalogueConstructeur::slug((string) $ligne->objet->nom), $slugs, true);
     }
 
     /**

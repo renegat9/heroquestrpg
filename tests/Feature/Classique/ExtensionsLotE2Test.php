@@ -2532,3 +2532,62 @@ it('q. 6 E : la porte secrète introuvable depuis le couloir — la fouille du c
     $salle = \App\Partie\ZoneFouille::de((array) $carte->fresh()->grille, 9, 4);
     expect($portes->revelerSecretesAutour($partie['groupe'], $carte->fresh(), $partie['heros'], $salle))->toHaveCount(1);
 });
+
+// ---------------------------------------------------------------- First Light : le tombeau (q. 7), le trésor de Forgrin (q. 8)
+
+it('q. 7 : regles.objets_inertes — l\'Anneau du Retour ne s\'active pas de toute la quête', function () {
+    $campagne = campagneE2(['regles' => ['objets_inertes' => ['anneau-du-retour']]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['objets_inertes' => ['anneau-qui-n-existe-pas']]])))->toContain('catalogue_inconnu');
+    $partie = partieE2($this, $campagne);
+    \App\Partie\RangementObjet::ranger(\App\Models\Objet::where('nom', 'Anneau du Retour')->firstOrFail(), (int) $partie['heros']->id);
+    $ligne = $partie['heros']->inventaire()->whereHas('objet', fn ($q) => $q->where('nom', 'Anneau du Retour'))->first();
+    expect(app(\App\Partie\MoteurCharges::class)->utilisable($ligne, $partie['quete']->etatsPersonnages()->first()))->toBeFalse()
+        ->and(app(\App\Partie\MoteurCharges::class)->utilisable($ligne))->toBeTrue();
+});
+
+it('q. 8 : l\'apparition au tour de Zargon — seulement si sa case est découverte, et pas tant que la précédente est debout', function () {
+    $campagne = campagneE2(['notes' => [['repere' => 'Z', 'une_fois' => false, 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1]], 'alors' => [
+        ['effet' => 'apparition', 'si_decouverte' => true, 'une_a_la_fois' => true, 'monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 4]]],
+    ]]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class);
+    $orques = fn () => $quete->instancesMonstres()->whereHas('monstre', fn ($q) => $q->where('nom_base', 'Orque'))->where('etat', 'actif')->count();
+    $avant = $orques();
+
+    // La galerie n'est pas découverte : rien.
+    $notes->signaler($quete->fresh(), 'tour_du_mj', ['tour' => 2], null);
+    expect($orques())->toBe($avant);
+
+    $quete->update(['salles_decouvertes' => [0, 1]]);
+    $notes->signaler($quete->fresh(), 'tour_du_mj', ['tour' => 2], null);
+    expect($orques())->toBe($avant + 1);
+    // La première est debout : pas de seconde.
+    $notes->signaler($quete->fresh(), 'tour_du_mj', ['tour' => 2], null);
+    expect($orques())->toBe($avant + 1);
+    // Tombée, une autre paraît.
+    $quete->instancesMonstres()->latest('id')->first()->update(['etat' => 'vaincu', 'position_x' => null, 'position_y' => null]);
+    $notes->signaler($quete->fresh(), 'tour_du_mj', ['tour' => 2], null);
+    expect($orques())->toBe($avant + 1);
+});
+
+it('q. 8 D : le passage d\'un pas — offert une fois le drapeau posé, un pas compté, le héros paraît de l\'autre côté du mur', function () {
+    $campagne = campagneE2(['regles' => ['passages' => [['a' => ['x' => 6, 'y' => 5], 'b' => ['x' => 7, 'y' => 5], 'si_drapeau' => 'bibliotheque']]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $quete->etatsPersonnages()->update(['position_x' => 6, 'position_y' => 5, 'a_deplace' => false, 'deplacement_restant' => 5]);
+    $menu = fn () => collect(app(\App\Partie\MenuMoteur::class)->generer($partie['groupe']->fresh(), $partie['heros']->fresh())['options'])->pluck('id')->all();
+    expect($menu())->not->toContain('passage_0');
+
+    $quete->update(['drapeaux' => [...(array) $quete->fresh()->drapeaux, 'bibliotheque' => true]]);
+    expect($menu())->toContain('passage_0');
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'passage_0'])->assertAccepted();
+    $etat = $quete->etatsPersonnages()->first();
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([7, 5])
+        ->and((int) $etat->deplacement_restant)->toBe(4);
+});

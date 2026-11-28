@@ -146,6 +146,8 @@ const ICONE_TYPE = {
     // La bataille (First Light q. 6).
     bataille_diriger: 'swords',
     bataille_coup: 'swords',
+    // Le passage secret d'un pas (First Light q. 8 D).
+    passage_d_un_pas: 'door_sliding',
     // Fouiller un marqueur (First Light q. 1).
     fouille_marqueur: 'search',
     // Un geste de quête (Spirit Queen q. 7, 8) : la main qui fait.

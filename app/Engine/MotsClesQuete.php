@@ -464,7 +464,7 @@ final class MotsClesQuete
         // `pres_du_heros` (lot E2, *Jungles of Delthrak* q. 6 C) : près du héros qui déclenche, et chaque figure au contact frappe aussitôt.
         // `au_hasard` (lot E2, q. 14 : « the planar rift creates one monster […] Raptor, Skullblight, Zombie, or Skeleton ») :
         // UNE seule des poses, tirée au hasard (René, 2026-11-27 : aucun compte de figurines en base).
-        self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6', 'pres_du_heros', 'au_hasard'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
+        self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6', 'pres_du_heros', 'au_hasard', 'si_decouverte', 'une_a_la_fois'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
         // `jet_defense` (lot E2, *The Crypt of Perpetual Darkness* q. 7 B : « roll their Defend dice against 3 points of damage ») :
         // chaque héros touché lance ses dés de défense, chaque bouclier blanc pare un point.
         self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle', 'tous_les_heros', 'jet_defense', 'reduit_par_six'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],

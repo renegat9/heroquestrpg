@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe', 'portails', 'cases_sans_arret'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe', 'portails', 'cases_sans_arret', 'objets_inertes', 'passages'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable', 'deguise', 'neutre', 'sorts_actifs', 'sort_dread_parmi'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -1579,7 +1579,7 @@ final class ValidationCampagne
                 }
                 break;
             case MotsClesQuete::APPARITION:
-                foreach (['nombre_d6', 'pres_du_heros', 'au_hasard'] as $booleen) {
+                foreach (['nombre_d6', 'pres_du_heros', 'au_hasard', 'si_decouverte', 'une_a_la_fois'] as $booleen) {
                     if (array_key_exists($booleen, $effet) && ! is_bool($effet[$booleen])) {
                         $this->refuser("$position.$booleen", self::TYPE_INVALIDE, 'true ou false est attendu');
                     }
@@ -2729,6 +2729,42 @@ final class ValidationCampagne
                 if (array_key_exists('sauf_drapeau', $releve)) {
                     $this->nomDeDrapeau($releve, 'sauf_drapeau', "$ici.$k");
                 }
+            }
+        }
+        // Lot E2 : les objets dont la mécanique est interdite toute la quête (First Light q. 7 : « The Ring of Return's listed mechanic
+        // may not be used ») — des slugs d'objets du catalogue.
+        if (array_key_exists('objets_inertes', $regles)) {
+            $ici = self::chemin($position, 'objets_inertes');
+            $slugs = $this->enListe($regles['objets_inertes'], $ici);
+            if ($slugs === []) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'au moins un objet');
+            }
+            foreach ((array) $slugs as $k => $slug) {
+                if (! is_string($slug) || ! $this->catalogue->contient('objets', $slug)) {
+                    $this->refuser("$ici.$k", self::CATALOGUE_INCONNU, 'un slug du catalogue « objets » est attendu');
+                }
+            }
+        }
+        // Lot E2 : les passages d'un pas (First Light q. 8 D : « Heroes may move from a shaded square in one room to the opposite
+        // shaded square in the other. This uses one square of their movement roll ») — deux cases, et un drapeau facultatif.
+        if (array_key_exists('passages', $regles)) {
+            $ici = self::chemin($position, 'passages');
+            $passages = $this->enListe($regles['passages'], $ici);
+            if ($passages === []) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'au moins un passage');
+            }
+            foreach ((array) $passages as $k => $p) {
+                if (($passage = $this->enObjet($p, "$ici.$k")) === null) {
+                    continue;
+                }
+                $this->cles($passage, "$ici.$k", ['a', 'b'], ['si_drapeau']);
+                foreach (['a', 'b'] as $bout) {
+                    if (($case = $this->enObjet($passage[$bout] ?? null, "$ici.$k.$bout")) !== null) {
+                        $this->cles($case, "$ici.$k.$bout", self::CLES_CASE);
+                        $this->cellule($case, "$ici.$k.$bout");
+                    }
+                }
+                $this->nomDeDrapeau($passage, 'si_drapeau', "$ici.$k");
             }
         }
         // Lot E2 : les cases où l'on ne s'arrête pas (First Light q. 3 A, l'Œil de Mentor) — des cases du plateau.

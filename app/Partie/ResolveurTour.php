@@ -765,6 +765,7 @@ final class ResolveurTour
                 'garder_carte' => $this->resoudreCarteGardee($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'traverser_portail' => $this->resoudreTraversePortail($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'fouille_marqueur' => $this->resoudreFouilleMarqueur($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'passage_d_un_pas' => $this->resoudrePassageDUnPas($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'bataille_diriger' => $this->journaliserBataille($groupe, app(\App\Partie\Classique\Bataille::class)->diriger($quete, $personnage, (int) ($option['parametres']['instance_id'] ?? 0)), $acteur),
                 'bataille_coup' => $this->journaliserBataille($groupe, app(\App\Partie\Classique\Bataille::class)->frapper($groupe, $quete, $personnage, $etat, (int) ($option['parametres']['cible_id'] ?? -1)), $acteur),
                 // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, de soi-même. Geste libre.
@@ -17278,7 +17279,8 @@ final class ResolveurTour
             // `sortie_fosse` : se hisser hors du trou EST le déplacement du tour (Fosse longue, p. 6).
             // `entree_donjon` : le héros hors plateau franchit la porte d'entrée — un pas de son déplacement (mode classique).
             // `saut_contrebas` : sauter de la galerie dans la salle en contrebas (G0052 q. 9 C) — le mouvement du tour.
-            'deplacement', 'franchissement', 'saut_sables', 'sortie_fosse', 'descente_fosse', 'entree_donjon', 'saut_contrebas' => 'mouvement',
+            // `passage_d_un_pas` : le passage secret d'un pas (First Light q. 8 D) — un pas du mouvement.
+            'deplacement', 'franchissement', 'saut_sables', 'sortie_fosse', 'descente_fosse', 'entree_donjon', 'saut_contrebas', 'passage_d_un_pas' => 'mouvement',
             // Ouvrir une porte / actionner un levier = interaction LIBRE (E2) :
             // ne consomme ni le déplacement ni l'action — on s'arrête devant la
             // porte, on l'ouvre, puis on continue son mouvement s'il reste des points.
@@ -18000,6 +18002,34 @@ final class ResolveurTour
     private function resoudreInsubstantiel(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
         $payload = app(\App\Partie\Classique\Insubstantialite::class)->prendre($quete, $personnage, $etat, (string) ($option['parametres']['usage'] ?? ''));
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * LES PASSAGES D'UN PAS (mode classique, lot E2 — First Light q. 8 D : « This uses one square of their movement roll ») : le
+     * passage revalidé (`Classique\PassagesDUnPas::offerts()`), un pas compté comme l'entrée au donjon, la salle d'arrivée révélée.
+     */
+    private function resoudrePassageDUnPas(Groupe $groupe, Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $passage = $etat === null ? null : collect(app(\App\Partie\Classique\PassagesDUnPas::class)->offerts($quete, $etat))
+            ->firstWhere('k', (int) ($option['parametres']['passage'] ?? -1));
+        if ($passage === null) {
+            throw ValidationException::withMessages(['option_id' => 'Ce passage n\'est pas à prendre d\'ici.']);
+        }
+        $totalTour = (int) ($etat->deplacement_tour ?? $quete->groupe->socleDeDeplacement($personnage)['base']);
+        ['restant' => $restant] = $this->pointsDeplacement($personnage, $etat, $totalTour);
+        if ($restant < 1) {
+            throw ValidationException::withMessages(['option_id' => 'Plus de déplacement pour prendre le passage.']);
+        }
+        $restantApres = $restant - 1;
+        $etat->update(['position_x' => $passage['vers']['x'], 'position_y' => $passage['vers']['y'],
+            'deplacement_restant' => $restantApres, 'a_deplace' => $restantApres <= 0]);
+        $this->revelerSalleEn($quete->fresh(), $passage['vers']['x'], $passage['vers']['y'], $personnage);
+
+        $payload = ['type' => 'passage_d_un_pas', 'personnage_id' => (int) $personnage->id, 'nom' => (string) $personnage->nom,
+            'de' => $passage['de'], 'vers' => $passage['vers'], 'deplacement_restant' => $restantApres];
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;

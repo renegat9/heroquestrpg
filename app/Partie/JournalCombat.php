@@ -202,6 +202,8 @@ final class JournalCombat
         'bataille_diriger' => true,
         'bataille_coup' => true,
         'bataille_finie' => true,
+        // Lot E2 : le passage secret d'un pas (First Light q. 8 D).
+        'passage_d_un_pas' => true,
         // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
         'soin_planque' => true,
         'repartir_planque' => true,
@@ -1569,6 +1571,7 @@ final class JournalCombat
                     .implode(' et ', array_map('intval', (array) ($a['des'] ?? []))).' — à lui de choisir',
                 'ton' => 'info',
             ]],
+            'passage_d_un_pas' => [$this->info(($a['nom'] ?? $acteurNom).' se glisse par le passage secret')],
             'bataille_diriger' => [$this->info(($a['nom'] ?? $acteurNom).' prend la tête de '.($a['monstre'] ?? 'un guerrier'))],
             'bataille_coup' => $this->ligneBataille($a),
             'bataille_finie' => [['texte' => ($a['vainqueur'] ?? null) === 'heros'

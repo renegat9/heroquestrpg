@@ -3732,6 +3732,20 @@ final class MenuMoteur
             }
         }
 
+        // LES PASSAGES D'UN PAS (mode classique, lot E2 — First Light q. 8 D) : sur un bout, un pas de déplacement pour paraître sur
+        // l'autre (`Classique\PassagesDUnPas::offerts()`, que le résolveur relit).
+        if ($etat !== null && $quete->estConstruite() && ! $this->sorts->deplacementInterdit($personnage)
+            && $this->pointsRestants($personnage, $etat) >= 1) {
+            foreach (app(\App\Partie\Classique\PassagesDUnPas::class)->offerts($quete, $etat) as $passage) {
+                $options[] = [
+                    'id' => "passage_{$passage['k']}",
+                    'libelle' => "Passer par le passage secret ({$passage['vers']['x']}, {$passage['vers']['y']})",
+                    'type' => 'passage_d_un_pas',
+                    'parametres' => ['passage' => $passage['k']],
+                ];
+            }
+        }
+
         // LES MARQUEURS FOUILLABLES (mode classique, lot E2 — First Light q. 1, les éclaireurs tombés) : une ACTION, au contact
         // (`Classique\MarqueursFouillables::aPortee()`, que le résolveur relit).
         if (! $aJoue && $etat !== null && $quete->estConstruite()) {

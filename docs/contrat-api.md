@@ -7446,6 +7446,20 @@ deux) — un sort tiré à la pose, gardé dans l'habillage, joint à `sorts_dre
 - E : « This secret door cannot be discovered from the corridor » : `portes[].introuvable_du_couloir: true` (porte secrète) —
   la fouille d'un couloir (`ZoneFouille::estCouloir()`) et la vue depuis un couloir ne la trouvent pas.
 
+*First Light* q. 7 (FL-Q p. 25) : « The Ring of Return's listed mechanic may not be used » : **`regles.objets_inertes: [slug]`** —
+ces objets ne s'activent pas de toute la quête (`MoteurCharges::utilisable()`, le même garde que `objet.inerte_en_quete`).
+
+*First Light* q. 8 (FL-Q p. 27) :
+- « Zargon, at the beginning of your turn: Place one Dread Warrior on the stairway (if revealed) unless one is already placed » :
+  une note `tour_du_mj` à `une_fois: false`, et deux options de l'effet `apparition` — **`si_decouverte`** (la case de pose en
+  zone découverte : salle découverte, case de couloir vue) et **`une_a_la_fois`** (rien tant que la figure née de cette pose est
+  debout ; suivi `quetes.drapeaux._apparitions`).
+- D : « Heroes may move from a shaded square in one room to the opposite shaded square in the other. This uses one square of
+  their movement roll. There is no line of sight from one room to the next » : **`regles.passages: [{a: {x, y}, b: {x, y},
+  si_drapeau?}]`** (`Classique\PassagesDUnPas`) — le héros debout sur un bout, avec un pas de déplacement, a l'option
+  `passage_{k}` (type `passage_d_un_pas`, créneau mouvement) : il paraît sur l'autre bout s'il est libre, un pas compté, la
+  salle d'arrivée révélée ; le mur reste un mur. Annonce `passage_d_un_pas {nom, de, vers, deplacement_restant}`.
+
 *First Light* q. 3 (FL-Q p. 15) :
 - « Heroes may not end their movement on the eye tile » : **`regles.cases_sans_arret: [{x, y}]`** — jointes, dans
   `FabriqueGrille::pour()`, au jeu des cases interdites à l'arrêt (mare, brasier) : on les traverse, on ne s'y arrête pas.
