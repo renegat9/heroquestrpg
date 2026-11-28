@@ -26,7 +26,11 @@ use Illuminate\Validation\ValidationException;
  * déplacement est fini. Le jet attend en base (`quetes.drapeaux._labyrinthe`) ; le menu lui offre un choix par dé
  * (`sortir_labyrinthe_{de}`, gratuit), que le résolveur revalide (`sortir()`) : il ressort au plus près du tunnel de ce
  * numéro — ou de la sortie, s'il a tiré le numéro de son entrée. Un numéro sans tunnel le ramène à son entrée.
- * Écart écrit : les monstres n'empruntent pas le labyrinthe.
+ *
+ * LES MONSTRES (« Monsters who travel the Labyrinth may emerge into any discovered area without rolling ») : au tour du MJ,
+ * un monstre qui n'atteindrait aucun héros par le chemin normal ce tour-ci mais peut gagner un tunnel s'y engouffre et
+ * ressort, sans dé, au contact du héros le plus proche qui se tient dans une zone découverte (salle découverte, case de
+ * couloir vue) — Zargon jouant pour gagner ({@see voyageDuMonstre()}). Il attaque ensuite comme d'ordinaire.
  */
 final class Labyrinthe
 {
@@ -119,6 +123,67 @@ final class Labyrinthe
         }
 
         return $choix;
+    }
+
+    /**
+     * Le monstre voyage-t-il par le labyrinthe ce tour-ci ? S'il le fait, il est posé à sa sortie et l'annonce est rendue.
+     *
+     * @param  array{0: mixed, 1: list<array{x: int, y: int}>}|null  $meilleure  la cible et le chemin normaux (`cibleLaPlusProche()`)
+     * @return array<string, mixed>|null l'annonce `labyrinthe_monstre`
+     */
+    public function voyageDuMonstre(Groupe $groupe, Quete $quete, \App\Models\InstanceMonstre $instance, \App\Partie\Grille $grille, ?array $meilleure): ?array
+    {
+        $tunnels = self::tunnels($quete);
+        $portee = $instance->deplacementEffectif();
+        if ($tunnels === [] || $portee <= 0 || $instance->position_x === null
+            || ($meilleure !== null && count($meilleure[1]) <= $portee)) {
+            return null;
+        }
+        $mx = (int) $instance->position_x;
+        $my = (int) $instance->position_y;
+        $entree = null;
+        foreach ($tunnels as $t) {
+            $chemin = ($t['x'] === $mx && $t['y'] === $my) ? [] : $grille->chemin($mx, $my, $t['x'], $t['y']);
+            if ($chemin !== null && count($chemin) <= $portee && ($entree === null || count($chemin) < $entree[1])) {
+                $entree = [$t, count($chemin)];
+            }
+        }
+        if ($entree === null) {
+            return null;
+        }
+
+        // « any discovered area » : au contact du héros le plus proche qui se tient dans une zone découverte.
+        $salles = (array) ($quete->carte?->grille['salles'] ?? []);
+        $decouvertes = $quete->sallesDecouvertes();
+        $vus = app(CouloirsVus::class)->vus($quete) ?? [];
+        $sortie = null;
+        foreach ($quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->get() as $heros) {
+            $hx = (int) $heros->position_x;
+            $hy = (int) $heros->position_y;
+            $salle = \App\Partie\Salles::indexDe($salles, $hx, $hy);
+            if (! ($salle !== null ? in_array($salle, $decouvertes, true) : isset($vus["{$hx},{$hy}"]))) {
+                continue;
+            }
+            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                $cx = $hx + $dx;
+                $cy = $hy + $dy;
+                $distance = abs($cx - (int) $entree[0]['x']) + abs($cy - (int) $entree[0]['y']);
+                if ($grille->estTraversable($cx, $cy) && \App\Partie\Grille::sontAdjacentes($hx, $hy, $cx, $cy, carte: $quete->carte)
+                    && ($sortie === null || $distance < $sortie[2])) {
+                    $sortie = [$cx, $cy, $distance];
+                }
+            }
+        }
+        if ($sortie === null) {
+            return null;
+        }
+        $instance->update(['position_x' => $sortie[0], 'position_y' => $sortie[1]]);
+
+        $payload = ['type' => 'labyrinthe_monstre', 'monstre' => $instance->nomAffiche(), 'instance_id' => (int) $instance->id,
+            'depuis' => (int) $entree[0]['numero'], 'x' => $sortie[0], 'y' => $sortie[1]];
+        app(TamponAnnonces::class)->annoncer($groupe, $payload, ['type' => 'monstre', 'id' => $instance->id, 'nom' => $instance->nomAffiche()]);
+
+        return $payload;
     }
 
     /** @return array<string, mixed> le résultat moteur `labyrinthe_sortie` */

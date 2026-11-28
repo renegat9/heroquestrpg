@@ -192,6 +192,7 @@ final class JournalCombat
         // Lot E2 : le labyrinthe (G1504 q. 7) — les deux dés, puis la sortie choisie.
         'labyrinthe_jet' => true,
         'labyrinthe_sortie' => true,
+        'labyrinthe_monstre' => true,
         // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
         'soin_planque' => true,
         'repartir_planque' => true,
@@ -1558,6 +1559,10 @@ final class JournalCombat
                 'texte' => ($a['nom'] ?? $acteurNom).' s\'enfonce dans le tunnel '.(int) ($a['depuis'] ?? 0).' et lance deux dés : '
                     .implode(' et ', array_map('intval', (array) ($a['des'] ?? []))).' — à lui de choisir',
                 'ton' => 'info',
+            ]],
+            'labyrinthe_monstre' => [[
+                'texte' => ($a['monstre'] ?? 'Un monstre').' s\'engouffre dans le tunnel '.(int) ($a['depuis'] ?? 0).' et surgit du labyrinthe !',
+                'ton' => 'subit',
             ]],
             'labyrinthe_sortie' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' garde le '.(int) ($a['de'] ?? 0).' et ressort '

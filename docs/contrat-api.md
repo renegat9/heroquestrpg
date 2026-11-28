@@ -7331,8 +7331,11 @@ comme le livret — avant chaque quête, un animal gratuit par héros, pour cett
   dé n'est pas choisi, le menu est FORCÉ : `sortir_labyrinthe_{de}` (gratuit), un par valeur, libellé « Garder le 3 — vers le
   tunnel 3 ». Il ressort au plus près du tunnel de ce numéro, de la sortie s'il a tiré son entrée, de son entrée si aucun
   tunnel ne porte ce numéro ; la salle se révèle. Annonces `labyrinthe_jet {nom, depuis, des}` et `labyrinthe_sortie {nom, de,
-  vers, x, y}`. `carte.tunnels: [{numero, x, y}]` (hors du brouillard) : la table dessine le numéro. Écart écrit : les
-  monstres n'empruntent pas le labyrinthe.
+  vers, x, y}`. `carte.tunnels: [{numero, x, y}]` (hors du brouillard) : la table dessine le numéro. Les MONSTRES (« may
+  emerge into any discovered area without rolling ») : au tour du MJ, un monstre qui n'atteindrait aucun héros par le chemin
+  normal mais peut gagner un tunnel s'y engouffre et ressort, sans dé, au contact du héros le plus proche qui se tient dans une
+  zone découverte (`Labyrinthe::voyageDuMonstre()`), puis attaque comme d'ordinaire. Annonce `labyrinthe_monstre {monstre,
+  instance_id, depuis, x, y}` : « Orque s'engouffre dans le tunnel 1 et surgit du labyrinthe ! ».
 - p. 4, *Ambush* : « Dreadshifters in this expansion pack appear to be either a chest or a door. » **`monstres[].deguise:
   "coffre" | {porte: n|s|e|o}`** — un monstre posé qui a `embuscade` (`valeur_invalide` sinon, et sur une apparition). Le
   coffre : un faux meuble sur sa case (`MoteurEmbuscade::deguiser()`) ; la porte : une porte FERMÉE publiée sur ce bord de sa

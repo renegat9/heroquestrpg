@@ -2205,3 +2205,26 @@ it('deux cartes au choix : « may take two treasure cards and choose one to keep
     expect((int) $partie['heros']->fresh()->or)->toBe(120)
         ->and(end($deck))->toBe(['issue' => 'tresor', 'or' => 50]);
 });
+
+it('labyrinthe, les monstres : hors de portée, il gagne un tunnel et surgit au contact d\'un héros d\'une zone découverte', function () {
+    $campagne = campagneE2([
+        'regles' => ['labyrinthe' => ['tunnels' => [['numero' => 1, 'x' => 3, 'y' => 4], ['numero' => 2, 'x' => 10, 'y' => 5]], 'sortie' => ['x' => 10, 'y' => 4]]],
+        'monstres' => [['slug' => 'orque', 'x' => 3, 'y' => 3]],
+    ]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $quete->etatsPersonnages()->update(['position_x' => 9, 'position_y' => 3]);
+    $quete->marquerSalleDecouverte(1);
+    $orque = $quete->instancesMonstres()->with('monstre')->firstOrFail();
+    $grille = \App\Partie\FabriqueGrille::pour($quete->fresh(), exceptInstanceId: (int) $orque->id);
+    $labyrinthe = app(\App\Partie\Classique\Labyrinthe::class);
+
+    // À portée par le chemin normal (un chemin court) : il marche, il ne voyage pas.
+    expect($labyrinthe->voyageDuMonstre($partie['groupe'], $quete->fresh(), $orque, $grille, [null, [['x' => 4, 'y' => 3]]]))->toBeNull();
+
+    $voyage = $labyrinthe->voyageDuMonstre($partie['groupe'], $quete->fresh(), $orque, $grille, null);
+    $orque->refresh();
+    expect($voyage['depuis'])->toBe(1)
+        ->and(\App\Partie\Grille::sontAdjacentes((int) $orque->position_x, (int) $orque->position_y, 9, 3))->toBeTrue();
+});

@@ -15918,6 +15918,16 @@ final class ResolveurTour
         // C'est le comportement d'avant pour tout groupe sans allié.
         $meilleure = $this->cibleLaPlusProche($quete, $instance, $cibles, $grille, $diagonalesMonstre);
 
+        // LE LABYRINTHE (mode classique, lot E2 — Morcar q. 7 : « Monsters who travel the Labyrinth may emerge into any
+        // discovered area without rolling ») : hors de portée par le chemin normal, il emprunte un tunnel et ressort au
+        // contact d'un héros ; la cible se relit de là.
+        if ($quete->estConstruite()
+            && app(\App\Partie\Classique\Labyrinthe::class)->voyageDuMonstre($groupe, $quete, $instance, $grille, $meilleure) !== null) {
+            $instance->refresh();
+            $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
+            $meilleure = $this->cibleLaPlusProche($quete, $instance, $cibles, $grille, $diagonalesMonstre);
+        }
+
         if ($meilleure === null) {
             // Spawn : ceinturé de personne, il pond. « En alternative à chaque
             // tour » — c'est l'action de ce tour, il n'attaquera pas.
