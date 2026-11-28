@@ -1407,6 +1407,25 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     </span>
                                     <button type="button" class="cst-icone" title="Ajouter un rectangle de galerie" @click="quete.regles.salle_en_contrebas.galerie.push({ x: 0, y: 0, l: 1, h: 1 })"><MSym n="add" :size="16" /></button>
                                 </template>
+                                <!-- Lot E2 : le pont de corde (Jungles of Delthrak q. 15 C) — des rectangles de cases. -->
+                                <label class="cst-case" title="La première case de pont qu'un héros foule dans son tour lui fait lancer un dé rouge : sur 1 ou 2, il s'agrippe — son tour s'arrête et il ne se défend plus jusqu'à son prochain tour. L'Élixir de pas d'araignée l'en dispense ; les monstres passent.">
+                                    <input type="checkbox" :checked="!!quete.regles?.pont_de_corde"
+                                        @change="poserRegle('pont_de_corde', $event.target.checked ? [{ x: 0, y: 0, l: 1, h: 1 }] : undefined)" />
+                                    Pont de corde
+                                </label>
+                                <template v-if="quete.regles?.pont_de_corde">
+                                    <span class="cst-sous">pont (rectangles x, y, largeur, hauteur) :</span>
+                                    <span v-for="(r, k) in quete.regles.pont_de_corde" :key="`pont${k}`" class="cst-ligne">
+                                        <input v-model.number="r.x" type="number" min="0" class="cst-input cst-num" title="x" />
+                                        <input v-model.number="r.y" type="number" min="0" class="cst-input cst-num" title="y" />
+                                        <input v-model.number="r.l" type="number" min="1" class="cst-input cst-num" title="largeur" />
+                                        <input v-model.number="r.h" type="number" min="1" class="cst-input cst-num" title="hauteur" />
+                                        <button type="button" class="cst-icone" title="Choisir le coin sur la carte" @click="pointer(r, `le coin du rectangle de pont n° ${k + 1}`)"><MSym n="pin_drop" :size="16" /></button>
+                                        <button type="button" class="cst-icone" title="Retirer le rectangle"
+                                            @click="quete.regles.pont_de_corde.splice(k, 1); if (!quete.regles.pont_de_corde.length) poserRegle('pont_de_corde', undefined)"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter un rectangle de pont" @click="quete.regles.pont_de_corde.push({ x: 0, y: 0, l: 1, h: 1 })"><MSym n="add" :size="16" /></button>
+                                </template>
                                 <!-- Lot E2 : le marché souterrain ouvert en pleine quête (Rise of the Dread Moon p. 2, q. 2 G). -->
                                 <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Dans cette salle, chaque héros achète et vend pour lui, au prix de l'étal, sans action.">
                                     Marché en quête :

@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -2499,6 +2499,28 @@ final class ValidationCampagne
                 }
                 if ($galerie === []) {
                     $this->refuser("$ici.galerie", self::VALEUR_INVALIDE, 'au moins un rectangle de galerie');
+                }
+            }
+        }
+        // Lot E2 : le pont de corde (F9907 q. 15 C) — des rectangles de cases, dans le plateau.
+        if (array_key_exists('pont_de_corde', $regles)) {
+            $ici = self::chemin($position, 'pont_de_corde');
+            $ponts = $this->enListe($regles['pont_de_corde'], $ici);
+            if ($ponts === []) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'au moins un rectangle de cases');
+            }
+            foreach ((array) $ponts as $k => $r) {
+                if (($rect = $this->enObjet($r, "$ici.$k")) === null) {
+                    continue;
+                }
+                $this->cles($rect, "$ici.$k", ['x', 'y', 'l', 'h']);
+                $x = $this->entier($rect, 'x', "$ici.$k", min: 0);
+                $y = $this->entier($rect, 'y', "$ici.$k", min: 0);
+                $l = $this->entier($rect, 'l', "$ici.$k", min: 1);
+                $h = $this->entier($rect, 'h', "$ici.$k", min: 1);
+                if ($x !== null && $y !== null && $l !== null && $h !== null
+                    && (! $this->dansPlateau($x, $y) || ! $this->dansPlateau($x + $l - 1, $y + $h - 1))) {
+                    $this->refuser("$ici.$k", self::HORS_PLATEAU, 'le pont sort du plateau');
                 }
             }
         }

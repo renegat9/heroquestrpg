@@ -308,6 +308,7 @@ function fixturesDesTypesAnnonces(): array
         'porte_teleporte' => ['personnage_id' => 1, 'nom' => 'Grom', 'total' => 7, 'des' => [3, 4], 'arrivee' => ['x' => 3, 'y' => 2]],
         'recompense_perdue' => ['quete_id' => 1, 'raison' => 'captif'],
         'crevasse' => ['nom' => 'Albrecht', 'faces' => ['bouclier_noir', 'bouclier_blanc'], 'issue' => 'ramene'],
+        'pont_de_corde' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'de' => 2, 'glisse' => true, 'x' => 9, 'y' => 3],
         'retrait_au_contact' => ['nom' => 'Albrecht', 'figure' => 'Guerrier elfe'],
         'acheter_etal' => ['personnage' => ['id' => 1, 'nom' => 'Albrecht'], 'nom' => 'Dague', 'prix' => 25],
         'vendre_etal' => ['personnage' => ['id' => 1, 'nom' => 'Albrecht'], 'nom' => 'Dague', 'prix' => 12],

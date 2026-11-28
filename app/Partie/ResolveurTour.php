@@ -861,8 +861,8 @@ final class ResolveurTour
             // avant que les deux créneaux ne soient consommés.
             $finDeTour = ($this->evenementGlace['fin_tour'] ?? false) || $this->finTourPiegeSol || $this->finTourSables
                 || $this->finTourPorteForcee
-                // SPAWNLING (lot E2, Delthrak) : des jetons posés sur sa fiche — « The hero's turn immediately ends ».
-                || \App\Partie\Classique\Rejetons::finDeTourDemandee($etat->fresh());
+                // LOT E2 : une règle de livret jouée PENDANT l'action (Spawnling, pont de corde) — « their turn immediately ends ».
+                || \App\Partie\Classique\FinDeTourForcee::demandee($etat->fresh());
 
             // MANŒUVRE (lettre du livret, 2026-11-12) : pendant une manœuvre, ce qui finirait le tour (glace, piège de sol,
             // sables, porte forcée) ne finit que la MANŒUVRE — l'activation n'est pas jouée. Une règle qui force le héros
@@ -1398,6 +1398,14 @@ final class ResolveurTour
             $quete, $this->tronquerSurGlace($quete, $this->tronquerSurRacines($quete, $chemin, $personnage), $personnage), $personnage,
         );
 
+        // PONT DE CORDE (mode classique, lot E2 — F9907 q. 15 C) : la première case de pont du trajet lance le dé rouge, une
+        // fois par tour ; 1-2, le héros s'y agrippe — le trajet s'arrête là. Rien n'est écrit avant le contrôle des pièges
+        // (même statut que la glace ci-dessus) : le jet ne compte que si le héros ATTEINT la case de pont.
+        $pont = app(\App\Partie\Classique\PontDeCorde::class)->jet($quete, $personnage, $etat, $tronque);
+        if ($pont !== null && $pont['glisse']) {
+            $tronque = array_slice($tronque, 0, $pont['index'] + 1);
+        }
+
         if (count($tronque) < count($chemin)) {
             $chemin = $tronque;
             $derniere = end($chemin);
@@ -1439,6 +1447,14 @@ final class ResolveurTour
         if ($this->evenementGlace !== null
             && ((int) $arrivee['x'] !== $this->evenementGlace['x'] || (int) $arrivee['y'] !== $this->evenementGlace['y'])) {
             $this->evenementGlace = null;
+        }
+
+        // PONT DE CORDE : le jet ne compte que si le héros a atteint sa case — elle est sur le trajet, au plus loin à l'arrivée.
+        if ($pont !== null) {
+            $rangArrivee = collect($chemin)->search(fn ($c) => (int) $c['x'] === (int) $arrivee['x'] && (int) $c['y'] === (int) $arrivee['y']);
+            if ($rangArrivee !== false && $pont['index'] <= $rangArrivee) {
+                app(\App\Partie\Classique\PontDeCorde::class)->appliquer($groupe, $personnage, $etat, $pont);
+            }
         }
 
         // TUNNEL DE GLACE (doc 18 §4) : résolu sur la case d'ARRIVÉE déjà
@@ -13456,6 +13472,7 @@ final class ResolveurTour
                     && $crevasse['arret']) {
                     break;
                 }
+
 
                 // Lot E1 : la salle QUITTÉE (« each time a room is exited »), et TOUS les héros debout entrés.
                 $salleQuittee = $this->salleA($quete, $precedente['x'], $precedente['y']);

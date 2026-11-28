@@ -181,6 +181,8 @@ final class JournalCombat
         'recompense_perdue' => true,
         // Lot E2 : le rebord de crevasse (F5815 q. 4 E).
         'crevasse' => true,
+        // Lot E2 : le pont de corde (F9907 q. 15 C) — le dé rouge, glissé ou non.
+        'pont_de_corde' => true,
         // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
         'soin_planque' => true,
         'repartir_planque' => true,
@@ -1533,6 +1535,12 @@ final class JournalCombat
             'repartir_planque' => [[
                 'texte' => ($a['personnage']['nom'] ?? $acteurNom).' répartit son soin : +'.(int) ($a['corps'] ?? 0).' Corps, +'.(int) ($a['esprit'] ?? 0).' Esprit',
                 'ton' => 'succes',
+            ]],
+            'pont_de_corde' => [[
+                'texte' => ! empty($a['glisse'])
+                    ? ($a['nom'] ?? $acteurNom).' perd pied sur le pont de corde (dé : '.(int) ($a['de'] ?? 0).') et s\'y agrippe : tour terminé, sans défense jusqu\'à son prochain tour'
+                    : ($a['nom'] ?? $acteurNom).' passe le pont de corde d\'un pas sûr (dé : '.(int) ($a['de'] ?? 0).')',
+                'ton' => ! empty($a['glisse']) ? 'subit' : 'info',
             ]],
             'crevasse' => [[
                 'texte' => match ($a['issue'] ?? 'sauf') {

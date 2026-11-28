@@ -887,6 +887,12 @@ final class MoteurSorts
      */
     public function defenseNulle(Personnage $personnage): bool
     {
+        // PONT DE CORDE (mode classique, lot E2 — F9907 q. 15 C) : glissé, « they cannot […] defend against attacks until the
+        // start of their next turn » — un marqueur de son tour, posé seulement par une quête construite.
+        if (\App\Partie\Classique\PontDeCorde::agrippe($personnage)) {
+            return true;
+        }
+
         return $personnage->conditions()
             ->get()
             ->contains(fn (Condition $c) => (bool) ($c->effet['defense_nulle'] ?? false));

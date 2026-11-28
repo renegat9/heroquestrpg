@@ -1640,7 +1640,7 @@ it('Spawnling errant : la carte pose un jeton sur la fiche du fouilleur, aucune 
         ->and((int) $etat->jetons_rejeton)->toBe(1)
         // « The hero's turn immediately ends » — et la fin de tour ronge déjà : 1 PV par jeton (p. 48).
         // Seul héros : le round s'est refermé et a tout remis à zéro — le PV rongé dit que la fin de tour s'est jouée.
-        ->and(\App\Partie\Classique\Rejetons::finDeTourDemandee($etat))->toBeFalse()
+        ->and(\App\Partie\Classique\FinDeTourForcee::demandee($etat))->toBeFalse()
         ->and((int) $partie['heros']->fresh()->pv_body)->toBe(29)
         ->and(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'))->pluck('texte')->first())
             ->toStartWith('Un rejeton s\'accroche à Albrecht : son tour s\'arrête');
@@ -1726,4 +1726,61 @@ it('apparition près du héros : « place a Blightcrawler next to that hero. It 
 
     expect(max(abs((int) $orque->position_x - 9), abs((int) $orque->position_y - 3)))->toBe(1)
         ->and(collect($resultat['annonces_automatiques'] ?? [])->pluck('type')->all())->toContain('attaque_monstre');
+});
+
+// ---------------------------------------------------------------- Jungles of Delthrak : le pont de corde (q. 15 C)
+
+it('pont de corde : un dé rouge à la première case de pont ; 1-2 il s\'agrippe — marche arrêtée, tour fini ; 3-6 il passe', function (int $de, array $case, bool $glisse) {
+    $campagne = campagneE2(['regles' => ['pont_de_corde' => [['x' => 8, 'y' => 2, 'l' => 1, 'h' => 3]]], 'portes' => [
+        ['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale', 'ouverte' => true],
+        ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale'], ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'secrete']]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['pont_de_corde' => [['x' => 30, 'y' => 2, 'l' => 1, 'h' => 3]]]])))->toBe([ValidationCampagne::HORS_PLATEAU])
+        ->and(codesE2(campagneE2(['regles' => ['pont_de_corde' => []]])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 5, 'position_y' => 3]);
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    // Un dé part avant la marche (dans la même requête), puis celui du pont.
+    app()->instance(LanceurDes::class, new LanceurDeterministe([4, $de, ...array_fill(0, 30, 3)]));
+    $resultat = $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'se_deplacer', 'parametres' => ['x' => 9, 'y' => 3]])
+        ->assertAccepted()->json('resultat');
+
+    $etat = $partie['quete']->etatsPersonnages()->first();
+    $annonce = collect($resultat['annonces_automatiques'] ?? [])->firstWhere('type', 'pont_de_corde');
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe($case)
+        ->and($annonce['glisse'])->toBe($glisse)->and($annonce['de'])->toBe($de);
+})->with([
+    'glisse (1)' => [1, [8, 3], true],
+    'passe (3)' => [3, [9, 3], false],
+]);
+
+it('pont de corde : glissé, il ne se défend plus jusqu\'à son prochain tour ; un seul jet par tour ; l\'Élixir de pas d\'araignée l\'en dispense', function () {
+    $partie = partieE2($this, campagneE2(['regles' => ['pont_de_corde' => [['x' => 8, 'y' => 2, 'l' => 1, 'h' => 3]]]]));
+    app()->instance(LanceurDes::class, new LanceurDeterministe([2, 6, ...array_fill(0, 30, 6)]));
+    $pont = app(\App\Partie\Classique\PontDeCorde::class);
+    $etat = $partie['quete']->etatsPersonnages()->first();
+    $etat->update(['position_x' => 8, 'position_y' => 2, 'capacites_tour' => null]);
+    $sorts = app(\App\Partie\MoteurSorts::class);
+    $defense = $sorts->desDefenseHeros($partie['heros']->fresh());
+
+    $premier = $pont->jet($partie['quete']->fresh(), $partie['heros'], $etat, [['x' => 7, 'y' => 2], ['x' => 8, 'y' => 2], ['x' => 8, 'y' => 3]]);
+    expect($premier)->toMatchArray(['index' => 1, 'de' => 2, 'glisse' => true])
+        ->and($sorts->desDefenseHeros($partie['heros']->fresh()))->toBe($defense); // rien d'écrit avant d'appliquer
+    $pont->appliquer($partie['groupe'], $partie['heros'], $etat, $premier);
+    $second = $pont->jet($partie['quete']->fresh(), $partie['heros'], $etat->fresh(), [['x' => 8, 'y' => 3]]);
+    expect($defense)->toBeGreaterThan(0)
+        ->and($second)->toBeNull()
+        ->and($sorts->desDefenseHeros($partie['heros']->fresh()))->toBe(0)
+        ->and(\App\Partie\Classique\FinDeTourForcee::demandee($etat->fresh()))->toBeTrue();
+
+    // Le round suivant efface son tour : il se défend de nouveau.
+    $etat->update(['capacites_tour' => null]);
+    expect($sorts->desDefenseHeros($partie['heros']->fresh()))->toBe($defense);
+
+    // Sous l'Élixir de pas d'araignée, aucun jet.
+    $this->seed(\Database\Seeders\ConditionSeeder::class);
+    $elixir = \App\Models\Objet::where('nom', 'Élixir de pas d\'araignée')->firstOrFail();
+    $sorts->appliquerBuffPotion($partie['heros']->fresh(), $elixir);
+    expect($pont->jet($partie['quete']->fresh(), $partie['heros']->fresh(), $etat->fresh(), [['x' => 8, 'y' => 4]]))->toBeNull();
 });

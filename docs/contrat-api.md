@@ -7185,8 +7185,9 @@ Spawnling tile on the triggering hero's card. The hero's turn immediately ends. 
   s'accroche à Albrecht : son tour s'arrête (1 jeton(s) sur sa fiche, 1 PV chacun à chaque fin de tour) ».
 - **L'effet de note `rejetons {nombre?}`** (1 à 6, 1 par défaut) : la même pose sur le héros qui déclenche. Résultat de
   l'effet `{nombre, jetons, personnage_id, nom}`, même ligne au fil.
-- « The hero's turn immediately ends » : un marqueur de `capacites_tour` (`rejetons_fin_de_tour`) que la résolution lit avec
-  les autres fins de tour forcées — le créneau devient `tour`, toute la fin de tour se joue (les jetons rongent déjà).
+- « The hero's turn immediately ends » : `Classique\FinDeTourForcee`, un marqueur de `capacites_tour` (`fin_de_tour_forcee`)
+  que la résolution lit avec les autres fins de tour forcées — le créneau devient `tour`, toute la fin de tour se joue (les
+  jetons rongent déjà).
 - La fin de tour relit le compte de jetons EN BASE (une note les pose pendant la résolution, par sa propre copie de l'état).
 
 ### Les cocons — `meuble_detruit` par salle, effet `en_ordre`, apparition `pres_du_heros` (lot E2, 2026-11-27)
@@ -7204,6 +7205,22 @@ cocoons, place a Blightcrawler next to that hero. It immediately attacks. »
 - Effet **`apparition`**, booléen facultatif **`pres_du_heros`** : chaque figure paraît au plus près du héros qui déclenche
   (la case `x, y` de la pose sert sans héros), et frappe aussitôt si elle le touche (`ResolveurTour::frappeDuSurgissement()`,
   annoncée comme `attaque_monstre`).
+
+### Le pont de corde — `regles.pont_de_corde` (lot E2, 2026-11-27)
+
+*Jungles of Delthrak* q. 15 C : « If a hero moves onto a square of the rope bridge during their turn, they must roll one red
+die. They make this roll once per turn. […] 1-2: The hero loses their footing and slips! Their turn immediately ends as they
+cling for dear life. They cannot take any actions or defend against attacks until the start of their next turn. 3-6: The
+hero steps nimbly and may continue their movement. Monsters and heroes under the effects of a Spiderstep Potion are not
+affected by the rope bridge. » `Classique\PontDeCorde` :
+- `regles.pont_de_corde: [{x, y, l, h}]` (au moins un rectangle, dans le plateau).
+- La marche du héros (`resoudreDeplacement()`, avec la glace qui tronque le trajet) : la PREMIÈRE case de pont du trajet
+  lance le dé, une fois par tour (marqueur `capacites_tour`), jamais sous le buff de l'Élixir de pas d'araignée ; le jet ne
+  compte que si le héros atteint la case (un piège peut l'arrêter avant). Sur 1-2, le trajet s'arrête sur cette case, son
+  tour s'arrête (`FinDeTourForcee`) et il ne se défend plus (`MoteurSorts::defenseNulle()`, 0 dé) jusqu'au début de son
+  prochain tour (le marqueur meurt avec `capacites_tour`, à l'ouverture du round). Les monstres ne sont jamais concernés.
+- Annonce `pont_de_corde {personnage_id, nom, de, glisse, x, y}` : « Albrecht perd pied sur le pont de corde (dé : 2) et s'y
+  agrippe : tour terminé, sans défense jusqu'à son prochain tour » / « … passe le pont de corde d'un pas sûr (dé : 5) ».
 
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
