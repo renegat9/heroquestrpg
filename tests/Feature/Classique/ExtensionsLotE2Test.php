@@ -2035,3 +2035,39 @@ it('coffres renforcés : loin du coffre, la carte du paquet et la note attend ; 
         ->and((int) $partie['heros']->fresh()->or)->not->toBe(400)
         ->and((array) $quete->fresh()->notes_jouees)->toBe([]);
 });
+
+it('labyrinthe : le trajet s\'arrête au tunnel, deux dés, un menu forcé ; le dé de l\'entrée mène à la sortie, un autre au tunnel de ce numéro', function () {
+    $campagne = campagneE2([
+        'regles' => ['labyrinthe' => ['tunnels' => [['numero' => 1, 'x' => 8, 'y' => 3], ['numero' => 2, 'x' => 3, 'y' => 4]], 'sortie' => ['x' => 10, 'y' => 5]]],
+        'portes' => [['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale', 'ouverte' => true],
+            ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale'], ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'secrete']],
+    ]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['labyrinthe' => ['tunnels' => [['numero' => 7, 'x' => 8, 'y' => 3]], 'sortie' => ['x' => 10, 'y' => 5]]]])))
+            ->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $quete->etatsPersonnages()->update(['position_x' => 5, 'position_y' => 3]);
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 30, 1))); // deux 1 : le numéro de l'entrée
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'se_deplacer', 'parametres' => ['x' => 10, 'y' => 3]])->assertAccepted();
+
+    $etat = $quete->etatsPersonnages()->first();
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([8, 3])->and((int) $etat->deplacement_restant)->toBe(0);
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $options = collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id')->all();
+    expect($options)->toBe(['sortir_labyrinthe_1']);
+
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'sortir_labyrinthe_1'])->assertAccepted();
+    expect([(int) $etat->fresh()->position_x, (int) $etat->fresh()->position_y])->toBe([10, 5])
+        ->and(\App\Partie\Classique\Labyrinthe::enAttente($quete->fresh(), $partie['heros']))->toBeNull();
+
+    // Un autre numéro : au plus près du tunnel de ce numéro.
+    app()->instance(LanceurDes::class, new LanceurDeterministe([2, 5, ...array_fill(0, 30, 1)]));
+    $labyrinthe = app(\App\Partie\Classique\Labyrinthe::class);
+    $labyrinthe->entrer($partie['groupe'], $quete->fresh(), $partie['heros'], ['x' => 8, 'y' => 3]);
+    expect(collect($labyrinthe->choix($quete->fresh(), $partie['heros']))->pluck('de')->all())->toBe([2, 5]);
+    $sortie = $labyrinthe->sortir($partie['groupe'], $quete->fresh(), $partie['heros'], $etat->fresh(), 2);
+    expect([$sortie['x'], $sortie['y']])->toBe([3, 4]);
+});

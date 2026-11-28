@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -2555,6 +2555,36 @@ final class ValidationCampagne
                 $this->slugCatalogue($releve, 'en', "$ici.$k", 'monstres');
                 if (array_key_exists('sauf_drapeau', $releve)) {
                     $this->nomDeDrapeau($releve, 'sauf_drapeau', "$ici.$k");
+                }
+            }
+        }
+        // Lot E2 : le labyrinthe (G1504 q. 7) — des tunnels numérotés 1 à 6, chacun une fois, et la case de sortie (salle E).
+        if (array_key_exists('labyrinthe', $regles)) {
+            $ici = self::chemin($position, 'labyrinthe');
+            if (($labyrinthe = $this->enObjet($regles['labyrinthe'], $ici)) !== null) {
+                $this->cles($labyrinthe, $ici, ['tunnels', 'sortie']);
+                $vus = [];
+                $tunnels = array_key_exists('tunnels', $labyrinthe) ? $this->enListe($labyrinthe['tunnels'], "$ici.tunnels") : null;
+                if ($tunnels === []) {
+                    $this->refuser("$ici.tunnels", self::VALEUR_INVALIDE, 'au moins deux tunnels');
+                }
+                foreach ((array) $tunnels as $k => $t) {
+                    if (($tunnel = $this->enObjet($t, "$ici.tunnels.$k")) === null) {
+                        continue;
+                    }
+                    $this->cles($tunnel, "$ici.tunnels.$k", ['numero', 'x', 'y']);
+                    $numero = $this->entier($tunnel, 'numero', "$ici.tunnels.$k", min: 1);
+                    if ($numero !== null && $numero > 6) {
+                        $this->refuser("$ici.tunnels.$k.numero", self::VALEUR_INVALIDE, 'un numéro de 1 à 6 (un dé rouge)');
+                    } elseif ($numero !== null && isset($vus[$numero])) {
+                        $this->refuser("$ici.tunnels.$k.numero", self::VALEUR_INVALIDE, "le tunnel $numero est déjà posé");
+                    }
+                    $vus[(int) $numero] = true;
+                    $this->cellule($tunnel, "$ici.tunnels.$k");
+                }
+                if (($sortie = array_key_exists('sortie', $labyrinthe) ? $this->enObjet($labyrinthe['sortie'], "$ici.sortie") : null) !== null) {
+                    $this->cles($sortie, "$ici.sortie", self::CLES_CASE);
+                    $this->cellule($sortie, "$ici.sortie");
                 }
             }
         }

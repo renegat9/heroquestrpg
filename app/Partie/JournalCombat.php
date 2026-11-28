@@ -189,6 +189,9 @@ final class JournalCombat
         'glissade' => true,
         // Lot E2 : le mur illusoire (G1504 q. 3 D) — touché, il se dissipe.
         'mur_illusoire' => true,
+        // Lot E2 : le labyrinthe (G1504 q. 7) — les deux dés, puis la sortie choisie.
+        'labyrinthe_jet' => true,
+        'labyrinthe_sortie' => true,
         // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
         'soin_planque' => true,
         'repartir_planque' => true,
@@ -1543,6 +1546,16 @@ final class JournalCombat
             'repartir_planque' => [[
                 'texte' => ($a['personnage']['nom'] ?? $acteurNom).' répartit son soin : +'.(int) ($a['corps'] ?? 0).' Corps, +'.(int) ($a['esprit'] ?? 0).' Esprit',
                 'ton' => 'succes',
+            ]],
+            'labyrinthe_jet' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' s\'enfonce dans le tunnel '.(int) ($a['depuis'] ?? 0).' et lance deux dés : '
+                    .implode(' et ', array_map('intval', (array) ($a['des'] ?? []))).' — à lui de choisir',
+                'ton' => 'info',
+            ]],
+            'labyrinthe_sortie' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' garde le '.(int) ($a['de'] ?? 0).' et ressort '
+                    .(($a['vers'] ?? '') === 'sortie' ? 'à la sortie du labyrinthe' : 'par le tunnel '.(int) ($a['de'] ?? 0)),
+                'ton' => 'info',
             ]],
             'mur_illusoire' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' tend la main vers le mur : il ondoie et se dissipe — ce n\'était qu\'une illusion',

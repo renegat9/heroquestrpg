@@ -630,6 +630,9 @@ final class EtatGroupe
                 : []),
             // LA ZONE HORS DU PLATEAU (lot E2, G0052 q. 2 B) : sa case d'entrée et les figures qui y attendent. Quête à réserve seulement.
             ...(($reserve = app(\App\Partie\Classique\ReserveHorsPlateau::class)->etat($quete)) !== null ? ['reserve' => $reserve] : []),
+            // LE LABYRINTHE (lot E2, G1504 q. 7) : les tunnels numérotés, hors du brouillard. Quête à labyrinthe seulement.
+            ...(($tunnels = array_values(array_filter(\App\Partie\Classique\Labyrinthe::tunnels($quete),
+                fn (array $t) => ($cases[$t['y']][$t['x']] ?? 'b') !== 'b'))) !== [] ? ['tunnels' => $tunnels] : []),
             'portes' => $portes,
             // MURS EN ARÊTES : les murs que l'écran dessine en traits, sous le brouillard. Voir `murs()`.
             'murs' => $this->murs($carte, $cases),

@@ -1455,6 +1455,27 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     </span>
                                     <button type="button" class="cst-icone" title="Ajouter un rectangle de pont" @click="quete.regles.pont_de_corde.push({ x: 0, y: 0, l: 1, h: 1 })"><MSym n="add" :size="16" /></button>
                                 </template>
+                                <!-- Lot E2 : le labyrinthe (Wizards of Morcar q. 7) — des tunnels numérotés, et la case de sortie. -->
+                                <label class="cst-case" title="Le héros qui entre dans un tunnel lance deux dés rouges et en choisit un : il ressort au tunnel de ce numéro, ou à la case de sortie s'il a tiré le numéro de son entrée.">
+                                    <input type="checkbox" :checked="!!quete.regles?.labyrinthe"
+                                        @change="poserRegle('labyrinthe', $event.target.checked ? { tunnels: [{ numero: 1, x: 0, y: 0 }, { numero: 2, x: 1, y: 0 }], sortie: { x: 2, y: 0 } } : undefined)" />
+                                    Labyrinthe
+                                </label>
+                                <template v-if="quete.regles?.labyrinthe">
+                                    <span v-for="(t, k) in quete.regles.labyrinthe.tunnels" :key="`tun${k}`" class="cst-ligne">
+                                        tunnel <input v-model.number="t.numero" type="number" min="1" max="6" class="cst-input cst-num" title="numéro (1 à 6)" />
+                                        <input v-model.number="t.x" type="number" min="0" class="cst-input cst-num" title="x" />
+                                        <input v-model.number="t.y" type="number" min="0" class="cst-input cst-num" title="y" />
+                                        <button type="button" class="cst-icone" title="Choisir la case sur la carte" @click="pointer(t, `le tunnel ${t.numero}`)"><MSym n="pin_drop" :size="16" /></button>
+                                        <button type="button" class="cst-icone" title="Retirer" @click="quete.regles.labyrinthe.tunnels.splice(k, 1)"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter un tunnel" @click="quete.regles.labyrinthe.tunnels.push({ numero: quete.regles.labyrinthe.tunnels.length + 1, x: 0, y: 0 })"><MSym n="add" :size="16" /></button>
+                                    <span class="cst-ligne">sortie
+                                        <input v-model.number="quete.regles.labyrinthe.sortie.x" type="number" min="0" class="cst-input cst-num" title="x" />
+                                        <input v-model.number="quete.regles.labyrinthe.sortie.y" type="number" min="0" class="cst-input cst-num" title="y" />
+                                        <button type="button" class="cst-icone" title="Choisir la case sur la carte" @click="pointer(quete.regles.labyrinthe.sortie, 'la sortie du labyrinthe')"><MSym n="pin_drop" :size="16" /></button>
+                                    </span>
+                                </template>
                                 <!-- Lot E2 : la salle ténébreuse (Wizards of Morcar q. 4 B) — −2 dés à toutes les figures, sauf les épargnées ; aucun tir. -->
                                 <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Toutes les figures de la salle attaquent et se défendent avec 2 dés de moins (jamais moins d'un), sauf les créatures épargnées ; personne n'y tire. Un héros qui voit dans le noir n'en souffre pas.">
                                     <input type="checkbox" :checked="!!quete.regles?.salle_tenebreuse"

@@ -1695,6 +1695,22 @@ final class MenuMoteur
             ];
         }
 
+        // LE LABYRINTHE (mode classique, lot E2 — G1504 q. 7 : « rolls two red dice and chooses one ») : le jet attend en base
+        // (`Classique\Labyrinthe`) ; rien d'autre n'est offert tant que le dé n'est pas choisi — un choix par dé, gratuit, que le
+        // résolveur revalide. Un téléphone rechargé retrouve le choix.
+        if ($etat !== null && ! $etat->tombe && $quete->estConstruite()
+            && ($choixLabyrinthe = app(\App\Partie\Classique\Labyrinthe::class)->choix($quete, $personnage)) !== []) {
+            return [
+                'situation' => 'Les tunnels du labyrinthe s\'enfoncent dans le noir : choisissez l\'un de vos deux dés.',
+                'options' => $this->avecCreneaux(array_map(fn (array $c) => [
+                    'id' => "sortir_labyrinthe_{$c['de']}",
+                    'libelle' => "Garder le {$c['de']} — vers {$c['vers']}",
+                    'type' => 'sortir_labyrinthe',
+                    'parametres' => ['de' => $c['de']],
+                ], $choixLabyrinthe)),
+            ];
+        }
+
         if ($etat !== null && $etat->piege_a_ecarter !== null && ! $etat->tombe
             && ($ecart = $this->optionEcartDuBloc($quete, $personnage, (array) $etat->piege_a_ecarter)) !== null) {
             return [

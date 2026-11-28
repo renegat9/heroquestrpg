@@ -311,6 +311,8 @@ function fixturesDesTypesAnnonces(): array
         'pont_de_corde' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'de' => 2, 'glisse' => true, 'x' => 9, 'y' => 3],
         'relevement' => ['de' => 'Gobelin', 'en' => 'Crâne putride', 'instance_id' => 9, 'x' => 9, 'y' => 3],
         'mur_illusoire' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'x' => 9, 'y' => 3],
+        'labyrinthe_jet' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'depuis' => 2, 'des' => [3, 5]],
+        'labyrinthe_sortie' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'de' => 3, 'vers' => 'tunnel', 'x' => 9, 'y' => 3],
         'glissade' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'de' => ['x' => 3, 'y' => 3], 'vers' => ['x' => 9, 'y' => 4],
             'arrivee' => ['x' => 8, 'y' => 4], 'bloque' => true, 'faces' => ['crane', 'bouclier_blanc'], 'percute' => ['nom' => 'Orque', 'degats' => 1]],
         'retrait_au_contact' => ['nom' => 'Albrecht', 'figure' => 'Guerrier elfe'],

@@ -7324,6 +7324,15 @@ comme le livret — avant chaque quête, un animal gratuit par héros, pour cett
   (`Classique\CoffresRenforces`) : dans une salle qui contient un « Coffre », la note `fouille_tresor` ne joue que pour un
   héros au contact d'un coffre de la salle ; les autres tirent une carte du paquet (la note n'est pas marquée jouée). Une
   salle sans coffre n'est pas concernée.
+- q. 7 : « A hero that moves into a tunnel on their turn rolls two red dice and chooses one, then places their figure on or
+  adjacent to a tunnel with the matching number. If they roll a number that matches the entrance they are on, they move to
+  room E. » **`regles.labyrinthe: {tunnels: [{numero 1-6, x, y}], sortie: {x, y}}`** (`Classique\Labyrinthe`) : le trajet
+  s'arrête sur un tunnel ; deux dés rouges, gardés en base (`quetes.drapeaux._labyrinthe`), déplacement fini. Tant que le
+  dé n'est pas choisi, le menu est FORCÉ : `sortir_labyrinthe_{de}` (gratuit), un par valeur, libellé « Garder le 3 — vers le
+  tunnel 3 ». Il ressort au plus près du tunnel de ce numéro, de la sortie s'il a tiré son entrée, de son entrée si aucun
+  tunnel ne porte ce numéro ; la salle se révèle. Annonces `labyrinthe_jet {nom, depuis, des}` et `labyrinthe_sortie {nom, de,
+  vers, x, y}`. `carte.tunnels: [{numero, x, y}]` (hors du brouillard) : la table dessine le numéro. Écart écrit : les
+  monstres n'empruntent pas le labyrinthe.
 
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 

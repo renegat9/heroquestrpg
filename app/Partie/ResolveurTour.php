@@ -761,6 +761,7 @@ final class ResolveurTour
                 'recherche_captif' => $this->resoudreRechercheCaptif($groupe, $quete, $personnage, $etat, $acteur),
                 'insubstantiel' => $this->resoudreInsubstantiel($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'toucher_mur_illusoire' => $this->resoudreMurIllusoire($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'sortir_labyrinthe' => $this->resoudreSortieLabyrinthe($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, de soi-même. Geste libre.
                 'retirer_deguisement' => $this->resoudreRetirerDeguisement($groupe, $personnage, $etat, $acteur),
                 // GLYPHES (mode classique, lot K6) : détruire un glyphe découvert — parchemin ou cheminée. Geste libre.
@@ -1413,6 +1414,11 @@ final class ResolveurTour
         if ($rangGlissade !== null) {
             $tronque = array_slice($tronque, 0, $rangGlissade + 1);
         }
+        // LABYRINTHE (mode classique, lot E2 — Morcar q. 7) : un tunnel arrête aussi le trajet ; on y lance les dés plus bas.
+        $rangTunnel = \App\Partie\Classique\Labyrinthe::rangDansLeChemin($quete, $tronque);
+        if ($rangTunnel !== null) {
+            $tronque = array_slice($tronque, 0, $rangTunnel + 1);
+        }
 
         if (count($tronque) < count($chemin)) {
             $chemin = $tronque;
@@ -1508,6 +1514,11 @@ final class ResolveurTour
             $this->revelerSalleEn($quete, (int) $arrivee['x'], (int) $arrivee['y'], $personnage);
         }
 
+        // LABYRINTHE (mode classique, lot E2 — Morcar q. 7) : arrivé sur un tunnel, deux dés rouges ; il choisira où ressortir
+        // (menu `sortir_labyrinthe_{de}`). Son déplacement est fini.
+        $labyrinthe = $teleportation === null && $glissiere === null && $glissade === null
+            ? app(\App\Partie\Classique\Labyrinthe::class)->entrer($groupe, $quete, $personnage, $arrivee) : null;
+
         // TRAPPE DE TÉLÉPORTATION : le passage jette son dé (`passageDeTrappe()`, null pour un
         // tunnel de glace), et la marche s'achève là — « the hero's turn is over » (F7539 p. 15).
         $passage = $teleportation !== null ? $this->passageDeTrappe($quete, $entreeTunnel) : null;
@@ -1593,7 +1604,7 @@ final class ResolveurTour
         // Le courant porteur NE SE PREND QUE sur le trajet réellement parcouru : un piège qui arrête avant la case ne donne rien.
         $gainParcouru = $grille->gainDuTrajet($depart['x'], $depart['y'], $cheminParcouru);
         // L'enlisement arrête la marche sur la case : la salle n'a rien de plus à offrir ce tour.
-        $restantApres = ($arretDur || $passage !== null || $arretSol || $glissade !== null) ? 0 : max(0, $restant + $gainParcouru - $couteParcouru);
+        $restantApres = ($arretDur || $passage !== null || $arretSol || $glissade !== null || $labyrinthe !== null) ? 0 : max(0, $restant + $gainParcouru - $couteParcouru);
         $mouvementFini = $arretDur || $restantApres <= 0 || $arretSol;
 
         $etat->update([
@@ -17228,6 +17239,8 @@ final class ResolveurTour
             'insubstantiel' => 'interaction',
             // LE MUR ILLUSOIRE (lot E2) : toucher un mur ne coûte rien.
             'toucher_mur_illusoire' => 'interaction',
+            // LE LABYRINTHE (lot E2) : ressortir est le bout du déplacement qui y est entré, sans rien coûter de plus.
+            'sortir_labyrinthe' => 'interaction',
             // La répartition du dé de la planque appartient à l'action qui l'a lancé (lot E2).
             'repartir_planque' => 'interaction',
             // « they instead knock on it (no action required) » (F6646 q. 3).
@@ -17875,6 +17888,16 @@ final class ResolveurTour
     private function resoudreInsubstantiel(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
         $payload = app(\App\Partie\Classique\Insubstantialite::class)->prendre($quete, $personnage, $etat, (string) ($option['parametres']['usage'] ?? ''));
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** LE LABYRINTHE (lot E2, Morcar q. 7) : le dé choisi, revalidé contre le jet en attente ; la salle d'arrivée se révèle. */
+    private function resoudreSortieLabyrinthe(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $payload = app(\App\Partie\Classique\Labyrinthe::class)->sortir($groupe, $quete, $personnage, $etat, (int) ($option['parametres']['de'] ?? 0));
+        $this->revelerSalleEn($quete, (int) $payload['x'], (int) $payload['y'], $personnage);
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;

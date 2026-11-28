@@ -162,6 +162,8 @@ const titreTerrain = (x, y) => {
 const chargeAuSol = computed(() => props.carte?.charge ?? null);
 // LA ZONE HORS DU PLATEAU (mode classique, lot E2, G0052 q. 2 B) : sa case d'entrée et les figures qui y attendent (`carte.reserve`).
 const reserve = computed(() => props.carte?.reserve ?? null);
+// LE LABYRINTHE (mode classique, lot E2, G1504 q. 7) : les tunnels numérotés, hors du brouillard (`carte.tunnels`).
+const tunnels = computed(() => props.carte?.tunnels ?? []);
 const zoneCells = computed(() => props.traps.flatMap((t) => (t.zone ?? [])
     .filter((z) => z.x !== t.x || z.y !== t.y)
     .map((z) => ({ ...z, etat: t.etat, titre: t.titre ?? t.nom }))));
@@ -437,6 +439,15 @@ const jetonsPlaces = computed(() => {
             :style="{ gridColumn: reserve.x + 1, gridRow: reserve.y + 1, zIndex: 6 }"
         >
             <div class="dg-reserve" :title="`Hors du plateau : ${reserve.noms.join(', ')}`">+{{ reserve.noms.length }}</div>
+        </div>
+
+        <!-- LE LABYRINTHE (lot E2) : un tunnel, son numéro. -->
+        <div
+            v-for="t in tunnels" :key="`tun${t.numero}`"
+            class="dg-trap-holder"
+            :style="{ gridColumn: t.x + 1, gridRow: t.y + 1, zIndex: 5 }"
+        >
+            <div class="dg-tunnel" :title="`Tunnel ${t.numero} du labyrinthe`">{{ t.numero }}</div>
         </div>
 
         <!-- Lame balançoire : le reste de sa zone, en surlignage léger — pas un
@@ -880,6 +891,9 @@ const jetonsPlaces = computed(() => {
 /* Zone hors du plateau (lot E2) : une pastille rouge dans le coin de la case d'entrée — un nombre, pas une figure. */
 .dg-reserve { position: absolute; right: 2%; bottom: 2%; min-width: 46%; padding: 0 3px; border-radius: 4px; font-size: 0.62em; font-weight: 700;
     line-height: 1.5; text-align: center; color: #fff; background: oklch(0.5 0.17 25 / 0.92); box-shadow: 0 0 0 1px oklch(0.3 0.1 25); pointer-events: auto; }
+/* Labyrinthe (lot E2) : l'entrée d'un tunnel — un disque sombre cerclé de bronze, son numéro. */
+.dg-tunnel { position: absolute; inset: 14%; border-radius: 50%; display: grid; place-items: center; font-size: 0.7em; font-weight: 700;
+    color: oklch(0.88 0.05 80); background: oklch(0.18 0.02 60 / 0.9); box-shadow: inset 0 0 0 2px oklch(0.6 0.09 70); pointer-events: auto; }
 /* Épreuves : un LOSANGE doré, et surtout PAS un disque.
    ⚠ Au premier jet c'était un disque plein de 72 %, exactement la silhouette
    d'un jeton de figurine : sur la table, un disque doré entre deux héros se
