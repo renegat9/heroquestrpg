@@ -141,6 +141,8 @@ const ICONE_TYPE = {
     sortir_labyrinthe: 'casino',
     // Garder une carte de trésor (Morcar q. 3 A).
     garder_carte: 'style',
+    // Passer un portail (First Light q. 2).
+    traverser_portail: 'door_open',
     // Un geste de quête (Spirit Queen q. 7, 8) : la main qui fait.
     geste_de_quete: 'back_hand',
     sort: 'auto_awesome',

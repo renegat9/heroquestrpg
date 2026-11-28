@@ -2228,3 +2228,64 @@ it('labyrinthe, les monstres : hors de portée, il gagne un tunnel et surgit au 
     expect($voyage['depuis'])->toBe(1)
         ->and(\App\Partie\Grille::sontAdjacentes((int) $orque->position_x, (int) $orque->position_y, 9, 3))->toBeTrue();
 });
+
+// ---------------------------------------------------------------- First Light : les portails (q. 2)
+
+it('portails : franchir l\'arête arrête la marche, menu forcé 1-7, sortie sur une case du portail choisi ; deux passages le même tour coûtent 1 PV et le tour', function () {
+    $campagne = campagneE2([
+        'portes' => [['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale', 'ouverte' => true],
+            ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale', 'ouverte' => true], ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'secrete']],
+        'regles' => ['portails' => [['porte' => 0, 'numero' => 7], ['porte' => 1, 'numero' => 3]]],
+    ]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['portails' => [['porte' => 9, 'numero' => 7]]]])))->toBe([ValidationCampagne::CIBLE_INCONNUE]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $quete->etatsPersonnages()->update(['position_x' => 5, 'position_y' => 3]);
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'se_deplacer', 'parametres' => ['x' => 8, 'y' => 3]])->assertAccepted();
+
+    $etat = $quete->etatsPersonnages()->first();
+    expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([6, 3]);
+    $restantAvant = (int) $etat->deplacement_restant;
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $options = collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id')->all();
+    expect($options)->toBe(['traverser_portail_3', 'traverser_portail_7']);
+
+    $resultat = $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'traverser_portail_3'])->assertAccepted()->json('resultat');
+    $etat->refresh();
+    expect($resultat['numero'])->toBe(3)
+        ->and(in_array([(int) $etat->position_x, (int) $etat->position_y], [[3, 1], [3, 2]], true))->toBeTrue()
+        ->and((int) $etat->deplacement_restant)->toBe(max(0, $restantAvant - 1));
+
+    // Un second passage le même tour : 1 PV, et le tour s'arrête.
+    $portails = app(\App\Partie\Classique\Portails::class);
+    $portails->interrompre($quete->fresh(), $partie['heros'], $etat->fresh(), ['numero' => 3], ['x' => 3, 'y' => 2], 0);
+    $second = $portails->traverser($partie['groupe'], $quete->fresh(), $partie['heros'], $etat->fresh(), 7);
+    expect($second['fin_de_tour'])->toBeTrue()->and($second['degats'])->toBe(1)
+        ->and(\App\Partie\Classique\FinDeTourForcee::demandee($etat->fresh()))->toBeTrue();
+});
+
+it('portails, les monstres : hors de portée, il passe par un portail déjà utilisé et ressort au plus près des héros', function () {
+    $campagne = campagneE2([
+        'portes' => [['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale', 'ouverte' => true],
+            ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale', 'ouverte' => true], ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'secrete']],
+        'regles' => ['portails' => [['porte' => 0, 'numero' => 7], ['porte' => 1, 'numero' => 3]]],
+        'monstres' => [['slug' => 'orque', 'x' => 3, 'y' => 3]],
+    ]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $quete->etatsPersonnages()->update(['position_x' => 9, 'position_y' => 3]);
+    $orque = $quete->instancesMonstres()->with('monstre')->firstOrFail();
+    $grille = \App\Partie\FabriqueGrille::pour($quete->fresh(), exceptInstanceId: (int) $orque->id);
+    $portails = app(\App\Partie\Classique\Portails::class);
+
+    // Aucun portail encore utilisé : il ne passe pas.
+    expect($portails->voyageDuMonstre($partie['groupe'], $quete->fresh(), $orque, $grille, null))->toBeNull();
+
+    $quete->update(['drapeaux' => ['_portails_utilises' => [3, 7]]]);
+    $voyage = $portails->voyageDuMonstre($partie['groupe'], $quete->fresh(), $orque, $grille, null);
+    expect($voyage['depuis'])->toBe(3)->and($voyage['numero'])->toBe(7)
+        ->and([(int) $orque->fresh()->position_x, (int) $orque->fresh()->position_y])->toBe([7, 3]);
+});

@@ -193,6 +193,9 @@ final class JournalCombat
         'labyrinthe_jet' => true,
         'labyrinthe_sortie' => true,
         'labyrinthe_monstre' => true,
+        // Lot E2 : les portails (First Light q. 2) — le héros, et le monstre qui les emprunte.
+        'portail' => true,
+        'portail_monstre' => true,
         // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
         'soin_planque' => true,
         'repartir_planque' => true,
@@ -1559,6 +1562,15 @@ final class JournalCombat
                 'texte' => ($a['nom'] ?? $acteurNom).' s\'enfonce dans le tunnel '.(int) ($a['depuis'] ?? 0).' et lance deux dés : '
                     .implode(' et ', array_map('intval', (array) ($a['des'] ?? []))).' — à lui de choisir',
                 'ton' => 'info',
+            ]],
+            'portail' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' franchit le portail '.(int) ($a['depuis'] ?? 0).' et ressort au portail '.(int) ($a['numero'] ?? 0)
+                    .((int) ($a['degats'] ?? 0) > 0 ? ' (−'.(int) $a['degats'].' PV)' : '').(! empty($a['fin_de_tour']) ? ' — deuxième passage : son tour s\'arrête' : ''),
+                'ton' => (int) ($a['degats'] ?? 0) > 0 ? 'degats' : 'info',
+            ]],
+            'portail_monstre' => [[
+                'texte' => ($a['monstre'] ?? 'Un monstre').' passe le portail '.(int) ($a['depuis'] ?? 0).' et surgit du portail '.(int) ($a['numero'] ?? 0).' !',
+                'ton' => 'subit',
             ]],
             'labyrinthe_monstre' => [[
                 'texte' => ($a['monstre'] ?? 'Un monstre').' s\'engouffre dans le tunnel '.(int) ($a['depuis'] ?? 0).' et surgit du labyrinthe !',

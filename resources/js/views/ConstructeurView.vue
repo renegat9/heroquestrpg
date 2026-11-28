@@ -338,6 +338,11 @@ function recaler(q, liste, i) {
     if (liste === 'monstres' && Array.isArray(q.fin?.cibles)) {
         q.fin.cibles = q.fin.cibles.filter((c) => c !== i).map((c) => (c > i ? c - 1 : c));
     }
+    // Lot E2 (First Light q. 2) : un portail posé sur la porte retirée disparaît ; les suivants se recalent.
+    if (liste === 'portes' && Array.isArray(q.regles?.portails)) {
+        q.regles.portails = q.regles.portails.filter((p) => p.porte !== i).map((p) => (p.porte > i ? { ...p, porte: p.porte - 1 } : p));
+        if (!q.regles.portails.length) delete q.regles.portails;
+    }
     // Lot E2 (Morcar q. 9) : l'errant qui fait jouer des figures posées perd l'index retiré.
     if (liste === 'monstres' && Array.isArray(q.monstre_errant?.tour_de)) {
         q.monstre_errant.tour_de = q.monstre_errant.tour_de.filter((c) => c !== i).map((c) => (c > i ? c - 1 : c));
@@ -1481,6 +1486,22 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             @click="quete.regles.pont_de_corde.splice(k, 1); if (!quete.regles.pont_de_corde.length) poserRegle('pont_de_corde', undefined)"><MSym n="close" :size="16" /></button>
                                     </span>
                                     <button type="button" class="cst-icone" title="Ajouter un rectangle de pont" @click="quete.regles.pont_de_corde.push({ x: 0, y: 0, l: 1, h: 1 })"><MSym n="add" :size="16" /></button>
+                                </template>
+                                <!-- Lot E2 : les portails (First Light q. 2) — des portes ouvertes de la quête, numérotées 1 à 7. -->
+                                <label v-if="quete.portes.length" class="cst-case" title="Le héros qui passe un portail annonce un numéro de 1 à 7 et ressort sur l'une des deux cases du portail de ce numéro (un pas de déplacement). Deux passages le même tour : 1 PV et fin du tour. Les monstres passent par les portails déjà utilisés.">
+                                    <input type="checkbox" :checked="!!quete.regles?.portails"
+                                        @change="poserRegle('portails', $event.target.checked ? [{ porte: 0, numero: 1 }] : undefined)" />
+                                    Portails
+                                </label>
+                                <template v-if="quete.regles?.portails">
+                                    <span v-for="(p, k) in quete.regles.portails" :key="`por${k}`" class="cst-ligne">
+                                        portail <input v-model.number="p.numero" type="number" min="1" max="7" class="cst-input cst-num" title="numéro (1 à 7)" />
+                                        <select v-model.number="p.porte" class="cst-input" title="La porte (ouverte) du portail">
+                                            <option v-for="(po, j) in quete.portes" :key="`porp${j}`" :value="j">porte {{ j }} — ({{ po.x }}, {{ po.y }}) {{ po.cote }}</option>
+                                        </select>
+                                        <button type="button" class="cst-icone" title="Retirer" @click="quete.regles.portails.splice(k, 1); if (!quete.regles.portails.length) poserRegle('portails', undefined)"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter un portail" @click="quete.regles.portails.push({ porte: 0, numero: quete.regles.portails.length + 1 })"><MSym n="add" :size="16" /></button>
                                 </template>
                                 <!-- Lot E2 : le labyrinthe (Wizards of Morcar q. 7) — des tunnels numérotés, et la case de sortie. -->
                                 <label class="cst-case" title="Le héros qui entre dans un tunnel lance deux dés rouges et en choisit un : il ressort au tunnel de ce numéro, ou à la case de sortie s'il a tiré le numéro de son entrée.">

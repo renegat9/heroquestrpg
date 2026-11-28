@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe', 'portails'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable', 'deguise', 'neutre', 'sorts_actifs'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -2625,6 +2625,29 @@ final class ValidationCampagne
                 if (array_key_exists('sauf_drapeau', $releve)) {
                     $this->nomDeDrapeau($releve, 'sauf_drapeau', "$ici.$k");
                 }
+            }
+        }
+        // Lot E2 : les portails (First Light q. 2) — des portes de la quête, numérotées 1 à 7, chacune une fois.
+        if (array_key_exists('portails', $regles)) {
+            $ici = self::chemin($position, 'portails');
+            $liste = $this->enListe($regles['portails'], $ici);
+            if ($liste === []) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'au moins deux portails');
+            }
+            $vus = [];
+            foreach ((array) $liste as $k => $p) {
+                if (($portail = $this->enObjet($p, "$ici.$k")) === null) {
+                    continue;
+                }
+                $this->cles($portail, "$ici.$k", ['porte', 'numero']);
+                $this->indexDe($quete, 'portes', $portail['porte'] ?? null, "$ici.$k.porte");
+                $numero = $this->entier($portail, 'numero', "$ici.$k", min: 1);
+                if ($numero !== null && $numero > 7) {
+                    $this->refuser("$ici.$k.numero", self::VALEUR_INVALIDE, 'un numéro de 1 à 7');
+                } elseif ($numero !== null && isset($vus[$numero])) {
+                    $this->refuser("$ici.$k.numero", self::VALEUR_INVALIDE, "le portail $numero est déjà posé");
+                }
+                $vus[(int) $numero] = true;
             }
         }
         // Lot E2 : le labyrinthe (G1504 q. 7) — des tunnels numérotés 1 à 6, chacun une fois, et la case de sortie (salle E).

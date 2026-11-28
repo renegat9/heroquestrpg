@@ -1695,6 +1695,21 @@ final class MenuMoteur
             ];
         }
 
+        // LES PORTAILS (mode classique, lot E2 — First Light q. 2 : « they must declare a number between 1-7 ») : menu forcé, un
+        // numéro par portail, gratuit (`Classique\Portails`, que le résolveur relit).
+        if ($etat !== null && ! $etat->tombe && $quete->estConstruite()
+            && ($numerosPortail = app(\App\Partie\Classique\Portails::class)->choix($quete, $personnage)) !== []) {
+            return [
+                'situation' => 'Vous passez le portail : annoncez le numéro gravé du portail où vous voulez ressortir.',
+                'options' => $this->avecCreneaux(array_map(fn (int $n) => [
+                    'id' => "traverser_portail_{$n}",
+                    'libelle' => "Portail {$n}",
+                    'type' => 'traverser_portail',
+                    'parametres' => ['numero' => $n],
+                ], $numerosPortail)),
+            ];
+        }
+
         // DEUX CARTES, UNE GARDÉE (mode classique, lot E2 — G1504 q. 3 A : « choose one to keep ») : menu forcé, une option par
         // carte, gratuite (`Classique\CartesAuChoix`, que le résolveur relit).
         if ($etat !== null && ! $etat->tombe && $quete->estConstruite()

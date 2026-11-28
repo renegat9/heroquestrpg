@@ -7380,6 +7380,23 @@ comme le livret — avant chaque quête, un animal gratuit par héros, pour cett
   les autres retournent sous le paquet. Fil de la note : « Albrecht tire 2 cartes : 50 pièces d'or ou 120 pièces d'or — à lui
   d'en garder une ».
 
+### First Light — les portails (lot E2, 2026-11-28)
+
+*First Light* q. 2 (FL-Q p. 13) : « As a hero passes through a portal, they must declare a number between 1-7. Place that hero's
+miniature on one of the two squares on either side of the corresponding portal. Using a portal counts as one square of
+movement. If both squares are occupied, the hero loses 1 Body Point and is placed on the nearest square of their choice. If a
+hero passes through a portal two times on the same turn, they lose 1 Body Point and their turn immediately ends. The first time
+a portal is used, set up the room as depicted. Monsters may move through portals to any other portal already used by heroes. »
+**`regles.portails: [{porte: index, numero 1-7}]`** (`Classique\Portails`) :
+- franchir l'arête d'un portail arrête la marche sur la case d'avant, les cases au-delà rendues au déplacement ; le choix attend
+  en base (`quetes.drapeaux._portail`) ; le menu est FORCÉ : `traverser_portail_{n}` (gratuit), libellé « Portail 3 » ;
+- le héros paraît sur la première case libre des deux du portail choisi (sinon 1 PV et la case libre la plus proche — choisie
+  par le moteur, décision écrite), un pas compté ; un second passage le même tour : 1 PV et fin du tour (`FinDeTourForcee`) ;
+  la salle d'arrivée se révèle. Annonce `portail {nom, depuis, numero, x, y, degats, fin_de_tour}` ;
+- les MONSTRES : hors de portée par le chemin normal, un monstre qui peut gagner une case d'un portail déjà utilisé
+  (`quetes.drapeaux._portails_utilises`) ressort sur une case d'un autre portail utilisé, au plus près des héros
+  (`Portails::voyageDuMonstre()`), puis attaque. Annonce `portail_monstre {monstre, depuis, numero, x, y}`.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

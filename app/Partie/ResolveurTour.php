@@ -763,6 +763,7 @@ final class ResolveurTour
                 'toucher_mur_illusoire' => $this->resoudreMurIllusoire($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortir_labyrinthe' => $this->resoudreSortieLabyrinthe($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'garder_carte' => $this->resoudreCarteGardee($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'traverser_portail' => $this->resoudreTraversePortail($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, de soi-même. Geste libre.
                 'retirer_deguisement' => $this->resoudreRetirerDeguisement($groupe, $personnage, $etat, $acteur),
                 // GLYPHES (mode classique, lot K6) : détruire un glyphe découvert — parchemin ou cheminée. Geste libre.
@@ -13515,10 +13516,19 @@ final class ResolveurTour
             }
         }
 
-        foreach ($trajet as $case) {
+        $portails = app(\App\Partie\Classique\Portails::class);
+        foreach (array_values($trajet) as $rangCase => $case) {
             if ($case !== $precedente) {
                 if ($quete->tousLesHerosOntFranchi($precedente['x'], $precedente['y'])) {
                     $notes->signaler($quete, MotsClesQuete::DERNIER_HEROS_PASSE, ['case' => $precedente], $personnage);
+                }
+
+                // PORTAILS (mode classique, lot E2 — *First Light* q. 2) : franchir l'arête d'un portail arrête la marche sur la
+                // case d'avant ; les cases au-delà sont rendues, et le héros choisit son numéro (menu forcé, `Classique\Portails`).
+                if (($portail = \App\Partie\Classique\Portails::entre($quete, $precedente, $case)) !== null
+                    && \App\Partie\Classique\Portails::enAttente($quete, $personnage) === null) {
+                    $portails->interrompre($quete, $personnage, $etat, $portail, $precedente, count($trajet) - $rangCase);
+                    break;
                 }
 
                 // PORTES À TÉLÉPORTATION `2d6` (mode classique, lot K5n, *Castle of Mystery* q. 10) : franchir une porte
@@ -15922,7 +15932,9 @@ final class ResolveurTour
         // discovered area without rolling ») : hors de portée par le chemin normal, il emprunte un tunnel et ressort au
         // contact d'un héros ; la cible se relit de là.
         if ($quete->estConstruite()
-            && app(\App\Partie\Classique\Labyrinthe::class)->voyageDuMonstre($groupe, $quete, $instance, $grille, $meilleure) !== null) {
+            && (app(\App\Partie\Classique\Labyrinthe::class)->voyageDuMonstre($groupe, $quete, $instance, $grille, $meilleure) !== null
+                // LES PORTAILS (lot E2, First Light q. 2 : « Monsters may move through portals to any other portal already used by heroes »).
+                || app(\App\Partie\Classique\Portails::class)->voyageDuMonstre($groupe, $quete, $instance, $grille, $meilleure) !== null)) {
             $instance->refresh();
             $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
             $meilleure = $this->cibleLaPlusProche($quete, $instance, $cibles, $grille, $diagonalesMonstre);
@@ -17295,6 +17307,8 @@ final class ResolveurTour
             'sortir_labyrinthe' => 'interaction',
             // DEUX CARTES, UNE GARDÉE (lot E2) : le choix appartient à la fouille qui les a tirées.
             'garder_carte' => 'interaction',
+            // LES PORTAILS (lot E2) : le passage compte un pas, retiré par le service ; le choix lui-même ne coûte rien de plus.
+            'traverser_portail' => 'interaction',
             // La répartition du dé de la planque appartient à l'action qui l'a lancé (lot E2).
             'repartir_planque' => 'interaction',
             // « they instead knock on it (no action required) » (F6646 q. 3).
@@ -17942,6 +17956,16 @@ final class ResolveurTour
     private function resoudreInsubstantiel(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
         $payload = app(\App\Partie\Classique\Insubstantialite::class)->prendre($quete, $personnage, $etat, (string) ($option['parametres']['usage'] ?? ''));
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** LES PORTAILS (lot E2, First Light q. 2) : le numéro choisi, revalidé ; la salle d'arrivée se révèle la première fois. */
+    private function resoudreTraversePortail(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $payload = app(\App\Partie\Classique\Portails::class)->traverser($groupe, $quete, $personnage, $etat, (int) ($option['parametres']['numero'] ?? 0));
+        $this->revelerSalleEn($quete, (int) $payload['x'], (int) $payload['y'], $personnage);
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
