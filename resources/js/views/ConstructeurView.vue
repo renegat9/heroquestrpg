@@ -1036,18 +1036,18 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <option value="gardien">Gardiens : 4 chacun, 10 po par quête (Wizards of Morcar)</option>
                             </select>
                         </div>
-                        <span class="cst-lbl">Hopekins Rest</span>
-                        <div class="cst-ligne">
-                            <label class="cst-case" title="Wizards of Morcar p. 11-12 : une fois Gardiens (deux quêtes achevées), chaque héros peut visiter un lieu de Hopekins Rest entre deux quêtes et en recevoir la faveur.">
-                                <input type="checkbox" :checked="doc.faveurs_hopekins === true" @change="$event.target.checked ? (doc.faveurs_hopekins = true) : delete doc.faveurs_hopekins" /> faveurs de Hopekins Rest au hub
-                            </label>
-                        </div>
                         <div v-if="doc.mercenaires" class="cst-puces">
                             <button
                                 v-for="m in (catalogues.mercenaires ?? [])" :key="m.slug" type="button" class="cst-puce"
                                 :class="{ on: doc.mercenaires.offerts.includes(m.slug) }"
                                 @click="basculerMercenaire(m.slug)"
                             >{{ m.nom }}</button>
+                        </div>
+                        <span class="cst-lbl">Hopekins Rest</span>
+                        <div class="cst-ligne">
+                            <label class="cst-case" title="Wizards of Morcar p. 11-12 : une fois Gardiens (deux quêtes achevées), chaque héros peut visiter un lieu de Hopekins Rest entre deux quêtes et en recevoir la faveur.">
+                                <input type="checkbox" :checked="doc.faveurs_hopekins === true" @change="$event.target.checked ? (doc.faveurs_hopekins = true) : delete doc.faveurs_hopekins" /> faveurs de Hopekins Rest au hub
+                            </label>
                         </div>
                         <!-- Lot E2 (Jungles of Delthrak p. 9) : les compagnons animaux offerts, gratuits, un par héros, sous quatre héros. -->
                         <span class="cst-lbl" title="Moins de quatre héros : avant chaque quête, chacun peut emmener gratuitement un de ces animaux, pour cette quête.">Compagnons animaux offerts</span>
