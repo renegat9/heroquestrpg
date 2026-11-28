@@ -211,8 +211,10 @@ class ObjetSeeder extends Seeder
             // « It kills any undead creature (skeleton, zombie, or mummy). »
             // Les trois noms sont des `monstres.nom_base`, comme sur la Lame des
             // Esprits — aucun tag « mort-vivant » n'est inventé sur le bestiaire.
+            // + le Crâne putride (2026-11-27) : « Skullblight […] They can be destroyed by Holy Water » (Jungles of
+            // Delthrak, F9907 p. 49) — partout, RPG compris (René), migration 2026_11_27_120000.
             ['nom' => 'Eau bénite', 'categorie' => 'outil', 'prix_base' => 400, 'emplacement' => 'consommable',
-                'effet' => ['tue_creatures' => ['Squelette', 'Zombie', 'Momie']]],
+                'effet' => ['tue_creatures' => ['Squelette', 'Zombie', 'Momie', 'Crâne putride']]],
             // COR DES HEARTHKIN (First Light, FL-Q p. 6, lot C 2026-09-30) :
             // « each hero places a Hearthkin Skeleton on a square within
             // their room or corridor […] the horn crumbles to dust ». Même

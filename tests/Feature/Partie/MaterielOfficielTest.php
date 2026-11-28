@@ -150,6 +150,21 @@ it('tue un mort-vivant à l\'eau bénite, et ne fait rien à un orque', function
         ->and(Inventaire::find($ligne->id))->toBeNull();
 });
 
+// « Skullblight […] They can be destroyed by Holy Water » (Jungles of Delthrak, F9907 p. 49) — partout (René, 2026-11-27).
+it('tue un Crâne putride à l\'eau bénite (Jungles of Delthrak p. 49)', function () {
+    $ctx = demarrerQueteAvecMonstre('Crâne putride');
+    ['heros' => $heros, 'instance' => $instance] = $ctx;
+    $ligne = materielAuSac($heros->id, 'Eau bénite');
+    menuPour($ctx);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}", 'cible_id' => $instance->id],
+    ])->assertAccepted();
+
+    expect($instance->fresh()->etat)->toBe('vaincu');
+});
+
 it('refuse l\'eau bénite sur une créature qui n\'est pas morte-vivante', function () {
     $ctx = demarrerQueteAvecMonstre('Orque');
     ['heros' => $heros, 'instance' => $instance] = $ctx;
