@@ -16137,8 +16137,9 @@ final class ResolveurTour
 
                 // Mode classique (lot E2, trouvé avec *First Light* q. 4 F) : une case voisine du héros À TRAVERS UN MUR n'est pas une
                 // place d'attaque — le mur coupe le contact (`Grille::sontAdjacentes(carte:)`). Sans ce garde, un monstre posé de
-                // l'autre côté du mur se croyait arrivé (chemin vide) et ne faisait jamais le tour. Le RPG a le même défaut :
-                // signalé à René, laissé tel quel ici (branche classique isolée).
+                // l'autre côté du mur se croyait arrivé (chemin vide) et ne faisait jamais le tour. Propre aux murs EN ARÊTES : une
+                // carte générée (RPG) a des murs d'une case et des portes dans leur propre case, deux voisines n'y sont jamais
+                // séparées par un mur (`Grille::auContact()`) — vérifié le 2026-11-28, pas de défaut en RPG.
                 if ($quete->estConstruite() && ! Grille::sontAdjacentes((int) $cible->position_x, (int) $cible->position_y, $cx, $cy, carte: $quete->carte)) {
                     continue;
                 }
