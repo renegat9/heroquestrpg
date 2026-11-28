@@ -385,6 +385,13 @@ final class MotsClesQuete
      */
     public const SOIGNER = 'soigner';
 
+    /**
+     * Lot E2 (*Jungles of Delthrak*, les cocons, q. 3 C, 6 C, 11 D, 13 D) — « one Blightcrawler Spawnling. Place a Spawnling tile
+     * on the hero's card. That hero's turn immediately ends » : `nombre` jetons (1 par défaut) sur la fiche du héros qui
+     * déclenche ; son tour s'arrête (`Classique\Rejetons`).
+     */
+    public const REJETONS = 'rejetons';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET];
 
@@ -434,6 +441,7 @@ final class MotsClesQuete
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],
         self::EN_RESERVE => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetEnReserve', 'libelle' => 'placer des figures dans la zone hors du plateau'],
         self::SOIGNER => ['parametres' => [], 'optionnels' => ['body', 'mind'], 'lecteur' => 'effetSoigner', 'libelle' => 'soigner le héros (Corps, Esprit : un nombre ou « tout »)'],
+        self::REJETONS => ['parametres' => [], 'optionnels' => ['nombre'], 'lecteur' => 'effetRejetons', 'libelle' => 'accrocher des Spawnling à la fiche du héros (son tour s\'arrête)'],
         self::INVOQUER => ['parametres' => ['sort'], 'optionnels' => ['x', 'y'], 'lecteur' => 'effetInvoquer', 'libelle' => 'lancer un sort d\'invocation de Dread (les figures surgissent près du héros, ou de la case)'],
     ];
 

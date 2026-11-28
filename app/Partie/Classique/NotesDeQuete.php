@@ -539,6 +539,9 @@ final class NotesDeQuete
             return ['monstres' => []];
         }
         $fragment = app(\App\Partie\ResolveurTour::class)->surgissementErrant($quete->groupe, $quete, $heros, $etat);
+        if (isset($fragment['rejetons'])) {
+            return ['monstres' => [], 'rejetons' => $fragment['rejetons']]; // Spawnling : des jetons, le tour s'arrête
+        }
         $noms = isset($fragment['monstres']) ? array_column($fragment['monstres'], 'nom')
             : (isset($fragment['monstre']) ? [$fragment['monstre']['nom']] : []);
         foreach ([$fragment['frappe_errant'] ?? null, ...(array) ($fragment['frappes_errants'] ?? [])] as $frappe) {
@@ -954,6 +957,17 @@ final class NotesDeQuete
         $heros->update(['pv_body' => (int) $heros->pv_body + $body, 'pv_mind' => (int) $heros->pv_mind + $mind]);
 
         return ['nom' => $heros->nom, 'body' => $body, 'mind' => $mind];
+    }
+
+    /** Lot E2 (*Jungles of Delthrak*, les cocons) — des Spawnling sur la fiche du héros qui déclenche ; son tour s'arrête. */
+    private function effetRejetons(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $etat = $heros === null ? null : $quete->etatsPersonnages()->where('personnage_id', $heros->id)->first();
+        if ($etat === null || $etat->tombe || $etat->position_x === null) {
+            return ['nombre' => 0, 'jetons' => 0];
+        }
+
+        return app(Rejetons::class)->poser($heros, $etat, (int) ($effet['nombre'] ?? 1));
     }
 
     /** Lot E2 (*Prophecy of Telor*, q. 2 A) — des figures rejoignent la zone hors du plateau (`ReserveHorsPlateau`). */

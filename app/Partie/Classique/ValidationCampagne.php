@@ -1315,6 +1315,13 @@ final class ValidationCampagne
                     $this->refuser($position, self::VALEUR_INVALIDE, 'le Corps, l\'Esprit, ou les deux : un soin sans jauge ne fait rien');
                 }
                 break;
+            // Lot E2 (*Jungles of Delthrak*, les cocons) : des Spawnling sur la fiche — « four Blightcrawler Spawnlings » au plus fort.
+            case MotsClesQuete::REJETONS:
+                $nombre = $this->entier($effet, 'nombre', $position, min: 1);
+                if ($nombre !== null && $nombre > self::NOMBRE_ERRANTS_MAX) {
+                    $this->refuser("$position.nombre", self::VALEUR_INVALIDE, 'au plus '.self::NOMBRE_ERRANTS_MAX.' jetons');
+                }
+                break;
             // Lot E2 (*Prophecy of Telor*, q. 7 à 11) : Melar lance un sort d'invocation — une table d'invocation, pas une réanimation.
             case MotsClesQuete::INVOQUER:
                 $slug = $this->slugCatalogue($effet, 'sort', $position, 'sorts_dread');

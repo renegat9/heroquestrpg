@@ -3587,6 +3587,20 @@ final class JournalCombat
         return in_array($bas, $masculins, true) ? "Le {$bas}" : "Le meuble « {$nom} »";
     }
 
+    /**
+     * SPAWNLING (lot E2, *Jungles of Delthrak*) : « place a Spawnling tile on the hero's card. The hero's turn immediately
+     * ends » — `Classique\Rejetons::poser()`, par la carte errante ou par une note. Partagé avec `LignesEffetsAutomatiques`.
+     *
+     * @param  array<string, mixed>  $r
+     */
+    public static function rejetonsPoses(array $r, string $acteurNom): string
+    {
+        $n = max(1, (int) ($r['nombre'] ?? 1));
+
+        return ($n > 1 ? "{$n} rejetons s'accrochent" : 'Un rejeton s\'accroche').' à '.($r['nom'] ?? $acteurNom)
+            .' : son tour s\'arrête ('.(int) ($r['jetons'] ?? $n).' jeton(s) sur sa fiche, 1 PV chacun à chaque fin de tour)';
+    }
+
     private function fouille(array $a, string $acteurNom): array
     {
         $lignes = match ($a['issue'] ?? null) {
@@ -3621,14 +3635,15 @@ final class JournalCombat
             // PLUSIEURS figures (mode classique, lot E1 : « 2 Skeletons ») : nommées toutes, dans l'ordre de leur pose.
             'errant' => [[
                 // ACTIVATION DES SALLES (lot E2, F9528 q. 10) : la carte lève une salle au lieu d'un surgissement.
-                'texte' => array_key_exists('salles_activees', $a)
+                // SPAWNLING (lot E2, Delthrak) : l'errant s'accroche à la fiche du fouilleur, et son tour s'arrête.
+                'texte' => isset($a['rejetons']) ? self::rejetonsPoses((array) $a['rejetons'], $acteurNom) : (array_key_exists('salles_activees', $a)
                     // Jamais vide : sans salle cachée habitée, la carte reste un monstre errant (`appliquerButin()`).
                     ? "{$acteurNom} tire un monstre errant : "
                         .implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) $a['salles_activees']))
                     : (count((array) ($a['monstres'] ?? [])) > 1
                     ? self::figuresGroupees(array_map(fn ($m) => (string) ($m['nom'] ?? 'un monstre'), (array) $a['monstres']))
                         ." surgissent du coffre que fouille {$acteurNom} !"
-                    : ($a['monstre']['nom'] ?? 'Un monstre')." surgit du coffre que fouille {$acteurNom} !"),
+                    : ($a['monstre']['nom'] ?? 'Un monstre')." surgit du coffre que fouille {$acteurNom} !")),
                 'ton' => 'subit',
             ]],
             // CERCUEIL du Tombeau (`ResolveurTour::spawnDuTombeau()`) : le même payload que l'errant, nommé pour ce

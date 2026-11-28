@@ -7172,6 +7172,23 @@ happen once during this quest series. » ; q. 3 : « Once Sigill has been found 
   en main et ramasse ses affaires — il agira au prochain tour ».
 - `CreationHeros::creer()` est désormais le seul endroit qui fait naître un héros (roster et barde).
 
+### Les jetons Spawnling — errant qui s'accroche, effet `rejetons` (lot E2, 2026-11-27)
+
+*Jungles of Delthrak* (F9907) : « Wandering Monster in the Quest: Spawnling. When the Wandering Monster card is drawn, place a
+Spawnling tile on the triggering hero's card. The hero's turn immediately ends. » ; les cocons (q. 3 C, 6 C, 11 D, 13 D) :
+« one Blightcrawler Spawnling. Place a Spawnling tile on the hero's card. That hero's turn immediately ends ».
+`Classique\Rejetons`, le jeton du mode RPG (`jetons_rejeton` : 1 PV indéfendable par jeton à chaque fin de tour, action
+`detacher_rejetons`) :
+- **L'errant** : quand le `monstre_errant` de l'auteur porte `s_accroche` (le `rejeton-putride`), la carte (fouille, piège à
+  errant, effet `errants`) ne pose aucune figure : `nombre` jetons (1 par défaut) sur la fiche du héros, et son tour s'arrête.
+  Résultat de la fouille : `{issue: "errant", rejetons: {nombre, jetons, personnage_id, nom, monstre}}`. Fil : « Un rejeton
+  s'accroche à Albrecht : son tour s'arrête (1 jeton(s) sur sa fiche, 1 PV chacun à chaque fin de tour) ».
+- **L'effet de note `rejetons {nombre?}`** (1 à 6, 1 par défaut) : la même pose sur le héros qui déclenche. Résultat de
+  l'effet `{nombre, jetons, personnage_id, nom}`, même ligne au fil.
+- « The hero's turn immediately ends » : un marqueur de `capacites_tour` (`rejetons_fin_de_tour`) que la résolution lit avec
+  les autres fins de tour forcées — le créneau devient `tour`, toute la fin de tour se joue (les jetons rongent déjà).
+- La fin de tour relit le compte de jetons EN BASE (une note les pose pendant la résolution, par sa propre copie de l'état).
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

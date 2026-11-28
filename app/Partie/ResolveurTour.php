@@ -860,7 +860,9 @@ final class ResolveurTour
             // et c'est le SEUL et MÊME point de passage qui ferme un tour
             // avant que les deux créneaux ne soient consommés.
             $finDeTour = ($this->evenementGlace['fin_tour'] ?? false) || $this->finTourPiegeSol || $this->finTourSables
-                || $this->finTourPorteForcee;
+                || $this->finTourPorteForcee
+                // SPAWNLING (lot E2, Delthrak) : des jetons posés sur sa fiche — « The hero's turn immediately ends ».
+                || \App\Partie\Classique\Rejetons::finDeTourDemandee($etat->fresh());
 
             // MANŒUVRE (lettre du livret, 2026-11-12) : pendant une manœuvre, ce qui finirait le tour (glace, piège de sol,
             // sables, porte forcée) ne finit que la MANŒUVRE — l'activation n'est pas jouée. Une règle qui force le héros
@@ -3919,6 +3921,12 @@ final class ResolveurTour
 
     private function rongerParRejetons(EtatPersonnageQuete $etat): void
     {
+        // Le compte EN BASE, pas celui de la copie tenue par le résolveur : une note de quête pose ses jetons par sa propre
+        // copie de l'état (lot E2, les cocons de Delthrak — `Classique\Rejetons`), pendant la résolution même.
+        if ($etat->exists) {
+            $etat->jetons_rejeton = (int) EtatPersonnageQuete::whereKey($etat->getKey())->value('jetons_rejeton');
+            $etat->syncOriginalAttribute('jetons_rejeton');
+        }
         $jetons = (int) $etat->jetons_rejeton;
         $personnage = $etat->personnage;
 
@@ -12408,6 +12416,14 @@ final class ResolveurTour
      */
     public function surgissementErrant(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): array
     {
+        // SPAWNLING (lot E2, *Jungles of Delthrak*) : « place a Spawnling tile on the triggering hero's card. The hero's turn
+        // immediately ends » — un errant qui s'accroche ne se pose pas, il devient des jetons (`Classique\Rejetons`).
+        $pose = app(MonstreErrant::class)->poseDeLaQuete($quete);
+        if ($pose !== null && \App\Partie\Classique\Rejetons::errantQuiSAccroche($quete, $pose['monstre'])) {
+            return ['rejetons' => [...app(\App\Partie\Classique\Rejetons::class)->poser($personnage, $etat, (int) $pose['nombre']),
+                'monstre' => (string) $pose['monstre']->nom_base]];
+        }
+
         $payload = [];
         $sortis = $this->spawnErrant($quete, $etat);
         $errant = $sortis[0] ?? null;

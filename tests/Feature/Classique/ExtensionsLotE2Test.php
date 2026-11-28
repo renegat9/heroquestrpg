@@ -1614,3 +1614,52 @@ it('barde de remplacement : à la mort d\'un héros (après le drapeau), un bard
     // Une seule fois — et un barde est désormais joué.
     expect(app(\App\Partie\Classique\BardeDeRemplacement::class)->aRemplacer($groupe->fresh(), $quete->fresh(), $etatBarde->fresh()))->toBeFalse();
 });
+
+// ---------------------------------------------------------------- Jungles of Delthrak : les jetons Spawnling
+
+/** Fouille de la galerie (8, 3), le menu frais : rend le résultat. */
+function fouillerE2(object $test, array $partie): array
+{
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $test->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+
+    return $test->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'fouiller_tresor'])->assertAccepted()->json('resultat');
+}
+
+it('Spawnling errant : la carte pose un jeton sur la fiche du fouilleur, aucune figure, et son tour s\'arrête', function () {
+    $partie = partieE2($this, campagneE2(['monstre_errant' => 'rejeton-putride']));
+    empilerCarteFouille($partie['quete'], ['issue' => 'errant']);
+
+    $resultat = fouillerE2($this, $partie);
+    $etat = $partie['quete']->etatsPersonnages()->firstOrFail();
+
+    expect($resultat['issue'])->toBe('errant')
+        ->and($resultat['rejetons']['nombre'])->toBe(1)
+        ->and($partie['quete']->instancesMonstres()->count())->toBe(0)
+        ->and((int) $etat->jetons_rejeton)->toBe(1)
+        // « The hero's turn immediately ends » — et la fin de tour ronge déjà : 1 PV par jeton (p. 48).
+        // Seul héros : le round s'est refermé et a tout remis à zéro — le PV rongé dit que la fin de tour s'est jouée.
+        ->and(\App\Partie\Classique\Rejetons::finDeTourDemandee($etat))->toBeFalse()
+        ->and((int) $partie['heros']->fresh()->pv_body)->toBe(29)
+        ->and(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'))->pluck('texte')->first())
+            ->toStartWith('Un rejeton s\'accroche à Albrecht : son tour s\'arrête');
+});
+
+it('Spawnling d\'une note (les cocons) : « four Blightcrawler Spawnlings » sur la fiche, le tour s\'arrête', function () {
+    $campagne = campagneE2(['notes' => [['repere' => 'D', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']],
+        'alors' => [['effet' => 'rejetons', 'nombre' => 4], ['effet' => 'objet', 'slug' => 'potion-de-soin']]]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['notes' => [['repere' => 'D', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']],
+            'alors' => [['effet' => 'rejetons', 'nombre' => 7]]]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+
+    $resultat = fouillerE2($this, $partie);
+    $etat = $partie['quete']->etatsPersonnages()->firstOrFail();
+
+    // Le tour s'arrête : la fin de tour ronge aussitôt les quatre (le seul héros referme le round).
+    expect((int) $etat->jetons_rejeton)->toBe(4)
+        ->and((int) $partie['heros']->fresh()->pv_body)->toBe(26)
+        ->and(collect(collect($resultat['annonces_automatiques'] ?? [])->firstWhere('type', 'note_de_quete')['effets'] ?? [])
+            ->firstWhere('effet', 'rejetons')['jetons'] ?? null)->toBe(4);
+});

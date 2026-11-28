@@ -903,9 +903,15 @@ trait LignesEffetsAutomatiques
                     break;
                 case 'errants':
                     $noms = (array) ($effet['monstres'] ?? []);
-                    $lignes[] = $noms !== []
+                    $lignes[] = isset($effet['rejetons'])
+                        ? ['texte' => JournalCombat::rejetonsPoses((array) $effet['rejetons'], $heros), 'ton' => 'subit']
+                        : ($noms !== []
                         ? ['texte' => implode(', ', $noms).(count($noms) > 1 ? ' surgissent' : ' surgit').' de nulle part !', 'ton' => 'subit']
-                        : ['texte' => 'Rien ne surgit : aucun monstre errant ne rôde', 'ton' => 'info'];
+                        : ['texte' => 'Rien ne surgit : aucun monstre errant ne rôde', 'ton' => 'info']);
+                    break;
+                // Lot E2 (*Jungles of Delthrak*, les cocons) : des Spawnling sur la fiche du héros, son tour s'arrête.
+                case 'rejetons':
+                    $lignes[] = ['texte' => JournalCombat::rejetonsPoses($effet, $heros), 'ton' => 'subit'];
                     break;
                 case 'arreter':
                     $lignes[] = ['texte' => "{$heros} s'arrête net", 'ton' => 'subit'];
