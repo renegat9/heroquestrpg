@@ -159,7 +159,7 @@ final class ValidationCampagne
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
     private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe', 'portails', 'cases_sans_arret'];
-    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable', 'deguise', 'neutre', 'sorts_actifs'];
+    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable', 'deguise', 'neutre', 'sorts_actifs', 'sort_dread_parmi'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
     /** « Wandering Monster in this Quest: 4 Goblins » (F9528 q. 4) : le plus grand nombre lu dans les livrets, avec de la marge. */
@@ -1429,6 +1429,12 @@ final class ValidationCampagne
                     }
                 }
                 break;
+            // Lot E2 (*First Light* q. 4 B) : des cartes d'équipement, la moins chère gardée — au plus le paquet (20 cartes).
+            case MotsClesQuete::EQUIPEMENT_LE_MOINS_CHER:
+                if (array_key_exists('nombre', $effet) && ($nombre = $this->entier($effet, 'nombre', $position, min: 1)) !== null && $nombre > 20) {
+                    $this->refuser("$position.nombre", self::VALEUR_INVALIDE, 'au plus 20 cartes (le paquet d\'équipement)');
+                }
+                break;
             // Lot E2 (*First Light* q. 3 C) : la Bénédiction ou la Malédiction de l'Oracle.
             case MotsClesQuete::ORACLE:
                 $this->dans($effet, 'don', $position, ['benediction', 'malediction']);
@@ -2044,6 +2050,22 @@ final class ValidationCampagne
             }
         }
 
+        // UN SORT TIRÉ (lot E2, *First Light* q. 5 A) : au moins deux slugs du catalogue `sorts_dread`, sans doublon.
+        if (array_key_exists('sort_dread_parmi', $pose)) {
+            $ici = self::chemin($position, 'sort_dread_parmi');
+            $parmi = $this->enListe($pose['sort_dread_parmi'], $ici);
+            if (is_array($parmi) && count($parmi) < 2) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'au moins deux sorts : un seul, c\'est `sorts_dread`');
+            }
+            foreach ((array) $parmi as $i => $slug) {
+                if (! is_string($slug) || ! $this->catalogue->contient('sorts_dread', $slug)) {
+                    $this->refuser("$ici.$i", self::CATALOGUE_INCONNU, 'un slug du catalogue « sorts_dread » est attendu');
+                }
+            }
+            if (is_array($parmi) && count($parmi) !== count(array_unique(array_filter($parmi, 'is_string')))) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'un même sort est nommé deux fois');
+            }
+        }
         // SORTS DE DREAD de l'auteur (lot E1) : des slugs du catalogue `sorts_dread`, sans doublon.
         if (array_key_exists('sorts_dread', $pose)) {
             $ici = self::chemin($position, 'sorts_dread');

@@ -911,6 +911,12 @@ trait LignesEffetsAutomatiques
                         ? ['texte' => implode(', ', $noms).(count($noms) > 1 ? ' surgissent' : ' surgit').' de nulle part !', 'ton' => 'subit']
                         : ['texte' => 'Rien ne surgit : aucun monstre errant ne rôde', 'ton' => 'info']);
                     break;
+                // Lot E2 (*First Light* q. 4 B) : quatre cartes d'équipement, la moins chère gardée.
+                case 'equipement_le_moins_cher':
+                    if (($effet['garde'] ?? null) !== null) {
+                        $lignes[] = ['texte' => ($effet['nom'] ?? $heros).' retourne '.implode(', ', (array) ($effet['cartes'] ?? [])).' et garde la moins chère : '.$effet['garde'], 'ton' => 'tresor'];
+                    }
+                    break;
                 // Lot E2 (*First Light* q. 3 C) : l'Oracle bénit, ou marque.
                 case 'oracle':
                     if (($effet['don'] ?? null) !== null) {

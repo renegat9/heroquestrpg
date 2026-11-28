@@ -7406,6 +7406,23 @@ hors brouillard (`carte.marqueurs: [{x, y}]`) ; le héros au contact (ou dessus)
 (repère « marqueur » — un `jet` d'un dé, un `en_ordre` pour « the first time »), puis le marqueur disparaît
 (`quetes.drapeaux._marqueurs_fouilles`). Annonce `fouille_marqueur {nom, libelle, x, y, note}`.
 
+*First Light* q. 4 (FL-Q p. 17) :
+- « The first hero to search for treasure shuffles the equipment cards and deals four faceup cards. They keep the card worth
+  the lowest amount of gold » : effet **`equipement_le_moins_cher {nombre?: 4}`** — le paquet : les 20 cartes Hasbro du
+  registre (`config/cartes.php`, `equipement`), tirées sans remise ; à prix égal, la première tirée. Résultat `{nom, cartes,
+  garde, don}`.
+- « The undead in this room may pass through walls into areas already discovered by the heroes » : capacité de profil
+  **`traverse_murs`** — murs et roche franchis (`Grille::autoriserLaRoche()`), figures et meubles non ; l'arrêt seulement en
+  zone découverte, la garde des éthérés (`ResolveurTour::estTraversant()`).
+- « The secret door cannot be found by searching for secret doors. When the first hero searches for treasure […] Place the
+  secret door. The second hero to search for treasure finds […] » : `portes[].cachee` (existant) + `reveler_porte` ; le
+  « second hero » : une note `fouille_tresor` à `une_fois: false` portant un `en_ordre` — chaque fouille joue l'étape
+  suivante, puis plus rien.
+
+*First Light* q. 5 (FL-Q p. 19) : « shuffle the Dread spells Tempest, Lightning Bolt, and Ball of Flame and deal one for the
+creature. The creature knows this spell and may use it once » : **`monstres[].sort_dread_parmi: [slug, …]`** (au moins
+deux) — un sort tiré à la pose, gardé dans l'habillage, joint à `sorts_dread`.
+
 *First Light* q. 3 (FL-Q p. 15) :
 - « Heroes may not end their movement on the eye tile » : **`regles.cases_sans_arret: [{x, y}]`** — jointes, dans
   `FabriqueGrille::pour()`, au jeu des cases interdites à l'arrêt (mare, brasier) : on les traverse, on ne s'y arrête pas.

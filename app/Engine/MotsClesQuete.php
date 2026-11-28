@@ -421,6 +421,13 @@ final class MotsClesQuete
      */
     public const ORACLE = 'oracle';
 
+    /**
+     * Lot E2 (*First Light* q. 4 B : « shuffles the equipment cards and deals four faceup cards. They keep the card worth the
+     * lowest amount of gold ») — `nombre?` (4) cartes du paquet d'équipement (`config/cartes.php`, `equipement`), le héros garde
+     * la moins chère.
+     */
+    public const EQUIPEMENT_LE_MOINS_CHER = 'equipement_le_moins_cher';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `etapes[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET, self::EN_ORDRE];
 
@@ -476,6 +483,7 @@ final class MotsClesQuete
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],
         self::EN_RESERVE => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetEnReserve', 'libelle' => 'placer des figures dans la zone hors du plateau'],
         self::SOIGNER => ['parametres' => [], 'optionnels' => ['body', 'mind'], 'lecteur' => 'effetSoigner', 'libelle' => 'soigner le héros (Corps, Esprit : un nombre ou « tout »)'],
+        self::EQUIPEMENT_LE_MOINS_CHER => ['parametres' => [], 'optionnels' => ['nombre'], 'lecteur' => 'effetEquipementLeMoinsCher', 'libelle' => 'tirer des cartes d\'équipement, le héros garde la moins chère'],
         self::ORACLE => ['parametres' => ['don'], 'optionnels' => [], 'lecteur' => 'effetOracle', 'libelle' => 'la Bénédiction ou la Malédiction de l\'Oracle'],
         self::CARTES_AU_CHOIX => ['parametres' => [], 'optionnels' => ['nombre'], 'lecteur' => 'effetCartesAuChoix', 'libelle' => 'tirer des cartes de trésor, le héros en garde une'],
         self::VAINCRE_TOUS => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetVaincreTous', 'libelle' => 'tous les monstres du plateau sont vaincus et retirés'],

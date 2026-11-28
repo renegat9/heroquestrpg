@@ -45,6 +45,7 @@ const LIBELLES_CAPACITE = {
     retire_au_contact_deguise: 'endormie, retirée au contact d\'un héros déguisé',
     rappelable: 'rappelable : un héros qui la voit lui rappelle son passé (une action, un dé ; un bouclier = 1 point d\'Esprit ; à 0, elle s\'efface apaisée)',
     bouclier_noir_pare_tout: 'un bouclier noir à ses dés de défense pare tous les coups (les Golems de Morcar)',
+    traverse_murs: 'traverse les murs vers les zones déjà découvertes (les morts-vivants de la Main de la Sorcière)',
     flamme_de_zargon: 'Flamme de Zargon : touchée, un dé contre deux chiffres (épargnée ou consumée, quels que soient ses PV) ; l\'Eau de Guérison la frappe',
 };
 const nomSortDread = (slug) => props.sortsDread.find((o) => o.slug === slug)?.nom ?? slug;
@@ -57,6 +58,17 @@ function ajouterSortDread(slug) {
 function retirerSortDread(slug) {
     const liste = (m.value.sorts_dread ?? []).filter((s) => s !== slug);
     if (liste.length) m.value.sorts_dread = liste; else delete m.value.sorts_dread;
+}
+// Lot E2 (First Light q. 5 A) : un sort tiré parmi plusieurs, à la pose.
+function ajouterSortParmi(slug) {
+    if (!slug) return;
+    const liste = m.value.sort_dread_parmi ?? [];
+    if (!liste.includes(slug)) liste.push(slug);
+    m.value.sort_dread_parmi = liste;
+}
+function retirerSortParmi(slug) {
+    const liste = (m.value.sort_dread_parmi ?? []).filter((s) => s !== slug);
+    if (liste.length) m.value.sort_dread_parmi = liste; else delete m.value.sort_dread_parmi;
 }
 function basculerCapacite(nom, avec) {
     const liste = (m.value.capacites ?? []).filter((c) => c !== nom);
@@ -122,6 +134,17 @@ function basculerFuite(avec) {
                 <option v-for="o in sortsDread.filter((o) => !(m.sorts_dread ?? []).includes(o.slug))" :key="o.slug" :value="o.slug">{{ o.nom }}</option>
             </select>
             <span v-if="(m.sorts_dread ?? []).length" class="cst-sous">remplacent ceux de la fiche ; chacun une fois par quête</span>
+        </div>
+        <div v-if="sortsDread.length" class="cst-ligne">
+            <span class="cst-sous">Un sort tiré parmi :</span>
+            <span v-for="slug in (m.sort_dread_parmi ?? [])" :key="`p${slug}`" class="pm-puce">{{ nomSortDread(slug) }}
+                <button type="button" class="cst-icone" title="Retirer" @click="retirerSortParmi(slug)"><MSym n="close" :size="12" /></button>
+            </span>
+            <select class="cst-input" @change="ajouterSortParmi($event.target.value); $event.target.value = ''">
+                <option value="">+ sort à mélanger…</option>
+                <option v-for="o in sortsDread.filter((o) => !(m.sort_dread_parmi ?? []).includes(o.slug))" :key="`p${o.slug}`" :value="o.slug">{{ o.nom }}</option>
+            </select>
+            <span v-if="(m.sort_dread_parmi ?? []).length" class="cst-sous">un seul est donné à la créature, tiré au départ (au moins deux)</span>
         </div>
         <div v-if="capacites.length" class="cst-ligne">
             <label v-for="nom in capacites" :key="nom" class="cst-case">

@@ -4074,8 +4074,7 @@ final class ResolveurTour
      */
     private function derniereCaseOuSArreter(Quete $quete, InstanceMonstre $instance, array $chemin, int $pas, Grille $reelle): ?array
     {
-        $traversant = $this->dread->aCapacite($instance, 'ethere')
-            || $this->dread->aCapacite($instance, 'agile');
+        $traversant = $this->estTraversant($instance);
 
         // ⚠ Le recul vaut désormais pour TOUT LE MONDE, et plus seulement pour
         // les traversants : depuis que les monstres se franchissent entre eux
@@ -4121,7 +4120,7 @@ final class ResolveurTour
             return false;
         }
 
-        if (! $this->dread->aCapacite($instance, 'ethere') && ! $this->dread->aCapacite($instance, 'agile')) {
+        if (! $this->estTraversant($instance)) {
             return true;
         }
 
@@ -16109,6 +16108,14 @@ final class ResolveurTour
                     continue;
                 }
 
+                // Mode classique (lot E2, trouvé avec *First Light* q. 4 F) : une case voisine du héros À TRAVERS UN MUR n'est pas une
+                // place d'attaque — le mur coupe le contact (`Grille::sontAdjacentes(carte:)`). Sans ce garde, un monstre posé de
+                // l'autre côté du mur se croyait arrivé (chemin vide) et ne faisait jamais le tour. Le RPG a le même défaut :
+                // signalé à René, laissé tel quel ici (branche classique isolée).
+                if ($quete->estConstruite() && ! Grille::sontAdjacentes((int) $cible->position_x, (int) $cible->position_y, $cx, $cy, carte: $quete->carte)) {
+                    continue;
+                }
+
                 $chemin = $grille->chemin((int) $instance->position_x, (int) $instance->position_y, $cx, $cy);
 
                 if ($chemin !== null && ($meilleure === null || ($meilleure[1] !== [] && count($chemin) < count($meilleure[1])))) {
@@ -16224,7 +16231,21 @@ final class ResolveurTour
             $grille->autoriserEthere();
         } elseif ($this->dread->aCapacite($instance, 'agile')) {
             $grille->autoriserFranchissement();
+        } elseif ($this->dread->aCapacite($instance, 'traverse_murs')) {
+            // Mode classique, lot E2 (*First Light* q. 4 F : « The undead in this room may pass through walls into areas already
+            // discovered by the heroes ») : les murs et la roche seulement — figures et meubles bloquent toujours.
+            $grille->autoriserLaRoche();
         }
+    }
+
+    /**
+     * Une figure qui FRANCHIT (éthéré, agile, ou qui traverse les murs) : elle ne s'arrête que dans une zone découverte
+     * (`derniereCaseOuSArreter()`, `empriseOuSArreter()`) — un seul endroit pour la liste.
+     */
+    private function estTraversant(InstanceMonstre $instance): bool
+    {
+        return $this->dread->aCapacite($instance, 'ethere') || $this->dread->aCapacite($instance, 'agile')
+            || $this->dread->aCapacite($instance, 'traverse_murs');
     }
 
     /**

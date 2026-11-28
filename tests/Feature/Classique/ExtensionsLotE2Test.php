@@ -2358,3 +2358,76 @@ it('q. 1 : un marqueur se fouille au contact pour une action, son jet paie, le b
     expect(fn () => app(\App\Partie\Classique\MarqueursFouillables::class)->fouiller($quete->fresh(), $partie['heros'], $etat->fresh(), 10, 5))
         ->toThrow(\Illuminate\Validation\ValidationException::class);
 });
+
+// ---------------------------------------------------------------- First Light : la forteresse du Roi de Feu (q. 4), le Synchroforme (q. 5)
+
+it('q. 4 : quatre cartes d\'équipement, la moins chère gardée ; le second fouilleur joue l\'étape suivante', function () {
+    $campagne = campagneE2([
+        'notes' => [['repere' => 'B', 'une_fois' => false, 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']], 'alors' => [
+            ['effet' => 'en_ordre', 'etapes' => [
+                ['alors' => [['effet' => 'equipement_le_moins_cher', 'nombre' => 4]]],
+                ['alors' => [['effet' => 'drapeau', 'nom' => 'double_fond']]],
+            ]],
+        ]]],
+    ]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $galerie = collect($quete->carte->grille['salles'])->search(fn ($s) => $s['id'] === 'galerie');
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class);
+
+    $avant = $partie['heros']->inventaire()->count();
+    $notes->signaler($quete->fresh(), 'fouille_tresor', ['salle' => $galerie], $partie['heros']);
+    expect($partie['heros']->inventaire()->count())->toBe($avant + 1)
+        ->and(data_get($quete->fresh()->drapeaux, 'double_fond'))->toBeNull();
+
+    $notes->signaler($quete->fresh(), 'fouille_tresor', ['salle' => $galerie], $partie['heros']);
+    expect(data_get($quete->fresh()->drapeaux, 'double_fond'))->not->toBeNull();
+});
+
+it('q. 4 : la carte gardée est la moins chère des cartes tirées, toutes du paquet d\'équipement', function () {
+    $partie = partieE2($this, campagneE2());
+    $lecteur = new ReflectionMethod(\App\Partie\Classique\NotesDeQuete::class, 'effetEquipementLeMoinsCher');
+    $r = $lecteur->invoke(app(\App\Partie\Classique\NotesDeQuete::class), $partie['quete']->fresh(), ['nombre' => 4], $partie['heros']);
+    $paquet = array_column(config('cartes.equipement.cartes'), 'objet');
+    $cartes = array_map(fn ($c) => preg_match('/^(.*) \((\d+) po\)$/', $c, $x) ? [$x[1], (int) $x[2]] : null, $r['cartes']);
+    expect($cartes)->toHaveCount(4)
+        ->and(collect($cartes)->pluck(0)->diff($paquet)->all())->toBe([])
+        ->and(collect($cartes)->pluck(0)->unique()->count())->toBe(4)
+        ->and(collect($cartes)->firstWhere(0, $r['garde'])[1])->toBe(collect($cartes)->min(1));
+});
+
+it('q. 4 : traverse_murs — le mort-vivant passe le mur vers la salle découverte et frappe ; le témoin reste derrière la porte close', function (bool $traverse) {
+    $campagne = campagneE2(['monstres' => [['slug' => 'squelette', 'x' => 10, 'y' => 2, 'deplacement' => 2,
+        ...($traverse ? ['capacites' => ['traverse_murs']] : [])]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    // Le héros en (5, 3), l'entrée ; le squelette en (7, 2), la galerie, derrière le mur (porte close en (6, 3)).
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 5, 'position_y' => 3]);
+    $squelette = $partie['quete']->instancesMonstres()->first();
+    $squelette->update(['position_x' => 7, 'position_y' => 2, 'revele' => true]);
+    expect($squelette->fresh()->aCapacite('traverse_murs'))->toBe($traverse);
+
+    $phase = new ReflectionMethod(ResolveurTour::class, 'phaseMonstres');
+    $actions = (array) ($phase->invoke(app(ResolveurTour::class), $partie['groupe'], $partie['quete']->fresh())['actions'] ?? []);
+    $x = (int) $squelette->fresh()->position_x;
+    if ($traverse) {
+        expect($x)->toBeLessThanOrEqual(6)
+            ->and(collect($actions)->where('type', 'attaque_monstre')->count())->toBe(1);
+    } else {
+        expect($x)->toBe(7)
+            ->and(collect($actions)->where('type', 'attaque_monstre')->count())->toBe(0);
+    }
+})->with(['traverse les murs' => [true], 'témoin' => [false]]);
+
+it('q. 5 : la créature de la cellule reçoit UN sort tiré parmi trois, gardé dans son profil', function () {
+    $slugs = collect(app(\App\Partie\Classique\CatalogueConstructeur::class)->index('sorts_dread'))->keys()->take(3)->values()->all();
+    $campagne = campagneE2(['monstres' => [['slug' => 'gobelin', 'x' => 9, 'y' => 4, 'sort_dread_parmi' => $slugs]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['monstres' => [['slug' => 'gobelin', 'x' => 9, 'y' => 4, 'sort_dread_parmi' => [$slugs[0]]]]])))->toContain('valeur_invalide');
+    $partie = partieE2($this, $campagne);
+    $gobelin = $partie['quete']->instancesMonstres()->get()->last();
+    $sorts = (array) data_get($gobelin->habillage, 'profil_quete.sorts_dread');
+    $noms = collect(app(\App\Partie\Classique\CatalogueConstructeur::class)->index('sorts_dread'))->only($slugs)->map(fn ($s) => $s->nom)->values()->all();
+    expect($sorts)->toHaveCount(1)->and($noms)->toContain($sorts[0]);
+});

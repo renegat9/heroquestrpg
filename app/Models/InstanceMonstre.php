@@ -134,6 +134,9 @@ class InstanceMonstre extends Model
         // Lot E2 (*Wizards of Morcar* q. 2 A) : « When these Golems defend, one black shield rolled blocks all hits » —
         // `ResolveurTour::frapper()`, sur le jet retenu.
         'bouclier_noir_pare_tout' => ['bouclier_noir_pare_tout', true],
+        // Lot E2 (*First Light* q. 4 F) : « The undead in this room may pass through walls into areas already discovered by the
+        // heroes » — `ResolveurTour::appliquerModeDeMarche()` (murs et roche) et `estTraversant()` (arrêt en zone découverte).
+        'traverse_murs' => ['traverse_murs', true],
     ];
 
     /** Dés d'attaque effectifs (bloc de stats + bonus élite éventuel). */
@@ -278,6 +281,17 @@ class InstanceMonstre extends Model
                 static fn ($slug) => is_string($slug) && isset($sortsDread[$slug]) ? (string) $sortsDread[$slug]->nom : null,
                 $pose['sorts_dread'],
             )));
+        }
+        // UN SORT TIRÉ (lot E2, *First Light* q. 5 A : « shuffle the Dread spells Tempest, Lightning Bolt, and Ball of Flame and deal
+        // one for the creature. The creature knows this spell and may use it once ») : tiré UNE fois, à la pose — l'habillage
+        // est gardé en base, le tirage ne bouge plus —, et joint aux sorts de l'auteur.
+        if (isset($pose['sort_dread_parmi']) && is_array($pose['sort_dread_parmi'])) {
+            $sortsDread = $catalogue->index('sorts_dread');
+            $parmi = array_values(array_filter($pose['sort_dread_parmi'], static fn ($slug) => is_string($slug) && isset($sortsDread[$slug])));
+            if ($parmi !== []) {
+                $tire = $parmi[app(\Random\Randomizer::class)->getInt(0, count($parmi) - 1)];
+                $profil['sorts_dread'] = array_values(array_unique([...(array) ($profil['sorts_dread'] ?? []), (string) $sortsDread[$tire]->nom]));
+            }
         }
         // CAPACITÉS de l'auteur (lot E1), liste fermée `CAPACITES_DE_PROFIL` : lues par `aCapacite()`.
         if (array_key_exists('capacites', $pose) && is_array($pose['capacites'])) {

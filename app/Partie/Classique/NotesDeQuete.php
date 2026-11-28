@@ -415,6 +415,27 @@ final class NotesDeQuete
         return ['retires' => $retires];
     }
 
+    /**
+     * Lot E2 (*First Light* q. 4 B) — `nombre` cartes (4) du paquet d'équipement, tirées sans remise ; le héros garde la moins
+     * chère (à prix égal, la première tirée). Le paquet : les cartes Hasbro du registre (`config/cartes.php`, `equipement`).
+     */
+    private function effetEquipementLeMoinsCher(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $noms = array_column((array) config('cartes.equipement.cartes', []), 'objet');
+        $paquet = \App\Models\Objet::query()->whereIn('nom', $noms)->whereNotNull('prix_base')->orderBy('id')->get()->values()->all();
+        $n = min(count($paquet), max(1, (int) ($effet['nombre'] ?? 4)));
+        if ($n === 0) {
+            return ['cartes' => [], 'garde' => null];
+        }
+        $tires = app(\Random\Randomizer::class)->shuffleArray((array) app(\Random\Randomizer::class)->pickArrayKeys($paquet, $n));
+        $cartes = array_map(fn (int $k) => $paquet[$k], $tires);
+        $garde = array_reduce($cartes, fn ($meilleure, $o) => $meilleure === null || (int) $o->prix_base < (int) $meilleure->prix_base ? $o : $meilleure);
+        $don = $this->effetObjet($quete, ['slug' => CatalogueConstructeur::slug($garde->nom)], $heros);
+
+        return ['nom' => $heros?->nom, 'cartes' => array_map(fn ($o) => $o->nom.' ('.(int) $o->prix_base.' po)', $cartes),
+            'garde' => $garde->nom, 'don' => $don];
+    }
+
     /** Lot E2 (*First Light* q. 3 C) — la Bénédiction ou la Malédiction de l'Oracle, écrite sur la fiche du héros (`MoteurOracle`). */
     private function effetOracle(Quete $quete, array $effet, ?Personnage $heros): array
     {
