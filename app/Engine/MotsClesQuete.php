@@ -409,6 +409,12 @@ final class MotsClesQuete
      */
     public const VAINCRE_TOUS = 'vaincre_tous';
 
+    /**
+     * Lot E2 (*Wizards of Morcar* q. 3 A : « may take two treasure cards and choose one to keep ») — `nombre` cartes du paquet
+     * (2 par défaut) ; le héros en garde une, les autres retournent sous le paquet (`Classique\CartesAuChoix`).
+     */
+    public const CARTES_AU_CHOIX = 'cartes_au_choix';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `etapes[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET, self::EN_ORDRE];
 
@@ -464,6 +470,7 @@ final class MotsClesQuete
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],
         self::EN_RESERVE => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetEnReserve', 'libelle' => 'placer des figures dans la zone hors du plateau'],
         self::SOIGNER => ['parametres' => [], 'optionnels' => ['body', 'mind'], 'lecteur' => 'effetSoigner', 'libelle' => 'soigner le héros (Corps, Esprit : un nombre ou « tout »)'],
+        self::CARTES_AU_CHOIX => ['parametres' => [], 'optionnels' => ['nombre'], 'lecteur' => 'effetCartesAuChoix', 'libelle' => 'tirer des cartes de trésor, le héros en garde une'],
         self::VAINCRE_TOUS => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetVaincreTous', 'libelle' => 'tous les monstres du plateau sont vaincus et retirés'],
         self::EN_ORDRE => ['parametres' => ['etapes'], 'optionnels' => [], 'lecteur' => 'effetEnOrdre', 'libelle' => 'jouer l\'étape suivante, une à la fois et dans l\'ordre'],
         self::REJETONS => ['parametres' => [], 'optionnels' => ['nombre'], 'lecteur' => 'effetRejetons', 'libelle' => 'accrocher des Spawnling à la fiche du héros (son tour s\'arrête)'],

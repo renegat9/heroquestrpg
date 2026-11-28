@@ -762,6 +762,7 @@ final class ResolveurTour
                 'insubstantiel' => $this->resoudreInsubstantiel($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'toucher_mur_illusoire' => $this->resoudreMurIllusoire($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortir_labyrinthe' => $this->resoudreSortieLabyrinthe($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'garder_carte' => $this->resoudreCarteGardee($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, de soi-même. Geste libre.
                 'retirer_deguisement' => $this->resoudreRetirerDeguisement($groupe, $personnage, $etat, $acteur),
                 // GLYPHES (mode classique, lot K6) : détruire un glyphe découvert — parchemin ou cheminée. Geste libre.
@@ -17282,6 +17283,8 @@ final class ResolveurTour
             'toucher_mur_illusoire' => 'interaction',
             // LE LABYRINTHE (lot E2) : ressortir est le bout du déplacement qui y est entré, sans rien coûter de plus.
             'sortir_labyrinthe' => 'interaction',
+            // DEUX CARTES, UNE GARDÉE (lot E2) : le choix appartient à la fouille qui les a tirées.
+            'garder_carte' => 'interaction',
             // La répartition du dé de la planque appartient à l'action qui l'a lancé (lot E2).
             'repartir_planque' => 'interaction',
             // « they instead knock on it (no action required) » (F6646 q. 3).
@@ -17929,6 +17932,17 @@ final class ResolveurTour
     private function resoudreInsubstantiel(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
         $payload = app(\App\Partie\Classique\Insubstantialite::class)->prendre($quete, $personnage, $etat, (string) ($option['parametres']['usage'] ?? ''));
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** DEUX CARTES, UNE GARDÉE (lot E2, Morcar q. 3 A) : la carte choisie se joue comme une carte de fouille. */
+    private function resoudreCarteGardee(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $carte = app(\App\Partie\Classique\CartesAuChoix::class)->garder($quete, $personnage, (int) ($option['parametres']['carte'] ?? -1));
+        $payload = $this->appliquerButin($carte, ['type' => 'fouille_tresor', 'option_id' => $option['id'], 'libelle' => $option['libelle'] ?? null],
+            $groupe, $quete->fresh(), $personnage, $etat);
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;

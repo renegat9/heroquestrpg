@@ -7370,6 +7370,12 @@ comme le livret — avant chaque quête, un animal gratuit par héros, pour cett
   {tour_de: [index]}`** : la carte (fouille, piège à errant, effet `errants`) fait jouer tout de suite son tour à la figure
   désignée encore debout et sur le plateau la plus proche du fouilleur ; aucune, rien (`errant_indisponible`). Résultat
   `tour_errant {monstre, instance_id}` ; ses gestes s'annoncent comme ceux d'un monstre.
+- q. 3 A : « The first hero to search for treasure may take two treasure cards and choose one to keep. » Effet **`cartes_au_choix
+  {nombre?}`** (2 par défaut, 3 au plus — `Classique\CartesAuChoix`) : les cartes sont tirées du paquet de la quête et gardées
+  en base (`quetes.drapeaux._cartes_au_choix`) ; le menu du héros est FORCÉ — `garder_carte_{k}` (gratuit), libellé « Garder :
+  120 pièces d'or » — et la carte gardée se joue comme une carte de fouille (`appliquerButin()`, résultat `fouille_tresor`) ;
+  les autres retournent sous le paquet. Fil de la note : « Albrecht tire 2 cartes : 50 pièces d'or ou 120 pièces d'or — à lui
+  d'en garder une ».
 
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 

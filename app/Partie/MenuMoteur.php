@@ -1695,6 +1695,21 @@ final class MenuMoteur
             ];
         }
 
+        // DEUX CARTES, UNE GARDÉE (mode classique, lot E2 — G1504 q. 3 A : « choose one to keep ») : menu forcé, une option par
+        // carte, gratuite (`Classique\CartesAuChoix`, que le résolveur relit).
+        if ($etat !== null && ! $etat->tombe && $quete->estConstruite()
+            && ($cartesEnAttente = \App\Partie\Classique\CartesAuChoix::enAttente($quete, $personnage)) !== []) {
+            return [
+                'situation' => 'Deux cartes de trésor devant vous : gardez-en une, l\'autre retourne au paquet.',
+                'options' => $this->avecCreneaux(array_map(fn (int $k) => [
+                    'id' => "garder_carte_{$k}",
+                    'libelle' => 'Garder : '.\App\Partie\Classique\CartesAuChoix::libelle($cartesEnAttente[$k]),
+                    'type' => 'garder_carte',
+                    'parametres' => ['carte' => $k],
+                ], array_keys($cartesEnAttente))),
+            ];
+        }
+
         // LE LABYRINTHE (mode classique, lot E2 — G1504 q. 7 : « rolls two red dice and chooses one ») : le jet attend en base
         // (`Classique\Labyrinthe`) ; rien d'autre n'est offert tant que le dé n'est pas choisi — un choix par dé, gratuit, que le
         // résolveur revalide. Un téléphone rechargé retrouve le choix.

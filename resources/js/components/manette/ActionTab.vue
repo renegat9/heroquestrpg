@@ -139,6 +139,8 @@ const ICONE_TYPE = {
     toucher_mur_illusoire: 'back_hand',
     // Ressortir du labyrinthe (Morcar q. 7).
     sortir_labyrinthe: 'casino',
+    // Garder une carte de trésor (Morcar q. 3 A).
+    garder_carte: 'style',
     // Un geste de quête (Spirit Queen q. 7, 8) : la main qui fait.
     geste_de_quete: 'back_hand',
     sort: 'auto_awesome',

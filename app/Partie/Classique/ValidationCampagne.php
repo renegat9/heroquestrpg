@@ -1376,6 +1376,13 @@ final class ValidationCampagne
                     }
                 }
                 break;
+            // Lot E2 (*Wizards of Morcar* q. 3 A) : deux cartes (ou trois) au choix.
+            case MotsClesQuete::CARTES_AU_CHOIX:
+                $nombre = $this->entier($effet, 'nombre', $position, min: 2);
+                if ($nombre !== null && $nombre > \App\Partie\Classique\CartesAuChoix::MAX) {
+                    $this->refuser("$position.nombre", self::VALEUR_INVALIDE, 'au plus '.\App\Partie\Classique\CartesAuChoix::MAX.' cartes');
+                }
+                break;
             // Lot E2 (*Jungles of Delthrak*, les cocons) : des Spawnling sur la fiche — « four Blightcrawler Spawnlings » au plus fort.
             case MotsClesQuete::REJETONS:
                 $nombre = $this->entier($effet, 'nombre', $position, min: 1);

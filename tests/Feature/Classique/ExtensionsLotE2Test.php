@@ -2184,3 +2184,24 @@ it('errant « tour d\'une figure posée » : la carte fait jouer la plus proche 
         expect($resultat['errant_indisponible'] ?? false)->toBeTrue();
     }
 })->with(['disponible' => [true], 'tombé' => [false]]);
+
+it('deux cartes au choix : « may take two treasure cards and choose one to keep » — menu forcé, l\'autre sous le paquet', function () {
+    $campagne = campagneE2(['notes' => [['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']],
+        'alors' => [['effet' => 'cartes_au_choix']]]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['notes' => [['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']],
+            'alors' => [['effet' => 'cartes_au_choix', 'nombre' => 5]]]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    empilerCarteFouille($partie['quete'], ['issue' => 'tresor', 'or' => 120]);
+    empilerCarteFouille($partie['quete'], ['issue' => 'tresor', 'or' => 50]);
+
+    fouillerE2($this, $partie);
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $options = collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'));
+    expect($options->pluck('libelle')->all())->toBe(['Garder : 50 pièces d\'or', 'Garder : 120 pièces d\'or']);
+
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'garder_carte_1'])->assertAccepted();
+    $deck = $partie['quete']->fresh()->deckFouille();
+    expect((int) $partie['heros']->fresh()->or)->toBe(120)
+        ->and(end($deck))->toBe(['issue' => 'tresor', 'or' => 50]);
+});

@@ -415,6 +415,17 @@ final class NotesDeQuete
         return ['retires' => $retires];
     }
 
+    /** Lot E2 (*Wizards of Morcar* q. 3 A) — des cartes de trésor tirées ; le héros choisira (menu forcé) celle qu'il garde. */
+    private function effetCartesAuChoix(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        if ($heros === null) {
+            return ['cartes' => []];
+        }
+        $cartes = app(CartesAuChoix::class)->tirer($quete, $heros, (int) ($effet['nombre'] ?? 2));
+
+        return ['nom' => $heros->nom, 'cartes' => array_map([CartesAuChoix::class, 'libelle'], $cartes)];
+    }
+
     /** Lot E2 (*Jungles of Delthrak*, q. 14) — toutes les figures actives du plateau sont vaincues et retirées. */
     private function effetVaincreTous(Quete $quete, array $effet, ?Personnage $heros): array
     {
