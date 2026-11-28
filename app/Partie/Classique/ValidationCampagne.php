@@ -159,7 +159,7 @@ final class ValidationCampagne
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
     private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe'];
-    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable', 'deguise'];
+    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable', 'deguise', 'neutre'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
     /** « Wandering Monster in this Quest: 4 Goblins » (F9528 q. 4) : le plus grand nombre lu dans les livrets, avec de la marge. */
@@ -1155,6 +1155,14 @@ final class ValidationCampagne
         }
     }
 
+    /** Lot E2 (Morcar q. 2 A) : `au_heros_du_geste` désigne un geste de la quête, par son index. */
+    private function auHerosDuGeste(array $effet, string $position, array $quete): void
+    {
+        if (array_key_exists('au_heros_du_geste', $effet)) {
+            $this->indexDe($quete, 'gestes', $effet['au_heros_du_geste'], "$position.au_heros_du_geste");
+        }
+    }
+
     private function effetDeNote(mixed $valeur, string $position, array $quete): ?string
     {
         $effet = $this->enObjet($valeur, $position);
@@ -1221,6 +1229,7 @@ final class ValidationCampagne
                 $this->dans($effet, 'partage', $position, self::PARTAGES);
                 break;
             case MotsClesQuete::OBJET:
+                $this->auHerosDuGeste($effet, $position, $quete);
                 $this->slugCatalogue($effet, 'slug', $position, 'objets');
                 $this->entier($effet, 'quantite', $position, min: 1);
                 if (array_key_exists('si_absent_du_groupe', $effet) && ! is_bool($effet['si_absent_du_groupe'])) {
@@ -1263,6 +1272,7 @@ final class ValidationCampagne
                 }
                 break;
             case MotsClesQuete::OBJET_AU_HASARD:
+                $this->auHerosDuGeste($effet, $position, $quete);
                 $parmi = $this->enListeDe($effet, 'parmi', $position);
                 foreach ($parmi as $k => $slug) {
                     if (! is_string($slug) || ! $this->catalogue->contient('objets', $slug)) {
@@ -1454,8 +1464,9 @@ final class ValidationCampagne
                 $liste = $this->enListe($effet['monstres'] ?? null, "$position.monstres");
                 foreach ((array) $liste as $j => $index) {
                     $this->indexDe($quete, 'monstres', $index, "$position.monstres.$j");
-                    if (is_int($index) && is_array($quete['monstres'][$index] ?? null) && ($quete['monstres'][$index]['inactif'] ?? false) !== true) {
-                        $this->refuser("$position.monstres.$j", self::VALEUR_INVALIDE, "le monstre $index n'est pas posé `inactif` : il n'y a rien à éveiller");
+                    if (is_int($index) && is_array($quete['monstres'][$index] ?? null) && ($quete['monstres'][$index]['inactif'] ?? false) !== true
+                        && ($quete['monstres'][$index]['neutre'] ?? false) !== true) {
+                        $this->refuser("$position.monstres.$j", self::VALEUR_INVALIDE, "le monstre $index n'est posé ni `inactif` ni `neutre` : il n'y a rien à éveiller");
                     }
                 }
                 if ($liste === []) {
@@ -1991,6 +2002,13 @@ final class ValidationCampagne
                 $this->cles($increvable, $ici, ['sauf_drapeau']);
                 $this->nomDeDrapeau($increvable, 'sauf_drapeau', $ici);
             }
+        }
+
+        // NEUTRE (lot E2, Morcar q. 1) : `true` — attaquable, elle s'éveille au premier coup ; jamais avec `inactif`.
+        if (array_key_exists('neutre', $pose) && $pose['neutre'] !== true) {
+            $this->refuser(self::chemin($position, 'neutre'), self::TYPE_INVALIDE, 'true est attendu (absente, la figure est active)');
+        } elseif (($pose['neutre'] ?? false) === true && ($pose['inactif'] ?? false) === true) {
+            $this->refuser(self::chemin($position, 'neutre'), self::VALEUR_INVALIDE, 'neutre (attaquable) ou inactive (intouchable), pas les deux');
         }
 
         // INACTIF (René, 2026-11-20) : ni ne bouge, ni n'attaque, ni ne peut être blessée, jusqu'à l'effet de note `eveiller`.

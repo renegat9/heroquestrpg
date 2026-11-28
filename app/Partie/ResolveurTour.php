@@ -2768,6 +2768,13 @@ final class ResolveurTour
             $resultat = $resultat->avecBouclierAnnule($boucliersAnnules);
         }
 
+        // UN BOUCLIER NOIR PARE TOUT (mode classique, lot E2 — *Wizards of Morcar* q. 2 A : « When these Golems defend, one black
+        // shield rolled blocks all hits ») : capacité de profil `bouclier_noir_pare_tout`, lue sur le jet RETENU.
+        if ($resultat->boucliers > 0 && $resultat->degats > 0 && $instance->aCapacite('bouclier_noir_pare_tout')) {
+            $resultat = $resultat->avecDegatsSupprimes();
+            $meta['bouclier_noir_pare_tout'] = true;
+        }
+
         // Potion de force glaciale (Barbare) : « their next attack causes twice
         // as many Body Points of damage as are rolled ».
         //

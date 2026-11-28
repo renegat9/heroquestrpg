@@ -382,6 +382,9 @@ final class NotesDeQuete
      */
     private function effetObjetAuHasard(Quete $quete, array $effet, ?Personnage $heros): array
     {
+        if (isset($effet['au_heros_du_geste'])) {
+            $heros = $this->heroDuGeste($quete, (int) $effet['au_heros_du_geste']) ?? $heros;
+        }
         $parmi = array_values(array_unique(array_filter((array) ($effet['parmi'] ?? []), 'is_string')));
         $n = min(count($parmi), max(1, (int) ($effet['quantite'] ?? 1)));
         $tires = $n === 0 ? [] : (array) app(\Random\Randomizer::class)->pickArrayKeys($parmi, $n);
@@ -639,8 +642,22 @@ final class NotesDeQuete
     }
 
     /** E2 — l'objet du catalogue entre dans le sac du héros qui déclenche, même plein : c'est un butin de quête. */
+    /**
+     * Lot E2 (*Wizards of Morcar* q. 2 A : « When the last Golem is defeated, the hero who prayed Unearths an Artifact ») : le
+     * premier héros qui a fait le geste de quête `$geste` (`GestesDeQuete`, `quetes.drapeaux._gestes`), ou `null`.
+     */
+    private function heroDuGeste(Quete $quete, int $geste): ?Personnage
+    {
+        $id = data_get($quete->relire('drapeaux')->drapeaux, "_gestes.{$geste}.0");
+
+        return $id === null ? null : Personnage::find((int) $id);
+    }
+
     private function effetObjet(Quete $quete, array $effet, ?Personnage $heros): array
     {
+        if (isset($effet['au_heros_du_geste'])) {
+            $heros = $this->heroDuGeste($quete, (int) $effet['au_heros_du_geste']) ?? $heros;
+        }
         $objet = $this->catalogue->index('objets')[(string) ($effet['slug'] ?? '')] ?? null;
         $receveur = $heros ?? $quete->groupe->personnages()
             ->wherePivot('actif', true)

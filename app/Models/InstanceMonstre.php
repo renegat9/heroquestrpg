@@ -131,6 +131,9 @@ class InstanceMonstre extends Model
         // Lot E2 (*Spirit Queen's Torment* q. 14 C) : « if a hero wants to remind her of her past as Nelath […] they may use
         // their action to do so » — un dé, un bouclier ôte 1 point d'Esprit ; à 0, elle s'efface apaisée (`Classique\RappelDeLaReine`).
         'rappelable' => ['rappelable', true],
+        // Lot E2 (*Wizards of Morcar* q. 2 A) : « When these Golems defend, one black shield rolled blocks all hits » —
+        // `ResolveurTour::frapper()`, sur le jet retenu.
+        'bouclier_noir_pare_tout' => ['bouclier_noir_pare_tout', true],
     ];
 
     /** Dés d'attaque effectifs (bloc de stats + bonus élite éventuel). */
@@ -295,6 +298,10 @@ class InstanceMonstre extends Model
         // INACTIF jusqu'à l'effet de note `eveiller` (René, 2026-11-20) : lu par `MoteurDormants::declencheur()`.
         if (($pose['inactif'] ?? false) === true) {
             $profil['inactif'] = true;
+        }
+        // NEUTRE (lot E2, *Wizards of Morcar* q. 1) : dort mais attaquable ; s'éveille attaquée, ou par `eveiller`.
+        if (($pose['neutre'] ?? false) === true) {
+            $profil['neutre'] = true;
         }
         if (isset($pose['fuite']) && is_array($pose['fuite']) && isset($pose['fuite']['x'], $pose['fuite']['y'])) {
             $profil['fuite'] = ['x' => (int) $pose['fuite']['x'], 'y' => (int) $pose['fuite']['y']];

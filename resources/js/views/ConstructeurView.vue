@@ -729,7 +729,7 @@ function changerSiDrapeauSuite(i, valeur) {
 const declencheurs = computed(() => vocab.value.declencheurs_de_note ?? {});
 const effetsNote = computed(() => vocab.value.effets_de_note ?? {});
 const LIBELLES_PARAM = { texte: 'Texte lu', or: 'Or', body: 'Points de Corps', slug: 'Objet', quantite: 'Quantité', parmi: 'Parmi', issues: 'Issues', nom: 'Nom du drapeau', monstres: 'Monstres', porte: 'Porte',
-    sur_jet: 'Esquivé sous (1d6)', avec_casque: 'avec un Casque, sous', nombre: 'Nombre' };
+    sur_jet: 'Esquivé sous (1d6)', avec_casque: 'avec un Casque, sous', nombre: 'Nombre', au_heros_du_geste: 'au héros du geste n°' };
 // Lots K5n/K5o : les paramètres optionnels BOOLÉENS d'un effet — posés seulement quand ils valent true (`ValidationCampagne`
 // exige un booléen : un champ numérique les rendait refusés).
 const BOOLEENS_EFFET = {

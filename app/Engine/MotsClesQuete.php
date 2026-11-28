@@ -423,8 +423,9 @@ final class MotsClesQuete
         // p. 6, et la règle de plusieurs livrets) — `groupe` le partage, `par_heros` en donne autant à chacun.
         self::OR => ['parametres' => ['or'], 'optionnels' => ['partage'], 'lecteur' => 'effetOr', 'libelle' => 'donner de l\'or au héros'],
         // `sinon` (lot E1) : ce qui se joue à la place quand le groupe a déjà l'objet (« instead finds 500 gold coins », F9907).
-        self::OBJET => ['parametres' => ['slug'], 'optionnels' => ['quantite', 'si_absent_du_groupe', 'sinon'], 'lecteur' => 'effetObjet', 'libelle' => 'donner un objet au héros'],
-        self::OBJET_AU_HASARD => ['parametres' => ['parmi'], 'optionnels' => ['quantite'], 'lecteur' => 'effetObjetAuHasard', 'libelle' => 'donner un objet tiré au hasard dans une liste'],
+        // `au_heros_du_geste` (lot E2, *Wizards of Morcar* q. 2 A : « the hero who prayed ») : au premier héros qui a fait ce geste.
+        self::OBJET => ['parametres' => ['slug'], 'optionnels' => ['quantite', 'si_absent_du_groupe', 'sinon', 'au_heros_du_geste'], 'lecteur' => 'effetObjet', 'libelle' => 'donner un objet au héros'],
+        self::OBJET_AU_HASARD => ['parametres' => ['parmi'], 'optionnels' => ['quantite', 'au_heros_du_geste'], 'lecteur' => 'effetObjetAuHasard', 'libelle' => 'donner un objet tiré au hasard dans une liste'],
         self::JET => ['parametres' => ['issues'], 'optionnels' => ['des'], 'lecteur' => 'effetJet', 'libelle' => 'lancer des dés : l\'issue choisit les effets'],
         self::RETIRER => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetRetirer', 'libelle' => 'retirer des figures du plateau (fuite, disparition)'],
         self::RETIRER_MEUBLE => ['parametres' => ['mobilier'], 'optionnels' => [], 'lecteur' => 'effetRetirerMeuble', 'libelle' => 'retirer un meuble'],

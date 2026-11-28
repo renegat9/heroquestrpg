@@ -42,6 +42,7 @@ const LIBELLES_CAPACITE = {
     ignore_deguises: 'ignore les héros déguisés (dort tant qu\'un non-déguisé ne la voit pas)',
     retire_au_contact_deguise: 'endormie, retirée au contact d\'un héros déguisé',
     rappelable: 'rappelable : un héros qui la voit lui rappelle son passé (une action, un dé ; un bouclier = 1 point d\'Esprit ; à 0, elle s\'efface apaisée)',
+    bouclier_noir_pare_tout: 'un bouclier noir à ses dés de défense pare tous les coups (les Golems de Morcar)',
     flamme_de_zargon: 'Flamme de Zargon : touchée, un dé contre deux chiffres (épargnée ou consumée, quels que soient ses PV) ; l\'Eau de Guérison la frappe',
 };
 const nomSortDread = (slug) => props.sortsDread.find((o) => o.slug === slug)?.nom ?? slug;
@@ -153,6 +154,9 @@ function basculerFuite(avec) {
                     <option value="porte-o">porte, bord ouest</option>
                 </select>
             </label>
+        </div>
+        <div v-if="inactifPossible" class="cst-ligne">
+            <label class="cst-case" title="Wizards of Morcar q. 1 : neutre, elle ne bouge ni n'attaque tant qu'on ne l'a pas attaquée ; une note « éveiller » la retourne aussi."><input type="checkbox" :checked="m.neutre === true" @change="$event.target.checked ? (m.neutre = true) : delete m.neutre" /> Neutre — ne bouge ni n'attaque avant d'être attaquée</label>
         </div>
         <div v-if="inactifPossible" class="cst-ligne">
             <label class="cst-case"><input type="checkbox" :checked="m.inactif === true" @change="basculerInactif($event.target.checked)" /> Inactif — ne bouge pas, n'attaque pas, ne peut être blessé tant qu'une note « éveiller » ne l'a pas réveillé</label>

@@ -55,6 +55,13 @@ final class MoteurDormants
      */
     public const DECLENCHEUR_NOTE = 'note';
 
+    /**
+     * La figure NEUTRE d'une quête construite (lot E2, *Wizards of Morcar* q. 1 : « Mercenaries are neutral and will not move
+     * or attack unless they are attacked first ») : elle dort, mais on peut l'attaquer ; attaquée, elle s'éveille, elle seule
+     * ({@see attaqueSubie()}) ; l'effet de note `eveiller` la retourne aussi (« All Mercenaries are now treated as monsters »).
+     */
+    public const DECLENCHEUR_NEUTRE = 'neutre';
+
     /** Le déclencheur d'une figure à passif, ou `null` si elle n'en porte pas. */
     public function declencheur(InstanceMonstre $instance): ?string
     {
@@ -66,6 +73,9 @@ final class MoteurDormants
 
         if (data_get($instance->habillage, 'profil_quete.inactif') === true) {
             return self::DECLENCHEUR_NOTE;
+        }
+        if (data_get($instance->habillage, 'profil_quete.neutre') === true) {
+            return self::DECLENCHEUR_NEUTRE;
         }
 
         // LA PLACE PUBLIQUE (mode classique, lot K6 — *Dread Moon*) : une figure posée sur une place est inactive jusqu'à ce
@@ -153,8 +163,9 @@ final class MoteurDormants
      */
     public function attaqueSubie(Quete $quete, InstanceMonstre $cible): array
     {
-        // LA PLACE PUBLIQUE (lot K6) : « inactive unless they are attacked » — la figure attaquée s'éveille, elle seule.
-        if ($this->declencheur($cible) === \App\Partie\Classique\Deguisement::DECLENCHEUR_PLACE) {
+        // LA PLACE PUBLIQUE (lot K6) : « inactive unless they are attacked » — la figure attaquée s'éveille, elle seule. Même
+        // chose pour la figure NEUTRE (lot E2, Morcar q. 1 : « unless they are attacked first »).
+        if (in_array($this->declencheur($cible), [\App\Partie\Classique\Deguisement::DECLENCHEUR_PLACE, self::DECLENCHEUR_NEUTRE], true)) {
             return $this->estDormant($cible) ? $this->eveiller(collect([$cible]), 'attaquee') : [];
         }
 
@@ -244,7 +255,8 @@ final class MoteurDormants
     public function eveillerParNote(Collection $figures): array
     {
         return $this->eveiller(
-            $figures->filter(fn (InstanceMonstre $m) => $this->declencheur($m) === self::DECLENCHEUR_NOTE && $this->estDormant($m))->values(),
+            $figures->filter(fn (InstanceMonstre $m) => in_array($this->declencheur($m), [self::DECLENCHEUR_NOTE, self::DECLENCHEUR_NEUTRE], true)
+                && $this->estDormant($m))->values(),
             'note',
         );
     }

@@ -7353,6 +7353,15 @@ comme le livret — avant chaque quête, un animal gratuit par héros, pour cett
   pour ce groupe classique (au RPG, le bestiaire) ; tout le reste est le moteur des faveurs du RPG, tel quel — le tour de
   visite au hub une fois Gardien (`visite_hopekins` publié par `/moi`, `ChoixLieuHopekins`), « Prêt ! » refusé tant que le
   héros n'a pas choisi, les neuf faveurs et leurs lecteurs.
+- q. 1 : « Mercenaries are neutral and will not move or attack unless they are attacked first. » Profil **`neutre: true`**
+  (jamais avec `inactif`) : la figure dort (`MoteurDormants::DECLENCHEUR_NEUTRE`), mais on peut l'attaquer ; attaquée,
+  elle s'éveille, elle seule (`attaqueSubie()`) ; l'effet `eveiller` la retourne aussi (« All Mercenaries are now treated as
+  monsters »).
+- q. 2 A : « You may pray as an action. […] When these Golems defend, one black shield rolled blocks all hits. When the last
+  Golem is defeated, the hero who prayed Unearths an Artifact. » La prière est un geste de quête à choix (`gestes`) ; capacité
+  de profil **`bouclier_noir_pare_tout`** (`frapper()`, sur le jet retenu : un bouclier noir et le coup ne blesse pas,
+  `meta.bouclier_noir_pare_tout`) ; effets `objet` / `objet_au_hasard`, paramètre facultatif **`au_heros_du_geste: index`** —
+  au premier héros qui a fait ce geste (`quetes.drapeaux._gestes`), sinon au héros de la note.
 
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 

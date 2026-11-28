@@ -2112,3 +2112,44 @@ it('embuscade en porte : une porte fermée publiée comme une vraie ; la fouille
     expect($instance->fresh()->revele)->toBeTrue()
         ->and(\App\Partie\Classique\EmbuscadesClassiques::faussesPortes($quete->fresh()))->toBe([]);
 })->with(['fouille' => ['fouille'], 'tour du MJ' => ['tour_du_mj']]);
+
+it('neutre : attaquable, elle s\'éveille au premier coup, elle seule ; une note « éveiller » retourne les autres', function () {
+    $campagne = campagneE2(['monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 3, 'pv_body' => 9, 'neutre' => true],
+        ['slug' => 'orque', 'x' => 10, 'y' => 5, 'neutre' => true]],
+        'notes' => [['repere' => 'A', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'eveiller', 'monstres' => [1]]]]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 3, 'neutre' => true, 'inactif' => true]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $dormants = app(\App\Partie\MoteurDormants::class);
+    [$krothgar, $autre] = $partie['quete']->instancesMonstres()->with('monstre')->orderBy('id')->get()->all();
+    expect($dormants->estDormant($krothgar))->toBeTrue()->and($dormants->estIntouchable($krothgar))->toBeFalse();
+
+    frapperE2($partie, []);
+    expect($dormants->estDormant($krothgar->fresh()))->toBeFalse()->and($dormants->estDormant($autre->fresh()))->toBeTrue();
+
+    app(\App\Partie\Classique\NotesDeQuete::class)->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::FOUILLE_TRESOR, ['salle' => 1], $partie['heros']);
+    expect($dormants->estDormant($autre->fresh()))->toBeFalse();
+});
+
+it('golems et prière : un bouclier noir pare tout ; l\'artefact va au héros qui a prié', function () {
+    $campagne = campagneE2([
+        'monstres' => [['slug' => 'golem', 'x' => 9, 'y' => 3, 'capacites' => ['bouclier_noir_pare_tout'], 'pv_body' => 9]],
+        'gestes' => [['libelle' => 'Prier', 'salle' => 'galerie', 'choix' => [['libelle' => 'la gloire', 'alors' => [['effet' => 'drapeau', 'nom' => 'gloire']]],
+            ['libelle' => 'la sécurité', 'alors' => [['effet' => 'texte', 'texte' => 'Rien ne bouge.']]]]]],
+        'notes' => [['repere' => 'G', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']],
+            'alors' => [['effet' => 'objet', 'slug' => 'potion-de-soin', 'au_heros_du_geste' => 0]]]],
+    ]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['notes' => [['repere' => 'G', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']],
+            'alors' => [['effet' => 'objet', 'slug' => 'potion-de-soin', 'au_heros_du_geste' => 3]]]]])))->toBe([ValidationCampagne::CIBLE_INCONNUE]);
+    $partie = partieE2($this, $campagne);
+    $golem = $partie['quete']->instancesMonstres()->with('monstre')->firstOrFail();
+
+    // Trois crânes d'attaque (1), puis la défense : un bouclier noir (6) parmi des crânes — tout est paré.
+    $resultat = frapperE2($partie, [1, 1, 1, 6]);
+    expect((int) $golem->fresh()->pv_body)->toBe(9);
+
+    $partie['quete']->update(['drapeaux' => ['_gestes' => [0 => [(int) $partie['heros']->id]]]]);
+    app(\App\Partie\Classique\NotesDeQuete::class)->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::FOUILLE_TRESOR, ['salle' => 1], null);
+    expect($partie['heros']->inventaire()->whereHas('objet', fn ($q) => $q->where('nom', 'Potion de soin'))->exists())->toBeTrue();
+});
