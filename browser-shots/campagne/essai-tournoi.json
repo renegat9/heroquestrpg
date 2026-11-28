@@ -1,0 +1,85 @@
+{
+  "format": 1,
+  "slug": "essai-la-joute-des-cendres",
+  "titre": "Essai — La joute des cendres",
+  "auteur": "Campagne d'essai du mode classique",
+  "mention": "Plateau, quêtes et textes inventés pour éprouver le tournoi en mode classique.",
+  "prerequis_heros": [],
+  "plateau": {
+    "largeur": 18,
+    "hauteur": 11,
+    "salles": [{"id": "lice", "x": 1, "y": 1, "l": 16, "h": 9}]
+  },
+  "quetes": [
+    {
+      "slug": "la-premiere-joute",
+      "titre": "La première joute",
+      "ouverture": "Le sable de la lice est encore tiède. Le héraut frappe trois fois son bouclier : deux gobelins sortent de la loge d'en face, et derrière la grille on en devine d'autres qui attendent leur tour.",
+      "monstre_errant": null,
+      "salles_ouvertes": ["lice"],
+      "portes": [],
+      "blocs": [],
+      "mobilier": [],
+      "monstres": [{"slug": "gobelin", "x": 14, "y": 4}, {"slug": "gobelin", "x": 14, "y": 5}],
+      "pieges": [],
+      "terrain": [],
+      "depart": {"x": 3, "y": 4},
+      "sortie": null,
+      "recompense": {"or": 30, "partage": "groupe"},
+      "fin": {"type": "vaincre", "cibles": [0, 1], "libelle": "Venir à bout de toutes les vagues de la loge d'en face."},
+      "notes": [],
+      "tournoi": {
+        "camp_heros": [{"x": 3, "y": 4}, {"x": 4, "y": 4}, {"x": 3, "y": 5}, {"x": 4, "y": 5}],
+        "camp_defender": [{"x": 13, "y": 4}, {"x": 14, "y": 4}, {"x": 13, "y": 5}, {"x": 14, "y": 5}],
+        "trophees": [{"x": 8, "y": 2}, {"x": 8, "y": 8}, {"x": 10, "y": 5}],
+        "vagues": [[{"slug": "orque"}], [{"slug": "gobelin-archer"}, {"slug": "gobelin"}]]
+      }
+    },
+    {
+      "slug": "le-champion-de-la-loge",
+      "titre": "Le champion de la loge",
+      "ouverture": "La foule se tait. Un guerrier en armure noire franchit la grille sans un regard pour vous, et le héraut fait rouler jusqu'au centre de la lice un coffre cerclé de fer : il ira au vainqueur, ou au plus hardi.",
+      "monstre_errant": null,
+      "salles_ouvertes": ["lice"],
+      "portes": [],
+      "blocs": [],
+      "mobilier": [{"slug": "coffre", "x": 9, "y": 5, "rotation": 0}],
+      "monstres": [{"slug": "guerrier-du-chaos", "x": 14, "y": 4}],
+      "pieges": [],
+      "terrain": [],
+      "depart": {"x": 3, "y": 4},
+      "sortie": null,
+      "recompense": {"or": 40, "partage": "groupe"},
+      "fin": {"type": "vaincre", "cibles": [0], "libelle": "Abattre le champion de la loge."},
+      "notes": [],
+      "tournoi": {
+        "camp_heros": [{"x": 3, "y": 4}, {"x": 4, "y": 4}, {"x": 3, "y": 5}, {"x": 4, "y": 5}],
+        "camp_defender": [{"x": 13, "y": 4}, {"x": 14, "y": 4}, {"x": 13, "y": 5}, {"x": 14, "y": 5}],
+        "trophees": [{"x": 7, "y": 2}, {"x": 11, "y": 8}]
+      }
+    },
+    {
+      "slug": "la-finale",
+      "titre": "La finale",
+      "ouverture": "Pour la finale, la loge s'ouvre en grand : un ogre baisse la tête pour passer sous la herse, deux orques sur ses talons. Le héraut a posé un coffre de chaque côté de la lice.",
+      "monstre_errant": null,
+      "salles_ouvertes": ["lice"],
+      "portes": [],
+      "blocs": [],
+      "mobilier": [{"slug": "coffre", "x": 8, "y": 2, "rotation": 0}, {"slug": "coffre", "x": 8, "y": 8, "rotation": 0}],
+      "monstres": [{"slug": "ogre-guerrier", "x": 13, "y": 4}, {"slug": "orque", "x": 14, "y": 3}, {"slug": "orque", "x": 14, "y": 6}],
+      "pieges": [],
+      "terrain": [],
+      "depart": {"x": 3, "y": 4},
+      "sortie": null,
+      "recompense": {"or": 60, "partage": "groupe"},
+      "fin": {"type": "vaincre", "cibles": [0, 1, 2], "libelle": "Vaincre l'ogre et ses deux orques."},
+      "notes": [],
+      "tournoi": {
+        "camp_heros": [{"x": 3, "y": 4}, {"x": 4, "y": 4}, {"x": 3, "y": 5}, {"x": 4, "y": 5}],
+        "camp_defender": [{"x": 13, "y": 3}, {"x": 14, "y": 3}, {"x": 13, "y": 4}, {"x": 14, "y": 4}, {"x": 13, "y": 5}, {"x": 14, "y": 5}, {"x": 13, "y": 6}, {"x": 14, "y": 6}],
+        "trophees": [{"x": 6, "y": 5}, {"x": 11, "y": 5}]
+      }
+    }
+  ]
+}

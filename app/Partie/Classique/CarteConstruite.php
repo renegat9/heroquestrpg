@@ -351,7 +351,9 @@ final class CarteConstruite
                 'epreuves' => [],
                 'terrain' => $terrain,
                 'dangers' => $dangers,
-                'escalier' => $escalier,
+                // TOURNOI (F9528 p. 12) : la lice n'a pas d'escalier — les équipes partent de leurs tuiles et la quête se
+                // gagne au dernier Defender (`tournoi_gagne`), sans sortie. `null` comme le hall de l'arène (`HallArene`).
+                'escalier' => is_array($quete['tournoi'] ?? null) ? null : $escalier,
                 ...($vuesCroisees !== [] ? ['vues_croisees' => $vuesCroisees] : []),
                 // TOURNOI (lot TC2, F9528 p. 12) : « Each team is placed on its own starting tile » — les héros partent de la
                 // tuile du Challenger, jamais de l'escalier.

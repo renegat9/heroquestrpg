@@ -127,6 +127,33 @@ class ChoixController extends Controller
             'parametres.transferts.*.quantite' => ['sometimes', 'integer', 'min:1'],
         ]);
 
+        // TOURNOI DU MODE CLASSIQUE (campagne d'essai jouée par agents, 2026-11-28) : la main est PARTAGÉE — tout héros du
+        // Challenger qui n'a pas joué peut prendre l'activation. Deux choix arrivés dans la même seconde lisaient tous deux
+        // « personne n'a commencé » et passaient : deux héros jouaient leur activation en même temps. Les choix d'un groupe
+        // en tournoi passent donc un par un (un verrou éphémère, pas un état de jeu). ⚠ L'arène a la même course : elle
+        // n'est pas touchée ici (branche classique isolée), signalé à René.
+        if ($groupe->estEnTournoi() && ! $groupe->estArene()) {
+            return \Illuminate\Support\Facades\Cache::lock("choix-tournoi:{$groupe->id}", 30)
+                ->block(15, fn () => $this->choisirApresValidation($groupe, $joueur, $donnees, $resolveur, $journalCombat, $scenesDeTable));
+        }
+
+        return $this->choisirApresValidation($groupe, $joueur, $donnees, $resolveur, $journalCombat, $scenesDeTable);
+    }
+
+    /**
+     * La suite de {@see self::choisir()}, une fois la requête validée.
+     *
+     * @param  array<string, mixed>  $donnees
+     */
+    private function choisirApresValidation(
+        Groupe $groupe,
+        \App\Models\Joueur $joueur,
+        array $donnees,
+        ResolveurTour $resolveur,
+        JournalCombat $journalCombat,
+        SceneDeTable $scenesDeTable,
+    ): JsonResponse
+    {
         // Le moteur fait autorité : seule une option du menu que CE joueur peut
         // jouer à l'instant est légale. `MenuCourant` le rend — et le recalcule
         // sur place si c'est son tour et que le menu a été consommé par la

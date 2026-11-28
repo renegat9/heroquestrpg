@@ -63,3 +63,8 @@ une campagne d'essai `essai-*` jouée par agents (méthode `campagne-agents`) ; 
 profil d'auteur, Gruzbella (q. 3) est au bestiaire avec ses trois phases et ses capacités. Décisions écrites : les
 affaires d'un héros tombé restent dans son sac (le livret les pose sur sa case, ramassables) ; la hache de bataille en os
 du trésor reste au héros (pas de doublure en campagne).
+
+## 6. La campagne d'essai jouée (2026-11-28)
+
+Jouée par deux agents (`browser-shots/campagne/essai-tournoi.json`, inventée) : trois quêtes gagnées. Quatre défauts
+corrigés et une course signalée à René pour l'arène — `docs/verdict-tournoi-classique-2026-11-28.md`.

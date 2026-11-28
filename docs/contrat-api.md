@@ -6188,7 +6188,13 @@ Mode classique seulement ; une règle par livret, sourcée.
   quest », p. 12) ni relevé. Un coffre (le meuble « Coffre ») se fouille en diagonale aussi et tire la table 2d6 du
   tournoi (`tresor_tournoi`). Le Defender éteint : la vague suivante entre sur la tuile du Defender (annonce
   `vague_tournoi {numero, monstres}`, rang durable `quetes.drapeaux._vague_tournoi`) ; sans vague, la quête est gagnée
-  (`tournoi_gagne`, `terminerQuete()`), sans sortie à chercher. Tous les héros à terre : la quête est perdue et se rejoue.
+  (`tournoi_gagne`, `terminerQuete()`), sans sortie à chercher. Tous les héros à terre : la quête est perdue et se rejoue. Corrigé après
+  la campagne d'essai jouée par agents (2026-11-28, `docs/verdict-tournoi-classique-2026-11-28.md`) : chaque figure d'une vague
+  est une cible de la fin (`instances_monstres.objectif`), donc `objectif_accompli` reste faux tant qu'une vague reste
+  debout ; la lice n'a pas d'escalier (`carte.escalier: null`, comme le hall de l'arène) ; la potion et l'élan du
+  Challenger (`trophee_potion`, `trophee_elan`) sont au menu du tournoi classique comme à l'arène ; les choix d'un groupe
+  en tournoi classique passent UN PAR UN (verrou éphémère `choix-tournoi:{groupe}`, attente 15 s au plus) — deux héros ne
+  prennent plus la main dans la même seconde.
 - **Les salles qui se lèvent** — `regles.activation_salles: true` (*Against the Ogre Horde* q. 10 : « Zargon may
   activate all the monsters in one or two rooms… one red die. On a roll result of 1-5, one room… 6, two rooms… the door
   is opened. Any monsters in the activated room may move on that turn » ; « If a wandering monster card is drawn, Zargon

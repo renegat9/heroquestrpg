@@ -723,6 +723,42 @@ it('tournoi : par les routes, le héros a la main après l\'ouverture du Defende
         ->and((bool) $partie['quete']->etatsPersonnages()->first()->a_joue)->toBeFalse();
 });
 
+it('tournoi (essai joué, 2026-11-28) : chaque vague est une cible — la première tombée, l\'objectif n\'est pas accompli', function () {
+    $partie = partieE2($this, tournoiE2(['vagues' => [[['slug' => 'gobelin']]]]));
+    $quete = $partie['quete']->fresh();
+    foreach ($quete->instancesMonstres()->where('etat', 'actif')->get() as $m) {
+        app(\App\Partie\MoteurDegats::class)->infligerAMonstre($m, 99, \App\Partie\MoteurDegats::SOURCE_PIEGE);
+    }
+    $apres = (new ReflectionMethod(ResolveurTour::class, 'donjonNettoye'))->invoke(app(ResolveurTour::class), [], $quete->fresh());
+
+    expect($apres['vague_tournoi']['monstres'])->toBe(['Gobelin'])
+        ->and($quete->fresh()->objectifAccompli())->toBeFalse()
+        ->and($quete->instancesMonstres()->where('etat', 'actif')->first()->objectif)->toBeTrue();
+});
+
+it('tournoi (essai joué, 2026-11-28) : la lice n\'a pas d\'escalier', function () {
+    $partie = partieE2($this, tournoiE2());
+
+    expect($partie['quete']->fresh()->carte->grille['escalier'])->toBeNull()
+        ->and($partie['quete']->fresh()->carte->casesEscalier())->toBe([]);
+});
+
+it('tournoi (essai joué, 2026-11-28) : la potion et l\'élan du Challenger sont au menu du tournoi classique', function () {
+    $partie = partieE2($this, tournoiE2());
+    $quete = $partie['quete']->fresh();
+    $quete->update(['trophees_arene' => array_replace((array) $quete->trophees_arene, [\App\Partie\Arene\TropheesArene::CHALLENGER => [\App\Partie\Arene\TropheesArene::POTION]])]);
+    $partie['heros']->update(['pv_body' => 20]);
+    $quete->etatsPersonnages()->update(['deplacement_tour' => 6, 'a_deplace' => false]);
+
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $ids = collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id');
+    expect($ids)->toContain('trophee_potion')->toContain('trophee_elan');
+
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'trophee_potion'])->assertAccepted();
+    expect($partie['heros']->fresh()->pv_body)->toBe(22)
+        ->and(app(\App\Partie\Arene\TropheesArene::class)->reserve($quete->fresh(), \App\Partie\Arene\TropheesArene::CHALLENGER))->toBe([]);
+});
+
 it('salles qui se lèvent : la proximité se lit au CHEMIN, portes closes comptées ouvertes, murs barrant', function () {
     $partie = partieE2($this, campagneE2(['regles' => ['activation_salles' => true], 'monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 4]]]));
     $partie['quete']->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3]);

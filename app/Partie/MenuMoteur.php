@@ -3896,7 +3896,10 @@ final class MenuMoteur
         // TROPHÉES D'ARÈNE (lot T4) : la potion et l'élan, pris dans la réserve du Challenger — publiés seulement quand le
         // résolveur les acceptera (blessé ; déplacement pas terminé ; réserve non vide), la liste des tuiles est la
         // liste blanche que `resoudreTropheeElan()` revalide.
-        if ($enArene && ! $aJoue && $etat !== null) {
+        // ⚠ `estEnTournoi()` et non `$enArene` (cycle de vie) : une règle de COMBAT du tournoi, que le tournoi du mode
+        // classique joue aussi (`docs/plan-tournoi-classique.md` §2) — oubliée au classement TC1, trouvée par la campagne
+        // d'essai jouée par agents (2026-11-28).
+        if ((bool) $quete->groupe?->estEnTournoi() && ! $aJoue && $etat !== null) {
             $reserve = app(\App\Partie\Arene\TropheesArene::class)->reserve($quete, \App\Partie\Arene\TropheesArene::CHALLENGER);
 
             if (in_array(\App\Partie\Arene\TropheesArene::POTION, $reserve, true) && (int) $personnage->pv_body < (int) $personnage->pv_body_max) {

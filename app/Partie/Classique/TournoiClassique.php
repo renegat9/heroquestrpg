@@ -61,6 +61,9 @@ final class TournoiClassique
                 'pv_mind' => isset($pose['pv_mind']) ? (int) $pose['pv_mind'] : (int) $monstre->pv_mind,
                 'position_x' => $place['x'], 'position_y' => $place['y'],
                 'etat' => 'actif', 'elite' => false, 'revele' => true,
+                // Le Defender n'est vaincu qu'avec sa DERNIÈRE vague : chaque vague est une cible de la fin `vaincre`. Sans
+                // cela, la première tombée, la quête se disait « objectif accompli » et ouvrait la sortie (essai, 2026-11-28).
+                'objectif' => true,
                 'habillage' => InstanceMonstre::habillageDeQuete((array) $pose, $this->catalogue),
             ]);
             $entres[] = $instance->nomAffiche();
