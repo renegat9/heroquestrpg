@@ -909,6 +909,13 @@ trait LignesEffetsAutomatiques
                         ? ['texte' => implode(', ', $noms).(count($noms) > 1 ? ' surgissent' : ' surgit').' de nulle part !', 'ton' => 'subit']
                         : ['texte' => 'Rien ne surgit : aucun monstre errant ne rôde', 'ton' => 'info']);
                     break;
+                // Lot E2 (*Jungles of Delthrak*, q. 14) : la faille scellée balaie le plateau.
+                case 'vaincre_tous':
+                    $n = count((array) ($effet['vaincus'] ?? []));
+                    $lignes[] = $n > 0
+                        ? ['texte' => 'Tous les monstres du plateau s\'effondrent et disparaissent ('.$n.')', 'ton' => 'succes']
+                        : ['texte' => 'Aucun monstre ne reste sur le plateau', 'ton' => 'info'];
+                    break;
                 // Lot E2 (*Jungles of Delthrak*, les cocons) : des Spawnling sur la fiche du héros, son tour s'arrête.
                 case 'rejetons':
                     $lignes[] = ['texte' => JournalCombat::rejetonsPoses($effet, $heros), 'ton' => 'subit'];

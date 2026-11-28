@@ -1439,7 +1439,7 @@ final class ValidationCampagne
                 }
                 break;
             case MotsClesQuete::APPARITION:
-                foreach (['nombre_d6', 'pres_du_heros'] as $booleen) {
+                foreach (['nombre_d6', 'pres_du_heros', 'au_hasard'] as $booleen) {
                     if (array_key_exists($booleen, $effet) && ! is_bool($effet[$booleen])) {
                         $this->refuser("$position.$booleen", self::TYPE_INVALIDE, 'true ou false est attendu');
                     }

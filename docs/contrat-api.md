@@ -7236,6 +7236,22 @@ Skullblight. »
   `sauf_drapeau` arrête la règle (le cristal détruit : une note `meuble_detruit` qui pose le drapeau). Annonce `relevement {de,
   en, instance_id, x, y}` : « Gobelin se relève aussitôt : Crâne putride se dresse à sa place ».
 
+### La faille planaire — apparition `au_hasard`, effet `vaincre_tous` (lot E2, 2026-11-27)
+
+*Jungles of Delthrak* q. 14 : « At the end of Zargon's turn, the planar rift creates one monster. Place that monster on any
+unoccupied square within 5 squares of the planar rift. Zargon, you may place one of the following monsters (if available):
+Raptor, Skullblight, Zombie, or Skeleton. This effect continues until the planar rift is destroyed. When that occurs, all
+monsters on the board are instantly defeated and removed from the board. A hero with the Emberwrought Diadem and Sapphire
+Skull may take an action while adjacent to the planar rift to hurl the artifacts into the rift. »
+- Effet **`apparition`**, booléen facultatif **`au_hasard`** : UNE seule des poses, tirée au hasard (René, 2026-11-27 : aucun
+  compte de figurines n'existe en base). Avec une note `tour_du_mj` (`une_fois: false`, `sauf_drapeau`), une figure par tour
+  du MJ, posée au plus près de la case donnée (la faille).
+- Effet **`vaincre_tous`** : toutes les figures actives du plateau passent `vaincu`, retirées (`habillage.retire`), sans la mort
+  de `MoteurDegats` (ni note `mort`, ni prime, ni relèvement) ; une fin `vaincre` les compte. Résultat `{vaincus: [noms]}`.
+- Les artefacts se jettent par le réceptacle (`regles.receptacle_objets`, déclencheur `objet_jete`) ; deux objets attendus
+  s'enchaînent par drapeaux (`si_drapeau` / `sauf_drapeau`). Écart écrit : le sacrifice (« a hero holding both artifacts could
+  move into the planar rift ») ne se joue pas — la faille est faite d'abîme, on n'y entre pas.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

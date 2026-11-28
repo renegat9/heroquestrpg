@@ -1832,3 +1832,34 @@ it('amas de cristal : +1 à Canaliser l\'Effroi d\'un monstre à son contact, en
     app(\App\Partie\MoteurMobilier::class)->detruire($quete->carte, 0);
     expect($dread->bonusCristauxAdjacents($canaliser, $quete->fresh(), $contre))->toBe(0);
 });
+
+// ---------------------------------------------------------------- Jungles of Delthrak : la faille planaire (q. 14)
+
+it('faille : à chaque tour du MJ un monstre tiré au hasard ; scellée, tous les monstres tombent et plus rien ne sort', function () {
+    $liste = ['raptor', 'crane-putride', 'zombie', 'squelette'];
+    $campagne = campagneE2([
+        'monstres' => [['slug' => 'orque', 'x' => 10, 'y' => 5]],
+        'notes' => [
+            ['repere' => 'F', 'une_fois' => false, 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 1], 'sauf_drapeau' => 'faille_scellee'],
+                'alors' => [['effet' => 'apparition', 'au_hasard' => true, 'monstres' => array_map(fn ($s) => ['slug' => $s, 'x' => 9, 'y' => 3], $liste)]]],
+            ['repere' => 'S', 'quand' => ['declencheur' => 'objet_jete', 'cible' => ['objet' => 'dague']],
+                'alors' => [['effet' => 'drapeau', 'nom' => 'faille_scellee'], ['effet' => 'vaincre_tous']]],
+        ],
+    ]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class);
+
+    $notes->signaler($quete->fresh(), \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 1]);
+    $notes->signaler($quete->fresh(), \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 2]);
+    $sortis = $quete->instancesMonstres()->with('monstre')->orderBy('id')->get()->slice(1);
+    expect($sortis)->toHaveCount(2)
+        ->and($sortis->every(fn ($m) => in_array(\App\Partie\Classique\CatalogueConstructeur::slug($m->monstre->nom_base), $liste, true)))->toBeTrue();
+
+    $notes->signaler($quete->fresh(), \App\Engine\MotsClesQuete::OBJET_JETE, ['objet' => 'dague'], $partie['heros']);
+    expect($quete->instancesMonstres()->where('etat', 'actif')->count())->toBe(0);
+
+    $notes->signaler($quete->fresh(), \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 3]);
+    expect($quete->instancesMonstres()->count())->toBe(3);
+});

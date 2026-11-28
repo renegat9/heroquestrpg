@@ -727,6 +727,7 @@ const BOOLEENS_EFFET = {
     tous_les_heros: 'tous les héros de la quête',
     nombre_d6: 'seuls les 1d6 premiers paraissent',
     pres_du_heros: 'près du héros qui déclenche, et frappe aussitôt',
+    au_hasard: 'une seule, tirée au hasard',
     si_absent_du_groupe: 'seulement si personne ne l\'a déjà',
     sauf_declencheur: 'sauf le héros qui déclenche',
 };

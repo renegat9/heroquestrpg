@@ -412,6 +412,19 @@ final class NotesDeQuete
         return ['retires' => $retires];
     }
 
+    /** Lot E2 (*Jungles of Delthrak*, q. 14) — toutes les figures actives du plateau sont vaincues et retirées. */
+    private function effetVaincreTous(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $vaincus = [];
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->whereNotNull('position_x')->with('monstre')->get() as $figure) {
+            $figure->update(['etat' => 'vaincu', 'pv_body' => 0, 'position_x' => null, 'position_y' => null,
+                'habillage' => [...(array) $figure->habillage, 'retire' => true]]);
+            $vaincus[] = $figure->nomAffiche();
+        }
+
+        return ['vaincus' => $vaincus];
+    }
+
     /** Lot E1 — le meuble posé disparaît : il cesse de bloquer (le drapeau `detruit` de la grille), SANS compter pour « détruit ». */
     private function effetRetirerMeuble(Quete $quete, array $effet, ?Personnage $heros): array
     {
@@ -690,6 +703,10 @@ final class NotesDeQuete
         if (! empty($effet['nombre_d6'])) {
             $nb = app(\App\Engine\Des\LanceurDes::class)->d6();
             $poses = array_slice($poses, 0, $nb);
+        }
+        // `au_hasard` (lot E2, Delthrak q. 14) : une seule pose, tirée au hasard (le `Randomizer` du conteneur, à graine en test).
+        if (! empty($effet['au_hasard']) && $poses !== []) {
+            $poses = [array_values($poses)[app(\Random\Randomizer::class)->getInt(0, count($poses) - 1)]];
         }
 
         $etatHeros = ! empty($effet['pres_du_heros']) && $heros !== null

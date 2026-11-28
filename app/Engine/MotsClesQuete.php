@@ -402,6 +402,13 @@ final class MotsClesQuete
      */
     public const EN_ORDRE = 'en_ordre';
 
+    /**
+     * Lot E2 (*Jungles of Delthrak*, q. 14 : « When that occurs, all monsters on the board are instantly defeated and removed
+     * from the board ») — toutes les figures actives du plateau passent `vaincu`, retirées, sans passer par la mort de
+     * `MoteurDegats` (ni note `mort`, ni prime, ni relèvement) ; une fin `vaincre` les compte.
+     */
+    public const VAINCRE_TOUS = 'vaincre_tous';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `etapes[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET, self::EN_ORDRE];
 
@@ -429,7 +436,9 @@ final class MotsClesQuete
         self::ERRANTS => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetErrants', 'libelle' => 'faire surgir les monstres errants de la quête autour du héros'],
         self::VOLER => ['parametres' => [], 'optionnels' => ['or'], 'lecteur' => 'effetVoler', 'libelle' => 'voler le héros (de l\'or, ou un objet de son sac)'],
         // `pres_du_heros` (lot E2, *Jungles of Delthrak* q. 6 C) : près du héros qui déclenche, et chaque figure au contact frappe aussitôt.
-        self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6', 'pres_du_heros'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
+        // `au_hasard` (lot E2, q. 14 : « the planar rift creates one monster […] Raptor, Skullblight, Zombie, or Skeleton ») :
+        // UNE seule des poses, tirée au hasard (René, 2026-11-27 : aucun compte de figurines en base).
+        self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6', 'pres_du_heros', 'au_hasard'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
         self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle', 'tous_les_heros'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
         self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => ['campagne'], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],
         self::OUVRIR_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetOuvrirPorte', 'libelle' => 'ouvrir une porte'],
@@ -452,6 +461,7 @@ final class MotsClesQuete
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],
         self::EN_RESERVE => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetEnReserve', 'libelle' => 'placer des figures dans la zone hors du plateau'],
         self::SOIGNER => ['parametres' => [], 'optionnels' => ['body', 'mind'], 'lecteur' => 'effetSoigner', 'libelle' => 'soigner le héros (Corps, Esprit : un nombre ou « tout »)'],
+        self::VAINCRE_TOUS => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetVaincreTous', 'libelle' => 'tous les monstres du plateau sont vaincus et retirés'],
         self::EN_ORDRE => ['parametres' => ['etapes'], 'optionnels' => [], 'lecteur' => 'effetEnOrdre', 'libelle' => 'jouer l\'étape suivante, une à la fois et dans l\'ordre'],
         self::REJETONS => ['parametres' => [], 'optionnels' => ['nombre'], 'lecteur' => 'effetRejetons', 'libelle' => 'accrocher des Spawnling à la fiche du héros (son tour s\'arrête)'],
         self::INVOQUER => ['parametres' => ['sort'], 'optionnels' => ['x', 'y'], 'lecteur' => 'effetInvoquer', 'libelle' => 'lancer un sort d\'invocation de Dread (les figures surgissent près du héros, ou de la case)'],
