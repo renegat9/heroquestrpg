@@ -1528,7 +1528,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 </label>
                                 <template v-if="quete.regles?.portails">
                                     <span v-for="(p, k) in quete.regles.portails" :key="`por${k}`" class="cst-ligne">
-                                        portail <input v-model.number="p.numero" type="number" min="1" max="7" class="cst-input cst-num" title="numéro (1 à 7)" />
+                                        <span class="cst-sous">portail</span> <input v-model.number="p.numero" type="number" min="1" max="7" class="cst-input cst-num" title="numéro (1 à 7)" />
                                         <select v-model.number="p.porte" class="cst-input" title="La porte (ouverte) du portail">
                                             <option v-for="(po, j) in quete.portes" :key="`porp${j}`" :value="j">porte {{ j }} — ({{ po.x }}, {{ po.y }}) {{ po.cote }}</option>
                                         </select>
@@ -1595,11 +1595,14 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         <select v-model="quete.regles.salle_des_morts.salle" class="cst-input">
                                             <option v-for="sa in quete.salles_ouvertes" :key="`sdm${sa}`" :value="sa">{{ sa }}</option>
                                         </select>
-                                        morts-vivants :
-                                        <label v-for="mo in (couches.monstres ?? [])" :key="`sdmm${mo.slug}`" class="cst-case">
-                                            <input type="checkbox" :checked="quete.regles.salle_des_morts.morts_vivants.includes(mo.slug)"
-                                                @change="quete.regles.salle_des_morts.morts_vivants = $event.target.checked ? [...quete.regles.salle_des_morts.morts_vivants, mo.slug] : quete.regles.salle_des_morts.morts_vivants.filter((x) => x !== mo.slug)" /> {{ mo.nom }}
-                                        </label>
+                                        <span class="cst-sous">morts-vivants :</span>
+                                        <span v-for="slug in quete.regles.salle_des_morts.morts_vivants" :key="`sdmm${slug}`" class="cst-puce">{{ nomDe('monstres', slug) }}
+                                            <button type="button" class="cst-icone" title="Retirer" @click="quete.regles.salle_des_morts.morts_vivants = quete.regles.salle_des_morts.morts_vivants.filter((x) => x !== slug)"><MSym n="close" :size="12" /></button>
+                                        </span>
+                                        <select class="cst-input" @change="$event.target.value && (quete.regles.salle_des_morts.morts_vivants = [...quete.regles.salle_des_morts.morts_vivants, $event.target.value]); $event.target.value = ''">
+                                            <option value="">+ mort-vivant…</option>
+                                            <option v-for="mo in (couches.monstres ?? []).filter((m) => !quete.regles.salle_des_morts.morts_vivants.includes(m.slug))" :key="`sdmo${mo.slug}`" :value="mo.slug">{{ mo.nom }}</option>
+                                        </select>
                                     </span>
                                 </template>
                                 <!-- Lot E2 (First Light q. 9 C) : les squelettes du Cor renforcés dans une salle. -->
@@ -1612,8 +1615,8 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <select v-model="quete.regles.cor_renforce.salle" class="cst-input">
                                         <option v-for="sa in quete.salles_ouvertes" :key="`cr${sa}`" :value="sa">{{ sa }}</option>
                                     </select>
-                                    attaque + <input v-model.number="quete.regles.cor_renforce.attaque" type="number" min="0" max="6" class="cst-input cst-num" />
-                                    défense + <input v-model.number="quete.regles.cor_renforce.defense" type="number" min="0" max="6" class="cst-input cst-num" />
+                                    <span class="cst-sous">attaque +</span> <input v-model.number="quete.regles.cor_renforce.attaque" type="number" min="0" max="6" class="cst-input cst-num" />
+                                    <span class="cst-sous">défense +</span> <input v-model.number="quete.regles.cor_renforce.defense" type="number" min="0" max="6" class="cst-input cst-num" />
                                 </span>
                                 <!-- Lot E2 : les objets dont la mécanique est interdite toute la quête (First Light q. 7, l'Anneau du Retour). -->
                                 <label class="cst-case" title="Ces objets ne s'activent pas pendant cette quête (« The Ring of Return's listed mechanic may not be used »).">
@@ -1638,9 +1641,9 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 </label>
                                 <template v-if="quete.regles?.passages">
                                     <span v-for="(pa, k) in quete.regles.passages" :key="`pa${k}`" class="cst-ligne">
-                                        de <input v-model.number="pa.a.x" type="number" min="0" class="cst-input cst-num" title="x" /><input v-model.number="pa.a.y" type="number" min="0" class="cst-input cst-num" title="y" />
+                                        <span class="cst-sous">de</span> <input v-model.number="pa.a.x" type="number" min="0" class="cst-input cst-num" title="x" /><input v-model.number="pa.a.y" type="number" min="0" class="cst-input cst-num" title="y" />
                                         <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(pa.a, `le passage n° ${k + 1}, premier bout`)"><MSym n="pin_drop" :size="16" /></button>
-                                        à <input v-model.number="pa.b.x" type="number" min="0" class="cst-input cst-num" title="x" /><input v-model.number="pa.b.y" type="number" min="0" class="cst-input cst-num" title="y" />
+                                        <span class="cst-sous">à</span> <input v-model.number="pa.b.x" type="number" min="0" class="cst-input cst-num" title="x" /><input v-model.number="pa.b.y" type="number" min="0" class="cst-input cst-num" title="y" />
                                         <button type="button" class="cst-icone" title="Choisir sur la carte" @click="pointer(pa.b, `le passage n° ${k + 1}, second bout`)"><MSym n="pin_drop" :size="16" /></button>
                                         <label>si le drapeau <input :value="pa.si_drapeau ?? ''" class="cst-input" placeholder="(toujours)" @change="$event.target.value.trim() ? (pa.si_drapeau = $event.target.value.trim()) : delete pa.si_drapeau" /></label>
                                         <button type="button" class="cst-icone" title="Retirer" @click="quete.regles.passages.splice(k, 1); if (!quete.regles.passages.length) poserRegle('passages', undefined)"><MSym n="close" :size="16" /></button>

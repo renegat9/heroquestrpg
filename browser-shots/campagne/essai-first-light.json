@@ -1,0 +1,333 @@
+{
+ "format": 1,
+ "slug": "essai-first-light",
+ "titre": "Essai First Light",
+ "auteur": "Campagne d'essai du mode classique",
+ "mention": "Plateau, quête et textes inventés pour éprouver le mode classique.",
+ "prerequis_heros": [],
+ "plateau": {
+  "largeur": 24,
+  "hauteur": 16,
+  "salles": [
+   {
+    "id": "vestibule",
+    "x": 2,
+    "y": 2,
+    "l": 5,
+    "h": 4
+   },
+   {
+    "id": "salle-des-gardes",
+    "x": 7,
+    "y": 2,
+    "l": 5,
+    "h": 4
+   },
+   {
+    "id": "cellier",
+    "x": 16,
+    "y": 2,
+    "l": 5,
+    "h": 3
+   },
+   {
+    "id": "caveau",
+    "x": 9,
+    "y": 10,
+    "l": 6,
+    "h": 4
+   }
+  ]
+ },
+ "quetes": [
+  {
+   "slug": "essai-fl-1",
+   "titre": "Les règles de First Light",
+   "ouverture": "L'escalier descend dans une cave humide. Des voix aiguës se disputent derrière la porte de l'est, et quelque chose de plus lourd remue plus bas.",
+   "monstre_errant": "orque",
+   "salles_ouvertes": [
+    "vestibule",
+    "salle-des-gardes",
+    "caveau"
+   ],
+   "portes": [
+    {
+     "x": 6,
+     "y": 3,
+     "cote": "e",
+     "type": "normale"
+    },
+    {
+     "x": 10,
+     "y": 5,
+     "cote": "s",
+     "type": "normale"
+    },
+    {
+     "x": 11,
+     "y": 10,
+     "cote": "n",
+     "type": "normale"
+    },
+    {
+     "x": 2,
+     "y": 4,
+     "cote": "o",
+     "type": "secrete",
+     "introuvable_du_couloir": true
+    }
+   ],
+   "blocs": [
+    {
+     "x": 20,
+     "y": 7
+    },
+    {
+     "x": 8,
+     "y": 8,
+     "illusoire": true
+    }
+   ],
+   "mobilier": [
+    {
+     "slug": "table",
+     "x": 9,
+     "y": 3,
+     "rotation": 0
+    },
+    {
+     "slug": "coffre",
+     "x": 14,
+     "y": 13,
+     "rotation": 0
+    }
+   ],
+   "monstres": [
+    {
+     "slug": "gobelin",
+     "x": 11,
+     "y": 2
+    },
+    {
+     "slug": "guerrier-du-chaos",
+     "x": 8,
+     "y": 3
+    },
+    {
+     "slug": "squelette",
+     "x": 10,
+     "y": 12
+    },
+    {
+     "slug": "squelette",
+     "x": 12,
+     "y": 12,
+     "sort_dread_parmi": [
+      "eclair-de-chaos",
+      "boule-de-flammes"
+     ]
+    }
+   ],
+   "pieges": [
+    {
+     "slug": "fosse",
+     "x": 6,
+     "y": 8
+    }
+   ],
+   "terrain": [],
+   "depart": {
+    "x": 2,
+    "y": 2
+   },
+   "sortie": null,
+   "recompense": {
+    "or": 60,
+    "partage": "groupe"
+   },
+   "fin": {
+    "type": "vaincre",
+    "cibles": [
+     3
+    ],
+    "libelle": "Abattre le fimir qui règne sur le caveau."
+   },
+   "regles": {
+    "portails": [
+     {
+      "porte": 0,
+      "numero": 1
+     },
+     {
+      "porte": 1,
+      "numero": 2
+     }
+    ],
+    "cases_sans_arret": [
+     {
+      "x": 4,
+      "y": 3
+     }
+    ],
+    "passages": [
+     {
+      "a": {
+       "x": 6,
+       "y": 5
+      },
+      "b": {
+       "x": 7,
+       "y": 5
+      },
+      "si_drapeau": "bibliotheque"
+     }
+    ],
+    "bonus_porte_secrete": true,
+    "relance_esprit": true,
+    "salle_des_morts": {
+     "salle": "caveau",
+     "morts_vivants": [
+      "squelette"
+     ]
+    },
+    "cor_renforce": {
+     "salle": "caveau",
+     "attaque": 2,
+     "defense": 2
+    },
+    "objets_inertes": [
+     "anneau-du-retour"
+    ]
+   },
+   "marqueurs": {
+    "libelle": "Fouiller l'éclaireur",
+    "cases": [
+     {
+      "x": 3,
+      "y": 3
+     }
+    ],
+    "alors": [
+     {
+      "effet": "jet",
+      "issues": [
+       {
+        "de": 1,
+        "a": 3,
+        "alors": [
+         {
+          "effet": "texte",
+          "texte": "Rien."
+         }
+        ]
+       },
+       {
+        "de": 4,
+        "a": 6,
+        "alors": [
+         {
+          "effet": "or",
+          "or": 15
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "notes": [
+    {
+     "repere": "A",
+     "quand": {
+      "declencheur": "entree",
+      "cible": {
+       "salle": "salle-des-gardes"
+      }
+     },
+     "alors": [
+      {
+       "effet": "bataille",
+       "heros": [
+        1
+       ],
+       "zargon": [
+        0
+       ]
+      }
+     ]
+    },
+    {
+     "repere": "B",
+     "une_fois": false,
+     "quand": {
+      "declencheur": "fouille_tresor",
+      "cible": {
+       "salle": "caveau"
+      }
+     },
+     "alors": [
+      {
+       "effet": "en_ordre",
+       "etapes": [
+        {
+         "alors": [
+          {
+           "effet": "equipement_le_moins_cher",
+           "nombre": 4
+          }
+         ]
+        },
+        {
+         "alors": [
+          {
+           "effet": "objet",
+           "slug": "anneau-du-retour",
+           "inerte_en_quete": true
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "repere": "C",
+     "une_fois": false,
+     "quand": {
+      "declencheur": "tour_du_mj",
+      "cible": {
+       "tour": 1
+      }
+     },
+     "alors": [
+      {
+       "effet": "apparition",
+       "si_decouverte": true,
+       "une_a_la_fois": true,
+       "monstres": [
+        {
+         "slug": "orque",
+         "x": 13,
+         "y": 11
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "gestes": [
+    {
+     "libelle": "Interroger l'Oracle",
+     "salle": "vestibule",
+     "par_heros": true,
+     "alors": [
+      {
+       "effet": "oracle",
+       "don": "benediction"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
