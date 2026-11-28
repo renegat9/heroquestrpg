@@ -672,7 +672,10 @@ final class CarteConstruite
         }
         // Un slug, ou `{slug, nombre, …profil}` (lot E1) : « 2 × squelette (profil d'auteur) ».
         $errant = $quete['monstre_errant'] ?? null;
-        if (is_array($errant)) {
+        if (is_array($errant) && isset($errant['tour_de'])) {
+            // Lot E2 (Morcar q. 9) : la carte fait jouer une figure posée.
+            $lignes[] = '  monstre errant : le tour d\'une figure posée ('.implode(', ', array_map(fn ($i) => "monstre {$i}", (array) $errant['tour_de'])).')';
+        } elseif (is_array($errant)) {
             $profil = array_diff(array_keys($errant), ['slug', 'nombre']) !== [] ? ' (profil d\'auteur)' : '';
             $lignes[] = '  monstre errant (hors carte) : '.(int) ($errant['nombre'] ?? 1).' × '.($errant['slug'] ?? '?').$profil;
         } elseif ($errant !== null) {

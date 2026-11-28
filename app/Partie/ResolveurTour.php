@@ -12486,6 +12486,28 @@ final class ResolveurTour
      */
     public function surgissementErrant(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): array
     {
+        // LE TOUR D'UNE FIGURE POSÉE (lot E2, *Wizards of Morcar* q. 9 : « Take a turn with one of the Sorcerers (only if
+        // available) ») : la figure désignée encore debout et sur le plateau la plus proche du fouilleur joue son tour, tout de
+        // suite ; aucune n'est disponible, rien ne se passe.
+        $tourDe = $quete->estConstruite() ? data_get($quete->documentConstruit(), 'monstre_errant.tour_de') : null;
+        if (is_array($tourDe)) {
+            $poses = \App\Partie\Classique\NotesDeQuete::figuresPosees($quete);
+            $figure = collect($tourDe)->map(fn ($i) => $poses[(int) $i] ?? null)
+                ->filter(fn (?InstanceMonstre $m) => $m !== null && $m->etat === 'actif' && $m->revele && $m->position_x !== null)
+                ->sortBy(fn (InstanceMonstre $m) => abs((int) $m->position_x - (int) $etat->position_x) + abs((int) $m->position_y - (int) $etat->position_y))
+                ->first();
+            if ($figure === null) {
+                return ['issue' => 'rien', 'errant_indisponible' => true];
+            }
+            $cibles = $this->ciblesDesMonstres($quete);
+            $action = $cibles->isNotEmpty() ? $this->jouerMonstre($groupe, $quete, $figure->load('monstre'), $cibles) : null;
+            foreach (($action['type'] ?? null) === 'actions_composites' ? (array) $action['actions'] : array_filter([$action]) as $geste) {
+                app(TamponAnnonces::class)->annoncer($groupe, $geste, ['type' => 'monstre', 'id' => $figure->id, 'nom' => $figure->nomAffiche()]);
+            }
+
+            return ['tour_errant' => ['monstre' => $figure->nomAffiche(), 'instance_id' => (int) $figure->id]];
+        }
+
         // SPAWNLING (lot E2, *Jungles of Delthrak*) : « place a Spawnling tile on the triggering hero's card. The hero's turn
         // immediately ends » — un errant qui s'accroche ne se pose pas, il devient des jetons (`Classique\Rejetons`).
         $pose = app(MonstreErrant::class)->poseDeLaQuete($quete);

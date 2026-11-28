@@ -16,6 +16,8 @@ const props = defineProps({
     // publiée par le serveur (`vocabulaires.capacites_de_profil`).
     sortsDread: { type: Array, default: () => [] },
     capacites: { type: Array, default: () => [] },
+    // Lot E2 (Wizards of Morcar q. 7 D) : les sorts de Dread qu'une figure posée peut avoir DÉJÀ lancés (`vocabulaires.sorts_d_amelioration`).
+    sortsAmelioration: { type: Array, default: () => [] },
     // Le monstre errant surgit : il n'a pas de refuge.
     sansFuite: { type: Boolean, default: false },
     pointer: { type: Function, required: true },
@@ -139,6 +141,14 @@ function basculerFuite(avec) {
             <label class="cst-case"><input type="checkbox" :checked="m.increvable !== undefined" @change="$event.target.checked ? (m.increvable = true) : delete m.increvable" /> Increvable : jamais sous 1 PV</label>
             <input v-if="m.increvable !== undefined" :value="m.increvable?.sauf_drapeau ?? ''" class="cst-input" placeholder="jusqu'au drapeau… (toujours)"
                 @change="$event.target.value.trim() ? (m.increvable = { sauf_drapeau: $event.target.value.trim() }) : (m.increvable = true)" />
+        </div>
+        <!-- Lot E2 (Wizards of Morcar q. 7 D) : « with Hammer of Ruin and Scrolls of Morcar already cast on her ». -->
+        <div v-if="inactifPossible && sortsAmelioration.length" class="cst-ligne">
+            <span class="cst-sous">sorts déjà lancés :</span>
+            <label v-for="sl in sortsAmelioration" :key="`sa${sl}`" class="cst-case">
+                <input type="checkbox" :checked="(m.sorts_actifs ?? []).includes(sl)"
+                    @change="(() => { const l = (m.sorts_actifs ?? []).filter((x) => x !== sl); if ($event.target.checked) l.push(sl); if (l.length) m.sorts_actifs = l; else delete m.sorts_actifs; })()" /> {{ nomSortDread(sl) }}
+            </label>
         </div>
         <!-- Lot E2 (Wizards of Morcar p. 4) : un monstre à embuscade (le Dreadshifter) posé déguisé en coffre, ou en porte sur un bord. -->
         <div v-if="inactifPossible" class="cst-ligne">

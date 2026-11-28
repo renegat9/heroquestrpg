@@ -34,7 +34,7 @@ it('publie les quatre couches posables, les classes et les vocabulaires fermés'
     $contenu = ReponseMcp::structure(ServeurConstructeur::tool(OutilCatalogues::class));
 
     expect(array_keys($contenu['couches']))->toBe(['mobilier', 'monstres', 'pieges', 'terrain'])
-        ->and(array_keys($contenu['vocabulaires']))->toBe(['rotations', 'cotes', 'types_porte', 'partages', 'types_fin', 'declencheurs_de_note', 'effets_de_note', 'types_acces', 'verrous_de_porte', 'conditions_de_porte', 'formats_acceptes', 'boites_de_cartes', 'capacites_de_profil', 'sorts_d_invocation'])
+        ->and(array_keys($contenu['vocabulaires']))->toBe(['rotations', 'cotes', 'types_porte', 'partages', 'types_fin', 'declencheurs_de_note', 'effets_de_note', 'types_acces', 'verrous_de_porte', 'conditions_de_porte', 'formats_acceptes', 'boites_de_cartes', 'capacites_de_profil', 'sorts_d_invocation', 'sorts_d_amelioration'])
         ->and(collect($contenu['couches']['monstres'])->pluck('slug'))->toContain('gobelin')
         ->and(collect($contenu['classes'])->pluck('slug'))->toContain('barbare');
 });

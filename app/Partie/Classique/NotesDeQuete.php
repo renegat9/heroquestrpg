@@ -558,6 +558,9 @@ final class NotesDeQuete
         if (isset($fragment['rejetons'])) {
             return ['monstres' => [], 'rejetons' => $fragment['rejetons']]; // Spawnling : des jetons, le tour s'arrête
         }
+        if (isset($fragment['tour_errant'])) {
+            return ['monstres' => [$fragment['tour_errant']['monstre']]]; // Morcar q. 9 : une figure posée a joué son tour
+        }
         $noms = isset($fragment['monstres']) ? array_column($fragment['monstres'], 'nom')
             : (isset($fragment['monstre']) ? [$fragment['monstre']['nom']] : []);
         foreach ([$fragment['frappe_errant'] ?? null, ...(array) ($fragment['frappes_errants'] ?? [])] as $frappe) {

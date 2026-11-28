@@ -72,6 +72,7 @@ final class MonstreErrant
         // `{slug, nombre, …profil}` (lot E1).
         if ($quete->estConstruite()) {
             $doc = $quete->documentConstruit()['monstre_errant'] ?? null;
+            // Lot E2 (*Wizards of Morcar* q. 9) : `{tour_de}` ne fait sortir aucune figure (`ResolveurTour::surgissementErrant()`).
             $slug = is_array($doc) ? ($doc['slug'] ?? null) : $doc;
 
             return $slug === null ? null : (app(CatalogueConstructeur::class)->index('monstres')[(string) $slug] ?? null);

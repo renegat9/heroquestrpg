@@ -277,6 +277,15 @@ final class DemarreurQueteConstruite
                     'habillage' => InstanceMonstre::habillageDeQuete($docMonstre, $this->catalogue),
                 ]);
 
+                // LES SORTS DÉJÀ LANCÉS (lot E2, *Wizards of Morcar* q. 7 D, q. 10 D : « with Hammer of Ruin and Scrolls of Morcar
+                // already cast on her ») : l'état de chaque amélioration, posé par le moteur des sorts (`poserAmelioration()`).
+                foreach ((array) ($docMonstre['sorts_actifs'] ?? []) as $slugSort) {
+                    $sortActif = $this->catalogue->index('sorts_dread')[(string) $slugSort] ?? null;
+                    if ($sortActif !== null) {
+                        app(\App\Partie\MoteurDread::class)->poserAmelioration($instance, $sortActif);
+                    }
+                }
+
                 // L'EMBUSCADE (lot E2, *Wizards of Morcar* p. 4) : « Zargon places it onto the board as the object it appears to
                 // be » — un coffre sur sa case, ou une porte sur un bord de sa case (`Classique\EmbuscadesClassiques`).
                 $deguise = $docMonstre['deguise'] ?? null;

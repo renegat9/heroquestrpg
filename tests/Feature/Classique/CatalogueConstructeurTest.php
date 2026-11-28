@@ -130,6 +130,9 @@ it('payload() publie les couches posables, les classes et les vocabulaires lus d
             'sorts_d_invocation' => \App\Models\SortDread::query()->orderBy('nom')->get()
                 ->filter(fn ($sort) => \App\Partie\MoteurDread::invocationPure($sort))
                 ->map(fn ($sort) => \App\Partie\Classique\CatalogueConstructeur::slug($sort->nom))->values()->all(),
+            'sorts_d_amelioration' => \App\Models\SortDread::query()->orderBy('nom')->get()
+                ->filter(fn ($sort) => $sort->type === \App\Engine\MotsClesSortDread::TYPE_AMELIORATION)
+                ->map(fn ($sort) => \App\Partie\Classique\CatalogueConstructeur::slug($sort->nom))->values()->all(),
         ]);
 });
 

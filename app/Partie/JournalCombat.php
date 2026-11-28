@@ -3687,14 +3687,16 @@ final class JournalCombat
             'errant' => [[
                 // ACTIVATION DES SALLES (lot E2, F9528 q. 10) : la carte lève une salle au lieu d'un surgissement.
                 // SPAWNLING (lot E2, Delthrak) : l'errant s'accroche à la fiche du fouilleur, et son tour s'arrête.
-                'texte' => isset($a['rejetons']) ? self::rejetonsPoses((array) $a['rejetons'], $acteurNom) : (array_key_exists('salles_activees', $a)
+                // LE TOUR D'UNE FIGURE POSÉE (lot E2, Morcar q. 9) : la carte fait jouer un sorcier.
+                'texte' => isset($a['tour_errant']) ? "{$acteurNom} tire un monstre errant : ".($a['tour_errant']['monstre'] ?? 'une figure').' joue un tour'
+                    : (isset($a['rejetons']) ? self::rejetonsPoses((array) $a['rejetons'], $acteurNom) : (array_key_exists('salles_activees', $a)
                     // Jamais vide : sans salle cachée habitée, la carte reste un monstre errant (`appliquerButin()`).
                     ? "{$acteurNom} tire un monstre errant : "
                         .implode(' ; ', array_map(fn ($s) => implode(', ', (array) ($s['monstres'] ?? [])).' se lèvent', (array) $a['salles_activees']))
                     : (count((array) ($a['monstres'] ?? [])) > 1
                     ? self::figuresGroupees(array_map(fn ($m) => (string) ($m['nom'] ?? 'un monstre'), (array) $a['monstres']))
                         ." surgissent du coffre que fouille {$acteurNom} !"
-                    : ($a['monstre']['nom'] ?? 'Un monstre')." surgit du coffre que fouille {$acteurNom} !")),
+                    : ($a['monstre']['nom'] ?? 'Un monstre')." surgit du coffre que fouille {$acteurNom} !"))),
                 'ton' => 'subit',
             ]],
             // CERCUEIL du Tombeau (`ResolveurTour::spawnDuTombeau()`) : le même payload que l'errant, nommé pour ce

@@ -195,6 +195,9 @@ final class CatalogueConstructeur
                 // Lot E2 (*Prophecy of Telor*) : les sorts de Dread que l'effet de note `invoquer` accepte (`MoteurDread::invocationPure()`).
                 'sorts_d_invocation' => array_values(array_keys(array_filter($this->index('sorts_dread'),
                     fn (Model $sort) => \App\Partie\MoteurDread::invocationPure($sort)))),
+                // Lot E2 (*Wizards of Morcar* q. 7 D) : les sorts qu'un profil peut avoir DÉJÀ lancés (`sorts_actifs`).
+                'sorts_d_amelioration' => array_values(array_keys(array_filter($this->index('sorts_dread'),
+                    fn (Model $sort) => $sort->type === \App\Engine\MotsClesSortDread::TYPE_AMELIORATION))),
             ],
         ];
     }

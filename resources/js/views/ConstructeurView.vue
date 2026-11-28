@@ -338,6 +338,10 @@ function recaler(q, liste, i) {
     if (liste === 'monstres' && Array.isArray(q.fin?.cibles)) {
         q.fin.cibles = q.fin.cibles.filter((c) => c !== i).map((c) => (c > i ? c - 1 : c));
     }
+    // Lot E2 (Morcar q. 9) : l'errant qui fait jouer des figures posées perd l'index retiré.
+    if (liste === 'monstres' && Array.isArray(q.monstre_errant?.tour_de)) {
+        q.monstre_errant.tour_de = q.monstre_errant.tour_de.filter((c) => c !== i).map((c) => (c > i ? c - 1 : c));
+    }
     (q.notes ?? []).forEach((note) => {
         const c = note.quand?.cible;
         if (!c || typeof c[cle] !== 'number') return;
@@ -592,10 +596,19 @@ const basculerProfil = (cle) => (profilsOuverts.has(cle) ? profilsOuverts.delete
 const aUnProfil = (m) => ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'].some((k) => k in m);
 // MONSTRE ERRANT (lot E1) : un slug, ou `{slug, nombre, …profil}` dès qu'il y a plus d'une figure ou un profil.
 const NOMBRE_ERRANTS_MAX = 6; // ValidationCampagne::NOMBRE_ERRANTS_MAX — la validation tranche
-const slugErrant = (q) => (q.monstre_errant !== null && typeof q.monstre_errant === 'object' ? q.monstre_errant.slug : q.monstre_errant);
+// Lot E2 (Wizards of Morcar q. 9) : `{tour_de: [index]}` — la carte fait jouer une figure posée (valeur `__tour__` du menu).
+const errantTourDe = (q) => q.monstre_errant !== null && typeof q.monstre_errant === 'object' && Array.isArray(q.monstre_errant.tour_de);
+const slugErrant = (q) => (errantTourDe(q) ? '__tour__' : (q.monstre_errant !== null && typeof q.monstre_errant === 'object' ? q.monstre_errant.slug : q.monstre_errant));
 function changerSlugErrant(q, slug) {
     if (!slug) { q.monstre_errant = null; return; }
+    if (slug === '__tour__') { q.monstre_errant = { tour_de: q.monstres.length ? [0] : [] }; return; }
+    if (errantTourDe(q)) { q.monstre_errant = slug; return; }
     if (q.monstre_errant !== null && typeof q.monstre_errant === 'object') q.monstre_errant.slug = slug; else q.monstre_errant = slug;
+}
+function basculerTourDe(q, k, avec) {
+    const liste = q.monstre_errant.tour_de.filter((i) => i !== k);
+    if (avec) liste.push(k);
+    q.monstre_errant.tour_de = liste.sort((a, b) => a - b);
 }
 function errantEnObjet(q) {
     if (typeof q.monstre_errant !== 'object' || q.monstre_errant === null) q.monstre_errant = { slug: q.monstre_errant };
@@ -1315,11 +1328,18 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <label>Monstre errant
                                     <select :value="slugErrant(quete) ?? ''" class="cst-input" @change="changerSlugErrant(quete, $event.target.value)">
                                         <option value="">aucun</option>
+                                        <option value="__tour__">le tour d'une figure posée</option>
                                         <option v-for="m in couches.monstres" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
                                     </select>
                                 </label>
+                                <!-- Lot E2 (Wizards of Morcar q. 9) : « Take a turn with one of the Sorcerers (only if available) ». -->
+                                <span v-if="errantTourDe(quete)" class="cst-puces" title="La carte fait jouer un tour à la figure cochée, encore debout, la plus proche du fouilleur.">
+                                    <label v-for="(mo, k) in quete.monstres" :key="`td${k}`" class="cst-case">
+                                        <input type="checkbox" :checked="quete.monstre_errant.tour_de.includes(k)" @change="basculerTourDe(quete, k, $event.target.checked)" /> {{ libelleMonstre(mo, k) }}
+                                    </label>
+                                </span>
                                 <!-- Lot E1 : « 2 Skeletons » — le nombre de figures, et leur profil d'auteur (stats, sorts). -->
-                                <template v-if="quete.monstre_errant">
+                                <template v-if="quete.monstre_errant && !errantTourDe(quete)">
                                     <label>×
                                         <input :value="quete.monstre_errant.nombre ?? 1" type="number" min="1" :max="NOMBRE_ERRANTS_MAX" class="cst-input cst-num" title="nombre de figures"
                                             @change="changerNombreErrant(quete, $event.target.value)" />
@@ -1631,7 +1651,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     <template v-for="(m, i) in quete.monstres" :key="`pf${i}`">
                                         <div v-if="profilsOuverts.has(m)">
                                             <span class="cst-lbl">{{ libelleMonstre(m, i) }}</span>
-                                            <ProfilMonstre :monstre="m" :objets="catalogues.objets" :sorts="catalogues.sorts ?? []" :sorts-dread="catalogues.sorts_dread ?? []" :capacites="vocab.capacites_de_profil ?? []" inactif-possible :pointer="pointer" :libelle="`monstre ${i}`" />
+                                            <ProfilMonstre :monstre="m" :objets="catalogues.objets" :sorts="catalogues.sorts ?? []" :sorts-dread="catalogues.sorts_dread ?? []" :capacites="vocab.capacites_de_profil ?? []" :sorts-amelioration="vocab.sorts_d_amelioration ?? []" inactif-possible :pointer="pointer" :libelle="`monstre ${i}`" />
                                         </div>
                                     </template>
                                 </div>

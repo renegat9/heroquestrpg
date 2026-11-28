@@ -7362,6 +7362,14 @@ comme le livret — avant chaque quête, un animal gratuit par héros, pour cett
   de profil **`bouclier_noir_pare_tout`** (`frapper()`, sur le jet retenu : un bouclier noir et le coup ne blesse pas,
   `meta.bouclier_noir_pare_tout`) ; effets `objet` / `objet_au_hasard`, paramètre facultatif **`au_heros_du_geste: index`** —
   au premier héros qui a fait ce geste (`quetes.drapeaux._gestes`), sinon au héros de la note.
+- q. 7 D, q. 10 D : « with Hammer of Ruin and Scrolls of Morcar already cast on her ». Profil d'une figure posée **`sorts_actifs:
+  [slugs]`** — des améliorations de Dread (`type: amelioration`, `valeur_invalide` sinon ; publiées dans
+  `vocabulaires.sorts_d_amelioration`) : leur état est posé au départ de la quête par `MoteurDread::poserAmelioration()`
+  (jetons d'ombre, +2 dés d'attaque), le même point que le sort lancé en jeu.
+- q. 9 : « Wandering Monsters in the Quest: Take a turn with one of the Sorcerers (only if available) ». **`monstre_errant:
+  {tour_de: [index]}`** : la carte (fouille, piège à errant, effet `errants`) fait jouer tout de suite son tour à la figure
+  désignée encore debout et sur le plateau la plus proche du fouilleur ; aucune, rien (`errant_indisponible`). Résultat
+  `tour_errant {monstre, instance_id}` ; ses gestes s'annoncent comme ceux d'un monstre.
 
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 

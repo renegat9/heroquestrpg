@@ -2153,3 +2153,34 @@ it('golems et prière : un bouclier noir pare tout ; l\'artefact va au héros qu
     app(\App\Partie\Classique\NotesDeQuete::class)->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::FOUILLE_TRESOR, ['salle' => 1], null);
     expect($partie['heros']->inventaire()->whereHas('objet', fn ($q) => $q->where('nom', 'Potion de soin'))->exists())->toBeTrue();
 });
+
+it('sorts déjà lancés : « with Hammer of Ruin and Scrolls of Morcar already cast on her » — posés au départ', function () {
+    $campagne = campagneE2(['monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 3, 'sorts_actifs' => ['marteau-de-la-ruine', 'parchemins-de-morcar']]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 3, 'sorts_actifs' => ['eclair-de-chaos']]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $gardienne = $partie['quete']->instancesMonstres()->with('monstre')->firstOrFail();
+
+    expect((int) $gardienne->etatDread('jetons_ombre', 0))->toBe(3)
+        ->and($gardienne->attaqueEffective())->toBe((int) $gardienne->monstre->attaque + 2);
+});
+
+it('errant « tour d\'une figure posée » : la carte fait jouer la plus proche encore debout ; aucune, rien', function (bool $disponible) {
+    $campagne = campagneE2(['monstres' => [['slug' => 'orque', 'x' => 3, 'y' => 3]], 'monstre_errant' => ['tour_de' => [0]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['monstre_errant' => ['tour_de' => [3]]])))->toBe([ValidationCampagne::CIBLE_INCONNUE]);
+    $partie = partieE2($this, $campagne);
+    $orque = $partie['quete']->instancesMonstres()->firstOrFail();
+    $orque->update($disponible ? ['revele' => true] : ['etat' => 'vaincu']);
+    empilerCarteFouille($partie['quete'], ['issue' => 'errant']);
+
+    $resultat = fouillerE2($this, $partie);
+
+    expect($partie['quete']->instancesMonstres()->count())->toBe(1);
+    if ($disponible) {
+        expect($resultat['tour_errant']['instance_id'])->toBe((int) $orque->id)
+            ->and(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht'))->pluck('texte')->first())->toContain('joue un tour');
+    } else {
+        expect($resultat['errant_indisponible'] ?? false)->toBeTrue();
+    }
+})->with(['disponible' => [true], 'tombé' => [false]]);

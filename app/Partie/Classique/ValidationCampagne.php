@@ -159,7 +159,7 @@ final class ValidationCampagne
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
     private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe'];
-    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable', 'deguise', 'neutre'];
+    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable', 'deguise', 'neutre', 'sorts_actifs'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
     /** « Wandering Monster in this Quest: 4 Goblins » (F9528 q. 4) : le plus grand nombre lu dans les livrets, avec de la marge. */
@@ -616,7 +616,19 @@ final class ValidationCampagne
             $this->texte($quete, 'titre', $chemin, nonVide: true, max: self::LONGUEUR_TITRE);
             $this->texte($quete, 'ouverture', $chemin);
             // MONSTRE ERRANT (lot E1) : un slug, ou `{slug, nombre?, …profil}` — « 2 Skeletons » (F5815 p. 8).
-            if (is_array($quete['monstre_errant'] ?? null)) {
+            // Lot E2 (*Wizards of Morcar* q. 9 : « Take a turn with one of the Sorcerers (only if available) ») : `{tour_de: [index]}` —
+            // la carte fait jouer un tour à l'une de ces figures posées.
+            if (is_array($quete['monstre_errant'] ?? null) && array_key_exists('tour_de', $quete['monstre_errant'])) {
+                $ici = self::chemin($chemin, 'monstre_errant');
+                $this->cles($quete['monstre_errant'], $ici, ['tour_de']);
+                $liste = $this->enListe($quete['monstre_errant']['tour_de'], "$ici.tour_de");
+                if ($liste === []) {
+                    $this->refuser("$ici.tour_de", self::VALEUR_INVALIDE, 'au moins une figure posée');
+                }
+                foreach ((array) $liste as $k => $index) {
+                    $this->indexDe($quete, 'monstres', $index, "$ici.tour_de.$k");
+                }
+            } elseif (is_array($quete['monstre_errant'] ?? null)) {
                 $ici = self::chemin($chemin, 'monstre_errant');
                 $errant = $quete['monstre_errant'];
                 $this->cles($errant, $ici, ['slug'], self::CLES_ERRANT_OPTIONNELLES);
@@ -1827,6 +1839,18 @@ final class ValidationCampagne
                 $couche === 'pieges' ? [...self::CLES_PIEGE_OPTIONNELLES, 'zone'] : ($couche === 'monstres' ? self::CLES_MONSTRE_OPTIONNELLES : ($couche === 'terrain' ? self::CLES_TERRAIN_OPTIONNELLES : [])));
             if ($couche === 'monstres') {
                 $this->profilDeMonstre($pose, $position);
+                // LES SORTS DÉJÀ LANCÉS (lot E2, Morcar q. 7 D) : des améliorations de Dread (Marteau de la Ruine, Parchemins).
+                if (array_key_exists('sorts_actifs', $pose)) {
+                    $ici = self::chemin($position, 'sorts_actifs');
+                    foreach ((array) $this->enListe($pose['sorts_actifs'], $ici) as $k => $slug) {
+                        $sortActif = is_string($slug) ? ($this->catalogue->index('sorts_dread')[$slug] ?? null) : null;
+                        if ($sortActif === null) {
+                            $this->refuser("$ici.$k", self::CATALOGUE_INCONNU, '« '.(is_string($slug) ? $slug : '?').' » n\'est pas un sort de Dread du catalogue');
+                        } elseif ($sortActif->type !== \App\Engine\MotsClesSortDread::TYPE_AMELIORATION) {
+                            $this->refuser("$ici.$k", self::VALEUR_INVALIDE, "« {$sortActif->nom} » ne reste pas actif sur son lanceur : seule une amélioration (Marteau de la Ruine, Parchemins de Morcar)");
+                        }
+                    }
+                }
                 // L'EMBUSCADE (lot E2, *Wizards of Morcar* p. 4) : « appear to be either a chest or a door » — un monstre qui
                 // a la capacité `embuscade` (le Dreadshifter), déguisé en coffre sur sa case, ou en porte sur un bord.
                 if (array_key_exists('deguise', $pose)) {

@@ -6158,7 +6158,23 @@ final class MoteurDread
      */
     private function sortDreadAmelioration(Groupe $groupe, InstanceMonstre $instance, SortDread $sort, array $acteur): array
     {
-        $payload = ['type' => 'sort_dread', 'sort' => $sort->nom];
+        $payload = ['type' => 'sort_dread', 'sort' => $sort->nom, ...$this->poserAmelioration($instance, $sort)];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * L'ÉTAT d'une amélioration posée sur le lanceur — le seul endroit qui l'écrit : le sort lancé en jeu
+     * (`sortDreadAmelioration()`), et le sort DÉJÀ lancé au départ d'une quête construite (lot E2, *Wizards of Morcar* q. 7 D,
+     * q. 10 D : « with Hammer of Ruin and Scrolls of Morcar already cast on her », profil `sorts_actifs`).
+     *
+     * @return array{amelioration?: array<string, mixed>}
+     */
+    public function poserAmelioration(InstanceMonstre $instance, SortDread $sort): array
+    {
+        $payload = [];
 
         if (($jetons = data_get($sort->effet, 'jetons_ombre')) !== null) {
             $instance->poserEtatDread('jetons_ombre', (int) $jetons);
@@ -6172,8 +6188,6 @@ final class MoteurDread
                 'se_brise_sans_degat' => (bool) data_get($sort->effet, 'se_brise_sans_degat', false),
             ];
         }
-
-        Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
     }
