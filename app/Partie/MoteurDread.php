@@ -2112,11 +2112,13 @@ final class MoteurDread
             $de = $this->des->d6();
             // Un piège n'a pas de monstres adjacents qui le renforcent (`$instance` nul) : bonus nul.
             $bonus = $instance === null ? 0 : $this->bonusLanceursAdjacents($sort, $quete, $instance);
-            $total = $de + $bonus;
+            // AMAS DE CRISTAL (mode classique, lot E2 — Delthrak p. 3) : +1 au lanceur qui touche un cristal debout.
+            $cristal = $instance === null ? 0 : $this->bonusCristauxAdjacents($sort, $quete, $instance);
+            $total = $de + $bonus + $cristal;
 
             return [
                 'degats' => $this->degatsSelonPaliers($total, (array) data_get($sort->effet, 'paliers', [])),
-                'detail' => ['de' => $de, 'lanceurs_adjacents' => $bonus, 'total' => $total],
+                'detail' => ['de' => $de, 'lanceurs_adjacents' => $bonus, ...($cristal > 0 ? ['cristal' => $cristal] : []), 'total' => $total],
             ];
         }
 
@@ -2216,6 +2218,40 @@ final class MoteurDread
             )
                 && in_array($sort->nom, $this->repertoireDe($m), true))
             ->count();
+    }
+
+    /**
+     * AMAS DE CRISTAL (*Jungles of Delthrak* p. 3) : « If a monster casts Channel Dread while adjacent to the crystal cluster,
+     * they add 1 to their roll result. » Le même sort que `bonusLanceursAdjacents()` (`bonus_lanceurs_adjacents`, la carte
+     * *Channel Dread*), et chaque meuble DEBOUT qui porte `amplifie_canaliser_effroi` au contact du lanceur (son emprise
+     * entière, `InstanceMonstre::touche()`) ajoute sa valeur. Quêtes CONSTRUITES seulement (mode classique, lot E2) : le mode
+     * RPG ne change pas.
+     */
+    public function bonusCristauxAdjacents(SortDread $sort, Quete $quete, InstanceMonstre $instance): int
+    {
+        if (! $quete->estConstruite() || ! (bool) data_get($sort->effet, 'bonus_lanceurs_adjacents', false)
+            || $instance->position_x === null) {
+            return 0;
+        }
+        $types = Mobilier::query()->get()->filter(fn (Mobilier $m) => (int) data_get($m->effet, 'amplifie_canaliser_effroi', 0) > 0)->keyBy('id');
+        if ($types->isEmpty()) {
+            return 0;
+        }
+        $instance->setRelation('quete', $quete);
+        $bonus = 0;
+        foreach ((array) ($quete->carte?->grille['mobilier'] ?? []) as $entree) {
+            $type = $types[(int) ($entree['mobilier_id'] ?? 0)] ?? null;
+            if ($type === null || ! empty($entree['detruit']) || ! isset($entree['x'], $entree['y'])) {
+                continue;
+            }
+            $cases = \App\Partie\Salles::cases(['x' => (int) $entree['x'], 'y' => (int) $entree['y'],
+                'l' => max(1, (int) ($entree['l'] ?? 1)), 'h' => max(1, (int) ($entree['h'] ?? 1))]);
+            if (collect($cases)->contains(fn (array $c) => $instance->touche($c['x'], $c['y']))) {
+                $bonus += (int) data_get($type->effet, 'amplifie_canaliser_effroi');
+            }
+        }
+
+        return $bonus;
     }
 
     // ------------------------------------------------------------------

@@ -64,6 +64,14 @@ final class MotsClesMobilier
             'lecteur' => 'App\Partie\MoteurMobilier::salleDangereuseDe()',
             'libelle' => 'brûle un héros qui finit son déplacement ou son tour dans la salle (un dé de combat, un crâne = 1 PV)',
         ],
+
+        // AMAS DE CRISTAL (*Jungles of Delthrak* p. 3, F9907) : « If a monster casts Channel Dread while adjacent to the crystal
+        // cluster, they add 1 to their roll result. » La valeur est le bonus ; un amas détruit ne compte plus. Lu dans les
+        // quêtes CONSTRUITES seulement (mode classique, lot E2, 2026-11-27) : le mode RPG ne change pas.
+        'amplifie_canaliser_effroi' => [
+            'lecteur' => 'App\Partie\MoteurDread::bonusCristauxAdjacents()',
+            'libelle' => 'un monstre à son contact ajoute {valeur} au jet de Canaliser l\'Effroi',
+        ],
     ];
 
     /** La forge des nains : frappe qui FINIT son déplacement dans la salle. */

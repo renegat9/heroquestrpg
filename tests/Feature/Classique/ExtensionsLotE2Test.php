@@ -1784,3 +1784,51 @@ it('pont de corde : glissé, il ne se défend plus jusqu\'à son prochain tour ;
     $sorts->appliquerBuffPotion($partie['heros']->fresh(), $elixir);
     expect($pont->jet($partie['quete']->fresh(), $partie['heros']->fresh(), $etat->fresh(), [['x' => 8, 'y' => 4]]))->toBeNull();
 });
+
+// ---------------------------------------------------------------- Jungles of Delthrak : le cristal (q. 4 E, p. 3)
+
+it('relèvement : un gobelin vaincu dans la salle se relève en Crâne putride, tant que le drapeau du cristal n\'est pas posé', function (bool $cristalDetruit) {
+    $campagne = campagneE2([
+        'monstres' => [['slug' => 'gobelin', 'x' => 9, 'y' => 3]],
+        'regles' => ['relevements' => [['salle' => 'galerie', 'de' => 'gobelin', 'en' => 'crane-putride', 'sauf_drapeau' => 'cristal_detruit']]],
+    ]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['relevements' => [['salle' => 'crypte', 'de' => 'gobelin', 'en' => 'crane-putride']]]])))->toBe([ValidationCampagne::SALLE_INCONNUE])
+        ->and(codesE2(campagneE2(['regles' => ['relevements' => [['salle' => 'galerie', 'de' => 'gobelin', 'en' => 'licorne']]]])))->toBe([ValidationCampagne::CATALOGUE_INCONNU]);
+    $partie = partieE2($this, $campagne);
+    if ($cristalDetruit) {
+        $partie['quete']->update(['drapeaux' => ['cristal_detruit' => true]]);
+    }
+
+    frapperE2($partie, []);
+    $figures = $partie['quete']->instancesMonstres()->with('monstre')->orderBy('id')->get();
+
+    expect($figures->first()->etat)->toBe('vaincu');
+    if ($cristalDetruit) {
+        expect($figures)->toHaveCount(1);
+    } else {
+        $releve = $figures->last();
+        expect($figures)->toHaveCount(2)
+            ->and($releve->monstre->nom_base)->toBe('Crâne putride')
+            ->and([(int) $releve->position_x, (int) $releve->position_y, $releve->etat])->toBe([9, 3, 'actif']);
+    }
+})->with(['cristal debout : il se relève' => [false], 'cristal détruit : il reste à terre' => [true]]);
+
+it('amas de cristal : +1 à Canaliser l\'Effroi d\'un monstre à son contact, en quête construite, tant qu\'il est debout', function () {
+    $partie = partieE2($this, campagneE2([
+        'mobilier' => [['slug' => 'amas-de-cristal', 'x' => 9, 'y' => 2, 'rotation' => 0]],
+        'monstres' => [['slug' => 'orque', 'x' => 8, 'y' => 2], ['slug' => 'orque', 'x' => 7, 'y' => 5]],
+    ]));
+    $quete = $partie['quete']->fresh();
+    [$contre, $loin] = $quete->instancesMonstres()->with('monstre')->orderBy('id')->get()->all();
+    $canaliser = \App\Models\SortDread::where('nom', 'Canaliser l\'Effroi')->firstOrFail();
+    $dread = app(\App\Partie\MoteurDread::class);
+
+    expect($dread->bonusCristauxAdjacents($canaliser, $quete, $contre))->toBe(1)
+        ->and($dread->bonusCristauxAdjacents($canaliser, $quete, $loin))->toBe(0)
+        ->and($dread->bonusCristauxAdjacents(\App\Models\SortDread::where('nom', '!=', 'Canaliser l\'Effroi')->firstOrFail(), $quete, $contre))->toBe(0);
+
+    // Détruit, il ne compte plus.
+    app(\App\Partie\MoteurMobilier::class)->detruire($quete->carte, 0);
+    expect($dread->bonusCristauxAdjacents($canaliser, $quete->fresh(), $contre))->toBe(0);
+});

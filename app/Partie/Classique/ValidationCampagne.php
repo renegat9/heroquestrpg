@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -2499,6 +2499,29 @@ final class ValidationCampagne
                 }
                 if ($galerie === []) {
                     $this->refuser("$ici.galerie", self::VALEUR_INVALIDE, 'au moins un rectangle de galerie');
+                }
+            }
+        }
+        // Lot E2 : le relèvement (F9907 q. 4 E) — une salle ouverte, deux monstres du catalogue, un drapeau facultatif.
+        if (array_key_exists('relevements', $regles)) {
+            $ici = self::chemin($position, 'relevements');
+            $liste = $this->enListe($regles['relevements'], $ici);
+            if ($liste === []) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'au moins un relèvement');
+            }
+            foreach ((array) $liste as $k => $r) {
+                if (($releve = $this->enObjet($r, "$ici.$k")) === null) {
+                    continue;
+                }
+                $this->cles($releve, "$ici.$k", ['salle', 'de', 'en'], ['sauf_drapeau']);
+                $salle = $releve['salle'] ?? null;
+                if (! is_string($salle) || ($this->ouvertesFiables && ! isset($this->ouvertes[$salle]))) {
+                    $this->refuser("$ici.$k.salle", self::SALLE_INCONNUE, 'une salle ouverte de la quête est attendue');
+                }
+                $this->slugCatalogue($releve, 'de', "$ici.$k", 'monstres');
+                $this->slugCatalogue($releve, 'en', "$ici.$k", 'monstres');
+                if (array_key_exists('sauf_drapeau', $releve)) {
+                    $this->nomDeDrapeau($releve, 'sauf_drapeau', "$ici.$k");
                 }
             }
         }

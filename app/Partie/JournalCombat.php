@@ -183,6 +183,8 @@ final class JournalCombat
         'crevasse' => true,
         // Lot E2 : le pont de corde (F9907 q. 15 C) — le dé rouge, glissé ou non.
         'pont_de_corde' => true,
+        // Lot E2 : le relèvement (F9907 q. 4 E) — le gobelin vaincu se relève en Crâne putride.
+        'relevement' => true,
         // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
         'soin_planque' => true,
         'repartir_planque' => true,
@@ -880,9 +882,11 @@ final class JournalCombat
                 'boucliers' => null,
                 'libelle_atk' => 'lance le dé',
                 'somme_atk' => 'total '.(int) $a['total'].' → '.($degats > 0 ? "{$degats} PV" : 'aucun dégât'),
-            ], $bonus > 0
-                ? $a + ['modificateurs' => [['source' => $bonus > 1 ? 'lanceurs adjacents' : 'lanceur adjacent', 'valeur' => $bonus, 'sur' => 'attaque']]]
-                : $a);
+            ], ($mods = array_values(array_filter([
+                $bonus > 0 ? ['source' => $bonus > 1 ? 'lanceurs adjacents' : 'lanceur adjacent', 'valeur' => $bonus, 'sur' => 'attaque'] : null,
+                // AMAS DE CRISTAL (mode classique, lot E2 — Delthrak p. 3) : le lanceur touche un cristal debout.
+                (int) ($a['cristal'] ?? 0) > 0 ? ['source' => 'amas de cristal', 'valeur' => (int) $a['cristal'], 'sur' => 'attaque'] : null,
+            ]))) !== [] ? $a + ['modificateurs' => $mods] : $a);
         }
 
         // SAUT par-dessus des SABLES MOUVANTS : UN dé de combat dont la face qui fait
@@ -1535,6 +1539,10 @@ final class JournalCombat
             'repartir_planque' => [[
                 'texte' => ($a['personnage']['nom'] ?? $acteurNom).' répartit son soin : +'.(int) ($a['corps'] ?? 0).' Corps, +'.(int) ($a['esprit'] ?? 0).' Esprit',
                 'ton' => 'succes',
+            ]],
+            'relevement' => [[
+                'texte' => ($a['de'] ?? 'La figure').' se relève aussitôt : '.($a['en'] ?? 'une autre créature').' se dresse à sa place',
+                'ton' => 'subit',
             ]],
             'pont_de_corde' => [[
                 'texte' => ! empty($a['glisse'])

@@ -287,8 +287,11 @@ class MobilierSeeder extends Seeder
             // cristal posé sur son socle « Basin » est dessiné sur 2×2 cases —
             // comme la Mare seule, en haut à droite de la même carte (était 1×1,
             // repli non mesuré).
+            // « If a monster casts Channel Dread while adjacent to the crystal cluster, they add 1 to their roll result »
+            // (p. 3) : `amplifie_canaliser_effroi`, lu en mode classique seulement (lot E2, 2026-11-27, migration du même jour).
             ['nom' => 'Amas de cristal', 'nom_anglais' => 'Crystal Cluster', 'largeur' => 2, 'hauteur' => 2,
-                'fouillable' => false, 'bloque_vue' => true, 'pv_body' => 6, 'defense_dice' => 0, 'boite' => 'jungles_delthrak'],
+                'fouillable' => false, 'bloque_vue' => true, 'pv_body' => 6, 'defense_dice' => 0, 'boite' => 'jungles_delthrak',
+                'effet' => ['amplifie_canaliser_effroi' => 1]],
 
             // COCON (« Cocoon Tiles », p. 4) : « These tiles represent cocoons,
             // concentrations of webbing that may contain treasure or deadly

@@ -889,6 +889,10 @@ final class MoteurDegats
                 $notes->signaler($instance->quete, MotsClesQuete::MORTS, ['monstre' => $rang], $auteurHeros);
             }
 
+            // LE RELÈVEMENT (mode classique, lot E2 — Delthrak q. 4 E) : « If a Goblin is defeated in this room and the crystal
+            // hasn't been destroyed, the Goblin transforms into a Skullblight ». Avant la salle vidée : elle ne l'est plus.
+            app(\App\Partie\Classique\Relevements::class)->apresMort($instance->quete, $instance);
+
             // Lot E1 : la DERNIÈRE figure de sa salle vient de tomber (posée ou non) — « the room has been cleared ».
             $grilleSalles = (array) ($instance->quete->carte?->grille['salles'] ?? []);
             $salleDuMort = $instance->position_x === null ? null

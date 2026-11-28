@@ -7222,6 +7222,20 @@ affected by the rope bridge. » `Classique\PontDeCorde` :
 - Annonce `pont_de_corde {personnage_id, nom, de, glisse, x, y}` : « Albrecht perd pied sur le pont de corde (dé : 2) et s'y
   agrippe : tour terminé, sans défense jusqu'à son prochain tour » / « … passe le pont de corde d'un pas sûr (dé : 5) ».
 
+### Le cristal — `amplifie_canaliser_effroi`, `regles.relevements` (lot E2, 2026-11-27)
+
+*Jungles of Delthrak* p. 3 : « If a monster casts Channel Dread while adjacent to the crystal cluster, they add 1 to their roll
+result » ; q. 4 E : « If a Goblin is defeated in this room and the crystal hasn't been destroyed, the Goblin transforms into a
+Skullblight. »
+- Clé de mobilier **`amplifie_canaliser_effroi`** (vocabulaire `MotsClesMobilier`, l'Amas de cristal : 1, migration du
+  2026-11-27) : un monstre qui lance *Canaliser l'Effroi* au contact d'un amas DEBOUT (son emprise entière) ajoute la valeur
+  à son dé (`MoteurDread::bonusCristauxAdjacents()`), en quête construite seulement — le mode RPG ne change pas. Le détail
+  du jet porte `cristal` ; le fil l'affiche en modificateur « amas de cristal ».
+- **`regles.relevements: [{salle, de, en, sauf_drapeau?}]`** (`Classique\Relevements`) : une figure du type `de` vaincue dans
+  la salle se relève aussitôt sur sa case en une figure du type `en` (active, révélée), avant le constat de salle vidée ;
+  `sauf_drapeau` arrête la règle (le cristal détruit : une note `meuble_detruit` qui pose le drapeau). Annonce `relevement {de,
+  en, instance_id, x, y}` : « Gobelin se relève aussitôt : Crâne putride se dresse à sa place ».
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

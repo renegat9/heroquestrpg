@@ -1426,6 +1426,31 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     </span>
                                     <button type="button" class="cst-icone" title="Ajouter un rectangle de pont" @click="quete.regles.pont_de_corde.push({ x: 0, y: 0, l: 1, h: 1 })"><MSym n="add" :size="16" /></button>
                                 </template>
+                                <!-- Lot E2 : le relèvement (Jungles of Delthrak q. 4 E) — tel monstre vaincu dans la salle se relève en un autre. -->
+                                <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Une figure du premier type vaincue dans la salle se relève aussitôt, sur sa case, en une figure du second — sauf si le drapeau est posé (le cristal détruit, par une note « le meuble est détruit »).">
+                                    <input type="checkbox" :checked="!!quete.regles?.relevements"
+                                        @change="poserRegle('relevements', $event.target.checked ? [{ salle: quete.salles_ouvertes[0], de: 'gobelin', en: 'crane-putride' }] : undefined)" />
+                                    Relèvements
+                                </label>
+                                <template v-if="quete.regles?.relevements">
+                                    <span v-for="(r, k) in quete.regles.relevements" :key="`rel${k}`" class="cst-ligne">
+                                        <select v-model="r.salle" class="cst-input" title="La salle">
+                                            <option v-for="id in quete.salles_ouvertes" :key="`rels${id}`" :value="id">{{ id }}</option>
+                                        </select>
+                                        <select v-model="r.de" class="cst-input" title="Le monstre vaincu">
+                                            <option v-for="c in (couches.monstres ?? [])" :key="`reld${c.slug}`" :value="c.slug">{{ c.nom }}</option>
+                                        </select>
+                                        →
+                                        <select v-model="r.en" class="cst-input" title="Ce qui se relève">
+                                            <option v-for="c in (couches.monstres ?? [])" :key="`rele${c.slug}`" :value="c.slug">{{ c.nom }}</option>
+                                        </select>
+                                        <input :value="r.sauf_drapeau ?? ''" class="cst-input" placeholder="sauf si le drapeau…" title="sauf si ce drapeau est posé"
+                                            @change="$event.target.value.trim() ? (r.sauf_drapeau = $event.target.value.trim()) : delete r.sauf_drapeau" />
+                                        <button type="button" class="cst-icone" title="Retirer"
+                                            @click="quete.regles.relevements.splice(k, 1); if (!quete.regles.relevements.length) poserRegle('relevements', undefined)"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter un relèvement" @click="quete.regles.relevements.push({ salle: quete.salles_ouvertes[0], de: 'gobelin', en: 'crane-putride' })"><MSym n="add" :size="16" /></button>
+                                </template>
                                 <!-- Lot E2 : le marché souterrain ouvert en pleine quête (Rise of the Dread Moon p. 2, q. 2 G). -->
                                 <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Dans cette salle, chaque héros achète et vend pour lui, au prix de l'étal, sans action.">
                                     Marché en quête :
