@@ -116,3 +116,68 @@ it('debloques : rien d\'offert avant le déblocage ; ensuite payé d\'un jeton, 
     // Un second Éclaireur : refusé (« one of each type »).
     $this->postJson("/api/groupes/{$code}/mercenaires", ['mercenaire_id' => $eclaireur->id])->assertStatus(422);
 });
+
+// ---------------------------------------------------------------- lot E2 : les compagnons animaux offerts (Delthrak p. 9)
+
+function groupeACompagnons(object $t, array $offerts = ['loup']): array
+{
+    $campagne = DocumentExemple::campagne();
+    $campagne['compagnons_animaux'] = ['offerts' => $offerts];
+    app(CampagnesConstruites::class)->enregistrer($campagne);
+    $alice = connecterJoueur('alice');
+    $heros = Personnage::create([
+        'joueur_id' => $alice->id, 'nom' => 'Albrecht', 'classe' => 'barbare', 'niveau' => 1, 'or' => 0,
+        'attribut_body' => 4, 'attribut_mind' => 2, 'pv_body_max' => 8, 'pv_body' => 8, 'pv_mind_max' => 2, 'pv_mind' => 2,
+        'des_attaque' => 3, 'des_defense' => 2, 'deplacement_base' => 4,
+    ]);
+    $code = $t->postJson('/api/classique', ['nom' => 'Les Essayeurs', 'campagne' => 'campagne-d-essai', 'personnage_id' => $heros->id])
+        ->assertCreated()->json('groupe.identifiant');
+
+    return ['code' => $code, 'groupe' => Groupe::where('identifiant', $code)->firstOrFail(), 'heros' => $heros,
+        'loup' => Mercenaire::where('nom', 'Loup')->firstOrFail()];
+}
+
+it('compagnons animaux : la campagne valide des animaux recrutables, et rien d\'autre', function () {
+    $campagne = DocumentExemple::campagne();
+    $campagne['compagnons_animaux'] = ['offerts' => ['loup', 'croc-sabre']];
+    expect(app(ValidationCampagne::class)->valider($campagne))->toBe([]);
+
+    $campagne['compagnons_animaux'] = ['offerts' => ['eclaireur', 'squelette-hearthkin']];
+    $refus = collect(app(ValidationCampagne::class)->valider($campagne))->map(fn ($r) => $r['chemin'].' '.$r['code'])->all();
+    expect($refus)->toBe(['compagnons_animaux.offerts.0 '.ValidationCampagne::CATALOGUE_INCONNU, 'compagnons_animaux.offerts.1 '.ValidationCampagne::CATALOGUE_INCONNU]);
+});
+
+it('compagnons animaux : moins de quatre héros, un animal gratuit par héros, pour la quête ; il repart ensuite', function () {
+    ['code' => $code, 'groupe' => $groupe, 'heros' => $heros, 'loup' => $loup] = groupeACompagnons($this);
+
+    $etat = $this->getJson("/api/groupes/{$code}/etat")->json('groupe');
+    $offre = collect($etat['recrutement']['offres'])->firstWhere('mercenaire_id', $loup->id);
+    expect($etat['recrutement_ouvert'])->toBeTrue()
+        ->and($offre['decisions'][0])->toMatchArray(['prix' => 0, 'compagnon_offert' => true, 'recrutable' => true])
+        ->and($etat['recrutement']['classique']['texte'])->toContain('compagnon animal');
+
+    // Gratuit, la bourse vide suffit ; un seul par héros.
+    $this->postJson("/api/groupes/{$code}/mercenaires", ['mercenaire_id' => $loup->id])->assertSuccessful();
+    $allie = GroupeMercenaire::where('groupe_id', $groupe->id)->firstOrFail();
+    expect((bool) $allie->offert)->toBeTrue()->and((int) $allie->paye_jusqu_au_rang)->toBe(1);
+    $this->postJson("/api/groupes/{$code}/mercenaires", ['mercenaire_id' => $loup->id])->assertStatus(422);
+
+    // Il entre dans la quête ; au départ de la suivante (quête perdue puis passée, ou gagnée), il ne la suit pas.
+    $this->postJson("/api/groupes/{$code}/quetes")->assertCreated();
+    expect($allie->refresh()->position_x)->not->toBeNull();
+    $groupe->refresh()->update(['phase' => 'hub', 'quete_courante_id' => null, 'rang_quete' => 2]);
+    app(MercenairesCampagne::class)->auDepart($groupe->refresh(), 2);
+    expect(GroupeMercenaire::where('groupe_id', $groupe->id)->exists())->toBeFalse();
+});
+
+it('compagnons animaux : à quatre héros, aucun animal n\'est offert', function () {
+    ['groupe' => $groupe, 'loup' => $loup] = groupeACompagnons($this);
+    foreach (['Bera', 'Cal', 'Dun'] as $i => $nom) {
+        $p = Personnage::create(['joueur_id' => connecterJoueur("j{$i}")->id, 'nom' => $nom, 'classe' => 'barbare', 'niveau' => 1,
+            'attribut_body' => 4, 'attribut_mind' => 2, 'pv_body_max' => 8, 'pv_body' => 8, 'pv_mind_max' => 2, 'pv_mind' => 2,
+            'des_attaque' => 3, 'des_defense' => 2, 'deplacement_base' => 4]);
+        $groupe->personnages()->attach($p->id, ['ordre_initiative' => $i + 2, 'actif' => true]);
+    }
+
+    expect(app(MercenairesCampagne::class)->animalOffert($groupe->refresh(), $loup))->toBeFalse();
+});

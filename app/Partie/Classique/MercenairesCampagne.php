@@ -43,14 +43,71 @@ final class MercenairesCampagne
         return is_array($regle) ? $regle : null;
     }
 
+    /** Le recrutement est-il ouvert : des mercenaires (`mercenaires`), ou des compagnons animaux offerts (`compagnons_animaux`) ? */
     public function ouvert(Groupe $groupe): bool
     {
-        return $this->regle($groupe) !== null;
+        return $this->regle($groupe) !== null || $this->compagnonsOfferts($groupe) !== [];
     }
 
-    /** Ce mercenaire est-il offert par la campagne (et, en `debloques`, débloqué) ? */
+    /**
+     * LES COMPAGNONS ANIMAUX OFFERTS (lot E2, *Jungles of Delthrak* p. 9 ; *Against the Ogre Horde* p. 8-9) : « Animal allies
+     * are faithful companions who can be recruited at no cost to accompany a hero on a quest, so long as there are fewer than
+     * four hero players. The animal ally must be recruited before the quest begins. […] A hero can control only one animal
+     * ally at a time. » Clé de campagne `compagnons_animaux: {offerts: [slugs]}` (des animaux du catalogue des mercenaires).
+     * Décision de René (2026-11-27) : comme le livret — avant CHAQUE quête, un animal gratuit PAR HÉROS, pour cette quête.
+     *
+     * @return list<string>
+     */
+    public function compagnonsOfferts(Groupe $groupe): array
+    {
+        if (! $groupe->estClassique()) {
+            return [];
+        }
+
+        return array_values((array) data_get($groupe->campagneConstruite?->document, 'compagnons_animaux.offerts', []));
+    }
+
+    /** CE mercenaire est-il un compagnon animal que la campagne offre gratuitement, MAINTENANT (moins de quatre héros) ? */
+    public function animalOffert(Groupe $groupe, Mercenaire $mercenaire): bool
+    {
+        return $mercenaire->animal && ! $mercenaire->octroi_seul
+            && in_array(CatalogueConstructeur::slug((string) $mercenaire->nom), $this->compagnonsOfferts($groupe), true)
+            && $groupe->personnages()->wherePivot('actif', true)->whereNull('personnages.mort_le')->count() < self::SEUIL_COMPAGNON;
+    }
+
+    /** « so long as there are fewer than four hero players ». */
+    public const SEUIL_COMPAGNON = 4;
+
+    /** Le recruteur a-t-il déjà un compagnon animal pour la prochaine quête ? « A hero can control only one animal ally at a time. » */
+    public function aSonCompagnon(Groupe $groupe, \App\Models\Personnage $recruteur): bool
+    {
+        return GroupeMercenaire::where('groupe_id', $groupe->id)->where('etat', 'actif')->where('offert', true)
+            ->where('recruteur_personnage_id', $recruteur->id)->where('paye_jusqu_au_rang', '>=', self::rangAPayer($groupe))
+            ->whereHas('mercenaire', fn ($q) => $q->where('animal', true))->exists();
+    }
+
+    /**
+     * Les compagnons offerts repartent : à la FIN d'une quête gagnée (`FinDeQueteConstruite`), et au départ d'une quête de
+     * rang `$rang` ceux d'une quête plus ancienne (une quête perdue garde le sien pour la rejouer). Jamais un captif qui
+     * persiste (`offert` aussi, mais pas un animal).
+     */
+    public function renvoyerLesCompagnons(Groupe $groupe, ?int $avantLeRang = null): void
+    {
+        if ($this->compagnonsOfferts($groupe) === []) {
+            return;
+        }
+        GroupeMercenaire::where('groupe_id', $groupe->id)->where('offert', true)->whereNull('invoque_par_objet_id')
+            ->whereHas('mercenaire', fn ($q) => $q->where('animal', true)->where('captif', false))
+            ->when($avantLeRang !== null, fn ($q) => $q->where(fn ($q) => $q->whereNull('paye_jusqu_au_rang')->orWhere('paye_jusqu_au_rang', '<', $avantLeRang)))
+            ->delete();
+    }
+
+    /** Ce mercenaire est-il offert par la campagne (et, en `debloques`, débloqué) ? Un compagnon animal offert l'est aussi. */
     public function offre(Groupe $groupe, Mercenaire $mercenaire): bool
     {
+        if ($this->animalOffert($groupe, $mercenaire)) {
+            return true;
+        }
         $regle = $this->regle($groupe);
         if ($regle === null) {
             return false;
@@ -73,6 +130,8 @@ final class MercenairesCampagne
      */
     public function auDepart(Groupe $groupe, int $rang): void
     {
+        // Les compagnons offerts d'une quête plus ancienne ne la suivent pas : chacun se reprend avant la quête (lot E2).
+        $this->renvoyerLesCompagnons($groupe, $rang);
         $regle = $this->regle($groupe);
         if ($regle === null) {
             return;

@@ -36,11 +36,19 @@ final class RecrutementHub
      * mercenaire, pas un compagnon animal. La gratuité prime sur la remise : la potion n'est
      * alors PAS consommée (`remise_active` faux), elle servira au recrutement suivant.
      *
-     * @return array{prix: int, prix_catalogue: int, rabais_po: int, remise_active: bool, gratuit_faveur: bool}
+     * MODE CLASSIQUE (lot E2) : avec `$groupe`, un compagnon animal que la campagne offre (`MercenairesCampagne::animalOffert()`)
+     * ne coûte rien (`compagnon_offert`).
+     *
+     * @return array{prix: int, prix_catalogue: int, rabais_po: int, remise_active: bool, gratuit_faveur: bool, compagnon_offert: bool}
      */
-    public function prixPour(Personnage $recruteur, Mercenaire $mercenaire, bool $gratuitDuHeros = false): array
+    public function prixPour(Personnage $recruteur, Mercenaire $mercenaire, bool $gratuitDuHeros = false, ?Groupe $groupe = null): array
     {
         $catalogue = (int) $mercenaire->prix;
+
+        if ($groupe !== null && app(\App\Partie\Classique\MercenairesCampagne::class)->animalOffert($groupe, $mercenaire)) {
+            return ['prix' => 0, 'prix_catalogue' => $catalogue, 'rabais_po' => $catalogue, 'remise_active' => false,
+                'gratuit_faveur' => false, 'compagnon_offert' => true];
+        }
 
         if ($gratuitDuHeros && ! $mercenaire->animal) {
             return [
@@ -49,6 +57,7 @@ final class RecrutementHub
                 'rabais_po' => $catalogue,
                 'remise_active' => false,
                 'gratuit_faveur' => true,
+                'compagnon_offert' => false,
             ];
         }
 
@@ -62,6 +71,7 @@ final class RecrutementHub
             'rabais_po' => $catalogue - $prix,
             'remise_active' => $remiseActive,
             'gratuit_faveur' => false,
+            'compagnon_offert' => false,
         ];
     }
 
@@ -116,7 +126,7 @@ final class RecrutementHub
             ->filter(fn (Mercenaire $m) => ! $groupe->estClassique() || $classique->offre($groupe, $m))
             ->map(function (Mercenaire $mercenaire) use ($groupe, $heros, $contexte) {
                 $decisions = $heros->map(function (Personnage $h) use ($groupe, $mercenaire, $contexte) {
-                    $prix = $this->prixPour($h, $mercenaire, isset($contexte['gratuits'][$h->id]));
+                    $prix = $this->prixPour($h, $mercenaire, isset($contexte['gratuits'][$h->id]), $groupe);
                     $motif = $this->verdict($groupe, $mercenaire, $h, $contexte);
 
                     return [
@@ -128,6 +138,8 @@ final class RecrutementHub
                         // La faveur *Mercenary Guild* offre ce recrutement : la manette l'écrit,
                         // sans savoir ce qu'est la faveur ni si l'allié est un animal.
                         'offert_par_faveur' => $prix['gratuit_faveur'],
+                        // MODE CLASSIQUE (lot E2) : le compagnon animal offert par la campagne, gratuit, un par héros.
+                        'compagnon_offert' => $prix['compagnon_offert'],
                         'recrutable' => $motif === null,
                         'motif' => $motif['message'] ?? null,
                         // MODE CLASSIQUE (lot K6) : la bourse de CE héros, d'où l'or sortira, et l'embauche contre un jeton de
@@ -147,6 +159,8 @@ final class RecrutementHub
         // MODE CLASSIQUE (lot K6) : la règle d'embauche de la campagne, dite par le serveur — la manette ne connaît ni
         // l'entretien du RPG ni la bourse commune. Clé absente au RPG.
         $regle = app(\App\Partie\Classique\MercenairesCampagne::class)->regle($groupe);
+        $compagnons = app(\App\Partie\Classique\MercenairesCampagne::class)->compagnonsOfferts($groupe) !== [];
+        $texteCompagnons = 'Moins de quatre héros : chacun peut emmener un compagnon animal, gratuitement, pour la prochaine quête.';
 
         return ['offres' => $offres, ...($regle !== null ? ['classique' => [
             'regime' => $regle['regime'],
@@ -154,8 +168,8 @@ final class RecrutementHub
                 'par_quete' => 'Chaque mercenaire s\'engage pour la prochaine quête seulement, payé de la bourse de son recruteur ; il faut le réengager avant la suivante. Jamais en quête solo.',
                 'retenu_moitie' => 'Engagé au prix plein, un mercenaire reste d\'une quête à l\'autre si son recruteur paie la moitié de son prix au départ de chaque nouvelle quête ; sinon, il part.',
                 default => 'Les mercenaires se débloquent au fil des quêtes ; chacun s\'engage pour la prochaine quête, payé de la bourse de son recruteur.',
-            },
-        ]] : [])];
+            }.($compagnons ? ' '.$texteCompagnons : ''),
+        ]] : ($compagnons ? ['classique' => ['regime' => null, 'texte' => $texteCompagnons]] : []))];
     }
 
     /**
@@ -180,6 +194,16 @@ final class RecrutementHub
         if (\App\Partie\Classique\MercenairesCampagne::prochaineSolo($groupe)) {
             return ['cle' => 'groupe', 'message' => 'La prochaine quête se joue seul : aucun mercenaire ne s\'y engage.'];
         }
+        // LE COMPAGNON ANIMAL OFFERT (lot E2) : gratuit, un par héros (« A hero can control only one animal ally at a time »).
+        if ($campagne->animalOffert($groupe, $mercenaire)) {
+            if ($parJeton) {
+                return ['cle' => 'paiement', 'message' => 'Ce compagnon est offert : aucun jeton à dépenser.'];
+            }
+
+            return $campagne->aSonCompagnon($groupe, $recruteur)
+                ? ['cle' => 'personnage_id', 'message' => "« {$recruteur->nom} » emmène déjà un compagnon animal (un par héros)."]
+                : null;
+        }
         $regime = $campagne->regle($groupe)['regime'] ?? null;
         // *Dread Moon* p. 11 : « More than one of the same type of mercenary cannot be hired for the same quest. »
         if ($regime === 'debloques' && GroupeMercenaire::where('groupe_id', $groupe->id)->where('etat', 'actif')
@@ -195,7 +219,7 @@ final class RecrutementHub
                 return ['cle' => 'paiement', 'message' => 'Le groupe n\'a aucun jeton de réputation.'];
             }
         } else {
-            $prix = $this->prixPour($recruteur, $mercenaire, isset($contexte['gratuits'][$recruteur->id]))['prix'];
+            $prix = $this->prixPour($recruteur, $mercenaire, isset($contexte['gratuits'][$recruteur->id]), $groupe)['prix'];
             $solde = app(Bourses::class)->solde($groupe, $recruteur);
             if ($solde < $prix) {
                 return ['cle' => 'mercenaire_id', 'message' => "Or insuffisant : {$prix} requis, {$solde} dans la bourse de {$recruteur->nom}."];

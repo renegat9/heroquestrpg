@@ -7263,6 +7263,23 @@ additional Attack die when targeting a hero adjacent or diagonal to another mons
   (branche classique isolée — signalé à René).
 - Le second mouvement (« move before and after ») reste le repli d'après l'attaque (`replierTacticien()`), déjà joué.
 
+### Les compagnons animaux offerts — `campagne.compagnons_animaux` (lot E2, 2026-11-27)
+
+*Jungles of Delthrak* p. 9 (et *Against the Ogre Horde* p. 8-9) : « Animal allies are faithful companions who can be recruited
+at no cost to accompany a hero on a quest, so long as there are fewer than four hero players. The animal ally must be
+recruited before the quest begins. […] A hero can control only one animal ally at a time. » Décision de René (2026-11-27) :
+comme le livret — avant chaque quête, un animal gratuit par héros, pour cette quête. `Classique\MercenairesCampagne` :
+- `campagne.compagnons_animaux: {offerts: [slug…]}` (clé de la CAMPAGNE ; des animaux recrutables du catalogue des
+  mercenaires — `catalogue_inconnu` sinon). Le catalogue du constructeur publie `compagnons`.
+- Au hub, tant que le groupe compte moins de quatre héros actifs : chaque animal offert est recrutable à **0** po
+  (`groupe.recrutement.offres[].decisions[].compagnon_offert: true`, `prix: 0`), un par héros (« emmène déjà un compagnon
+  animal »), jamais contre un jeton. Le recrutement est ouvert (`recrutement_ouvert`) même sans clé `mercenaires` ;
+  `recrutement.classique.texte` le dit.
+- L'animal est un `groupe_mercenaires` `offert`, payé pour la prochaine quête (`paye_jusqu_au_rang`), posé au départ comme tout
+  allié. Il repart à la fin d'une quête gagnée (`FinDeQueteConstruite`) et, en filet, au départ d'une quête de rang plus
+  élevé (une quête perdue garde le sien pour la rejouer). L'offre du compagnon du mode RPG (`CompagnonOffert`) reste fermée
+  au classique.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

@@ -157,6 +157,12 @@ final class CatalogueConstructeur
 
                 return ! $m->captif && ! $m->octroi_seul;
             })),
+            // Lot E2 (Delthrak p. 9) : les compagnons animaux recrutables — `compagnons_animaux.offerts`.
+            'compagnons' => array_values(array_filter($this->palette('mercenaires'), function (array $ligne): bool {
+                $m = $this->index('mercenaires')[$ligne['slug']];
+
+                return $m->animal && ! $m->captif && ! $m->octroi_seul;
+            })),
             // 2026-11-20 : ce que les clés ajoutées pour les livrets désignent — sans ces listes, l'écran et une IA
             // branchée sur le serveur MCP ne pouvaient pas trouver le slug que la validation attend.
             'sorts' => $this->palette('sorts'),

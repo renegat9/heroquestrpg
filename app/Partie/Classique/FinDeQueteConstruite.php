@@ -57,6 +57,8 @@ final class FinDeQueteConstruite
         }
         // Lot E1 : le captif repart avec la quête, sauf s'il persiste (`Escorte::congedierEnFinDeQuete()`).
         app(Escorte::class)->congedierEnFinDeQuete($quete);
+        // Lot E2 : les compagnons animaux offerts n'accompagnent qu'une quête (« to accompany a hero on a quest »).
+        app(MercenairesCampagne::class)->renvoyerLesCompagnons($groupe);
         $bourses = app(Bourses::class);
 
         foreach ($parts as $part) {

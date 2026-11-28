@@ -136,7 +136,7 @@ class MercenaireController extends Controller
         // POTION DE CHARME (Wizards of Morcar) : « You may hire up to three
         // Mercenaries for 25 gold coins each less than normal » — un ÉTAT DURABLE
         // du recruteur, consommé UN par recrutement dans la transaction ci-dessous.
-        $prix = $recrutement->prixPour($recruteur, $mercenaire, $recrutement->gratuitPour($groupe, $recruteur));
+        $prix = $recrutement->prixPour($recruteur, $mercenaire, $recrutement->gratuitPour($groupe, $recruteur), $groupe);
         $prixAPayerActuel = $parJeton ? 0 : $prix['prix'];
         $rabais = $prix['rabais_po'];
 
@@ -186,6 +186,8 @@ class MercenaireController extends Controller
                 // Contre un jeton : « will remain with the hero in following quests, no payment required ».
                 'paye_jusqu_au_rang' => ! $groupe->estClassique() ? null
                     : ($parJeton ? \App\Partie\Classique\MercenairesCampagne::PAYE_A_VIE : \App\Partie\Classique\MercenairesCampagne::rangAPayer($groupe)),
+                // MODE CLASSIQUE (lot E2) : le compagnon animal offert — gratuit, pour la prochaine quête, aucun entretien.
+                'offert' => (bool) ($prix['compagnon_offert'] ?? false),
             ]);
 
             // La faveur retient l'allié engagé à son titre : tant qu'il sert ce héros, le droit

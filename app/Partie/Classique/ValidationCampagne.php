@@ -291,7 +291,22 @@ final class ValidationCampagne
             return $this->refus;
         }
 
-        $this->cles($document, '', self::CLES_CAMPAGNE, ['mercenaires', 'cartes_tresor', 'barde_de_remplacement']);
+        $this->cles($document, '', self::CLES_CAMPAGNE, ['mercenaires', 'cartes_tresor', 'barde_de_remplacement', 'compagnons_animaux']);
+        // Lot E2 (*Jungles of Delthrak* p. 9, *Against the Ogre Horde* p. 8) : les compagnons animaux offerts — des animaux du catalogue.
+        if (array_key_exists('compagnons_animaux', $document) && ($compagnons = $this->enObjet($document['compagnons_animaux'], 'compagnons_animaux')) !== null) {
+            $this->cles($compagnons, 'compagnons_animaux', ['offerts']);
+            $liste = $this->enListeDe($compagnons, 'offerts', 'compagnons_animaux');
+            if (array_key_exists('offerts', $compagnons) && is_array($compagnons['offerts']) && $liste === []) {
+                $this->refuser('compagnons_animaux.offerts', self::VALEUR_INVALIDE, 'au moins un animal est attendu');
+            }
+            foreach ($liste as $i => $slug) {
+                $animal = is_string($slug) ? ($this->catalogue->index('mercenaires')[$slug] ?? null) : null;
+                if ($animal === null || ! $animal->animal || $animal->octroi_seul || $animal->captif) {
+                    $this->refuser("compagnons_animaux.offerts.$i", self::CATALOGUE_INCONNU,
+                        '« '.(is_string($slug) ? $slug : '?').' » n\'est pas un compagnon animal recrutable du catalogue');
+                }
+            }
+        }
         // Lot E2 (*Spirit Queen's Torment* p. 4) : le barde qui remplace un héros mort, une fois — après un drapeau, si l'auteur veut.
         if (array_key_exists('barde_de_remplacement', $document) && ($barde = $this->enObjet($document['barde_de_remplacement'], 'barde_de_remplacement')) !== null) {
             $this->cles($barde, 'barde_de_remplacement', [], ['si_drapeau']);

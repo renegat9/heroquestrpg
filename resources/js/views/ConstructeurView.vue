@@ -655,6 +655,13 @@ function basculerMercenaire(slug) {
     const i = liste.indexOf(slug);
     if (i >= 0) liste.splice(i, 1); else liste.push(slug);
 }
+// Lot E2 : `compagnons_animaux {offerts}` — clé de CAMPAGNE ; disparaît avec son dernier animal.
+function basculerCompagnon(slug) {
+    const liste = [...(doc.value.compagnons_animaux?.offerts ?? [])];
+    const i = liste.indexOf(slug);
+    if (i >= 0) liste.splice(i, 1); else liste.push(slug);
+    if (liste.length) doc.value.compagnons_animaux = { offerts: liste }; else delete doc.value.compagnons_animaux;
+}
 
 // ---------------------------------------------------------------- quête double (lot K5p, R10)
 // `quete.double` : la PREMIÈRE moitié dans l'ordre est la principale (`{quete, passage}`), la seconde `{quete}` — et sa fin,
@@ -1023,6 +1030,15 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 v-for="m in (catalogues.mercenaires ?? [])" :key="m.slug" type="button" class="cst-puce"
                                 :class="{ on: doc.mercenaires.offerts.includes(m.slug) }"
                                 @click="basculerMercenaire(m.slug)"
+                            >{{ m.nom }}</button>
+                        </div>
+                        <!-- Lot E2 (Jungles of Delthrak p. 9) : les compagnons animaux offerts, gratuits, un par héros, sous quatre héros. -->
+                        <span class="cst-lbl" title="Moins de quatre héros : avant chaque quête, chacun peut emmener gratuitement un de ces animaux, pour cette quête.">Compagnons animaux offerts</span>
+                        <div class="cst-puces">
+                            <button
+                                v-for="m in (catalogues.compagnons ?? [])" :key="`cpg${m.slug}`" type="button" class="cst-puce"
+                                :class="{ on: (doc.compagnons_animaux?.offerts ?? []).includes(m.slug) }"
+                                @click="basculerCompagnon(m.slug)"
                             >{{ m.nom }}</button>
                         </div>
                     </div>
