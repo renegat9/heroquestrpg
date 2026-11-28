@@ -2289,3 +2289,38 @@ it('portails, les monstres : hors de portée, il passe par un portail déjà uti
     expect($voyage['depuis'])->toBe(3)->and($voyage['numero'])->toBe(7)
         ->and([(int) $orque->fresh()->position_x, (int) $orque->fresh()->position_y])->toBe([7, 3]);
 });
+
+// ---------------------------------------------------------------- First Light : l'Oracle de Morlenis (q. 3)
+
+it('q. 3 : l\'Oracle bénit ou maudit ; le geste au contact de la bibliothèque, son jet, le premier 1 blesse la salle une fois ; l\'Œil où l\'on ne s\'arrête pas', function () {
+    $campagne = campagneE2([
+        'mobilier' => [['slug' => 'bibliotheque', 'x' => 7, 'y' => 2, 'rotation' => 0]],
+        'regles' => ['cases_sans_arret' => [['x' => 8, 'y' => 4]]],
+        'gestes' => [
+            ['libelle' => 'Fouiller la bibliothèque', 'salle' => 'galerie', 'pres_du_meuble' => 0, 'sauf_drapeau' => 'visions', 'alors' => [['effet' => 'jet', 'issues' => [
+                ['de' => 1, 'a' => 1, 'alors' => [['effet' => 'en_ordre', 'etapes' => [['alors' => [['effet' => 'degats', 'body' => 1, 'toute_la_salle' => true]]]]]]],
+                ['de' => 5, 'a' => 6, 'alors' => [['effet' => 'drapeau', 'nom' => 'visions']]],
+            ]]]],
+            ['libelle' => 'Interroger l\'Oracle', 'salle' => 'galerie', 'par_heros' => true, 'alors' => [['effet' => 'oracle', 'don' => 'benediction']]],
+        ],
+    ]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $etat = $quete->etatsPersonnages()->first();
+    $gestes = app(\App\Partie\Classique\GestesDeQuete::class);
+
+    // Loin de la bibliothèque : seul l'Oracle est offert.
+    $etat->update(['position_x' => 7, 'position_y' => 5]);
+    expect(collect($gestes->disponibles($quete->fresh(), $partie['heros'], $etat->fresh()))->pluck('geste')->all())->toBe([1]);
+
+    $etat->update(['position_x' => 9, 'position_y' => 3]);
+    app()->instance(LanceurDes::class, new LanceurDeterministe([1, 1, ...array_fill(0, 10, 3)]));
+    $gestes->faire($quete->fresh(), $partie['heros'], $etat->fresh(), 0, null);
+    $gestes->faire($quete->fresh(), $partie['heros'], $etat->fresh(), 0, null);
+    expect((int) $partie['heros']->fresh()->pv_body)->toBe(29); // le second 1 ne blesse plus
+
+    $gestes->faire($quete->fresh(), $partie['heros'], $etat->fresh(), 1, null);
+    expect((bool) $partie['heros']->fresh()->benediction_oracle)->toBeTrue()
+        ->and(\App\Partie\FabriqueGrille::pour($quete->fresh())->arretInterdit(8, 4))->toBeTrue();
+});

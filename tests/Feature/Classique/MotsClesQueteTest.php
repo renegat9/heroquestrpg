@@ -148,7 +148,7 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
         ['repere' => 'R', 'quand' => ['declencheur' => 'figure_apaisee', 'cible' => ['monstre' => 0]], 'alors' => [['effet' => 'texte', 'texte' => 'Elle remercie les héros.']]],
         ['repere' => 'S', 'quand' => ['declencheur' => 'tour_du_mj', 'cible' => ['tour' => 8]],
             'alors' => [['effet' => 'soigner', 'mind' => 'tout', 'body' => 2], ['effet' => 'degats', 'body' => 2, 'tous_les_heros' => true],
-                ['effet' => 'rejetons'], ['effet' => 'rejetons', 'nombre' => 4], ['effet' => 'vaincre_tous'], ['effet' => 'cartes_au_choix']]],
+                ['effet' => 'rejetons'], ['effet' => 'rejetons', 'nombre' => 4], ['effet' => 'vaincre_tous'], ['effet' => 'cartes_au_choix'], ['effet' => 'oracle', 'don' => 'benediction']]],
         // Lot E1 : les huit déclencheurs des extensions.
         ['repere' => 'L1', 'quand' => ['declencheur' => 'salle_videe', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'texte', 'texte' => 'Vide.']]],
         ['repere' => 'L2', 'quand' => ['declencheur' => 'morts', 'cible' => ['monstres' => [0, 1]]], 'alors' => [['effet' => 'texte', 'texte' => 'Tous tombés.']]],

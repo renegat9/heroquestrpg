@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe', 'portails'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse', 'labyrinthe', 'portails', 'cases_sans_arret'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable', 'deguise', 'neutre', 'sorts_actifs'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -999,7 +999,11 @@ final class ValidationCampagne
             if (($geste = $this->enObjet($valeur, $ici)) === null) {
                 continue;
             }
-            $this->cles($geste, $ici, ['libelle', 'salle'], ['par_heros', 'si_drapeau', 'sauf_drapeau', 'alors', 'choix']);
+            $this->cles($geste, $ici, ['libelle', 'salle'], ['par_heros', 'si_drapeau', 'sauf_drapeau', 'alors', 'choix', 'pres_du_meuble']);
+            // Lot E2 (*First Light* q. 3 B : « investigate an adjacent bookcase ») : un meuble de la quête, par son index.
+            if (array_key_exists('pres_du_meuble', $geste)) {
+                $this->indexDe($quete, 'mobilier', $geste['pres_du_meuble'], "$ici.pres_du_meuble");
+            }
             $this->texte($geste, 'libelle', $ici, nonVide: true, max: 120);
             if (! is_string($geste['salle'] ?? null) || ($this->ouvertesFiables && ! isset($this->ouvertes[$geste['salle']]))) {
                 $this->refuser("$ici.salle", self::SALLE_INCONNUE, 'une salle ouverte de la quête est attendue');
@@ -1155,7 +1159,10 @@ final class ValidationCampagne
     private function sousEffets(array $effet, string $cle, string $position, array $quete): void
     {
         foreach ($this->enListeDe($effet, $cle, $position) as $k => $sousEffet) {
-            if (is_array($sousEffet) && in_array($sousEffet['effet'] ?? null, MotsClesQuete::EFFETS_COMPOSES, true)) {
+            // Lot E2 (*First Light* q. 3 B : « The first time a 1 is rolled ») : `en_ordre` peut se glisser dans une issue de jet ou
+            // une offre — un seul niveau : ses propres étapes ne contiennent aucun effet composé.
+            $enOrdreDansParent = is_array($sousEffet) && ($sousEffet['effet'] ?? null) === MotsClesQuete::EN_ORDRE && ! str_contains($position, '.etapes.');
+            if (is_array($sousEffet) && in_array($sousEffet['effet'] ?? null, MotsClesQuete::EFFETS_COMPOSES, true) && ! $enOrdreDansParent) {
                 $this->refuser("$position.$cle.$k", self::VALEUR_INVALIDE, 'un effet composé (offre, jet, en ordre) ne s\'imbrique pas');
 
                 continue;
@@ -1376,9 +1383,13 @@ final class ValidationCampagne
                     }
                 }
                 break;
+            // Lot E2 (*First Light* q. 3 C) : la Bénédiction ou la Malédiction de l'Oracle.
+            case MotsClesQuete::ORACLE:
+                $this->dans($effet, 'don', $position, ['benediction', 'malediction']);
+                break;
             // Lot E2 (*Wizards of Morcar* q. 3 A) : deux cartes (ou trois) au choix.
             case MotsClesQuete::CARTES_AU_CHOIX:
-                $nombre = $this->entier($effet, 'nombre', $position, min: 2);
+                $nombre = $this->entier($effet, 'nombre', $position, min: 1);
                 if ($nombre !== null && $nombre > \App\Partie\Classique\CartesAuChoix::MAX) {
                     $this->refuser("$position.nombre", self::VALEUR_INVALIDE, 'au plus '.\App\Partie\Classique\CartesAuChoix::MAX.' cartes');
                 }
@@ -2624,6 +2635,20 @@ final class ValidationCampagne
                 $this->slugCatalogue($releve, 'en', "$ici.$k", 'monstres');
                 if (array_key_exists('sauf_drapeau', $releve)) {
                     $this->nomDeDrapeau($releve, 'sauf_drapeau', "$ici.$k");
+                }
+            }
+        }
+        // Lot E2 : les cases où l'on ne s'arrête pas (First Light q. 3 A, l'Œil de Mentor) — des cases du plateau.
+        if (array_key_exists('cases_sans_arret', $regles)) {
+            $ici = self::chemin($position, 'cases_sans_arret');
+            $cases = $this->enListe($regles['cases_sans_arret'], $ici);
+            if ($cases === []) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'au moins une case');
+            }
+            foreach ((array) $cases as $k => $c) {
+                if (($case = $this->enObjet($c, "$ici.$k")) !== null) {
+                    $this->cles($case, "$ici.$k", self::CLES_CASE);
+                    $this->cellule($case, "$ici.$k");
                 }
             }
         }

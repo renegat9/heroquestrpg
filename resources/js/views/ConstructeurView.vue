@@ -338,6 +338,12 @@ function recaler(q, liste, i) {
     if (liste === 'monstres' && Array.isArray(q.fin?.cibles)) {
         q.fin.cibles = q.fin.cibles.filter((c) => c !== i).map((c) => (c > i ? c - 1 : c));
     }
+    // Lot E2 (First Light q. 3 B) : un geste « au contact » du meuble retiré n'a plus de meuble ; les suivants se recalent.
+    if (liste === 'mobilier') {
+        (q.gestes ?? []).forEach((g) => {
+            if (g.pres_du_meuble === i) delete g.pres_du_meuble; else if (g.pres_du_meuble > i) g.pres_du_meuble -= 1;
+        });
+    }
     // Lot E2 (First Light q. 2) : un portail posé sur la porte retirée disparaît ; les suivants se recalent.
     if (liste === 'portes' && Array.isArray(q.regles?.portails)) {
         q.regles.portails = q.regles.portails.filter((p) => p.porte !== i).map((p) => (p.porte > i ? { ...p, porte: p.porte - 1 } : p));
@@ -848,6 +854,8 @@ function effetParDefaut(nom) {
             issues: [{ de: 1, a: 3, alors: [{ effet: 'texte', texte: '' }] }, { de: 4, a: 6, alors: [{ effet: 'texte', texte: '' }] }],
             // Lot E2 (Delthrak) : deux étapes jouées dans l'ordre.
             etapes: [{ alors: [{ effet: 'texte', texte: '' }] }, { alors: [{ effet: 'rejetons' }] }],
+            // Lot E2 (First Light) : l'Oracle bénit par défaut.
+            don: 'benediction',
             parmi: (catalogues.value?.objets ?? []).slice(0, 2).map((o) => o.slug), mobilier: 0,
             // Lot E2 (Prophecy of Telor) : le sort de Dread appris, l'Esprit, l'objet de remplacement.
             sort: nom === 'invoquer'
@@ -1541,6 +1549,21 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             @click="(() => { const l = quete.regles.salle_tenebreuse.epargnes ??= []; const i = l.indexOf(c.slug); if (i >= 0) l.splice(i, 1); else l.push(c.slug); if (!l.length) delete quete.regles.salle_tenebreuse.epargnes; })()">{{ c.nom }}</button>
                                     </span>
                                 </template>
+                                <!-- Lot E2 : les cases où l'on ne s'arrête pas (First Light q. 3 A, l'Œil de Mentor). -->
+                                <label class="cst-case" title="Aucun héros ne peut finir son déplacement sur ces cases (on les traverse).">
+                                    <input type="checkbox" :checked="!!quete.regles?.cases_sans_arret"
+                                        @change="poserRegle('cases_sans_arret', $event.target.checked ? [{ x: 0, y: 0 }] : undefined)" />
+                                    Cases où l'on ne s'arrête pas
+                                </label>
+                                <template v-if="quete.regles?.cases_sans_arret">
+                                    <span v-for="(c, k) in quete.regles.cases_sans_arret" :key="`csa${k}`" class="cst-ligne">
+                                        <input v-model.number="c.x" type="number" min="0" class="cst-input cst-num" title="x" />
+                                        <input v-model.number="c.y" type="number" min="0" class="cst-input cst-num" title="y" />
+                                        <button type="button" class="cst-icone" title="Choisir la case sur la carte" @click="pointer(c, `la case sans arrêt n° ${k + 1}`)"><MSym n="pin_drop" :size="16" /></button>
+                                        <button type="button" class="cst-icone" title="Retirer" @click="quete.regles.cases_sans_arret.splice(k, 1); if (!quete.regles.cases_sans_arret.length) poserRegle('cases_sans_arret', undefined)"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter une case" @click="quete.regles.cases_sans_arret.push({ x: 0, y: 0 })"><MSym n="add" :size="16" /></button>
+                                </template>
                                 <!-- Lot E2 : la glissade (Crypt of Perpetual Darkness q. 10 A) — une case invisible, et la case d'arrivée. -->
                                 <label class="cst-case" title="Un héros qui pose le pied sur la case glisse jusqu'à la case d'arrivée : son déplacement est fini, son action reste. Si elle est prise, il s'arrête sur la case libre la plus proche et la figure qui l'occupe encaisse 2 dés de combat.">
                                     <input type="checkbox" :checked="!!quete.regles?.glissades"
@@ -1710,6 +1733,12 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                                 <option v-for="s in quete.salles_ouvertes" :key="`ges-${s}`" :value="s">{{ s }}</option>
                                             </select>
                                             <label class="cst-case"><input type="checkbox" :checked="g.par_heros === true" @change="$event.target.checked ? (g.par_heros = true) : delete g.par_heros" /> une fois par héros</label>
+                                            <!-- Lot E2 (First Light q. 3 B) : seulement au contact d'un meuble de la quête. -->
+                                            <select v-if="quete.mobilier.length" :value="g.pres_du_meuble ?? ''" class="cst-input" title="seulement au contact de ce meuble"
+                                                @change="$event.target.value === '' ? delete g.pres_du_meuble : (g.pres_du_meuble = Number($event.target.value))">
+                                                <option value="">n'importe où dans la salle</option>
+                                                <option v-for="(mb, j) in quete.mobilier" :key="`gem${j}`" :value="j">au contact : {{ nomDe('mobilier', mb.slug) }} ({{ mb.x }}, {{ mb.y }})</option>
+                                            </select>
                                             <label>si le drapeau <input :value="g.si_drapeau ?? ''" class="cst-input" placeholder="(toujours)" @change="$event.target.value.trim() ? (g.si_drapeau = $event.target.value.trim()) : delete g.si_drapeau" /></label>
                                             <label>sauf si <input :value="g.sauf_drapeau ?? ''" class="cst-input" placeholder="(aucun)" @change="$event.target.value.trim() ? (g.sauf_drapeau = $event.target.value.trim()) : delete g.sauf_drapeau" /></label>
                                             <button type="button" class="cst-icone" title="Retirer" @click="retirerGeste(i)"><MSym n="close" :size="16" /></button>
@@ -2157,6 +2186,11 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             </div>
                                             <button type="button" class="cst-btn ghost" @click="effet.issues.push({ de: 1, a: 1, alors: [{ effet: 'texte', texte: '' }] })"><MSym n="add" :size="14" /> issue</button>
                                         </div>
+                                        <!-- Lot E2 (First Light q. 3 C) : la Bénédiction ou la Malédiction de l'Oracle. -->
+                                        <select v-else-if="p === 'don'" v-model="effet.don" class="cst-input">
+                                            <option value="benediction">la Bénédiction de l'Oracle</option>
+                                            <option value="malediction">la Malédiction de l'Oracle (marque de Zargon)</option>
+                                        </select>
                                         <!-- Lot E2 (Delthrak, les cocons) : les étapes jouées une à la fois et dans l'ordre — effets en JSON, comme le jet. -->
                                         <div v-else-if="p === 'etapes'" class="cst-apparitions">
                                             <div v-for="(etape, k) in effet.etapes" :key="`et${k}`" class="cst-ligne">

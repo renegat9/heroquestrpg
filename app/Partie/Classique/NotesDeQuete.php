@@ -415,6 +415,18 @@ final class NotesDeQuete
         return ['retires' => $retires];
     }
 
+    /** Lot E2 (*First Light* q. 3 C) — la Bénédiction ou la Malédiction de l'Oracle, écrite sur la fiche du héros (`MoteurOracle`). */
+    private function effetOracle(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        if ($heros === null) {
+            return ['don' => null];
+        }
+        $oracle = app(\App\Partie\MoteurOracle::class);
+        ($effet['don'] ?? null) === 'malediction' ? $oracle->accorderMalediction($heros) : $oracle->accorderBenediction($heros);
+
+        return ['nom' => $heros->nom, 'don' => ($effet['don'] ?? null) === 'malediction' ? 'malediction' : 'benediction'];
+    }
+
     /** Lot E2 (*Wizards of Morcar* q. 3 A) — des cartes de trésor tirées ; le héros choisira (menu forcé) celle qu'il garde. */
     private function effetCartesAuChoix(Quete $quete, array $effet, ?Personnage $heros): array
     {

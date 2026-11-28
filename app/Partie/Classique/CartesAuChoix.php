@@ -30,7 +30,8 @@ final class CartesAuChoix
     public function tirer(Quete $quete, Personnage $heros, int $nombre): array
     {
         $cartes = [];
-        for ($i = 0; $i < max(2, min(self::MAX, $nombre)); $i++) {
+        // Une seule carte (lot E2, *First Light* q. 3 A : « If not, they draw a card from the treasure deck ») : le menu la donne à prendre.
+        for ($i = 0; $i < max(1, min(self::MAX, $nombre)); $i++) {
             $carte = app(DeckFouille::class)->piocher($quete->fresh());
             if (! empty($carte['deck_vide'])) {
                 break;

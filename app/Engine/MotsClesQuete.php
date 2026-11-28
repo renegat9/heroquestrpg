@@ -415,6 +415,12 @@ final class MotsClesQuete
      */
     public const CARTES_AU_CHOIX = 'cartes_au_choix';
 
+    /**
+     * Lot E2 (*First Light* q. 3 C : « The hero receives the Oracle's Blessing / Curse ») — `don: benediction | malediction`, sur le
+     * héros qui déclenche, par le moteur de l'Oracle (`MoteurOracle`, FL-Q p. 6).
+     */
+    public const ORACLE = 'oracle';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `etapes[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET, self::EN_ORDRE];
 
@@ -470,6 +476,7 @@ final class MotsClesQuete
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],
         self::EN_RESERVE => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetEnReserve', 'libelle' => 'placer des figures dans la zone hors du plateau'],
         self::SOIGNER => ['parametres' => [], 'optionnels' => ['body', 'mind'], 'lecteur' => 'effetSoigner', 'libelle' => 'soigner le héros (Corps, Esprit : un nombre ou « tout »)'],
+        self::ORACLE => ['parametres' => ['don'], 'optionnels' => [], 'lecteur' => 'effetOracle', 'libelle' => 'la Bénédiction ou la Malédiction de l\'Oracle'],
         self::CARTES_AU_CHOIX => ['parametres' => [], 'optionnels' => ['nombre'], 'lecteur' => 'effetCartesAuChoix', 'libelle' => 'tirer des cartes de trésor, le héros en garde une'],
         self::VAINCRE_TOUS => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetVaincreTous', 'libelle' => 'tous les monstres du plateau sont vaincus et retirés'],
         self::EN_ORDRE => ['parametres' => ['etapes'], 'optionnels' => [], 'lecteur' => 'effetEnOrdre', 'libelle' => 'jouer l\'étape suivante, une à la fois et dans l\'ordre'],

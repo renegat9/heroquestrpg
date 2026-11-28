@@ -911,10 +911,20 @@ trait LignesEffetsAutomatiques
                         ? ['texte' => implode(', ', $noms).(count($noms) > 1 ? ' surgissent' : ' surgit').' de nulle part !', 'ton' => 'subit']
                         : ['texte' => 'Rien ne surgit : aucun monstre errant ne rôde', 'ton' => 'info']);
                     break;
+                // Lot E2 (*First Light* q. 3 C) : l'Oracle bénit, ou marque.
+                case 'oracle':
+                    if (($effet['don'] ?? null) !== null) {
+                        $lignes[] = ($effet['don'] === 'malediction')
+                            ? ['texte' => ($effet['nom'] ?? $heros).' reçoit la Malédiction de l\'Oracle : la marque de Zargon', 'ton' => 'subit']
+                            : ['texte' => ($effet['nom'] ?? $heros).' reçoit la Bénédiction de l\'Oracle', 'ton' => 'succes'];
+                    }
+                    break;
                 // Lot E2 (*Wizards of Morcar* q. 3 A) : les cartes tirées, au choix du héros.
                 case 'cartes_au_choix':
                     $lignes[] = (array) ($effet['cartes'] ?? []) !== []
-                        ? ['texte' => ($effet['nom'] ?? $heros).' tire '.count((array) $effet['cartes']).' cartes : '.implode(' ou ', (array) $effet['cartes']).' — à lui d\'en garder une', 'ton' => 'tresor']
+                        ? (count((array) $effet['cartes']) === 1
+                            ? ['texte' => ($effet['nom'] ?? $heros).' tire une carte du paquet : '.$effet['cartes'][0], 'ton' => 'tresor']
+                            : ['texte' => ($effet['nom'] ?? $heros).' tire '.count((array) $effet['cartes']).' cartes : '.implode(' ou ', (array) $effet['cartes']).' — à lui d\'en garder une', 'ton' => 'tresor'])
                         : ['texte' => 'Le paquet est vide : aucune carte à tirer', 'ton' => 'info'];
                     break;
                 // Lot E2 (*Jungles of Delthrak*, q. 14) : la faille scellée balaie le plateau.

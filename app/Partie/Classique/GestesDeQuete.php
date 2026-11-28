@@ -49,7 +49,8 @@ final class GestesDeQuete
             if (($salles[$ici]['id'] ?? null) !== ($geste['salle'] ?? null)
                 || (isset($geste['si_drapeau']) && ! $quete->aDrapeau((string) $geste['si_drapeau']))
                 || (isset($geste['sauf_drapeau']) && $quete->aDrapeau((string) $geste['sauf_drapeau']))
-                || (! empty($geste['par_heros']) && in_array((int) $heros->id, (array) ($faits[$i] ?? []), true))) {
+                || (! empty($geste['par_heros']) && in_array((int) $heros->id, (array) ($faits[$i] ?? []), true))
+                || (isset($geste['pres_du_meuble']) && ! $this->auContactDuMeuble($quete, $etat, (int) $geste['pres_du_meuble']))) {
                 continue;
             }
             if (is_array($geste['choix'] ?? null)) {
@@ -62,6 +63,22 @@ final class GestesDeQuete
         }
 
         return $offerts;
+    }
+
+    /** Lot E2 (*First Light* q. 3 B : « an adjacent bookcase ») : le héros touche-t-il une case de ce meuble (debout) ? */
+    private function auContactDuMeuble(Quete $quete, EtatPersonnageQuete $etat, int $index): bool
+    {
+        $m = (array) ($quete->carte?->grille['mobilier'][$index] ?? []);
+        if ($m === [] || ! empty($m['detruit']) || ! isset($m['x'], $m['y'])) {
+            return false;
+        }
+        foreach (Salles::cases(['x' => (int) $m['x'], 'y' => (int) $m['y'], 'l' => max(1, (int) ($m['l'] ?? 1)), 'h' => max(1, (int) ($m['h'] ?? 1))]) as $c) {
+            if (\App\Partie\Grille::sontAdjacentes((int) $etat->position_x, (int) $etat->position_y, $c['x'], $c['y'], carte: $quete->carte)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -7397,6 +7397,21 @@ a portal is used, set up the room as depicted. Monsters may move through portals
   (`quetes.drapeaux._portails_utilises`) ressort sur une case d'un autre portail utilisé, au plus près des héros
   (`Portails::voyageDuMonstre()`), puis attaque. Annonce `portail_monstre {monstre, depuis, numero, x, y}`.
 
+*First Light* q. 3 (FL-Q p. 15) :
+- « Heroes may not end their movement on the eye tile » : **`regles.cases_sans_arret: [{x, y}]`** — jointes, dans
+  `FabriqueGrille::pour()`, au jeu des cases interdites à l'arrêt (mare, brasier) : on les traverse, on ne s'y arrête pas.
+- « ask them if they want to steal from the chests. If they answer yes, they find 800 gold coins […]. If not, they draw a card
+  from the treasure deck » : une offre à deux choix ; le « non » joue **`cartes_au_choix {nombre: 1}`** (désormais permis) — la
+  carte se prend au menu forcé (« Garder : … »).
+- « A hero in a room marked B may use an action to investigate an adjacent bookcase. They roll one movement die. On a roll
+  result of 5+, the hero finds […]. The first time a 1 is rolled, all heroes in that room suffer 1 Body point » : un geste de
+  quête, nouvelle clé **`gestes[].pres_du_meuble: index`** (offert seulement au héros au contact de ce meuble debout), un `jet`
+  dont l'issue 1 porte un **`en_ordre` à une étape** — `en_ordre` peut désormais se glisser dans une issue de jet ou une offre
+  (un seul niveau).
+- « The hero receives the Oracle's Blessing / Curse » (FL-Q p. 6) : effet **`oracle {don: benediction|malediction}`** — le
+  moteur de l'Oracle du RPG, tel quel (`MoteurOracle` : colonnes du héros, révélation d'une salle ou relance, marque de Zargon,
+  levée à 800 po au marché).
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

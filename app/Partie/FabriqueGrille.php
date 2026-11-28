@@ -366,6 +366,15 @@ final class FabriqueGrille
         $grille->marquerMobilier($meubles);
         $grille->occulter($opaques);
         $grille->definirCoutsDeplacement($couts);
+        // CASES OÙ L'ON NE S'ARRÊTE PAS (mode classique, lot E2 — *First Light* q. 3 A : « Heroes may not end their movement on the
+        // eye tile ») : `regles.cases_sans_arret`, jointes au même jeu que la mare et le brasier.
+        if ($quete->estConstruite()) {
+            foreach ((array) data_get($quete->documentConstruit(), 'regles.cases_sans_arret', []) as $c) {
+                if (isset($c['x'], $c['y'])) {
+                    $sansArret[] = ['x' => (int) $c['x'], 'y' => (int) $c['y']];
+                }
+            }
+        }
         $grille->interdireArret($sansArret);
         $grille->definirArretsSurImpair($arretsSurImpair);
         $grille->definirBonusEntrees($bonusEntrees);
