@@ -973,7 +973,12 @@ trait LignesEffetsAutomatiques
                     }
                     break;
                 case 'degats':
-                    if ((int) ($effet['degats'] ?? 0) > 0) {
+                    // Lot E2 (Crypte q. 7 B) : le jet de défense contre N points — la défense pare, le reste blesse.
+                    if (isset($effet['pares'])) {
+                        $lignes[] = ['texte' => ($effet['nom'] ?? $heros).' se défend contre '.(int) ($effet['body'] ?? 0).' point(s) : '
+                            .(int) $effet['pares'].' paré(s)'.((int) ($effet['degats'] ?? 0) > 0 ? ', perd '.(int) $effet['degats'].' point(s) de Corps' : ', indemne'),
+                            'ton' => (int) ($effet['degats'] ?? 0) > 0 ? 'degats' : 'succes'];
+                    } elseif ((int) ($effet['degats'] ?? 0) > 0) {
                         $lignes[] = ['texte' => ($effet['nom'] ?? $heros).' perd '.(int) $effet['degats'].' point(s) de Corps', 'ton' => 'degats'];
                     }
                     break;

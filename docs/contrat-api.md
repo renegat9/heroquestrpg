@@ -7280,6 +7280,25 @@ comme le livret — avant chaque quête, un animal gratuit par héros, pour cett
   élevé (une quête perdue garde le sien pour la rejouer). L'offre du compagnon du mode RPG (`CompagnonOffert`) reste fermée
   au classique.
 
+### La Crypte — `jet_defense`, `pieges[].le_plus_proche`, `regles.glissades` (lot E2, 2026-11-27)
+
+*The Crypt of Perpetual Darkness* (G1798) :
+- q. 7 B : « The hero must roll their Defend dice against 3 points of damage from the glowing ooze. » Effet **`degats`**, booléen
+  facultatif **`jet_defense`** : chaque héros touché lance ses dés de défense (`MoteurSorts::desDefenseHeros()`), chaque
+  bouclier blanc pare un point. Résultat `{degats, nom, body, defense: [faces], pares}` (par cible sous `cibles[]` avec
+  `toute_la_salle` / `tous_les_heros`). Fil : « Albrecht se défend contre 3 point(s) : 1 paré(s), perd 2 point(s) de Corps ».
+- q. 3 A : « any hero who searches for traps finds only one trap—the one closest to them ». **`pieges[].le_plus_proche: true`** :
+  parmi les pièges cachés ainsi marqués de la zone fouillée, la fouille ne révèle que le plus proche du fouilleur
+  (`MoteurPieges::revelerAutour()`) ; les autres pièges de la zone se révèlent comme toujours. (`regles.fouille_piege_un_par_un`,
+  lot K5o, vaut pour toute la quête et attend que le piège trouvé soit désamorcé ou déclenché.)
+- q. 10 A : « Any hero who moves onto it slides all the way down onto the space marked "X" and their movement is done (but they
+  may still take an action). If […] the path to the "X" space is not clear, stop at the nearest available space and roll 2
+  combat dice to see if any damage is taken by the hero or monster who is landed on. » **`regles.glissades: [{x, y, vers: {x,
+  y}}]`** (`Classique\Glissades`) : une case invisible ; le trajet s'arrête dessus, et s'il l'atteint (après les pièges), le
+  héros glisse sur `vers`, ou, prise, sur la case libre la plus proche — la figure qui occupe `vers` encaisse 2 dés de combat,
+  un crâne = 1 point, sans défense (décision écrite). Déplacement fini (`deplacement_restant: 0`), action restante ; la salle
+  d'arrivée se révèle. Annonce `glissade {personnage_id, nom, de, vers, arrivee?, bloque?, faces?, percute?: {nom, degats}}`.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

@@ -185,6 +185,8 @@ final class JournalCombat
         'pont_de_corde' => true,
         // Lot E2 : le relèvement (F9907 q. 4 E) — le gobelin vaincu se relève en Crâne putride.
         'relevement' => true,
+        // Lot E2 : la glissade (G1798 q. 10 A) — jusqu'à la case X, ou percutée.
+        'glissade' => true,
         // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
         'soin_planque' => true,
         'repartir_planque' => true,
@@ -1539,6 +1541,13 @@ final class JournalCombat
             'repartir_planque' => [[
                 'texte' => ($a['personnage']['nom'] ?? $acteurNom).' répartit son soin : +'.(int) ($a['corps'] ?? 0).' Corps, +'.(int) ($a['esprit'] ?? 0).' Esprit',
                 'ton' => 'succes',
+            ]],
+            'glissade' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' glisse tout au long de la pente'.(! empty($a['bloque'])
+                    ? ' et bute avant la case d\'arrivée'.(isset($a['percute']) ? ' : '.$a['percute']['nom'].((int) $a['percute']['degats'] > 0
+                        ? ' encaisse '.(int) $a['percute']['degats'].' point(s) de Corps' : ' n\'est pas blessé') : '')
+                    : ' jusqu\'en bas').' — son déplacement est fini, son action reste',
+                'ton' => 'subit',
             ]],
             'relevement' => [[
                 'texte' => ($a['de'] ?? 'La figure').' se relève aussitôt : '.($a['en'] ?? 'une autre créature').' se dresse à sa place',

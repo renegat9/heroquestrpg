@@ -461,6 +461,8 @@ function clicQuete(evt) {
                     ...(choix.piegeGouffre ? { gouffre: true } : {}),
                     // Lot E2 (Against the Ogre Horde p. 4) : seule une note la déclenche (`declencher_piege`).
                     ...(choix.piegeParNote ? { par_note: true } : {}),
+                    // Lot E2 (Crypte q. 3 A) : la fouille ne trouve que le plus proche de ces pièges.
+                    ...(choix.piegeLePlusProche ? { le_plus_proche: true } : {}),
                     // La zone d'une lame balançoire : la forme de la fiche, verticale ou couchée, autour de la case cliquée.
                     ...(zoneDeLame(choix.piege, x, y)),
                 });
@@ -735,6 +737,7 @@ const BOOLEENS_EFFET = {
     nombre_d6: 'seuls les 1d6 premiers paraissent',
     pres_du_heros: 'près du héros qui déclenche, et frappe aussitôt',
     au_hasard: 'une seule, tirée au hasard',
+    jet_defense: 'le héros lance ses dés de défense (chaque bouclier blanc pare un point)',
     si_absent_du_groupe: 'seulement si personne ne l\'a déjà',
     sauf_declencheur: 'sauf le héros qui déclenche',
 };
@@ -1179,6 +1182,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <label class="cst-case"><input v-model="choix.piegeIndesarmable" type="checkbox" /> indésarmable</label>
                                 <label class="cst-case"><input v-model="choix.piegeGouffre" type="checkbox" /> gouffre sans fond</label>
                                 <label class="cst-case" title="Aucune case foulée ne le déclenche : seule une note « déclencher le piège de la case »."><input v-model="choix.piegeParNote" type="checkbox" /> déclenché par une note</label>
+                                <label class="cst-case" title="Une fouille de pièges ne trouve que le plus proche des pièges cochés ainsi (les autres pièges, comme toujours)."><input v-model="choix.piegeLePlusProche" type="checkbox" /> trouvé seulement s'il est le plus proche</label>
                                 <label v-if="(catalogues.pieges ?? []).find((p) => p.slug === choix.piege)?.zone_lames" class="cst-case"><input v-model="choix.lameHorizontale" type="checkbox" /> lame couchée (horizontale)</label>
                             </template>
                             <select v-if="outil === 'terrain'" v-model="choix.terrain" class="cst-input">
@@ -1442,6 +1446,26 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                             @click="quete.regles.pont_de_corde.splice(k, 1); if (!quete.regles.pont_de_corde.length) poserRegle('pont_de_corde', undefined)"><MSym n="close" :size="16" /></button>
                                     </span>
                                     <button type="button" class="cst-icone" title="Ajouter un rectangle de pont" @click="quete.regles.pont_de_corde.push({ x: 0, y: 0, l: 1, h: 1 })"><MSym n="add" :size="16" /></button>
+                                </template>
+                                <!-- Lot E2 : la glissade (Crypt of Perpetual Darkness q. 10 A) — une case invisible, et la case d'arrivée. -->
+                                <label class="cst-case" title="Un héros qui pose le pied sur la case glisse jusqu'à la case d'arrivée : son déplacement est fini, son action reste. Si elle est prise, il s'arrête sur la case libre la plus proche et la figure qui l'occupe encaisse 2 dés de combat.">
+                                    <input type="checkbox" :checked="!!quete.regles?.glissades"
+                                        @change="poserRegle('glissades', $event.target.checked ? [{ x: 0, y: 0, vers: { x: 1, y: 0 } }] : undefined)" />
+                                    Glissades
+                                </label>
+                                <template v-if="quete.regles?.glissades">
+                                    <span v-for="(g, k) in quete.regles.glissades" :key="`gli${k}`" class="cst-ligne">
+                                        <input v-model.number="g.x" type="number" min="0" class="cst-input cst-num" title="x de la case" />
+                                        <input v-model.number="g.y" type="number" min="0" class="cst-input cst-num" title="y de la case" />
+                                        <button type="button" class="cst-icone" title="Choisir la case sur la carte" @click="pointer(g, `la case de la glissade n° ${k + 1}`)"><MSym n="pin_drop" :size="16" /></button>
+                                        →
+                                        <input v-model.number="g.vers.x" type="number" min="0" class="cst-input cst-num" title="x d'arrivée" />
+                                        <input v-model.number="g.vers.y" type="number" min="0" class="cst-input cst-num" title="y d'arrivée" />
+                                        <button type="button" class="cst-icone" title="Choisir la case d'arrivée sur la carte" @click="pointer(g.vers, `l'arrivée de la glissade n° ${k + 1}`)"><MSym n="pin_drop" :size="16" /></button>
+                                        <button type="button" class="cst-icone" title="Retirer"
+                                            @click="quete.regles.glissades.splice(k, 1); if (!quete.regles.glissades.length) poserRegle('glissades', undefined)"><MSym n="close" :size="16" /></button>
+                                    </span>
+                                    <button type="button" class="cst-icone" title="Ajouter une glissade" @click="quete.regles.glissades.push({ x: 0, y: 0, vers: { x: 1, y: 0 } })"><MSym n="add" :size="16" /></button>
                                 </template>
                                 <!-- Lot E2 : le relèvement (Jungles of Delthrak q. 4 E) — tel monstre vaincu dans la salle se relève en un autre. -->
                                 <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Une figure du premier type vaincue dans la salle se relève aussitôt, sur sa case, en une figure du second — sauf si le drapeau est posé (le cristal détruit, par une note « le meuble est détruit »).">

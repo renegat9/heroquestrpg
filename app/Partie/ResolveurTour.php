@@ -1406,6 +1406,13 @@ final class ResolveurTour
             $tronque = array_slice($tronque, 0, $pont['index'] + 1);
         }
 
+        // GLISSADE (mode classique, lot E2 — Crypte q. 10 A) : la case invisible arrête le trajet ; s'il l'atteint, il glisse
+        // (plus bas, sur la case d'arrivée déjà déterminée, comme la glissière de glace).
+        $rangGlissade = \App\Partie\Classique\Glissades::rangDansLeChemin($quete, $tronque);
+        if ($rangGlissade !== null) {
+            $tronque = array_slice($tronque, 0, $rangGlissade + 1);
+        }
+
         if (count($tronque) < count($chemin)) {
             $chemin = $tronque;
             $derniere = end($chemin);
@@ -1487,6 +1494,16 @@ final class ResolveurTour
         if ($glissiere !== null) {
             $arrivee = $glissiere;
             $this->finTourPiegeSol = true;
+            $this->revelerSalleEn($quete, (int) $arrivee['x'], (int) $arrivee['y'], $personnage);
+        }
+
+        // GLISSADE (mode classique, lot E2 — Crypte q. 10 A) : « slides all the way down onto the space marked "X" and their
+        // movement is done (but they may still take an action) » — l'arrivée devient la case X (ou la plus proche, libre) ;
+        // le déplacement est fini (plus bas), le tour ne l'est pas.
+        $glissade = $teleportation === null && $glissiere === null
+            ? app(\App\Partie\Classique\Glissades::class)->glisser($groupe, $quete, $personnage, $arrivee) : null;
+        if ($glissade !== null) {
+            $arrivee = $glissade['arrivee'];
             $this->revelerSalleEn($quete, (int) $arrivee['x'], (int) $arrivee['y'], $personnage);
         }
 
@@ -1575,7 +1592,7 @@ final class ResolveurTour
         // Le courant porteur NE SE PREND QUE sur le trajet réellement parcouru : un piège qui arrête avant la case ne donne rien.
         $gainParcouru = $grille->gainDuTrajet($depart['x'], $depart['y'], $cheminParcouru);
         // L'enlisement arrête la marche sur la case : la salle n'a rien de plus à offrir ce tour.
-        $restantApres = ($arretDur || $passage !== null || $arretSol) ? 0 : max(0, $restant + $gainParcouru - $couteParcouru);
+        $restantApres = ($arretDur || $passage !== null || $arretSol || $glissade !== null) ? 0 : max(0, $restant + $gainParcouru - $couteParcouru);
         $mouvementFini = $arretDur || $restantApres <= 0 || $arretSol;
 
         $etat->update([

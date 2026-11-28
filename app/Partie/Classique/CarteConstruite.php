@@ -430,6 +430,8 @@ final class CarteConstruite
             // Lot K5d : les drapeaux de l'auteur, lus par `MoteurPieges::trouvable()` / `desarmable()`. Posés
             // seulement quand ils valent true — jamais une clé `false` décorative.
             ...(($piege['introuvable'] ?? false) === true ? ['introuvable' => true] : []),
+            // Lot E2 (Crypte q. 3 A) : la fouille ne trouve que le plus proche de ces pièges (`MoteurPieges::revelerAutour()`).
+            ...(($piege['le_plus_proche'] ?? false) === true ? ['le_plus_proche' => true] : []),
             ...(($piege['indesarmable'] ?? false) === true ? ['indesarmable' => true] : []),
             // Lot E2 : un GOUFFRE sans fond (F5815 p. 4) — qui y tombe est perdu (`MoteurPieges::declencher()`).
             ...(($piege['gouffre'] ?? false) === true ? ['gouffre' => true] : []),

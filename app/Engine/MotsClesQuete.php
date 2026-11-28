@@ -439,7 +439,9 @@ final class MotsClesQuete
         // `au_hasard` (lot E2, q. 14 : « the planar rift creates one monster […] Raptor, Skullblight, Zombie, or Skeleton ») :
         // UNE seule des poses, tirée au hasard (René, 2026-11-27 : aucun compte de figurines en base).
         self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6', 'pres_du_heros', 'au_hasard'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
-        self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle', 'tous_les_heros'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
+        // `jet_defense` (lot E2, *The Crypt of Perpetual Darkness* q. 7 B : « roll their Defend dice against 3 points of damage ») :
+        // chaque héros touché lance ses dés de défense, chaque bouclier blanc pare un point.
+        self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle', 'tous_les_heros', 'jet_defense'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
         self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => ['campagne'], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],
         self::OUVRIR_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetOuvrirPorte', 'libelle' => 'ouvrir une porte'],
         self::EVEILLER => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetEveiller', 'libelle' => 'éveiller des figures inactives'],

@@ -1730,11 +1730,33 @@ final class MoteurPieges
             );
         }
 
+        // Lot E2 (*The Crypt of Perpetual Darkness*, q. 3 A : « All of the traps marked "A" are so well hidden that any hero who
+        // searches for traps finds only one trap—the one closest to them ») : parmi les pièges cachés marqués `le_plus_proche`,
+        // la fouille ne révèle que le plus proche du fouilleur ; les autres pièges de la zone, comme toujours.
+        $plusProche = null;
+        $etatFouilleur = $quete?->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+        $meilleure = PHP_INT_MAX;
+        foreach ((array) ($carte->grille['pieges'] ?? []) as $index => $entree) {
+            if (empty($entree['le_plus_proche']) || ($entree['etat'] ?? null) !== self::ETAT_CACHE
+                || ! $zone->contient((int) $entree['x'], (int) $entree['y'])
+                || ! self::trouvable($entree, Piege::find($entree['piege_id']))) {
+                continue;
+            }
+            $d = abs((int) $entree['x'] - (int) ($etatFouilleur?->position_x ?? 0)) + abs((int) $entree['y'] - (int) ($etatFouilleur?->position_y ?? 0));
+            if ($d < $meilleure) {
+                $meilleure = $d;
+                $plusProche = $index;
+            }
+        }
+        $grillePieges = (array) ($carte->grille['pieges'] ?? []);
+
         return $this->reveler(
             $groupe,
             $carte,
             $personnage,
-            fn (array $entree) => $zone->contient((int) $entree['x'], (int) $entree['y']),
+            fn (array $entree) => $zone->contient((int) $entree['x'], (int) $entree['y'])
+                && (empty($entree['le_plus_proche']) || ($plusProche !== null
+                    && (int) $grillePieges[$plusProche]['x'] === (int) $entree['x'] && (int) $grillePieges[$plusProche]['y'] === (int) $entree['y'])),
             'fouille',
         );
     }

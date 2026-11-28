@@ -1877,3 +1877,76 @@ it('tacticien : +1 dé contre un héros au contact ou en diagonale d\'un autre m
 
     expect($frappe['bonus_flanc'])->toBe($bonus);
 })->with(['Raptor (tacticien), flanqueur en diagonale' => ['raptor', 1], 'Orque ordinaire' => ['orque', 0]]);
+
+// ---------------------------------------------------------------- The Crypt of Perpetual Darkness
+
+it('jet de défense contre N points : « roll their Defend dice against 3 points of damage » — chaque bouclier blanc pare', function () {
+    $campagne = campagneE2(['notes' => [['repere' => 'B', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']],
+        'alors' => [['effet' => 'degats', 'body' => 3, 'jet_defense' => true]]]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['notes' => [['repere' => 'B', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']],
+            'alors' => [['effet' => 'degats', 'body' => 3, 'jet_defense' => 'oui']]]]])))->toBe([ValidationCampagne::TYPE_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+    $defense = app(\App\Partie\MoteurSorts::class)->desDefenseHeros($partie['heros']->fresh());
+    // Un bouclier blanc (4), le reste des crânes (1).
+    app()->instance(LanceurDes::class, new LanceurDeterministe([4, ...array_fill(0, 30, 1)]));
+
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class)->signaler($partie['quete']->fresh(), \App\Engine\MotsClesQuete::FOUILLE_TRESOR,
+        ['salle' => 1], $partie['heros']);
+    $effet = $notes[0]['effets'][0];
+
+    expect($effet)->toMatchArray(['pares' => 1, 'degats' => 2, 'body' => 3])
+        ->and($effet['defense'])->toHaveCount($defense)
+        ->and((int) $partie['heros']->fresh()->pv_body)->toBe(28);
+});
+
+it('le plus proche : la fouille de pièges ne trouve que le plus proche des pièges marqués ; les autres, comme toujours', function () {
+    $campagne = campagneE2(['pieges' => [
+        ['slug' => 'fosse', 'x' => 9, 'y' => 3, 'le_plus_proche' => true],
+        ['slug' => 'fosse', 'x' => 10, 'y' => 5, 'le_plus_proche' => true],
+        ['slug' => 'fosse', 'x' => 7, 'y' => 5],
+    ]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete']->fresh();
+    $quete->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+    $grille = $quete->carte->grille;
+
+    $reveles = app(\App\Partie\MoteurPieges::class)->revelerAutour($partie['groupe'], $quete->carte, $partie['heros'],
+        \App\Partie\ZoneFouille::de($grille, 8, 3));
+
+    expect(collect($reveles)->map(fn ($p) => [$p['x'], $p['y']])->sort()->values()->all())->toBe([[7, 5], [9, 3]]);
+});
+
+it('glissade : jusqu\'à la case X, déplacement fini, action restante ; X occupée : la case libre la plus proche, et 2 dés pour l\'occupant', function (bool $occupee) {
+    $campagne = campagneE2([
+        'regles' => ['glissades' => [['x' => 7, 'y' => 3, 'vers' => ['x' => 10, 'y' => 5]]]],
+        'monstres' => $occupee ? [['slug' => 'orque', 'x' => 10, 'y' => 5, 'pv_body' => 9]] : [],
+        'portes' => [['x' => 6, 'y' => 3, 'cote' => 'e', 'type' => 'normale', 'ouverte' => true],
+            ['x' => 3, 'y' => 2, 'cote' => 'n', 'type' => 'normale'], ['x' => 9, 'y' => 5, 'cote' => 's', 'type' => 'secrete']],
+    ]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['glissades' => [['x' => 7, 'y' => 3, 'vers' => ['x' => 7, 'y' => 3]]]]])))->toBe([ValidationCampagne::VALEUR_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 5, 'position_y' => 3]);
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    // S'il bute : deux crânes pour l'occupant (tous les dés valent 1).
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 30, 1)));
+    $resultat = $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'se_deplacer', 'parametres' => ['x' => 8, 'y' => 3]])
+        ->assertAccepted()->json('resultat');
+
+    $etat = $partie['quete']->etatsPersonnages()->first();
+    $annonce = collect($resultat['annonces_automatiques'] ?? [])->firstWhere('type', 'glissade');
+    expect($annonce)->not->toBeNull()
+        ->and((int) $etat->deplacement_restant)->toBe(0)->and((bool) $etat->a_agi)->toBeFalse();
+    if ($occupee) {
+        $orque = $partie['quete']->instancesMonstres()->first();
+        expect([(int) $etat->position_x, (int) $etat->position_y])->not->toBe([10, 5])
+            ->and(max(abs((int) $etat->position_x - 10), abs((int) $etat->position_y - 5)))->toBe(1)
+            ->and($annonce['percute']['degats'])->toBe(2)->and((int) $orque->pv_body)->toBe(7);
+    } else {
+        expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([10, 5]);
+    }
+})->with(['libre' => [false], 'occupée par un orque' => [true]]);

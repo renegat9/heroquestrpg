@@ -800,17 +800,40 @@ final class NotesDeQuete
             $total = 0;
             $touches = [];
             foreach ($cibles as $cible) {
-                $s = (int) app(MoteurDegats::class)->infligerAHeros($cible, $body, MoteurDegats::SOURCE_PIEGE, ['note_de_quete' => true]);
+                $defense = ! empty($effet['jet_defense']) ? $this->defendreContre($cible, $body) : null;
+                $s = (int) app(MoteurDegats::class)->infligerAHeros($cible, $defense['reste'] ?? $body, MoteurDegats::SOURCE_PIEGE, ['note_de_quete' => true]);
                 $total += $s;
-                $touches[] = ['nom' => $cible->nom, 'degats' => $s];
+                $touches[] = ['nom' => $cible->nom, 'degats' => $s, ...($defense !== null ? ['defense' => $defense['faces'], 'pares' => $defense['pares']] : [])];
             }
 
             return ['degats' => $total, 'nom' => $heros->nom, 'cibles' => $touches, ...($jet !== null ? ['jet' => $jet] : [])];
         }
 
-        $subis = app(MoteurDegats::class)->infligerAHeros($heros, $body, MoteurDegats::SOURCE_PIEGE, ['note_de_quete' => true]);
+        // Lot E2 (*The Crypt of Perpetual Darkness*, q. 7 B : « The hero must roll their Defend dice against 3 points of damage
+        // from the glowing ooze ») : `jet_defense` — ses dés de défense, chaque bouclier blanc pare un point.
+        $defense = ! empty($effet['jet_defense']) ? $this->defendreContre($heros, $body) : null;
+        $subis = app(MoteurDegats::class)->infligerAHeros($heros, $defense['reste'] ?? $body, MoteurDegats::SOURCE_PIEGE, ['note_de_quete' => true]);
 
-        return ['degats' => (int) $subis, 'nom' => $heros->nom, ...($jet !== null ? ['jet' => $jet] : [])];
+        return ['degats' => (int) $subis, 'nom' => $heros->nom, ...($jet !== null ? ['jet' => $jet] : []),
+            ...($defense !== null ? ['body' => $body, 'defense' => $defense['faces'], 'pares' => $defense['pares']] : [])];
+    }
+
+    /**
+     * Lot E2 — le héros lance ses dés de défense (le SEUL calcul qui fasse foi, `MoteurSorts::desDefenseHeros()`) contre
+     * `$body` points : chaque bouclier blanc (le bouclier des héros) en pare un.
+     *
+     * @return array{faces: list<string>, pares: int, reste: int}
+     */
+    private function defendreContre(Personnage $heros, int $body): array
+    {
+        $lanceur = app(\App\Engine\Des\LanceurDes::class);
+        $faces = [];
+        for ($i = 0, $n = app(\App\Partie\MoteurSorts::class)->desDefenseHeros($heros->fresh()); $i < $n; $i++) {
+            $faces[] = $lanceur->deCombat();
+        }
+        $pares = count(array_filter($faces, fn (\App\Engine\Des\FaceDeCombat $f) => $f === \App\Engine\Des\FaceDeCombat::BouclierBlanc));
+
+        return ['faces' => array_map(fn (\App\Engine\Des\FaceDeCombat $f) => $f->value, $faces), 'pares' => $pares, 'reste' => max(0, $body - $pares)];
     }
 
     /**

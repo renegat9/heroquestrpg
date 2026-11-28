@@ -158,7 +158,7 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades'];
     private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
@@ -176,7 +176,7 @@ final class ValidationCampagne
     private const CLES_MOBILIER = ['slug', 'x', 'y', 'rotation'];
     private const CLES_POSE = ['slug', 'x', 'y'];
     // Lot K5d (R6) : les drapeaux d'un piège de quête, lus par `MoteurPieges::trouvable()` / `desarmable()`.
-    private const CLES_PIEGE_OPTIONNELLES = ['introuvable', 'indesarmable', 'gouffre', 'par_note'];
+    private const CLES_PIEGE_OPTIONNELLES = ['introuvable', 'indesarmable', 'gouffre', 'par_note', 'le_plus_proche'];
     private const CLES_TERRAIN_OPTIONNELLES = ['paire_id', 'cachee', 'sortie'];
     private const CLES_RECOMPENSE = ['or', 'partage'];
     /** Lot K6 (*Dread Moon*) : `recompense.reputation` — des jetons de réputation pour le groupe. */
@@ -1304,7 +1304,7 @@ final class ValidationCampagne
                         $this->refuser("$position.$cleJet", self::VALEUR_INVALIDE, 'doit être entre 1 et 6');
                     }
                 }
-                foreach (['toute_la_salle', 'tous_les_heros'] as $cleCibles) {
+                foreach (['toute_la_salle', 'tous_les_heros', 'jet_defense'] as $cleCibles) {
                     if (array_key_exists($cleCibles, $effet) && ! is_bool($effet[$cleCibles])) {
                         $this->refuser("$position.$cleCibles", self::TYPE_INVALIDE, 'true ou false est attendu');
                     }
@@ -2537,6 +2537,29 @@ final class ValidationCampagne
                 $this->slugCatalogue($releve, 'en', "$ici.$k", 'monstres');
                 if (array_key_exists('sauf_drapeau', $releve)) {
                     $this->nomDeDrapeau($releve, 'sauf_drapeau', "$ici.$k");
+                }
+            }
+        }
+        // Lot E2 : la glissade (G1798 q. 10 A) — une case, et la case d'arrivée, toutes deux dans le plateau, distinctes.
+        if (array_key_exists('glissades', $regles)) {
+            $ici = self::chemin($position, 'glissades');
+            $glissades = $this->enListe($regles['glissades'], $ici);
+            if ($glissades === []) {
+                $this->refuser($ici, self::VALEUR_INVALIDE, 'au moins une glissade');
+            }
+            foreach ((array) $glissades as $k => $g) {
+                if (($glissade = $this->enObjet($g, "$ici.$k")) === null) {
+                    continue;
+                }
+                $this->cles($glissade, "$ici.$k", ['x', 'y', 'vers']);
+                $depart = $this->cellule($glissade, "$ici.$k");
+                $vers = array_key_exists('vers', $glissade) ? $this->enObjet($glissade['vers'], "$ici.$k.vers") : null;
+                if ($vers !== null) {
+                    $this->cles($vers, "$ici.$k.vers", self::CLES_CASE);
+                    $arrivee = $this->cellule($vers, "$ici.$k.vers");
+                    if ($depart !== null && $arrivee !== null && $depart === $arrivee) {
+                        $this->refuser("$ici.$k.vers", self::VALEUR_INVALIDE, 'la case d\'arrivée doit être une autre case');
+                    }
                 }
             }
         }
