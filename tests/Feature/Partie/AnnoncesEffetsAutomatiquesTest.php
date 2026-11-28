@@ -310,6 +310,7 @@ function fixturesDesTypesAnnonces(): array
         'crevasse' => ['nom' => 'Albrecht', 'faces' => ['bouclier_noir', 'bouclier_blanc'], 'issue' => 'ramene'],
         'pont_de_corde' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'de' => 2, 'glisse' => true, 'x' => 9, 'y' => 3],
         'relevement' => ['de' => 'Gobelin', 'en' => 'Crâne putride', 'instance_id' => 9, 'x' => 9, 'y' => 3],
+        'mur_illusoire' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'x' => 9, 'y' => 3],
         'glissade' => ['personnage_id' => 2, 'nom' => 'Albrecht', 'de' => ['x' => 3, 'y' => 3], 'vers' => ['x' => 9, 'y' => 4],
             'arrivee' => ['x' => 8, 'y' => 4], 'bloque' => true, 'faces' => ['crane', 'bouclier_blanc'], 'percute' => ['nom' => 'Orque', 'degats' => 1]],
         'retrait_au_contact' => ['nom' => 'Albrecht', 'figure' => 'Guerrier elfe'],

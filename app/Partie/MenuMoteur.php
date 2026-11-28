@@ -3679,6 +3679,19 @@ final class MenuMoteur
             }
         }
 
+        // LE MUR ILLUSOIRE (mode classique, lot E2 — G1504 q. 3 D) : le toucher, gratuit, s'il est à son contact
+        // (`Classique\MursIllusoires::touchables()`, que le résolveur relit).
+        if (! $aJoue && $etat !== null && $quete->estConstruite()) {
+            foreach (app(\App\Partie\Classique\MursIllusoires::class)->touchables($quete, $etat) as $mur) {
+                $options[] = [
+                    'id' => "toucher_mur_{$mur['x']}_{$mur['y']}",
+                    'libelle' => 'Toucher le mur',
+                    'type' => 'toucher_mur_illusoire',
+                    'parametres' => $mur,
+                ];
+            }
+        }
+
         // LES OFFRES (mode classique, lot K6) : les choix que les notes de l'auteur ont déclarés, payables par CE héros
         // (`Reputation::payables()`, que le résolveur revalide). Geste libre.
         if (! $aJoue && $etat !== null && ! $etat->tombe && $quete->estConstruite()) {

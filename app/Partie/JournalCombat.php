@@ -187,6 +187,8 @@ final class JournalCombat
         'relevement' => true,
         // Lot E2 : la glissade (G1798 q. 10 A) — jusqu'à la case X, ou percutée.
         'glissade' => true,
+        // Lot E2 : le mur illusoire (G1504 q. 3 D) — touché, il se dissipe.
+        'mur_illusoire' => true,
         // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
         'soin_planque' => true,
         'repartir_planque' => true,
@@ -1540,6 +1542,10 @@ final class JournalCombat
             ]],
             'repartir_planque' => [[
                 'texte' => ($a['personnage']['nom'] ?? $acteurNom).' répartit son soin : +'.(int) ($a['corps'] ?? 0).' Corps, +'.(int) ($a['esprit'] ?? 0).' Esprit',
+                'ton' => 'succes',
+            ]],
+            'mur_illusoire' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' tend la main vers le mur : il ondoie et se dissipe — ce n\'était qu\'une illusion',
                 'ton' => 'succes',
             ]],
             'glissade' => [[

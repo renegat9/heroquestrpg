@@ -760,6 +760,7 @@ final class ResolveurTour
                 'rappel_figure' => $this->resoudreRappelFigure($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'recherche_captif' => $this->resoudreRechercheCaptif($groupe, $quete, $personnage, $etat, $acteur),
                 'insubstantiel' => $this->resoudreInsubstantiel($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'toucher_mur_illusoire' => $this->resoudreMurIllusoire($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, de soi-même. Geste libre.
                 'retirer_deguisement' => $this->resoudreRetirerDeguisement($groupe, $personnage, $etat, $acteur),
                 // GLYPHES (mode classique, lot K6) : détruire un glyphe découvert — parchemin ou cheminée. Geste libre.
@@ -17223,6 +17224,8 @@ final class ResolveurTour
             'offre' => 'interaction',
             // L'INSUBSTANTIALITÉ (lot E2) : un usage pris à son tour ne coûte ni le déplacement ni l'action.
             'insubstantiel' => 'interaction',
+            // LE MUR ILLUSOIRE (lot E2) : toucher un mur ne coûte rien.
+            'toucher_mur_illusoire' => 'interaction',
             // La répartition du dé de la planque appartient à l'action qui l'a lancé (lot E2).
             'repartir_planque' => 'interaction',
             // « they instead knock on it (no action required) » (F6646 q. 3).
@@ -17870,6 +17873,16 @@ final class ResolveurTour
     private function resoudreInsubstantiel(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
         $payload = app(\App\Partie\Classique\Insubstantialite::class)->prendre($quete, $personnage, $etat, (string) ($option['parametres']['usage'] ?? ''));
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** LE MUR ILLUSOIRE (lot E2, Morcar q. 3 D) : `MursIllusoires::touchables()` revalidé ici ; la salle qu'il cachait se voit. */
+    private function resoudreMurIllusoire(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $payload = app(\App\Partie\Classique\MursIllusoires::class)->toucher($quete, $personnage, $etat,
+            (int) ($option['parametres']['x'] ?? -1), (int) ($option['parametres']['y'] ?? -1));
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;

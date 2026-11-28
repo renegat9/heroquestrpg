@@ -428,7 +428,8 @@ function clicQuete(evt) {
         }
         case 'bloc': {
             const i = q.blocs.findIndex(ici);
-            if (i >= 0) q.blocs.splice(i, 1); else q.blocs.push({ x, y });
+            // Lot E2 (Morcar q. 3 D) : un mur illusoire, qu'un héros dissipe en le touchant.
+            if (i >= 0) q.blocs.splice(i, 1); else q.blocs.push({ x, y, ...(choix.blocIllusoire ? { illusoire: true } : {}) });
             return;
         }
         case 'mobilier': {
@@ -1174,6 +1175,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                             <select v-if="outil === 'monstre'" v-model="choix.monstre" class="cst-input">
                                 <option v-for="m in couches.monstres" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
                             </select>
+                            <label v-if="outil === 'bloc'" class="cst-case" title="Un mur qui a l'air vrai ; un héros à son contact peut le toucher, et il se dissipe."><input v-model="choix.blocIllusoire" type="checkbox" /> mur illusoire</label>
                             <select v-if="outil === 'piege'" v-model="choix.piege" class="cst-input">
                                 <option v-for="m in (couches.pieges ?? []).filter((p) => !p.coffre)" :key="m.slug" :value="m.slug">{{ m.nom }}</option>
                             </select>

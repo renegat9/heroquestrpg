@@ -1767,7 +1767,11 @@ final class ValidationCampagne
             if ($bloc === null) {
                 continue;
             }
-            $this->cles($bloc, $position, self::CLES_CASE);
+            // Lot E2 (*Wizards of Morcar* q. 3 D) : `illusoire` — un mur qu'on dissipe en le touchant (`Classique\MursIllusoires`).
+            $this->cles($bloc, $position, self::CLES_CASE, ['illusoire']);
+            if (array_key_exists('illusoire', $bloc) && $bloc['illusoire'] !== true) {
+                $this->refuser(self::chemin($position, 'illusoire'), self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+            }
 
             $cellule = $this->cellule($bloc, $position);
             if ($cellule === null) {

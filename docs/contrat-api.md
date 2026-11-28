@@ -7313,6 +7313,12 @@ comme le livret — avant chaque quête, un animal gratuit par héros, pour cett
   types épargnés (héros : `frapper()`, `desDefenseHerosDetail()` ; monstres : `attaqueEffective()`, `defenseEffective()`) ;
   aucune figure de la salle ne tire (`MoteurSorts::tirInterdit()`, `attaqueDistanceEffective()` → `null`). Un héros qui voit
   dans le noir (`vision_nocturne`) n'en souffre pas (décision écrite). Distincte de `regles.obscurite_magique` (*Crypt*).
+- q. 3 D : « If a hero touches/strikes the wall […] it flutters and dissipates. It is an illusion. The illusion wall can't be
+  found by searching but can be walked through. » **`blocs[].illusoire: true`** (`Classique\MursIllusoires`) : de la roche
+  (marche et vue bloquées, aucune fouille ne le trouve) jusqu'à ce qu'un héros à son contact le touche — option gratuite
+  `toucher_mur_{x}_{y}` (type `toucher_mur_illusoire`, créneau `interaction`) ; la case redevient du sol. Résultat
+  `mur_illusoire {personnage_id, nom, x, y}` : « Albrecht tend la main vers le mur : il ondoie et se dissipe — ce n'était
+  qu'une illusion ».
 
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 

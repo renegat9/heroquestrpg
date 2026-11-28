@@ -1993,3 +1993,23 @@ it('salle ténébreuse : −2 dés en attaque et en défense dans la salle, sauf
     expect($sorts->desDefenseHeros($partie['heros']->fresh()))->toBe(max(min($dehorsDef, 1), $dehorsDef - 2))
         ->and($sorts->tirInterdit($partie['heros']->fresh()))->toBeTrue();
 });
+
+it('mur illusoire : un bloc qui bloque, jusqu\'à ce qu\'un héros à son contact le touche — gratuitement ; il se dissipe', function () {
+    $campagne = campagneE2(['blocs' => [['x' => 8, 'y' => 7, 'illusoire' => true]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['blocs' => [['x' => 8, 'y' => 7, 'illusoire' => 'oui']]])))->toBe([ValidationCampagne::TYPE_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    expect(\App\Partie\FabriqueGrille::pour($quete->fresh())->estTraversable(8, 7))->toBeFalse();
+
+    $quete->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 6]);
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $options = collect($this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk()->json('menu.options'))->pluck('id');
+    expect($options)->toContain('toucher_mur_8_7');
+
+    $resultat = $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'toucher_mur_8_7'])->assertAccepted()->json('resultat');
+    $etat = $quete->etatsPersonnages()->first();
+    expect($resultat['type'])->toBe('mur_illusoire')
+        ->and(\App\Partie\FabriqueGrille::pour($quete->fresh())->estTraversable(8, 7))->toBeTrue()
+        ->and((bool) $etat->a_agi)->toBeFalse()->and((bool) $etat->a_deplace)->toBeFalse();
+});

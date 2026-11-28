@@ -135,6 +135,8 @@ const ICONE_TYPE = {
     recherche_captif: 'person_search',
     // Devenir insubstantiel (Spirit Queen q. 14) : un fantôme.
     insubstantiel: 'blur_on',
+    // Toucher le mur illusoire (Morcar q. 3 D).
+    toucher_mur_illusoire: 'back_hand',
     // Un geste de quête (Spirit Queen q. 7, 8) : la main qui fait.
     geste_de_quete: 'back_hand',
     sort: 'auto_awesome',
