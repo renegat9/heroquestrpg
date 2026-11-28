@@ -415,6 +415,12 @@ final class NotesDeQuete
         return ['retires' => $retires];
     }
 
+    /** Lot E2 (*First Light* q. 6) — la bataille s'ouvre (`Bataille::ouvrir()`). */
+    private function effetBataille(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        return app(Bataille::class)->ouvrir($quete, $effet);
+    }
+
     /**
      * Lot E2 (*First Light* q. 4 B) — `nombre` cartes (4) du paquet d'équipement, tirées sans remise ; le héros garde la moins
      * chère (à prix égal, la première tirée). Le paquet : les cartes Hasbro du registre (`config/cartes.php`, `equipement`).
@@ -729,12 +735,20 @@ final class NotesDeQuete
 
         $quantite = max(1, (int) ($effet['quantite'] ?? 1));
         $deborde = ! RangementObjet::peutRanger($receveur, $objet, $quantite);
-        RangementObjet::ranger($objet, (int) $receveur->id, $quantite);
+        $ligne = RangementObjet::ranger($objet, (int) $receveur->id, $quantite);
+        // INERTE JUSQU'À LA FIN DE LA QUÊTE (lot E2, *First Light* q. 6 D : « the heroes do not know how to activate it and cannot use
+        // it until the quest is completed ») : la ligne d'inventaire est retenue dans la quête ; `MoteurCharges::utilisable()` la refuse.
+        if (! empty($effet['inerte_en_quete'])) {
+            $drapeaux = (array) $quete->relire('drapeaux')->drapeaux;
+            $drapeaux[\App\Partie\MoteurCharges::OBJETS_INERTES] = array_values(array_unique([...(array) ($drapeaux[\App\Partie\MoteurCharges::OBJETS_INERTES] ?? []), (int) $ligne->id]));
+            $quete->update(['drapeaux' => $drapeaux]);
+        }
 
         return [
             'objet' => ['id' => $objet->id, 'nom' => $objet->nom],
             'quantite' => $quantite,
             'receveur' => $receveur->nom,
+            ...(! empty($effet['inerte_en_quete']) ? ['inerte' => true] : []),
             ...($deborde ? ['sac_deborde' => true] : []),
         ];
     }
@@ -876,9 +890,21 @@ final class NotesDeQuete
         // Lot E2 (*The Crypt of Perpetual Darkness*, q. 7 B : « The hero must roll their Defend dice against 3 points of damage
         // from the glowing ooze ») : `jet_defense` — ses dés de défense, chaque bouclier blanc pare un point.
         $defense = ! empty($effet['jet_defense']) ? $this->defendreContre($heros, $body) : null;
-        $subis = app(MoteurDegats::class)->infligerAHeros($heros, $defense['reste'] ?? $body, MoteurDegats::SOURCE_PIEGE, ['note_de_quete' => true]);
+        // Lot E2 (*First Light* q. 6 D : « The hero must roll two movement dice. For each roll result of 6, the damage is reduced by
+        // 1 point ») : `reduit_par_six: n` — n dés rouges, chaque 6 ôte un point.
+        $sixes = null;
+        if (isset($effet['reduit_par_six'])) {
+            $des = [];
+            for ($i = 0; $i < max(1, (int) $effet['reduit_par_six']); $i++) {
+                $des[] = app(\App\Engine\Des\LanceurDes::class)->d6();
+            }
+            $sixes = ['des' => $des, 'reduits' => count(array_filter($des, fn (int $d) => $d === 6))];
+        }
+        $aSubir = max(0, ($defense['reste'] ?? $body) - ($sixes['reduits'] ?? 0));
+        $subis = app(MoteurDegats::class)->infligerAHeros($heros, $aSubir, MoteurDegats::SOURCE_PIEGE, ['note_de_quete' => true]);
 
         return ['degats' => (int) $subis, 'nom' => $heros->nom, ...($jet !== null ? ['jet' => $jet] : []),
+            ...($sixes !== null ? ['body' => $body, 'des_reduction' => $sixes['des'], 'reduits' => $sixes['reduits']] : []),
             ...($defense !== null ? ['body' => $body, 'defense' => $defense['faces'], 'pares' => $defense['pares']] : [])];
     }
 

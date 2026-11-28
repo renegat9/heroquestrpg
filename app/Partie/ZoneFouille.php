@@ -113,6 +113,12 @@ final class ZoneFouille
     }
 
     /** Une porte est dans la zone si l'une de ses deux cases y tombe. */
+    /** La zone est-elle un COULOIR (et non une salle) ? — lot E2, *First Light* q. 6 E. */
+    public function estCouloir(): bool
+    {
+        return $this->salle === null;
+    }
+
     public function contientPorte(array $porte): bool
     {
         foreach (Grille::casesPorte($porte) as $case) {

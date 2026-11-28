@@ -489,7 +489,9 @@ final class MoteurPortes
         // simplement jamais reçu de grille.
         return $this->revelerSecretes(
             $groupe, $carte, $personnage,
-            fn (array $porte) => $zone->contientPorte($porte),
+            // INTROUVABLE DU COULOIR (mode classique, lot E2 — *First Light* q. 6 E : « This secret door cannot be discovered from
+            // the corridor ») : fouillée depuis un couloir, elle reste un mur.
+            fn (array $porte) => $zone->contientPorte($porte) && ! (($porte['introuvable_du_couloir'] ?? false) === true && $zone->estCouloir()),
             'fouille',
         );
     }
@@ -551,9 +553,10 @@ final class MoteurPortes
             // Sur une arête, la porte n'a pas de case : on la voit dès qu'on voit L'UNE des deux cases dont elle est le
             // bord. Viser la seule case où l'auteur l'a écrite la rendait invisible depuis l'autre côté du mur — le
             // regard devait traverser le passage qu'il cherchait. Une porte à embrasure garde sa géométrie d'origine.
-            fn (array $porte) => Grille::porteSurArete($porte)
-                ? collect(Grille::casesPorte($porte))->contains(fn (array $c) => $grille->ligneDeVue($x, $y, $c['x'], $c['y']))
-                : $grille->ligneDeVue($x, $y, (int) $porte['x'], (int) $porte['y']),
+            fn (array $porte) => ! (($porte['introuvable_du_couloir'] ?? false) === true && Salles::indexDe((array) ($carte->grille['salles'] ?? []), $x, $y) === null)
+                && (Grille::porteSurArete($porte)
+                    ? collect(Grille::casesPorte($porte))->contains(fn (array $c) => $grille->ligneDeVue($x, $y, $c['x'], $c['y']))
+                    : $grille->ligneDeVue($x, $y, (int) $porte['x'], (int) $porte['y'])),
             'clairvoyance',
         );
     }

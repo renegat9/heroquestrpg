@@ -244,7 +244,7 @@ function retirerQuete(i) {
 
 // ---------------------------------------------------------------- quêtes : outils de la carte
 const outil = ref('salle');
-const choix = reactive({ porteOuverte: false, porteRevelee: false, porteCachee: false, porteSpeciale: '', siegePv: 2, siegeDefense: 3, siegeDrapeau: '', terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, piegeGouffre: false, piegeParNote: false, lameHorizontale: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
+const choix = reactive({ porteOuverte: false, porteRevelee: false, porteCachee: false, porteIntrouvableCouloir: false, porteSpeciale: '', siegePv: 2, siegeDefense: 3, siegeDrapeau: '', terrainCache: false, piegeIntrouvable: false, piegeIndesarmable: false, piegeGouffre: false, piegeParNote: false, lameHorizontale: false, typePorte: 'normale', verrouPorte: '', objetVerrou: '', conditionVerrou: '', mobilier: '', rotation: 0, monstre: '', piege: '', terrain: '', acces: 'escalier' });
 watch(catalogues, (c) => {
     if (!c) return;
     choix.mobilier ||= c.couches.mobilier?.[0]?.slug ?? '';
@@ -310,6 +310,8 @@ function etatDeDepartPorte() {
     if (choix.typePorte === 'secrete' && choix.porteRevelee) return { revelee: true };
     // Lot E2 : une porte que seule une note révèle (`reveler_porte`), jamais la fouille (F5815 q. 5 C).
     if (choix.typePorte === 'secrete' && choix.porteCachee) return { cachee: true };
+    // Lot E2 (First Light q. 6 E) : « This secret door cannot be discovered from the corridor ».
+    if (choix.typePorte === 'secrete' && choix.porteIntrouvableCouloir) return { introuvable_du_couloir: true };
     return {};
 }
 /** Une porte posée sur le bord du COULOIR se ramène au bord de la salle ouverte d'en face (la même arête). */
@@ -376,6 +378,13 @@ function recaler(q, liste, i) {
     if (liste === 'monstres') {
         (q.notes ?? []).forEach((note) => {
             (note.alors ?? []).forEach((effet) => {
+                // Lot E2 (First Light q. 6) : les deux camps de la bataille, même recalage.
+                if (effet.effet === 'bataille') {
+                    for (const cle of ['heros', 'zargon']) {
+                        if (Array.isArray(effet[cle])) effet[cle] = effet[cle].filter((k) => k !== i).map((k) => (k > i ? k - 1 : k));
+                    }
+                    return;
+                }
                 if (!['eveiller', 'retirer'].includes(effet.effet) || !Array.isArray(effet.monstres)) return;
                 effet.monstres = effet.monstres.filter((k) => k !== i).map((k) => (k > i ? k - 1 : k));
             });
@@ -753,10 +762,12 @@ function changerSiDrapeauSuite(i, valeur) {
 const declencheurs = computed(() => vocab.value.declencheurs_de_note ?? {});
 const effetsNote = computed(() => vocab.value.effets_de_note ?? {});
 const LIBELLES_PARAM = { texte: 'Texte lu', or: 'Or', body: 'Points de Corps', slug: 'Objet', quantite: 'Quantité', parmi: 'Parmi', issues: 'Issues', nom: 'Nom du drapeau', monstres: 'Monstres', porte: 'Porte',
-    sur_jet: 'Esquivé sous (1d6)', avec_casque: 'avec un Casque, sous', nombre: 'Nombre', au_heros_du_geste: 'au héros du geste n°' };
+    sur_jet: 'Esquivé sous (1d6)', avec_casque: 'avec un Casque, sous', nombre: 'Nombre', reduit_par_six: 'dés rouges (chaque 6 ôte 1 point)', au_heros_du_geste: 'au héros du geste n°' };
 // Lots K5n/K5o : les paramètres optionnels BOOLÉENS d'un effet — posés seulement quand ils valent true (`ValidationCampagne`
 // exige un booléen : un champ numérique les rendait refusés).
 const BOOLEENS_EFFET = {
+    // Lot E2 (First Light q. 6 D) : l'objet donné ne s'utilise pas avant la fin de la quête.
+    inerte_en_quete: 'inutilisable jusqu\'à la fin de la quête',
     toute_la_salle: 'tous les héros de sa salle',
     tous_les_heros: 'tous les héros de la quête',
     nombre_d6: 'seuls les 1d6 premiers paraissent',
@@ -849,7 +860,7 @@ function effetParDefaut(nom) {
     const effet = { effet: nom };
     for (const p of effetsNote.value[nom]?.parametres ?? []) {
         effet[p] = { texte: '', or: 10, body: 1, slug: nom === 'debloquer_mercenaire' ? (doc.value.mercenaires?.offerts?.[0] ?? '') : (catalogues.value?.objets?.[0]?.slug ?? ''),
-            nom: 'drapeau', monstres: [], porte: 0, x: 0, y: 0, jetons: 1, libelle: '', alors: [{ effet: 'texte', texte: '' }],
+            nom: 'drapeau', monstres: [], heros: [], zargon: [], porte: 0, x: 0, y: 0, jetons: 1, libelle: '', alors: [{ effet: 'texte', texte: '' }],
             // Lot E1 : le jet à deux issues, l'objet tiré parmi deux.
             issues: [{ de: 1, a: 3, alors: [{ effet: 'texte', texte: '' }] }, { de: 4, a: 6, alors: [{ effet: 'texte', texte: '' }] }],
             // Lot E2 (Delthrak) : deux étapes jouées dans l'ordre.
@@ -865,6 +876,16 @@ function effetParDefaut(nom) {
             en: (couches.value.monstres ?? []).find((m) => m.slug === 'orque')?.slug ?? couches.value.monstres?.[0]?.slug ?? '', pv_body: 2 }[p] ?? '';
     }
     return effet;
+}
+// Lot E2 (First Light q. 6) : une figure posée entre dans un camp de la bataille — et quitte l'autre.
+function basculerCampBataille(effet, cle, k, avec) {
+    const autre = cle === 'heros' ? 'zargon' : 'heros';
+    effet[cle] = (effet[cle] ?? []).filter((i) => i !== k);
+    if (avec) {
+        effet[cle].push(k);
+        effet[cle].sort((a, b) => a - b);
+        effet[autre] = (effet[autre] ?? []).filter((i) => i !== k);
+    }
 }
 function basculerEveil(effet, k, avec) {
     const liste = effet.monstres.filter((i) => i !== k);
@@ -1191,6 +1212,7 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                             </template>
                             <label v-if="outil === 'porte' && choix.typePorte === 'secrete'" class="cst-case"><input v-model="choix.porteRevelee" type="checkbox" /> déjà découverte</label>
                             <label v-if="outil === 'porte' && choix.typePorte === 'secrete' && !choix.porteRevelee" class="cst-case" title="Seule une note la révèle (« révéler la porte ») : la fouille ne la trouve jamais."><input v-model="choix.porteCachee" type="checkbox" /> cachée (révélée par une note)</label>
+                            <label v-if="outil === 'porte' && choix.typePorte === 'secrete' && !choix.porteRevelee && !choix.porteCachee" class="cst-case" title="La fouille ou la vue depuis un couloir ne la trouvent pas ; depuis la salle, si."><input v-model="choix.porteIntrouvableCouloir" type="checkbox" /> introuvable depuis le couloir</label>
                             <template v-if="outil === 'porte' && choix.typePorte === 'normale'">
                                 <select v-model="choix.verrouPorte" class="cst-input" title="Verrou de la porte">
                                     <option value="">sans verrou</option>
@@ -2298,6 +2320,13 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                         <select v-else-if="p === 'mobilier'" v-model.number="effet.mobilier" class="cst-input">
                                             <option v-for="(m, k) in quete.mobilier" :key="k" :value="k">meuble {{ k }} — {{ nomDe('mobilier', m.slug) }} ({{ m.x }}, {{ m.y }})</option>
                                         </select>
+                                        <!-- Lot E2 (First Light q. 6) : les deux camps de la bataille, des monstres POSÉS par leur index. -->
+                                        <div v-else-if="(p === 'heros' || p === 'zargon') && effet.effet === 'bataille'" class="cst-ligne">
+                                            <span class="cst-sous">{{ p === 'heros' ? 'Dirigés par les héros :' : 'Pour Zargon :' }}</span>
+                                            <label v-for="(m, k) in quete.monstres" :key="`bt${p}${k}`" class="cst-case">
+                                                <input type="checkbox" :checked="(effet[p] ?? []).includes(k)" @change="basculerCampBataille(effet, p, k, $event.target.checked)" /> {{ k }} · {{ m.nom ?? nomDe('monstres', m.slug) }}
+                                            </label>
+                                        </div>
                                         <!-- 2026-11-20 : `eveiller` désigne des monstres POSÉS par leur index — ceux qui sont inactifs. -->
                                         <div v-else-if="p === 'monstres' && (effet.effet === 'eveiller' || effet.effet === 'retirer')" class="cst-ligne">
                                             <span class="cst-sous">{{ effet.effet === 'retirer' ? 'Figures qui quittent le plateau :' : 'Monstres à éveiller (les monstres posés « inactif ») :' }}</span>

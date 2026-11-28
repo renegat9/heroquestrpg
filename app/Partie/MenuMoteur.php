@@ -1695,6 +1695,13 @@ final class MenuMoteur
             ];
         }
 
+        // LA BATAILLE (mode classique, lot E2 — First Light q. 6, « Playing the Battle ») : le tour du héros dirige un guerrier ;
+        // menu forcé (`Classique\Bataille::menu()`, liste blanche que le résolveur relit).
+        if ($etat !== null && $quete->estConstruite() && ! $etat->a_joue
+            && ($forceBataille = app(\App\Partie\Classique\Bataille::class)->menu($quete, $personnage, $etat)) !== null) {
+            return ['situation' => $forceBataille['situation'], 'options' => $this->avecCreneaux($forceBataille['options'])];
+        }
+
         // LES PORTAILS (mode classique, lot E2 — First Light q. 2 : « they must declare a number between 1-7 ») : menu forcé, un
         // numéro par portail, gratuit (`Classique\Portails`, que le résolveur relit).
         if ($etat !== null && ! $etat->tombe && $quete->estConstruite()

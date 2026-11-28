@@ -198,6 +198,10 @@ final class JournalCombat
         'portail_monstre' => true,
         // Lot E2 : la fouille d'un marqueur (First Light q. 1, les éclaireurs tombés) — les effets suivent, annoncés comme une note.
         'fouille_marqueur' => true,
+        // Lot E2 : la bataille (First Light q. 6) — le guerrier choisi, chaque coup, et la fin.
+        'bataille_diriger' => true,
+        'bataille_coup' => true,
+        'bataille_finie' => true,
         // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
         'soin_planque' => true,
         'repartir_planque' => true,
@@ -1565,6 +1569,11 @@ final class JournalCombat
                     .implode(' et ', array_map('intval', (array) ($a['des'] ?? []))).' — à lui de choisir',
                 'ton' => 'info',
             ]],
+            'bataille_diriger' => [$this->info(($a['nom'] ?? $acteurNom).' prend la tête de '.($a['monstre'] ?? 'un guerrier'))],
+            'bataille_coup' => $this->ligneBataille($a),
+            'bataille_finie' => [['texte' => ($a['vainqueur'] ?? null) === 'heros'
+                ? 'La bataille est gagnée : les guerriers survivants se retournent contre les héros, aux ordres de Zargon'
+                : 'Les guerriers dirigés par les héros sont tombés : la bataille est perdue', 'ton' => 'info']],
             'fouille_marqueur' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' : '.mb_strtolower((string) ($a['libelle'] ?? 'fouille')),
                 'ton' => 'info',
@@ -4286,6 +4295,30 @@ final class JournalCombat
             'texte' => $acteurNom.' '.($ok ? $reussite : $echec),
             'ton' => $ok ? 'succes' : 'echec',
         ]];
+    }
+
+    /**
+     * Lot E2 (*First Light* q. 6) : le coup d'une figure de la bataille sur une autre.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function ligneBataille(array $a): array
+    {
+        $qui = (string) ($a['monstre'] ?? 'Un guerrier').(isset($a['maitre']) ? ' (dirigé par '.$a['maitre'].')' : '');
+        $cible = (string) ($a['cible'] ?? '');
+        if ($cible === '') {
+            return [$this->info("{$qui} reste sur place")];
+        }
+        if (empty($a['attaque'])) {
+            return [$this->info("{$qui} marche vers {$cible} sans l'atteindre")];
+        }
+        if (! empty($a['cible_vaincue'])) {
+            return [['texte' => "{$qui} terrasse {$cible} !", 'ton' => 'mort']];
+        }
+
+        return [(int) ($a['degats'] ?? 0) > 0
+            ? ['texte' => "{$qui} frappe {$cible} (−".(int) $a['degats'].' PV)', 'ton' => 'degats']
+            : ['texte' => "{$cible} pare le coup de {$qui}", 'ton' => 'pare']];
     }
 
     /** @return array{texte: string, ton: string} */

@@ -428,6 +428,12 @@ final class MotsClesQuete
      */
     public const EQUIPEMENT_LE_MOINS_CHER = 'equipement_le_moins_cher';
 
+    /**
+     * Lot E2 (*First Light* q. 6, « Playing the Battle ») — `heros: [index]`, `zargon: [index]` : deux camps de figures posées ;
+     * les héros dirigent les premières, Zargon les secondes, jusqu'à ce qu'un camp tombe (`Classique\Bataille`).
+     */
+    public const BATAILLE = 'bataille';
+
     /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `etapes[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
     public const EFFETS_COMPOSES = [self::OFFRE, self::JET, self::EN_ORDRE];
 
@@ -443,7 +449,7 @@ final class MotsClesQuete
         self::OR => ['parametres' => ['or'], 'optionnels' => ['partage'], 'lecteur' => 'effetOr', 'libelle' => 'donner de l\'or au héros'],
         // `sinon` (lot E1) : ce qui se joue à la place quand le groupe a déjà l'objet (« instead finds 500 gold coins », F9907).
         // `au_heros_du_geste` (lot E2, *Wizards of Morcar* q. 2 A : « the hero who prayed ») : au premier héros qui a fait ce geste.
-        self::OBJET => ['parametres' => ['slug'], 'optionnels' => ['quantite', 'si_absent_du_groupe', 'sinon', 'au_heros_du_geste'], 'lecteur' => 'effetObjet', 'libelle' => 'donner un objet au héros'],
+        self::OBJET => ['parametres' => ['slug'], 'optionnels' => ['quantite', 'si_absent_du_groupe', 'sinon', 'au_heros_du_geste', 'inerte_en_quete'], 'lecteur' => 'effetObjet', 'libelle' => 'donner un objet au héros'],
         self::OBJET_AU_HASARD => ['parametres' => ['parmi'], 'optionnels' => ['quantite', 'au_heros_du_geste'], 'lecteur' => 'effetObjetAuHasard', 'libelle' => 'donner un objet tiré au hasard dans une liste'],
         self::JET => ['parametres' => ['issues'], 'optionnels' => ['des'], 'lecteur' => 'effetJet', 'libelle' => 'lancer des dés : l\'issue choisit les effets'],
         self::RETIRER => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetRetirer', 'libelle' => 'retirer des figures du plateau (fuite, disparition)'],
@@ -461,7 +467,7 @@ final class MotsClesQuete
         self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6', 'pres_du_heros', 'au_hasard'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
         // `jet_defense` (lot E2, *The Crypt of Perpetual Darkness* q. 7 B : « roll their Defend dice against 3 points of damage ») :
         // chaque héros touché lance ses dés de défense, chaque bouclier blanc pare un point.
-        self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle', 'tous_les_heros', 'jet_defense'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
+        self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle', 'tous_les_heros', 'jet_defense', 'reduit_par_six'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
         self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => ['campagne'], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],
         self::OUVRIR_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetOuvrirPorte', 'libelle' => 'ouvrir une porte'],
         self::EVEILLER => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetEveiller', 'libelle' => 'éveiller des figures inactives'],
@@ -483,6 +489,7 @@ final class MotsClesQuete
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],
         self::EN_RESERVE => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetEnReserve', 'libelle' => 'placer des figures dans la zone hors du plateau'],
         self::SOIGNER => ['parametres' => [], 'optionnels' => ['body', 'mind'], 'lecteur' => 'effetSoigner', 'libelle' => 'soigner le héros (Corps, Esprit : un nombre ou « tout »)'],
+        self::BATAILLE => ['parametres' => ['heros', 'zargon'], 'optionnels' => [], 'lecteur' => 'effetBataille', 'libelle' => 'ouvrir une bataille : les héros dirigent un camp de monstres contre celui de Zargon'],
         self::EQUIPEMENT_LE_MOINS_CHER => ['parametres' => [], 'optionnels' => ['nombre'], 'lecteur' => 'effetEquipementLeMoinsCher', 'libelle' => 'tirer des cartes d\'équipement, le héros garde la moins chère'],
         self::ORACLE => ['parametres' => ['don'], 'optionnels' => [], 'lecteur' => 'effetOracle', 'libelle' => 'la Bénédiction ou la Malédiction de l\'Oracle'],
         self::CARTES_AU_CHOIX => ['parametres' => [], 'optionnels' => ['nombre'], 'lecteur' => 'effetCartesAuChoix', 'libelle' => 'tirer des cartes de trésor, le héros en garde une'],

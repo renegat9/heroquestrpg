@@ -765,6 +765,8 @@ final class ResolveurTour
                 'garder_carte' => $this->resoudreCarteGardee($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'traverser_portail' => $this->resoudreTraversePortail($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'fouille_marqueur' => $this->resoudreFouilleMarqueur($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'bataille_diriger' => $this->journaliserBataille($groupe, app(\App\Partie\Classique\Bataille::class)->diriger($quete, $personnage, (int) ($option['parametres']['instance_id'] ?? 0)), $acteur),
+                'bataille_coup' => $this->journaliserBataille($groupe, app(\App\Partie\Classique\Bataille::class)->frapper($groupe, $quete, $personnage, $etat, (int) ($option['parametres']['cible_id'] ?? -1)), $acteur),
                 // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, de soi-même. Geste libre.
                 'retirer_deguisement' => $this->resoudreRetirerDeguisement($groupe, $personnage, $etat, $acteur),
                 // GLYPHES (mode classique, lot K6) : détruire un glyphe découvert — parchemin ou cheminée. Geste libre.
@@ -14450,6 +14452,24 @@ final class ResolveurTour
                 $actions[] = $reveil;
             }
 
+            // LA BATAILLE (mode classique, lot E2 — First Light q. 6) : les guerriers que dirigent les héros ne jouent pas pour
+            // Zargon ; ceux de son camp vont chercher le guerrier dirigé le plus proche (`Classique\Bataille`).
+            if ($quete->estConstruite() && \App\Partie\Classique\Bataille::enCours($quete) !== null) {
+                if (\App\Partie\Classique\Bataille::dirigeeParLesHeros($quete, $instance)) {
+                    continue;
+                }
+                if (\App\Partie\Classique\Bataille::duCampDeZargon($quete, $instance)) {
+                    $coup = app(\App\Partie\Classique\Bataille::class)->tourDeZargon($groupe, $quete, $instance->fresh());
+                    $dejaJoues[] = (int) $instance->id;
+                    if ($coup !== null) {
+                        Journal::ajouter($groupe, 'combat', $coup, ['type' => 'monstre', 'id' => $instance->id, 'nom' => $instance->nomAffiche()]);
+                        $actions[] = $coup;
+                    }
+
+                    continue;
+                }
+            }
+
             $this->dread->definirMonstresDejaJoues($dejaJoues);
 
             $cibles = $this->ciblesDesMonstres($quete);
@@ -17331,6 +17351,8 @@ final class ResolveurTour
             'garder_carte' => 'interaction',
             // LES PORTAILS (lot E2) : le passage compte un pas, retiré par le service ; le choix lui-même ne coûte rien de plus.
             'traverser_portail' => 'interaction',
+            // La bataille (lot E2, First Light q. 6) : choisir le guerrier est gratuit ; son coup clôt le tour (`FinDeTourForcee`).
+            'bataille_diriger' => 'interaction',
             // La répartition du dé de la planque appartient à l'action qui l'a lancé (lot E2).
             'repartir_planque' => 'interaction',
             // « they instead knock on it (no action required) » (F6646 q. 3).
@@ -17981,6 +18003,25 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
+    }
+
+    /** LA BATAILLE (lot E2, First Light q. 6) : le geste du héros, revalidé par `Classique\Bataille`, est journalisé ici. */
+    private function journaliserBataille(Groupe $groupe, array $payload, array $acteur): array
+    {
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * LA BATAILLE (mode classique, lot E2 — First Light q. 6) : une figure d'un camp marche vers une figure de l'autre et la
+     * frappe — le coup de la Baguette d'Os et du Monster vs Monster (`frapperEntreMonstres()`), un seul point de passage.
+     *
+     * @return array<string, mixed>
+     */
+    public function coupDeBataille(Quete $quete, InstanceMonstre $attaquant, InstanceMonstre $cible): array
+    {
+        return $this->frapperEntreMonstres($quete, $attaquant, $cible);
     }
 
     /** LES MARQUEURS FOUILLABLES (lot E2, First Light q. 1) : l'action, revalidée ; les effets de l'auteur se jouent. */

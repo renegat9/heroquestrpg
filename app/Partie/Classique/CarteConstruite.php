@@ -160,6 +160,10 @@ final class CarteConstruite
             if (($porte['cachee'] ?? false) === true && $secrete) {
                 $entree['cachee'] = true;
             }
+            // INTROUVABLE DU COULOIR (lot E2, *First Light* q. 6 E) : la fouille ou la vue depuis un couloir ne la trouvent pas.
+            if (($porte['introuvable_du_couloir'] ?? false) === true && $secrete) {
+                $entree['introuvable_du_couloir'] = true;
+            }
             if (($porte['revelee'] ?? false) === true && $secrete) {
                 $entree['etat'] = MoteurPortes::ETAT_FERMEE;
                 $entree['revele'] = true;

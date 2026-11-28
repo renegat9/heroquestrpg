@@ -911,6 +911,11 @@ trait LignesEffetsAutomatiques
                         ? ['texte' => implode(', ', $noms).(count($noms) > 1 ? ' surgissent' : ' surgit').' de nulle part !', 'ton' => 'subit']
                         : ['texte' => 'Rien ne surgit : aucun monstre errant ne rôde', 'ton' => 'info']);
                     break;
+                // Lot E2 (*First Light* q. 6) : la bataille s'ouvre.
+                case 'bataille':
+                    $lignes[] = ['texte' => 'La bataille s\'engage : '.implode(', ', (array) ($effet['heros'] ?? [])).' aux ordres des héros, contre '
+                        .implode(', ', (array) ($effet['zargon'] ?? [])).' — chaque héros dirige un guerrier à son tour', 'ton' => 'info'];
+                    break;
                 // Lot E2 (*First Light* q. 4 B) : quatre cartes d'équipement, la moins chère gardée.
                 case 'equipement_le_moins_cher':
                     if (($effet['garde'] ?? null) !== null) {
@@ -985,7 +990,8 @@ trait LignesEffetsAutomatiques
                         $quantite = (int) ($effet['quantite'] ?? 1);
                         $lignes[] = [
                             'texte' => ($effet['receveur'] ?? $heros).' trouve '.$effet['objet']['nom'].($quantite > 1 ? " ×{$quantite}" : '')
-                                .(! empty($effet['sac_deborde']) ? ' — son sac déborde' : ''),
+                                .(! empty($effet['sac_deborde']) ? ' — son sac déborde' : '')
+                                .(! empty($effet['inerte']) ? ' — inutilisable avant la fin de la quête' : ''),
                             'ton' => 'tresor',
                         ];
                     }
@@ -998,7 +1004,12 @@ trait LignesEffetsAutomatiques
                     break;
                 case 'degats':
                     // Lot E2 (Crypte q. 7 B) : le jet de défense contre N points — la défense pare, le reste blesse.
-                    if (isset($effet['pares'])) {
+                    // Lot E2 (First Light q. 6 D) : les dés rouges, chaque 6 ôte un point.
+                    if (isset($effet['reduits'])) {
+                        $lignes[] = ['texte' => ($effet['nom'] ?? $heros).' lance '.implode(', ', (array) ($effet['des_reduction'] ?? [])).' contre '.(int) ($effet['body'] ?? 0)
+                            .' point(s) : '.(int) $effet['reduits'].' six'.((int) ($effet['degats'] ?? 0) > 0 ? ', perd '.(int) $effet['degats'].' point(s) de Corps' : ', indemne'),
+                            'ton' => (int) ($effet['degats'] ?? 0) > 0 ? 'degats' : 'succes'];
+                    } elseif (isset($effet['pares'])) {
                         $lignes[] = ['texte' => ($effet['nom'] ?? $heros).' se défend contre '.(int) ($effet['body'] ?? 0).' point(s) : '
                             .(int) $effet['pares'].' paré(s)'.((int) ($effet['degats'] ?? 0) > 0 ? ', perd '.(int) $effet['degats'].' point(s) de Corps' : ', indemne'),
                             'ton' => (int) ($effet['degats'] ?? 0) > 0 ? 'degats' : 'succes'];

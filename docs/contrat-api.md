@@ -7423,6 +7423,29 @@ hors brouillard (`carte.marqueurs: [{x, y}]`) ; le héros au contact (ou dessus)
 creature. The creature knows this spell and may use it once » : **`monstres[].sort_dread_parmi: [slug, …]`** (au moins
 deux) — un sort tiré à la pose, gardé dans l'habillage, joint à `sorts_dread`.
 
+*First Light* q. 6 (FL-Q p. 20, 23) :
+- « Playing the Battle » (p. 20) : effet **`bataille {heros: [index], zargon: [index]}`** (`Classique\Bataille`) — deux camps de
+  figures posées, révélées et éveillées à l'ouverture (leur salle aussi). Décision de René (2026-11-22) : reprendre le Monster vs
+  Monster de l'arène « si possible » — son salon et sa manette vivent dans un groupe d'arène ; on en reprend le COUP
+  (`ResolveurTour::coupDeBataille()` → `frapperEntreMonstres()`, celui de la Baguette d'Os). Décisions écrites :
+  - au tour d'un héros, menu FORCÉ : `bataille_diriger_{id}` (gratuit) — un guerrier de son camp qui n'a pas joué ce round
+    (`quetes.tours_mj` date le round) —, puis `bataille_frapper_{id}` (type `bataille_coup`) : le guerrier marche de son
+    déplacement vers cet adversaire et frappe s'il l'atteint ; `bataille_frapper_0` le laisse sur place ; le tour s'arrête
+    (`FinDeTourForcee`). Le héros lui-même n'agit pas pendant la bataille ; « Terminer le tour » reste offert ;
+  - au tour de Zargon : chaque figure de son camp va chercher le guerrier dirigé le plus proche ; les guerriers dirigés ne
+    jouent pas pour lui ; les autres monstres du donjon jouent comme d'ordinaire ;
+  - un camp sans figure debout : `bataille_finie {vainqueur: heros|zargon}` ; les survivants redeviennent des monstres de
+    Zargon (« will attack the heroes as usual »). État : `quetes.drapeaux._bataille`. Annonces `bataille_diriger {nom,
+    monstre}`, `bataille_coup {maitre?, monstre, cible, attaque, touches, boucliers, degats, cible_vaincue}`.
+  - Écart écrit : le guerrier dirigé ne traverse pas les autres guerriers dirigés (« may move through squares occupied by
+    other hero-controlled monsters ») — le chemin de `frapperEntreMonstres()` les contourne.
+- D : « The flames inflict 2 Body Points of damage. The hero must roll two movement dice. For each roll result of 6, the
+  damage is reduced by 1 point » : `degats.reduit_par_six: n` (1 à 4 dés rouges). « the heroes […] cannot use it until the
+  quest is completed » : `objet.inerte_en_quete: true` — la ligne d'inventaire est retenue (`quetes.drapeaux._objets_inertes`),
+  `MoteurCharges::utilisable()` la refuse pendant cette quête (menu et usage).
+- E : « This secret door cannot be discovered from the corridor » : `portes[].introuvable_du_couloir: true` (porte secrète) —
+  la fouille d'un couloir (`ZoneFouille::estCouloir()`) et la vue depuis un couloir ne la trouvent pas.
+
 *First Light* q. 3 (FL-Q p. 15) :
 - « Heroes may not end their movement on the eye tile » : **`regles.cases_sans_arret: [{x, y}]`** — jointes, dans
   `FabriqueGrille::pour()`, au jeu des cases interdites à l'arrêt (mare, brasier) : on les traverse, on ne s'y arrête pas.

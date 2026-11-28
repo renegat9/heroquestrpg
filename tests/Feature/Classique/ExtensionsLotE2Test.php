@@ -2431,3 +2431,104 @@ it('q. 5 : la créature de la cellule reçoit UN sort tiré parmi trois, gardé 
     $noms = collect(app(\App\Partie\Classique\CatalogueConstructeur::class)->index('sorts_dread'))->only($slugs)->map(fn ($s) => $s->nom)->values()->all();
     expect($sorts)->toHaveCount(1)->and($noms)->toContain($sorts[0]);
 });
+
+// ---------------------------------------------------------------- First Light : la bataille (q. 6)
+
+it('q. 6 : la bataille — le héros dirige un guerrier par le menu forcé, son coup clôt le tour ; Zargon frappe le guerrier, pas le héros ; un camp tombé, elle finit', function () {
+    $campagne = campagneE2([
+        'monstres' => [['slug' => 'guerrier-du-chaos', 'x' => 9, 'y' => 3], ['slug' => 'orque', 'x' => 9, 'y' => 5, 'pv_body' => 3]],
+        'notes' => [['repere' => 'B', 'quand' => ['declencheur' => 'entree', 'cible' => ['salle' => 'galerie']], 'alors' => [
+            ['effet' => 'bataille', 'heros' => [0], 'zargon' => [1]],
+        ]]],
+    ]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 5]], 'notes' => [['repere' => 'B',
+            'quand' => ['declencheur' => 'entree', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'bataille', 'heros' => [0], 'zargon' => [0]]]]]])))
+        ->toContain('valeur_invalide');
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    [$guerrier, $orque] = $quete->instancesMonstres()->orderBy('id')->get()->all();
+    app(\App\Partie\Classique\NotesDeQuete::class)->jouerEffets($quete->fresh(), [['effet' => 'bataille', 'heros' => [0], 'zargon' => [1]]], 'B', $partie['heros']);
+    expect(\App\Partie\Classique\Bataille::enCours($quete->fresh()))->not->toBeNull()
+        ->and($orque->fresh()->revele)->toBeTrue();
+
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 3, 'position_y' => 3, 'a_joue' => false]);
+    $menu = fn () => collect(app(\App\Partie\MenuMoteur::class)->generer($partie['groupe']->fresh(), $partie['heros']->fresh())['options'])->pluck('id')->all();
+    expect($menu())->toBe(["bataille_diriger_{$guerrier->id}", 'attendre']);
+
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => "bataille_diriger_{$guerrier->id}"])->assertAccepted();
+    expect($menu())->toBe(["bataille_frapper_{$orque->id}", 'bataille_frapper_0']);
+
+    // Le guerrier (9, 3) va chercher l'orque (9, 5) : il marche au contact, frappe (4 crânes), l'orque ne pare rien.
+    app()->instance(LanceurDes::class, new LanceurDeterministe([1, 1, 1, 1, 6, 6, ...array_fill(0, 30, 6)]));
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+    $r = $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => "bataille_frapper_{$orque->id}"])->assertAccepted()->json('resultat');
+    expect($r['type'] ?? null)->toBe('bataille_coup')
+        ->and($guerrier->fresh()->touche((int) $orque->fresh()->position_x, (int) $orque->fresh()->position_y))->toBeTrue();
+});
+
+it('q. 6 : au tour de Zargon, son camp frappe le guerrier dirigé ; les guerriers des héros ne jouent pas pour lui ; la fin rend la main', function () {
+    $campagne = campagneE2(['monstres' => [['slug' => 'guerrier-du-chaos', 'x' => 9, 'y' => 3, 'pv_body' => 1], ['slug' => 'orque', 'x' => 9, 'y' => 4]]]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    [$guerrier, $orque] = $quete->instancesMonstres()->orderBy('id')->get()->all();
+    app(\App\Partie\Classique\NotesDeQuete::class)->jouerEffets($quete->fresh(), [['effet' => 'bataille', 'heros' => [0], 'zargon' => [1]]], 'B', $partie['heros']);
+    // Le héros, au contact de l'orque : sans la bataille, l'orque le frapperait.
+    $quete->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 4]);
+    $pv = (int) $partie['heros']->fresh()->pv_body;
+
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 40, 1)));
+    $phase = new ReflectionMethod(ResolveurTour::class, 'phaseMonstres');
+    $actions = (array) ($phase->invoke(app(ResolveurTour::class), $partie['groupe'], $quete->fresh())['actions'] ?? []);
+    expect(collect($actions)->where('type', 'bataille_coup')->count())->toBe(1)
+        ->and(collect($actions)->where('type', 'attaque_monstre')->count())->toBe(0)
+        ->and((int) $partie['heros']->fresh()->pv_body)->toBe($pv)
+        ->and($guerrier->fresh()->etat)->toBe('vaincu')
+        ->and(\App\Partie\Classique\Bataille::enCours($quete->fresh()))->toBeNull()
+        ->and(data_get($quete->fresh()->drapeaux, '_bataille.finie'))->toBe('zargon');
+
+    // La bataille finie, l'orque est un monstre de Zargon comme un autre : il frappe le héros.
+    $quete->etatsPersonnages()->update(['a_joue' => false]);
+    $actions = (array) ($phase->invoke(app(ResolveurTour::class), $partie['groupe'], $quete->fresh())['actions'] ?? []);
+    expect(collect($actions)->where('type', 'attaque_monstre')->count())->toBe(1);
+});
+
+it('q. 6 : l\'anneau inutilisable avant la fin de la quête ; les dégâts réduits par les 6', function () {
+    $partie = partieE2($this, campagneE2());
+    $quete = $partie['quete'];
+    $notes = app(\App\Partie\Classique\NotesDeQuete::class);
+
+    // L'anneau, donné inerte : la charge existe, mais `utilisable()` dit non dans cette quête.
+    $notes->jouerEffets($quete->fresh(), [['effet' => 'objet', 'slug' => 'anneau-du-retour', 'inerte_en_quete' => true]], 'D', $partie['heros']);
+    $ligne = $partie['heros']->inventaire()->whereHas('objet', fn ($q) => $q->where('nom', 'Anneau du Retour'))->first();
+    $etat = $quete->etatsPersonnages()->first();
+    expect($ligne)->not->toBeNull()
+        ->and(app(\App\Partie\MoteurCharges::class)->disponible($ligne))->toBeTrue()
+        ->and(app(\App\Partie\MoteurCharges::class)->utilisable($ligne, $etat->fresh()))->toBeFalse()
+        ->and(app(\App\Partie\MoteurCharges::class)->utilisable($ligne))->toBeTrue(); // hors quête : utilisable
+
+    // 2 points ; deux dés rouges : un 6 et un 3 — 1 point subi.
+    $pv = (int) $partie['heros']->fresh()->pv_body;
+    app()->instance(LanceurDes::class, new LanceurDeterministe([6, 3]));
+    $notes->jouerEffets($quete->fresh(), [['effet' => 'degats', 'body' => 2, 'reduit_par_six' => 2]], 'D', $partie['heros']);
+    expect((int) $partie['heros']->fresh()->pv_body)->toBe($pv - 1);
+});
+
+it('q. 6 E : la porte secrète introuvable depuis le couloir — la fouille du couloir ne la trouve pas, celle de la salle si', function () {
+    $campagne = campagneE2();
+    $campagne['quetes'][0]['portes'][2]['introuvable_du_couloir'] = true;
+    expect($campagne['quetes'][0]['portes'][2]['type'])->toBe('secrete')->and(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $carte = $partie['quete']->carte;
+    $portes = app(\App\Partie\MoteurPortes::class);
+
+    $couloir = \App\Partie\ZoneFouille::de((array) $carte->grille, 9, 6);
+    expect($couloir->estCouloir())->toBeTrue()
+        ->and($portes->revelerSecretesAutour($partie['groupe'], $carte->fresh(), $partie['heros'], $couloir))->toBe([]);
+    $salle = \App\Partie\ZoneFouille::de((array) $carte->fresh()->grille, 9, 4);
+    expect($portes->revelerSecretesAutour($partie['groupe'], $carte->fresh(), $partie['heros'], $salle))->toHaveCount(1);
+});

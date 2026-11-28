@@ -188,7 +188,23 @@ final class MoteurCharges
      */
     public function utilisable(?Inventaire $ligne, ?EtatPersonnageQuete $etat = null): bool
     {
-        return $this->disponible($ligne) && $this->fenetreOuverte($ligne, $etat);
+        return $this->disponible($ligne) && $this->fenetreOuverte($ligne, $etat) && ! $this->inerteEnQuete($ligne, $etat);
+    }
+
+    /**
+     * Mode classique, lot E2 (*First Light* q. 6 D : « cannot use it until the quest is completed ») : les lignes d'inventaire
+     * qu'une note a données inertes pour cette quête (`quetes.drapeaux._objets_inertes`, ids d'inventaire).
+     */
+    public const OBJETS_INERTES = '_objets_inertes';
+
+    private function inerteEnQuete(?Inventaire $ligne, ?EtatPersonnageQuete $etat): bool
+    {
+        if ($ligne === null || $etat === null || $etat->quete_id === null) {
+            return false;
+        }
+        $inertes = (array) data_get(\App\Models\Quete::query()->whereKey($etat->quete_id)->value('drapeaux'), self::OBJETS_INERTES, []);
+
+        return in_array((int) $ligne->id, array_map('intval', $inertes), true);
     }
 
     /**

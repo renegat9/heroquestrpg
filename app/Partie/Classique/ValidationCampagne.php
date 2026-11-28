@@ -171,7 +171,7 @@ final class ValidationCampagne
     private const LONGUEUR_REPERE = 40;
     private const LONGUEUR_DRAPEAU = 40;
     private const CLES_PORTE = ['x', 'y', 'cote', 'type'];
-    private const CLES_PORTE_OPTIONNELLES = ['verrou', 'ouverte', 'revelee', 'cachee', 'frapper', 'assiegee'];
+    private const CLES_PORTE_OPTIONNELLES = ['verrou', 'ouverte', 'revelee', 'cachee', 'frapper', 'assiegee', 'introuvable_du_couloir'];
     private const CLES_CASE = ['x', 'y'];
     private const CLES_MOBILIER = ['slug', 'x', 'y', 'rotation'];
     private const CLES_POSE = ['slug', 'x', 'y'];
@@ -1297,8 +1297,10 @@ final class ValidationCampagne
                 $this->auHerosDuGeste($effet, $position, $quete);
                 $this->slugCatalogue($effet, 'slug', $position, 'objets');
                 $this->entier($effet, 'quantite', $position, min: 1);
-                if (array_key_exists('si_absent_du_groupe', $effet) && ! is_bool($effet['si_absent_du_groupe'])) {
-                    $this->refuser("$position.si_absent_du_groupe", self::TYPE_INVALIDE, 'true ou false est attendu');
+                foreach (['si_absent_du_groupe', 'inerte_en_quete'] as $cleBool) {
+                    if (array_key_exists($cleBool, $effet) && ! is_bool($effet[$cleBool])) {
+                        $this->refuser("$position.$cleBool", self::TYPE_INVALIDE, 'true ou false est attendu');
+                    }
                 }
                 // SINON (lot E1) : les effets joués quand le groupe a déjà l'objet.
                 if (array_key_exists('sinon', $effet)) {
@@ -1393,6 +1395,10 @@ final class ValidationCampagne
                         $this->refuser("$position.$cleCibles", self::TYPE_INVALIDE, 'true ou false est attendu');
                     }
                 }
+                // Lot E2 (*First Light* q. 6 D) : 1 à 4 dés rouges ; chaque 6 ôte un point.
+                if (array_key_exists('reduit_par_six', $effet) && ($n = $this->entier($effet, 'reduit_par_six', $position, min: 1)) !== null && $n > 4) {
+                    $this->refuser("$position.reduit_par_six", self::VALEUR_INVALIDE, 'au plus 4 dés');
+                }
                 break;
             // Lot E2 (*Prophecy of Telor*) : le talisman — sort appris, Esprit du livret, objet changé en un autre.
             case MotsClesQuete::APPRENDRE_SORT_DREAD:
@@ -1427,6 +1433,23 @@ final class ValidationCampagne
                         $this->cles($etape, $ici, ['alors']);
                         $this->sousEffets($etape, 'alors', $ici, $quete);
                     }
+                }
+                break;
+            // Lot E2 (*First Light* q. 6) : deux camps de figures posées, chacun au moins une, sans figure dans les deux.
+            case MotsClesQuete::BATAILLE:
+                $camps = [];
+                foreach (['heros', 'zargon'] as $cle) {
+                    $liste = $this->enListe($effet[$cle] ?? null, "$position.$cle");
+                    if ($liste === []) {
+                        $this->refuser("$position.$cle", self::VALEUR_INVALIDE, 'au moins une figure posée dans ce camp');
+                    }
+                    foreach ((array) $liste as $j => $index) {
+                        $this->indexDe($quete, 'monstres', $index, "$position.$cle.$j");
+                    }
+                    $camps[$cle] = array_filter((array) $liste, 'is_int');
+                }
+                if (array_intersect($camps['heros'], $camps['zargon']) !== []) {
+                    $this->refuser($position, self::VALEUR_INVALIDE, 'une figure ne se bat pas dans les deux camps');
                 }
                 break;
             // Lot E2 (*First Light* q. 4 B) : des cartes d'équipement, la moins chère gardée — au plus le paquet (20 cartes).
@@ -1721,7 +1744,8 @@ final class ValidationCampagne
             if (($porte['cachee'] ?? false) === true && ($porte['revelee'] ?? false) === true) {
                 $this->refuser("$position.cachee", self::VALEUR_INVALIDE, 'une porte cachée ne peut pas être déjà découverte');
             }
-            foreach (['ouverte' => 'normale', 'revelee' => 'secrete', 'cachee' => 'secrete'] as $cle => $typeAttendu) {
+            // `introuvable_du_couloir` (lot E2, *First Light* q. 6 E) : une porte secrète aussi.
+            foreach (['ouverte' => 'normale', 'revelee' => 'secrete', 'cachee' => 'secrete', 'introuvable_du_couloir' => 'secrete'] as $cle => $typeAttendu) {
                 if (! array_key_exists($cle, $porte)) {
                     continue;
                 }
@@ -1729,7 +1753,8 @@ final class ValidationCampagne
                     $this->refuser("$position.$cle", self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
                 } elseif (($porte['type'] ?? null) !== $typeAttendu) {
                     $this->refuser("$position.$cle", self::VALEUR_INVALIDE, $cle === 'ouverte'
-                        ? 'seule une porte normale peut être ouverte au départ' : 'seule une porte secrète peut être '.($cle === 'cachee' ? 'cachée' : 'déjà découverte'));
+                        ? 'seule une porte normale peut être ouverte au départ' : 'seule une porte secrète peut être '.match ($cle) {
+                            'cachee' => 'cachée', 'introuvable_du_couloir' => 'introuvable depuis le couloir', default => 'déjà découverte' });
                 } elseif ($cle === 'ouverte' && array_key_exists('verrou', $porte)) {
                     $this->refuser("$position.ouverte", self::VALEUR_INVALIDE, 'une porte ouverte au départ ne porte pas de verrou');
                 }

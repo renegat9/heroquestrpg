@@ -143,6 +143,9 @@ const ICONE_TYPE = {
     garder_carte: 'style',
     // Passer un portail (First Light q. 2).
     traverser_portail: 'door_open',
+    // La bataille (First Light q. 6).
+    bataille_diriger: 'swords',
+    bataille_coup: 'swords',
     // Fouiller un marqueur (First Light q. 1).
     fouille_marqueur: 'search',
     // Un geste de quête (Spirit Queen q. 7, 8) : la main qui fait.
