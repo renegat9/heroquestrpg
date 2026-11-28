@@ -3725,6 +3725,19 @@ final class MenuMoteur
             }
         }
 
+        // LES MARQUEURS FOUILLABLES (mode classique, lot E2 — First Light q. 1, les éclaireurs tombés) : une ACTION, au contact
+        // (`Classique\MarqueursFouillables::aPortee()`, que le résolveur relit).
+        if (! $aJoue && $etat !== null && $quete->estConstruite()) {
+            foreach (app(\App\Partie\Classique\MarqueursFouillables::class)->aPortee($quete, $etat) as $marqueur) {
+                $options[] = [
+                    'id' => "fouiller_marqueur_{$marqueur['x']}_{$marqueur['y']}",
+                    'libelle' => \App\Partie\Classique\MarqueursFouillables::libelle($quete),
+                    'type' => 'fouille_marqueur',
+                    'parametres' => $marqueur,
+                ];
+            }
+        }
+
         // LE MUR ILLUSOIRE (mode classique, lot E2 — G1504 q. 3 D) : le toucher, gratuit, s'il est à son contact
         // (`Classique\MursIllusoires::touchables()`, que le résolveur relit).
         if (! $aJoue && $etat !== null && $quete->estConstruite()) {

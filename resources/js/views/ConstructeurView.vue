@@ -1749,6 +1749,30 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     </div>
                                 </div>
 
+                                <!-- Lot E2 (First Light q. 1) : les marqueurs fouillables — des tuiles sans obstacle, fouillées au contact pour une
+                                     action, retirées ensuite ; leurs effets sont ceux d'une note (un jet, un « en ordre » pour la première fois). -->
+                                <div class="cst-bloc">
+                                    <div class="cst-ligne">
+                                        <span class="cst-sous">Marqueurs à fouiller (éclaireurs tombés…)</span>
+                                        <button v-if="!quete.marqueurs" type="button" class="cst-btn ghost"
+                                            @click="quete.marqueurs = { libelle: 'Fouiller l\'éclaireur', cases: [{ x: 0, y: 0 }], alors: [{ effet: 'texte', texte: '' }] }"><MSym n="add" :size="14" /> marqueurs</button>
+                                        <button v-else type="button" class="cst-icone" title="Retirer les marqueurs" @click="delete quete.marqueurs"><MSym n="close" :size="16" /></button>
+                                    </div>
+                                    <template v-if="quete.marqueurs">
+                                        <input v-model="quete.marqueurs.libelle" class="cst-input" placeholder="Fouiller l'éclaireur" title="libellé de l'action" />
+                                        <span v-for="(c, k) in quete.marqueurs.cases" :key="`mq${k}`" class="cst-ligne">
+                                            <input v-model.number="c.x" type="number" min="0" class="cst-input cst-num" title="x" />
+                                            <input v-model.number="c.y" type="number" min="0" class="cst-input cst-num" title="y" />
+                                            <button type="button" class="cst-icone" title="Choisir la case sur la carte" @click="pointer(c, `le marqueur n° ${k + 1}`)"><MSym n="pin_drop" :size="16" /></button>
+                                            <button type="button" class="cst-icone" title="Retirer" @click="quete.marqueurs.cases.splice(k, 1)"><MSym n="close" :size="16" /></button>
+                                        </span>
+                                        <button type="button" class="cst-icone" title="Ajouter un marqueur" @click="quete.marqueurs.cases.push({ x: 0, y: 0 })"><MSym n="add" :size="16" /></button>
+                                        <label class="cst-large">Effets de la fouille (JSON, ceux d'une note)
+                                            <textarea :value="JSON.stringify(quete.marqueurs.alors ?? [], null, 1)" rows="3" class="cst-input cst-large" @change="changerJsonEffets(quete.marqueurs, 'alors', $event.target.value)" />
+                                        </label>
+                                    </template>
+                                </div>
+
                                 <!-- Lot K6 (First Light) : les glyphes magiques — découverts par une fouille de la zone, détruits par le
                                      parchemin-clé ou au feu de la cheminée de leur salle ; détruire pose le drapeau que les notes lisent. -->
                                 <div class="cst-bloc">

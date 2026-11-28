@@ -164,6 +164,8 @@ const chargeAuSol = computed(() => props.carte?.charge ?? null);
 const reserve = computed(() => props.carte?.reserve ?? null);
 // LE LABYRINTHE (mode classique, lot E2, G1504 q. 7) : les tunnels numérotés, hors du brouillard (`carte.tunnels`).
 const tunnels = computed(() => props.carte?.tunnels ?? []);
+// LES MARQUEURS FOUILLABLES (mode classique, lot E2, First Light q. 1) : les tuiles à fouiller (`carte.marqueurs`).
+const marqueurs = computed(() => props.carte?.marqueurs ?? []);
 const zoneCells = computed(() => props.traps.flatMap((t) => (t.zone ?? [])
     .filter((z) => z.x !== t.x || z.y !== t.y)
     .map((z) => ({ ...z, etat: t.etat, titre: t.titre ?? t.nom }))));
@@ -439,6 +441,15 @@ const jetonsPlaces = computed(() => {
             :style="{ gridColumn: reserve.x + 1, gridRow: reserve.y + 1, zIndex: 6 }"
         >
             <div class="dg-reserve" :title="`Hors du plateau : ${reserve.noms.join(', ')}`">+{{ reserve.noms.length }}</div>
+        </div>
+
+        <!-- LES MARQUEURS (lot E2, First Light q. 1) : une tuile à fouiller, sans obstacle. -->
+        <div
+            v-for="(mq, k) in marqueurs" :key="`mq${k}`"
+            class="dg-trap-holder"
+            :style="{ gridColumn: mq.x + 1, gridRow: mq.y + 1, zIndex: 4 }"
+        >
+            <div class="dg-marqueur" title="À fouiller">✦</div>
         </div>
 
         <!-- LE LABYRINTHE (lot E2) : un tunnel, son numéro. -->
@@ -891,6 +902,8 @@ const jetonsPlaces = computed(() => {
 /* Zone hors du plateau (lot E2) : une pastille rouge dans le coin de la case d'entrée — un nombre, pas une figure. */
 .dg-reserve { position: absolute; right: 2%; bottom: 2%; min-width: 46%; padding: 0 3px; border-radius: 4px; font-size: 0.62em; font-weight: 700;
     line-height: 1.5; text-align: center; color: #fff; background: oklch(0.5 0.17 25 / 0.92); box-shadow: 0 0 0 1px oklch(0.3 0.1 25); pointer-events: auto; }
+/* Marqueur fouillable (lot E2) : une petite étoile pâle dans le coin, qui ne cache pas la figure posée dessus. */
+.dg-marqueur { position: absolute; left: 4%; top: 2%; font-size: 0.7em; color: oklch(0.85 0.06 85); text-shadow: 0 0 2px #000; pointer-events: auto; }
 /* Labyrinthe (lot E2) : l'entrée d'un tunnel — un disque sombre cerclé de bronze, son numéro. */
 .dg-tunnel { position: absolute; inset: 14%; border-radius: 50%; display: grid; place-items: center; font-size: 0.7em; font-weight: 700;
     color: oklch(0.88 0.05 80); background: oklch(0.18 0.02 60 / 0.9); box-shadow: inset 0 0 0 2px oklch(0.6 0.09 70); pointer-events: auto; }

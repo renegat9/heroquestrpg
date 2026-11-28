@@ -150,7 +150,7 @@ final class ValidationCampagne
         'ramener' => ['type', 'libelle'],
     ];
     /** Clés d'une quête qu'on peut omettre : une quête sans note est une quête sans note, pas une quête incomplète. */
-    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'captif', 'dangers', 'double', 'glyphes', 'salles_speciales', 'coffres_pieges', 'tournoi', 'etages', 'gestes'];
+    private const CLES_QUETE_OPTIONNELLES = ['notes', 'fausses_sorties', 'regles', 'suite', 'charge', 'captif', 'dangers', 'double', 'glyphes', 'salles_speciales', 'coffres_pieges', 'tournoi', 'etages', 'gestes', 'marqueurs'];
     /** Lot E1 (2026-11-22) : le coffre piégé de l'auteur, `Classique\CoffresPieges`. */
     private const CLES_COFFRE_PIEGE_OPTIONNELLES = ['piege', 'degats', 'toute_la_salle'];
     /**
@@ -961,6 +961,7 @@ final class ValidationCampagne
 
         // GESTES DE QUÊTE (lot E2) : leurs conditions se lisent comme celles d'une note, leurs effets posent des drapeaux.
         $lus += $this->gestes($quete, $chemin);
+        $this->marqueurs($quete, $chemin);
 
         // OFFRES (lot K6) : les drapeaux que posent les effets d'une offre acceptée comptent aussi.
         $poses += $this->posesDOffres;
@@ -1057,6 +1058,51 @@ final class ValidationCampagne
         }
 
         return $lus;
+    }
+
+    /**
+     * Lot E2 (*First Light* q. 1 : « A hero can use an action to search an adjacent scout […] After a scout has been searched,
+     * remove the tile from the board ») : `marqueurs {cases: [{x, y}], libelle, alors}` — des tuiles posées sur des cases (hors
+     * salle fermée), le libellé de l'action, et ses effets (ceux d'une note, sans offre).
+     */
+    private function marqueurs(array $quete, string $chemin): void
+    {
+        if (! array_key_exists('marqueurs', $quete)) {
+            return;
+        }
+        $ici = self::chemin($chemin, 'marqueurs');
+        if (($marqueurs = $this->enObjet($quete['marqueurs'], $ici)) === null) {
+            return;
+        }
+        $this->cles($marqueurs, $ici, ['cases', 'libelle', 'alors']);
+        $this->texte($marqueurs, 'libelle', $ici, nonVide: true, max: 120);
+        $cases = $this->enListe($marqueurs['cases'] ?? null, "$ici.cases");
+        if ($cases === []) {
+            $this->refuser("$ici.cases", self::VALEUR_INVALIDE, 'au moins une case');
+        }
+        foreach ((array) $cases as $k => $c) {
+            if (($case = $this->enObjet($c, "$ici.cases.$k")) === null) {
+                continue;
+            }
+            $this->cles($case, "$ici.cases.$k", self::CLES_CASE);
+            if (($cellule = $this->cellule($case, "$ici.cases.$k")) !== null && $this->salleFermeeEn($cellule[0], $cellule[1])) {
+                $this->refuser("$ici.cases.$k", self::DANS_SALLE_FERMEE, 'le marqueur tombe dans une salle fermée');
+            }
+        }
+        $effets = $this->enListe($marqueurs['alors'] ?? null, "$ici.alors");
+        if ($effets === []) {
+            $this->refuser("$ici.alors", self::VALEUR_INVALIDE, 'au moins un effet');
+        }
+        foreach ((array) $effets as $k => $effet) {
+            if (is_array($effet) && ($effet['effet'] ?? null) === MotsClesQuete::OFFRE) {
+                $this->refuser("$ici.alors.$k", self::VALEUR_INVALIDE, 'une fouille de marqueur ne déclare pas d\'offre');
+
+                continue;
+            }
+            if (($drapeau = $this->effetDeNote($effet, "$ici.alors.$k", $quete)) !== null) {
+                $this->posesDOffres[$drapeau] = true;
+            }
+        }
     }
 
     /** La cible d'une note : UNE clé, parmi celles que son déclencheur accepte, et qui désigne quelque chose de posé. */

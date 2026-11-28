@@ -7397,6 +7397,15 @@ a portal is used, set up the room as depicted. Monsters may move through portals
   (`quetes.drapeaux._portails_utilises`) ressort sur une case d'un autre portail utilisé, au plus près des héros
   (`Portails::voyageDuMonstre()`), puis attaque. Annonce `portail_monstre {monstre, depuis, numero, x, y}`.
 
+*First Light* q. 1 (FL-Q p. 11) : « Ambushed Scouts – Skull tiles represent fallen scouts. They do not affect hero movement. A
+hero can use an action to search an adjacent scout. They roll one red die. […] The first time a scout is searched, read the
+following aloud […]. After a scout has been searched, remove the tile from the board. » **`quete.marqueurs {cases: [{x, y}],
+libelle, alors}`** (`Classique\MarqueursFouillables`) : des tuiles sans obstacle (hors salle fermée), publiées sur la carte
+hors brouillard (`carte.marqueurs: [{x, y}]`) ; le héros au contact (ou dessus) a l'ACTION `fouiller_marqueur_{x}_{y}`
+(type `fouille_marqueur`, `parametres {x, y}`, revalidée au résolveur) ; les effets `alors` se jouent comme ceux d'une note
+(repère « marqueur » — un `jet` d'un dé, un `en_ordre` pour « the first time »), puis le marqueur disparaît
+(`quetes.drapeaux._marqueurs_fouilles`). Annonce `fouille_marqueur {nom, libelle, x, y, note}`.
+
 *First Light* q. 3 (FL-Q p. 15) :
 - « Heroes may not end their movement on the eye tile » : **`regles.cases_sans_arret: [{x, y}]`** — jointes, dans
   `FabriqueGrille::pour()`, au jeu des cases interdites à l'arrêt (mare, brasier) : on les traverse, on ne s'y arrête pas.

@@ -2324,3 +2324,37 @@ it('q. 3 : l\'Oracle bénit ou maudit ; le geste au contact de la bibliothèque,
     expect((bool) $partie['heros']->fresh()->benediction_oracle)->toBeTrue()
         ->and(\App\Partie\FabriqueGrille::pour($quete->fresh())->arretInterdit(8, 4))->toBeTrue();
 });
+
+// ---------------------------------------------------------------- First Light : les éclaireurs tombés (q. 1)
+
+it('q. 1 : un marqueur se fouille au contact pour une action, son jet paie, le billet ne se lit qu\'une fois, puis il disparaît', function () {
+    $campagne = campagneE2([
+        'marqueurs' => ['libelle' => 'Fouiller l\'éclaireur', 'cases' => [['x' => 8, 'y' => 4], ['x' => 10, 'y' => 5]], 'alors' => [
+            ['effet' => 'en_ordre', 'etapes' => [['alors' => [['effet' => 'drapeau', 'nom' => 'billet']]]]],
+            ['effet' => 'jet', 'issues' => [
+                ['de' => 1, 'a' => 2, 'alors' => [['effet' => 'texte', 'texte' => 'Rien.']]],
+                ['de' => 3, 'a' => 4, 'alors' => [['effet' => 'or', 'or' => 15]]],
+                ['de' => 5, 'a' => 6, 'alors' => [['effet' => 'or', 'or' => 40]]],
+            ]],
+        ]],
+    ]);
+    expect(codesE2($campagne))->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $etat = $quete->etatsPersonnages()->first();
+    $etat->update(['position_x' => 8, 'position_y' => 3]);
+    $menu = app(\App\Partie\MenuMoteur::class);
+    $ids = fn () => collect($menu->generer($partie['groupe']->fresh(), $partie['heros']->fresh())['options'] ?? [])->pluck('id')->all();
+    expect($ids())->toContain('fouiller_marqueur_8_4')->not->toContain('fouiller_marqueur_10_5');
+
+    $orAvant = (int) $partie['heros']->fresh()->or;
+    app()->instance(LanceurDes::class, new LanceurDeterministe(array_fill(0, 10, 5)));
+    $r = app(\App\Partie\Classique\MarqueursFouillables::class)->fouiller($quete->fresh(), $partie['heros'], $etat->fresh(), 8, 4);
+    expect($r['type'])->toBe('fouille_marqueur')
+        ->and(\App\Partie\Classique\MarqueursFouillables::restants($quete->fresh()))->toBe([['x' => 10, 'y' => 5]])
+        ->and(data_get($quete->fresh()->drapeaux, 'billet'))->not->toBeNull()
+        ->and((int) $partie['heros']->fresh()->or)->toBe($orAvant + 40)
+        ->and($ids())->not->toContain('fouiller_marqueur_8_4');
+    expect(fn () => app(\App\Partie\Classique\MarqueursFouillables::class)->fouiller($quete->fresh(), $partie['heros'], $etat->fresh(), 10, 5))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+});

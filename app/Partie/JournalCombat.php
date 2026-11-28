@@ -196,6 +196,8 @@ final class JournalCombat
         // Lot E2 : les portails (First Light q. 2) — le héros, et le monstre qui les emprunte.
         'portail' => true,
         'portail_monstre' => true,
+        // Lot E2 : la fouille d'un marqueur (First Light q. 1, les éclaireurs tombés) — les effets suivent, annoncés comme une note.
+        'fouille_marqueur' => true,
         // Lot E2 : la planque (F6646 p. 7) — le dé rouge, puis sa répartition.
         'soin_planque' => true,
         'repartir_planque' => true,
@@ -1561,6 +1563,10 @@ final class JournalCombat
             'labyrinthe_jet' => [[
                 'texte' => ($a['nom'] ?? $acteurNom).' s\'enfonce dans le tunnel '.(int) ($a['depuis'] ?? 0).' et lance deux dés : '
                     .implode(' et ', array_map('intval', (array) ($a['des'] ?? []))).' — à lui de choisir',
+                'ton' => 'info',
+            ]],
+            'fouille_marqueur' => [[
+                'texte' => ($a['nom'] ?? $acteurNom).' : '.mb_strtolower((string) ($a['libelle'] ?? 'fouille')),
                 'ton' => 'info',
             ]],
             'portail' => [[

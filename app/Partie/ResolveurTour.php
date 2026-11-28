@@ -764,6 +764,7 @@ final class ResolveurTour
                 'sortir_labyrinthe' => $this->resoudreSortieLabyrinthe($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'garder_carte' => $this->resoudreCarteGardee($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'traverser_portail' => $this->resoudreTraversePortail($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'fouille_marqueur' => $this->resoudreFouilleMarqueur($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // DÉGUISEMENT (mode classique, lot K6) : rendre son jeton, de soi-même. Geste libre.
                 'retirer_deguisement' => $this->resoudreRetirerDeguisement($groupe, $personnage, $etat, $acteur),
                 // GLYPHES (mode classique, lot K6) : détruire un glyphe découvert — parchemin ou cheminée. Geste libre.
@@ -17956,6 +17957,16 @@ final class ResolveurTour
     private function resoudreInsubstantiel(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
         $payload = app(\App\Partie\Classique\Insubstantialite::class)->prendre($quete, $personnage, $etat, (string) ($option['parametres']['usage'] ?? ''));
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** LES MARQUEURS FOUILLABLES (lot E2, First Light q. 1) : l'action, revalidée ; les effets de l'auteur se jouent. */
+    private function resoudreFouilleMarqueur(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $acteur): array
+    {
+        $payload = app(\App\Partie\Classique\MarqueursFouillables::class)->fouiller($quete, $personnage, $etat,
+            (int) ($option['parametres']['x'] ?? -1), (int) ($option['parametres']['y'] ?? -1));
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
