@@ -1447,6 +1447,23 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     </span>
                                     <button type="button" class="cst-icone" title="Ajouter un rectangle de pont" @click="quete.regles.pont_de_corde.push({ x: 0, y: 0, l: 1, h: 1 })"><MSym n="add" :size="16" /></button>
                                 </template>
+                                <!-- Lot E2 : la salle ténébreuse (Wizards of Morcar q. 4 B) — −2 dés à toutes les figures, sauf les épargnées ; aucun tir. -->
+                                <label v-if="quete.salles_ouvertes.length" class="cst-case" title="Toutes les figures de la salle attaquent et se défendent avec 2 dés de moins (jamais moins d'un), sauf les créatures épargnées ; personne n'y tire. Un héros qui voit dans le noir n'en souffre pas.">
+                                    <input type="checkbox" :checked="!!quete.regles?.salle_tenebreuse"
+                                        @change="poserRegle('salle_tenebreuse', $event.target.checked ? { salle: quete.salles_ouvertes[0], epargnes: ['squelette', 'zombie', 'momie'].filter((sl) => (couches.monstres ?? []).some((c) => c.slug === sl)) } : undefined)" />
+                                    Salle ténébreuse
+                                </label>
+                                <template v-if="quete.regles?.salle_tenebreuse">
+                                    <select v-model="quete.regles.salle_tenebreuse.salle" class="cst-input" title="La salle ténébreuse">
+                                        <option v-for="id in quete.salles_ouvertes" :key="`ten${id}`" :value="id">{{ id }}</option>
+                                    </select>
+                                    <span class="cst-sous">épargnés :</span>
+                                    <span class="cst-puces">
+                                        <button v-for="c in (couches.monstres ?? [])" :key="`tenm${c.slug}`" type="button" class="cst-puce"
+                                            :class="{ on: (quete.regles.salle_tenebreuse.epargnes ?? []).includes(c.slug) }"
+                                            @click="(() => { const l = quete.regles.salle_tenebreuse.epargnes ??= []; const i = l.indexOf(c.slug); if (i >= 0) l.splice(i, 1); else l.push(c.slug); if (!l.length) delete quete.regles.salle_tenebreuse.epargnes; })()">{{ c.nom }}</button>
+                                    </span>
+                                </template>
                                 <!-- Lot E2 : la glissade (Crypt of Perpetual Darkness q. 10 A) — une case invisible, et la case d'arrivée. -->
                                 <label class="cst-case" title="Un héros qui pose le pied sur la case glisse jusqu'à la case d'arrivée : son déplacement est fini, son action reste. Si elle est prise, il s'arrête sur la case libre la plus proche et la figure qui l'occupe encaisse 2 dés de combat.">
                                     <input type="checkbox" :checked="!!quete.regles?.glissades"

@@ -659,6 +659,15 @@ final class MoteurDegats
             ];
         }
 
+        // INCREVABLE (mode classique, lot E2 — Morcar q. 2 D, q. 7 B) : « Any wound that would reduce him to less than 1 Body
+        // Point is ignored » — il reste à 1, tant que son drapeau (le cœur détruit) n'est pas posé.
+        if ($instance->estIncrevable()) {
+            $instance->update(['pv_body' => 1, 'etat' => 'actif']);
+            $this->journaliserDefenseMonstre($instance, 'increvable', $source, $contexte);
+
+            return array_merge($neutre($avant - 1), ['pv_body' => 1, 'etat' => 'actif', 'vaincu' => false, 'survie_increvable' => true]);
+        }
+
         if ($instance->reactionDisponible('increvable_une_fois')) {
             $instance->consommerReaction('increvable_une_fois');
             $instance->update(['pv_body' => 1, 'etat' => 'actif']);

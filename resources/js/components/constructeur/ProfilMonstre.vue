@@ -133,6 +133,12 @@ function basculerFuite(avec) {
                 <option v-for="o in objets" :key="o.slug" :value="o.slug">laisse : {{ o.nom }}</option>
             </select>
         </div>
+        <!-- Lot E2 (Wizards of Morcar q. 2 D, q. 7 B) : jamais sous 1 PV — jusqu'à un drapeau (le cœur détruit), si l'auteur le veut. -->
+        <div class="cst-ligne">
+            <label class="cst-case"><input type="checkbox" :checked="m.increvable !== undefined" @change="$event.target.checked ? (m.increvable = true) : delete m.increvable" /> Increvable : jamais sous 1 PV</label>
+            <input v-if="m.increvable !== undefined" :value="m.increvable?.sauf_drapeau ?? ''" class="cst-input" placeholder="jusqu'au drapeau… (toujours)"
+                @change="$event.target.value.trim() ? (m.increvable = { sauf_drapeau: $event.target.value.trim() }) : (m.increvable = true)" />
+        </div>
         <div v-if="inactifPossible" class="cst-ligne">
             <label class="cst-case"><input type="checkbox" :checked="m.inactif === true" @change="basculerInactif($event.target.checked)" /> Inactif — ne bouge pas, n'attaque pas, ne peut être blessé tant qu'une note « éveiller » ne l'a pas réveillé</label>
         </div>

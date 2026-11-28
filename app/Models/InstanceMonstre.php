@@ -156,6 +156,9 @@ class InstanceMonstre extends Model
             $des = min($des, 1 + $this->bonusDesDread('attaque'));
         }
 
+        // SALLE TÉNÉBREUSE (mode classique, lot E2 — Morcar q. 4 B) : −2 dés, jamais moins d'un, sauf les créatures épargnées.
+        $des = \App\Partie\MoteurFosseLongue::appliquerMalus($des, \App\Partie\Classique\SalleTenebreuse::malusMonstre($this));
+
         return $this->apresConditions($des, 'attaque');
     }
 
@@ -282,6 +285,13 @@ class InstanceMonstre extends Model
         if (isset($pose['se_rend']) && is_array($pose['se_rend'])) {
             $profil['se_rend'] = array_filter(['objet' => is_string($pose['se_rend']['objet'] ?? null) ? $pose['se_rend']['objet'] : null]);
         }
+        // INCREVABLE (lot E2, *Wizards of Morcar* q. 2 D, q. 7 B) : « Any wound that would reduce him to less than 1 Body Point is
+        // ignored. He may be killed once his heart is destroyed » — `true`, ou `{sauf_drapeau}` : lu par `MoteurDegats`.
+        if (($pose['increvable'] ?? null) === true) {
+            $profil['increvable'] = true;
+        } elseif (is_array($pose['increvable'] ?? null)) {
+            $profil['increvable'] = array_filter(['sauf_drapeau' => is_string($pose['increvable']['sauf_drapeau'] ?? null) ? $pose['increvable']['sauf_drapeau'] : null]);
+        }
         // INACTIF jusqu'à l'effet de note `eveiller` (René, 2026-11-20) : lu par `MoteurDormants::declencheur()`.
         if (($pose['inactif'] ?? false) === true) {
             $profil['inactif'] = true;
@@ -294,6 +304,21 @@ class InstanceMonstre extends Model
         }
 
         return $habillage === [] ? null : $habillage;
+    }
+
+    /**
+     * LE PLANCHER DE CORPS d'une figure d'auteur (lot E2, Morcar q. 2 D : « Ragnar cannot be killed in this quest (he always has
+     * at least one Body Point left) » ; q. 7 B, Brak-Fellorn) : vrai tant que le drapeau `sauf_drapeau` n'est pas posé.
+     */
+    public function estIncrevable(): bool
+    {
+        $regle = data_get($this->habillage, 'profil_quete.increvable');
+        if ($regle === null || $regle === false || $this->quete === null) {
+            return false;
+        }
+        $drapeau = is_array($regle) ? ($regle['sauf_drapeau'] ?? null) : null;
+
+        return ! (is_string($drapeau) && $this->quete->aDrapeau($drapeau));
     }
 
     /**
@@ -465,7 +490,8 @@ class InstanceMonstre extends Model
     {
         $base = $this->monstre->attaque_distance;
 
-        if ($base === null) {
+        // SALLE TÉNÉBREUSE (mode classique, lot E2 — Morcar q. 4 B) : « No ranged attacks » — il va au contact.
+        if ($base === null || \App\Partie\Classique\SalleTenebreuse::tirInterditAuMonstre($this)) {
             return null;
         }
 
@@ -492,6 +518,8 @@ class InstanceMonstre extends Model
         if ($this->estEnChoc()) {
             $des = min($des, 2 + $this->bonusDesDread('defense'));
         }
+
+        $des = \App\Partie\MoteurFosseLongue::appliquerMalus($des, \App\Partie\Classique\SalleTenebreuse::malusMonstre($this));
 
         return $this->apresConditions($des, 'defense');
     }

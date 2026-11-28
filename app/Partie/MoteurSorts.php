@@ -700,6 +700,11 @@ final class MoteurSorts
      */
     public function tirInterdit(Personnage $personnage): bool
     {
+        // SALLE TÉNÉBREUSE (mode classique, lot E2 — Morcar q. 4 B) : « No ranged attacks may be used ».
+        if (\App\Partie\Classique\SalleTenebreuse::tirInterditAuHeros($personnage)) {
+            return true;
+        }
+
         return $personnage->conditions()->get()
             ->contains(fn (Condition $c) => (bool) data_get($c->effet, 'tir_interdit', false));
     }
@@ -845,6 +850,8 @@ final class MoteurSorts
         // moins d'un. Lu ICI, le SEUL calcul de la défense des héros — l'attaque de monstre, la frappe de zone et les sorts de
         // Dread y passent tous. L'état de quête se lit sur le héros (`malusDesCombatDuHeros()`), qui ne reçoit que lui.
         $des = MoteurFosseLongue::appliquerMalus($des, MoteurFosseLongue::malusDesCombatDuHeros($personnage));
+        // SALLE TÉNÉBREUSE (mode classique, lot E2 — Morcar q. 4 B) : « attack and defend with 2 fewer dice », jamais moins d'un.
+        $des = MoteurFosseLongue::appliquerMalus($des, \App\Partie\Classique\SalleTenebreuse::malusHeros($personnage));
 
         $plafond = $this->plafondDefense($personnage);
 

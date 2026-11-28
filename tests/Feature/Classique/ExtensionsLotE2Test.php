@@ -1950,3 +1950,46 @@ it('glissade : jusqu\'à la case X, déplacement fini, action restante ; X occup
         expect([(int) $etat->position_x, (int) $etat->position_y])->toBe([10, 5]);
     }
 })->with(['libre' => [false], 'occupée par un orque' => [true]]);
+
+// ---------------------------------------------------------------- Wizards of Morcar
+
+it('increvable : jamais sous 1 PV ; le drapeau posé (le cœur détruit), il tombe', function () {
+    $campagne = campagneE2(['monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 3, 'pv_body' => 2, 'increvable' => ['sauf_drapeau' => 'coeur_detruit']]]]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 3, 'increvable' => ['sauf' => 'x']]]])))->not->toBe([]);
+    $partie = partieE2($this, $campagne);
+    $orque = $partie['quete']->instancesMonstres()->with('monstre')->firstOrFail();
+    $degats = app(\App\Partie\MoteurDegats::class);
+
+    $coup = $degats->infligerAMonstre($orque, 5, \App\Partie\MoteurDegats::SOURCE_ATTAQUE_HEROS);
+    expect($coup['survie_increvable'])->toBeTrue()->and((int) $orque->fresh()->pv_body)->toBe(1)->and($orque->fresh()->etat)->toBe('actif');
+
+    $partie['quete']->update(['drapeaux' => ['coeur_detruit' => true]]);
+    $degats->infligerAMonstre($orque->fresh()->setRelation('quete', $partie['quete']->fresh()), 5, \App\Partie\MoteurDegats::SOURCE_ATTAQUE_HEROS);
+    expect($orque->fresh()->etat)->toBe('vaincu');
+});
+
+it('salle ténébreuse : −2 dés en attaque et en défense dans la salle, sauf les épargnés ; aucun tir depuis la salle', function () {
+    $campagne = campagneE2([
+        'regles' => ['salle_tenebreuse' => ['salle' => 'galerie', 'epargnes' => ['squelette']]],
+        'monstres' => [['slug' => 'orque', 'x' => 9, 'y' => 3, 'attaque' => 4, 'defense' => 3], ['slug' => 'squelette', 'x' => 10, 'y' => 3],
+            ['slug' => 'archer-elfe', 'x' => 9, 'y' => 5], ['slug' => 'orque', 'x' => 4, 'y' => 3, 'attaque' => 4]],
+    ]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['regles' => ['salle_tenebreuse' => ['salle' => 'crypte']]])))->toBe([ValidationCampagne::SALLE_INCONNUE]);
+    $partie = partieE2($this, $campagne);
+    [$orque, $squelette, $archer, $dehors] = $partie['quete']->instancesMonstres()->with('monstre')->orderBy('id')->get()->all();
+
+    expect($orque->attaqueEffective())->toBe(2)->and($orque->defenseEffective())->toBe(1)
+        ->and($squelette->attaqueEffective())->toBe((int) $squelette->monstre->attaque)
+        ->and($dehors->attaqueEffective())->toBe(4)
+        ->and($archer->attaqueDistanceEffective())->toBeNull();
+
+    $sorts = app(\App\Partie\MoteurSorts::class);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 4, 'position_y' => 4]);
+    $dehorsDef = $sorts->desDefenseHeros($partie['heros']->fresh());
+    expect($sorts->tirInterdit($partie['heros']->fresh()))->toBeFalse();
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 4]);
+    expect($sorts->desDefenseHeros($partie['heros']->fresh()))->toBe(max(min($dehorsDef, 1), $dehorsDef - 2))
+        ->and($sorts->tirInterdit($partie['heros']->fresh()))->toBeTrue();
+});

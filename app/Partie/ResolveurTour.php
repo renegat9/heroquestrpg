@@ -2435,6 +2435,13 @@ final class ResolveurTour
             $meta['obscurite'] = $malusObscurite;
         }
 
+        // SALLE TÉNÉBREUSE (mode classique, lot E2 — *Wizards of Morcar* q. 4 B) : −2 dés au héros qui frappe depuis la salle.
+        $malusTenebres = \App\Partie\Classique\SalleTenebreuse::malusHeros($personnage);
+        if ($malusTenebres > 0) {
+            $desAttaqueEffectifs = MoteurFosseLongue::appliquerMalus($desAttaqueEffectifs, $malusTenebres);
+            $meta['tenebres'] = $malusTenebres;
+        }
+
         // BROUILLARD VIVANT (mode classique, lot E2 — *The Frozen Horror* q. 7 D) : un dé d'abord ; seul le bouclier blanc
         // voit le vrai monstre, sinon l'attaque frappe un leurre et se perd (zéro dé). `Classique\BrouillardVivant`.
         $brouillard = app(\App\Partie\Classique\BrouillardVivant::class)->detourne($quete, $instance);

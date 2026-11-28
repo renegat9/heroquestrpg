@@ -779,6 +779,8 @@ trait LignesEffetsAutomatiques
         return [$this->info(match ($a['mecanique'] ?? null) {
             'ignore_degats_attaque' => "{$nom} ignore intégralement le coup — une défense à usage unique vient de jouer",
             'increvable_une_fois' => "{$nom} s'effondre… et tient debout à 1 PV, une seule fois",
+            // Lot E2 (Morcar q. 2 D, q. 7 B) : le plancher de Corps d'une figure d'auteur.
+            'increvable' => "{$nom} encaisse le coup… et reste debout à 1 PV : rien ne peut l'abattre pour l'instant",
             'sacrifice_de_vrille' => "{$nom} s'effondre… sacrifie ".((string) ($a['sacrifice']['nom'] ?? 'une de ses Vrilles'))." et tient debout à 1 PV",
             'jeton_ombre' => "Le coup est absorbé par un jeton d'ombre — {$nom} ne perd rien",
             // Magrian (Rise of the Dread Moon p. 33) : le coup qui l'achèverait retombe sur un héros en vue.

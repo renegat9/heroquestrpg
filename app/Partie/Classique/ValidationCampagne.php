@@ -158,8 +158,8 @@ final class ValidationCampagne
      * sait jouer. Lot S1 : `solo` (R7), la classe du seul héros qui entre. Les autres (R4–R6, R8…) viennent avec K5.
      */
     // Lot S1 : `solo` ; lot K5c : `marche_ferme` (R8, lu par `PhaseMarche::motifFermeture()`).
-    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades'];
-    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend'];
+    private const CLES_REGLES = ['solo', 'marche_ferme', 'sans_fouille', 'confiscation', 'primes_monstres', 'portes_teleportation', 'fouille_piege_un_par_un', 'monstres_pacifies_par_drapeau', 'degats_en_mind', 'ordre_libre', 'obscurite_magique', 'deguisement', 'sans_restauration', 'brouillard_vivant', 'crevasse', 'richesses_des_coffres', 'bonus_attaque_monstres', 'planque', 'portes_a_frapper', 'marche_en_quete', 'receptacle_objets', 'activation_salles', 'chemin_impose', 'reserve_hors_plateau', 'salle_en_contrebas', 'apnee', 'des_deplacement_bonus', 'insubstantialite', 'pont_de_corde', 'relevements', 'glissades', 'salle_tenebreuse'];
+    private const CLES_MONSTRE_OPTIONNELLES = ['nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'fuite', 'inactif', 'sorts_dread', 'capacites', 'se_rend', 'increvable'];
     /** Lot E1 (2026-11-22) : un monstre errant en objet — plusieurs figures, profil d'auteur (ni refuge ni sommeil : il surgit). */
     private const CLES_ERRANT_OPTIONNELLES = ['nombre', 'nom', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'vulnerable_uniquement_a', 'invulnerable_casse_arme', 'sorts_dread', 'capacites'];
     /** « Wandering Monster in this Quest: 4 Goblins » (F9528 q. 4) : le plus grand nombre lu dans les livrets, avec de la marge. */
@@ -1955,6 +1955,16 @@ final class ValidationCampagne
             }
         }
 
+        // INCREVABLE (lot E2, Morcar q. 2 D, q. 7 B) : `true`, ou `{sauf_drapeau}` — jamais sous 1 PV tant que le drapeau manque.
+        if (array_key_exists('increvable', $pose) && $pose['increvable'] !== true) {
+            $ici = self::chemin($position, 'increvable');
+            $increvable = $this->enObjet($pose['increvable'], $ici);
+            if ($increvable !== null) {
+                $this->cles($increvable, $ici, ['sauf_drapeau']);
+                $this->nomDeDrapeau($increvable, 'sauf_drapeau', $ici);
+            }
+        }
+
         // INACTIF (René, 2026-11-20) : ni ne bouge, ni n'attaque, ni ne peut être blessée, jusqu'à l'effet de note `eveiller`.
         if (array_key_exists('inactif', $pose) && $pose['inactif'] !== true) {
             $this->refuser(self::chemin($position, 'inactif'), self::TYPE_INVALIDE, 'true est attendu (absente, la figure est active)');
@@ -2537,6 +2547,22 @@ final class ValidationCampagne
                 $this->slugCatalogue($releve, 'en', "$ici.$k", 'monstres');
                 if (array_key_exists('sauf_drapeau', $releve)) {
                     $this->nomDeDrapeau($releve, 'sauf_drapeau', "$ici.$k");
+                }
+            }
+        }
+        // Lot E2 : la salle ténébreuse (G1504 q. 4 B) — une salle ouverte, et les créatures épargnées (slugs de monstres).
+        if (array_key_exists('salle_tenebreuse', $regles)) {
+            $ici = self::chemin($position, 'salle_tenebreuse');
+            if (($tenebres = $this->enObjet($regles['salle_tenebreuse'], $ici)) !== null) {
+                $this->cles($tenebres, $ici, ['salle'], ['epargnes']);
+                $salle = $tenebres['salle'] ?? null;
+                if (! is_string($salle) || ($this->ouvertesFiables && ! isset($this->ouvertes[$salle]))) {
+                    $this->refuser("$ici.salle", self::SALLE_INCONNUE, 'une salle ouverte de la quête est attendue');
+                }
+                foreach ((array) (array_key_exists('epargnes', $tenebres) ? $this->enListe($tenebres['epargnes'], "$ici.epargnes") : []) as $k => $slug) {
+                    if (! is_string($slug) || ! $this->catalogue->contient('monstres', $slug)) {
+                        $this->refuser("$ici.epargnes.$k", self::CATALOGUE_INCONNU, '« '.(is_string($slug) ? $slug : '?').' » n\'est pas un monstre du catalogue');
+                    }
                 }
             }
         }

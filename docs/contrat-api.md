@@ -7299,6 +7299,21 @@ comme le livret — avant chaque quête, un animal gratuit par héros, pour cett
   un crâne = 1 point, sans défense (décision écrite). Déplacement fini (`deplacement_restant: 0`), action restante ; la salle
   d'arrivée se révèle. Annonce `glissade {personnage_id, nom, de, vers, arrivee?, bloque?, faces?, percute?: {nom, degats}}`.
 
+### Morcar — profil `increvable`, `regles.salle_tenebreuse` (lot E2, 2026-11-28)
+
+*Wizards of Morcar* (G1504) :
+- q. 2 D : « Ragnar cannot be killed in this quest (he always has at least one Body Point left) » ; q. 7 B : « Any wound that
+  would reduce him to less than 1 Body Point is ignored. He may be killed once his heart is destroyed. » Clé de profil d'une
+  figure **`increvable: true | {sauf_drapeau}`** (`InstanceMonstre::estIncrevable()`) : un coup qui l'achèverait la laisse à
+  1 PV (`survie_increvable`, journal `reaction_monstre {mecanique: "increvable"}` — « … reste debout à 1 PV ») tant que le
+  drapeau n'est pas posé (le cœur : un geste de quête, ou une note, qui pose le drapeau).
+- q. 4 B : « Any figures in the room other than skeletons, zombies, or mummies will attack and defend with 2 fewer dice than
+  normal. No ranged attacks may be used. » **`regles.salle_tenebreuse: {salle, epargnes?: [slugs]}`**
+  (`Classique\SalleTenebreuse`) : −2 dés, jamais moins d'un, en attaque et en défense, pour toute figure de la salle sauf les
+  types épargnés (héros : `frapper()`, `desDefenseHerosDetail()` ; monstres : `attaqueEffective()`, `defenseEffective()`) ;
+  aucune figure de la salle ne tire (`MoteurSorts::tirInterdit()`, `attaqueDistanceEffective()` → `null`). Un héros qui voit
+  dans le noir (`vision_nocturne`) n'en souffre pas (décision écrite). Distincte de `regles.obscurite_magique` (*Crypt*).
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le
