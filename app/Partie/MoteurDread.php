@@ -4301,6 +4301,11 @@ final class MoteurDread
      */
     public function cibleFlanquee(Quete $quete, InstanceMonstre $assaillant, EtatPersonnageQuete $cible): bool
     {
+        // MODE CLASSIQUE (lot E2, 2026-11-27) : « a hero adjacent OR DIAGONAL to another monster » (*Jungles of Delthrak*
+        // p. 48, Clever Tactician) — le texte nomme la diagonale (`Grille::sontAdjacentes()`, `$diagonales`). Le mode RPG
+        // garde le contact orthogonal.
+        $diagonales = $quete->estConstruite();
+
         return $quete->instancesMonstres()
             ->where('etat', 'actif')
             ->where('revele', true)
@@ -4309,6 +4314,7 @@ final class MoteurDread
             ->contains(fn (InstanceMonstre $autre) => Grille::sontAdjacentes(
                 (int) $autre->position_x, (int) $autre->position_y,
                 (int) $cible->position_x, (int) $cible->position_y,
+                $diagonales,
             carte: $quete->carte,
         ));
     }

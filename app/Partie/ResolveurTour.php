@@ -16316,7 +16316,13 @@ final class ResolveurTour
         // Tacticien (Jungles of Delthrak) : +1 dé contre une cible FLANQUÉE,
         // c'est-à-dire au contact d'un second monstre. Le tacticien lui-même ne
         // compte pas comme son propre flanc.
-        $bonusFlanc = $this->dread->cibleFlanquee($instance->quete, $instance, $cible) ? 1 : 0;
+        // ⚠ MODE CLASSIQUE (lot E2, 2026-11-27) : le TACTICIEN seul — « These monsters […] roll 1 additional Attack die when
+        // targeting a hero adjacent or diagonal to another monster » (p. 48). Ici, depuis le 2026-08-10, le bonus n'exigeait
+        // pas la capacité : tout monstre au flanc gagnait le dé. Le mode RPG le garde tel quel (branche classique isolée) —
+        // signalé à René.
+        $bonusFlanc = $instance->quete?->estConstruite()
+            ? ($this->dread->aCapacite($instance, 'tacticien') && $this->dread->cibleFlanquee($instance->quete, $instance, $cible) ? 1 : 0)
+            : ($this->dread->cibleFlanquee($instance->quete, $instance, $cible) ? 1 : 0);
 
         // ---- Talents de la GRILLE, côté défense -----------------------------
         //

@@ -1863,3 +1863,17 @@ it('faille : à chaque tour du MJ un monstre tiré au hasard ; scellée, tous le
     $notes->signaler($quete->fresh(), \App\Engine\MotsClesQuete::TOUR_DU_MJ, ['tour' => 3]);
     expect($quete->instancesMonstres()->count())->toBe(3);
 });
+
+// ---------------------------------------------------------------- Jungles of Delthrak : le Tacticien (p. 48)
+
+it('tacticien : +1 dé contre un héros au contact ou en diagonale d\'un autre monstre ; un monstre ordinaire n\'a pas ce dé', function (string $assaillant, int $bonus) {
+    $partie = partieE2($this, campagneE2(['monstres' => [['slug' => $assaillant, 'x' => 9, 'y' => 3], ['slug' => 'orque', 'x' => 7, 'y' => 2]]]));
+    $quete = $partie['quete']->fresh();
+    $quete->etatsPersonnages()->update(['position_x' => 8, 'position_y' => 3]);
+    $quete->instancesMonstres()->update(['revele' => true, 'etat' => 'actif']);
+    $instance = $quete->instancesMonstres()->with('monstre')->orderBy('id')->firstOrFail();
+
+    $frappe = app(ResolveurTour::class)->frappeDuSurgissement($partie['groupe'], $instance, $quete->etatsPersonnages()->firstOrFail());
+
+    expect($frappe['bonus_flanc'])->toBe($bonus);
+})->with(['Raptor (tacticien), flanqueur en diagonale' => ['raptor', 1], 'Orque ordinaire' => ['orque', 0]]);

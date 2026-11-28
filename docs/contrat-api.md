@@ -7252,6 +7252,17 @@ Skull may take an action while adjacent to the planar rift to hurl the artifacts
   s'enchaînent par drapeaux (`si_drapeau` / `sauf_drapeau`). Écart écrit : le sacrifice (« a hero holding both artifacts could
   move into the planar rift ») ne se joue pas — la faille est faite d'abîme, on n'y entre pas.
 
+### Le Tacticien en mode classique (lot E2, 2026-11-27)
+
+*Jungles of Delthrak* p. 48 : « Clever Tactician — These monsters may move before and after taking an action. They roll 1
+additional Attack die when targeting a hero adjacent or diagonal to another monster. »
+- En quête construite, le dé de flanc (`bonus_flanc` de l'attaque de monstre) ne va qu'à un monstre `tacticien`, et le flanc
+  compte la diagonale (`MoteurDread::cibleFlanquee()`, `Grille::sontAdjacentes(…, $diagonales)` : le texte la nomme).
+- ⚠ Le mode RPG garde son comportement d'avant : depuis le 2026-08-10, l'attaque de monstre principale
+  (`ResolveurTour::resoudreAttaqueMonstre()`) donne ce dé à TOUT monstre dont la cible est flanquée, tacticien ou non
+  (branche classique isolée — signalé à René).
+- Le second mouvement (« move before and after ») reste le repli d'après l'attaque (`replierTacticien()`), déjà joué.
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le
