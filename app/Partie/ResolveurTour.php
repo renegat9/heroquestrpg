@@ -12436,8 +12436,7 @@ final class ResolveurTour
         // immediately ends » — un errant qui s'accroche ne se pose pas, il devient des jetons (`Classique\Rejetons`).
         $pose = app(MonstreErrant::class)->poseDeLaQuete($quete);
         if ($pose !== null && \App\Partie\Classique\Rejetons::errantQuiSAccroche($quete, $pose['monstre'])) {
-            return ['rejetons' => [...app(\App\Partie\Classique\Rejetons::class)->poser($personnage, $etat, (int) $pose['nombre']),
-                'monstre' => (string) $pose['monstre']->nom_base]];
+            return ['rejetons' => app(\App\Partie\Classique\Rejetons::class)->poser($personnage, $etat, (int) $pose['nombre'])];
         }
 
         $payload = [];

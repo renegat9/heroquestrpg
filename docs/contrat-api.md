@@ -7181,7 +7181,7 @@ Spawnling tile on the triggering hero's card. The hero's turn immediately ends. 
 `detacher_rejetons`) :
 - **L'errant** : quand le `monstre_errant` de l'auteur porte `s_accroche` (le `rejeton-putride`), la carte (fouille, piège à
   errant, effet `errants`) ne pose aucune figure : `nombre` jetons (1 par défaut) sur la fiche du héros, et son tour s'arrête.
-  Résultat de la fouille : `{issue: "errant", rejetons: {nombre, jetons, personnage_id, nom, monstre}}`. Fil : « Un rejeton
+  Résultat de la fouille : `{issue: "errant", rejetons: {nombre, jetons, personnage_id, nom}}`. Fil : « Un rejeton
   s'accroche à Albrecht : son tour s'arrête (1 jeton(s) sur sa fiche, 1 PV chacun à chaque fin de tour) ».
 - **L'effet de note `rejetons {nombre?}`** (1 à 6, 1 par défaut) : la même pose sur le héros qui déclenche. Résultat de
   l'effet `{nombre, jetons, personnage_id, nom}`, même ligne au fil.
