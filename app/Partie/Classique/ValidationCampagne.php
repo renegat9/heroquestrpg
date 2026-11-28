@@ -291,7 +291,11 @@ final class ValidationCampagne
             return $this->refus;
         }
 
-        $this->cles($document, '', self::CLES_CAMPAGNE, ['mercenaires', 'cartes_tresor', 'barde_de_remplacement', 'compagnons_animaux', 'coffres_renforces']);
+        $this->cles($document, '', self::CLES_CAMPAGNE, ['mercenaires', 'cartes_tresor', 'barde_de_remplacement', 'compagnons_animaux', 'coffres_renforces', 'faveurs_hopekins']);
+        // Lot E2 (*Wizards of Morcar* p. 11-12) : Hopekins Rest, un lieu par héros entre deux quêtes, une fois Gardien.
+        if (array_key_exists('faveurs_hopekins', $document) && $document['faveurs_hopekins'] !== true) {
+            $this->refuser('faveurs_hopekins', self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+        }
         // Lot E2 (*Wizards of Morcar* p. 4) : « All chests in this expansion pack are Reinforced ».
         if (array_key_exists('coffres_renforces', $document) && $document['coffres_renforces'] !== true) {
             $this->refuser('coffres_renforces', self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
@@ -364,7 +368,8 @@ final class ValidationCampagne
     }
 
     /** Les régimes d'embauche (lot K6 ; René, 2026-11-19 : « chaque campagne choisit sa règle »). */
-    public const REGIMES_MERCENAIRES = ['par_quete', 'retenu_moitie', 'debloques'];
+    // `gardien` (lot E2, *Wizards of Morcar* p. 8) : Gardien après deux quêtes achevées, 4 par Gardien, 10 po par quête.
+    public const REGIMES_MERCENAIRES = ['par_quete', 'retenu_moitie', 'debloques', 'gardien'];
 
     /**
      * `mercenaires` (facultative, lot K6) : `{regime, offerts: [slug…]}` — le régime d'embauche (*Frozen Horror*

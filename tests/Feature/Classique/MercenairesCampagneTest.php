@@ -181,3 +181,44 @@ it('compagnons animaux : à quatre héros, aucun animal n\'est offert', function
 
     expect(app(MercenairesCampagne::class)->animalOffert($groupe->refresh(), $loup))->toBeFalse();
 });
+
+// ---------------------------------------------------------------- lot E2 : Wizards of Morcar — Gardiens et Hopekins Rest
+
+it('gardien : rien avant deux quêtes achevées ; ensuite quatre par Gardien ; 10 po après chaque quête, sinon il part', function () {
+    ['code' => $code, 'groupe' => $groupe, 'heros' => $heros, 'eclaireur' => $eclaireur] = groupeAMercenaires($this, 'gardien', 1000);
+    $this->postJson("/api/groupes/{$code}/mercenaires", ['mercenaire_id' => $eclaireur->id])->assertStatus(422);
+
+    rendreGardien($groupe);
+    for ($i = 0; $i < 4; $i++) {
+        $this->postJson("/api/groupes/{$code}/mercenaires", ['mercenaire_id' => $eclaireur->id])->assertSuccessful();
+    }
+    $this->postJson("/api/groupes/{$code}/mercenaires", ['mercenaire_id' => $eclaireur->id])->assertStatus(422);
+    expect((int) $heros->refresh()->or)->toBe(800);
+
+    // Au départ suivant : 10 po chacun — la bourse en paie trois, le quatrième part.
+    $heros->update(['or' => 30]);
+    app(MercenairesCampagne::class)->auDepart($groupe->refresh(), 99);
+    expect(GroupeMercenaire::where('groupe_id', $groupe->id)->count())->toBe(3)
+        ->and((int) $heros->refresh()->or)->toBe(0);
+});
+
+it('Hopekins Rest : une campagne classique qui le déclare ouvre la visite au hub, une fois Gardien', function (bool $declaree) {
+    $campagne = DocumentExemple::campagne();
+    if ($declaree) {
+        $campagne['faveurs_hopekins'] = true;
+    }
+    expect(app(ValidationCampagne::class)->valider($campagne))->toBe([]);
+    app(CampagnesConstruites::class)->enregistrer($campagne);
+    $alice = connecterJoueur('alice');
+    $heros = Personnage::create([
+        'joueur_id' => $alice->id, 'nom' => 'Albrecht', 'classe' => 'barbare', 'niveau' => 1, 'or' => 0,
+        'attribut_body' => 4, 'attribut_mind' => 2, 'pv_body_max' => 8, 'pv_body' => 8, 'pv_mind_max' => 2, 'pv_mind' => 2,
+        'des_attaque' => 3, 'des_defense' => 2, 'deplacement_base' => 4,
+    ]);
+    $code = $this->postJson('/api/classique', ['nom' => 'Les Essayeurs', 'campagne' => 'campagne-d-essai', 'personnage_id' => $heros->id])
+        ->assertCreated()->json('groupe.identifiant');
+    $groupe = Groupe::where('identifiant', $code)->firstOrFail();
+    rendreGardien($groupe);
+
+    expect(\App\Partie\FaveursHopekins::visiteOuverte($groupe->refresh(), $heros) !== null)->toBe($declaree);
+})->with(['déclarée' => [true], 'absente' => [false]]);

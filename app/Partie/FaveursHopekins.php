@@ -981,6 +981,12 @@ final class FaveursHopekins
      */
     public static function campagneAvecMorcar(Groupe $groupe): bool
     {
+        // MODE CLASSIQUE (lot E2, *Wizards of Morcar* p. 11-12) : la campagne construite le déclare (`faveurs_hopekins`) —
+        // jamais le bestiaire, qu'un groupe classique n'a pas.
+        if ($groupe->estClassique()) {
+            return data_get($groupe->campagneConstruite?->document, 'faveurs_hopekins') === true;
+        }
+
         return BestiaireGroupe::duGroupe($groupe)->contient(self::BOITE_MORCAR);
     }
 

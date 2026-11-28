@@ -143,8 +143,9 @@ final class MercenairesCampagne
             if ((int) ($allie->paye_jusqu_au_rang ?? 0) >= $rang) {
                 continue;
             }
-            $demi = intdiv((int) $allie->mercenaire?->prix, 2);
-            if (in_array($regle['regime'], ['retenu_moitie', 'debloques'], true) && $allie->recruteur !== null && $bourses->solde($groupe, $allie->recruteur) >= $demi) {
+            // `gardien` (*Wizards of Morcar* p. 8) : « as long as they are paid 10 gold coins at the end of each quest ».
+            $demi = $regle['regime'] === 'gardien' ? self::ENTRETIEN_GARDIEN : intdiv((int) $allie->mercenaire?->prix, 2);
+            if (in_array($regle['regime'], ['retenu_moitie', 'debloques', 'gardien'], true) && $allie->recruteur !== null && $bourses->solde($groupe, $allie->recruteur) >= $demi) {
                 $bourses->payer($groupe, $demi, $allie->recruteur);
                 $allie->update(['paye_jusqu_au_rang' => $rang]);
                 app(TamponAnnonces::class)->annoncer($groupe, ['type' => 'mercenaire_retenu', 'mercenaire' => $allie->mercenaire?->nom,
@@ -171,6 +172,12 @@ final class MercenairesCampagne
 
         return (string) (app(CatalogueConstructeur::class)->index('mercenaires')[$slug]->nom ?? $slug);
     }
+
+    /** *Wizards of Morcar* p. 8 : « paid 10 gold coins at the end of each quest. If they are not paid for their services, they will leave. » */
+    public const ENTRETIEN_GARDIEN = 10;
+
+    /** *Wizards of Morcar* p. 8 : « Wardens may each hire up to four followers at any time between quests. » */
+    public const MAX_PAR_GARDIEN = 4;
 
     /** Embauché contre un jeton : « remains with the hero […] in following quests, no payment required ». */
     public const PAYE_A_VIE = 65535;

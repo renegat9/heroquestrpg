@@ -7342,6 +7342,17 @@ comme le livret — avant chaque quête, un animal gratuit par héros, pour cett
   disparaît, la figure paraît au contact du fouilleur et frappe aussitôt ; le tour du MJ — toute embuscade sur le plateau
   (salle découverte, case de couloir vue). Annonce `embuscade {monstre, instance_id, declencheur, etait: coffre|porte, cause?:
   fouille|tresor|tour_du_mj, position}`.
+- p. 8 : « Once a hero has become a Warden (after completing Quest 2) […] Wardens may each hire up to four followers at any time
+  between quests. […] as long as they are paid 10 gold coins at the end of each quest. If they are not paid for their
+  services, they will leave. Wardens must then pay their full Price to Hire. » Régime de mercenaires **`gardien`**
+  (`mercenaires {regime: "gardien", offerts}`) : recrutement au hub seulement une fois Gardien (`Groupe::estGardien()`, deux
+  quêtes achevées), au prix plein de la bourse du recruteur, quatre par héros (`MercenairesCampagne::MAX_PAR_GARDIEN`) ; au
+  départ de chaque nouvelle quête, 10 po par mercenaire (`ENTRETIEN_GARDIEN`) de la bourse de son recruteur, sinon il part
+  (`mercenaire_retenu` / `mercenaire_congedie`).
+- p. 11-12 : Hopekins Rest. Clé de CAMPAGNE **`faveurs_hopekins: true`** : `FaveursHopekins::campagneAvecMorcar()` répond oui
+  pour ce groupe classique (au RPG, le bestiaire) ; tout le reste est le moteur des faveurs du RPG, tel quel — le tour de
+  visite au hub une fois Gardien (`visite_hopekins` publié par `/moi`, `ChoixLieuHopekins`), « Prêt ! » refusé tant que le
+  héros n'a pas choisi, les neuf faveurs et leurs lecteurs.
 
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 

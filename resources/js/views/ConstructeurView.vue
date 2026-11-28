@@ -1033,7 +1033,14 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                 <option value="par_quete">payés pour une quête à la fois (Frozen Horror)</option>
                                 <option value="retenu_moitie">gardés pour la moitié du prix (Ogre Horde)</option>
                                 <option value="debloques">débloqués par les notes (Dread Moon)</option>
+                                <option value="gardien">Gardiens : 4 chacun, 10 po par quête (Wizards of Morcar)</option>
                             </select>
+                        </div>
+                        <span class="cst-lbl">Hopekins Rest</span>
+                        <div class="cst-ligne">
+                            <label class="cst-case" title="Wizards of Morcar p. 11-12 : une fois Gardiens (deux quêtes achevées), chaque héros peut visiter un lieu de Hopekins Rest entre deux quêtes et en recevoir la faveur.">
+                                <input type="checkbox" :checked="doc.faveurs_hopekins === true" @change="$event.target.checked ? (doc.faveurs_hopekins = true) : delete doc.faveurs_hopekins" /> faveurs de Hopekins Rest au hub
+                            </label>
                         </div>
                         <div v-if="doc.mercenaires" class="cst-puces">
                             <button

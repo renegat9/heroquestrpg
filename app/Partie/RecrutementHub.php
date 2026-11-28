@@ -167,6 +167,7 @@ final class RecrutementHub
             'texte' => match ($regle['regime']) {
                 'par_quete' => 'Chaque mercenaire s\'engage pour la prochaine quête seulement, payé de la bourse de son recruteur ; il faut le réengager avant la suivante. Jamais en quête solo.',
                 'retenu_moitie' => 'Engagé au prix plein, un mercenaire reste d\'une quête à l\'autre si son recruteur paie la moitié de son prix au départ de chaque nouvelle quête ; sinon, il part.',
+                'gardien' => 'Une fois Gardien (deux quêtes achevées), chaque héros engage jusqu\'à quatre mercenaires au prix plein ; chacun reste tant que son recruteur lui verse 10 po après chaque quête, sinon il part.',
                 default => 'Les mercenaires se débloquent au fil des quêtes ; chacun s\'engage pour la prochaine quête, payé de la bourse de son recruteur.',
             }.($compagnons ? ' '.$texteCompagnons : ''),
         ]] : ($compagnons ? ['classique' => ['regime' => null, 'texte' => $texteCompagnons]] : []))];
@@ -205,6 +206,16 @@ final class RecrutementHub
                 : null;
         }
         $regime = $campagne->regle($groupe)['regime'] ?? null;
+        // `gardien` (lot E2, *Wizards of Morcar* p. 8) : « Once a hero has become a Warden (after completing Quest 2) […] Wardens
+        // may each hire up to four followers ».
+        if ($regime === 'gardien') {
+            if (! $groupe->estGardien()) {
+                return ['cle' => 'groupe', 'message' => 'Le recrutement n\'ouvre qu\'une fois Gardien, après deux quêtes achevées.'];
+            }
+            if (($contexte['engages'][$recruteur->id] ?? 0) >= \App\Partie\Classique\MercenairesCampagne::MAX_PAR_GARDIEN) {
+                return ['cle' => 'personnage_id', 'message' => "« {$recruteur->nom} » a déjà engagé ".\App\Partie\Classique\MercenairesCampagne::MAX_PAR_GARDIEN.' mercenaires (maximum de Gardien).'];
+            }
+        }
         // *Dread Moon* p. 11 : « More than one of the same type of mercenary cannot be hired for the same quest. »
         if ($regime === 'debloques' && GroupeMercenaire::where('groupe_id', $groupe->id)->where('etat', 'actif')
             ->where('mercenaire_id', $mercenaire->id)->exists()) {
