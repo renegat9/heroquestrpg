@@ -213,6 +213,25 @@ it('ne voit un flanc que s\'il y a un SECOND monstre au contact', function () {
     expect($dread->cibleFlanquee($ctx['quete'], $ctx['instance'], $etat->fresh()))->toBeTrue();
 });
 
+// René, 2026-11-27 : du 2026-08-10 à ce jour, l'attaque de monstre donnait le dé de flanc à TOUT monstre. Le tacticien seul.
+it('le dé de flanc va au tacticien seul : un orque flanqué n\'en a pas, un raptor si', function (string $assaillant, int $bonus) {
+    $ctx = demarrerQueteAvecMonstre($assaillant);
+    $etat = $ctx['etatHeros'];
+    $libre = caseAdjacenteLibre($ctx['quete'], (int) $etat->position_x, (int) $etat->position_y);
+    InstanceMonstre::create([
+        'quete_id' => $ctx['quete']->id,
+        'monstre_id' => Monstre::where('nom_base', 'Gobelin')->firstOrFail()->id,
+        'pv_body' => 1, 'pv_mind' => 1,
+        'position_x' => $libre['x'], 'position_y' => $libre['y'],
+        'etat' => 'actif', 'revele' => true,
+    ]);
+    $ctx['instance']->update(['revele' => true, 'etat' => 'actif']);
+
+    $frappe = app(\App\Partie\ResolveurTour::class)->frappeDuSurgissement($ctx['groupe'], $ctx['instance']->fresh(), $etat->fresh());
+
+    expect($frappe['bonus_flanc'])->toBe($bonus);
+})->with(['Orque (pas tacticien)' => ['Orque', 0], 'Raptor (tacticien)' => ['Raptor', 1]]);
+
 it('ignore un monstre VAINCU ou non révélé pour le flanc', function () {
     $ctx = demarrerQueteAvecMonstre('Raptor');
     $etat = $ctx['etatHeros'];

@@ -7258,9 +7258,9 @@ Skull may take an action while adjacent to the planar rift to hurl the artifacts
 additional Attack die when targeting a hero adjacent or diagonal to another monster. »
 - En quête construite, le dé de flanc (`bonus_flanc` de l'attaque de monstre) ne va qu'à un monstre `tacticien`, et le flanc
   compte la diagonale (`MoteurDread::cibleFlanquee()`, `Grille::sontAdjacentes(…, $diagonales)` : le texte la nomme).
-- ⚠ Le mode RPG garde son comportement d'avant : depuis le 2026-08-10, l'attaque de monstre principale
-  (`ResolveurTour::resoudreAttaqueMonstre()`) donne ce dé à TOUT monstre dont la cible est flanquée, tacticien ou non
-  (branche classique isolée — signalé à René).
+- Du 2026-08-10 au 2026-11-27, l'attaque de monstre principale (`ResolveurTour::resoudreAttaqueMonstre()`) donnait ce dé à
+  TOUT monstre dont la cible était flanquée, tacticien ou non. Corrigé dans les deux modes (René, 2026-11-27) : le tacticien
+  seul ; le mode RPG garde le flanc orthogonal.
 - Le second mouvement (« move before and after ») reste le repli d'après l'attaque (`replierTacticien()`), déjà joué.
 
 ### Les compagnons animaux offerts — `campagne.compagnons_animaux` (lot E2, 2026-11-27)

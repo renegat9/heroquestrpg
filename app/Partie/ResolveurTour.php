@@ -14376,8 +14376,12 @@ final class ResolveurTour
             // réserve du Defender avant de jouer.
             if ($arene) {
                 app(\App\Partie\Arene\TropheesArene::class)->potionDuDefender($groupe, $quete, $instance);
-                $instance->refresh();
             }
+
+            // RELU avant son tour (2026-11-27) : la liste a été chargée en tête de phase, et un monstre qui a joué avant lui a
+            // pu le changer — *Sharpen Blades* (« +1 dé d'attaque aux orques de la salle », `buff_attaque`) n'était jamais vu
+            // par l'orque qui jouait APRÈS le lanceur. Le dé de flanc donné à tort à tout monstre le masquait.
+            $instance->refresh();
 
             $resultatMonstre = $this->jouerMonstre($groupe, $quete, $instance, $cibles);
             $dejaJoues[] = (int) $instance->id;
@@ -16315,13 +16319,12 @@ final class ResolveurTour
         // Tacticien (Jungles of Delthrak) : +1 dé contre une cible FLANQUÉE,
         // c'est-à-dire au contact d'un second monstre. Le tacticien lui-même ne
         // compte pas comme son propre flanc.
-        // ⚠ MODE CLASSIQUE (lot E2, 2026-11-27) : le TACTICIEN seul — « These monsters […] roll 1 additional Attack die when
-        // targeting a hero adjacent or diagonal to another monster » (p. 48). Ici, depuis le 2026-08-10, le bonus n'exigeait
-        // pas la capacité : tout monstre au flanc gagnait le dé. Le mode RPG le garde tel quel (branche classique isolée) —
-        // signalé à René.
-        $bonusFlanc = $instance->quete?->estConstruite()
-            ? ($this->dread->aCapacite($instance, 'tacticien') && $this->dread->cibleFlanquee($instance->quete, $instance, $cible) ? 1 : 0)
-            : ($this->dread->cibleFlanquee($instance->quete, $instance, $cible) ? 1 : 0);
+        // ⚠ Le TACTICIEN seul — « These monsters […] roll 1 additional Attack die when targeting a hero adjacent or diagonal
+        // to another monster » (p. 48). Du 2026-08-10 au 2026-11-27, le bonus n'exigeait pas la capacité : TOUT monstre au
+        // flanc gagnait le dé, en RPG comme ailleurs (corrigé partout, René 2026-11-27). La diagonale ne compte qu'en mode
+        // classique (`MoteurDread::cibleFlanquee()`).
+        $bonusFlanc = $this->dread->aCapacite($instance, 'tacticien')
+            && $this->dread->cibleFlanquee($instance->quete, $instance, $cible) ? 1 : 0;
 
         // ---- Talents de la GRILLE, côté défense -----------------------------
         //
