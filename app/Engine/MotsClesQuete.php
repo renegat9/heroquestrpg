@@ -191,10 +191,12 @@ final class MotsClesQuete
             'signale_par' => 'MoteurPieges::declencher() / declencherEphemere()',
             'libelle' => 'un piège se déclenche dans la salle, ou sur la case',
         ],
+        // `salle` (lot E2, *Jungles of Delthrak*, les cocons) : n'importe quel meuble de la salle — « For each cocoon a hero
+        // destroys ». Le héros qui le détruit est celui de la note.
         self::MEUBLE_DETRUIT => [
-            'cibles' => ['mobilier'],
+            'cibles' => ['mobilier', 'salle'],
             'signale_par' => 'MoteurMobilier::detruire() / infligerDegats()',
-            'libelle' => 'le meuble est détruit',
+            'libelle' => 'le meuble est détruit (ce meuble, ou un meuble de la salle)',
         ],
         self::HEROS_AU_TOUR_DU_MJ => [
             'cibles' => ['salle', 'cases'],
@@ -392,8 +394,16 @@ final class MotsClesQuete
      */
     public const REJETONS = 'rejetons';
 
-    /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
-    public const EFFETS_COMPOSES = [self::OFFRE, self::JET];
+    /**
+     * Lot E2 (*Jungles of Delthrak*, les cocons, q. 3 C, 6 C, 11 D, 13 D) — « For each cocoon a hero destroys, they find the
+     * following (one at a time and in order): one Potion of Healing, one gem worth 200 gold coins, and one Blightcrawler
+     * Spawnling » : chaque fois que l'effet se joue, l'ÉTAPE suivante (`etapes[].alors`) ; toutes jouées, plus rien. Le
+     * compteur vit en base (`quetes.drapeaux._en_ordre`), par note. La note est `une_fois: false`.
+     */
+    public const EN_ORDRE = 'en_ordre';
+
+    /** Les effets qui en contiennent d'autres (`alors`, `issues[].alors`, `etapes[].alors`, `sinon`) : jamais imbriqués l'un dans l'autre. */
+    public const EFFETS_COMPOSES = [self::OFFRE, self::JET, self::EN_ORDRE];
 
     /**
      * Effet → ses paramètres (obligatoires, puis optionnels), et la méthode de `NotesDeQuete` qui le joue.
@@ -418,7 +428,8 @@ final class MotsClesQuete
         self::DECLENCHER_PIEGE => ['parametres' => ['x', 'y'], 'optionnels' => [], 'lecteur' => 'effetDeclencherPiege', 'libelle' => 'déclencher le piège de la case'],
         self::ERRANTS => ['parametres' => [], 'optionnels' => [], 'lecteur' => 'effetErrants', 'libelle' => 'faire surgir les monstres errants de la quête autour du héros'],
         self::VOLER => ['parametres' => [], 'optionnels' => ['or'], 'lecteur' => 'effetVoler', 'libelle' => 'voler le héros (de l\'or, ou un objet de son sac)'],
-        self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
+        // `pres_du_heros` (lot E2, *Jungles of Delthrak* q. 6 C) : près du héros qui déclenche, et chaque figure au contact frappe aussitôt.
+        self::APPARITION => ['parametres' => ['monstres'], 'optionnels' => ['nombre_d6', 'pres_du_heros'], 'lecteur' => 'effetApparition', 'libelle' => 'faire apparaître des monstres'],
         self::DEGATS => ['parametres' => ['body'], 'optionnels' => ['sur_jet', 'avec_casque', 'toute_la_salle', 'tous_les_heros'], 'lecteur' => 'effetDegats', 'libelle' => 'blesser le héros'],
         self::DRAPEAU => ['parametres' => ['nom'], 'optionnels' => ['campagne'], 'lecteur' => 'effetDrapeau', 'libelle' => 'poser un drapeau de quête'],
         self::OUVRIR_PORTE => ['parametres' => ['porte'], 'optionnels' => [], 'lecteur' => 'effetOuvrirPorte', 'libelle' => 'ouvrir une porte'],
@@ -441,6 +452,7 @@ final class MotsClesQuete
         self::DEBLOQUER_MERCENAIRE => ['parametres' => ['slug'], 'optionnels' => [], 'lecteur' => 'effetDebloquerMercenaire', 'libelle' => 'débloquer un mercenaire'],
         self::EN_RESERVE => ['parametres' => ['monstres'], 'optionnels' => [], 'lecteur' => 'effetEnReserve', 'libelle' => 'placer des figures dans la zone hors du plateau'],
         self::SOIGNER => ['parametres' => [], 'optionnels' => ['body', 'mind'], 'lecteur' => 'effetSoigner', 'libelle' => 'soigner le héros (Corps, Esprit : un nombre ou « tout »)'],
+        self::EN_ORDRE => ['parametres' => ['etapes'], 'optionnels' => [], 'lecteur' => 'effetEnOrdre', 'libelle' => 'jouer l\'étape suivante, une à la fois et dans l\'ordre'],
         self::REJETONS => ['parametres' => [], 'optionnels' => ['nombre'], 'lecteur' => 'effetRejetons', 'libelle' => 'accrocher des Spawnling à la fiche du héros (son tour s\'arrête)'],
         self::INVOQUER => ['parametres' => ['sort'], 'optionnels' => ['x', 'y'], 'lecteur' => 'effetInvoquer', 'libelle' => 'lancer un sort d\'invocation de Dread (les figures surgissent près du héros, ou de la case)'],
     ];

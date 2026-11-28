@@ -692,6 +692,10 @@ final class NotesDeQuete
             $poses = array_slice($poses, 0, $nb);
         }
 
+        $etatHeros = ! empty($effet['pres_du_heros']) && $heros !== null
+            ? $quete->etatsPersonnages()->where('personnage_id', $heros->id)->whereNotNull('position_x')->where('tombe', false)->first()
+            : null;
+
         foreach ($poses as $pose) {
             $monstre = $catalogue[(string) ($pose['slug'] ?? '')] ?? null;
 
@@ -699,8 +703,12 @@ final class NotesDeQuete
                 continue;
             }
 
-            // La grille est relue à chaque figure : celle qui vient de naître occupe sa case.
-            $place = CaseLibre::iciOuProche(FabriqueGrille::pour($quete->fresh()), (int) $pose['x'], (int) $pose['y']);
+            // La grille est relue à chaque figure : celle qui vient de naître occupe sa case. `pres_du_heros` (lot E2, Delthrak
+            // q. 6 C : « place a Blightcrawler next to that hero. It immediately attacks ») : au plus près du héros qui déclenche.
+            $grille = FabriqueGrille::pour($quete->fresh());
+            $place = $etatHeros !== null
+                ? CaseLibre::proche($grille, (int) $etatHeros->position_x, (int) $etatHeros->position_y)
+                : CaseLibre::iciOuProche($grille, (int) $pose['x'], (int) $pose['y']);
 
             if ($place === null) {
                 // Aucune case libre alentour : la figure ne paraît pas, et l'annonce ne la nomme pas.
@@ -726,6 +734,15 @@ final class NotesDeQuete
 
             // Le nom AFFICHÉ de la figure (`InstanceMonstre::nomAffiche()`), jamais le nom de catalogue.
             $apparus[] = ['nom' => $instance->nomAffiche(), 'instance_id' => $instance->id, 'x' => $place['x'], 'y' => $place['y']];
+
+            // « It immediately attacks » : la frappe du surgissement de l'errant (au contact, huit voisines), annoncée comme
+            // l'attaque de monstre qu'elle est.
+            if ($etatHeros !== null) {
+                $frappe = app(\App\Partie\ResolveurTour::class)->frappeDuSurgissement($quete->groupe, $instance->fresh(), $etatHeros->fresh());
+                if ($frappe !== null) {
+                    app(TamponAnnonces::class)->annoncer($quete->groupe, $frappe, ['type' => 'monstre', 'id' => $instance->id, 'nom' => $instance->nomAffiche()]);
+                }
+            }
         }
 
         return ['monstres' => $apparus];
@@ -957,6 +974,27 @@ final class NotesDeQuete
         $heros->update(['pv_body' => (int) $heros->pv_body + $body, 'pv_mind' => (int) $heros->pv_mind + $mind]);
 
         return ['nom' => $heros->nom, 'body' => $body, 'mind' => $mind];
+    }
+
+    /**
+     * Lot E2 (*Jungles of Delthrak*, les cocons) — « one at a time and in order » : l'étape suivante, puis plus rien. Le
+     * compteur est en base (`quetes.drapeaux._en_ordre`), sous le repère de la note et l'empreinte de ses étapes (deux suites
+     * d'une même note ne se mêlent pas).
+     */
+    private function effetEnOrdre(Quete $quete, array $effet, ?Personnage $heros): array
+    {
+        $etapes = array_values((array) ($effet['etapes'] ?? []));
+        $cle = $this->repereEnCours.'#'.md5((string) json_encode($etapes));
+        $drapeaux = (array) $quete->relire('drapeaux')->drapeaux;
+        $rang = (int) ($drapeaux['_en_ordre'][$cle] ?? 0);
+        if ($rang >= count($etapes)) {
+            return ['etape' => null, 'total' => count($etapes), 'effets' => []];
+        }
+        $drapeaux['_en_ordre'][$cle] = $rang + 1;
+        $quete->update(['drapeaux' => $drapeaux]);
+
+        return ['etape' => $rang + 1, 'total' => count($etapes),
+            'effets' => $this->jouerSousEffets($quete, (array) ($etapes[$rang]['alors'] ?? []), $heros)];
     }
 
     /** Lot E2 (*Jungles of Delthrak*, les cocons) — des Spawnling sur la fiche du héros qui déclenche ; son tour s'arrête. */

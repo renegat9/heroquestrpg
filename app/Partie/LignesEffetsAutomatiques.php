@@ -940,6 +940,12 @@ trait LignesEffetsAutomatiques
                 case 'objet_au_hasard':
                     $lignes = [...$lignes, ...$this->noteDeQuete(['personnage' => $heros, 'effets' => array_map(fn ($t) => ['effet' => 'objet', ...(array) $t], (array) ($effet['tirages'] ?? []))])];
                     break;
+                // Lot E2 (*Jungles of Delthrak*, les cocons) : l'étape du jour, ses effets dessous ; épuisée, on le dit.
+                case 'en_ordre':
+                    $lignes = ($effet['etape'] ?? null) === null
+                        ? [...$lignes, ['texte' => 'Il n\'y a plus rien à trouver', 'ton' => 'info']]
+                        : [...$lignes, ...$this->noteDeQuete(['personnage' => $heros, 'effets' => (array) ($effet['effets'] ?? [])])];
+                    break;
                 case 'objet':
                     if (! empty($effet['effets'])) {
                         $lignes = [...$lignes, ...$this->noteDeQuete(['personnage' => $heros, 'effets' => (array) $effet['effets']])];

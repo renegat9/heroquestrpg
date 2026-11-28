@@ -157,6 +157,9 @@ it('une note complète, de chaque déclencheur et de chaque effet, passe la vali
         ['repere' => 'L5', 'quand' => ['declencheur' => 'fin_de_tour', 'cible' => ['case' => ['x' => 8, 'y' => 3]]], 'alors' => [['effet' => 'texte', 'texte' => 'Arrêté.']]],
         ['repere' => 'L6', 'quand' => ['declencheur' => 'piege_declenche', 'cible' => ['salle' => 'entree']], 'alors' => [['effet' => 'texte', 'texte' => 'Clic.']]],
         ['repere' => 'L7', 'quand' => ['declencheur' => 'meuble_detruit', 'cible' => ['mobilier' => 0]], 'alors' => [['effet' => 'texte', 'texte' => 'Brisé.']]],
+        // Lot E2 (Delthrak) : un cocon de la salle, et ce qu'il cache, un à la fois et dans l'ordre.
+        ['repere' => 'L7b', 'une_fois' => false, 'quand' => ['declencheur' => 'meuble_detruit', 'cible' => ['salle' => 'galerie']],
+            'alors' => [['effet' => 'en_ordre', 'etapes' => [['alors' => [['effet' => 'or', 'or' => 200]]], ['alors' => [['effet' => 'rejetons']]]]]]],
         ['repere' => 'L8', 'quand' => ['declencheur' => 'captif_libere', 'cible' => ['captif' => 'sir-ragnar-livret-de-base']], 'alors' => [['effet' => 'texte', 'texte' => 'Libre.']]],
         ['repere' => 'Y', 'quand' => ['declencheur' => 'objet_jete', 'cible' => ['objet' => 'dague']], 'alors' => [['effet' => 'texte', 'texte' => 'Englouti.']]],
         ['repere' => 'Z', 'quand' => ['declencheur' => 'heros_au_tour_du_mj', 'cible' => ['cases' => [['x' => 7, 'y' => 7], ['x' => 8, 'y' => 7]]],

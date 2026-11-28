@@ -1663,3 +1663,67 @@ it('Spawnling d\'une note (les cocons) : « four Blightcrawler Spawnlings » sur
         ->and(collect(collect($resultat['annonces_automatiques'] ?? [])->firstWhere('type', 'note_de_quete')['effets'] ?? [])
             ->firstWhere('effet', 'rejetons')['jetons'] ?? null)->toBe(4);
 });
+
+// ---------------------------------------------------------------- Jungles of Delthrak : les cocons, un à la fois et dans l'ordre
+
+it('cocons : chaque cocon détruit dans la salle donne l\'étape suivante, au héros qui le détruit ; épuisée, plus rien', function () {
+    $campagne = campagneE2([
+        'mobilier' => [['slug' => 'cocon', 'x' => 9, 'y' => 2, 'rotation' => 0], ['slug' => 'cocon', 'x' => 9, 'y' => 4, 'rotation' => 0],
+            ['slug' => 'cocon', 'x' => 10, 'y' => 3, 'rotation' => 0]],
+        'notes' => [['repere' => 'C', 'une_fois' => false, 'quand' => ['declencheur' => 'meuble_detruit', 'cible' => ['salle' => 'galerie']],
+            'alors' => [['effet' => 'en_ordre', 'etapes' => [
+                ['alors' => [['effet' => 'or', 'or' => 200]]],
+                ['alors' => [['effet' => 'rejetons']]],
+            ]]]]],
+    ]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['notes' => [['repere' => 'C', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']],
+            'alors' => [['effet' => 'en_ordre', 'etapes' => [['alors' => [['effet' => 'jet', 'issues' => []]]]]]]]]])))->toContain(ValidationCampagne::VALEUR_INVALIDE);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+
+    $detruire = function (int $index) use ($partie, $quete): array {
+        $quete->etatsPersonnages()->update(['position_x' => 9, 'position_y' => 3, 'a_joue' => false, 'a_agi' => false, 'a_deplace' => false, 'capacites_tour' => null]);
+        \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+        $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+
+        return $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => "detruire_par_action_{$index}"])->assertAccepted()->json('resultat');
+    };
+
+    $detruire(0);
+    expect((int) $partie['heros']->fresh()->or)->toBe(200)
+        ->and((int) $quete->etatsPersonnages()->value('jetons_rejeton'))->toBe(0);
+
+    $detruire(1);
+    expect((int) $partie['heros']->fresh()->or)->toBe(200)
+        ->and((int) $quete->etatsPersonnages()->value('jetons_rejeton'))->toBe(1);
+
+    // Le troisième cocon : la suite est épuisée, le fil le dit.
+    $resultat = $detruire(2);
+    $note = collect($resultat['annonces_automatiques'] ?? [])->firstWhere('type', 'note_de_quete');
+    expect($note['effets'][0])->toHaveKey('etape')->and($note['effets'][0]['etape'])->toBeNull()
+        ->and((int) $quete->etatsPersonnages()->value('jetons_rejeton'))->toBe(1)
+        ->and(collect(app(\App\Partie\JournalCombat::class)->depuisResultat($note, 'Albrecht'))->pluck('texte')->all())->toContain('Il n\'y a plus rien à trouver');
+});
+
+it('apparition près du héros : « place a Blightcrawler next to that hero. It immediately attacks » (q. 6 C)', function () {
+    $campagne = campagneE2([
+        'mobilier' => [['slug' => 'cocon', 'x' => 9, 'y' => 2, 'rotation' => 0]],
+        'notes' => [['repere' => 'C', 'quand' => ['declencheur' => 'meuble_detruit', 'cible' => ['salle' => 'galerie']],
+            'alors' => [['effet' => 'apparition', 'pres_du_heros' => true, 'monstres' => [['slug' => 'orque', 'x' => 7, 'y' => 5]]]]]],
+    ]);
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2(campagneE2(['notes' => [['repere' => 'C', 'quand' => ['declencheur' => 'meuble_detruit', 'cible' => ['salle' => 'galerie']],
+            'alors' => [['effet' => 'apparition', 'pres_du_heros' => 'oui', 'monstres' => [['slug' => 'orque', 'x' => 7, 'y' => 5]]]]]]])))
+            ->toBe([ValidationCampagne::TYPE_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $partie['quete']->etatsPersonnages()->update(['position_x' => 9, 'position_y' => 3]);
+    \Illuminate\Support\Facades\Cache::forget(\App\Jobs\GenererMenu::cleDuHeros($partie['groupe'], $partie['heros']));
+    $this->getJson("/api/groupes/{$partie['code']}/menu")->assertOk();
+
+    $resultat = $this->postJson("/api/groupes/{$partie['code']}/choix", ['option_id' => 'detruire_par_action_0'])->assertAccepted()->json('resultat');
+    $orque = $partie['quete']->instancesMonstres()->firstOrFail();
+
+    expect(max(abs((int) $orque->position_x - 9), abs((int) $orque->position_y - 3)))->toBe(1)
+        ->and(collect($resultat['annonces_automatiques'] ?? [])->pluck('type')->all())->toContain('attaque_monstre');
+});

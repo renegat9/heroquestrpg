@@ -7189,6 +7189,22 @@ Spawnling tile on the triggering hero's card. The hero's turn immediately ends. 
   les autres fins de tour forcées — le créneau devient `tour`, toute la fin de tour se joue (les jetons rongent déjà).
 - La fin de tour relit le compte de jetons EN BASE (une note les pose pendant la résolution, par sa propre copie de l'état).
 
+### Les cocons — `meuble_detruit` par salle, effet `en_ordre`, apparition `pres_du_heros` (lot E2, 2026-11-27)
+
+*Jungles of Delthrak* q. 3 C : « For each cocoon a hero destroys, they find the following (one at a time and in order): one
+Potion of Healing, one gem worth 200 gold coins, and one Blightcrawler Spawnling » ; q. 6 C : « If a hero destroys one of the
+cocoons, place a Blightcrawler next to that hero. It immediately attacks. »
+- Déclencheur **`meuble_detruit`** : cible `{mobilier}` (ce meuble) ou, désormais, `{salle}` (n'importe quel meuble de la
+  salle). Le héros qui l'a détruit (par l'action du cocon, une attaque, un jet de Body) est celui de la note :
+  `MoteurMobilier::detruire()` et `infligerDegats()` prennent un `?Personnage $par`.
+- Effet composé **`en_ordre {etapes: [{alors: [effets]}…]}`** (au moins une étape ; jamais imbriqué dans un autre composé) :
+  chaque fois qu'il se joue, l'étape suivante ; toutes jouées, plus rien. Compteur en base (`quetes.drapeaux._en_ordre`,
+  sous le repère de la note et l'empreinte de ses étapes). La note est `une_fois: false`. Résultat `{etape, total,
+  effets}` (`etape: null` une fois épuisé — fil : « Il n'y a plus rien à trouver »).
+- Effet **`apparition`**, booléen facultatif **`pres_du_heros`** : chaque figure paraît au plus près du héros qui déclenche
+  (la case `x, y` de la pose sert sans héros), et frappe aussitôt si elle le touche (`ResolveurTour::frappeDuSurgissement()`,
+  annoncée comme `attaque_monstre`).
+
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 
 Plan §2.3 R6 : une quête peut dire qu'UN piège ne se trouve pas en fouillant, ou ne se désamorce pas — ce que le

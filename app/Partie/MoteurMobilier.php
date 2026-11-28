@@ -613,7 +613,7 @@ final class MoteurMobilier
      * ⚠ Aucun risque pour l'invariant de connectivité, à l'inverse d'un meuble
      * qu'on POUSSERAIT : retirer un obstacle ne peut qu'ouvrir le donjon.
      */
-    public function detruire(Carte $carte, int $index): void
+    public function detruire(Carte $carte, int $index, ?Personnage $par = null): void
     {
         $grille = $carte->grille;
 
@@ -624,7 +624,7 @@ final class MoteurMobilier
         $grille['mobilier'][$index]['detruit'] = true;
 
         $carte->update(['grille' => $grille]);
-        $this->signalerDestruction($carte, $index);
+        $this->signalerDestruction($carte, $index, $par);
     }
 
     /**
@@ -633,11 +633,18 @@ final class MoteurMobilier
      * (`CarteConstruite::produire()`) : l'index de la grille EST l'index de `quete.mobilier`. Les deux voies de
      * destruction (`detruire()`, `infligerDegats()`) passent par ici, et elles seules.
      */
-    private function signalerDestruction(Carte $carte, int $index): void
+    private function signalerDestruction(Carte $carte, int $index, ?Personnage $par = null): void
     {
         $quete = $carte->quete;
         if ($quete !== null && $quete->estConstruite()) {
-            app(\App\Partie\Classique\NotesDeQuete::class)->signaler($quete, MotsClesQuete::MEUBLE_DETRUIT, ['mobilier' => $index]);
+            // Lot E2 (*Jungles of Delthrak*, les cocons) : aussi la SALLE du meuble (« for each cocoon a hero destroys » — quel
+            // qu'il soit, dans la salle), et le héros qui l'a détruit, à qui la note donne ce qu'il trouve.
+            $entree = (array) ($carte->grille['mobilier'][$index] ?? []);
+            $salle = isset($entree['x'], $entree['y'])
+                ? \App\Partie\Salles::indexDe((array) ($carte->grille['salles'] ?? []), (int) $entree['x'], (int) $entree['y'])
+                : null;
+            app(\App\Partie\Classique\NotesDeQuete::class)->signaler($quete, MotsClesQuete::MEUBLE_DETRUIT,
+                ['mobilier' => $index, 'salle' => $salle], $par);
         }
     }
 
@@ -950,7 +957,7 @@ final class MoteurMobilier
      *
      * @return array{pv_restants: int, detruit: bool}
      */
-    public function infligerDegats(Carte $carte, int $index, int $degats): array
+    public function infligerDegats(Carte $carte, int $index, int $degats, ?Personnage $par = null): array
     {
         $grille = $carte->grille;
         $entree = $grille['mobilier'][$index] ?? null;
@@ -972,7 +979,7 @@ final class MoteurMobilier
         $carte->update(['grille' => $grille]);
 
         if ($apres <= 0) {
-            $this->signalerDestruction($carte, $index);
+            $this->signalerDestruction($carte, $index, $par);
         }
 
         return ['pv_restants' => $apres, 'detruit' => $apres <= 0];

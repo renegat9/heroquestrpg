@@ -726,6 +726,7 @@ const BOOLEENS_EFFET = {
     toute_la_salle: 'tous les héros de sa salle',
     tous_les_heros: 'tous les héros de la quête',
     nombre_d6: 'seuls les 1d6 premiers paraissent',
+    pres_du_heros: 'près du héros qui déclenche, et frappe aussitôt',
     si_absent_du_groupe: 'seulement si personne ne l\'a déjà',
     sauf_declencheur: 'sauf le héros qui déclenche',
 };
@@ -815,6 +816,8 @@ function effetParDefaut(nom) {
             nom: 'drapeau', monstres: [], porte: 0, x: 0, y: 0, jetons: 1, libelle: '', alors: [{ effet: 'texte', texte: '' }],
             // Lot E1 : le jet à deux issues, l'objet tiré parmi deux.
             issues: [{ de: 1, a: 3, alors: [{ effet: 'texte', texte: '' }] }, { de: 4, a: 6, alors: [{ effet: 'texte', texte: '' }] }],
+            // Lot E2 (Delthrak) : deux étapes jouées dans l'ordre.
+            etapes: [{ alors: [{ effet: 'texte', texte: '' }] }, { alors: [{ effet: 'rejetons' }] }],
             parmi: (catalogues.value?.objets ?? []).slice(0, 2).map((o) => o.slug), mobilier: 0,
             // Lot E2 (Prophecy of Telor) : le sort de Dread appris, l'Esprit, l'objet de remplacement.
             sort: nom === 'invoquer'
@@ -1974,6 +1977,16 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                                 <button type="button" class="cst-icone" title="Retirer l'issue" @click="effet.issues.splice(k, 1)"><MSym n="close" :size="16" /></button>
                                             </div>
                                             <button type="button" class="cst-btn ghost" @click="effet.issues.push({ de: 1, a: 1, alors: [{ effet: 'texte', texte: '' }] })"><MSym n="add" :size="14" /> issue</button>
+                                        </div>
+                                        <!-- Lot E2 (Delthrak, les cocons) : les étapes jouées une à la fois et dans l'ordre — effets en JSON, comme le jet. -->
+                                        <div v-else-if="p === 'etapes'" class="cst-apparitions">
+                                            <div v-for="(etape, k) in effet.etapes" :key="`et${k}`" class="cst-ligne">
+                                                <label class="cst-large">{{ k + 1 }}<sup>{{ k === 0 ? 're' : 'e' }}</sup> fois (JSON)
+                                                    <textarea :value="JSON.stringify(etape.alors, null, 1)" rows="2" class="cst-input cst-large" @change="changerJsonEffets(etape, 'alors', $event.target.value)" />
+                                                </label>
+                                                <button type="button" class="cst-icone" title="Retirer l'étape" @click="effet.etapes.splice(k, 1)"><MSym n="close" :size="16" /></button>
+                                            </div>
+                                            <button type="button" class="cst-btn ghost" @click="effet.etapes.push({ alors: [{ effet: 'texte', texte: '' }] })"><MSym n="add" :size="14" /> étape</button>
                                         </div>
                                         <!-- Lot E2 (Prophecy of Telor q. 2 A) : les figures qui gagnent la zone hors du plateau — figure et nombre. -->
                                         <div v-else-if="p === 'monstres' && effet.effet === 'en_reserve'" class="cst-apparitions">

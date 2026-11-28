@@ -9290,7 +9290,7 @@ final class ResolveurTour
             pvBodyDefenseur: $pvAvant,
         );
 
-        $etatMeuble = $this->mobilier->infligerDegats($quete->carte, $index, $resultat->degats);
+        $etatMeuble = $this->mobilier->infligerDegats($quete->carte, $index, $resultat->degats, $personnage);
 
         $payload = [
             'type' => 'attaque_mobilier',
@@ -9359,7 +9359,7 @@ final class ResolveurTour
             ]);
         }
 
-        $this->mobilier->detruire($quete->carte, $index);
+        $this->mobilier->detruire($quete->carte, $index, $personnage);
 
         $payload = [
             'type' => 'detruire_par_action',
@@ -13057,7 +13057,7 @@ final class ResolveurTour
             return [];
         }
 
-        $this->mobilier->detruire($quete->carte, $index);
+        $this->mobilier->detruire($quete->carte, $index, $personnage);
 
         $payload = ['detruit' => true];
 

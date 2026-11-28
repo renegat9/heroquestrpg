@@ -1120,7 +1120,7 @@ final class ValidationCampagne
     {
         foreach ($this->enListeDe($effet, $cle, $position) as $k => $sousEffet) {
             if (is_array($sousEffet) && in_array($sousEffet['effet'] ?? null, MotsClesQuete::EFFETS_COMPOSES, true)) {
-                $this->refuser("$position.$cle.$k", self::VALEUR_INVALIDE, 'un effet composé (offre, jet) ne s\'imbrique pas');
+                $this->refuser("$position.$cle.$k", self::VALEUR_INVALIDE, 'un effet composé (offre, jet, en ordre) ne s\'imbrique pas');
 
                 continue;
             }
@@ -1315,6 +1315,21 @@ final class ValidationCampagne
                     $this->refuser($position, self::VALEUR_INVALIDE, 'le Corps, l\'Esprit, ou les deux : un soin sans jauge ne fait rien');
                 }
                 break;
+            // Lot E2 (*Jungles of Delthrak*, les cocons) : « one at a time and in order » — au moins une étape, chacune ses effets.
+            case MotsClesQuete::EN_ORDRE:
+                $etapes = $this->enListeDe($effet, 'etapes', $position);
+                if ($etapes === [] && is_array($effet['etapes'] ?? null)) {
+                    $this->refuser("$position.etapes", self::VALEUR_INVALIDE, 'au moins une étape');
+                }
+                foreach ($etapes as $k => $valeurEtape) {
+                    $ici = "$position.etapes.$k";
+                    $etape = $this->enObjet($valeurEtape, $ici);
+                    if ($etape !== null) {
+                        $this->cles($etape, $ici, ['alors']);
+                        $this->sousEffets($etape, 'alors', $ici, $quete);
+                    }
+                }
+                break;
             // Lot E2 (*Jungles of Delthrak*, les cocons) : des Spawnling sur la fiche — « four Blightcrawler Spawnlings » au plus fort.
             case MotsClesQuete::REJETONS:
                 $nombre = $this->entier($effet, 'nombre', $position, min: 1);
@@ -1424,8 +1439,10 @@ final class ValidationCampagne
                 }
                 break;
             case MotsClesQuete::APPARITION:
-                if (array_key_exists('nombre_d6', $effet) && ! is_bool($effet['nombre_d6'])) {
-                    $this->refuser("$position.nombre_d6", self::TYPE_INVALIDE, 'true ou false est attendu');
+                foreach (['nombre_d6', 'pres_du_heros'] as $booleen) {
+                    if (array_key_exists($booleen, $effet) && ! is_bool($effet[$booleen])) {
+                        $this->refuser("$position.$booleen", self::TYPE_INVALIDE, 'true ou false est attendu');
+                    }
                 }
                 $monstres = $this->enListeDe($effet, 'monstres', $position);
                 if (array_key_exists('monstres', $effet) && is_array($effet['monstres']) && $monstres === []) {
