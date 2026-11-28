@@ -1020,6 +1020,12 @@ const libelleMonstre = (m, i) => `monstre ${i} — ${nomDe('monstres', m.slug)} 
                                     @change="$event.target.value.trim() ? (doc.barde_de_remplacement.si_drapeau = $event.target.value.trim()) : delete doc.barde_de_remplacement.si_drapeau" />
                             </label>
                         </div>
+                        <span class="cst-lbl">Coffres renforcés</span>
+                        <div class="cst-ligne">
+                            <label class="cst-case" title="Wizards of Morcar p. 4 : dans une salle à coffre, ce que la note de fouille donne ne revient qu'au héros au contact d'un coffre ; les autres tirent une carte du paquet.">
+                                <input type="checkbox" :checked="doc.coffres_renforces === true" @change="$event.target.checked ? (doc.coffres_renforces = true) : delete doc.coffres_renforces" /> le contenu d'un coffre ne se trouve qu'à son contact
+                            </label>
+                        </div>
                         <span class="cst-lbl">Mercenaires</span>
                         <div class="cst-ligne">
                             <select :value="doc.mercenaires?.regime ?? ''" class="cst-input" @change="changerRegimeMercenaires($event.target.value)">

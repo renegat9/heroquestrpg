@@ -291,7 +291,11 @@ final class ValidationCampagne
             return $this->refus;
         }
 
-        $this->cles($document, '', self::CLES_CAMPAGNE, ['mercenaires', 'cartes_tresor', 'barde_de_remplacement', 'compagnons_animaux']);
+        $this->cles($document, '', self::CLES_CAMPAGNE, ['mercenaires', 'cartes_tresor', 'barde_de_remplacement', 'compagnons_animaux', 'coffres_renforces']);
+        // Lot E2 (*Wizards of Morcar* p. 4) : « All chests in this expansion pack are Reinforced ».
+        if (array_key_exists('coffres_renforces', $document) && $document['coffres_renforces'] !== true) {
+            $this->refuser('coffres_renforces', self::TYPE_INVALIDE, 'true est attendu (ou la clé absente)');
+        }
         // Lot E2 (*Jungles of Delthrak* p. 9, *Against the Ogre Horde* p. 8) : les compagnons animaux offerts — des animaux du catalogue.
         if (array_key_exists('compagnons_animaux', $document) && ($compagnons = $this->enObjet($document['compagnons_animaux'], 'compagnons_animaux')) !== null) {
             $this->cles($compagnons, 'compagnons_animaux', ['offerts']);

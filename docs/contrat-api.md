@@ -7319,6 +7319,11 @@ comme le livret — avant chaque quête, un animal gratuit par héros, pour cett
   `toucher_mur_{x}_{y}` (type `toucher_mur_illusoire`, créneau `interaction`) ; la case redevient du sol. Résultat
   `mur_illusoire {personnage_id, nom, x, y}` : « Albrecht tend la main vers le mur : il ondoie et se dissipe — ce n'était
   qu'une illusion ».
+- p. 4 : « Contents of chests are not found until the first time a hero adjacent to that chest searches the room. Heroes who
+  are not adjacent to the chest draw from the treasure deck instead. » Clé de CAMPAGNE **`coffres_renforces: true`**
+  (`Classique\CoffresRenforces`) : dans une salle qui contient un « Coffre », la note `fouille_tresor` ne joue que pour un
+  héros au contact d'un coffre de la salle ; les autres tirent une carte du paquet (la note n'est pas marquée jouée). Une
+  salle sans coffre n'est pas concernée.
 
 ### Pièges de quête — introuvables, indésarmables (lot K5d, 2026-11-16)
 

@@ -2013,3 +2013,25 @@ it('mur illusoire : un bloc qui bloque, jusqu\'à ce qu\'un héros à son contac
         ->and(\App\Partie\FabriqueGrille::pour($quete->fresh())->estTraversable(8, 7))->toBeTrue()
         ->and((bool) $etat->a_agi)->toBeFalse()->and((bool) $etat->a_deplace)->toBeFalse();
 });
+
+it('coffres renforcés : loin du coffre, la carte du paquet et la note attend ; au contact, la note du coffre', function () {
+    $campagne = campagneE2([
+        'mobilier' => [['slug' => 'coffre', 'x' => 10, 'y' => 2, 'rotation' => 0]],
+        'notes' => [['repere' => 'C', 'quand' => ['declencheur' => 'fouille_tresor', 'cible' => ['salle' => 'galerie']], 'alors' => [['effet' => 'or', 'or' => 400]]]],
+    ]);
+    $campagne['coffres_renforces'] = true;
+    expect(codesE2($campagne))->toBe([])
+        ->and(codesE2([...$campagne, 'coffres_renforces' => 'oui']))->toBe([ValidationCampagne::TYPE_INVALIDE]);
+    $partie = partieE2($this, $campagne);
+    $quete = $partie['quete'];
+    $etat = $quete->etatsPersonnages()->first();
+    $renforces = app(\App\Partie\Classique\CoffresRenforces::class);
+
+    $etat->update(['position_x' => 10, 'position_y' => 3]);
+    expect($renforces->noteRetenue($quete->fresh(), $etat->fresh(), 1))->toBeFalse();
+
+    $resultat = fouillerE2($this, $partie); // en (8, 3), loin du coffre
+    expect($resultat['issue'])->not->toBe('note')
+        ->and((int) $partie['heros']->fresh()->or)->not->toBe(400)
+        ->and((array) $quete->fresh()->notes_jouees)->toBe([]);
+});

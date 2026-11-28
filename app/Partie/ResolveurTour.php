@@ -11880,7 +11880,9 @@ final class ResolveurTour
         if ($salleConsigne !== null && $confiscation->enAttente($quete, (int) $personnage->id)
             && data_get($quete->carte?->grille, "salles.{$salle}.id") === $salleConsigne) {
             $payload = $entete + ['issue' => 'consigne', 'consigne' => $confiscation->rendre($quete, $personnage)];
-        } elseif (app(NotesDeQuete::class)->attend($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote, $personnage)) {
+        } elseif (app(NotesDeQuete::class)->attend($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote, $personnage)
+            // COFFRES RENFORCÉS (mode classique, lot E2 — Morcar p. 4) : loin du coffre, la carte du paquet ; la note attend.
+            && ! app(\App\Partie\Classique\CoffresRenforces::class)->noteRetenue($quete, $etat, (int) $salle)) {
             $notes = app(NotesDeQuete::class)->signaler($quete, MotsClesQuete::FOUILLE_TRESOR, $cibleNote, $personnage);
             $payload = $entete + ['issue' => 'note', 'notes' => array_column($notes, 'repere')];
         } elseif (($richesses = app(\App\Partie\Classique\RichessesElfiques::class)->montant($quete, (int) $salle, $premierDeLaSalle)) !== null) {
